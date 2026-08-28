@@ -2,6 +2,8 @@
 
 import json
 import os
+import shutil
+import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -165,6 +167,43 @@ class ElfieLabStorage:
         path = self.elfies_dir / elfie_id / "brain" / "journal.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
+
+    def export_elfie_snapshot(self, elfie_id: str, target_root: Path) -> Path:
+        """Copy one Lab Elfie's durable state into an isolated evaluation root.
+
+        SQLite databases are copied with the online backup API so an evaluation
+        never receives a torn WAL snapshot while the interactive Lab session is
+        still open.
+        """
+
+        self._validate_id(elfie_id)
+        source_workspace = self.elfie_dir(elfie_id)
+        if not source_workspace.is_dir():
+            raise KeyError(f"测试精灵不存在: {elfie_id}")
+        selected_root = target_root.expanduser().resolve(strict=False)
+        target_workspace = selected_root / "elfies" / elfie_id
+        if target_workspace.exists():
+            raise ValueError(f"评测快照已经存在: {target_workspace}")
+        target_workspace.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(
+            source_workspace,
+            target_workspace,
+            ignore=shutil.ignore_patterns("*.sqlite", "*.sqlite-wal", "*.sqlite-shm"),
+        )
+        for relative in (
+            Path("memory/knowledge.sqlite"),
+            Path("activity/activity.sqlite"),
+            Path("brain/journal.sqlite"),
+        ):
+            source = source_workspace / relative
+            if not source.is_file():
+                continue
+            destination = target_workspace / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(str(source)) as source_db:
+                with sqlite3.connect(str(destination)) as destination_db:
+                    source_db.backup(destination_db)
+        return target_workspace
 
     def save_portrait(self, elfie_id: str, content: bytes) -> Path:
         if not content.startswith(b"\x89PNG\r\n\x1a\n"):

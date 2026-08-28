@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Alert, Button, Card, Empty, Slider, Tag } from "antd";
 
 import { viewIntents, type NestEvent, type ViewIntent } from "./contracts";
 import { useNestLab } from "./use-nest-lab";
@@ -89,66 +90,48 @@ export function NestLabApp(): React.JSX.Element {
     <main className="nest-console">
       <header className="console-header">
         <div>
-          <p className="kicker">DEVELOPER OBSERVATORY · ISOLATED</p>
           <h1>Nest Lab</h1>
-          <p>固定房间、碰撞、路径与 Nest / Godot 协作实验台</p>
         </div>
-        <div className={`connection ${state.runtime?.runtime_connected ? "online" : ""}`}>
+        <Tag className={`connection ${state.runtime?.runtime_connected ? "online" : ""}`} color={state.runtime?.runtime_connected ? "success" : "default"}>
           <span aria-hidden="true" />
           {state.runtime?.runtime_connected ? "Godot Runtime 已连接" : "等待 Godot Runtime"}
-        </div>
+        </Tag>
       </header>
 
       <section className="nest-grid" aria-label="Nest Lab 工作区">
-        <section className="room-panel console-panel">
-          <div className="panel-heading">
-            <div><p className="kicker">LIVE ROOM</p><h2>房间观测</h2></div>
-            <strong>{status}</strong>
-          </div>
+        <Card className="room-panel console-panel" extra={<Tag bordered={false}>{status}</Tag>} title={<h2>房间观测</h2>}>
           <div className="view-toolbar" aria-label="房间视角">
             {viewOptions.map((option) => (
-              <button key={option.value} onClick={() => selectView(option.value)} type="button">{option.label}</button>
+              <Button key={option.value} onClick={() => selectView(option.value)} size="small">{option.label}</Button>
             ))}
-            <button className="restore-view" onClick={() => selectView(viewIntents.restore)} type="button">还原视角</button>
+            <Button className="restore-view" onClick={() => selectView(viewIntents.restore)} size="small">还原视角</Button>
           </div>
           <div className="room-frame">
             {state.previewUrl === null ? <p>{state.previewHint ?? "正在准备 Godot Web…"}</p> : <iframe ref={frameRef} src={state.previewUrl} title="Nest Lab Godot 房间预览" />}
           </div>
-          <p className="panel-note">拖拽可观察任意角度；“还原视角”会回到当前预设相机。房屋、相机、路径与碰撞均由 Godot 执行。</p>
-        </section>
+        </Card>
 
         <aside className="controls-column">
-          <section className="console-panel">
-            <p className="kicker">WORLD</p><h2>房间设置</h2>
+          <Card className="console-panel" title={<h2>房间设置</h2>}>
             <label className="bed-control" htmlFor="bedCount">床位数 <output>{bedDraft}</output></label>
-            <input
-              id="bedCount"
-              max="32"
-              min="1"
-              onChange={(event) => { setBedDraft(Number(event.target.value)); setBedDirty(true); }}
-              type="range"
-              value={bedDraft}
-            />
-            <button disabled={!bedDirty} onClick={() => { void commitBeds(); }} type="button">应用床位数</button>
+            <Slider id="bedCount" max={32} min={1} onChange={(value) => { setBedDraft(value); setBedDirty(true); }} value={bedDraft} />
+            <Button block disabled={!bedDirty} onClick={() => { void commitBeds(); }} type="primary">应用床位数</Button>
             <p className="muted">{state.world?.actor_count ?? 0} 个临时角色 · 世界版本 {state.world?.world_revision ?? "—"}</p>
-          </section>
-          <section className="console-panel">
-            <p className="kicker">ACTORS</p><h2>添加角色</h2>
-            <div className="button-row"><button onClick={() => { void action("actors", "已添加一只狐狸。", { species: "fox" }); }} type="button">＋ 狐狸</button><button onClick={() => { void action("actors", "已添加一只小狗。", { species: "dog" }); }} type="button">＋ 小狗</button></div>
-            <ul className="actor-list">{state.actors.map((actor) => <li key={actor.actor_id}><span>{actor.species === "fox" ? "狐狸" : "小狗"}</span>{actor.actor_id}</li>)}</ul>
-          </section>
-          <section className="console-panel">
-            <p className="kicker">SIMULATION</p><h2>实验控制</h2>
-            <div className="button-grid"><button onClick={() => { void action("simulation/wander", "随机游走已开启。"); }} type="button">随机游走</button><button onClick={() => { void action("simulation/pause", "模拟已暂停。"); }} type="button">暂停</button><button onClick={() => { void action("simulation/resume", "模拟已继续。"); }} type="button">继续</button><button className="danger" onClick={() => { void action("simulation/reset", "实验已重置。"); }} type="button">重置</button></div>
-          </section>
+          </Card>
+          <Card className="console-panel" title={<h2>添加角色</h2>}>
+            <div className="button-row"><Button onClick={() => { void action("actors", "已添加一只狐狸。", { species: "fox" }); }}>＋ 狐狸</Button><Button onClick={() => { void action("actors", "已添加一只小狗。", { species: "dog" }); }}>＋ 小狗</Button></div>
+            {state.actors.length ? <ul className="actor-list">{state.actors.map((actor) => <li key={actor.actor_id}><span>{actor.species === "fox" ? "狐狸" : "小狗"}</span>{actor.actor_id}</li>)}</ul> : <Empty description="还没有临时角色" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+          </Card>
+          <Card className="console-panel" title={<h2>实验控制</h2>}>
+            <div className="button-grid"><Button onClick={() => { void action("simulation/wander", "随机游走已开启。"); }}>随机游走</Button><Button onClick={() => { void action("simulation/pause", "模拟已暂停。"); }}>暂停</Button><Button onClick={() => { void action("simulation/resume", "模拟已继续。"); }}>继续</Button><Button danger onClick={() => { void action("simulation/reset", "实验已重置。"); }}>重置</Button></div>
+          </Card>
         </aside>
 
-        <section className="event-panel console-panel">
-          <div className="panel-heading"><div><p className="kicker">EVENTS</p><h2>事件时间线</h2></div><button onClick={() => { void refresh(); }} type="button">刷新</button></div>
-          <ol className="event-timeline">{[...state.events].reverse().map((event) => <li key={event.sequence}><time dateTime={event.occurred_at}>{eventTime(event.occurred_at)}</time><div><strong>{eventTitle(event)}</strong><p>{event.detail}</p><small>事件 #{event.sequence} · {event.name}</small></div></li>)}</ol>
-        </section>
+        <Card className="event-panel console-panel" extra={<Button onClick={() => { void refresh(); }} size="small">刷新</Button>} title={<h2>事件时间线</h2>}>
+          {state.events.length ? <ol className="event-timeline">{[...state.events].reverse().map((event) => <li key={event.sequence}><time dateTime={event.occurred_at}>{eventTime(event.occurred_at)}</time><div><strong>{eventTitle(event)}</strong><p>{event.detail}</p><small>事件 #{event.sequence} · {event.name}</small></div></li>)}</ol> : <Empty description="还没有运行事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+        </Card>
       </section>
-      <p className={error === null ? "console-notice" : "console-notice error"} role="status">{error ?? notice}</p>
+      {error !== null || notice ? <Alert className="console-notice" message={error ?? notice} role="status" showIcon type={error === null ? "success" : "error"} /> : null}
     </main>
   );
 }

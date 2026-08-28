@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { Button, Checkbox, Input, Segmented, Select } from "antd";
 
 import type { ElfieSession, ElfieTurn, PreviewIntent } from "./contracts";
 import { buildStateInjection } from "./stimulus";
 import { formatSignedDelta } from "./viewModel";
-import { WorkspaceModeSwitch } from "./WorkspaceModeSwitch";
 
 type SourceDomain = "communication" | "embodied";
 type UploadedMedia = Readonly<{ readonly id: string; readonly mimeType: string }>;
@@ -87,7 +87,7 @@ function TurnList({ session, onPreviewIntent, onSelect, epoch }: Readonly<{ read
   if (!session.turns.length) return <section className="timeline-placeholder"><div className="signal-mark"><i /><i /><i /></div><h3>等待第一次刺激</h3><p>发送一句话，或打开实验刺激构造边界状态。</p></section>;
   return <>{session.turns.map((turn, index) => {
     const intents = actionIntents(turn).filter((intent) => (intent.type === "motion" || intent.type === "expression") && Boolean(intent.intent_id));
-    return <article className="turn" key={turn.turn_id}><div className="turn-meta">TURN {String(index + 1).padStart(2, "0")} · {new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</div><div className="bubble-row user">{avatar("", "", epoch, true)}<button className="bubble" onClick={() => onSelect(turn, "input")} type="button"><span className="bubble-label"><span>开发者刺激</span><span className="channel">{turnSourceLabel(turn)}</span></span><p>{turn.stimulus_bundle.message || "非文字刺激"}</p>{turn.used_state_injection ? <span className="bubble-tag warning">状态注入</span> : null}</button></div><button className="process-line" onClick={() => onSelect(turn, "chain")} type="button">感知 <i /> 决策 <i /> {turn.duration_ms ?? 0}ms</button><div className="bubble-row elfie">{avatar(session.profile.portrait_url, session.profile.name, epoch)}<div><button className={turn.result.success === false ? "bubble error" : "bubble"} onClick={() => onSelect(turn, "output")} type="button"><span className="bubble-label">{session.profile.name}</span><p>{turnText(turn)}</p>{tags(turn).map((tag) => <span className="bubble-tag" key={tag}>{tag}</span>)}</button>{intents.length ? <div className="turn-actions" aria-label="动作回放">{intents.map((intent) => <button className="turn-action" key={intent.intent_id} onClick={() => onPreviewIntent(turn, intent)} type="button">{intentLabel(intent)}</button>)}</div> : null}</div></div></article>;
+    return <article className="turn" key={turn.turn_id}><div className="turn-meta">TURN {String(index + 1).padStart(2, "0")} · {new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</div><div className="bubble-row user">{avatar("", "", epoch, true)}<Button className="bubble" onClick={() => onSelect(turn, "input")} type="text"><span className="bubble-label"><span>开发者刺激</span><span className="channel">{turnSourceLabel(turn)}</span></span><p>{turn.stimulus_bundle.message || "非文字刺激"}</p>{turn.used_state_injection ? <span className="bubble-tag warning">状态注入</span> : null}</Button></div><Button className="process-line" onClick={() => onSelect(turn, "chain")} type="text">感知 <i /> 决策 <i /> {turn.duration_ms ?? 0}ms</Button><div className="bubble-row elfie">{avatar(session.profile.portrait_url, session.profile.name, epoch)}<div><Button className={turn.result.success === false ? "bubble error" : "bubble"} onClick={() => onSelect(turn, "output")} type="text"><span className="bubble-label">{session.profile.name}</span><p>{turnText(turn)}</p>{tags(turn).map((tag) => <span className="bubble-tag" key={tag}>{tag}</span>)}</Button>{intents.length ? <div className="turn-actions" aria-label="动作回放">{intents.map((intent) => <Button className="turn-action" key={intent.intent_id} onClick={() => onPreviewIntent(turn, intent)} size="small" type="default">{intentLabel(intent)}</Button>)}</div> : null}</div></div></article>;
   })}</>;
 }
 
@@ -177,7 +177,7 @@ export function TimelinePanel(props: Props): React.JSX.Element {
     : !message.trim() && media === null && impact === 0 && stroke === 0 && !hasStateInjection;
   return <section className="timeline-panel" aria-label="交互时间线">
     <div className="timeline-heading">
-      <div className="timeline-heading-title"><div><p className="eyebrow">实时实验会话</p><h2>交互时间线</h2></div><WorkspaceModeSwitch active="experiment" onEvaluation={props.onOpenEvaluation ?? (() => undefined)} onExperiment={() => undefined} /></div>
+      <div className="timeline-heading-title"><h2>交互时间线</h2></div>
       <div className="timeline-heading-actions"><div className="session-indicator"><span /><b>{props.session?.turns.length ?? 0} 轮</b></div></div>
     </div>
     <div className="timeline">
@@ -187,44 +187,38 @@ export function TimelinePanel(props: Props): React.JSX.Element {
     </div>
     <form className="composer" onSubmit={(event) => { void submit(event); }}>
       {drawer ? <div className="stimulus-drawer">
-        {sourceDomain === "embodied" ? <div className="stimulus-tabs">
-          <button className={!debug ? "active" : ""} onClick={() => setDebug(false)} type="button">现场刺激</button>
-          <button className={debug ? "active" : ""} onClick={() => setDebug(true)} type="button">Debug 状态{hasStateInjection ? " · 已启用" : ""}</button>
-        </div> : <div className="drawer-context">
+        {sourceDomain === "embodied" ? <Segmented className="stimulus-tabs" onChange={(value) => setDebug(value === "debug")} options={[{ label: "现场刺激", value: "live" }, { label: `Debug 状态${hasStateInjection ? " · 已启用" : ""}`, value: "debug" }]} value={debug ? "debug" : "live"} /> : <div className="drawer-context">
           <strong>消息 · Debug 状态</strong>
           <span>消息线路只发送会话内容；这里可以覆盖本轮开始前的实验状态。</span>
         </div>}
         {showDebugPanel ? <div>
-          <div className="debug-toggle-row"><label className="check-control"><input checked={injectionEnabled} onChange={(event) => setInjectionEnabled(event.target.checked)} type="checkbox" /> 启用本轮状态覆盖</label></div>
+          <div className="debug-toggle-row"><Checkbox checked={injectionEnabled} onChange={(event) => setInjectionEnabled(event.target.checked)}>启用本轮状态覆盖</Checkbox></div>
           <div aria-disabled={!injectionEnabled} className="injection-grid">
-            <label className="check-control"><input checked={sleeping} disabled={!injectionEnabled} onChange={(event) => { setSleeping(event.target.checked); setSleepingTouched(true); }} type="checkbox" /> 睡眠中</label>
-            {["energy", "fatigue", "happiness", "sadness", "anger", "fear", "surprise", "disgust", "boredom", "attachment"].map((name) => <label key={name}>{name}<input disabled={!injectionEnabled} onChange={(event) => updateInjection(name, event.target.value)} placeholder="不修改" type="number" value={injection[name] ?? ""} /></label>)}
+            <Checkbox checked={sleeping} disabled={!injectionEnabled} onChange={(event) => { setSleeping(event.target.checked); setSleepingTouched(true); }}>睡眠中</Checkbox>
+            {["energy", "fatigue", "happiness", "sadness", "anger", "fear", "surprise", "disgust", "boredom", "attachment"].map((name) => <label key={name}>{name}<Input disabled={!injectionEnabled} onChange={(event) => updateInjection(name, event.target.value)} placeholder="不修改" type="number" value={injection[name] ?? ""} /></label>)}
           </div>
         </div> : <div className="stimulus-grid">
-          <label>环境温度 <span><input onChange={(event) => setTemperature(Number(event.target.value))} type="number" value={temperature} /> °C</span></label>
-          <label>撞击力 <span><input min="0" onChange={(event) => setImpact(Number(event.target.value))} type="number" value={impact} /></span></label>
-          <label>触碰位置 <select onChange={(event) => setDirection(event.target.value)} value={direction}><option value="none">无</option><option value="head">头部</option><option value="back">背部</option><option value="paw">爪部</option></select></label>
-          <label>抚摸力度 <span><input min="0" onChange={(event) => setStroke(Number(event.target.value))} type="number" value={stroke} /></span></label>
+          <label>环境温度 <span><Input onChange={(event) => setTemperature(Number(event.target.value))} type="number" value={temperature} /> °C</span></label>
+          <label>撞击力 <span><Input min="0" onChange={(event) => setImpact(Number(event.target.value))} type="number" value={impact} /></span></label>
+          <label>触碰位置 <Select onChange={setDirection} options={[{ label: "无", value: "none" }, { label: "头部", value: "head" }, { label: "背部", value: "back" }, { label: "爪部", value: "paw" }]} value={direction} /></label>
+          <label>抚摸力度 <span><Input min="0" onChange={(event) => setStroke(Number(event.target.value))} type="number" value={stroke} /></span></label>
         </div>}
       </div> : null}
       {media !== null ? <div className="media-preview">
         {media.mimeType.startsWith("image/") ? <img alt={sourceDomain === "embodied" ? "本轮视觉输入预览" : "消息图片附件预览"} src={media.url} /> : <span aria-hidden="true" className="media-file-icon">↥</span>}
         <span><strong>{media.name}</strong><small>{sourceDomain === "embodied" ? "现场视觉输入" : "消息附件"}</small></span>
-        <button onClick={() => setMedia(null)} type="button">×</button>
+        <Button aria-label="移除附件" onClick={() => setMedia(null)} shape="circle" type="text">×</Button>
       </div> : null}
       <div className="composer-row"><div className="message-field">
-        <div className="message-field-inner"><textarea disabled={disabled || sending} onChange={(event) => updateMessage(event.target.value)} onKeyDown={sendWithEnter} placeholder={sourceDomain === "communication" ? "发送一条消息…" : "输入现场听到的话…"} value={message} /></div>
+        <div className="message-field-inner"><Input.TextArea autoSize={{ minRows: 1, maxRows: 5 }} disabled={disabled || sending} onChange={(event) => updateMessage(event.target.value)} onKeyDown={sendWithEnter} placeholder={sourceDomain === "communication" ? "发送一条消息…" : "输入现场听到的话…"} value={message} /></div>
         <div className="message-field-footer">
           <div className="message-field-actions">
-            <div aria-label="输入来源" className="source-switch">
-              <button aria-pressed={sourceDomain === "communication"} className={sourceDomain === "communication" ? "active" : ""} disabled={sending} onClick={() => switchSource("communication")} type="button">消息</button>
-              <button aria-pressed={sourceDomain === "embodied"} className={sourceDomain === "embodied" ? "active" : ""} disabled={sending} onClick={() => switchSource("embodied")} type="button">现场</button>
-            </div>
-            <button aria-label={sourceDomain === "embodied" ? "添加视觉输入" : "添加附件"} className="tool-button" disabled={disabled || sending} onClick={() => inputRef.current?.click()} type="button">+</button>
+            <Segmented aria-label="输入来源" className="source-switch" disabled={sending} onChange={(value) => switchSource(value as SourceDomain)} options={[{ label: "消息", value: "communication" }, { label: "现场", value: "embodied" }]} value={sourceDomain} />
+            <Button aria-label={sourceDomain === "embodied" ? "添加视觉输入" : "添加附件"} className="tool-button" disabled={disabled || sending} onClick={() => inputRef.current?.click()} type="text">+</Button>
             <input accept={sourceDomain === "embodied" ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,application/pdf,text/plain,text/markdown,application/json,text/csv"} hidden onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file !== undefined) void chooseMedia(file); }} ref={inputRef} type="file" />
-            <button aria-expanded={drawer} aria-label={hasStateInjection ? "输入设置（状态覆盖已启用）" : "输入设置"} className={drawer || hasStateInjection ? "tool-button active" : "tool-button"} disabled={disabled || sending} onClick={() => setDrawer(!drawer)} type="button">⌘</button>
+            <Button aria-expanded={drawer} aria-label={hasStateInjection ? "输入设置（状态覆盖已启用）" : "输入设置"} className={drawer || hasStateInjection ? "tool-button active" : "tool-button"} disabled={disabled || sending} onClick={() => setDrawer(!drawer)} type="text">⌘</Button>
           </div>
-          <button className="send-button" disabled={disabled || sending || cannotSend} type="submit"><span>{sending ? "思考中" : "发送"}</span><b>↑</b></button>
+          <Button className="send-button" disabled={disabled || sending || cannotSend} htmlType="submit" loading={sending} type="primary"><span>{sending ? "思考中" : "发送"}</span><b>↑</b></Button>
         </div>
       </div></div>
       <p className="composer-note">Enter 发送 · Shift + Enter 换行 · 消息与现场分别形成独立 Turn</p>

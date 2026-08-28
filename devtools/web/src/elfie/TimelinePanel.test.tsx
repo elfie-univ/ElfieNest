@@ -61,10 +61,10 @@ describe("Elfie Lab composer", () => {
     const markup = renderTimeline();
 
     expect(markup).toContain('class="timeline-heading-title"');
-    expect(markup).toContain('class="source-switch"');
-    expect(markup).toContain(">消息</button>");
-    expect(markup).toContain(">现场</button>");
-    expect(markup.indexOf('class="source-switch"')).toBeGreaterThan(
+    expect(markup).toContain('role="radiogroup" aria-label="输入来源"');
+    expect(markup).toContain('title="消息">消息</div>');
+    expect(markup).toContain('title="现场">现场</div>');
+    expect(markup.indexOf('aria-label="输入来源"')).toBeGreaterThan(
       markup.indexOf('class="message-field-footer"'),
     );
     expect(markup).not.toContain("通信消息");

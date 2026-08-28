@@ -9,7 +9,6 @@ import pytest
 import devtools.__main__ as developer_main
 import devtools.elfie_lab.app as elfie_lab_app
 import devtools.nest_lab.__main__ as nest_lab_main
-import devtools.nest_lab.app as nest_lab_app
 from devtools.entrypoint import available_tools, resolve_tool
 
 
@@ -31,7 +30,7 @@ def test_nest_lab_resolution_uses_isolated_data_root(tmp_path: Path) -> None:
 
     # When / Then
     assert tool.module == "devtools.nest_lab"
-    assert tool.default_port == 9002
+    assert tool.default_port == 9001
     assert tool.data_root == tmp_path / "nest_lab"
 
 
@@ -61,12 +60,20 @@ def test_elfie_lab_opens_default_url_when_server_becomes_ready(
     served_apps: list[str] = []
 
     def create_ready_app(
-        _data_dir: str,
+        _data_dir: Path | None,
         *,
+        http_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
         on_ready: Callable[[], None],
     ) -> str:
+        assert (http_port, godot_ws_port, default_path) == (
+            9001,
+            None,
+            "/elfie/experiment",
+        )
         on_ready()
-        return "elfie-lab-app"
+        return "unified-lab-app"
 
     def serve(app: str, *, host: str, port: int, access_log: bool) -> None:
         assert host == "127.0.0.1"
@@ -74,7 +81,7 @@ def test_elfie_lab_opens_default_url_when_server_becomes_ready(
         assert access_log is False
         served_apps.append(app)
 
-    monkeypatch.setattr(elfie_lab_app, "create_app", create_ready_app)
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
     monkeypatch.setattr(developer_main.uvicorn, "run", serve)
     monkeypatch.setattr(developer_main.webbrowser, "open", opened_urls.append)
     monkeypatch.setattr(
@@ -89,9 +96,52 @@ def test_elfie_lab_opens_default_url_when_server_becomes_ready(
     # Then
     assert exit_code == 0
     opened_url = urlparse(opened_urls[0])
-    assert opened_url.geturl().startswith("http://127.0.0.1:9001/?run=")
+    assert opened_url.geturl().startswith("http://127.0.0.1:9001/elfie/experiment?run=")
     assert parse_qs(opened_url.query)["run"]
-    assert served_apps == ["elfie-lab-app"]
+    assert served_apps == ["unified-lab-app"]
+
+
+def test_elfie_evaluation_page_uses_its_stable_url() -> None:
+    opened_url = urlparse(
+        developer_main._browser_url("127.0.0.1", 9001, "elfie", "evaluations")
+    )
+
+    assert opened_url.path == "/elfie/evaluations"
+    assert parse_qs(opened_url.query)["run"]
+
+
+def test_brain_eval_without_action_opens_batch_page(monkeypatch) -> None:
+    opened_urls: list[str] = []
+
+    def create_ready_app(
+        _data_dir: Path | None,
+        *,
+        http_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
+        on_ready: Callable[[], None],
+    ) -> str:
+        assert (http_port, godot_ws_port, default_path) == (
+            9001,
+            None,
+            "/elfie/evaluations",
+        )
+        on_ready()
+        return "unified-lab-app"
+
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
+    monkeypatch.setattr(developer_main.uvicorn, "run", lambda _app, **_kwargs: None)
+    monkeypatch.setattr(developer_main.webbrowser, "open", opened_urls.append)
+    monkeypatch.setattr(
+        developer_main,
+        "restart_default_lab",
+        lambda _tool, _workspace: None,
+    )
+
+    assert developer_main.main(["brain-eval"]) == 0
+    opened_url = urlparse(opened_urls[0])
+    assert opened_url.path == "/elfie/evaluations"
+    assert parse_qs(opened_url.query)["run"]
 
 
 def test_default_elfie_lab_launch_restarts_its_previous_default_instance(
@@ -101,14 +151,22 @@ def test_default_elfie_lab_launch_restarts_its_previous_default_instance(
     restarted_tools: list[str] = []
 
     def create_ready_app(
-        _data_dir: str,
+        _data_dir: Path | None,
         *,
+        http_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
         on_ready: Callable[[], None],
     ) -> str:
+        assert (http_port, godot_ws_port, default_path) == (
+            9001,
+            None,
+            "/elfie/experiment",
+        )
         on_ready()
-        return "elfie-lab-app"
+        return "unified-lab-app"
 
-    monkeypatch.setattr(elfie_lab_app, "create_app", create_ready_app)
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
     monkeypatch.setattr(
         developer_main.uvicorn,
         "run",
@@ -133,14 +191,22 @@ def test_explicit_lab_port_keeps_parallel_launch_behavior(monkeypatch) -> None:
     restarted_tools: list[str] = []
 
     def create_ready_app(
-        _data_dir: str,
+        _data_dir: Path | None,
         *,
+        http_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
         on_ready: Callable[[], None],
     ) -> str:
+        assert (http_port, godot_ws_port, default_path) == (
+            8878,
+            None,
+            "/elfie/experiment",
+        )
         on_ready()
-        return "elfie-lab-app"
+        return "unified-lab-app"
 
-    monkeypatch.setattr(elfie_lab_app, "create_app", create_ready_app)
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
     monkeypatch.setattr(
         developer_main.uvicorn,
         "run",
@@ -172,22 +238,27 @@ def test_nest_lab_opens_its_page_and_passes_the_runtime_ports(monkeypatch) -> No
     served_apps: list[str] = []
 
     def create_ready_app(
-        _data_dir: Path,
+        _data_dir: Path | None,
         *,
         http_port: int,
-        godot_ws_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
         on_ready: Callable[[], None],
     ) -> str:
-        assert (http_port, godot_ws_port) == (8892, 8999)
+        assert (http_port, godot_ws_port, default_path) == (
+            8892,
+            8999,
+            "/nest/experiment",
+        )
         on_ready()
-        return "nest-lab-app"
+        return "unified-lab-app"
 
     def serve(app: str, *, host: str, port: int, access_log: bool) -> None:
         assert (host, port) == ("127.0.0.1", 8892)
         assert access_log is False
         served_apps.append(app)
 
-    monkeypatch.setattr(nest_lab_app, "create_app", create_ready_app)
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
     monkeypatch.setattr(developer_main.uvicorn, "run", serve)
     monkeypatch.setattr(developer_main.webbrowser, "open", opened_urls.append)
 
@@ -199,9 +270,45 @@ def test_nest_lab_opens_its_page_and_passes_the_runtime_ports(monkeypatch) -> No
     # Then
     assert exit_code == 0
     opened_url = urlparse(opened_urls[0])
-    assert opened_url.geturl().startswith("http://127.0.0.1:8892/?run=")
+    assert opened_url.geturl().startswith("http://127.0.0.1:8892/nest/experiment?run=")
     assert parse_qs(opened_url.query)["run"]
-    assert served_apps == ["nest-lab-app"]
+    assert served_apps == ["unified-lab-app"]
+
+
+def test_nest_lab_explicit_default_ports_restart_previous_instance(monkeypatch) -> None:
+    # Given
+    restarted_tools: list[str] = []
+
+    def create_ready_app(
+        _data_dir: Path | None,
+        *,
+        http_port: int,
+        godot_ws_port: int | None,
+        default_path: str,
+        on_ready: Callable[[], None],
+    ) -> str:
+        assert (http_port, godot_ws_port, default_path) == (
+            9001,
+            9002,
+            "/nest/experiment",
+        )
+        on_ready()
+        return "unified-lab-app"
+
+    monkeypatch.setattr(elfie_lab_app, "create_unified_app", create_ready_app)
+    monkeypatch.setattr(developer_main.uvicorn, "run", lambda _app, **_kwargs: None)
+    monkeypatch.setattr(developer_main.webbrowser, "open", lambda _url: True)
+    monkeypatch.setattr(
+        developer_main,
+        "restart_default_lab",
+        lambda tool, _workspace: restarted_tools.append(tool.name),
+    )
+
+    # When
+    developer_main.main(["nest-lab", "--port", "9001", "--godot-ws-port", "9002"])
+
+    # Then
+    assert restarted_tools == ["nest-lab"]
 
 
 def test_nest_lab_unified_entrypoint_rejects_remote_binding() -> None:

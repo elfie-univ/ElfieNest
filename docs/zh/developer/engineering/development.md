@@ -73,8 +73,11 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
 ./developer.sh elfie-lab \
   --data-dir /tmp/elfienest-elfie-lab --port 9001
 
+./developer.sh brain-eval \
+  --data-dir /tmp/elfienest-brain-eval --port 9001
+
 ./developer.sh nest-lab \
-  --data-dir /tmp/elfienest-nest-lab --port 9002
+  --data-dir /tmp/elfienest-nest-lab --port 9001 --godot-ws-port 9002
 ```
 
 - Elfie Lab 检查单精灵档案、感知、决策与回合；
@@ -85,9 +88,9 @@ pre-commit 与 CI 还会运行 Gitleaks。不要用 `--no-verify` 绕过密钥�
   调用模型。
 
 默认端口只是本地开发值。不要把实验台接入普通用户导航，也不要让它们使用默认
-生产数据。正式 App 使用 `8000` / `8765`，Elfie Lab 使用 `9001`，Nest Lab
-使用 `9002` / `9003`。默认启动同一 Lab 会安全重启当前工作区的旧实例；显式端口用于并行
-实验，不会终止既有实例。详细边界见
+生产数据。正式 App 使用 `8000` / `8765`；三个 Developer Tools 页面都使用 HTTP
+`9001`，Nest 的 Godot WebSocket 使用内部 `9002`。默认启动共享服务会安全重启当前工作区
+的旧实例；显式端口用于并行实验，不会终止既有实例。详细边界见
 [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md)。
 
 ## 产品 Web 与局域网模式

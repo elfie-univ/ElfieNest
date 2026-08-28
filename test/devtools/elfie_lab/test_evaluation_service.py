@@ -5,14 +5,113 @@ from datetime import datetime, timezone
 
 from devtools.brain_eval.contracts import QualityDimension
 from devtools.elfie_lab.evaluation_models import (
+    EvaluationDimensionResult,
     EvaluationScenarioResult,
+    EvaluationViolation,
     LabEvaluationResultStatus,
     LabEvaluationRun,
     LabEvaluationStatus,
     LabEvaluationSuite,
     LabEvaluationVerdict,
 )
-from devtools.elfie_lab.evaluation_service import EvaluationService, _source_state
+from devtools.elfie_lab.evaluation_presets import scenarios_for_suite
+from devtools.elfie_lab.evaluation_service import (
+    EvaluationService,
+    _parse_judge_response,
+    _score_dimensions,
+    _source_state,
+    _summarize_absolute_dimensions,
+)
+
+
+def test_standard_score_is_versioned_and_p0_aware() -> None:
+    dimensions = tuple(
+        EvaluationDimensionResult(
+            dimension=dimension,
+            label=dimension.value,
+            status=LabEvaluationResultStatus.PASSED,
+            score=100.0,
+        )
+        for dimension in QualityDimension
+    )
+
+    score, coverage, grade = _score_dimensions(dimensions)
+
+    assert score == 100.0
+    assert coverage == 1.0
+    assert grade.value == "A"
+    violation = EvaluationViolation(
+        code="P0", title="测试红线", evidence=("evidence-1",)
+    )
+    assert (
+        _score_dimensions(dimensions, p0_violations=(violation,))[2].value
+        == "P0_FAILED"
+    )
+
+
+def test_score_dimensions_uses_dimension_weights_and_coverage() -> None:
+    dimensions = (
+        EvaluationDimensionResult(
+            dimension=QualityDimension.IDENTITY_CONTINUITY,
+            label="角色",
+            status=LabEvaluationResultStatus.PASSED,
+            weight=1.0,
+            score=100.0,
+        ),
+        EvaluationDimensionResult(
+            dimension=QualityDimension.MEMORY_RELATIONSHIPS,
+            label="记忆",
+            status=LabEvaluationResultStatus.EVIDENCE_READY,
+            weight=3.0,
+            score=50.0,
+        ),
+    )
+
+    score, coverage, grade = _score_dimensions(dimensions)
+
+    assert score == 62.5
+    assert coverage == 1.0
+    assert grade.value == "D"
+
+
+def test_absolute_dimensions_use_observed_scenario_scores() -> None:
+    scenarios = scenarios_for_suite(LabEvaluationSuite.QUICK, elfie_name="小岚")
+    rows = tuple(
+        EvaluationScenarioResult(
+            index=index,
+            family_id=item.definition.scenario_family_id,
+            title=item.title,
+            purpose=item.purpose,
+            dimension=item.dimension,
+            status=(
+                LabEvaluationResultStatus.PASSED
+                if index == 1
+                else LabEvaluationResultStatus.EVIDENCE_READY
+            ),
+            candidate_score=100.0 if index == 1 else 80.0,
+        )
+        for index, item in enumerate(scenarios)
+    )
+
+    dimensions = _summarize_absolute_dimensions(rows, scenarios)
+
+    identity = next(
+        item
+        for item in dimensions
+        if item.dimension is QualityDimension.IDENTITY_CONTINUITY
+    )
+    assert identity.score == 100.0
+    assert identity.scoring_rule == "absolute-scenario-status-v1"
+
+
+def test_judge_response_preserves_confidence_and_rationale() -> None:
+    result = _parse_judge_response(
+        '{"preference":"B","evidence":["B:output:0"],'
+        '"confidence":0.75,"rationale":["候选回答更完整"]}'
+    )
+
+    assert result.confidence == 0.75
+    assert result.rationale == ("候选回答更完整",)
 
 
 def test_service_recovers_interrupted_run_as_failed(tmp_path) -> None:
@@ -33,7 +132,7 @@ def test_service_recovers_interrupted_run_as_failed(tmp_path) -> None:
         fixture_sha256="b" * 64,
         food_key="mock",
         food_model="ollama/elfie-mock",
-        judge_food_key="mock",
+        judge_subscription_id="mock",
         judge_model="ollama/elfie-mock",
         judge_spec_sha256="d" * 64,
         total_scenarios=1,

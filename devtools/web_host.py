@@ -13,7 +13,7 @@ from starlette.types import Scope
 
 from scripts.build_devtools_web import OUTPUT_DIRECTORY, ensure_bundle
 
-LabShell = Literal["elfie", "nest"]
+LabShell = Literal["elfie", "nest", "unified"]
 
 
 class NoStoreStaticFiles(StaticFiles):

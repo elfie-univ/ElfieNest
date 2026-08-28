@@ -91,8 +91,11 @@ The three workbenches are all isolated from the end-user product:
 ./developer.sh elfie-lab \
   --data-dir /tmp/elfienest-elfie-lab --port 9001
 
+./developer.sh brain-eval \
+  --data-dir /tmp/elfienest-brain-eval --port 9001
+
 ./developer.sh nest-lab \
-  --data-dir /tmp/elfienest-nest-lab --port 9002
+  --data-dir /tmp/elfienest-nest-lab --port 9001 --godot-ws-port 9002
 ```
 
 - Elfie Lab inspects a single Elfie's profile, perception, decisions and turns;
@@ -105,10 +108,11 @@ The three workbenches are all isolated from the end-user product:
 
 The default ports are only local development values. Do not wire the
 workbenches into end-user navigation, and do not let them use default
-production data. The real App uses `8000` / `8765`, Elfie Lab uses
-`9001`, Nest Lab uses `9002` / `9003`. Launching the same default Lab safely
-restarts the old instance in the current workspace; explicit ports are for
-parallel experiments and do not terminate existing instances. For the detailed
+production data. The real App uses `8000` / `8765`; all three Developer Tools
+pages use HTTP `9001`, with Nest's Godot WebSocket on internal `9002`.
+Launching the same default service safely restarts the old instance in the
+current workspace; explicit ports are for parallel experiments and do not
+terminate existing instances. For the detailed
 boundaries see the
 [Devtools README](https://github.com/elfie-univ/ElfieNest/blob/main/devtools/README.md).
 

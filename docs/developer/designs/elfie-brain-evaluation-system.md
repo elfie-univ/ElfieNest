@@ -7,7 +7,7 @@
 >
 > Current fact: typed contracts, the 24-family catalog, P0 gates, Elfie Lab capture,
 > anonymous position-flipped judging, human-anchor calibration, clustered statistics,
-> constrained promotion, and a guided exploratory surface in Elfie Lab are implemented
+> constrained promotion, and a report-based batch evaluation surface in Elfie Lab are implemented
 
 ## 1. Background
 
@@ -34,13 +34,54 @@ into every development loop:
 
 | Level | Use it for | Result authority |
 | --- | --- | --- |
-| Elfie Lab **Version evaluation** | Fast feedback after ordinary Brain changes | Exploratory baseline comparison only |
+| Elfie Lab **Batch evaluation** | Fast feedback after ordinary Brain changes | Exploratory single reports and report-to-report comparison |
 | `brain-eval` batch workflow | Calibrated experiments and formal promotion evidence | `PROMOTE / OBSERVE / REJECT / INVALID` under the frozen protocol |
 
 The Lab reuses the real Brain capture and anonymous position-flipped comparison primitives,
 but it does not invent calibrated human anchors, confidence intervals, private holdouts, or
 constitutional confirmation. A useful Lab result can decide what to inspect next; it cannot
 approve a release.
+
+### 1.2 Elfie Lab report and batch model
+
+The product surface separates facts from interpretation:
+
+```text
+one execution -> one immutable report
+one or two reports -> one batch row
+any two completed reports -> one hash-bound comparison artifact
+```
+
+A report freezes six inputs or outputs. These are not six arbitrary cards; together they
+answer “what exactly ran, under which controlled conditions, and what evidence exists?”
+
+| Part | Frozen meaning |
+| --- | --- |
+| Evaluation object | The selected synthetic Elfie identity and stable profile |
+| Fixture snapshot | Profile, memory, activity, Brain journal, and supported current state captured once |
+| Candidate | Source revision plus dirty-content digest, selected Food, actual model reference, and configuration digests |
+| Test plan | The product-facing Quick/Standard scenario set together with order, reset, repeat, and seed rules |
+| Judge specification | The independent remote reviewer subscription/model/config digest used only for relative soft-quality judgment |
+| Result and evidence | Scenario outputs, typed facts, P0 findings, Q6 directions, errors, latency, and model calls |
+
+The “sample set” and “execution rules” therefore belong to one test plan. Questions without
+reset/order/seed rules are not reproducible; rules without scenario content are not a useful
+test. Food belongs to the candidate, not the fixture. A Judge is recorded separately because
+changing it can change interpretation even when candidate behavior is identical.
+
+The global table uses one standalone report row or one expandable paired parent with A/B
+child reports. Checking a paired parent selects both children. Checking and viewing are
+separate state: opening one report does not destroy the two-report comparison basket. The
+wide right drawer has a single-report state and a comparison state with **Overview / Report A
+/ Report B** tabs.
+
+This layout also makes reuse explicit. A factual report is never rerun merely because it is
+selected for observation. A new strict Food pair runs both candidates from one fresh snapshot. A new
+code pair also freezes one snapshot, plan, Food, and Judge, then runs the two selected branch refs;
+the reports show branch names while persisting the resolved commits and content digests. Historical
+reports remain available for arbitrary report-page comparison, but are not silently reused by a new
+code pair. Derived visual differences may be recomputed, but a Judge-derived comparison is persisted
+against the two immutable report hashes.
 
 ## 2. Final design decision
 
@@ -368,7 +409,7 @@ Godot receipts through an appropriate scenario adapter.
 | Anonymous dual-order packets, invalidation, human calibration | Implemented as provider-neutral interfaces |
 | Clustered confidence, EPI, reliability, resources, promotion | Implemented |
 | Checkout/model binding, append-only artifacts, unified batch CLI | Implemented |
-| Elfie Lab quick/standard version evaluation, local baseline/history, progress and evidence UI | Implemented as exploratory feedback; never emits formal promotion |
+| Elfie Lab quick/standard batch reports, frozen fixtures, paired runs, global history and wide evidence drawers | Implemented as exploratory feedback; never emits formal promotion |
 | Complete event/fault adapter for every family | Built family by family; catalog presence does not claim full automation |
 | Real human anchors, empirical margins, private holdout | Not yet produced; automatic promotion stays disabled |
 | Godot multi-day Long Soak, incident mining, Shadow/Canary | Later runtime facilities, not claimed by the minimal kernel |

@@ -132,6 +132,7 @@ def normalize_raw_judge_result(
         preference=preference,
         evidence=result.evidence,
         confidence=result.confidence,
+        rationale=result.rationale,
     )
 
 
@@ -275,6 +276,12 @@ def _outcome(
     evidence = tuple(
         dict.fromkeys(item for vote, _, _ in results for item in vote.evidence)
     )
+    rationale = tuple(
+        dict.fromkeys(item for vote, _, _ in results for item in vote.rationale)
+    )
+    confidence_values = tuple(
+        vote.confidence for vote, result_value, _ in results if result_value is not None
+    )
     return PairwiseOutcome(
         pair_id=first.pair_id,
         pair_evidence_sha256=first.pair_evidence_sha256,
@@ -288,6 +295,12 @@ def _outcome(
         value=value,
         invalid_reason=invalid_reason,
         evidence=evidence,
+        confidence=(
+            round(sum(confidence_values) / len(confidence_values), 4)
+            if confidence_values
+            else None
+        ),
+        rationale=rationale,
     )
 
 

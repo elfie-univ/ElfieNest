@@ -2,8 +2,8 @@
 
 ## Elfie Lab
 
-用于观察单个 Elfie 的档案、感知、认知回合和输出投影。它拥有独立入口、端口和
-数据目录，不进入普通用户导航。
+用于观察单个 Elfie 的档案、感知、认知回合和输出投影。它是共享 Developer Tools
+服务中的一个页面，不进入普通用户导航。
 
 实验配置支持选择本地已安装的 Ollama 模型，或填写 OpenAI 兼容服务的 URL、Token 和
 模型。保存表单会创建或更新一份 Lab 测试粮食。Lab 不再单独做模型或粮食验证，第一次
@@ -22,18 +22,20 @@ Python 驱动的随机游走，并暂停、继续或重置实验。事件时间�
 版本重新导出：
 
 ```bash
-./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002
+./developer.sh nest-lab
 ```
 
 它不会悄悄启动正式产品引擎；Lab 仅启动隔离的 Godot Web Runtime 和对应的本地网关。
-不传端口时，重复运行默认命令会安全重启当前工作区的 Nest Lab；传入 `--port` 或
-`--godot-ws-port` 时则视为独立实验，不会回收原实例。
+三个页面入口共享 HTTP `127.0.0.1:9001`；Nest 的 Godot WebSocket 是内部 `9002`
+监听。不传端口时，重复运行任一默认命令会安全重启当前工作区的共享服务；显式传入
+`--port` 时视为独立实验，不会回收原实例。
 
 ## 隔离运行
 
 ```bash
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab --port 9001
-./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9002 --godot-ws-port 9003
+./developer.sh brain-eval --data-dir /tmp/elfienest-brain-eval --port 9001
+./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab --port 9001 --godot-ws-port 9002
 ```
 
 实验必须使用临时 `ELFIE_HOME` 或显式数据目录；调试完成后检查没有遗留进程、端口、

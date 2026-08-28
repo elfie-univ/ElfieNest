@@ -156,13 +156,15 @@ Dedicated 权威导出是
 ```bash
 ./developer.sh --help
 ./developer.sh elfie-lab --data-dir /tmp/elfienest-elfie-lab
+./developer.sh brain-eval --data-dir /tmp/elfienest-brain-eval
 ./developer.sh nest-lab --data-dir /tmp/elfienest-nest-lab
 ./developer.sh brain-eval catalog
 ```
 
-- Elfie Lab 默认监听 `127.0.0.1:9001`；
-- Nest Lab 默认使用 HTTP `127.0.0.1:9002` 和 Godot WebSocket `127.0.0.1:9003`；
-- Brain Eval 是不打开服务端口的批量 CLI，只向 `build/brain-eval/` 写入产物。
+- 三个页面入口默认共享 HTTP `127.0.0.1:9001`；
+- Nest Lab 的 Godot WebSocket 是内部 `127.0.0.1:9002` 监听；
+- `brain-eval` 不带动作时打开批量评测页面；`catalog` 等显式动作仍是产物 CLI，向
+  `build/brain-eval/` 写入结果。
 
 端口只是本地默认值，不是生产保证。在 Elfie Lab 的实验配置面板中配置模型；保存不会
 验证连接，第一次真实回合才会发起模型请求。详细边界见 `devtools/README.md`。

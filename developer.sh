@@ -78,5 +78,17 @@ case "${1:-}" in
     "$PYTHON_BIN" scripts/build_godot_web.py --ensure
     "$PYTHON_BIN" scripts/build_devtools_web.py --ensure
     ;;
+  brain-eval)
+    # The no-action form launches the unified web service, so keep the Nest
+    # page usable even when this is the first command run on a clean checkout.
+    case "${2:-}" in
+      catalog|capture|compare|calibrate)
+        ;;
+      *)
+        "$PYTHON_BIN" scripts/build_godot_web.py --ensure
+        ;;
+    esac
+    "$PYTHON_BIN" scripts/build_devtools_web.py --ensure
+    ;;
 esac
 exec "$PYTHON_BIN" -m devtools "$@"

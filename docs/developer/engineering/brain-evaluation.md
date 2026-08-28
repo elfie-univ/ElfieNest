@@ -26,27 +26,51 @@ does not make an unimplemented adapter pass.
 
 ### 1.1 Daily feedback in Elfie Lab
 
-For an ordinary optimization loop, start with the guided UI rather than the formal batch
-protocol:
+For an ordinary optimization loop, use the report workspace rather than the formal
+promotion protocol:
 
 ```bash
-./developer.sh elfie-lab
+./developer.sh brain-eval
 ```
 
-1. Create or select a synthetic test Elfie and configure a runnable Food in the left
-   sidebar.
-2. Switch from **Single experiment** to **Version evaluation**.
-3. Choose **Quick** (3 scenarios) after a small change, or **Standard** (8 scenarios) for a
-   broader version checkpoint.
-4. Select an automatic Judge Food, run the suite, and inspect progress, P0 findings,
-   per-scenario baseline/current outputs, Q6 dimension changes, Brain latency, and Brain
-   model calls.
-5. The first completed run with usable evidence becomes the local development baseline.
-   Later matching runs compare against it. Use **Set as new development baseline** only
-   after reviewing the evidence.
+1. In **Single-Elfie experiment**, save a model subscription first, choose one model exposed
+   by that subscription, and create one or more runnable Foods. The subscription is the shared
+   connection record; each Food is a separate role configuration that references it. The first
+   real call remains the connection attempt.
+2. Switch to the separate full-page **Batch evaluation** workspace. Its default view is a
+   global report table; it does not retain the Single-Elfie sidebar or 3D panel.
+3. Choose **New single evaluation** to freeze the current Elfie and produce one factual
+   report, or **New paired evaluation** to change only Food or code.
+4. Use **Quick** (3 scenarios) after a small change and **Standard** (8 scenarios) for a
+   broader checkpoint. Single and Food-pair runs use the latest code from the current branch;
+   a code-pair run selects two branch names and the backend resolves and records each branch's
+   latest commit. The candidate selects a Food configuration. The separate **Judge model** row
+   selects one concrete model from the same shared subscription catalog; it is not a Food choice
+   and does not participate in the candidate run. The picker only exposes remote HTTPS
+   subscriptions; adding one saves the same subscription record that Food can later reuse. Saving
+   verifies the selected remote model once; local Ollama/loopback addresses are rejected.
+   Model-health preflight is intentionally not another workflow.
+5. Open one report in the wide right drawer for its snapshot, candidate, test plan, result,
+   and evidence. Select any two reports to compare them. A paired parent row selects its A/B
+   children together and opens the same comparison drawer.
 
-A development baseline is a comparison origin, not a pass certificate. Failed or
-incomplete scenario rows remain visible in that baseline.
+One report is immutable factual evidence from one run. A pair is only an association between
+two reports, and its comparison artifact is persisted against both report hashes. Opening the
+drawer never silently calls the Judge again.
+
+Comparison has three explicit grades:
+
+| Grade | Requirement | Allowed conclusion |
+| --- | --- | --- |
+| Strict paired | Same frozen Elfie snapshot, test plan, and Judge; exactly one Food or code variable differs | The observed change may be attributed to that variable |
+| Observational | Shared fixture/plan but multiple candidate or Judge variables differ | Show changes, but do not claim causality |
+| Incompatible | Elfie snapshot or test plan differs | Side-by-side evidence only; no winner |
+
+Food pairing captures one snapshot and clones it for both candidates. Code pairing also freezes
+one snapshot, plan, Food, and Judge, then runs the two selected branch refs independently; the
+reports show branch names while persisting the resolved commits and content digests. Historical
+reports can still be compared from the report page, but are not silently reused by a new code
+pair. The Lab does not pretend that it can execute an arbitrary historical Git SHA.
 
 Quick checks communication/body scope, identity anchors, and restart memory. Standard
 includes those scenarios and covers all six user-facing Q6 dimensions with uncertainty,
@@ -59,13 +83,18 @@ recreation. A future claim about movement, collision, navigation, or another phy
 must use an appropriate Godot-backed adapter and receipt; that future requirement is not
 part of these 3/8-scenario presets.
 
-Lab runs and baselines stay under
-`${ELFIE_DEV_HOME:-~/.elfienest-dev}/elfie_lab/evaluations/<elfie-id>/`. Deleting the test
-Elfie moves that history into the Lab recycle bundle. An interrupted process marks its
-unfinished run as incomplete on the next start instead of leaving an endless “running”
-record. Candidate identity binds the Git revision, each distinct dirty-worktree snapshot,
-and the selected Food/model; the run also records a digest of the Judge Food/model
-configuration.
+Reports stay under
+`${ELFIE_DEV_HOME:-~/.elfienest-dev}/elfie_lab/evaluations/`. The Lab stores report JSON,
+batch associations, comparison artifacts, and frozen evaluation snapshots separately.
+Snapshots copy the selected test Elfie's profile, memory, activity, journal, and supported
+in-memory state with online SQLite backup; Provider secrets are never copied into a report or
+snapshot. Every scenario starts from a fresh clone of that same snapshot. Interrupted runs
+become explicit failures on restart, and paired partial failures never produce a winner.
+
+Single-report soft scenarios use **evidence ready**, not “passed”, when no deterministic
+absolute criterion exists. Directional Q6 results appear only in a relative comparison.
+Latency and model-call counts remain resource evidence, not quality points. The UI does not
+invent a 0–100 score from the current `-1 / 0 / +1` comparison contract.
 
 These results are explicitly exploratory: one run is not a confidence interval, the Lab
 Judge is not human-anchor calibrated, same-model judging is warned, and no Lab verdict can

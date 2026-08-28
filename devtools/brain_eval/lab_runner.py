@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from enum import Enum, unique
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Tuple
@@ -14,6 +15,7 @@ from devtools.brain_eval.contracts import EpisodeEvidence, EvalContract
 from devtools.brain_eval.projection import episode_from_lab_turn_records
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
+from devtools.elfie_lab.session_state import apply_state_injection
 from devtools.elfie_lab.storage import ElfieLabStorage
 from infrastructure.persistence.layout.data_home import get_elfie_home
 
@@ -47,6 +49,7 @@ class LabFixtureDefinition(EvalContract):
     appearance_description: str = Field(min_length=1, max_length=1200)
     personality_description: str = Field(min_length=1, max_length=1200)
     big_five: Optional[LabBigFiveDefinition] = None
+    initial_state: Dict[str, Any] = Field(default_factory=dict)
 
 
 class LabScenarioStep(EvalContract):
@@ -98,6 +101,8 @@ def capture_lab_episode(
     scenario: LabScenarioDefinition,
     food_key: str,
     runtime_root: Path,
+    fixture_snapshot_root: Optional[Path] = None,
+    model_config_dir: Optional[str] = None,
 ) -> EpisodeEvidence:
     """Run a scenario against real Brain wiring in a disposable data root."""
 
@@ -106,26 +111,43 @@ def capture_lab_episode(
     production_root = get_elfie_home().expanduser().resolve(strict=False)
     if selected_root == production_root or production_root in selected_root.parents:
         raise ValueError("Brain evaluation cannot use production ELFIE_HOME")
+    if fixture_snapshot_root is not None:
+        source_root = fixture_snapshot_root.expanduser().resolve(strict=True)
+        shutil.copytree(source_root, selected_root, dirs_exist_ok=True)
     storage = ElfieLabStorage(str(selected_root))
-    spec = storage.create_elfie(
-        fixture.name,
-        species_id=fixture.species_id,
-        age_years=fixture.age_years,
-        description=fixture.description,
-        appearance_description=fixture.appearance_description,
-        personality_description=fixture.personality_description,
-        elfie_id=fixture.elfie_id,
-        big_five_overrides=(
-            fixture.big_five.model_dump() if fixture.big_five is not None else None
-        ),
-    )
+    if fixture_snapshot_root is None:
+        spec = storage.create_elfie(
+            fixture.name,
+            species_id=fixture.species_id,
+            age_years=fixture.age_years,
+            description=fixture.description,
+            appearance_description=fixture.appearance_description,
+            personality_description=fixture.personality_description,
+            elfie_id=fixture.elfie_id,
+            big_five_overrides=(
+                fixture.big_five.model_dump() if fixture.big_five is not None else None
+            ),
+        )
+    else:
+        spec = storage.get_elfie(fixture.elfie_id)
     session = ElfieLabSession(
         spec,
         storage,
-        model_execution_config_dir=str(selected_root / "runtime_config"),
+        model_execution_config_dir=(
+            model_config_dir or str(selected_root / "runtime_config")
+        ),
     )
     records = []
     try:
+        if fixture.initial_state:
+            apply_state_injection(
+                session.elfie,
+                {
+                    key: fixture.initial_state[key]
+                    for key in ("energy", "fatigue", "is_sleeping", "emotions")
+                    if key in fixture.initial_state
+                },
+            )
         for step in scenario.steps:
             if step.action is LabStepAction.ADVANCE:
                 session.elfie.advance_clock(step.advance_seconds)

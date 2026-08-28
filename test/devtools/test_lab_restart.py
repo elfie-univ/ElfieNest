@@ -49,7 +49,7 @@ def test_restart_default_nest_lab_stops_only_its_current_worktree_process(
     workspace = tmp_path / "ElfieNest"
     tool = resolve_tool("nest-lab", tmp_path)
     inspector: RestartInspector = FakeRestartInspector(
-        listeners={9002: (71,), 9003: (71,)},
+        listeners={9001: (71,), 9002: (71,)},
         commands={
             71: (
                 str(workspace / ".venv/bin/python3"),
@@ -66,7 +66,7 @@ def test_restart_default_nest_lab_stops_only_its_current_worktree_process(
 
     # Then
     assert inspector.terminated == [71]
-    assert inspector.waited_ports == (9002, 9003)
+    assert inspector.waited_ports == (9001, 9002)
 
 
 def test_restart_default_lab_rejects_an_unrelated_process_on_its_port(

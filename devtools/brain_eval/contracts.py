@@ -364,6 +364,7 @@ class JudgeVote(EvalContract):
     preference: JudgePreference
     evidence: Tuple[str, ...] = ()
     confidence: float = Field(ge=0.0, le=1.0)
+    rationale: Tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def require_evidence_for_decision(self) -> JudgeVote:
@@ -443,6 +444,7 @@ class RawJudgeResult(EvalContract):
     preference: SlotPreference
     evidence: Tuple[str, ...] = ()
     confidence: float = Field(ge=0.0, le=1.0)
+    rationale: Tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def require_raw_evidence(self) -> RawJudgeResult:
@@ -557,6 +559,8 @@ class PairwiseOutcome(EvalContract):
     value: Optional[int] = Field(default=None, ge=-1, le=1)
     invalid_reason: Optional[str] = None
     evidence: Tuple[str, ...] = ()
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    rationale: Tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def align_validity(self) -> PairwiseOutcome:

@@ -44,7 +44,7 @@ def _start_quick_run(client, elfie_id: str) -> Dict[str, Any]:
         json={
             "suite": "quick",
             "food_key": "mock",
-            "judge_food_key": "mock",
+            "judge_subscription_id": "mock",
         },
     )
     assert response.status_code == 202, response.text
@@ -147,7 +147,7 @@ def test_standard_run_covers_all_six_user_facing_dimensions(
         json={
             "suite": "standard",
             "food_key": "mock",
-            "judge_food_key": "mock",
+            "judge_subscription_id": "mock",
         },
     )
     assert response.status_code == 202, response.text
@@ -177,7 +177,7 @@ def test_evaluation_rejects_unknown_or_unconfigured_food(tmp_path, client_for) -
         json={
             "suite": "quick",
             "food_key": "missing-food",
-            "judge_food_key": "mock",
+            "judge_subscription_id": "mock",
         },
     )
 

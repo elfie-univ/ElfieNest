@@ -1,6 +1,7 @@
 export const labKinds = {
   elfie: "elfie",
   nest: "nest",
+  unified: "unified",
 } as const;
 
 export type LabKind = (typeof labKinds)[keyof typeof labKinds];
@@ -18,6 +19,8 @@ export function currentLabKind(): LabKind {
       return labKinds.elfie;
     case labKinds.nest:
       return labKinds.nest;
+    case labKinds.unified:
+      return labKinds.unified;
     default:
       throw new Error("未识别的 Developer Tool 页面入口");
   }

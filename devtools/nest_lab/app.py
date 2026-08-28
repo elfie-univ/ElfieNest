@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator, Callable, Dict, Union
+from typing import AsyncIterator, Callable, Dict, Optional, Union
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 from devtools.nest_lab.routes import build_router
@@ -20,8 +20,8 @@ from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 def create_app(
     data_dir: Path | str | None = None,
     *,
-    http_port: int = 9002,
-    godot_ws_port: int = 9003,
+    http_port: int = 9001,
+    godot_ws_port: int = 9002,
     on_ready: Callable[[], None] | None = None,
 ) -> FastAPI:
     """Create one disposable Lab without production engine or data dependencies."""
@@ -36,10 +36,18 @@ def create_app(
         http_port=http_port,
         websocket_port=godot_ws_port,
     )
+    runtime_startup_error: Optional[str] = None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        world.start()
+        nonlocal runtime_startup_error
+        try:
+            world.start()
+        except RuntimeError as error:
+            # Keep the HTTP shell inspectable when the optional Godot gateway
+            # port is unavailable. The UI can show a degraded runtime state
+            # instead of collapsing into a blank/404 page.
+            runtime_startup_error = str(error)
         if on_ready is not None:
             on_ready()
         try:
@@ -62,16 +70,21 @@ def create_app(
     app.include_router(build_router(world))
 
     @app.get("/", include_in_schema=False)
-    def index() -> HTMLResponse:
+    def index() -> RedirectResponse:
+        return RedirectResponse("/nest/experiment", status_code=307)
+
+    @app.get("/nest/experiment", include_in_schema=False)
+    def experiment_page() -> HTMLResponse:
         return frontend_shell("nest")
 
     @app.get("/api/health")
     def health() -> Dict[str, Union[bool, str]]:
         return {
-            "status": "ok",
+            "status": "ok" if runtime_startup_error is None else "degraded",
             "service": "nest-lab",
             "scope": "developer",
             "production_engine": False,
+            "runtime_startup_error": runtime_startup_error or "",
         }
 
     @app.get("/api/godot-web")

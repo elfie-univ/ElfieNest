@@ -39,10 +39,23 @@ from devtools.brain_eval.lab_runner import (
 _Model = TypeVar("_Model", bound=BaseModel)
 
 
-def configure_parser(parser: argparse.ArgumentParser) -> None:
-    """Attach versioned Brain evaluation actions to the unified CLI."""
+def configure_parser(
+    parser: argparse.ArgumentParser,
+    *,
+    action_required: bool = True,
+) -> None:
+    """Attach versioned Brain evaluation actions to a CLI parser.
 
-    actions = parser.add_subparsers(dest="brain_eval_action", required=True)
+    The standalone ``python -m devtools.brain_eval`` entry point keeps actions
+    required.  The top-level Developer Tool uses ``action_required=False`` so
+    the intentionally simple ``developer.sh brain-eval`` command can open the
+    batch evaluation page without exposing the artifact plumbing.
+    """
+
+    actions = parser.add_subparsers(
+        dest="brain_eval_action",
+        required=action_required,
+    )
     catalog_parser = actions.add_parser(
         "catalog",
         help="List the frozen v0.1 scenario-family catalog",

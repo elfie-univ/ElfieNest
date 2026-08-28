@@ -75,6 +75,7 @@ def test_anonymous_packets_flip_slots_without_exposing_candidate_ids() -> None:
             preference=SlotPreference.B,
             evidence=("B:output:0",),
             confidence=0.9,
+            rationale=("候选回答更符合角色锚点",),
         ),
         judge_id="judge-a",
         judge_revision="judge-v1",
@@ -85,6 +86,7 @@ def test_anonymous_packets_flip_slots_without_exposing_candidate_ids() -> None:
             preference=SlotPreference.A,
             evidence=("A:output:0",),
             confidence=0.9,
+            rationale=("候选回答更符合角色锚点",),
         ),
         judge_id="judge-a",
         judge_revision="judge-v1",
@@ -92,6 +94,10 @@ def test_anonymous_packets_flip_slots_without_exposing_candidate_ids() -> None:
 
     assert first_vote.preference is JudgePreference.CANDIDATE
     assert second_vote.preference is JudgePreference.CANDIDATE
+    assert first_vote.rationale == ("候选回答更符合角色锚点",)
+    outcome = consolidate_position_flips((first_vote, second_vote))[0]
+    assert outcome.confidence == 0.9
+    assert outcome.rationale == ("候选回答更符合角色锚点",)
     validate_judge_votes_against_packets((first_vote, second_vote), packets)
 
     tampered_packet = packets[0].model_copy(
