@@ -92,13 +92,15 @@ class MemoryContextReader:
         self,
         interaction: CompletedConversationInteraction,
     ) -> EpisodicMemoryCandidate | None:
-        """Prepare one durable episode for an explicit durable signal.
+        """Prepare one source-grounded episode for a completed interaction.
 
         The source participant is retained verbatim; only owner messages get
-        the legacy human-readable wording used by existing diagnostics.
+        the legacy human-readable wording used by existing diagnostics.  The
+        receipt proves that both sides of the interaction exist, so source
+        capture must not depend on a magic word in the owner's message.  Any
+        later promotion to a durable claim is the consolidation stage's
+        responsibility.
         """
-        if not _contains_durable_signal(interaction.owner.content):
-            return None
         if interaction.owner.sender.source_kind == "owner":
             incoming = f"主人对我说: '{interaction.owner.content}'"
             outgoing = f"我回复主人: '{interaction.reply.content}'"
@@ -127,7 +129,7 @@ class MemoryContextReader:
         self,
         interaction: CompletedConversationInteraction,
     ) -> StateCommitReceipt | None:
-        """Commit one receipt-backed episode with one bounded stale retry."""
+        """Commit one receipt-backed source episode with one bounded stale retry."""
         candidate = self.completed_interaction_candidate(interaction)
         if candidate is None:
             return None
@@ -280,44 +282,3 @@ def _memory_item_kind(
     }:
         return "entity"
     return "knowledge"
-
-
-_DURABLE_OWNER_SIGNALS = (
-    "记住",
-    "纠正",
-    "不是",
-    "错了",
-    "我喜欢",
-    "我不喜欢",
-    "我更喜欢",
-    "我叫",
-    "叫我",
-    "提醒",
-    "别忘",
-    "答应",
-    "承诺",
-    "remember",
-    "correction",
-    "actually",
-    "i like",
-    "i prefer",
-    "my name is",
-    "call me",
-    "remind",
-    "don't forget",
-    "do not forget",
-    "promise",
-)
-
-
-def _contains_durable_owner_signal(content: str) -> bool:
-    normalized = content.casefold()
-    return any(signal in normalized for signal in _DURABLE_OWNER_SIGNALS)
-
-
-def _contains_durable_signal(content: str) -> bool:
-    """Shared explicit-signal gate for owner and other participants."""
-    return _contains_durable_owner_signal(content) or any(
-        signal in content.casefold()
-        for signal in ("重要", "我们约定", "成为朋友", "important", "agreed")
-    )

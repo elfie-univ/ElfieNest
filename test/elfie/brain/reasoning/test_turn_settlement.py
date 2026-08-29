@@ -155,6 +155,52 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
     assert memory.storage.count_nodes("episodic") == 1
 
 
+def test_completed_interaction_capture_does_not_require_a_keyword() -> None:
+    memory = MemorySystem(
+        FakeMemoryStore.in_memory(),
+        elfie_id="elfie-1",
+        initial_at=NOW,
+        clock=lambda: NOW,
+    )
+    context = ConversationContextStore()
+    frame = _frame()
+    event = frame.events[0]
+    frame = frame.model_copy(
+        update={
+            "events": (
+                event.model_copy(
+                    update={
+                        "payload": event.payload.model_copy(
+                            update={"content": "蓝色指南针放在书房北侧的第三层抽屉里。"}
+                        )
+                    }
+                ),
+            )
+        }
+    )
+    context.observe(frame, NOW)
+    interaction = context.record_completed_reply(
+        channel_id="chat",
+        conversation_id="owner-chat",
+        reply_event_id=EventId("elfie-reply-no-keyword"),
+        sender=ActorRef(actor_id="elfie-1", source_kind="elfie"),
+        occurred_at=NOW,
+        content="好的。",
+        cause_event_ids=(EventId("message-1"),),
+        receipt_id=EventId("delivery-receipt-no-keyword"),
+    )
+
+    assert interaction is not None
+    reader = MemoryContextReader(memory)
+    candidate = reader.completed_interaction_candidate(interaction)
+    assert candidate is not None
+    assert "蓝色指南针放在书房北侧的第三层抽屉里。" in candidate.content
+    receipt = reader.commit_completed_interaction(interaction)
+    assert receipt is not None
+    assert receipt.status is StateCommitStatus.COMMITTED
+    assert memory.storage.count_nodes("episodic") == 1
+
+
 def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement() -> (
     None
 ):
