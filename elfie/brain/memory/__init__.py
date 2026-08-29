@@ -1,5 +1,8 @@
 from elfie.brain.memory.candidates import EpisodicMemoryCandidate
-from elfie.brain.memory.consolidation import MemoryConsolidator
+from elfie.brain.memory.consolidation import (
+    MemoryConsolidator,
+    MemoryProjectionDeferred,
+)
 from elfie.brain.memory.contracts import MemoryContext, MemoryItem, MemoryStateSnapshot
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
@@ -36,6 +39,7 @@ from elfie.brain.memory.memory_records import (
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.memory.model_food import ModelPortMemoryAdapter
 from elfie.brain.memory.node_types import (
     Edge,
     EdgeTypes,
@@ -79,6 +83,8 @@ __all__ = [
     "EbbinghausDecay",
     "EmotionWeighting",
     "MemoryConsolidator",
+    "MemoryProjectionDeferred",
+    "ModelPortMemoryAdapter",
     "MemoryRecallFormatter",
     "SensoryIndexer",
     "tokenize",

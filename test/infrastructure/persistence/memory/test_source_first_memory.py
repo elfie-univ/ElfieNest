@@ -380,7 +380,8 @@ def test_claim_and_retry_batch_keep_source_episode_on_failure() -> None:
         store.record_episode(ClosedEpisode("episode-1", "k1", "2026-01-01", "包含香菜"))
         consolidator = MemoryConsolidator(store)
         receipt = consolidator.run_batch(
-            ConsolidationRequest(max_episodes=1, worker_id="worker-a")
+            ConsolidationRequest(max_episodes=1, worker_id="worker-a"),
+            model_port=_ProposalModel('{"nodes":[],"mentions":[],"assertions":[]}'),
         )
         assert receipt.status == "completed"
         assert receipt.consolidated_episode_ids == ("episode-1",)
@@ -391,6 +392,46 @@ def test_claim_and_retry_batch_keep_source_episode_on_failure() -> None:
             ).fetchone()[0]
             == "consolidated"
         )
+
+
+def test_source_first_consolidation_without_model_stays_retryable() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("episode-no-model", "k-no-model", "2026-01-01", "包含香菜")
+        )
+        receipt = MemoryConsolidator(store).run_batch(
+            ConsolidationRequest(max_episodes=1)
+        )
+
+        assert receipt.status == "failed"
+        assert receipt.failed_episode_ids == ("episode-no-model",)
+        assert store.get_episode("episode-no-model").content_text == "包含香菜"
+        assert store.connection.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0
+        assert (
+            store.connection.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='episode-no-model'"
+            ).fetchone()[0]
+            == "failed"
+        )
+
+
+def test_source_first_invalid_model_proposal_stays_retryable() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-invalid-model", "k-invalid-model", "2026-01-01", "包含香菜"
+            )
+        )
+        receipt = MemoryConsolidator(store).run_batch(
+            ConsolidationRequest(max_episodes=1),
+            model_port=_ProposalModel(
+                '{"nodes":[{"label":"火星"}],"mentions":[],"assertions":[]}'
+            ),
+        )
+
+        assert receipt.status == "failed"
+        assert receipt.failed_episode_ids == ("episode-invalid-model",)
+        assert not store.find_graph_nodes("火星")
 
 
 def test_expired_lease_is_reclaimable_and_failure_is_scheduled() -> None:
@@ -423,6 +464,21 @@ class _ProposalModel:
 class _FailingProposalModel:
     def ask_with_food(self, **_kwargs: object) -> str:
         raise TimeoutError("provider unavailable")
+
+
+class _NameCorrectionModel:
+    def ask_with_food(self, **kwargs: object) -> str:
+        prompt = str(kwargs.get("prompt", ""))
+        name = "小周" if "小周" in prompt else "小林"
+        context = "correction" if name == "小周" else "owner_claim"
+        return (
+            '{"nodes":[{"label":"我","type":"person"}],'
+            '"mentions":[{"surface_text":"我","label":"我"}],'
+            '"assertions":[{"subject_ref":"我","predicate":"preferred_name",'
+            f'"object_literal":"{name}","context":"{context}",'
+            '"epistemic_status":"reported","confidence":0.95,'
+            '"support_score":0.95}]}'
+        )
 
 
 def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
@@ -469,7 +525,7 @@ def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
         assert claim.evidence_ids
 
 
-def test_ungrounded_model_proposal_is_discarded_without_fabricating_a_node() -> None:
+def test_ungrounded_model_proposal_is_retryable_without_fabricating_a_node() -> None:
     proposal = (
         '{"nodes":[{"label":"火星","type":"place"}],"mentions":[],"assertions":[]}'
     )
@@ -480,7 +536,8 @@ def test_ungrounded_model_proposal_is_discarded_without_fabricating_a_node() -> 
         result = MemoryConsolidator(store).run_batch(
             ConsolidationRequest(max_episodes=1), model_port=_ProposalModel(proposal)
         )
-        assert result.status == "completed"
+        assert result.status == "failed"
+        assert result.failed_episode_ids == ("episode-1",)
         assert not store.find_graph_nodes("火星")
 
 
@@ -809,11 +866,17 @@ def test_natural_name_correction_forms_a_supersedes_chain() -> None:
             )
         )
         consolidator = MemoryConsolidator(store)
-        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
-            "completed"
+        assert (
+            consolidator.run_batch(
+                ConsolidationRequest(max_episodes=1), model_port=_NameCorrectionModel()
+            ).status
+            == "completed"
         )
-        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
-            "completed"
+        assert (
+            consolidator.run_batch(
+                ConsolidationRequest(max_episodes=1), model_port=_NameCorrectionModel()
+            ).status
+            == "completed"
         )
 
         rows = store.connection.execute(

@@ -47,6 +47,10 @@ from elfie.brain.memory.tokenizer import tokenize
 logger = logging.getLogger("elfie.brain.memory.consolidation")
 
 
+class MemoryProjectionDeferred(RuntimeError):
+    """A source Episode must wait for a usable model proposal."""
+
+
 class MemoryConsolidator:
     """巩固引擎：将episodic记忆提炼为knowledge和entity属性更新"""
 
@@ -256,6 +260,13 @@ class MemoryConsolidator:
                 assertions_created=int(result.get("edges_created", 0)),
             )
 
+        recover = getattr(self.storage, "recover_expired_leases", None)
+        if callable(recover):
+            # Recovery is part of every bounded worker pass.  A crashed worker
+            # must not require a separate scheduler tick before its Episodes
+            # become eligible again.
+            recover()
+
         episodes = self.storage.claim_episodes(
             limit=request.max_episodes, owner=request.worker_id
         )
@@ -267,7 +278,11 @@ class MemoryConsolidator:
         evidence_created = 0
         for episode in episodes:
             try:
-                projection = self._projection_for_episode(episode, model_port)
+                projection = self._projection_for_episode(
+                    episode,
+                    model_port,
+                    allow_deterministic_fallback=False,
+                )
                 receipt = self.storage.apply_consolidation(projection)
                 consolidated.append(episode.episode_id)
                 nodes_created += receipt.nodes_created
@@ -318,6 +333,8 @@ class MemoryConsolidator:
         self,
         episode: ClosedEpisode,
         model_port: MemoryModelPort | None,
+        *,
+        allow_deterministic_fallback: bool = True,
     ) -> ConsolidationProjection:
         evidence_id = f"evidence:{episode.episode_id}"
         evidence = EvidenceInput(
@@ -361,6 +378,7 @@ class MemoryConsolidator:
             evidence=evidence,
             base_nodes=nodes,
             base_mentions=mentions,
+            required=not allow_deterministic_fallback,
         )
         if model_projection is not None:
             return model_projection
@@ -663,18 +681,24 @@ class MemoryConsolidator:
         evidence: EvidenceInput,
         base_nodes: list[NodeInput],
         base_mentions: list[MentionInput],
+        required: bool = False,
     ) -> ConsolidationProjection | None:
         """Validate an optional model proposal before it reaches SQLite.
 
         The model is only a bounded candidate producer.  Every promoted label
         must occur in the complete Episode, every assertion is grounded in the
         Episode evidence, and deterministic IDs are derived from the Episode
-        rather than from model output.  Any contract violation discards the
-        proposal and lets the conservative local extractor run.
+        rather than from model output.  Legacy callers may opt into the
+        conservative local extractor; the source-first target path marks an
+        absent or invalid proposal retryable instead.
         """
         if model_port is None or not callable(
             getattr(model_port, "ask_with_food", None)
         ):
+            if required:
+                raise MemoryProjectionDeferred(
+                    "memory consolidation requires an injected model"
+                )
             return None
         prompt = (
             "从下面这条已经闭合的 Elfie Episode 提取候选记忆。只能返回 JSON 对象，"
@@ -704,7 +728,11 @@ class MemoryConsolidator:
                 base_mentions=base_mentions,
             )
         except (TypeError, ValueError, KeyError, json.JSONDecodeError) as error:
-            logger.warning("模型记忆提案被丢弃，使用保守提取: %s", error)
+            logger.warning("模型记忆提案无效: %s", error)
+            if required:
+                raise MemoryProjectionDeferred(
+                    "memory model proposal did not satisfy the grounded contract"
+                ) from error
             return None
         except Exception as error:  # noqa: BLE001 - model failures are retryable
             # A provider outage is different from an ungrounded proposal.  Do
