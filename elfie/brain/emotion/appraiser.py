@@ -55,12 +55,9 @@ class EmotionAppraiser:
                     intensity=min(1.0, event.salience * assessment.confidence),
                     source=StimulusSource.SOCIAL,
                 )
-            return EmotionStimulusEvent(
-                event_id=event.meta.event_id,
-                emotion=EmotionType.ATTACHMENT,
-                intensity=event.salience,
-                source=StimulusSource.SOCIAL,
-            )
+            # Abstention is a real result: a neutral or ambiguous message
+            # must not manufacture attachment on every ordinary turn.
+            return None
         if isinstance(payload, ExecutionPayload):
             return self._appraise_execution(event, payload)
         if isinstance(payload, InternalPayload):

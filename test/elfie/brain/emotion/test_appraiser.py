@@ -94,7 +94,7 @@ def test_social_appraisal_preserves_domain_source_semantics() -> None:
             channel_id="chat-main",
             conversation_id="conversation-1",
             sender=sender,
-            content="hello",
+            content="I trust you",
         )
     )
 
@@ -137,7 +137,7 @@ def test_explicit_social_text_emotion_overrides_generic_attachment(
     assert 0.0 < stimulus.intensity <= 0.8
 
 
-def test_neutral_social_text_keeps_relationship_attachment_fallback() -> None:
+def test_neutral_social_text_does_not_create_an_attachment_stimulus() -> None:
     sender = ActorRef(actor_id=ActorId("owner-1"), source_kind="human")
     event = _event(
         SocialPayload(
@@ -151,8 +151,7 @@ def test_neutral_social_text_keeps_relationship_attachment_fallback() -> None:
 
     stimulus = EmotionAppraiser().appraise(event)
 
-    assert stimulus is not None
-    assert stimulus.emotion is EmotionType.ATTACHMENT
+    assert stimulus is None
 
 
 def test_appraiser_cannot_mutate_emotion_or_homeostasis() -> None:

@@ -1,9 +1,15 @@
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Protocol, Tuple
 
 from elfie.body.native.anatomy.base import SomaticAnatomy
 
 logger = logging.getLogger("elfie.nervous_system.reflex.reflex_arc")
+
+
+class EmotionMutationPort(Protocol):
+    """Narrow mutation boundary used by the legacy native reflex helper."""
+
+    def update_emotion(self, name: str, delta: float) -> None: ...
 
 
 class SomaticReflexArc:
@@ -13,7 +19,10 @@ class SomaticReflexArc:
         pass
 
     def process_sensory_impact(
-        self, anatomy: SomaticAnatomy, tactile_sensor: Dict[str, Any], amygdala: Any
+        self,
+        anatomy: SomaticAnatomy,
+        tactile_sensor: Dict[str, Any],
+        emotion: Optional[EmotionMutationPort],
     ) -> Tuple[Dict[str, float], Dict[str, Any]]:
         """
         在极短的时间（毫秒级）内处理身体传入的具身刺激脉冲。如触发避险反射，直接越过大脑皮层改写关节角度与情绪！
@@ -22,7 +31,7 @@ class SomaticReflexArc:
                                - "impact_force": 碰撞力度 (float, 0.0 表示无碰撞, > 15.0 表示强烈撞击)
                                - "impact_direction": 碰撞来源方向 (str, "front", "back", "left", "right")
                                - "gentle_stroke": 温柔抚摸频率 (float, 0.0-3.0 Hz, 1.0 左右最舒适)
-        :param amygdala: 杏仁核情绪状态机实例 (AmygdalaEmotionalState)
+        :param emotion: 唯一 EmotionSystem 的窄修改边界
         :return: Tuple[关节紧急干预字典, 反射事件报告]
         """
         override_joints = {}
@@ -61,9 +70,9 @@ class SomaticReflexArc:
             anatomy.apply_joint_angles(override_joints)
 
             # 神经刺激：恐慌值瞬间暴增，快乐值下降
-            if amygdala:
-                amygdala.update_emotion("anxiety", 25.0)  # 极度惊慌
-                amygdala.update_emotion("happiness", -15.0)  # 快乐骤降
+            if emotion:
+                emotion.update_emotion("fear", 25.0)  # 极度惊慌
+                emotion.update_emotion("happiness", -15.0)  # 快乐骤降
 
             reflex_event.update(
                 {
@@ -89,10 +98,10 @@ class SomaticReflexArc:
             anatomy.apply_joint_angles(override_joints)
 
             # 神经滋养：焦虑与无聊瞬间消散，幸福感极高
-            if amygdala:
-                amygdala.update_emotion("anxiety", -15.0)  # 宁静
-                amygdala.update_emotion("boredom", -20.0)  # 充实
-                amygdala.update_emotion("happiness", 15.0)  # 高兴
+            if emotion:
+                emotion.update_emotion("fear", -15.0)  # 宁静
+                emotion.update_emotion("boredom", -20.0)  # 充实
+                emotion.update_emotion("happiness", 15.0)  # 高兴
 
             reflex_event.update(
                 {

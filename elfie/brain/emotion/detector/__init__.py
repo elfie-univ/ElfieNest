@@ -1,12 +1,7 @@
-"""情绪检测器模块 - 统一接口
-
-提供文本、图像、语音情绪的统一检测接口。
-"""
+"""First-version text-only emotion detector boundary."""
 
 from typing import Any, Dict
 
-from elfie.brain.emotion.detector.audio_detector import AudioEmotionDetector
-from elfie.brain.emotion.detector.image_detector import ImageEmotionDetector
 from elfie.brain.emotion.detector.text_detector import (
     TextEmotionAssessment,
     TextEmotionDetector,
@@ -14,81 +9,66 @@ from elfie.brain.emotion.detector.text_detector import (
 from elfie.brain.emotion.emotion_input import EmotionInput
 
 
-class EmotionDetector:
-    """统一情绪检测器
+class EmotionDetectionError(ValueError):
+    """Base error for the explicit first-version detector boundary."""
 
-    根据输入类型自动选择对应的检测器。
-    """
+
+class UnsupportedEmotionModalityError(EmotionDetectionError):
+    """Raised when a caller asks the first version to inspect media/audio."""
+
+
+class NoEmotionDetectedError(EmotionDetectionError):
+    """Raised when supported text contains no actionable affect signal."""
+
+
+class EmotionDetector:
+    """Expose only the model-free text detector supported in version one."""
 
     def __init__(self):
         self._text_detector = None
-        self._image_detector = None
-        self._audio_detector = None
 
     def _get_text_detector(self):
         if self._text_detector is None:
             self._text_detector = TextEmotionDetector()
         return self._text_detector
 
-    def _get_image_detector(self):
-        if self._image_detector is None:
-            self._image_detector = ImageEmotionDetector()
-        return self._image_detector
-
-    def _get_audio_detector(self):
-        if self._audio_detector is None:
-            self._audio_detector = AudioEmotionDetector()
-        return self._audio_detector
-
     def detect(self, input_data: Dict[str, Any]) -> EmotionInput:
-        """
-        检测情绪
+        """Detect one actionable text emotion.
 
         Args:
-            input_data: 输入数据字典，格式：
-                - 文本: {'type': 'text', 'content': '...', 'event_id': '...'}
-                - 图像: {'type': 'image', 'path': '...', 'event_id': '...'}
-                - 语音: {'type': 'audio', 'path': '...', 'event_id': '...'}
+            input_data: ``type=text`` with content and an event identity.
 
         Returns:
-            EmotionInput 对象
+            A validated legacy ``EmotionInput`` for the supported text cue.
+
+        Raises:
+            UnsupportedEmotionModalityError: The input is not text.
+            NoEmotionDetectedError: Text is neutral or ambiguous.
         """
         input_type = input_data.get("type", "text")
         event_id = input_data.get("event_id", "unknown")
 
-        if input_type == "text":
-            content = input_data.get("content", "")
-            emotion, intensity = self._get_text_detector().detect(content)
-            return EmotionInput(
-                emotion=emotion, intensity=intensity, source="text", event_id=event_id
+        if input_type != "text":
+            raise UnsupportedEmotionModalityError(
+                f"emotion modality is not supported in v1: {input_type}"
             )
-
-        elif input_type == "image":
-            path = input_data.get("path", "")
-            emotion, intensity = self._get_image_detector().detect(path)
-            return EmotionInput(
-                emotion=emotion, intensity=intensity, source="image", event_id=event_id
-            )
-
-        elif input_type == "audio":
-            path = input_data.get("path", "")
-            emotion, intensity = self._get_audio_detector().detect(path)
-            return EmotionInput(
-                emotion=emotion, intensity=intensity, source="audio", event_id=event_id
-            )
-
-        else:
-            # 未知类型，返回默认
-            return EmotionInput(
-                emotion="calm", intensity=0.3, source="unknown", event_id=event_id
-            )
+        content = input_data.get("content", "")
+        assessment = self._get_text_detector().assess(content)
+        if assessment.emotion is None:
+            raise NoEmotionDetectedError("no actionable emotion detected in text")
+        return EmotionInput(
+            emotion=assessment.emotion.value,
+            intensity=assessment.confidence,
+            source="text",
+            event_id=event_id,
+        )
 
 
-# 导出所有检测器
 __all__ = [
     "EmotionDetector",
     "TextEmotionDetector",
     "TextEmotionAssessment",
-    "ImageEmotionDetector",
-    "AudioEmotionDetector",
+    "EmotionDetectionError",
+    "UnsupportedEmotionModalityError",
+    "NoEmotionDetectedError",
 ]

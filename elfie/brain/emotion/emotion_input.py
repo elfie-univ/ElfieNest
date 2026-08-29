@@ -7,7 +7,16 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
-VALID_SOURCES = {"text", "image", "audio", "physical", "brain"}
+VALID_SOURCES = {
+    "text",
+    "image",
+    "audio",
+    "physical",
+    "brain",
+    "social",
+    "execution",
+    "model",
+}
 
 
 @dataclass

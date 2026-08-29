@@ -34,4 +34,16 @@ class EmotionSnapshot(FrozenContractModel):
     freshness: Literal["current", "stale", "unknown"] = "current"
 
 
-__all__ = ("EmotionSnapshot", "EmotionValue")
+class EmotionChange(FrozenContractModel):
+    """One bounded diagnostic record for an applied affect stimulus."""
+
+    revision: _Revision
+    occurred_at: UTCDateTime
+    event_id: EventId
+    emotion: _NonBlankText
+    source: _NonBlankText
+    previous_intensity: _Ratio
+    current_intensity: _Ratio
+
+
+__all__ = ("EmotionChange", "EmotionSnapshot", "EmotionValue")

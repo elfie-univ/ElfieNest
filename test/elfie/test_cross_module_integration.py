@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from elfie import ElfieFactory
-from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
+from elfie.body import (
+    BodyId,
+    BodySensorEvent,
+    HeadlessBody,
+    TactileImpact,
+    UtteranceFinal,
+)
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
     CommunicationEnvelope,
@@ -114,6 +120,78 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     # Then: identity reaches context but owner-compatible memory is untouched.
     assert "peer-1" in runtime.requests[0].user_prompt
     assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
+    elfie.stop()
+    elfie.join()
+
+
+def test_neutral_owner_message_does_not_drift_attachment_in_real_loop() -> None:
+    hub = CommunicationHub("neutral-emotion-elfie")
+    hub.register_channel(RecordingChannel(), connect=True)
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("neutral-emotion-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            communication=hub,
+            model_port=runtime,
+        )
+    )
+    emotion = ElfieDiagnostics(elfie).emotion
+    attachment_before = emotion.get_emotion_value("attachment")
+
+    elfie.start()
+    elfie.receive_communication_envelope(
+        _owner_message(
+            elfie.cognitive_datetime,
+            elfie_id="neutral-emotion-elfie",
+            text="The train leaves at six.",
+        )
+    )
+    elfie.advance_clock(0.5)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    assert emotion.get_emotion_value("attachment") == pytest.approx(attachment_before)
+    elfie.stop()
+    elfie.join()
+
+
+def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
+    body = HeadlessBody(body_id="emotion-body")
+    body.connect()
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("embodied-emotion-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=body,
+            model_port=runtime,
+        )
+    )
+    emotion = ElfieDiagnostics(elfie).emotion
+    now = elfie.cognitive_datetime
+    event = BodySensorEvent(
+        event_id="touch-emotion-1",
+        body_id=BodyId(body.body_id),
+        source=ActorRef(actor_id="world-contact", source_kind="world"),
+        occurred_at=now,
+        received_at=now,
+        payload=TactileImpact(
+            kind="tactile_impact",
+            location="front",
+            intensity=0.8,
+            force_newtons=5.0,
+        ),
+    )
+
+    elfie.start()
+    elfie.pump_body_events((event,))
+    elfie.advance_clock(5.0)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    assert emotion.get_emotion_value("fear") > 10.0
+    assert '"name":"fear"' in runtime.requests[0].user_prompt
     elfie.stop()
     elfie.join()
 

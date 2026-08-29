@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Final, Mapping, Optional,
 from elfie.brain.emotion.accumulator.decay import decay
 from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
-from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.contracts import EmotionChange, EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_types import (
     EMOTION_CONFIGS,
@@ -36,9 +36,9 @@ logger = logging.getLogger("elfie.brain.emotion.emotion_system")
 
 _LEGACY_STIMULUS_SOURCES: Final[Mapping[StimulusSource, str]] = {
     StimulusSource.PHYSICAL: "physical",
-    StimulusSource.SOCIAL: "text",
-    StimulusSource.EXECUTION: "brain",
-    StimulusSource.MODEL: "brain",
+    StimulusSource.SOCIAL: "social",
+    StimulusSource.EXECUTION: "execution",
+    StimulusSource.MODEL: "model",
 }
 
 
@@ -91,6 +91,7 @@ class EmotionSystem:
         self.last_updated_at = float(clock())
         self.revision = 0
         self._source_event_ids: deque[EventId] = deque(maxlen=32)
+        self._recent_changes: deque[EmotionChange] = deque(maxlen=64)
 
         # 初始化8种情绪为baseline值
         self.emotions: Dict[str, float] = {
@@ -120,7 +121,7 @@ class EmotionSystem:
         """Return the single simulation time used by all accumulators."""
         return self.last_updated_at
 
-    def process_input(self, emotion_input: EmotionInput) -> None:
+    def process_input(self, emotion_input: EmotionInput) -> Optional[EmotionChange]:
         """处理情绪输入（新API）
 
         Args:
@@ -131,17 +132,17 @@ class EmotionSystem:
 
         if emotion not in self.emotions:
             logger.warning(f"未知情绪类型: {emotion}")
-            return
+            return None
 
         # 验证输入
         if not emotion_input.validate():
             logger.warning(f"情绪输入验证失败: {emotion_input}")
-            return
+            return None
 
         # 去重检查
         if not self.deduplicator.is_new(emotion_input.event_id):
             logger.debug(f"重复事件，跳过: {emotion_input.event_id}")
-            return
+            return None
         self.deduplicator.mark_processed(emotion_input.event_id)
         self._source_event_ids.append(EventId(emotion_input.event_id))
 
@@ -186,15 +187,26 @@ class EmotionSystem:
         self.emotions[emotion] += actual_delta
         self.emotions[emotion] = min(self.emotions[emotion], config["max_value"])
         self.revision += 1
+        change = EmotionChange(
+            revision=self.revision,
+            occurred_at=datetime.fromtimestamp(self.last_updated_at, timezone.utc),
+            event_id=EventId(emotion_input.event_id),
+            emotion=emotion,
+            source=emotion_input.source,
+            previous_intensity=old_value / 100.0,
+            current_intensity=self.emotions[emotion] / 100.0,
+        )
+        self._recent_changes.append(change)
 
         logger.info(
             f"🎭 [情绪更新] {emotion}: {old_value:.1f} -> {self.emotions[emotion]:.1f} "
             f"(delta={actual_delta:.2f}, intensity={emotion_input.intensity:.2f})"
         )
+        return change
 
-    def apply_stimulus(self, stimulus: EmotionStimulusEvent) -> None:
+    def apply_stimulus(self, stimulus: EmotionStimulusEvent) -> Optional[EmotionChange]:
         """Apply one coordinator-appraised, deduplicable stimulus."""
-        self.process_input(
+        return self.process_input(
             EmotionInput(
                 emotion=stimulus.emotion.value,
                 intensity=stimulus.intensity,
@@ -203,6 +215,10 @@ class EmotionSystem:
                 timestamp=self.last_updated_at,
             )
         )
+
+    def recent_changes(self) -> Tuple[EmotionChange, ...]:
+        """Return bounded stimulus transitions for diagnostics and evaluation."""
+        return tuple(self._recent_changes)
 
     def reconcile_turn(
         self,

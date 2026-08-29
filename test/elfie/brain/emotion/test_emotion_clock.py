@@ -69,13 +69,20 @@ def test_duplicate_stimulus_event_does_not_mutate_emotion_twice() -> None:
     )
 
     # When: the producer retries the exact same event.
-    emotion.apply_stimulus(stimulus)
+    change = emotion.apply_stimulus(stimulus)
     first = emotion.snapshot(0.0)
-    emotion.apply_stimulus(stimulus)
+    duplicate_change = emotion.apply_stimulus(stimulus)
     duplicate = emotion.snapshot(0.0)
 
     # Then: neither values nor revision change on the duplicate.
     assert duplicate == first
+    assert change is not None
+    assert change.source == "physical"
+    assert change.event_id == EventId("impact-1")
+    assert change.previous_intensity == pytest.approx(0.1)
+    assert change.current_intensity > change.previous_intensity
+    assert duplicate_change is None
+    assert emotion.recent_changes() == (change,)
 
 
 def test_reconcile_turn_replays_baseline_then_applies_model_feedback_once() -> None:
@@ -107,6 +114,8 @@ def test_reconcile_turn_replays_baseline_then_applies_model_feedback_once() -> N
     assert emotion.get_emotion_value("anger") == pytest.approx(10.0)
     assert emotion.get_emotion_value("happiness") > 50.0
     assert EventId("emotion-feedback:turn-1") in emotion.snapshot(5.0).source_event_ids
+    assert emotion.recent_changes()[-1].source == "model"
+    assert emotion.recent_changes()[-1].event_id == EventId("emotion-feedback:turn-1")
 
 
 def test_wall_clock_jump_does_not_change_frequency_or_decay(monkeypatch) -> None:
