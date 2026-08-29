@@ -78,6 +78,37 @@ def test_duplicate_stimulus_event_does_not_mutate_emotion_twice() -> None:
     assert duplicate == first
 
 
+def test_reconcile_turn_replays_baseline_then_applies_model_feedback_once() -> None:
+    # Given: a pre-turn checkpoint and a fast provisional anger appraisal.
+    emotion = EmotionSystem(clock=lambda: 0.0)
+    checkpoint = emotion.checkpoint()
+    emotion.apply_stimulus(
+        EmotionStimulusEvent(
+            event_id=EventId("entry-appraisal"),
+            emotion=EmotionType.ANGER,
+            intensity=1.0,
+            source=StimulusSource.SOCIAL,
+        )
+    )
+    assert emotion.get_emotion_value("anger") > 10.0
+
+    # When: the model corrects the same turn to happiness at t=5.
+    emotion.reconcile_turn(
+        checkpoint,
+        turn_id="turn-1",
+        emotion=EmotionType.HAPPINESS,
+        intensity=1.0,
+        confidence=1.0,
+        timestamp=5.0,
+    )
+
+    # Then: the provisional anger is gone, decay has been replayed, and the
+    # model feedback is represented by exactly one model event.
+    assert emotion.get_emotion_value("anger") == pytest.approx(10.0)
+    assert emotion.get_emotion_value("happiness") > 50.0
+    assert EventId("emotion-feedback:turn-1") in emotion.snapshot(5.0).source_event_ids
+
+
 def test_wall_clock_jump_does_not_change_frequency_or_decay(monkeypatch) -> None:
     # Given: a simulation-clock-owned emotion system and one stimulus.
     emotion = EmotionSystem(clock=lambda: 10.0)

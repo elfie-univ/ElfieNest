@@ -165,6 +165,7 @@ class BlockingPlanRuntime:
         self.started = Event()
         self.second_started = Event()
         self.calls: list[ModelGenerationRequest] = []
+        self.feedback: dict[str, object] | None = None
 
     def capabilities(self) -> ModelGenerationCapabilities:
         return ModelGenerationCapabilities(
@@ -187,30 +188,31 @@ class BlockingPlanRuntime:
             self.second_started.set()
         self.release.wait()
         intent_id = f"speech-{request.turn_id}"
-        text = json.dumps(
-            {
-                "schema_version": 1,
-                "plan_id": f"plan-{request.turn_id}",
-                "turn_id": str(request.turn_id),
-                "frame_id": str(request.frame_id),
-                "context_revision": request.context_revision,
-                "capability_revision": request.capability_revision,
-                "created_at": request.created_at.isoformat(),
-                "deadline": request.deadline.isoformat(),
-                "cause_event_ids": list(request.cause_event_ids),
-                "intents": [
-                    {
-                        "type": "speech",
-                        "intent_id": intent_id,
-                        "cause_event_ids": list(request.cause_event_ids),
-                        "dependency_ids": [],
-                        "deadline": request.deadline.isoformat(),
-                        "cancel_policy": "if_not_started",
-                        "text": "hello",
-                    }
-                ],
-            }
-        )
+        payload: dict[str, object] = {
+            "schema_version": 1,
+            "plan_id": f"plan-{request.turn_id}",
+            "turn_id": str(request.turn_id),
+            "frame_id": str(request.frame_id),
+            "context_revision": request.context_revision,
+            "capability_revision": request.capability_revision,
+            "created_at": request.created_at.isoformat(),
+            "deadline": request.deadline.isoformat(),
+            "cause_event_ids": list(request.cause_event_ids),
+            "intents": [
+                {
+                    "type": "speech",
+                    "intent_id": intent_id,
+                    "cause_event_ids": list(request.cause_event_ids),
+                    "dependency_ids": [],
+                    "deadline": request.deadline.isoformat(),
+                    "cancel_policy": "if_not_started",
+                    "text": "hello",
+                }
+            ],
+        }
+        if self.feedback is not None:
+            payload["emotion_feedback"] = self.feedback
+        text = json.dumps(payload)
         return ModelGenerationResult(
             text=text,
             selected_mode=StructuredOutputMode.JSON_SCHEMA,
@@ -341,6 +343,43 @@ def test_social_text_emotion_is_applied_before_model_turn_snapshot() -> None:
     try:
         assert emotion.get_emotion_value("anger") > 10.0
         assert "anger=" in runtime.calls[0].system_prompt
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "emotion": "happiness",
+        "intensity": 1.0,
+        "confidence": 1.0,
+    }
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="I am furious about this",
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        assert emotion.get_emotion_value("anger") > 10.0
+        assert "EMOTION_FEEDBACK" in runtime.calls[0].system_prompt
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("anger") == pytest.approx(10.0)
+        assert emotion.get_emotion_value("happiness") > 50.0
     finally:
         runtime.release.set()
         coordinator.stop()

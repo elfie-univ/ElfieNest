@@ -17,7 +17,11 @@ from elfie.brain.emotion.accumulator.frequency import FrequencyTracker
 from elfie.brain.emotion.accumulator.saturation import calculate_accumulation_delta
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_input import EmotionInput
-from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS, resolve_emotion_name
+from elfie.brain.emotion.emotion_types import (
+    EMOTION_CONFIGS,
+    EmotionType,
+    resolve_emotion_name,
+)
 from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator
 from elfie.brain.emotion.interactions import EmotionInteractionSystem
 from elfie.brain.emotion.personality import PersonalityModifier
@@ -34,6 +38,7 @@ _LEGACY_STIMULUS_SOURCES: Final[Mapping[StimulusSource, str]] = {
     StimulusSource.PHYSICAL: "physical",
     StimulusSource.SOCIAL: "text",
     StimulusSource.EXECUTION: "brain",
+    StimulusSource.MODEL: "brain",
 }
 
 
@@ -199,6 +204,37 @@ class EmotionSystem:
             )
         )
 
+    def reconcile_turn(
+        self,
+        checkpoint: EmotionCheckpoint,
+        *,
+        turn_id: str,
+        emotion: EmotionType,
+        intensity: float,
+        confidence: float,
+        timestamp: float,
+    ) -> None:
+        """Replace a turn's provisional appraisal with model feedback.
+
+        The coordinator is the sole writer and calls this only after the
+        model returns.  We restore the pre-stimulus checkpoint, replay any
+        elapsed decay, then apply exactly one model-owned stimulus.  This
+        prevents the entry appraisal and the correction from accumulating
+        twice while preserving clock continuity.
+        """
+        if timestamp < checkpoint.last_updated_at:
+            raise EmotionTimeRegressionError(checkpoint.last_updated_at, timestamp)
+        self._restore_checkpoint_unchecked(checkpoint)
+        self.advance_to(timestamp)
+        self.apply_stimulus(
+            EmotionStimulusEvent(
+                event_id=EventId(f"emotion-feedback:{turn_id}"),
+                emotion=emotion,
+                intensity=max(0.0, min(1.0, intensity * confidence)),
+                source=StimulusSource.MODEL,
+            )
+        )
+
     def update_emotion(self, name: str, delta: float) -> None:
         """更新情绪值（向后兼容的旧API）
 
@@ -330,6 +366,10 @@ class EmotionSystem:
     def restore(self, checkpoint: EmotionCheckpoint) -> None:
         """Restore a committed affect checkpoint without rewinding the owner."""
         self.validate_checkpoint(checkpoint)
+        self._restore_checkpoint_unchecked(checkpoint)
+
+    def _restore_checkpoint_unchecked(self, checkpoint: EmotionCheckpoint) -> None:
+        """Restore exact state for a same-turn reconciliation transaction."""
         self.emotions = dict(checkpoint.emotions)
         self.last_updated_at = checkpoint.last_updated_at
         self.revision = checkpoint.revision

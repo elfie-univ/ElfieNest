@@ -35,10 +35,10 @@ from elfie.brain.reasoning.coordinator_types import (
     WorkerDoneControl,
 )
 from elfie.brain.reasoning.decision_governance import govern_decision
-from elfie.brain.reasoning.run import ReasoningRunResult
+from elfie.brain.reasoning.run import ReasoningRunResult, ReasoningStatus
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
-from elfie.brain.reasoning.worker import ReasoningExecutionPort
+from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
 from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
@@ -395,6 +395,7 @@ class BrainCoordinator:
                 control.turn_id,
                 consumed=max(0.25, consumed),
             )
+            self._reconcile_emotion_feedback(inflight, result)
         self._completion.complete(inflight, control)
         self._inflight = None
         if self._on_state_change is not None:
@@ -403,6 +404,47 @@ class BrainCoordinator:
         # the coordinator once. Re-evaluate the workspace after closing the
         # claim so a queued follow-up message can form its own Turn.
         self._maybe_start_turn()
+
+    def _reconcile_emotion_feedback(
+        self,
+        inflight: InFlightTurn,
+        result: ReasoningTurnResult,
+    ) -> None:
+        """Replace the provisional entry appraisal with one model appraisal.
+
+        Only successful terminal runs may correct affect.  A failed, stale, or
+        timed-out run leaves the provisional input appraisal untouched so that
+        a missing model response never erases a real-time signal.
+        """
+        if inflight.terminal_status is not None:
+            return
+        if result.reasoning.status not in {
+            ReasoningStatus.COMPLETED,
+            ReasoningStatus.SAFE_NOOP,
+        }:
+            return
+        checkpoint = inflight.task.emotion_checkpoint
+        feedback = result.decode.plan.emotion_feedback
+        if checkpoint is None or feedback is None:
+            return
+        try:
+            self._emotion.reconcile_turn(
+                checkpoint,
+                turn_id=str(inflight.task.seed.turn_id),
+                emotion=feedback.emotion,
+                intensity=feedback.intensity,
+                confidence=feedback.confidence,
+                timestamp=self._timestamp,
+            )
+        except Exception as error:  # noqa: BLE001 - preserve completed turn
+            diagnostic_logger.warning(
+                "Model emotion feedback could not reconcile the turn",
+                extra={
+                    "diagnostic_event": "emotion_feedback_reconcile_failed",
+                    "turn_id": str(inflight.task.seed.turn_id),
+                    "error": type(error).__name__,
+                },
+            )
 
     def _mark_stale(self, inflight: InFlightTurn, reason: str) -> None:
         if inflight.terminal_status is not None:

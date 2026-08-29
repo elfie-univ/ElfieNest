@@ -18,6 +18,7 @@ class StimulusSource(str, Enum):
     PHYSICAL = "physical"
     SOCIAL = "social"
     EXECUTION = "execution"
+    MODEL = "model"
 
 
 class EmotionStimulusEvent(FrozenContractModel):

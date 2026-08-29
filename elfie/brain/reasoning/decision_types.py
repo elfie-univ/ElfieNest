@@ -14,6 +14,7 @@ from elfie.brain.activity.system import (
     ActivityPreflightResult,
     ActivityPreflightStatus,
 )
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     EmbodiedScope,
@@ -125,6 +126,14 @@ class NoOpIntent(IntentContract):
     reason: _NonBlankText
 
 
+class EmotionFeedback(FrozenContractModel):
+    """Model's post-reasoning appraisal of the current turn input."""
+
+    emotion: EmotionType
+    intensity: _Intensity = 0.5
+    confidence: _Intensity = 0.7
+
+
 DecisionIntent: TypeAlias = Annotated[
     Union[
         SpeechIntent,
@@ -151,6 +160,7 @@ class DecisionPlan(FrozenContractModel):
     deadline: UTCDateTime
     cause_event_ids: Annotated[Tuple[EventId, ...], Field(min_length=1)]
     intents: Annotated[Tuple[DecisionIntent, ...], Field(min_length=1)]
+    emotion_feedback: Optional[EmotionFeedback] = None
 
     @model_validator(mode="after")
     def validate_plan_graph(self) -> DecisionPlan:
@@ -336,6 +346,7 @@ __all__ = (
     "CancelPolicy",
     "DecisionIntent",
     "DecisionPlan",
+    "EmotionFeedback",
     "ExpressionIntent",
     "MessageIntent",
     "MotionIntent",
