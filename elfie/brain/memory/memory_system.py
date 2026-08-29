@@ -416,15 +416,31 @@ class MemorySystem:
         return self.retriever.retrieve(retrieval_query, top_k)
 
     def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
-        """Return a bounded, read-only view of episodic work awaiting consolidation."""
+        """Return a bounded wake-up view for the single maintenance owner.
+
+        The scheduler may need to wake for Lifecycle-only work even when no
+        Episode is awaiting projection.  The sentinel is operational input to
+        the existing consolidation candidate, not a new Memory record or
+        queue; ``run_maintenance`` still owns the ordered stages.
+        """
         if limit < 1:
             return ()
-        return tuple(
-            node.id
-            for node in self.storage.get_unconsolidated_nodes(node_type="episodic")[
-                :limit
-            ]
-        )
+        pending = getattr(self.storage, "pending_episodes", None)
+        if callable(pending):
+            episode_ids = tuple(episode.episode_id for episode in pending(limit=limit))
+        else:
+            episode_ids = tuple(
+                node.id
+                for node in self.storage.get_unconsolidated_nodes(node_type="episodic")[
+                    :limit
+                ]
+            )
+        if episode_ids:
+            return episode_ids
+        due = getattr(self.storage, "has_due_lifecycle", None)
+        if callable(due) and due():
+            return ("maintenance:lifecycle",)
+        return ()
 
     def run_consolidation(
         self,
@@ -477,6 +493,8 @@ class MemorySystem:
             ConsolidationRequest(
                 max_episodes=resolved.max_episodes,
                 worker_id=resolved.worker_id,
+                checkpoint=resolved.checkpoint,
+                lease_seconds=resolved.lease_seconds,
             ),
             model_port=model_port,
         )
@@ -499,7 +517,7 @@ class MemorySystem:
                 edges_created=batch.assertions_created,
                 evidence_created=batch.evidence_created,
                 failed_episode_ids=batch.failed_episode_ids,
-                checkpoint=resolved.checkpoint,
+                checkpoint=batch.checkpoint or resolved.checkpoint,
                 errors=batch.errors,
             )
             if result.consolidated_episode_ids or result.failed_episode_ids:
@@ -535,7 +553,9 @@ class MemorySystem:
             edges_created=batch.assertions_created,
             evidence_created=batch.evidence_created,
             failed_episode_ids=batch.failed_episode_ids,
-            checkpoint=lifecycle_receipt.checkpoint or resolved.checkpoint,
+            checkpoint=lifecycle_receipt.checkpoint
+            or batch.checkpoint
+            or resolved.checkpoint,
             errors=errors,
         )
         if any(

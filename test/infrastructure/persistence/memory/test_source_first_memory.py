@@ -453,6 +453,59 @@ def test_expired_lease_is_reclaimable_and_failure_is_scheduled() -> None:
         assert "temporary" in row[2]
 
 
+def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        source = ClosedEpisode("episode-fenced", "fenced-key", "2026-01-01", "内容")
+        store.record_episode(source)
+        first = store.claim_episodes(limit=1, owner="worker-a", lease_seconds=1)[0]
+        assert first.metadata["_memory_claim_owner"] == "worker-a"
+        assert first.metadata["_memory_claim_attempt"] == 1
+
+        store.connection.execute(
+            "UPDATE episodes SET lease_until='1970-01-01T00:00:00+00:00' "
+            "WHERE episode_id=?",
+            (source.episode_id,),
+        )
+        store.connection.commit()
+        assert store.recover_expired_leases() == 1
+        second = store.claim_episodes(limit=1, owner="worker-b", lease_seconds=120)[0]
+        assert second.metadata["_memory_claim_attempt"] == 2
+        stored = store.get_episode(source.episode_id)
+
+        with pytest.raises(ValueError, match="stale consolidation claim"):
+            store.apply_consolidation(
+                ConsolidationProjection(
+                    episode_id=source.episode_id,
+                    nodes=(NodeInput("fenced-node", "concept", "内容"),),
+                    evidence=(
+                        EvidenceInput(
+                            "fenced-evidence",
+                            "episode",
+                            source.episode_id,
+                            excerpt=source.content_text,
+                            source_sha256=stored.content_sha256,
+                        ),
+                    ),
+                    claim_owner=str(first.metadata["_memory_claim_owner"]),
+                    claim_attempt=int(first.metadata["_memory_claim_attempt"]),
+                )
+            )
+        assert (
+            store.mark_episode_failed(
+                source.episode_id,
+                "stale worker",
+                owner="worker-a",
+                attempt=1,
+            )
+            is False
+        )
+        assert store.connection.execute(
+            "SELECT consolidation_state, lease_owner, consolidation_attempts "
+            "FROM episodes WHERE episode_id=?",
+            (source.episode_id,),
+        ).fetchone()[:2] == ("processing", "worker-b")
+
+
 class _ProposalModel:
     def __init__(self, payload: str) -> None:
         self.payload = payload

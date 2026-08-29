@@ -126,7 +126,14 @@ class SQLiteMemoryMixinBase:
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:
         raise NotImplementedError
 
-    def mark_episode_failed(self, episode_id: str, error: str) -> bool:
+    def mark_episode_failed(
+        self,
+        episode_id: str,
+        error: str,
+        *,
+        owner: str | None = None,
+        attempt: int | None = None,
+    ) -> bool:
         raise NotImplementedError
 
     def apply_consolidation(
@@ -138,6 +145,12 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def run_lifecycle(self, request: MaintenanceRequest) -> MaintenanceReceipt:
+        raise NotImplementedError
+
+    def has_due_lifecycle(self) -> bool:
+        raise NotImplementedError
+
+    def recover_expired_maintenance_leases(self) -> int:
         raise NotImplementedError
 
     def inspect_episode(self, episode_id: str) -> ClosedEpisode | None:

@@ -83,7 +83,14 @@ class MemoryStorePort(Protocol):
         lease_seconds: int = 120,
     ) -> tuple[ClosedEpisode, ...]: ...
 
-    def mark_episode_failed(self, episode_id: str, error: str) -> bool: ...
+    def mark_episode_failed(
+        self,
+        episode_id: str,
+        error: str,
+        *,
+        owner: str | None = None,
+        attempt: int | None = None,
+    ) -> bool: ...
 
     def apply_consolidation(
         self, projection: ConsolidationProjection
@@ -97,6 +104,10 @@ class MemoryStorePort(Protocol):
         self,
         request: MaintenanceRequest,
     ) -> MaintenanceReceipt: ...
+
+    def has_due_lifecycle(self) -> bool: ...
+
+    def recover_expired_maintenance_leases(self) -> int: ...
 
     def inspect_episode(self, episode_id: str) -> ClosedEpisode | None: ...
 

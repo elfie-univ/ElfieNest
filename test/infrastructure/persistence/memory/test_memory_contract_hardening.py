@@ -111,6 +111,7 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
                 occurred_from="2026-01-01T00:00:00+00:00",
                 content_text="source remains complete",
                 importance=0.8,
+                next_review_at="2020-01-01T00:00:00+00:00",
             )
         )
         projected_source = ClosedEpisode(
@@ -119,6 +120,7 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
             occurred_from="2026-01-02T00:00:00+00:00",
             content_text="projected source",
             importance=0.8,
+            next_review_at="2020-01-01T00:00:00+00:00",
         )
         store.record_episode(projected_source)
         store.apply_consolidation(
@@ -758,3 +760,175 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
         assert receipt.knowledge_created >= 1
         assert receipt.edges_created >= 1
         assert receipt.status in {"completed", "partial"}
+
+
+def test_fresh_memory_is_not_immediately_due_for_lifecycle() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.record_episode(
+            ClosedEpisode(
+                "fresh-episode",
+                "fresh-key",
+                "2026-08-29T00:00:00+00:00",
+                "fresh source",
+            )
+        )
+        assert store.has_due_lifecycle() is False
+        assert store.run_lifecycle(MaintenanceRequest(max_episodes=8)).status == "empty"
+
+
+def test_lifecycle_only_work_wakes_memory_maintenance() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.upsert_node_record(
+            NodeInput(
+                "due-node",
+                "concept",
+                "历史概念",
+                properties={"elfie_id": "elfie-a"},
+            )
+        )
+        store.connection.execute(
+            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='due-node'"
+        )
+        store.connection.commit()
+        memory = MemorySystem(store, elfie_id="elfie-a")
+
+        assert memory.pending_consolidation_ids() == ("maintenance:lifecycle",)
+
+
+def test_lifecycle_checkpoint_resumes_after_the_last_claimed_target() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        for node_id in ("due-a", "due-b"):
+            store.upsert_node_record(
+                NodeInput(
+                    node_id,
+                    "concept",
+                    node_id,
+                    properties={"elfie_id": "elfie-a"},
+                )
+            )
+        store.connection.execute(
+            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00'"
+        )
+        store.connection.commit()
+
+        first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        assert first.lifecycle_node_ids == ("due-a",)
+        assert first.checkpoint
+        second = store.run_lifecycle(
+            MaintenanceRequest(max_episodes=1, checkpoint=first.checkpoint)
+        )
+        assert second.lifecycle_node_ids == ("due-b",)
+
+
+def test_expired_lifecycle_lease_is_recovered() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.connection.execute(
+            """INSERT INTO memory_maintenance(
+                   work_id, elfie_id, stage, target_id, state, attempts,
+                   lease_owner, lease_until, updated_at
+               ) VALUES ('lifecycle:expired', 'elfie-a', 'lifecycle',
+                         'expired', 'processing', 1, 'dead-worker',
+                         '1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00')"""
+        )
+        store.connection.commit()
+
+        assert store.recover_expired_maintenance_leases() == 1
+        row = store.connection.execute(
+            "SELECT state, lease_owner, lease_until, next_attempt_at FROM memory_maintenance"
+        ).fetchone()
+        assert tuple(row[:3]) == ("failed", None, None)
+        assert row[3]
+
+
+def test_forgetting_requires_a_current_hash_bound_evidence_trail() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        source = ClosedEpisode(
+            "forget-source",
+            "forget-source-key",
+            "2026-01-01T00:00:00+00:00",
+            "完整来源内容",
+        )
+        store.record_episode(source)
+        assert store.forget_episode(source.episode_id) is False
+
+        projected = ClosedEpisode(
+            "forget-projected",
+            "forget-projected-key",
+            "2026-01-01T00:00:00+00:00",
+            "可审计来源内容",
+        )
+        store.record_episode(projected)
+        stored = store.get_episode(projected.episode_id)
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id=projected.episode_id,
+                nodes=(NodeInput("forget-node", "concept", "可审计"),),
+                evidence=(
+                    EvidenceInput(
+                        "forget-evidence",
+                        "episode",
+                        projected.episode_id,
+                        excerpt=projected.content_text,
+                        source_sha256=stored.content_sha256,
+                    ),
+                ),
+            )
+        )
+        assert store.forget_episode(projected.episode_id) is True
+        forgotten = store.get_episode(projected.episode_id)
+        assert forgotten.detail_level == "digest"
+        assert forgotten.content_text.startswith("[forgotten:")
+
+
+def test_projected_lifecycle_compacts_then_digests_then_archives() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        episode = ClosedEpisode(
+            "lifecycle-stages",
+            "lifecycle-stages-key",
+            "2026-01-01T00:00:00+00:00",
+            "需要分阶段维护的来源",
+            next_review_at="2020-01-01T00:00:00+00:00",
+        )
+        store.record_episode(episode)
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id=episode.episode_id,
+                nodes=(NodeInput("lifecycle-node", "concept", "维护"),),
+                evidence=(
+                    EvidenceInput(
+                        "lifecycle-evidence",
+                        "episode",
+                        episode.episode_id,
+                        excerpt=episode.content_text,
+                        source_sha256=store.get_episode(
+                            episode.episode_id
+                        ).content_sha256,
+                    ),
+                ),
+            )
+        )
+        first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        assert first.lifecycle_episode_ids == (episode.episode_id,)
+        assert store.get_episode(episode.episode_id).detail_level == "compressed"
+
+        store.connection.execute(
+            "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
+            (episode.episode_id,),
+        )
+        store.connection.commit()
+        store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        digested = store.get_episode(episode.episode_id)
+        assert digested.detail_level == "digest"
+        assert digested.content_text.startswith("[digest:")
+
+        store.connection.execute(
+            "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
+            (episode.episode_id,),
+        )
+        store.connection.commit()
+        store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        lifecycle = store.connection.execute(
+            "SELECT lifecycle FROM episodes WHERE episode_id=?",
+            (episode.episode_id,),
+        ).fetchone()[0]
+        assert lifecycle == "archived"

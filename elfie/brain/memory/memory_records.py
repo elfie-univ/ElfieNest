@@ -439,6 +439,10 @@ class ConsolidationProjection:
     source_version: Optional[str] = None
     source_sha256: Optional[str] = None
     projection_revision: Optional[str] = None
+    # Operational fencing for a claimed Episode.  These fields are never part
+    # of the semantic projection hash and are omitted for direct/import writes.
+    claim_owner: Optional[str] = None
+    claim_attempt: Optional[int] = None
 
     def __post_init__(self) -> None:
         if not self.episode_id.strip():
@@ -452,6 +456,10 @@ class ConsolidationProjection:
             and not self.projection_revision.strip()
         ):
             raise ValueError("projection_revision must not be blank when supplied")
+        if self.claim_owner is not None and not self.claim_owner.strip():
+            raise ValueError("claim_owner must not be blank when supplied")
+        if self.claim_attempt is not None and self.claim_attempt < 1:
+            raise ValueError("claim_attempt must be positive when supplied")
 
 
 @dataclass(frozen=True)
@@ -460,12 +468,18 @@ class ConsolidationRequest:
 
     max_episodes: int = 8
     worker_id: str = "memory-consolidator"
+    checkpoint: Optional[str] = None
+    lease_seconds: int = 120
 
     def __post_init__(self) -> None:
         if self.max_episodes < 1:
             raise ValueError("max_episodes must be at least one")
         if not self.worker_id.strip():
             raise ValueError("worker_id must not be blank")
+        if self.checkpoint is not None and not self.checkpoint.strip():
+            raise ValueError("checkpoint must not be blank when supplied")
+        if self.lease_seconds < 1:
+            raise ValueError("lease_seconds must be at least one")
 
 
 @dataclass(frozen=True)
@@ -492,6 +506,7 @@ class ConsolidationBatchReceipt:
     nodes_created: int = 0
     assertions_created: int = 0
     evidence_created: int = 0
+    checkpoint: Optional[str] = None
     errors: Mapping[str, str] = field(default_factory=dict)
 
     @property
@@ -517,6 +532,7 @@ class MaintenanceRequest:
     max_episodes: int = 8
     worker_id: str = "memory-maintenance"
     checkpoint: Optional[str] = None
+    lease_seconds: int = 120
 
     def __post_init__(self) -> None:
         if self.max_episodes < 1:
@@ -525,6 +541,8 @@ class MaintenanceRequest:
             raise ValueError("worker_id must not be blank")
         if self.checkpoint is not None and not self.checkpoint.strip():
             raise ValueError("checkpoint must not be blank when supplied")
+        if self.lease_seconds < 1:
+            raise ValueError("lease_seconds must be at least one")
 
 
 @dataclass(frozen=True)
