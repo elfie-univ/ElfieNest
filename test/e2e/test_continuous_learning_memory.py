@@ -42,6 +42,18 @@ class StableReplyRuntime:
         )
 
 
+class NoopMemoryProjection:
+    """Use the source-grounded deterministic extractor in this replay.
+
+    The SQLite source-first worker deliberately requires an injected model
+    boundary.  A valid empty proposal keeps this end-to-end test provider-free
+    while exercising the same conservative fallback used by the evaluator.
+    """
+
+    def ask_with_food(self, **_kwargs: object) -> str:
+        return '{"nodes":[],"mentions":[],"assertions":[]}'
+
+
 def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
     tmp_path,
 ) -> None:
@@ -98,7 +110,8 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
     assert store.pending_episodes(limit=8)
     assert store.count_nodes("episodic") >= 1
     elfie._memory.run_consolidation_batch(  # noqa: SLF001 - deterministic replay seam
-        ConsolidationRequest(max_episodes=8)
+        ConsolidationRequest(max_episodes=8),
+        model_port=NoopMemoryProjection(),
     )
     bundle = store.recall(RecallRequest(text="雨宝", episode_limit=8))
     assert any(item.episode_id.startswith("episode:topic:") for item in bundle.episodes)

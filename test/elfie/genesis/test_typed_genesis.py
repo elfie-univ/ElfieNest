@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -5,7 +6,7 @@ import pytest
 from app.features.adoption import AcceptedAdoptionReservation
 from elfie.brain.memory.memory_records import RecallRequest
 from elfie.genesis import GenesisMemoryCommitter, GenesisValidationError
-from elfie.genesis.initializer import _typed_content_hash
+from elfie.genesis.initializer import _safe_component, _typed_content_hash
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
     _genesis_bundle,
@@ -76,6 +77,81 @@ def test_typed_genesis_records_story_graph_manifest_and_recall(tmp_path: Path) -
     with SQLiteMemoryStoreAdapter(memory_path) as repeated:
         assert repeated.count_nodes("episodic") == 5
         assert repeated.count_nodes("person") == 13
+    adapter.release(reservation.elfie_id)
+
+
+def test_typed_genesis_propagates_explicit_importance_to_nodes_and_assertions(
+    tmp_path: Path,
+) -> None:
+    reservation = _reservation("00000104")
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    workspace = Path(adapter.materialize(reservation))
+    profile = YamlProfileStoreAdapter(workspace / "profile").load()
+    selfhood = YamlSelfhoodSeedAdapter(workspace / "brain").load()
+    bundle = _genesis_bundle(reservation, profile, selfhood)
+    customized = replace(
+        bundle,
+        knowledge_seeds=(
+            replace(bundle.knowledge_seeds[0], importance=0.91),
+            *bundle.knowledge_seeds[1:],
+        ),
+        relationship_seeds=(
+            replace(bundle.relationship_seeds[0], importance=0.37),
+            *bundle.relationship_seeds[1:],
+        ),
+    )
+    customized = replace(
+        customized,
+        manifest=replace(
+            customized.manifest,
+            content_hash=_typed_content_hash(customized),
+        ),
+    )
+
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id=reservation.elfie_id) as storage:
+        GenesisMemoryCommitter().commit(customized, storage)
+        knowledge = customized.knowledge_seeds[0]
+        knowledge_node_id = (
+            f"genesis:knowledge:{reservation.elfie_id}:"
+            f"{_safe_component(knowledge.seed_id)}"
+        )
+        knowledge_node = storage.connection.execute(
+            "SELECT importance FROM nodes WHERE node_id=?", (knowledge_node_id,)
+        ).fetchone()
+        assert knowledge_node is not None
+        assert float(knowledge_node[0]) == pytest.approx(knowledge.importance)
+        knowledge_assertion = storage.connection.execute(
+            """SELECT a.importance
+                 FROM assertions AS a
+                 JOIN nodes AS n ON n.node_id=a.object_node_id
+                WHERE a.subject_node_id=? AND a.predicate='knows'
+                  AND n.node_id=?""",
+            (f"genesis:self:{reservation.elfie_id}", knowledge_node_id),
+        ).fetchone()
+        assert knowledge_assertion is not None
+        assert float(knowledge_assertion[0]) == pytest.approx(knowledge.importance)
+
+        relationship = customized.relationship_seeds[0]
+        person_node_id = (
+            f"genesis:person:{reservation.elfie_id}:"
+            f"{_safe_component(relationship.person_id)}"
+        )
+        person_node = storage.connection.execute(
+            "SELECT importance FROM nodes WHERE node_id=?", (person_node_id,)
+        ).fetchone()
+        assert person_node is not None
+        assert float(person_node[0]) == pytest.approx(relationship.importance)
+        relationship_assertion = storage.connection.execute(
+            """SELECT importance FROM assertions
+                WHERE subject_node_id=? AND predicate='relationship'
+                  AND object_node_id=?""",
+            (f"genesis:self:{reservation.elfie_id}", person_node_id),
+        ).fetchone()
+        assert relationship_assertion is not None
+        assert float(relationship_assertion[0]) == pytest.approx(
+            relationship.importance
+        )
+
     adapter.release(reservation.elfie_id)
 
 

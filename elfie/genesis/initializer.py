@@ -261,7 +261,7 @@ class GenesisMemoryCommitter:
                         "relationship_label": relationship.role,
                         "closeness_score": relationship.initial_trust,
                         "trust_score": relationship.initial_trust,
-                        "importance_score": 1.0,
+                        "importance_score": relationship.importance,
                         "is_owner": relationship.role == "earth_household",
                         "shared_facts": list(relationship.shared_facts),
                         "unknown_facts": list(relationship.unknown_facts),
@@ -471,13 +471,14 @@ class GenesisMemoryCommitter:
                     node_id=person_id,
                     node_type="person",
                     canonical_label=relationship.display_name,
+                    importance=relationship.importance,
                     properties={
                         "entity_type": "person",
                         "person_id": relationship.person_id,
                         "relationship_label": relationship.role,
                         "closeness_score": relationship.initial_trust,
                         "trust_score": relationship.initial_trust,
-                        "importance_score": 1.0,
+                        "importance_score": relationship.importance,
                         "is_owner": relationship.role == "earth_household",
                         "shared_facts": list(relationship.shared_facts),
                         "unknown_facts": list(relationship.unknown_facts),
@@ -493,6 +494,7 @@ class GenesisMemoryCommitter:
                     "relationship",
                     object_node_id=person_id,
                     confidence=relationship.initial_trust,
+                    importance=relationship.importance,
                     support_score=relationship.initial_trust,
                 ),
                 EvidenceInput(
@@ -879,6 +881,7 @@ class GenesisMemoryCommitter:
                     description=relationship_description or None,
                     scope=scope,
                     confidence=max(relationship.initial_trust, relationship.importance),
+                    importance=relationship.importance,
                     properties={
                         "entity_type": relationship.object_kind,
                         "person_id": relationship.person_id,
@@ -990,6 +993,7 @@ class GenesisMemoryCommitter:
                     scope=scope,
                     status="active" if recall_eligible else "unresolved",
                     confidence=_certainty_score(knowledge_seed.certainty),
+                    importance=knowledge_seed.importance,
                     properties={
                         "genesis_kind": "knowledge_seed",
                         "genesis_manifest_id": manifest_id,
@@ -1058,6 +1062,7 @@ class GenesisMemoryCommitter:
                         else "believed"
                     ),
                     confidence=_certainty_score(knowledge_seed.certainty),
+                    importance=knowledge_seed.importance,
                     support_score=_mastery_score(knowledge_seed.mastery),
                     evidence_ids=(evidence_id,),
                 ),
@@ -1162,6 +1167,7 @@ class GenesisMemoryCommitter:
                     "involves",
                     object_node_id=self_id,
                     confidence=1.0,
+                    importance=episode_seed.importance,
                     support_score=1.0,
                     evidence_ids=(evidence_id,),
                 ),
@@ -1170,6 +1176,7 @@ class GenesisMemoryCommitter:
                     "experienced",
                     object_node_id=event_id,
                     confidence=1.0,
+                    importance=episode_seed.importance,
                     support_score=1.0,
                     evidence_ids=(evidence_id,),
                 ),
@@ -1194,6 +1201,7 @@ class GenesisMemoryCommitter:
                         "at",
                         object_node_id=place_node,
                         confidence=1.0,
+                        importance=episode_seed.importance,
                         support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
@@ -1218,6 +1226,7 @@ class GenesisMemoryCommitter:
                         "involves",
                         object_node_id=person_node,
                         confidence=1.0,
+                        importance=episode_seed.importance,
                         support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
@@ -1230,6 +1239,7 @@ class GenesisMemoryCommitter:
                         object_node_id=self_id,
                         context=episode_seed.impact,
                         confidence=1.0,
+                        importance=episode_seed.importance,
                         support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
@@ -1244,6 +1254,7 @@ class GenesisMemoryCommitter:
                         "causes",
                         object_node_id=event_id,
                         confidence=1.0,
+                        importance=episode_seed.importance,
                         support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
@@ -1278,6 +1289,7 @@ class GenesisMemoryCommitter:
                             description=description or episode_seed.content,
                             scope=scope,
                             confidence=_certainty_score(episode_seed.certainty),
+                            importance=episode_seed.importance,
                             properties={
                                 "genesis_manifest_id": manifest_id,
                                 "genesis_seed_id": episode_seed.seed_id,
@@ -1387,6 +1399,7 @@ class GenesisMemoryCommitter:
                     if relationship.certainty == "high"
                     else "believed",
                     confidence=max(relationship.initial_trust, 0.5),
+                    importance=relationship.importance,
                     support_score=relationship.initial_trust,
                 ),
                 EvidenceInput(

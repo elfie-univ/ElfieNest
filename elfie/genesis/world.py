@@ -30,6 +30,7 @@ class WorldKnowledgeFact:
     source_ref: str
     related_ids: tuple[str, ...]
     eligibility: tuple[str, ...]
+    importance: float = 0.5
 
 
 @dataclass(frozen=True)

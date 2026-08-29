@@ -693,11 +693,16 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
         "source_ref",
         "related_ids",
         "eligibility",
+        "importance",
     }
     for index, raw in enumerate(knowledge):
         fact = _object(raw, f"{label}.knowledge[{index}]")
         _keys(fact, knowledge_fields, f"{label}.knowledge[{index}]")
-        _require_keys(fact, knowledge_fields, f"{label}.knowledge[{index}]")
+        _require_keys(
+            fact,
+            knowledge_fields - {"importance"},
+            f"{label}.knowledge[{index}]",
+        )
         fact_id = _string(fact.get("id"), f"{label}.knowledge[{index}].id")
         if fact_id in knowledge_ids:
             raise ConfigSchemaError(f"{label}.knowledge 出现重复 ID: {fact_id}")
@@ -717,6 +722,14 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
             raise ConfigSchemaError(f"{label}.knowledge[{index}].certainty 无效")
         if fact.get("status") not in ("active", "unknown-boundary"):
             raise ConfigSchemaError(f"{label}.knowledge[{index}].status 无效")
+        if "importance" in fact:
+            importance = _number(
+                fact["importance"], f"{label}.knowledge[{index}].importance"
+            )
+            if not 0.0 <= importance <= 1.0:
+                raise ConfigSchemaError(
+                    f"{label}.knowledge[{index}].importance 必须在 [0, 1] 内"
+                )
 
     _string_list(document.get("unknown_boundaries"), f"{label}.unknown_boundaries")
 

@@ -318,6 +318,12 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_mentions_episode ON episode_mentions(episode_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_subject_predicate ON assertions(subject_node_id, predicate, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_object_predicate ON assertions(object_node_id, predicate, lifecycle)",
+    # Recall is seed-driven and does not always constrain ``predicate``.
+    # Keep lifecycle and deterministic ranking next to each endpoint so a
+    # large graph does not fall back to scanning the lifecycle index for every
+    # local-walk hop.
+    "CREATE INDEX IF NOT EXISTS idx_assertions_subject_lifecycle ON assertions(subject_node_id, lifecycle, importance DESC, confidence DESC, assertion_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_object_lifecycle ON assertions(object_node_id, lifecycle, importance DESC, confidence DESC, assertion_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_conflict ON assertions(conflict_group, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_supersedes ON assertions(supersedes_assertion_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_review ON assertions(lifecycle, importance, updated_at)",

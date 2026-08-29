@@ -27,6 +27,8 @@ class MemoryScorePolicy:
     """Versioned, deterministic updates for sourced Memory facts."""
 
     version = "memory.v1"
+    lifecycle_decay = 0.05
+    forget_importance_threshold = 0.10
 
     @classmethod
     def evidence_update(
@@ -76,6 +78,16 @@ class MemoryScorePolicy:
         return (current + timedelta(days=max(1, days))).isoformat(
             timespec="milliseconds"
         )
+
+    @classmethod
+    def decay_importance(cls, importance: float) -> float:
+        """Apply one due-review decay step without introducing another score."""
+        return _bounded(float(importance) - cls.lifecycle_decay)
+
+    @classmethod
+    def can_forget(cls, importance: float) -> bool:
+        """Return whether policy permits forgetting a dependency-safe source."""
+        return _bounded(importance) <= cls.forget_importance_threshold
 
 
 def _bounded(value: float) -> float:

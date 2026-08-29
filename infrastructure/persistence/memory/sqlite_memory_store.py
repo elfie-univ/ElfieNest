@@ -105,12 +105,42 @@ class SQLiteMemoryStoreAdapter(
         return cls(":memory:", elfie_id=elfie_id)
 
     def bind_elfie_identity(self, elfie_id: str) -> None:
-        """Bind an unconfigured adapter once to its owning Elfie namespace."""
+        """Bind an adapter to its owning Elfie namespace.
+
+        A freshly assembled Elfie may start with a provisional identity before
+        adoption assigns its stable ID.  Rebinding is safe while this adapter
+        has no durable Memory rows; once a source or projection exists, the
+        namespace is immutable so an existing graph can never be reassigned.
+        """
         if not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
         if self.elfie_id is not None and str(self.elfie_id) != elfie_id:
-            raise ValueError("Memory store is already bound to another Elfie")
+            with self._lock:
+                if self._has_durable_memory_rows():
+                    raise ValueError("Memory store is already bound to another Elfie")
         self.elfie_id = elfie_id
+
+    def _has_durable_memory_rows(self) -> bool:
+        """Return whether rebinding would move any persisted Memory facts."""
+        for table in (
+            "episodes",
+            "nodes",
+            "assertions",
+            "evidence",
+            "node_aliases",
+            "node_descriptions",
+            "episode_mentions",
+            "assertion_evidence",
+            "memory_genesis_submissions",
+            "memory_maintenance",
+            "projection_diagnostics",
+        ):
+            if (
+                self.conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+                is not None
+            ):
+                return True
+        return False
 
     @contextmanager
     def write_transaction(self) -> Iterator[None]:
@@ -461,10 +491,19 @@ class SQLiteMemoryStoreAdapter(
             episodes = int(
                 self.conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
             )
+            nodes = int(self.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0])
             source_evidence = int(
                 self.conn.execute(
                     "SELECT COUNT(*) FROM evidence WHERE source_type='episode'"
                 ).fetchone()[0]
+            )
+            evidence = int(
+                self.conn.execute("SELECT COUNT(*) FROM evidence").fetchone()[0]
+            )
+            assertion_evidence = int(
+                self.conn.execute("SELECT COUNT(*) FROM assertion_evidence").fetchone()[
+                    0
+                ]
             )
             grounded = int(
                 self.conn.execute(
@@ -481,8 +520,11 @@ class SQLiteMemoryStoreAdapter(
             )
         return {
             "episodes": episodes,
+            "nodes": nodes,
+            "evidence": evidence,
             "episode_evidence": source_evidence,
             "assertions": assertions,
+            "assertion_evidence": assertion_evidence,
             "grounded_assertions": grounded,
             "all_assertions_grounded": grounded == assertions,
         }

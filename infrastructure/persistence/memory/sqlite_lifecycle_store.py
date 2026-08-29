@@ -10,6 +10,7 @@ from elfie.brain.memory.memory_records import (
     MaintenanceReceipt,
     MaintenanceRequest,
 )
+from elfie.brain.memory.score_policy import MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import canonical_json, utc_now
@@ -33,7 +34,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
             episode_params.extend(episode_visibility_params)
             episode = self.conn.execute(
                 """SELECT 1 FROM episodes AS e
-                   WHERE e.lifecycle='active'
+                   WHERE e.lifecycle <> 'forgotten'
                      AND (e.next_review_at IS NULL OR e.next_review_at <= ?)"""
                 + episode_scope
                 + " AND "
@@ -131,8 +132,18 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                 episode_params.extend(episode_visibility_params)
                 episode_params.append(request.max_episodes * 2)
                 rows = self.conn.execute(
-                    """SELECT e.* FROM episodes AS e
-                       WHERE e.lifecycle='active'
+                    """SELECT e.*,
+                              (SELECT COUNT(*) FROM evidence AS ev
+                                WHERE ev.source_type='episode'
+                                  AND ev.source_id=e.episode_id) AS evidence_count,
+                              (SELECT COUNT(*) FROM evidence AS ev
+                                WHERE ev.source_type='episode'
+                                  AND ev.source_id=e.episode_id
+                                  AND (ev.source_sha256 IS NULL
+                                       OR ev.source_sha256 <> e.content_sha256))
+                                AS ungrounded_evidence_count
+                       FROM episodes AS e
+                       WHERE e.lifecycle <> 'forgotten'
                          AND (e.next_review_at IS NULL OR e.next_review_at <= ?)"""
                     + episode_scope
                     + " AND "
@@ -169,22 +180,37 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                         )
                         old_detail = str(row["detail_level"])
                         new_detail = old_detail
-                        new_lifecycle = str(row["lifecycle"])
+                        old_lifecycle = str(row["lifecycle"])
+                        new_lifecycle = old_lifecycle
                         summary = row["summary_text"] or str(row["content_text"])[:512]
                         content = str(row["content_text"])
+                        new_importance = MemoryScorePolicy.decay_importance(
+                            float(row["importance"])
+                        )
                         # Never compact an Episode that has not been projected
                         # for its current source hash.
                         if projected:
-                            if old_detail == "full":
+                            if old_lifecycle == "archived" and _can_forget_episode(
+                                row, new_importance
+                            ):
+                                new_lifecycle = "forgotten"
+                                new_detail = "digest"
+                                content = f"[forgotten:{row['content_sha256']}]"
+                                summary = None
+                            elif old_detail == "full":
                                 new_detail = "compressed"
                             elif old_detail == "compressed":
                                 new_detail = "digest"
                                 content = f"[digest:{row['content_sha256']}]"
                             elif old_detail == "digest":
                                 new_lifecycle = "archived"
-                        next_review = _next_review(now, new_detail, new_lifecycle)
+                        next_review = (
+                            None
+                            if new_lifecycle == "forgotten"
+                            else _next_review(now, new_detail, new_lifecycle)
+                        )
                         changed = self.conn.execute(
-                            """UPDATE episodes SET importance=MAX(0.0, importance-0.05),
+                            """UPDATE episodes SET importance=?,
                                    content_text=?, summary_text=?, detail_level=?,
                                    lifecycle=?, last_reviewed_at=?, next_review_at=?,
                                    policy_version='memory.v1', updated_at=?
@@ -192,6 +218,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                                  AND """
                             + _maintenance_claim_predicate(),
                             (
+                                new_importance,
                                 content,
                                 summary,
                                 new_detail,
@@ -289,12 +316,13 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                     processed_count += 1
                     try:
                         changed = self.conn.execute(
-                            """UPDATE nodes SET importance=MAX(0.0, importance-0.05),
+                            """UPDATE nodes SET importance=MAX(0.0, importance-?),
                                    last_reviewed_at=?, next_review_at=?,
                                    policy_version='memory.v1', updated_at=? WHERE node_id=?
                                  AND """
                             + _maintenance_claim_predicate(),
                             (
+                                MemoryScorePolicy.lifecycle_decay,
                                 now,
                                 _next_review(now, "", "active"),
                                 now,
@@ -395,7 +423,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                     processed_count += 1
                     try:
                         changed = self.conn.execute(
-                            """UPDATE assertions SET importance=MAX(0.0, importance-0.05),
+                            """UPDATE assertions SET importance=MAX(0.0, importance-?),
                                    last_reviewed_at=?, next_review_at=?,
                                    policy_version='memory.v1', updated_at=?
                                WHERE assertion_id=? AND """
@@ -413,6 +441,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             )
                             + _maintenance_claim_predicate(),
                             (
+                                MemoryScorePolicy.lifecycle_decay,
                                 now,
                                 _next_review(now, "", "active"),
                                 now,
@@ -656,6 +685,21 @@ def _next_review(now: str, detail_level: str, lifecycle: str) -> str:
         days = 7
     current = datetime.fromisoformat(now.replace("Z", "+00:00"))
     return (current + timedelta(days=days)).isoformat(timespec="milliseconds")
+
+
+def _can_forget_episode(row: sqlite3.Row, importance: float) -> bool:
+    """Apply the source-safety gate for automatic archived-source forgetting."""
+    if str(row["detail_level"]) != "digest":
+        return False
+    if row["projection_revision"] is None or (
+        row["projection_source_sha256"] != row["content_sha256"]
+    ):
+        return False
+    if int(row["evidence_count"] or 0) < 1:
+        return False
+    if int(row["ungrounded_evidence_count"] or 0) > 0:
+        return False
+    return MemoryScorePolicy.can_forget(importance)
 
 
 _CHECKPOINT_STAGE_ORDER = {"episode": 0, "node": 1, "assertion": 2}

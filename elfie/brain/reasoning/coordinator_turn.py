@@ -496,6 +496,13 @@ class CoordinatorTurnFactory:
         history = "\n".join(
             f"{item.actor.source_kind}: {item.content}" for item in recent
         )
+        # Keep a small but useful slice of the typed Recall projection in a
+        # fast owner reply.  RecallBundle ranking can place a directly
+        # relevant Episode just beyond the first few graph anchors (for
+        # example, a boundary fact may rank ahead of the autobiographical
+        # episode that explains it).  Three entries made that source-backed
+        # detail disappear before the model saw it.  Five remains bounded by
+        # the fast-turn budget while preserving the next relevant Episode.
         memories = "\n".join(
             "- "
             f"[{getattr(item, 'kind', 'episodic')}; memory_id={getattr(item, 'memory_id', 'unknown')}; "
@@ -503,7 +510,7 @@ class CoordinatorTurnFactory:
             f"certainty={getattr(item, 'certainty', 'medium')}; "
             f"source_event_ids={','.join(str(source_id) for source_id in getattr(item, 'source_event_ids', ())) or 'unknown'}] "
             f"{item.content}"
-            for item in tuple(compiled.memories)[:3]
+            for item in tuple(compiled.memories)[:5]
         )
         activities = "\n".join(
             "- "

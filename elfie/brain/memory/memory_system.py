@@ -90,6 +90,11 @@ class MemorySystem:
             )
         )
         self._episode_candidate_lock = RLock()
+        # State candidates are built from a snapshot and then committed.  The
+        # storage mutation that precedes that commit may run on the Brain
+        # worker while a completed-turn settlement is committing another
+        # mutation, so serialize the snapshot→commit window here as well.
+        self._state_commit_lock = RLock()
         self._committed_episode_candidate_ids: set[EventId] = set()
         self._committed_episode_candidate_order: deque[EventId] = deque(maxlen=2048)
         # The target SQLite adapter has one source-first Memory path.  The
@@ -856,30 +861,33 @@ class MemorySystem:
         causation_id: EventId | None = None,
     ) -> None:
         """Advance the semantic revision after a successful storage mutation."""
-        current = self._state.snapshot()
-        captured_at = self._clock()
-        value = current.value.model_copy(
-            update={
-                "revision": current.revision + 1,
-                "captured_at": captured_at,
-                "episodic_count": self.storage.count_nodes("episodic"),
-                "total_count": self.storage.count_nodes(),
-                "source_event_ids": tuple(dict.fromkeys(source_event_ids)),
-                "freshness": "current",
-            }
-        )
-        candidate = StateCandidate(
-            candidate_id=EventId(f"memory-state:{uuid4().hex}"),
-            owner="memory",
-            base_revision=current.revision,
-            source_event_ids=value.source_event_ids,
-            causation_id=causation_id,
-            created_at=captured_at,
-            value=value,
-        )
-        receipt = self._state.commit(candidate)
-        if receipt.status is not StateCommitStatus.COMMITTED:
-            raise RuntimeError(f"memory state commit failed: {receipt.status.value}")
+        with self._state_commit_lock:
+            current = self._state.snapshot()
+            captured_at = self._clock()
+            value = current.value.model_copy(
+                update={
+                    "revision": current.revision + 1,
+                    "captured_at": captured_at,
+                    "episodic_count": self.storage.count_nodes("episodic"),
+                    "total_count": self.storage.count_nodes(),
+                    "source_event_ids": tuple(dict.fromkeys(source_event_ids)),
+                    "freshness": "current",
+                }
+            )
+            candidate = StateCandidate(
+                candidate_id=EventId(f"memory-state:{uuid4().hex}"),
+                owner="memory",
+                base_revision=current.revision,
+                source_event_ids=value.source_event_ids,
+                causation_id=causation_id,
+                created_at=captured_at,
+                value=value,
+            )
+            receipt = self._state.commit(candidate)
+            if receipt.status is not StateCommitStatus.COMMITTED:
+                raise RuntimeError(
+                    f"memory state commit failed: {receipt.status.value}"
+                )
 
 
 def _supports_typed_memory(storage: MemoryStorePort) -> bool:

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
+from elfie.brain.consolidation.system import CognitiveConsolidationSystem
 from elfie.brain.memory.memory_records import (
     AssertionInput,
     ClosedEpisode,
@@ -569,6 +571,26 @@ def test_bound_adapters_cannot_read_another_elfies_graph_or_evidence(
         first.close()
 
 
+def test_empty_memory_store_can_rebind_a_provisional_identity() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="provisional") as store:
+        store.bind_elfie_identity("resident-1")
+        assert store.elfie_id == "resident-1"
+
+
+def test_nonempty_memory_store_rejects_identity_rebind() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="provisional") as store:
+        store.record_episode(
+            ClosedEpisode(
+                "identity-bound-source",
+                "identity-bound-key",
+                "2026-01-01T00:00:00+00:00",
+                "已属于临时精灵的来源",
+            )
+        )
+        with pytest.raises(ValueError, match="already bound"):
+            store.bind_elfie_identity("resident-1")
+
+
 def test_bound_adapter_does_not_claim_an_unbound_graph_row(tmp_path: Path) -> None:
     path = tmp_path / "knowledge.sqlite"
     with SQLiteMemoryStoreAdapter(path) as unbound:
@@ -904,6 +926,59 @@ def test_lifecycle_only_work_wakes_memory_maintenance() -> None:
         assert memory.pending_consolidation_ids() == ("maintenance:lifecycle",)
 
 
+def test_lifecycle_only_scheduler_candidate_runs_memory_maintenance() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.upsert_node_record(
+            NodeInput(
+                "scheduler-due-node",
+                "concept",
+                "仅生命周期维护",
+                importance=0.8,
+                properties={"elfie_id": "elfie-a"},
+            )
+        )
+        store.connection.execute(
+            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='scheduler-due-node'"
+        )
+        store.connection.commit()
+        memory = MemorySystem(store, elfie_id="elfie-a")
+        now = datetime.now(timezone.utc)
+        calls: list[int] = []
+        system = CognitiveConsolidationSystem(
+            pending_episode_ids=memory.pending_consolidation_ids,
+            consolidate=lambda limit: (
+                calls.append(limit) or _maintenance_result(memory, limit)
+            ),
+            initial_at=now,
+        )
+
+        candidate = system.evaluate(
+            sleeping=True,
+            now=now + timedelta(seconds=1),
+            blocked=False,
+        )
+        assert candidate is not None
+        assert candidate.episode_ids == ("maintenance:lifecycle",)
+        assert system.settle(
+            candidate.candidate_id,
+            now=now + timedelta(seconds=2),
+            success=True,
+        )
+        assert calls == [1]
+        assert store.connection.execute(
+            "SELECT importance FROM nodes WHERE node_id='scheduler-due-node'"
+        ).fetchone()[0] == pytest.approx(0.75)
+
+
+def _maintenance_result(memory: MemorySystem, limit: int) -> dict[str, int]:
+    receipt = memory.run_maintenance(MaintenanceRequest(max_episodes=limit))
+    return {
+        "consolidated_count": len(receipt.consolidated_episode_ids),
+        "knowledge_created": receipt.knowledge_created,
+        "patterns_created": receipt.patterns_created,
+    }
+
+
 def test_lifecycle_checkpoint_resumes_after_the_last_claimed_target() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         for node_id in ("due-a", "due-b"):
@@ -1180,3 +1255,69 @@ def test_projected_lifecycle_compacts_then_digests_then_archives() -> None:
             (episode.episode_id,),
         ).fetchone()[0]
         assert lifecycle == "archived"
+
+
+def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_are_safe() -> (
+    None
+):
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        episode = ClosedEpisode(
+            "lifecycle-forget",
+            "lifecycle-forget-key",
+            "2020-01-01T00:00:00+00:00",
+            "一段低重要性且已有完整证据的来源",
+            importance=0.1,
+            next_review_at="2020-01-01T00:00:00+00:00",
+        )
+        store.record_episode(episode)
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id=episode.episode_id,
+                nodes=(NodeInput("lifecycle-forget-node", "concept", "低重要性"),),
+                evidence=(
+                    EvidenceInput(
+                        "lifecycle-forget-evidence",
+                        "episode",
+                        episode.episode_id,
+                        excerpt=episode.content_text,
+                        source_sha256=store.get_episode(
+                            episode.episode_id
+                        ).content_sha256,
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "lifecycle-forget-node",
+                        "knows",
+                        object_literal="低重要性来源",
+                        evidence_ids=("lifecycle-forget-evidence",),
+                    ),
+                ),
+            )
+        )
+
+        expected_stages = (
+            ("active", "compressed"),
+            ("active", "digest"),
+            ("archived", "digest"),
+            ("forgotten", "digest"),
+        )
+        for expected_lifecycle, expected_detail in expected_stages:
+            receipt = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+            assert receipt.lifecycle_episode_ids == (episode.episode_id,)
+            current = store.get_episode(episode.episode_id)
+            assert current.lifecycle == expected_lifecycle
+            assert current.detail_level == expected_detail
+            if expected_lifecycle != "forgotten":
+                store.connection.execute(
+                    "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
+                    (episode.episode_id,),
+                )
+                store.connection.commit()
+
+        forgotten = store.get_episode(episode.episode_id)
+        assert forgotten.lifecycle == "forgotten"
+        assert forgotten.detail_level == "digest"
+        assert forgotten.content_text.startswith("[forgotten:")
+        assert store.get_episode(episode.episode_id) is not None
+        assert store.list_episodes() == ()

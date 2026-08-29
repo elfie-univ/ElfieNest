@@ -11,6 +11,10 @@ from .test_contracts import _bundle
 
 def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None:
     bundle = _bundle()
+    bundle = replace(
+        bundle,
+        relationship_seeds=(replace(bundle.relationship_seeds[0], importance=0.37),),
+    )
     committer = GenesisMemoryCommitter()
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
@@ -30,6 +34,15 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             storage.get_node("genesis:person:seli").metadata["relationship_label"]
             == "mother"
         )
+        assert storage.get_node("genesis:person:seli").metadata["importance"] == (
+            pytest.approx(0.37)
+        )
+        assert storage.conn.execute(
+            """SELECT importance FROM assertions
+                WHERE subject_node_id='genesis:self:genesis-check'
+                  AND predicate='relationship'
+                  AND object_node_id='genesis:person:seli'"""
+        ).fetchone()[0] == pytest.approx(0.37)
         assert any(
             edge.rel == "relationship"
             for edge in storage.get_edges("genesis:self:genesis-check")

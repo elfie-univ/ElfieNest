@@ -473,6 +473,12 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         if not terms:
             return []
         like_patterns = _lexical_like_patterns(query, terms)
+        # The text tables are rebuildable projections, not a second semantic
+        # authority.  Bound the prefilter before the deterministic scorer so
+        # a common token cannot turn Recall into a full scan of every Episode
+        # and Node.  The generous cap keeps normal small stores exact while
+        # making the large-store path obey the Recall latency budget.
+        candidate_limit = max(512, min(4096, top_k * 64))
         candidates: list[tuple[str, str, str, str]] = []
         with self._lock:
             if node_type in (None, "episodic"):
@@ -499,8 +505,9 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                     + ")"
                     + episode_scope
                     + " AND "
-                    + episode_visibility,
-                    episode_params,
+                    + episode_visibility
+                    + " LIMIT ?",
+                    episode_params + [candidate_limit],
                 ).fetchall()
                 candidates.extend(
                     (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
@@ -530,8 +537,9 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                     + ")"
                     + node_scope
                     + " AND "
-                    + node_visibility,
-                    node_params,
+                    + node_visibility
+                    + " LIMIT ?",
+                    node_params + [candidate_limit],
                 ).fetchall()
                 candidates.extend(
                     (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))

@@ -729,7 +729,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         assertion_visibility, assertion_visibility_params = self._genesis_visibility(
             "a"
         )
-        params: list[Any] = list(ids) + list(ids) + list(assertion_visibility_params)
+        # Keep endpoint parameters separate from the shared predicates.  The
+        # old ``subject IN (...) OR object IN (...)`` form encouraged SQLite
+        # to walk the global lifecycle index and sort the entire assertion
+        # table before it could apply the seed.  Two bounded endpoint queries
+        # can use the subject/object indexes and the union is still complete:
+        # the global top ``limit`` rows must be in the top ``limit`` rows of at
+        # least one endpoint side.
+        common_params: list[Any] = list(assertion_visibility_params)
         namespace_clause = ""
         if getattr(self, "elfie_id", None) is not None or privacy_scope is not None:
             namespace_conditions = ["ns.node_id=a.subject_node_id"]
@@ -737,10 +744,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 namespace_conditions.append(
                     "json_extract(ns.properties_json, '$.elfie_id')=?"
                 )
-                params.append(str(self.elfie_id))
+                common_params.append(str(self.elfie_id))
             if privacy_scope is not None:
                 namespace_conditions.append("ns.privacy_scope=?")
-                params.append(privacy_scope)
+                common_params.append(privacy_scope)
             namespace_clause = (
                 " AND EXISTS (SELECT 1 FROM nodes AS ns WHERE "
                 + " AND ".join(namespace_conditions)
@@ -751,10 +758,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 object_conditions.append(
                     "json_extract(no.properties_json, '$.elfie_id')=?"
                 )
-                params.append(str(self.elfie_id))
+                common_params.append(str(self.elfie_id))
             if privacy_scope is not None:
                 object_conditions.append("no.privacy_scope=?")
-                params.append(privacy_scope)
+                common_params.append(privacy_scope)
             if object_conditions:
                 namespace_clause += (
                     " AND (a.object_node_id IS NULL OR EXISTS ("
@@ -766,7 +773,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             relation_clause = (
                 " AND a.predicate IN (" + ",".join("?" for _ in relations) + ")"
             )
-            params.extend(relations)
+            common_params.extend(relations)
         time_clause = ""
         if (
             occurred_from is not None
@@ -817,30 +824,46 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 + " AND ".join(episode_conditions)
                 + ")))"
             )
-            params.extend(time_params)
-            params.extend(facet_params)
-        params.append(limit)
+            common_params.extend(time_params)
+            common_params.extend(facet_params)
+        endpoint_clauses = (
+            f"a.subject_node_id IN ({placeholders})",
+            f"a.object_node_id IN ({placeholders})",
+        )
         with self._lock:
-            rows = self.conn.execute(
-                f"""SELECT a.*,
-                           COALESCE((SELECT group_concat(evidence_id, ',')
-                                       FROM (SELECT ae.evidence_id
-                                               FROM assertion_evidence AS ae
-                                              WHERE ae.assertion_id=a.assertion_id
-                                              ORDER BY ae.evidence_id)), '')
-                               AS evidence_ids_csv
-                         FROM assertions AS a
-                    WHERE a.lifecycle IN ('active', 'superseded')
-                      AND (a.subject_node_id IN ({placeholders})
-                           OR a.object_node_id IN ({placeholders}))
-                      AND {assertion_visibility}
-                      {namespace_clause}
-                      {relation_clause}
-                      {time_clause}
-                    ORDER BY CASE WHEN a.lifecycle='active' THEN 0 ELSE 1 END,
-                             a.importance DESC, a.confidence DESC, a.assertion_id LIMIT ?""",
-                params,
-            ).fetchall()
+            rows_by_id: dict[str, sqlite3.Row] = {}
+            for endpoint_clause in endpoint_clauses:
+                rows = self.conn.execute(
+                    f"""SELECT a.*,
+                               COALESCE((SELECT group_concat(evidence_id, ',')
+                                           FROM (SELECT ae.evidence_id
+                                                   FROM assertion_evidence AS ae
+                                                  WHERE ae.assertion_id=a.assertion_id
+                                                  ORDER BY ae.evidence_id)), '')
+                                   AS evidence_ids_csv
+                             FROM assertions AS a
+                        WHERE a.lifecycle IN ('active', 'superseded')
+                          AND {endpoint_clause}
+                          AND {assertion_visibility}
+                          {namespace_clause}
+                          {relation_clause}
+                          {time_clause}
+                        ORDER BY CASE WHEN a.lifecycle='active' THEN 0 ELSE 1 END,
+                                 a.importance DESC, a.confidence DESC, a.assertion_id
+                        LIMIT ?""",
+                    list(ids) + common_params + [limit],
+                ).fetchall()
+                for row in rows:
+                    rows_by_id.setdefault(str(row["assertion_id"]), row)
+            rows = sorted(
+                rows_by_id.values(),
+                key=lambda row: (
+                    0 if str(row["lifecycle"]) == "active" else 1,
+                    -float(row["importance"]),
+                    -float(row["confidence"]),
+                    str(row["assertion_id"]),
+                ),
+            )[:limit]
         return tuple(_row_to_assertion(row) for row in rows)
 
     def list_graph_assertions(
