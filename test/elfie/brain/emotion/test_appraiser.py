@@ -106,6 +106,55 @@ def test_social_appraisal_preserves_domain_source_semantics() -> None:
     assert stimulus.source.value == "social"
 
 
+@pytest.mark.parametrize(
+    ("content", "emotion"),
+    (
+        ("I am furious about this", EmotionType.ANGER),
+        ("I'm scared", EmotionType.FEAR),
+        ("我今天特别开心", EmotionType.HAPPINESS),
+    ),
+)
+def test_explicit_social_text_emotion_overrides_generic_attachment(
+    content: str,
+    emotion: EmotionType,
+) -> None:
+    sender = ActorRef(actor_id=ActorId("owner-1"), source_kind="human")
+    event = _event(
+        SocialPayload(
+            type="social",
+            channel_id="chat-main",
+            conversation_id="conversation-1",
+            sender=sender,
+            content=content,
+        )
+    )
+
+    stimulus = EmotionAppraiser().appraise(event)
+
+    assert stimulus is not None
+    assert stimulus.emotion is emotion
+    assert stimulus.source is StimulusSource.SOCIAL
+    assert 0.0 < stimulus.intensity <= 0.8
+
+
+def test_neutral_social_text_keeps_relationship_attachment_fallback() -> None:
+    sender = ActorRef(actor_id=ActorId("owner-1"), source_kind="human")
+    event = _event(
+        SocialPayload(
+            type="social",
+            channel_id="chat-main",
+            conversation_id="conversation-1",
+            sender=sender,
+            content="The train leaves at six.",
+        )
+    )
+
+    stimulus = EmotionAppraiser().appraise(event)
+
+    assert stimulus is not None
+    assert stimulus.emotion is EmotionType.ATTACHMENT
+
+
 def test_appraiser_cannot_mutate_emotion_or_homeostasis() -> None:
     # Given: the coordinator-independent pure appraiser.
     appraiser = EmotionAppraiser()

@@ -316,6 +316,37 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         coordinator.join()
 
 
+def test_social_text_emotion_is_applied_before_model_turn_snapshot() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    coordinator, emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        RecordingPlanSink(),
+    )
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="I am furious about this",
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        assert emotion.get_emotion_value("anger") > 10.0
+        assert "anger=" in runtime.calls[0].system_prompt
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
 @pytest.mark.parametrize(
     "owner_text",
     (

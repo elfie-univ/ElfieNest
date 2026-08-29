@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import Field
 from typing_extensions import Annotated
 
+from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.workspace.contracts import (
@@ -30,6 +31,9 @@ class BrainClockPulse(FrozenContractModel):
 class EmotionAppraiser:
     """Map typed perceptions to inert stimuli without mutation authority."""
 
+    def __init__(self, text_detector: Optional[TextEmotionDetector] = None) -> None:
+        self._text_detector = text_detector or TextEmotionDetector()
+
     def appraise(self, event: PerceptionEvent) -> Optional[EmotionStimulusEvent]:
         """Return a stimulus for supported perceptions, otherwise no appraisal."""
         payload = event.payload
@@ -43,6 +47,14 @@ class EmotionAppraiser:
                 source=StimulusSource.PHYSICAL,
             )
         if isinstance(payload, SocialPayload):
+            assessment = self._text_detector.assess(payload.content)
+            if assessment.emotion is not None:
+                return EmotionStimulusEvent(
+                    event_id=event.meta.event_id,
+                    emotion=assessment.emotion,
+                    intensity=min(1.0, event.salience * assessment.confidence),
+                    source=StimulusSource.SOCIAL,
+                )
             return EmotionStimulusEvent(
                 event_id=event.meta.event_id,
                 emotion=EmotionType.ATTACHMENT,

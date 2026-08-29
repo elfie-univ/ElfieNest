@@ -7,7 +7,10 @@ from typing import Any, Dict
 
 from elfie.brain.emotion.detector.audio_detector import AudioEmotionDetector
 from elfie.brain.emotion.detector.image_detector import ImageEmotionDetector
-from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
+from elfie.brain.emotion.detector.text_detector import (
+    TextEmotionAssessment,
+    TextEmotionDetector,
+)
 from elfie.brain.emotion.emotion_input import EmotionInput
 
 
@@ -85,6 +88,7 @@ class EmotionDetector:
 __all__ = [
     "EmotionDetector",
     "TextEmotionDetector",
+    "TextEmotionAssessment",
     "ImageEmotionDetector",
     "AudioEmotionDetector",
 ]
