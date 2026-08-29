@@ -682,6 +682,7 @@ def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     # Given: the public App icon is the current brand source approved for releases.
     current_brand_icon = PROJECT_ROOT / "docs/public/assets/elfienest-app-icon.png"
     desktop_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-app-icon.png"
+    linux_icon_dir = release_pipeline.DESKTOP_DIR / "assets/linux-icons"
     macos_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest-macos-app-icon.png"
     retired_icon = release_pipeline.DESKTOP_DIR / "assets/elfienest.png"
     builder_config = (
@@ -703,7 +704,10 @@ def test_desktop_packaging_uses_only_the_current_brand_icon() -> None:
     assert "scripts: packaging/macos" in builder_config
     assert "win:\n  icon: assets/elfienest-app-icon.png" in builder_config
     assert "include: packaging/windows/installer.nsh" in builder_config
-    assert "linux:\n  icon: assets/elfienest-app-icon.png" in builder_config
+    assert "linux:\n  # Supply the freedesktop sizes explicitly." in builder_config
+    assert "  icon: assets/linux-icons" in builder_config
+    for size in (16, 24, 32, 48, 64, 128, 256, 512):
+        assert (linux_icon_dir / f"{size}x{size}.png").is_file()
     assert "executableName: elfienest-gui" in builder_config
     assert "target: [deb]" in builder_config
     assert "afterInstall: packaging/linux/after-install.sh" in builder_config
