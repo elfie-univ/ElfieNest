@@ -622,7 +622,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params.extend(visibility_params)
             row = self.conn.execute(
                 """SELECT node_id, node_type, canonical_label, description,
-                          confidence, importance FROM nodes AS n WHERE n.node_id=?"""
+                          confidence, importance, properties_json FROM nodes AS n WHERE n.node_id=?"""
                 + scope
                 + " AND "
                 + visibility,
@@ -630,15 +630,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             ).fetchone()
         if row is None:
             return None
-        return RecallNode(
-            node_id=str(row["node_id"]),
-            node_type=str(row["node_type"]),
-            label=str(row["canonical_label"]),
-            description=row["description"],
-            relevance=float(row["confidence"]),
-            importance=float(row["importance"]),
-            confidence=float(row["confidence"]),
-        )
+        return _row_to_recall_node(row)
 
     def list_graph_nodes(
         self, limit: int = 100, *, privacy_scope: str | None = None
@@ -656,7 +648,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params[-1:-1] = visibility_params
             rows = self.conn.execute(
                 """SELECT n.node_id, n.node_type, n.canonical_label, n.description,
-                          n.confidence, n.importance FROM nodes AS n WHERE n.status <> 'forgotten'
+                          n.confidence, n.importance, n.properties_json FROM nodes AS n WHERE n.status <> 'forgotten'
                                               AND n.merged_into IS NULL"""
                 + scope
                 + " AND "
@@ -664,18 +656,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 + " ORDER BY n.node_id LIMIT ?",
                 params,
             ).fetchall()
-        return tuple(
-            RecallNode(
-                node_id=str(row["node_id"]),
-                node_type=str(row["node_type"]),
-                label=str(row["canonical_label"]),
-                description=row["description"],
-                relevance=float(row["confidence"]),
-                importance=float(row["importance"]),
-                confidence=float(row["confidence"]),
-            )
-            for row in rows
-        )
+        return tuple(_row_to_recall_node(row) for row in rows)
 
     def find_graph_nodes(
         self, query: str, limit: int = 20, *, privacy_scope: str | None = None
@@ -699,7 +680,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params.append(max(0, limit))
             rows = self.conn.execute(
                 """SELECT DISTINCT n.node_id, n.node_type, n.canonical_label,
-                          n.description, n.confidence, n.importance,
+                          n.description, n.confidence, n.importance, n.properties_json,
                           CASE WHEN n.normalized_label=? OR a.normalized_alias=? THEN 1.0
                                WHEN n.normalized_label LIKE ? THEN 0.8
                                WHEN a.normalized_alias LIKE ? THEN 0.75
@@ -715,18 +696,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     ORDER BY score DESC, n.node_id LIMIT ?""",
                 params,
             ).fetchall()
-        return tuple(
-            RecallNode(
-                node_id=str(row["node_id"]),
-                node_type=str(row["node_type"]),
-                label=str(row["canonical_label"]),
-                description=row["description"],
-                relevance=float(row["score"]),
-                importance=float(row["importance"]),
-                confidence=float(row["confidence"]),
-            )
-            for row in rows
-        )
+        return tuple(_row_to_recall_node(row, relevance_key="score") for row in rows)
 
     def graph_assertions_for(
         self,
@@ -872,6 +842,49 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 params,
             ).fetchall()
         return tuple(_row_to_assertion(row) for row in rows)
+
+    def list_graph_assertions(
+        self, limit: int = 800, *, privacy_scope: str | None = None
+    ) -> tuple[RecallAssertion, ...]:
+        """Return a bounded typed view of all visible graph assertions.
+
+        The normal Recall path remains seed-driven.  This helper is reserved
+        for authorized diagnostics and therefore walks the existing typed
+        assertion query in bounded chunks instead of exposing SQL or adding a
+        second retrieval implementation.
+        """
+        bounded_limit = max(0, min(int(limit), 5000))
+        if bounded_limit == 0:
+            return ()
+        node_ids = tuple(
+            node.node_id
+            for node in self.list_graph_nodes(limit=10_000, privacy_scope=privacy_scope)
+        )
+        if not node_ids:
+            return ()
+        assertions: dict[str, RecallAssertion] = {}
+        for start in range(0, len(node_ids), 500):
+            remaining = bounded_limit - len(assertions)
+            if remaining <= 0:
+                break
+            chunk = node_ids[start : start + 500]
+            for assertion in self.graph_assertions_for(
+                chunk,
+                limit=remaining,
+                privacy_scope=privacy_scope,
+            ):
+                assertions.setdefault(assertion.assertion_id, assertion)
+        return tuple(
+            sorted(
+                assertions.values(),
+                key=lambda item: (
+                    0 if item.status == "active" else 1,
+                    -item.importance,
+                    -item.confidence,
+                    item.assertion_id,
+                ),
+            )[:bounded_limit]
+        )
 
     def get_assertion_evidence(
         self,
@@ -1467,8 +1480,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                    node_id, node_type, canonical_label, normalized_label,
                    description, scope, status, confidence, importance, properties_json,
                    first_seen_at, last_seen_at, updated_at, privacy_scope,
-                   genesis_submission_id
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   genesis_submission_id, last_reinforced_at, last_reviewed_at,
+                   next_review_at, policy_version
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(node_id) DO UPDATE SET
                    node_type=excluded.node_type,
                    canonical_label=excluded.canonical_label,
@@ -1486,7 +1500,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                        WHEN nodes.genesis_submission_id IS NOT NULL
                            THEN nodes.genesis_submission_id
                        ELSE excluded.genesis_submission_id
-                   END""",
+                   END,
+                   last_reinforced_at=excluded.last_reinforced_at,
+                   next_review_at=excluded.next_review_at,
+                   policy_version=excluded.policy_version""",
             (
                 node.node_id,
                 node.node_type,
@@ -1503,6 +1520,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 now,
                 str(properties.get("privacy_scope", "private")),
                 properties.get("genesis_submission_id") or active_submission,
+                now,
+                None,
+                MemoryScorePolicy.next_review_at(now),
+                MemoryScorePolicy.version,
             ),
         )
         self.conn.execute(
@@ -1839,15 +1860,18 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                    epistemic_status, viewpoint, context, valid_from, valid_to,
                    confidence, importance, support_score, conflict_group, fingerprint,
                    lifecycle, supersedes_assertion_id, predicate_registry_version,
-                   policy_version, genesis_submission_id, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
+                   policy_version, genesis_submission_id, last_reinforced_at,
+                   last_reviewed_at, next_review_at, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(fingerprint) DO UPDATE SET
                    confidence=MAX(assertions.confidence, excluded.confidence),
                    importance=MAX(assertions.importance, excluded.importance),
                    support_score=MAX(assertions.support_score, excluded.support_score),
                    updated_at=excluded.updated_at,
                    predicate_registry_version=excluded.predicate_registry_version,
-                   policy_version=excluded.policy_version""",
+                   policy_version=excluded.policy_version,
+                   last_reinforced_at=excluded.last_reinforced_at,
+                   next_review_at=excluded.next_review_at""",
             (
                 assertion_id,
                 assertion.subject_id,
@@ -1872,6 +1896,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 assertion.predicate_registry_version,
                 assertion.policy_version,
                 active_submission or assertion.genesis_submission_id,
+                now,
+                None,
+                MemoryScorePolicy.next_review_at(now),
                 now,
                 now,
             ),
@@ -1954,12 +1981,13 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         )
         self.conn.execute(
             """UPDATE assertions SET confidence=?, importance=?,
-                   last_reinforced_at=?, policy_version=?, updated_at=?
+                   last_reinforced_at=?, next_review_at=?, policy_version=?, updated_at=?
                WHERE assertion_id=?""",
             (
                 update.confidence,
                 update.importance,
                 now,
+                MemoryScorePolicy.next_review_at(now),
                 MemoryScorePolicy.version,
                 now,
                 assertion_id,
@@ -2232,6 +2260,23 @@ def _row_to_assertion(row: sqlite3.Row) -> RecallAssertion:
         relevance=float(row["importance"]),
         importance=float(row["importance"]),
         confidence=float(row["confidence"]),
+    )
+
+
+def _row_to_recall_node(
+    row: sqlite3.Row, *, relevance_key: str = "confidence"
+) -> RecallNode:
+    """Decode one bounded graph row without leaking the SQLite row itself."""
+    properties = json_object(row["properties_json"])
+    return RecallNode(
+        node_id=str(row["node_id"]),
+        node_type=str(row["node_type"]),
+        label=str(row["canonical_label"]),
+        description=row["description"],
+        relevance=float(row[relevance_key]),
+        importance=float(row["importance"]),
+        confidence=float(row["confidence"]),
+        properties=properties,
     )
 
 

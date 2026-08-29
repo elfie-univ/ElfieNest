@@ -114,6 +114,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         assertion_ids: list[str] = []
         errors: dict[str, str] = {}
         processed_count = 0
+        checkpoint_blocked = False
         checkpoint_stage, checkpoint_target = _decode_checkpoint(request.checkpoint)
         with self._lock:
             owns = self._begin_write_transaction()
@@ -150,14 +151,15 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                         episode_id,
                     ):
                         continue
-                    if not self._claim_maintenance_target(
+                    claim_attempt = self._claim_maintenance_target(
                         stage="lifecycle",
                         target_id=episode_id,
                         worker=worker,
                         now=now,
                         lease_seconds=request.lease_seconds,
                         checkpoint=request.checkpoint,
-                    ):
+                    )
+                    if claim_attempt is None:
                         continue
                     processed_count += 1
                     try:
@@ -181,12 +183,14 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             elif old_detail == "digest":
                                 new_lifecycle = "archived"
                         next_review = _next_review(now, new_detail, new_lifecycle)
-                        self.conn.execute(
+                        changed = self.conn.execute(
                             """UPDATE episodes SET importance=MAX(0.0, importance-0.05),
                                    content_text=?, summary_text=?, detail_level=?,
                                    lifecycle=?, last_reviewed_at=?, next_review_at=?,
                                    policy_version='memory.v1', updated_at=?
-                               WHERE episode_id=?""",
+                               WHERE episode_id=?
+                                 AND """
+                            + _maintenance_claim_predicate(),
                             (
                                 content,
                                 summary,
@@ -196,8 +200,18 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                                 next_review,
                                 now,
                                 episode_id,
+                                str(getattr(self, "elfie_id", "") or ""),
+                                "lifecycle",
+                                episode_id,
+                                worker,
+                                claim_attempt,
+                                now,
                             ),
-                        )
+                        ).rowcount
+                        if changed != 1:
+                            raise RuntimeError(
+                                "lifecycle claim was lost before Episode update"
+                            )
                         self._upsert_episode_fts_from_values(
                             episode_id,
                             content,
@@ -210,11 +224,14 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
+                            attempt=claim_attempt,
                         )
                         episode_ids.append(episode_id)
-                        checkpoint_stage, checkpoint_target = "episode", episode_id
+                        if not checkpoint_blocked:
+                            checkpoint_stage, checkpoint_target = "episode", episode_id
                     except Exception as error:  # noqa: BLE001
                         errors[episode_id] = str(error)
+                        checkpoint_blocked = True
                         self._record_maintenance(
                             stage="lifecycle",
                             target_id=episode_id,
@@ -223,8 +240,8 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             now=now,
                             checkpoint=request.checkpoint,
                             error=str(error),
+                            attempt=claim_attempt,
                         )
-                        checkpoint_stage, checkpoint_target = "episode", episode_id
                 remaining = max(0, request.max_episodes - processed_count)
                 node_visibility, node_visibility_params = self._genesis_visibility("n")
                 node_scope = ""
@@ -259,23 +276,41 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                         node_id,
                     ):
                         continue
-                    if not self._claim_maintenance_target(
+                    claim_attempt = self._claim_maintenance_target(
                         stage="lifecycle",
                         target_id=node_id,
                         worker=worker,
                         now=now,
                         lease_seconds=request.lease_seconds,
                         checkpoint=request.checkpoint,
-                    ):
+                    )
+                    if claim_attempt is None:
                         continue
                     processed_count += 1
                     try:
-                        self.conn.execute(
+                        changed = self.conn.execute(
                             """UPDATE nodes SET importance=MAX(0.0, importance-0.05),
                                    last_reviewed_at=?, next_review_at=?,
-                                   policy_version='memory.v1', updated_at=? WHERE node_id=?""",
-                            (now, _next_review(now, "", "active"), now, node_id),
-                        )
+                                   policy_version='memory.v1', updated_at=? WHERE node_id=?
+                                 AND """
+                            + _maintenance_claim_predicate(),
+                            (
+                                now,
+                                _next_review(now, "", "active"),
+                                now,
+                                node_id,
+                                str(getattr(self, "elfie_id", "") or ""),
+                                "lifecycle",
+                                node_id,
+                                worker,
+                                claim_attempt,
+                                now,
+                            ),
+                        ).rowcount
+                        if changed != 1:
+                            raise RuntimeError(
+                                "lifecycle claim was lost before Node update"
+                            )
                         self._record_maintenance(
                             stage="lifecycle",
                             target_id=node_id,
@@ -283,10 +318,12 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
+                            attempt=claim_attempt,
                         )
                         node_ids.append(node_id)
                     except Exception as error:  # noqa: BLE001
                         errors[node_id] = str(error)
+                        checkpoint_blocked = True
                         self._record_maintenance(
                             stage="lifecycle",
                             target_id=node_id,
@@ -295,8 +332,11 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             now=now,
                             checkpoint=request.checkpoint,
                             error=str(error),
+                            attempt=claim_attempt,
                         )
-                    checkpoint_stage, checkpoint_target = "node", node_id
+                    else:
+                        if not checkpoint_blocked:
+                            checkpoint_stage, checkpoint_target = "node", node_id
 
                 remaining = max(0, request.max_episodes - processed_count)
                 assertion_visibility, assertion_visibility_params = (
@@ -342,29 +382,36 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                         assertion_id,
                     ):
                         continue
-                    if not self._claim_maintenance_target(
+                    claim_attempt = self._claim_maintenance_target(
                         stage="lifecycle",
                         target_id=assertion_id,
                         worker=worker,
                         now=now,
                         lease_seconds=request.lease_seconds,
                         checkpoint=request.checkpoint,
-                    ):
+                    )
+                    if claim_attempt is None:
                         continue
                     processed_count += 1
                     try:
-                        self.conn.execute(
+                        changed = self.conn.execute(
                             """UPDATE assertions SET importance=MAX(0.0, importance-0.05),
                                    last_reviewed_at=?, next_review_at=?,
                                    policy_version='memory.v1', updated_at=?
-                               WHERE assertion_id=?"""
+                               WHERE assertion_id=? AND """
                             + (
-                                " AND EXISTS (SELECT 1 FROM nodes AS an "
+                                "EXISTS (SELECT 1 FROM nodes AS an "
                                 "WHERE an.node_id=assertions.subject_node_id "
                                 "AND json_extract(an.properties_json, '$.elfie_id')=?)"
                                 if getattr(self, "elfie_id", None) is not None
                                 else ""
-                            ),
+                            )
+                            + (
+                                " AND "
+                                if getattr(self, "elfie_id", None) is not None
+                                else ""
+                            )
+                            + _maintenance_claim_predicate(),
                             (
                                 now,
                                 _next_review(now, "", "active"),
@@ -375,8 +422,18 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                                     if getattr(self, "elfie_id", None) is not None
                                     else ()
                                 ),
+                                str(getattr(self, "elfie_id", "") or ""),
+                                "lifecycle",
+                                assertion_id,
+                                worker,
+                                claim_attempt,
+                                now,
                             ),
-                        )
+                        ).rowcount
+                        if changed != 1:
+                            raise RuntimeError(
+                                "lifecycle claim was lost before Assertion update"
+                            )
                         self._record_maintenance(
                             stage="lifecycle",
                             target_id=assertion_id,
@@ -384,10 +441,12 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
+                            attempt=claim_attempt,
                         )
                         assertion_ids.append(assertion_id)
                     except Exception as error:  # noqa: BLE001
                         errors[assertion_id] = str(error)
+                        checkpoint_blocked = True
                         self._record_maintenance(
                             stage="lifecycle",
                             target_id=assertion_id,
@@ -396,8 +455,14 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             now=now,
                             checkpoint=request.checkpoint,
                             error=str(error),
+                            attempt=claim_attempt,
                         )
-                    checkpoint_stage, checkpoint_target = "assertion", assertion_id
+                    else:
+                        if not checkpoint_blocked:
+                            checkpoint_stage, checkpoint_target = (
+                                "assertion",
+                                assertion_id,
+                            )
 
                 self._commit_write_transaction(owns)
             except Exception:
@@ -437,11 +502,11 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         now: str,
         lease_seconds: int,
         checkpoint: str | None,
-    ) -> bool:
+    ) -> int | None:
         """Claim one Lifecycle target with an expiring operational lease."""
         elfie_id = str(getattr(self, "elfie_id", "") or "")
         row = self.conn.execute(
-            """SELECT state, lease_owner, lease_until, next_attempt_at
+            """SELECT state, lease_owner, lease_until, next_attempt_at, attempts
                  FROM memory_maintenance
                 WHERE elfie_id=? AND stage=? AND target_id=?""",
             (elfie_id, stage, target_id),
@@ -454,10 +519,11 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                 and str(lease_until) > now
                 and str(row["lease_owner"] or "") != worker
             ):
-                return False
+                return None
             next_attempt = row["next_attempt_at"]
             if next_attempt is not None and str(next_attempt) > now:
-                return False
+                return None
+        attempt = 1 if row is None else int(row["attempts"] or 0) + 1
         lease_until = (
             datetime.fromisoformat(now.replace("Z", "+00:00"))
             + timedelta(seconds=max(1, lease_seconds))
@@ -485,7 +551,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                 now,
             ),
         )
-        return True
+        return attempt
 
     def _recover_expired_maintenance_leases_locked(self, now: str) -> int:
         """Recover expired Lifecycle leases inside the caller's transaction."""
@@ -516,38 +582,67 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         now: str,
         checkpoint: str | None = None,
         error: str | None = None,
+        attempt: int | None = None,
     ) -> None:
-        work_id = f"{getattr(self, 'elfie_id', '') or ''}:{stage}:{target_id}"
+        if attempt is None:
+            raise ValueError("attempt is required when recording Lifecycle work")
+        elfie_id = str(getattr(self, "elfie_id", "") or "")
+        claim = self.conn.execute(
+            """SELECT state, lease_owner, lease_until, attempts
+                 FROM memory_maintenance
+                WHERE elfie_id=? AND stage=? AND target_id=?""",
+            (elfie_id, stage, target_id),
+        ).fetchone()
+        if (
+            claim is None
+            or str(claim["state"]) != "processing"
+            or str(claim["lease_owner"] or "") != worker
+            or int(claim["attempts"] or 0) != attempt
+            or claim["lease_until"] is None
+            or str(claim["lease_until"]) <= now
+        ):
+            # A worker that lost its lease must not overwrite the retry state
+            # written by a newer claimant.
+            return
         retry_at = None
         if state == "failed":
             retry_at = (
                 datetime.fromisoformat(now.replace("Z", "+00:00"))
                 + timedelta(seconds=30)
             ).isoformat(timespec="milliseconds")
-        self.conn.execute(
-            """INSERT INTO memory_maintenance(
-                   work_id, elfie_id, stage, target_id, state, attempts,
-                   lease_owner, lease_until, next_attempt_at, last_error,
-                   checkpoint_json, updated_at
-               ) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?, ?, ?)
-               ON CONFLICT(elfie_id, stage, target_id) DO UPDATE SET
-                   state=excluded.state, lease_owner=NULL, lease_until=NULL,
-                   next_attempt_at=excluded.next_attempt_at,
-                   last_error=excluded.last_error,
-                   checkpoint_json=excluded.checkpoint_json,
-                   updated_at=excluded.updated_at""",
+        cursor = self.conn.execute(
+            """UPDATE memory_maintenance SET state=?, lease_owner=NULL,
+                   lease_until=NULL, next_attempt_at=?, last_error=?,
+                   checkpoint_json=?, updated_at=?
+               WHERE elfie_id=? AND stage=? AND target_id=?
+                 AND state='processing' AND lease_owner=? AND attempts=?
+                 AND lease_until>?""",
             (
-                work_id,
-                str(getattr(self, "elfie_id", "") or ""),
-                stage,
-                target_id,
                 state,
                 retry_at,
                 error,
                 canonical_json({"checkpoint": checkpoint} if checkpoint else {}),
                 now,
+                elfie_id,
+                stage,
+                target_id,
+                worker,
+                attempt,
+                now,
             ),
         )
+        if cursor.rowcount != 1:
+            return
+
+
+def _maintenance_claim_predicate() -> str:
+    """Return the SQL predicate that fences a Lifecycle worker lease."""
+    return """EXISTS (
+        SELECT 1 FROM memory_maintenance AS mm
+        WHERE mm.elfie_id=? AND mm.stage=? AND mm.target_id=?
+          AND mm.state='processing' AND mm.lease_owner=?
+          AND mm.attempts=? AND mm.lease_until>?
+    )"""
 
 
 def _next_review(now: str, detail_level: str, lifecycle: str) -> str:

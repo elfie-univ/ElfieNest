@@ -86,6 +86,7 @@ class ClosedEpisode:
     source_event_ids: Tuple[str, ...] = ()
     importance: float = 0.5
     detail_level: str = "full"
+    lifecycle: Literal["active", "archived", "forgotten"] = "active"
     emotion: Optional[str] = None
     emotion_intensity: Optional[float] = None
     stimulus: Optional[str] = None
@@ -137,6 +138,8 @@ class ClosedEpisode:
             raise ValueError("range precision requires both occurrence bounds")
         if self.detail_level not in {"full", "compressed", "digest", "incomplete"}:
             raise ValueError("unsupported Episode detail_level")
+        if self.lifecycle not in {"active", "archived", "forgotten"}:
+            raise ValueError("unsupported Episode lifecycle")
         if (
             self.emotion_intensity is not None
             and not 0.0 <= self.emotion_intensity <= 1.0
@@ -642,6 +645,26 @@ class RecallNode:
     relevance: float
     importance: float = 0.5
     confidence: float = 0.5
+    # Bounded, read-only properties are useful to authorized diagnostics and
+    # presentation projections (for example a relationship ring).  They are
+    # never used as a second fact source by Recall or Reasoning.
+    properties: Mapping[str, JsonValue] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class MemoryInspectionSnapshot:
+    """Typed, read-only snapshot for developer projections.
+
+    This is deliberately separate from ``RecallBundle``: diagnostics may ask
+    for a bounded view of the durable graph without turning an empty query
+    into a semantic recall request.  The snapshot still carries only typed
+    records; SQL rows and legacy ``MemoryNode`` objects never cross the
+    Memory boundary.
+    """
+
+    episodes: Tuple[ClosedEpisode, ...] = ()
+    nodes: Tuple[RecallNode, ...] = ()
+    assertions: Tuple[RecallAssertion, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -751,6 +774,7 @@ __all__ = [
     "RecallEvidence",
     "RecallLimits",
     "RecallNode",
+    "MemoryInspectionSnapshot",
     "RecallPath",
     "RecallRequest",
     "SourceReference",

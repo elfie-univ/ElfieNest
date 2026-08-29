@@ -282,6 +282,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     relevance=min(1.0, score),
                     importance=node.importance,
                     confidence=node.confidence,
+                    properties=node.properties,
                 )
             )
         return tuple(

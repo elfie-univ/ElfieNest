@@ -1,14 +1,36 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
 from elfie import ElfieFactory
+from elfie.brain.memory.memory_records import RecallRequest
 from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
+
+
+class _GroundedMemoryModel:
+    def ask_with_food(self, **_: object) -> str:
+        return json.dumps(
+            {
+                "nodes": [
+                    {
+                        "label": "花园",
+                        "type": "place",
+                        "description": "花园",
+                    }
+                ],
+                "mentions": [
+                    {"surface_text": "花园", "label": "花园", "role": "place"}
+                ],
+                "assertions": [],
+            },
+            ensure_ascii=False,
+        )
 
 
 def _user_tables(db_path: Path) -> set[str]:
@@ -70,7 +92,9 @@ def test_record_reopen_retrieve_and_consolidate_uses_final_store(
         )
     )
     memories = ElfieDiagnostics(reopened).memory.retrieve_relevant_memories("金色的花")
-    result = ElfieDiagnostics(reopened).memory.run_consolidation()
+    result = ElfieDiagnostics(reopened).memory.run_consolidation(
+        model_port=_GroundedMemoryModel()
+    )
 
     assert "今天在花园看到了金色的花" in memories
     assert result["consolidated_count"] == 1
@@ -97,10 +121,12 @@ def test_encoded_entity_edge_retrieves_episode_from_sqlite(tmp_path: Path) -> No
         intensity=60.0,
         stimulus="completed-owner-interaction",
     )
-    results = memory.retriever.retrieve_by_entity(["主人"])
+    bundle = memory.recall(
+        RecallRequest(text="主人", mode="basic_local", episode_limit=5)
+    )
 
     assert episode_id
-    assert [item.id for item in results] == [episode_id]
+    assert [item.episode_id for item in bundle.episodes] == [episode_id]
     memory.storage.close()
 
 

@@ -1,29 +1,19 @@
-"""记忆系统门面：组合所有子系统，提供统一API。
+"""记忆系统门面：统一暴露 source-first Memory API。
 
-MemorySystem 是图记忆系统的统一入口门面（Facade），
-将所有子系统组合在一起，对外暴露简洁的 API 接口。
-
-子系统列表：
-- MemoryStorePort: injected semantic memory persistence
-- SensoryBuffer: 短期感知缓冲
-- MemorySelfNarrativeProjection: 核心认知（4段人格信念）
-- MemoryEncoder: 编码引擎
-- MemoryRetriever: 多维检索引擎
-- SpreadingActivation: 扩散激活
-- EbbinghausDecay: 衰减遗忘计算
-- EmotionWeighting: 情绪自适应加权
-- MemoryConsolidator: 巩固引擎
-- MemoryRecallFormatter: 5区域上下文组装
-- SensoryIndexer: 感官索引
+``MemorySystem`` 是图记忆系统的统一入口门面（Facade）。生产 SQLite
+适配器只走 ``Episode → Graph → Evidence → RecallBundle`` 主线；旧的
+编码、检索、格式化和感官组件仅在尚未迁移的语义 Fake/兼容调用方中按需
+构造，不构成第二套生产事实源。
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections import deque
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 from uuid import uuid4
 
 from elfie.brain.memory.contracts import MemoryStateSnapshot
@@ -40,9 +30,6 @@ from elfie.message_types import EventId
 
 from .candidates import EpisodicMemoryCandidate
 from .consolidation import MemoryConsolidator
-from .ebbinghaus_decay import EbbinghausDecay
-from .emotion_weighting import EmotionWeighting
-from .encoding import MemoryEncoder
 from .memory_records import (
     ClosedEpisode,
     ConsolidationBatchReceipt,
@@ -50,19 +37,14 @@ from .memory_records import (
     EpisodeReceipt,
     MaintenanceReceipt,
     MaintenanceRequest,
+    MemoryInspectionSnapshot,
     RecallBundle,
     RecallRequest,
 )
 from .memory_store import MemoryStorePort
 from .model_food import MemoryModelPort
 from .node_types import MemoryNode, RetrievalQuery
-from .recall_formatter import MemoryRecallFormatter
 from .recall_renderer import render_recall_bundle
-from .retrieval import MemoryRetriever
-from .self_narrative import MemorySelfNarrativeProjection
-from .sensory_buffer import SensoryBuffer
-from .sensory_index import SensoryIndexer
-from .spreading_activation import SpreadingActivation
 
 logger = logging.getLogger("elfie.brain.memory.memory_system")
 
@@ -79,8 +61,10 @@ class MemorySystem:
         clock: Callable[[], datetime] | None = None,
         initial_at: datetime | None = None,
     ):
-        """初始化所有语义组件；具体存储由 Bootstrap 注入。"""
+        """初始化 typed Memory 主线；具体存储由 Bootstrap 注入。"""
         self.storage = storage
+        self._personality_data = dict(personality_data or {})
+        self._typed_memory = _supports_typed_memory(storage)
         if elfie_id is not None:
             binder = getattr(storage, "bind_elfie_identity", None)
             if callable(binder):
@@ -108,34 +92,60 @@ class MemorySystem:
         self._episode_candidate_lock = RLock()
         self._committed_episode_candidate_ids: set[EventId] = set()
         self._committed_episode_candidate_order: deque[EventId] = deque(maxlen=2048)
-        self.sensory_buffer = SensoryBuffer()
-        self.self_narrative = MemorySelfNarrativeProjection(
-            storage=storage,
-            personality_data=personality_data,
-        )
-        self.sensory_indexer = SensoryIndexer(self.storage)
-        self.encoder = MemoryEncoder(
-            self.storage,
-            self.sensory_buffer,
-            self.sensory_indexer,
-            elfie_id=elfie_id,
-        )
-        self.retriever = MemoryRetriever(self.storage)
-        self.spreading = SpreadingActivation(self.storage)
-        self.decay = EbbinghausDecay()
-        self.weighting = EmotionWeighting()
+        # The target SQLite adapter has one source-first Memory path.  The
+        # pre-contract components remain available only for semantic Fakes and
+        # old developer tools while their callers are being migrated; they are
+        # not constructed during production initialization.
+        self.sensory_buffer: Any = None
+        self.self_narrative: Any = None
+        self.sensory_indexer: Any = None
+        self.encoder: Any = None
+        self.retriever: Any = None
+        self.spreading: Any = None
+        self.decay: Any = None
+        self.weighting: Any = None
+        self.recall_formatter: Any = None
+        if not self._typed_memory:
+            from .ebbinghaus_decay import EbbinghausDecay
+            from .emotion_weighting import EmotionWeighting
+            from .encoding import MemoryEncoder
+            from .recall_formatter import MemoryRecallFormatter
+            from .retrieval import MemoryRetriever
+            from .self_narrative import MemorySelfNarrativeProjection
+            from .sensory_buffer import SensoryBuffer
+            from .sensory_index import SensoryIndexer
+            from .spreading_activation import SpreadingActivation
+
+            self.sensory_buffer = SensoryBuffer()
+            self.self_narrative = MemorySelfNarrativeProjection(
+                storage=storage,
+                personality_data=personality_data,
+            )
+            self.sensory_indexer = SensoryIndexer(self.storage)
+            self.encoder = MemoryEncoder(
+                self.storage,
+                self.sensory_buffer,
+                self.sensory_indexer,
+                elfie_id=elfie_id,
+            )
+            self.retriever = MemoryRetriever(self.storage)
+            self.spreading = SpreadingActivation(self.storage)
+            self.decay = EbbinghausDecay()
+            self.weighting = EmotionWeighting()
+            self.recall_formatter = MemoryRecallFormatter(
+                self.storage,
+                self.retriever,
+                self.spreading,
+                self.decay,
+                self.weighting,
+                self.self_narrative,
+            )
+        else:
+            self.recall_formatter = None
         self.consolidator = MemoryConsolidator(
             self.storage,
             self.self_narrative,
             elfie_id=elfie_id,
-        )
-        self.recall_formatter = MemoryRecallFormatter(
-            self.storage,
-            self.retriever,
-            self.spreading,
-            self.decay,
-            self.weighting,
-            self.self_narrative,
         )
 
     def bind_elfie_identity(
@@ -145,7 +155,8 @@ class MemorySystem:
         binder = getattr(self.storage, "bind_elfie_identity", None)
         if callable(binder):
             binder(elfie_id)
-        self.encoder.elfie_id = elfie_id
+        if self.encoder is not None:
+            self.encoder.elfie_id = elfie_id
         self.consolidator.elfie_id = elfie_id
 
     def record_closed_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
@@ -219,20 +230,56 @@ class MemorySystem:
             raise TypeError(
                 "record_episode() missing required argument: 'content' or 'event_description'"
             )
-        node_id = self.encoder.encode(
-            event,
-            emo,
-            inte,
-            stimulus,
-            sensory,
-            model_port,
-            source_event_ids,
+        if not self._typed_memory:
+            node_id = self.encoder.encode(
+                event,
+                emo,
+                inte,
+                stimulus,
+                sensory,
+                model_port,
+                source_event_ids,
+            )
+            self._commit_state(
+                source_event_ids=source_event_ids,
+                causation_id=EventId(f"memory-record:{uuid4().hex}"),
+            )
+            return node_id
+
+        del model_port
+        normalized_intensity = float(inte)
+        if normalized_intensity > 1.0:
+            normalized_intensity /= 100.0
+        normalized_intensity = max(0.0, min(1.0, normalized_intensity))
+        source_key = "|".join(str(value) for value in source_event_ids)
+        identity = (
+            hashlib.sha256(source_key.encode("utf-8")).hexdigest()[:24]
+            if source_key
+            else uuid4().hex
         )
-        self._commit_state(
-            source_event_ids=source_event_ids,
-            causation_id=EventId(f"memory-record:{uuid4().hex}"),
+        now = self._clock()
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        sensory_pairs = tuple(
+            (str(key), str(value)) for key, value in (sensory or {}).items()
         )
-        return node_id
+        receipt = self.record_closed_episode(
+            ClosedEpisode(
+                episode_id=f"memory-episode:{identity}",
+                idempotency_key=f"memory-record:{identity}",
+                occurred_from=now.isoformat(),
+                content_text=event,
+                event_kind="interaction",
+                source_event_ids=tuple(str(value) for value in source_event_ids),
+                importance=normalized_intensity,
+                emotion=emo,
+                emotion_intensity=normalized_intensity,
+                stimulus=stimulus,
+                sensory=sensory_pairs,
+                metadata={"source": "memory.record_episode"},
+            )
+        )
+        return receipt.episode_id
 
     def commit_episode_candidate(
         self,
@@ -358,6 +405,21 @@ class MemorySystem:
         Returns:
             记忆内容文本列表
         """
+        if self._typed_memory:
+            bundle = self.recall(
+                RecallRequest(
+                    text=query,
+                    mode="basic_local",
+                    seed_limit=max(0, min(top_k * 2, 8)),
+                    node_limit=max(0, min(top_k * 4, 40)),
+                    episode_limit=max(0, min(top_k, 8)),
+                )
+            )
+            values = [episode.excerpt for episode in bundle.episodes]
+            values.extend(
+                node.label for node in bundle.focus_nodes if node.label not in values
+            )
+            return list(dict.fromkeys(values))[: max(0, top_k)]
         retrieval_query = RetrievalQuery(
             text_query=query,
             current_emotion=current_emotion or "",
@@ -498,8 +560,12 @@ class MemorySystem:
             ),
             model_port=model_port,
         )
+        processed_for_budget = len(batch.consolidated_episode_ids) + len(
+            batch.failed_episode_ids
+        )
+        remaining_budget = max(0, resolved.max_episodes - processed_for_budget)
         lifecycle = getattr(self.storage, "run_lifecycle", None)
-        if not callable(lifecycle):
+        if not callable(lifecycle) or remaining_budget == 0:
             status = (
                 "partial"
                 if batch.failed_episode_ids and batch.consolidated_episode_ids
@@ -525,7 +591,14 @@ class MemorySystem:
                     causation_id=EventId(f"memory-maintenance:{uuid4().hex}")
                 )
             return result
-        lifecycle_receipt = lifecycle(resolved)
+        lifecycle_receipt = lifecycle(
+            MaintenanceRequest(
+                max_episodes=remaining_budget,
+                worker_id=resolved.worker_id,
+                checkpoint=batch.checkpoint or resolved.checkpoint,
+                lease_seconds=resolved.lease_seconds,
+            )
+        )
         errors = {**dict(batch.errors), **dict(lifecycle_receipt.errors)}
         if batch.failed_episode_ids:
             status = (
@@ -577,6 +650,11 @@ class MemorySystem:
         """Return the committed semantic memory-state revision."""
         return self._state.snapshot().revision
 
+    @property
+    def uses_typed_memory(self) -> bool:
+        """Whether this facade is backed by the source-first Memory contract."""
+        return self._typed_memory
+
     def snapshot(
         self,
         captured_at: datetime | None = None,
@@ -624,7 +702,23 @@ class MemorySystem:
         Returns:
             {identity: str, relation: str, world: str, tendency: str}
         """
-        return self.self_narrative.get_core_text()
+        if self.self_narrative is not None:
+            return self.self_narrative.get_core_text()
+        raw_description = self._personality_data.get("self_description")
+        description = raw_description if isinstance(raw_description, str) else ""
+        if not description:
+            metadata = self._personality_data.get("metadata")
+            metadata_description = (
+                metadata.get("description") if isinstance(metadata, dict) else None
+            )
+            if isinstance(metadata_description, str):
+                description = metadata_description
+        return {
+            "identity": description,
+            "relation": "",
+            "world": "",
+            "tendency": "",
+        }
 
     def get_all_episodes(self) -> List[Dict[str, Any]]:
         """获取所有episodic节点（兼容旧API EpisodeMemoryManager.get_all_episodes()）
@@ -635,6 +729,26 @@ class MemorySystem:
         Returns:
             [{"content": str, "metadata": dict}, ...]
         """
+        if self._typed_memory:
+            source_reader = getattr(self.storage, "list_episodes", None)
+            typed_episodes = (
+                source_reader(limit=1000) if callable(source_reader) else ()
+            )
+            return [
+                {
+                    "content": episode.content_text,
+                    "metadata": {
+                        "emotion": episode.emotion or "",
+                        "timestamp": episode.occurred_from or "",
+                        "intensity": episode.emotion_intensity or 0.0,
+                        "importance": episode.importance,
+                        "detail_level": episode.detail_level,
+                        "lifecycle": episode.lifecycle,
+                        "source_event_ids": list(episode.source_event_ids),
+                    },
+                }
+                for episode in typed_episodes
+            ]
         nodes = self.storage.get_nodes_by_type("episodic", limit=1000)
         episodes = []
         for node in nodes:
@@ -651,6 +765,34 @@ class MemorySystem:
                 }
             )
         return episodes
+
+    def memory_inspection_snapshot(
+        self,
+        *,
+        episode_limit: int = 1000,
+        node_limit: int = 1000,
+        assertion_limit: int = 800,
+    ) -> MemoryInspectionSnapshot:
+        """Return a bounded typed view for authorized developer projections."""
+        if not self._typed_memory:
+            return MemoryInspectionSnapshot()
+        episode_reader = getattr(self.storage, "list_episodes", None)
+        node_reader = getattr(self.storage, "list_graph_nodes", None)
+        assertion_reader = getattr(self.storage, "list_graph_assertions", None)
+        if not (
+            callable(episode_reader)
+            and callable(node_reader)
+            and callable(assertion_reader)
+        ):
+            return MemoryInspectionSnapshot()
+        read_episodes = cast(Callable[..., Any], episode_reader)
+        read_nodes = cast(Callable[..., Any], node_reader)
+        read_assertions = cast(Callable[..., Any], assertion_reader)
+        return MemoryInspectionSnapshot(
+            episodes=tuple(read_episodes(limit=episode_limit)),
+            nodes=tuple(read_nodes(limit=node_limit)),
+            assertions=tuple(read_assertions(limit=assertion_limit)),
+        )
 
     def recall_context(
         self,
@@ -677,6 +819,17 @@ class MemorySystem:
         Returns:
             结构化上下文文本
         """
+        if self._typed_memory:
+            del emotion, intensity, entities, current_time
+            return self.render_recall(
+                RecallRequest(
+                    text=query,
+                    mode="basic_local",
+                    node_limit=max(0, min(top_k * 4, 40)),
+                    episode_limit=max(0, min(top_k, 8)),
+                    character_limit=12000,
+                )
+            )
         retrieval_query = RetrievalQuery(
             text_query=query,
             current_emotion=emotion,
@@ -684,7 +837,12 @@ class MemorySystem:
             current_entities=entities or [],
             current_time=current_time or "",
         )
-        return self.recall_formatter.assemble(retrieval_query, top_k=top_k)
+        formatter = self.recall_formatter
+        if formatter is None:
+            raise TypeError(
+                "the configured Memory store does not support legacy recall"
+            )
+        return formatter.assemble(retrieval_query, top_k=top_k)
 
     def close(self) -> None:
         """Retain the injected store's lifecycle for Bootstrap ownership."""
@@ -721,3 +879,11 @@ class MemorySystem:
         receipt = self._state.commit(candidate)
         if receipt.status is not StateCommitStatus.COMMITTED:
             raise RuntimeError(f"memory state commit failed: {receipt.status.value}")
+
+
+def _supports_typed_memory(storage: MemoryStorePort) -> bool:
+    """Detect the source-first contract without importing Infrastructure."""
+    return all(
+        callable(getattr(storage, name, None))
+        for name in ("record_episode", "apply_consolidation", "recall")
+    )

@@ -11,7 +11,7 @@ request; Memory never selects a provider or model itself.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Protocol
+from typing import Mapping, Protocol, cast
 from uuid import uuid4
 
 from elfie.brain.reasoning.model_port import (
@@ -26,6 +26,8 @@ from elfie.brain.workspace.contracts import (
     SourceDomain,
 )
 from elfie.message_types import EventId, TurnId
+
+from .node_types import JsonValue
 
 MEMORY_PROJECTION_SCHEMA = {
     "type": "object",
@@ -158,7 +160,7 @@ class ModelPortMemoryAdapter:
             user_prompt=prompt,
             response_schema=JsonSchemaDocument(
                 name="MemoryProjection",
-                document=MEMORY_PROJECTION_SCHEMA,
+                document=cast(Mapping[str, JsonValue], MEMORY_PROJECTION_SCHEMA),
             ),
             reasoning_mode="fast",
             response_mode=ModelResponseMode.DECISION_PLAN,

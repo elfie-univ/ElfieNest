@@ -19,7 +19,10 @@ from elfie.brain.memory.memory_records import (
 )
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.predicates import UnknownPredicateError
-from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory import (
+    SQLiteMemoryStoreAdapter,
+    sqlite_lifecycle_store,
+)
 
 
 def _hash(value: str) -> str:
@@ -149,6 +152,10 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
                 ),
             )
         )
+        store.connection.execute(
+            "UPDATE assertions SET next_review_at='2020-01-01T00:00:00+00:00' WHERE assertion_id='low-importance-claim'"
+        )
+        store.connection.commit()
         claim = store.connection.execute(
             "SELECT importance, confidence, support_score FROM assertions WHERE assertion_id='low-importance-claim'"
         ).fetchone()
@@ -762,6 +769,50 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
         assert receipt.status in {"completed", "partial"}
 
 
+def test_memory_maintenance_uses_one_budget_across_both_stages() -> None:
+    class MaintenanceModel:
+        def ask_with_food(self, **_kwargs: object) -> str:
+            return (
+                '{"nodes":[{"label":"待投影来源","type":"concept"}],'
+                '"mentions":[],"assertions":[]}'
+            )
+
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        memory = MemorySystem(store, elfie_id="elfie-a")
+        memory.record_closed_episode(
+            ClosedEpisode(
+                "budget-episode",
+                "budget-episode-key",
+                "2026-01-01T00:00:00+00:00",
+                "待投影来源",
+            )
+        )
+        store.upsert_node_record(
+            NodeInput(
+                "budget-node",
+                "concept",
+                "待维护节点",
+                importance=0.8,
+                properties={"elfie_id": "elfie-a"},
+            )
+        )
+        store.connection.execute(
+            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='budget-node'"
+        )
+        store.connection.commit()
+
+        receipt = memory.run_maintenance(
+            MaintenanceRequest(max_episodes=1), model_port=MaintenanceModel()
+        )
+
+        assert receipt.consolidated_episode_ids == ("budget-episode",)
+        assert receipt.lifecycle_node_ids == ()
+        importance = store.connection.execute(
+            "SELECT importance FROM nodes WHERE node_id='budget-node'"
+        ).fetchone()[0]
+        assert importance == 0.8
+
+
 def test_fresh_memory_is_not_immediately_due_for_lifecycle() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
@@ -772,8 +823,66 @@ def test_fresh_memory_is_not_immediately_due_for_lifecycle() -> None:
                 "fresh source",
             )
         )
+        store.upsert_node_record(NodeInput("fresh-node", "concept", "fresh concept"))
+        store.record_sourced_assertion(
+            AssertionInput(
+                "fresh-node",
+                "about",
+                object_literal="fresh source",
+                evidence_ids=("fresh-evidence",),
+            ),
+            EvidenceInput(
+                "fresh-evidence",
+                "episode",
+                "fresh-episode",
+                excerpt="fresh source",
+            ),
+        )
         assert store.has_due_lifecycle() is False
         assert store.run_lifecycle(MaintenanceRequest(max_episodes=8)).status == "empty"
+
+
+def test_typed_memory_initialization_and_inspection_use_only_source_first_records() -> (
+    None
+):
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        memory = MemorySystem(
+            store,
+            elfie_id="elfie-a",
+            personality_data={"self_description": "一只谨慎的精灵"},
+        )
+        assert memory.uses_typed_memory is True
+        assert memory.encoder is None
+        assert memory.retriever is None
+        assert memory.recall_formatter is None
+
+        store.record_episode(
+            ClosedEpisode(
+                "inspection-episode",
+                "inspection-key",
+                "2026-08-29T00:00:00+00:00",
+                "在花园观察蝴蝶",
+                emotion="curious",
+            )
+        )
+        store.upsert_node_record(
+            NodeInput(
+                "inspection-node",
+                "place",
+                "花园",
+                properties={"elfie_id": "elfie-a", "core_key": "world"},
+            )
+        )
+
+        snapshot = memory.memory_inspection_snapshot(
+            episode_limit=4,
+            node_limit=4,
+            assertion_limit=4,
+        )
+        assert [episode.episode_id for episode in snapshot.episodes] == [
+            "inspection-episode"
+        ]
+        assert snapshot.nodes[0].properties["core_key"] == "world"
 
 
 def test_lifecycle_only_work_wakes_memory_maintenance() -> None:
@@ -818,6 +927,145 @@ def test_lifecycle_checkpoint_resumes_after_the_last_claimed_target() -> None:
             MaintenanceRequest(max_episodes=1, checkpoint=first.checkpoint)
         )
         assert second.lifecycle_node_ids == ("due-b",)
+
+
+def test_failed_lifecycle_target_remains_retryable_with_the_prior_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        for episode_id in ("due-a", "due-b"):
+            store.record_episode(
+                ClosedEpisode(
+                    episode_id,
+                    f"{episode_id}-key",
+                    "2020-01-01T00:00:00+00:00",
+                    episode_id,
+                    next_review_at="2020-01-01T00:00:00+00:00",
+                )
+            )
+
+        first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        assert first.lifecycle_episode_ids == ("due-a",)
+
+        def fail_review(*_args: object, **_kwargs: object) -> str:
+            raise RuntimeError("injected lifecycle failure")
+
+        monkeypatch.setattr(sqlite_lifecycle_store, "_next_review", fail_review)
+        failed = store.run_lifecycle(
+            MaintenanceRequest(max_episodes=1, checkpoint=first.checkpoint)
+        )
+        assert failed.lifecycle_episode_ids == ()
+        assert failed.errors["due-b"] == "injected lifecycle failure"
+        assert failed.checkpoint == first.checkpoint
+
+        monkeypatch.undo()
+        store.connection.execute(
+            "UPDATE memory_maintenance SET next_attempt_at='1970-01-01T00:00:00+00:00' WHERE target_id='due-b'"
+        )
+        store.connection.commit()
+        retried = store.run_lifecycle(
+            MaintenanceRequest(max_episodes=1, checkpoint=first.checkpoint)
+        )
+        assert retried.lifecycle_episode_ids == ("due-b",)
+
+
+def test_lifecycle_checkpoint_does_not_skip_failure_before_later_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        for episode_id in ("due-a", "due-b", "due-c"):
+            store.record_episode(
+                ClosedEpisode(
+                    episode_id,
+                    f"{episode_id}-key",
+                    "2020-01-01T00:00:00+00:00",
+                    episode_id,
+                    next_review_at="2020-01-01T00:00:00+00:00",
+                )
+            )
+
+        first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
+        assert first.lifecycle_episode_ids == ("due-a",)
+
+        original_next_review = sqlite_lifecycle_store._next_review
+        calls = 0
+
+        def fail_once(now: str, detail_level: str, lifecycle: str) -> str:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("injected earlier failure")
+            return original_next_review(now, detail_level, lifecycle)
+
+        monkeypatch.setattr(sqlite_lifecycle_store, "_next_review", fail_once)
+        failed_then_success = store.run_lifecycle(
+            MaintenanceRequest(max_episodes=2, checkpoint=first.checkpoint)
+        )
+        assert failed_then_success.lifecycle_episode_ids == ("due-c",)
+        assert failed_then_success.errors["due-b"] == "injected earlier failure"
+        assert failed_then_success.checkpoint == first.checkpoint
+
+        monkeypatch.undo()
+        store.connection.execute(
+            "UPDATE memory_maintenance SET next_attempt_at='1970-01-01T00:00:00+00:00' WHERE target_id='due-b'"
+        )
+        store.connection.commit()
+        retried = store.run_lifecycle(
+            MaintenanceRequest(
+                max_episodes=1, checkpoint=failed_then_success.checkpoint
+            )
+        )
+        assert retried.lifecycle_episode_ids == ("due-b",)
+
+
+def test_stale_lifecycle_worker_cannot_publish_after_claim_changes() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.upsert_node_record(
+            NodeInput(
+                "fenced-node",
+                "concept",
+                "不可被旧 worker 覆盖",
+                importance=0.8,
+                properties={"elfie_id": "elfie-a"},
+            )
+        )
+        store.connection.execute(
+            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='fenced-node'"
+        )
+        store.connection.commit()
+
+        original_claim = store._claim_maintenance_target
+
+        def claim_then_replace(**kwargs):
+            attempt = original_claim(**kwargs)
+            if attempt is not None:
+                store.connection.execute(
+                    """UPDATE memory_maintenance
+                          SET lease_owner='new-worker', attempts=attempts+1,
+                              lease_until='2099-01-01T00:00:00+00:00'
+                        WHERE elfie_id=? AND stage=? AND target_id=?""",
+                    ("elfie-a", "lifecycle", kwargs["target_id"]),
+                )
+            return attempt
+
+        store._claim_maintenance_target = claim_then_replace
+        receipt = store.run_lifecycle(
+            MaintenanceRequest(max_episodes=1, worker_id="old-worker")
+        )
+
+        assert receipt.status == "failed"
+        assert "fenced-node" in receipt.errors
+        row = store.connection.execute(
+            "SELECT importance FROM nodes WHERE node_id='fenced-node'"
+        ).fetchone()
+        assert row[0] == 0.8
+        claim = store.connection.execute(
+            """SELECT state, lease_owner, attempts
+                 FROM memory_maintenance
+                WHERE elfie_id='elfie-a' AND stage='lifecycle'
+                  AND target_id='fenced-node'"""
+        ).fetchone()
+        assert tuple(claim) == ("processing", "new-worker", 2)
 
 
 def test_expired_lifecycle_lease_is_recovered() -> None:

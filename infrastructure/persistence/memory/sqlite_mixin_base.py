@@ -14,10 +14,12 @@ from threading import RLock
 from typing import Iterable
 
 from elfie.brain.memory.memory_records import (
+    AssertionInput,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
     EpisodeReceipt,
+    EvidenceInput,
     MaintenanceReceipt,
     MaintenanceRequest,
     NodeInput,
@@ -53,6 +55,11 @@ class SQLiteMemoryMixinBase:
     def upsert_node_record(self, node: NodeInput) -> str:
         raise NotImplementedError
 
+    def record_sourced_assertion(
+        self, assertion: AssertionInput, evidence: EvidenceInput
+    ) -> str:
+        raise NotImplementedError
+
     def get_edges(self, node_id: str, direction: str = "outgoing") -> list[Edge]:
         raise NotImplementedError
 
@@ -62,6 +69,21 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        raise NotImplementedError
+
+    def list_episodes(
+        self, limit: int = 1000, *, include_forgotten: bool = False
+    ) -> tuple[ClosedEpisode, ...]:
+        raise NotImplementedError
+
+    def list_graph_nodes(
+        self, limit: int = 1000, *, privacy_scope: str | None = None
+    ) -> tuple[RecallNode, ...]:
+        raise NotImplementedError
+
+    def list_graph_assertions(
+        self, limit: int = 800, *, privacy_scope: str | None = None
+    ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
     def _upsert_episode_fts_from_values(

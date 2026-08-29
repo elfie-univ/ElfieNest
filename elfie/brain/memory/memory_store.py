@@ -6,13 +6,18 @@ from contextlib import AbstractContextManager
 from typing import Mapping, Protocol
 
 from .memory_records import (
+    AssertionInput,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
     EpisodeReceipt,
+    EvidenceInput,
     MaintenanceReceipt,
     MaintenanceRequest,
+    NodeInput,
+    RecallAssertion,
     RecallBundle,
+    RecallNode,
     RecallRequest,
 )
 from .node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
@@ -69,7 +74,27 @@ class MemoryStorePort(Protocol):
 
     # Target source-first contract. The legacy node methods above remain only
     # as a semantic compatibility surface for existing callers.
+    def upsert_node_record(self, node: NodeInput) -> str: ...
+
+    def record_sourced_assertion(
+        self,
+        assertion: AssertionInput,
+        evidence: EvidenceInput,
+    ) -> str: ...
+
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt: ...
+
+    def list_episodes(
+        self, limit: int = 1000, *, include_forgotten: bool = False
+    ) -> tuple[ClosedEpisode, ...]: ...
+
+    def list_graph_nodes(
+        self, limit: int = 1000, *, privacy_scope: str | None = None
+    ) -> tuple[RecallNode, ...]: ...
+
+    def list_graph_assertions(
+        self, limit: int = 800, *, privacy_scope: str | None = None
+    ) -> tuple[RecallAssertion, ...]: ...
 
     def get_episode(self, episode_id: str) -> ClosedEpisode | None: ...
 

@@ -6,6 +6,12 @@ import math
 from typing import Any, Dict, List, Protocol, Sequence, Tuple, TypedDict
 
 from devtools.elfie_lab.topic_projection import TopicPayload, build_topics
+from elfie.brain.memory.memory_records import (
+    ClosedEpisode,
+    MemoryInspectionSnapshot,
+    RecallAssertion,
+    RecallNode,
+)
 from elfie.brain.memory.node_types import Edge, MemoryNode
 
 MAX_ITEMS = 20
@@ -57,12 +63,31 @@ class ProjectionMemory(Protocol):
 
     def get_self_narrative(self) -> Dict[str, str]: ...
 
+    def memory_inspection_snapshot(
+        self,
+        *,
+        episode_limit: int = 1000,
+        node_limit: int = 1000,
+        assertion_limit: int = 800,
+    ) -> MemoryInspectionSnapshot: ...
+
 
 def build_memory_cognition(
     memory: ProjectionMemory,
     elfie_name: str,
 ) -> MemoryCognitionPayload:
     """Project graph memory into a bounded, deterministic UI payload."""
+    typed_snapshot = getattr(memory, "memory_inspection_snapshot", None)
+    if callable(typed_snapshot):
+        return _build_typed_memory_cognition(
+            memory,
+            elfie_name,
+            typed_snapshot(
+                episode_limit=1000,
+                node_limit=1000,
+                assertion_limit=800,
+            ),
+        )
     episodes = _nodes(memory.storage, "episodic")
     entities = _nodes(memory.storage, "entity")
     knowledge = [
@@ -82,6 +107,184 @@ def build_memory_cognition(
         "world_understanding": world_understanding,
         "world_model": _world_model(world_understanding, [*entities, *knowledge]),
     }
+
+
+def _build_typed_memory_cognition(
+    memory: ProjectionMemory,
+    elfie_name: str,
+    snapshot: MemoryInspectionSnapshot,
+) -> MemoryCognitionPayload:
+    """Build the Lab payload from the typed Memory inspection boundary."""
+    episodes = tuple(_episode_node(episode) for episode in snapshot.episodes)
+    nodes = tuple(_recall_node(node) for node in snapshot.nodes)
+    world_understanding = str(memory.get_self_narrative().get("world", ""))
+    if not world_understanding:
+        world_understanding = next(
+            (
+                node.content
+                for node in nodes
+                if node.metadata.get("core_key") == "world"
+            ),
+            "",
+        )
+    relation_nodes, relation_links = _typed_relation_graph(
+        nodes, snapshot.assertions, elfie_name
+    )
+    knowledge_nodes, knowledge_links = _typed_knowledge_graph(
+        nodes, snapshot.assertions
+    )
+    return {
+        "topics": build_topics(episodes, MAX_ITEMS),
+        "important_events": _important_events(episodes),
+        "relations": {"nodes": relation_nodes, "links": relation_links},
+        "knowledge": {"nodes": knowledge_nodes, "links": knowledge_links},
+        "world_understanding": world_understanding,
+        "world_model": _world_model(world_understanding, nodes),
+    }
+
+
+def _episode_node(episode: ClosedEpisode) -> MemoryNode:
+    metadata = dict(episode.metadata)
+    metadata.update(
+        {
+            "emotion": episode.emotion or "",
+            "emotion_intensity": episode.emotion_intensity or 0.0,
+            "importance": episode.importance,
+            "timestamp": episode.occurred_from or "",
+            "people": metadata.get("people", []),
+            "detail_level": episode.detail_level,
+            "lifecycle": episode.lifecycle,
+            "source_event_ids": list(episode.source_event_ids),
+        }
+    )
+    return MemoryNode(
+        id=episode.episode_id,
+        type="episodic",
+        content=episode.content_text,
+        metadata=metadata,
+        created_at=episode.occurred_from,
+    )
+
+
+def _recall_node(node: RecallNode) -> MemoryNode:
+    metadata = dict(node.properties)
+    metadata.setdefault("importance", node.importance)
+    metadata.setdefault("confidence", node.confidence)
+    return MemoryNode(
+        id=node.node_id,
+        type=node.node_type,
+        content=node.label,
+        metadata=metadata,
+    )
+
+
+def _typed_relation_graph(
+    nodes: Sequence[MemoryNode],
+    assertions: Sequence[RecallAssertion],
+    elfie_name: str,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    selected = _rank_nodes(
+        [
+            node
+            for node in nodes
+            if node.type in {"entity", "person", "elfie", "pet", "animal", "group"}
+        ]
+    )[: MAX_ITEMS - 1]
+    node_ids = {node.id for node in selected}
+    rendered_nodes = [
+        {"id": "self", "label": elfie_name, "kind": "self", "weight": 1.0}
+    ]
+    rendered_nodes.extend(
+        {
+            "id": node.id,
+            "label": node.content[:24],
+            "kind": _entity_kind(node),
+            "weight": _weight(node.metadata.get("importance"), 0.55),
+        }
+        for node in selected
+    )
+    links: list[dict[str, Any]] = []
+    for node in selected:
+        relationship = node.metadata.get("relationship") or node.metadata.get(
+            "relationship_label"
+        )
+        relation_kind = node.metadata.get("relation_kind") or node.metadata.get(
+            "relationship_key"
+        )
+        if isinstance(relationship, str) and relationship.strip():
+            links.append(
+                {
+                    "source": "self",
+                    "target": node.id,
+                    "label": relationship.strip(),
+                    "relation_kind": str(relation_kind or "relationship"),
+                    "weight": _weight(node.metadata.get("importance"), 0.55),
+                }
+            )
+    for assertion in assertions:
+        source = assertion.subject_id
+        target = assertion.object_node_id
+        if source not in node_ids or target not in node_ids:
+            continue
+        links.append(
+            {
+                "source": source,
+                "target": target,
+                "label": RELATION_LABELS.get(assertion.predicate, assertion.predicate),
+                "relation_kind": assertion.predicate,
+                "weight": _weight(assertion.importance, 0.5),
+            }
+        )
+    return rendered_nodes, sorted(links, key=_link_key)[:MAX_RELATION_LINKS]
+
+
+def _typed_knowledge_graph(
+    nodes: Sequence[MemoryNode],
+    assertions: Sequence[RecallAssertion],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    selected = _rank_nodes(
+        [
+            node
+            for node in nodes
+            if node.type
+            in {"knowledge", "pattern", "claim", "concept", "theory", "law"}
+        ]
+    )[:MAX_ITEMS]
+    rendered_nodes = [
+        {
+            "id": node.id,
+            "label": node.content[:48],
+            "kind": _knowledge_kind(node),
+            "weight": _weight(node.metadata.get("importance"), 0.55),
+            "confidence": _weight(
+                node.metadata.get("confidence"),
+                _weight(node.metadata.get("importance"), 0.55),
+            ),
+            "source_event_ids": _source_event_ids(node),
+        }
+        for node in selected
+    ]
+    node_ids = {node.id for node in selected}
+    relation_kinds = {
+        "derived_from": "derived_from",
+        "about": "derived_from",
+        "supports": "supports",
+        "implies": "supports",
+        "conflicts": "conflicts",
+        "revises": "revises",
+    }
+    links = [
+        {
+            "source": assertion.subject_id,
+            "target": assertion.object_node_id,
+            "label": assertion.predicate,
+            "relation_kind": relation_kinds.get(assertion.predicate, "supports"),
+            "weight": _weight(assertion.importance, 0.5),
+        }
+        for assertion in assertions
+        if assertion.subject_id in node_ids and assertion.object_node_id in node_ids
+    ]
+    return rendered_nodes, sorted(links, key=_link_key)[:MAX_ITEMS]
 
 
 def _nodes(storage: ProjectionStorage, node_type: str) -> List[MemoryNode]:

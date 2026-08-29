@@ -44,7 +44,15 @@ class MemoryContextReader:
                 state=state,
             )
         query = "\n".join(query_parts)
-        try:
+        if not self._memory.uses_typed_memory:
+            # Semantic Fakes used by algorithm tests still exercise the
+            # historical node surface.  Production adapters never enter this
+            # branch: they always return a typed RecallBundle.
+            nodes = self._memory.recall_nodes(query=query, top_k=5)
+            items = tuple(
+                _memory_item_from_node(node) for node in nodes if node.content.strip()
+            )
+        else:
             bundle = self._memory.recall(
                 RecallRequest(
                     text=query,
@@ -57,15 +65,6 @@ class MemoryContextReader:
                     character_limit=6000,
                 )
             )
-        except (TypeError, AttributeError):
-            # Keep semantic Fakes and older injected stores usable while the
-            # target adapter is being adopted.  Production SQLite follows the
-            # typed RecallBundle path above.
-            nodes = self._memory.recall_nodes(query=query, top_k=5)
-            items = tuple(
-                _memory_item_from_node(node) for node in nodes if node.content.strip()
-            )
-        else:
             items = _memory_items_from_bundle(bundle)
         return MemoryContext(
             revision=frame.revision,

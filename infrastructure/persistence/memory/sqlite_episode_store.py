@@ -182,6 +182,35 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             ).fetchone()
         return None if row is None else _row_to_episode(row)
 
+    def list_episodes(
+        self, limit: int = 1000, *, include_forgotten: bool = False
+    ) -> tuple[ClosedEpisode, ...]:
+        """Return a bounded, typed read-only view of the Episode source line."""
+        bounded_limit = max(0, min(int(limit), 10_000))
+        if bounded_limit == 0:
+            return ()
+        with self._lock:
+            scope = ""
+            params: list[object] = []
+            if not include_forgotten:
+                scope += " AND e.lifecycle <> 'forgotten'"
+            if getattr(self, "elfie_id", None) is not None:
+                scope += " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("e")
+            params.extend(visibility_params)
+            params.append(bounded_limit)
+            rows = self.conn.execute(
+                """SELECT e.* FROM episodes AS e
+                   WHERE 1=1"""
+                + scope
+                + " AND "
+                + visibility
+                + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
+                params,
+            ).fetchall()
+        return tuple(_row_to_episode(row) for row in rows)
+
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:
         if limit < 1:
             return ()
@@ -601,6 +630,7 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
         ),
         importance=float(row["importance"]),
         detail_level=str(row["detail_level"]),
+        lifecycle=str(row["lifecycle"] or "active"),  # type: ignore[arg-type]
         emotion=metadata.get("emotion"),
         emotion_intensity=metadata.get("emotion_intensity"),
         stimulus=metadata.get("stimulus"),
