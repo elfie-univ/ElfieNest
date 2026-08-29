@@ -95,6 +95,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         seed_ids = unique_seed_ids[: request.seed_limit]
 
         assertions: dict[str, RecallAssertion] = {}
+        assertion_hops: dict[str, int] = {}
         paths: list[RecallPath] = []
         assertions_truncated = False
         visited: set[str] = set(seed_ids)
@@ -127,6 +128,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                         assertions_truncated = True
                         break
                     assertions[assertion.assertion_id] = assertion
+                    assertion_hops[assertion.assertion_id] = min(
+                        assertion_hops.get(assertion.assertion_id, depth + 1),
+                        depth + 1,
+                    )
                     neighbor = _neighbor(current, assertion)
                     if neighbor is None:
                         continue
@@ -173,17 +178,21 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 assertions_truncated = True
             for assertion in basic_candidates[: request.assertion_limit]:
                 assertions[assertion.assertion_id] = assertion
+                assertion_hops[assertion.assertion_id] = 0
 
         focus_ids = list(visited)
         focus_nodes = self._focus_nodes(focus_ids, lexical_scores, request)
         assertions_tuple = tuple(
             sorted(
                 assertions.values(),
-                key=lambda item: (
-                    -item.relevance,
-                    -item.importance,
-                    -item.confidence,
-                    item.assertion_id,
+                key=lambda item: _assertion_rank(
+                    item,
+                    hop_count=assertion_hops.get(
+                        item.assertion_id, request.hop_limit + 1
+                    ),
+                    seed_ids=seed_ids,
+                    lexical_scores=lexical_scores,
+                    request=request,
                 ),
             )[: request.assertion_limit]
         )
@@ -204,7 +213,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             source_ids, episode_scores, request
         )
         conflicts = self._conflicts(assertions_tuple)
-        paths = paths[: request.node_limit]
+        paths = sorted(
+            paths,
+            key=lambda path: (path.hop_count, path.node_ids, path.assertion_ids),
+        )[: request.node_limit]
         truncated = any(
             (
                 lexical_truncated,
@@ -256,9 +268,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             node = self.get_graph_node(node_id, privacy_scope=request.privacy_scope)
             if node is None or (allowed and node.node_type not in allowed):
                 continue
-            score = max(
-                lexical_scores.get(node_id, 0.0),
-                node.importance * 0.35 + node.confidence * 0.15,
+            score = (
+                1.0
+                if node_id in request.seed_node_ids
+                else lexical_scores.get(node_id, 0.0)
             )
             nodes.append(
                 RecallNode(
@@ -355,7 +368,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     occurred_to=row["occurred_to"],
                     excerpt=excerpt,
                     detail_level=str(row["detail_level"]),
-                    relevance=direct_scores.get(episode_id, 0.5),
+                    relevance=direct_scores.get(episode_id, 0.0),
                     occurrence_precision=cast(
                         OccurrencePrecision,
                         str(row["occurrence_precision"] or "exact"),
@@ -373,6 +386,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             key=lambda item: (
                 -item.relevance,
                 -item.importance,
+                -_episode_time_relevance(item, request),
                 0 if item.occurred_from is not None else 1,
                 item.occurred_from or "",
                 item.episode_id,
@@ -430,6 +444,65 @@ def _neighbor(current: str, assertion: RecallAssertion) -> str | None:
     if assertion.object_node_id == current:
         return assertion.subject_id
     return None
+
+
+def _assertion_rank(
+    assertion: RecallAssertion,
+    *,
+    hop_count: int,
+    seed_ids: Iterable[str],
+    lexical_scores: dict[str, float],
+    request: RecallRequest,
+) -> tuple[float, int, float, float, float, str]:
+    """Return the contract's lexicographic assertion ranking tuple."""
+    seeds = set(seed_ids)
+    match_strength = max(
+        (
+            1.0 if node_id in seeds else lexical_scores.get(node_id, 0.0)
+            for node_id in (assertion.subject_id, assertion.object_node_id)
+            if node_id is not None
+        ),
+        default=0.0,
+    )
+    return (
+        -match_strength,
+        hop_count,
+        -assertion.importance,
+        -assertion.confidence,
+        -_assertion_time_relevance(assertion, request),
+        assertion.assertion_id,
+    )
+
+
+def _assertion_time_relevance(
+    assertion: RecallAssertion, request: RecallRequest
+) -> float:
+    if request.occurred_from is None and request.occurred_to is None:
+        return 0.0
+    valid_from = assertion.qualifiers.get("valid_from")
+    valid_to = assertion.qualifiers.get("valid_to")
+    if request.occurred_from is not None and valid_to is not None:
+        if str(valid_to) < request.occurred_from:
+            return 0.0
+    if request.occurred_to is not None and valid_from is not None:
+        if str(valid_from) > request.occurred_to:
+            return 0.0
+    return 1.0
+
+
+def _episode_time_relevance(episode: RecallEpisode, request: RecallRequest) -> float:
+    if request.occurred_from is None and request.occurred_to is None:
+        return 0.0
+    if episode.occurred_from is None:
+        return 0.0
+    if (
+        request.occurred_from is not None
+        and episode.occurred_from < request.occurred_from
+    ):
+        return 0.0
+    if request.occurred_to is not None and episode.occurred_from > request.occurred_to:
+        return 0.0
+    return 1.0
 
 
 def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:

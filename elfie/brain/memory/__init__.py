@@ -56,6 +56,7 @@ from elfie.brain.memory.predicates import (
 from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 from elfie.brain.memory.recall_renderer import render_recall_bundle
 from elfie.brain.memory.retrieval import MemoryRetriever
+from elfie.brain.memory.score_policy import MemoryScorePolicy, SemanticScoreUpdate
 from elfie.brain.memory.self_narrative import MemorySelfNarrativeProjection
 from elfie.brain.memory.sensory_buffer import SensoryBuffer
 from elfie.brain.memory.sensory_index import SensoryIndexer
@@ -86,6 +87,8 @@ __all__ = [
     "MemoryProjectionDeferred",
     "ModelPortMemoryAdapter",
     "MemoryRecallFormatter",
+    "MemoryScorePolicy",
+    "SemanticScoreUpdate",
     "SensoryIndexer",
     "tokenize",
     "AliasInput",

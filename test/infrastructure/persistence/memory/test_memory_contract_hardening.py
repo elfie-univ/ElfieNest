@@ -182,6 +182,141 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
         )
 
 
+def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        for episode_id, key, content in (
+            ("episode-score-1", "score-key-1", "主人喜欢香菜"),
+            ("episode-score-2", "score-key-2", "主人仍然喜欢香菜"),
+        ):
+            store.record_episode(
+                ClosedEpisode(
+                    episode_id=episode_id,
+                    idempotency_key=key,
+                    occurred_from="2026-01-01T00:00:00+00:00",
+                    content_text=content,
+                )
+            )
+        first = ConsolidationProjection(
+            episode_id="episode-score-1",
+            nodes=(
+                NodeInput("owner", "person", "主人", importance=0.4),
+                NodeInput("food", "food", "香菜", importance=0.4),
+            ),
+            evidence=(EvidenceInput("score-evidence-1", "episode", "episode-score-1"),),
+            assertions=(
+                AssertionInput(
+                    "owner",
+                    "likes",
+                    object_node_id="food",
+                    evidence_ids=("score-evidence-1",),
+                    confidence=0.5,
+                    importance=0.4,
+                    support_score=0.2,
+                ),
+            ),
+        )
+        store.apply_consolidation(first)
+        claim_id = store.connection.execute(
+            "SELECT assertion_id FROM assertions"
+        ).fetchone()[0]
+        before = store.connection.execute(
+            "SELECT confidence, importance, support_score FROM assertions WHERE assertion_id=?",
+            (claim_id,),
+        ).fetchone()
+
+        second = ConsolidationProjection(
+            episode_id="episode-score-2",
+            nodes=(
+                NodeInput("owner-2", "person", "主人"),
+                NodeInput("food-2", "food", "香菜"),
+            ),
+            evidence=(EvidenceInput("score-evidence-2", "episode", "episode-score-2"),),
+            assertions=(
+                AssertionInput(
+                    "owner-2",
+                    "likes",
+                    object_node_id="food-2",
+                    evidence_ids=("score-evidence-2",),
+                    confidence=0.5,
+                    importance=0.4,
+                    support_score=0.2,
+                ),
+            ),
+        )
+        store.apply_consolidation(second)
+        after = store.connection.execute(
+            "SELECT confidence, importance, support_score FROM assertions WHERE assertion_id=?",
+            (claim_id,),
+        ).fetchone()
+        assert after[0] > before[0]
+        assert after[1] > before[1]
+        assert after[2] == before[2]
+
+        # Replaying the same projection is a duplicate and must not add a
+        # second semantic contribution for the same stable evidence link.
+        store.apply_consolidation(second)
+        replay = store.connection.execute(
+            "SELECT confidence, importance FROM assertions WHERE assertion_id=?",
+            (claim_id,),
+        ).fetchone()
+        assert tuple(replay) == (after[0], after[1])
+
+
+def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-rank",
+                "rank-key",
+                "2026-01-01T00:00:00+00:00",
+                "主人喜欢香菜，香菜在厨房。",
+            )
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="episode-rank",
+                nodes=(
+                    NodeInput("owner", "person", "主人"),
+                    NodeInput("food", "food", "香菜"),
+                    NodeInput("place", "place", "厨房"),
+                ),
+                evidence=(EvidenceInput("rank-evidence", "episode", "episode-rank"),),
+                assertions=(
+                    AssertionInput(
+                        "owner",
+                        "likes",
+                        object_node_id="food",
+                        importance=0.1,
+                        evidence_ids=("rank-evidence",),
+                        assertion_id="direct-claim",
+                    ),
+                    AssertionInput(
+                        "food",
+                        "at",
+                        object_node_id="place",
+                        importance=0.9,
+                        evidence_ids=("rank-evidence",),
+                        assertion_id="second-hop-claim",
+                    ),
+                ),
+            )
+        )
+
+        bundle = store.recall(
+            RecallRequest(
+                seed_node_ids=("owner",),
+                mode="local",
+                hop_limit=2,
+                assertion_limit=8,
+            )
+        )
+
+        assert [item.assertion_id for item in bundle.assertions[:2]] == [
+            "direct-claim",
+            "second-hop-claim",
+        ]
+
+
 def test_genesis_submission_is_atomic_marker_gated_and_retryable(
     tmp_path: Path,
 ) -> None:
@@ -597,6 +732,15 @@ def test_recall_keeps_superseded_claims_after_an_explicit_correction() -> None:
 
 
 def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
+    class MaintenanceModel:
+        def ask_with_food(self, **_kwargs: object) -> str:
+            return (
+                '{"nodes":[{"label":"主人","type":"person"},'
+                '{"label":"香菜","type":"food"}],"mentions":[],'
+                '"assertions":[{"subject_ref":"主人","predicate":"likes",'
+                '"object_ref":"香菜","confidence":0.8,"support_score":0.8}]}'
+            )
+
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         memory = MemorySystem(store, elfie_id="elfie-a")
         memory.record_closed_episode(
@@ -607,7 +751,9 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
                 content_text="主人喜欢香菜。",
             )
         )
-        receipt = memory.run_maintenance(MaintenanceRequest(max_episodes=1))
+        receipt = memory.run_maintenance(
+            MaintenanceRequest(max_episodes=1), model_port=MaintenanceModel()
+        )
         assert receipt.consolidated_episode_ids == ("maintenance-episode",)
         assert receipt.knowledge_created >= 1
         assert receipt.edges_created >= 1

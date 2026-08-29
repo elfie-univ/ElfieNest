@@ -28,6 +28,7 @@ from elfie.brain.memory.predicates import (
     UnknownPredicateError,
     resolve_predicate,
 )
+from elfie.brain.memory.score_policy import EvidenceStance, MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import (
@@ -1861,6 +1862,25 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
     def _insert_assertion_evidence(
         self, link: AssertionEvidenceInput, assertion_id: str, now: str
     ) -> None:
+        existing = self.conn.execute(
+            "SELECT stance FROM assertion_evidence WHERE assertion_id=? AND evidence_id=?",
+            (assertion_id, link.evidence_id),
+        ).fetchone()
+        if existing is not None:
+            # A replay of the same sourced link is a semantic no-op.  If two
+            # projections disagree about its stance, retain the conservative
+            # context marker but never apply a second score contribution.
+            if str(existing["stance"]) != link.stance:
+                self.conn.execute(
+                    "UPDATE assertion_evidence SET stance='context' "
+                    "WHERE assertion_id=? AND evidence_id=?",
+                    (assertion_id, link.evidence_id),
+                )
+            return
+        prior_evidence = self.conn.execute(
+            "SELECT 1 FROM assertion_evidence WHERE assertion_id=? LIMIT 1",
+            (assertion_id,),
+        ).fetchone()
         self.conn.execute(
             """INSERT INTO assertion_evidence (
                    assertion_id, evidence_id, stance, genesis_submission_id, created_at
@@ -1879,6 +1899,78 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 now,
             ),
         )
+        if prior_evidence is not None:
+            self._apply_evidence_score(
+                assertion_id=assertion_id,
+                stance=link.stance,
+                now=now,
+            )
+
+    def _apply_evidence_score(
+        self,
+        *,
+        assertion_id: str,
+        stance: EvidenceStance,
+        now: str,
+    ) -> None:
+        """Apply one distinct evidence contribution to a claim and its nodes."""
+        row = self.conn.execute(
+            "SELECT subject_node_id, object_node_id, confidence, importance "
+            "FROM assertions WHERE assertion_id=?",
+            (assertion_id,),
+        ).fetchone()
+        if row is None:
+            return
+        update = MemoryScorePolicy.evidence_update(
+            confidence=float(row["confidence"]),
+            importance=float(row["importance"]),
+            stance=stance,
+        )
+        self.conn.execute(
+            """UPDATE assertions SET confidence=?, importance=?,
+                   last_reinforced_at=?, policy_version=?, updated_at=?
+               WHERE assertion_id=?""",
+            (
+                update.confidence,
+                update.importance,
+                now,
+                MemoryScorePolicy.version,
+                now,
+                assertion_id,
+            ),
+        )
+        node_ids = tuple(
+            dict.fromkeys(
+                str(node_id)
+                for node_id in (row["subject_node_id"], row["object_node_id"])
+                if node_id is not None
+            )
+        )
+        for node_id in node_ids:
+            node = self.conn.execute(
+                "SELECT confidence, importance FROM nodes WHERE node_id=?",
+                (node_id,),
+            ).fetchone()
+            if node is None:
+                continue
+            node_update = MemoryScorePolicy.evidence_update(
+                confidence=float(node["confidence"]),
+                importance=float(node["importance"]),
+                stance=stance,
+            )
+            self.conn.execute(
+                """UPDATE nodes SET confidence=?, importance=?,
+                       last_reinforced_at=?, policy_version=?, updated_at=?
+                   WHERE node_id=?""",
+                (
+                    node_update.confidence,
+                    node_update.importance,
+                    now,
+                    MemoryScorePolicy.version,
+                    now,
+                    node_id,
+                ),
+            )
 
     def _assertion_exists(self, assertion_id: str) -> bool:
         return (
