@@ -101,28 +101,42 @@ class CoordinatorTurnFactory:
         frame: TurnFrame,
         turn_id: TurnId,
         timestamp: float,
+        *,
+        requires_model: bool = True,
     ) -> ReasoningTask:
         """Appraise inputs, seal snapshots, and compile one model request."""
         captured_at = datetime.fromtimestamp(timestamp, timezone.utc)
+        stable_emotion = self._emotion.snapshot(timestamp)
+        # The replay anchor is the stable state at this Turn's event time,
+        # after passive recovery but before any fast appraisal effects.
         emotion_checkpoint = self._emotion.checkpoint()
         for event in frame.events:
             stimulus = self._appraiser.appraise(event)
             if stimulus is not None:
-                self._emotion.apply_stimulus(stimulus)
+                stimulus = stimulus.model_copy(update={"turn_id": turn_id})
+                self._emotion.apply_stimulus(
+                    stimulus,
+                    phase="fast",
+                    status="provisional",
+                )
         emotion = self._emotion.snapshot(timestamp)
         self._homeostasis.snapshot(timestamp)
-        energy_reservation = self._homeostasis.reserve_cognitive_budget(
-            turn_id,
-            responsive=self._contains_owner_message(frame),
+        energy_reservation = (
+            self._homeostasis.reserve_cognitive_budget(
+                turn_id,
+                responsive=self._contains_owner_message(frame),
+            )
+            if requires_model
+            else None
         )
         homeostasis = self._homeostasis.snapshot(timestamp)
         conversation = self._context_source.conversation(frame, captured_at)
-        memory = self._context_source.memory(frame, emotion, captured_at)
+        memory = self._context_source.memory(frame, stable_emotion, captured_at)
         memory_candidate_reader = getattr(
             self._context_source, "memory_candidates", None
         )
         memory_candidates = (
-            memory_candidate_reader(frame, emotion, captured_at)
+            memory_candidate_reader(frame, stable_emotion, captured_at)
             if memory_candidate_reader is not None
             else ()
         )
@@ -196,7 +210,7 @@ class CoordinatorTurnFactory:
         )
         context = self._context_builder.assemble(
             frame=frame,
-            emotion=emotion,
+            emotion=stable_emotion,
             homeostasis=homeostasis,
             conversation=conversation,
             memory=memory,
@@ -213,8 +227,9 @@ class CoordinatorTurnFactory:
         response_mode = self._response_mode(frame)
         structured_owner_reply = (
             reasoning_mode == "fast"
-            and response_mode is ModelResponseMode.DECISION_PLAN
             and self._contains_owner_message(frame)
+            and response_mode
+            in (ModelResponseMode.DIRECT_REPLY, ModelResponseMode.DECISION_PLAN)
         )
         reasoning_budget = self._reasoning_budget(
             homeostasis,
@@ -330,8 +345,12 @@ class CoordinatorTurnFactory:
         if reasoning_mode == "fast":
             deadline = 5.0 if homeostasis.cognitive_mode == "emergency" else 12.0
             return ReasoningBudget(
-                max_steps=5 if structured_owner_reply else 3,
-                max_model_calls=2 if structured_owner_reply else 1,
+                # Owner-facing fast turns are one provider call: the same
+                # structured response carries reply text and semantic emotion
+                # effects.  A second call would reintroduce the split
+                # correction path this contract is intended to remove.
+                max_steps=3,
+                max_model_calls=1,
                 max_tool_calls=0,
                 deadline_seconds=deadline,
             )
@@ -376,7 +395,7 @@ class CoordinatorTurnFactory:
         frame: TurnFrame,
     ) -> tuple[str | None, str | None]:
         """Return only the channel/conversation proven by an owner event."""
-        for event in frame.events:
+        for event in reversed(frame.events):
             payload = event.payload
             if not isinstance(payload, SocialPayload):
                 if isinstance(payload, InternalPayload):
@@ -463,10 +482,11 @@ class CoordinatorTurnFactory:
         ]
         current = owner_events[-1] if owner_events else None
         latest = current.content if current is not None else ""
-        if structured_owner_reply:
+        if structured_owner_reply or fast_owner_reply:
             response_policy = (
                 "Return one DecisionPlan JSON object allowed by the supplied schema. "
-                "Do not answer as if future work has already completed.\n"
+                "For ordinary owner chat, include exactly one MessageIntent containing "
+                "the concise reply. Do not answer as if future work has already completed.\n"
                 "PERSISTENT_ACTIVITY_ROUTING:\n"
                 "- For an explicit future reminder, scheduled action, conditional "
                 "commitment, or work that cannot finish in this Turn, use a "
@@ -476,22 +496,18 @@ class CoordinatorTurnFactory:
                 "- Only execution receipts prove that an action completed."
             )
         else:
-            response_policy = (
-                "Reply directly to the owner's CURRENT_MESSAGE in the same language, "
-                "naturally and concisely. Plain text only; do not emit JSON, Markdown, "
-                "tool markers, or action tags."
-            )
+            response_policy = "Return only a validated DecisionPlan JSON object."
         emotion_feedback_instruction = (
-            "EMOTION_FEEDBACK: Include an emotion_feedback object in every "
-            "DecisionPlan when you can appraise the CURRENT_MESSAGE. Use "
-            "{emotion, intensity, confidence}; emotion must be one of "
-            "happiness, sadness, anger, fear, surprise, disgust, boredom, "
-            "attachment. This is an appraisal only, not an external action. "
-            "Omit it when the message is genuinely ambiguous or has no affect; "
-            "never invent feedback from unrelated history."
-            if structured_owner_reply
-            else "EMOTION_FEEDBACK: Direct replies use a plain-text protocol; "
-            "emotion feedback is collected only from structured DecisionPlan turns."
+            "EMOTION_FEEDBACK: Include emotion_feedback in every owner DecisionPlan. "
+            "Return exactly six effects, one per channel: happiness, sadness, anger, "
+            "fear, surprise, disgust. For each effect return direction (increase, "
+            "decrease, unchanged), semantic strength 0..100, and confidence 0..1. "
+            "The host converts these semantic directions into numeric stock changes; "
+            "never return numeric deltas. This describes how the event affects Elfie, "
+            "not the owner's emotion. Use unchanged with strength 0 when there is no "
+            "self-affect."
+            if fast_owner_reply or structured_owner_reply
+            else ""
         )
         system_prompt = "\n\n".join(
             (
@@ -527,8 +543,13 @@ class CoordinatorTurnFactory:
             f"next_wakeup_at={item.next_wakeup_at or 'none'}"
             for item in tuple(compiled.activities.items)[:3]
         )
+        observations = "\n".join(
+            f"- {item.modality}: {item.content}"
+            for item in compiled.events
+            if current is None or item.event_id != current.event_id
+        )
         sections: list[str] = []
-        if structured_owner_reply:
+        if structured_owner_reply or fast_owner_reply:
             trusted = {
                 "turn_id": (
                     str(decision_seed.turn_id) if decision_seed is not None else None
@@ -585,6 +606,8 @@ class CoordinatorTurnFactory:
             sections.append(f"RELEVANT_MEMORY:\n{memories}")
         if activities:
             sections.append(f"ACTIVE_ACTIVITIES:\n{activities}")
+        if observations:
+            sections.append(f"CURRENT_OBSERVATIONS:\n{observations}")
         if history:
             sections.append(f"CONTEXT_ONLY:\n{history}")
         sections.append(f"CURRENT_MESSAGE:\n{latest}")
@@ -623,14 +646,29 @@ class CoordinatorTurnFactory:
         emotion = compiled.emotion
         homeostasis = compiled.homeostasis
         orientation = compiled.orientation
+        trend_by_name = dict(emotion.trends)
+        ranked = sorted(
+            emotion.values,
+            key=lambda item: item.intensity,
+            reverse=True,
+        )
         emotion_values = (
-            ", ".join(f"{item.name}={item.intensity:g}" for item in emotion.values[:4])
-            or "unknown"
+            ", ".join(
+                f"{item.name}={CoordinatorTurnFactory._emotion_level(item.intensity)}"
+                f"/{trend_by_name.get(item.name, 'steady')}"
+                for item in ranked[:3]
+                if item.intensity >= 0.08
+            )
+            or "calm"
         )
         return "\n".join(
             (
                 "CURRENT_BRAIN_STATE (gently affect tone and choices; do not recite):",
-                f"- emotion: dominant={emotion.dominant or 'unknown'}; {emotion_values}",
+                (
+                    f"- elfie emotion: primary={emotion.primary or 'calm'}; "
+                    f"secondary={emotion.secondary or 'none'}; "
+                    f"active channels={emotion_values}"
+                ),
                 (
                     f"- energy={homeostasis.energy:g}; fatigue={homeostasis.fatigue:g}; "
                     f"mode={homeostasis.cognitive_mode}; sleeping={homeostasis.sleeping}"
@@ -643,6 +681,16 @@ class CoordinatorTurnFactory:
                 ),
             )
         )
+
+    @staticmethod
+    def _emotion_level(value: float) -> str:
+        if value < 0.25:
+            return "low"
+        if value < 0.60:
+            return "moderate"
+        if value < 0.85:
+            return "high"
+        return "very_high"
 
     @staticmethod
     def _identity_context(compiled) -> str:

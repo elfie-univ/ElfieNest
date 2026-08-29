@@ -1,92 +1,55 @@
-import os
+"""Event identity behavior now owned by EmotionSystem."""
 
-from elfie.brain.emotion.fusion.deduplicator import EventDeduplicator, fuse_intensities
+from __future__ import annotations
 
-log_lines = []
+import pytest
+
+from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
+from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.emotion.emotion_types import EmotionType
+from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
+from elfie.message_types import EventId
 
 
-def log(msg):
-    log_lines.append(msg)
-    print(msg)
+def _event(event_id: str, strength: int = 70) -> EmotionStimulusEvent:
+    return EmotionStimulusEvent(
+        event_id=EventId(event_id),
+        effects=(
+            ChannelEffect(
+                channel=EmotionType.FEAR,
+                direction=AffectDirection.INCREASE,
+                strength=strength,
+            ),
+        ),
+        source=StimulusSource.PHYSICAL,
+    )
 
 
-log("=" * 60)
-log("TASK-8: EventDeduplicator Test Evidence")
-log("=" * 60)
+def test_same_event_id_is_applied_once_without_frequency_deduplication() -> None:
+    system = EmotionSystem(clock=lambda: 0.0)
 
-log("\n[TEST 1] Basic Deduplication")
-dedup = EventDeduplicator(ttl=60.0)
+    system.apply_stimulus(_event("impact-1"))
+    first = system.get_emotion_value("fear")
+    system.apply_stimulus(_event("impact-1"))
 
-event_id = "event_001"
-result1 = dedup.is_new(event_id, current_time=1000.0)
-log(f"  First check for {event_id}: is_new={result1} (expected: True)")
-assert result1, "First occurrence should be new"
+    assert system.get_emotion_value("fear") == first
+    assert len(system.effect_records()) == 1
 
-dedup.mark_processed(event_id, current_time=1000.0)
 
-result2 = dedup.is_new(event_id, current_time=1000.0)
-log(f"  Second check for {event_id}: is_new={result2} (expected: False)")
-assert not result2, "Second occurrence should be duplicate"
+def test_repeated_distinct_events_continue_to_refresh_the_stock() -> None:
+    system = EmotionSystem(clock=lambda: 0.0)
 
-log("  ✓ PASSED")
+    system.apply_stimulus(_event("impact-1"))
+    first = system.get_emotion_value("fear")
+    system.apply_stimulus(_event("impact-2"))
 
-log("\n[TEST 2] TTL Expiration")
-dedup2 = EventDeduplicator(ttl=60.0)
+    assert system.get_emotion_value("fear") > first
+    assert len(system.effect_records()) == 2
 
-event_a = "event_a"
-dedup2.mark_processed(event_a, current_time=1000.0)
 
-result_within_ttl = dedup2.is_new(event_a, current_time=1050.0)
-log(f"  At T=1050 (50s later): is_new={result_within_ttl} (expected: False)")
-assert not result_within_ttl, "Should still be within TTL"
+def test_reusing_an_event_id_with_different_payload_is_rejected() -> None:
+    system = EmotionSystem(clock=lambda: 0.0)
+    system.apply_stimulus(_event("impact-1", strength=40))
 
-result_expired = dedup2.is_new(event_a, current_time=1061.0)
-log(f"  At T=1061 (61s later): is_new={result_expired} (expected: True)")
-assert result_expired, "Should have expired"
-
-log("  ✓ PASSED")
-
-log("\n[TEST 3] Weighted Average Fusion")
-
-result_equal = fuse_intensities([1.0, 2.0, 3.0])
-log(f"  Equal weights [1,2,3]: {result_equal} (expected: 2.0)")
-assert result_equal == 2.0, "Equal weights should give arithmetic mean"
-
-result_weighted = fuse_intensities([1.0, 2.0, 3.0], weights=[1.0, 2.0, 1.0])
-log(f"  Weights [1,2,1] on [1,2,3]: {result_weighted} (expected: 2.0)")
-assert result_weighted == 2.0, "Weighted average should be 2.0"
-
-result_custom = fuse_intensities([5.0, 10.0], weights=[3.0, 1.0])
-log(f"  Weights [3,1] on [5,10]: {result_custom} (expected: 6.25)")
-assert abs(result_custom - 6.25) < 0.001, "Weighted average should be 6.25"
-
-log("  ✓ PASSED")
-
-log("\n[TEST 4] Error Handling")
-
-try:
-    fuse_intensities([])
-    log("  ERROR: Should have raised ValueError for empty list")
-    raise AssertionError()
-except ValueError as e:
-    log(f"  Empty list raises ValueError: {e} (expected)")
-
-try:
-    fuse_intensities([1.0, 2.0], [1.0])
-    log("  ERROR: Should have raised ValueError for mismatched lengths")
-    raise AssertionError()
-except ValueError as e:
-    log(f"  Mismatched lengths raises ValueError: {e} (expected)")
-
-log("  ✓ PASSED")
-
-log("\n" + "=" * 60)
-log("ALL TESTS PASSED!")
-log("=" * 60)
-
-os.makedirs(".sisyphus/evidence", exist_ok=True)
-with open(".sisyphus/evidence/task-8-dedup.log", "w") as f:
-    f.write("\n".join(log_lines))
-    f.write("\n")
-
-log("\nEvidence saved to: .sisyphus/evidence/task-8-dedup.log")
+    with pytest.raises(ValueError, match="event id conflict"):
+        system.apply_stimulus(_event("impact-1", strength=90))

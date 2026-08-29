@@ -34,6 +34,7 @@ from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_dynamics_defaults,
     load_emotion_expression_defaults,
     load_nest_config,
 )
@@ -148,6 +149,7 @@ def build_adoption_services(
                     Path(workspace) / "brain"
                 ).load(),
                 emotion_expression_config=load_emotion_expression_defaults(),
+                emotion_dynamics_config=load_emotion_dynamics_defaults(),
             ),
             nest_session,
         ),

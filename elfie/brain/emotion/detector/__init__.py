@@ -7,6 +7,7 @@ from elfie.brain.emotion.detector.text_detector import (
     TextEmotionDetector,
 )
 from elfie.brain.emotion.emotion_input import EmotionInput
+from elfie.brain.emotion.emotion_types import EMOTION_NAMES
 
 
 class EmotionDetectionError(ValueError):
@@ -56,6 +57,10 @@ class EmotionDetector:
         assessment = self._get_text_detector().assess(content)
         if assessment.emotion is None:
             raise NoEmotionDetectedError("no actionable emotion detected in text")
+        if assessment.emotion.value not in EMOTION_NAMES:
+            raise NoEmotionDetectedError(
+                "detected label belongs to observed-other affect, not Elfie state"
+            )
         return EmotionInput(
             emotion=assessment.emotion.value,
             intensity=assessment.confidence,

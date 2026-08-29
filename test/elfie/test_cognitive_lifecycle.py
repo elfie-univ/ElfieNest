@@ -99,6 +99,34 @@ class TwoTurnRuntime:
             "deadline": request.deadline.isoformat(),
             "cause_event_ids": list(request.cause_event_ids),
             "intents": intents,
+            "emotion_feedback": {
+                "effects": [
+                    {
+                        "channel": channel,
+                        "direction": (
+                            "increase"
+                            if channel == "happiness"
+                            and request.response_mode.value == "direct_reply"
+                            else "unchanged"
+                        ),
+                        "strength": (
+                            80
+                            if channel == "happiness"
+                            and request.response_mode.value == "direct_reply"
+                            else 0
+                        ),
+                        "confidence": 1.0,
+                    }
+                    for channel in (
+                        "happiness",
+                        "sadness",
+                        "anger",
+                        "fear",
+                        "surprise",
+                        "disgust",
+                    )
+                ]
+            },
         }
         return ModelGenerationResult(
             text=json.dumps(plan),

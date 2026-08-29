@@ -1,123 +1,91 @@
-"""Personality Modifier Unit Tests
+"""Big Five projections for emotion baselines and dynamics."""
 
-Test Big Five personality model effects on emotion accumulation and decay.
-"""
-
-import os
-import sys
+from __future__ import annotations
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS
 from elfie.brain.emotion.personality import (
     PersonalityModifier,
     calculate_personality_modifier,
 )
 
 
-class TestPersonalityModifier:
-    """PersonalityModifier功能测试"""
+def test_neuroticism_raises_negative_baselines_and_gain() -> None:
+    low = PersonalityModifier({"neuroticism": 0.1}).parameters(
+        "fear", EMOTION_CONFIGS["fear"]
+    )
+    high = PersonalityModifier({"neuroticism": 0.9}).parameters(
+        "fear", EMOTION_CONFIGS["fear"]
+    )
 
-    def test_high_neuroticism_accumulate(self):
-        """高神经质(0.9)：负面情绪增长快40%（modifier=1.4）"""
-        personality = {"neuroticism": 0.9}
-        pm = PersonalityModifier(personality)
-        assert pm.get_accumulate_modifier("fear") == pytest.approx(1.4)
-        assert pm.get_accumulate_modifier("anger") == pytest.approx(1.4)
-        assert pm.get_accumulate_modifier("sadness") == pytest.approx(1.4)
+    assert high.baseline > low.baseline
+    assert high.positive_gain > low.positive_gain
+    assert high.half_life_seconds > low.half_life_seconds
 
-    def test_low_neuroticism_accumulate(self):
-        """低神经质(0.2)：负面情绪增长慢30%（modifier=0.7）"""
-        personality = {"neuroticism": 0.2}
-        pm = PersonalityModifier(personality)
-        assert pm.get_accumulate_modifier("fear") == pytest.approx(0.7)
-        assert pm.get_accumulate_modifier("anger") == pytest.approx(0.7)
-        assert pm.get_accumulate_modifier("sadness") == pytest.approx(0.7)
 
-    def test_high_agreeableness_anger(self):
-        """高宜人性(0.9)：愤怒增长慢40%（modifier=0.6）"""
-        personality = {"agreeableness": 0.9}
-        pm = PersonalityModifier(personality)
-        assert pm.get_accumulate_modifier("anger") == pytest.approx(0.6)
+def test_extraversion_raises_happiness_baseline_and_gain() -> None:
+    low = PersonalityModifier({"extraversion": 0.1}).parameters(
+        "happiness", EMOTION_CONFIGS["happiness"]
+    )
+    high = PersonalityModifier({"extraversion": 0.9}).parameters(
+        "happiness", EMOTION_CONFIGS["happiness"]
+    )
 
-    def test_high_agreeableness_attachment(self):
-        """高宜人性(0.9)：依恋增长快40%（modifier=1.4）"""
-        personality = {"agreeableness": 0.9}
-        pm = PersonalityModifier(personality)
-        assert pm.get_accumulate_modifier("attachment") == pytest.approx(1.4)
+    assert high.baseline > low.baseline
+    assert high.positive_gain > low.positive_gain
 
-    def test_high_extraversion_happiness(self):
-        """高外向性(0.9)：快乐增长快40%（modifier=1.4）"""
-        personality = {"extraversion": 0.9}
-        pm = PersonalityModifier(personality)
-        assert pm.get_accumulate_modifier("happiness") == pytest.approx(1.4)
 
-    def test_decay_inverse_of_accumulate(self):
-        """衰减速率与累积速率相反（高神经质衰减慢）"""
-        personality = {"neuroticism": 0.9}
-        pm = PersonalityModifier(personality)
-        accumulate = pm.get_accumulate_modifier("fear")
-        decay = pm.get_decay_modifier("fear")
-        assert decay == pytest.approx(1.0 / accumulate)
+def test_agreeableness_reduces_anger_gain_and_increases_negative_consumption() -> None:
+    low = PersonalityModifier({"agreeableness": 0.1}).parameters(
+        "anger", EMOTION_CONFIGS["anger"]
+    )
+    high = PersonalityModifier({"agreeableness": 0.9}).parameters(
+        "anger", EMOTION_CONFIGS["anger"]
+    )
 
-    def test_default_personality(self):
-        """默认性格（全0.5）：modifier=1.0"""
-        pm = PersonalityModifier()
-        assert pm.get_accumulate_modifier("fear") == pytest.approx(1.0)
-        assert pm.get_accumulate_modifier("anger") == pytest.approx(1.0)
-        assert pm.get_accumulate_modifier("happiness") == pytest.approx(1.0)
-        assert pm.get_accumulate_modifier("attachment") == pytest.approx(1.0)
+    assert high.positive_gain < low.positive_gain
+    assert high.negative_gain > low.negative_gain
 
-    def test_accumulate_range(self):
-        """累积调节系数范围0.5-1.5"""
-        pm_low = PersonalityModifier(
-            {"neuroticism": 0.0, "extraversion": 0.0, "agreeableness": 0.0}
+
+def test_surprise_uses_a_short_configured_half_life() -> None:
+    params = PersonalityModifier().parameters("surprise", EMOTION_CONFIGS["surprise"])
+
+    assert params.half_life_seconds == pytest.approx(
+        EMOTION_CONFIGS["surprise"]["half_life_seconds"]
+    )
+    assert params.half_life_seconds < EMOTION_CONFIGS["fear"]["half_life_seconds"]
+
+
+def test_effective_parameters_are_bounded() -> None:
+    params = PersonalityModifier(
+        {
+            "neuroticism": 10.0,
+            "extraversion": -10.0,
+            "agreeableness": 10.0,
+        }
+    ).parameters("anger", EMOTION_CONFIGS["anger"])
+
+    assert 0.0 <= params.baseline <= 0.35
+    assert 0.05 <= params.positive_gain <= 4.0
+    assert 0.05 <= params.negative_gain <= 4.0
+    assert 1.0 <= params.half_life_seconds <= 86_400.0
+
+
+def test_convenience_modifier_is_the_positive_gain_only() -> None:
+    result = calculate_personality_modifier({"extraversion": 0.9}, "happiness")
+    expected = (
+        PersonalityModifier({"extraversion": 0.9})
+        .parameters(
+            "happiness",
+            {
+                "baseline": 0.0,
+                "positive_gain": 1.0,
+                "negative_gain": 1.0,
+                "half_life_seconds": 300.0,
+            },
         )
-        pm_high = PersonalityModifier(
-            {"neuroticism": 1.0, "extraversion": 1.0, "agreeableness": 1.0}
-        )
+        .positive_gain
+    )
 
-        assert 0.4 <= pm_low.get_accumulate_modifier("fear") <= 0.6
-        assert 1.4 <= pm_high.get_accumulate_modifier("fear") <= 1.6
-
-    def test_decay_range(self):
-        """衰减调节系数范围（高累积=低衰减，反之亦然）"""
-        pm_low = PersonalityModifier({"neuroticism": 0.2})
-        pm_high = PersonalityModifier({"neuroticism": 0.8})
-
-        assert pm_low.get_decay_modifier("fear") > pm_high.get_decay_modifier("fear")
-
-
-class TestCalculatePersonalityModifier:
-    """calculate_personality_modifier函数测试"""
-
-    def test_neuroticism_formula(self):
-        """验证神经质公式：0.5 + neuroticism"""
-        personality = {"neuroticism": 0.5}
-        result = calculate_personality_modifier(personality, "fear")
-        assert result == pytest.approx(1.0)
-
-    def test_agreeableness_anger_formula(self):
-        """验证宜人性愤怒公式：1.5 - agreeableness"""
-        personality = {"agreeableness": 0.5}
-        result = calculate_personality_modifier(personality, "anger")
-        assert result == pytest.approx(1.0)
-
-    def test_agreeableness_attachment_formula(self):
-        """验证宜人性依恋公式：0.5 + agreeableness"""
-        personality = {"agreeableness": 0.5}
-        result = calculate_personality_modifier(personality, "attachment")
-        assert result == pytest.approx(1.0)
-
-    def test_extraversion_happiness_formula(self):
-        """验证外向性快乐公式：0.5 + extraversion"""
-        personality = {"extraversion": 0.5}
-        result = calculate_personality_modifier(personality, "happiness")
-        assert result == pytest.approx(1.0)
-
-    def test_unaffected_emotion(self):
-        """不受性格影响的情绪"""
-        personality = {"neuroticism": 0.9, "agreeableness": 0.9, "extraversion": 0.9}
-        result = calculate_personality_modifier(personality, "surprise")
-        assert result == pytest.approx(1.0)
+    assert result == pytest.approx(expected)

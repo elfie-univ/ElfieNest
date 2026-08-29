@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
@@ -20,14 +21,19 @@ def test_emotion_checkpoint_restores_deduplication_and_rejects_stale_state() -> 
     emotion = EmotionSystem(clock=lambda: 0.0)
     stimulus = EmotionStimulusEvent(
         event_id=EventId("emotion-source-1"),
-        emotion=EmotionType.FEAR,
-        intensity=0.8,
+        effects=(
+            ChannelEffect(
+                channel=EmotionType.FEAR,
+                direction=AffectDirection.INCREASE,
+                strength=80,
+            ),
+        ),
         source=StimulusSource.PHYSICAL,
     )
     emotion.apply_stimulus(stimulus)
     checkpoint = emotion.checkpoint()
 
-    emotion.update_emotion("fear", 10.0)
+    emotion.update_emotion("fear", 0.1)
     with pytest.raises(StateRestoreError):
         emotion.restore(checkpoint)
 

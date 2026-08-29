@@ -41,6 +41,8 @@ def validate_registered_document(
         _validate_selfhood_defaults(document, label)
     elif document_id is ConfigDocumentId.EMOTION_EXPRESSIONS:
         _validate_emotion_defaults(document, label)
+    elif document_id is ConfigDocumentId.EMOTION_DYNAMICS:
+        _validate_emotion_dynamics(document, label)
     elif document_id is ConfigDocumentId.NEST_DEFAULTS:
         _validate_nest_defaults(document, label)
     elif document_id is ConfigDocumentId.SPECIES_CATALOG:
@@ -442,6 +444,16 @@ def _validate_selfhood_defaults(document: Mapping[str, Any], label: str) -> None
 def _validate_emotion_defaults(document: Mapping[str, Any], label: str) -> None:
     _keys(document, {"version", "emotions", "default_expression"}, label)
     emotions = _object(document.get("emotions"), f"{label}.emotions")
+    required_emotions = {
+        "happiness",
+        "sadness",
+        "anger",
+        "fear",
+        "surprise",
+        "disgust",
+    }
+    if set(emotions) != required_emotions:
+        raise ConfigSchemaError(f"{label}.emotions 必须恰好包含六种情绪")
     for emotion_name, raw_expression in emotions.items():
         expression = _object(raw_expression, f"{label}.emotions.{emotion_name}")
         _keys(
@@ -460,9 +472,13 @@ def _validate_emotion_defaults(document: Mapping[str, Any], label: str) -> None:
             expression.get("voice_modifier"),
             f"{label}.emotions.{emotion_name}.voice_modifier",
         )
-        _number(
+        threshold = _number(
             expression.get("threshold"), f"{label}.emotions.{emotion_name}.threshold"
         )
+        if not 0.0 <= threshold <= 1.0:
+            raise ConfigSchemaError(
+                f"{label}.emotions.{emotion_name}.threshold 必须在 0 到 1 之间"
+            )
     default = _object(document.get("default_expression"), f"{label}.default_expression")
     _keys(
         default,
@@ -476,6 +492,61 @@ def _validate_emotion_defaults(document: Mapping[str, Any], label: str) -> None:
         allow_empty=True,
     )
     _string(default.get("voice_modifier"), f"{label}.default_expression.voice_modifier")
+
+
+def _validate_emotion_dynamics(document: Mapping[str, Any], label: str) -> None:
+    """Validate the six-channel, bundled-only dynamic parameter document."""
+
+    _keys(
+        document,
+        {"version", "channels", "strength_knots", "source_weights", "personality"},
+        label,
+    )
+    channels = _object(document.get("channels"), f"{label}.channels")
+    required = {
+        "happiness",
+        "sadness",
+        "anger",
+        "fear",
+        "surprise",
+        "disgust",
+    }
+    if set(channels) != required:
+        raise ConfigSchemaError(f"{label}.channels 必须恰好包含六种情绪")
+    channel_fields = {
+        "baseline",
+        "positive_gain",
+        "negative_gain",
+        "half_life_seconds",
+        "activation_threshold",
+    }
+    for name, raw in channels.items():
+        channel = _object(raw, f"{label}.channels.{name}")
+        _keys(channel, channel_fields, f"{label}.channels.{name}")
+        _require_keys(channel, channel_fields, f"{label}.channels.{name}")
+        for field in ("baseline", "activation_threshold"):
+            value = _number(channel.get(field), f"{label}.channels.{name}.{field}")
+            if not 0.0 <= value <= 1.0:
+                raise ConfigSchemaError(
+                    f"{label}.channels.{name}.{field} 必须在 0 到 1 之间"
+                )
+        for field in ("positive_gain", "negative_gain", "half_life_seconds"):
+            _positive_number(channel.get(field), f"{label}.channels.{name}.{field}")
+    knots = document.get("strength_knots")
+    if not isinstance(knots, list) or len(knots) < 2:
+        raise ConfigSchemaError(f"{label}.strength_knots 必须是至少两个数字")
+    previous = -1.0
+    for index, value in enumerate(knots):
+        number = _number(value, f"{label}.strength_knots[{index}]")
+        if not 0.0 <= number <= 1.0 or number < previous:
+            raise ConfigSchemaError(
+                f"{label}.strength_knots 必须是 0 到 1 的非降序数组"
+            )
+        previous = number
+    weights = _object(document.get("source_weights"), f"{label}.source_weights")
+    for source, value in weights.items():
+        _positive_number(value, f"{label}.source_weights.{source}")
+    _object(document.get("personality"), f"{label}.personality")
 
 
 def _validate_nest_defaults(document: Mapping[str, Any], label: str) -> None:

@@ -10,7 +10,7 @@ from elfie.brain.emotion.detector import (
     UnsupportedEmotionModalityError,
 )
 from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
-from elfie.brain.emotion.emotion_types import EmotionType
+from elfie.brain.emotion.emotion_types import ObservedEmotionType as EmotionType
 
 
 @pytest.mark.parametrize(

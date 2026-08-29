@@ -1,15 +1,9 @@
 import logging
-from typing import Any, Dict, Optional, Protocol, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from elfie.body.native.anatomy.base import SomaticAnatomy
 
 logger = logging.getLogger("elfie.nervous_system.reflex.reflex_arc")
-
-
-class EmotionMutationPort(Protocol):
-    """Narrow mutation boundary used by the legacy native reflex helper."""
-
-    def update_emotion(self, name: str, delta: float) -> None: ...
 
 
 class SomaticReflexArc:
@@ -22,16 +16,17 @@ class SomaticReflexArc:
         self,
         anatomy: SomaticAnatomy,
         tactile_sensor: Dict[str, Any],
-        emotion: Optional[EmotionMutationPort],
+        emotion: Optional[object] = None,
     ) -> Tuple[Dict[str, float], Dict[str, Any]]:
         """
-        在极短的时间（毫秒级）内处理身体传入的具身刺激脉冲。如触发避险反射，直接越过大脑皮层改写关节角度与情绪！
+        在极短的时间（毫秒级）内处理身体传入的具身刺激脉冲。避险反射只拥有
+        关节覆盖权；情绪由同一身体感知事件在 Brain 外围统一更新。
         :param anatomy: 精灵形态学解剖结构
         :param tactile_sensor: 触觉传感器传入的瞬间脉冲数据, 包括:
                                - "impact_force": 碰撞力度 (float, 0.0 表示无碰撞, > 15.0 表示强烈撞击)
                                - "impact_direction": 碰撞来源方向 (str, "front", "back", "left", "right")
                                - "gentle_stroke": 温柔抚摸频率 (float, 0.0-3.0 Hz, 1.0 左右最舒适)
-        :param emotion: 唯一 EmotionSystem 的窄修改边界
+        :param emotion: 保留旧调用形状；情绪只能由外层感知事件进入 EmotionSystem
         :return: Tuple[关节紧急干预字典, 反射事件报告]
         """
         override_joints = {}
@@ -69,11 +64,6 @@ class SomaticReflexArc:
             # 直接物理修改关节
             anatomy.apply_joint_angles(override_joints)
 
-            # 神经刺激：恐慌值瞬间暴增，快乐值下降
-            if emotion:
-                emotion.update_emotion("fear", 25.0)  # 极度惊慌
-                emotion.update_emotion("happiness", -15.0)  # 快乐骤降
-
             reflex_event.update(
                 {
                     "triggered": True,
@@ -96,12 +86,6 @@ class SomaticReflexArc:
 
             # 直接物理修改关节
             anatomy.apply_joint_angles(override_joints)
-
-            # 神经滋养：焦虑与无聊瞬间消散，幸福感极高
-            if emotion:
-                emotion.update_emotion("fear", -15.0)  # 宁静
-                emotion.update_emotion("boredom", -20.0)  # 充实
-                emotion.update_emotion("happiness", 15.0)  # 高兴
 
             reflex_event.update(
                 {

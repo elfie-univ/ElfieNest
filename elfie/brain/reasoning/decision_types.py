@@ -14,7 +14,8 @@ from elfie.brain.activity.system import (
     ActivityPreflightResult,
     ActivityPreflightStatus,
 )
-from elfie.brain.emotion.emotion_types import EmotionType
+from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
+from elfie.brain.emotion.emotion_types import EMOTION_NAMES
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     EmbodiedScope,
@@ -127,11 +128,28 @@ class NoOpIntent(IntentContract):
 
 
 class EmotionFeedback(FrozenContractModel):
-    """Model's post-reasoning appraisal of the current turn input."""
+    """Model's semantic appraisal of how the current event affects Elfie."""
 
-    emotion: EmotionType
-    intensity: _Intensity = 0.5
-    confidence: _Intensity = 0.7
+    effects: Annotated[Tuple[ChannelEffect, ...], Field(min_length=6, max_length=6)]
+    observed_other_affect: Optional[_NonBlankText] = None
+
+    @model_validator(mode="after")
+    def validate_all_channels(self) -> EmotionFeedback:
+        channels = tuple(effect.channel.value for effect in self.effects)
+        if set(channels) != set(EMOTION_NAMES) or len(set(channels)) != 6:
+            raise PydanticCustomError(
+                "emotion_feedback_channels",
+                "emotion feedback must contain exactly one effect for each channel",
+            )
+        if any(
+            effect.direction is AffectDirection.UNCHANGED and effect.strength != 0
+            for effect in self.effects
+        ):
+            raise PydanticCustomError(
+                "emotion_feedback_unchanged_strength",
+                "unchanged emotion effects must have zero strength",
+            )
+        return self
 
 
 DecisionIntent: TypeAlias = Annotated[

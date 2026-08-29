@@ -218,9 +218,9 @@ class TestSomaticReflexArc(unittest.TestCase):
 
     # ==================== 情绪影响测试 ====================
     def test_shock_emotion_impact(self):
-        """测试 12: 验证撞击时情绪变化"""
+        """撞击反射不绕过感知链路直接改写情绪。"""
         amygdala = EmotionSystem()
-        # 初始值: fear=10, happiness=50
+        # 情绪由后续 PerceptionEvent -> EmotionAppraiser 统一写入。
         tactile_sensor = {
             "impact_force": 30.0,
             "impact_direction": "right",
@@ -231,14 +231,17 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.biped_anatomy, tactile_sensor, amygdala
         )
 
-        # fear 暴增 25, happiness 下降 15
-        self.assertEqual(amygdala.emotions["fear"], 35.0)  # 10 + 25
-        self.assertEqual(amygdala.emotions["happiness"], 35.0)  # 50 - 15
+        self.assertEqual(
+            amygdala.emotions["fear"], amygdala.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala.emotions["happiness"],
+            amygdala.parameters("happiness").baseline,
+        )
 
     def test_stroke_emotion_impact(self):
-        """测试 13: 验证抚摸时情绪变化"""
+        """抚摸反射不绕过感知链路直接改写情绪。"""
         amygdala = EmotionSystem()
-        # 初始值: fear=10, boredom=20, happiness=50
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
@@ -249,10 +252,13 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.quad_anatomy, tactile_sensor, amygdala
         )
 
-        # fear 减少 15, boredom 减少 20, happiness 增加 15
-        self.assertEqual(amygdala.emotions["fear"], 0.0)  # max(10-15, 0)
-        self.assertEqual(amygdala.emotions["boredom"], 0.0)  # max(20-20, 0)
-        self.assertEqual(amygdala.emotions["happiness"], 65.0)  # 50 + 15
+        self.assertEqual(
+            amygdala.emotions["fear"], amygdala.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala.emotions["happiness"],
+            amygdala.parameters("happiness").baseline,
+        )
 
     # ==================== 边界情况测试 ====================
     def test_missing_tactile_sensor_keys(self):
@@ -341,8 +347,13 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.quad_anatomy, tactile_stroke, amygdala2
         )
 
-        # 两者应该有不同的情绪状态
-        self.assertNotEqual(amygdala1.emotions["fear"], amygdala2.emotions["fear"])
+        # 两者仍保持基线；反射不持有 EmotionSystem 的写权限。
+        self.assertEqual(
+            amygdala1.emotions["fear"], amygdala1.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala2.emotions["fear"], amygdala2.parameters("fear").baseline
+        )
 
 
 class TestReflexArcEdgeCases(unittest.TestCase):

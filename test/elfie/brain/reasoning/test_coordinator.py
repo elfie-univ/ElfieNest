@@ -11,6 +11,7 @@ import pytest
 
 from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.emotion.emotion_types import EMOTION_NAMES
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.reasoning.context_types import (
@@ -306,7 +307,7 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         assert request.reasoning_mode == "fast"
         assert request.response_mode is ModelResponseMode.DIRECT_REPLY
         assert request.allowed_tools == ()
-        assert request.max_tokens == 192
+        assert request.max_tokens == 1536
         assert len(request.user_prompt) < 2000
         assert "CURRENT_MESSAGE" in request.user_prompt
         assert coordinator._inflight is not None
@@ -318,7 +319,7 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         coordinator.join()
 
 
-def test_social_text_emotion_is_applied_before_model_turn_snapshot() -> None:
+def test_owner_text_affect_is_not_applied_as_elfie_affect_before_model_turn() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
     coordinator, emotion, _energy = _coordinator(
@@ -341,8 +342,10 @@ def test_social_text_emotion_is_applied_before_model_turn_snapshot() -> None:
     coordinator.synchronize()
 
     try:
-        assert emotion.get_emotion_value("anger") > 10.0
-        assert "anger=" in runtime.calls[0].system_prompt
+        assert (
+            emotion.get_emotion_value("anger") == emotion.parameters("anger").baseline
+        )
+        assert "CURRENT_BRAIN_STATE" in runtime.calls[0].system_prompt
     finally:
         runtime.release.set()
         coordinator.stop()
@@ -353,9 +356,15 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
     runtime.feedback = {
-        "emotion": "happiness",
-        "intensity": 1.0,
-        "confidence": 1.0,
+        "effects": [
+            {
+                "channel": channel,
+                "direction": "increase" if channel == "happiness" else "unchanged",
+                "strength": 80 if channel == "happiness" else 0,
+                "confidence": 1.0,
+            }
+            for channel in EMOTION_NAMES
+        ]
     }
     sink = RecordingPlanSink()
     coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
@@ -374,12 +383,19 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
     coordinator.synchronize()
 
     try:
-        assert emotion.get_emotion_value("anger") > 10.0
+        assert (
+            emotion.get_emotion_value("anger") == emotion.parameters("anger").baseline
+        )
         assert "EMOTION_FEEDBACK" in runtime.calls[0].system_prompt
         runtime.release.set()
         assert sink.accepted.wait(1), coordinator.outcomes()
-        assert emotion.get_emotion_value("anger") == pytest.approx(10.0)
-        assert emotion.get_emotion_value("happiness") > 50.0
+        assert emotion.get_emotion_value("anger") == pytest.approx(
+            emotion.parameters("anger").baseline
+        )
+        assert (
+            emotion.get_emotion_value("happiness")
+            > emotion.parameters("happiness").baseline
+        )
     finally:
         runtime.release.set()
         coordinator.stop()
@@ -429,7 +445,7 @@ def test_explicit_task_uses_structured_activity_route_without_tools(
         assert request.user_prompt.count(owner_text) == 1
         assert request.max_tokens >= 1024
         assert coordinator._inflight is not None
-        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 2
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()
@@ -568,7 +584,7 @@ def test_slow_runtime_does_not_block_clock_or_next_frame_ingest() -> None:
     coordinator, emotion, energy = _coordinator(workspace, runtime, sink)
     coordinator.start()
     for index in range(5):
-        workspace.publish(_social(index, index * 75))
+        workspace.publish(_social(index, index * 75, source_kind="owner"))
         coordinator.notify_perception()
     coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.7))
     runtime.started.wait()

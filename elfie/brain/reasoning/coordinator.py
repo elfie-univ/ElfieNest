@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from concurrent.futures import Future
 from datetime import datetime, timezone
 from threading import Event
 from typing import Callable, Optional, Tuple
@@ -34,8 +35,18 @@ from elfie.brain.reasoning.coordinator_types import (
     StopControl,
     WorkerDoneControl,
 )
+from elfie.brain.reasoning.decision_decoder import (
+    DecisionDecodeMode,
+    DecisionDecodeReport,
+    DecisionDecodeResult,
+)
 from elfie.brain.reasoning.decision_governance import govern_decision
-from elfie.brain.reasoning.run import ReasoningRunResult, ReasoningStatus
+from elfie.brain.reasoning.run import (
+    CognitiveStep,
+    CognitiveStepKind,
+    ReasoningRunResult,
+    ReasoningStatus,
+)
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
@@ -312,9 +323,19 @@ class BrainCoordinator:
         try:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
-            task = self._turn_factory.build_task(frame, turn_id, self._timestamp)
+            requires_model = self._requires_model(frame)
+            task = self._turn_factory.build_task(
+                frame,
+                turn_id,
+                self._timestamp,
+                requires_model=requires_model,
+            )
             self._capture_closed_episodes(task)
-            future = self._worker.submit(task)
+            if requires_model:
+                future = self._worker.submit(task)
+            else:
+                future = Future()
+                future.set_result(self._no_model_result(task))
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
             self._homeostasis.release_cognitive_budget(turn_id)
             self._workspace.release(frame.frame_id, turn_id, type(error).__name__)
@@ -346,6 +367,56 @@ class BrainCoordinator:
         future.add_done_callback(
             lambda completed: self._runtime.post(WorkerDoneControl(turn_id, completed))
         )
+
+    @staticmethod
+    def _requires_model(frame) -> bool:
+        """Admit model work only for owner interaction, internal work, or salient input."""
+
+        if any(
+            getattr(event.payload, "sender", None) is not None
+            and event.payload.sender.source_kind == "owner"
+            for event in frame.events
+        ):
+            return True
+        if (
+            str(frame.source_domain) == "SourceDomain.INTERNAL"
+            or getattr(frame.source_domain, "value", None) == "internal"
+        ):
+            return True
+        return any(event.salience >= 0.75 for event in frame.events)
+
+    @staticmethod
+    def _no_model_result(task) -> ReasoningTurnResult:
+        """Build an auditable local NoOp for routine frames without inference."""
+
+        plan = CoordinatorTurnFactory.noop_plan(task.seed, "routine_frame_no_model")
+        report = DecisionDecodeReport(
+            selected_mode=DecisionDecodeMode.JSON_TEXT,
+            validation_errors=(),
+            repair_count=0,
+            fallback_reason="routine_frame_no_model",
+            model_id="none",
+            provider="brain",
+            token_count=None,
+            latency_ms=0.0,
+        )
+        decode = DecisionDecodeResult(plan=plan, report=report)
+        reasoning = ReasoningRunResult(
+            status=ReasoningStatus.SAFE_NOOP,
+            steps=(
+                CognitiveStep(
+                    ordinal=1,
+                    kind=CognitiveStepKind.VERIFY,
+                    status="skipped",
+                    summary="routine frame handled without model inference",
+                ),
+            ),
+            model_calls=0,
+            tool_calls=0,
+            failure_reason="routine_frame_no_model",
+            decode=decode,
+        )
+        return ReasoningTurnResult(decode=decode, reasoning=reasoning)
 
     def _capture_closed_episodes(self, task) -> None:
         """Persist upstream-closed Episodes before inference starts.
@@ -383,6 +454,7 @@ class BrainCoordinator:
         try:
             result = control.future.result()
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
+            self._emotion.mark_turn_unreviewed(control.turn_id)
             self._homeostasis.settle_cognitive_budget(control.turn_id, consumed=0.25)
         else:
             self._remember_reasoning(control.turn_id, result.reasoning)
@@ -425,18 +497,32 @@ class BrainCoordinator:
             return
         checkpoint = inflight.task.emotion_checkpoint
         feedback = result.decode.plan.emotion_feedback
-        if checkpoint is None or feedback is None:
+        if checkpoint is None:
+            return
+        if feedback is None:
+            self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
             return
         try:
+            from elfie.brain.emotion.stimulus import (
+                EmotionStimulusEvent,
+                StimulusSource,
+            )
+
+            stimulus = EmotionStimulusEvent(
+                event_id=inflight.task.seed.frame_id,
+                effects=feedback.effects,
+                source=StimulusSource.MODEL,
+                turn_id=inflight.task.seed.turn_id,
+                cause_key=f"turn:{inflight.task.seed.turn_id}",
+            )
             self._emotion.reconcile_turn(
                 checkpoint,
                 turn_id=str(inflight.task.seed.turn_id),
-                emotion=feedback.emotion,
-                intensity=feedback.intensity,
-                confidence=feedback.confidence,
+                stimulus=stimulus,
                 timestamp=self._timestamp,
             )
         except Exception as error:  # noqa: BLE001 - preserve completed turn
+            self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
             diagnostic_logger.warning(
                 "Model emotion feedback could not reconcile the turn",
                 extra={
@@ -451,6 +537,7 @@ class BrainCoordinator:
             return
         inflight.terminal_status = TerminalStatus.STALE
         inflight.terminal_reason = reason
+        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, reason)
         self._worker.abandon(inflight.future)
         self._homeostasis.settle_cognitive_budget(
@@ -491,6 +578,7 @@ class BrainCoordinator:
         self._inflight = None
 
     def _timeout_turn(self, inflight: InFlightTurn) -> None:
+        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._worker.abandon(inflight.future)
         self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
@@ -555,6 +643,7 @@ class BrainCoordinator:
         if inflight is None:
             return
         self._worker.abandon(inflight.future)
+        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,

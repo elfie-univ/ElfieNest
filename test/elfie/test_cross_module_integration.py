@@ -117,8 +117,9 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    # Then: identity reaches context but owner-compatible memory is untouched.
-    assert "peer-1" in runtime.requests[0].user_prompt
+    # Then: a routine peer event is completed without an unnecessary model call;
+    # its owner-compatible memory remains untouched.
+    assert runtime.requests == []
     assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
     elfie.stop()
     elfie.join()
@@ -138,7 +139,6 @@ def test_neutral_owner_message_does_not_drift_attachment_in_real_loop() -> None:
         )
     )
     emotion = ElfieDiagnostics(elfie).emotion
-    attachment_before = emotion.get_emotion_value("attachment")
 
     elfie.start()
     elfie.receive_communication_envelope(
@@ -151,7 +151,11 @@ def test_neutral_owner_message_does_not_drift_attachment_in_real_loop() -> None:
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    assert emotion.get_emotion_value("attachment") == pytest.approx(attachment_before)
+    assert (
+        emotion.get_emotion_value("happiness")
+        >= emotion.parameters("happiness").baseline
+    )
+    assert "attachment" not in emotion.emotions
     elfie.stop()
     elfie.join()
 
@@ -190,8 +194,8 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
     elfie.advance_clock(5.0)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    assert emotion.get_emotion_value("fear") > 10.0
-    assert '"name":"fear"' in runtime.requests[0].user_prompt
+    assert emotion.get_emotion_value("fear") > emotion.parameters("fear").baseline
+    assert runtime.requests == []
     elfie.stop()
     elfie.join()
 
@@ -258,7 +262,7 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
             model_port=TwoTurnRuntime(),
         )
     )
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 25.0)
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 0.25)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="我把这件事记住了",
@@ -279,7 +283,7 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     restored.restore_continuity(checkpoint)
 
     # When: newer uncommitted-in-the-checkpoint state is produced.
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 20.0)
+    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 0.20)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="这件事后来又发生了",

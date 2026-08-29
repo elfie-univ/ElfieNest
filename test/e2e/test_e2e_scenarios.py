@@ -44,7 +44,11 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
 
     assert len(channel.sent) == 2
     assert "execution:receipt" in runtime.requests[1].user_prompt
-    assert ElfieDiagnostics(elfie).emotion.get_emotion_value("happiness") > 50.0
+    emotion = ElfieDiagnostics(elfie).emotion
+    assert (
+        emotion.get_emotion_value("happiness")
+        > emotion.parameters("happiness").baseline
+    )
     elfie.stop()
     elfie.join()
 

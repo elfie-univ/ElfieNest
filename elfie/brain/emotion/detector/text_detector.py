@@ -7,7 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from elfie.brain.emotion.emotion_types import EmotionType
+from elfie.brain.emotion.emotion_types import ObservedEmotionType as EmotionType
 
 _CJK = re.compile(r"[\u3400-\u9fff]")
 _LATIN = re.compile(r"[A-Za-z]")

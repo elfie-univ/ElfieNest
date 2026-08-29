@@ -169,14 +169,35 @@ class BrainRuntime:
     def start(self) -> None:
         if self._started:
             return
+        checkpoint_was_rebuilt = False
         try:
-            checkpoint = self._journal_store.load_checkpoint()
+            try:
+                checkpoint = self._journal_store.load_checkpoint()
+            except (TypeError, ValueError) as error:
+                # v1 emotion state is intentionally incompatible with the
+                # six-channel initial release.  Start from fresh defaults and
+                # overwrite the checkpoint after the lifecycle is healthy.
+                logger.warning(
+                    "Discarding incompatible Brain checkpoint during v1 rebuild: %s",
+                    type(error).__name__,
+                )
+                checkpoint = None
+                checkpoint_was_rebuilt = True
             if checkpoint is not None:
-                self._restore_clock(checkpoint.captured_at)
-                self.restore_continuity(checkpoint)
+                try:
+                    self._restore_clock(checkpoint.captured_at)
+                    self.restore_continuity(checkpoint)
+                except (TypeError, ValueError) as error:
+                    logger.warning(
+                        "Discarding incompatible Brain checkpoint during v1 rebuild: %s",
+                        type(error).__name__,
+                    )
+                    checkpoint_was_rebuilt = True
             recovered = self._reconcile_interrupted_work()
             self.router.start()
             self.coordinator.start()
+            if checkpoint_was_rebuilt:
+                self._save_continuity()
             if recovered:
                 self.coordinator.notify_perception()
         except (OSError, RuntimeError):

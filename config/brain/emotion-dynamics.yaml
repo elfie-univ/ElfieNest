@@ -1,0 +1,54 @@
+version: 1
+
+# Names are fixed by EmotionType; these are tunable dynamic parameters only.
+channels:
+  happiness:
+    baseline: 0.04
+    positive_gain: 1.0
+    negative_gain: 1.0
+    half_life_seconds: 300.0
+    activation_threshold: 0.18
+  sadness:
+    baseline: 0.02
+    positive_gain: 1.0
+    negative_gain: 1.0
+    half_life_seconds: 300.0
+    activation_threshold: 0.18
+  anger:
+    baseline: 0.01
+    positive_gain: 1.15
+    negative_gain: 1.0
+    half_life_seconds: 180.0
+    activation_threshold: 0.20
+  fear:
+    baseline: 0.02
+    positive_gain: 1.25
+    negative_gain: 1.0
+    half_life_seconds: 180.0
+    activation_threshold: 0.20
+  surprise:
+    baseline: 0.0
+    positive_gain: 1.50
+    negative_gain: 1.0
+    half_life_seconds: 24.0
+    activation_threshold: 0.16
+  disgust:
+    baseline: 0.01
+    positive_gain: 1.0
+    negative_gain: 1.0
+    half_life_seconds: 300.0
+    activation_threshold: 0.20
+
+strength_knots: [0.0, 0.12, 0.28, 0.55, 0.85, 1.0]
+
+source_weights:
+  physical: 1.0
+  text: 0.8
+  social: 0.8
+  execution: 1.0
+  internal: 0.7
+  model: 1.0
+
+# Sparse personality overrides are applied on top of the deterministic Big
+# Five projection and remain bounded by the domain implementation.
+personality: {}
