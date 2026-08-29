@@ -221,7 +221,8 @@ class MemorySystem:
             model_port: LLM运行时代理（可选）
 
         Returns:
-            创建的episodic节点ID，低强度无刺激源时返回空字符串
+            typed 主线返回创建的 Episode ID；旧兼容路径返回 episodic 节点 ID，
+            并保留其低强度/无刺激源规则。
         """
         event = event_description if event_description is not None else content
         emo = emotion_tag if emotion_tag is not None else emotion
