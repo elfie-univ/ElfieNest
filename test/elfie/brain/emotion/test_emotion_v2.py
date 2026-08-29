@@ -21,6 +21,9 @@ from elfie.message_types import (
     MessageMeta,
     TraceId,
 )
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_dynamics_defaults,
+)
 
 
 def _stimulus(event_id: str, effect: ChannelEffect, *, turn_id: str | None = None):
@@ -234,3 +237,56 @@ def test_slow_feedback_replays_from_checkpoint_and_replaces_fast_effect() -> Non
     statuses = {(record.phase, record.status) for record in system.effect_records()}
     assert ("slow", "replaced") in statuses
     assert ("fast", "replaced") in statuses
+
+
+@pytest.mark.parametrize(
+    ("channel", "target_seconds"),
+    (
+        (EmotionType.HAPPINESS, 26 * 60),
+        (EmotionType.SADNESS, 20 * 60),
+        (EmotionType.ANGER, 22 * 60),
+        (EmotionType.FEAR, 16 * 60),
+        (EmotionType.SURPRISE, 60),
+        (EmotionType.DISGUST, 5 * 60),
+    ),
+)
+def test_bundled_dynamics_match_everyday_episode_scale(
+    channel: EmotionType,
+    target_seconds: int,
+) -> None:
+    """Keep one strong isolated event in the empirically plausible range.
+
+    The target is a product calibration anchor, not a claim that every human
+    episode has one fixed duration.  Repeated observations and model feedback
+    can still extend or shorten the trajectory.
+    """
+
+    system = EmotionSystem(
+        clock=lambda: 0.0,
+        dynamics_config=load_emotion_dynamics_defaults(),
+    )
+    system.apply_stimulus(
+        EmotionStimulusEvent(
+            event_id=EventId(f"duration-{channel.value}"),
+            effects=(
+                ChannelEffect(
+                    channel=channel,
+                    direction=AffectDirection.INCREASE,
+                    strength=90,
+                ),
+            ),
+            source=StimulusSource.PHYSICAL,
+        )
+    )
+    threshold = system.parameters(channel).activation_threshold
+    active_seconds = None
+    for second in range(1, 3601):
+        system.advance_to(float(second))
+        if system.get_emotion_value(channel.value) < threshold:
+            active_seconds = second
+            break
+
+    assert active_seconds is not None
+    assert active_seconds == pytest.approx(
+        target_seconds, abs=max(10, target_seconds * 0.02)
+    )
