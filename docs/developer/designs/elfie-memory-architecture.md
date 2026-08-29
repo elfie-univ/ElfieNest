@@ -1,106 +1,89 @@
-# Elfie Memory: Episodic Memory, Personal Knowledge Graph and Hybrid Retrieval
+# Elfie Memory Architecture
 
-> Status: implementation target; source-first SQLite, consolidation, retrieval and migration paths are implemented on the current branch; remaining validation and production cutover status is tracked in Conformance.<br>
-> Nature: cross-version target design for Memory semantics and access<br>
-> Scope: this document is the authority for Memory semantics and its typed access contract; current code and the Conformance register are the authority for implementation status.
+> Status: target design. This document is the authority for Memory semantics and its typed access contract. Code and the Conformance register describe implementation status.
+>
+> Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or Reasoning's complete context policy, nor another module's state.
 
-## 1. Core decision
+## 1. Purpose, boundary and authority
 
-Elfie Memory has two complementary memory representations and one access strategy:
+### 1.1 What Memory solves
 
-1. **Episodic Memory / Episode Timeline** records complete, bounded experiences in time order.
-2. **Personal Knowledge Graph** records the semantic structure that Elfie has derived from those experiences and approved knowledge.
-3. **Hybrid Graph/Text Retrieval** recalls graph structure, text and source evidence together.
+Memory gives one Elfie a durable, source-grounded personal memory. It keeps the detail of what happened and a semantic structure that can be recalled by wording, time, people, emotion, topic and relationships.
 
-The first two are representations of memory. The third is a way to use them.
+The design has three inseparable parts:
 
-The central rule is source-first:
+1. **Episode Timeline** — complete, bounded experiences in time order.
+2. **Personal Knowledge Graph** — semantic nodes and relations projected from those experiences and approved Genesis knowledge.
+3. **Hybrid Graph/Text Retrieval** — lexical/text and bounded graph retrieval returned with source evidence.
 
-> An Episode always keeps the complete captured content. Consolidation extracts and merges knowledge from that content; it never replaces the Episode with a few extracted facts.
+This is the **source-first** design: the graph is a projection of the historical source, not a replacement for it.
 
-```text
-closed event supplied by the upstream event boundary
-        ↓
-complete Episode (timeline, details and evidence)
-        ↓  background / nightly consolidation
-entity resolution, claim extraction, relation normalization and conflict handling
-        ↓
-Personal Knowledge Graph (semantic skeleton)
-        ↓
-hybrid retrieval
-        ↓
-graph subgraph + supporting Episodes + provenance
-```
+### 1.2 What Memory does not own
 
-## 2. Memory boundary
+Memory receives an already-closed event; it does not decide where an event begins or ends. It does not own Profile, immutable identity, current location, live body state, live emotion, active plans, commitments, permissions or external actions. It does not directly read Profile, Communication history, world runtime state or another module's database. A relevant fact must be supplied by its owner as a sourced event or reference.
 
-Memory receives a bounded, already-formed event or an explicitly approved seed through the existing Brain boundary. It does not read Profile, communication history, world runtime state or another module's database directly. If such a source matters, the owning boundary supplies a sourced event or reference.
+Memory does not narrate a reply or define Brain's working memory or the complete Reasoning context. It returns bounded, sourced material through its typed Recall contract.
 
-Memory owns:
+### 1.3 Memory and Brain / Cognitive Consolidation
 
-- complete Episodes and their lifecycle;
-- the personal graph of nodes, qualified relations and claims;
-- evidence and provenance for graph assertions;
-- graph/text/vector indexes used to recall those records;
-- consolidation and retention semantics for Memory records.
+Normal Memory capture accepts only a complete, sourced `ClosedEpisode`. The cross-system `Cognitive Consolidation` scheduler is only a background entry point: when its target is Memory, it invokes or budgets `Memory Maintenance`. Memory owns the durable write, graph projection, recall and lifecycle maintenance; no other scheduler or owner creates a second Memory write path.
 
-Memory does not own current location, live body state, current emotion, active plans or commitments, permissions, or external actions. Those may be cited as evidence when an owning system supplies them, but they do not become Memory authorities merely because a model mentioned them.
+`Memory Maintenance` is the Memory-owned operation. It is related to, but distinct from, the cross-system `Cognitive Consolidation` scheduler.
 
-## 3. Episodic Memory / Episode Timeline
+### 1.4 Core source rule
 
-An Episode is one meaningful, bounded event or closed scene, not one chat turn and not a short keyword summary. The upstream event boundary groups related turns or observations before Memory receives it.
+For the live Memory model, there are only two source forms:
 
-An Episode may represent:
+- normal runtime: a complete, closed `ClosedEpisode`;
+- one-time initialization: a complete, versioned `ApprovedSeedSource`.
 
-- a conversation or relationship moment;
-- a learning session;
-- an embodied or environmental experience;
-- a perception containing text, audio, video or images;
-- a meaningful emotional or social event.
+Every durable Assertion must point to an Episode or approved seed Evidence. A model proposal, summary, cache entry or ungrounded profile value is not evidence. Runtime learning is Episode-first; only the approved Genesis path may project initial Nodes/Assertions directly.
 
-The conceptual Episode record includes:
+## 2. Durable memory model
 
-- stable ID and occurrence time or time range;
-- participants, places, objects and surrounding context;
-- the complete original text/transcript; large media may be held through a durable reference, but the captured learning or event content may not be omitted;
-- media references and derived transcription/features when available;
+### 2.1 Episode Timeline
+
+An Episode is one meaningful, bounded, closed event or scene—not one chat turn and not a keyword summary. The upstream event boundary groups related turns or observations before Memory receives it.
+
+An Episode may be a conversation or relationship moment, a learning session, an embodied or environmental experience, a perception with text/audio/video/images, or a meaningful emotional/social event.
+
+It retains:
+
+- stable ID, occurrence range and event kind; when relevant, a historical `life_stage`/`temporal_label` (for example `youth` or `before_arrival`), kept separate from write time;
+- participants, places, objects and context;
+- complete original text/transcript and durable media references;
+- derived features when available;
 - what Elfie observed, was told, inferred or felt, with attribution;
-- source IDs, privacy scope, lifecycle/detail level and version.
+- source references, privacy scope, `importance`, `detail_level`, `lifecycle`, version and content hash.
 
-“Today I learned Newton's first law” therefore creates a learning Episode containing the full explanation, teaching context and source. The law itself is then projected into the Knowledge Graph as a canonical knowledge object. If the seed is already approved and must be available immediately, an initial graph projection may be created at capture time, while the complete source Episode remains mandatory.
+Runtime learning is written in full before graph projection. For example, learning Newton's first law stores the explanation, teaching context and source in one Episode; later maintenance projects reusable knowledge from it. Genesis seed content remains complete in its approved source, with personal biography seeds represented as complete Episodes.
 
-Full content is mandatory at capture and consolidation time. Later, Episode detail can be compressed, archived or forgotten according to retention policy, while an auditable source stub or digest is retained when the graph still depends on it. A summary or graph assertion does not erase the provenance needed to explain where it came from.
+Later maintenance may change detail from `full` to `compressed` or `digest`, and may archive the record as a separate lifecycle state. A summary never replaces the last auditable source required by the graph.
 
-## 4. Personal Knowledge Graph
+### 2.2 Personal Knowledge Graph
 
-The graph is Elfie's personal, sourced understanding of its world. It is not an objective universal database and it must not silently inherit arbitrary model knowledge.
+The graph is Elfie's sourced, subjective understanding. It is not an objective universal database and does not silently import model knowledge. It is a durable projection that can be rebuilt and reconciled from complete Episodes, approved seed sources and their Evidence; a projection revision identifies the source version it reflects.
 
-### 4.1 Nodes
+#### 2.2.1 Nodes
 
-Nodes are heterogeneous semantic anchors. Typical types include:
+Nodes are heterogeneous semantic anchors: Elfie, people, pets, groups, planets, places, facilities, objects, foods, species, concepts, cultural ideas, physical laws, theories, emotions, subjective experiences, event references and Claim/knowledge objects.
 
-- Elfie, people, pets and groups;
-- planets, places, facilities and objects;
-- concepts, foods, species and cultural ideas;
-- physical laws, theories and other reusable knowledge objects;
-- emotions and subjective experiences;
-- event or Episode references when graph navigation needs them;
-- claim nodes for propositions that need their own identity.
+A Node has stable identity, `node_type`, canonical label, scope, status, `importance` and `confidence`. Aliases and sourced descriptions are associated with the Node. Broad and specific concepts use typed relations such as `part_of`, `subtype_of` and `generalizes`. Not every word becomes a Node; reusable semantic units are canonicalized while full wording remains in descriptions or Episodes.
 
-A node has a stable identity, type, canonical label, aliases, descriptions and scope. A node can be broad or specific through `part_of`, `subtype_of`, `generalizes` and similar relations. The graph does not split every word into a node; it captures reusable semantic units and keeps the full wording in the node description or source Episode.
+#### 2.2.2 Assertions / Relations
 
-### 4.2 Relations and claims
-
-A simple fact can be a typed directed relation:
+An Assertion is a sourced proposition. A simple proposition is a typed directed relation:
 
 ```text
 Earth --has_shape--> sphere
 Owner --helped--> Elfie
 ```
 
-The relation or Claim also carries qualifiers such as time, context, viewpoint, polarity, epistemic status, confidence, validity interval and conflict group.
+It may include a node or typed literal as object, polarity, epistemic status, time range, viewpoint, context, validity interval, conflict group, `importance` and `confidence`.
 
-When a proposition has its own conditions, descriptions, versions or evidence, it becomes a claim/knowledge node rather than a forced sentence-sized edge:
+For a social tie or another domain-specific degree (for example familiarity or trust), the Assertion carries a typed qualifier; its `importance` is the default edge significance used for recall and maintenance. Evidence rows and their stances provide the support record; no third semantic score is stored.
+
+When a proposition has its own conditions, versions, descriptions or evidence, it is represented by a Claim/knowledge Node and related Assertions instead of forcing a sentence into one edge:
 
 ```text
 NewtonFirstLaw --part_of--> ClassicalMechanics
@@ -108,336 +91,278 @@ NewtonFirstLaw --related_to--> Inertia
 NewtonFirstLaw --has_condition--> NetForceIsZero
 ```
 
-The node can retain the complete wording, formula and conditions. A simple fact and a qualified Claim use the same graph, so the model does not need a second “knowledge type” for every special case.
+A missing relation means “not recorded”, not “false”.
 
-### 4.3 Evidence and multiple descriptions
+#### 2.2.3 Evidence
 
-Evidence is a first-class link from a graph assertion to its source. It records the Episode or seed ID, source modality, text span or media pointer, time, speaker/viewpoint, extraction method and support/contradiction direction.
+Evidence is a first-class source link. It identifies an Episode or `ApprovedSeedSource`, its source version, excerpt or media locator, modality, text span, capture time, speaker/viewpoint and extraction run. An Assertion–Evidence link has one stance: `supports`, `contradicts` or `context`.
 
-Many descriptions of “Newton's first law” resolve to one canonical node with aliases, descriptions and multiple evidence links. They do not create seven unrelated nodes. Repeated independent support may raise a derived support score; use frequency alone is never truth.
+One Assertion may have many independent Evidence links. Replaying the same source link is idempotent. Evidence remains available when a description is compressed or a model proposal is discarded.
 
-If two sources disagree, retain separate qualified Claims or relation versions with their own evidence, perspective and validity. A missing edge means “not recorded”, not “false”.
+#### 2.2.4 Aliases, Descriptions, Episode Mentions
 
-### 4.4 Experience, media and emotion
+Aliases, descriptions and mentions are separate child records because each Node can have many of them and each can retain its own source/locator, content or span, kind/resolution state and confidence. They have no independent importance score; their availability follows the parent/source retention policy. The Node row keeps only its canonical identity and bounded summary.
 
-An Episode remains the place for narrative detail and raw sensory material. The graph may expose a projected event node and links such as:
+`episode_mentions` records semantically meaningful surface mentions, their role/span and resolution state (`resolved`, `ambiguous` or `unresolved`). It does not record every token. Unresolved mentions and raw wording remain searchable in the Episode, so a rare term can be found even before it becomes a canonical Node.
+
+The initial implementation bounds semantic mentions per Episode (128 by default) and reports overflow; the complete source text is never truncated.
+
+#### 2.2.5 Conflicts, viewpoints and Claim Nodes
+
+Contradictory or perspective-dependent propositions remain separate Assertions in a conflict group. Polarity, epistemic status, validity time and viewpoint are preserved; canonicalization merges identity, not disagreement. A Claim Node is used when the proposition itself needs conditions, versions or multiple descriptions. No Assertion is promoted without a source link.
+
+### 2.3 Scores and lifecycle states
+
+#### 2.3.1 importance
+
+`importance` is the durable semantic significance of an Episode, Node or Assertion to Elfie, in `[0, 1]`. It is distinct from evidence count and confidence. New independent evidence, owner emphasis, emotional salience, relationship role, recurrence, novelty and consequences may raise it. A deterministic, versioned maintenance policy may cap and combine these contributions; its coefficients and decay curve are policy data, not additional stored scores.
+
+The Lifecycle Stage directly lowers `importance` for eligible records according to the aging policy. Important records therefore start from, and retain, a higher significance; no separate lifecycle score is needed.
+
+Eligibility is determined from occurrence, last reinforcement/review and the record's availability state (persisted or deterministically derived from Evidence), not from a hidden score.
+
+#### 2.3.2 confidence
+
+`confidence` is the reliability of an identity or proposition. It is derived from source quality, independent supporting/contradicting Evidence, epistemic status and unresolved conflict. Time passing alone does not lower confidence. A low-confidence assertion can still be important, and a high-confidence routine fact can be unimportant.
+
+#### 2.3.3 Lifecycle eligibility (no additional score)
+
+Lifecycle eligibility is a predicate, not a stored score. Lifecycle Stage selects Episodes and Assertions by their `lifecycle`, Nodes by `status`/merge state, due review/age and `importance`; `confidence` remains an epistemic/retrieval signal and source-safety guard. Child aliases, descriptions and mentions follow their parent/source dependency and have no separate lifecycle score. The design defines no additional lifecycle score.
+
+#### 2.3.4 detail level
+
+`detail_level` describes content resolution: `full`, `compressed` or `digest`. `lifecycle` describes availability: `active`, `archived` or `forgotten`. Archiving is a state transition, not a fourth content level; an archived Episode may still retain a full, compressed or digest representation. Assertions may be active, superseded or forgotten, but an Assertion's last auditable Evidence cannot be removed by detail compression. A historical `life_stage` records the Elfie's developmental phase at the time of an experience; `temporal_label` is its relative period (for example `before_arrival`). Neither is `Lifecycle Stage`, `lifecycle` or `detail_level`. For Nodes, `status` and merge state govern identity availability; maintenance may lower Node importance but does not erase a canonical Node still referenced by Assertions.
+
+## 3. Runtime flows
 
 ```text
-Episode E42 --involves--> Owner
-Episode E42 --felt--> Calm
-Owner --helped--> Elfie       [supported by E42]
+One-time Genesis
+ApprovedSeedSource ──► Genesis manifest
+                         └─ atomic complete-package commit ──► all Memory outputs + marker
+
+Normal runtime
+Workspace closes ClosedEpisode ── capture transaction ──► complete Episode + source references
+                                                           │
+                                                           ▼
+                                                   Memory Maintenance
+                                                   ├─ Consolidation Stage
+                                                   │  Episode ► graph projection + score updates
+                                                   └─ Lifecycle Stage
+                                                      due records ► importance decay + detail policy
+
+Episodes + Nodes + Assertions + Evidence ──► Hybrid Recall ──► bounded RecallBundle
 ```
 
-The `Calm` node can connect many historical Episodes, enabling associative retrieval. Soft similarity is better supported by vector/text indexes; explicit emotional, causal or social links belong in the graph. Current live emotion is not rewritten into a historical Episode without an owning event and source.
+Genesis is a one-time side entrance. The normal path never writes graph facts from an incomplete event, and capture does not wait for maintenance.
 
-### 4.5 Mind-map views
+### 3.1 Genesis initialization
 
-A mind map is a presentation of a selected graph neighborhood, not another source of truth. It can show “my home planet” or “my relationship network” as a focused hierarchy, while the underlying graph keeps cross-links, cycles, qualifiers, conflicts and evidence. No separate persistent mind-map fact store is required.
+`ApprovedSeedSource` is immutable, versioned and hashable. A Genesis manifest has exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or seed Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. All outputs carry seed Evidence.
 
-## 5. Consolidation: Episode first, graph second
+Genesis has one completion contract for the Memory package. For a valid manifest, every expected authoritative and child record—Nodes, Assertions, Evidence, biography Episodes, aliases, descriptions and mentions—and the final completion marker must be durable and visible as one completed package. Atomicity means “accept only the complete package”: no partial output may be exposed or reported as initialized. Validation failure is rejected before any write. A crash or transient write failure is not a terminal initialization result: the package remains unpublished, and the recovery owner must retain or reconstruct the immutable input and retry the same manifest ID and hash as a whole until reconciliation confirms every expected output and the marker. Internal cleanup of an interrupted attempt is only a recovery mechanism, never the result. If an operational fault prevents the current attempt from finishing, it may return only an incomplete/retryable outcome (or no receipt), never `committed`; the recovery owner continues whole-package retries. Adoption remains unpublished and the package is not recallable until reconciliation succeeds. A committed Elfie cannot be silently reinitialized by a different manifest; an upgrade is a separate approved operation. The outer coordinator must withhold adoption publication until this Memory package is complete; cross-owner publication remains its own contract and is not a fictitious cross-store transaction. Replaying the same ID and hash is idempotent; reusing an ID with a different hash is rejected. Genesis accepts explicit initial `importance` and `confidence`; it does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
 
-For a closed Episode, consolidation performs the following semantic work:
+Genesis admission is serialized per Elfie. The completion marker is the sole visibility gate for Genesis rows: no reader or maintenance pass may use a row from that manifest before the marker is present.
 
-1. preserve the complete Episode and its source references;
-2. extract mentions, events, concepts and candidate claims from the complete content;
-3. resolve aliases, coreference and entity identity;
-4. normalize predicates and choose the appropriate direct relation or Claim node;
-5. merge compatible assertions, retain independent evidence and record conflicts;
-6. update derived summaries and rebuildable retrieval indexes.
+### 3.2 Normal runtime write
 
-This is a pipeline, not a keyword gate. A language model may propose extraction, disambiguation or a summary in background processing; deterministic code owns IDs, scope, constraints, evidence attachment, revision and the final write. Hot retrieval does not require a language-model call.
+The upstream Workspace closes and validates an event, then supplies a complete `ClosedEpisode`. The capture transaction writes the Episode, idempotency key, source references and content hash. It does not call a model and does not update Nodes/Assertions from incomplete content. Graph Evidence links and projection happen later in Consolidation Stage; the text projection is rebuildable and is not a second source.
 
-Nightly consolidation is a useful deep batch, but it is not the only moment at which Memory may update. An Episode must be bounded and retained as soon as the upstream boundary closes it; approved seed knowledge may receive an immediate graph projection, while ordinary semantic merging can run asynchronously.
+### 3.3 Memory Maintenance
 
-The graph is a durable, versioned projection that can be reconciled from Episodes and evidence. It is not permission to discard the source line.
+Memory Maintenance is one bounded operation. It may run in small continuous batches and use idle/sleep time to catch up. It has two ordered stages and one budget policy. Checkpoints, leases and retry attempts are operational control state outside authoritative Memory fact records; they are not a semantic memory type, a recallable queue or a second fact source.
 
-## 6. Hybrid Graph/Text Retrieval
+#### 3.3.1 Consolidation Stage
 
-The retrieval vocabulary is a set of query strategies, not storage layers:
+For complete Episodes with no successful projection for the current source version/content hash (including a prior failed attempt):
 
-- **Basic/Text Search** finds exact names, rare terms, original wording, detailed stories and source/media references using lexical, full-text and optional vector indexes.
-- **Local/Graph Search** starts from a matched entity or claim, follows bounded typed paths and returns nearby people, places, concepts, events and supporting Episodes.
-- **Global/Community Search** answers broad questions over the Elfie's graph, such as the shape of a homeland or a long-term relationship pattern, using derived topic/community summaries that remain grounded in graph claims and Episodes.
+1. extract events, mentions, concepts and candidate Claims from the source;
+2. resolve aliases, coreference and entity identity;
+3. normalize predicates and choose a relation or Claim Node;
+4. merge compatible Assertions, retain independent Evidence and record conflicts;
+5. update applicable Episode/Node/Assertion `importance` and Node/Assertion `confidence` from the new sourced Evidence;
+6. commit the projection and record the successful source/projection revision.
 
-Not every query needs all three. Basic and Local are the minimum useful combination; Global is added when the graph has enough material for meaningful thematic summaries. A router may run more than one strategy and fuse the results.
+Predicates come from a versioned vocabulary. An unknown predicate stays an unresolved candidate until validated; it is never silently promoted to a fact.
 
-The result consumed by an upper layer is a bounded `RecallBundle` containing:
+A model may propose extraction, disambiguation or a summary outside the write transaction. Deterministic code validates spans, types, scope, predicates, IDs, Evidence and revisions, and performs the final write. Without a model, Episode capture and FTS remain usable; semantic projection waits for a later attempt. There is no keyword gate and no ungrounded fact fallback.
 
-- relevant graph nodes, relations and qualified Claims;
-- supporting Episode excerpts and media references;
-- timestamps, viewpoint, confidence and conflict status;
-- source IDs and provenance sufficient to audit each important assertion.
+#### 3.3.2 Lifecycle Stage
 
-Graph traversal is used for explicit relationships and multi-hop association. Text and vector retrieval cover wording variation, rare details and information that has not yet been fully canonicalized. Neither replaces the other. Retrieval itself remains deterministic and index-driven; generation is a separate concern.
+For any Episode or Assertion with active `lifecycle`, or Node with active `status` and no canonical merge target, whose review time is due—independent of when it was captured—apply the explicit aging policy:
 
-## 7. Persistence and runtime principles
+- directly decay `importance` on eligible Episode, Node and Assertion records;
+- decide whether Episode detail remains `full` (an Episode without a successful projection for its current source version keeps enough complete source for a future projection);
+- for an Episode with a successful projection for its current source version, move `detail_level` to `compressed` or `digest`, and set `lifecycle` to archived when allowed;
+- forget only when policy and source-dependency checks allow it.
 
-The logical model is independent of the physical database. A graph can be implemented with an embedded relational store containing indexed node, edge, Episode and evidence records; a dedicated graph engine is not a prerequisite.
+This stage does not lower `confidence` merely because time passed, delete the last Evidence, or treat an old Episode as a new consolidation input. An old record is found by its due time, not by the current capture batch. If one record cannot be safely compacted, its lifecycle pass is skipped while other bounded records continue. Detail compression is maintenance of the historical line; it does not silently erase graph provenance.
 
-The durable store is the source of truth. RAM holds only bounded working sets:
+### 3.4 Hybrid Recall
 
-- hot nodes and adjacency pages;
-- recent query neighborhoods;
-- full-text/vector index caches;
-- small derived summaries.
+Recall is deterministic and index-driven on the hot path; it does not require a model call.
 
-Episodes, graph assertions and evidence survive restart. Media and large raw payloads are loaded on demand. A cache miss reloads from the durable store; losing the cache must not lose a memory.
+#### 3.4.1 Basic / Text Search
 
-For the first implementation, keep the physical choice simple and local: an embedded durable database plus full-text and optional vector indexes, with indexed adjacency for bounded graph traversal. Evaluate a dedicated embedded graph store only after representative traversal and growth benchmarks. Do not load the entire lifelong graph or all media into RAM, and do not build a graph database engine from scratch.
+Lexical/full-text search (and an optional vector index) finds exact names, aliases, rare terms, original wording, detailed stories and source/media references. It is the fallback for details not yet canonicalized in the graph.
 
-## 8. Non-negotiable invariants
+#### 3.4.2 Local / Graph Search
 
-1. Every learned item is fully present in its source Episode before extraction.
-2. Every durable graph assertion has provenance; model output alone is not evidence.
-3. Canonicalization merges identity, not contradictory viewpoints or unrelated entities.
-4. Conflicting claims remain visible with their source, time and perspective.
-5. Graph summaries and vector matches never outrank the source evidence without an explicit status.
-6. Episodes are the detailed historical line; the graph is the structured semantic projection.
-7. Active plans, commitments, permissions and live state stay with their owning systems.
-8. Memory never reads Profile or communication history directly and never invents current-world facts.
+Starting from text hits or supplied Node/Claim IDs, bounded typed traversal follows relationships to people, places, concepts, emotions, events and supporting Episodes. Traversal keeps a visited set, does not revisit a Node within one path, and returns explicit paths; hop, neighbor and result limits are hard caps. Person, time, place, historical emotion, topic and cause facets constrain or rank the same source-grounded candidates.
 
-## 9. First implementation design: SQLite
+#### 3.4.3 Global Search (later capability)
 
-This section is the implementation-ready target for the existing SQLite Adapter. It fixes the
-minimum physical shape and operational contracts without exposing SQL to the domain or upper
-layers. The Adapter may use SQL, recursive CTEs or an internal query language; callers use typed
-Memory Ports only.
+Broad thematic or community search is deferred until the graph has representative density. Any summary must remain traceable to Assertions and Episodes; it is not a new fact source.
 
-### 9.1 Physical source of truth
+#### 3.4.4 RecallBundle
 
-The following are durable fact tables. JSON is allowed only for bounded, non-queryable metadata;
-it is not used to hide graph edges or source evidence.
+The minimum route is Basic/Text → seed Nodes/Episodes → bounded Local/Graph expansion → source Episode/Evidence fetch. Active records are preferred; relevant superseded or conflicting records remain visible with status. Results are then ranked deterministically by match, path length, `importance`, `confidence`, time relevance and stable ID. The result contains graph structure, narrative excerpts, provenance and conflicts so the consuming Brain layer can narrate it.
 
-| Table | Required role and fields |
-| --- | --- |
-| `episodes` | One closed experience: `episode_id`, unique `idempotency_key`, `occurred_from`, `occurred_to`, complete `content_text`, derived `summary_text`, `event_kind`, source/media references, `importance`, `detail_level`, `lifecycle`, `consolidation_state`, retry and lease fields, content hash, timestamps. |
-| `nodes` | Canonical semantic anchors: `node_id`, flexible `node_type`, canonical and normalized labels, derived description, scope, status, confidence, optional bounded properties, `merged_into`, timestamps. |
-| `node_aliases` | Alternate names used for resolution and search: node, alias, normalized alias, scope, source evidence and confidence. Ambiguous aliases are allowed; they are never force-mapped by text alone. |
-| `node_descriptions` | Distinct sourced descriptions of one node: node, text, language/kind, evidence reference, confidence and timestamp. The canonical description is derived from these records, not a replacement for them. |
-| `episode_mentions` | Episode-to-node mentions: episode, nullable resolved node, resolution state, role, surface text/span and confidence. This is the bridge for finding source experiences from a graph node while keeping ambiguous mentions. |
-| `assertions` | Qualified directed facts or claim links: subject, predicate, either object node or typed literal (with optional unit), polarity, epistemic status, viewpoint/context, validity interval, confidence, support score, conflict group, fingerprint, lifecycle and timestamps. There is no unique constraint on a bare subject/predicate/object triple. |
-| `evidence` | Source grounding: episode or approved seed reference, excerpt/media locator, modality, span, speaker/viewpoint, capture time and extraction-run metadata. |
-| `assertion_evidence` | Many-to-many assertion/source link with `supports`, `contradicts` or `context` stance. |
+## 4. Typed access contracts
 
-`episodes_fts` and `nodes_fts` are rebuildable lexical projections, not facts. The current Adapter
-uses indexed candidate filtering plus deterministic Unicode-aware scoring; a future SQLite FTS5 or
-vector index may replace the projection without changing the Memory Port. Search projections index
-the original normalized text and never duplicate media payloads or unbounded metadata. Large media
-stays behind durable references and is loaded on demand. No subtype table is authoritative for a
-semantic node; `node_type` plus validated properties covers people, places, concepts, laws, emotions
-and other node kinds.
+These contracts freeze semantic inputs, outputs and guarantees, not programming-language method names. Concrete names may change in the implementation and belong in code and Conformance records.
 
-These three child/bridge tables are split by cardinality, not by an extra semantic layer:
+### 4.1 Episode capture
 
-| Cardinality | Physical choice |
-| --- | --- |
-| one node → one current canonical summary | keep it on `nodes.description` |
-| one node → many aliases or sourced descriptions | `node_aliases` / `node_descriptions` |
-| many Episodes ↔ many nodes | `episode_mentions` bridge |
+Input is a complete `ClosedEpisode` with a stable ID or idempotency key, occurrence range, content/media, attribution, source references and hash. The hash covers the complete persisted source payload and referenced-source versions, not a summary or derived projection. Output is a receipt containing the durable Episode ID and state. The operation is atomic and idempotent; it never creates graph facts from partial content.
 
-An alias or description is stored only when it is a distinct, meaningful value. Normalized
-duplicates are ignored (or linked to their existing row), and the raw Episode remains the place for
-all wording that is not promoted to a semantic description. `episode_mentions` records semantic
-mentions, roles and spans rather than every token; an initial per-Episode cap of 128 is an
-operational guard, and overflow is reported while the complete source text remains searchable.
+### 4.2 Recall
 
-The first SQLite type convention is deliberately small: IDs and normalized labels are `TEXT`,
-canonical UTC timestamps are `TEXT`, scores are bounded `REAL`, booleans are `INTEGER`, and
-bounded metadata is validated JSON text. Complex assertion objects become Claim/knowledge nodes;
-arbitrary nested JSON is not used as an unsearchable substitute for graph structure.
+`RecallRequest` may specify text, seed Node/Claim IDs, node types, relation allowlists, time range, person/place/historical-emotion/topic/cause facets, retrieval mode and limits. It never contains SQL or graph query language.
 
-### 9.2 Constraints and indexes
+The Memory Port is bound to one Elfie namespace; the request cannot widen that scope.
 
-- `episodes.idempotency_key` is unique; complete source content is non-null and its hash is
-  recorded. Replaying the same closed event returns the existing receipt.
-- An assertion must have exactly one object form (node or typed literal). Its fingerprint includes
-  normalized subject, predicate, object, qualifiers, polarity and viewpoint; an exact fingerprint
-  is idempotent, but it never collapses different time ranges or conflicting perspectives.
-- The predicate registry is versioned in the Memory domain code. A predicate outside the registry
-  is rejected or retained as an unresolved candidate; it is not silently normalized to a generic
-  edge.
-- Foreign keys use restrictive deletion by default. Forgetting is a lifecycle transition; source
-  evidence is retained or replaced by an auditable digest while a graph assertion depends on it.
-- A node that is merged keeps its original row, aliases and evidence and points through
-  `merged_into`; physical deletion is not used for identity resolution.
-- `node_aliases` is indexed by normalized alias for reverse lookup and may map one surface form to
-  multiple scoped nodes. `node_descriptions` is deduplicated by node/language/kind/content hash;
-  `nodes.description` remains only the current derived summary.
-- `episode_mentions` has a stable mention ID and may keep `node_id` null while
-  `resolution_state=unresolved`; unresolved text remains searchable and is eligible for a later
-  consolidation pass.
-- Required indexes are: episode lifecycle/next-attempt and time; node normalized label/type/status;
-  alias normalized value; assertion subject/predicate and object/predicate; conflict group;
-  episode mentions by node and episode; evidence by episode; assertion evidence by assertion.
-- FTS indexes cover complete Episode text, Episode summaries, canonical node text, aliases and
-  sourced descriptions. Every derived index declares its source and rebuild command.
+Default hard limits are: 20 lexical hits, 8 seed Nodes, 2 graph hops, 12 neighbors per expanded Node, 40 Nodes, 80 Assertions, 8 Episodes, 24 Evidence items and 12,000 rendered characters. A caller may request lower limits; a higher request cannot bypass the Memory cap.
 
-SQLite schema version is recorded in `PRAGMA user_version`. The Adapter owns an explicit Unit of
-Work for multi-record writes; Repository methods do not commit while a caller still needs the same
-transaction. File-backed databases enable foreign keys, WAL and a bounded busy timeout; there is
-one serialized writer and read queries never wait for a model or another external service. FTS
-updates are part of the same transaction as their source row, or a rebuild marker is written before
-the transaction is acknowledged.
-
-### 9.3 Typed Memory Port surface
-
-Only these semantic operations cross the Memory boundary in the first implementation:
-
-- `record_episode(ClosedEpisode) -> EpisodeReceipt`: source-first, idempotent capture;
-- `recall(RecallRequest) -> RecallBundle`: bounded Basic/Local retrieval and provenance;
-- `run_consolidation(ConsolidationRequest) -> ConsolidationReceipt`: an internal background job
-  entry that returns counts and failed Episode IDs, never external effects;
-- `get_episode(EpisodeId)` and `get_evidence(EvidenceId)`: bounded source inspection for Memory
-  owners and diagnostics, not a raw table/edge API and not a bypass for normal recall limits.
-
-Retention and index rebuild are Adapter/maintenance operations, not upper-layer graph CRUD. No
-caller receives SQL rows, table names, embedded edge JSON or an unbounded graph object.
-The listed operations are the external semantic surface; consolidation may use an Adapter-private
-Unit of Work internally without widening the Port with raw node/edge CRUD.
-
-### 9.4 Write and consolidation contract
-
-1. The upstream event boundary supplies one validated, closed `ClosedEpisode`; Memory does not
-   decide whether raw turns belong to an event.
-2. `record_episode` validates and commits the complete Episode, idempotency key and source
-   references in one transaction, then updates the rebuildable text projection. It never calls a
-   model and never writes a graph fact from an incomplete payload.
-3. A bounded worker atomically claims pending Episodes using state, `lease_owner` and
-   `lease_until` fields. Expired leases are reclaimable. It reads the complete source outside the
-   write transaction. Model calls, when enabled, return candidate mentions, descriptions and
-   assertions with source spans; they are proposals, not facts.
-4. Deterministic validation checks spans, types, scope, object shape and allowed predicates.
-   Resolution uses canonical/normalized names, aliases, compatible type and scope. One clear
-   candidate may merge; ambiguity creates an unresolved mention or new candidate, never a blind
-   merge.
-5. One write transaction inserts/updates nodes, descriptions, mentions, assertions and evidence.
-   Compatible assertions share a fingerprint and gain evidence; contradictory assertions remain
-   separate in a conflict group. The Episode becomes `consolidated` only after this transaction
-   commits. A failed attempt leaves the Episode and source intact with retry metadata.
-6. Batches run continuously with a bounded size and a nightly catch-up. No transaction waits for
-   a model, network, device or world runtime. A retry is idempotent; raw model output need not be
-   durable in the first version.
-
-Without a model, capture and FTS still work and approved seeds may be projected; ordinary
-semantic assertions wait for a later consolidation attempt. A model failure never falls back to a
-keyword gate and never turns an ungrounded proposal into a fact. An explicit owner correction is
-stored as a sourced Episode and may supersede an older assertion only through the same qualified,
-auditable conflict policy.
-
-### 9.5 Retrieval contract
-
-The upper layer calls a typed `recall(RecallRequest) -> RecallBundle`. The request may contain
-text, seed node IDs, node types, relation allowlists, a time window, retrieval mode and limits;
-it never contains SQL or GQL. The first implementation uses these safe defaults, subject to the
-evaluation fixture rather than ad-hoc tuning:
-
-| Limit | Default |
-| --- | ---: |
-| lexical seed hits | 20 |
-| seed nodes | 8 |
-| graph hops | 2 |
-| neighbors per expanded node | 12 |
-| total graph nodes / assertions | 40 / 80 |
-| supporting Episodes / evidence items | 8 / 24 |
-| rendered bundle | 12,000 characters (hard cap) |
-
-The deterministic route is:
-
-1. Basic/Text search uses FTS for exact names, aliases, rare terms and original wording;
-2. matched nodes and Episode mentions become seeds;
-3. Local graph search expands only allowed relation types and directions within the hop and count limits;
-4. source Episodes and evidence are fetched for the selected assertions;
-5. results are ranked by exact alias/text match, then path length, evidence support/confidence,
-   recency/importance and stable ID tie-breaker; conflict status is never hidden.
-
-Traversal maintains a visited set, never revisits a node in one path, and returns explicit paths so
-an ambiguous alias or competing relationship can be shown rather than silently selected. Episode
-excerpts are cut only at source boundaries and the bundle also has a character/token budget; a
-truncated result reports `truncated=true` and keeps its source IDs.
-
-Global/community search is a later mode and cannot be required for the first vertical slice.
-Optional vectors improve wording variation but never replace FTS, graph edges or source evidence.
-
-`RecallBundle` has stable sections for focus nodes, qualified assertions, paths, Episode excerpts,
-evidence and uncertainties/conflicts, plus query limits and source IDs. A deterministic renderer
-uses a stable labeled format so prompt caching remains possible. It does not recreate a fictional
-story from graph nodes: the graph supplies structure, Episodes supply detail and evidence supplies
-grounding; the reasoning layer supplies the final narration.
-
-A logical bundle has this shape (the concrete domain types are defined in code):
+The output is a bounded `RecallBundle`:
 
 ```text
 RecallBundle {
-  focus_nodes: [{id, type, label, description}],
-  assertions: [{id, subject, predicate, object, qualifiers, status, evidence_ids}],
+  focus_nodes: [{id, type, label, description, importance, confidence}],
+  assertions: [{id, subject, predicate, object, qualifiers, status,
+                importance, confidence, evidence_ids}],
   paths: [{node_ids, assertion_ids, hop_count}],
-  episodes: [{id, occurred_from, occurred_to, excerpt, detail_level}],
-  evidence: [{id, source_id, span_or_locator, stance}],
+  episodes: [{id, time_range, life_stage, temporal_label, excerpt,
+              detail_level, importance, source_event_ids}],
+  evidence: [{id, source_type, source_id, source_version,
+              span_or_locator, stance}],
   conflicts: [{assertion_ids, reason}],
   limits: {requested, returned, truncated}
 }
 ```
 
-This is the complete payload Memory promises. It does not redefine the other inputs or the
-decision contract of the reasoning system.
+Graph supplies structure, Episodes supply detail, Evidence supplies grounding, and the consuming layer supplies narration.
 
-### 9.6 Retention, recovery and migration
+### 4.3 Memory Maintenance
 
-- The durable store is per-Elfie and survives process restart; RAM caches are bounded and disposable.
-- Episode detail may later be archived or compressed only under an explicit retention policy. A
-  graph assertion cannot outlive all of its auditable source without a retained source stub/digest.
-- Development migration uses a fresh target database and a one-time importer: current event/episodic
-  content is imported as Episodes first, current entities as Nodes, edge records as Assertions,
-  and source links as Evidence. Embedded duplicate edge JSON is not a second authority.
-- Import validation compares source counts, content hashes, ID mappings, evidence coverage,
-  graph assertions and reopen-after-restart behavior. The old database is kept as a backup until
-  validation passes; no long-term dual write or fallback reader is introduced.
-- Current edge upserts may already have overwritten conflicting versions. The importer must report
-  such unrecoverable history rather than invent it.
+Input is a bounded batch/time budget and an operational maintenance checkpoint. The operation runs Consolidation Stage before Lifecycle Stage, commits only validated source-linked changes, records retryable failures in operational control state without losing the Episode, and returns counts/checkpoint/status. Model inference, if used, happens before the write transaction; it is never the authority for a final fact.
 
-#### Current-to-target mapping
+### 4.4 Source inspection
 
-- `entities` maps to `nodes`; `aliases_json` becomes `node_aliases`, and subtype rows in
-  `people`, `known_elfies`, `concepts` and `places` become validated `node_type`/property values.
-- Complete rows in `events` and episodic memory nodes map to `episodes`. If a legacy row has only a
-  summary and no complete source, it is imported as an explicitly incomplete legacy item and
-  reported; it is never presented as a complete Episode.
-- `entity_edges` maps to `assertions`. The old unique-triple overwrite cannot be reversed; lost
-  versions are reported. Embedded `memory_edges` JSON is compared for diagnostics and then ignored
-  as a duplicate representation.
-- `source_evidence_links` maps to `evidence` and `assertion_evidence` when its target can be
-  resolved. `memory_notes` is imported only when it has a durable source reference; otherwise it is
-  retained as a migration report, not a graph fact.
+Authorized Memory callers and diagnostics may request one bounded Episode or Evidence record by stable ID, including its source content, detail state and provenance. Inspection is read-only and does not become an implicit chat-history or Profile read.
 
-The cutover sequence is: stop new Memory writes, snapshot the old database, import into a fresh
-target file, run count/hash/evidence/reopen checks, switch the injected Adapter, and retain the
-old snapshot until the acceptance report is signed. A failed check leaves the old Adapter active;
-the importer never mutates the source database in place.
+### 4.5 Idempotence, failure and budget constraints
 
-### 9.7 Stage gates
+Every write has a stable idempotency key or fingerprint. A Unit of Work is short, uses one serialized SQLite writer, and never waits for a model, network, device or world runtime. Leases/checkpoints make interrupted maintenance retryable; a failed attempt leaves source content and Evidence intact. Recall enforces limits on text hits, graph hops/neighbors, returned Assertions/Episodes/Evidence and rendered characters, and reports truncation explicitly.
 
-Each implementation round closes only with code plus replayable evidence:
+## 5. SQLite physical implementation
 
-1. Episode source preservation, idempotency and restart recovery;
-2. sourced extraction, canonicalization, merge and conflict retention;
-3. Basic + Local retrieval for a rare term, a person relationship network, a knowledge object and
-   a time-bounded experience;
-4. stable `RecallBundle` assembly with no unsupported assertion;
-5. representative-size latency, bounded memory and retry/retention checks;
-6. migration count/hash/evidence reconciliation.
+### 5.1 Authoritative fact tables
 
-The initial measurable gates are:
+SQLite is the first physical implementation. One Memory Adapter/database is bound to one Elfie namespace; a caller cannot query another Elfie's rows. The following tables are authoritative facts; JSON columns are bounded metadata only and never hide graph edges or provenance.
 
-| Gate | First target |
+| Table | Required responsibility |
 | --- | --- |
-| source integrity | 100% of accepted Episodes retain the original content hash after write, retry and reopen |
-| graph grounding | 100% of durable Assertions in the fixture have at least one resolvable Evidence link; unsupported assertions are rejected |
-| retrieval | rare-term Episode recall@5 ≥ 0.90; relationship-path precision = 1.00 on the fixture; all declared limits are respected |
-| latency | Basic + Local database-only p95 ≤ 150 ms on a fixture of 10,000 Episodes, 50,000 Nodes and 200,000 Assertions |
-| migration | 100% content-hash match for eligible source Episodes; every skipped/unrecoverable item is reported by ID |
+| `episodes` | Complete source content, occurrence range (nullable when unknown), historical `life_stage`/`temporal_label`, separate write time, context/media/source references, privacy scope and version, `importance`, `detail_level`, `lifecycle`, successful projection marker (revision bound to source version/content hash), lifecycle review metadata, idempotency key and content hash. |
+| `nodes` | Canonical identity, type/label, scope/status, bounded summary, `importance`, `confidence` and merge pointer. |
+| `node_aliases` | Many scoped aliases with their own source and confidence. |
+| `node_descriptions` | Many language/kind-specific descriptions, content hash and source link. |
+| `episode_mentions` | Episode-to-Node links, roles/spans and resolved/ambiguous/unresolved state. |
+| `assertions` | Subject, predicate, Node or typed-literal object, qualifiers, polarity, epistemic status, viewpoint/context, validity, `importance`, `confidence`, conflict group, lifecycle state and fingerprint. |
+| `evidence` | Episode or seed source locator, source version, excerpt/media span, modality, speaker/viewpoint, capture time and extraction metadata. |
+| `assertion_evidence` | Many-to-many Assertion/Evidence stance: `supports`, `contradicts` or `context`. |
 
-Natural-language vividness is evaluated after these structural gates. It cannot close a storage or
-provenance gap.
+Genesis manifest ID/version/hash and its completion marker are durable package metadata owned by the Memory Adapter, not a semantic Node/Assertion and not a retry queue. The marker lives in the same Memory SQLite database and is committed in the same transaction as the package; its physical metadata record/table name is adapter-private and is not an additional semantic memory table. The marker is written only after every expected Memory row, including child rows, is ready for the final complete commit. Every Genesis-produced row carries the manifest identity, and readers ignore rows whose completion marker is absent. A retryable or interrupted manifest is not an initialized Memory and is not recallable as one; its operational control state may be reconstructed from the immutable package. The marker records (or hashes) the expected IDs/counts for each output family so reconciliation proves more than the presence of Node rows. Derived FTS/vector indexes and RAM caches are not part of the fact-package completion check and may be rebuilt only after the complete commit. These records do not form a second mutable fact store. Only `importance` and `confidence` are semantic scores; Evidence rows and their stances are the authoritative support record.
 
-An unresolved P0 design question stops implementation. A P1 may be deferred only when the ledger
-records its owner, reason, replacement trigger and evaluation gap.
+### 5.2 Derived indexes and cache
+
+`episodes_fts` and `nodes_fts` are rebuildable full-text projections over source text, summaries, labels, aliases and sourced descriptions. An optional vector index is a later optimization, never a first-implementation prerequisite, and is also derived. Required lookup indexes cover Episode `lifecycle`/successful projection revision/review and time/hash (and historical stage labels when queried), Node normalized label/type/status, aliases `(normalized_alias, scope)`, descriptions `(node_id, language, kind)`, mentions by Node and Episode, Assertions by subject/predicate and object/predicate, conflict/supersession, Evidence by source, and both directions of `assertion_evidence`. Operational leases, retry attempts and checkpoints are kept outside these authoritative fact indexes; they are bounded controls and never returned by Recall. A non-null successful projection revision is a durable marker tied to the Episode source version/content hash; absence, or a revision tied to an older source hash, means that the current projection has not been committed, not that a retry state was written into the Episode. Each index exists for a bounded query and declares its rebuild source. The first implementation stays on the embedded relational store; a dedicated graph engine is not a prerequisite.
+
+RAM holds bounded hot Nodes, adjacency pages, recent neighborhoods and index pages. A cache miss reloads durable rows; it never constitutes memory loss. Media is loaded on demand.
+
+### 5.3 Constraints, uniqueness and conflict preservation
+
+Foreign keys are enabled and deletion is restricted by default. Episode idempotency keys and content hashes prevent duplicate capture. An Assertion fingerprint includes normalized subject, predicate, object, qualifiers, polarity, viewpoint and validity; it does not collapse distinct times, perspectives or conflicts. Evidence identity also includes source version, modality and locator/span, so the same locator in a new source version is a distinct source link. Exact replay is idempotent.
+
+Aliases may be ambiguous across scope. Mentions may remain unresolved. Descriptions deduplicate by Node/language/kind/content hash while retaining separate sourced versions. An Assertion has exactly one Node object or one typed-literal object. Queryable assertion fields and qualifiers are columns or explicit indexed child records; a typed literal uses mutually exclusive node-ID versus type/value/unit fields, and bounded JSON is only non-queryable metadata. Node merges keep the old ID and point to the canonical ID. No bare-triple unique key may overwrite evidence or disagreement.
+
+### 5.4 Transactions and Unit of Work
+
+Genesis applies the completion guarantee in §3.1: it validates the complete manifest before opening one manifest-scoped transaction, writes every Memory output (Nodes, Assertions, Evidence, Episodes and child records) and the final marker in that commit, and returns success only after the complete set is reconciled. A failed commit is not a completed state; the same immutable manifest remains unpublished and is resumed/retried as a whole until it can be committed. Normal capture commits the complete Episode and its source references together; its derived text index may be updated in that transaction or rebuilt after commit. Maintenance validates model proposals outside the transaction, then commits graph changes, Evidence links, score updates, lifecycle and successful projection revision in one short Unit of Work; derived indexes are updated or rebuilt only after the fact commit and never decide whether the fact package completed. A transaction never includes model or network calls.
+
+SQLite uses `PRAGMA user_version`, foreign keys, WAL, a bounded busy timeout and one serialized writer. Derived indexes can be deterministically rebuilt from authoritative tables.
+
+### 5.5 Restart recovery
+
+Episodes, Nodes, Assertions and Evidence survive restart. Maintenance claims bounded records with operational leases/checkpoints; an expired lease is reclaimable. A crash before a normal commit leaves the source unchanged; a crash after commit is recognized by the idempotency key/fingerprint. A crash before the Genesis final commit leaves no accepted initialization; recovery checks the same immutable manifest ID/hash and retries the whole package. The `committed` state is valid only when every expected output, child record and the completion marker are present. FTS and RAM caches are rebuilt when missing.
+
+## 6. Lifecycle, recovery and development migration
+
+### 6.1 Episode detail lifecycle
+
+Lifecycle is the aging and availability state of an already stored record, not a new memory type. A due-time scan covers old and new records alike. At review, the policy directly decays `importance` for eligible Episodes, Nodes and Assertions and refreshes lifecycle review metadata. `confidence` is not time-decayed. An Episode without a successful projection for its current source version keeps enough complete source for a future projection; a projected Episode may move from `full` to `compressed` or `digest`, while archiving is a separate availability state. Both changes require source and graph-dependency checks.
+
+### 6.2 Source Evidence protection
+
+An Evidence row that is the last auditable source for an active Assertion cannot be deleted. Compression may shorten an Episode's rendered detail, but it preserves a hash plus an excerpt, locator or digest sufficient to trace the Assertion. Seed sources and their versions remain immutable. Any destructive deletion is explicit, reversible during development and reported by ID. An explicit owner correction is a new sourced Episode/Assertion and may supersede an older Assertion; it never mutates the historical source in place.
+
+### 6.3 Compression, archive, digest and forgetting
+
+Lifecycle maintenance first reduces detail, then archives cold material, and only then may forget it when policy, importance and dependency checks allow. Episodes without a successful projection for their current source version are reviewed too, but their source is retained until a safe projection or an explicit source-retention rule exists. Forgetting detail does not automatically delete Nodes or Assertions; it may mark an Assertion superseded/forgotten only with an auditable replacement or retained source. An old Episode is reviewed by Lifecycle Stage; it is not reintroduced as a new consolidation input.
+
+### 6.4 Development data migration
+
+Migration is a development cutover, not a normal runtime path. Import into a fresh target database:
+
+- complete legacy events/experiences → Episodes;
+- entities → Nodes;
+- edge records → Assertions;
+- source links → Evidence and `assertion_evidence`;
+- aliases/descriptions/mentions → their child tables.
+
+Embedded duplicate edge JSON or source-less notes are diagnostics, not silently promoted facts. A legacy source row is migration-only and cannot ground an active target Assertion until it is converted to a verified Episode or approved seed source. Stop new writes, snapshot the old database, import, reconcile counts/hashes/Evidence and reopen after restart, then switch the injected Adapter. Keep the snapshot until acceptance; do not add long-term dual writes or a fallback reader. A failed check leaves the old Adapter active.
+
+## 7. Non-negotiable invariants
+
+1. Runtime content is complete in an Episode before extraction; Genesis content is complete in its approved source before projection.
+2. Every durable Assertion has Episode or seed Evidence; model output alone is never a fact.
+3. Canonicalization merges identity, not contradictory viewpoints or unrelated entities.
+4. Conflicting Assertions retain polarity, time, perspective and source.
+5. Graph summaries, vectors and scores cannot outrank source grounding without explicit epistemic status.
+6. Episodes are the detailed historical line; the graph is its structured semantic projection.
+7. Live state, plans, commitments, permissions and actions remain with their owning systems.
+8. Memory never directly reads Profile, Communication history or world runtime state.
+9. Genesis direct projection is limited to one approved manifest and cannot become runtime CRUD.
+
+## 8. Validation and stage gates
+
+Each implementation round closes only with code and replayable evidence. The target design is not proof that the current implementation already conforms.
+
+### 8.1 Source integrity
+
+Verify complete Episode capture, content hashes, idempotency, atomic Genesis completion, retry behavior and reopen-after-restart. Gate: 100% of accepted fixtures preserve source hashes, every valid Genesis reaches a complete marker with all expected child records, and no partial Genesis is visible.
+
+### 8.2 Graph provenance
+
+Verify mention resolution, canonicalization, Assertion/Evidence links, Claim Nodes, independent descriptions and conflict retention. Gate: every fixture Assertion has a resolvable source; unsupported proposals are rejected.
+
+### 8.3 Hybrid retrieval
+
+Replay a rare term, a relationship-network query, a knowledge object, an emotion facet and a time-bounded experience. Verify Basic/Text fallback, bounded Local/Graph paths, RecallBundle provenance and explicit truncation. Initial targets: rare-term recall@5 ≥ 0.90 and relationship-path precision = 1.00.
+
+### 8.4 Weights and conflicts
+
+Verify that new evidence updates `importance` and `confidence` once, repeated evidence is idempotent, importance decays directly in Lifecycle Stage, confidence is not age-decayed and contradictory evidence remains visible.
+
+### 8.5 Performance and capacity
+
+Measure both maintenance stages, bounded RAM, growth/retention behavior and database-only Basic + Local p95 ≤ 150 ms on a representative 10,000-Episode / 50,000-Node / 200,000-Assertion fixture. If migration is performed, also require 100% eligible source-hash reconciliation and an ID-level report for every skipped item.
