@@ -402,6 +402,67 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
         coordinator.join()
 
 
+def test_model_owner_affect_echo_does_not_mutate_elfie_emotion() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "effects": [
+            {
+                "channel": channel,
+                "direction": (
+                    "increase"
+                    if channel == "sadness"
+                    else "decrease"
+                    if channel == "happiness"
+                    else "unchanged"
+                ),
+                "strength": 70
+                if channel == "sadness"
+                else 35
+                if channel == "happiness"
+                else 0,
+                "confidence": 1.0,
+            }
+            for channel in EMOTION_NAMES
+        ],
+        "observed_other_affect": "owner is currently feeling sad",
+    }
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="I am very sad today",
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        # The local appraiser records the owner's sadness as observation only.
+        assert (
+            emotion.get_emotion_value("sadness")
+            == emotion.parameters("sadness").baseline
+        )
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("sadness") == pytest.approx(
+            emotion.parameters("sadness").baseline
+        )
+        assert emotion.get_emotion_value("happiness") == pytest.approx(
+            emotion.parameters("happiness").baseline
+        )
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
 @pytest.mark.parametrize(
     "owner_text",
     (

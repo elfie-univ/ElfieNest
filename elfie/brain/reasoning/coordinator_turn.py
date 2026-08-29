@@ -504,8 +504,12 @@ class CoordinatorTurnFactory:
             "decrease, unchanged), semantic strength 0..100, and confidence 0..1. "
             "The host converts these semantic directions into numeric stock changes; "
             "never return numeric deltas. This describes how the event affects Elfie, "
-            "not the owner's emotion. Use unchanged with strength 0 when there is no "
-            "self-affect."
+            "not the owner's emotion. If the owner only reports their own feeling "
+            "(for example, 'I am sad') and does not act on or change Elfie's situation, "
+            "record observed_other_affect if useful but return unchanged with strength "
+            "0 for all six channels. Do not turn the owner's sadness into Elfie's "
+            "sadness. Use a non-zero effect only for an explicit self-relevant "
+            "consequence."
             if fast_owner_reply or structured_owner_reply
             else ""
         )
@@ -588,7 +592,7 @@ class CoordinatorTurnFactory:
                 "channel_id": (
                     decision_seed.reply_channel_id
                     if decision_seed is not None
-                    else current.channel_id
+                    else getattr(current, "channel_id", None)
                     if current is not None
                     else None
                 ),

@@ -503,14 +503,42 @@ class BrainCoordinator:
             self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
             return
         try:
+            from elfie.brain.emotion.contracts import AffectDirection
             from elfie.brain.emotion.stimulus import (
                 EmotionStimulusEvent,
                 StimulusSource,
             )
 
+            # The model is allowed to report an owner's affect as an
+            # observation, but that observation is not, by itself, an affect
+            # event for Elfie.  A small model can still echo the observed
+            # label as a sadness/anger drive despite the prompt boundary.  If
+            # the local appraisal found no self-relevant social effect and the
+            # model feedback is only that same mirror, settle the turn as a
+            # reviewed no-op.  Independent self-relevant effects remain
+            # eligible for the normal checkpoint replacement path.
+            effective_effects = feedback.effects
+            if self._is_owner_affect_mirror(inflight, feedback):
+                effective_effects = tuple(
+                    effect.model_copy(
+                        update={
+                            "direction": AffectDirection.UNCHANGED,
+                            "strength": 0,
+                        }
+                    )
+                    for effect in feedback.effects
+                )
+                diagnostic_logger.info(
+                    "Ignored model feedback that only mirrored owner affect",
+                    extra={
+                        "diagnostic_event": "emotion_feedback_owner_affect_only",
+                        "turn_id": str(inflight.task.seed.turn_id),
+                    },
+                )
+
             stimulus = EmotionStimulusEvent(
                 event_id=inflight.task.seed.frame_id,
-                effects=feedback.effects,
+                effects=effective_effects,
                 source=StimulusSource.MODEL,
                 turn_id=inflight.task.seed.turn_id,
                 cause_key=f"turn:{inflight.task.seed.turn_id}",
@@ -531,6 +559,74 @@ class BrainCoordinator:
                     "error": type(error).__name__,
                 },
             )
+
+    def _is_owner_affect_mirror(
+        self,
+        inflight: InFlightTurn,
+        feedback,
+    ) -> bool:
+        """Reject owner-affect echo when no self-relevant event was appraised."""
+
+        from elfie.brain.emotion.contracts import AffectDirection
+        from elfie.brain.workspace.contracts import SocialPayload
+
+        observed_labels: set[str] = set()
+        has_self_effect = False
+        for event in inflight.frame.events:
+            payload = event.payload
+            if not isinstance(payload, SocialPayload):
+                continue
+            if payload.sender.source_kind != "owner":
+                continue
+            appraisal = self._appraiser.appraise(event)
+            if appraisal is None:
+                continue
+            if appraisal.effects:
+                has_self_effect = True
+            if appraisal.observed_other_affect is not None:
+                observed_labels.add(appraisal.observed_other_affect.label)
+        if has_self_effect or not observed_labels:
+            return False
+
+        mirror_effects = {
+            "happiness": {
+                ("happiness", AffectDirection.INCREASE),
+                ("sadness", AffectDirection.DECREASE),
+                ("anger", AffectDirection.DECREASE),
+                ("fear", AffectDirection.DECREASE),
+                ("disgust", AffectDirection.DECREASE),
+            },
+            "sadness": {
+                ("sadness", AffectDirection.INCREASE),
+                ("happiness", AffectDirection.DECREASE),
+            },
+            "anger": {
+                ("anger", AffectDirection.INCREASE),
+                ("happiness", AffectDirection.DECREASE),
+            },
+            "fear": {
+                ("fear", AffectDirection.INCREASE),
+                ("happiness", AffectDirection.DECREASE),
+            },
+            "surprise": {
+                ("surprise", AffectDirection.INCREASE),
+            },
+            "disgust": {
+                ("disgust", AffectDirection.INCREASE),
+                ("happiness", AffectDirection.DECREASE),
+            },
+        }
+        returned = {
+            (effect.channel.value, effect.direction)
+            for effect in feedback.effects
+            if effect.direction is not AffectDirection.UNCHANGED
+        }
+        if not returned:
+            return False
+        allowed = set().union(
+            *(mirror_effects.get(label, set()) for label in observed_labels)
+        )
+        return returned.issubset(allowed)
 
     def _mark_stale(self, inflight: InFlightTurn, reason: str) -> None:
         if inflight.terminal_status is not None:
