@@ -36,7 +36,11 @@ nsis:
   include: packaging/windows/installer.nsh
   oneClick: false
 linux:
-  icon: assets/elfienest-app-icon.png
+  # Supply the freedesktop sizes explicitly.  GNOME's application grid may
+  # fall back to its generic gear when a package contains only the 1024px
+  # source icon; electron-builder accepts a dimension-named PNG directory and
+  # installs each size into hicolor.
+  icon: assets/linux-icons
   executableName: elfienest-gui
   target: [deb]
 deb:
