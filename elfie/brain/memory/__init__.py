@@ -8,6 +8,7 @@ from elfie.brain.memory.memory_records import (
     AliasInput,
     AssertionEvidenceInput,
     AssertionInput,
+    AttributionKind,
     ClosedEpisode,
     ConsolidationBatchReceipt,
     ConsolidationProjection,
@@ -16,9 +17,12 @@ from elfie.brain.memory.memory_records import (
     DescriptionInput,
     EpisodeReceipt,
     EvidenceInput,
+    MaintenanceReceipt,
+    MaintenanceRequest,
     MediaReference,
     MentionInput,
     NodeInput,
+    OccurrencePrecision,
     RecallAssertion,
     RecallBundle,
     RecallConflict,
@@ -39,6 +43,11 @@ from elfie.brain.memory.node_types import (
     MemoryNode,
     NodeTypes,
     RetrievalQuery,
+)
+from elfie.brain.memory.predicates import (
+    PREDICATE_REGISTRY_VERSION,
+    UnknownPredicateError,
+    resolve_predicate,
 )
 from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 from elfie.brain.memory.recall_renderer import render_recall_bundle
@@ -74,6 +83,7 @@ __all__ = [
     "SensoryIndexer",
     "tokenize",
     "AliasInput",
+    "AttributionKind",
     "AssertionEvidenceInput",
     "AssertionInput",
     "ClosedEpisode",
@@ -86,7 +96,10 @@ __all__ = [
     "EvidenceInput",
     "MediaReference",
     "MentionInput",
+    "MaintenanceReceipt",
+    "MaintenanceRequest",
     "NodeInput",
+    "OccurrencePrecision",
     "RecallAssertion",
     "RecallBundle",
     "RecallConflict",
@@ -97,5 +110,8 @@ __all__ = [
     "RecallPath",
     "RecallRequest",
     "SourceReference",
+    "PREDICATE_REGISTRY_VERSION",
+    "UnknownPredicateError",
+    "resolve_predicate",
     "render_recall_bundle",
 ]

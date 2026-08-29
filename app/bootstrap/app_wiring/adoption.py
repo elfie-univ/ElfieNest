@@ -133,7 +133,8 @@ def build_adoption_services(
                 body_factory,
                 lambda workspace: YamlProfileStoreAdapter(Path(workspace) / "profile"),
                 lambda workspace: SQLiteMemoryStoreAdapter(
-                    Path(workspace) / "memory" / "knowledge.sqlite"
+                    Path(workspace) / "memory" / "knowledge.sqlite",
+                    elfie_id=Path(workspace).name,
                 ),
                 lambda workspace: SQLiteActivityStoreAdapter(
                     Path(workspace) / "activity" / "activity.sqlite"

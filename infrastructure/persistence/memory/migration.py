@@ -12,6 +12,7 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Mapping
 
 from elfie.brain.memory.memory_records import (
     AssertionInput,
@@ -21,7 +22,7 @@ from elfie.brain.memory.memory_records import (
 )
 
 from .sqlite_memory_store import SQLiteMemoryStoreAdapter
-from .sqlite_utils import bounded_score, json_object, utc_now
+from .sqlite_utils import bounded_score, json_object
 
 _LEGACY_TABLES = frozenset(
     {
@@ -57,6 +58,10 @@ class MigrationReport:
     episode_hash_matches: int = 0
     episode_hash_mismatches: tuple[str, ...] = field(default_factory=tuple)
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    # Keys are namespaced by legacy family (``entity:<id>``, ``event:<id>``,
+    # ``edge:<id>`` and ``source_link:<id>``) because old IDs were not
+    # globally unique across tables.
+    id_mapping: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def reconciled(self) -> bool:
@@ -89,6 +94,7 @@ def import_legacy_database(
     _validate_fresh_target(target)
     source_digest = _database_digest(source)
     warnings: list[str] = []
+    id_mapping: dict[str, str] = {}
     with _readonly(source) as connection, SQLiteMemoryStoreAdapter(target) as store:
         tables = _tables(connection)
         if not _LEGACY_TABLES.intersection(tables):
@@ -98,12 +104,14 @@ def import_legacy_database(
         source_entities = _count(connection, "entities")
         source_events = _count(connection, "events")
         source_edges = _count(connection, "entity_edges")
-        imported_nodes = _import_entities(connection, store, warnings)
-        imported_episodes = _import_events(connection, store, warnings)
+        imported_nodes = _import_entities(connection, store, warnings, id_mapping)
+        imported_episodes = _import_events(connection, store, warnings, id_mapping)
         imported_assertions, imported_evidence = _import_edges(
-            connection, store, warnings
+            connection, store, warnings, id_mapping
         )
-        _import_source_links(connection, store, warnings)
+        linked_assertions, linked_evidence = _import_source_links(
+            connection, store, warnings, id_mapping
+        )
         _report_unresolved_notes(connection, warnings)
         episode_hash_matches, episode_hash_mismatches = _reconcile_episode_hashes(
             connection, store
@@ -117,14 +125,15 @@ def import_legacy_database(
         source_edges=source_edges,
         imported_nodes=imported_nodes,
         imported_episodes=imported_episodes,
-        imported_assertions=imported_assertions,
-        imported_evidence=imported_evidence,
+        imported_assertions=imported_assertions + linked_assertions,
+        imported_evidence=imported_evidence + linked_evidence,
         skipped_rows=len(warnings),
         source_digest=source_digest,
         target_digest=target_digest,
         episode_hash_matches=episode_hash_matches,
         episode_hash_mismatches=episode_hash_mismatches,
         warnings=tuple(warnings),
+        id_mapping=dict(sorted(id_mapping.items())),
     )
 
 
@@ -175,6 +184,7 @@ def _import_entities(
     connection: sqlite3.Connection,
     store: SQLiteMemoryStoreAdapter,
     warnings: list[str],
+    id_mapping: dict[str, str],
 ) -> int:
     if "entities" not in _tables(connection):
         return 0
@@ -205,10 +215,16 @@ def _import_entities(
                     canonical_label=str(row["name"]),
                     description=row["summary"],
                     confidence=bounded_score(row["confidence"]),
+                    importance=bounded_score(
+                        metadata.get(
+                            "importance", metadata.get("importance_score", 0.5)
+                        )
+                    ),
                     properties=metadata,
                 )
             )
             imported += 1
+            id_mapping[f"entity:{row['entity_id']}"] = str(row["entity_id"])
         except (TypeError, ValueError, sqlite3.DatabaseError) as error:
             warnings.append(f"entity {row['entity_id']}: {error}")
     return imported
@@ -218,6 +234,7 @@ def _import_events(
     connection: sqlite3.Connection,
     store: SQLiteMemoryStoreAdapter,
     warnings: list[str],
+    id_mapping: dict[str, str],
 ) -> int:
     if "events" not in _tables(connection):
         return 0
@@ -259,25 +276,36 @@ def _import_events(
         if not content:
             warnings.append(f"event {row['entity_id']}: missing complete content")
             continue
-        occurred = str(
-            row["legacy_event_time"] or row["entity_first_seen"] or utc_now()
-        )
+        occurred_value = row["legacy_event_time"] or row["entity_first_seen"]
+        occurred = None if occurred_value is None else str(occurred_value)
         metadata = json_object(row["legacy_meta"])
         metadata.update(json_object(row["entity_meta"]))
+        metadata.setdefault(
+            "legacy_content_sha256",
+            hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        )
         try:
             store.record_episode(
                 ClosedEpisode(
                     episode_id=str(row["entity_id"]),
                     idempotency_key=f"legacy:event:{row['entity_id']}",
                     occurred_from=occurred,
+                    occurrence_precision="exact" if occurred is not None else "unknown",
                     content_text=content,
                     event_kind=str(row["legacy_event_type"] or "legacy"),
                     importance=bounded_score(row["legacy_importance"]),
                     source_event_ids=(str(row["entity_id"]),),
+                    source_version=(
+                        str(metadata.get("source_version"))
+                        if metadata.get("source_version")
+                        else None
+                    ),
+                    privacy_scope=str(metadata.get("privacy_scope", "private")),
                     metadata=metadata,
                 )
             )
             imported += 1
+            id_mapping[f"event:{row['entity_id']}"] = str(row["entity_id"])
         except (TypeError, ValueError, sqlite3.DatabaseError) as error:
             warnings.append(f"event {row['entity_id']}: {error}")
     return imported
@@ -287,6 +315,7 @@ def _import_edges(
     connection: sqlite3.Connection,
     store: SQLiteMemoryStoreAdapter,
     warnings: list[str],
+    id_mapping: dict[str, str],
 ) -> tuple[int, int]:
     if "entity_edges" not in _tables(connection):
         return 0, 0
@@ -294,31 +323,11 @@ def _import_edges(
     evidence_count = 0
     for row in connection.execute("SELECT * FROM entity_edges ORDER BY edge_id"):
         edge_id = str(row["edge_id"])
-        evidence_id = f"legacy-evidence:{edge_id}"
-        raw_excerpt = row["summary"] if "summary" in row.keys() else None
-        excerpt = str(raw_excerpt).strip() if raw_excerpt is not None else None
-        try:
-            store.record_sourced_assertion(
-                AssertionInput(
-                    subject_id=str(row["source_entity_id"]),
-                    predicate=str(row["relation_type"]),
-                    object_node_id=str(row["target_entity_id"]),
-                    confidence=bounded_score(row["confidence"]),
-                    support_score=bounded_score(row["weight"]),
-                    evidence_ids=(evidence_id,),
-                    assertion_id=f"legacy-assertion:{edge_id}",
-                ),
-                EvidenceInput(
-                    evidence_id=evidence_id,
-                    source_type="legacy",
-                    source_id=edge_id,
-                    excerpt=excerpt or None,
-                ),
-            )
-            imported += 1
-            evidence_count += 1
-        except (TypeError, ValueError, sqlite3.DatabaseError) as error:
-            warnings.append(f"edge {edge_id}: {error}")
+        # An old edge has no trustworthy source by itself.  Keeping it as an
+        # active Assertion would manufacture provenance, so migration records
+        # an explicit skip until an operator links it to a verified Episode or
+        # approved seed source.
+        warnings.append(f"edge {edge_id}: skipped source-less legacy edge")
     return imported, evidence_count
 
 
@@ -326,12 +335,15 @@ def _import_source_links(
     connection: sqlite3.Connection,
     store: SQLiteMemoryStoreAdapter,
     warnings: list[str],
-) -> None:
+    id_mapping: dict[str, str],
+) -> tuple[int, int]:
     # Legacy links may refer to an edge or note. Edge source IDs are already
     # represented above; retain unresolvable links as standalone evidence so
     # provenance is not silently discarded.
     if "source_evidence_links" not in _tables(connection):
-        return
+        return 0, 0
+    imported_assertions = 0
+    imported_evidence = 0
     for row in connection.execute(
         "SELECT * FROM source_evidence_links ORDER BY link_id"
     ):
@@ -349,6 +361,13 @@ def _import_source_links(
                         f"source link {row['link_id']}: unknown edge target"
                     )
                     continue
+                source_id = str(row["source_id"])
+                source_episode = store.get_episode(source_id)
+                if source_episode is None:
+                    warnings.append(
+                        f"source link {row['link_id']}: edge source is not a verified Episode"
+                    )
+                    continue
                 store.record_sourced_assertion(
                     AssertionInput(
                         subject_id=str(edge["source_entity_id"]),
@@ -356,36 +375,32 @@ def _import_source_links(
                         object_node_id=str(edge["target_entity_id"]),
                         confidence=bounded_score(edge["confidence"]),
                         support_score=bounded_score(edge["weight"]),
+                        importance=bounded_score(edge["weight"]),
                         evidence_ids=(evidence_id,),
                         assertion_id=f"legacy-assertion:{edge['edge_id']}",
                     ),
                     EvidenceInput(
                         evidence_id=evidence_id,
-                        source_type="legacy",
-                        source_id=str(row["source_id"]),
+                        source_type="episode",
+                        source_id=source_id,
                         excerpt=f"legacy edge link {row['target_id']}",
+                        source_sha256=source_episode.content_sha256,
+                        source_version=source_episode.source_version,
                     ),
                 )
+                imported_assertions += 1
+                imported_evidence += 1
+                id_mapping[f"edge:{edge['edge_id']}"] = (
+                    f"legacy-assertion:{edge['edge_id']}"
+                )
+                id_mapping[f"source_link:{row['link_id']}"] = evidence_id
                 continue
-            store.record_sourced_assertion(
-                AssertionInput(
-                    subject_id="legacy:source-links",
-                    predicate="references",
-                    object_literal=str(row["target_id"]),
-                    confidence=bounded_score(row["weight"]),
-                    support_score=bounded_score(row["weight"]),
-                    evidence_ids=(evidence_id,),
-                    assertion_id=f"legacy-link-assertion:{row['link_id']}",
-                ),
-                EvidenceInput(
-                    evidence_id=evidence_id,
-                    source_type="legacy",
-                    source_id=str(row["source_id"]),
-                    excerpt=f"legacy {row['target_type']} link {row['target_id']}",
-                ),
+            warnings.append(
+                f"source link {row['link_id']}: skipped unverified legacy source"
             )
         except (TypeError, ValueError, sqlite3.DatabaseError) as error:
             warnings.append(f"source link {row['link_id']}: {error}")
+    return imported_assertions, imported_evidence
 
 
 def _reconcile_episode_hashes(
@@ -426,7 +441,17 @@ def _reconcile_episode_hashes(
             (row["entity_id"],),
         ).fetchone()
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        if target is not None and str(target[0]) == digest:
+        target_meta = (
+            json_object(
+                store.connection.execute(
+                    "SELECT metadata_json FROM episodes WHERE episode_id=?",
+                    (row["entity_id"],),
+                ).fetchone()[0]
+            )
+            if target is not None
+            else {}
+        )
+        if target is not None and target_meta.get("legacy_content_sha256") == digest:
             matches += 1
         else:
             mismatches.append(str(row["entity_id"]))

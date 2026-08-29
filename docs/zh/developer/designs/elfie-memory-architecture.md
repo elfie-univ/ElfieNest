@@ -136,7 +136,7 @@ Evidence 是一级来源关联。它标识 Episode 或 `ApprovedSeedSource` 及�
 ```text
 一次性 Genesis
 ApprovedSeedSource ──► Genesis manifest
-                         └─ 原子完整包提交 ──► 全部 Memory 输出 + 完成标记
+                         └─ 每次 submission：原子提交 ──► 本次 Memory 输出 + 完成标记
 
 普通运行时
 Workspace 闭合 ClosedEpisode ── 捕获事务 ──► 完整 Episode + 来源引用
@@ -157,9 +157,13 @@ Genesis 是一次性的侧入口。普通路径不会从不完整事件写入图
 
 `ApprovedSeedSource` 不可变、有版本并带哈希。Genesis manifest 只有三类种子：`KnowledgeSeed[]`（已掌握的世界/知识）、`EpisodeSeed[]`（个体过去，每条都物化为完整 Episode）和 `RelationshipSeed[]`（关联 Episode 或种子 Evidence 的类型化关系 Assertion）。不存在第四类传记或关系记忆：传记就是 Episode 的物化，关系就是 RelationshipSeed 的投影。世界/知识与关系种子可以直接投影；每条 `EpisodeSeed` 必须保留为完整 Episode，也可以在同一完整包内投影其派生 Node/Assertion。所有输出都带种子 Evidence。
 
-Genesis 对 Memory 包只有一个完成合同。对有效 manifest，所有预期的权威记录和子记录——Node、Assertion、Evidence、传记 Episode、别名、描述和提及——以及最终完成标记，必须作为一个完整包持久化并可见。原子性就是“只接受完整包”：任何半成品都不能对外可见，也不能报告为已初始化。校验失败在任何写入前拒绝。崩溃或暂时性写入失败不是初始化终态：包保持未发布，恢复所有者必须保留或重建不可变输入，以相同 manifest ID 和哈希整体持续恢复/重试，直到对账确认全部预期输出和完成标记都存在。中断尝试的内部清理只是恢复手段，不是结果。如果运行故障使本次调用未完成，只能返回未完成/可重试结果（或不返回回执），绝不能返回 `committed`；恢复所有者继续按完整包重试。对账成功前领养结果保持未发布，包不能被召回。已提交的 Elfie 不能被不同 manifest 静默重新初始化；升级是另一个经批准的操作。外层协调器必须等本 Memory 包完成后才可发布领养结果；跨所有者发布由其自身契约定义，本文不假装存在跨存储的单一事务。相同 ID 和哈希重放必须幂等；同一 ID 换用不同哈希必须拒绝。Genesis 接受显式的初始 `importance` 和 `confidence`，不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
+Genesis 使用“单次提交”完成合同。一次 Genesis submission 是调用方交给 Memory、准备在一次原子提交中写入的完整、不可变 Memory 输出集合。Genesis 可以调用 Memory 任意多次；提交次数、大小、顺序、分组、调度以及这些提交代表核心知识还是扩展知识、前台还是夜间任务，都由 Genesis 决定，Memory 不负责决定。即使多个 submission 属于同一次更高层 Genesis 操作，每个 submission 也必须有自己的稳定提交/幂等身份和内容哈希。
 
-Genesis 对每只 Elfie 的准入按串行方式执行。完成标记是 Genesis 行的唯一可见性闸门：标记出现前，读取和维护都不能使用该 manifest 的任何行。
+对于一次有效 submission，所有预期的权威记录和子记录——Node、Assertion、Evidence、传记 Episode、别名、描述和提及——以及本次 submission 的完成标记，必须作为一个完整单元持久化并可见。原子性就是“只接受当前提交”：写入前完成校验；Unit of Work 要么提交所有输出和标记，要么一个都不提交。失败调用只能返回失败或可重试结果，绝不能返回 `committed`。相同 submission 身份和哈希重放必须幂等；同一身份换用不同哈希必须拒绝。后续 submission 失败不能回滚先前已经成功提交的 submission。
+
+Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只向读取和维护暴露已经提交的 submission，不报告整个 Genesis 操作是否完成。已提交的 Elfie 不能被不同 manifest 静默重新初始化；升级是另一个经批准的操作。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的初始 `importance` 和 `confidence`，不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
+
+Genesis 对每只 Elfie 的准入按串行方式执行。完成标记是 Genesis 行的唯一可见性闸门：标记出现前，读取和维护都不能使用该 submission 的任何行。Genesis 可以接受只包含部分批准种子类别的一次完整 submission，不要求每次 submission 都包含所有种子类别，也不会推断调用方的批次策略。
 
 ### 3.2 普通运行时写入
 
@@ -270,16 +274,16 @@ SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只
 
 | 表 | 必须承担的职责 |
 | --- | --- |
-| `episodes` | 完整来源内容、发生时间范围（未知时可为空）、历史 `life_stage`/`temporal_label`、独立的写入时间、上下文/媒体/来源引用、隐私范围和版本、`importance`、`detail_level`、`lifecycle`、成功的投影标记（修订号绑定来源版本/内容哈希）、生命周期复查元数据、幂等键和内容哈希。 |
+| `episodes` | 完整来源内容、发生时间范围（未知时可为空）及发生时间精度、历史 `life_stage`/`temporal_label`、独立的写入时间、带归因的上下文/媒体/来源引用、隐私范围和版本、`importance`、`detail_level`、`lifecycle`、成功的投影标记（修订号绑定来源版本/内容哈希）、生命周期复查元数据、幂等键和内容哈希。 |
 | `nodes` | 规范身份、类型/名称、作用域/状态、有界摘要、`importance`、`confidence` 和合并指针。 |
 | `node_aliases` | 多条带作用域的别名及其来源和可信度。 |
 | `node_descriptions` | 多条按语言/种类区分的描述、内容哈希和来源关联。 |
 | `episode_mentions` | Episode 到 Node 的提及、角色/片段以及已解析/歧义/未解析状态。 |
-| `assertions` | 主体、谓词、Node 或带类型字面量对象、限定信息、极性、认识状态、视角/上下文、有效期、`importance`、`confidence`、冲突组、生命周期状态和指纹。 |
+| `assertions` | 主体、谓词、Node 或显式带类型的字面量对象（type/value/unit）、限定信息、极性、认识状态、视角/上下文、有效期、`importance`、`confidence`、冲突组、生命周期状态和指纹。 |
 | `evidence` | Episode 或种子来源的定位、来源版本、摘录/媒体片段、模态、说话者/视角、捕获时间和抽取元数据。 |
 | `assertion_evidence` | Assertion/Evidence 多对多立场：`supports`、`contradicts` 或 `context`。 |
 
-Genesis manifest 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion，也不是重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与整个包在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成最终提交后才能写入完成标记。每条 Genesis 产出的行都带有 manifest 身份；缺少完成标记的行对读取者不可见。可重试或中断的 manifest 不是已初始化的 Memory，不能被召回；它的运行控制状态可以从不可变初始化包重建。完成标记记录（或校验）每类输出的预期 ID/数量，使对账不只检查 Node 是否存在。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。这些记录不形成第二个可变事实源。只有 `importance` 和 `confidence` 是语义分数；Evidence 行及其立场才是权威的支持记录。
+每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion，也不是重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。每条 Genesis 产出的行都带有 submission 身份；缺少对应完成标记的行对读取者不可见。可重试或中断的 submission 不是已初始化的 Memory，不能被召回；它的运行控制状态可以从不可变输入重建。完成标记记录（或校验）每类输出的预期 ID/数量，使对账不只检查 Node 是否存在。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。这些记录不形成第二个可变事实源。只有 `importance` 和 `confidence` 是语义分数；Evidence 行及其立场才是权威的支持记录。
 
 ### 5.2 派生索引和缓存
 
@@ -295,13 +299,13 @@ Genesis manifest 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的
 
 ### 5.4 事务和 Unit of Work
 
-Genesis 按第 3.1 节的完成保证执行：先校验完整 manifest，再打开限定在该 manifest 范围内的事务，在这次最终提交中写入全部 Memory 输出（Node、Assertion、Evidence、Episode 及其子记录）和完成标记，并在对账确认完整集合后才返回成功。提交失败不构成完成状态；同一不可变 manifest 保持未发布，并作为整体持续恢复/重试，直到能够完整提交。普通捕获把完整 Episode 和来源引用一起提交；其派生文本索引可以在同一事务更新，也可以在提交后重建。维护在事务外校验模型提案，再在一个短 Unit of Work 中提交图谱变更、Evidence 关联、分数更新、生命周期和成功投影修订号；派生索引只能在事实提交成功后更新或重建，不能决定事实包是否完成。事务内不能调用模型或网络。
+Genesis 按第 3.1 节的完成保证执行：先校验一次完整 submission，再打开限定在本次 submission 范围内的事务，在同一提交中写入全部 Memory 输出（Node、Assertion、Evidence、Episode 及其子记录）和本次标记，并在对账确认完整集合后才返回成功。提交失败不构成完成状态；同一不可变 submission 保持未发布，并可使用相同身份和哈希重试。此前成功的 submission 不因后续失败回滚。普通捕获把完整 Episode 和来源引用一起提交；其派生文本索引可以在同一事务更新，也可以在提交后重建。维护在事务外校验模型提案，再在一个短 Unit of Work 中提交图谱变更、Evidence 关联、分数更新、生命周期和成功投影修订号；派生索引只能在事实提交成功后更新或重建，不能决定事实包是否完成。事务内不能调用模型或网络。
 
 SQLite 使用 `PRAGMA user_version`、外键、WAL、有界忙等待和一个串行化写入者。派生索引必须能从权威表确定性重建。
 
 ### 5.5 重启恢复
 
-Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运行控制用的租约/检查点处理有界记录；过期租约可以重新处理。普通提交前崩溃保持来源不变；提交后崩溃通过幂等键/指纹识别。Genesis 在最终提交前崩溃不会形成可接受的初始化状态；恢复时检查相同不可变 manifest ID/哈希，并按完整包重试。只有全部预期输出、子记录和完成标记都存在时，`committed` 状态才有效。缺失的 FTS 和内存缓存可以重建。
+Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运行控制用的租约/检查点处理有界记录；过期租约可以重新处理。普通提交前崩溃保持来源不变；提交后崩溃通过幂等键/指纹识别。Genesis 在某次 submission 提交前崩溃不会形成可接受的该次初始化结果；恢复时检查相同不可变 submission 身份/哈希，并重试该 submission。只有全部预期输出、子记录和本次完成标记都存在时，`committed` 状态才有效。缺失的 FTS 和内存缓存可以重建。
 
 ## 6. 生命周期、恢复和迁移
 
@@ -339,7 +343,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 6. Episode 是详细的历史线；图谱是它的结构化语义投影。
 7. 实时状态、计划、承诺、权限和行动由其所有者负责。
 8. Memory 不直接读取 Profile、Communication 历史或世界运行时状态。
-9. Genesis 直接投影只限一次批准的 manifest，不能变成运行时 CRUD。
+9. Genesis 直接投影只限批准的 submission，不能变成运行时 CRUD。
 
 ## 8. 验收和阶段门
 
@@ -347,7 +351,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.1 来源完整性
 
-验证完整 Episode 捕获、内容哈希、幂等、Genesis 原子完成、重试和重启复开。门槛：100% 的验收夹具保留来源哈希，每个有效 Genesis 都达到包含全部预期子记录的完整完成标记，且看不到部分 Genesis。
+验证完整 Episode 捕获、内容哈希、幂等、Genesis submission 原子完成、重试和重启复开。门槛：100% 的验收夹具保留来源哈希，每个被接受的 submission 都达到包含全部预期子记录的完整完成标记，且看不到未提交 submission 的输出。
 
 ### 8.2 图谱来源链
 
@@ -364,3 +368,50 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 ### 8.5 性能和容量
 
 测量两个维护阶段、有界内存、增长/保留行为，以及代表性 10,000 Episode / 50,000 Node / 200,000 Assertion 数据集上仅数据库 Basic + Local 的 p95 ≤ 150 ms。若执行迁移，还要求所有合格来源 100% 哈希对账，并为每个跳过项生成 ID 报告。
+
+## 9. 已确定的实现决策
+
+本节关闭审查中发现的实现歧义，是 Memory 实现的规范；但不会把 Genesis 的批次、顺序或调度分配给 Memory。
+
+### 9.1 来源形态、命名空间和隐私
+
+- Memory Adapter 按一只精灵的不可变 `elfie_id` 构造；每次读取、写入、维护和 Genesis submission 都校验该命名空间。调用方不能通过请求或原始 ID 扩大作用域。
+- `occurred_from` 和 `occurred_to` 可以未知。使用显式的发生时间精度区分精确时刻、有界范围和未知时间；未知时间不能替换成伪造的 epoch，除非调用方明确请求未知时间 facet，否则不参与时间排序。
+- Episode 的归因使用 `observed`、`told`、`inferred`、`felt` 四种类型。参与者、地点和物品通过带角色的有界 `episode_mentions` 表示；场景上下文保留为有界来源上下文，不能隐藏图谱边。
+- 来源和媒体引用携带版本、定位和 hash。隐私范围由 Memory 边界强制执行，并进入来源检查和 Recall 过滤，不能从展示名称推断。
+- 修正通过新的带来源 Episode/Assertion 表达，历史来源行及其版本不能原地修改。
+
+### 9.2 分数、复查和生命周期
+
+- 只有 `importance` 和 `confidence` 是持久化语义分数。旧的 `support_score` 只能作为迁移输入或派生兼容值，不能成为第三个权威分数。
+- 带版本的评分策略根据唯一、稳定的来源/Evidence ID 和显式所有者输入重新计算贡献。重试、重复 Evidence 关联或重复维护不能重复增加同一贡献。
+- Episode、Node 和 Assertion 记录复查/强化时间（或可确定性推导的等价信息）和策略版本。生命周期选择是到期条件，不增加另一种分数。
+- 生命周期转换受保护且按顺序执行：当前来源没有成功投影时先保留来源；再允许 `full` → `compressed` → `digest`，单独归档；只有通过来源/Evidence 依赖检查后才可遗忘。遗忘不能删除 active Assertion 的最后可审计 Evidence。
+- Consolidation 租约、重试次数、检查点和被拒绝的提案属于权威事实之外的运行控制数据。一个有界的 Memory Maintenance Unit of Work 拥有写事务；普通捕获和 Genesis submission 仍是独立操作。
+
+### 9.3 投影和 predicate 校验
+
+- Predicate 必须从带版本的 registry 解析，并显式登记别名和弃用项。每个成功投影记录 registry 版本。
+- 未知或无效的模型提案只能保留为有界诊断/重试数据，不能插入为 active Assertion；registry 或来源校验改变后才可重试。
+- 成功投影记录 `(source_version, source_hash, projection_revision)`。缺失或过期的修订表示当前来源仍需投影；重试不能创建第二个 Episode。
+- 运行时调用方只使用 source-first 类型化路径。旧的 `add_edge`/裸边写入在调用方迁移后删除，过渡期也只能用于迁移/诊断。
+
+### 9.4 Recall 语义
+
+- Facet 是正向约束：不同 facet 类别之间使用 AND，同一类别内的值使用 OR；缺少 facet 信息不能变成负事实。历史情绪读取 Episode 的带归因来源，不能读取实时 Emotion 状态。
+- 排序按匹配强度、路径长度、`importance`、`confidence`、时间相关性和稳定 ID 依次确定。所有分数分量都有界，并由策略版本说明。
+- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
+- 初始模式只有 Basic/Text 和 Local/Graph。Global/community 与向量检索仍是后续的派生能力，初始契约不宣称支持。
+
+### 9.5 迁移和兼容路径
+
+- Schema 变更使用全新的目标 schema 和显式版本检查；旧库或混合库不能被静默改造成新的事实模型。现有开发数据通过迁移工具导入，生产切换另行审批。
+- Legacy edge 只有在来源已转换为已核验 Episode 或批准种子 Evidence 时，才能成为 active Assertion。无来源边、内嵌边 JSON 和不完整笔记只生成确定性的跳过/诊断记录。
+- 导入生成 ID 映射、各类数量、来源哈希和跳过原因。对账失败时保持旧 Adapter，不增加长期双写或回退读取器。
+
+### 9.6 验证和可观测性
+
+- 每条写入路径都要覆盖提交点前后的故障注入，包括并发重复提交、哈希不匹配、重启、租约过期和未提交行不可见。
+- Maintenance 和 Recall 测试覆盖幂等分数更新、来源保护、facet 语义、supersedes/冲突可见性、命名空间/隐私隔离和硬截断限制。迁移测试覆盖 fresh target 复开和 legacy Evidence 跳过。
+- 性能证据记录冷/热初始化、每个 Unit of Work 耗时、SQLite 锁等待、行数、重试延迟和 Recall p95。现有代表性 Recall 目标仍为 p95 ≤ 150 ms；Genesis 是否分批由启动实测决定，不由本 Memory 契约决定。
+- 每次 schema 或事务变更后，重新运行持久化盘点、聚焦的 Adapter/契约测试、质量检查和 `git diff --check`；并按 `target`、`inventory`、`references`、`verification`、`residuals` 更新 Conformance 台账。

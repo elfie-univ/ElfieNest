@@ -179,7 +179,8 @@ def restore_registered_elfies(
             profile_store = YamlProfileStoreAdapter(config_dir / "profile")
             profile = profile_store.load()
             memory_store = SQLiteMemoryStoreAdapter(
-                config_dir / "memory" / "knowledge.sqlite"
+                config_dir / "memory" / "knowledge.sqlite",
+                elfie_id=row.elfie_id,
             )
             elfie = factory.restore(
                 ElfieAssembly(

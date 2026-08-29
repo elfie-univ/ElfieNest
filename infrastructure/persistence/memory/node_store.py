@@ -54,17 +54,42 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
 
     def get_node(self, node_id: str) -> MemoryNode | None:
         with self._lock:
+            episode_scope = ""
+            episode_params: list[object] = [node_id]
+            if getattr(self, "elfie_id", None) is not None:
+                episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                episode_params.append(str(self.elfie_id))
+            episode_visibility, episode_visibility_params = self._genesis_visibility(
+                "e"
+            )
+            episode_params.extend(episode_visibility_params)
             episode = self.conn.execute(
-                "SELECT * FROM episodes WHERE episode_id=?", (node_id,)
+                "SELECT e.* FROM episodes AS e WHERE e.episode_id=?"
+                + episode_scope
+                + " AND "
+                + episode_visibility,
+                episode_params,
             ).fetchone()
             if episode is not None:
                 return self._episode_row_to_node(episode)
+            node_visibility, node_visibility_params = self._genesis_visibility("n")
+            node_scope = ""
+            node_scope_params: list[object] = []
+            if getattr(self, "elfie_id", None) is not None:
+                node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                node_scope_params.append(str(self.elfie_id))
             row = self.conn.execute(
-                "SELECT * FROM nodes WHERE node_id=?", (node_id,)
+                "SELECT n.* FROM nodes AS n WHERE n.node_id=?"
+                + node_scope
+                + " AND "
+                + node_visibility,
+                [node_id, *node_scope_params, *node_visibility_params],
             ).fetchone()
         if row is None:
             return None
         metadata = MemoryMetadata(json_object(row["properties_json"]))
+        metadata.setdefault("importance", float(row["importance"]))
+        metadata.setdefault("confidence", float(row["confidence"]))
         metadata.setdefault("memory_node_type", str(row["node_type"]))
         return MemoryNode(
             id=str(row["node_id"]),
@@ -85,66 +110,131 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         edges: list[Edge] | None = None,
     ) -> bool:
         with self._lock:
+            episode_scope = ""
+            episode_params: list[object] = [node_id]
+            if getattr(self, "elfie_id", None) is not None:
+                episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                episode_params.append(str(self.elfie_id))
+            episode_visibility, episode_visibility_params = self._genesis_visibility(
+                "e"
+            )
+            episode_params.extend(episode_visibility_params)
             episode = self.conn.execute(
-                "SELECT * FROM episodes WHERE episode_id=?", (node_id,)
+                "SELECT e.* FROM episodes AS e WHERE e.episode_id=?"
+                + episode_scope
+                + " AND "
+                + episode_visibility,
+                episode_params,
             ).fetchone()
             if episode is not None:
-                current = json_object(episode["metadata_json"])
-                if metadata:
-                    current.update(dict(metadata))
-                text = content if content is not None else str(episode["content_text"])
-                digest = content_hash(text)
-                cursor = self.conn.execute(
-                    """UPDATE episodes SET content_text=?, content_sha256=?,
-                           metadata_json=?, updated_at=? WHERE episode_id=?""",
-                    (text, digest, canonical_json(current), utc_now(), node_id),
-                )
-                self._upsert_episode_fts_from_values(
-                    node_id, text, episode["summary_text"]
-                )
-                self.conn.commit()
-                changed = cursor.rowcount > 0
+                owns = self._begin_write_transaction()
+                try:
+                    current = json_object(episode["metadata_json"])
+                    if metadata:
+                        current.update(dict(metadata))
+                    text = (
+                        content if content is not None else str(episode["content_text"])
+                    )
+                    digest = content_hash(text)
+                    cursor = self.conn.execute(
+                        """UPDATE episodes SET content_text=?, content_sha256=?,
+                               metadata_json=?, updated_at=?, projection_revision=NULL,
+                               projection_source_sha256=NULL WHERE episode_id=?"""
+                        + (
+                            " AND json_extract(metadata_json, '$.elfie_id')=?"
+                            if getattr(self, "elfie_id", None) is not None
+                            else ""
+                        ),
+                        (
+                            text,
+                            digest,
+                            canonical_json(current),
+                            utc_now(),
+                            node_id,
+                            *(
+                                (str(self.elfie_id),)
+                                if getattr(self, "elfie_id", None) is not None
+                                else ()
+                            ),
+                        ),
+                    )
+                    self._upsert_episode_fts_from_values(
+                        node_id, text, episode["summary_text"]
+                    )
+                    changed = cursor.rowcount > 0
+                    self._commit_write_transaction(owns)
+                except Exception:
+                    self._rollback_write_transaction(owns)
+                    raise
             else:
+                node_visibility, node_visibility_params = self._genesis_visibility("n")
+                node_scope = ""
+                node_scope_params: list[object] = []
+                if getattr(self, "elfie_id", None) is not None:
+                    node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                    node_scope_params.append(str(self.elfie_id))
                 row = self.conn.execute(
-                    "SELECT * FROM nodes WHERE node_id=?", (node_id,)
+                    "SELECT n.* FROM nodes AS n WHERE n.node_id=?"
+                    + node_scope
+                    + " AND "
+                    + node_visibility,
+                    [node_id, *node_scope_params, *node_visibility_params],
                 ).fetchone()
                 if row is None:
                     changed = False
                 else:
-                    properties = json_object(row["properties_json"])
-                    if metadata:
-                        properties.update(dict(metadata))
-                    label = (
-                        content if content is not None else str(row["canonical_label"])
-                    )
-                    now = utc_now()
-                    cursor = self.conn.execute(
-                        """UPDATE nodes SET canonical_label=?, normalized_label=?,
-                               description=?, properties_json=?, updated_at=?
-                           WHERE node_id=?""",
-                        (
-                            label,
-                            normalize_text(label),
-                            content if content is not None else row["description"],
-                            canonical_json(properties),
-                            now,
-                            node_id,
-                        ),
-                    )
-                    self.conn.execute(
-                        """INSERT INTO nodes_fts(node_id, searchable_text) VALUES (?, ?)
-                           ON CONFLICT(node_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-                        (
-                            node_id,
-                            "\n".join(
-                                value
-                                for value in (label, row["description"] or "")
-                                if value
+                    owns = self._begin_write_transaction()
+                    try:
+                        properties = json_object(row["properties_json"])
+                        if metadata:
+                            properties.update(dict(metadata))
+                        label = (
+                            content
+                            if content is not None
+                            else str(row["canonical_label"])
+                        )
+                        now = utc_now()
+                        cursor = self.conn.execute(
+                            """UPDATE nodes SET canonical_label=?, normalized_label=?,
+                                   description=?, properties_json=?, updated_at=?
+                               WHERE node_id=?"""
+                            + (
+                                " AND json_extract(properties_json, '$.elfie_id')=?"
+                                if getattr(self, "elfie_id", None) is not None
+                                else ""
                             ),
-                        ),
-                    )
-                    self.conn.commit()
-                    changed = cursor.rowcount > 0
+                            (
+                                label,
+                                normalize_text(label),
+                                content if content is not None else row["description"],
+                                canonical_json(properties),
+                                now,
+                                node_id,
+                                *(
+                                    (str(self.elfie_id),)
+                                    if getattr(self, "elfie_id", None) is not None
+                                    else ()
+                                ),
+                            ),
+                        )
+                        self.conn.execute(
+                            """INSERT INTO nodes_fts(node_id, searchable_text) VALUES (?, ?)
+                               ON CONFLICT(node_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
+                            (
+                                node_id,
+                                "\n".join(
+                                    value
+                                    for value in (label, row["description"] or "")
+                                    if value
+                                ),
+                            ),
+                        )
+                        changed = cursor.rowcount > 0
+                        self._commit_write_transaction(owns)
+                    except Exception:
+                        self._rollback_write_transaction(owns)
+                        raise
+
         if edges is not None and changed:
             for edge in edges:
                 self.add_edge(node_id, edge.target, edge.rel, edge.weight)
@@ -152,32 +242,72 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
 
     def delete_node(self, node_id: str) -> bool:
         with self._lock:
+            episode_scope = ""
+            episode_params: list[object] = [node_id]
+            if getattr(self, "elfie_id", None) is not None:
+                episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                episode_params.append(str(self.elfie_id))
+            episode_visibility, episode_visibility_params = self._genesis_visibility(
+                "e"
+            )
+            episode_params.extend(episode_visibility_params)
             episode = self.conn.execute(
-                "SELECT episode_id FROM episodes WHERE episode_id=?", (node_id,)
+                "SELECT e.episode_id FROM episodes AS e WHERE e.episode_id=?"
+                + episode_scope
+                + " AND "
+                + episode_visibility,
+                episode_params,
             ).fetchone()
             if episode is not None:
-                digest_row = self.conn.execute(
-                    "SELECT content_sha256 FROM episodes WHERE episode_id=?",
-                    (node_id,),
-                ).fetchone()
-                forgotten_text = (
-                    f"[forgotten:{digest_row['content_sha256']}]"
-                    if digest_row is not None
-                    else "[forgotten]"
-                )
-                cursor = self.conn.execute(
-                    """UPDATE episodes SET lifecycle='forgotten', detail_level='digest',
-                           content_text=?, summary_text=NULL, updated_at=?
-                       WHERE episode_id=?""",
-                    (forgotten_text, utc_now(), node_id),
-                )
-                self._upsert_episode_fts_from_values(node_id, forgotten_text, None)
+                owns = self._begin_write_transaction()
+                try:
+                    digest_row = self.conn.execute(
+                        "SELECT content_sha256 FROM episodes WHERE episode_id=?",
+                        (node_id,),
+                    ).fetchone()
+                    forgotten_text = (
+                        f"[forgotten:{digest_row['content_sha256']}]"
+                        if digest_row is not None
+                        else "[forgotten]"
+                    )
+                    cursor = self.conn.execute(
+                        """UPDATE episodes SET lifecycle='forgotten', detail_level='digest',
+                               content_text=?, summary_text=NULL, updated_at=?
+                           WHERE episode_id=?"""
+                        + (
+                            " AND json_extract(metadata_json, '$.elfie_id')=?"
+                            if getattr(self, "elfie_id", None) is not None
+                            else ""
+                        ),
+                        (
+                            forgotten_text,
+                            utc_now(),
+                            node_id,
+                            *(
+                                (str(self.elfie_id),)
+                                if getattr(self, "elfie_id", None) is not None
+                                else ()
+                            ),
+                        ),
+                    )
+                    self._upsert_episode_fts_from_values(node_id, forgotten_text, None)
+                    self._commit_write_transaction(owns)
+                except Exception:
+                    self._rollback_write_transaction(owns)
+                    raise
             else:
-                cursor = self.conn.execute(
-                    "UPDATE nodes SET status='forgotten', updated_at=? WHERE node_id=?",
-                    (utc_now(), node_id),
-                )
-            self.conn.commit()
+                node_visibility, node_visibility_params = self._genesis_visibility("n")
+                owns = self._begin_write_transaction()
+                try:
+                    cursor = self.conn.execute(
+                        "UPDATE nodes SET status='forgotten', updated_at=? WHERE node_id=? AND "
+                        + node_visibility,
+                        [utc_now(), node_id, *node_visibility_params],
+                    )
+                    self._commit_write_transaction(owns)
+                except Exception:
+                    self._rollback_write_transaction(owns)
+                    raise
         return cursor.rowcount > 0
 
     def get_nodes_by_type(self, node_type: str, limit: int = 100) -> list[MemoryNode]:
@@ -185,18 +315,41 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
             return []
         if node_type == "episodic":
             with self._lock:
+                scope = ""
+                params: list[object] = [limit]
+                if getattr(self, "elfie_id", None) is not None:
+                    scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                    params = [str(self.elfie_id), limit]
+                visibility, visibility_params = self._genesis_visibility("e")
+                params[-1:-1] = visibility_params
                 rows = self.conn.execute(
-                    """SELECT * FROM episodes WHERE lifecycle <> 'forgotten'
-                       ORDER BY occurred_from, episode_id LIMIT ?""",
-                    (limit,),
+                    """SELECT e.* FROM episodes AS e WHERE e.lifecycle <> 'forgotten'
+                       """
+                    + scope
+                    + " AND "
+                    + visibility
+                    + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
+                    params,
                 ).fetchall()
             return [self._episode_row_to_node(row) for row in rows]
         with self._lock:
+            scope = ""
+            params: list[object] = [node_type, node_type]
+            if getattr(self, "elfie_id", None) is not None:
+                scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("n")
+            params.extend(visibility_params)
+            params.append(limit)
             rows = self.conn.execute(
-                """SELECT * FROM nodes WHERE (node_type=? OR json_extract(properties_json, '$.entity_type')=? )
-                                      AND status <> 'forgotten' AND merged_into IS NULL
-                   ORDER BY node_id LIMIT ?""",
-                (node_type, node_type, limit),
+                """SELECT n.* FROM nodes AS n WHERE (n.node_type=? OR json_extract(n.properties_json, '$.entity_type')=? )
+                                      AND n.status <> 'forgotten' AND n.merged_into IS NULL
+                   """
+                + scope
+                + " AND "
+                + visibility
+                + " ORDER BY n.node_id LIMIT ?",
+                params,
             ).fetchall()
         return [
             MemoryNode(
@@ -215,30 +368,93 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         if node_type != "episodic":
             return []
         with self._lock:
+            scope = ""
+            params: list[object] = []
+            if getattr(self, "elfie_id", None) is not None:
+                scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("e")
+            params.extend(visibility_params)
             rows = self.conn.execute(
-                """SELECT * FROM episodes
-                   WHERE lifecycle='active'
-                     AND consolidation_state IN ('pending', 'failed')
-                   ORDER BY occurred_from, episode_id"""
+                """SELECT e.* FROM episodes AS e
+                   WHERE e.lifecycle='active'
+                     AND e.consolidation_state IN ('pending', 'failed')
+                     AND (e.projection_revision IS NULL OR e.projection_source_sha256 IS NULL
+                          OR e.projection_source_sha256 <> e.content_sha256)
+                   """
+                + scope
+                + " AND "
+                + visibility
+                + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id",
+                params,
             ).fetchall()
         return [self._episode_row_to_node(row) for row in rows]
 
     def count_nodes(self, node_type: str | None = None) -> int:
         with self._lock:
             if node_type == "episodic":
+                scope = ""
+                params: list[object] = []
+                if getattr(self, "elfie_id", None) is not None:
+                    scope = " AND json_extract(metadata_json, '$.elfie_id')=?"
+                    params.append(str(self.elfie_id))
+                visibility, visibility_params = self._genesis_visibility("episodes")
+                params.extend(visibility_params)
                 row = self.conn.execute(
                     "SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten'"
+                    + scope
+                    + " AND "
+                    + visibility,
+                    params,
                 ).fetchone()
             elif node_type is None:
+                scope_episode = ""
+                scope_node = ""
+                params: list[object] = []
+                if getattr(self, "elfie_id", None) is not None:
+                    scope_episode = " AND json_extract(metadata_json, '$.elfie_id')=?"
+                    scope_node = " AND json_extract(properties_json, '$.elfie_id')=?"
+                    params.extend([str(self.elfie_id), str(self.elfie_id)])
+                episode_visibility, episode_visibility_params = (
+                    self._genesis_visibility("episodes")
+                )
+                node_visibility, node_visibility_params = self._genesis_visibility(
+                    "nodes"
+                )
+                params = [
+                    *params[:1],
+                    *episode_visibility_params,
+                    *params[1:2],
+                    *node_visibility_params,
+                ]
                 row = self.conn.execute(
-                    "SELECT (SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten') + (SELECT COUNT(*) FROM nodes WHERE status <> 'forgotten')"
+                    "SELECT (SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten'"
+                    + scope_episode
+                    + " AND "
+                    + episode_visibility
+                    + ") + (SELECT COUNT(*) FROM nodes WHERE status <> 'forgotten'"
+                    + scope_node
+                    + " AND "
+                    + node_visibility
+                    + ")",
+                    params,
                 ).fetchone()
             else:
+                scope = ""
+                params: list[object] = [node_type, node_type]
+                if getattr(self, "elfie_id", None) is not None:
+                    scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                    params.append(str(self.elfie_id))
+                visibility, visibility_params = self._genesis_visibility("n")
+                params.extend(visibility_params)
                 row = self.conn.execute(
-                    """SELECT COUNT(*) FROM nodes
-                        WHERE (node_type=? OR json_extract(properties_json, '$.entity_type')=? )
-                          AND status <> 'forgotten' AND merged_into IS NULL""",
-                    (node_type, node_type),
+                    """SELECT COUNT(*) FROM nodes AS n
+                        WHERE (n.node_type=? OR json_extract(n.properties_json, '$.entity_type')=? )
+                          AND n.status <> 'forgotten' AND n.merged_into IS NULL"""
+                    + scope
+                    + " AND "
+                    + visibility,
+                    params,
                 ).fetchone()
         return int(row[0])
 
@@ -247,6 +463,8 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         query: str,
         top_k: int = 5,
         node_type: str | None = None,
+        *,
+        privacy_scope: str | None = None,
     ) -> list[tuple[str, float]]:
         """Deterministic lexical search over Episode text and graph labels."""
         if top_k < 1 or not query.strip():
@@ -258,6 +476,18 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         candidates: list[tuple[str, str, str, str]] = []
         with self._lock:
             if node_type in (None, "episodic"):
+                episode_scope = ""
+                episode_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                    episode_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    episode_scope += " AND e.privacy_scope=?"
+                    episode_params.append(privacy_scope)
+                episode_visibility, episode_visibility_params = (
+                    self._genesis_visibility("e")
+                )
+                episode_params.extend(episode_visibility_params)
                 episode_where = " OR ".join(
                     "f.searchable_text LIKE ?" for _ in like_patterns
                 )
@@ -266,13 +496,26 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                        FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
                        WHERE e.lifecycle <> 'forgotten' AND ("""
                     + episode_where
-                    + ")",
-                    like_patterns,
+                    + ")"
+                    + episode_scope
+                    + " AND "
+                    + episode_visibility,
+                    episode_params,
                 ).fetchall()
                 candidates.extend(
                     (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
                 )
             if node_type is None or node_type != "episodic":
+                node_scope = ""
+                node_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                    node_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    node_scope += " AND n.privacy_scope=?"
+                    node_params.append(privacy_scope)
+                node_visibility, node_visibility_params = self._genesis_visibility("n")
+                node_params.extend(node_visibility_params)
                 node_where = " OR ".join(
                     "f.searchable_text LIKE ?" for _ in like_patterns
                 )
@@ -284,8 +527,11 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                        WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
                          AND ("""
                     + node_where
-                    + ")",
-                    like_patterns,
+                    + ")"
+                    + node_scope
+                    + " AND "
+                    + node_visibility,
+                    node_params,
                 ).fetchall()
                 candidates.extend(
                     (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))
@@ -300,6 +546,13 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         # without changing the stricter normalization used for identity keys.
         query_normalized = _lexical_normalize(query)
         with self._lock:
+            alias_visibility, alias_visibility_params = self._genesis_visibility("n")
+            alias_scope_params = (
+                [str(self.elfie_id)]
+                if getattr(self, "elfie_id", None) is not None
+                else []
+            )
+            alias_privacy_params = [privacy_scope] if privacy_scope is not None else []
             exact_alias_ids = {
                 str(row[0])
                 for row in self.conn.execute(
@@ -308,8 +561,21 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                          JOIN nodes AS n ON n.node_id=a.node_id
                         WHERE a.normalized_alias=?
                           AND n.status <> 'forgotten'
-                          AND n.merged_into IS NULL""",
-                    (normalize_text(query),),
+                          AND n.merged_into IS NULL
+                          AND """
+                    + alias_visibility
+                    + (
+                        " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                        if getattr(self, "elfie_id", None) is not None
+                        else ""
+                    )
+                    + (" AND n.privacy_scope=?" if privacy_scope is not None else ""),
+                    [
+                        normalize_text(query),
+                        *alias_visibility_params,
+                        *alias_scope_params,
+                        *alias_privacy_params,
+                    ],
                 ).fetchall()
             }
         for identifier, text, kind, canonical_label in candidates:
@@ -351,7 +617,8 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                 "importance", intensity / 100.0 if intensity > 1 else intensity
             )
         )
-        occurred = str(metadata.get("timestamp") or node.created_at or utc_now())
+        raw_occurred = metadata.get("timestamp") or node.created_at
+        occurred = None if raw_occurred is None else str(raw_occurred)
         source_event_ids = tuple(
             str(value) for value in _list(metadata.get("source_event_ids"))
         )
@@ -361,6 +628,7 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                 metadata.get("idempotency_key") or f"legacy-node:{node.id}"
             ),
             occurred_from=occurred,
+            occurrence_precision="exact" if occurred is not None else "unknown",
             content_text=node.content,
             event_kind=str(metadata.get("event_kind") or "interaction"),
             source_event_ids=source_event_ids,
@@ -388,7 +656,9 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
 
     def _episode_row_to_node(self, row: sqlite3.Row) -> MemoryNode:
         metadata = MemoryMetadata(json_object(row["metadata_json"]))
-        metadata["timestamp"] = str(row["occurred_from"])
+        metadata["timestamp"] = (
+            None if row["occurred_from"] is None else str(row["occurred_from"])
+        )
         metadata["importance"] = float(row["importance"])
         metadata["consolidated"] = str(row["consolidation_state"]) == "consolidated"
         metadata["detail_level"] = str(row["detail_level"])

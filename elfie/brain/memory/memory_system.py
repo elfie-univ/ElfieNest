@@ -48,6 +48,8 @@ from .memory_records import (
     ConsolidationBatchReceipt,
     ConsolidationRequest,
     EpisodeReceipt,
+    MaintenanceReceipt,
+    MaintenanceRequest,
     RecallBundle,
     RecallRequest,
 )
@@ -79,6 +81,10 @@ class MemorySystem:
     ):
         """初始化所有语义组件；具体存储由 Bootstrap 注入。"""
         self.storage = storage
+        if elfie_id is not None:
+            binder = getattr(storage, "bind_elfie_identity", None)
+            if callable(binder):
+                binder(elfie_id)
         self._owns_storage = False
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         state_at = initial_at or self._clock()
@@ -136,6 +142,9 @@ class MemorySystem:
         self,
         elfie_id: str,
     ) -> None:
+        binder = getattr(self.storage, "bind_elfie_identity", None)
+        if callable(binder):
+            binder(elfie_id)
         self.encoder.elfie_id = elfie_id
         self.consolidator.elfie_id = elfie_id
 
@@ -456,6 +465,92 @@ class MemorySystem:
                 )
             )
         return receipt
+
+    def run_maintenance(
+        self,
+        request: MaintenanceRequest | None = None,
+        model_port: MemoryModelPort | None = None,
+    ) -> MaintenanceReceipt:
+        """Run the Memory-owned ordered Consolidation then Lifecycle stages."""
+        resolved = request or MaintenanceRequest()
+        batch = self.consolidator.run_batch(
+            ConsolidationRequest(
+                max_episodes=resolved.max_episodes,
+                worker_id=resolved.worker_id,
+            ),
+            model_port=model_port,
+        )
+        lifecycle = getattr(self.storage, "run_lifecycle", None)
+        if not callable(lifecycle):
+            status = (
+                "partial"
+                if batch.failed_episode_ids and batch.consolidated_episode_ids
+                else "failed"
+                if batch.failed_episode_ids
+                else "completed"
+                if batch.consolidated_episode_ids
+                else "empty"
+            )
+            result = MaintenanceReceipt(
+                worker_id=resolved.worker_id,
+                status=status,  # type: ignore[arg-type]
+                consolidated_episode_ids=batch.consolidated_episode_ids,
+                knowledge_created=batch.nodes_created,
+                edges_created=batch.assertions_created,
+                evidence_created=batch.evidence_created,
+                failed_episode_ids=batch.failed_episode_ids,
+                checkpoint=resolved.checkpoint,
+                errors=batch.errors,
+            )
+            if result.consolidated_episode_ids or result.failed_episode_ids:
+                self._commit_state(
+                    causation_id=EventId(f"memory-maintenance:{uuid4().hex}")
+                )
+            return result
+        lifecycle_receipt = lifecycle(resolved)
+        errors = {**dict(batch.errors), **dict(lifecycle_receipt.errors)}
+        if batch.failed_episode_ids:
+            status = (
+                "partial"
+                if (
+                    batch.consolidated_episode_ids
+                    or lifecycle_receipt.lifecycle_episode_ids
+                    or lifecycle_receipt.lifecycle_node_ids
+                    or lifecycle_receipt.lifecycle_assertion_ids
+                )
+                else "failed"
+            )
+        elif lifecycle_receipt.status == "empty" and not batch.consolidated_episode_ids:
+            status = "empty"
+        else:
+            status = "partial" if errors else "completed"
+        result = MaintenanceReceipt(
+            worker_id=resolved.worker_id,
+            status=status,  # type: ignore[arg-type]
+            consolidated_episode_ids=batch.consolidated_episode_ids,
+            lifecycle_episode_ids=lifecycle_receipt.lifecycle_episode_ids,
+            lifecycle_node_ids=lifecycle_receipt.lifecycle_node_ids,
+            lifecycle_assertion_ids=lifecycle_receipt.lifecycle_assertion_ids,
+            knowledge_created=batch.nodes_created,
+            edges_created=batch.assertions_created,
+            evidence_created=batch.evidence_created,
+            failed_episode_ids=batch.failed_episode_ids,
+            checkpoint=lifecycle_receipt.checkpoint or resolved.checkpoint,
+            errors=errors,
+        )
+        if any(
+            (
+                result.consolidated_episode_ids,
+                result.lifecycle_episode_ids,
+                result.lifecycle_node_ids,
+                result.lifecycle_assertion_ids,
+                result.failed_episode_ids,
+            )
+        ):
+            self._commit_state(
+                causation_id=EventId(f"memory-maintenance:{uuid4().hex}")
+            )
+        return result
 
     @property
     def revision(self) -> int:

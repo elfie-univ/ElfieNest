@@ -138,7 +138,7 @@ Lifecycle eligibility is a predicate, not a stored score. Lifecycle Stage select
 ```text
 One-time Genesis
 ApprovedSeedSource ──► Genesis manifest
-                         └─ atomic complete-package commit ──► all Memory outputs + marker
+                         └─ each submission: atomic commit ──► its Memory outputs + marker
 
 Normal runtime
 Workspace closes ClosedEpisode ── capture transaction ──► complete Episode + source references
@@ -159,9 +159,13 @@ Genesis is a one-time side entrance. The normal path never writes graph facts fr
 
 `ApprovedSeedSource` is immutable, versioned and hashable. A Genesis manifest has exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or seed Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. All outputs carry seed Evidence.
 
-Genesis has one completion contract for the Memory package. For a valid manifest, every expected authoritative and child record—Nodes, Assertions, Evidence, biography Episodes, aliases, descriptions and mentions—and the final completion marker must be durable and visible as one completed package. Atomicity means “accept only the complete package”: no partial output may be exposed or reported as initialized. Validation failure is rejected before any write. A crash or transient write failure is not a terminal initialization result: the package remains unpublished, and the recovery owner must retain or reconstruct the immutable input and retry the same manifest ID and hash as a whole until reconciliation confirms every expected output and the marker. Internal cleanup of an interrupted attempt is only a recovery mechanism, never the result. If an operational fault prevents the current attempt from finishing, it may return only an incomplete/retryable outcome (or no receipt), never `committed`; the recovery owner continues whole-package retries. Adoption remains unpublished and the package is not recallable until reconciliation succeeds. A committed Elfie cannot be silently reinitialized by a different manifest; an upgrade is a separate approved operation. The outer coordinator must withhold adoption publication until this Memory package is complete; cross-owner publication remains its own contract and is not a fictitious cross-store transaction. Replaying the same ID and hash is idempotent; reusing an ID with a different hash is rejected. Genesis accepts explicit initial `importance` and `confidence`; it does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
+Genesis uses a submission-level completion contract. A Genesis submission is one complete, immutable set of Memory outputs supplied to Memory for one atomic commit. Genesis may call Memory any number of times; Memory does not choose the number, size, order, grouping, scheduling or meaning of those submissions (for example, core versus enrichment or foreground versus night work). Each submission has its own stable submission/idempotency identity and content hash, even when several submissions belong to one higher-level Genesis operation.
 
-Genesis admission is serialized per Elfie. The completion marker is the sole visibility gate for Genesis rows: no reader or maintenance pass may use a row from that manifest before the marker is present.
+For one valid submission, every expected authoritative and child record—Nodes, Assertions, Evidence, biography Episodes, aliases, descriptions and mentions—and that submission's completion marker must be durable and visible as one completed unit. Atomicity means “accept only the current submission”: validation happens before any write; the Unit of Work either commits every output and the marker or commits none of them. A failed call returns only a failed or retryable result and never `committed`. Retrying the same submission identity and hash is idempotent; reusing an identity with a different hash is rejected. Previously committed submissions remain valid when a later submission fails.
+
+The Genesis caller owns batching, ordering, retry timing and the decision about when adoption is published. Memory only exposes committed submissions to readers and maintenance; it does not report an overall Genesis operation as complete. A committed Elfie cannot be silently reinitialized by a different manifest; an upgrade is a separate approved operation. Cross-owner adoption publication remains its own contract and is not a fictitious cross-store transaction. Genesis accepts explicit initial `importance` and `confidence`; it does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
+
+Genesis admission is serialized per Elfie. The completion marker is the sole visibility gate for Genesis rows: no reader or maintenance pass may use a row from that submission before its marker is present. Genesis accepts any valid complete submission, including a submission containing only a subset of the approved seed families. It does not require every seed family in every submission and does not infer a caller's batching policy.
 
 ### 3.2 Normal runtime write
 
@@ -272,16 +276,16 @@ SQLite is the first physical implementation. One Memory Adapter/database is boun
 
 | Table | Required responsibility |
 | --- | --- |
-| `episodes` | Complete source content, occurrence range (nullable when unknown), historical `life_stage`/`temporal_label`, separate write time, context/media/source references, privacy scope and version, `importance`, `detail_level`, `lifecycle`, successful projection marker (revision bound to source version/content hash), lifecycle review metadata, idempotency key and content hash. |
+| `episodes` | Complete source content, occurrence range (nullable when unknown) and occurrence precision, historical `life_stage`/`temporal_label`, separate write time, attributed context/media/source references, privacy scope and version, `importance`, `detail_level`, `lifecycle`, successful projection marker (revision bound to source version/content hash), lifecycle review metadata, idempotency key and content hash. |
 | `nodes` | Canonical identity, type/label, scope/status, bounded summary, `importance`, `confidence` and merge pointer. |
 | `node_aliases` | Many scoped aliases with their own source and confidence. |
 | `node_descriptions` | Many language/kind-specific descriptions, content hash and source link. |
 | `episode_mentions` | Episode-to-Node links, roles/spans and resolved/ambiguous/unresolved state. |
-| `assertions` | Subject, predicate, Node or typed-literal object, qualifiers, polarity, epistemic status, viewpoint/context, validity, `importance`, `confidence`, conflict group, lifecycle state and fingerprint. |
+| `assertions` | Subject, predicate, Node or explicitly typed-literal object (type/value/unit), qualifiers, polarity, epistemic status, viewpoint/context, validity, `importance`, `confidence`, conflict group, lifecycle state and fingerprint. |
 | `evidence` | Episode or seed source locator, source version, excerpt/media span, modality, speaker/viewpoint, capture time and extraction metadata. |
 | `assertion_evidence` | Many-to-many Assertion/Evidence stance: `supports`, `contradicts` or `context`. |
 
-Genesis manifest ID/version/hash and its completion marker are durable package metadata owned by the Memory Adapter, not a semantic Node/Assertion and not a retry queue. The marker lives in the same Memory SQLite database and is committed in the same transaction as the package; its physical metadata record/table name is adapter-private and is not an additional semantic memory table. The marker is written only after every expected Memory row, including child rows, is ready for the final complete commit. Every Genesis-produced row carries the manifest identity, and readers ignore rows whose completion marker is absent. A retryable or interrupted manifest is not an initialized Memory and is not recallable as one; its operational control state may be reconstructed from the immutable package. The marker records (or hashes) the expected IDs/counts for each output family so reconciliation proves more than the presence of Node rows. Derived FTS/vector indexes and RAM caches are not part of the fact-package completion check and may be rebuilt only after the complete commit. These records do not form a second mutable fact store. Only `importance` and `confidence` are semantic scores; Evidence rows and their stances are the authoritative support record.
+Each Genesis submission's ID/version/hash and completion marker are durable package metadata owned by the Memory Adapter, not a semantic Node/Assertion and not a retry queue. The marker lives in the same Memory SQLite database and is committed in the same transaction as that submission; its physical metadata record/table name is adapter-private and is not an additional semantic memory table. The marker is written only after every expected Memory row, including child rows, is ready for the commit. Every Genesis-produced row carries the submission identity, and readers ignore rows whose submission marker is absent. A retryable or interrupted submission is not an initialized Memory and is not recallable as one; its operational control state may be reconstructed from the immutable input. The marker records (or hashes) the expected IDs/counts for each output family so reconciliation proves more than the presence of Node rows. Derived FTS/vector indexes and RAM caches are not part of the fact-package completion check and may be rebuilt only after the complete commit. These records do not form a second mutable fact store. Only `importance` and `confidence` are semantic scores; Evidence rows and their stances are the authoritative support record.
 
 ### 5.2 Derived indexes and cache
 
@@ -297,13 +301,13 @@ Aliases may be ambiguous across scope. Mentions may remain unresolved. Descripti
 
 ### 5.4 Transactions and Unit of Work
 
-Genesis applies the completion guarantee in §3.1: it validates the complete manifest before opening one manifest-scoped transaction, writes every Memory output (Nodes, Assertions, Evidence, Episodes and child records) and the final marker in that commit, and returns success only after the complete set is reconciled. A failed commit is not a completed state; the same immutable manifest remains unpublished and is resumed/retried as a whole until it can be committed. Normal capture commits the complete Episode and its source references together; its derived text index may be updated in that transaction or rebuilt after commit. Maintenance validates model proposals outside the transaction, then commits graph changes, Evidence links, score updates, lifecycle and successful projection revision in one short Unit of Work; derived indexes are updated or rebuilt only after the fact commit and never decide whether the fact package completed. A transaction never includes model or network calls.
+Genesis applies the completion guarantee in §3.1: it validates one complete submission before opening one submission-scoped transaction, writes every Memory output (Nodes, Assertions, Evidence, Episodes and child records) and that submission's marker in the same commit, and returns success only after the complete set is reconciled. A failed commit is not a completed state; the same immutable submission remains unpublished and can be retried with the same identity and hash. Earlier successful submissions are not rolled back by a later failure. Normal capture commits the complete Episode and its source references together; its derived text index may be updated in that transaction or rebuilt after commit. Maintenance validates model proposals outside the transaction, then commits graph changes, Evidence links, score updates, lifecycle and successful projection revision in one short Unit of Work; derived indexes are updated or rebuilt only after the fact commit and never decide whether the fact package completed. A transaction never includes model or network calls.
 
 SQLite uses `PRAGMA user_version`, foreign keys, WAL, a bounded busy timeout and one serialized writer. Derived indexes can be deterministically rebuilt from authoritative tables.
 
 ### 5.5 Restart recovery
 
-Episodes, Nodes, Assertions and Evidence survive restart. Maintenance claims bounded records with operational leases/checkpoints; an expired lease is reclaimable. A crash before a normal commit leaves the source unchanged; a crash after commit is recognized by the idempotency key/fingerprint. A crash before the Genesis final commit leaves no accepted initialization; recovery checks the same immutable manifest ID/hash and retries the whole package. The `committed` state is valid only when every expected output, child record and the completion marker are present. FTS and RAM caches are rebuilt when missing.
+Episodes, Nodes, Assertions and Evidence survive restart. Maintenance claims bounded records with operational leases/checkpoints; an expired lease is reclaimable. A crash before a normal commit leaves the source unchanged; a crash after commit is recognized by the idempotency key/fingerprint. A crash before a Genesis submission commit leaves that submission unpublished; recovery checks the same immutable submission identity/hash and retries that submission. The `committed` state is valid only when every expected output, child record and that submission's completion marker are present. FTS and RAM caches are rebuilt when missing.
 
 ## 6. Lifecycle, recovery and development migration
 
@@ -341,7 +345,7 @@ Embedded duplicate edge JSON or source-less notes are diagnostics, not silently 
 6. Episodes are the detailed historical line; the graph is its structured semantic projection.
 7. Live state, plans, commitments, permissions and actions remain with their owning systems.
 8. Memory never directly reads Profile, Communication history or world runtime state.
-9. Genesis direct projection is limited to one approved manifest and cannot become runtime CRUD.
+9. Genesis direct projection is limited to approved submissions and cannot become runtime CRUD.
 
 ## 8. Validation and stage gates
 
@@ -349,7 +353,7 @@ Each implementation round closes only with code and replayable evidence. The tar
 
 ### 8.1 Source integrity
 
-Verify complete Episode capture, content hashes, idempotency, atomic Genesis completion, retry behavior and reopen-after-restart. Gate: 100% of accepted fixtures preserve source hashes, every valid Genesis reaches a complete marker with all expected child records, and no partial Genesis is visible.
+Verify complete Episode capture, content hashes, idempotency, atomic Genesis submission completion, retry behavior and reopen-after-restart. Gate: 100% of accepted fixtures preserve source hashes, every accepted submission reaches a complete marker with all expected child records, and no uncommitted submission output is visible.
 
 ### 8.2 Graph provenance
 
@@ -366,3 +370,50 @@ Verify that new evidence updates `importance` and `confidence` once, repeated ev
 ### 8.5 Performance and capacity
 
 Measure both maintenance stages, bounded RAM, growth/retention behavior and database-only Basic + Local p95 ≤ 150 ms on a representative 10,000-Episode / 50,000-Node / 200,000-Assertion fixture. If migration is performed, also require 100% eligible source-hash reconciliation and an ID-level report for every skipped item.
+
+## 9. Resolved implementation decisions
+
+This section closes implementation ambiguities identified during review. It is normative for the Memory implementation, but it does not assign Genesis batching, ordering or scheduling to Memory.
+
+### 9.1 Source shape, namespace and privacy
+
+- The Memory Adapter is constructed for one immutable `elfie_id`; every read, write, maintenance operation and Genesis submission is checked against that namespace. A caller cannot widen it through a request or raw identifier.
+- `occurred_from` and `occurred_to` may be unknown. An explicit occurrence-precision value distinguishes an exact instant, a bounded range and an unknown time; unknown time is not replaced with a fake epoch and is excluded from time ranking unless the caller requests an unknown-time facet.
+- Episode attribution is typed as `observed`, `told`, `inferred` or `felt`. Participants, places and objects are represented by bounded `episode_mentions` roles; scene context is retained as bounded source context, not hidden graph edges.
+- Source and media references carry version/locator/hash data. Privacy scope is enforced at the Memory boundary and is included in source inspection and Recall filtering; it is never inferred from a display label.
+- Corrections create a new sourced Episode/Assertion. The historical source row and its version are not mutated in place.
+
+### 9.2 Scores, review and lifecycle
+
+- Only `importance` and `confidence` are persisted semantic scores. The old `support_score` is migration input or a derived compatibility value, never a third authoritative score.
+- A versioned score policy recomputes contributions from unique, stable source/evidence IDs and explicit owner inputs. A retry, duplicate Evidence link or repeated maintenance pass cannot add the same contribution twice.
+- Episodes, Nodes and Assertions carry review/reinforcement timestamps (or a deterministic equivalent) and a policy version. Lifecycle selection is a due predicate, not another score.
+- Lifecycle transitions are guarded and ordered: preserve a source that lacks a successful current projection; then allow `full` → `compressed` → `digest`, archive separately, and forget only after source/Evidence dependency checks. Forgetting never removes the last auditable Evidence for an active Assertion.
+- Consolidation leases, retry attempts, checkpoints and rejected proposals are operational control data outside authoritative fact rows. One bounded Memory Maintenance Unit of Work owns the writer transaction; normal capture and Genesis submissions remain separate operations.
+
+### 9.3 Projection and predicate validation
+
+- Predicates are resolved against a versioned registry with explicit aliases and deprecations. The registry version is recorded with each successful projection.
+- An unknown or invalid model proposal is retained only as bounded diagnostic/retry data and is never inserted as an active Assertion. It can be retried after the registry or source validation changes.
+- A successful projection records `(source_version, source_hash, projection_revision)`. Missing or stale revision means the current source still needs projection; a retry does not create a second Episode.
+- Runtime callers use only the source-first typed path. Legacy `add_edge`/bare-edge writes are removed after their callers are migrated and remain migration/diagnostic-only during the transition.
+
+### 9.4 Recall semantics
+
+- Facets are positive constraints: different facet families combine with AND, values within one family combine with OR, and missing facet data does not become a negative fact. Historical emotion is read from the Episode's attributed source, never from live Emotion state.
+- Ranking is deterministic and uses match strength, path length, `importance`, `confidence`, time relevance and stable ID in that order. All score components are bounded and documented by the policy version.
+- Active Assertions are preferred, while relevant `superseded` and conflicting Assertions remain visible with explicit status and Evidence. Privacy and namespace filtering happen before ranking.
+- Basic/Text and Local/Graph are the initial modes. Global/community and vector retrieval remain derived, later capabilities and are not advertised by the initial contract.
+
+### 9.5 Migration and compatibility
+
+- Schema changes create a fresh target schema and use an explicit version check; an old or mixed database is never silently altered into a new fact model. Existing development data is imported through the migration tool, while production cutover remains separately approved.
+- A legacy edge becomes an active Assertion only when its source has been converted to a verified Episode or approved seed Evidence. Source-less edges, embedded edge JSON and incomplete notes produce deterministic skip/diagnostic records instead.
+- Import produces an ID mapping plus per-family counts, source hashes and skipped-item reasons. A failed reconciliation leaves the old Adapter active; no long-term dual write or fallback reader is added.
+
+### 9.6 Verification and observability
+
+- Every write path has failure-injection coverage before and after its commit point, including concurrent duplicate submission, hash mismatch, restart, lease expiry and uncommitted-row visibility.
+- Maintenance and Recall tests cover idempotent score updates, source protection, facet semantics, supersession/conflict visibility, namespace/privacy isolation and hard truncation limits. Migration tests cover fresh-target reopen and skipped legacy evidence.
+- Performance evidence records cold/warm initialization, per-Unit-of-Work time, SQLite lock wait, row counts, retry latency and Recall p95. The existing representative Recall target remains p95 ≤ 150 ms; Genesis batching policy is chosen from measured startup evidence, not from this Memory contract.
+- After schema or transaction changes, rerun the persistence inventory, focused adapter/contract tests, quality checks and `git diff --check`; update the Conformance row with target, inventory, references, verification and residuals.

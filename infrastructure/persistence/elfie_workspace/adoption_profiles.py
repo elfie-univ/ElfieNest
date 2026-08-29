@@ -170,7 +170,9 @@ class FinalElfieWorkspaceAdapter:
                     reservation.build,
                 )
             )
-            with SQLiteMemoryStoreAdapter(layout.knowledge_database) as memory_store:
+            with SQLiteMemoryStoreAdapter(
+                layout.knowledge_database, elfie_id=reservation.elfie_id
+            ) as memory_store:
                 GenesisMemoryCommitter().commit(
                     _genesis_bundle(
                         reservation,

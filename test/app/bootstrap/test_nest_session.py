@@ -76,7 +76,7 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
     monkeypatch.setattr(
         nest_session_bootstrap,
         "SQLiteMemoryStoreAdapter",
-        lambda _path: object(),
+        lambda _path, **_kwargs: object(),
     )
     monkeypatch.setattr(
         nest_session_bootstrap,
