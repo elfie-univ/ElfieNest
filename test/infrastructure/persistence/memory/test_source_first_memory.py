@@ -179,21 +179,31 @@ def test_migration_imports_events_edges_and_reports_source_counts(
             "INSERT INTO entities VALUES ('b','food','香菜','',.8,'','','{}')"
         )
         connection.execute(
-            "INSERT INTO events VALUES ('e','2026-01-01','chat','主人喜欢香菜',.8,'{}')"
+            "INSERT INTO events VALUES ('e',NULL,'chat','主人喜欢香菜',.8,'{}')"
         )
         connection.execute(
             "INSERT INTO entity_edges VALUES ('x','a','b','likes','',.8,.8)"
         )
     report = import_legacy_database(source, target)
     assert report.source_events == report.imported_episodes == 1
-    assert report.source_edges == report.imported_assertions == 1
+    assert report.source_edges == 1
+    assert report.imported_assertions == 0
     assert report.imported_nodes == 2
+    assert report.id_mapping["entity:a"] == "a"
+    assert report.id_mapping["event:e"] == "e"
+    assert "edge:x" not in report.id_mapping
     assert report.episode_hash_matches == 1
-    assert report.reconciled is True
+    assert report.reconciled is False
+    assert any(
+        "skipped source-less legacy edge" in warning for warning in report.warnings
+    )
     assert report.target_digest
     with SQLiteMemoryStoreAdapter(target) as store:
-        assert store.get_episode("e") is not None
-        assert store.graph_assertions_for(("a",))[0].evidence_ids
+        episode = store.get_episode("e")
+        assert episode is not None
+        assert episode.occurred_from is None
+        assert episode.occurrence_precision == "unknown"
+        assert store.graph_assertions_for(("a",)) == ()
 
 
 def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> None:

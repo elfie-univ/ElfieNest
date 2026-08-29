@@ -430,6 +430,7 @@ class ConversationContextStore:
                 idempotency_key=episode_id,
                 occurred_from=first.occurred_at.isoformat(),
                 occurred_to=end.isoformat(),
+                occurrence_precision="range",
                 content_text=content,
                 event_kind="conversation_episode",
                 source_refs=tuple(

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections import defaultdict, deque
-from typing import Iterable
+from dataclasses import replace
+from typing import Iterable, cast
 
 from elfie.brain.memory.memory_records import (
+    OccurrencePrecision,
     RecallAssertion,
     RecallBundle,
     RecallConflict,
@@ -26,12 +29,14 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     conn: sqlite3.Connection
 
     def recall(self, request: RecallRequest) -> RecallBundle:
+        request = _bounded_request(request)
         if not request.text.strip() and not request.seed_node_ids:
             return self._empty_bundle(request)
 
         lexical_candidates = self.search_by_content(
             request.text,
             request.lexical_limit + 1 if request.lexical_limit > 0 else 0,
+            privacy_scope=request.privacy_scope,
         )
         lexical_truncated = len(lexical_candidates) > request.lexical_limit
         lexical = lexical_candidates[: request.lexical_limit]
@@ -42,7 +47,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             resolved = self.resolve_graph_node_id(node_id)
             if resolved is None:
                 continue
-            node = self.get_graph_node(resolved)
+            node = self.get_graph_node(resolved, privacy_scope=request.privacy_scope)
             # Explicit seeds are traversal anchors.  ``node_types`` filters
             # returned focus nodes/neighbors, but must not make a caller's
             # person seed unusable when it asks for related animal/concept
@@ -51,13 +56,15 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 seed_ids.append(resolved)
         episode_scores: dict[str, float] = {}
         for node_id, score in lexical:
-            graph_node = self.get_graph_node(node_id)
+            graph_node = self.get_graph_node(
+                node_id, privacy_scope=request.privacy_scope
+            )
             if graph_node is not None:
                 if not allowed_types or graph_node.node_type in allowed_types:
                     seed_ids.append(graph_node.node_id)
             else:
                 episode_scores[node_id] = score
-        if episode_scores and (request.occurred_from or request.occurred_to):
+        if episode_scores and _has_episode_filters(request):
             episode_scores = self._filter_episode_window(episode_scores, request)
 
         # An exact/rare term may first hit an Episode. Mentions promote its
@@ -76,7 +83,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 resolved = self.resolve_graph_node_id(str(row[0]))
                 if resolved is None:
                     continue
-                node = self.get_graph_node(resolved)
+                node = self.get_graph_node(
+                    resolved, privacy_scope=request.privacy_scope
+                )
                 if node is not None and (
                     not allowed_types or node.node_type in allowed_types
                 ):
@@ -103,6 +112,13 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     limit=request.neighbors_per_node + 1,
                     occurred_from=request.occurred_from,
                     occurred_to=request.occurred_to,
+                    person_node_ids=request.person_node_ids,
+                    place_node_ids=request.place_node_ids,
+                    emotion_labels=request.emotion_labels,
+                    topic_labels=request.topic_labels,
+                    cause_labels=request.cause_labels,
+                    privacy_scope=request.privacy_scope,
+                    include_unknown_time=request.include_unknown_time,
                 )
                 if len(local_candidates) > request.neighbors_per_node:
                     assertions_truncated = True
@@ -114,7 +130,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     neighbor = _neighbor(current, assertion)
                     if neighbor is None:
                         continue
-                    neighbor_node = self.get_graph_node(neighbor)
+                    neighbor_node = self.get_graph_node(
+                        neighbor, privacy_scope=request.privacy_scope
+                    )
                     if neighbor_node is None:
                         continue
                     if allowed_types and neighbor_node.node_type not in allowed_types:
@@ -143,6 +161,13 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 limit=request.assertion_limit + 1,
                 occurred_from=request.occurred_from,
                 occurred_to=request.occurred_to,
+                person_node_ids=request.person_node_ids,
+                place_node_ids=request.place_node_ids,
+                emotion_labels=request.emotion_labels,
+                topic_labels=request.topic_labels,
+                cause_labels=request.cause_labels,
+                privacy_scope=request.privacy_scope,
+                include_unknown_time=request.include_unknown_time,
             )
             if len(basic_candidates) > request.assertion_limit:
                 assertions_truncated = True
@@ -154,12 +179,18 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         assertions_tuple = tuple(
             sorted(
                 assertions.values(),
-                key=lambda item: (-item.relevance, item.assertion_id),
+                key=lambda item: (
+                    -item.relevance,
+                    -item.importance,
+                    -item.confidence,
+                    item.assertion_id,
+                ),
             )[: request.assertion_limit]
         )
         evidence_candidates = self.get_assertion_evidence(
             (assertion.assertion_id for assertion in assertions_tuple),
             request.evidence_limit + 1 if request.evidence_limit > 0 else 0,
+            privacy_scope=request.privacy_scope,
         )
         evidence_truncated = len(evidence_candidates) > request.evidence_limit
         evidence = evidence_candidates[: request.evidence_limit]
@@ -222,10 +253,13 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         nodes: list[RecallNode] = []
         allowed = set(request.node_types)
         for node_id in node_ids:
-            node = self.get_graph_node(node_id)
+            node = self.get_graph_node(node_id, privacy_scope=request.privacy_scope)
             if node is None or (allowed and node.node_type not in allowed):
                 continue
-            score = max(lexical_scores.get(node_id, 0.0), node.relevance * 0.5)
+            score = max(
+                lexical_scores.get(node_id, 0.0),
+                node.importance * 0.35 + node.confidence * 0.15,
+            )
             nodes.append(
                 RecallNode(
                     node_id=node.node_id,
@@ -233,6 +267,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     label=node.label,
                     description=node.description,
                     relevance=min(1.0, score),
+                    importance=node.importance,
+                    confidence=node.confidence,
                 )
             )
         return tuple(
@@ -247,13 +283,18 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         ids = tuple(scores)
         placeholders = ",".join("?" for _ in ids)
         clauses = [f"episode_id IN ({placeholders})", "lifecycle <> 'forgotten'"]
-        params: list[str] = list(ids)
-        if request.occurred_from is not None:
-            clauses.append("occurred_from >= ?")
-            params.append(request.occurred_from)
-        if request.occurred_to is not None:
-            clauses.append("occurred_from <= ?")
-            params.append(request.occurred_to)
+        params: list[object] = list(ids)
+        if getattr(self, "elfie_id", None) is not None:
+            clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
+            params.append(str(self.elfie_id))
+        time_conditions, time_params = _episode_time_conditions(request, "episodes")
+        clauses.extend(time_conditions)
+        params.extend(time_params)
+        facet_conditions, facet_params = _episode_facet_conditions_for_alias(
+            request, "episodes"
+        )
+        clauses.extend(facet_conditions)
+        params.extend(facet_params)
         with self._lock:
             rows = self.conn.execute(
                 "SELECT episode_id FROM episodes WHERE " + " AND ".join(clauses),
@@ -275,24 +316,29 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             return (), bool(episode_ids)
         with self._lock:
             placeholders = ",".join("?" for _ in episode_ids)
-            time_clauses: list[str] = []
-            time_params: list[str] = []
-            if request.occurred_from is not None:
-                time_clauses.append("occurred_from >= ?")
-                time_params.append(request.occurred_from)
-            if request.occurred_to is not None:
-                time_clauses.append("occurred_from <= ?")
-                time_params.append(request.occurred_to)
+            time_clauses, time_params = _episode_time_conditions(request, "episodes")
+            facet_conditions, facet_params = _episode_facet_conditions_for_alias(
+                request, "episodes"
+            )
+            time_clauses.extend(facet_conditions)
+            time_params.extend(facet_params)
+            namespace_clause = ""
+            namespace_params: list[str] = []
+            if getattr(self, "elfie_id", None) is not None:
+                namespace_clause = " AND json_extract(metadata_json, '$.elfie_id')=?"
+                namespace_params.append(str(self.elfie_id))
             where = " AND " + " AND ".join(time_clauses) if time_clauses else ""
             rows = self.conn.execute(
                 f"""SELECT episode_id, occurred_from, occurred_to,
-                           content_text, summary_text, detail_level
+                           occurrence_precision, life_stage, temporal_label,
+                           content_text, summary_text, detail_level, importance,
+                           source_event_ids_json
                       FROM episodes
                      WHERE episode_id IN ({placeholders})
                        AND lifecycle <> 'forgotten'
-                       {where}
-                     ORDER BY occurred_from, episode_id LIMIT ?""",
-                list(episode_ids) + time_params + [fetch_limit],
+                       {namespace_clause}{where}
+                     ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?""",
+                list(episode_ids) + namespace_params + time_params + [fetch_limit],
             ).fetchall()
         result: list[RecallEpisode] = []
         for row in rows:
@@ -301,14 +347,37 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             result.append(
                 RecallEpisode(
                     episode_id=episode_id,
-                    occurred_from=str(row["occurred_from"]),
+                    occurred_from=(
+                        None
+                        if row["occurred_from"] is None
+                        else str(row["occurred_from"])
+                    ),
                     occurred_to=row["occurred_to"],
                     excerpt=excerpt,
                     detail_level=str(row["detail_level"]),
                     relevance=direct_scores.get(episode_id, 0.5),
+                    occurrence_precision=cast(
+                        OccurrencePrecision,
+                        str(row["occurrence_precision"] or "exact"),
+                    ),
+                    life_stage=row["life_stage"],
+                    temporal_label=row["temporal_label"],
+                    importance=float(row["importance"]),
+                    source_event_ids=tuple(
+                        str(value) for value in _json_list(row["source_event_ids_json"])
+                    ),
                 )
             )
-        ordered = sorted(result, key=lambda item: (-item.relevance, item.episode_id))
+        ordered = sorted(
+            result,
+            key=lambda item: (
+                -item.relevance,
+                -item.importance,
+                0 if item.occurred_from is not None else 1,
+                item.occurred_from or "",
+                item.episode_id,
+            ),
+        )
         return tuple(ordered[: request.episode_limit]), len(
             ordered
         ) > request.episode_limit
@@ -402,6 +471,11 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
                 excerpt=excerpt,
                 detail_level=episode.detail_level,
                 relevance=episode.relevance,
+                occurrence_precision=episode.occurrence_precision,
+                life_stage=episode.life_stage,
+                temporal_label=episode.temporal_label,
+                importance=episode.importance,
+                source_event_ids=episode.source_event_ids,
             )
         )
     truncated = (
@@ -426,3 +500,130 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
 
 
 __all__ = ["SQLiteRecallStoreMixin"]
+
+
+_HARD_LIMITS = {
+    "lexical_limit": 20,
+    "seed_limit": 8,
+    "hop_limit": 2,
+    "neighbors_per_node": 12,
+    "node_limit": 40,
+    "assertion_limit": 80,
+    "episode_limit": 8,
+    "evidence_limit": 24,
+    "character_limit": 12000,
+}
+
+
+def _bounded_request(request: RecallRequest) -> RecallRequest:
+    """Apply the Memory contract's hard caps before touching storage."""
+    updates = {
+        name: min(getattr(request, name), cap)
+        for name, cap in _HARD_LIMITS.items()
+        if getattr(request, name) > cap
+    }
+    return replace(request, **updates) if updates else request
+
+
+def _has_episode_filters(request: RecallRequest) -> bool:
+    return bool(
+        request.occurred_from
+        or request.occurred_to
+        or request.person_node_ids
+        or request.place_node_ids
+        or request.emotion_labels
+        or request.topic_labels
+        or request.cause_labels
+        or request.privacy_scope is not None
+    )
+
+
+def _episode_time_conditions(
+    request: RecallRequest, alias: str
+) -> tuple[list[str], list[object]]:
+    """Build interval-aware time predicates without inventing a date for unknown time."""
+    conditions: list[str] = []
+    params: list[object] = []
+    if request.occurred_from is not None:
+        condition = (
+            f"({alias}.occurred_from >= ? OR "
+            f"({alias}.occurrence_precision='range' AND {alias}.occurred_to >= ?))"
+        )
+        if request.include_unknown_time:
+            condition = f"({alias}.occurred_from IS NULL OR {condition})"
+        conditions.append(condition)
+        params.extend((request.occurred_from, request.occurred_from))
+    if request.occurred_to is not None:
+        condition = f"{alias}.occurred_from <= ?"
+        if request.include_unknown_time:
+            condition = f"({alias}.occurred_from IS NULL OR {condition})"
+        conditions.append(condition)
+        params.append(request.occurred_to)
+    return conditions, params
+
+
+def _json_list(value: object) -> list[object]:
+    if not isinstance(value, str):
+        return []
+    try:
+        result = json.loads(value)
+    except (TypeError, ValueError):
+        return []
+    return result if isinstance(result, list) else []
+
+
+def _episode_facet_conditions_for_alias(
+    request: RecallRequest, alias: str
+) -> tuple[list[str], list[object]]:
+    conditions: list[str] = []
+    params: list[object] = []
+    for node_type, values in (
+        ("person", request.person_node_ids),
+        ("place", request.place_node_ids),
+    ):
+        unique = tuple(dict.fromkeys(values))
+        if unique:
+            placeholders = ",".join("?" for _ in unique)
+            conditions.append(
+                "EXISTS (SELECT 1 FROM episode_mentions AS fm "
+                "JOIN nodes AS fn ON fn.node_id=fm.node_id "
+                f"WHERE fm.episode_id={alias}.episode_id AND fm.node_id IN ({placeholders}) "
+                "AND fn.node_type=? AND fm.resolution_state='resolved')"
+            )
+            params.extend(unique)
+            params.append(node_type)
+    if request.emotion_labels:
+        unique = tuple(
+            dict.fromkeys(str(value).casefold() for value in request.emotion_labels)
+        )
+        conditions.append(
+            "lower(COALESCE(json_extract("
+            + alias
+            + ".metadata_json, '$.emotion'), '')) IN ("
+            + ",".join("?" for _ in unique)
+            + ")"
+        )
+        params.extend(unique)
+    for values, key in (
+        (request.topic_labels, "topic"),
+        (request.cause_labels, "cause"),
+    ):
+        unique = tuple(dict.fromkeys(str(value).casefold() for value in values))
+        if unique:
+            conditions.append(
+                "("
+                + " OR ".join(
+                    "lower(COALESCE(json_extract("
+                    + alias
+                    + ".metadata_json, '$."
+                    + key
+                    + "'), '')) LIKE ?"
+                    for _ in unique
+                )
+                + ")"
+            )
+            params.extend("%" + value + "%" for value in unique)
+    if request.privacy_scope is not None:
+        conditions.append(alias + ".privacy_scope=?")
+        params.append(request.privacy_scope)
+    return conditions, params

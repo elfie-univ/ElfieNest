@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Mapping, Protocol
 
 from .memory_records import (
@@ -9,6 +10,8 @@ from .memory_records import (
     ConsolidationProjection,
     ConsolidationReceipt,
     EpisodeReceipt,
+    MaintenanceReceipt,
+    MaintenanceRequest,
     RecallBundle,
     RecallRequest,
 )
@@ -58,6 +61,8 @@ class MemoryStorePort(Protocol):
         query: str,
         top_k: int = 5,
         node_type: str | None = None,
+        *,
+        privacy_scope: str | None = None,
     ) -> list[tuple[str, float]]: ...
 
     def close(self) -> None: ...
@@ -85,6 +90,26 @@ class MemoryStorePort(Protocol):
     ) -> ConsolidationReceipt: ...
 
     def recall(self, request: RecallRequest) -> RecallBundle: ...
+
+    def write_transaction(self) -> AbstractContextManager[None]: ...
+
+    def run_lifecycle(
+        self,
+        request: MaintenanceRequest,
+    ) -> MaintenanceReceipt: ...
+
+    def inspect_episode(self, episode_id: str) -> ClosedEpisode | None: ...
+
+    def genesis_submission(
+        self,
+        *,
+        submission_id: str,
+        manifest_id: str,
+        source_version: str,
+        content_sha256: str,
+        expected_ids: tuple[str, ...] = (),
+        elfie_id: str | None = None,
+    ) -> AbstractContextManager[bool]: ...
 
 
 __all__ = ["MemoryStorePort"]

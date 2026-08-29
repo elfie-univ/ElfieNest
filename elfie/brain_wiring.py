@@ -13,6 +13,7 @@ from elfie.brain.consolidation.system import CognitiveConsolidationSystem
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort
+from elfie.brain.memory.memory_records import MaintenanceRequest
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.system import MotivationSystem
 from elfie.brain.orientation.system import OrientationSystem
@@ -146,6 +147,22 @@ def assemble_brain_runtime(
     )
     resolved_activity_store = activity_store or InMemoryActivityStore()
     initial_at = clock()
+
+    def run_memory_maintenance(limit: int) -> Mapping[str, object]:
+        """Route the scheduler through Memory's ordered maintenance boundary."""
+        receipt = memory.run_maintenance(
+            MaintenanceRequest(
+                max_episodes=limit,
+                worker_id="brain-cognitive-consolidation",
+            )
+        )
+        return {
+            "consolidated_count": len(receipt.consolidated_episode_ids),
+            "knowledge_created": receipt.knowledge_created,
+            "edges_created": receipt.edges_created,
+            "patterns_created": receipt.patterns_created,
+        }
+
     context = BrainContextProvider(
         memory=MemoryContextReader(memory),
         conversations=ConversationContextStore(),
@@ -157,7 +174,7 @@ def assemble_brain_runtime(
         motivation=MotivationSystem(initial_at=initial_at),
         consolidation=CognitiveConsolidationSystem(
             pending_episode_ids=memory.pending_consolidation_ids,
-            consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
+            consolidate=run_memory_maintenance,
             initial_at=initial_at,
         ),
         profile_anchors=profile_anchors,

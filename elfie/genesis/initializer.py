@@ -55,6 +55,7 @@ class GenesisMemoryCommitter:
     ) -> GenesisCommitReceipt:
         validate_genesis_bundle(bundle)
         typed_seed_package = bool(bundle.knowledge_seeds or bundle.episode_seeds)
+        planned_output_ids: tuple[str, ...] = ()
         if typed_seed_package:
             planned_output_ids = planned_genesis_output_ids(bundle)
             if tuple(bundle.manifest.output_ids) != planned_output_ids:
@@ -100,6 +101,32 @@ class GenesisMemoryCommitter:
         if typed_seed_package and not _supports_source_first(storage):
             raise TypeError("结构化 Genesis 必须使用 source-first Memory storage")
         if _supports_source_first(storage):
+            submission = getattr(storage, "genesis_submission", None)
+            if callable(submission):
+                submission_id = (
+                    bundle.manifest.idempotency_key.strip()
+                    or bundle.manifest.manifest_id
+                )
+                submission_hash = (
+                    bundle.manifest.content_hash
+                    if typed_seed_package
+                    else _legacy_submission_hash(bundle)
+                )
+                with submission(
+                    submission_id=submission_id,
+                    manifest_id=bundle.manifest.manifest_id,
+                    source_version=bundle.manifest.reference_version,
+                    content_sha256=submission_hash,
+                    expected_ids=planned_output_ids,
+                    elfie_id=elfie_id,
+                ) as accepted:
+                    if not accepted:
+                        return GenesisCommitReceipt(
+                            manifest_id=bundle.manifest.manifest_id,
+                            status="duplicate",
+                            node_ids=(),
+                        )
+                    return self._commit_source_first(bundle, storage, now)
             return self._commit_source_first(bundle, storage, now)
 
         profile = bundle.profile_draft.profile
@@ -365,6 +392,7 @@ class GenesisMemoryCommitter:
                 source_type="seed",
                 source_id=self_model_id,
                 excerpt=bundle.self_model_seed.identity_summary,
+                source_version=bundle.manifest.reference_version,
                 captured_at=now,
             ),
         )
@@ -406,6 +434,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=source_event_id,
                     excerpt=fact,
+                    source_version=bundle.manifest.reference_version,
                     captured_at=now,
                 ),
             )
@@ -427,6 +456,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=place_id,
                     excerpt=f"Genesis place {place_id}",
+                    source_version=bundle.manifest.canon_version,
                     captured_at=now,
                 ),
             )
@@ -470,6 +500,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=relationship.person_id,
                     excerpt=f"{relationship.display_name}: {relationship.role}",
+                    source_version=bundle.manifest.reference_version,
                     captured_at=now,
                 ),
             )
@@ -480,7 +511,7 @@ class GenesisMemoryCommitter:
                 source_id=seed.seed_id,
                 source_kind=seed.source,
             )
-            storage.record_episode(
+            episode_receipt = storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
                     idempotency_key=f"genesis:{manifest_id}:{seed.seed_id}",
@@ -547,6 +578,8 @@ class GenesisMemoryCommitter:
                             source_type="episode",
                             source_id=episode_id,
                             excerpt=seed.content,
+                            source_version=bundle.manifest.reference_version,
+                            source_sha256=episode_receipt.content_sha256,
                             captured_at=now,
                         ),
                     ),
@@ -687,6 +720,7 @@ class GenesisMemoryCommitter:
                 source_type="seed",
                 source_id=f"self-model:{safe_elfie}",
                 excerpt=bundle.self_model_seed.identity_summary,
+                source_version=bundle.manifest.reference_version,
                 captured_at=now,
             ),
         )
@@ -747,6 +781,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=place_source_ref,
                     excerpt=label,
+                    source_version=bundle.manifest.canon_version,
                     captured_at=now,
                 ),
             )
@@ -770,6 +805,7 @@ class GenesisMemoryCommitter:
                         source_type="seed",
                         source_id=place_source_ref,
                         excerpt=alias,
+                        source_version=bundle.manifest.canon_version,
                         captured_at=now,
                     )
                 )
@@ -794,6 +830,7 @@ class GenesisMemoryCommitter:
                         source_type="seed",
                         source_id=place_source_ref,
                         excerpt=str(extra["description"]),
+                        source_version=bundle.manifest.canon_version,
                         captured_at=now,
                     )
                 )
@@ -888,6 +925,7 @@ class GenesisMemoryCommitter:
                         source_type="seed",
                         source_id=relationship.source_ref,
                         excerpt=alias,
+                        source_version=relationship.source_version,
                         captured_at=now,
                     )
                 )
@@ -912,6 +950,7 @@ class GenesisMemoryCommitter:
                         source_type="seed",
                         source_id=relationship.source_ref,
                         excerpt=relationship_description,
+                        source_version=relationship.source_version,
                         captured_at=now,
                     )
                 )
@@ -1000,6 +1039,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=knowledge_seed.source_ref,
                     excerpt=knowledge_seed.content,
+                    source_version=knowledge_seed.source_version,
                     captured_at=now,
                 )
             )
@@ -1026,6 +1066,7 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=knowledge_seed.source_ref,
                     excerpt=knowledge_seed.content,
+                    source_version=knowledge_seed.source_version,
                     captured_at=now,
                 ),
             )
@@ -1046,13 +1087,27 @@ class GenesisMemoryCommitter:
                 source_kind=episode_seed.source,
                 locator=episode_seed.seed_id,
             )
-            storage.record_episode(
+            if (
+                episode_seed.occurred_from is None
+                and episode_seed.occurred_to is not None
+            ):
+                raise GenesisValidationError(
+                    "EpisodeSeed.occurred_to 不能在缺少 occurred_from 时单独提供"
+                )
+            occurrence_precision: Literal["exact", "range", "unknown"] = (
+                "unknown"
+                if episode_seed.occurred_from is None
+                else "range"
+                if episode_seed.occurred_to is not None
+                else "exact"
+            )
+            episode_receipt = storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
                     idempotency_key=f"{manifest_id}:episode:{episode_seed.seed_id}",
-                    occurred_from=episode_seed.occurred_from
-                    or episode_seed.temporal_label,
+                    occurred_from=episode_seed.occurred_from,
                     occurred_to=episode_seed.occurred_to,
+                    occurrence_precision=occurrence_precision,
                     content_text=episode_seed.content,
                     summary_text=(
                         episode_seed.result
@@ -1062,6 +1117,7 @@ class GenesisMemoryCommitter:
                     event_kind="genesis_personal_episode",
                     source_refs=(source_ref,),
                     source_event_ids=(event_id,),
+                    source_version=episode_seed.source_version,
                     importance=episode_seed.importance,
                     emotion=episode_seed.emotional_tone,
                     emotion_intensity=episode_seed.emotion_intensity,
@@ -1247,6 +1303,8 @@ class GenesisMemoryCommitter:
                             source_type="episode",
                             source_id=episode_id,
                             excerpt=episode_seed.content,
+                            source_version=episode_seed.source_version,
+                            source_sha256=episode_receipt.content_sha256,
                             captured_at=now,
                         ),
                     ),
@@ -1339,6 +1397,7 @@ class GenesisMemoryCommitter:
                         f"{relationship.display_name}: {relationship.role}; "
                         f"{'; '.join(relationship.shared_facts)}"
                     ),
+                    source_version=relationship.source_version,
                     captured_at=now,
                 ),
             )
@@ -1548,6 +1607,21 @@ def _typed_content_hash(bundle: GenesisBundle) -> str:
         default=str,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _legacy_submission_hash(bundle: GenesisBundle) -> str:
+    """Hash the compatibility bundle when no typed seed content is present."""
+    payload = {
+        "manifest_id": bundle.manifest.manifest_id,
+        "memory_seeds": [asdict(seed) for seed in bundle.memory_seeds],
+        "relationships": [asdict(seed) for seed in bundle.relationship_seeds],
+        "self_model": asdict(bundle.self_model_seed),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode(
+            "utf-8"
+        )
+    ).hexdigest()
 
 
 def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:

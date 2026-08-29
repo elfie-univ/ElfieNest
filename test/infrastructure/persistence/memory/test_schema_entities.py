@@ -13,7 +13,7 @@ from infrastructure.persistence.memory import (
     MemoryStorePathError,
     SQLiteMemoryStoreAdapter,
 )
-from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
+from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES, SCHEMA_VERSION
 
 EXPECTED_TABLES = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
 
@@ -45,7 +45,7 @@ def test_schema_initialization_is_idempotent(tmp_path: Path) -> None:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-        assert store.schema_version == 3
+        assert store.schema_version == SCHEMA_VERSION
 
     assert tables == EXPECTED_TABLES
 

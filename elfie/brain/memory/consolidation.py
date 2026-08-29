@@ -327,9 +327,10 @@ class MemoryConsolidator:
             excerpt=episode.content_text,
             modality="text",
             captured_at=episode.occurred_from,
-            source_sha256=hashlib.sha256(
-                episode.content_text.encode("utf-8")
-            ).hexdigest(),
+            source_sha256=episode.content_sha256
+            or hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest(),
+            source_version=episode.source_version,
+            attribution=episode.attribution,
         )
         event_id = f"event:{episode.episode_id}"
         nodes: list[NodeInput] = [
@@ -470,6 +471,9 @@ class MemoryConsolidator:
             mentions=tuple(mentions),
             assertions=tuple(assertions),
             evidence=(evidence,),
+            source_version=episode.source_version,
+            source_sha256=episode.content_sha256
+            or hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest(),
         )
 
     @staticmethod
@@ -861,6 +865,10 @@ class MemoryConsolidator:
                     context=_model_text(item.get("context")),
                     confidence=_model_score(item.get("confidence"), 0.6),
                     support_score=_model_score(item.get("support_score"), 0.6),
+                    importance=_model_score(
+                        item.get("importance", item.get("support_score")), 0.6
+                    ),
+                    object_literal_type=_model_text(item.get("object_literal_type")),
                     evidence_ids=(evidence_id,),
                 )
             )
@@ -876,6 +884,8 @@ class MemoryConsolidator:
             evidence=(evidence,),
             extraction_run_id="model:"
             + hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest()[:16],
+            source_version=episode.source_version,
+            source_sha256=episode.content_sha256,
         )
 
     @staticmethod

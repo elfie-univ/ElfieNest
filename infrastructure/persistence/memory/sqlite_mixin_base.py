@@ -9,6 +9,7 @@ runtime storage authority.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import AbstractContextManager
 from threading import RLock
 from typing import Iterable
 
@@ -17,6 +18,8 @@ from elfie.brain.memory.memory_records import (
     ConsolidationProjection,
     ConsolidationReceipt,
     EpisodeReceipt,
+    MaintenanceReceipt,
+    MaintenanceRequest,
     NodeInput,
     RecallAssertion,
     RecallEvidence,
@@ -30,6 +33,22 @@ class SQLiteMemoryMixinBase:
 
     conn: sqlite3.Connection
     _lock: RLock
+    elfie_id: str | None
+    _active_genesis_submission_id: str | None
+    _transaction_depth: int
+
+    def _begin_write_transaction(self) -> bool:
+        raise NotImplementedError
+
+    def _commit_write_transaction(self, owns: bool) -> None:
+        raise NotImplementedError
+
+    def _rollback_write_transaction(self, owns: bool) -> None:
+        raise NotImplementedError
+
+    def _genesis_visibility(self, alias: str) -> tuple[str, list[object]]:
+        """Return a marker-gated predicate for rows produced by Genesis."""
+        raise NotImplementedError
 
     def upsert_node_record(self, node: NodeInput) -> str:
         raise NotImplementedError
@@ -55,13 +74,17 @@ class SQLiteMemoryMixinBase:
         query: str,
         top_k: int = 5,
         node_type: str | None = None,
+        *,
+        privacy_scope: str | None = None,
     ) -> list[tuple[str, float]]:
         raise NotImplementedError
 
     def resolve_graph_node_id(self, node_id: str) -> str | None:
         raise NotImplementedError
 
-    def get_graph_node(self, node_id: str) -> RecallNode | None:
+    def get_graph_node(
+        self, node_id: str, *, privacy_scope: str | None = None
+    ) -> RecallNode | None:
         raise NotImplementedError
 
     def graph_assertions_for(
@@ -72,11 +95,22 @@ class SQLiteMemoryMixinBase:
         limit: int = 80,
         occurred_from: str | None = None,
         occurred_to: str | None = None,
+        person_node_ids: Iterable[str] = (),
+        place_node_ids: Iterable[str] = (),
+        emotion_labels: Iterable[str] = (),
+        topic_labels: Iterable[str] = (),
+        cause_labels: Iterable[str] = (),
+        privacy_scope: str | None = None,
+        include_unknown_time: bool = False,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
     def get_assertion_evidence(
-        self, assertion_ids: Iterable[str], limit: int = 24
+        self,
+        assertion_ids: Iterable[str],
+        limit: int = 24,
+        *,
+        privacy_scope: str | None = None,
     ) -> tuple[RecallEvidence, ...]:
         raise NotImplementedError
 
@@ -98,6 +132,30 @@ class SQLiteMemoryMixinBase:
     def apply_consolidation(
         self, projection: ConsolidationProjection
     ) -> ConsolidationReceipt:
+        raise NotImplementedError
+
+    def write_transaction(self) -> AbstractContextManager[None]:
+        raise NotImplementedError
+
+    def run_lifecycle(self, request: MaintenanceRequest) -> MaintenanceReceipt:
+        raise NotImplementedError
+
+    def inspect_episode(self, episode_id: str) -> ClosedEpisode | None:
+        raise NotImplementedError
+
+    def get_episode(self, episode_id: str) -> ClosedEpisode | None:
+        raise NotImplementedError
+
+    def genesis_submission(
+        self,
+        *,
+        submission_id: str,
+        manifest_id: str,
+        source_version: str,
+        content_sha256: str,
+        expected_ids: tuple[str, ...] = (),
+        elfie_id: str | None = None,
+    ) -> AbstractContextManager[bool]:
         raise NotImplementedError
 
 
