@@ -2,6 +2,8 @@
 
 import json
 import os
+import shutil
+import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -52,6 +54,8 @@ class ElfieLabStorage:
         *,
         appearance_description: str = "默认测试外貌",
         personality_description: str = "平衡、稳定",
+        elfie_id: Optional[str] = None,
+        big_five_overrides: Optional[Dict[str, float]] = None,
     ) -> ElfieSpec:
         if species_id not in {"dog", "fox"}:
             raise ValueError("精灵物种只能是 dog 或 fox")
@@ -68,8 +72,12 @@ class ElfieLabStorage:
         for label, value in required_text.items():
             if not value.strip():
                 raise ValueError(f"{label}不能为空")
+        selected_elfie_id = elfie_id or new_id("elfie")
+        self._validate_id(selected_elfie_id)
+        if self.profile_path(selected_elfie_id).exists():
+            raise ValueError(f"测试精灵已经存在: {selected_elfie_id}")
         spec = ElfieSpec(
-            elfie_id=new_id("elfie"),
+            elfie_id=selected_elfie_id,
             name=clean_name,
             species_id=species_id,
             age_years=age_years,
@@ -79,7 +87,7 @@ class ElfieLabStorage:
             personality_description=personality_description.strip(),
         )
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
-        self._save_character_profile(spec)
+        self._save_character_profile(spec, big_five_overrides)
         return spec
 
     def update_big_five(
@@ -159,6 +167,43 @@ class ElfieLabStorage:
         path = self.elfies_dir / elfie_id / "brain" / "journal.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
+
+    def export_elfie_snapshot(self, elfie_id: str, target_root: Path) -> Path:
+        """Copy one Lab Elfie's durable state into an isolated evaluation root.
+
+        SQLite databases are copied with the online backup API so an evaluation
+        never receives a torn WAL snapshot while the interactive Lab session is
+        still open.
+        """
+
+        self._validate_id(elfie_id)
+        source_workspace = self.elfie_dir(elfie_id)
+        if not source_workspace.is_dir():
+            raise KeyError(f"测试精灵不存在: {elfie_id}")
+        selected_root = target_root.expanduser().resolve(strict=False)
+        target_workspace = selected_root / "elfies" / elfie_id
+        if target_workspace.exists():
+            raise ValueError(f"评测快照已经存在: {target_workspace}")
+        target_workspace.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(
+            source_workspace,
+            target_workspace,
+            ignore=shutil.ignore_patterns("*.sqlite", "*.sqlite-wal", "*.sqlite-shm"),
+        )
+        for relative in (
+            Path("memory/knowledge.sqlite"),
+            Path("activity/activity.sqlite"),
+            Path("brain/journal.sqlite"),
+        ):
+            source = source_workspace / relative
+            if not source.is_file():
+                continue
+            destination = target_workspace / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(str(source)) as source_db:
+                with sqlite3.connect(str(destination)) as destination_db:
+                    source_db.backup(destination_db)
+        return target_workspace
 
     def save_portrait(self, elfie_id: str, content: bytes) -> Path:
         if not content.startswith(b"\x89PNG\r\n\x1a\n"):

@@ -49,7 +49,10 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKGROUND_START_TIMEOUT_SECONDS = 60.0
 AUTHORITY_START_TIMEOUT_SECONDS = 120.0
-CONTROLLER_STOP_TIMEOUT_SECONDS = 15.0
+# Desktop shutdown may need to wait for Electron renderer/GPU children after
+# the Controller has accepted the stop request. Keep the wait bounded, but do
+# not turn a valid asynchronous cleanup into a false CLI failure.
+CONTROLLER_STOP_TIMEOUT_SECONDS = 90.0
 CONTROLLER_DESKTOP_EXIT_TIMEOUT_SECONDS = 10.0
 _DISPLAY_DATA_HOME: ContextVar[Optional[str]] = ContextVar(
     "elfienest_display_data_home", default=None

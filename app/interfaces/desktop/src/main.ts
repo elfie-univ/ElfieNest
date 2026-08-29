@@ -67,6 +67,7 @@ let maintenanceStarted = false;
 let lastMaintenanceFailure: string | undefined;
 let runtimeUiAvailable = false;
 let managementUiLoaded = false;
+let runtimeUiGeneration: number | undefined;
 let recoveryActionHandler: ((action: RecoveryAction) => void) | undefined;
 let recoveryActionRunning = false;
 let controllerIpcServer: ControllerIpcServer | undefined;
@@ -76,13 +77,18 @@ let controllerStartPromise: Promise<DesktopRoleState> | undefined;
 let desktopDiagnostics: DesktopDiagnostics | undefined;
 let removeProcessExceptionHandlers: (() => void) | undefined;
 let diagnosticsTimer: NodeJS.Timeout | undefined;
-const DESKTOP_CLEANUP_TIMEOUT_MS = 5_000;
+// Runtime shutdown includes quiescing the World authority and Core. A
+// packaged first-run can spend several seconds starting the management CLI
+// before the ordered stop begins; warn after a bounded interval but never
+// exit before the ordered cleanup promise has completed.
+const DESKTOP_CLEANUP_TIMEOUT_MS = 15_000;
 const DESKTOP_IPC_CLOSE_TIMEOUT_MS = 1_000;
 
 type RecoveryAction =
   | "recover-data-home"
   | "open-data-home"
   | "continue-start"
+  | "retry-runtime"
   | "quit";
 
 const configuredUiUrl = process.env["ELFIENEST_UI_URL"];
@@ -109,7 +115,9 @@ function ensureManagementWindow(): Readonly<{ window: BrowserWindow; created: bo
     return window;
   });
   if (result.created && runtimeUiAvailable) {
-    void loadManagementUi(result.window);
+    void loadManagementUi(result.window).catch((error: unknown) => {
+      showRuntimeLoadFailure(result.window, error);
+    });
   }
   return result;
 }
@@ -142,6 +150,12 @@ function showManagementWindow(): void {
   window.focus();
 }
 
+function showRuntimeLoadFailure(window: BrowserWindow, error: unknown): void {
+  managementUiLoaded = false;
+  desktopDiagnostics?.error("management_page_fallback", error);
+  showStartupFailure(window, error);
+}
+
 function hideManagementWindow(): void {
   managementWindow.current()?.hide();
   if (process.platform === "darwin") {
@@ -157,6 +171,7 @@ function recoveryActionFromUrl(url: string): RecoveryAction | undefined {
     action === "recover-data-home"
     || action === "open-data-home"
     || action === "continue-start"
+    || action === "retry-runtime"
     || action === "quit"
   ) {
     return action;
@@ -186,17 +201,28 @@ function bindManagementWindow(window: BrowserWindow): void {
         },
         "error",
       );
+      if (isMainFrame) {
+        showRuntimeLoadFailure(window, new Error(`${errorDescription} (${errorCode})`));
+      }
     },
   );
   window.webContents.on("will-navigate", (event, url) => {
     const action = recoveryActionFromUrl(url);
     if (action === undefined) return;
     event.preventDefault();
+    if (action === "retry-runtime") {
+      void retryRuntimeFromFailure();
+      return;
+    }
     recoveryActionHandler?.(action);
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
     const action = recoveryActionFromUrl(url);
     if (action === undefined) return { action: "allow" };
+    if (action === "retry-runtime") {
+      void retryRuntimeFromFailure();
+      return { action: "deny" };
+    }
     recoveryActionHandler?.(action);
     return { action: "deny" };
   });
@@ -261,6 +287,17 @@ function startOwnedRuntimeMaintenance(): void {
           }
         } else {
           lastMaintenanceFailure = undefined;
+          if (state.kind === "owned" && state.generation !== runtimeUiGeneration) {
+            runtimeUiGeneration = state.generation;
+            runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+            managementUiLoaded = false;
+            const window = managementWindow.current();
+            if (window !== undefined && runtimeUiUrl !== undefined) {
+              void loadManagementUi(window).catch((error: unknown) => {
+                showRuntimeLoadFailure(window, error);
+              });
+            }
+          }
         }
       })
       .catch((error: unknown) => {
@@ -286,6 +323,7 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
   runtimeUiAvailable = true;
   if (state.kind === "attached" || state.kind === "owned") {
     runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    runtimeUiGeneration = state.generation;
   }
   if (runtimeUiUrl === undefined) {
     showStartupFailure(window, new Error("Runtime did not publish an HTTP endpoint"));
@@ -293,6 +331,35 @@ async function continueAfterDataHomeRecovery(): Promise<void> {
   }
   await loadManagementUi(window);
   startOwnedRuntimeMaintenance();
+}
+
+async function retryRuntimeFromFailure(): Promise<void> {
+  const window = managementWindow.current();
+  if (window === undefined || roleController === undefined) return;
+  showStartupProgress(window, "starting");
+  managementUiLoaded = false;
+  try {
+    const state = await roleController.ensureRuntime((phase) => {
+      if (!window.isDestroyed()) showStartupProgress(window, phase);
+    });
+    if (state.kind === "failed") {
+      showStartupFailure(window, new Error(state.reason));
+      return;
+    }
+    runtimeUiAvailable = true;
+    if (state.kind === "attached" || state.kind === "owned") {
+      runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+      runtimeUiGeneration = state.generation;
+    }
+    if (runtimeUiUrl === undefined) {
+      showStartupFailure(window, new Error("Runtime did not publish an HTTP endpoint"));
+      return;
+    }
+    await loadManagementUi(window);
+    startOwnedRuntimeMaintenance();
+  } catch (error: unknown) {
+    showRuntimeLoadFailure(window, error);
+  }
 }
 
 async function handleDataHomeRecoveryAction(action: RecoveryAction): Promise<void> {
@@ -429,6 +496,7 @@ async function startDesktop(): Promise<void> {
     // create the Viewer and load the real management page.
     runtimeUiAvailable = true;
     runtimeUiUrl = state.httpUrl ?? configuredUiUrl;
+    runtimeUiGeneration = state.generation;
     if (runtimeUiUrl === undefined) {
       throw new Error("Runtime did not publish an HTTP endpoint");
     }
@@ -701,28 +769,26 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   explicitExitRequested = false;
   exitInProgress = true;
+  const cleanupStartedAt = performance.now();
   const cleanup = roleController?.exitApplication() ?? Promise.resolve();
-  let cleanupTimer: NodeJS.Timeout | undefined;
-  const cleanupDeadline = new Promise<void>((resolve) => {
-    cleanupTimer = setTimeout(() => {
-      desktopDiagnostics?.event(
-        "runtime_cleanup_timeout",
-        { timeout_ms: DESKTOP_CLEANUP_TIMEOUT_MS },
-        "warning",
-      );
-      resolve();
-    }, DESKTOP_CLEANUP_TIMEOUT_MS);
-  });
-  void Promise.race([cleanup, cleanupDeadline])
+  const cleanupWarningTimer = setTimeout(() => {
+    desktopDiagnostics?.event(
+      "runtime_cleanup_slow",
+      { warning_ms: DESKTOP_CLEANUP_TIMEOUT_MS },
+      "warning",
+    );
+  }, DESKTOP_CLEANUP_TIMEOUT_MS);
+  void cleanup
     .catch((error: unknown) => {
       desktopDiagnostics?.error("runtime_cleanup_failed", error);
       const message = error instanceof Error ? error.message : String(error);
       console.error("ElfieNest Runtime cleanup during quit failed", message);
     })
     .finally(async () => {
-      if (cleanupTimer !== undefined) {
-        clearTimeout(cleanupTimer);
-      }
+      clearTimeout(cleanupWarningTimer);
+      desktopDiagnostics?.event("runtime_cleanup_complete", {
+        duration_ms: Math.round(performance.now() - cleanupStartedAt),
+      });
       const ipcServer = controllerIpcServer;
       if (ipcServer !== undefined) {
         let ipcCloseTimer: NodeJS.Timeout | undefined;

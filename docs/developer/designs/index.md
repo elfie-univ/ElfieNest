@@ -10,6 +10,9 @@ in [Conformance](../conformance/).
   top-level ownership for one complete Elfie.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
+- [Elfie Brain evaluation and evolution system](./elfie-brain-evaluation-system):
+  the Quality Constitution, Q6/P0 evidence protocol, statistical decision and safe
+  continuous-improvement loop for one complete continuous Elfie.
 - [Elfie Memory architecture](./elfie-memory-architecture): episodic memory, the personal
   knowledge graph and hybrid graph/text retrieval.
 - [ElfieNest service lifecycle state-machine design](./service-lifecycle-state-machine):

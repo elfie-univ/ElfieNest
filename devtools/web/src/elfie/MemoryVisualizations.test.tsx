@@ -22,12 +22,12 @@ function renderSidebar(session: ElfieSession | null): string {
     items={[]}
     menuOpen={false}
     onCollapse={doNothing}
-    onConfigureFood={doNothing}
     onCreate={doNothing}
     onDelete={doNothing}
     onEditPersonality={doNothing}
     onFood={doNothing}
     onMenu={doNothing}
+    onNewFood={doNothing}
     onSelect={doNothing}
     portraitEpoch={0}
     preview={doNothing}
@@ -45,7 +45,7 @@ describe("Elfie memory visualization SSR boundary", () => {
 
     // Then: the established empty-state outcome remains available.
     expect(markup).toContain("创建第一只");
-    expect(markup).toContain("本地开发环境");
+    expect(markup).not.toContain("本地开发环境");
   });
 });
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.brain_turn_adapter import BrainTurnAdapter
@@ -105,6 +106,28 @@ class ElfieLabSession:
 
     def snapshot(self) -> Dict[str, Any]:
         return build_snapshot(self.elfie, self.spec)
+
+    def capture_evaluation_snapshot(self, target_root: Path) -> Dict[str, Any]:
+        """Freeze one coherent Lab fixture without mutating the live Elfie."""
+
+        with self._lock:
+            self._ensure_open()
+            profile = self.profile()
+            state = self.snapshot()
+            workspace = self.storage.export_elfie_snapshot(
+                self.spec.elfie_id,
+                target_root,
+            )
+            payload = {
+                "schema_version": 1,
+                "captured_at": utc_now(),
+                "elfie_id": self.spec.elfie_id,
+                "profile": profile,
+                "current_state": state,
+                "workspace": str(workspace.relative_to(target_root)),
+            }
+            self.storage._write_json(target_root / "snapshot.json", payload)
+            return payload
 
     def run_turn(self, stimulus: StimulusBundle, food_key: str) -> Dict[str, Any]:
         with self._lock:

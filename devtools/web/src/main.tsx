@@ -1,18 +1,33 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ElfieLabApp } from "./elfie/ElfieLabApp";
-import { currentLabKind, labKinds } from "./lab-kind";
+import { currentLabKind } from "./lab-kind";
 import { NestLabApp } from "./nest/NestLabApp";
+import { routeFromPath, devtoolsRoutes, type DevtoolsRoute } from "./routes";
+import { DevtoolsTheme } from "./ui/DevtoolsTheme";
+import { GlobalLabNav } from "./ui/GlobalLabNav";
 import "./styles.css";
+import "./ui/devtools-antd.css";
 
 function Application(): React.JSX.Element {
-  switch (currentLabKind()) {
-    case labKinds.elfie:
-      return <ElfieLabApp />;
-    case labKinds.nest:
-      return <NestLabApp />;
-  }
+  const kind = currentLabKind();
+  const [route, setRoute] = useState<DevtoolsRoute>(() => routeFromPath(kind, window.location.pathname));
+
+  useEffect(() => {
+    const handlePopState = (): void => setRoute(routeFromPath(kind, window.location.pathname));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [kind]);
+
+  const content = route === devtoolsRoutes.nestExperiment
+    ? <NestLabApp />
+    : <ElfieLabApp mode={route === devtoolsRoutes.elfieEvaluations ? "evaluation" : "experiment"} />;
+
+  return <DevtoolsTheme mode="light">
+    <GlobalLabNav activeRoute={route} currentKind={kind} onNavigate={setRoute} />
+    {content}
+  </DevtoolsTheme>;
 }
 
 const container = document.getElementById("root");

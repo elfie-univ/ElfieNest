@@ -14,4 +14,5 @@ def test_nest_lab_serves_the_shared_vite_react_shell(tmp_path) -> None:
     assert response.status_code == 200
     assert 'window.__ELFIENEST_LAB__ = "nest"' in response.text
     assert 'src="/ui/assets/' in response.text
+    assert client.get("/nest/experiment").status_code == 200
     assert client.get("/static/app.js").status_code == 404

@@ -190,9 +190,23 @@ test("an explicit retry retains ownership of its already-ready lease", async () 
 test("managed lifecycle client refuses an external checkout without a verified owner lease", async () => {
   // Given: another checkout already serves the Core, without a Desktop owner lease.
   const runner = commandRunner([
-    JSON.stringify({ state: "core_ready", tier: "core_ready", phase: "failed", generation: 0, owner_lease: null }),
+    JSON.stringify({
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
+      generation: 0,
+      owner_lease: null,
+      instance_id: "runtime-external",
+      components: [{ name: "core", state: "ready", pid: 7000 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18100 }],
+    }),
   ]);
-  const client = new ManagedRuntimeLifecycleClient("desktop-external", runner);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-external",
+    runner,
+    async () => ({ kind: "healthy" }),
+    () => "alive",
+  );
 
   // When: packaged Desktop requests an attachment.
   const attachment = await client.attachOrStart();
@@ -416,14 +430,22 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
       owner_lease: null,
     }),
     JSON.stringify({
+      instance_id: "runtime-instance-14",
       state: "core_ready",
       tier: "core_ready",
       phase: "failed",
       generation: 14,
       owner_lease: { owner_id: "desktop-14" },
+      components: [{ name: "core", state: "ready", pid: 7014 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18114 }],
     }),
   ]);
-  const client = new ManagedRuntimeLifecycleClient("desktop-14", runner);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-14",
+    runner,
+    async () => ({ kind: "healthy" }),
+    () => "alive",
+  );
 
   await selectTestDataHome(client);
   await client.attachOrStart();
@@ -435,8 +457,35 @@ test("managed lifecycle client keeps the owned Core after authority failure", as
     generation: 14,
     ownerLease: "desktop-14",
     dataHome: "/Users/test/.elfienest",
+    httpUrl: "http://127.0.0.1:18114/",
   });
   assert.equal(runner.calls.length, callsAfterStartup);
+});
+
+test("managed lifecycle client refuses a stale failed Core projection from another owner", async () => {
+  const runner = commandRunner([
+    JSON.stringify({
+      state: "core_ready",
+      tier: "core_ready",
+      phase: "failed",
+      generation: 15,
+      owner_lease: { owner_id: "desktop-other" },
+      instance_id: "runtime-instance-15",
+      components: [{ name: "core", state: "ready", pid: 7015 }],
+      endpoints: [{ name: "http", scheme: "http", host: "127.0.0.1", port: 18115 }],
+    }),
+  ]);
+  const client = new ManagedRuntimeLifecycleClient(
+    "desktop-stale",
+    runner,
+    async () => ({ kind: "transport_failure", detail: "connection refused" }),
+    () => "absent",
+  );
+
+  const attachment = await client.attachOrStart();
+
+  assert.equal(attachment.kind, "failed");
+  assert.deepEqual(runner.calls, [{ argumentsList: ["status", "--json"] }]);
 });
 
 test("repeated healthy owned Runtime maintenance does not launch the management CLI", async () => {

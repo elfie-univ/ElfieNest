@@ -136,7 +136,7 @@ class RecycleStore:
 
     @staticmethod
     def _prune_empty_bundle(bundle: Path) -> None:
-        for category in ("media", "sessions", "elfies"):
+        for category in ("evaluations", "media", "sessions", "elfies"):
             category_dir = bundle / category
             if category_dir.is_dir() and not any(category_dir.iterdir()):
                 category_dir.rmdir()
@@ -148,6 +148,7 @@ class RecycleStore:
             ("elfies", self.root / "elfies" / elfie_id),
             ("sessions", self.root / "sessions" / elfie_id),
             ("media", self.root / "media" / elfie_id),
+            ("evaluations", self.root / "evaluations" / elfie_id),
         )
 
     @staticmethod

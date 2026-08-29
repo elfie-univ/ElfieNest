@@ -26,7 +26,27 @@ def test_nest_lab_health_is_independent_from_production_service(tmp_path) -> Non
         "service": "nest-lab",
         "scope": "developer",
         "production_engine": False,
+        "runtime_startup_error": "",
     }
+
+
+def test_nest_lab_keeps_http_surface_available_when_gateway_start_fails(
+    monkeypatch, tmp_path
+) -> None:
+    def fail_gateway_start(_world) -> None:
+        raise RuntimeError("Godot Runtime gateway failed to start: port unavailable")
+
+    monkeypatch.setattr(
+        "devtools.nest_lab.world.NestLabWorld.start", fail_gateway_start
+    )
+
+    with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
+        response = client.get("/nest/experiment")
+        health = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert health.json()["status"] == "degraded"
+    assert "port unavailable" in health.json()["runtime_startup_error"]
 
 
 def test_nest_lab_root_shell_disables_browser_cache(tmp_path) -> None:

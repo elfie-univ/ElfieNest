@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "antd";
 
 import type { ElfieSession } from "./contracts";
 import {
@@ -104,7 +105,7 @@ export function KnowledgeGraph({ graph }: Readonly<{ graph: Memory["knowledge"] 
       </>}
     </svg>
     <div className="knowledge-legend" aria-label="知识关系图例">{Object.entries(knowledgeRelationLabels).map(([kind, label]) => <span data-knowledge-relation={kind} key={kind}>{label}</span>)}</div>
-    {nodes.length > 0 ? <div className="knowledge-controls" aria-label="选择知识节点">{nodes.map((node) => <button aria-pressed={node.id === activeId} key={node.id} onClick={() => setSelectedId(node.id)} type="button">{node.label}</button>)}</div> : null}
+    {nodes.length > 0 ? <div className="knowledge-controls" aria-label="选择知识节点">{nodes.map((node) => <Button aria-pressed={node.id === activeId} key={node.id} onClick={() => setSelectedId(node.id)} size="small" type={node.id === activeId ? "primary" : "default"}>{node.label}</Button>)}</div> : null}
     {selected ? <div className="knowledge-detail" data-selected-knowledge={selected.id}><strong>{selected.label}</strong><span>可信度 {Math.round((selected.confidence ?? 0.5) * 100)}%</span><small>来源经历：{selected.source_event_ids.length ? selected.source_event_ids.join("、") : "尚未投影"}</small></div> : null}
   </div>;
 }
