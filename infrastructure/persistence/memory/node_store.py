@@ -316,12 +316,12 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         if node_type == "episodic":
             with self._lock:
                 scope = ""
-                params: list[object] = [limit]
+                episode_params: list[object] = [limit]
                 if getattr(self, "elfie_id", None) is not None:
                     scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
-                    params = [str(self.elfie_id), limit]
+                    episode_params = [str(self.elfie_id), limit]
                 visibility, visibility_params = self._genesis_visibility("e")
-                params[-1:-1] = visibility_params
+                episode_params[-1:-1] = visibility_params
                 rows = self.conn.execute(
                     """SELECT e.* FROM episodes AS e WHERE e.lifecycle <> 'forgotten'
                        """
@@ -329,7 +329,7 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                     + " AND "
                     + visibility
                     + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
-                    params,
+                    episode_params,
                 ).fetchall()
             return [self._episode_row_to_node(row) for row in rows]
         with self._lock:
@@ -394,37 +394,37 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
         with self._lock:
             if node_type == "episodic":
                 scope = ""
-                params: list[object] = []
+                episode_count_params: list[object] = []
                 if getattr(self, "elfie_id", None) is not None:
                     scope = " AND json_extract(metadata_json, '$.elfie_id')=?"
-                    params.append(str(self.elfie_id))
+                    episode_count_params.append(str(self.elfie_id))
                 visibility, visibility_params = self._genesis_visibility("episodes")
-                params.extend(visibility_params)
+                episode_count_params.extend(visibility_params)
                 row = self.conn.execute(
                     "SELECT COUNT(*) FROM episodes WHERE lifecycle <> 'forgotten'"
                     + scope
                     + " AND "
                     + visibility,
-                    params,
+                    episode_count_params,
                 ).fetchone()
             elif node_type is None:
                 scope_episode = ""
                 scope_node = ""
-                params: list[object] = []
+                all_count_params: list[object] = []
                 if getattr(self, "elfie_id", None) is not None:
                     scope_episode = " AND json_extract(metadata_json, '$.elfie_id')=?"
                     scope_node = " AND json_extract(properties_json, '$.elfie_id')=?"
-                    params.extend([str(self.elfie_id), str(self.elfie_id)])
+                    all_count_params.extend([str(self.elfie_id), str(self.elfie_id)])
                 episode_visibility, episode_visibility_params = (
                     self._genesis_visibility("episodes")
                 )
                 node_visibility, node_visibility_params = self._genesis_visibility(
                     "nodes"
                 )
-                params = [
-                    *params[:1],
+                all_count_params = [
+                    *all_count_params[:1],
                     *episode_visibility_params,
-                    *params[1:2],
+                    *all_count_params[1:2],
                     *node_visibility_params,
                 ]
                 row = self.conn.execute(
@@ -437,16 +437,16 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                     + " AND "
                     + node_visibility
                     + ")",
-                    params,
+                    all_count_params,
                 ).fetchone()
             else:
                 scope = ""
-                params: list[object] = [node_type, node_type]
+                typed_count_params: list[object] = [node_type, node_type]
                 if getattr(self, "elfie_id", None) is not None:
                     scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
-                    params.append(str(self.elfie_id))
+                    typed_count_params.append(str(self.elfie_id))
                 visibility, visibility_params = self._genesis_visibility("n")
-                params.extend(visibility_params)
+                typed_count_params.extend(visibility_params)
                 row = self.conn.execute(
                     """SELECT COUNT(*) FROM nodes AS n
                         WHERE (n.node_type=? OR json_extract(n.properties_json, '$.entity_type')=? )
@@ -454,7 +454,7 @@ class KnowledgeNodeStoreMixin(SQLiteMemoryMixinBase):
                     + scope
                     + " AND "
                     + visibility,
-                    params,
+                    typed_count_params,
                 ).fetchone()
         return int(row[0])
 

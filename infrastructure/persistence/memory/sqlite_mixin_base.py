@@ -33,6 +33,18 @@ class SQLiteMemoryMixinBase:
 
     conn: sqlite3.Connection
     _lock: RLock
+    elfie_id: str | None
+    _active_genesis_submission_id: str | None
+    _transaction_depth: int
+
+    def _begin_write_transaction(self) -> bool:
+        raise NotImplementedError
+
+    def _commit_write_transaction(self, owns: bool) -> None:
+        raise NotImplementedError
+
+    def _rollback_write_transaction(self, owns: bool) -> None:
+        raise NotImplementedError
 
     def _genesis_visibility(self, alias: str) -> tuple[str, list[object]]:
         """Return a marker-gated predicate for rows produced by Genesis."""
@@ -83,6 +95,13 @@ class SQLiteMemoryMixinBase:
         limit: int = 80,
         occurred_from: str | None = None,
         occurred_to: str | None = None,
+        person_node_ids: Iterable[str] = (),
+        place_node_ids: Iterable[str] = (),
+        emotion_labels: Iterable[str] = (),
+        topic_labels: Iterable[str] = (),
+        cause_labels: Iterable[str] = (),
+        privacy_scope: str | None = None,
+        include_unknown_time: bool = False,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
@@ -122,6 +141,9 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def inspect_episode(self, episode_id: str) -> ClosedEpisode | None:
+        raise NotImplementedError
+
+    def get_episode(self, episode_id: str) -> ClosedEpisode | None:
         raise NotImplementedError
 
     def genesis_submission(

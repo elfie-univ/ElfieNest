@@ -1977,7 +1977,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         return None
 
     def _ensure_compat_node(self, node_id: str, now: str) -> None:
-        properties = {"compat_placeholder": True}
+        properties: dict[str, object] = {"compat_placeholder": True}
         configured_elfie = getattr(self, "elfie_id", None)
         if configured_elfie is not None:
             properties["elfie_id"] = str(configured_elfie)
@@ -2284,11 +2284,11 @@ def _episode_facet_conditions(
             + ")"
         )
         params.extend(values)
-    for values, column in (
+    for raw_values, column in (
         (topic_labels, "topic"),
         (cause_labels, "cause"),
     ):
-        normalized = tuple(dict.fromkeys(str(item).casefold() for item in values))
+        normalized = tuple(dict.fromkeys(str(item).casefold() for item in raw_values))
         if normalized:
             conditions.append(
                 "("

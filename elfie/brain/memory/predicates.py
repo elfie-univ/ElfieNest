@@ -16,9 +16,11 @@ PREDICATES: Final[frozenset[str]] = frozenset(
         "causal",
         "causes",
         "caused_by",
+        "acquaintance",
         "emotional",
         "experienced",
         "felt",
+        "family",
         "generalizes",
         "has_condition",
         "implies",
@@ -39,6 +41,8 @@ PREDICATES: Final[frozenset[str]] = frozenset(
         "supports",
         "temporal",
         "used_in",
+        "friend",
+        "owner",
     }
 )
 

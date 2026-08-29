@@ -6,9 +6,10 @@ import json
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import replace
-from typing import Iterable
+from typing import Iterable, cast
 
 from elfie.brain.memory.memory_records import (
+    OccurrencePrecision,
     RecallAssertion,
     RecallBundle,
     RecallConflict,
@@ -282,7 +283,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         ids = tuple(scores)
         placeholders = ",".join("?" for _ in ids)
         clauses = [f"episode_id IN ({placeholders})", "lifecycle <> 'forgotten'"]
-        params: list[str] = list(ids)
+        params: list[object] = list(ids)
         if getattr(self, "elfie_id", None) is not None:
             clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
             params.append(str(self.elfie_id))
@@ -355,7 +356,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     excerpt=excerpt,
                     detail_level=str(row["detail_level"]),
                     relevance=direct_scores.get(episode_id, 0.5),
-                    occurrence_precision=str(row["occurrence_precision"] or "exact"),
+                    occurrence_precision=cast(
+                        OccurrencePrecision,
+                        str(row["occurrence_precision"] or "exact"),
+                    ),
                     life_stage=row["life_stage"],
                     temporal_label=row["temporal_label"],
                     importance=float(row["importance"]),

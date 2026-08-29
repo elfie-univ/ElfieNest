@@ -1094,7 +1094,7 @@ class GenesisMemoryCommitter:
                 raise GenesisValidationError(
                     "EpisodeSeed.occurred_to 不能在缺少 occurred_from 时单独提供"
                 )
-            occurrence_precision = (
+            occurrence_precision: Literal["exact", "range", "unknown"] = (
                 "unknown"
                 if episode_seed.occurred_from is None
                 else "range"

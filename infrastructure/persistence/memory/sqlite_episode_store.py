@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from elfie.brain.memory.memory_records import (
     ClosedEpisode,
     EpisodeReceipt,
     MediaReference,
+    OccurrencePrecision,
     SourceReference,
 )
 
@@ -528,7 +529,9 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
             for key, value in metadata.items()
             if key not in {"emotion", "emotion_intensity", "stimulus", "sensory"}
         },
-        occurrence_precision=str(row["occurrence_precision"] or "exact"),
+        occurrence_precision=cast(
+            OccurrencePrecision, str(row["occurrence_precision"] or "exact")
+        ),
         life_stage=row["life_stage"],
         temporal_label=row["temporal_label"],
         context_text=row["context_text"],
