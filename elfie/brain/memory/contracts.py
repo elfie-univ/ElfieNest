@@ -16,6 +16,7 @@ _NonBlankText = Annotated[
 ]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
 _Ratio = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
+_OptionalRatio = Optional[_Ratio]
 
 
 class MemoryStateSnapshot(FrozenContractModel):
@@ -26,7 +27,7 @@ class MemoryStateSnapshot(FrozenContractModel):
     episodic_count: _Revision
     total_count: _Revision
     source_event_ids: Tuple[EventId, ...] = ()
-    freshness: Literal["current", "stale", "unknown"] = "current"
+    snapshot_freshness: Literal["current", "stale", "unknown"] = "current"
 
     @classmethod
     def unknown(cls) -> MemoryStateSnapshot:
@@ -35,7 +36,7 @@ class MemoryStateSnapshot(FrozenContractModel):
             captured_at=datetime.fromtimestamp(0, timezone.utc),
             episodic_count=0,
             total_count=0,
-            freshness="unknown",
+            snapshot_freshness="unknown",
         )
 
     @model_validator(mode="after")
@@ -50,7 +51,11 @@ class MemoryStateSnapshot(FrozenContractModel):
                 "memory_state_source_identity",
                 "memory state source event IDs must be unique",
             )
-        if self.revision == 0 and self.total_count == 0 and self.freshness != "unknown":
+        if (
+            self.revision == 0
+            and self.total_count == 0
+            and self.snapshot_freshness != "unknown"
+        ):
             raise PydanticCustomError(
                 "memory_state_revision",
                 "revision zero memory state must be marked unknown",
@@ -62,12 +67,15 @@ class MemoryItem(FrozenContractModel):
     """One typed memory excerpt with explicit causal sources."""
 
     memory_id: EventId
+    target_kind: Literal["episode", "node", "assertion"] = "node"
     content: _NonBlankText
     relevance: _Ratio
     source_event_ids: Tuple[EventId, ...]
+    importance: _Ratio = 0.5
+    freshness: _Ratio = 1.0
+    confidence: _OptionalRatio = None
     kind: Literal["episodic", "knowledge", "entity", "pattern"] = "episodic"
     source: Optional[str] = None
-    certainty: Literal["high", "medium", "low"] = "medium"
 
 
 class MemoryContext(FrozenContractModel):
@@ -77,6 +85,9 @@ class MemoryContext(FrozenContractModel):
     captured_at: UTCDateTime
     items: Tuple[MemoryItem, ...]
     state: MemoryStateSnapshot = Field(default_factory=MemoryStateSnapshot.unknown)
+    # Monotonic MemorySystem revision for binding a model's explicit use
+    # proposal to the exact Recall snapshot that supplied its IDs.
+    recall_revision: _Revision = 0
 
     @model_validator(mode="after")
     def validate_state_cutoff(self) -> MemoryContext:

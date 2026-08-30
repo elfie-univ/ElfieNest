@@ -44,6 +44,10 @@ MEMORY_PROJECTION_SCHEMA = {
                     "description": {"type": "string"},
                     "aliases": {"type": "array", "items": {"type": "string"}},
                     "confidence": {"type": "number"},
+                    "importance_event": {
+                        "type": "string",
+                        "enum": ["routine", "meaningful", "major", "core"],
+                    },
                 },
                 "required": ["label"],
             },
@@ -76,7 +80,10 @@ MEMORY_PROJECTION_SCHEMA = {
                     "viewpoint": {"type": "string"},
                     "context": {"type": "string"},
                     "confidence": {"type": "number"},
-                    "importance": {"type": "number"},
+                    "importance_event": {
+                        "type": "string",
+                        "enum": ["routine", "meaningful", "major", "core"],
+                    },
                 },
                 "required": ["predicate"],
             },

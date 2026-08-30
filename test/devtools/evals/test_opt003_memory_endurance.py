@@ -19,7 +19,7 @@ def test_opt003_memory_endurance_smoke_gate_passes(tmp_path: Path) -> None:
         repetitions=5,
     )
 
-    assert report["scenario_set"]["version"] == "opt003-memory-endurance.v1"
+    assert report["scenario_set"]["version"] == "opt003-memory-endurance.v2"
     assert report["scenario_set"]["episodes"] == 12
     assert report["scenario_set"]["nodes"] == 24
     assert report["scenario_set"]["assertions"] == 48

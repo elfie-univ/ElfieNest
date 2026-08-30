@@ -103,6 +103,14 @@ class ReasoningTaskView(Protocol):
     def reply_safety_context(self) -> ReplySafetyContext | None:
         """Return current-state evidence used by direct reply validation."""
 
+    @property
+    def memory_reference_ids(self) -> tuple[tuple[str, str], ...]:
+        """Return the exact ``(target_kind, record_id)`` Recall allow-list."""
+
+    @property
+    def memory_recall_revision(self) -> int:
+        """Return the Recall revision bound to the allow-list."""
+
 
 @dataclass(frozen=True)
 class ReasoningTask:
@@ -116,6 +124,8 @@ class ReasoningTask:
     state_candidates: tuple[TurnStateCandidate, ...] = ()
     closed_episodes: tuple[ClosedEpisode, ...] = ()
     reply_safety_context: ReplySafetyContext | None = None
+    memory_reference_ids: tuple[tuple[str, str], ...] = ()
+    memory_recall_revision: int = 0
 
 
 @dataclass(frozen=True)

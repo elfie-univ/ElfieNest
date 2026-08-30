@@ -109,13 +109,19 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
         NOW,
     )
 
-    assert len(context.items) == 1
+    assert len(context.items) == 2
     item = context.items[0]
     assert item.memory_id == EventId("genesis:knowledge:elfie-1:0")
+    assert context.recall_revision == memory.revision
+    assert item.target_kind == "node"
     assert item.content == "我来自 Elfaria。"
     assert item.source_event_ids == (EventId("genesis:fact:elfie-1:0"),)
     assert item.kind == "knowledge"
     assert item.source == "memory_recall"
-    assert item.certainty == "medium"
+    assertion_item = context.items[1]
+    assert assertion_item.target_kind == "assertion"
+    assert assertion_item.memory_id != item.memory_id
+    assert "references" in assertion_item.content
+    assert assertion_item.source_event_ids == (EventId("genesis:fact:elfie-1:0"),)
     assert "memory-context:frame-1" not in str(item.memory_id)
     assert "预测灵感" not in item.content

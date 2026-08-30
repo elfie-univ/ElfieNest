@@ -117,6 +117,13 @@ class CoordinatorTurnFactory:
         homeostasis = self._homeostasis.snapshot(timestamp)
         conversation = self._context_source.conversation(frame, captured_at)
         memory = self._context_source.memory(frame, emotion, captured_at)
+        memory_reference_ids = tuple(
+            (
+                str(getattr(item, "target_kind", "node")),
+                str(item.memory_id),
+            )
+            for item in memory.items
+        )
         memory_candidate_reader = getattr(
             self._context_source, "memory_candidates", None
         )
@@ -283,6 +290,8 @@ class CoordinatorTurnFactory:
             state_candidates=state_candidates,
             closed_episodes=closed_episodes,
             reply_safety_context=self._reply_safety_context(frame),
+            memory_reference_ids=memory_reference_ids,
+            memory_recall_revision=memory.recall_revision,
         )
 
     @staticmethod
@@ -464,6 +473,12 @@ class CoordinatorTurnFactory:
             response_policy = (
                 "Return one DecisionPlan JSON object allowed by the supplied schema. "
                 "Do not answer as if future work has already completed.\n"
+                "MEMORY_USE_POLICY:\n"
+                "- The RELEVANT_MEMORY entries include stable memory_id values. "
+                "Only add memory_uses when this plan intentionally relies on a "
+                "specific supplied entry; copy its exact memory_id and target kind.\n"
+                "- memory_uses are an auditable proposal, not proof that the memory "
+                "was correct or successfully used; do not invent IDs.\n"
                 "PERSISTENT_ACTIVITY_ROUTING:\n"
                 "- For an explicit future reminder, scheduled action, conditional "
                 "commitment, or work that cannot finish in this Turn, use a "
@@ -507,7 +522,9 @@ class CoordinatorTurnFactory:
             "- "
             f"[{getattr(item, 'kind', 'episodic')}; memory_id={getattr(item, 'memory_id', 'unknown')}; "
             f"source={getattr(item, 'source', None) or 'unknown'}; "
-            f"certainty={getattr(item, 'certainty', 'medium')}; "
+            f"importance={getattr(item, 'importance', 0.5):.3f}; "
+            f"freshness={getattr(item, 'freshness', 1.0):.3f}; "
+            f"confidence={getattr(item, 'confidence', None)}; "
             f"source_event_ids={','.join(str(source_id) for source_id in getattr(item, 'source_event_ids', ())) or 'unknown'}] "
             f"{item.content}"
             for item in tuple(compiled.memories)[:5]

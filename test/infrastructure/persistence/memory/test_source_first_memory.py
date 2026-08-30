@@ -503,7 +503,7 @@ class _NameCorrectionModel:
             '"assertions":[{"subject_ref":"我","predicate":"preferred_name",'
             f'"object_literal":"{name}","context":"{context}",'
             '"epistemic_status":"reported","confidence":0.95,'
-            '"importance":0.95}]}'
+            '"importance_event":"major"}]}'
         )
 
 
@@ -533,7 +533,7 @@ def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
         '"mentions":[{"surface_text":"主人","label":"主人"},'
         '{"surface_text":"香菜","label":"香菜"}],'
         '"assertions":[{"subject_ref":"主人","predicate":"likes",'
-        '"object_ref":"香菜","confidence":0.9,"importance":0.9}]}'
+        '"object_ref":"香菜","confidence":0.9,"importance_event":"major"}]}'
     )
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(

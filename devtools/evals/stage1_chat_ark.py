@@ -250,15 +250,15 @@ class ArkCliJsonClient:
             "--max-output-tokens",
             "768",
         ]
+        # E1 needs a bounded visible payload.  Coding Plan reasoning models
+        # can spend the whole output budget on hidden reasoning when thinking
+        # is left automatic, yielding a valid response with no ``content``.
+        # This evaluator-only setting does not change production ModelPort
+        # policy.
+        command.extend(("--thinking", "disabled"))
         if instructions.strip():
             command.extend(("--instructions", instructions))
         if schema_path is not None:
-            # The judge is required to return a small strict JSON object.  Some
-            # Ark reasoning models otherwise spend the entire 768-token budget
-            # on hidden reasoning and truncate the JSON response at `length`.
-            # Disable provider thinking for this advisory call; machine facts
-            # remain authoritative and candidate calls keep their normal mode.
-            command.extend(("--thinking", "disabled"))
             command.extend(
                 (
                     "--text-format",

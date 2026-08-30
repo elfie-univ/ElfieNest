@@ -23,10 +23,12 @@ from elfie.brain.memory.memory_records import (
     MaintenanceReceipt,
     MaintenanceRequest,
     NodeInput,
+    QualifiedReinforcementReceipt,
     RecallAssertion,
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.memory.score_policy import ImportanceEvent
 
 
 class SQLiteMemoryMixinBase:
@@ -60,6 +62,26 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        raise NotImplementedError
+
+    def record_importance_event(self, event: ImportanceEvent) -> bool:
+        raise NotImplementedError
+
+    def _record_importance_event_locked(self, event: ImportanceEvent, now: str) -> bool:
+        raise NotImplementedError
+
+    def consume_reinforcement_receipt(
+        self, receipt: QualifiedReinforcementReceipt
+    ) -> bool:
+        raise NotImplementedError
+
+    def compact_score_control(
+        self,
+        *,
+        now: str | None = None,
+        safety_window_days: float = 2.0,
+        max_targets: int = 256,
+    ) -> dict[str, int]:
         raise NotImplementedError
 
     def list_episodes(
@@ -96,7 +118,11 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def get_graph_node(
-        self, node_id: str, *, privacy_scope: str | None = None
+        self,
+        node_id: str,
+        *,
+        privacy_scope: str | None = None,
+        now: str | None = None,
     ) -> RecallNode | None:
         raise NotImplementedError
 
@@ -115,6 +141,7 @@ class SQLiteMemoryMixinBase:
         cause_labels: Iterable[str] = (),
         privacy_scope: str | None = None,
         include_unknown_time: bool = False,
+        now: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 

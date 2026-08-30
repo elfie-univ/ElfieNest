@@ -70,12 +70,15 @@ class CompiledMemory(FrozenContractModel):
 
     role: Literal["memory_data"] = "memory_data"
     memory_id: EventId
+    target_kind: Literal["episode", "node", "assertion"] = "node"
     source_event_ids: Tuple[EventId, ...]
     relevance: float
     content: str
+    importance: float = 0.5
+    freshness: float = 1.0
+    confidence: Optional[float] = None
     kind: Literal["episodic", "knowledge", "entity", "pattern"] = "episodic"
     source: Optional[str] = None
-    certainty: Literal["high", "medium", "low"] = "medium"
 
 
 class CompiledStateUpdate(FrozenContractModel):
@@ -199,12 +202,15 @@ class ModelContextCompiler:
         memories = tuple(
             CompiledMemory(
                 memory_id=item.memory_id,
+                target_kind=item.target_kind,
                 source_event_ids=item.source_event_ids,
                 relevance=item.relevance,
+                importance=item.importance,
+                freshness=item.freshness,
+                confidence=item.confidence,
                 content=cursor.fit(item.content),
                 kind=item.kind,
                 source=item.source,
-                certainty=item.certainty,
             )
             for item in context.memory.items
         )

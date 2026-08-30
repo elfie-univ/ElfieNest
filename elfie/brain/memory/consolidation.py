@@ -537,7 +537,7 @@ class MemoryConsolidator:
             "subject_ref/object_ref 必须是原文中出现的短语；不要补写原文没有的事实。"
             "结构：{nodes:[{label,type,description,aliases}],mentions:[{surface_text,label,role}],"
             "assertions:[{subject_ref,predicate,object_ref,object_literal,polarity,"
-            "epistemic_status,viewpoint,context,confidence,importance}]}\n"
+            "epistemic_status,viewpoint,context,confidence,importance_event}]}\n"
             f"Episode：{episode.content_text}"
         )
         try:
@@ -610,6 +610,11 @@ class MemoryConsolidator:
                 if raw_description and raw_description in content
                 else None
             )
+            if "importance" in item:
+                raise ValueError(
+                    "model importance must be expressed as importance_event"
+                )
+            importance_event = _model_importance_event(item.get("importance_event"))
             nodes.append(
                 NodeInput(
                     node_id=node_id,
@@ -617,6 +622,12 @@ class MemoryConsolidator:
                     canonical_label=label,
                     description=grounded_description,
                     confidence=_model_score(item.get("confidence"), 0.6),
+                    # Importance is an admission baseline plus an auditable
+                    # event.  Do not materialize a second, lossy score here;
+                    # the adapter folds the event atomically with the source.
+                    importance=episode.importance,
+                    initial_importance=episode.initial_importance,
+                    importance_event_class=importance_event,
                 )
             )
             raw_aliases = item.get("aliases", [])
@@ -699,6 +710,11 @@ class MemoryConsolidator:
             else:
                 object_node_id = None
             predicate = _required_model_text(item, "predicate")
+            importance_event = _model_importance_event(item.get("importance_event"))
+            if "importance" in item:
+                raise ValueError(
+                    "model importance must be expressed as importance_event"
+                )
             assertions.append(
                 AssertionInput(
                     subject_id=labels_to_ids[subject_ref],
@@ -723,7 +739,9 @@ class MemoryConsolidator:
                     viewpoint=_model_text(item.get("viewpoint")),
                     context=_model_text(item.get("context")),
                     confidence=_model_score(item.get("confidence"), 0.6),
-                    importance=_model_score(item.get("importance"), 0.6),
+                    importance=episode.importance,
+                    initial_importance=episode.initial_importance,
+                    importance_event_class=importance_event,
                     object_literal_type=_model_text(item.get("object_literal_type")),
                     evidence_ids=(evidence_id,),
                 )
@@ -819,6 +837,21 @@ def _model_score(value: object, default: float) -> float:
     if score > 1.0:
         score /= 100.0
     return max(0.0, min(1.0, score))
+
+
+def _model_importance_event(value: object) -> str | None:
+    """Accept only policy-owned importance levels from a model proposal.
+
+    Omission is meaningful: a model that did not make a semantic appraisal
+    must not silently turn an extraction into an importance update.  The
+    source Episode's admission value remains the baseline in that case.
+    """
+    if value is None:
+        return None
+    event_class = str(value).strip()
+    if event_class not in {"routine", "meaningful", "major", "core"}:
+        raise ValueError("model importance_event is not an allowed policy level")
+    return event_class
 
 
 def _model_int(value: object) -> int | None:

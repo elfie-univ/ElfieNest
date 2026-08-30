@@ -12,12 +12,20 @@ from elfie.brain.memory.memory_records import (
     EpisodeReceipt,
     MediaReference,
     OccurrencePrecision,
+    RetentionClass,
     SourceReference,
 )
-from elfie.brain.memory.score_policy import MemoryScorePolicy
+from elfie.brain.memory.score_policy import ImportanceEvent, MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
-from .sqlite_utils import canonical_json, content_hash, json_list, json_object, utc_now
+from .sqlite_utils import (
+    canonical_json,
+    content_hash,
+    json_list,
+    json_object,
+    stable_id,
+    utc_now,
+)
 
 
 class EpisodeIdempotencyError(ValueError):
@@ -42,9 +50,39 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             )
         with self._lock:
             now = utc_now()
-            next_review_at = episode.next_review_at or MemoryScorePolicy.next_review_at(
-                now
+            active_submission = getattr(self, "_active_genesis_submission_id", None)
+            retention_days = MemoryScorePolicy.admission_retention(
+                episode.retention_class,
+                emotion_intensity=episode.emotion_intensity,
+                sensory_present=bool(episode.sensory),
+                genesis=active_submission is not None,
             )
+            # Genesis stores historical occurrence separately but starts the
+            # retention clock at this admission.  Otherwise a seed written
+            # with an old historical date would already be archival on its
+            # first read despite the fixed ten-year Genesis span.
+            anchor = (
+                episode.last_reinforced_at
+                or (now if active_submission is not None else episode.occurred_from)
+                or now
+            )
+            if episode.occurred_from is not None:
+                MemoryScorePolicy.validate_event_time(
+                    now=now, occurred_at=episode.occurred_from
+                )
+            if episode.occurred_to is not None:
+                MemoryScorePolicy.validate_event_time(
+                    now=now, occurred_at=episode.occurred_to
+                )
+            MemoryScorePolicy.validate_event_time(now=now, occurred_at=anchor)
+            # ``next_review_at`` is derived state.  Ignore a caller-supplied
+            # stale value so lifecycle scheduling cannot be forged independently
+            # of the immutable retention anchor.
+            next_review_at = MemoryScorePolicy.next_review_at(
+                anchor,
+                retention_days,
+                MemoryScorePolicy.active_freshness_threshold,
+            ).isoformat(timespec="milliseconds")
             metadata = {
                 **dict(episode.metadata),
                 "emotion": episode.emotion,
@@ -54,7 +92,6 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             }
             if configured_elfie is not None:
                 metadata["elfie_id"] = str(configured_elfie)
-            active_submission = getattr(self, "_active_genesis_submission_id", None)
             if (
                 active_submission is not None
                 and episode.genesis_submission_id is not None
@@ -105,15 +142,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         occurrence_precision, content_text, summary_text, event_kind,
                         source_refs_json, media_refs_json, source_event_ids_json,
                         life_stage, temporal_label, context_text, attribution,
-                        privacy_scope, source_version, importance, detail_level,
+                        privacy_scope, source_version, importance, initial_importance, retention_days,
+                        detail_level,
                         content_sha256, projection_revision, projection_source_sha256,
                         last_reinforced_at, last_reviewed_at, next_review_at,
-                        policy_version, genesis_submission_id, metadata_json,
+                        lifecycle_changed_at, policy_version, genesis_submission_id, metadata_json,
                         created_at, updated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?
                     )""",
                     (
                         episode.episode_id,
@@ -138,19 +177,40 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         episode.privacy_scope,
                         episode.source_version,
                         episode.importance,
+                        episode.initial_importance,
+                        retention_days,
                         episode.detail_level,
                         digest,
                         episode.projection_revision,
                         episode.projection_source_sha256,
-                        episode.last_reinforced_at,
+                        anchor,
                         episode.last_reviewed_at,
                         next_review_at,
-                        episode.policy_version,
+                        now,
+                        MemoryScorePolicy.version,
                         genesis_submission_id,
                         canonical_json(metadata),
                         now,
                         now,
                     ),
+                )
+                self._record_importance_event_locked(
+                    ImportanceEvent(
+                        event_id=stable_id(
+                            "importance-event:",
+                            "episode",
+                            episode.episode_id,
+                            "admission",
+                            length=48,
+                        ),
+                        target_kind="episode",
+                        target_id=episode.episode_id,
+                        direction="raise",
+                        event_class="admission",
+                        source_episode_id=None,
+                        occurred_at=anchor,
+                    ),
+                    now,
                 )
                 self._upsert_episode_fts(episode.episode_id, episode)
                 self._commit_write_transaction(owns)
@@ -354,8 +414,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             try:
                 cursor = self.conn.execute(
                     """UPDATE episodes SET lifecycle='archived', detail_level='compressed',
-                           summary_text=?, updated_at=?, last_reviewed_at=? WHERE episode_id=?""",
-                    (summary, utc_now(), utc_now(), episode_id),
+                           summary_text=?, updated_at=?, last_reviewed_at=?,
+                           lifecycle_changed_at=CASE WHEN lifecycle<>'archived' THEN ? ELSE lifecycle_changed_at END,
+                           next_review_at=NULL, policy_version=? WHERE episode_id=?""",
+                    (
+                        summary,
+                        utc_now(),
+                        utc_now(),
+                        utc_now(),
+                        MemoryScorePolicy.version,
+                        episode_id,
+                    ),
                 )
                 self._upsert_episode_fts_from_values(
                     episode_id, str(row["content_text"]), summary
@@ -443,9 +512,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             try:
                 self.conn.execute(
                     """UPDATE episodes SET content_text=?, summary_text=NULL,
-                           detail_level='digest', lifecycle='forgotten', updated_at=?
+                           detail_level='digest', lifecycle='forgotten',
+                           lifecycle_changed_at=CASE WHEN lifecycle<>'forgotten' THEN ? ELSE lifecycle_changed_at END,
+                           next_review_at=NULL, policy_version=?, updated_at=?
                        WHERE episode_id=?""",
-                    (content, utc_now(), episode_id),
+                    (
+                        content,
+                        utc_now(),
+                        MemoryScorePolicy.version,
+                        utc_now(),
+                        episode_id,
+                    ),
                 )
                 self._upsert_episode_fts(
                     episode_id,
@@ -639,6 +716,17 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
             str(value) for value in json_list(row["source_event_ids_json"])
         ),
         importance=float(row["importance"]),
+        initial_importance=float(row["initial_importance"] or row["importance"]),
+        retention_days=float(
+            row["retention_days"]
+            or MemoryScorePolicy.initial_retention_days["ordinary"]
+        ),
+        retention_class=_retention_class(
+            float(
+                row["retention_days"]
+                or MemoryScorePolicy.initial_retention_days["ordinary"]
+            )
+        ),
         detail_level=str(row["detail_level"]),
         lifecycle=str(row["lifecycle"] or "active"),  # type: ignore[arg-type]
         emotion=metadata.get("emotion"),
@@ -664,7 +752,7 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
         last_reinforced_at=row["last_reinforced_at"],
         last_reviewed_at=row["last_reviewed_at"],
         next_review_at=row["next_review_at"],
-        policy_version=str(row["policy_version"] or "memory.v1"),
+        policy_version=str(row["policy_version"] or MemoryScorePolicy.version),
         genesis_submission_id=row["genesis_submission_id"],
         content_sha256=str(row["content_sha256"]),
     )
@@ -719,3 +807,13 @@ def _episode_hash(episode: ClosedEpisode) -> str:
 
 
 __all__ = ["EpisodeIdempotencyError", "SQLiteEpisodeStoreMixin"]
+
+
+def _retention_class(days: float) -> RetentionClass:
+    if days >= MemoryScorePolicy.initial_retention("genesis"):
+        return "genesis"
+    if days >= MemoryScorePolicy.initial_retention("salient"):
+        return "salient"
+    if days <= MemoryScorePolicy.initial_retention("transient"):
+        return "transient"
+    return "ordinary"

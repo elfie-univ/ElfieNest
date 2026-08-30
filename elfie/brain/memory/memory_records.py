@@ -7,7 +7,7 @@ payloads stay inside the Infrastructure adapter.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Literal, Mapping, Optional, Tuple, Union
 
 JsonValue = Union[
@@ -34,6 +34,7 @@ _RECALL_LIMIT_MAX = {
 
 AttributionKind = Literal["observed", "told", "inferred", "felt"]
 OccurrencePrecision = Literal["exact", "range", "unknown"]
+RetentionClass = Literal["transient", "ordinary", "salient", "genesis"]
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,9 @@ class ClosedEpisode:
     media_refs: Tuple[MediaReference, ...] = ()
     source_event_ids: Tuple[str, ...] = ()
     importance: float = 0.5
+    initial_importance: float = 0.5
+    retention_days: float = 7.0
+    retention_class: RetentionClass = "ordinary"
     detail_level: str = "full"
     lifecycle: Literal["active", "archived", "forgotten"] = "active"
     emotion: Optional[str] = None
@@ -112,7 +116,7 @@ class ClosedEpisode:
     last_reinforced_at: Optional[str] = None
     last_reviewed_at: Optional[str] = None
     next_review_at: Optional[str] = None
-    policy_version: str = "memory.v1"
+    policy_version: str = "memory.v2"
     genesis_submission_id: Optional[str] = None
     content_sha256: Optional[str] = None
 
@@ -134,6 +138,14 @@ class ClosedEpisode:
             raise ValueError("content_text must not be blank")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
+        if not 0.0 <= self.initial_importance <= 1.0:
+            raise ValueError("initial_importance must be between 0 and 1")
+        if self.initial_importance == 0.5 and self.importance != 0.5:
+            object.__setattr__(self, "initial_importance", self.importance)
+        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
+            raise ValueError("retention_days must be between 0 and 36500")
+        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
+            raise ValueError("unsupported retention class")
         if (
             self.occurred_to is not None
             and self.occurred_from is not None
@@ -195,6 +207,80 @@ class EpisodeReceipt:
 
 
 @dataclass(frozen=True)
+class MemoryUseProposal:
+    """Bounded references a reasoning turn proposes to use.
+
+    A proposal is not evidence of success and cannot change any score.  The
+    authoritative outcome path must later settle it into a
+    ``QualifiedReinforcementReceipt``.
+    """
+
+    proposal_id: str
+    recall_revision: int
+    occurred_at: str
+    target_kind: Literal["episode", "node", "assertion"]
+    target_ids: Tuple[str, ...]
+    claim_refs: Tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.proposal_id.strip():
+            raise ValueError("proposal_id must not be blank")
+        if self.recall_revision < 0:
+            raise ValueError("recall_revision must not be negative")
+        _timestamp_key(self.occurred_at)
+        if self.target_kind not in {"episode", "node", "assertion"}:
+            raise ValueError("unsupported proposal target kind")
+        if not self.target_ids or len(self.target_ids) > 64:
+            raise ValueError("proposal target_ids must contain 1 to 64 IDs")
+        if len(set(self.target_ids)) != len(self.target_ids):
+            raise ValueError("proposal target_ids must be unique")
+        if any(not value.strip() for value in (*self.target_ids, *self.claim_refs)):
+            raise ValueError("proposal IDs must not be blank")
+
+
+@dataclass(frozen=True)
+class QualifiedReinforcementReceipt:
+    """One independently authorized retention reinforcement event."""
+
+    event_id: str
+    target_kind: Literal["episode", "node", "assertion"]
+    target_id: str
+    occurred_at: str
+    outcome_kind: Literal[
+        "explicit_confirmation",
+        "action_success",
+        "deliberate_review",
+        "independent_evidence",
+    ]
+    source_ref: str
+    recall_revision: Optional[int] = None
+    proposal_id: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("event_id", self.event_id),
+            ("target_id", self.target_id),
+            ("source_ref", self.source_ref),
+        ):
+            if not value.strip():
+                raise ValueError(f"{name} must not be blank")
+        if self.target_kind not in {"episode", "node", "assertion"}:
+            raise ValueError("unsupported reinforcement target kind")
+        if self.outcome_kind not in {
+            "explicit_confirmation",
+            "action_success",
+            "deliberate_review",
+            "independent_evidence",
+        }:
+            raise ValueError("unsupported reinforcement outcome kind")
+        _timestamp_key(self.occurred_at)
+        if self.recall_revision is not None and self.recall_revision < 0:
+            raise ValueError("recall_revision must not be negative")
+        if self.proposal_id is not None and not self.proposal_id.strip():
+            raise ValueError("proposal_id must not be blank when supplied")
+
+
+@dataclass(frozen=True)
 class NodeInput:
     """Canonical graph node proposed by consolidation or a seed."""
 
@@ -205,8 +291,17 @@ class NodeInput:
     scope: str = "elfie"
     status: str = "active"
     confidence: float = 0.5
+    initial_confidence: float = 0.5
+    prior_weight: float = 1.0
     properties: Mapping[str, JsonValue] = field(default_factory=dict)
     importance: float = 0.5
+    initial_importance: float = 0.5
+    retention_days: float = 7.0
+    retention_class: RetentionClass = "ordinary"
+    # Consolidation may carry a policy-owned semantic appraisal from a model
+    # proposal.  The model supplies only this enum; the adapter records and
+    # folds the sourced event instead of accepting an arbitrary score.
+    importance_event_class: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.node_id.strip() or not self.node_type.strip():
@@ -215,12 +310,42 @@ class NodeInput:
             raise ValueError("canonical_label must not be blank")
         if not self.scope.strip():
             raise ValueError("scope must not be blank")
-        if self.status not in {"active", "candidate", "unresolved", "forgotten"}:
+        if self.status not in {
+            "active",
+            "candidate",
+            "unresolved",
+            "archived",
+            "forgotten",
+        }:
             raise ValueError("unsupported node status")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if not 0.0 <= self.initial_confidence <= 1.0:
+            raise ValueError("initial_confidence must be between 0 and 1")
+        # A caller-supplied admission confidence is the immutable prior for
+        # later Evidence recomputation unless an explicit prior is provided.
+        # Without this normalization a Genesis/runtime admission such as
+        # ``confidence=1`` would silently fall back to the default ``.5`` on
+        # the first identity observation.
+        if self.initial_confidence == 0.5 and self.confidence != 0.5:
+            object.__setattr__(self, "initial_confidence", self.confidence)
+        if self.prior_weight <= 0.0:
+            raise ValueError("prior_weight must be greater than zero")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
+        if not 0.0 <= self.initial_importance <= 1.0:
+            raise ValueError("initial_importance must be between 0 and 1")
+        if self.initial_importance == 0.5 and self.importance != 0.5:
+            object.__setattr__(self, "initial_importance", self.importance)
+        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
+            raise ValueError("retention_days must be between 0 and 36500")
+        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
+            raise ValueError("unsupported retention class")
+        if (
+            self.importance_event_class is not None
+            and not self.importance_event_class.strip()
+        ):
+            raise ValueError("importance_event_class must not be blank when supplied")
 
 
 @dataclass(frozen=True)
@@ -272,12 +397,19 @@ class MentionInput:
     span_start: Optional[int] = None
     span_end: Optional[int] = None
     confidence: float = 0.5
+    # When present, this is the source observation that grounds the mention
+    # as evidence for the resolved Node.  It is deliberately separate from
+    # assertion evidence: relation evidence must not leak confidence into
+    # either endpoint Node.
+    evidence_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.episode_id.strip() or not self.surface_text.strip():
             raise ValueError("episode_id and surface_text must not be blank")
         if self.node_id is not None and not self.node_id.strip():
             raise ValueError("node_id must not be blank when supplied")
+        if self.evidence_id is not None and not self.evidence_id.strip():
+            raise ValueError("evidence_id must not be blank when supplied")
         if self.resolution_state == "resolved" and self.node_id is None:
             raise ValueError("resolved mentions require a node_id")
         if self.span_start is not None and self.span_start < 0:
@@ -310,23 +442,50 @@ class AssertionInput:
     valid_from: Optional[str] = None
     valid_to: Optional[str] = None
     confidence: float = 0.5
+    initial_confidence: float = 0.5
+    prior_weight: float = 1.0
     conflict_group: Optional[str] = None
     supersedes_assertion_id: Optional[str] = None
     evidence_ids: Tuple[str, ...] = ()
     assertion_id: Optional[str] = None
     importance: float = 0.5
+    initial_importance: float = 0.5
+    retention_days: float = 7.0
+    retention_class: RetentionClass = "ordinary"
     object_literal_type: Optional[str] = None
     predicate_registry_version: str = "memory.predicates.v1"
-    policy_version: str = "memory.v1"
+    policy_version: str = "memory.v2"
     genesis_submission_id: Optional[str] = None
+    # Optional policy event emitted by Consolidation.  It is intentionally a
+    # class name, never a caller-controlled numeric target or eta.
+    importance_event_class: Optional[str] = None
 
     def __post_init__(self) -> None:
         if (self.object_node_id is None) == (self.object_literal is None):
             raise ValueError("an assertion must have exactly one object form")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if not 0.0 <= self.initial_confidence <= 1.0:
+            raise ValueError("initial_confidence must be between 0 and 1")
+        if self.initial_confidence == 0.5 and self.confidence != 0.5:
+            object.__setattr__(self, "initial_confidence", self.confidence)
+        if self.prior_weight <= 0.0:
+            raise ValueError("prior_weight must be greater than zero")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
+        if not 0.0 <= self.initial_importance <= 1.0:
+            raise ValueError("initial_importance must be between 0 and 1")
+        if self.initial_importance == 0.5 and self.importance != 0.5:
+            object.__setattr__(self, "initial_importance", self.importance)
+        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
+            raise ValueError("retention_days must be between 0 and 36500")
+        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
+            raise ValueError("unsupported retention class")
+        if (
+            self.importance_event_class is not None
+            and not self.importance_event_class.strip()
+        ):
+            raise ValueError("importance_event_class must not be blank when supplied")
         if not self.subject_id.strip() or not self.predicate.strip():
             raise ValueError("subject_id and predicate must not be blank")
         if self.object_node_id is not None and not self.object_node_id.strip():
@@ -378,6 +537,9 @@ class EvidenceInput:
     source_sha256: Optional[str] = None
     source_version: Optional[str] = None
     attribution: Optional[AttributionKind] = None
+    independence_key: Optional[str] = None
+    source_reliability_class: str = "observed"
+    source_policy_version: str = "memory.v2"
     genesis_submission_id: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -407,6 +569,12 @@ class EvidenceInput:
                 raise ValueError(f"{label} must not be blank when supplied")
         if self.source_sha256 is not None and len(self.source_sha256) != 64:
             raise ValueError("source_sha256 must be a 64-character digest")
+        if self.independence_key is not None and not self.independence_key.strip():
+            raise ValueError("independence_key must be non-blank when supplied")
+        if not self.source_reliability_class.strip():
+            raise ValueError("source_reliability_class must not be blank")
+        if not self.source_policy_version.strip():
+            raise ValueError("source_policy_version must not be blank")
         if self.attribution is not None and self.attribution not in {
             "observed",
             "told",
@@ -650,6 +818,8 @@ class RecallNode:
     relevance: float
     importance: float = 0.5
     confidence: float = 0.5
+    freshness: float = 1.0
+    retention_days: float = 7.0
     # Bounded, read-only properties are useful to authorized diagnostics and
     # presentation projections (for example a relationship ring).  They are
     # never used as a second fact source by Recall or Reasoning.
@@ -685,6 +855,8 @@ class RecallAssertion:
     relevance: float
     importance: float = 0.5
     confidence: float = 0.5
+    freshness: float = 1.0
+    retention_days: float = 7.0
 
 
 @dataclass(frozen=True)
@@ -706,6 +878,8 @@ class RecallEpisode:
     life_stage: Optional[str] = None
     temporal_label: Optional[str] = None
     importance: float = 0.5
+    freshness: float = 1.0
+    retention_days: float = 7.0
     source_event_ids: Tuple[str, ...] = ()
 
 
@@ -725,6 +899,9 @@ class RecallEvidence:
     viewpoint: Optional[str] = None
     captured_at: Optional[str] = None
     attribution: Optional[AttributionKind] = None
+    independence_key: Optional[str] = None
+    source_reliability_class: str = "observed"
+    source_policy_version: str = "memory.v2"
 
 
 @dataclass(frozen=True)
@@ -750,9 +927,17 @@ class RecallBundle:
     episodes: Tuple[RecallEpisode, ...] = ()
     evidence: Tuple[RecallEvidence, ...] = ()
     conflicts: Tuple[RecallConflict, ...] = ()
+    # Monotonic MemorySystem revision at the read boundary.  It is used only
+    # to bind an explicit-use proposal to the Recall snapshot that supplied
+    # its IDs; it is not a score and never enters ranking.
+    recall_revision: int = 0
     limits: RecallLimits = field(
         default_factory=lambda: RecallLimits(requested={}, returned={})
     )
+
+    def __post_init__(self) -> None:
+        if self.recall_revision < 0:
+            raise ValueError("recall_revision must not be negative")
 
 
 __all__ = [
@@ -766,6 +951,8 @@ __all__ = [
     "ConsolidationReceipt",
     "MaintenanceReceipt",
     "MaintenanceRequest",
+    "MemoryUseProposal",
+    "QualifiedReinforcementReceipt",
     "DescriptionInput",
     "EpisodeReceipt",
     "EvidenceInput",
@@ -786,6 +973,7 @@ __all__ = [
     "SourceReference",
     "AttributionKind",
     "OccurrencePrecision",
+    "RetentionClass",
 ]
 
 
@@ -801,5 +989,5 @@ def _timestamp_key(value: str) -> str:
         # when no full ISO timestamp can be parsed.
         return text
     if parsed.tzinfo is not None:
-        parsed = parsed.astimezone().replace(tzinfo=None)
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
     return parsed.isoformat()

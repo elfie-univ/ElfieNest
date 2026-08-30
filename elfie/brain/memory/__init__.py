@@ -21,9 +21,11 @@ from elfie.brain.memory.memory_records import (
     MaintenanceRequest,
     MediaReference,
     MemoryInspectionSnapshot,
+    MemoryUseProposal,
     MentionInput,
     NodeInput,
     OccurrencePrecision,
+    QualifiedReinforcementReceipt,
     RecallAssertion,
     RecallBundle,
     RecallConflict,
@@ -44,7 +46,14 @@ from elfie.brain.memory.predicates import (
     resolve_predicate,
 )
 from elfie.brain.memory.recall_renderer import render_recall_bundle
-from elfie.brain.memory.score_policy import MemoryScorePolicy, SemanticScoreUpdate
+from elfie.brain.memory.score_policy import (
+    EvidenceContribution,
+    ImportanceAggregate,
+    ImportanceEvent,
+    MemoryScorePolicy,
+    RetentionUpdate,
+    SemanticScore,
+)
 from elfie.brain.memory.tokenizer import tokenize
 
 __all__ = [
@@ -58,7 +67,11 @@ __all__ = [
     "MemoryProjectionDeferred",
     "ModelPortMemoryAdapter",
     "MemoryScorePolicy",
-    "SemanticScoreUpdate",
+    "EvidenceContribution",
+    "ImportanceAggregate",
+    "ImportanceEvent",
+    "RetentionUpdate",
+    "SemanticScore",
     "tokenize",
     "AliasInput",
     "AttributionKind",
@@ -77,6 +90,8 @@ __all__ = [
     "MaintenanceReceipt",
     "MaintenanceRequest",
     "MemoryInspectionSnapshot",
+    "MemoryUseProposal",
+    "QualifiedReinforcementReceipt",
     "NodeInput",
     "OccurrencePrecision",
     "RecallAssertion",

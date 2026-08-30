@@ -15,11 +15,13 @@ from .memory_records import (
     MaintenanceReceipt,
     MaintenanceRequest,
     NodeInput,
+    QualifiedReinforcementReceipt,
     RecallAssertion,
     RecallBundle,
     RecallNode,
     RecallRequest,
 )
+from .score_policy import ImportanceEvent
 
 
 class MemoryStorePort(Protocol):
@@ -50,6 +52,20 @@ class MemoryStorePort(Protocol):
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt: ...
 
+    def record_importance_event(self, event: ImportanceEvent) -> bool: ...
+
+    def consume_reinforcement_receipt(
+        self, receipt: QualifiedReinforcementReceipt
+    ) -> bool: ...
+
+    def compact_score_control(
+        self,
+        *,
+        now: str | None = None,
+        safety_window_days: float = 2.0,
+        max_targets: int = 256,
+    ) -> dict[str, int]: ...
+
     def list_episodes(
         self, limit: int = 1000, *, include_forgotten: bool = False
     ) -> tuple[ClosedEpisode, ...]: ...
@@ -59,7 +75,11 @@ class MemoryStorePort(Protocol):
     ) -> tuple[RecallNode, ...]: ...
 
     def get_graph_node(
-        self, node_id: str, *, privacy_scope: str | None = None
+        self,
+        node_id: str,
+        *,
+        privacy_scope: str | None = None,
+        now: str | None = None,
     ) -> RecallNode | None: ...
 
     def list_graph_assertions(

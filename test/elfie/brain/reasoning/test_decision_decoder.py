@@ -132,6 +132,50 @@ def test_native_schema_json_decodes_full_decision_plan() -> None:
     assert outcome.model_mode is ModelMode.STRUCTURED
 
 
+def test_memory_use_references_are_limited_to_the_recall_allow_list() -> None:
+    raw = json.loads(_plan_json())
+    raw["memory_uses"] = [
+        {
+            "target_kind": "node",
+            "target_id": "memory-node-1",
+            "claim_ref": "claim-1",
+            "intent_id": "speech-1",
+        }
+    ]
+    allowed = (("node", "memory-node-1"),)
+
+    accepted = DecisionPlanDecoder().decode(
+        seed=_seed(),
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=allowed,
+    )
+    assert accepted.plan.memory_uses[0].target_id == "memory-node-1"
+
+    rejected = DecisionPlanDecoder().decode(
+        seed=_seed(),
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=(("node", "different-node"),),
+    )
+    assert rejected.plan.memory_uses == ()
+    assert rejected.report.fallback_reason == "empty_or_meaningless_output"
+    assert any(
+        "outside the supplied RecallBundle" in error
+        for error in rejected.report.validation_errors
+    )
+
+
 def test_json_mode_valid_text_decodes_without_repair() -> None:
     # Given: a JSON-mode model returns valid DecisionPlan text.
     # When: the decoder validates the JSON boundary.

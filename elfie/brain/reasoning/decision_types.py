@@ -125,6 +125,20 @@ class NoOpIntent(IntentContract):
     reason: _NonBlankText
 
 
+class MemoryUseReference(FrozenContractModel):
+    """One memory record the model explicitly adopted for this plan.
+
+    This is only a bounded proposal.  Memory settles it into a retention
+    receipt after an independent authoritative outcome; the reference itself
+    never changes a score.
+    """
+
+    target_kind: Literal["episode", "node", "assertion"]
+    target_id: EventId
+    claim_ref: Optional[_NonBlankText] = None
+    intent_id: Optional[IntentId] = None
+
+
 DecisionIntent: TypeAlias = Annotated[
     Union[
         SpeechIntent,
@@ -151,6 +165,7 @@ class DecisionPlan(FrozenContractModel):
     deadline: UTCDateTime
     cause_event_ids: Annotated[Tuple[EventId, ...], Field(min_length=1)]
     intents: Annotated[Tuple[DecisionIntent, ...], Field(min_length=1)]
+    memory_uses: Annotated[Tuple[MemoryUseReference, ...], Field(max_length=64)] = ()
 
     @model_validator(mode="after")
     def validate_plan_graph(self) -> DecisionPlan:
@@ -175,6 +190,22 @@ class DecisionPlan(FrozenContractModel):
         known_intent_ids = set(intent_ids)
         known_cause_ids = set(self.cause_event_ids)
         graph = {intent.intent_id: intent.dependency_ids for intent in self.intents}
+
+        use_keys = tuple(
+            (item.target_kind, item.target_id, item.claim_ref, item.intent_id)
+            for item in self.memory_uses
+        )
+        if len(set(use_keys)) != len(use_keys):
+            raise PydanticCustomError(
+                "duplicate_memory_use",
+                "memory use references must be unique within a plan",
+            )
+        for item in self.memory_uses:
+            if item.intent_id is not None and item.intent_id not in known_intent_ids:
+                raise PydanticCustomError(
+                    "unknown_memory_use_intent",
+                    "memory use intent_id must reference this plan",
+                )
 
         for intent in self.intents:
             if intent.deadline <= self.created_at or intent.deadline > self.deadline:
@@ -336,6 +367,7 @@ __all__ = (
     "CancelPolicy",
     "DecisionIntent",
     "DecisionPlan",
+    "MemoryUseReference",
     "ExpressionIntent",
     "MessageIntent",
     "MotionIntent",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from dataclasses import replace
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Any, Callable, Dict, cast
@@ -31,6 +32,8 @@ from .memory_records import (
     MaintenanceReceipt,
     MaintenanceRequest,
     MemoryInspectionSnapshot,
+    MemoryUseProposal,
+    QualifiedReinforcementReceipt,
     RecallBundle,
     RecallRequest,
 )
@@ -39,6 +42,18 @@ from .model_food import MemoryModelPort
 from .recall_renderer import render_recall_bundle
 
 logger = logging.getLogger("elfie.brain.memory.memory_system")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    """Parse a typed event timestamp for proposal ordering checks."""
+    text = value.strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid timestamp: {value!r}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 class MemorySystem:
@@ -75,7 +90,7 @@ class MemorySystem:
             captured_at=state_at,
             episodic_count=storage.count_episodes(),
             total_count=total_count,
-            freshness="current" if total_count else "unknown",
+            snapshot_freshness="current" if total_count else "unknown",
         )
         self._state = VersionedStateStore(
             VersionedState(
@@ -94,6 +109,8 @@ class MemorySystem:
         self._state_commit_lock = RLock()
         self._committed_episode_candidate_ids: set[EventId] = set()
         self._committed_episode_candidate_order: deque[EventId] = deque(maxlen=2048)
+        self._use_proposals: dict[str, MemoryUseProposal] = {}
+        self._use_proposal_order: deque[str] = deque(maxlen=2048)
         self.consolidator = MemoryConsolidator(self.storage, elfie_id=elfie_id)
 
     def bind_elfie_identity(
@@ -125,7 +142,86 @@ class MemorySystem:
         recall = getattr(self.storage, "recall", None)
         if not callable(recall):
             raise TypeError("the configured Memory store does not support RecallBundle")
-        return recall(request)
+        # The storage adapter owns candidate selection; the facade binds the
+        # result to the current semantic revision so a later outcome cannot
+        # settle a proposal against an obsolete snapshot.
+        return replace(recall(request), recall_revision=self.revision)
+
+    def submit_memory_use_proposal(
+        self, proposal: MemoryUseProposal, bundle: RecallBundle
+    ) -> bool:
+        """Record bounded IDs a reasoning turn says it actually adopted.
+
+        A proposal is only an allow-list check.  It never changes Memory and
+        cannot be treated as a reinforcement receipt until an independent
+        authoritative outcome is supplied.
+        """
+        if proposal.recall_revision != self.revision:
+            raise ValueError("memory-use proposal revision is stale")
+        if bundle.recall_revision != proposal.recall_revision:
+            raise ValueError("memory-use proposal does not match Recall revision")
+        available = {
+            "episode": {item.episode_id for item in bundle.episodes},
+            "node": {item.node_id for item in bundle.focus_nodes},
+            "assertion": {item.assertion_id for item in bundle.assertions},
+        }[proposal.target_kind]
+        if not set(proposal.target_ids) <= available:
+            raise ValueError(
+                "memory-use proposal references an ID outside RecallBundle"
+            )
+        existing = self._use_proposals.get(proposal.proposal_id)
+        if existing is not None:
+            if existing != proposal:
+                raise ValueError(
+                    "memory-use proposal ID was reused with different content"
+                )
+            return False
+        if len(self._use_proposal_order) == self._use_proposal_order.maxlen:
+            oldest = self._use_proposal_order.popleft()
+            self._use_proposals.pop(oldest, None)
+        self._use_proposal_order.append(proposal.proposal_id)
+        self._use_proposals[proposal.proposal_id] = proposal
+        return True
+
+    def consume_reinforcement_receipt(
+        self, receipt: QualifiedReinforcementReceipt
+    ) -> bool:
+        """Settle one authoritative outcome into the storage-owned policy."""
+        proposal = None
+        if receipt.proposal_id is not None:
+            proposal = self._use_proposals.get(receipt.proposal_id)
+            if proposal is None:
+                raise ValueError("reinforcement receipt references an unknown proposal")
+            if (
+                receipt.target_kind != proposal.target_kind
+                or receipt.target_id not in proposal.target_ids
+            ):
+                raise ValueError(
+                    "reinforcement target is not in the proposed Recall IDs"
+                )
+            if receipt.recall_revision != proposal.recall_revision:
+                raise ValueError(
+                    "reinforcement receipt revision does not match proposal"
+                )
+            if _parse_timestamp(receipt.occurred_at) < _parse_timestamp(
+                proposal.occurred_at
+            ):
+                raise ValueError(
+                    "reinforcement outcome cannot precede its use proposal"
+                )
+        elif receipt.outcome_kind != "independent_evidence":
+            raise ValueError("non-evidence reinforcement requires a MemoryUseProposal")
+        consumer = getattr(self.storage, "consume_reinforcement_receipt", None)
+        if not callable(consumer):
+            raise TypeError(
+                "the configured Memory store does not support reinforcement receipts"
+            )
+        accepted = bool(consumer(receipt))
+        if accepted:
+            self._commit_state(
+                causation_id=EventId(f"memory-reinforcement:{receipt.event_id}")
+            )
+        return accepted
 
     def render_recall(
         self,
@@ -298,11 +394,16 @@ class MemorySystem:
         remaining_budget = max(0, resolved.max_episodes - processed_for_budget)
         lifecycle = getattr(self.storage, "run_lifecycle", None)
         if not callable(lifecycle) or remaining_budget == 0:
+            score_control_errors = self._compact_score_control(
+                max_targets=resolved.max_episodes
+            )
+            batch_errors = {**dict(batch.errors), **score_control_errors}
             status = (
                 "partial"
-                if batch.failed_episode_ids and batch.consolidated_episode_ids
+                if batch_errors
+                and (batch.failed_episode_ids or batch.consolidated_episode_ids)
                 else "failed"
-                if batch.failed_episode_ids
+                if batch_errors
                 else "completed"
                 if batch.consolidated_episode_ids
                 else "empty"
@@ -316,7 +417,7 @@ class MemorySystem:
                 evidence_created=batch.evidence_created,
                 failed_episode_ids=batch.failed_episode_ids,
                 checkpoint=batch.checkpoint or resolved.checkpoint,
-                errors=batch.errors,
+                errors=batch_errors,
             )
             if result.consolidated_episode_ids or result.failed_episode_ids:
                 self._commit_state(
@@ -331,7 +432,14 @@ class MemorySystem:
                 lease_seconds=resolved.lease_seconds,
             )
         )
-        errors = {**dict(batch.errors), **dict(lifecycle_receipt.errors)}
+        score_control_errors = self._compact_score_control(
+            max_targets=resolved.max_episodes
+        )
+        errors = {
+            **dict(batch.errors),
+            **dict(lifecycle_receipt.errors),
+            **score_control_errors,
+        }
         if batch.failed_episode_ids:
             status = (
                 "partial"
@@ -344,7 +452,7 @@ class MemorySystem:
                 else "failed"
             )
         elif lifecycle_receipt.status == "empty" and not batch.consolidated_episode_ids:
-            status = "empty"
+            status = "failed" if errors else "empty"
         else:
             status = "partial" if errors else "completed"
         result = MaintenanceReceipt(
@@ -376,6 +484,21 @@ class MemorySystem:
                 causation_id=EventId(f"memory-maintenance:{uuid4().hex}")
             )
         return result
+
+    def _compact_score_control(self, *, max_targets: int) -> dict[str, str]:
+        """Run bounded receipt/checkpoint housekeeping after lifecycle work."""
+        compactor = getattr(self.storage, "compact_score_control", None)
+        if not callable(compactor):
+            return {}
+        try:
+            # The returned counters are operational diagnostics.  Semantic
+            # values were already materialized by the idempotent replay path;
+            # compaction itself must not advance the Memory revision.
+            compactor(max_targets=max_targets)
+        except Exception as error:  # noqa: BLE001 - maintenance remains retryable
+            logger.warning("Memory score-control compaction failed: %s", error)
+            return {"score_control": str(error)}
+        return {}
 
     @property
     def revision(self) -> int:
@@ -466,7 +589,7 @@ class MemorySystem:
                     "episodic_count": self.storage.count_episodes(),
                     "total_count": self.storage.count_memory_records(),
                     "source_event_ids": tuple(dict.fromkeys(source_event_ids)),
-                    "freshness": "current",
+                    "snapshot_freshness": "current",
                 }
             )
             candidate = StateCandidate(

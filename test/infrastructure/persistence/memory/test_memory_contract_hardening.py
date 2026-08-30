@@ -118,7 +118,7 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
                 occurred_from="2026-01-01T00:00:00+00:00",
                 content_text="source remains complete",
                 importance=0.8,
-                next_review_at="2020-01-01T00:00:00+00:00",
+                last_reinforced_at="2020-01-01T00:00:00+00:00",
             )
         )
         projected_source = ClosedEpisode(
@@ -127,7 +127,7 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
             occurred_from="2026-01-02T00:00:00+00:00",
             content_text="projected source",
             importance=0.8,
-            next_review_at="2020-01-01T00:00:00+00:00",
+            last_reinforced_at="2020-01-01T00:00:00+00:00",
         )
         store.record_episode(projected_source)
         store.apply_consolidation(
@@ -156,16 +156,23 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
             )
         )
         store.connection.execute(
-            "UPDATE assertions SET next_review_at='2020-01-01T00:00:00+00:00' WHERE assertion_id='low-importance-claim'"
+            "UPDATE episodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' "
+            "WHERE episode_id='projected'"
+        )
+        store.connection.execute(
+            "UPDATE assertions SET last_reinforced_at='2020-01-01T00:00:00+00:00' "
+            "WHERE assertion_id='low-importance-claim'"
         )
         store.connection.commit()
         claim = store.connection.execute(
             "SELECT importance, confidence FROM assertions WHERE assertion_id='low-importance-claim'"
         ).fetchone()
-        assert tuple(round(float(value), 3) for value in claim) == (0.1, 0.95)
+        # Retention v2 recomputes confidence from the immutable .95 prior and
+        # the observed .9 Evidence contribution, rather than applying the v1
+        # arrival-order increment.
+        assert tuple(round(float(value), 3) for value in claim) == (0.1, 0.974)
 
         receipt = store.run_lifecycle(MaintenanceRequest(max_episodes=10))
-        assert "unprojected" in receipt.lifecycle_episode_ids
         assert "projected" in receipt.lifecycle_episode_ids
         rows = {
             row["episode_id"]: row
@@ -176,22 +183,26 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
         assert rows["unprojected"]["detail_level"] == "full"
         assert rows["unprojected"]["lifecycle"] == "active"
         assert rows["projected"]["detail_level"] == "compressed"
-        assert rows["unprojected"]["importance"] == pytest.approx(0.75)
-        assert rows["projected"]["importance"] == pytest.approx(0.75)
-        assert store.connection.execute(
-            "SELECT importance FROM assertions WHERE assertion_id='low-importance-claim'"
-        ).fetchone()[0] == pytest.approx(0.05)
+        assert rows["unprojected"]["importance"] == pytest.approx(0.8)
+        assert rows["projected"]["importance"] == pytest.approx(0.8)
+        claim_after = store.connection.execute(
+            "SELECT importance, confidence, lifecycle FROM assertions WHERE assertion_id='low-importance-claim'"
+        ).fetchone()
+        assert claim_after is not None
+        assert float(claim_after[0]) == pytest.approx(0.1)
+        assert float(claim_after[1]) == pytest.approx(0.9736842105)
+        assert claim_after[2] == "archived"
         # Lifecycle changes are derived state; they must not invalidate a
         # replay of the immutable Episode source.
         assert (
             store.record_episode(store.get_episode("projected")).status == "duplicate"
         )
 
-        # The due predicate prevents a second immediate pass from applying
-        # the same decay contribution again.
-        assert (
-            store.run_lifecycle(MaintenanceRequest(max_episodes=10)).status == "empty"
-        )
+        # A second pass may advance the next one-stage lifecycle boundary,
+        # but it never applies the same transition or changes a score.
+        second = store.run_lifecycle(MaintenanceRequest(max_episodes=10))
+        assert second.lifecycle_episode_ids == ("projected",)
+        assert store.get_episode("projected").detail_level == "digest"
 
 
 def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() -> None:
@@ -259,7 +270,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             (claim_id,),
         ).fetchone()
         assert after[0] > before[0]
-        assert after[1] > before[1]
+        assert after[1] == pytest.approx(before[1])
 
         # Replaying the same projection is a duplicate and must not add a
         # second semantic contribution for the same stable evidence link.
@@ -786,7 +797,7 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
                 '{"nodes":[{"label":"主人","type":"person"},'
                 '{"label":"香菜","type":"food"}],"mentions":[],'
                 '"assertions":[{"subject_ref":"主人","predicate":"likes",'
-                '"object_ref":"香菜","confidence":0.8,"importance":0.8}]}'
+                '"object_ref":"香菜","confidence":0.8,"importance_event":"major"}]}'
             )
 
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
@@ -836,7 +847,7 @@ def test_memory_maintenance_uses_one_budget_across_both_stages() -> None:
             )
         )
         store.connection.execute(
-            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='budget-node'"
+            "UPDATE nodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' WHERE node_id='budget-node'"
         )
         store.connection.commit()
 
@@ -935,7 +946,7 @@ def test_lifecycle_only_work_wakes_memory_maintenance() -> None:
             )
         )
         store.connection.execute(
-            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='due-node'"
+            "UPDATE nodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' WHERE node_id='due-node'"
         )
         store.connection.commit()
         memory = MemorySystem(store, elfie_id="elfie-a")
@@ -955,7 +966,7 @@ def test_lifecycle_only_scheduler_candidate_runs_memory_maintenance() -> None:
             )
         )
         store.connection.execute(
-            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='scheduler-due-node'"
+            "UPDATE nodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' WHERE node_id='scheduler-due-node'"
         )
         store.connection.commit()
         memory = MemorySystem(store, elfie_id="elfie-a")
@@ -984,7 +995,7 @@ def test_lifecycle_only_scheduler_candidate_runs_memory_maintenance() -> None:
         assert calls == [1]
         assert store.connection.execute(
             "SELECT importance FROM nodes WHERE node_id='scheduler-due-node'"
-        ).fetchone()[0] == pytest.approx(0.75)
+        ).fetchone()[0] == pytest.approx(0.8)
 
 
 def _maintenance_result(memory: MemorySystem, limit: int) -> dict[str, int]:
@@ -1008,7 +1019,7 @@ def test_lifecycle_checkpoint_resumes_after_the_last_claimed_target() -> None:
                 )
             )
         store.connection.execute(
-            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00'"
+            "UPDATE nodes SET last_reinforced_at='2020-01-01T00:00:00+00:00'"
         )
         store.connection.commit()
 
@@ -1032,9 +1043,14 @@ def test_failed_lifecycle_target_remains_retryable_with_the_prior_checkpoint(
                     f"{episode_id}-key",
                     "2020-01-01T00:00:00+00:00",
                     episode_id,
-                    next_review_at="2020-01-01T00:00:00+00:00",
+                    last_reinforced_at="2020-01-01T00:00:00+00:00",
                 )
             )
+        store.connection.execute(
+            "UPDATE episodes SET projection_revision='fixture', "
+            "projection_source_sha256=content_sha256"
+        )
+        store.connection.commit()
 
         first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
         assert first.lifecycle_episode_ids == ("due-a",)
@@ -1042,7 +1058,9 @@ def test_failed_lifecycle_target_remains_retryable_with_the_prior_checkpoint(
         def fail_review(*_args: object, **_kwargs: object) -> str:
             raise RuntimeError("injected lifecycle failure")
 
-        monkeypatch.setattr(sqlite_lifecycle_store, "_next_review", fail_review)
+        monkeypatch.setattr(
+            sqlite_lifecycle_store, "_next_lifecycle_review", fail_review
+        )
         failed = store.run_lifecycle(
             MaintenanceRequest(max_episodes=1, checkpoint=first.checkpoint)
         )
@@ -1072,24 +1090,31 @@ def test_lifecycle_checkpoint_does_not_skip_failure_before_later_success(
                     f"{episode_id}-key",
                     "2020-01-01T00:00:00+00:00",
                     episode_id,
-                    next_review_at="2020-01-01T00:00:00+00:00",
+                    last_reinforced_at="2020-01-01T00:00:00+00:00",
                 )
             )
+        store.connection.execute(
+            "UPDATE episodes SET projection_revision='fixture', "
+            "projection_source_sha256=content_sha256"
+        )
+        store.connection.commit()
 
         first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
         assert first.lifecycle_episode_ids == ("due-a",)
 
-        original_next_review = sqlite_lifecycle_store._next_review
+        original_next_review = sqlite_lifecycle_store._next_lifecycle_review
         calls = 0
 
-        def fail_once(now: str, detail_level: str, lifecycle: str) -> str:
+        def fail_once(
+            anchor: str, retention_days: float, detail_level: str, lifecycle: str
+        ) -> str:
             nonlocal calls
             calls += 1
             if calls == 1:
                 raise RuntimeError("injected earlier failure")
-            return original_next_review(now, detail_level, lifecycle)
+            return original_next_review(anchor, retention_days, detail_level, lifecycle)
 
-        monkeypatch.setattr(sqlite_lifecycle_store, "_next_review", fail_once)
+        monkeypatch.setattr(sqlite_lifecycle_store, "_next_lifecycle_review", fail_once)
         failed_then_success = store.run_lifecycle(
             MaintenanceRequest(max_episodes=2, checkpoint=first.checkpoint)
         )
@@ -1122,7 +1147,7 @@ def test_stale_lifecycle_worker_cannot_publish_after_claim_changes() -> None:
             )
         )
         store.connection.execute(
-            "UPDATE nodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE node_id='fenced-node'"
+            "UPDATE nodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' WHERE node_id='fenced-node'"
         )
         store.connection.commit()
 
@@ -1227,7 +1252,7 @@ def test_projected_lifecycle_compacts_then_digests_then_archives() -> None:
             "lifecycle-stages-key",
             "2026-01-01T00:00:00+00:00",
             "需要分阶段维护的来源",
-            next_review_at="2020-01-01T00:00:00+00:00",
+            last_reinforced_at="2020-01-01T00:00:00+00:00",
         )
         store.record_episode(episode)
         store.apply_consolidation(
@@ -1247,25 +1272,21 @@ def test_projected_lifecycle_compacts_then_digests_then_archives() -> None:
                 ),
             )
         )
+        store.connection.execute(
+            "UPDATE episodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' "
+            "WHERE episode_id=?",
+            (episode.episode_id,),
+        )
+        store.connection.commit()
         first = store.run_lifecycle(MaintenanceRequest(max_episodes=1))
         assert first.lifecycle_episode_ids == (episode.episode_id,)
         assert store.get_episode(episode.episode_id).detail_level == "compressed"
 
-        store.connection.execute(
-            "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
-            (episode.episode_id,),
-        )
-        store.connection.commit()
         store.run_lifecycle(MaintenanceRequest(max_episodes=1))
         digested = store.get_episode(episode.episode_id)
         assert digested.detail_level == "digest"
         assert digested.content_text.startswith("[digest:")
 
-        store.connection.execute(
-            "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
-            (episode.episode_id,),
-        )
-        store.connection.commit()
         store.run_lifecycle(MaintenanceRequest(max_episodes=1))
         lifecycle = store.connection.execute(
             "SELECT lifecycle FROM episodes WHERE episode_id=?",
@@ -1284,7 +1305,7 @@ def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_ar
             "2020-01-01T00:00:00+00:00",
             "一段低重要性且已有完整证据的来源",
             importance=0.1,
-            next_review_at="2020-01-01T00:00:00+00:00",
+            last_reinforced_at="2020-01-01T00:00:00+00:00",
         )
         store.record_episode(episode)
         store.apply_consolidation(
@@ -1312,6 +1333,12 @@ def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_ar
                 ),
             )
         )
+        store.connection.execute(
+            "UPDATE episodes SET last_reinforced_at='2020-01-01T00:00:00+00:00' "
+            "WHERE episode_id=?",
+            (episode.episode_id,),
+        )
+        store.connection.commit()
 
         expected_stages = (
             ("active", "compressed"),
@@ -1325,9 +1352,12 @@ def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_ar
             current = store.get_episode(episode.episode_id)
             assert current.lifecycle == expected_lifecycle
             assert current.detail_level == expected_detail
-            if expected_lifecycle != "forgotten":
+            if expected_lifecycle == "archived":
+                # Logical forgetting is intentionally delayed by the
+                # 90-day archived safety window.
                 store.connection.execute(
-                    "UPDATE episodes SET next_review_at='2020-01-01T00:00:00+00:00' WHERE episode_id=?",
+                    "UPDATE episodes SET lifecycle_changed_at='2020-01-01T00:00:00+00:00' "
+                    "WHERE episode_id=?",
                     (episode.episode_id,),
                 )
                 store.connection.commit()

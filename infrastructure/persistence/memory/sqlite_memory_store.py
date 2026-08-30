@@ -132,6 +132,10 @@ class SQLiteMemoryStoreAdapter(
             "memory_genesis_submissions",
             "memory_maintenance",
             "projection_diagnostics",
+            "memory_importance_events",
+            "memory_retention_receipts",
+            "memory_score_checkpoints",
+            "memory_score_reconciliation",
         ):
             if (
                 self.conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()

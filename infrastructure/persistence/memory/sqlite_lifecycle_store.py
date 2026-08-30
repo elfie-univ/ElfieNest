@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from elfie.brain.memory.memory_records import (
     MaintenanceReceipt,
@@ -20,76 +20,18 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
     """Apply bounded, deterministic importance/detail lifecycle policy."""
 
     def has_due_lifecycle(self) -> bool:
-        """Return whether any historical record is currently due for review."""
+        """Return whether a score-derived lifecycle transition is ready."""
         now = utc_now()
         with self._lock:
-            episode_scope = ""
-            episode_params: list[object] = [now]
-            if getattr(self, "elfie_id", None) is not None:
-                episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
-                episode_params.append(str(self.elfie_id))
-            episode_visibility, episode_visibility_params = self._genesis_visibility(
-                "e"
-            )
-            episode_params.extend(episode_visibility_params)
-            episode = self.conn.execute(
-                """SELECT 1 FROM episodes AS e
-                   WHERE e.lifecycle <> 'forgotten'
-                     AND (e.next_review_at IS NULL OR e.next_review_at <= ?)"""
-                + episode_scope
-                + " AND "
-                + episode_visibility
-                + " LIMIT 1",
-                episode_params,
-            ).fetchone()
-            if episode is not None:
+            episode_rows = self._lifecycle_episode_rows_locked()
+            if any(_episode_transition(row, now) is not None for row in episode_rows):
                 return True
-
-            node_scope = ""
-            node_params: list[object] = [now]
-            if getattr(self, "elfie_id", None) is not None:
-                node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
-                node_params.append(str(self.elfie_id))
-            node_visibility, node_visibility_params = self._genesis_visibility("n")
-            node_params.extend(node_visibility_params)
-            node = self.conn.execute(
-                """SELECT 1 FROM nodes AS n
-                   WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
-                     AND (n.next_review_at IS NULL OR n.next_review_at <= ?)"""
-                + node_scope
-                + " AND "
-                + node_visibility
-                + " LIMIT 1",
-                node_params,
-            ).fetchone()
-            if node is not None:
+            node_rows = self._lifecycle_node_rows_locked()
+            if any(_node_transition(row, now) is not None for row in node_rows):
                 return True
-
-            assertion_scope = ""
-            assertion_params: list[object] = [now]
-            if getattr(self, "elfie_id", None) is not None:
-                assertion_scope = (
-                    " AND EXISTS (SELECT 1 FROM nodes AS an "
-                    "WHERE an.node_id=a.subject_node_id "
-                    "AND json_extract(an.properties_json, '$.elfie_id')=?)"
-                )
-                assertion_params.append(str(self.elfie_id))
-            assertion_visibility, assertion_visibility_params = (
-                self._genesis_visibility("a")
-            )
-            assertion_params.extend(assertion_visibility_params)
-            return (
-                self.conn.execute(
-                    """SELECT 1 FROM assertions AS a
-                       WHERE a.lifecycle='active'
-                         AND (a.next_review_at IS NULL OR a.next_review_at <= ?)"""
-                    + assertion_scope
-                    + " AND "
-                    + assertion_visibility
-                    + " LIMIT 1",
-                    assertion_params,
-                ).fetchone()
-                is not None
+            assertion_rows = self._lifecycle_assertion_rows_locked()
+            return any(
+                _assertion_transition(row, now) is not None for row in assertion_rows
             )
 
     def recover_expired_maintenance_leases(self) -> int:
@@ -105,6 +47,79 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                 raise
         return changed
 
+    def _lifecycle_episode_rows_locked(self) -> list[sqlite3.Row]:
+        scope = ""
+        params: list[object] = []
+        if getattr(self, "elfie_id", None) is not None:
+            scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+            params.append(str(self.elfie_id))
+        visibility, visibility_params = self._genesis_visibility("e")
+        params.extend(visibility_params)
+        return self.conn.execute(
+            """SELECT e.*,
+                      (SELECT COUNT(*) FROM evidence AS ev
+                        WHERE ev.source_type='episode' AND ev.source_id=e.episode_id) AS evidence_count,
+                      (SELECT COUNT(*) FROM evidence AS ev
+                        WHERE ev.source_type='episode' AND ev.source_id=e.episode_id
+                          AND (ev.source_sha256 IS NULL OR ev.source_sha256 <> e.content_sha256))
+                        AS ungrounded_evidence_count
+                 FROM episodes AS e
+                WHERE e.lifecycle <> 'forgotten'"""
+            + scope
+            + " AND "
+            + visibility
+            + " ORDER BY e.episode_id",
+            params,
+        ).fetchall()
+
+    def _lifecycle_node_rows_locked(self) -> list[sqlite3.Row]:
+        scope = ""
+        params: list[object] = []
+        if getattr(self, "elfie_id", None) is not None:
+            scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+            params.append(str(self.elfie_id))
+        visibility, visibility_params = self._genesis_visibility("n")
+        params.extend(visibility_params)
+        return self.conn.execute(
+            """SELECT n.*,
+                      (SELECT COUNT(*) FROM assertions AS a
+                        WHERE a.lifecycle='active'
+                          AND (a.subject_node_id=n.node_id OR a.object_node_id=n.node_id))
+                        AS active_assertion_count
+                 FROM nodes AS n
+                WHERE n.status <> 'forgotten' AND n.merged_into IS NULL"""
+            + scope
+            + " AND "
+            + visibility
+            + " ORDER BY n.node_id",
+            params,
+        ).fetchall()
+
+    def _lifecycle_assertion_rows_locked(self) -> list[sqlite3.Row]:
+        scope = ""
+        params: list[object] = []
+        if getattr(self, "elfie_id", None) is not None:
+            scope = (
+                " AND EXISTS (SELECT 1 FROM nodes AS an "
+                "WHERE an.node_id=a.subject_node_id "
+                "AND json_extract(an.properties_json, '$.elfie_id')=?)"
+            )
+            params.append(str(self.elfie_id))
+        visibility, visibility_params = self._genesis_visibility("a")
+        params.extend(visibility_params)
+        return self.conn.execute(
+            """SELECT a.*,
+                      (SELECT COUNT(*) FROM assertion_evidence AS ae
+                        WHERE ae.assertion_id=a.assertion_id) AS evidence_count
+                 FROM assertions AS a
+                WHERE a.lifecycle NOT IN ('forgotten', 'superseded')"""
+            + scope
+            + " AND "
+            + visibility
+            + " ORDER BY a.assertion_id",
+            params,
+        ).fetchall()
+
     conn: sqlite3.Connection
 
     def run_lifecycle(self, request: MaintenanceRequest) -> MaintenanceReceipt:
@@ -114,124 +129,84 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         node_ids: list[str] = []
         assertion_ids: list[str] = []
         errors: dict[str, str] = {}
-        processed_count = 0
+        processed = 0
         checkpoint_blocked = False
         checkpoint_stage, checkpoint_target = _decode_checkpoint(request.checkpoint)
+
+        def claim(stage: str, target_id: str) -> int | None:
+            return self._claim_maintenance_target(
+                stage=stage,
+                target_id=target_id,
+                worker=worker,
+                now=now,
+                lease_seconds=request.lease_seconds,
+                checkpoint=request.checkpoint,
+            )
+
+        def record_failure(target_id: str, attempt: int, error: Exception) -> None:
+            errors[target_id] = str(error)
+            self._record_maintenance(
+                stage="lifecycle",
+                target_id=target_id,
+                state="failed",
+                worker=worker,
+                now=now,
+                checkpoint=request.checkpoint,
+                error=str(error),
+                attempt=attempt,
+            )
+
         with self._lock:
             owns = self._begin_write_transaction()
             try:
                 self._recover_expired_maintenance_leases_locked(now)
-                episode_scope = ""
-                episode_params: list[object] = [now]
-                if getattr(self, "elfie_id", None) is not None:
-                    episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
-                    episode_params.append(str(self.elfie_id))
-                episode_visibility, episode_visibility_params = (
-                    self._genesis_visibility("e")
-                )
-                episode_params.extend(episode_visibility_params)
-                episode_params.append(request.max_episodes * 2)
-                rows = self.conn.execute(
-                    """SELECT e.*,
-                              (SELECT COUNT(*) FROM evidence AS ev
-                                WHERE ev.source_type='episode'
-                                  AND ev.source_id=e.episode_id) AS evidence_count,
-                              (SELECT COUNT(*) FROM evidence AS ev
-                                WHERE ev.source_type='episode'
-                                  AND ev.source_id=e.episode_id
-                                  AND (ev.source_sha256 IS NULL
-                                       OR ev.source_sha256 <> e.content_sha256))
-                                AS ungrounded_evidence_count
-                       FROM episodes AS e
-                       WHERE e.lifecycle <> 'forgotten'
-                         AND (e.next_review_at IS NULL OR e.next_review_at <= ?)"""
-                    + episode_scope
-                    + " AND "
-                    + episode_visibility
-                    + " ORDER BY COALESCE(e.next_review_at, e.occurred_from, e.updated_at), e.episode_id LIMIT ?",
-                    episode_params,
-                ).fetchall()
-                for row in rows:
-                    if processed_count >= request.max_episodes:
+                for row in self._lifecycle_episode_rows_locked():
+                    if processed >= request.max_episodes:
                         break
-                    episode_id = str(row["episode_id"])
-                    if not _checkpoint_allows(
-                        checkpoint_stage,
-                        checkpoint_target,
-                        "episode",
-                        episode_id,
+                    transition = _episode_transition(row, now)
+                    target_id = str(row["episode_id"])
+                    if transition is None or not _checkpoint_allows(
+                        checkpoint_stage, checkpoint_target, "episode", target_id
                     ):
                         continue
-                    claim_attempt = self._claim_maintenance_target(
-                        stage="lifecycle",
-                        target_id=episode_id,
-                        worker=worker,
-                        now=now,
-                        lease_seconds=request.lease_seconds,
-                        checkpoint=request.checkpoint,
-                    )
-                    if claim_attempt is None:
+                    attempt = claim("lifecycle", target_id)
+                    if attempt is None:
                         continue
-                    processed_count += 1
+                    processed += 1
                     try:
-                        projected = (
-                            row["projection_revision"] is not None
-                            and row["projection_source_sha256"] == row["content_sha256"]
+                        detail, lifecycle, content, summary = transition
+                        anchor = str(
+                            row["last_reinforced_at"] or row["updated_at"] or now
                         )
-                        old_detail = str(row["detail_level"])
-                        new_detail = old_detail
-                        old_lifecycle = str(row["lifecycle"])
-                        new_lifecycle = old_lifecycle
-                        summary = row["summary_text"] or str(row["content_text"])[:512]
-                        content = str(row["content_text"])
-                        new_importance = MemoryScorePolicy.decay_importance(
-                            float(row["importance"])
-                        )
-                        # Never compact an Episode that has not been projected
-                        # for its current source hash.
-                        if projected:
-                            if old_lifecycle == "archived" and _can_forget_episode(
-                                row, new_importance
-                            ):
-                                new_lifecycle = "forgotten"
-                                new_detail = "digest"
-                                content = f"[forgotten:{row['content_sha256']}]"
-                                summary = None
-                            elif old_detail == "full":
-                                new_detail = "compressed"
-                            elif old_detail == "compressed":
-                                new_detail = "digest"
-                                content = f"[digest:{row['content_sha256']}]"
-                            elif old_detail == "digest":
-                                new_lifecycle = "archived"
-                        next_review = (
-                            None
-                            if new_lifecycle == "forgotten"
-                            else _next_review(now, new_detail, new_lifecycle)
+                        next_review = _next_lifecycle_review(
+                            anchor,
+                            float(row["retention_days"] or 7.0),
+                            detail,
+                            lifecycle,
                         )
                         changed = self.conn.execute(
-                            """UPDATE episodes SET importance=?,
-                                   content_text=?, summary_text=?, detail_level=?,
+                            """UPDATE episodes SET content_text=?, summary_text=?, detail_level=?,
                                    lifecycle=?, last_reviewed_at=?, next_review_at=?,
-                                   policy_version='memory.v1', updated_at=?
-                               WHERE episode_id=?
-                                 AND """
+                                   lifecycle_changed_at=CASE WHEN lifecycle<>? THEN ? ELSE lifecycle_changed_at END,
+                                   policy_version=?, updated_at=? WHERE episode_id=? AND """
                             + _maintenance_claim_predicate(),
                             (
-                                new_importance,
                                 content,
                                 summary,
-                                new_detail,
-                                new_lifecycle,
+                                detail,
+                                lifecycle,
                                 now,
                                 next_review,
+                                lifecycle,
                                 now,
-                                episode_id,
+                                MemoryScorePolicy.version,
+                                now,
+                                target_id,
                                 str(getattr(self, "elfie_id", "") or ""),
                                 "lifecycle",
-                                episode_id,
+                                target_id,
                                 worker,
-                                claim_attempt,
+                                attempt,
                                 now,
                             ),
                         ).rowcount
@@ -240,98 +215,57 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                                 "lifecycle claim was lost before Episode update"
                             )
                         self._upsert_episode_fts_from_values(
-                            episode_id,
-                            content,
-                            summary,
+                            target_id, content, summary
                         )
                         self._record_maintenance(
                             stage="lifecycle",
-                            target_id=episode_id,
+                            target_id=target_id,
                             state="completed",
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
-                            attempt=claim_attempt,
+                            attempt=attempt,
                         )
-                        episode_ids.append(episode_id)
+                        episode_ids.append(target_id)
                         if not checkpoint_blocked:
-                            checkpoint_stage, checkpoint_target = "episode", episode_id
+                            checkpoint_stage, checkpoint_target = "episode", target_id
                     except Exception as error:  # noqa: BLE001
-                        errors[episode_id] = str(error)
                         checkpoint_blocked = True
-                        self._record_maintenance(
-                            stage="lifecycle",
-                            target_id=episode_id,
-                            state="failed",
-                            worker=worker,
-                            now=now,
-                            checkpoint=request.checkpoint,
-                            error=str(error),
-                            attempt=claim_attempt,
-                        )
-                remaining = max(0, request.max_episodes - processed_count)
-                node_visibility, node_visibility_params = self._genesis_visibility("n")
-                node_scope = ""
-                node_params: list[object] = [now]
-                if getattr(self, "elfie_id", None) is not None:
-                    node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
-                    node_params.append(str(self.elfie_id))
-                node_params.extend(node_visibility_params)
-                node_params.append(max(0, remaining) * 2)
-                node_rows = (
-                    self.conn.execute(
-                        """SELECT n.node_id FROM nodes AS n
-                       WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
-                         AND (n.next_review_at IS NULL OR n.next_review_at <= ?)"""
-                        + node_scope
-                        + " AND "
-                        + node_visibility
-                        + " ORDER BY COALESCE(n.next_review_at, n.updated_at), n.node_id LIMIT ?",
-                        node_params,
-                    ).fetchall()
-                    if remaining
-                    else ()
-                )
-                for row in node_rows:
-                    if processed_count >= request.max_episodes:
+                        record_failure(target_id, attempt, error)
+
+                for row in self._lifecycle_node_rows_locked():
+                    if processed >= request.max_episodes:
                         break
-                    node_id = str(row["node_id"])
-                    if not _checkpoint_allows(
-                        checkpoint_stage,
-                        checkpoint_target,
-                        "node",
-                        node_id,
+                    target_id = str(row["node_id"])
+                    node_lifecycle = _node_transition(row, now)
+                    if node_lifecycle is None or not _checkpoint_allows(
+                        checkpoint_stage, checkpoint_target, "node", target_id
                     ):
                         continue
-                    claim_attempt = self._claim_maintenance_target(
-                        stage="lifecycle",
-                        target_id=node_id,
-                        worker=worker,
-                        now=now,
-                        lease_seconds=request.lease_seconds,
-                        checkpoint=request.checkpoint,
-                    )
-                    if claim_attempt is None:
+                    attempt = claim("lifecycle", target_id)
+                    if attempt is None:
                         continue
-                    processed_count += 1
+                    processed += 1
                     try:
+                        lifecycle = node_lifecycle
                         changed = self.conn.execute(
-                            """UPDATE nodes SET importance=MAX(0.0, importance-?),
-                                   last_reviewed_at=?, next_review_at=?,
-                                   policy_version='memory.v1', updated_at=? WHERE node_id=?
-                                 AND """
+                            """UPDATE nodes SET status=?, last_reviewed_at=?, next_review_at=NULL,
+                                   lifecycle_changed_at=CASE WHEN status<>? THEN ? ELSE lifecycle_changed_at END,
+                                   policy_version=?, updated_at=? WHERE node_id=? AND """
                             + _maintenance_claim_predicate(),
                             (
-                                MemoryScorePolicy.lifecycle_decay,
+                                lifecycle,
                                 now,
-                                _next_review(now, "", "active"),
+                                lifecycle,
                                 now,
-                                node_id,
+                                MemoryScorePolicy.version,
+                                now,
+                                target_id,
                                 str(getattr(self, "elfie_id", "") or ""),
                                 "lifecycle",
-                                node_id,
+                                target_id,
                                 worker,
-                                claim_attempt,
+                                attempt,
                                 now,
                             ),
                         ).rowcount
@@ -341,121 +275,53 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             )
                         self._record_maintenance(
                             stage="lifecycle",
-                            target_id=node_id,
+                            target_id=target_id,
                             state="completed",
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
-                            attempt=claim_attempt,
+                            attempt=attempt,
                         )
-                        node_ids.append(node_id)
-                    except Exception as error:  # noqa: BLE001
-                        errors[node_id] = str(error)
-                        checkpoint_blocked = True
-                        self._record_maintenance(
-                            stage="lifecycle",
-                            target_id=node_id,
-                            state="failed",
-                            worker=worker,
-                            now=now,
-                            checkpoint=request.checkpoint,
-                            error=str(error),
-                            attempt=claim_attempt,
-                        )
-                    else:
+                        node_ids.append(target_id)
                         if not checkpoint_blocked:
-                            checkpoint_stage, checkpoint_target = "node", node_id
+                            checkpoint_stage, checkpoint_target = "node", target_id
+                    except Exception as error:  # noqa: BLE001
+                        checkpoint_blocked = True
+                        record_failure(target_id, attempt, error)
 
-                remaining = max(0, request.max_episodes - processed_count)
-                assertion_visibility, assertion_visibility_params = (
-                    self._genesis_visibility("a")
-                )
-                assertion_scope = ""
-                assertion_scope_params: list[object] = []
-                if getattr(self, "elfie_id", None) is not None:
-                    assertion_scope = (
-                        " AND EXISTS (SELECT 1 FROM nodes AS an "
-                        "WHERE an.node_id=a.subject_node_id "
-                        "AND json_extract(an.properties_json, '$.elfie_id')=?)"
-                    )
-                    assertion_scope_params.append(str(self.elfie_id))
-                assertion_params: list[object] = [
-                    now,
-                    *assertion_visibility_params,
-                    *assertion_scope_params,
-                    remaining * 2,
-                ]
-                assertion_rows = (
-                    self.conn.execute(
-                        """SELECT a.assertion_id FROM assertions AS a
-                       WHERE a.lifecycle='active'
-                         AND (a.next_review_at IS NULL OR a.next_review_at <= ?)
-                         AND """
-                        + assertion_visibility
-                        + assertion_scope
-                        + " ORDER BY COALESCE(a.next_review_at, a.updated_at), a.assertion_id LIMIT ?",
-                        assertion_params,
-                    ).fetchall()
-                    if remaining
-                    else ()
-                )
-                for row in assertion_rows:
-                    if processed_count >= request.max_episodes:
+                for row in self._lifecycle_assertion_rows_locked():
+                    if processed >= request.max_episodes:
                         break
-                    assertion_id = str(row["assertion_id"])
-                    if not _checkpoint_allows(
-                        checkpoint_stage,
-                        checkpoint_target,
-                        "assertion",
-                        assertion_id,
+                    target_id = str(row["assertion_id"])
+                    assertion_lifecycle = _assertion_transition(row, now)
+                    if assertion_lifecycle is None or not _checkpoint_allows(
+                        checkpoint_stage, checkpoint_target, "assertion", target_id
                     ):
                         continue
-                    claim_attempt = self._claim_maintenance_target(
-                        stage="lifecycle",
-                        target_id=assertion_id,
-                        worker=worker,
-                        now=now,
-                        lease_seconds=request.lease_seconds,
-                        checkpoint=request.checkpoint,
-                    )
-                    if claim_attempt is None:
+                    attempt = claim("lifecycle", target_id)
+                    if attempt is None:
                         continue
-                    processed_count += 1
+                    processed += 1
                     try:
+                        lifecycle = assertion_lifecycle
                         changed = self.conn.execute(
-                            """UPDATE assertions SET importance=MAX(0.0, importance-?),
-                                   last_reviewed_at=?, next_review_at=?,
-                                   policy_version='memory.v1', updated_at=?
-                               WHERE assertion_id=? AND """
-                            + (
-                                "EXISTS (SELECT 1 FROM nodes AS an "
-                                "WHERE an.node_id=assertions.subject_node_id "
-                                "AND json_extract(an.properties_json, '$.elfie_id')=?)"
-                                if getattr(self, "elfie_id", None) is not None
-                                else ""
-                            )
-                            + (
-                                " AND "
-                                if getattr(self, "elfie_id", None) is not None
-                                else ""
-                            )
+                            """UPDATE assertions SET lifecycle=?, last_reviewed_at=?, next_review_at=NULL,
+                                   lifecycle_changed_at=CASE WHEN lifecycle<>? THEN ? ELSE lifecycle_changed_at END,
+                                   policy_version=?, updated_at=? WHERE assertion_id=? AND """
                             + _maintenance_claim_predicate(),
                             (
-                                MemoryScorePolicy.lifecycle_decay,
+                                lifecycle,
                                 now,
-                                _next_review(now, "", "active"),
+                                lifecycle,
                                 now,
-                                assertion_id,
-                                *(
-                                    (str(self.elfie_id),)
-                                    if getattr(self, "elfie_id", None) is not None
-                                    else ()
-                                ),
+                                MemoryScorePolicy.version,
+                                now,
+                                target_id,
                                 str(getattr(self, "elfie_id", "") or ""),
                                 "lifecycle",
-                                assertion_id,
+                                target_id,
                                 worker,
-                                claim_attempt,
+                                attempt,
                                 now,
                             ),
                         ).rowcount
@@ -465,34 +331,19 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                             )
                         self._record_maintenance(
                             stage="lifecycle",
-                            target_id=assertion_id,
+                            target_id=target_id,
                             state="completed",
                             worker=worker,
                             now=now,
                             checkpoint=request.checkpoint,
-                            attempt=claim_attempt,
+                            attempt=attempt,
                         )
-                        assertion_ids.append(assertion_id)
-                    except Exception as error:  # noqa: BLE001
-                        errors[assertion_id] = str(error)
-                        checkpoint_blocked = True
-                        self._record_maintenance(
-                            stage="lifecycle",
-                            target_id=assertion_id,
-                            state="failed",
-                            worker=worker,
-                            now=now,
-                            checkpoint=request.checkpoint,
-                            error=str(error),
-                            attempt=claim_attempt,
-                        )
-                    else:
+                        assertion_ids.append(target_id)
                         if not checkpoint_blocked:
-                            checkpoint_stage, checkpoint_target = (
-                                "assertion",
-                                assertion_id,
-                            )
-
+                            checkpoint_stage, checkpoint_target = "assertion", target_id
+                    except Exception as error:  # noqa: BLE001
+                        checkpoint_blocked = True
+                        record_failure(target_id, attempt, error)
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)
@@ -500,10 +351,12 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         status = (
             "failed"
             if errors and not (episode_ids or node_ids or assertion_ids)
-            else ("partial" if errors else "completed")
+            else "partial"
+            if errors
+            else "completed"
+            if (episode_ids or node_ids or assertion_ids)
+            else "empty"
         )
-        if not (episode_ids or node_ids or assertion_ids) and not errors:
-            status = "empty"
         checkpoint = _encode_checkpoint(
             checkpoint_stage,
             checkpoint_target,
@@ -674,32 +527,156 @@ def _maintenance_claim_predicate() -> str:
     )"""
 
 
-def _next_review(now: str, detail_level: str, lifecycle: str) -> str:
+def _row_freshness(row: sqlite3.Row, now: str) -> float:
+    keys = set(row.keys())
+    anchor = row["last_reinforced_at"] if "last_reinforced_at" in keys else None
+    if not anchor and "updated_at" in keys:
+        anchor = row["updated_at"]
+    if not anchor and "created_at" in keys:
+        anchor = row["created_at"]
+    return MemoryScorePolicy.freshness(
+        now,
+        str(anchor or now),
+        float(row["retention_days"] or 7.0),
+    )
+
+
+def _episode_transition(
+    row: sqlite3.Row, now: str
+) -> tuple[str, str, str, str | None] | None:
+    """Return the next source-line lifecycle state, or ``None``."""
+    lifecycle = str(row["lifecycle"])
+    detail = str(row["detail_level"])
+    freshness = _row_freshness(row, now)
+    if lifecycle == "archived" and _can_forget_episode(row, freshness, now):
+        return (
+            "digest",
+            "forgotten",
+            f"[forgotten:{row['content_sha256']}]",
+            None,
+        )
+    projected = (
+        row["projection_revision"] is not None
+        and row["projection_source_sha256"] == row["content_sha256"]
+    )
+    if not projected or lifecycle != "active":
+        return None
+    if detail == "full" and freshness <= MemoryScorePolicy.compress_freshness_threshold:
+        content = str(row["content_text"])
+        summary = row["summary_text"] or content[:512]
+        return "compressed", "active", content, summary
+    if (
+        detail == "compressed"
+        and freshness <= MemoryScorePolicy.digest_freshness_threshold
+    ):
+        return (
+            "digest",
+            "active",
+            f"[digest:{row['content_sha256']}]",
+            row["summary_text"] or str(row["content_text"])[:512],
+        )
+    if detail == "digest" and freshness < MemoryScorePolicy.active_freshness_threshold:
+        return (
+            "digest",
+            "archived",
+            str(row["content_text"]),
+            row["summary_text"] or str(row["content_text"])[:512],
+        )
+    return None
+
+
+def _node_transition(row: sqlite3.Row, now: str) -> str | None:
+    status = str(row["status"])
+    freshness = _row_freshness(row, now)
+    if status == "archived":
+        archived_at = row["lifecycle_changed_at"] or row["updated_at"] or now
+        archived_days = _elapsed_days(str(archived_at), now)
+        if MemoryScorePolicy.can_logically_forget(
+            freshness=freshness,
+            importance=float(row["importance"]),
+            archived_days=archived_days,
+            dependency_safe=int(row["active_assertion_count"] or 0) == 0,
+        ):
+            return "forgotten"
+        return None
+    if (
+        status in {"active", "candidate", "unresolved"}
+        and freshness < MemoryScorePolicy.active_freshness_threshold
+    ):
+        return "archived"
+    return None
+
+
+def _assertion_transition(row: sqlite3.Row, now: str) -> str | None:
+    lifecycle = str(row["lifecycle"])
+    freshness = _row_freshness(row, now)
     if lifecycle == "archived":
-        days = 90
-    elif detail_level == "compressed":
-        days = 30
-    elif detail_level == "digest":
-        days = 60
-    else:
-        days = 7
-    current = datetime.fromisoformat(now.replace("Z", "+00:00"))
-    return (current + timedelta(days=days)).isoformat(timespec="milliseconds")
+        archived_at = row["lifecycle_changed_at"] or row["updated_at"] or now
+        if MemoryScorePolicy.can_logically_forget(
+            freshness=freshness,
+            importance=float(row["importance"]),
+            archived_days=_elapsed_days(str(archived_at), now),
+            dependency_safe=int(row["evidence_count"] or 0) == 0,
+        ):
+            return "forgotten"
+        return None
+    if (
+        lifecycle == "active"
+        and freshness < MemoryScorePolicy.active_freshness_threshold
+    ):
+        return "archived"
+    return None
 
 
-def _can_forget_episode(row: sqlite3.Row, importance: float) -> bool:
-    """Apply the source-safety gate for automatic archived-source forgetting."""
+def _can_forget_episode(row: sqlite3.Row, freshness: float, now: str) -> bool:
+    """Apply source/evidence safety before writing a logical forget marker."""
     if str(row["detail_level"]) != "digest":
         return False
-    if row["projection_revision"] is None or (
-        row["projection_source_sha256"] != row["content_sha256"]
+    if (
+        row["projection_revision"] is None
+        or row["projection_source_sha256"] != row["content_sha256"]
     ):
         return False
-    if int(row["evidence_count"] or 0) < 1:
+    if (
+        int(row["evidence_count"] or 0) < 1
+        or int(row["ungrounded_evidence_count"] or 0) > 0
+    ):
         return False
-    if int(row["ungrounded_evidence_count"] or 0) > 0:
-        return False
-    return MemoryScorePolicy.can_forget(importance)
+    archived_at = row["lifecycle_changed_at"] or row["updated_at"] or now
+    return MemoryScorePolicy.can_logically_forget(
+        freshness=freshness,
+        importance=float(row["importance"]),
+        archived_days=_elapsed_days(str(archived_at), now),
+        dependency_safe=True,
+    )
+
+
+def _next_lifecycle_review(
+    anchor: str, retention_days: float, detail: str, lifecycle: str
+) -> str | None:
+    if lifecycle == "archived" or lifecycle == "forgotten":
+        return None
+    threshold = {
+        "full": MemoryScorePolicy.compress_freshness_threshold,
+        "compressed": MemoryScorePolicy.digest_freshness_threshold,
+        "digest": MemoryScorePolicy.active_freshness_threshold,
+    }.get(detail, MemoryScorePolicy.active_freshness_threshold)
+    return MemoryScorePolicy.next_review_at(
+        anchor, retention_days, threshold
+    ).isoformat(timespec="milliseconds")
+
+
+def _elapsed_days(start: str, end: str) -> float:
+    try:
+        first = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        last = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    if first.tzinfo is None:
+        first = first.replace(tzinfo=timezone.utc)
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return max(0.0, (last - first).total_seconds() / 86_400.0)
 
 
 _CHECKPOINT_STAGE_ORDER = {"episode": 0, "node": 1, "assertion": 2}

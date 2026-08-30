@@ -36,7 +36,7 @@ from elfie.brain.memory import (
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
-SCENARIO_SET = "opt003-memory-endurance.v1"
+SCENARIO_SET = "opt003-memory-endurance.v2"
 DEFAULT_OUTPUT = ROOT / "build" / "evaluations" / "stage1-chat" / "opt003-current"
 DEFAULT_COUNTS = {
     "episodes": 10_000,
@@ -351,7 +351,7 @@ def _lifecycle_smoke() -> Dict[str, Any]:
         # evaluation-only clock policy; the production policy remains owned by
         # MemoryScorePolicy and is exercised by the adapter tests.
         with patch(
-            "infrastructure.persistence.memory.sqlite_lifecycle_store._next_review",
+            "infrastructure.persistence.memory.sqlite_lifecycle_store._next_lifecycle_review",
             return_value="2020-01-01T00:00:00+00:00",
         ):
             for _ in range(4):
@@ -360,6 +360,15 @@ def _lifecycle_smoke() -> Dict[str, Any]:
                 if current is None:
                     raise RuntimeError("lifecycle smoke source Episode disappeared")
                 observed.append(f"{current.lifecycle}:{current.detail_level}")
+                if current.lifecycle == "archived":
+                    # The v2 forget predicate includes a 90-day archived
+                    # safety window.  Move only this disposable fixture past
+                    # that window before the final replay step.
+                    store.connection.execute(
+                        "UPDATE episodes SET lifecycle_changed_at=? WHERE episode_id=?",
+                        ("2020-01-01T00:00:00+00:00", episode.episode_id),
+                    )
+                    store.connection.commit()
                 if not result.lifecycle_episode_ids:
                     break
         forgotten = store.list_episodes(include_forgotten=True)

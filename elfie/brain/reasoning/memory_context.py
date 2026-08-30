@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from threading import RLock
 from typing import Literal, Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
@@ -10,7 +12,11 @@ from elfie.brain.memory.contracts import (
     MemoryContext,
     MemoryItem,
 )
-from elfie.brain.memory.memory_records import RecallBundle, RecallRequest
+from elfie.brain.memory.memory_records import (
+    MemoryUseProposal,
+    RecallBundle,
+    RecallRequest,
+)
 from elfie.brain.reasoning.context_types import CompletedConversationInteraction
 from elfie.brain.state_lifecycle import StateCommitReceipt, StateCommitStatus
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -22,6 +28,9 @@ class MemoryContextReader:
 
     def __init__(self, memory: MemorySystem) -> None:
         self._memory = memory
+        self._bundle_lock = RLock()
+        self._bundles: OrderedDict[str, RecallBundle] = OrderedDict()
+        self._bundle_capacity = 256
 
     def read(
         self,
@@ -36,11 +45,14 @@ class MemoryContextReader:
                 query_parts.append(event.payload.content)
         state = self._memory.snapshot(captured_at)
         if not query_parts:
+            bundle = RecallBundle(recall_revision=self._memory.revision)
+            self._remember_bundle(frame.frame_id, bundle)
             return MemoryContext(
                 revision=frame.revision,
                 captured_at=captured_at,
                 items=(),
                 state=state,
+                recall_revision=bundle.recall_revision,
             )
         query = "\n".join(query_parts)
         bundle = self._memory.recall(
@@ -55,13 +67,34 @@ class MemoryContextReader:
                 character_limit=6000,
             )
         )
+        self._remember_bundle(frame.frame_id, bundle)
         items = _memory_items_from_bundle(bundle)
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,
             items=items,
             state=state,
+            recall_revision=bundle.recall_revision,
         )
+
+    def submit_use_proposal(
+        self, frame_id: EventId, proposal: MemoryUseProposal
+    ) -> bool:
+        """Submit model-selected IDs against the exact frame RecallBundle."""
+        with self._bundle_lock:
+            bundle = self._bundles.get(str(frame_id))
+        if bundle is None:
+            raise ValueError("memory RecallBundle for frame is no longer available")
+        return self._memory.submit_memory_use_proposal(proposal, bundle)
+
+    def _remember_bundle(self, frame_id: EventId, bundle: RecallBundle) -> None:
+        """Keep only a bounded frame→bundle binding for settlement."""
+        key = str(frame_id)
+        with self._bundle_lock:
+            self._bundles.pop(key, None)
+            self._bundles[key] = bundle
+            while len(self._bundles) > self._bundle_capacity:
+                self._bundles.popitem(last=False)
 
     def candidates(
         self,
@@ -163,8 +196,19 @@ def _memory_items_from_bundle(bundle: RecallBundle) -> Tuple[MemoryItem, ...]:
 
     items: list[MemoryItem] = []
     seen_ids: set[str] = set()
+    # Keep a small per-kind allowance so a dense graph does not crowd every
+    # sourced relation or Episode out of the model context.  The RecallBundle
+    # remains the authoritative bounded result; this is only the Reasoning
+    # projection budget.
+    node_budget = 4
+    assertion_budget = 4
+    node_count = 0
     for node in bundle.focus_nodes:
-        if not node.label.strip() or node.node_id in seen_ids:
+        if (
+            node_count >= node_budget
+            or not node.label.strip()
+            or node.node_id in seen_ids
+        ):
             continue
         node_sources: list[EventId] = []
         for assertion in bundle.assertions:
@@ -182,29 +226,79 @@ def _memory_items_from_bundle(bundle: RecallBundle) -> Tuple[MemoryItem, ...]:
         items.append(
             MemoryItem(
                 memory_id=EventId(node.node_id),
+                target_kind="node",
                 content=content,
                 relevance=max(0.0, min(1.0, node.relevance)),
                 source_event_ids=source_ids,
+                importance=node.importance,
+                freshness=node.freshness,
+                confidence=node.confidence,
                 kind=kind,
                 source="memory_recall",
-                certainty="medium",
             )
         )
         seen_ids.add(node.node_id)
-        if len(items) >= 8:
-            return tuple(items)
+        node_count += 1
+    node_labels = {node.node_id: node.label for node in bundle.focus_nodes}
+    assertion_count = 0
+    for assertion in bundle.assertions:
+        if assertion_count >= assertion_budget:
+            break
+        if assertion.assertion_id in seen_ids:
+            continue
+        subject = node_labels.get(assertion.subject_id, assertion.subject_id)
+        object_value: object
+        if assertion.object_node_id is not None:
+            object_value = node_labels.get(
+                assertion.object_node_id, assertion.object_node_id
+            )
+        else:
+            object_value = assertion.object_literal
+        if object_value is None:
+            continue
+        content = f"{subject} --{assertion.predicate}--> {object_value}"
+        source_ids = tuple(
+            dict.fromkeys(
+                evidence_sources[evidence_id]
+                for evidence_id in assertion.evidence_ids
+                if evidence_id in evidence_sources
+            )
+        )
+        items.append(
+            MemoryItem(
+                memory_id=EventId(assertion.assertion_id),
+                target_kind="assertion",
+                content=content,
+                relevance=max(0.0, min(1.0, assertion.relevance)),
+                source_event_ids=source_ids,
+                importance=assertion.importance,
+                freshness=assertion.freshness,
+                confidence=(
+                    assertion.confidence if assertion.status == "active" else None
+                ),
+                kind="knowledge",
+                source="memory_recall",
+            )
+        )
+        seen_ids.add(assertion.assertion_id)
+        assertion_count += 1
     for episode in bundle.episodes:
         if episode.episode_id in seen_ids or not episode.excerpt.strip():
             continue
+        if len(items) >= 8:
+            break
         items.append(
             MemoryItem(
                 memory_id=EventId(episode.episode_id),
+                target_kind="episode",
                 content=episode.excerpt,
                 relevance=max(0.0, min(1.0, episode.relevance)),
                 source_event_ids=(EventId(episode.episode_id),),
+                importance=episode.importance,
+                freshness=episode.freshness,
+                confidence=None,
                 kind="episodic",
                 source="episode",
-                certainty="medium",
             )
         )
         seen_ids.add(episode.episode_id)
