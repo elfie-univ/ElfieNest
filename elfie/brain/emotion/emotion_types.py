@@ -22,20 +22,6 @@ class EmotionType(str, Enum):
     DISGUST = "disgust"
 
 
-@unique
-class ObservedEmotionType(str, Enum):
-    """Broader labels a language detector may observe in another actor."""
-
-    HAPPINESS = "happiness"
-    SADNESS = "sadness"
-    ANGER = "anger"
-    FEAR = "fear"
-    SURPRISE = "surprise"
-    DISGUST = "disgust"
-    BOREDOM = "boredom"
-    ATTACHMENT = "attachment"
-
-
 EMOTION_NAMES = tuple(item.value for item in EmotionType)
 
 # Direct domain construction still needs a deterministic safe default. The
@@ -89,5 +75,4 @@ __all__ = (
     "EMOTION_CONFIGS",
     "EMOTION_NAMES",
     "EmotionType",
-    "ObservedEmotionType",
 )

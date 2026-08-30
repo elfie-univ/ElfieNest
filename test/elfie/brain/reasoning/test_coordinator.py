@@ -417,7 +417,10 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
 
     try:
         assert emotion.get_emotion_value("anger") > emotion.parameters("anger").baseline
-        assert "EMOTION_FEEDBACK" in runtime.calls[0].system_prompt
+        system_prompt = runtime.calls[0].system_prompt
+        assert "EMOTION_FEEDBACK" in system_prompt
+        assert "elfie emotion: primary=calm" in system_prompt
+        assert "anger at" not in system_prompt
         runtime.release.set()
         assert sink.accepted.wait(1), coordinator.outcomes()
         assert emotion.get_emotion_value("anger") == pytest.approx(
@@ -634,7 +637,7 @@ def test_frame_replay_reuses_fast_candidate_without_double_application() -> None
         reason=TriggerReason.MANUAL,
         captured_at=NOW,
     )
-    txn, is_new = coordinator._prepare_affect_transaction(frame, first_turn)
+    txn, is_new = coordinator._prepare_affect_transaction(frame)
     assert is_new is True
     assert emotion.commit_turn_state(txn.fast_candidate)
     coordinator._affect_txn = txn
@@ -643,10 +646,7 @@ def test_frame_replay_reuses_fast_candidate_without_double_application() -> None
 
     replay_turn = TurnId("turn-replay")
     replay_frame = workspace.claim(frame.frame_id, replay_turn)
-    replay_txn, is_new = coordinator._prepare_affect_transaction(
-        replay_frame,
-        replay_turn,
-    )
+    replay_txn, is_new = coordinator._prepare_affect_transaction(replay_frame)
 
     assert is_new is False
     assert replay_txn is txn

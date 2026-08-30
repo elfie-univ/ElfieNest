@@ -14,8 +14,6 @@ from elfie.brain.emotion.contracts import (
     AffectiveAppraisal,
     AppraisalRelevance,
     ChannelEffect,
-    EmotionChange,
-    EmotionEffectRecord,
     EmotionSnapshot,
     EmotionValue,
     TrustedAppraisalScope,
@@ -33,7 +31,7 @@ from elfie.brain.emotion.emotion_types import (
 )
 from elfie.brain.emotion.personality import EmotionParameters, PersonalityModifier
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent
-from elfie.message_types import EventId, TurnId
+from elfie.message_types import EventId
 
 if TYPE_CHECKING:
     from elfie.brain.emotion.expression_mapper import EmotionExpression
@@ -72,8 +70,6 @@ class EmotionTurnSnapshot:
     last_updated_at: float
     emotions: Tuple[Tuple[str, float], ...]
     source_event_ids: Tuple[EventId, ...]
-    recent_changes: Tuple[EmotionChange, ...]
-    effect_records: Tuple[EmotionEffectRecord, ...]
     lifecycle_epoch: int
 
 
@@ -153,8 +149,6 @@ class EmotionSystem:
         self.revision = 0
         self.lifecycle_epoch = 0
         self._source_event_ids: deque[EventId] = deque(maxlen=32)
-        self._recent_changes: deque[EmotionChange] = deque(maxlen=128)
-        self._effect_records: deque[EmotionEffectRecord] = deque(maxlen=64)
         self._cause_guidance: OrderedDict[str, dict[EmotionType, ChannelEffect]] = (
             OrderedDict()
         )
@@ -183,8 +177,6 @@ class EmotionSystem:
             last_updated_at=self.last_updated_at,
             emotions=tuple((name, self.emotions[name]) for name in EMOTION_NAMES),
             source_event_ids=tuple(self._source_event_ids),
-            recent_changes=tuple(self._recent_changes),
-            effect_records=tuple(self._effect_records),
             lifecycle_epoch=self.lifecycle_epoch,
         )
 
@@ -194,8 +186,6 @@ class EmotionSystem:
         stimuli: tuple[EmotionStimulusEvent, ...],
         *,
         timestamp: float,
-        phase: str,
-        status: str,
     ) -> EmotionTurnSnapshot:
         """Purely calculate one complete candidate without mutating the owner."""
 
@@ -204,9 +194,6 @@ class EmotionSystem:
         values = dict(anchor.emotions)
         revision = anchor.revision
         source_ids = deque(anchor.source_event_ids, maxlen=32)
-        changes = deque(anchor.recent_changes, maxlen=128)
-        records = deque(anchor.effect_records, maxlen=64)
-        occurred_at = datetime.fromtimestamp(anchor.last_updated_at, timezone.utc)
 
         for stimulus in stimuli:
             by_channel: dict[str, dict[AffectDirection, list[float]]] = {
@@ -249,44 +236,6 @@ class EmotionSystem:
                 if current == old_value:
                     continue
                 revision += 1
-                changes.append(
-                    EmotionChange(
-                        revision=revision,
-                        occurred_at=occurred_at,
-                        event_id=stimulus.event_id,
-                        emotion=name,
-                        source=stimulus.source.value,
-                        previous_intensity=old_value,
-                        current_intensity=current,
-                    )
-                )
-            records.append(
-                EmotionEffectRecord(
-                    turn_id=stimulus.turn_id,
-                    event_id=stimulus.event_id,
-                    phase=phase if phase in {"fast", "slow"} else "fast",
-                    status=(
-                        status
-                        if status
-                        in {
-                            "provisional",
-                            "replaced",
-                            "committed",
-                            "fast_unreviewed",
-                        }
-                        else "committed"
-                    ),
-                    applied_at=occurred_at,
-                    source=stimulus.source.value,
-                    effect_count=sum(
-                        len(appraisal.effects) for appraisal in stimulus.appraisals
-                    ),
-                    cause_event_ids=tuple(
-                        appraisal.scope.cause_event_id
-                        for appraisal in stimulus.appraisals
-                    ),
-                )
-            )
 
         if timestamp > anchor.last_updated_at:
             dt = timestamp - anchor.last_updated_at
@@ -305,8 +254,6 @@ class EmotionSystem:
             last_updated_at=timestamp,
             emotions=tuple((name, values[name]) for name in EMOTION_NAMES),
             source_event_ids=tuple(source_ids),
-            recent_changes=tuple(changes),
-            effect_records=tuple(records),
             lifecycle_epoch=anchor.lifecycle_epoch,
         )
 
@@ -325,37 +272,21 @@ class EmotionSystem:
         self.last_updated_at = candidate.last_updated_at
         self.revision = max(self.revision + 1, candidate.revision)
         self._source_event_ids = deque(candidate.source_event_ids, maxlen=32)
-        self._recent_changes = deque(candidate.recent_changes, maxlen=128)
-        self._effect_records = deque(candidate.effect_records, maxlen=64)
         return True
 
     def apply_stimulus(
         self,
         stimulus: EmotionStimulusEvent,
-        *,
-        phase: str = "fast",
-        status: str = "committed",
-    ) -> Optional[EmotionChange]:
+    ) -> None:
         """Apply one distinct stimulus; input deduplication belongs to Workspace."""
 
         anchor = self.capture_turn_state()
-        before_count = len(anchor.recent_changes)
         candidate = self.candidate_from(
             anchor,
             (stimulus,),
             timestamp=self.last_updated_at,
-            phase=phase,
-            status=status,
         )
         self.commit_turn_state(candidate)
-        new_changes = candidate.recent_changes[before_count:]
-        return new_changes[0] if new_changes else None
-
-    def recent_changes(self) -> Tuple[EmotionChange, ...]:
-        return tuple(self._recent_changes)
-
-    def effect_records(self) -> Tuple[EmotionEffectRecord, ...]:
-        return tuple(self._effect_records)
 
     def guidance_appraisal(
         self,
@@ -404,18 +335,6 @@ class EmotionSystem:
         else:
             self._cause_guidance.pop(cause_key, None)
 
-    def mark_turn_unreviewed(self, turn_id: TurnId | str) -> None:
-        key = str(turn_id)
-        self._effect_records = deque(
-            (
-                record.model_copy(update={"status": "fast_unreviewed"})
-                if str(record.turn_id) == key and record.phase == "fast"
-                else record
-                for record in self._effect_records
-            ),
-            maxlen=64,
-        )
-
     def advance_to(self, timestamp: float) -> None:
         if timestamp < self.last_updated_at:
             raise EmotionTimeRegressionError(self.last_updated_at, timestamp)
@@ -447,9 +366,6 @@ class EmotionSystem:
         self.revision += 1
         self._source_event_ids.clear()
         self._cause_guidance.clear()
-
-    def tick(self, dt: float) -> None:
-        self.advance_to(self.last_updated_at + dt)
 
     def snapshot(self, at: float) -> EmotionSnapshot:
         self.advance_to(at)

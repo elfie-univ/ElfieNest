@@ -9,7 +9,7 @@ from threading import Event, Lock, Thread
 from typing import Deque, Dict, NamedTuple, Optional, Protocol
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
-from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
+from elfie.brain.emotion.contracts import TrustedAppraisalScope
 from elfie.brain.energy.contracts import CognitiveBudgetReservation
 from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.reasoning.decision_decoder import (
@@ -105,10 +105,6 @@ class ReasoningTaskView(Protocol):
         """Return current-state evidence used by direct reply validation."""
 
     @property
-    def emotion_snapshot(self) -> EmotionSnapshot | None:
-        """Return the provisional post-input affect snapshot for this turn."""
-
-    @property
     def appraisal_scopes(self) -> tuple[TrustedAppraisalScope, ...]:
         """Return the host-signed scopes exposed to model appraisal."""
 
@@ -125,7 +121,6 @@ class ReasoningTask:
     state_candidates: tuple[TurnStateCandidate, ...] = ()
     closed_episodes: tuple[ClosedEpisode, ...] = ()
     reply_safety_context: ReplySafetyContext | None = None
-    emotion_snapshot: EmotionSnapshot | None = None
     appraisal_scopes: tuple[TrustedAppraisalScope, ...] = ()
 
 

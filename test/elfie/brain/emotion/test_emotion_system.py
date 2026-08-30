@@ -65,13 +65,13 @@ def test_distinct_workspace_events_accumulate_without_emotion_deduplication() ->
     assert system.get_emotion_value("fear") > first
 
 
-def test_tick_returns_each_channel_toward_its_personality_baseline() -> None:
+def test_advance_returns_each_channel_toward_its_personality_baseline() -> None:
     system = EmotionSystem(clock=lambda: 0.0)
     system.apply_stimulus(_event("anger-1", EmotionType.ANGER, strength=90))
     before = system.get_emotion_value("anger")
     baseline = system.parameters("anger").baseline
 
-    system.tick(60.0)
+    system.advance_to(60.0)
 
     assert baseline < system.get_emotion_value("anger") < before
 

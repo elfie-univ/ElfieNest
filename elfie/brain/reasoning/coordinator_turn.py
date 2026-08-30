@@ -97,7 +97,6 @@ class CoordinatorTurnFactory:
         turn_id: TurnId,
         timestamp: float,
         *,
-        stable_emotion: EmotionSnapshot,
         emotion: EmotionSnapshot,
         appraisal_scopes: tuple[TrustedAppraisalScope, ...],
         requires_model: bool = True,
@@ -115,12 +114,12 @@ class CoordinatorTurnFactory:
         )
         homeostasis = self._homeostasis.snapshot(timestamp)
         conversation = self._context_source.conversation(frame, captured_at)
-        memory = self._context_source.memory(frame, stable_emotion, captured_at)
+        memory = self._context_source.memory(frame, emotion, captured_at)
         memory_candidate_reader = getattr(
             self._context_source, "memory_candidates", None
         )
         memory_candidates = (
-            memory_candidate_reader(frame, stable_emotion, captured_at)
+            memory_candidate_reader(frame, emotion, captured_at)
             if memory_candidate_reader is not None
             else ()
         )
@@ -284,7 +283,6 @@ class CoordinatorTurnFactory:
             state_candidates=state_candidates,
             closed_episodes=closed_episodes,
             reply_safety_context=self._reply_safety_context(frame),
-            emotion_snapshot=emotion,
             appraisal_scopes=appraisal_scopes,
         )
 

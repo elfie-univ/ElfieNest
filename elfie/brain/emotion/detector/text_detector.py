@@ -5,9 +5,23 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from enum import Enum, unique
 from typing import Dict, List, Optional, Tuple
 
-from elfie.brain.emotion.emotion_types import ObservedEmotionType as EmotionType
+
+@unique
+class _ObservedEmotionType(str, Enum):
+    """Private labels used only while converting observed cues to appraisals."""
+
+    HAPPINESS = "happiness"
+    SADNESS = "sadness"
+    ANGER = "anger"
+    FEAR = "fear"
+    SURPRISE = "surprise"
+    DISGUST = "disgust"
+    BOREDOM = "boredom"
+    ATTACHMENT = "attachment"
+
 
 _CJK = re.compile(r"[\u3400-\u9fff]")
 _LATIN = re.compile(r"[A-Za-z]")
@@ -29,18 +43,18 @@ _ENGLISH_VARIANTS = {
 
 
 @dataclass(frozen=True)
-class TextEmotionAssessment:
+class _TextEmotionAssessment:
     """Internal, non-persistent result of one text inspection."""
 
-    emotion: Optional[EmotionType]
+    emotion: Optional[_ObservedEmotionType]
     confidence: float
     language: str
     matched_terms: Tuple[str, ...] = ()
-    alternatives: Tuple[Tuple[EmotionType, float], ...] = ()
+    alternatives: Tuple[Tuple[_ObservedEmotionType, float], ...] = ()
 
 
-_LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
-    EmotionType.HAPPINESS: {
+_LEXICON: Dict[_ObservedEmotionType, Dict[str, Tuple[str, ...]]] = {
+    _ObservedEmotionType.HAPPINESS: {
         "en": (
             "happy",
             "happiness",
@@ -94,7 +108,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "合不拢嘴",
         ),
     },
-    EmotionType.SADNESS: {
+    _ObservedEmotionType.SADNESS: {
         "en": (
             "sad",
             "sadness",
@@ -141,7 +155,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "心情没有",
         ),
     },
-    EmotionType.ANGER: {
+    _ObservedEmotionType.ANGER: {
         "en": (
             "anger",
             "angry",
@@ -196,7 +210,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "你再说一遍试试",
         ),
     },
-    EmotionType.FEAR: {
+    _ObservedEmotionType.FEAR: {
         "en": (
             "afraid",
             "scared",
@@ -244,7 +258,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "怕",
         ),
     },
-    EmotionType.SURPRISE: {
+    _ObservedEmotionType.SURPRISE: {
         "en": (
             "surprised",
             "surprise",
@@ -281,7 +295,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "啊？？",
         ),
     },
-    EmotionType.DISGUST: {
+    _ObservedEmotionType.DISGUST: {
         "en": (
             "disgust",
             "disgusting",
@@ -316,7 +330,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "虫子",
         ),
     },
-    EmotionType.BOREDOM: {
+    _ObservedEmotionType.BOREDOM: {
         "en": (
             "bored",
             "boring",
@@ -357,7 +371,7 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
             "太平",
         ),
     },
-    EmotionType.ATTACHMENT: {
+    _ObservedEmotionType.ATTACHMENT: {
         "en": (
             "trust",
             "trusted",
@@ -412,8 +426,8 @@ _LEXICON: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
     },
 }
 
-_PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
-    EmotionType.HAPPINESS: {
+_PHRASES: Dict[_ObservedEmotionType, Dict[str, Tuple[str, ...]]] = {
+    _ObservedEmotionType.HAPPINESS: {
         "en": (
             "made my day",
             "feel relieved",
@@ -427,7 +441,7 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("太好了", "开心得", "高兴得", "心里暖暖", "暖暖的"),
     },
-    EmotionType.SADNESS: {
+    _ObservedEmotionType.SADNESS: {
         "en": (
             "empty inside",
             "isn't what i wanted",
@@ -437,7 +451,7 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("心里空空", "心好痛", "空落落", "一个人过生日", "心情没有"),
     },
-    EmotionType.ANGER: {
+    _ObservedEmotionType.ANGER: {
         "en": (
             "leave me alone",
             "pisses me off",
@@ -448,7 +462,7 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("别烦我", "別煩我", "真是谢谢你", "真是謝謝你", "好个惊喜", "好個驚喜"),
     },
-    EmotionType.FEAR: {
+    _ObservedEmotionType.FEAR: {
         "en": (
             "feel panicked",
             "i am terrified",
@@ -459,7 +473,7 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("心里很慌", "心裡很慌", "越说没事越不安", "越說沒事越不安"),
     },
-    EmotionType.SURPRISE: {
+    _ObservedEmotionType.SURPRISE: {
         "en": (
             "can't believe",
             "can’t believe",
@@ -469,7 +483,7 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("怎么会", "怎麼會", "打开盒子", "打開盒子"),
     },
-    EmotionType.DISGUST: {
+    _ObservedEmotionType.DISGUST: {
         "en": (
             "gone sour",
             "not eating that",
@@ -479,11 +493,11 @@ _PHRASES: Dict[EmotionType, Dict[str, Tuple[str, ...]]] = {
         ),
         "zh": ("没胃口", "沒胃口"),
     },
-    EmotionType.BOREDOM: {
+    _ObservedEmotionType.BOREDOM: {
         "en": ("same old feed", "still on slide two", "best. spreadsheet. ever."),
         "zh": ("刷新了十遍", "刷新十遍"),
     },
-    EmotionType.ATTACHMENT: {
+    _ObservedEmotionType.ATTACHMENT: {
         "en": (
             "feel safe with you",
             "i appreciate you",
@@ -576,13 +590,13 @@ _NEGATED_CALM = ("不焦虑", "不焦慮", "不兴奋", "不興奮", "not anxiou
 _NEGATED_HATE = ("not hate", "don't hate", "do not hate")
 
 _EMOJI_CUES = {
-    EmotionType.HAPPINESS: ("😄", "😊", "🎉", "<3"),
-    EmotionType.SADNESS: ("😢", "😭"),
-    EmotionType.DISGUST: ("🤢",),
-    EmotionType.ATTACHMENT: ("🥺", "❤️", "❤"),
-    EmotionType.ANGER: ("😡", "😠"),
-    EmotionType.FEAR: ("😱", "😨"),
-    EmotionType.BOREDOM: ("😑", "🥱"),
+    _ObservedEmotionType.HAPPINESS: ("😄", "😊", "🎉", "<3"),
+    _ObservedEmotionType.SADNESS: ("😢", "😭"),
+    _ObservedEmotionType.DISGUST: ("🤢",),
+    _ObservedEmotionType.ATTACHMENT: ("🥺", "❤️", "❤"),
+    _ObservedEmotionType.ANGER: ("😡", "😠"),
+    _ObservedEmotionType.FEAR: ("😱", "😨"),
+    _ObservedEmotionType.BOREDOM: ("😑", "🥱"),
 }
 
 _MIXED_CONNECTORS = (
@@ -600,14 +614,21 @@ _MIXED_CONNECTORS = (
     "也",
 )
 _SAME_POLARITY = {
-    "positive": frozenset({EmotionType.HAPPINESS, EmotionType.ATTACHMENT}),
+    "positive": frozenset(
+        {_ObservedEmotionType.HAPPINESS, _ObservedEmotionType.ATTACHMENT}
+    ),
     "negative": frozenset(
-        {EmotionType.SADNESS, EmotionType.ANGER, EmotionType.FEAR, EmotionType.DISGUST}
+        {
+            _ObservedEmotionType.SADNESS,
+            _ObservedEmotionType.ANGER,
+            _ObservedEmotionType.FEAR,
+            _ObservedEmotionType.DISGUST,
+        }
     ),
 }
 
 
-def _same_polarity(first: EmotionType, second: EmotionType) -> bool:
+def _same_polarity(first: _ObservedEmotionType, second: _ObservedEmotionType) -> bool:
     return any(first in group and second in group for group in _SAME_POLARITY.values())
 
 
@@ -647,15 +668,15 @@ class TextEmotionDetector:
     MIN_CONFIDENCE = 0.55
     MIN_MARGIN = 0.15
 
-    def assess(self, text: str) -> TextEmotionAssessment:
+    def assess(self, text: str) -> _TextEmotionAssessment:
         """Return a provisional assessment; ambiguity intentionally abstains."""
         normalized = _normalize(text)
         language = _language(normalized)
         if not normalized:
-            return TextEmotionAssessment(None, 0.0, language)
+            return _TextEmotionAssessment(None, 0.0, language)
 
-        scores: Dict[EmotionType, float] = dict.fromkeys(_LEXICON, 0.0)
-        matched: Dict[EmotionType, List[str]] = dict.fromkeys(_LEXICON, [])
+        scores: Dict[_ObservedEmotionType, float] = dict.fromkeys(_LEXICON, 0.0)
+        matched: Dict[_ObservedEmotionType, List[str]] = dict.fromkeys(_LEXICON, [])
         matched = {emotion: [] for emotion in matched}
         for emotion, language_terms in _LEXICON.items():
             for term_language, terms in language_terms.items():
@@ -692,7 +713,7 @@ class TextEmotionDetector:
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         active = [(emotion, score) for emotion, score in ranked if score > 0.0]
         if not active:
-            return TextEmotionAssessment(None, 0.0, language)
+            return _TextEmotionAssessment(None, 0.0, language)
 
         top_emotion, top_score = active[0]
         second_score = active[1][1] if len(active) > 1 else 0.0
@@ -700,7 +721,7 @@ class TextEmotionDetector:
         if len(active) > 1 and any(
             connector in normalized for connector in _MIXED_CONNECTORS
         ):
-            return TextEmotionAssessment(
+            return _TextEmotionAssessment(
                 None,
                 min(confidence, 0.54),
                 language,
@@ -711,7 +732,7 @@ class TextEmotionDetector:
                 ),
             )
         if calm_signal and top_score <= 1.0:
-            return TextEmotionAssessment(None, 0.0, language)
+            return _TextEmotionAssessment(None, 0.0, language)
         if (
             len(active) > 1
             and top_score - second_score < self.MIN_MARGIN
@@ -721,7 +742,7 @@ class TextEmotionDetector:
                 (emotion, min(0.95, 0.45 + 0.15 * score))
                 for emotion, score in active[:3]
             )
-            return TextEmotionAssessment(
+            return _TextEmotionAssessment(
                 None,
                 min(confidence, 0.54),
                 language,
@@ -729,8 +750,8 @@ class TextEmotionDetector:
                 alternatives,
             )
         if confidence < self.MIN_CONFIDENCE:
-            return TextEmotionAssessment(None, confidence, language)
-        return TextEmotionAssessment(
+            return _TextEmotionAssessment(None, confidence, language)
+        return _TextEmotionAssessment(
             top_emotion,
             confidence,
             language,
@@ -744,88 +765,81 @@ class TextEmotionDetector:
     @staticmethod
     def _apply_negation_rules(
         text: str,
-        scores: Dict[EmotionType, float],
-        matched: Dict[EmotionType, List[str]],
+        scores: Dict[_ObservedEmotionType, float],
+        matched: Dict[_ObservedEmotionType, List[str]],
     ) -> None:
         if any(phrase in text for phrase in _NEGATED_HAPPINESS):
-            scores[EmotionType.HAPPINESS] = 0.0
-            scores[EmotionType.SADNESS] += 2.0
-            matched[EmotionType.SADNESS].append("negated_happiness")
+            scores[_ObservedEmotionType.HAPPINESS] = 0.0
+            scores[_ObservedEmotionType.SADNESS] += 2.0
+            matched[_ObservedEmotionType.SADNESS].append("negated_happiness")
         if any(phrase in text for phrase in _NEGATED_SADNESS):
-            scores[EmotionType.SADNESS] = 0.0
+            scores[_ObservedEmotionType.SADNESS] = 0.0
         if any(phrase in text for phrase in _NEGATED_DISGUST):
-            scores[EmotionType.DISGUST] = 0.0
-            scores[EmotionType.ANGER] = 0.0
-            scores[EmotionType.HAPPINESS] += 1.0
-            matched[EmotionType.HAPPINESS].append("negated_disgust")
+            scores[_ObservedEmotionType.DISGUST] = 0.0
+            scores[_ObservedEmotionType.ANGER] = 0.0
+            scores[_ObservedEmotionType.HAPPINESS] += 1.0
+            matched[_ObservedEmotionType.HAPPINESS].append("negated_disgust")
         if any(phrase in text for phrase in _NEGATED_CALM):
-            scores[EmotionType.FEAR] = 0.0
-            scores[EmotionType.HAPPINESS] = 0.0
+            scores[_ObservedEmotionType.FEAR] = 0.0
+            scores[_ObservedEmotionType.HAPPINESS] = 0.0
         if "没有什么值得高兴" in text or "沒有什麼值得高興" in text:
-            scores[EmotionType.HAPPINESS] = 0.0
-            scores[EmotionType.SADNESS] += 2.0
-            matched[EmotionType.SADNESS].append("negated_happiness_context")
+            scores[_ObservedEmotionType.HAPPINESS] = 0.0
+            scores[_ObservedEmotionType.SADNESS] += 2.0
+            matched[_ObservedEmotionType.SADNESS].append("negated_happiness_context")
         if ("not unhappy" in text and "thrilled" in text) or (
             "不是不高兴" in text and "不是高兴" in text
         ):
-            scores[EmotionType.HAPPINESS] = 0.0
-            scores[EmotionType.SADNESS] = 0.0
-            matched[EmotionType.HAPPINESS].append("ambiguous_happiness")
-            matched[EmotionType.SADNESS].append("ambiguous_happiness")
+            scores[_ObservedEmotionType.HAPPINESS] = 0.0
+            scores[_ObservedEmotionType.SADNESS] = 0.0
+            matched[_ObservedEmotionType.HAPPINESS].append("ambiguous_happiness")
+            matched[_ObservedEmotionType.SADNESS].append("ambiguous_happiness")
         if "miss" in text:
             if any(
                 marker in text
                 for marker in ("mom", "mother", "tonight", "alone", "hollow")
             ):
-                scores[EmotionType.ATTACHMENT] = 0.0
-                scores[EmotionType.SADNESS] += 1.0
-                matched[EmotionType.SADNESS].append("loss_context")
+                scores[_ObservedEmotionType.ATTACHMENT] = 0.0
+                scores[_ObservedEmotionType.SADNESS] += 1.0
+                matched[_ObservedEmotionType.SADNESS].append("loss_context")
             elif "miss you" in text or "miss him" in text or "miss her" in text:
-                scores[EmotionType.ATTACHMENT] += 1.0
-                matched[EmotionType.ATTACHMENT].append("missing_someone")
+                scores[_ObservedEmotionType.ATTACHMENT] += 1.0
+                matched[_ObservedEmotionType.ATTACHMENT].append("missing_someone")
         if any(marker in text for marker in ("lied", "scam", "unfair")):
-            scores[EmotionType.ANGER] += 1.0
-            matched[EmotionType.ANGER].append("betrayal_context")
+            scores[_ObservedEmotionType.ANGER] += 1.0
+            matched[_ObservedEmotionType.ANGER].append("betrayal_context")
         if ("反而" in text or "却" in text) and any(
             phrase in text for phrase in ("满足", "滿足", "relieved", "made my day")
         ):
-            scores[EmotionType.SADNESS] = 0.0
-            scores[EmotionType.HAPPINESS] += 2.0
-            matched[EmotionType.HAPPINESS].append("contrast_resolution")
+            scores[_ObservedEmotionType.SADNESS] = 0.0
+            scores[_ObservedEmotionType.HAPPINESS] += 2.0
+            matched[_ObservedEmotionType.HAPPINESS].append("contrast_resolution")
         if any(phrase in text for phrase in _NEGATED_ANGER):
-            scores[EmotionType.ANGER] = 0.0
+            scores[_ObservedEmotionType.ANGER] = 0.0
         if any(phrase in text for phrase in _NEGATED_FEAR):
-            scores[EmotionType.FEAR] = 0.0
+            scores[_ObservedEmotionType.FEAR] = 0.0
         # A construction such as "wouldn't say I'm not scared" is a
         # deliberate double negative: retain a provisional fear signal.
         if (
             "wouldn't say i'm not scared" in text
             or "would not say i am not scared" in text
         ):
-            scores[EmotionType.FEAR] += 2.0
-            matched[EmotionType.FEAR].append("double_negated_fear")
+            scores[_ObservedEmotionType.FEAR] += 2.0
+            matched[_ObservedEmotionType.FEAR].append("double_negated_fear")
         if any(phrase in text for phrase in _NEGATED_HATE):
-            scores[EmotionType.ANGER] = 0.0
+            scores[_ObservedEmotionType.ANGER] = 0.0
         if "not bad" in text:
-            scores[EmotionType.HAPPINESS] += 2.0
-            matched[EmotionType.HAPPINESS].append("not bad")
+            scores[_ObservedEmotionType.HAPPINESS] += 2.0
+            matched[_ObservedEmotionType.HAPPINESS].append("not bad")
         if "not unhappy" in text:
-            scores[EmotionType.SADNESS] = 0.0
-            scores[EmotionType.HAPPINESS] += 2.0
-            matched[EmotionType.HAPPINESS].append("not unhappy")
+            scores[_ObservedEmotionType.SADNESS] = 0.0
+            scores[_ObservedEmotionType.HAPPINESS] += 2.0
+            matched[_ObservedEmotionType.HAPPINESS].append("not unhappy")
         if "不是不难过" in text or "不是不難過" in text:
-            scores[EmotionType.SADNESS] += 2.0
-            matched[EmotionType.SADNESS].append("double_negated_sadness")
+            scores[_ObservedEmotionType.SADNESS] += 2.0
+            matched[_ObservedEmotionType.SADNESS].append("double_negated_sadness")
         if "不是不害怕" in text or "不是不害怕" in text:
-            scores[EmotionType.FEAR] += 2.0
-            matched[EmotionType.FEAR].append("double_negated_fear")
-
-    def detect(self, text: str) -> Tuple[str, float]:
-        """Compatibility tuple API; no candidate is represented as zero calm."""
-        assessment = self.assess(text)
-        if assessment.emotion is None:
-            return "calm", 0.0
-        return assessment.emotion.value, assessment.confidence
+            scores[_ObservedEmotionType.FEAR] += 2.0
+            matched[_ObservedEmotionType.FEAR].append("double_negated_fear")
 
 
-__all__ = ("TextEmotionAssessment", "TextEmotionDetector")
+__all__ = ("TextEmotionDetector",)

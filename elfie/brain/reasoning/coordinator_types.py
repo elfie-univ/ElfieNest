@@ -69,7 +69,6 @@ class FrameAffectTxn:
     anchor: EmotionTurnSnapshot
     fast_candidate: EmotionTurnSnapshot
     stable_snapshot: EmotionSnapshot
-    fast_snapshot: EmotionSnapshot
     appraisal_scopes: tuple[TrustedAppraisalScope, ...]
     fast_stimuli: tuple[EmotionStimulusEvent, ...]
 

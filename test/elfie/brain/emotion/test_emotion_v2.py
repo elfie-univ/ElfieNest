@@ -31,12 +31,11 @@ from infrastructure.persistence.configuration.bundled_defaults import (
 )
 
 
-def _stimulus(event_id: str, effect: ChannelEffect, *, turn_id: str | None = None):
+def _stimulus(event_id: str, effect: ChannelEffect):
     return EmotionStimulusEvent(
         event_id=EventId(event_id),
         appraisals=(_appraisal(event_id, (effect,)),),
         source=StimulusSource.INTERNAL,
-        turn_id=turn_id,
     )
 
 
@@ -262,12 +261,9 @@ def test_slow_feedback_replays_from_anchor_and_replaces_fast_effect() -> None:
                     ),
                 ),
                 source=StimulusSource.SOCIAL,
-                turn_id="turn-1",
             ),
         ),
         timestamp=0.0,
-        phase="fast",
-        status="provisional",
     )
     assert system.commit_turn_state(fast)
     slow = system.candidate_from(
@@ -288,12 +284,9 @@ def test_slow_feedback_replays_from_anchor_and_replaces_fast_effect() -> None:
                     ),
                 ),
                 source=StimulusSource.MODEL,
-                turn_id="turn-1",
             ),
         ),
         timestamp=5.0,
-        phase="slow",
-        status="replaced",
     )
     assert system.commit_turn_state(slow)
 
@@ -303,9 +296,6 @@ def test_slow_feedback_replays_from_anchor_and_replaces_fast_effect() -> None:
     assert (
         system.get_emotion_value("happiness") > system.parameters("happiness").baseline
     )
-    statuses = {(record.phase, record.status) for record in system.effect_records()}
-    assert ("slow", "replaced") in statuses
-    assert ("fast", "provisional") not in statuses
 
 
 @pytest.mark.parametrize(

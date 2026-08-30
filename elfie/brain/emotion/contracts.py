@@ -9,7 +9,7 @@ from pydantic import Field, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 
 from elfie.brain.emotion.emotion_types import EmotionType
-from elfie.message_types import EventId, FrozenContractModel, TurnId, UTCDateTime
+from elfie.message_types import EventId, FrozenContractModel, UTCDateTime
 
 _NonBlankText = Annotated[
     str,
@@ -153,38 +153,11 @@ class EmotionSnapshot(FrozenContractModel):
         return self
 
 
-class EmotionChange(FrozenContractModel):
-    """One bounded diagnostic record for a changed channel."""
-
-    revision: Annotated[int, Field(strict=True, ge=0)]
-    occurred_at: UTCDateTime
-    event_id: EventId
-    emotion: _NonBlankText
-    source: _NonBlankText
-    previous_intensity: _Ratio
-    current_intensity: _Ratio
-
-
-class EmotionEffectRecord(FrozenContractModel):
-    """Bounded audit record for provisional, corrected, and fallback effects."""
-
-    turn_id: Optional[TurnId] = None
-    event_id: EventId
-    phase: Literal["fast", "slow"]
-    status: Literal["provisional", "replaced", "committed", "fast_unreviewed"]
-    applied_at: UTCDateTime
-    source: _NonBlankText
-    effect_count: Annotated[int, Field(strict=True, ge=0)]
-    cause_event_ids: Tuple[EventId, ...] = ()
-
-
 __all__ = (
     "AffectDirection",
     "AffectiveAppraisal",
     "AppraisalRelevance",
     "ChannelEffect",
-    "EmotionChange",
-    "EmotionEffectRecord",
     "EmotionSnapshot",
     "EmotionValue",
     "TrustedAppraisalScope",

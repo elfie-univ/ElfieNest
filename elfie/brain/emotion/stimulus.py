@@ -10,7 +10,7 @@ from pydantic import Field, StringConstraints
 from elfie.brain.emotion.contracts import (
     AffectiveAppraisal,
 )
-from elfie.message_types import EventId, FrozenContractModel, TurnId
+from elfie.message_types import EventId, FrozenContractModel
 
 _NonBlankText = Annotated[
     str,
@@ -39,7 +39,6 @@ class EmotionStimulusEvent(FrozenContractModel):
     ]
     source: StimulusSource
     dose: _Dose = 1.0
-    turn_id: Optional[TurnId] = None
     cause_key: Optional[_NonBlankText] = None
 
 

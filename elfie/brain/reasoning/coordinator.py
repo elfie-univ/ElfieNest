@@ -308,7 +308,6 @@ class BrainCoordinator:
     def _prepare_affect_transaction(
         self,
         frame,
-        turn_id: TurnId,
     ) -> tuple[FrameAffectTxn, bool]:
         """Calculate this frame's fast affect once, retaining it across replay."""
 
@@ -337,7 +336,6 @@ class BrainCoordinator:
             )
             if stimulus is None:
                 continue
-            stimulus = stimulus.model_copy(update={"turn_id": turn_id})
             for appraisal in stimulus.appraisals:
                 current = scopes_by_id.get(appraisal.scope.scope_id)
                 if current is not None and current != appraisal.scope:
@@ -356,8 +354,6 @@ class BrainCoordinator:
             anchor,
             tuple(stimuli),
             timestamp=self._timestamp,
-            phase="fast",
-            status="provisional",
         )
         return (
             FrameAffectTxn(
@@ -365,10 +361,6 @@ class BrainCoordinator:
                 anchor=anchor,
                 fast_candidate=fast_candidate,
                 stable_snapshot=stable,
-                fast_snapshot=self._emotion.snapshot_from_turn_state(
-                    fast_candidate,
-                    reference=anchor,
-                ),
                 appraisal_scopes=tuple(scopes_by_id.values()),
                 fast_stimuli=tuple(stimuli),
             ),
@@ -387,7 +379,6 @@ class BrainCoordinator:
             anchor=baseline,
             fast_candidate=baseline,
             stable_snapshot=snapshot,
-            fast_snapshot=snapshot,
             fast_stimuli=(),
         )
 
@@ -426,16 +417,12 @@ class BrainCoordinator:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
             requires_model = self._requires_model(frame)
-            affect_txn, is_new_affect_txn = self._prepare_affect_transaction(
-                frame,
-                turn_id,
-            )
+            affect_txn, is_new_affect_txn = self._prepare_affect_transaction(frame)
             task = self._turn_factory.build_task(
                 frame,
                 turn_id,
                 self._timestamp,
-                stable_emotion=affect_txn.stable_snapshot,
-                emotion=affect_txn.fast_snapshot,
+                emotion=affect_txn.stable_snapshot,
                 appraisal_scopes=affect_txn.appraisal_scopes,
                 requires_model=requires_model,
             )
@@ -576,7 +563,6 @@ class BrainCoordinator:
         try:
             result = control.future.result()
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
-            self._emotion.mark_turn_unreviewed(control.turn_id)
             self._homeostasis.settle_cognitive_budget(control.turn_id, consumed=0.25)
         else:
             self._remember_reasoning(control.turn_id, result.reasoning)
@@ -605,10 +591,7 @@ class BrainCoordinator:
                     )
             self._affect_txn = None
         elif disposition is CompletionDisposition.DEAD_LETTERED:
-            self._emotion.mark_turn_unreviewed(control.turn_id)
             self._affect_txn = None
-        else:
-            self._emotion.mark_turn_unreviewed(control.turn_id)
         self._inflight = None
         if self._on_state_change is not None:
             self._on_state_change()
@@ -638,7 +621,6 @@ class BrainCoordinator:
             return None
         feedback = result.decode.plan.emotion_feedback
         if feedback is None:
-            self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
             return None
         try:
             scopes = {scope.scope_id: scope for scope in txn.appraisal_scopes}
@@ -671,7 +653,6 @@ class BrainCoordinator:
                         ),
                         appraisals=tuple(appraisals),
                         source=StimulusSource.MODEL,
-                        turn_id=inflight.task.seed.turn_id,
                         cause_key=f"turn:{inflight.task.seed.turn_id}",
                     ),
                 )
@@ -679,11 +660,8 @@ class BrainCoordinator:
                 txn.anchor,
                 stimuli,
                 timestamp=self._timestamp,
-                phase="slow",
-                status="replaced",
             )
         except Exception as error:  # noqa: BLE001 - preserve completed turn
-            self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
             diagnostic_logger.warning(
                 "Model emotion feedback could not reconcile the turn",
                 extra={
@@ -740,7 +718,6 @@ class BrainCoordinator:
             return
         inflight.terminal_status = TerminalStatus.STALE
         inflight.terminal_reason = reason
-        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, reason)
         self._worker.abandon(inflight.future)
         self._homeostasis.settle_cognitive_budget(
@@ -784,7 +761,6 @@ class BrainCoordinator:
         self._inflight = None
 
     def _timeout_turn(self, inflight: InFlightTurn) -> None:
-        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._worker.abandon(inflight.future)
         self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
@@ -854,7 +830,6 @@ class BrainCoordinator:
         if inflight is None:
             return
         self._worker.abandon(inflight.future)
-        self._emotion.mark_turn_unreviewed(inflight.task.seed.turn_id)
         self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
