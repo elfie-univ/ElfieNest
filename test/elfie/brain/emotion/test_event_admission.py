@@ -1,4 +1,4 @@
-"""Emotion intentionally trusts Workspace event admission and does not dedupe."""
+"""Emotion trusts Workspace event admission and applies every admitted event."""
 
 from elfie.brain.emotion.contracts import (
     AffectDirection,

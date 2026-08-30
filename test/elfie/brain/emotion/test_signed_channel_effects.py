@@ -1,4 +1,4 @@
-"""Signed multi-channel effects replace the old fixed interaction matrix."""
+"""Sparse signed effects update one or more emotion channels."""
 
 from __future__ import annotations
 
