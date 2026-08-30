@@ -644,7 +644,7 @@ class BrainCoordinator:
                         reason="model-reviewed self appraisal",
                     )
                 )
-            stimuli = ()
+            stimuli: tuple[EmotionStimulusEvent, ...] = ()
             if appraisals:
                 stimuli = (
                     EmotionStimulusEvent(

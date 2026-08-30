@@ -7,7 +7,16 @@ import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Final, Mapping, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Final,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+)
 
 from elfie.brain.emotion.contracts import (
     AffectDirection,
@@ -420,7 +429,7 @@ class EmotionSystem:
             for name, value in eligible[:3]
             if primary_name is None or value >= eligible[0][1] * self._secondary_ratio
         )
-        trends = ()
+        trends: tuple[tuple[EmotionType, Literal["rising", "falling"]], ...] = ()
         if reference is not None:
             trends = tuple(
                 (

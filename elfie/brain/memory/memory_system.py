@@ -172,6 +172,8 @@ class MemorySystem:
         if len(candidates) != 1:
             return None
         raw_importance = candidates[0].metadata.get("importance_score")
+        if raw_importance is None:
+            return None
         try:
             importance = max(0.0, min(1.0, float(raw_importance)))
         except (TypeError, ValueError):
