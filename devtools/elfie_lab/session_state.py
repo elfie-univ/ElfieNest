@@ -62,7 +62,9 @@ def apply_state_injection(
         for name, raw_value in emotions.items():
             if name not in emotion.emotions:
                 raise StateInjectionError(f"未知情绪: {name}")
-            value = _bounded_number(raw_value, name)
+            # Lab inputs use the same 0..100 display scale as energy and
+            # fatigue, while EmotionSystem stores normalized 0..1 stocks.
+            value = _bounded_number(raw_value, name) / 100.0
             changes["emotions"][name] = {
                 "before": emotion.emotions[name],
                 "after": value,

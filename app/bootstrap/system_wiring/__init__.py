@@ -15,6 +15,10 @@ _LAZY_EXPORTS = {
         "build_model_execution_agent_ports",
     ),
     "build_nest_session_services": (".nest_session", "build_nest_session_services"),
+    "load_emotion_dynamics_config": (
+        ".nest_session",
+        "load_emotion_dynamics_config",
+    ),
     "create_lifecycle_facade": (".lifecycle", "create_lifecycle_facade"),
     "ensure_elfie_home": (".entrypoints", "ensure_elfie_home"),
     "get_db_path": (".entrypoints", "get_db_path"),
@@ -38,6 +42,7 @@ def __getattr__(name: str) -> Any:
 
 __all__ = (
     "build_nest_session_services",
+    "load_emotion_dynamics_config",
     "build_model_execution_agent_ports",
     "create_lifecycle_facade",
     "DataHomeSelectionError",

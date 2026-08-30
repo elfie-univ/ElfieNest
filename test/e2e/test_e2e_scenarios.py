@@ -34,7 +34,9 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
         )
     )
     elfie.start()
-    elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
+    elfie.receive_communication_envelope(
+        _owner_message(elfie.cognitive_datetime, text="thank you")
+    )
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
     first = elfie.turn_outcomes()[0]
@@ -44,6 +46,11 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
 
     assert len(channel.sent) == 2
     assert "execution:receipt" in runtime.requests[1].user_prompt
+    emotion = ElfieDiagnostics(elfie).emotion
+    assert (
+        emotion.get_emotion_value("happiness")
+        > emotion.parameters("happiness").baseline
+    )
     elfie.stop()
     elfie.join()
 

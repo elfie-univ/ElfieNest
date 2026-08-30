@@ -36,7 +36,7 @@ describe("dense memory API compatibility", () => {
       current_state: {
         energy: 80,
         fatigue: 20,
-        dominant_emotion: "calm",
+        primary_emotion: "calm",
         is_sleeping: false,
       },
       turns: [],

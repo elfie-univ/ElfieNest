@@ -10,7 +10,7 @@ emotions:
       medium: ["wiggle_ears"]     # 值40-70
       high: ["jump", "wag_tail"]  # 值70+
     voice_modifier: "cheerful"
-    threshold: 30
+    threshold: 0.18
     
   sadness:
     expression: "sad_face"
@@ -19,7 +19,7 @@ emotions:
       medium: ["slow_movement"]
       high: ["droop_head", "slow_movement"]
     voice_modifier: "sorrowful"
-    threshold: 40
+    threshold: 0.18
     
   anger:
     expression: "angry_face"
@@ -28,7 +28,7 @@ emotions:
       medium: ["stomp"]
       high: ["shake_head", "stomp"]
     voice_modifier: "firm"
-    threshold: 40
+    threshold: 0.20
     
   fear:
     expression: "fearful_face"
@@ -37,7 +37,7 @@ emotions:
       medium: ["hide"]
       high: ["tremble", "hide"]
     voice_modifier: "nervous"
-    threshold: 35
+    threshold: 0.20
     
   surprise:
     expression: "surprised_face"
@@ -46,7 +46,7 @@ emotions:
       medium: ["jump"]
       high: ["jump", "blink_eyes"]
     voice_modifier: "excited"
-    threshold: 30
+    threshold: 0.16
     
   disgust:
     expression: "disgusted_face"
@@ -55,7 +55,7 @@ emotions:
       medium: ["step_back"]
       high: ["shake_head", "step_back"]
     voice_modifier: "disgusted"
-    threshold: 45
+    threshold: 0.20
 
 # 默认表达（无强烈情绪时）
 default_expression:

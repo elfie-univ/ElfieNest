@@ -141,6 +141,19 @@ def test_committed_input_remains_duplicate_after_restart() -> None:
     assert restarted.metrics().reliable_event_count == 0
 
 
+def test_same_event_id_with_different_normalized_write_is_rejected() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    first = _event(1)
+    changed = first.model_copy(update={"salience": 0.99})
+
+    assert workspace.publish(first).disposition is IngestDisposition.ACCEPTED
+    conflict = workspace.publish(changed)
+
+    assert conflict.disposition is IngestDisposition.REJECTED
+    assert conflict.reason == "event_id_conflict"
+    assert workspace.metrics().reliable_event_count == 1
+
+
 def test_coalesced_state_does_not_resurrect_after_restart() -> None:
     store = InMemoryBrainJournal()
     first = EventWorkspace(ELFIE_ID, persistence=store)

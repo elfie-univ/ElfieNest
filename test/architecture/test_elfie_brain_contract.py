@@ -93,6 +93,41 @@ def test_brain_contract_keeps_activity_and_state_commit_boundaries() -> None:
     assert "数字通信渠道、身体控制和设备状态不是 Tool" in chinese
 
 
+def test_brain_contract_freezes_the_emotion_owner_and_review_boundary() -> None:
+    english = _normalized("docs/developer/contracts/brain.md")
+    chinese = _normalized("docs/zh/developer/contracts/brain.md")
+
+    for token in (
+        "Elfie's process-local affect, not an observed actor's affect",
+        "happiness",
+        "sadness",
+        "anger",
+        "fear",
+        "surprise",
+        "disgust",
+        "pre-fast stable anchor",
+        "does not deduplicate again",
+        "owns no database, checkpoint or historical change-event ledger",
+        "audio and image/vision transport",
+    ):
+        assert token in english
+    for token in (
+        "Elfie 自己的进程内情绪",
+        "快速反应前的稳定 Anchor",
+        "不再重复去重",
+        "不拥有数据库、Checkpoint 或历史变化事件账本",
+        "音频和图像/视觉传输",
+    ):
+        assert token in chinese
+
+    assert "../designs/elfie-emotion-system" in english
+    assert "../conformance/elfie-emotion" in english
+    assert "../designs/elfie-emotion-system" in chinese
+    assert "../conformance/elfie-emotion" in chinese
+    assert "EMO-001" in _read("docs/developer/conformance/elfie-emotion.md")
+    assert "EMO-002" in _read("docs/zh/developer/conformance/elfie-emotion.md")
+
+
 def test_closed_brain_conformance_registers_do_not_return() -> None:
     retired_registers = (
         "docs/developer/conformance/brain.md",

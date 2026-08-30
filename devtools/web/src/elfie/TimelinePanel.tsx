@@ -35,7 +35,7 @@ type Props = Readonly<{
 }>;
 
 const emotionLabels: Readonly<Record<string, string>> = {
-  happiness: "快乐", sadness: "悲伤", anger: "愤怒", fear: "恐惧", surprise: "惊讶", disgust: "厌恶", boredom: "无聊", attachment: "依恋",
+  happiness: "快乐", sadness: "悲伤", anger: "愤怒", fear: "恐惧", surprise: "惊讶", disgust: "厌恶",
 };
 
 function turnText(turn: ElfieTurn): string {
@@ -72,7 +72,7 @@ function avatar(url: string, name: string, epoch: number, developer = false): Re
 
 function tags(turn: ElfieTurn): readonly string[] {
   const rows: string[] = [];
-  const emotion = turn.state_after?.dominant_emotion;
+  const emotion = turn.state_after?.primary_emotion;
   if (emotion) rows.push(emotionLabels[emotion] ?? emotion);
   const energy = turn.state_diff?.energy;
   if (typeof energy === "object" && energy !== null && "before" in energy && "after" in energy) {
@@ -195,7 +195,7 @@ export function TimelinePanel(props: Props): React.JSX.Element {
           <div className="debug-toggle-row"><Checkbox checked={injectionEnabled} onChange={(event) => setInjectionEnabled(event.target.checked)}>启用本轮状态覆盖</Checkbox></div>
           <div aria-disabled={!injectionEnabled} className="injection-grid">
             <Checkbox checked={sleeping} disabled={!injectionEnabled} onChange={(event) => { setSleeping(event.target.checked); setSleepingTouched(true); }}>睡眠中</Checkbox>
-            {["energy", "fatigue", "happiness", "sadness", "anger", "fear", "surprise", "disgust", "boredom", "attachment"].map((name) => <label key={name}>{name}<Input disabled={!injectionEnabled} onChange={(event) => updateInjection(name, event.target.value)} placeholder="不修改" type="number" value={injection[name] ?? ""} /></label>)}
+            {["energy", "fatigue", "happiness", "sadness", "anger", "fear", "surprise", "disgust"].map((name) => <label key={name}>{name}<Input disabled={!injectionEnabled} onChange={(event) => updateInjection(name, event.target.value)} placeholder="不修改" type="number" value={injection[name] ?? ""} /></label>)}
           </div>
         </div> : <div className="stimulus-grid">
           <label>环境温度 <span><Input onChange={(event) => setTemperature(Number(event.target.value))} type="number" value={temperature} /> °C</span></label>

@@ -32,6 +32,7 @@ REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
     "config/brain/energy.yaml",
     "config/brain/selfhood.yaml",
     "config/brain/emotion-expressions.yaml",
+    "config/brain/emotion-dynamics.yaml",
     "config/nest/defaults.yaml",
     "config/species/catalog.yaml",
     "config/world/elfaria.yaml",

@@ -5,8 +5,6 @@ const emotionNames = new Set([
   "fear",
   "surprise",
   "disgust",
-  "boredom",
-  "attachment",
 ]);
 
 export function buildStateInjection(

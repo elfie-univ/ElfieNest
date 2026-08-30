@@ -16,3 +16,5 @@
 - [服务生命周期一致性](./service-lifecycle)——已接受契约与当前启动、所有权和入口之间的
   开放缺口。
 - [Elfie Memory 一致性](./elfie-memory)——记录 Memory 设计的实现状态与剩余外部验收门禁。
+- [Elfie 情绪一致性](./elfie-emotion)——记录已接受 Emotion 设计仍待下一轮处理的语义
+  召回率和慢层纠正 Scope 覆盖债务。

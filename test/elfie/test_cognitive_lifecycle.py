@@ -99,6 +99,23 @@ class TwoTurnRuntime:
             "deadline": request.deadline.isoformat(),
             "cause_event_ids": list(request.cause_event_ids),
             "intents": intents,
+            "emotion_feedback": {
+                "appraisals": [
+                    {
+                        "scope_id": (f"appraisal:{request.cause_event_ids[0]}:direct"),
+                        "effects": [
+                            {
+                                "channel": "happiness",
+                                "direction": "increase",
+                                "strength": 80,
+                                "confidence": 1.0,
+                            }
+                        ],
+                    }
+                ]
+                if request.response_mode.value == "direct_reply"
+                else [],
+            },
         }
         return ModelGenerationResult(
             text=json.dumps(plan),

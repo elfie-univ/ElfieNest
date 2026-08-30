@@ -90,6 +90,7 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
         "config/brain/energy.yaml": b"version: 1\nlimits: {}\n",
         "config/brain/selfhood.yaml": b"version: 1\nbig_five: {}\n",
         "config/brain/emotion-expressions.yaml": b"version: 1\nemotions: {}\n",
+        "config/brain/emotion-dynamics.yaml": b"version: 1\nchannels: {}\n",
         "config/nest/defaults.yaml": b"version: 1\nnest: {}\n",
     }
     files = {}

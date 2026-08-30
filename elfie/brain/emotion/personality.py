@@ -1,104 +1,106 @@
-"""Personality Modifier for Big Five personality model.
+"""Big Five projection into emotion channel parameters."""
 
-This module provides personality-based modifiers for emotion accumulation and decay,
-implementing the Wave 2 Task 3 requirements.
-"""
+from __future__ import annotations
 
-from typing import Dict, Optional
+import math
+from dataclasses import dataclass
+from typing import Mapping
 
 
-def calculate_personality_modifier(
-    personality: Dict[str, float], emotion: str
-) -> float:
-    """Calculate personality-based modifier for an emotion.
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
 
-    Args:
-        personality: Big Five personality traits (values 0-1)
-        emotion: Emotion type to calculate modifier for
 
-    Returns:
-        Modifier value (typically 0.5-1.5 range)
-    """
-    modifier = 1.0
+@dataclass(frozen=True)
+class EmotionParameters:
+    """Effective parameters for one short-term emotion channel."""
 
-    # Neuroticism affects negative emotions (fear, anger, sadness)
-    # High neuroticism = faster accumulation = higher modifier
-    if emotion in ["fear", "anger", "sadness"]:
-        neuroticism = personality.get("neuroticism", 0.5)
-        modifier *= 0.5 + neuroticism  # 0.5-1.5
-
-    # Agreeableness affects anger and attachment
-    agreeableness = personality.get("agreeableness", 0.5)
-    if emotion == "anger":
-        # High agreeableness = slower anger accumulation = lower modifier
-        modifier *= 1.5 - agreeableness  # 1.0-0.5
-    elif emotion == "attachment":
-        # High agreeableness = faster attachment = higher modifier
-        modifier *= 0.5 + agreeableness  # 1.0-1.5
-
-    # Extraversion affects happiness
-    if emotion == "happiness":
-        extraversion = personality.get("extraversion", 0.5)
-        modifier *= 0.5 + extraversion  # 0.5-1.5
-
-    return modifier
+    baseline: float
+    positive_gain: float
+    negative_gain: float
+    half_life_seconds: float
+    activation_threshold: float
 
 
 class PersonalityModifier:
-    """Personality-based modifier for emotion accumulation and decay.
+    """Derive bounded baseline, rise, fall, and half-life independently.
 
-    Implements the Big Five personality model effects on emotions:
-    - Neuroticism: High = faster negative emotion growth, slower decay
-    - Agreeableness: High = slower anger, faster attachment
-    - Extraversion: High = faster happiness growth
+    The coefficients are intentionally small and deterministic. They are a
+    first-version temperament prior, not a second emotion state source.
     """
 
-    def __init__(self, personality: Optional[Dict[str, float]] = None):
-        """Initialize PersonalityModifier with Big Five personality traits.
-
-        Args:
-            personality: Dict with Big Five traits (neuroticism, agreeableness,
-                        extraversion, conscientiousness, openness). Values 0-1.
-                        Defaults to 0.5 for all traits if not provided.
-        """
-        if personality is None:
-            personality = {}
-
-        self.personality = {
-            "neuroticism": personality.get("neuroticism", 0.5),
-            "agreeableness": personality.get("agreeableness", 0.5),
-            "extraversion": personality.get("extraversion", 0.5),
-            "conscientiousness": personality.get("conscientiousness", 0.5),
-            "openness": personality.get("openness", 0.5),
+    def __init__(
+        self,
+        personality: Mapping[str, float] | None = None,
+        *,
+        config: Mapping[str, Mapping[str, float]] | None = None,
+    ) -> None:
+        raw = personality or {}
+        self.traits = {
+            name: _clamp(float(raw.get(name, 0.5)), 0.0, 1.0)
+            for name in (
+                "openness",
+                "conscientiousness",
+                "extraversion",
+                "agreeableness",
+                "neuroticism",
+            )
         }
+        self._config = config or {}
 
-    def get_accumulate_modifier(self, emotion: str) -> float:
-        """Get accumulation modifier for an emotion.
+    def parameters(
+        self,
+        emotion: str,
+        base: Mapping[str, float],
+    ) -> EmotionParameters:
+        """Return effective parameters without mutating the input config."""
 
-        High neuroticism = faster negative emotion accumulation (modifier > 1.0)
-        High agreeableness = slower anger, faster attachment
-        High extraversion = faster happiness
+        centered = {key: value - 0.5 for key, value in self.traits.items()}
+        baseline = float(base.get("baseline", 0.0))
+        positive_gain = float(base.get("positive_gain", 1.0))
+        negative_gain = float(base.get("negative_gain", 1.0))
+        half_life = float(base.get("half_life_seconds", 300.0))
 
-        Args:
-            emotion: Emotion type
+        # Modest baseline temperament: it remains visible in absolute stock.
+        if emotion == "happiness":
+            baseline += 0.08 * centered["extraversion"]
+            positive_gain *= math.exp(0.45 * centered["extraversion"])
+            half_life *= math.exp(0.20 * centered["extraversion"])
+        elif emotion in {"sadness", "fear"}:
+            baseline += 0.08 * centered["neuroticism"]
+            positive_gain *= math.exp(0.45 * centered["neuroticism"])
+            half_life *= math.exp(0.30 * centered["neuroticism"])
+        elif emotion == "anger":
+            baseline += 0.05 * centered["neuroticism"]
+            baseline -= 0.04 * centered["agreeableness"]
+            positive_gain *= math.exp(
+                0.40 * centered["neuroticism"] - 0.35 * centered["agreeableness"]
+            )
+            negative_gain *= math.exp(0.30 * centered["agreeableness"])
+            half_life *= math.exp(0.25 * centered["neuroticism"])
+        elif emotion == "surprise":
+            positive_gain *= math.exp(0.25 * centered["openness"])
+        elif emotion == "disgust":
+            baseline += 0.03 * centered["neuroticism"]
+            half_life *= math.exp(0.15 * centered["neuroticism"])
 
-        Returns:
-            Accumulation modifier (0.5-1.5 range typical)
-        """
-        return calculate_personality_modifier(self.personality, emotion)
+        overrides = self._config.get(emotion, {})
+        baseline += float(overrides.get("baseline_offset", 0.0))
+        positive_gain *= float(overrides.get("positive_gain_multiplier", 1.0))
+        negative_gain *= float(overrides.get("negative_gain_multiplier", 1.0))
+        half_life *= float(overrides.get("half_life_multiplier", 1.0))
+        return EmotionParameters(
+            baseline=_clamp(baseline, 0.0, 0.35),
+            positive_gain=_clamp(positive_gain, 0.05, 4.0),
+            negative_gain=_clamp(negative_gain, 0.05, 4.0),
+            half_life_seconds=_clamp(half_life, 1.0, 86_400.0),
+            activation_threshold=_clamp(
+                float(base.get("activation_threshold", 0.2)), 0.01, 1.0
+            ),
+        )
 
-    def get_decay_modifier(self, emotion: str) -> float:
-        """Get decay modifier for an emotion.
 
-        Inverse of accumulation: higher accumulation = lower decay
-
-        Args:
-            emotion: Emotion type
-
-        Returns:
-            Decay modifier (inverse of accumulation, 0.67-2.0 range typical)
-        """
-        accumulate = self.get_accumulate_modifier(emotion)
-        if accumulate == 0:
-            return 1.0
-        return 1.0 / accumulate
+__all__ = (
+    "EmotionParameters",
+    "PersonalityModifier",
+)

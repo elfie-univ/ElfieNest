@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.contracts import MemoryContext, MemoryItem
 from elfie.brain.reasoning.context_types import (
@@ -51,8 +52,15 @@ def test_brain_context_round_trip_preserves_revisions_and_capabilities() -> None
         emotion=EmotionSnapshot(
             revision=2,
             captured_at=NOW,
-            values=(EmotionValue(name="joy", intensity=0.7),),
-            dominant="joy",
+            values=tuple(
+                EmotionValue(
+                    name=emotion,
+                    intensity=0.7 if emotion is EmotionType.HAPPINESS else 0.0,
+                )
+                for emotion in EmotionType
+            ),
+            active=(EmotionValue(name=EmotionType.HAPPINESS, intensity=0.7),),
+            primary=EmotionType.HAPPINESS,
         ),
         homeostasis=EnergySnapshot(
             revision=3,
@@ -138,12 +146,7 @@ def test_effective_capabilities_rejects_deferred_realm_fields() -> None:
 def test_brain_context_rejects_snapshot_captured_after_context() -> None:
     # Given: an emotion snapshot newer than the context capture boundary.
     future = datetime(2026, 7, 21, 8, 1, tzinfo=timezone.utc)
-    emotion = EmotionSnapshot(
-        revision=1,
-        captured_at=future,
-        values=(),
-        dominant=None,
-    )
+    emotion = EmotionSnapshot.inactive(captured_at=future, revision=1)
 
     # When / Then: stale temporal assembly fails at construction.
     with pytest.raises(ValidationError, match="captured_at"):

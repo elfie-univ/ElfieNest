@@ -96,7 +96,7 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         "reserved_cognitive_budget": round(energy.reserved_cognitive_budget(), 2),
         "energy_revision": energy.revision,
         "emotions": {name: round(value, 2) for name, value in emotion.emotions.items()},
-        "dominant_emotion": emotion.get_dominant_mood(),
+        "primary_emotion": emotion.get_primary_emotion(),
         "emotion_revision": emotion.revision,
         "expression": expression,
         "attention_network": "reasoning_worker",

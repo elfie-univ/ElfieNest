@@ -154,7 +154,7 @@ def test_adapter_preserves_main_food_unavailability_and_workspace():
     assert runtime.requests[0].scope_id == "elfie-1"
 
 
-def test_adapter_uses_json_text_for_plain_runtime():
+def test_adapter_uses_plain_text_for_text_only_runtime():
     runtime = FakeStructuredModelExecution(
         ModelGenerationCapabilities(
             provider="ollama",
@@ -170,10 +170,10 @@ def test_adapter_uses_json_text_for_plain_runtime():
 
     result = adapter.generate(_request())
 
-    assert result.selected_mode is StructuredOutputMode.JSON_TEXT
+    assert result.selected_mode is StructuredOutputMode.PLAIN_TEXT
     assert result.text == '{"ok": true}'
     assert len(runtime.requests) == 1
-    assert runtime.requests[0].selected_mode.value == "json_text"
+    assert runtime.requests[0].selected_mode.value == "plain_text"
 
 
 def test_adapter_propagates_brain_reasoning_mode_to_runtime():
@@ -185,7 +185,7 @@ def test_adapter_propagates_brain_reasoning_mode_to_runtime():
     assert runtime.requests[0].reasoning_mode == "long"
 
 
-def test_adapter_uses_plain_text_for_fast_owner_communication():
+def test_adapter_keeps_structured_mode_for_fast_owner_communication():
     runtime = FakeStructuredModelExecution(_schema_capabilities())
     adapter = SerializedModelExecutionAdapter(runtime)
     request = _request().model_copy(
@@ -207,8 +207,8 @@ def test_adapter_uses_plain_text_for_fast_owner_communication():
 
     result = adapter.generate(request)
 
-    assert result.selected_mode is StructuredOutputMode.PLAIN_TEXT
-    assert runtime.requests[0].selected_mode is StructuredGenerationMode.PLAIN_TEXT
+    assert result.selected_mode is StructuredOutputMode.JSON_SCHEMA
+    assert runtime.requests[0].selected_mode is StructuredGenerationMode.JSON_SCHEMA
 
 
 def test_adapter_uses_schema_for_fast_owner_decision_plan() -> None:

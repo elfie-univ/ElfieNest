@@ -88,4 +88,17 @@ class MemoryContext(FrozenContractModel):
         return self
 
 
-__all__ = ("MemoryContext", "MemoryItem", "MemoryStateSnapshot")
+class RelationshipImportanceProjection(FrozenContractModel):
+    """Trusted relationship importance used by bounded empathic appraisal."""
+
+    actor_id: _NonBlankText
+    revision: _Revision
+    importance: _Ratio
+
+
+__all__ = (
+    "MemoryContext",
+    "MemoryItem",
+    "MemoryStateSnapshot",
+    "RelationshipImportanceProjection",
+)

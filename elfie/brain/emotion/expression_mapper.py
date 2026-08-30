@@ -44,9 +44,9 @@ class ExpressionMapper:
 
     def _get_intensity_level(self, value: float) -> str:
         """根据情绪值获取强度等级"""
-        if value < 40:
+        if value < 0.4:
             return "low"
-        elif value < 70:
+        elif value < 0.7:
             return "medium"
         else:
             return "high"
@@ -84,7 +84,7 @@ class ExpressionMapper:
                 continue
 
             config = emotion_configs[emotion_name]
-            threshold = config.get("threshold", 30)
+            threshold = config.get("threshold", 0.2)
 
             if emotion_value >= threshold and emotion_value > dominant_value:
                 dominant_emotion = emotion_name

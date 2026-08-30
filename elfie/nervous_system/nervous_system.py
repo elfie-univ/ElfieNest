@@ -149,7 +149,7 @@ class NervousSystem:
         return self.reflex.process_sensory_impact(
             anatomy=anatomy,
             tactile_sensor=tactile_sensor,
-            amygdala=emotion_system,
+            emotion=emotion_system,
         )
 
     def validate_action(

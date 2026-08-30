@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.node_types import MemoryNode, NodeTypes
 from elfie.brain.reasoning.memory_context import MemoryContextReader
@@ -81,12 +81,7 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
 
     context = MemoryContextReader(memory).read(
         frame,
-        EmotionSnapshot(
-            revision=1,
-            captured_at=NOW,
-            values=(EmotionValue(name="curiosity", intensity=0.5),),
-            dominant="curiosity",
-        ),
+        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
         NOW,
     )
 
@@ -100,3 +95,47 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
     assert item.certainty == "high"
     assert "memory-context:frame-1" not in str(item.memory_id)
     assert "预测灵感" not in item.content
+
+
+def test_relationship_importance_uses_entity_metadata_not_retrieval_score() -> None:
+    store = FakeMemoryStore.in_memory()
+    store.add_node(
+        MemoryNode(
+            id="person:owner-1",
+            type=NodeTypes.ENTITY.value,
+            content="主人",
+            metadata={
+                "person_id": "owner-1",
+                "is_owner": True,
+                "importance_score": 0.85,
+                "retrieval_relevance": 0.02,
+            },
+        )
+    )
+    memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
+
+    relationship = memory.relationship_importance("owner-1", owner=True)
+
+    assert relationship is not None
+    assert relationship.importance == 0.85
+    assert relationship.revision == memory.revision
+
+
+def test_relationship_importance_rejects_an_ambiguous_owner_fallback() -> None:
+    store = FakeMemoryStore.in_memory()
+    for person_id in ("owner-a", "owner-b"):
+        store.add_node(
+            MemoryNode(
+                id=f"person:{person_id}",
+                type=NodeTypes.ENTITY.value,
+                content=person_id,
+                metadata={
+                    "person_id": person_id,
+                    "is_owner": True,
+                    "importance_score": 0.8,
+                },
+            )
+        )
+    memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
+
+    assert memory.relationship_importance("unknown-owner", owner=True) is None

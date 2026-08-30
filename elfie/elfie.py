@@ -40,6 +40,7 @@ class Elfie(ElfieFacadeOperations):
         selfhood_seed: Mapping[str, object] | None = None,
         energy_limits: Mapping[str, object] | None = None,
         emotion_expression_config: Mapping[str, object] | None = None,
+        emotion_dynamics_config: Mapping[str, object] | None = None,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
         skills: SkillManager | None = None,
@@ -67,6 +68,7 @@ class Elfie(ElfieFacadeOperations):
             personality=self._selfhood.big_five_dict(),
             clock=lambda: self._elapsed_time,
             expression_config=emotion_expression_config,
+            dynamics_config=emotion_dynamics_config,
         )
         self._memory = MemorySystem(
             elfie_id=self._profile.identity.elfie_id,

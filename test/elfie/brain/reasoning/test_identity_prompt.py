@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
@@ -114,11 +115,25 @@ def test_fast_prompt_uses_brain_state_and_does_not_repeat_current_message() -> N
         emotion=EmotionSnapshot(
             revision=1,
             captured_at=now,
-            values=(
-                EmotionValue(name="attachment", intensity=0.62),
-                EmotionValue(name="happiness", intensity=0.41),
+            values=tuple(
+                EmotionValue(
+                    name=emotion,
+                    intensity=(
+                        0.62
+                        if emotion is EmotionType.HAPPINESS
+                        else 0.41
+                        if emotion is EmotionType.SURPRISE
+                        else 0.0
+                    ),
+                )
+                for emotion in EmotionType
             ),
-            dominant="attachment",
+            active=(
+                EmotionValue(name=EmotionType.HAPPINESS, intensity=0.62),
+                EmotionValue(name=EmotionType.SURPRISE, intensity=0.41),
+            ),
+            primary=EmotionType.HAPPINESS,
+            secondary=EmotionType.SURPRISE,
         ),
         homeostasis=EnergySnapshot(
             revision=1,
@@ -156,7 +171,9 @@ def test_fast_prompt_uses_brain_state_and_does_not_repeat_current_message() -> N
     assert "SELF_EXPRESSION_POLICY" in system_prompt
     assert "不把没有完成的事说成已经完成" in system_prompt
     assert "CURRENT_BRAIN_STATE" in system_prompt
-    assert "attachment" in system_prompt
+    assert "happiness" in system_prompt
+    assert "only sparse appraisals" in system_prompt
+    assert "observed_other_affect" not in system_prompt
     assert "energy=72" in system_prompt
     assert "客厅" in system_prompt
     assert "RELEVANT_MEMORY" in user_prompt

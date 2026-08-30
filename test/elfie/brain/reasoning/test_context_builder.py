@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.contracts import MemoryContext, MemoryItem
 from elfie.brain.reasoning.context_builder import ContextAssembler
@@ -97,8 +98,15 @@ def _emotion() -> EmotionSnapshot:
     return EmotionSnapshot(
         revision=4,
         captured_at=NOW,
-        values=(EmotionValue(name="curiosity", intensity=0.6),),
-        dominant="curiosity",
+        values=tuple(
+            EmotionValue(
+                name=emotion,
+                intensity=0.6 if emotion is EmotionType.HAPPINESS else 0.0,
+            )
+            for emotion in EmotionType
+        ),
+        active=(EmotionValue(name=EmotionType.HAPPINESS, intensity=0.6),),
+        primary=EmotionType.HAPPINESS,
     )
 
 

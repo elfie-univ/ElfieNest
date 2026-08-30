@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from elfie import ElfieFactory
-from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
+from elfie.body import (
+    BodyId,
+    BodySensorEvent,
+    HeadlessBody,
+    TactileImpact,
+    UtteranceFinal,
+)
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
     CommunicationEnvelope,
@@ -111,9 +117,85 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     elfie.advance_clock(0.5)
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
-    # Then: identity reaches context but owner-compatible memory is untouched.
-    assert "peer-1" in runtime.requests[0].user_prompt
+    # Then: a routine peer event is completed without an unnecessary model call;
+    # its owner-compatible memory remains untouched.
+    assert runtime.requests == []
     assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
+    elfie.stop()
+    elfie.join()
+
+
+def test_neutral_owner_message_does_not_drift_attachment_in_real_loop() -> None:
+    hub = CommunicationHub("neutral-emotion-elfie")
+    hub.register_channel(RecordingChannel(), connect=True)
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("neutral-emotion-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            communication=hub,
+            model_port=runtime,
+        )
+    )
+    emotion = ElfieDiagnostics(elfie).emotion
+
+    elfie.start()
+    elfie.receive_communication_envelope(
+        _owner_message(
+            elfie.cognitive_datetime,
+            elfie_id="neutral-emotion-elfie",
+            text="The train leaves at six.",
+        )
+    )
+    elfie.advance_clock(0.5)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    assert (
+        emotion.get_emotion_value("happiness")
+        >= emotion.parameters("happiness").baseline
+    )
+    assert "attachment" not in emotion.emotions
+    elfie.stop()
+    elfie.join()
+
+
+def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
+    body = HeadlessBody(body_id="emotion-body")
+    body.connect()
+    runtime = TwoTurnRuntime()
+    runtime.release_first.set()
+    elfie = ElfieFactory().create(
+        ElfieAssembly(
+            profile=_profile("embodied-emotion-elfie"),
+            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            body=body,
+            model_port=runtime,
+        )
+    )
+    emotion = ElfieDiagnostics(elfie).emotion
+    now = elfie.cognitive_datetime
+    event = BodySensorEvent(
+        event_id="touch-emotion-1",
+        body_id=BodyId(body.body_id),
+        source=ActorRef(actor_id="world-contact", source_kind="world"),
+        occurred_at=now,
+        received_at=now,
+        payload=TactileImpact(
+            kind="tactile_impact",
+            location="front",
+            intensity=0.8,
+            force_newtons=5.0,
+        ),
+    )
+
+    elfie.start()
+    elfie.pump_body_events((event,))
+    elfie.advance_clock(5.0)
+    elfie.wait_for_outcome_count(1, timeout=1.0)
+
+    assert emotion.get_emotion_value("fear") > emotion.parameters("fear").baseline
+    assert runtime.requests == []
     elfie.stop()
     elfie.join()
 
@@ -170,8 +252,8 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     elfie.join()
 
 
-def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> None:
-    # Given: one assembled Brain whose three Stage 4C owners have committed state.
+def test_continuity_restores_energy_and_memory_but_emotion_restarts_fresh() -> None:
+    # Given: one assembled Brain whose durable owners have committed state.
     store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = ElfieFactory().create(
         ElfieAssembly(
@@ -180,7 +262,6 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
             model_port=TwoTurnRuntime(),
         )
     )
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 25.0)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="我把这件事记住了",
@@ -201,7 +282,6 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     restored.restore_continuity(checkpoint)
 
     # When: newer uncommitted-in-the-checkpoint state is produced.
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 20.0)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="这件事后来又发生了",
@@ -212,7 +292,12 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
         elfie.restore_continuity(checkpoint)
 
     # Then: the restarted runtime has the same committed state.
-    assert ElfieDiagnostics(restored).emotion.checkpoint() == checkpoint.emotion
+    restored_emotion = ElfieDiagnostics(restored).emotion
+    assert all(
+        restored_emotion.get_emotion_value(name)
+        == restored_emotion.parameters(name).baseline
+        for name in restored_emotion.emotions
+    )
     assert ElfieDiagnostics(restored).energy.checkpoint() == checkpoint.energy
     assert ElfieDiagnostics(restored).memory.checkpoint() == checkpoint.memory
 

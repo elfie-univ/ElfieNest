@@ -46,55 +46,55 @@ class TestExpressionMapper:
         assert set(emotions.keys()) == expected_emotions
 
     def test_intensity_level_low(self):
-        """测试低强度等级判定 - 值 < 40"""
+        """Normalized values below 0.4 are low."""
         mapper = _mapper()
-        assert mapper._get_intensity_level(20) == "low"
-        assert mapper._get_intensity_level(39) == "low"
+        assert mapper._get_intensity_level(0.2) == "low"
+        assert mapper._get_intensity_level(0.39) == "low"
 
     def test_intensity_level_medium(self):
-        """测试中等强度等级判定 - 40 <= 值 < 70"""
+        """Normalized values from 0.4 through 0.69 are medium."""
         mapper = _mapper()
-        assert mapper._get_intensity_level(40) == "medium"
-        assert mapper._get_intensity_level(69) == "medium"
+        assert mapper._get_intensity_level(0.4) == "medium"
+        assert mapper._get_intensity_level(0.69) == "medium"
 
     def test_intensity_level_high(self):
-        """测试高强度等级判定 - 值 >= 70"""
+        """Normalized values at or above 0.7 are high."""
         mapper = _mapper()
-        assert mapper._get_intensity_level(70) == "high"
-        assert mapper._get_intensity_level(100) == "high"
+        assert mapper._get_intensity_level(0.7) == "high"
+        assert mapper._get_intensity_level(1.0) == "high"
 
     def test_dominant_emotion_selection(self):
         """测试主导情绪选择 - 超过阈值的最高情绪"""
         mapper = _mapper()
 
         emotions = {
-            "happiness": 35,  # 超过阈值30
-            "sadness": 20,  # 未超过阈值40
-            "anger": 45,  # 超过阈值40
+            "happiness": 0.35,  # above 0.18
+            "sadness": 0.20,  # above 0.18
+            "anger": 0.45,  # highest eligible value
         }
 
         result = mapper.get_expression_for_emotions(emotions)
 
         # anger的值45更高，所以主导情绪是anger
         assert result["emotion"] == "anger"
-        assert result["intensity"] == 45
+        assert result["intensity"] == 0.45
 
     def test_dominant_emotion_higher_value(self):
         """测试主导情绪 - 值越高越优先"""
         mapper = _mapper()
 
-        emotions = {"happiness": 50, "anger": 45}
+        emotions = {"happiness": 0.50, "anger": 0.45}
 
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["emotion"] == "happiness"
-        assert result["intensity"] == 50
+        assert result["intensity"] == 0.50
 
     def test_no_emotion_above_threshold(self):
         """测试无情绪超过阈值 - 返回默认表达"""
         mapper = _mapper()
 
-        emotions = {"happiness": 20, "sadness": 25, "anger": 30}
+        emotions = {"happiness": 0.10, "sadness": 0.12, "anger": 0.14}
 
         result = mapper.get_expression_for_emotions(emotions)
 
@@ -114,9 +114,9 @@ class TestExpressionMapper:
         """测试不同强度选择不同动作"""
         mapper = _mapper()
 
-        emotions_low = {"happiness": 30}
-        emotions_medium = {"happiness": 50}
-        emotions_high = {"happiness": 80}
+        emotions_low = {"happiness": 0.30}
+        emotions_medium = {"happiness": 0.50}
+        emotions_high = {"happiness": 0.80}
 
         result_low = mapper.get_expression_for_emotions(emotions_low)
         result_medium = mapper.get_expression_for_emotions(emotions_medium)
@@ -130,7 +130,7 @@ class TestExpressionMapper:
         """测试语音修饰符正确返回"""
         mapper = _mapper()
 
-        emotions = {"happiness": 50}
+        emotions = {"happiness": 0.50}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["voice_modifier"] == "cheerful"
@@ -139,7 +139,7 @@ class TestExpressionMapper:
         """测试悲伤情绪表达映射"""
         mapper = _mapper()
 
-        emotions = {"sadness": 60}
+        emotions = {"sadness": 0.60}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["expression"] == "sad_face"
@@ -150,7 +150,7 @@ class TestExpressionMapper:
         """测试愤怒情绪表达映射"""
         mapper = _mapper()
 
-        emotions = {"anger": 75}
+        emotions = {"anger": 0.75}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["expression"] == "angry_face"
@@ -161,7 +161,7 @@ class TestExpressionMapper:
         """测试恐惧情绪表达映射"""
         mapper = _mapper()
 
-        emotions = {"fear": 55}
+        emotions = {"fear": 0.55}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["expression"] == "fearful_face"
@@ -172,7 +172,7 @@ class TestExpressionMapper:
         """测试惊讶情绪表达映射"""
         mapper = _mapper()
 
-        emotions = {"surprise": 40}
+        emotions = {"surprise": 0.40}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["expression"] == "surprised_face"
@@ -183,7 +183,7 @@ class TestExpressionMapper:
         """测试厌恶情绪表达映射"""
         mapper = _mapper()
 
-        emotions = {"disgust": 50}
+        emotions = {"disgust": 0.50}
         result = mapper.get_expression_for_emotions(emotions)
 
         assert result["expression"] == "disgusted_face"
@@ -194,9 +194,9 @@ class TestExpressionMapper:
         """测试阈值被正确遵守"""
         mapper = _mapper()
 
-        emotions_below = {"happiness": 29}
-        emotions_at = {"happiness": 30}
-        emotions_above = {"happiness": 31}
+        emotions_below = {"happiness": 0.17}
+        emotions_at = {"happiness": 0.18}
+        emotions_above = {"happiness": 0.19}
 
         result_below = mapper.get_expression_for_emotions(emotions_below)
         result_at = mapper.get_expression_for_emotions(emotions_at)
@@ -210,7 +210,7 @@ class TestExpressionMapper:
         """测试未知情绪被忽略"""
         mapper = _mapper()
 
-        emotions = {"happiness": 50, "unknown_emotion": 80}
+        emotions = {"happiness": 0.50, "unknown_emotion": 0.80}
 
         result = mapper.get_expression_for_emotions(emotions)
 

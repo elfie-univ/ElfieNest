@@ -1,6 +1,6 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.0
+**Contract version:** 2.1
 **Adopted:** 2026-08-11
 **Revised:** 2026-08-12
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
@@ -209,7 +209,8 @@ Brain owns ten conceptual systems with distinct authority:
    nearby people, conversation and active commitments.
 3. Selfhood maintains the slowly changing self-model, personality and norms,
    anchored by immutable Profile facts.
-4. Emotion maintains persistent, decaying affective state.
+4. Emotion maintains process-local, cross-Turn decaying affective state and
+   returns to personality-derived baselines on sleep or process restart.
 5. Energy maintains homeostasis, circadian state and cognitive/action budgets,
    including an emergency reserve and deterministic degradation.
 6. Motivation turns fixed internal needs into attention, goal or internal-
