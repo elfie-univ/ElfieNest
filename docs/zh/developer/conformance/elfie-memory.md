@@ -1,26 +1,26 @@
 # Elfie Memory 一致性
 
-> 状态：source-first Memory、类型化生产调用方、策略驱动生命周期和代表性耐久性证据均已完成。退役旧栈在产品/运行时根目录中已无引用；兼容组件仅保留给语义 Fake 和 Lab 显式回退。生产数据切换和 OPT-004 仍单独治理。<br>
+> 状态：source-first Memory、类型化生产调用方、策略驱动生命周期和代表性耐久性证据均已完成。兼容清理和全新库 schema 边界仍是开放实现项。0.5 兼容基线前不执行生产数据迁移。<br>
 > 基线：2026-08-30<br>
 > 目标：[Elfie Memory 设计](../designs/elfie-memory-architecture)
 
-这是临时迁移台账，记录当前实现相对于 Memory 设计的精确缺口以及关闭所需的证据。它不重定义 Memory 模型，不授权修改数据库，也不是开发过程日志。
+这是临时一致性台账，记录当前实现相对于 Memory 设计的精确缺口以及关闭所需的证据。它不重定义 Memory 模型，不授权修改数据库，也不是开发过程日志。
 
 ## 实施台账
 
 | ID | 严重度 | 状态 | 当前差距 | 目标与关闭门槛 | 证据 / 参考 | 残余 |
 | --- | --- | --- | --- | --- | --- | --- |
-| MEM-001 | P0 | closed | 目标 Adapter 已用审查后的 Episode、节点、Assertion 和 Evidence 表替代旧实体/子类型及嵌入边布局。 | 目标表、约束、所有权和可重建词法投影已实现，不存在第二套边事实源。 | target=设计第 9.1–9.2 节；inventory=`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,node_store.py,sqlite_episode_store.py,sqlite_graph_store.py,sqlite_retrieval_store.py}`；references=持久化扫描；verification=目标 schema/往返/重开测试、299 项 Memory/Brain/Genesis/领养受影响测试、21 项架构测试、Ruff、pycompile 和 `git diff --check`；residuals=已有线上旧库仍需下方的显式导入/切换。 | 开发目标无残余。 |
+| MEM-001 | P0 | closed | 目标 Adapter 已用审查后的 Episode、节点、Assertion 和 Evidence 表替代旧实体/子类型及嵌入边布局。 | 目标表、约束、所有权和可重建词法投影已实现，不存在第二套边事实源。 | target=设计第 9.1–9.2 节；inventory=`infrastructure/persistence/memory/{schema.py,sqlite_memory_store.py,node_store.py,sqlite_episode_store.py,sqlite_graph_store.py,sqlite_retrieval_store.py}`；references=持久化扫描；verification=目标 schema/往返/重开测试、299 项 Memory/Brain/Genesis/领养受影响测试、21 项架构测试、Ruff、pycompile 和 `git diff --check`；residuals=已有旧库按策略不支持，需显式备份/重建。 | 当前目标无残余。 |
 | MEM-002 | P0 | closed | 闭合 Episode 具备完整内容、来源 ID、完整来源哈希、幂等和重启安全写入；已完成互动候选和 Genesis 种子都走先保存来源的路径。未知时间、发生时间精度、归因、隐私和投影来源均显式保留。 | 一个经过校验的 Episode 是详细历史来源；Memory 不负责合并原始回合。 | target=设计第 3、9.1/9.4 节；inventory=`sqlite_episode_store.py`、`memory_system.py`、`genesis/initializer.py`；references=Episode 和 E1 垂直切片测试；verification=重复提交、内容哈希、未知时间、低强度候选、Genesis 来源链和重开测试；residuals=上游事件边界仍负责闭合事件；旧 `record_episode` 仅作兼容接口。 | 目标路径无残余。 |
 | MEM-003 | P0 | closed | 节点、别名、描述、提及、带类型字面量的限定 Assertion、Evidence 和多对多关联已持久化；身份合并会重定向历史并保留冲突。 | 独立重要性、可信度、极性、视角、时间、类型化值和反驳关系不会被裸三元组覆盖。 | target=设计第 4、9.1–9.3 节；inventory=`sqlite_graph_store.py`、`schema.py`、`predicates.py`；references=source-first 图测试；verification=跨 Episode 别名/身份解析、合并重定向、带来源断言、谓词拒绝、冲突/证据和投影诊断测试；residuals=旧数据库已经覆盖的历史版本不能自动恢复。 | 旧数据可能存在不可恢复冲突。 |
 | MEM-004 | P0 | closed | 有界 Worker 领取 Episode，校验有来源模型提案或使用保守确定性抽取，再以可重试的有来源投影在单事务中提交；版本化谓词注册表、来源哈希/修订校验和有界拒绝诊断已强制执行。 | 规范身份、证据绑定、相容合并和冲突保留是确定性的；来源 Episode 在失败时不丢失。 | target=设计第 5、9.3–9.4 节；inventory=`elfie/brain/memory/consolidation.py`、`predicates.py`、`sqlite_graph_store.py`；references=source-first Worker 测试；verification=模型来源校验、全局语义 ID、租约恢复、谓词/版本拒绝、投影修订和来源保留测试；residuals=Provider 与调度仍是注入/运维选择。 | 写事务不会等待无界模型调用。 |
 | MEM-005 | P0 | closed | `RecallRequest` 已执行确定性的 Basic/Text 候选检索，再做有界 Local Graph 遍历、来源获取、关系/时间/facet/隐私过滤和限制控制。active、superseded 及冲突声明保留状态和证据；常见词候选预过滤和图谱两端查询均有界且可走索引。 | 文本覆盖罕见/未解析表述；图遍历覆盖明确关系；来源和冲突保持可见。 | target=设计第 6、9.4 节；inventory=`sqlite_retrieval_store.py`、`node_store.py`、`sqlite_graph_store.py`、`schema.py`；references=source-first 检索测试和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=罕见词/别名、人物关系网、知识对象、种子、时间窗口、正向 AND/OR facet、未知时间、隐私、跳数/限制和 10k/50k/200k 代表性延迟检查；residuals=Global/社区和向量检索仍是后续投影。 | 词法投影仍可重建，不构成第二事实源。 |
 | MEM-006 | P0 | closed | `RecallBundle` 及确定性渲染器已实现；Reasoning Memory reader 消费独立的带真实来源 ID 的类型化项目。 | 上层通过语义契约取得有界节点、Assertion、路径、Episode、Evidence 和冲突，不读取原始 SQL。 | target=设计第 6、9.5 节；inventory=`memory_records.py`、`recall_renderer.py`、`reasoning/memory_context.py`；references=推理和渲染测试；verification=稳定渲染、字符硬上限、来源和类型节点不合成虚假来源测试；residuals=最终自然语言叙述仍由 Reasoning 负责。 | Memory 边界无残余。 |
-| MEM-007 | P0 | 开发已关闭 | 已实现新库导入器、只读源保护、数量/摘要/哈希对账、租约恢复和保留操作。无来源旧边和未核验链接会生成确定性警告并跳过，不会成为 active 事实。 | 导入按 Episode 优先、可审计且可回退；不修改旧库，不引入长期双写。 | target=设计第 9.6 节；inventory=`migration.py`、`sqlite_memory_store.py`；references=ADR-0018 和持久化规则；verification=旧库导入、带表族前缀的 ID 映射、可迁移 Episode 哈希匹配、无来源边跳过、证据映射、重开和归档/遗忘测试；residuals=生产数据切换未执行，需单独明确批准。 | 未接触线上用户库。 |
-| MEM-008 | P0 | closed | 确定性结构门、完整真实 Ark 门和负责人体验复核均已完成，第一阶段已通过。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-real-final/report.json`；verification=最终候选报告记录确定性 E1 86 项测试、33/33 个重复机器场景、33 次结构化 Ark 裁判调用，各适用维度最差分数均不低于 4，持久化扫描退出码 0，负责人已确认匿名样本；1 次 provider 空响应由既有有界失败路径恢复；residuals=生产数据迁移/切换仍是需单独批准的 MEM-007 操作。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
-| MEM-009 | P0 | closed（生产调用方；保留兼容层） | Brain、Reasoning 和 Lab 的生产路径均消费类型化 `RecallBundle`/Memory inspection 和唯一的 `Memory Maintenance` 入口；退役 Encoder/Retriever/Formatter 栈在产品/运行时根目录中已无导入。 | 保持唯一 source-first Memory authority；剩余旧面只在单独批准的兼容测试迁移后删除。 | target=设计第 4.3–4.4、6、9.5 节；inventory=`memory_system.py`、`reasoning/memory_context.py`、`elfie/brain_wiring.py`、`devtools/elfie_lab/memory_projection.py`、`devtools/evals/opt003_memory_endurance.py`；references=生产引用扫描和类型化 inspection 回归；verification=`legacy_production_references() == ()`，耐久性/Genesis/维护回归，受影响 Memory/Brain/Genesis、架构、Ruff 和持久化扫描；residuals=旧模块及其算法测试只为语义 Fake 和 Lab 显式回退保留。 | 生产调用方不构造或导入旧检索/格式化对象。 |
+| MEM-007 | P0 | 已被全新库策略取代 | 旧库导入器不再属于目标；Adapter 仍有迁移必需错误和旧来源兼容路径，需改为要求重建的拒绝。 | 删除导入器和旧来源路径；在写入前拒绝旧/混合数据库，保持文件不变；仅在显式重建后创建当前 schema。 | target=设计第 6.4、9.5–9.6 节；inventory=`migration.py`、`sqlite_memory_store.py`、`schema.py`；references=ADR-0018 和持久化规则；verification=旧/混合/v4 数据库无写入拒绝、全新 schema 创建/重开、导入器引用为零；residuals=当前分支批次实现中。 | 不触碰线上用户库。 |
+| MEM-008 | P0 | closed | 确定性结构门、完整真实 Ark 门和负责人体验复核均已完成，第一阶段已通过。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-real-final/report.json`；verification=最终候选报告记录确定性 E1 86 项测试、33/33 个重复机器场景、33 次结构化 Ark 裁判调用，各适用维度最差分数均不低于 4，持久化扫描退出码 0，负责人已确认匿名样本；1 次 provider 空响应由既有有界失败路径恢复；residuals=0.5 之前不执行生产数据迁移，旧库按 MEM-007 备份/重建。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
+| MEM-009 | P0 | open（兼容清理） | Brain、Reasoning 和 Lab 生产路径已消费类型化 `RecallBundle`/Memory inspection 和唯一的 `Memory Maintenance` 入口，但 Memory 门面、测试夹具和 Lab 展示仍暴露旧兼容面。 | 将测试迁移到类型化/内存 Adapter，删除 Lab 回退，再删除旧门面分支和模块。 | target=设计第 4.3–4.4、6、9.5 节；inventory=`memory_system.py`、`reasoning/memory_context.py`、`elfie/brain_wiring.py`、`devtools/elfie_lab/memory_projection.py`、`devtools/evals/opt003_memory_endurance.py`；references=生产引用扫描和类型化 inspection 回归；verification=旧 API/类引用为零，加上 Memory/Brain/Genesis/Lab 回归、架构测试、Ruff 和持久化扫描；residuals=当前批次 1–3 实现中。 | 生产调用方不得构造或导入旧检索/格式化对象。 |
 | MEM-010 | P0 | closed（维护正确性） | Maintenance 共用有界预算，先 Consolidation 后 Lifecycle；强化后会调度 Node/Assertion；失败保留原检查点；可恢复过期租约并按 owner/attempt 隔离旧 Worker。 | 重试或竞争 Worker 不得跳过、重复或覆盖目标；投影失败时来源 Episode 必须可重试。 | target=设计第 4.3、9.2、9.6 节；inventory=`memory_system.py`、`sqlite_lifecycle_store.py`、`sqlite_graph_store.py`；references=维护强化回归；verification=单预算、仅生命周期唤醒、检查点重试、租约恢复、旧 Worker 隔离和来源保留测试；residuals=维护正确性无残余。 | 写事务不会等待模型/网络。 |
-| MEM-011 | P0 | closed（开发目标） | Lifecycle 通过唯一版本化策略直接衰减 `importance`，并将已投影 Episode 按 `full → compressed → digest → archived` 推进；只有归档、依赖安全且低重要性的 Episode 才能遗忘，同时保留摘要存根。没有待投影 Episode 但存在历史到期记录时，维护仍会唤醒。 | 自动遗忘必须受策略控制、来源/Evidence 安全、可重试且可观察，不能删除最后可审计来源。 | target=设计第 6.1–6.3、9.2 节；inventory=`score_policy.py`、`sqlite_lifecycle_store.py`、`memory_system.py`；references=维护回归和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=历史到期扫描、未投影来源保护、四步生命周期重放、摘要保留、只衰减 importance 和重启检查；residuals=生产数据切换仍单独治理。 | Episode 遗忘不隐式删除 Node、Assertion 或其 Evidence。 |
+| MEM-011 | P0 | closed（开发目标） | Lifecycle 通过唯一版本化策略直接衰减 `importance`，并将已投影 Episode 按 `full → compressed → digest → archived` 推进；只有归档、依赖安全且低重要性的 Episode 才能遗忘，同时保留摘要存根。没有待投影 Episode 但存在历史到期记录时，维护仍会唤醒。 | 自动遗忘必须受策略控制、来源/Evidence 安全、可重试且可观察，不能删除最后可审计来源。 | target=设计第 6.1–6.3、9.2 节；inventory=`score_policy.py`、`sqlite_lifecycle_store.py`、`memory_system.py`；references=维护回归和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=历史到期扫描、未投影来源保护、四步生命周期重放、摘要保留、只衰减 importance 和重启检查；residuals=全新库 schema 重建由 MEM-007 跟踪，而不是生命周期。 | Episode 遗忘不隐式删除 Node、Assertion 或其 Evidence。 |
 
 ## 当前基线后的优化台账
 
@@ -52,7 +52,7 @@ OPT-002 实现与评测证据（2026-08-28）：target=持续学习 source-first
 
 ## 验收后的后续工作
 
-1. 如现有用户数据库需要切换，另行批准并执行生产数据切换；开发迁移已经完成。
+1. 0.5 之前，旧 Memory 数据库只允许显式备份后重建全新根目录；不执行生产数据迁移。
 2. 如果持久化 schema 或排序策略变化，重新运行 OPT-003 的有界增长和可恢复生命周期评测。
 3. 第二阶段真实巢接入后，为 OPT-004 建立具身记忆评测。
 

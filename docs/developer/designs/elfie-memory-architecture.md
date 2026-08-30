@@ -309,7 +309,7 @@ SQLite uses `PRAGMA user_version`, foreign keys, WAL, a bounded busy timeout and
 
 Episodes, Nodes, Assertions and Evidence survive restart. Maintenance claims bounded records with operational leases/checkpoints; an expired lease is reclaimable. A crash before a normal commit leaves the source unchanged; a crash after commit is recognized by the idempotency key/fingerprint. A crash before a Genesis submission commit leaves that submission unpublished; recovery checks the same immutable submission identity/hash and retries that submission. The `committed` state is valid only when every expected output, child record and that submission's completion marker are present. FTS and RAM caches are rebuilt when missing.
 
-## 6. Lifecycle, recovery and development migration
+## 6. Lifecycle, recovery and fresh-store policy
 
 ### 6.1 Episode detail lifecycle
 
@@ -323,17 +323,11 @@ An Evidence row that is the last auditable source for an active Assertion cannot
 
 Lifecycle maintenance first reduces detail, then archives cold material, and only then may forget it when policy, importance and dependency checks allow. Episodes without a successful projection for their current source version are reviewed too, but their source is retained until a safe projection or an explicit source-retention rule exists. Forgetting detail does not automatically delete Nodes or Assertions; it may mark an Assertion superseded/forgotten only with an auditable replacement or retained source. An old Episode is reviewed by Lifecycle Stage; it is not reintroduced as a new consolidation input.
 
-### 6.4 Development data migration
+### 6.4 0.x fresh-store policy
 
-Migration is a development cutover, not a normal runtime path. Import into a fresh target database:
+Before the 0.5 data-compatibility baseline is frozen, Memory supports only a fresh database created by the current schema. An old or mixed database is rejected before any business write. Runtime does not import, replay, dual-write or fallback-read legacy Memory data. An operator may back up the exact data root and explicitly rebuild it; the application never deletes or overwrites an old database automatically.
 
-- complete legacy events/experiences → Episodes;
-- entities → Nodes;
-- edge records → Assertions;
-- source links → Evidence and `assertion_evidence`;
-- aliases/descriptions/mentions → their child tables.
-
-Embedded duplicate edge JSON or source-less notes are diagnostics, not silently promoted facts. A legacy source row is migration-only and cannot ground an active target Assertion until it is converted to a verified Episode or approved seed source. Stop new writes, snapshot the old database, import, reconcile counts/hashes/Evidence and reopen after restart, then switch the injected Adapter. Keep the snapshot until acceptance; do not add long-term dual writes or a fallback reader. A failed check leaves the old Adapter active.
+The old `entities`, `events`, `entity_edges` and related tables are therefore discarded by policy, not transformed in place. A reset-required result identifies the database path and leaves the rejected file unchanged. Fresh initialization creates only the current Episode, graph, Evidence and operational tables.
 
 ## 7. Non-negotiable invariants
 
@@ -369,7 +363,7 @@ Verify that new evidence updates `importance` and `confidence` once, repeated ev
 
 ### 8.5 Performance and capacity
 
-Measure both maintenance stages, bounded RAM, growth/retention behavior and database-only Basic + Local p95 ≤ 150 ms on a representative 10,000-Episode / 50,000-Node / 200,000-Assertion fixture. If migration is performed, also require 100% eligible source-hash reconciliation and an ID-level report for every skipped item.
+Measure both maintenance stages, bounded RAM, growth/retention behavior and database-only Basic + Local p95 ≤ 150 ms on a representative 10,000-Episode / 50,000-Node / 200,000-Assertion fixture. The endurance gate must also prove that an old or mixed database is rejected without mutation and that a fresh database can be rebuilt and reopened.
 
 ## 9. Resolved implementation decisions
 
@@ -385,7 +379,7 @@ This section closes implementation ambiguities identified during review. It is n
 
 ### 9.2 Scores, review and lifecycle
 
-- Only `importance` and `confidence` are persisted semantic scores. The old `support_score` is migration input or a derived compatibility value, never a third authoritative score.
+- Only `importance` and `confidence` are persisted semantic scores. There is no persisted `support_score` compatibility field.
 - A versioned score policy recomputes contributions from unique, stable source/evidence IDs and explicit owner inputs. A retry, duplicate Evidence link or repeated maintenance pass cannot add the same contribution twice.
 - Episodes, Nodes and Assertions carry review/reinforcement timestamps (or a deterministic equivalent) and a policy version. Lifecycle selection is a due predicate, not another score.
 - Lifecycle transitions are guarded and ordered: preserve a source that lacks a successful current projection; then allow `full` → `compressed` → `digest`, archive separately, and forget only after source/Evidence dependency checks. Forgetting never removes the last auditable Evidence for an active Assertion.
@@ -396,7 +390,7 @@ This section closes implementation ambiguities identified during review. It is n
 - Predicates are resolved against a versioned registry with explicit aliases and deprecations. The registry version is recorded with each successful projection.
 - An unknown or invalid model proposal is retained only as bounded diagnostic/retry data and is never inserted as an active Assertion. It can be retried after the registry or source validation changes.
 - A successful projection records `(source_version, source_hash, projection_revision)`. Missing or stale revision means the current source still needs projection; a retry does not create a second Episode.
-- Runtime callers use only the source-first typed path. Legacy `add_edge`/bare-edge writes are removed after their callers are migrated and remain migration/diagnostic-only during the transition.
+- Runtime callers use only the source-first typed path. Legacy `add_edge`/bare-edge writes are removed after their callers are migrated; they are not a runtime or migration API.
 
 ### 9.4 Recall semantics
 
@@ -405,15 +399,15 @@ This section closes implementation ambiguities identified during review. It is n
 - Active Assertions are preferred, while relevant `superseded` and conflicting Assertions remain visible with explicit status and Evidence. Privacy and namespace filtering happen before ranking.
 - Basic/Text and Local/Graph are the initial modes. Global/community and vector retrieval remain derived, later capabilities and are not advertised by the initial contract.
 
-### 9.5 Migration and compatibility
+### 9.5 Fresh schema and compatibility boundary
 
-- Schema changes create a fresh target schema and use an explicit version check; an old or mixed database is never silently altered into a new fact model. Existing development data is imported through the migration tool, while production cutover remains separately approved.
-- A legacy edge becomes an active Assertion only when its source has been converted to a verified Episode or approved seed Evidence. Source-less edges, embedded edge JSON and incomplete notes produce deterministic skip/diagnostic records instead.
-- Import produces an ID mapping plus per-family counts, source hashes and skipped-item reasons. A failed reconciliation leaves the old Adapter active; no long-term dual write or fallback reader is added.
+- Schema changes create a fresh target schema and use an explicit version check. An old or mixed database is rejected before initialization mutates it; no importer, fallback reader or dual write exists before 0.5.
+- The reset-required result identifies the exact database path and directs an operator to back up and explicitly rebuild the data root. The application never deletes, overwrites or silently repairs the rejected database.
+- The current schema contains only source-first Episode, Node, Assertion, Evidence and operational tables. Legacy entity/event tables, legacy edges, `support_score` and `source_type='legacy'` are not accepted inputs.
 
 ### 9.6 Verification and observability
 
 - Every write path has failure-injection coverage before and after its commit point, including concurrent duplicate submission, hash mismatch, restart, lease expiry and uncommitted-row visibility.
-- Maintenance and Recall tests cover idempotent score updates, source protection, facet semantics, supersession/conflict visibility, namespace/privacy isolation and hard truncation limits. Migration tests cover fresh-target reopen and skipped legacy evidence.
+- Maintenance and Recall tests cover idempotent score updates, source protection, facet semantics, supersession/conflict visibility, namespace/privacy isolation and hard truncation limits. Fresh-store tests cover old/mixed-schema rejection without mutation, new-schema creation and reopen.
 - Performance evidence records cold/warm initialization, per-Unit-of-Work time, SQLite lock wait, row counts, retry latency and Recall p95. The existing representative Recall target remains p95 ≤ 150 ms; Genesis batching policy is chosen from measured startup evidence, not from this Memory contract.
 - After schema or transaction changes, rerun the persistence inventory, focused adapter/contract tests, quality checks and `git diff --check`; update the Conformance row with target, inventory, references, verification and residuals.

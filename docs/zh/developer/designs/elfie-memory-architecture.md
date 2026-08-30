@@ -307,7 +307,7 @@ SQLite 使用 `PRAGMA user_version`、外键、WAL、有界忙等待和一个串
 
 Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运行控制用的租约/检查点处理有界记录；过期租约可以重新处理。普通提交前崩溃保持来源不变；提交后崩溃通过幂等键/指纹识别。Genesis 在某次 submission 提交前崩溃不会形成可接受的该次初始化结果；恢复时检查相同不可变 submission 身份/哈希，并重试该 submission。只有全部预期输出、子记录和本次完成标记都存在时，`committed` 状态才有效。缺失的 FTS 和内存缓存可以重建。
 
-## 6. 生命周期、恢复和迁移
+## 6. 生命周期、恢复和全新库策略
 
 ### 6.1 Episode 细节生命周期
 
@@ -321,17 +321,11 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 生命周期维护先减少细节，再归档冷数据，最后才在策略、重要性和依赖检查允许时遗忘。当前来源版本没有成功投影的 Episode 也要复查，但在安全投影或明确的来源保留规则出现前不能丢失其来源。遗忘细节不会自动删除 Node 或 Assertion；只有存在可审计替代或保留来源时，才可以把 Assertion 标记为 superseded/forgotten。旧 Episode 由 Lifecycle Stage 复查，不重新变成新的整理输入。
 
-### 6.4 开发数据迁移
+### 6.4 0.x 全新库策略
 
-迁移是开发数据切换，不是正常运行时路径。导入全新的目标数据库：
+在 0.5 的数据兼容基线冻结前，Memory 只支持由当前 schema 创建的全新数据库。发现旧版或混合数据库时，必须在任何业务写入前拒绝。运行时不导入、不重放、不双写，也不回退读取旧 Memory 数据。操作者可以先备份精确的数据根再显式重建；应用程序不得自动删除或覆盖旧数据库。
 
-- 完整旧事件/经历 → Episodes；
-- 实体 → Nodes；
-- 边记录 → Assertions；
-- 来源链接 → Evidence 和 `assertion_evidence`；
-- 别名/描述/提及 → 对应子表。
-
-嵌入式重复边 JSON 或无来源笔记只进入诊断报告，不能静默提升为事实。迁移遗留的来源记录仅限迁移使用，在转换为已核验的 Episode 或批准种子来源前，不能为目标库的 active Assertion 提供依据。停止新写入，快照旧库，导入并对账数量/哈希/Evidence，重启复开验证后再切换注入的 Adapter。验收前保留快照；不增加长期双写或回退读取器。检查失败时保持旧 Adapter。
+因此，旧的 `entities`、`events`、`entity_edges` 及相关表按策略废弃，而不是在原文件上转换。reset-required 结果必须指出数据库路径，并保证被拒绝文件保持不变。全新初始化只创建当前的 Episode、图谱、Evidence 和运行控制表。
 
 ## 7. 不可破坏的不变量
 
@@ -367,7 +361,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.5 性能和容量
 
-测量两个维护阶段、有界内存、增长/保留行为，以及代表性 10,000 Episode / 50,000 Node / 200,000 Assertion 数据集上仅数据库 Basic + Local 的 p95 ≤ 150 ms。若执行迁移，还要求所有合格来源 100% 哈希对账，并为每个跳过项生成 ID 报告。
+测量两个维护阶段、有界内存、增长/保留行为，以及代表性 10,000 Episode / 50,000 Node / 200,000 Assertion 数据集上仅数据库 Basic + Local 的 p95 ≤ 150 ms。耐久性门还必须证明旧版或混合数据库会在不修改文件的情况下被拒绝，并且全新数据库能够重建和复开。
 
 ## 9. 已确定的实现决策
 
@@ -383,7 +377,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 9.2 分数、复查和生命周期
 
-- 只有 `importance` 和 `confidence` 是持久化语义分数。旧的 `support_score` 只能作为迁移输入或派生兼容值，不能成为第三个权威分数。
+- 只有 `importance` 和 `confidence` 是持久化语义分数。不再持久化 `support_score` 兼容字段。
 - 带版本的评分策略根据唯一、稳定的来源/Evidence ID 和显式所有者输入重新计算贡献。重试、重复 Evidence 关联或重复维护不能重复增加同一贡献。
 - Episode、Node 和 Assertion 记录复查/强化时间（或可确定性推导的等价信息）和策略版本。生命周期选择是到期条件，不增加另一种分数。
 - 生命周期转换受保护且按顺序执行：当前来源没有成功投影时先保留来源；再允许 `full` → `compressed` → `digest`，单独归档；只有通过来源/Evidence 依赖检查后才可遗忘。遗忘不能删除 active Assertion 的最后可审计 Evidence。
@@ -394,7 +388,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 - Predicate 必须从带版本的 registry 解析，并显式登记别名和弃用项。每个成功投影记录 registry 版本。
 - 未知或无效的模型提案只能保留为有界诊断/重试数据，不能插入为 active Assertion；registry 或来源校验改变后才可重试。
 - 成功投影记录 `(source_version, source_hash, projection_revision)`。缺失或过期的修订表示当前来源仍需投影；重试不能创建第二个 Episode。
-- 运行时调用方只使用 source-first 类型化路径。旧的 `add_edge`/裸边写入在调用方迁移后删除，过渡期也只能用于迁移/诊断。
+- 运行时调用方只使用 source-first 类型化路径。旧的 `add_edge`/裸边写入在调用方迁移后删除，不再是运行时或迁移 API。
 
 ### 9.4 Recall 语义
 
@@ -403,15 +397,15 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 - 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
 - 初始模式只有 Basic/Text 和 Local/Graph。Global/community 与向量检索仍是后续的派生能力，初始契约不宣称支持。
 
-### 9.5 迁移和兼容路径
+### 9.5 全新 schema 和兼容边界
 
-- Schema 变更使用全新的目标 schema 和显式版本检查；旧库或混合库不能被静默改造成新的事实模型。现有开发数据通过迁移工具导入，生产切换另行审批。
-- Legacy edge 只有在来源已转换为已核验 Episode 或批准种子 Evidence 时，才能成为 active Assertion。无来源边、内嵌边 JSON 和不完整笔记只生成确定性的跳过/诊断记录。
-- 导入生成 ID 映射、各类数量、来源哈希和跳过原因。对账失败时保持旧 Adapter，不增加长期双写或回退读取器。
+- Schema 变更使用全新的目标 schema 和显式版本检查。旧库或混合库必须在初始化修改它之前被拒绝；0.5 前不存在 importer、回退读取器或双写。
+- reset-required 结果必须指出精确数据库路径，并指导操作者备份后显式重建数据根。应用程序不得自动删除、覆盖或静默修复被拒绝的数据库。
+- 当前 schema 只包含 source-first Episode、Node、Assertion、Evidence 和运行控制表。旧实体/事件表、旧边、`support_score` 和 `source_type='legacy'` 都不是可接受输入。
 
 ### 9.6 验证和可观测性
 
 - 每条写入路径都要覆盖提交点前后的故障注入，包括并发重复提交、哈希不匹配、重启、租约过期和未提交行不可见。
-- Maintenance 和 Recall 测试覆盖幂等分数更新、来源保护、facet 语义、supersedes/冲突可见性、命名空间/隐私隔离和硬截断限制。迁移测试覆盖 fresh target 复开和 legacy Evidence 跳过。
+- Maintenance 和 Recall 测试覆盖幂等分数更新、来源保护、facet 语义、supersedes/冲突可见性、命名空间/隐私隔离和硬截断限制。全新库测试覆盖旧/混合 schema 不修改拒绝、新 schema 创建和复开。
 - 性能证据记录冷/热初始化、每个 Unit of Work 耗时、SQLite 锁等待、行数、重试延迟和 Recall p95。现有代表性 Recall 目标仍为 p95 ≤ 150 ms；Genesis 是否分批由启动实测决定，不由本 Memory 契约决定。
 - 每次 schema 或事务变更后，重新运行持久化盘点、聚焦的 Adapter/契约测试、质量检查和 `git diff --check`；并按 `target`、`inventory`、`references`、`verification`、`residuals` 更新 Conformance 台账。
