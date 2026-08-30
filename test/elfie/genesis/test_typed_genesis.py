@@ -52,11 +52,11 @@ def test_typed_genesis_records_story_graph_manifest_and_recall(tmp_path: Path) -
 
     memory_path = workspace / "memory" / "knowledge.sqlite"
     with SQLiteMemoryStoreAdapter(memory_path) as storage:
-        assert storage.count_nodes("episodic") == 5
-        assert storage.count_nodes("person") == 13
-        marker = storage.get_node("genesis:manifest:00000101")
+        assert storage.count_episodes() == 5
+        assert storage.count_graph_nodes("person") == 13
+        marker = storage.get_graph_node("genesis:manifest:00000101")
         assert marker is not None
-        assert len(marker.metadata["output_ids"]) == len(bundle.manifest.output_ids)
+        assert len(marker.properties["output_ids"]) == len(bundle.manifest.output_ids)
 
         rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
         assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
@@ -70,13 +70,13 @@ def test_typed_genesis_records_story_graph_manifest_and_recall(tmp_path: Path) -
 
     # A close/reopen cycle must preserve the same source Episodes and marker.
     with SQLiteMemoryStoreAdapter(memory_path) as reopened:
-        assert reopened.count_nodes("episodic") == 5
-        assert reopened.get_node("genesis:manifest:00000101") is not None
+        assert reopened.count_episodes() == 5
+        assert reopened.get_graph_node("genesis:manifest:00000101") is not None
 
     adapter.materialize(reservation)
     with SQLiteMemoryStoreAdapter(memory_path) as repeated:
-        assert repeated.count_nodes("episodic") == 5
-        assert repeated.count_nodes("person") == 13
+        assert repeated.count_episodes() == 5
+        assert repeated.count_graph_nodes("person") == 13
     adapter.release(reservation.elfie_id)
 
 
@@ -166,8 +166,7 @@ def test_typed_genesis_fails_closed_without_source_first_storage(
     bundle = _genesis_bundle(reservation, profile, selfhood)
 
     class LegacyOnlyStorage:
-        def get_node(self, _node_id: str):
-            return None
+        pass
 
     with pytest.raises(TypeError, match="source-first"):
         GenesisMemoryCommitter().commit(bundle, LegacyOnlyStorage())
@@ -192,5 +191,5 @@ def test_typed_genesis_rejects_a_tampered_manifest_hash(tmp_path: Path) -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         with pytest.raises(GenesisValidationError, match="content_hash"):
             GenesisMemoryCommitter().commit(tampered, storage)
-        assert storage.count_nodes() == 0
+        assert storage.count_memory_records() == 0
     adapter.release(reservation.elfie_id)

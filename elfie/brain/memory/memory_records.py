@@ -8,9 +8,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, Mapping, Optional, Tuple
+from typing import Dict, List, Literal, Mapping, Optional, Tuple, Union
 
-from .node_types import JsonValue
+JsonValue = Union[
+    None,
+    bool,
+    int,
+    float,
+    str,
+    List["JsonValue"],
+    Dict[str, "JsonValue"],
+]
 
 _RECALL_LIMIT_MAX = {
     "lexical_limit": 200,
@@ -144,9 +152,7 @@ class ClosedEpisode:
             self.emotion_intensity is not None
             and not 0.0 <= self.emotion_intensity <= 1.0
         ):
-            # Legacy callers pass percentages; the compatibility encoder does
-            # not construct ClosedEpisode with that value.  Typed callers must
-            # use the normalized [0, 1] contract.
+            # Typed callers must use normalized [0, 1] intensity values.
             raise ValueError("emotion_intensity must be between 0 and 1")
         if any(not value.strip() for value in self.source_event_ids):
             raise ValueError("source_event_ids must not contain blank IDs")
@@ -304,7 +310,6 @@ class AssertionInput:
     valid_from: Optional[str] = None
     valid_to: Optional[str] = None
     confidence: float = 0.5
-    support_score: float = 0.5
     conflict_group: Optional[str] = None
     supersedes_assertion_id: Optional[str] = None
     evidence_ids: Tuple[str, ...] = ()
@@ -320,8 +325,6 @@ class AssertionInput:
             raise ValueError("an assertion must have exactly one object form")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
-        if not 0.0 <= self.support_score <= 1.0:
-            raise ValueError("support_score must be between 0 and 1")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
         if not self.subject_id.strip() or not self.predicate.strip():
@@ -361,7 +364,7 @@ class EvidenceInput:
     """A source locator that grounds a graph assertion."""
 
     evidence_id: str
-    source_type: Literal["episode", "seed", "legacy"]
+    source_type: Literal["episode", "seed"]
     source_id: str
     excerpt: Optional[str] = None
     media_locator: Optional[str] = None
@@ -380,6 +383,8 @@ class EvidenceInput:
     def __post_init__(self) -> None:
         if not self.evidence_id.strip() or not self.source_id.strip():
             raise ValueError("evidence_id and source_id must not be blank")
+        if self.source_type not in {"episode", "seed"}:
+            raise ValueError("unsupported evidence source type")
         if not self.modality.strip():
             raise ValueError("evidence modality must not be blank")
         if self.excerpt is not None and not self.excerpt.strip():
@@ -658,8 +663,8 @@ class MemoryInspectionSnapshot:
     This is deliberately separate from ``RecallBundle``: diagnostics may ask
     for a bounded view of the durable graph without turning an empty query
     into a semantic recall request.  The snapshot still carries only typed
-    records; SQL rows and legacy ``MemoryNode`` objects never cross the
-    Memory boundary.
+    records; SQL rows and untyped legacy graph objects never cross the Memory
+    boundary.
     """
 
     episodes: Tuple[ClosedEpisode, ...] = ()
@@ -775,6 +780,7 @@ __all__ = [
     "RecallLimits",
     "RecallNode",
     "MemoryInspectionSnapshot",
+    "JsonValue",
     "RecallPath",
     "RecallRequest",
     "SourceReference",
@@ -784,15 +790,15 @@ __all__ = [
 
 
 def _timestamp_key(value: str) -> str:
-    """Normalize comparable ISO timestamps without rejecting legacy values."""
+    """Normalize comparable ISO timestamps while accepting date-only values."""
     text = value.strip()
     if not text:
         raise ValueError("timestamp must not be blank")
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        # Legacy fixtures occasionally use date-only values.  Keep lexical
-        # ordering for those rather than making migration impossible.
+        # Date-only values are valid Episode timestamps. Keep lexical ordering
+        # when no full ISO timestamp can be parsed.
         return text
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone().replace(tzinfo=None)

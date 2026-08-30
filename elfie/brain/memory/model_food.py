@@ -27,7 +27,7 @@ from elfie.brain.workspace.contracts import (
 )
 from elfie.message_types import EventId, TurnId
 
-from .node_types import JsonValue
+from .memory_records import JsonValue
 
 MEMORY_PROJECTION_SCHEMA = {
     "type": "object",
@@ -76,7 +76,7 @@ MEMORY_PROJECTION_SCHEMA = {
                     "viewpoint": {"type": "string"},
                     "context": {"type": "string"},
                     "confidence": {"type": "number"},
-                    "support_score": {"type": "number"},
+                    "importance": {"type": "number"},
                 },
                 "required": ["predicate"],
             },

@@ -9,16 +9,25 @@ from devtools.elfie_lab.schemas import ElfieSpec
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.session_projection import _memory_cognition_projection
 from devtools.elfie_lab.storage import ElfieLabStorage
+from elfie.brain.memory.memory_records import MemoryInspectionSnapshot
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from test.devtools.elfie_lab.projection_test_support import add_node
+from test.devtools.elfie_lab.projection_test_support import add_edge, add_node
 
 
 @pytest.fixture
 def projection_subject():
     storage = SQLiteMemoryStoreAdapter.in_memory()
-    memory = SimpleNamespace(
-        storage=storage, get_self_narrative=lambda: {"world": "世界仍在展开。"}
-    )
+
+    def inspection_snapshot(**limits):
+        return MemoryInspectionSnapshot(
+            episodes=storage.list_episodes(limit=limits.get("episode_limit", 1000)),
+            nodes=storage.list_graph_nodes(limit=limits.get("node_limit", 1000)),
+            assertions=storage.list_graph_assertions(
+                limit=limits.get("assertion_limit", 800)
+            ),
+        )
+
+    memory = SimpleNamespace(memory_inspection_snapshot=inspection_snapshot)
     yield (
         SimpleNamespace(_memory=memory),
         ElfieSpec(elfie_id="test", name="艾菲"),
@@ -148,7 +157,7 @@ def test_knowledge_links_preserve_stored_direction(projection_subject) -> None:
     elfie, spec, storage = projection_subject
     add_node(storage, "premise", "knowledge", "天空有云")
     add_node(storage, "conclusion", "knowledge", "可能会下雨")
-    storage.add_edge("premise", "conclusion", "supports", 0.8)
+    add_edge(storage, "premise", "conclusion", "supports", 0.8)
 
     # When
     links = _memory_cognition_projection(elfie, spec)["knowledge"]["links"]
@@ -223,7 +232,8 @@ def test_relationship_projection_keeps_self_and_cross_entity_links(
             },
         )
     for index in range(12):
-        storage.add_edge(
+        add_edge(
+            storage,
             f"entity_{index:02d}",
             f"entity_{index + 1:02d}",
             "family" if index % 2 == 0 else "friend",
@@ -372,6 +382,13 @@ def test_world_model_has_fixed_five_rings_without_fabricated_nodes(
 ) -> None:
     # Given
     elfie, spec, storage = projection_subject
+    add_node(
+        storage,
+        "world",
+        "knowledge",
+        "世界仍在展开。",
+        {"core_key": "world"},
+    )
     add_node(
         storage,
         "home_rule",

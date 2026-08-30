@@ -108,7 +108,7 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
     elfie.wait_for_output(elfie.turn_outcomes()[1].turn_id, timeout=1.0)
 
     assert store.pending_episodes(limit=8)
-    assert store.count_nodes("episodic") >= 1
+    assert store.count_episodes() >= 1
     elfie._memory.run_consolidation_batch(  # noqa: SLF001 - deterministic replay seam
         ConsolidationRequest(max_episodes=8),
         model_port=NoopMemoryProjection(),

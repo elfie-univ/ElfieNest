@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import replace
@@ -21,6 +22,7 @@ from elfie.brain.memory.memory_records import (
 )
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
+from .sqlite_utils import normalize_text, normalized_tokens
 
 
 class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
@@ -28,12 +30,169 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
 
     conn: sqlite3.Connection
 
+    def search_text(
+        self,
+        query: str,
+        top_k: int = 5,
+        node_type: str | None = None,
+        *,
+        privacy_scope: str | None = None,
+    ) -> list[tuple[str, float]]:
+        """Deterministic lexical search over Episode text and graph labels."""
+        if top_k < 1 or not query.strip():
+            return []
+        terms = list(dict.fromkeys(normalized_tokens(query)))
+        if not terms:
+            return []
+        like_patterns = _lexical_like_patterns(query, terms)
+        # The text tables are rebuildable projections, not a second semantic
+        # authority.  Bound the prefilter before the deterministic scorer so
+        # a common token cannot turn Recall into a full scan of every Episode
+        # and Node.  The generous cap keeps normal small stores exact while
+        # making the large-store path obey the Recall latency budget.
+        candidate_limit = max(512, min(4096, top_k * 64))
+        candidates: list[tuple[str, str, str, str]] = []
+        with self._lock:
+            if node_type in (None, "episodic"):
+                episode_scope = ""
+                episode_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                    episode_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    episode_scope += " AND e.privacy_scope=?"
+                    episode_params.append(privacy_scope)
+                episode_visibility, episode_visibility_params = (
+                    self._genesis_visibility("e")
+                )
+                episode_params.extend(episode_visibility_params)
+                episode_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT e.episode_id, f.searchable_text, 'episodic' AS node_type
+                       FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
+                       WHERE e.lifecycle <> 'forgotten' AND ("""
+                    + episode_where
+                    + ")"
+                    + episode_scope
+                    + " AND "
+                    + episode_visibility
+                    + " LIMIT ?",
+                    episode_params + [candidate_limit],
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
+                )
+            if node_type is None or node_type != "episodic":
+                node_scope = ""
+                node_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                    node_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    node_scope += " AND n.privacy_scope=?"
+                    node_params.append(privacy_scope)
+                node_visibility, node_visibility_params = self._genesis_visibility("n")
+                node_params.extend(node_visibility_params)
+                node_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT f.node_id, f.searchable_text, n.node_type,
+                                      n.canonical_label,
+                                      json_extract(n.properties_json, '$.entity_type') AS entity_type
+                       FROM nodes_fts AS f JOIN nodes AS n USING (node_id)
+                       WHERE n.status <> 'forgotten' AND n.merged_into IS NULL
+                         AND COALESCE(json_extract(n.properties_json, '$.recall_eligible'), 1) <> 0
+                         AND ("""
+                    + node_where
+                    + ")"
+                    + node_scope
+                    + " AND "
+                    + node_visibility
+                    + " LIMIT ?",
+                    node_params + [candidate_limit],
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))
+                    for row in rows
+                    if node_type is None
+                    or str(row[2]) == node_type
+                    or str(row[3] or "") == node_type
+                )
+        scored: dict[str, float] = {}
+        # Keep lexical matching tolerant of punctuation (for example a user
+        # may search ``rare-term`` while the source stored ``rare term``),
+        # without changing the stricter normalization used for identity keys.
+        query_normalized = _lexical_normalize(query)
+        with self._lock:
+            alias_visibility, alias_visibility_params = self._genesis_visibility("n")
+            alias_scope_params = (
+                [str(self.elfie_id)]
+                if getattr(self, "elfie_id", None) is not None
+                else []
+            )
+            alias_privacy_params = [privacy_scope] if privacy_scope is not None else []
+            exact_alias_ids = {
+                str(row[0])
+                for row in self.conn.execute(
+                    """SELECT DISTINCT a.node_id
+                         FROM node_aliases AS a
+                         JOIN nodes AS n ON n.node_id=a.node_id
+                        WHERE a.normalized_alias=?
+                          AND n.status <> 'forgotten'
+                          AND n.merged_into IS NULL
+                          AND """
+                    + alias_visibility
+                    + (
+                        " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                        if getattr(self, "elfie_id", None) is not None
+                        else ""
+                    )
+                    + (" AND n.privacy_scope=?" if privacy_scope is not None else ""),
+                    [
+                        normalize_text(query),
+                        *alias_visibility_params,
+                        *alias_scope_params,
+                        *alias_privacy_params,
+                    ],
+                ).fetchall()
+            }
+        for identifier, text, kind, canonical_label in candidates:
+            normalized = _lexical_normalize(text)
+            if not normalized:
+                continue
+            hits = sum(1 for term in terms if term in normalized)
+            if hits == 0:
+                continue
+            score = hits / max(1, len(terms))
+            if query_normalized in normalized:
+                score += 0.5
+            # Exact aliases are stronger evidence than an incidental mention
+            # buried in an Episode or a long description.  Keep a small
+            # canonical-label density bonus so a direct knowledge label stays
+            # in the bounded seed set when a short place term matches many
+            # unrelated Episodes.
+            if identifier in exact_alias_ids:
+                score += 0.35
+            label_normalized = _lexical_normalize(canonical_label)
+            if query_normalized and query_normalized in label_normalized:
+                score += min(
+                    0.2,
+                    len(query_normalized) / max(1, len(label_normalized)) * 0.2,
+                )
+            if kind == "knowledge":
+                score += 0.05
+            scored[identifier] = max(scored.get(identifier, 0.0), score)
+        return sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:top_k]
+
     def recall(self, request: RecallRequest) -> RecallBundle:
         request = _bounded_request(request)
         if not request.text.strip() and not request.seed_node_ids:
             return self._empty_bundle(request)
 
-        lexical_candidates = self.search_by_content(
+        lexical_candidates = self.search_text(
             request.text,
             request.lexical_limit + 1 if request.lexical_limit > 0 else 0,
             privacy_scope=request.privacy_scope,
@@ -52,14 +211,14 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             # returned focus nodes/neighbors, but must not make a caller's
             # person seed unusable when it asks for related animal/concept
             # nodes.
-            if node is not None:
+            if node is not None and _recall_eligible(node):
                 seed_ids.append(resolved)
         episode_scores: dict[str, float] = {}
         for node_id, score in lexical:
             graph_node = self.get_graph_node(
                 node_id, privacy_scope=request.privacy_scope
             )
-            if graph_node is not None:
+            if graph_node is not None and _recall_eligible(graph_node):
                 if not allowed_types or graph_node.node_type in allowed_types:
                     seed_ids.append(graph_node.node_id)
             else:
@@ -86,8 +245,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 node = self.get_graph_node(
                     resolved, privacy_scope=request.privacy_scope
                 )
-                if node is not None and (
-                    not allowed_types or node.node_type in allowed_types
+                if (
+                    node is not None
+                    and _recall_eligible(node)
+                    and (not allowed_types or node.node_type in allowed_types)
                 ):
                     seed_ids.append(resolved)
         unique_seed_ids = list(dict.fromkeys(seed_ids))
@@ -138,7 +299,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     neighbor_node = self.get_graph_node(
                         neighbor, privacy_scope=request.privacy_scope
                     )
-                    if neighbor_node is None:
+                    if neighbor_node is None or not _recall_eligible(neighbor_node):
                         continue
                     if allowed_types and neighbor_node.node_type not in allowed_types:
                         continue
@@ -571,6 +732,26 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
         conflicts=bundle.conflicts,
         limits=limits,
     )
+
+
+def _lexical_normalize(value: str) -> str:
+    """Normalize searchable text without weakening semantic identity rules."""
+    cleaned = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", value.casefold())
+    return " ".join(cleaned.split())
+
+
+def _recall_eligible(node: RecallNode) -> bool:
+    """Honor the explicit projection visibility flag during traversal."""
+    return node.properties.get("recall_eligible", True) is not False
+
+
+def _lexical_like_patterns(query: str, terms: list[str]) -> list[str]:
+    """Build SQL prefilters while retaining the deterministic Python scorer."""
+    patterns = [f"%{term}%" for term in terms]
+    ascii_parts = re.findall(r"[a-z0-9]+", query.casefold())
+    if len(ascii_parts) > 1:
+        patterns.append("%" + "%".join(ascii_parts) + "%")
+    return list(dict.fromkeys(patterns))
 
 
 __all__ = ["SQLiteRecallStoreMixin"]

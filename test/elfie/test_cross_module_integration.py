@@ -6,6 +6,7 @@ import pytest
 
 from elfie import ElfieFactory
 from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
     CommunicationEnvelope,
@@ -113,7 +114,7 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
 
     # Then: identity reaches context but owner-compatible memory is untouched.
     assert "peer-1" in runtime.requests[0].user_prompt
-    assert ElfieDiagnostics(elfie).memory.get_all_episodes() == []
+    assert ElfieDiagnostics(elfie).memory.storage.count_episodes() == 0
     elfie.stop()
     elfie.join()
 
@@ -182,11 +183,16 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     )
     ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 25.0)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
-    ElfieDiagnostics(elfie).memory.record_episode(
-        content="我把这件事记住了",
-        emotion="happiness",
-        intensity=80.0,
-        source_event_ids=("continuity-source",),
+    ElfieDiagnostics(elfie).memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="continuity-source-episode",
+            idempotency_key="continuity-source-key",
+            occurred_from="2026-08-01T00:00:00+00:00",
+            content_text="我把这件事记住了",
+            emotion="happiness",
+            importance=0.8,
+            source_event_ids=("continuity-source",),
+        )
     )
     checkpoint = elfie.continuity_checkpoint()
 
@@ -203,10 +209,15 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     # When: newer uncommitted-in-the-checkpoint state is produced.
     ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 20.0)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
-    ElfieDiagnostics(elfie).memory.record_episode(
-        content="这件事后来又发生了",
-        emotion="happiness",
-        intensity=80.0,
+    ElfieDiagnostics(elfie).memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="continuity-followup-episode",
+            idempotency_key="continuity-followup-key",
+            occurred_from="2026-08-02T00:00:00+00:00",
+            content_text="这件事后来又发生了",
+            emotion="happiness",
+            importance=0.8,
+        )
     )
     with pytest.raises(StateRestoreError):
         elfie.restore_continuity(checkpoint)

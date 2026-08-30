@@ -51,7 +51,7 @@ def build_profile(
             else ""
         ),
         "memory_cognition": _memory_cognition_projection(elfie, spec),
-        "memory_count": len(diagnostics.memory.get_all_episodes()),
+        "memory_count": _memory_episode_count(diagnostics.memory),
         "model": {
             "interaction_protocol": "food",
             "default_food": "mock",
@@ -108,7 +108,7 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
             for name, value in diagnostics.anatomy.get_joint_angles().items()
         },
         "elapsed_time": round(elfie.elapsed_time, 3),
-        "memory_count": len(memory.get_all_episodes()),
+        "memory_count": _memory_episode_count(memory),
         "memory_revision": memory_state.revision,
         "memory_episodic_count": memory_state.episodic_count,
         "memory_total_count": memory_state.total_count,
@@ -179,3 +179,13 @@ def _memory_cognition_projection(
     return build_memory_cognition(
         cast(ProjectionMemory, ElfieDiagnostics(elfie).memory), spec.name
     )
+
+
+def _memory_episode_count(memory: Any) -> int:
+    """Read the bounded typed inspection view for the Lab count badge."""
+    snapshot = memory.memory_inspection_snapshot(
+        episode_limit=1000,
+        node_limit=0,
+        assertion_limit=0,
+    )
+    return len(snapshot.episodes)

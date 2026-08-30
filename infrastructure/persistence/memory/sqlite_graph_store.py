@@ -22,7 +22,6 @@ from elfie.brain.memory.memory_records import (
     RecallEvidence,
     RecallNode,
 )
-from elfie.brain.memory.node_types import Edge
 from elfie.brain.memory.predicates import (
     PREDICATE_REGISTRY_VERSION,
     UnknownPredicateError,
@@ -282,7 +281,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         valid_from=assertion.valid_from,
                         valid_to=assertion.valid_to,
                         confidence=assertion.confidence,
-                        support_score=assertion.support_score,
                         conflict_group=assertion.conflict_group,
                         supersedes_assertion_id=assertion.supersedes_assertion_id,
                         evidence_ids=assertion.evidence_ids,
@@ -318,7 +316,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                                 valid_from=normalized_assertion.valid_from,
                                 valid_to=normalized_assertion.valid_to,
                                 confidence=normalized_assertion.confidence,
-                                support_score=normalized_assertion.support_score,
                                 conflict_group=normalized_assertion.conflict_group,
                                 supersedes_assertion_id=prior,
                                 evidence_ids=normalized_assertion.evidence_ids,
@@ -1152,109 +1149,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             for row in rows
         )
 
-    def get_edges(self, node_id: str, direction: str = "outgoing") -> list[Edge]:
-        resolved_node_id = self.resolve_graph_node_id(node_id)
-        if resolved_node_id is None:
-            return []
-        assertion_visibility, assertion_visibility_params = self._genesis_visibility(
-            "a"
-        )
-        clauses = ""
-        params: list[Any] = [resolved_node_id]
-        if direction == "incoming":
-            clauses = "a.object_node_id=?"
-        elif direction == "outgoing":
-            clauses = "a.subject_node_id=?"
-        else:
-            clauses = "(a.subject_node_id=? OR a.object_node_id=?)"
-            params.append(resolved_node_id)
-        namespace_clause = ""
-        namespace_params: list[object] = []
-        if getattr(self, "elfie_id", None) is not None:
-            namespace_clause = (
-                " AND EXISTS (SELECT 1 FROM nodes AS ns WHERE ns.node_id="
-                "a.subject_node_id AND json_extract(ns.properties_json, '$.elfie_id')=?)"
-            )
-            namespace_params.append(str(self.elfie_id))
-            namespace_clause += (
-                " AND (a.object_node_id IS NULL OR EXISTS ("
-                "SELECT 1 FROM nodes AS no WHERE no.node_id=a.object_node_id "
-                "AND json_extract(no.properties_json, '$.elfie_id')=?))"
-            )
-            namespace_params.append(str(self.elfie_id))
-        with self._lock:
-            rows = self.conn.execute(
-                f"""SELECT a.subject_node_id, a.object_node_id, a.predicate,
-                           a.importance, a.confidence FROM assertions AS a
-                    WHERE a.lifecycle='active' AND {clauses}
-                      {namespace_clause}
-                      AND {assertion_visibility}
-                    ORDER BY a.assertion_id""",
-                [*params, *namespace_params, *assertion_visibility_params],
-            ).fetchall()
-        return [
-            Edge(
-                target=(
-                    str(row["subject_node_id"])
-                    if direction == "incoming"
-                    else str(row["object_node_id"])
-                    if direction == "outgoing"
-                    else str(
-                        row["object_node_id"]
-                        if str(row["subject_node_id"]) == resolved_node_id
-                        else row["subject_node_id"]
-                    )
-                ),
-                rel=str(row["predicate"]),
-                weight=float(row["importance"]),
-            )
-            for row in rows
-            if row["object_node_id"] is not None
-        ]
-
-    def add_edge(
-        self, source_id: str, target_id: str, rel: str, weight: float = 0.5
-    ) -> str:
-        now = utc_now()
-        evidence_id = (
-            "legacy-edge:"
-            + hashlib.sha256(f"{source_id}|{target_id}|{rel}".encode()).hexdigest()[:24]
-        )
-        assertion = AssertionInput(
-            subject_id=source_id,
-            predicate=str(rel),
-            object_node_id=target_id,
-            confidence=bounded_score(weight),
-            importance=bounded_score(weight),
-            support_score=bounded_score(weight),
-            evidence_ids=(evidence_id,),
-        )
-        evidence = EvidenceInput(
-            evidence_id=evidence_id,
-            source_type="legacy",
-            source_id=evidence_id,
-            excerpt=f"legacy edge {source_id} {rel} {target_id}",
-        )
-        with self._lock:
-            owns = self._begin_write_transaction()
-            try:
-                self._ensure_compat_node(source_id, now)
-                self._ensure_compat_node(target_id, now)
-                self._insert_evidence(evidence, now)
-                assertion_id = self._insert_assertion(assertion, now)
-                self._insert_assertion_evidence(
-                    AssertionEvidenceInput(
-                        assertion_id=assertion_id, evidence_id=evidence_id
-                    ),
-                    assertion_id,
-                    now,
-                )
-                self._commit_write_transaction(owns)
-            except Exception:
-                self._rollback_write_transaction(owns)
-                raise
-        return assertion_id
-
     def record_sourced_assertion(
         self,
         assertion: AssertionInput,
@@ -1277,7 +1171,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 valid_from=assertion.valid_from,
                 valid_to=assertion.valid_to,
                 confidence=assertion.confidence,
-                support_score=assertion.support_score,
                 conflict_group=assertion.conflict_group,
                 supersedes_assertion_id=assertion.supersedes_assertion_id,
                 evidence_ids=tuple(assertion.evidence_ids) + (evidence.evidence_id,),
@@ -1292,9 +1185,18 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             now = utc_now()
             owns = self._begin_write_transaction()
             try:
-                self._ensure_compat_node(assertion.subject_id, now)
-                if assertion.object_node_id is not None:
-                    self._ensure_compat_node(assertion.object_node_id, now)
+                if self._resolve_graph_node_id_locked(assertion.subject_id) is None:
+                    raise ValueError(
+                        f"unknown assertion subject: {assertion.subject_id}"
+                    )
+                if (
+                    assertion.object_node_id is not None
+                    and self._resolve_graph_node_id_locked(assertion.object_node_id)
+                    is None
+                ):
+                    raise ValueError(
+                        f"unknown assertion object: {assertion.object_node_id}"
+                    )
                 self._insert_evidence(evidence, now)
                 assertion_id = self._insert_assertion(assertion, now)
                 self._insert_assertion_evidence(
@@ -1335,11 +1237,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 or str(existing["normalized_label"])
                 != normalize_text(node.canonical_label)
             ):
-                properties = json_object(existing["properties_json"])
-                if not properties.get("compat_placeholder"):
-                    raise ValueError(
-                        f"node ID is already bound to another identity: {node.node_id}"
-                    )
+                raise ValueError(
+                    f"node ID is already bound to another identity: {node.node_id}"
+                )
             self._upsert_node(
                 NodeInput(
                     node_id=requested,
@@ -1350,11 +1250,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     status=node.status,
                     confidence=node.confidence,
                     importance=node.importance,
-                    properties={
-                        key: value
-                        for key, value in node.properties.items()
-                        if key != "compat_placeholder"
-                    },
+                    properties=node.properties,
                 ),
                 now,
             )
@@ -1436,13 +1332,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             or str(existing["normalized_label"]) != normalize_text(label)
             or str(existing["scope"]) != node.scope
         ):
-            existing_properties = json_object(existing["properties_json"])
-            if not existing_properties.get("compat_placeholder"):
-                raise ValueError(
-                    f"node ID is already bound to another identity: {node.node_id}"
-                )
+            raise ValueError(
+                f"node ID is already bound to another identity: {node.node_id}"
+            )
         properties = json_object(existing["properties_json"]) if existing else {}
-        properties.pop("compat_placeholder", None)
         configured_elfie = getattr(self, "elfie_id", None)
         if configured_elfie is not None:
             existing_elfie = properties.get("elfie_id")
@@ -1863,9 +1756,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if assertion.object_literal is None
             else canonical_json(assertion.object_literal)
         )
-        # Importance is the lifecycle/retrieval score. Keep it independent
-        # from the compatibility support score: strong evidence does not by
-        # itself make a routine claim important.
+        # Importance is the lifecycle/retrieval score. Evidence reinforcement
+        # is applied through the single versioned score policy below.
         effective_importance = bounded_score(assertion.importance)
         active_submission = getattr(self, "_active_genesis_submission_id", None)
         if (
@@ -1881,15 +1773,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                    assertion_id, subject_node_id, predicate, object_node_id,
                    object_literal_json, object_literal_type, object_unit, polarity,
                    epistemic_status, viewpoint, context, valid_from, valid_to,
-                   confidence, importance, support_score, conflict_group, fingerprint,
+                   confidence, importance, conflict_group, fingerprint,
                    lifecycle, supersedes_assertion_id, predicate_registry_version,
                    policy_version, genesis_submission_id, last_reinforced_at,
                    last_reviewed_at, next_review_at, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(fingerprint) DO UPDATE SET
                    confidence=MAX(assertions.confidence, excluded.confidence),
                    importance=MAX(assertions.importance, excluded.importance),
-                   support_score=MAX(assertions.support_score, excluded.support_score),
                    updated_at=excluded.updated_at,
                    predicate_registry_version=excluded.predicate_registry_version,
                    policy_version=excluded.policy_version,
@@ -1912,7 +1803,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 assertion.valid_to,
                 bounded_score(assertion.confidence),
                 effective_importance,
-                bounded_score(assertion.support_score),
                 conflict_group,
                 fingerprint,
                 assertion.supersedes_assertion_id,
@@ -2145,39 +2035,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             return str(row["assertion_id"])
         return None
 
-    def _ensure_compat_node(self, node_id: str, now: str) -> None:
-        properties: dict[str, object] = {"compat_placeholder": True}
-        configured_elfie = getattr(self, "elfie_id", None)
-        if configured_elfie is not None:
-            properties["elfie_id"] = str(configured_elfie)
-            existing = self.conn.execute(
-                "SELECT properties_json FROM nodes WHERE node_id=?", (node_id,)
-            ).fetchone()
-            if existing is not None:
-                existing_properties = json_object(existing["properties_json"])
-                existing_elfie = existing_properties.get("elfie_id")
-                if existing_elfie is None:
-                    raise ValueError(
-                        "Node belongs to an unbound namespace and cannot be reused"
-                    )
-                if str(existing_elfie) != str(configured_elfie):
-                    raise ValueError("Node belongs to a different Elfie namespace")
-        self.conn.execute(
-            """INSERT OR IGNORE INTO nodes (
-                   node_id, node_type, canonical_label, normalized_label,
-                   confidence, properties_json, first_seen_at, last_seen_at, updated_at
-               ) VALUES (?, 'entity', ?, ?, 0.5, ?, ?, ?, ?)""",
-            (
-                node_id,
-                node_id,
-                normalize_text(node_id),
-                canonical_json(properties),
-                now,
-                now,
-                now,
-            ),
-        )
-
 
 def _assertion_base(assertion: AssertionInput) -> str:
     object_value = (
@@ -2233,7 +2090,6 @@ def _row_as_assertion_input(
         valid_from=row["valid_from"],
         valid_to=row["valid_to"],
         confidence=bounded_score(row["confidence"]),
-        support_score=bounded_score(row["support_score"]),
         conflict_group=row["conflict_group"],
         supersedes_assertion_id=row["supersedes_assertion_id"],
         importance=bounded_score(row["importance"]),
@@ -2386,7 +2242,6 @@ def _projection_revision(projection: ConsolidationProjection) -> str:
                 "valid_to": assertion.valid_to,
                 "confidence": assertion.confidence,
                 "importance": assertion.importance,
-                "support_score": assertion.support_score,
                 "conflict_group": assertion.conflict_group,
                 "supersedes_assertion_id": assertion.supersedes_assertion_id,
                 "evidence_ids": list(assertion.evidence_ids),

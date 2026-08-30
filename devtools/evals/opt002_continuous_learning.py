@@ -405,7 +405,7 @@ def _scenario_idempotency() -> Dict[str, Any]:
             {
                 "duplicate_episode_is_deduped": first.status == "committed"
                 and second.status == "duplicate"
-                and store.count_nodes("episodic") == 1,
+                and store.count_episodes() == 1,
                 "duplicate_consolidation_is_noop": len(first_batch) == 1
                 and not second_batch,
                 "projection_has_no_duplicate_assertions": len(assertions)
@@ -531,8 +531,8 @@ def _scenario_isolation() -> Dict[str, Any]:
             {
                 "same_name_is_not_cross_store_data": first_likes == {"蓝色"}
                 and second_likes == {"红色"},
-                "each_store_has_its_own_episode": first.count_nodes("episodic")
-                == second.count_nodes("episodic")
+                "each_store_has_its_own_episode": first.count_episodes()
+                == second.count_episodes()
                 == 1,
                 "each_store_has_its_own_graph": bool(first.find_graph_nodes("小雨"))
                 and bool(second.find_graph_nodes("小雨")),

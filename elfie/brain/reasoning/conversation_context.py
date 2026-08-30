@@ -8,8 +8,7 @@ from datetime import timedelta
 from threading import Lock
 from typing import Deque, Mapping, Tuple
 
-from elfie.brain.memory.memory_records import ClosedEpisode, SourceReference
-from elfie.brain.memory.node_types import JsonValue
+from elfie.brain.memory.memory_records import ClosedEpisode, JsonValue, SourceReference
 from elfie.brain.reasoning.context_types import (
     CompletedConversationInteraction,
     ConversationContext,

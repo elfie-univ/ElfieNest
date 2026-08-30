@@ -20,12 +20,12 @@ from elfie.brain.memory.memory_records import (
     ConsolidationProjection,
     DescriptionInput,
     EvidenceInput,
+    JsonValue,
     MentionInput,
     NodeInput,
     SourceReference,
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
-from elfie.brain.memory.node_types import JsonValue, MemoryNode, NodeTypes
 from elfie.profile import ELFARIA_CANON, get_species_canon_for_technical_id
 
 from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
@@ -69,9 +69,12 @@ class GenesisMemoryCommitter:
                 )
         elfie_id = bundle.profile_draft.profile.identity.elfie_id
         marker_id = f"{_GENESIS_MARKER_PREFIX}{elfie_id}"
-        existing_marker = storage.get_node(marker_id)
+        submission = getattr(storage, "genesis_submission", None)
+        if not callable(submission):
+            raise TypeError("Genesis requires source-first Memory storage")
+        existing_marker = storage.get_graph_node(marker_id)
         if existing_marker is not None:
-            existing_manifest_id = existing_marker.metadata.get("manifest_id")
+            existing_manifest_id = existing_marker.properties.get("manifest_id")
             if existing_manifest_id != bundle.manifest.manifest_id:
                 raise GenesisValidationError(
                     "该 Elfie 已经用另一个 Genesis manifest 初始化，不能覆盖已有生命起点"
@@ -80,12 +83,12 @@ class GenesisMemoryCommitter:
                 expected_hash = bundle.manifest.content_hash or _typed_content_hash(
                     bundle
                 )
-                existing_hash = existing_marker.metadata.get("content_hash")
+                existing_hash = existing_marker.properties.get("content_hash")
                 if existing_hash != expected_hash:
                     raise GenesisValidationError(
                         "该 Elfie 的 Genesis manifest 内容与已提交版本不一致"
                     )
-            raw_node_ids = existing_marker.metadata.get("node_ids", ())
+            raw_node_ids = existing_marker.properties.get("node_ids", ())
             existing_node_ids = (
                 tuple(str(item) for item in raw_node_ids)
                 if isinstance(raw_node_ids, (list, tuple))
@@ -98,214 +101,29 @@ class GenesisMemoryCommitter:
             )
 
         now = datetime.now(timezone.utc).isoformat()
-        if typed_seed_package and not _supports_source_first(storage):
-            raise TypeError("结构化 Genesis 必须使用 source-first Memory storage")
-        if _supports_source_first(storage):
-            submission = getattr(storage, "genesis_submission", None)
-            if callable(submission):
-                submission_id = (
-                    bundle.manifest.idempotency_key.strip()
-                    or bundle.manifest.manifest_id
-                )
-                submission_hash = (
-                    bundle.manifest.content_hash
-                    if typed_seed_package
-                    else _legacy_submission_hash(bundle)
-                )
-                with submission(
-                    submission_id=submission_id,
-                    manifest_id=bundle.manifest.manifest_id,
-                    source_version=bundle.manifest.reference_version,
-                    content_sha256=submission_hash,
-                    expected_ids=planned_output_ids,
-                    elfie_id=elfie_id,
-                ) as accepted:
-                    if not accepted:
-                        return GenesisCommitReceipt(
-                            manifest_id=bundle.manifest.manifest_id,
-                            status="duplicate",
-                            node_ids=(),
-                        )
-                    return self._commit_source_first(bundle, storage, now)
-            return self._commit_source_first(bundle, storage, now)
-
-        profile = bundle.profile_draft.profile
-        species = get_species_canon_for_technical_id(profile.identity.species_id)
-        self_id = f"{_SELF_NODE_PREFIX}{elfie_id}"
-        self_model_id = f"{_SELF_MODEL_PREFIX}{elfie_id}"
-        node_ids: list[str] = []
-
-        storage.add_node(
-            MemoryNode(
-                id=self_id,
-                type=NodeTypes.ENTITY.value,
-                content=profile.identity.display_name,
-                metadata={
-                    "entity_type": "elfie",
-                    "elfie_id": elfie_id,
-                    "display_name": profile.identity.display_name,
-                    "species": species.display_name,
-                    "species_canon_id": species.canon_id,
-                    "is_self": True,
-                    "relationship_label": "self",
-                    "genesis_manifest_id": bundle.manifest.manifest_id,
-                    "personality_big_five": bundle.personality_seed.big_five.model_dump(),
-                    "norms": list(bundle.personality_seed.norms),
-                    "behavior_anchors": list(bundle.personality_seed.behavior_anchors),
-                    "sensory_biases": list(bundle.personality_seed.sensory_biases),
-                },
-                created_at=now,
-                updated_at=now,
-            )
+        submission_id = (
+            bundle.manifest.idempotency_key.strip() or bundle.manifest.manifest_id
         )
-        node_ids.append(self_id)
-
-        storage.add_node(
-            MemoryNode(
-                id=self_model_id,
-                type=NodeTypes.KNOWLEDGE.value,
-                content=bundle.self_model_seed.identity_summary,
-                metadata={
-                    "genesis_kind": "self_model",
-                    "genesis_manifest_id": bundle.manifest.manifest_id,
-                    "recall_eligible": False,
-                    "source": "genesis:self_model",
-                    "source_event_ids": [self_model_id],
-                    "known_facts": list(bundle.self_model_seed.known_facts),
-                    "unknown_facts": list(bundle.self_model_seed.unknown_facts),
-                    "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
-                    "species_knowledge": list(bundle.self_model_seed.species_knowledge),
-                },
-                created_at=now,
-                updated_at=now,
-            )
+        submission_hash = (
+            bundle.manifest.content_hash
+            if typed_seed_package
+            else _legacy_submission_hash(bundle)
         )
-        node_ids.append(self_model_id)
-        storage.add_edge(self_id, self_model_id, "about", weight=1.0)
-
-        for index, fact in enumerate(bundle.self_model_seed.known_facts):
-            fact_id = f"{_SELF_FACT_PREFIX}{_safe_component(elfie_id)}:{index}"
-            source_event_id = f"genesis:fact:{_safe_component(elfie_id)}:{index}"
-            storage.add_node(
-                MemoryNode(
-                    id=fact_id,
-                    type=NodeTypes.KNOWLEDGE.value,
-                    content=fact,
-                    metadata={
-                        "genesis_kind": "knowledge_fact",
-                        "genesis_manifest_id": bundle.manifest.manifest_id,
-                        "source": "genesis:self_model",
-                        "source_event_ids": [source_event_id],
-                        "recall_eligible": True,
-                        "certainty": "high",
-                        "status": "active",
-                        "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
-                    },
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            node_ids.append(fact_id)
-            storage.add_edge(self_id, fact_id, "about", weight=1.0)
-
-        place_ids = _write_place_nodes(bundle, storage, now)
-        node_ids.extend(place_ids)
-        for place_id in place_ids:
-            storage.add_edge(self_id, place_id, "about", weight=1.0)
-
-        for seed in bundle.memory_seeds:
-            memory_id = f"genesis:memory:{_safe_component(seed.seed_id)}"
-            storage.add_node(
-                MemoryNode(
-                    id=memory_id,
-                    type=NodeTypes.EPISODIC.value,
-                    content=seed.content,
-                    metadata={
-                        "genesis_manifest_id": bundle.manifest.manifest_id,
-                        "genesis_seed_id": seed.seed_id,
-                        "source": seed.source,
-                        "certainty": seed.certainty,
-                        "emotion": seed.emotional_tone,
-                        "emotion_intensity": seed.intensity,
-                        "intensity": seed.intensity,
-                        "importance": seed.intensity,
-                        "recall_count": 0,
-                        "timestamp": now,
-                        "consolidated": False,
-                        "status": "active",
-                        "source_event_ids": [
-                            f"genesis:memory:{_safe_component(seed.seed_id)}"
-                        ],
-                        "recall_eligible": True,
-                    },
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            node_ids.append(memory_id)
-            storage.add_edge(memory_id, self_id, "involves", weight=1.0)
-            storage.add_edge(memory_id, place_ids[-1], "about", weight=0.85)
-
-        for relationship in bundle.relationship_seeds:
-            person_id = (
-                f"{_PERSON_NODE_PREFIX}{_safe_component(relationship.person_id)}"
-            )
-            storage.add_node(
-                MemoryNode(
-                    id=person_id,
-                    type=NodeTypes.ENTITY.value,
-                    content=relationship.display_name,
-                    metadata={
-                        "entity_type": "person",
-                        "person_id": relationship.person_id,
-                        "relationship_label": relationship.role,
-                        "closeness_score": relationship.initial_trust,
-                        "trust_score": relationship.initial_trust,
-                        "importance_score": relationship.importance,
-                        "is_owner": relationship.role == "earth_household",
-                        "shared_facts": list(relationship.shared_facts),
-                        "unknown_facts": list(relationship.unknown_facts),
-                        "genesis_manifest_id": bundle.manifest.manifest_id,
-                    },
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            node_ids.append(person_id)
-            storage.add_edge(
-                self_id,
-                person_id,
-                "relationship",
-                weight=relationship.initial_trust,
-            )
-
-        storage.add_node(
-            MemoryNode(
-                id=marker_id,
-                type=NodeTypes.KNOWLEDGE.value,
-                content="Genesis initialization manifest",
-                metadata={
-                    "genesis_kind": "manifest",
-                    "manifest_id": bundle.manifest.manifest_id,
-                    "reference_version": bundle.manifest.reference_version,
-                    "canon_version": bundle.manifest.canon_version,
-                    "species_version": bundle.manifest.species_version,
-                    "status": "committed",
-                    "recall_eligible": False,
-                    "source_event_ids": [marker_id],
-                    "node_ids": list(node_ids),
-                    "committed_at": now,
-                },
-                created_at=now,
-                updated_at=now,
-            )
-        )
-        node_ids.append(marker_id)
-        return GenesisCommitReceipt(
+        with submission(
+            submission_id=submission_id,
             manifest_id=bundle.manifest.manifest_id,
-            status="committed",
-            node_ids=tuple(node_ids),
-        )
+            source_version=bundle.manifest.reference_version,
+            content_sha256=submission_hash,
+            expected_ids=planned_output_ids,
+            elfie_id=elfie_id,
+        ) as accepted:
+            if not accepted:
+                return GenesisCommitReceipt(
+                    manifest_id=bundle.manifest.manifest_id,
+                    status="duplicate",
+                    node_ids=(),
+                )
+            return self._commit_source_first(bundle, storage, now)
 
     def _commit_source_first(
         self,
@@ -315,11 +133,9 @@ class GenesisMemoryCommitter:
     ) -> GenesisCommitReceipt:
         """Materialize Genesis through the target Episode/graph contract.
 
-        Approved Genesis material is still ordinary Memory: seed Episodes keep
-        the complete story, while sourced graph assertions provide immediate
-        identity and relationship lookup.  This path deliberately avoids the
-        legacy ``MemoryNode`` compatibility writer, which otherwise creates a
-        second node with the same identifier as an Episode.
+        Approved Genesis material is ordinary Memory: seed Episodes keep the
+        complete story, while sourced graph assertions provide immediate
+        identity and relationship lookup through the typed store contract.
         """
         if bundle.knowledge_seeds or bundle.episode_seeds:
             return self._commit_typed_source_first(bundle, storage, now)
@@ -385,7 +201,6 @@ class GenesisMemoryCommitter:
                 "about",
                 object_node_id=self_model_id,
                 confidence=1.0,
-                support_score=1.0,
             ),
             EvidenceInput(
                 evidence_id=f"genesis:evidence:self-model:{elfie_id}",
@@ -427,7 +242,6 @@ class GenesisMemoryCommitter:
                     "about",
                     object_node_id=fact_id,
                     confidence=1.0,
-                    support_score=1.0,
                 ),
                 EvidenceInput(
                     evidence_id=f"genesis:evidence:fact:{_safe_component(elfie_id)}:{index}",
@@ -449,7 +263,6 @@ class GenesisMemoryCommitter:
                     "about",
                     object_node_id=place_id,
                     confidence=1.0,
-                    support_score=1.0,
                 ),
                 EvidenceInput(
                     evidence_id=f"genesis:evidence:place:{place_id}",
@@ -495,7 +308,6 @@ class GenesisMemoryCommitter:
                     object_node_id=person_id,
                     confidence=relationship.initial_trust,
                     importance=relationship.importance,
-                    support_score=relationship.initial_trust,
                 ),
                 EvidenceInput(
                     evidence_id=f"genesis:evidence:relationship:{relationship.person_id}",
@@ -570,7 +382,6 @@ class GenesisMemoryCommitter:
                             "involves",
                             object_node_id=self_id,
                             confidence=1.0,
-                            support_score=1.0,
                             evidence_ids=(evidence_id,),
                         ),
                     ),
@@ -715,7 +526,6 @@ class GenesisMemoryCommitter:
                 "about",
                 object_node_id=self_model_id,
                 confidence=1.0,
-                support_score=1.0,
             ),
             EvidenceInput(
                 evidence_id=f"genesis:evidence:self-model:{safe_elfie}",
@@ -776,7 +586,6 @@ class GenesisMemoryCommitter:
                     "about",
                     object_node_id=place_id,
                     confidence=1.0,
-                    support_score=1.0,
                 ),
                 EvidenceInput(
                     evidence_id=about_evidence_id,
@@ -971,10 +780,14 @@ class GenesisMemoryCommitter:
                 f"genesis:evidence:knowledge:{safe_elfie}:"
                 f"{_safe_component(knowledge_seed.seed_id)}"
             )
-            recall_eligible = (
-                knowledge_seed.status == "active"
-                and knowledge_seed.mastery != "unknown"
-            )
+            # A knowledge boundary is intentionally recallable: the Elfie
+            # must be able to answer that a fact is unknown rather than
+            # silently treating the absence of a full map (or similar
+            # boundary) as no record at all.  ``epistemic_status`` and the
+            # ``knows_boundary`` predicate below preserve that distinction;
+            # ``recall_eligible`` only controls whether the sourced record
+            # may participate in Recall.
+            recall_eligible = knowledge_seed.status in {"active", "unknown-boundary"}
             searchable_description = "\n".join(
                 [
                     knowledge_seed.content,
@@ -1051,7 +864,12 @@ class GenesisMemoryCommitter:
                 storage,
                 AssertionInput(
                     self_id,
-                    "knows" if recall_eligible else "knows_boundary",
+                    (
+                        "knows_boundary"
+                        if knowledge_seed.status == "unknown-boundary"
+                        or knowledge_seed.mastery == "unknown"
+                        else "knows"
+                    ),
                     object_node_id=knowledge_id,
                     epistemic_status=(
                         "known"
@@ -1063,7 +881,6 @@ class GenesisMemoryCommitter:
                     ),
                     confidence=_certainty_score(knowledge_seed.certainty),
                     importance=knowledge_seed.importance,
-                    support_score=_mastery_score(knowledge_seed.mastery),
                     evidence_ids=(evidence_id,),
                 ),
                 EvidenceInput(
@@ -1168,7 +985,6 @@ class GenesisMemoryCommitter:
                     object_node_id=self_id,
                     confidence=1.0,
                     importance=episode_seed.importance,
-                    support_score=1.0,
                     evidence_ids=(evidence_id,),
                 ),
                 AssertionInput(
@@ -1177,7 +993,6 @@ class GenesisMemoryCommitter:
                     object_node_id=event_id,
                     confidence=1.0,
                     importance=episode_seed.importance,
-                    support_score=1.0,
                     evidence_ids=(evidence_id,),
                 ),
             ]
@@ -1202,7 +1017,6 @@ class GenesisMemoryCommitter:
                         object_node_id=place_node,
                         confidence=1.0,
                         importance=episode_seed.importance,
-                        support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
                 )
@@ -1227,7 +1041,6 @@ class GenesisMemoryCommitter:
                         object_node_id=person_node,
                         confidence=1.0,
                         importance=episode_seed.importance,
-                        support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
                 )
@@ -1240,7 +1053,6 @@ class GenesisMemoryCommitter:
                         context=episode_seed.impact,
                         confidence=1.0,
                         importance=episode_seed.importance,
-                        support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
                 )
@@ -1255,7 +1067,6 @@ class GenesisMemoryCommitter:
                         object_node_id=event_id,
                         confidence=1.0,
                         importance=episode_seed.importance,
-                        support_score=1.0,
                         evidence_ids=(evidence_id,),
                     )
                 )
@@ -1400,7 +1211,6 @@ class GenesisMemoryCommitter:
                     else "believed",
                     confidence=max(relationship.initial_trust, 0.5),
                     importance=relationship.importance,
-                    support_score=relationship.initial_trust,
                 ),
                 EvidenceInput(
                     evidence_id=relation_evidence_id,
@@ -1521,58 +1331,6 @@ class GenesisMemoryCommitter:
             )
             ids.append(node_id)
         return ids
-
-
-def _write_place_nodes(
-    bundle: GenesisBundle,
-    storage: MemoryStorePort,
-    now: str,
-) -> list[str]:
-    profile = bundle.profile_draft.profile
-    origin = profile.identity.origin
-    nodes = (
-        (
-            f"{_PLACE_NODE_PREFIX}elfaria",
-            ELFARIA_CANON.display_name,
-            "home_world",
-            {"world_id": origin.home_world_id},
-        ),
-        (
-            f"{_PLACE_NODE_PREFIX}{_safe_component(origin.home_region_id)}",
-            ELFARIA_CANON.known_region_name,
-            "home_region",
-            {"region_id": origin.home_region_id, "world_id": origin.home_world_id},
-        ),
-        (
-            f"{_PLACE_NODE_PREFIX}{_safe_component(origin.arrival_base_id)}",
-            ELFARIA_CANON.earth_home_name,
-            "earth_home",
-            {
-                "base_id": origin.arrival_base_id,
-                "world_id": "earth",
-                "role": ELFARIA_CANON.earth_home_role,
-            },
-        ),
-    )
-    ids: list[str] = []
-    for node_id, content, place_type, extra in nodes:
-        storage.add_node(
-            MemoryNode(
-                id=node_id,
-                type=NodeTypes.ENTITY.value,
-                content=content,
-                metadata={
-                    "entity_type": "place",
-                    "place_type": place_type,
-                    "genesis_manifest_id": bundle.manifest.manifest_id,
-                    **extra,
-                },
-                created_at=now,
-                updated_at=now,
-            )
-        )
-        ids.append(node_id)
-    return ids
 
 
 def _safe_component(value: str) -> str:
@@ -1760,19 +1518,6 @@ def _typed_place_specs(
         label, kind, extra, aliases = base[key]
         specs.append((key, label, kind, dict(extra), aliases))
     return tuple(specs)
-
-
-def _supports_source_first(storage: MemoryStorePort) -> bool:
-    """Detect the target Adapter without widening the Genesis Port contract."""
-    return all(
-        callable(getattr(storage, name, None))
-        for name in (
-            "record_episode",
-            "apply_consolidation",
-            "upsert_node_record",
-            "record_sourced_assertion",
-        )
-    )
 
 
 __all__ = (

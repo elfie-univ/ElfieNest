@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from elfie.brain.memory.retrieval import MemoryRetriever
+from elfie.brain.memory.memory_records import RecallRequest
 from elfie.genesis import GenesisMemoryCommitter, GenesisValidationError
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
@@ -23,18 +23,19 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
 
         assert first.status == "committed"
         assert second.status == "duplicate"
-        assert storage.count_nodes("episodic") == 2
+        assert storage.count_episodes() == 2
+        assert storage.get_episode("genesis:memory:m-0").emotion_intensity == 0.5
         assert (
-            storage.get_node("genesis:memory:m-0").metadata["emotion_intensity"] == 0.5
+            storage.get_graph_node("genesis:self:genesis-check").properties["is_self"]
+            is True
         )
         assert (
-            storage.get_node("genesis:self:genesis-check").metadata["is_self"] is True
-        )
-        assert (
-            storage.get_node("genesis:person:seli").metadata["relationship_label"]
+            storage.get_graph_node("genesis:person:seli").properties[
+                "relationship_label"
+            ]
             == "mother"
         )
-        assert storage.get_node("genesis:person:seli").metadata["importance"] == (
+        assert storage.get_graph_node("genesis:person:seli").importance == (
             pytest.approx(0.37)
         )
         assert storage.conn.execute(
@@ -44,8 +45,9 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
                   AND object_node_id='genesis:person:seli'"""
         ).fetchone()[0] == pytest.approx(0.37)
         assert any(
-            edge.rel == "relationship"
-            for edge in storage.get_edges("genesis:self:genesis-check")
+            assertion.predicate == "relationship"
+            for assertion in storage.list_graph_assertions(limit=100)
+            if assertion.subject_id == "genesis:self:genesis-check"
         )
         assert (
             storage.conn.execute(
@@ -96,22 +98,25 @@ def test_genesis_materializes_each_known_fact_as_recallable_knowledge() -> None:
 
         fact_nodes = [
             node
-            for node in storage.get_nodes_by_type("knowledge", limit=100)
-            if node.metadata.get("genesis_kind") == "knowledge_fact"
+            for node in storage.list_graph_nodes(limit=100)
+            if node.node_type == "knowledge"
+            and node.properties.get("genesis_kind") == "knowledge_fact"
         ]
 
-        assert [node.content for node in fact_nodes] == list(
+        assert [node.label for node in fact_nodes] == list(
             bundle.self_model_seed.known_facts
         )
-        assert all(node.metadata.get("recall_eligible") is True for node in fact_nodes)
-        assert all(node.metadata.get("source_event_ids") for node in fact_nodes)
-        assert all(node.metadata.get("certainty") == "high" for node in fact_nodes)
+        assert all(
+            node.properties.get("recall_eligible") is True for node in fact_nodes
+        )
+        assert all(node.properties.get("source_event_ids") for node in fact_nodes)
+        assert all(node.properties.get("certainty") == "high" for node in fact_nodes)
 
         recalled_ids = {
-            node.id
-            for node in MemoryRetriever(storage).retrieve_by_text(
-                "来自 Elfaria", top_k=10
-            )
+            node.node_id
+            for node in storage.recall(
+                RecallRequest(text="来自 Elfaria", lexical_limit=10)
+            ).focus_nodes
         }
         assert "genesis:knowledge:genesis-check:0" in recalled_ids
         assert "genesis:self-model:genesis-check" not in recalled_ids

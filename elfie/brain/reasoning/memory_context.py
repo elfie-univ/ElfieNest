@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Tuple, cast
+from typing import Literal, Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
@@ -11,7 +11,6 @@ from elfie.brain.memory.contracts import (
     MemoryItem,
 )
 from elfie.brain.memory.memory_records import RecallBundle, RecallRequest
-from elfie.brain.memory.node_types import MemoryNode
 from elfie.brain.reasoning.context_types import CompletedConversationInteraction
 from elfie.brain.state_lifecycle import StateCommitReceipt, StateCommitStatus
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -44,28 +43,19 @@ class MemoryContextReader:
                 state=state,
             )
         query = "\n".join(query_parts)
-        if not self._memory.uses_typed_memory:
-            # Semantic Fakes used by algorithm tests still exercise the
-            # historical node surface.  Production adapters never enter this
-            # branch: they always return a typed RecallBundle.
-            nodes = self._memory.recall_nodes(query=query, top_k=5)
-            items = tuple(
-                _memory_item_from_node(node) for node in nodes if node.content.strip()
+        bundle = self._memory.recall(
+            RecallRequest(
+                text=query,
+                mode="basic_local",
+                seed_limit=8,
+                node_limit=32,
+                assertion_limit=48,
+                episode_limit=8,
+                evidence_limit=16,
+                character_limit=6000,
             )
-        else:
-            bundle = self._memory.recall(
-                RecallRequest(
-                    text=query,
-                    mode="basic_local",
-                    seed_limit=8,
-                    node_limit=32,
-                    assertion_limit=48,
-                    episode_limit=8,
-                    evidence_limit=16,
-                    character_limit=6000,
-                )
-            )
-            items = _memory_items_from_bundle(bundle)
+        )
+        items = _memory_items_from_bundle(bundle)
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,
@@ -151,45 +141,6 @@ class MemoryContextReader:
 
 
 __all__ = ("MemoryContextReader",)
-
-
-def _memory_item_from_node(node: MemoryNode) -> MemoryItem:
-    raw_source_ids = node.metadata.get("source_event_ids", ())
-    if isinstance(raw_source_ids, (list, tuple)):
-        source_event_ids = tuple(
-            EventId(str(value).strip())
-            for value in raw_source_ids
-            if str(value).strip()
-        )
-    else:
-        source_event_ids = ()
-    if not source_event_ids:
-        source_event_ids = (EventId(f"memory-node:{node.id}"),)
-
-    kind = _memory_item_kind(node.type)
-    raw_source = node.metadata.get("source") or node.metadata.get("genesis_kind")
-    source = str(raw_source).strip() if raw_source is not None else None
-    if source == "":
-        source = None
-    raw_relevance = node.metadata.get("_retrieval_score", 0.5)
-    try:
-        relevance = min(1.0, max(0.0, float(raw_relevance)))
-    except (TypeError, ValueError):
-        relevance = 0.5
-    return MemoryItem(
-        memory_id=EventId(node.id),
-        content=node.content,
-        relevance=relevance,
-        source_event_ids=source_event_ids,
-        kind=kind,
-        source=source,
-        certainty=cast(
-            Literal["high", "medium", "low"],
-            node.metadata.get("certainty", "medium")
-            if node.metadata.get("certainty") in {"high", "medium", "low"}
-            else "medium",
-        ),
-    )
 
 
 def _memory_items_from_bundle(bundle: RecallBundle) -> Tuple[MemoryItem, ...]:

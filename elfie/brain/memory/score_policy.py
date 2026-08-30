@@ -1,9 +1,8 @@
 """The single versioned semantic score policy for Memory.
 
-``importance`` and ``confidence`` are the only scores consumed by the target
-Memory contract.  The historical ``support_score`` field remains in records
-until the legacy surface is removed, but it is deliberately not read here and
-never participates in Recall ranking.
+``importance`` and ``confidence`` are the only scores in the target Memory
+contract.  Evidence reinforces those two values through this policy; no
+parallel support or retention score is maintained.
 """
 
 from __future__ import annotations

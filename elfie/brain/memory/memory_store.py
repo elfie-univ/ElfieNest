@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from typing import Mapping, Protocol
+from typing import Protocol
 
 from .memory_records import (
     AssertionInput,
@@ -20,60 +20,26 @@ from .memory_records import (
     RecallNode,
     RecallRequest,
 )
-from .node_types import Edge, JsonValue, MemoryMetadata, MemoryNode
 
 
 class MemoryStorePort(Protocol):
     """Semantic storage operations required by Brain memory algorithms."""
 
-    def add_node(self, node: MemoryNode) -> str: ...
-
-    def get_node(self, node_id: str) -> MemoryNode | None: ...
-
-    def update_node(
-        self,
-        node_id: str,
-        *,
-        content: str | None = None,
-        metadata: Mapping[str, JsonValue] | MemoryMetadata | None = None,
-        edges: list[Edge] | None = None,
-    ) -> bool: ...
-
-    def delete_node(self, node_id: str) -> bool: ...
-
-    def get_nodes_by_type(
-        self, node_type: str, limit: int = 100
-    ) -> list[MemoryNode]: ...
-
-    def get_unconsolidated_nodes(
-        self, node_type: str = "episodic"
-    ) -> list[MemoryNode]: ...
-
-    def count_nodes(self, node_type: str | None = None) -> int: ...
-
-    def add_edge(
-        self,
-        source_id: str,
-        target_id: str,
-        rel: str,
-        weight: float = 0.5,
-    ) -> str | int: ...
-
-    def get_edges(self, node_id: str, direction: str = "outgoing") -> list[Edge]: ...
-
-    def search_by_content(
-        self,
-        query: str,
-        top_k: int = 5,
-        node_type: str | None = None,
-        *,
-        privacy_scope: str | None = None,
-    ) -> list[tuple[str, float]]: ...
-
     def close(self) -> None: ...
 
-    # Target source-first contract. The legacy node methods above remain only
-    # as a semantic compatibility surface for existing callers.
+    # Source-first contract. Episodes are the durable source line; graph
+    # records and RecallBundle values are typed projections.
+    def count_episodes(self, *, include_forgotten: bool = False) -> int: ...
+
+    def count_graph_nodes(
+        self,
+        node_type: str | None = None,
+        *,
+        include_forgotten: bool = False,
+    ) -> int: ...
+
+    def count_memory_records(self, *, include_forgotten: bool = False) -> int: ...
+
     def upsert_node_record(self, node: NodeInput) -> str: ...
 
     def record_sourced_assertion(
@@ -91,6 +57,10 @@ class MemoryStorePort(Protocol):
     def list_graph_nodes(
         self, limit: int = 1000, *, privacy_scope: str | None = None
     ) -> tuple[RecallNode, ...]: ...
+
+    def get_graph_node(
+        self, node_id: str, *, privacy_scope: str | None = None
+    ) -> RecallNode | None: ...
 
     def list_graph_assertions(
         self, limit: int = 800, *, privacy_scope: str | None = None
@@ -116,6 +86,8 @@ class MemoryStorePort(Protocol):
         owner: str | None = None,
         attempt: int | None = None,
     ) -> bool: ...
+
+    def recover_expired_leases(self) -> int: ...
 
     def apply_consolidation(
         self, projection: ConsolidationProjection

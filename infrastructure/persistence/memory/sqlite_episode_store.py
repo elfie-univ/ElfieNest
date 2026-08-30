@@ -367,7 +367,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         return cursor.rowcount > 0
 
     def recover_expired_leases(self) -> int:
-        """Return abandoned processing work to the retryable queue."""
+        """Return abandoned Episode projection work to the retryable queue."""
         now = utc_now()
         with self._lock:
             owns = self._begin_write_transaction()
@@ -562,6 +562,16 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             (episode_id, searchable),
         )
 
+    def _upsert_episode_fts_from_values(
+        self, episode_id: str, content: str, summary: str | None
+    ) -> None:
+        searchable = "\n".join(value for value in (content, summary or "") if value)
+        self.conn.execute(
+            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
+            (episode_id, searchable),
+        )
+
 
 def _source_to_dict(ref: SourceReference) -> dict[str, Optional[str]]:
     return {
@@ -662,12 +672,11 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
 
 def _episode_hash(episode: ClosedEpisode) -> str:
     """Hash the complete source payload, never only its displayed text."""
-    # These keys are adapter-owned projections.  They are persisted in
-    # ``metadata_json`` for compatibility, but are also stored in typed
+    # These keys are adapter-owned derived fields.  They are persisted in
+    # ``metadata_json`` for inspection, but are also stored in typed
     # columns/fields and removed again when an Episode is read back.  Exclude
     # them from the source digest so a caller can submit a read-back Episode
-    # (including a legacy node carrying duplicated emotion/sensory metadata)
-    # and still receive the same idempotent source hash.
+    # with the same source content and still receive the same idempotent hash.
     adapter_metadata_keys = {
         "elfie_id",
         "emotion",

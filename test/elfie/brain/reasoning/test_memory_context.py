@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.memory.memory_records import AssertionInput, EvidenceInput, NodeInput
 from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.memory.node_types import MemoryNode, NodeTypes
 from elfie.brain.reasoning.memory_context import MemoryContextReader
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
@@ -19,26 +19,45 @@ from elfie.brain.workspace.contracts import (
     TurnFrame,
 )
 from elfie.message_types import ActorRef, ElfieId, EventId, MessageMeta, TraceId
-from test.elfie.brain.memory.fake_store import FakeMemoryStore
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
 
 
 def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
-    store = FakeMemoryStore.in_memory()
-    store.add_node(
-        MemoryNode(
-            id="genesis:knowledge:elfie-1:0",
-            type=NodeTypes.KNOWLEDGE.value,
-            content="我来自 Elfaria。",
-            metadata={
+    store = SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1")
+    store.upsert_node_record(
+        NodeInput(
+            node_id="genesis:knowledge:elfie-1:0",
+            node_type="knowledge",
+            canonical_label="我来自 Elfaria。",
+            description="我来自 Elfaria。",
+            properties={
                 "genesis_kind": "knowledge_fact",
                 "recall_eligible": True,
                 "source": "genesis:self_model",
                 "source_event_ids": ["genesis:fact:elfie-1:0"],
                 "certainty": "high",
             },
+            confidence=1.0,
+            importance=1.0,
         )
+    )
+    store.record_sourced_assertion(
+        AssertionInput(
+            "genesis:knowledge:elfie-1:0",
+            "references",
+            object_literal="genesis:self-model",
+            evidence_ids=("genesis:evidence:elfie-1:0",),
+            confidence=1.0,
+            importance=1.0,
+        ),
+        EvidenceInput(
+            "genesis:evidence:elfie-1:0",
+            "seed",
+            "genesis:fact:elfie-1:0",
+            excerpt="我来自 Elfaria。",
+        ),
     )
     memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
     owner = ActorRef(actor_id="owner-1", source_kind="owner")
@@ -96,7 +115,7 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
     assert item.content == "我来自 Elfaria。"
     assert item.source_event_ids == (EventId("genesis:fact:elfie-1:0"),)
     assert item.kind == "knowledge"
-    assert item.source == "genesis:self_model"
-    assert item.certainty == "high"
+    assert item.source == "memory_recall"
+    assert item.certainty == "medium"
     assert "memory-context:frame-1" not in str(item.memory_id)
     assert "预测灵感" not in item.content

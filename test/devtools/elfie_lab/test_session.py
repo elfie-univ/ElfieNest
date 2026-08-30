@@ -4,6 +4,7 @@ import devtools.elfie_lab.session as session_module
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.diagnostics import ElfieDiagnostics
 
 
@@ -164,16 +165,21 @@ def test_consolidation_consolidates_memory_without_external_actions(
     spec = storage.create_elfie("离线整理")
     session = session_factory(spec, storage)
     session._turn_adapter._runtime.select(session_module.create_model_execution("mock"))
-    ElfieDiagnostics(session.elfie).memory.record_episode(
-        content="主人在窗边陪我玩耍",
-        emotion="happy",
-        intensity=70,
-    )
-    ElfieDiagnostics(session.elfie).memory.record_episode(
-        content="主人在窗边给我零食",
-        emotion="happy",
-        intensity=80,
-    )
+    memory = ElfieDiagnostics(session.elfie).memory
+    for index, (content, importance) in enumerate(
+        (("主人在窗边陪我玩耍", 0.7), ("主人在窗边给我零食", 0.8))
+    ):
+        memory.record_closed_episode(
+            ClosedEpisode(
+                episode_id=f"lab-offline-{index}",
+                idempotency_key=f"lab-offline-{index}",
+                occurred_from=session.elfie.cognitive_datetime.isoformat(),
+                content_text=content,
+                emotion="happy",
+                emotion_intensity=importance,
+                importance=importance,
+            )
+        )
     ElfieDiagnostics(session.elfie).energy.is_sleeping = True
     ElfieDiagnostics(session.elfie).energy.fatigue = 90.0
 

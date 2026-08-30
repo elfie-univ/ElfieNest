@@ -107,7 +107,9 @@ def test_read_back_episode_replays_with_the_original_source_hash() -> None:
         assert replay.content_sha256 == first.content_sha256
 
 
-def test_importance_is_separate_from_support_and_lifecycle_protects_sources() -> None:
+def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources() -> (
+    None
+):
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
             ClosedEpisode(
@@ -146,7 +148,6 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
                         "knows",
                         object_literal="fact",
                         confidence=0.95,
-                        support_score=0.95,
                         importance=0.1,
                         evidence_ids=("projected-evidence",),
                         assertion_id="low-importance-claim",
@@ -159,9 +160,9 @@ def test_importance_is_separate_from_support_and_lifecycle_protects_sources() ->
         )
         store.connection.commit()
         claim = store.connection.execute(
-            "SELECT importance, confidence, support_score FROM assertions WHERE assertion_id='low-importance-claim'"
+            "SELECT importance, confidence FROM assertions WHERE assertion_id='low-importance-claim'"
         ).fetchone()
-        assert tuple(round(float(value), 3) for value in claim) == (0.1, 0.95, 0.95)
+        assert tuple(round(float(value), 3) for value in claim) == (0.1, 0.95)
 
         receipt = store.run_lifecycle(MaintenanceRequest(max_episodes=10))
         assert "unprojected" in receipt.lifecycle_episode_ids
@@ -222,7 +223,6 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
                     evidence_ids=("score-evidence-1",),
                     confidence=0.5,
                     importance=0.4,
-                    support_score=0.2,
                 ),
             ),
         )
@@ -231,7 +231,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             "SELECT assertion_id FROM assertions"
         ).fetchone()[0]
         before = store.connection.execute(
-            "SELECT confidence, importance, support_score FROM assertions WHERE assertion_id=?",
+            "SELECT confidence, importance FROM assertions WHERE assertion_id=?",
             (claim_id,),
         ).fetchone()
 
@@ -250,18 +250,16 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
                     evidence_ids=("score-evidence-2",),
                     confidence=0.5,
                     importance=0.4,
-                    support_score=0.2,
                 ),
             ),
         )
         store.apply_consolidation(second)
         after = store.connection.execute(
-            "SELECT confidence, importance, support_score FROM assertions WHERE assertion_id=?",
+            "SELECT confidence, importance FROM assertions WHERE assertion_id=?",
             (claim_id,),
         ).fetchone()
         assert after[0] > before[0]
         assert after[1] > before[1]
-        assert after[2] == before[2]
 
         # Replaying the same projection is a duplicate and must not add a
         # second semantic contribution for the same stable evidence link.
@@ -556,16 +554,35 @@ def test_bound_adapters_cannot_read_another_elfies_graph_or_evidence(
     first = SQLiteMemoryStoreAdapter(path, elfie_id="elfie-a")
     second = SQLiteMemoryStoreAdapter(path, elfie_id="elfie-b")
     try:
-        first.add_edge("a-node", "b-node", "knows")
-        evidence_id = (
-            "legacy-edge:" + hashlib.sha256(b"a-node|b-node|knows").hexdigest()[:24]
+        first.record_episode(
+            ClosedEpisode(
+                "namespace-episode",
+                "namespace-key",
+                "2026-01-01T00:00:00+00:00",
+                "主人认识小狐",
+            )
         )
-        assert second.get_node("a-node") is None
+        first.upsert_node_record(NodeInput("a-node", "person", "主人"))
+        first.upsert_node_record(NodeInput("b-node", "animal", "小狐"))
+        first.record_sourced_assertion(
+            AssertionInput(
+                "a-node",
+                "knows",
+                object_node_id="b-node",
+                assertion_id="namespace-claim",
+                evidence_ids=("namespace-evidence",),
+            ),
+            EvidenceInput(
+                "namespace-evidence",
+                "episode",
+                "namespace-episode",
+                excerpt="主人认识小狐",
+            ),
+        )
+        assert second.get_graph_node("a-node") is None
         assert second.resolve_graph_node_id("a-node") is None
-        assert second.get_edges("a-node") == []
         assert second.graph_assertions_for(("a-node",)) == ()
-        assert second.get_evidence(evidence_id) is None
-        assert second.get_assertion_evidence_for_ids((evidence_id,)) == ()
+        assert second.get_assertion_evidence(("namespace-claim",)) == ()
     finally:
         second.close()
         first.close()
@@ -769,7 +786,7 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
                 '{"nodes":[{"label":"主人","type":"person"},'
                 '{"label":"香菜","type":"food"}],"mentions":[],'
                 '"assertions":[{"subject_ref":"主人","predicate":"likes",'
-                '"object_ref":"香菜","confidence":0.8,"support_score":0.8}]}'
+                '"object_ref":"香菜","confidence":0.8,"importance":0.8}]}'
             )
 
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
@@ -874,9 +891,9 @@ def test_typed_memory_initialization_and_inspection_use_only_source_first_record
             personality_data={"self_description": "一只谨慎的精灵"},
         )
         assert memory.uses_typed_memory is True
-        assert memory.encoder is None
-        assert memory.retriever is None
-        assert memory.recall_formatter is None
+        assert not hasattr(memory, "encoder")
+        assert not hasattr(memory, "retriever")
+        assert not hasattr(memory, "recall_formatter")
 
         store.record_episode(
             ClosedEpisode(

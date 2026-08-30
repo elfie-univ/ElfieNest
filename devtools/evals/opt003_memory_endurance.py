@@ -55,6 +55,10 @@ _LEGACY_MODULES = frozenset(
         "elfie.brain.memory.recall_formatter",
         "elfie.brain.memory.self_narrative",
         "elfie.brain.memory.ebbinghaus_decay",
+        "elfie.brain.memory.node_types",
+        "infrastructure.persistence.memory.edge_store",
+        "infrastructure.persistence.memory.migration",
+        "infrastructure.persistence.memory.node_store",
     }
 )
 _LEGACY_NAMES = frozenset(
@@ -68,29 +72,38 @@ _LEGACY_NAMES = frozenset(
         "MemoryRecallFormatter",
         "MemorySelfNarrativeProjection",
         "EbbinghausDecay",
+        "MemoryNode",
+        "MemoryMetadata",
+        "Edge",
+        "EdgeTypes",
+        "NodeTypes",
+        "RetrievalQuery",
+        "FakeMemoryStore",
     }
 )
 
 
 def legacy_production_references() -> tuple[str, ...]:
-    """Find imports of the retired Memory stack outside its compatibility owner.
+    """Return any retired Memory files or imports that still remain.
 
-    The compatibility modules and their focused algorithm tests are allowed to
-    remain during the 0.x transition.  This scan proves that product/runtime
-    roots do not construct or import that stack; it deliberately does not use
-    grep, so comments and documentation cannot produce a false positive.
+    Phase 5 has a zero-residual requirement: the old algorithms and their
+    compatibility surface are removed, rather than kept behind a fallback.
+    The scan uses the syntax tree for imports so comments and documentation do
+    not produce false positives.
     """
     references: list[str] = []
     roots = tuple(
         ROOT / name for name in ("app", "elfie", "infrastructure", "nest", "devtools")
     )
-    compatibility_root = ROOT / "elfie" / "brain" / "memory"
+    memory_root = ROOT / "elfie" / "brain" / "memory"
+    for module in _LEGACY_MODULES:
+        module_path = ROOT.joinpath(*module.split("."))
+        if module_path.with_suffix(".py").is_file():
+            references.append(str(module_path.with_suffix(".py").relative_to(ROOT)))
     for root in roots:
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.py")):
-            if compatibility_root in path.parents:
-                continue
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             except (OSError, SyntaxError):
@@ -108,6 +121,10 @@ def legacy_production_references() -> tuple[str, ...]:
                         alias.name in _LEGACY_NAMES for alias in node.names
                     ):
                         references.append(f"{relative}:{node.lineno}:{module}")
+    # ``memory_root`` is intentionally touched so the scan remains explicit
+    # about the ownership boundary even when all retired files are absent.
+    if not memory_root.is_dir():
+        references.append(str(memory_root.relative_to(ROOT)))
     return tuple(sorted(set(references)))
 
 
@@ -490,12 +507,8 @@ def run(
         "lock_wait": lock_wait,
         "lifecycle": lifecycle,
         "legacy_compatibility": {
-            "production_references": list(legacy_references),
-            "allowed_surface": [
-                "elfie/brain/memory/memory_system.py (_typed_memory=False semantic Fakes)",
-                "elfie/brain/memory/{encoding,retrieval,spreading_activation,emotion_weighting,sensory_buffer,sensory_index,recall_formatter,self_narrative,ebbinghaus_decay}.py",
-                "focused compatibility tests and the Lab's explicit Fake fallback",
-            ],
+            "residuals": list(legacy_references),
+            "required": "retired modules, imports and fallback callers are absent",
         },
         "memory_mb": {"before": before_memory, "after": after_memory},
         "checks": checks,
@@ -511,7 +524,7 @@ def run(
         )
     if legacy_references:
         report["residuals"].append(
-            "生产根仍引用退役 Memory 组件：" + ", ".join(legacy_references)
+            "代码库仍包含退役 Memory 组件或引用：" + ", ".join(legacy_references)
         )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")

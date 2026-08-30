@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 4
+SCHEMA_VERSION: Final[int] = 5
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -185,8 +185,6 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
         importance REAL NOT NULL DEFAULT 0.5
             CHECK (importance >= 0.0 AND importance <= 1.0),
-        support_score REAL NOT NULL DEFAULT 0.5
-            CHECK (support_score >= 0.0 AND support_score <= 1.0),
         conflict_group TEXT,
         supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
         predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v1'
@@ -212,7 +210,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
     """
     CREATE TABLE IF NOT EXISTS evidence (
         evidence_id TEXT PRIMARY KEY NOT NULL,
-        source_type TEXT NOT NULL CHECK (source_type IN ('episode', 'seed', 'legacy')),
+        source_type TEXT NOT NULL CHECK (source_type IN ('episode', 'seed')),
         source_id TEXT NOT NULL CHECK (length(trim(source_id)) > 0),
         excerpt TEXT,
         media_locator TEXT,

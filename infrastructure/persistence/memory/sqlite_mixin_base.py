@@ -27,7 +27,6 @@ from elfie.brain.memory.memory_records import (
     RecallEvidence,
     RecallNode,
 )
-from elfie.brain.memory.node_types import Edge
 
 
 class SQLiteMemoryMixinBase:
@@ -60,14 +59,6 @@ class SQLiteMemoryMixinBase:
     ) -> str:
         raise NotImplementedError
 
-    def get_edges(self, node_id: str, direction: str = "outgoing") -> list[Edge]:
-        raise NotImplementedError
-
-    def add_edge(
-        self, source_id: str, target_id: str, rel: str, weight: float = 0.5
-    ) -> str:
-        raise NotImplementedError
-
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
         raise NotImplementedError
 
@@ -91,7 +82,7 @@ class SQLiteMemoryMixinBase:
     ) -> None:
         raise NotImplementedError
 
-    def search_by_content(
+    def search_text(
         self,
         query: str,
         top_k: int = 5,
