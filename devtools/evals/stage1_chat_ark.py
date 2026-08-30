@@ -75,7 +75,7 @@ DETERMINISTIC_TESTS = (
     "test/e2e/test_stage1_memory_chat.py",
     "test/e2e/test_continuous_learning_memory.py",
     "test/elfie/brain/memory/test_memory_system.py",
-    "test/elfie/brain/memory/test_retrieval.py",
+    "test/infrastructure/persistence/memory/test_source_first_memory.py",
     "test/elfie/brain/reasoning/test_memory_context.py",
     "test/elfie/brain/reasoning/test_reasoning.py",
     "test/elfie/genesis/test_initializer.py",
