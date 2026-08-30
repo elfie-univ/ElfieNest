@@ -1,6 +1,6 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.0
+**Contract version:** 1.1
 **Adopted:** 2026-08-12
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
@@ -35,7 +35,7 @@ packages.
 | 1 | Event Workspace | bounded Communication, Embodied and Internal lanes; admission, ordering, deduplication, backpressure, salience and single-domain framing | one immutable `TurnFrame` or an explicit defer/reject result | merge source domains into one Turn, reason about content, or execute actions |
 | 2 | Orientation | sourced current body, place, time, nearby actors, conversation, activity, affordance and uncertainty | versioned `OrientationSnapshot` | copy world authority, store complete history, or define personality |
 | 3 | Selfhood | mutable self-model, personality tendencies, norms and slow change evidence anchored by immutable Profile | versioned Selfhood/Personality/Norms snapshot and validated updates | rewrite Profile, accept one-message personality mutation, or enlarge capabilities |
-| 4 | Emotion | persistent affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions |
+| 4 | Emotion | process-local affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions, or persist its live stock |
 | 5 | Energy | homeostasis, circadian state, cognitive/action budgets, emergency reserve and degradation mode | `EnergySnapshot`, reservations and cognitive-mode constraints | choose semantic goals or replace NervousSystem safety reflexes |
 | 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` | create an Activity or act externally |
 | 7 | Memory | subjective episodes, working memory, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated memory commits | own current Orientation, Run state or Activity state |
@@ -209,11 +209,12 @@ Run/Activity checkpoints, budget ledger, causal trace, idempotency records and
 receipt reconciliation. These facilities hold state for the ten systems but do
 not become an eleventh mind or decide behavior.
 
-After restart, Brain restores the last committed state, reconciles in-flight
-directives and Activities, rejects stale body generations and resumes only work
-whose scope and deadline remain valid. Missing model service delays or degrades
-open cognition; it does not erase identity, emotion, memory, commitments or
-basic reflex capability.
+After restart, Brain restores durable owners, reconciles in-flight directives
+and Activities, rejects stale body generations and resumes only work whose
+scope and deadline remain valid. Emotion is the explicit exception: its live
+stocks and transient guidance return to personality-derived baselines on sleep
+or process restart. Missing model service delays or degrades open cognition; it
+does not erase identity, memory, commitments or basic reflex capability.
 
 ## Dependency and package rules
 

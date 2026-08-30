@@ -242,7 +242,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="2.0",
+        version="2.1",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
@@ -252,6 +252,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0006-elfie-life-system-ownership.md",
             "docs/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
+            "docs/developer/decisions/0030-process-local-emotion-state.md",
+            "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -271,12 +273,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.0",
+        version="1.1",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
             "docs/developer/decisions/0007-brain-turn-state-and-activity-ownership.md",
             "docs/zh/developer/decisions/0007-brain-turn-state-and-activity-ownership.md",
+            "docs/developer/decisions/0030-process-local-emotion-state.md",
+            "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
         ),
         agent_paths=("elfie/brain/AGENTS.md",),
         scanner_paths=(),

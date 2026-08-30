@@ -221,7 +221,9 @@ stable personality or norms.
 
 ### 5.4 Emotion
 
-**Role:** Maintains persistent affective state that accumulates, decays and recovers.
+**Role:** Maintains process-local affective state that accumulates, decays and
+recovers across Turns, then returns to personality-derived baselines on sleep or
+process restart.
 
 **Owns:** current emotion dimensions, intensity and recovery trend; appraisal of
 events, people, bodily feelings and recalled memories; baseline, personality
@@ -740,15 +742,16 @@ Milestone: a truly embodied Elfie with a virtual-body loop.
 ### Stage 4: continuous life state
 
 Turn Selfhood, Emotion, Energy, Memory and Orientation from context fields into
-authoritative systems: persistent/decaying emotion, resource-aware reasoning,
+authoritative systems: cross-Turn/decaying emotion, resource-aware reasoning,
 retrievable experience and relationships, continuous body/place/activity/self,
 with Profile remaining immutable.
 
 - **Visible result:** the same event produces coherent, explainable differences
   under different emotion, energy and relationship state.
 - **Boundary attack:** a normal message cannot rewrite Profile or freeze one emotion into personality.
-- **Failure/recovery:** restart restores key state and body authority; model outage
-  is not treated as Elfie disappearing.
+- **Failure/recovery:** restart restores durable state and body authority while
+  Emotion returns to personality baselines; model outage is not treated as
+  Elfie disappearing.
 - **Not included:** automatic personality growth, complex forgetting, full
   physiology or proactive triggers.
 

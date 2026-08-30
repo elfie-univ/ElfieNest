@@ -1,6 +1,6 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.0
+**契约版本：** 1.1
 **采用日期：** 2026-08-12
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
@@ -29,7 +29,7 @@ Schema、评分公式、阈值、类数量或进程拓扑。十个系统是概�
 | 1 | 事件工作区 | 有界 Communication、Embodied、Internal Lane；准入、保序、去重、背压、显著性和单域成帧 | 一个不可变 `TurnFrame`，或明确延后/拒绝结果 | 把多个来源域合成一个 Turn、理解复杂内容或执行行动 |
 | 2 | 自我定位 | 带来源的当前身体、地点、时间、附近人物、会话、Activity、Affordance 和不确定性 | 版本化 `OrientationSnapshot` | 复制世界 authority、保存完整历史或定义人格 |
 | 3 | 自我认知 | 由不可变 Profile 锚定的可变自我模型、人格倾向、规范及慢变化证据 | 版本化 Selfhood/Personality/Norms 快照和已校验更新 | 改写 Profile、接受单条消息改变人格或扩大能力 |
-| 4 | 情绪 | 持续情感、刺激评估、叠加、衰减和恢复 | `EmotionSnapshot` 及对注意、回忆和表达的有界影响 | 创建 Goal、消息或身体动作 |
+| 4 | 情绪 | 进程内情感、刺激评估、叠加、衰减和恢复 | `EmotionSnapshot` 及对注意、回忆和表达的有界影响 | 创建 Goal、消息或身体动作，或持久化实时存量 |
 | 5 | 能量 | 稳态、昼夜状态、认知/行动预算、紧急储备和降级模式 | `EnergySnapshot`、预算预留和认知模式约束 | 选择语义 Goal 或取代 NervousSystem 安全反射 |
 | 6 | 动机 | 固定驱力、压力、满足、竞争、饱和、冷却和重复抑制 | `AttentionBias`、`GoalCandidate` 或 `InternalTriggerCandidate` | 创建 Activity 或直接对外行动 |
 | 7 | 记忆 | 主观情景、工作记忆、知识、人物、关系、来源、检索、巩固和遗忘 | 有界检索结果和已校验记忆提交 | 拥有当前 Orientation、Run 状态或 Activity 状态 |
@@ -159,9 +159,10 @@ Brain Skills 授权语义认知能力。`ToolPort` 只执行由注入且限定 E
 Event Journal、权威 State Store、Run/Activity Checkpoint、预算账本、因果 Trace、幂等
 记录和回执对账。它们为十个系统保存状态，但不成为第十一个心智系统，也不决定行为。
 
-重启后，Brain 恢复最后已提交状态，对账未完成 Directive 和 Activity，拒绝旧身体
-generation，只恢复 Scope 和截止时间仍然有效的工作。模型服务缺失只会延后或降级开放
-认知，不能擦除身份、情绪、记忆、承诺或基本反射能力。
+重启后，Brain 恢复长期状态，对账未完成 Directive 和 Activity，拒绝旧身体
+generation，只恢复 Scope 和截止时间仍然有效的工作。Emotion 是明确例外：进入睡眠
+或进程重启时，当前六通道存量和临时指导回到人格基线。模型服务缺失只会延后或降级开放
+认知，不能擦除身份、记忆、承诺或基本反射能力。
 
 ## 依赖与目录规则
 
