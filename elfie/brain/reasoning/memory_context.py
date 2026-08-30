@@ -4,14 +4,11 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from threading import RLock
-from typing import Literal, Tuple
+from typing import Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
-from elfie.brain.memory.contracts import (
-    MemoryContext,
-    MemoryItem,
-)
+from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import (
     MemoryUseProposal,
     RecallBundle,
@@ -50,7 +47,6 @@ class MemoryContextReader:
             return MemoryContext(
                 revision=frame.revision,
                 captured_at=captured_at,
-                items=(),
                 state=state,
                 recall_revision=bundle.recall_revision,
             )
@@ -68,11 +64,10 @@ class MemoryContextReader:
             )
         )
         self._remember_bundle(frame.frame_id, bundle)
-        items = _memory_items_from_bundle(bundle)
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,
-            items=items,
+            recall=bundle,
             state=state,
             recall_revision=bundle.recall_revision,
         )
@@ -174,155 +169,3 @@ class MemoryContextReader:
 
 
 __all__ = ("MemoryContextReader",)
-
-
-def _memory_items_from_bundle(bundle: RecallBundle) -> Tuple[MemoryItem, ...]:
-    """Project structured recall into independent, provenance-bearing items."""
-    evidence_sources = {
-        evidence.evidence_id: EventId(str(evidence.source_id))
-        for evidence in bundle.evidence
-        if str(evidence.source_id).strip()
-    }
-    assertion_sources: dict[str, tuple[EventId, ...]] = {}
-    for assertion in bundle.assertions:
-        assertion_source_ids = tuple(
-            evidence_sources[evidence_id]
-            for evidence_id in assertion.evidence_ids
-            if evidence_id in evidence_sources
-        )
-        assertion_sources[assertion.assertion_id] = tuple(
-            dict.fromkeys(assertion_source_ids)
-        )
-
-    items: list[MemoryItem] = []
-    seen_ids: set[str] = set()
-    # Keep a small per-kind allowance so a dense graph does not crowd every
-    # sourced relation or Episode out of the model context.  The RecallBundle
-    # remains the authoritative bounded result; this is only the Reasoning
-    # projection budget.
-    node_budget = 4
-    assertion_budget = 4
-    node_count = 0
-    for node in bundle.focus_nodes:
-        if (
-            node_count >= node_budget
-            or not node.label.strip()
-            or node.node_id in seen_ids
-        ):
-            continue
-        node_sources: list[EventId] = []
-        for assertion in bundle.assertions:
-            if node.node_id in {assertion.subject_id, assertion.object_node_id}:
-                node_sources.extend(assertion_sources.get(assertion.assertion_id, ()))
-        # A graph node without a sourced assertion is still useful as a
-        # semantic anchor, but it must not be presented as if the node ID were
-        # an originating event.  Provenance is empty until a real Episode or
-        # seed evidence link is available.
-        source_ids = tuple(dict.fromkeys(node_sources))
-        kind = _memory_item_kind(node.node_type)
-        content = node.label
-        if node.description and node.description != node.label:
-            content = f"{node.label}：{node.description}"
-        items.append(
-            MemoryItem(
-                memory_id=EventId(node.node_id),
-                target_kind="node",
-                content=content,
-                relevance=max(0.0, min(1.0, node.relevance)),
-                source_event_ids=source_ids,
-                importance=node.importance,
-                freshness=node.freshness,
-                confidence=node.confidence,
-                kind=kind,
-                source="memory_recall",
-            )
-        )
-        seen_ids.add(node.node_id)
-        node_count += 1
-    node_labels = {node.node_id: node.label for node in bundle.focus_nodes}
-    assertion_count = 0
-    for assertion in bundle.assertions:
-        if assertion_count >= assertion_budget:
-            break
-        if assertion.assertion_id in seen_ids:
-            continue
-        subject = node_labels.get(assertion.subject_id, assertion.subject_id)
-        object_value: object
-        if assertion.object_node_id is not None:
-            object_value = node_labels.get(
-                assertion.object_node_id, assertion.object_node_id
-            )
-        else:
-            object_value = assertion.object_literal
-        if object_value is None:
-            continue
-        content = f"{subject} --{assertion.predicate}--> {object_value}"
-        source_ids = tuple(
-            dict.fromkeys(
-                evidence_sources[evidence_id]
-                for evidence_id in assertion.evidence_ids
-                if evidence_id in evidence_sources
-            )
-        )
-        items.append(
-            MemoryItem(
-                memory_id=EventId(assertion.assertion_id),
-                target_kind="assertion",
-                content=content,
-                relevance=max(0.0, min(1.0, assertion.relevance)),
-                source_event_ids=source_ids,
-                importance=assertion.importance,
-                freshness=assertion.freshness,
-                confidence=(
-                    assertion.confidence if assertion.status == "active" else None
-                ),
-                kind="knowledge",
-                source="memory_recall",
-            )
-        )
-        seen_ids.add(assertion.assertion_id)
-        assertion_count += 1
-    for episode in bundle.episodes:
-        if episode.episode_id in seen_ids or not episode.excerpt.strip():
-            continue
-        if len(items) >= 8:
-            break
-        items.append(
-            MemoryItem(
-                memory_id=EventId(episode.episode_id),
-                target_kind="episode",
-                content=episode.excerpt,
-                relevance=max(0.0, min(1.0, episode.relevance)),
-                source_event_ids=(EventId(episode.episode_id),),
-                importance=episode.importance,
-                freshness=episode.freshness,
-                confidence=None,
-                kind="episodic",
-                source="episode",
-            )
-        )
-        seen_ids.add(episode.episode_id)
-        if len(items) >= 8:
-            break
-    return tuple(items)
-
-
-def _memory_item_kind(
-    node_type: str,
-) -> Literal["episodic", "knowledge", "entity", "pattern"]:
-    """Map heterogeneous graph node types to the stable Brain item taxonomy."""
-    if node_type in {"episodic", "event"}:
-        return "episodic"
-    if node_type == "pattern":
-        return "pattern"
-    if node_type in {
-        "entity",
-        "elfie",
-        "person",
-        "animal",
-        "place",
-        "object",
-        "group",
-    }:
-        return "entity"
-    return "knowledge"

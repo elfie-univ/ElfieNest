@@ -109,19 +109,17 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
         NOW,
     )
 
-    assert len(context.items) == 2
-    item = context.items[0]
-    assert item.memory_id == EventId("genesis:knowledge:elfie-1:0")
+    bundle = context.recall
     assert context.recall_revision == memory.revision
-    assert item.target_kind == "node"
-    assert item.content == "我来自 Elfaria。"
-    assert item.source_event_ids == (EventId("genesis:fact:elfie-1:0"),)
-    assert item.kind == "knowledge"
-    assert item.source == "memory_recall"
-    assertion_item = context.items[1]
-    assert assertion_item.target_kind == "assertion"
-    assert assertion_item.memory_id != item.memory_id
-    assert "references" in assertion_item.content
-    assert assertion_item.source_event_ids == (EventId("genesis:fact:elfie-1:0"),)
-    assert "memory-context:frame-1" not in str(item.memory_id)
-    assert "预测灵感" not in item.content
+    assert bundle.recall_revision == memory.revision
+    assert len(bundle.focus_nodes) == 1
+    node = bundle.focus_nodes[0]
+    assert node.node_id == "genesis:knowledge:elfie-1:0"
+    assert node.label == "我来自 Elfaria。"
+    assert node.importance == 1.0
+    assert len(bundle.assertions) == 1
+    assertion = bundle.assertions[0]
+    assert assertion.evidence_ids == ("genesis:evidence:elfie-1:0",)
+    assert bundle.evidence[0].source_id == "genesis:fact:elfie-1:0"
+    assert "memory-context:frame-1" not in str(node.node_id)
+    assert "预测灵感" not in node.label

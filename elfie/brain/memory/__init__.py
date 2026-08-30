@@ -3,7 +3,7 @@ from elfie.brain.memory.consolidation import (
     MemoryConsolidator,
     MemoryProjectionDeferred,
 )
-from elfie.brain.memory.contracts import MemoryContext, MemoryItem, MemoryStateSnapshot
+from elfie.brain.memory.contracts import MemoryContext, MemoryStateSnapshot
 from elfie.brain.memory.memory_records import (
     AliasInput,
     AssertionEvidenceInput,
@@ -59,7 +59,6 @@ from elfie.brain.memory.tokenizer import tokenize
 __all__ = [
     "MemorySystem",
     "MemoryContext",
-    "MemoryItem",
     "MemoryStateSnapshot",
     "EpisodicMemoryCandidate",
     "MemoryStorePort",

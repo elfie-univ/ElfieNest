@@ -272,6 +272,20 @@ Grouping starts from related Nodes and sourced Assertions already in the graph. 
 
 Pattern generation must not ship alone. The same vertical slice must accept a typed current-scene signature from its owner, retrieve applicable Patterns by direct match or upward graph traversal, preserve the rule, conditions, counterexamples and provenance in `RecallBundle`, let Reasoning decide whether to apply it, and capture the outcome as a new Episode that can later support, refute or narrow the Pattern. Until these paths and their evaluation exist together, Pattern abstraction is not a supported Memory behavior.
 
+### 3.5 Deferred Memory Abstraction Loop
+
+This capability is intentionally not implemented in the current baseline. Its complete future loop is:
+
+```text
+Node + Assertion → nightly graph-first grouping → model proposal + deterministic validation
+                 → Pattern knowledge Node → scene-aware recall → Reasoning application
+                 → outcome feedback
+```
+
+Grouping starts from related Nodes and sourced Assertions already in the graph. Episodes are consulted only to verify provenance and original context, not as the primary clustering surface. This is a future extension of Consolidation Stage, not a third Memory Maintenance stage or another entry point. An accepted Pattern is a reusable Claim/knowledge Node containing a canonical rule, applicability conditions and limitations/counterexamples. Its derivation must retain references to supporting Nodes, Assertions or lower Patterns and their underlying Evidence; the physical representation is deferred with the capability.
+
+Pattern generation must not ship alone. The same vertical slice must accept a typed current-scene signature from its owner, retrieve applicable Patterns by direct match or upward graph traversal, preserve the rule, conditions, counterexamples and provenance in `RecallBundle`, let Reasoning decide whether to apply it, and capture the outcome as a new Episode that can later support, refute or narrow the Pattern. Until these paths and their evaluation exist together, Pattern abstraction is not a supported Memory behavior.
+
 ## 4. Typed access contracts
 
 These contracts freeze semantic inputs, outputs and guarantees, not programming-language method names. Concrete names may change in the implementation and belong in code and Conformance records.

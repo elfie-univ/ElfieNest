@@ -108,12 +108,16 @@ def test_fast_prompt_uses_brain_state_and_does_not_repeat_current_message() -> N
                 content=current_text,
             ),
         ),
-        memories=(
-            SimpleNamespace(content="主人此前说过自己喜欢蓝色。", relevance=0.9),
-            SimpleNamespace(content="主人常在傍晚散步。", relevance=0.8),
-            SimpleNamespace(content="主人喜欢安静的房间。", relevance=0.7),
-            SimpleNamespace(content="主人曾经照顾过一只猫。", relevance=0.6),
-            SimpleNamespace(content="主人把这段经历称为重要回忆。", relevance=0.5),
+        memory=SimpleNamespace(
+            content=(
+                "<MEMORY_CONTEXT>\n"
+                "主人此前说过自己喜欢蓝色。\n"
+                "主人常在傍晚散步。\n"
+                "主人喜欢安静的房间。\n"
+                "主人曾经照顾过一只猫。\n"
+                "主人把这段经历称为重要回忆。\n"
+                "</MEMORY_CONTEXT>"
+            )
         ),
         emotion=EmotionSnapshot(
             revision=1,
