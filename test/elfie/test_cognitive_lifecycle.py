@@ -100,32 +100,21 @@ class TwoTurnRuntime:
             "cause_event_ids": list(request.cause_event_ids),
             "intents": intents,
             "emotion_feedback": {
-                "effects": [
+                "appraisals": [
                     {
-                        "channel": channel,
-                        "direction": (
-                            "increase"
-                            if channel == "happiness"
-                            and request.response_mode.value == "direct_reply"
-                            else "unchanged"
-                        ),
-                        "strength": (
-                            80
-                            if channel == "happiness"
-                            and request.response_mode.value == "direct_reply"
-                            else 0
-                        ),
-                        "confidence": 1.0,
+                        "scope_id": (f"appraisal:{request.cause_event_ids[0]}:direct"),
+                        "effects": [
+                            {
+                                "channel": "happiness",
+                                "direction": "increase",
+                                "strength": 80,
+                                "confidence": 1.0,
+                            }
+                        ],
                     }
-                    for channel in (
-                        "happiness",
-                        "sadness",
-                        "anger",
-                        "fear",
-                        "surprise",
-                        "disgust",
-                    )
                 ]
+                if request.response_mode.value == "direct_reply"
+                else [],
             },
         }
         return ModelGenerationResult(
