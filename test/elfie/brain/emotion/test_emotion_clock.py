@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
+from elfie.brain.emotion.contracts import (
+    AffectDirection,
+    AffectiveAppraisal,
+    AppraisalRelevance,
+    ChannelEffect,
+    TrustedAppraisalScope,
+)
 from elfie.brain.emotion.emotion_system import (
     EmotionSystem,
     EmotionTimeRegressionError,
@@ -20,11 +26,20 @@ def _stimulus(
 ) -> EmotionStimulusEvent:
     return EmotionStimulusEvent(
         event_id=EventId(event_id),
-        effects=(
-            ChannelEffect(
-                channel=channel,
-                direction=AffectDirection.INCREASE,
-                strength=strength,
+        appraisals=(
+            AffectiveAppraisal(
+                scope=TrustedAppraisalScope(
+                    scope_id=event_id,
+                    cause_event_id=EventId(event_id),
+                    relevance=AppraisalRelevance.DIRECT,
+                ),
+                effects=(
+                    ChannelEffect(
+                        channel=channel,
+                        direction=AffectDirection.INCREASE,
+                        strength=strength,
+                    ),
+                ),
             ),
         ),
         source=StimulusSource.PHYSICAL,
@@ -62,16 +77,15 @@ def test_replay_at_identical_timestamps_is_deterministic() -> None:
     assert replay() == replay()
 
 
-def test_checkpoint_round_trip_restores_event_ledger_and_state() -> None:
+def test_sleep_reset_starts_a_new_process_local_emotion_epoch() -> None:
     system = EmotionSystem(clock=lambda: 0.0)
     system.apply_stimulus(_stimulus("fear-1", EmotionType.FEAR, 80))
-    checkpoint = system.checkpoint()
-    restored = EmotionSystem(clock=lambda: 0.0)
+    previous_epoch = system.lifecycle_epoch
 
-    restored.restore(checkpoint)
+    system.reset_to_baseline(5.0)
 
-    assert restored.checkpoint() == checkpoint
-    assert restored.apply_stimulus(_stimulus("fear-1", EmotionType.FEAR, 80)) is None
+    assert system.lifecycle_epoch == previous_epoch + 1
+    assert system.get_emotion_value("fear") == system.parameters("fear").baseline
 
 
 def test_snapshot_contract_is_immutable() -> None:

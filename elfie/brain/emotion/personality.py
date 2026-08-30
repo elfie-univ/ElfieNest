@@ -99,44 +99,8 @@ class PersonalityModifier:
             ),
         )
 
-    def get_accumulate_modifier(self, emotion: str) -> float:
-        """Legacy diagnostic helper; use ``parameters`` for production logic."""
-
-        return self.parameters(
-            emotion,
-            {
-                "baseline": 0.0,
-                "positive_gain": 1.0,
-                "negative_gain": 1.0,
-                "half_life_seconds": 300.0,
-            },
-        ).positive_gain
-
-    def get_decay_modifier(self, emotion: str) -> float:
-        """Return a diagnostic half-life multiplier, not an inverse growth rate."""
-
-        params = self.parameters(
-            emotion,
-            {
-                "baseline": 0.0,
-                "positive_gain": 1.0,
-                "negative_gain": 1.0,
-                "half_life_seconds": 300.0,
-            },
-        )
-        return params.half_life_seconds / 300.0
-
-
-def calculate_personality_modifier(
-    personality: Mapping[str, float], emotion: str
-) -> float:
-    """Compatibility-free convenience wrapper for diagnostics."""
-
-    return PersonalityModifier(personality).get_accumulate_modifier(emotion)
-
 
 __all__ = (
     "EmotionParameters",
     "PersonalityModifier",
-    "calculate_personality_modifier",
 )

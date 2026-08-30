@@ -5,10 +5,7 @@ from __future__ import annotations
 import pytest
 
 from elfie.brain.emotion.emotion_types import EMOTION_CONFIGS
-from elfie.brain.emotion.personality import (
-    PersonalityModifier,
-    calculate_personality_modifier,
-)
+from elfie.brain.emotion.personality import PersonalityModifier
 
 
 def test_neuroticism_raises_negative_baselines_and_gain() -> None:
@@ -70,22 +67,3 @@ def test_effective_parameters_are_bounded() -> None:
     assert 0.05 <= params.positive_gain <= 4.0
     assert 0.05 <= params.negative_gain <= 4.0
     assert 1.0 <= params.half_life_seconds <= 86_400.0
-
-
-def test_convenience_modifier_is_the_positive_gain_only() -> None:
-    result = calculate_personality_modifier({"extraversion": 0.9}, "happiness")
-    expected = (
-        PersonalityModifier({"extraversion": 0.9})
-        .parameters(
-            "happiness",
-            {
-                "baseline": 0.0,
-                "positive_gain": 1.0,
-                "negative_gain": 1.0,
-                "half_life_seconds": 300.0,
-            },
-        )
-        .positive_gain
-    )
-
-    assert result == pytest.approx(expected)

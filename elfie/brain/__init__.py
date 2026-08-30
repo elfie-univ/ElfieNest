@@ -22,7 +22,7 @@ from elfie.brain.consolidation.system import (
     CognitiveConsolidationSystem,
 )
 from elfie.brain.continuity import BrainContinuityCheckpoint
-from elfie.brain.emotion.emotion_system import EmotionCheckpoint, EmotionSystem
+from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import EnergyCheckpoint, EnergySystem
 from elfie.brain.memory.contracts import MemoryStateSnapshot
 from elfie.brain.motivation.contracts import MotivationSnapshot
@@ -120,7 +120,6 @@ __all__ = [
     "EventWorkspace",
     "EnergySystem",
     "EmotionSystem",
-    "EmotionCheckpoint",
     "EnergyCheckpoint",
     "ToolPort",
     "ToolRequest",

@@ -85,18 +85,9 @@ EMOTION_CONFIGS = {
         "activation_threshold": 0.20,
     },
 }
-
-
-def resolve_emotion_name(name: str) -> str:
-    """Return a canonical channel name; unknown legacy labels stay invalid."""
-
-    return name
-
-
 __all__ = (
     "EMOTION_CONFIGS",
     "EMOTION_NAMES",
     "EmotionType",
     "ObservedEmotionType",
-    "resolve_emotion_name",
 )

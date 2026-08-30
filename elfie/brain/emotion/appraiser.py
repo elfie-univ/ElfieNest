@@ -7,8 +7,10 @@ from typing_extensions import Annotated
 
 from elfie.brain.emotion.contracts import (
     AffectDirection,
+    AffectiveAppraisal,
+    AppraisalRelevance,
     ChannelEffect,
-    ObservedOtherAffect,
+    TrustedAppraisalScope,
 )
 from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
 from elfie.brain.emotion.emotion_types import EmotionType
@@ -54,12 +56,17 @@ class EmotionAppraiser:
     def __init__(self, text_detector: Optional[TextEmotionDetector] = None) -> None:
         self._text_detector = text_detector or TextEmotionDetector()
 
-    def appraise(self, event: PerceptionEvent) -> Optional[EmotionStimulusEvent]:
+    def appraise(
+        self,
+        event: PerceptionEvent,
+        *,
+        trusted_scopes: tuple[TrustedAppraisalScope, ...] = (),
+    ) -> Optional[EmotionStimulusEvent]:
         payload = event.payload
         if isinstance(payload, PhysicalPayload):
             return self._appraise_physical(event, payload)
         if isinstance(payload, SocialPayload):
-            return self._appraise_social(event, payload)
+            return self._appraise_social(event, payload, trusted_scopes)
         if isinstance(payload, ExecutionPayload):
             return self._appraise_execution(event, payload)
         if isinstance(payload, InternalPayload):
@@ -90,7 +97,13 @@ class EmotionAppraiser:
         )
         return EmotionStimulusEvent(
             event_id=event.meta.event_id,
-            effects=effects,
+            appraisals=(
+                AffectiveAppraisal(
+                    scope=_direct_scope(event),
+                    effects=effects,
+                    reason="direct physical contact",
+                ),
+            ),
             source=StimulusSource.PHYSICAL,
             cause_key=(
                 str(event.meta.causation_id)
@@ -103,27 +116,52 @@ class EmotionAppraiser:
         self,
         event: PerceptionEvent,
         payload: SocialPayload,
+        trusted_scopes: tuple[TrustedAppraisalScope, ...],
     ) -> Optional[EmotionStimulusEvent]:
         assessment = self._text_detector.assess(payload.content)
-        observed = (
-            ObservedOtherAffect(
-                label=assessment.emotion.value,
-                confidence=assessment.confidence,
-                language=assessment.language,
-                matched_terms=assessment.matched_terms,
+        appraisals: list[AffectiveAppraisal] = []
+        direct_effects = self._direct_social_effects(payload.content)
+        if direct_effects:
+            appraisals.append(
+                AffectiveAppraisal(
+                    scope=_direct_scope(event),
+                    effects=direct_effects,
+                    reason="deterministic direct social cue",
+                )
             )
-            if assessment.emotion is not None
-            else None
+        indirect_scope = next(
+            (
+                scope
+                for scope in trusted_scopes
+                if scope.cause_event_id == event.meta.event_id
+                and scope.relevance is AppraisalRelevance.INDIRECT
+            ),
+            None,
         )
-        effects = self._direct_social_effects(payload.content)
-        if not effects and observed is None:
+        if assessment.emotion is not None and indirect_scope is not None:
+            empathic_effects = self._empathic_effects(
+                assessment.emotion.value,
+                assessment.confidence,
+            )
+            if empathic_effects:
+                appraisals.append(
+                    AffectiveAppraisal(
+                        scope=indirect_scope,
+                        effects=empathic_effects,
+                        reason="source-actor affective contagion",
+                    )
+                )
+        if not appraisals:
             return None
         return EmotionStimulusEvent(
             event_id=event.meta.event_id,
-            effects=tuple(effects),
+            appraisals=tuple(appraisals),
             source=StimulusSource.SOCIAL,
-            observed_other_affect=observed,
-            cause_key=f"{payload.channel_id}:{payload.conversation_id}",
+            cause_key=(
+                str(event.meta.causation_id)
+                if event.meta.causation_id is not None
+                else None
+            ),
         )
 
     @staticmethod
@@ -169,6 +207,98 @@ class EmotionAppraiser:
         return ()
 
     @staticmethod
+    def _empathic_effects(
+        emotion: str,
+        confidence: float,
+    ) -> tuple[ChannelEffect, ...]:
+        bounded = max(0.05, min(1.0, confidence))
+        mapping = {
+            "happiness": (
+                _effect(
+                    EmotionType.HAPPINESS,
+                    AffectDirection.INCREASE,
+                    25,
+                    confidence=bounded,
+                ),
+                _effect(
+                    EmotionType.SADNESS,
+                    AffectDirection.DECREASE,
+                    10,
+                    confidence=bounded,
+                ),
+            ),
+            "sadness": (
+                _effect(
+                    EmotionType.SADNESS,
+                    AffectDirection.INCREASE,
+                    20,
+                    confidence=bounded,
+                ),
+                _effect(
+                    EmotionType.HAPPINESS,
+                    AffectDirection.DECREASE,
+                    10,
+                    confidence=bounded,
+                ),
+            ),
+            "anger": (
+                _effect(
+                    EmotionType.FEAR,
+                    AffectDirection.INCREASE,
+                    15,
+                    confidence=bounded,
+                ),
+                _effect(
+                    EmotionType.SADNESS,
+                    AffectDirection.INCREASE,
+                    10,
+                    confidence=bounded,
+                ),
+            ),
+            "fear": (
+                _effect(
+                    EmotionType.FEAR,
+                    AffectDirection.INCREASE,
+                    20,
+                    confidence=bounded,
+                ),
+            ),
+            "surprise": (
+                _effect(
+                    EmotionType.SURPRISE,
+                    AffectDirection.INCREASE,
+                    15,
+                    confidence=bounded,
+                ),
+            ),
+            "disgust": (
+                _effect(
+                    EmotionType.DISGUST,
+                    AffectDirection.INCREASE,
+                    15,
+                    confidence=bounded,
+                ),
+            ),
+            "boredom": (
+                _effect(
+                    EmotionType.SADNESS,
+                    AffectDirection.INCREASE,
+                    8,
+                    confidence=bounded,
+                ),
+            ),
+            "attachment": (
+                _effect(
+                    EmotionType.HAPPINESS,
+                    AffectDirection.INCREASE,
+                    10,
+                    confidence=bounded,
+                ),
+            ),
+        }
+        return mapping.get(emotion, ())
+
+    @staticmethod
     def _appraise_execution(
         event: PerceptionEvent,
         payload: ExecutionPayload,
@@ -198,9 +328,23 @@ class EmotionAppraiser:
             return None
         return EmotionStimulusEvent(
             event_id=event.meta.event_id,
-            effects=effects,
+            appraisals=(
+                AffectiveAppraisal(
+                    scope=_direct_scope(event),
+                    effects=effects,
+                    reason="real execution result",
+                ),
+            ),
             source=StimulusSource.EXECUTION,
         )
+
+
+def _direct_scope(event: PerceptionEvent) -> TrustedAppraisalScope:
+    return TrustedAppraisalScope(
+        scope_id=f"appraisal:{event.meta.event_id}:direct",
+        cause_event_id=event.meta.event_id,
+        relevance=AppraisalRelevance.DIRECT,
+    )
 
 
 __all__ = ("BrainClockPulse", "EmotionAppraiser")

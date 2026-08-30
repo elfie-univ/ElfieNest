@@ -7,11 +7,16 @@ from datetime import datetime, timezone
 import pytest
 
 from elfie.brain.emotion.appraiser import EmotionAppraiser
-from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
+from elfie.brain.emotion.contracts import (
+    AffectDirection,
+    AffectiveAppraisal,
+    AppraisalRelevance,
+    ChannelEffect,
+    TrustedAppraisalScope,
+)
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.emotion.emotion_types import EMOTION_NAMES, EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
-from elfie.brain.reasoning.decision_types import EmotionFeedback
 from elfie.brain.workspace.contracts import PerceptionEvent, SocialPayload
 from elfie.message_types import (
     ActorId,
@@ -29,9 +34,23 @@ from infrastructure.persistence.configuration.bundled_defaults import (
 def _stimulus(event_id: str, effect: ChannelEffect, *, turn_id: str | None = None):
     return EmotionStimulusEvent(
         event_id=EventId(event_id),
-        effects=(effect,),
+        appraisals=(_appraisal(event_id, (effect,)),),
         source=StimulusSource.INTERNAL,
         turn_id=turn_id,
+    )
+
+
+def _appraisal(
+    scope_id: str,
+    effects: tuple[ChannelEffect, ...],
+) -> AffectiveAppraisal:
+    return AffectiveAppraisal(
+        scope=TrustedAppraisalScope(
+            scope_id=scope_id,
+            cause_event_id=EventId(scope_id),
+            relevance=AppraisalRelevance.DIRECT,
+        ),
+        effects=effects,
     )
 
 
@@ -111,16 +130,26 @@ def test_negative_drive_consumes_current_stock_and_equal_signed_evidence_cancels
     system.apply_stimulus(
         EmotionStimulusEvent(
             event_id=EventId("anger-cancel"),
-            effects=(
-                ChannelEffect(
-                    channel=EmotionType.HAPPINESS,
-                    direction=AffectDirection.INCREASE,
-                    strength=70,
+            appraisals=(
+                _appraisal(
+                    "anger-cancel-up",
+                    (
+                        ChannelEffect(
+                            channel=EmotionType.HAPPINESS,
+                            direction=AffectDirection.INCREASE,
+                            strength=70,
+                        ),
+                    ),
                 ),
-                ChannelEffect(
-                    channel=EmotionType.HAPPINESS,
-                    direction=AffectDirection.DECREASE,
-                    strength=70,
+                _appraisal(
+                    "anger-cancel-down",
+                    (
+                        ChannelEffect(
+                            channel=EmotionType.HAPPINESS,
+                            direction=AffectDirection.DECREASE,
+                            strength=70,
+                        ),
+                    ),
                 ),
             ),
             source=StimulusSource.INTERNAL,
@@ -139,6 +168,35 @@ def test_negative_drive_consumes_current_stock_and_equal_signed_evidence_cancels
         )
     )
     assert 0.0 <= system.get_emotion_value("happiness") < before
+
+
+def test_cause_guidance_is_exact_and_cleared_by_sleep_reset() -> None:
+    system = EmotionSystem(clock=lambda: 0.0)
+    system.update_cause_guidance(
+        "threat-1",
+        (
+            ChannelEffect(
+                channel=EmotionType.FEAR,
+                direction=AffectDirection.DECREASE,
+                strength=90,
+            ),
+        ),
+    )
+
+    assert (
+        system.guidance_appraisal("threat-1", event_id=EventId("next-observation"))
+        is not None
+    )
+    assert (
+        system.guidance_appraisal("threat-2", event_id=EventId("different-observation"))
+        is None
+    )
+
+    system.reset_to_baseline(1.0)
+
+    assert (
+        system.guidance_appraisal("threat-1", event_id=EventId("after-sleep")) is None
+    )
 
 
 def _social(content: str) -> PerceptionEvent:
@@ -165,68 +223,79 @@ def _social(content: str) -> PerceptionEvent:
 
 def test_owner_observed_affect_is_not_elfie_affect_without_self_relevance() -> None:
     observed = EmotionAppraiser().appraise(_social("I am very sad today"))
-    assert observed is not None
-    assert observed.effects == ()
-    assert observed.observed_other_affect is not None
-    assert observed.observed_other_affect.label == "sadness"
+    assert observed is None
 
     hostile = EmotionAppraiser().appraise(_social("I hate you, leave me alone"))
     assert hostile is not None
-    assert {effect.channel for effect in hostile.effects} >= {
+    hostile_effects = tuple(
+        effect for appraisal in hostile.appraisals for effect in appraisal.effects
+    )
+    assert {effect.channel for effect in hostile_effects} >= {
         EmotionType.ANGER,
         EmotionType.SADNESS,
     }
     assert any(
         effect.channel is EmotionType.HAPPINESS
         and effect.direction is AffectDirection.DECREASE
-        for effect in hostile.effects
+        for effect in hostile_effects
     )
 
 
-def test_slow_feedback_replays_from_checkpoint_and_replaces_fast_effect() -> None:
+def test_slow_feedback_replays_from_anchor_and_replaces_fast_effect() -> None:
     system = EmotionSystem(clock=lambda: 0.0)
-    checkpoint = system.checkpoint()
-    system.apply_stimulus(
-        EmotionStimulusEvent(
-            event_id=EventId("fast-turn-event"),
-            effects=(
-                ChannelEffect(
-                    channel=EmotionType.ANGER,
-                    direction=AffectDirection.INCREASE,
-                    strength=95,
+    anchor = system.capture_turn_state()
+    fast = system.candidate_from(
+        anchor,
+        (
+            EmotionStimulusEvent(
+                event_id=EventId("fast-turn-event"),
+                appraisals=(
+                    _appraisal(
+                        "fast-turn-event",
+                        (
+                            ChannelEffect(
+                                channel=EmotionType.ANGER,
+                                direction=AffectDirection.INCREASE,
+                                strength=95,
+                            ),
+                        ),
+                    ),
                 ),
+                source=StimulusSource.SOCIAL,
+                turn_id="turn-1",
             ),
-            source=StimulusSource.SOCIAL,
-            turn_id="turn-1",
         ),
+        timestamp=0.0,
         phase="fast",
         status="provisional",
     )
-    feedback = EmotionFeedback(
-        effects=tuple(
-            ChannelEffect(
-                channel=emotion,
-                direction=(
-                    AffectDirection.INCREASE
-                    if emotion is EmotionType.HAPPINESS
-                    else AffectDirection.UNCHANGED
+    assert system.commit_turn_state(fast)
+    slow = system.candidate_from(
+        anchor,
+        (
+            EmotionStimulusEvent(
+                event_id=EventId("model-feedback"),
+                appraisals=(
+                    _appraisal(
+                        "slow-turn-event",
+                        (
+                            ChannelEffect(
+                                channel=EmotionType.HAPPINESS,
+                                direction=AffectDirection.INCREASE,
+                                strength=80,
+                            ),
+                        ),
+                    ),
                 ),
-                strength=80 if emotion is EmotionType.HAPPINESS else 0,
-            )
-            for emotion in EmotionType
-        )
-    )
-    system.reconcile_turn(
-        checkpoint,
-        turn_id="turn-1",
-        stimulus=EmotionStimulusEvent(
-            event_id=EventId("model-feedback"),
-            effects=feedback.effects,
-            source=StimulusSource.MODEL,
-            turn_id="turn-1",
+                source=StimulusSource.MODEL,
+                turn_id="turn-1",
+            ),
         ),
         timestamp=5.0,
+        phase="slow",
+        status="replaced",
     )
+    assert system.commit_turn_state(slow)
 
     assert system.get_emotion_value("anger") == pytest.approx(
         system.parameters("anger").baseline
@@ -236,7 +305,7 @@ def test_slow_feedback_replays_from_checkpoint_and_replaces_fast_effect() -> Non
     )
     statuses = {(record.phase, record.status) for record in system.effect_records()}
     assert ("slow", "replaced") in statuses
-    assert ("fast", "replaced") in statuses
+    assert ("fast", "provisional") not in statuses
 
 
 @pytest.mark.parametrize(
@@ -268,11 +337,16 @@ def test_bundled_dynamics_match_everyday_episode_scale(
     system.apply_stimulus(
         EmotionStimulusEvent(
             event_id=EventId(f"duration-{channel.value}"),
-            effects=(
-                ChannelEffect(
-                    channel=channel,
-                    direction=AffectDirection.INCREASE,
-                    strength=90,
+            appraisals=(
+                _appraisal(
+                    f"duration-{channel.value}",
+                    (
+                        ChannelEffect(
+                            channel=channel,
+                            direction=AffectDirection.INCREASE,
+                            strength=90,
+                        ),
+                    ),
                 ),
             ),
             source=StimulusSource.PHYSICAL,

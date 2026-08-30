@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.contracts import MemoryContext, MemoryItem
 from elfie.brain.reasoning.context_compiler import (
@@ -98,8 +99,15 @@ def _context(long_social_text: str = "please answer from the sofa") -> BrainCont
         emotion=EmotionSnapshot(
             revision=4,
             captured_at=NOW,
-            values=(EmotionValue(name="curiosity", intensity=0.6),),
-            dominant="curiosity",
+            values=tuple(
+                EmotionValue(
+                    name=emotion,
+                    intensity=0.6 if emotion is EmotionType.HAPPINESS else 0.0,
+                )
+                for emotion in EmotionType
+            ),
+            active=(EmotionValue(name=EmotionType.HAPPINESS, intensity=0.6),),
+            primary=EmotionType.HAPPINESS,
         ),
         homeostasis=EnergySnapshot(
             revision=5,
@@ -169,7 +177,7 @@ def test_compile_preserves_communication_actor_and_channel() -> None:
     assert compiled.events[0].actor.actor_id == ActorId("owner-1")
     assert compiled.events[0].channel_id == "wechat-main"
     assert compiled.events[0].occurred_at == NOW
-    assert compiled.emotion.dominant == "curiosity"
+    assert compiled.emotion.primary is EmotionType.HAPPINESS
     assert compiled.homeostasis.energy == 81.0
     assert compiled.capabilities.current_body.body_id == "headless-body"
 

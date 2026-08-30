@@ -14,8 +14,8 @@ from elfie.brain.activity.system import (
     ActivityPreflightResult,
     ActivityPreflightStatus,
 )
-from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
-from elfie.brain.emotion.emotion_types import EMOTION_NAMES
+from elfie.brain.emotion.contracts import AffectDirection
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     EmbodiedScope,
@@ -40,6 +40,8 @@ _NonBlankText = Annotated[
 _Revision = Annotated[int, Field(strict=True, ge=0)]
 _Intensity = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
 _Ordinal = Annotated[int, Field(strict=True, ge=0)]
+_SemanticStrength = Annotated[int, Field(strict=True, ge=1, le=100)]
+_Confidence = Annotated[float, Field(strict=True, gt=0.0, le=1.0)]
 
 
 @unique
@@ -127,27 +129,47 @@ class NoOpIntent(IntentContract):
     reason: _NonBlankText
 
 
-class EmotionFeedback(FrozenContractModel):
-    """Model's semantic appraisal of how the current event affects Elfie."""
+class SemanticEmotionEffect(FrozenContractModel):
+    """One non-zero semantic effect proposed by the model."""
 
-    effects: Annotated[Tuple[ChannelEffect, ...], Field(min_length=6, max_length=6)]
-    observed_other_affect: Optional[_NonBlankText] = None
+    channel: EmotionType
+    direction: AffectDirection
+    strength: _SemanticStrength
+    confidence: _Confidence
+
+
+class ModelAffectiveAppraisal(FrozenContractModel):
+    """Sparse effects selected for one host-signed appraisal scope."""
+
+    scope_id: _NonBlankText
+    effects: Annotated[
+        Tuple[SemanticEmotionEffect, ...],
+        Field(min_length=1, max_length=6),
+    ]
 
     @model_validator(mode="after")
-    def validate_all_channels(self) -> EmotionFeedback:
-        channels = tuple(effect.channel.value for effect in self.effects)
-        if set(channels) != set(EMOTION_NAMES) or len(set(channels)) != 6:
+    def validate_unique_channels(self) -> ModelAffectiveAppraisal:
+        channels = tuple(effect.channel for effect in self.effects)
+        if len(channels) != len(set(channels)):
             raise PydanticCustomError(
-                "emotion_feedback_channels",
-                "emotion feedback must contain exactly one effect for each channel",
+                "duplicate_model_appraisal_channel",
+                "one model appraisal may affect each channel at most once",
             )
-        if any(
-            effect.direction is AffectDirection.UNCHANGED and effect.strength != 0
-            for effect in self.effects
-        ):
+        return self
+
+
+class EmotionFeedback(FrozenContractModel):
+    """Model-reviewed sparse appraisals; an empty tuple is an explicit no-op."""
+
+    appraisals: Annotated[Tuple[ModelAffectiveAppraisal, ...], Field(max_length=16)]
+
+    @model_validator(mode="after")
+    def validate_unique_scopes(self) -> EmotionFeedback:
+        scope_ids = tuple(appraisal.scope_id for appraisal in self.appraisals)
+        if len(scope_ids) != len(set(scope_ids)):
             raise PydanticCustomError(
-                "emotion_feedback_unchanged_strength",
-                "unchanged emotion effects must have zero strength",
+                "duplicate_model_appraisal_scope",
+                "emotion feedback may select each host scope at most once",
             )
         return self
 
@@ -368,8 +390,10 @@ __all__ = (
     "ExpressionIntent",
     "MessageIntent",
     "MotionIntent",
+    "ModelAffectiveAppraisal",
     "NoOpIntent",
     "PersistentActivityRequest",
     "SpeechIntent",
+    "SemanticEmotionEffect",
     "TurnDecision",
 )

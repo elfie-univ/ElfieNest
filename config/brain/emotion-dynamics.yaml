@@ -50,11 +50,16 @@ strength_knots: [0.0, 0.12, 0.28, 0.55, 0.85, 1.0]
 
 source_weights:
   physical: 1.0
-  text: 0.8
   social: 0.8
   execution: 1.0
   internal: 0.7
   model: 1.0
+
+# Presentation affects only the sparse natural-language projection sent to the
+# model. It never changes the six stored channel values.
+presentation:
+  trend_threshold: 0.05
+  secondary_ratio: 0.35
 
 # Sparse personality overrides are applied on top of the deterministic Big
 # Five projection and remain bounded by the domain implementation.

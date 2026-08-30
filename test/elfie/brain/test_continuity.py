@@ -4,10 +4,6 @@ from datetime import datetime, timezone
 
 import pytest
 
-from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
-from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.emotion.emotion_types import EmotionType
-from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.state_lifecycle import StateRestoreError
@@ -15,35 +11,6 @@ from elfie.message_types import EventId
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
 
 NOW = datetime(2026, 8, 12, 10, 0, tzinfo=timezone.utc)
-
-
-def test_emotion_checkpoint_restores_deduplication_and_rejects_stale_state() -> None:
-    emotion = EmotionSystem(clock=lambda: 0.0)
-    stimulus = EmotionStimulusEvent(
-        event_id=EventId("emotion-source-1"),
-        effects=(
-            ChannelEffect(
-                channel=EmotionType.FEAR,
-                direction=AffectDirection.INCREASE,
-                strength=80,
-            ),
-        ),
-        source=StimulusSource.PHYSICAL,
-    )
-    emotion.apply_stimulus(stimulus)
-    checkpoint = emotion.checkpoint()
-
-    emotion.update_emotion("fear", 0.1)
-    with pytest.raises(StateRestoreError):
-        emotion.restore(checkpoint)
-
-    restored = EmotionSystem(clock=lambda: 0.0)
-    restored.restore(checkpoint)
-    before = restored.snapshot(0.0)
-    restored.apply_stimulus(stimulus)
-
-    assert restored.snapshot(0.0) == before
-    assert restored.snapshot(0.0).source_event_ids == (EventId("emotion-source-1"),)
 
 
 def test_energy_checkpoint_and_cognitive_mode_boundary() -> None:

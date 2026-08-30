@@ -252,8 +252,8 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     elfie.join()
 
 
-def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> None:
-    # Given: one assembled Brain whose three Stage 4C owners have committed state.
+def test_continuity_restores_energy_and_memory_but_emotion_restarts_fresh() -> None:
+    # Given: one assembled Brain whose durable owners have committed state.
     store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = ElfieFactory().create(
         ElfieAssembly(
@@ -262,7 +262,6 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
             model_port=TwoTurnRuntime(),
         )
     )
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 0.25)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="我把这件事记住了",
@@ -283,7 +282,6 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
     restored.restore_continuity(checkpoint)
 
     # When: newer uncommitted-in-the-checkpoint state is produced.
-    ElfieDiagnostics(elfie).emotion.update_emotion("happiness", 0.20)
     ElfieDiagnostics(elfie).energy.consume_energy_by_action(token_count=100)
     ElfieDiagnostics(elfie).memory.record_episode(
         content="这件事后来又发生了",
@@ -294,7 +292,12 @@ def test_continuity_checkpoint_restores_emotion_energy_and_memory_together() -> 
         elfie.restore_continuity(checkpoint)
 
     # Then: the restarted runtime has the same committed state.
-    assert ElfieDiagnostics(restored).emotion.checkpoint() == checkpoint.emotion
+    restored_emotion = ElfieDiagnostics(restored).emotion
+    assert all(
+        restored_emotion.get_emotion_value(name)
+        == restored_emotion.parameters(name).baseline
+        for name in restored_emotion.emotions
+    )
     assert ElfieDiagnostics(restored).energy.checkpoint() == checkpoint.energy
     assert ElfieDiagnostics(restored).memory.checkpoint() == checkpoint.memory
 

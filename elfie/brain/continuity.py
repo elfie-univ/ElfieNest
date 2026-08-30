@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from elfie.brain.consolidation.system import CognitiveConsolidationCheckpoint
-from elfie.brain.emotion.emotion_system import EmotionCheckpoint
 from elfie.brain.energy.energy import EnergyCheckpoint
 from elfie.brain.memory.contracts import MemoryStateSnapshot
 from elfie.brain.motivation.system import MotivationCheckpoint
@@ -25,7 +24,6 @@ class BrainContinuityCheckpoint:
     """
 
     captured_at: datetime
-    emotion: EmotionCheckpoint
     energy: EnergyCheckpoint
     memory: StateCheckpoint[MemoryStateSnapshot]
     orientation: StateCheckpoint[OrientationSnapshot]

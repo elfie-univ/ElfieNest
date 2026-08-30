@@ -7,9 +7,7 @@ from elfie.brain.emotion.contracts import (
     EmotionEffectRecord,
     EmotionSnapshot,
     EmotionValue,
-    ObservedOtherAffect,
 )
-from elfie.brain.emotion.emotion_input import EmotionInput
 from elfie.brain.emotion.emotion_system import (
     EmotionSystem,
     EmotionTimeRegressionError,
@@ -19,12 +17,8 @@ from elfie.brain.emotion.emotion_types import (
     EMOTION_NAMES,
     EmotionType,
     ObservedEmotionType,
-    resolve_emotion_name,
 )
-from elfie.brain.emotion.personality import (
-    PersonalityModifier,
-    calculate_personality_modifier,
-)
+from elfie.brain.emotion.personality import PersonalityModifier
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 
 __all__ = [
@@ -39,15 +33,11 @@ __all__ = [
     "AffectiveAppraisal",
     "ChannelEffect",
     "EmotionEffectRecord",
-    "ObservedOtherAffect",
     "EmotionStimulusEvent",
-    "EmotionInput",
     "EmotionType",
     "EMOTION_CONFIGS",
     "EMOTION_NAMES",
     "ObservedEmotionType",
-    "resolve_emotion_name",
     "PersonalityModifier",
-    "calculate_personality_modifier",
     "StimulusSource",
 ]

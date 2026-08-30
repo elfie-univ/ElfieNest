@@ -230,7 +230,6 @@ def test_restart_restores_durable_continuity_and_cognitive_clock(
         restored.start()
         actual = restored.continuity_checkpoint()
         assert actual.energy == expected.energy
-        assert actual.emotion == expected.emotion
         assert actual.orientation == expected.orientation
         assert restored.elapsed_time == expected.captured_at.timestamp()
 

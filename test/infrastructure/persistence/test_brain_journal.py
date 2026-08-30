@@ -96,6 +96,7 @@ def test_workspace_pending_cut_reopens_atomically(tmp_path: Path) -> None:
                     WorkspaceSeenEvent(
                         event_id=write.meta.event_id,
                         ingest_seq=7,
+                        write_digest="0" * 64,
                     ),
                 ),
             )

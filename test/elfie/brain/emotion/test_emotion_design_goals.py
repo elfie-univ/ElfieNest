@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from elfie.brain.emotion.contracts import AffectDirection, ChannelEffect
+from elfie.brain.emotion.contracts import (
+    AffectDirection,
+    AffectiveAppraisal,
+    AppraisalRelevance,
+    ChannelEffect,
+    TrustedAppraisalScope,
+)
 from elfie.brain.emotion.dynamics import apply_signed_drive, calibrate_strength
 from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.emotion.emotion_types import (
-    EMOTION_CONFIGS,
-    EMOTION_NAMES,
-    EmotionType,
-)
+from elfie.brain.emotion.emotion_types import EMOTION_NAMES, EmotionType
 from elfie.brain.emotion.personality import PersonalityModifier
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.message_types import EventId
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_dynamics_defaults,
+)
 
 
 def _event(
@@ -20,11 +25,20 @@ def _event(
 ):
     return EmotionStimulusEvent(
         event_id=EventId(event_id),
-        effects=(
-            ChannelEffect(
-                channel=channel,
-                direction=direction,
-                strength=strength,
+        appraisals=(
+            AffectiveAppraisal(
+                scope=TrustedAppraisalScope(
+                    scope_id=event_id,
+                    cause_event_id=EventId(event_id),
+                    relevance=AppraisalRelevance.DIRECT,
+                ),
+                effects=(
+                    ChannelEffect(
+                        channel=channel,
+                        direction=direction,
+                        strength=strength,
+                    ),
+                ),
             ),
         ),
         source=StimulusSource.INTERNAL,
@@ -32,7 +46,8 @@ def _event(
 
 
 def test_v1_has_exactly_six_channels_and_complete_tunable_parameters() -> None:
-    assert set(EMOTION_CONFIGS) == set(EMOTION_NAMES)
+    configs = load_emotion_dynamics_defaults()["channels"]
+    assert set(configs) == set(EMOTION_NAMES)
     required = {
         "baseline",
         "positive_gain",
@@ -40,7 +55,7 @@ def test_v1_has_exactly_six_channels_and_complete_tunable_parameters() -> None:
         "half_life_seconds",
         "activation_threshold",
     }
-    assert all(required.issubset(config) for config in EMOTION_CONFIGS.values())
+    assert all(required.issubset(config) for config in configs.values())
 
 
 def test_positive_growth_saturates_with_diminishing_increments() -> None:
@@ -86,11 +101,10 @@ def test_strength_calibration_is_bounded_and_nonlinear() -> None:
 
 
 def test_personality_changes_baseline_gain_and_decay_independently() -> None:
-    calm = PersonalityModifier({"neuroticism": 0.1}).parameters(
-        "fear", EMOTION_CONFIGS["fear"]
-    )
+    configs = load_emotion_dynamics_defaults()["channels"]
+    calm = PersonalityModifier({"neuroticism": 0.1}).parameters("fear", configs["fear"])
     reactive = PersonalityModifier({"neuroticism": 0.9}).parameters(
-        "fear", EMOTION_CONFIGS["fear"]
+        "fear", configs["fear"]
     )
 
     assert reactive.baseline > calm.baseline
@@ -102,25 +116,32 @@ def test_all_effects_are_program_calculated_from_semantic_channel_signals() -> N
     system = EmotionSystem(clock=lambda: 0.0)
     event = EmotionStimulusEvent(
         event_id=EventId("multi-channel"),
-        effects=tuple(
-            ChannelEffect(
-                channel=channel,
-                direction=(
-                    AffectDirection.INCREASE
-                    if channel in {EmotionType.HAPPINESS, EmotionType.SURPRISE}
-                    else AffectDirection.DECREASE
+        appraisals=(
+            AffectiveAppraisal(
+                scope=TrustedAppraisalScope(
+                    scope_id="multi-channel",
+                    cause_event_id=EventId("multi-channel"),
+                    relevance=AppraisalRelevance.DIRECT,
                 ),
-                strength=60,
-            )
-            for channel in EmotionType
+                effects=tuple(
+                    ChannelEffect(
+                        channel=channel,
+                        direction=(
+                            AffectDirection.INCREASE
+                            if channel in {EmotionType.HAPPINESS, EmotionType.SURPRISE}
+                            else AffectDirection.DECREASE
+                        ),
+                        strength=60,
+                    )
+                    for channel in EmotionType
+                ),
+            ),
         ),
         source=StimulusSource.MODEL,
     )
     system.apply_stimulus(event)
 
     assert (
-        system.get_emotion_value("happiness") > EMOTION_CONFIGS["happiness"]["baseline"]
+        system.get_emotion_value("happiness") > system.parameters("happiness").baseline
     )
-    assert (
-        system.get_emotion_value("surprise") > EMOTION_CONFIGS["surprise"]["baseline"]
-    )
+    assert system.get_emotion_value("surprise") > system.parameters("surprise").baseline

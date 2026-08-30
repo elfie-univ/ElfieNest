@@ -26,7 +26,10 @@ from threading import RLock
 from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
-from elfie.brain.memory.contracts import MemoryStateSnapshot
+from elfie.brain.memory.contracts import (
+    MemoryStateSnapshot,
+    RelationshipImportanceProjection,
+)
 from elfie.brain.state_lifecycle import (
     StateCandidate,
     StateCheckpoint,
@@ -138,6 +141,46 @@ class MemorySystem:
     ) -> None:
         self.encoder.elfie_id = elfie_id
         self.consolidator.elfie_id = elfie_id
+
+    def relationship_importance(
+        self,
+        actor_id: str,
+        *,
+        owner: bool = False,
+    ) -> RelationshipImportanceProjection | None:
+        """Read one source actor's trusted relationship importance."""
+
+        normalized_actor = actor_id.strip()
+        if not normalized_actor:
+            return None
+        entities = tuple(self.storage.get_nodes_by_type("entity", limit=1000))
+        exact = tuple(
+            node
+            for node in entities
+            if normalized_actor
+            in {
+                node.id,
+                str(node.metadata.get("person_id") or "").strip(),
+            }
+        )
+        candidates = exact
+        if not candidates and owner:
+            owners = tuple(
+                node for node in entities if bool(node.metadata.get("is_owner"))
+            )
+            candidates = owners if len(owners) == 1 else ()
+        if len(candidates) != 1:
+            return None
+        raw_importance = candidates[0].metadata.get("importance_score")
+        try:
+            importance = max(0.0, min(1.0, float(raw_importance)))
+        except (TypeError, ValueError):
+            return None
+        return RelationshipImportanceProjection(
+            actor_id=normalized_actor,
+            revision=self.revision,
+            importance=importance,
+        )
 
     def record_closed_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
         """Persist one already-closed Episode through the source-first contract."""

@@ -11,7 +11,6 @@ import pytest
 
 from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
-from elfie.brain.emotion.emotion_types import EMOTION_NAMES
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.reasoning.context_types import (
@@ -36,6 +35,7 @@ from elfie.brain.workspace.contracts import (
     PhysicalModality,
     PhysicalPayload,
     SocialPayload,
+    TriggerReason,
 )
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.message_types import (
@@ -64,6 +64,7 @@ def _meta(
     occurred_at: datetime,
     *,
     priority: Priority = Priority.NORMAL,
+    causation_id: str | None = None,
 ) -> MessageMeta:
     return MessageMeta(
         event_id=EventId(event_id),
@@ -72,6 +73,7 @@ def _meta(
         occurred_at=occurred_at,
         received_at=occurred_at,
         trace_id=TraceId("trace-coordinator"),
+        causation_id=EventId(causation_id) if causation_id is not None else None,
         priority=priority,
     )
 
@@ -104,10 +106,16 @@ def _physical(
     *,
     salience: float = 0.5,
     priority: Priority = Priority.NORMAL,
+    causation_id: str | None = None,
 ) -> PerceptionEvent:
     at = NOW + timedelta(milliseconds=milliseconds)
     return PerceptionEvent(
-        meta=_meta(f"physical-{index}", at, priority=priority),
+        meta=_meta(
+            f"physical-{index}",
+            at,
+            priority=priority,
+            causation_id=causation_id,
+        ),
         payload=PhysicalPayload(
             type="physical",
             body_id="body-1",
@@ -319,13 +327,29 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         coordinator.join()
 
 
-def test_owner_text_affect_is_not_applied_as_elfie_affect_before_model_turn() -> None:
+def test_owner_text_affect_cannot_use_an_untrusted_direct_scope() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "appraisals": [
+            {
+                "scope_id": "appraisal:social-1:direct",
+                "effects": [
+                    {
+                        "channel": "anger",
+                        "direction": "increase",
+                        "strength": 100,
+                        "confidence": 1.0,
+                    }
+                ],
+            }
+        ]
+    }
+    sink = RecordingPlanSink()
     coordinator, emotion, _energy = _coordinator(
         workspace,
         runtime,
-        RecordingPlanSink(),
+        sink,
     )
     coordinator.start()
     workspace.publish(
@@ -346,6 +370,11 @@ def test_owner_text_affect_is_not_applied_as_elfie_affect_before_model_turn() ->
             emotion.get_emotion_value("anger") == emotion.parameters("anger").baseline
         )
         assert "CURRENT_BRAIN_STATE" in runtime.calls[0].system_prompt
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert (
+            emotion.get_emotion_value("anger") == emotion.parameters("anger").baseline
+        )
     finally:
         runtime.release.set()
         coordinator.stop()
@@ -356,14 +385,18 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
     runtime.feedback = {
-        "effects": [
+        "appraisals": [
             {
-                "channel": channel,
-                "direction": "increase" if channel == "happiness" else "unchanged",
-                "strength": 80 if channel == "happiness" else 0,
-                "confidence": 1.0,
+                "scope_id": "appraisal:social-1:direct",
+                "effects": [
+                    {
+                        "channel": "happiness",
+                        "direction": "increase",
+                        "strength": 80,
+                        "confidence": 1.0,
+                    }
+                ],
             }
-            for channel in EMOTION_NAMES
         ]
     }
     sink = RecordingPlanSink()
@@ -374,7 +407,7 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
             1,
             0,
             source_kind="owner",
-            text="I am furious about this",
+            text="I hate you",
         )
     )
     coordinator.notify_perception()
@@ -383,9 +416,7 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
     coordinator.synchronize()
 
     try:
-        assert (
-            emotion.get_emotion_value("anger") == emotion.parameters("anger").baseline
-        )
+        assert emotion.get_emotion_value("anger") > emotion.parameters("anger").baseline
         assert "EMOTION_FEEDBACK" in runtime.calls[0].system_prompt
         runtime.release.set()
         assert sink.accepted.wait(1), coordinator.outcomes()
@@ -402,31 +433,10 @@ def test_model_emotion_feedback_replaces_provisional_entry_appraisal() -> None:
         coordinator.join()
 
 
-def test_model_owner_affect_echo_does_not_mutate_elfie_emotion() -> None:
+def test_model_explicit_empty_appraisal_replaces_fast_effect_with_noop() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
-    runtime.feedback = {
-        "effects": [
-            {
-                "channel": channel,
-                "direction": (
-                    "increase"
-                    if channel == "sadness"
-                    else "decrease"
-                    if channel == "happiness"
-                    else "unchanged"
-                ),
-                "strength": 70
-                if channel == "sadness"
-                else 35
-                if channel == "happiness"
-                else 0,
-                "confidence": 1.0,
-            }
-            for channel in EMOTION_NAMES
-        ],
-        "observed_other_affect": "owner is currently feeling sad",
-    }
+    runtime.feedback = {"appraisals": []}
     sink = RecordingPlanSink()
     coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
     coordinator.start()
@@ -435,7 +445,7 @@ def test_model_owner_affect_echo_does_not_mutate_elfie_emotion() -> None:
             1,
             0,
             source_kind="owner",
-            text="I am very sad today",
+            text="I hate you",
         )
     )
     coordinator.notify_perception()
@@ -444,13 +454,12 @@ def test_model_owner_affect_echo_does_not_mutate_elfie_emotion() -> None:
     coordinator.synchronize()
 
     try:
-        # The local appraiser records the owner's sadness as observation only.
-        assert (
-            emotion.get_emotion_value("sadness")
-            == emotion.parameters("sadness").baseline
-        )
+        assert emotion.get_emotion_value("anger") > emotion.parameters("anger").baseline
         runtime.release.set()
         assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("anger") == pytest.approx(
+            emotion.parameters("anger").baseline
+        )
         assert emotion.get_emotion_value("sadness") == pytest.approx(
             emotion.parameters("sadness").baseline
         )
@@ -461,6 +470,187 @@ def test_model_owner_affect_echo_does_not_mutate_elfie_emotion() -> None:
         runtime.release.set()
         coordinator.stop()
         coordinator.join()
+
+
+def test_model_decrease_guides_the_same_continuing_cause_on_the_next_frame() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "appraisals": [
+            {
+                "scope_id": "appraisal:physical-1:direct",
+                "effects": [
+                    {
+                        "channel": "fear",
+                        "direction": "decrease",
+                        "strength": 100,
+                        "confidence": 1.0,
+                    }
+                ],
+            }
+        ]
+    }
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(
+        _physical(1, 0, salience=0.95, causation_id="continuing-elephant")
+    )
+    coordinator.notify_perception()
+    assert runtime.started.wait(1), coordinator.outcomes()
+
+    try:
+        runtime.release.set()
+        coordinator.wait_for_outcome_count(1, timeout=2.0)
+        workspace.publish(
+            _physical(2, 1000, salience=0.5, causation_id="continuing-elephant")
+        )
+        coordinator.notify_perception()
+        coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 7.0))
+        coordinator.wait_for_outcome_count(2, timeout=2.0)
+        coordinator.synchronize()
+
+        assert len(runtime.calls) == 1
+        assert emotion.get_emotion_value("fear") <= emotion.parameters("fear").baseline
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_missing_model_feedback_keeps_the_fast_appraisal() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_social(1, 0, source_kind="owner", text="I hate you"))
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+    fast_anger = emotion.get_emotion_value("anger")
+
+    try:
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("anger") == pytest.approx(fast_anger)
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_unknown_model_appraisal_scope_is_ignored_as_untrusted_feedback() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "appraisals": [
+            {
+                "scope_id": "model-invented-scope",
+                "effects": [
+                    {
+                        "channel": "anger",
+                        "direction": "decrease",
+                        "strength": 100,
+                        "confidence": 1.0,
+                    }
+                ],
+            }
+        ]
+    }
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_social(1, 0, source_kind="owner", text="I hate you"))
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+    fast_anger = emotion.get_emotion_value("anger")
+
+    try:
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("anger") == pytest.approx(fast_anger)
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_pre_sleep_model_feedback_cannot_mutate_the_new_emotion_epoch() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    runtime.feedback = {
+        "appraisals": [
+            {
+                "scope_id": "appraisal:social-1:direct",
+                "effects": [
+                    {
+                        "channel": "anger",
+                        "direction": "increase",
+                        "strength": 100,
+                        "confidence": 1.0,
+                    }
+                ],
+            }
+        ]
+    }
+    sink = RecordingPlanSink()
+    coordinator, emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_social(1, 0, source_kind="owner", text="I hate you"))
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1)
+    coordinator.synchronize()
+    emotion.reset_to_baseline(coordinator._timestamp)
+
+    try:
+        runtime.release.set()
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert emotion.get_emotion_value("anger") == pytest.approx(
+            emotion.parameters("anger").baseline
+        )
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_frame_replay_reuses_fast_candidate_without_double_application() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    coordinator, emotion, _energy = _coordinator(
+        workspace,
+        BlockingPlanRuntime(),
+        RecordingPlanSink(),
+    )
+    workspace.publish(_social(1, 0, source_kind="owner", text="I hate you"))
+    first_turn = TurnId("turn-first")
+    frame = workspace.claim_frame(
+        workspace.metrics().latest_ingest_seq,
+        turn_id=first_turn,
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+    )
+    txn, is_new = coordinator._prepare_affect_transaction(frame, first_turn)
+    assert is_new is True
+    assert emotion.commit_turn_state(txn.fast_candidate)
+    coordinator._affect_txn = txn
+    first_anger = emotion.get_emotion_value("anger")
+    workspace.release(frame.frame_id, first_turn, "test-replay")
+
+    replay_turn = TurnId("turn-replay")
+    replay_frame = workspace.claim(frame.frame_id, replay_turn)
+    replay_txn, is_new = coordinator._prepare_affect_transaction(
+        replay_frame,
+        replay_turn,
+    )
+
+    assert is_new is False
+    assert replay_txn is txn
+    assert emotion.get_emotion_value("anger") == pytest.approx(first_anger)
 
 
 @pytest.mark.parametrize(

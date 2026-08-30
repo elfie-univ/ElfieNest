@@ -499,7 +499,14 @@ def _validate_emotion_dynamics(document: Mapping[str, Any], label: str) -> None:
 
     _keys(
         document,
-        {"version", "channels", "strength_knots", "source_weights", "personality"},
+        {
+            "version",
+            "channels",
+            "strength_knots",
+            "source_weights",
+            "presentation",
+            "personality",
+        },
         label,
     )
     channels = _object(document.get("channels"), f"{label}.channels")
@@ -544,8 +551,26 @@ def _validate_emotion_dynamics(document: Mapping[str, Any], label: str) -> None:
             )
         previous = number
     weights = _object(document.get("source_weights"), f"{label}.source_weights")
+    sources = {"physical", "social", "execution", "internal", "model"}
+    _keys(weights, sources, f"{label}.source_weights")
+    _require_keys(weights, sources, f"{label}.source_weights")
     for source, value in weights.items():
         _positive_number(value, f"{label}.source_weights.{source}")
+    presentation = _object(document.get("presentation"), f"{label}.presentation")
+    _keys(
+        presentation,
+        {"trend_threshold", "secondary_ratio"},
+        f"{label}.presentation",
+    )
+    _require_keys(
+        presentation,
+        {"trend_threshold", "secondary_ratio"},
+        f"{label}.presentation",
+    )
+    for field in ("trend_threshold", "secondary_ratio"):
+        value = _number(presentation.get(field), f"{label}.presentation.{field}")
+        if not 0.0 <= value <= 1.0:
+            raise ConfigSchemaError(f"{label}.presentation.{field} 必须在 0 到 1 之间")
     _object(document.get("personality"), f"{label}.personality")
 
 

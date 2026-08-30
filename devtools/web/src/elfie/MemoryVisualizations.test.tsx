@@ -139,7 +139,7 @@ const denseSession = sessionSchema.parse({
   current_state: {
     energy: 80,
     fatigue: 20,
-    dominant_emotion: "curious",
+    primary_emotion: "happiness",
     is_sleeping: false,
     memory_count: 20,
   },

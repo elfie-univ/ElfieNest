@@ -4,11 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from elfie.brain.emotion.detector import (
-    EmotionDetector,
-    NoEmotionDetectedError,
-    UnsupportedEmotionModalityError,
-)
 from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
 from elfie.brain.emotion.emotion_types import ObservedEmotionType as EmotionType
 
@@ -101,24 +96,3 @@ def test_mixed_language_is_scored_by_both_lexicons() -> None:
     assert assessment.language == "mixed"
     assert assessment.emotion is None
     assert assessment.alternatives
-
-
-@pytest.mark.parametrize("modality", ("audio", "image"))
-def test_version_one_unified_detector_rejects_unsupported_media(
-    modality: str,
-) -> None:
-    with pytest.raises(UnsupportedEmotionModalityError):
-        EmotionDetector().detect(
-            {"type": modality, "path": "unused", "event_id": "media-1"}
-        )
-
-
-def test_version_one_unified_detector_does_not_encode_abstention_as_calm() -> None:
-    with pytest.raises(NoEmotionDetectedError):
-        EmotionDetector().detect(
-            {
-                "type": "text",
-                "content": "The train leaves at six.",
-                "event_id": "text-1",
-            }
-        )

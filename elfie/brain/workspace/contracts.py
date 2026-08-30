@@ -318,6 +318,10 @@ class WorkspaceSeenEvent(FrozenContractModel):
 
     event_id: EventId
     ingest_seq: _Sequence
+    write_digest: Annotated[
+        str,
+        StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$"),
+    ]
 
 
 class WorkspacePersistentState(FrozenContractModel):

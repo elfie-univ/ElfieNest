@@ -12,7 +12,11 @@ from elfie.brain.consolidation.system import (
     CognitiveConsolidationCheckpoint,
     CognitiveConsolidationSystem,
 )
-from elfie.brain.emotion.contracts import EmotionSnapshot
+from elfie.brain.emotion.contracts import (
+    AppraisalRelevance,
+    EmotionSnapshot,
+    TrustedAppraisalScope,
+)
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import ClosedEpisode
@@ -35,7 +39,7 @@ from elfie.brain.reasoning.memory_context import MemoryContextReader
 from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.state_lifecycle import StateCandidate, StateCommitReceipt
-from elfie.brain.workspace.contracts import TurnFrame
+from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
 from elfie.message_types import EventId, TurnId, UTCDateTime
 
 CapabilityReader = Callable[
@@ -101,6 +105,36 @@ class BrainContextProvider:
     ) -> Tuple[EpisodicMemoryCandidate, ...]:
         with self._memory_lock:
             return self._memory.candidates(frame, emotion, captured_at)
+
+    def emotion_appraisal_scopes(
+        self,
+        frame: TurnFrame,
+    ) -> tuple[TrustedAppraisalScope, ...]:
+        """Bind empathic scope only to a trusted source actor relationship."""
+
+        scopes: list[TrustedAppraisalScope] = []
+        with self._memory_lock:
+            for event in frame.events:
+                payload = event.payload
+                if not isinstance(payload, SocialPayload):
+                    continue
+                relationship = self._memory.relationship_importance(
+                    str(payload.sender.actor_id),
+                    owner=payload.sender.source_kind == "owner",
+                )
+                if relationship is None:
+                    continue
+                scopes.append(
+                    TrustedAppraisalScope(
+                        scope_id=f"appraisal:{event.meta.event_id}:indirect",
+                        cause_event_id=event.meta.event_id,
+                        relevance=AppraisalRelevance.INDIRECT,
+                        related_actor_id=str(payload.sender.actor_id),
+                        relationship_revision=relationship.revision,
+                        relationship_weight=relationship.importance,
+                    )
+                )
+        return tuple(scopes)
 
     def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
         """Return upstream-closed Episodes awaiting source-first capture."""

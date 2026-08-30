@@ -10,8 +10,7 @@ from uuid import uuid4
 
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
-from elfie.brain.emotion.appraiser import EmotionAppraiser
-from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
@@ -79,17 +78,13 @@ class CoordinatorTurnFactory:
         self,
         *,
         elfie_id: ElfieId,
-        emotion: EmotionSystem,
         homeostasis: EnergySystem,
-        appraiser: EmotionAppraiser,
         context_source: BrainContextSource,
         hard_timeout_seconds: float,
         allowed_tools: Tuple[str, ...] = (),
     ) -> None:
         self._elfie_id = elfie_id
-        self._emotion = emotion
         self._homeostasis = homeostasis
-        self._appraiser = appraiser
         self._context_source = context_source
         self._hard_timeout = hard_timeout_seconds
         self._allowed_tools = allowed_tools
@@ -102,24 +97,13 @@ class CoordinatorTurnFactory:
         turn_id: TurnId,
         timestamp: float,
         *,
+        stable_emotion: EmotionSnapshot,
+        emotion: EmotionSnapshot,
+        appraisal_scopes: tuple[TrustedAppraisalScope, ...],
         requires_model: bool = True,
     ) -> ReasoningTask:
         """Appraise inputs, seal snapshots, and compile one model request."""
         captured_at = datetime.fromtimestamp(timestamp, timezone.utc)
-        stable_emotion = self._emotion.snapshot(timestamp)
-        # The replay anchor is the stable state at this Turn's event time,
-        # after passive recovery but before any fast appraisal effects.
-        emotion_checkpoint = self._emotion.checkpoint()
-        for event in frame.events:
-            stimulus = self._appraiser.appraise(event)
-            if stimulus is not None:
-                stimulus = stimulus.model_copy(update={"turn_id": turn_id})
-                self._emotion.apply_stimulus(
-                    stimulus,
-                    phase="fast",
-                    status="provisional",
-                )
-        emotion = self._emotion.snapshot(timestamp)
         self._homeostasis.snapshot(timestamp)
         energy_reservation = (
             self._homeostasis.reserve_cognitive_budget(
@@ -210,7 +194,7 @@ class CoordinatorTurnFactory:
         )
         context = self._context_builder.assemble(
             frame=frame,
-            emotion=stable_emotion,
+            emotion=emotion,
             homeostasis=homeostasis,
             conversation=conversation,
             memory=memory,
@@ -263,6 +247,7 @@ class CoordinatorTurnFactory:
             fast_owner_reply=fast_owner_reply,
             structured_owner_reply=structured_owner_reply,
             decision_seed=seed,
+            appraisal_scopes=appraisal_scopes,
         )
         request = ModelGenerationRequest(
             turn_id=seed.turn_id,
@@ -299,8 +284,8 @@ class CoordinatorTurnFactory:
             state_candidates=state_candidates,
             closed_episodes=closed_episodes,
             reply_safety_context=self._reply_safety_context(frame),
-            emotion_checkpoint=emotion_checkpoint,
             emotion_snapshot=emotion,
+            appraisal_scopes=appraisal_scopes,
         )
 
     @staticmethod
@@ -467,9 +452,8 @@ class CoordinatorTurnFactory:
         fast_owner_reply: bool,
         structured_owner_reply: bool = False,
         decision_seed: DecisionDecodeSeed | None = None,
+        appraisal_scopes: tuple[TrustedAppraisalScope, ...] = (),
     ) -> tuple[str, str]:
-        if not fast_owner_reply and not structured_owner_reply:
-            return "\n".join(compiled.policies), compiled.model_dump_json()
         name = compiled.profile_anchors.display_name or "Elfie"
         description = compiled.selfhood.self_description or "a living Elfie"
         identity_context = CoordinatorTurnFactory._identity_context(compiled)
@@ -498,20 +482,30 @@ class CoordinatorTurnFactory:
         else:
             response_policy = "Return only a validated DecisionPlan JSON object."
         emotion_feedback_instruction = (
-            "EMOTION_FEEDBACK: Include emotion_feedback in every owner DecisionPlan. "
-            "Return exactly six effects, one per channel: happiness, sadness, anger, "
-            "fear, surprise, disgust. For each effect return direction (increase, "
-            "decrease, unchanged), semantic strength 0..100, and confidence 0..1. "
-            "The host converts these semantic directions into numeric stock changes; "
-            "never return numeric deltas. This describes how the event affects Elfie, "
-            "not the owner's emotion. If the owner only reports their own feeling "
-            "(for example, 'I am sad') and does not act on or change Elfie's situation, "
-            "record observed_other_affect if useful but return unchanged with strength "
-            "0 for all six channels. Do not turn the owner's sadness into Elfie's "
-            "sadness. Use a non-zero effect only for an explicit self-relevant "
-            "consequence."
-            if fast_owner_reply or structured_owner_reply
-            else ""
+            "EMOTION_FEEDBACK: Include emotion_feedback in every DecisionPlan. "
+            "Return only sparse appraisals that have positive evidence. An empty "
+            "appraisals array is valid and preferred to guessing. Each appraisal must "
+            "select exactly one host-provided scope_id and list only changed channels. "
+            "Never invent a scope, actor, relationship, placeholder channel, numeric "
+            "delta, or final stock value. Each effect returns increase/decrease, "
+            "semantic strength 1..100, and explicit confidence >0..1. Omitted channels "
+            "are unchanged; absence of an emotion is not a decrease. Appraise only how "
+            "the event changes Elfie's own state. A person's reported feeling is not "
+            "automatically Elfie's feeling. Use one scope at most once. Available "
+            "host scopes: "
+            + json.dumps(
+                [
+                    {
+                        "scope_id": scope.scope_id,
+                        "cause_event_id": str(scope.cause_event_id),
+                        "relevance": scope.relevance.value,
+                        "related_actor_id": scope.related_actor_id,
+                    }
+                    for scope in appraisal_scopes
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
         )
         system_prompt = "\n\n".join(
             (
@@ -548,7 +542,8 @@ class CoordinatorTurnFactory:
             for item in tuple(compiled.activities.items)[:3]
         )
         observations = "\n".join(
-            f"- {item.modality}: {item.content}"
+            f"- {item.modality}; actor={item.actor.source_kind}:"
+            f"{item.actor.actor_id}: {item.content}"
             for item in compiled.events
             if current is None or item.event_id != current.event_id
         )
@@ -651,17 +646,17 @@ class CoordinatorTurnFactory:
         homeostasis = compiled.homeostasis
         orientation = compiled.orientation
         trend_by_name = dict(emotion.trends)
-        ranked = sorted(
-            emotion.values,
-            key=lambda item: item.intensity,
-            reverse=True,
-        )
         emotion_values = (
-            ", ".join(
-                f"{item.name}={CoordinatorTurnFactory._emotion_level(item.intensity)}"
-                f"/{trend_by_name.get(item.name, 'steady')}"
-                for item in ranked[:3]
-                if item.intensity >= 0.08
+            "; ".join(
+                f"{item.name.value} at {round(item.intensity * 100)}/100"
+                + (
+                    ", rising"
+                    if trend_by_name.get(item.name) == "rising"
+                    else ", falling"
+                    if trend_by_name.get(item.name) == "falling"
+                    else ""
+                )
+                for item in emotion.active
             )
             or "calm"
         )
@@ -669,9 +664,11 @@ class CoordinatorTurnFactory:
             (
                 "CURRENT_BRAIN_STATE (gently affect tone and choices; do not recite):",
                 (
-                    f"- elfie emotion: primary={emotion.primary or 'calm'}; "
-                    f"secondary={emotion.secondary or 'none'}; "
-                    f"active channels={emotion_values}"
+                    f"- elfie emotion: primary="
+                    f"{emotion.primary.value if emotion.primary else 'calm'}; "
+                    f"secondary="
+                    f"{emotion.secondary.value if emotion.secondary else 'none'}; "
+                    f"currently felt={emotion_values}"
                 ),
                 (
                     f"- energy={homeostasis.energy:g}; fatigue={homeostasis.fatigue:g}; "
@@ -685,16 +682,6 @@ class CoordinatorTurnFactory:
                 ),
             )
         )
-
-    @staticmethod
-    def _emotion_level(value: float) -> str:
-        if value < 0.25:
-            return "low"
-        if value < 0.60:
-            return "moderate"
-        if value < 0.85:
-            return "high"
-        return "very_high"
 
     @staticmethod
     def _identity_context(compiled) -> str:

@@ -169,35 +169,14 @@ class BrainRuntime:
     def start(self) -> None:
         if self._started:
             return
-        checkpoint_was_rebuilt = False
         try:
-            try:
-                checkpoint = self._journal_store.load_checkpoint()
-            except (TypeError, ValueError) as error:
-                # v1 emotion state is intentionally incompatible with the
-                # six-channel initial release.  Start from fresh defaults and
-                # overwrite the checkpoint after the lifecycle is healthy.
-                logger.warning(
-                    "Discarding incompatible Brain checkpoint during v1 rebuild: %s",
-                    type(error).__name__,
-                )
-                checkpoint = None
-                checkpoint_was_rebuilt = True
+            checkpoint = self._journal_store.load_checkpoint()
             if checkpoint is not None:
-                try:
-                    self._restore_clock(checkpoint.captured_at)
-                    self.restore_continuity(checkpoint)
-                except (TypeError, ValueError) as error:
-                    logger.warning(
-                        "Discarding incompatible Brain checkpoint during v1 rebuild: %s",
-                        type(error).__name__,
-                    )
-                    checkpoint_was_rebuilt = True
+                self._restore_clock(checkpoint.captured_at)
+                self.restore_continuity(checkpoint)
             recovered = self._reconcile_interrupted_work()
             self.router.start()
             self.coordinator.start()
-            if checkpoint_was_rebuilt:
-                self._save_continuity()
             if recovered:
                 self.coordinator.notify_perception()
         except (OSError, RuntimeError):
@@ -264,7 +243,6 @@ class BrainRuntime:
         """Capture one checkpoint for the Stage 4C continuous state owners."""
         return BrainContinuityCheckpoint(
             captured_at=self._clock(),
-            emotion=self._emotion.checkpoint(),
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
             orientation=self.context.orientation_checkpoint(),
@@ -278,7 +256,6 @@ class BrainRuntime:
         """Prevalidate and restore all continuous owners while Brain is stopped."""
         if self._started:
             raise RuntimeError("cannot restore Brain continuity while it is running")
-        self._emotion.validate_checkpoint(checkpoint.emotion)
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
         self.context.validate_orientation_checkpoint(checkpoint.orientation)
@@ -286,7 +263,6 @@ class BrainRuntime:
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
         self.context.validate_consolidation_checkpoint(checkpoint.consolidation)
         self.context.validate_conversation_checkpoint(checkpoint.conversation)
-        self._emotion.restore(checkpoint.emotion)
         self._homeostasis.restore(checkpoint.energy)
         self.context.restore_memory_checkpoint(checkpoint.memory)
         self.context.restore_orientation_checkpoint(checkpoint.orientation)

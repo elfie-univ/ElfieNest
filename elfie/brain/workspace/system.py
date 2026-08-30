@@ -22,6 +22,7 @@ from elfie.brain.workspace.storage import WorkspaceStorage
 from elfie.brain.workspace.types import (
     ActiveClaimError,
     FrameLifecycleError,
+    ReleaseDisposition,
     TriggerMetrics,
     WaitStatus,
     WorkspaceClaim,
@@ -79,14 +80,19 @@ class EventWorkspace:
                 return self._ingest.receipt(
                     event_id, IngestDisposition.REJECTED, None, False, reason
                 )
-            duplicate_seq = self._ingest.duplicate_seq(event_id)
-            if duplicate_seq is not None:
+            duplicate = self._ingest.duplicate(item)
+            if duplicate is not None:
+                duplicate_seq, same_write = duplicate
                 return self._ingest.receipt(
                     event_id,
-                    IngestDisposition.DUPLICATE,
-                    duplicate_seq,
+                    (
+                        IngestDisposition.DUPLICATE
+                        if same_write
+                        else IngestDisposition.REJECTED
+                    ),
+                    duplicate_seq if same_write else None,
                     False,
-                    "duplicate",
+                    "duplicate" if same_write else "event_id_conflict",
                 )
             if isinstance(item, PerceptionEvent) and self._storage.journal_full:
                 return self._ingest.receipt(
@@ -99,7 +105,7 @@ class EventWorkspace:
             previous = self._persistent_state()
             seq = self._allocate_seq()
             disposition = self._storage.store(item, seq)
-            self._ingest.remember(event_id, seq)
+            self._ingest.remember(item, seq)
             try:
                 self._persist_pending()
             except Exception:
@@ -180,7 +186,9 @@ class EventWorkspace:
                 self._active = claim
                 raise
 
-    def release(self, frame_id: EventId, turn_id: TurnId, reason: str) -> None:
+    def release(
+        self, frame_id: EventId, turn_id: TurnId, reason: str
+    ) -> ReleaseDisposition:
         """Replay failures twice, then emit reliable dead-letter evidence."""
         with self._signal.locked():
             claim = self._require_claim(frame_id, turn_id)
@@ -190,7 +198,7 @@ class EventWorkspace:
                 self._sealed = claim.frame
                 self._active = None
                 self._signal.bump()
-                return
+                return ReleaseDisposition.REPLAY
             previous = self._persistent_state()
             if not any(
                 isinstance(event, ProcessingFailureEvent)
@@ -204,7 +212,7 @@ class EventWorkspace:
                     reason=reason,
                     occurred_at=self._signal.now(),
                 )
-                self._ingest.remember(failure.meta.event_id, seq)
+                self._ingest.remember(failure, seq)
             self._commit(claim.frame)
             try:
                 self._persist_pending()
@@ -212,6 +220,7 @@ class EventWorkspace:
                 self._restore_persistent_state(previous)
                 self._active = claim
                 raise
+            return ReleaseDisposition.DEAD_LETTERED
 
     def dead_letters(self) -> Tuple[ProcessingFailureEvent, ...]:
         """Return immutable audit evidence for terminal processing failures."""
@@ -281,7 +290,7 @@ class EventWorkspace:
         )
         ingest = WorkspaceIngestIndex(self._dedupe_capacity)
         for seen in state.seen_events:
-            ingest.remember(seen.event_id, seen.ingest_seq)
+            ingest.restore(seen)
         next_seq = state.next_ingest_seq
         for pending in state.pending_writes:
             item = pending.write
@@ -295,7 +304,7 @@ class EventWorkspace:
                 )
             seq = pending.ingest_seq
             if ingest.duplicate_seq(item.meta.event_id) is None:
-                ingest.remember(item.meta.event_id, seq)
+                ingest.remember(item, seq)
             storage.store(item, seq)
         storage.restore_loss_records(state.loss_records)
         self._storage = storage
@@ -322,6 +331,7 @@ __all__ = (
     "FrameLifecycleError",
     "EventWorkspace",
     "ProcessingFailureEvent",
+    "ReleaseDisposition",
     "TriggerMetrics",
     "WaitStatus",
 )
