@@ -273,7 +273,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.1",
+        version="1.2",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
@@ -285,6 +285,10 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         agent_paths=("elfie/brain/AGENTS.md",),
         scanner_paths=(),
         test_paths=("test/architecture/test_elfie_brain_contract.py",),
+        conformance_paths=(
+            "docs/developer/conformance/elfie-emotion.md",
+            "docs/zh/developer/conformance/elfie-emotion.md",
+        ),
     ),
     ContractRegistration(
         contract_id="application-architecture",

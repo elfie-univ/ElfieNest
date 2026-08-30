@@ -227,7 +227,9 @@ process restart.
 
 **Owns:** current emotion dimensions, intensity and recovery trend; appraisal of
 events, people, bodily feelings and recalled memories; baseline, personality
-differences, accumulation, decay and cooldown; traceable emotion-change events.
+differences, accumulation, decay and cooldown; frame-scoped appraisal scopes and
+bounded recent source identity. The complete accepted dynamics and lifecycle are
+defined by the [Elfie Emotion system design](./elfie-emotion-system).
 
 **Inputs:** communication and embodied events, Memory activation, body state,
 success, failure and real receipts.
