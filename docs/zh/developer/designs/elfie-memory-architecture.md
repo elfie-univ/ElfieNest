@@ -54,7 +54,7 @@ Episode 可以是一段对话或关系事件、一次学习过程、一次身体
 - 完整原文/转写和持久媒体引用；
 - 可用时的派生特征；
 - 精灵观察到、被告知、推断或感受到的内容及其归因；
-- 来源引用、隐私范围、`importance`、`retention_days`、`detail_level`、`lifecycle`、版本和内容哈希。
+- 来源引用、隐私范围、`importance`、`retention_profile`、`half_life_days`、`detail_level`、`lifecycle`、版本和内容哈希。
 
 运行时学习必须先完整写入，再投影图谱。例如学习牛顿第一定律时，解释、教学上下文和来源先作为一个 Episode 保存，后续维护再从中投影可复用知识。Genesis 种子内容在批准来源中保持完整；属于个人经历的传记种子表示为完整 Episode。
 
@@ -68,7 +68,7 @@ Episode 可以是一段对话或关系事件、一次学习过程、一次身体
 
 节点是异构语义锚点，包括精灵、人、宠物、群体、星球、地点、设施、物品、食物、物种、概念、文化观念、物理规律、理论、情绪、主观体验、事件引用和 Claim/知识对象。
 
-Node 具有稳定身份、`node_type`、规范名称、作用域、状态、`importance`、`retention_days` 和 `confidence`。别名和带来源的描述与 Node 关联。大小和层级通过 `part_of`、`subtype_of`、`generalizes` 等带类型关系表达。不把每个词都拆成 Node；可复用的语义单元才规范化，完整措辞仍保留在描述或 Episode 中。
+Node 具有稳定身份、`node_type`、规范名称、作用域、状态、`importance`、`retention_profile`、`half_life_days` 和 `confidence`。别名和带来源的描述与 Node 关联。大小和层级通过 `part_of`、`subtype_of`、`generalizes` 等带类型关系表达。不把每个词都拆成 Node；可复用的语义单元才规范化，完整措辞仍保留在描述或 Episode 中。
 
 #### 2.2.2 Assertions / Relations
 
@@ -79,7 +79,7 @@ Assertion 是带来源的命题。简单命题可以表示为带类型的有向�
 主人 --helped--> 精灵
 ```
 
-它可以带 Node 或带类型字面量作为对象，并包含极性、认识状态、时间范围、视角、上下文、有效期、冲突组、`importance`、`retention_days` 和 `confidence`。对于社会关系亲密度、信任度等领域专属程度，使用带类型的 Assertion 限定信息；`importance` 是召回和维护使用的默认边重要性。Evidence 行及其立场提供支持记录，不再存第三个语义分数。
+它可以带 Node 或带类型字面量作为对象，并包含极性、认识状态、时间范围、视角、上下文、有效期、冲突组、`importance`、`retention_profile`、`half_life_days` 和 `confidence`。对于社会关系亲密度、信任度等领域专属程度，使用带类型的 Assertion 限定信息；`importance` 是召回和维护使用的默认边重要性。Evidence 行及其立场提供支持记录，不再存第三个语义分数。
 
 如果命题本身有条件、版本、描述或证据，就用 Claim/知识 Node 以及相关 Assertion 表达，而不是把整句话硬塞进一条边：
 
@@ -120,30 +120,33 @@ raise 且 T_I > I：I' = I + eta * (T_I - I)
 lower 且 T_I < I：I' = I + eta * (T_I - I)
 ```
 
-`memory.v2` 事件类别是普通 `routine` `(T_I=.35, eta=.10)`、有意义 `meaningful` `(.60, .20)`、重大 `major` `(.85, .35)` 和核心 `core` `(1.0, .50)`。可审计的重新评价使用普通降低 `(.30, .25)`、重大降低 `(.10, .50)` 或解除 `(0, 1)`。模型可以提出事件类别，但不能选择 `T_I` 或 `eta`。Node 与 Assertion 的重要性各自独立，不能沿图邻接传播。
+`memory.v3` 事件类别是普通 `routine` `(T_I=.35, eta=.10)`、有意义 `meaningful` `(.60, .20)`、重大 `major` `(.85, .35)` 和核心 `core` `(1.0, .50)`。可审计的重新评价使用普通降低 `(.30, .25)`、重大降低 `(.10, .50)` 或解除 `(0, 1)`。模型可以提出事件类别，但不能选择 `T_I` 或 `eta`。Node 与 Assertion 的重要性各自独立，不能沿图邻接传播。
 
 更新按 `(event_id, target_kind, target_id)` 幂等。同一 ClosedEpisode 内同一目标、方向和类别的重复信号只结算一次。跨 Episode 时，提高和降低方向分别进入按事件时间排列、由窗口首个事件锚定的 24 小时窗口；每个方向/窗口只结算最高类别。相反方向仍是两次独立重估，并按事件时间折叠。收据保留来源、发生时间和策略版本；迟到事件按 `(occurred_at, event_id)` 重放，因此到达顺序不会改变结果。过期、长期未使用、召回失败和冲突 Evidence 都不会在缺少独立语义重估事件时降低 `importance`。
 
 #### 2.3.2 Retention 与 freshness
 
-每个 Episode、Node 和 Assertion 都保存 `retention_days`（`D > 0`）、`last_reinforced_at` 和 Retention 策略版本。`D` 是从新鲜状态到普通召回边界的一轮跨度，不是半衰期或剩余天数。当前 `freshness`（`F`）只派生、不持久化：
+每个 Episode、Node 和 Assertion 都保存 `retention_profile`、`half_life_days`（`H > 0`）、`last_reinforced_at` 和 Retention 策略版本。`H` 是 freshness 从 `1` 降到 `.5` 所需时间，不是剩余天数；仅仅经过时间不会改变 `H`。当前 `freshness`（`F`）只派生、不持久化：
 
 ```text
 t = max(0, now - last_reinforced_at)
-F(t) = 1 / (1 + 9 * (t / D)^2.6)
+F(t) = 2^(-t / H)
 ```
 
-因此 `F(0)=1`、`F(D/2)~=0.4`、`F(D)=0.1`。运行时初始跨度由带版本策略给出：短暂细节 `2` 天、普通记忆 `7` 天、显著/重大经历 `30` 天。强烈且有来源的情绪/感官显著性可以通过有界确定性评价选择 30 天准入档，但不能自动提高 importance 或 confidence；以后仅因情绪/感官命中 Recall 也不构成强化。Genesis 创建的所有 Episode、Node、Assertion 一律从 `3650` 天开始。全局上限为 `36500` 天。
+因此 `F(0)=1`、`F(H)=.5`、`F(2H)=.25`。Memory 只拥有一套带版本的准入策略，根据记录种类、已注册的 Node 类型或 Assertion predicate、经授权的来源类别及有界显著性信号，解析出策略拥有的 `retention_profile` 和初始半衰期 `H0`；调用方和模型不能选择任意数值。初始 profile 为：短暂细节 `transient` `.5` 天、普通运行时 Episode `ordinary` `2` 天、显著 Episode `salient` `9` 天、可复用语义 Node/Assertion `semantic` `30` 天、Pattern/规律 `pattern` `60` 天、稳定人物/身份/长期关系 `stable_identity` `365` 天、经授权 Genesis `genesis` `3650` 天。event/context Node 以及 `involves`、`temporal`、`felt` 等情景 Assertion 跟随来源 Episode profile。同一记录种类同时命中多个条件时，按 `genesis > stable_identity > pattern > semantic > salient > ordinary > transient` 确定性选择。持久化最终 profile、策略版本和准入原因。强烈且有来源的情绪、感官或后果显著性可以把运行时 Episode 提升到 `salient`，但不能自动提高 importance 或 confidence。强化只改变 `H`，保留 profile 作为准入来源；带来源的重新学习才可以重新解析 profile 和 `H0`。所有经授权的 Genesis 记录都选择 `genesis`：其十年数值是半衰期（十年后 `F=.5`），不是归档截止期；归档和遗忘由 Lifecycle 独立决定。`H` 的全局上限为 `36500` 天。
 
-只有 `F >= .1` 的 active 记录才能强化，并且必须出现以下带来源结果之一：此前的准确使用被明确确认有用/正确、使用它的行动成功、一次主动复习/温习完成，或新的独立 Evidence 直接再次涉及它。聊天回答仅仅完成不等于得到确认。候选生成、进入 RecallBundle/Prompt、图邻接、情绪/感官命中、维护、模型自称成功以及失败/拒绝/结果未知都不合格。纠正作为新 Evidence 处理，可以在降低 confidence 的同时强化 Retention。一个唯一合格事件执行：
+记录只有在产生带来源的合格结果或直接学习事件后才能强化：此前的准确使用被明确确认有用/正确、使用它的行动成功、一次隐藏来源的主动复习被独立验证成功，或新的独立 Evidence 通过正常 Consolidation 路径直接再次覆盖这条精确记录。失败检索后的权威重新呈现遵循下文单独的重学规则，不获得成功使用乘数。聊天回答仅仅完成不等于得到确认。候选生成、进入 RecallBundle/Prompt、图邻接、情绪/感官命中、维护、模型自称成功以及失败/拒绝/结果未知都不合格。强化公式在 `0 < F <= 1` 上连续，不含 Lifecycle 阈值；非 superseded 的归档记录被成功回忆后，按同一规则判定资格。一个唯一合格事件执行：
 
 ```text
-q = (1 - F) / .9
-D' = min(36500, D * (1 + q^2))
+difficulty = 1 - F
+multiplier = 1 + 2 * difficulty = 3 - 2F
+H' = min(36500, H * multiplier)
 last_reinforced_at = event.occurred_at
 ```
 
-更新按目标串行且幂等，收据按事件时间重放，迟到事件不能把计时起点错误改成处理时间。收据时间统一使用权威 UTC：超过有界未来时钟偏差的事件直接拒绝，小幅负读取时差钳制到零；缺少原始发生时间时不能用处理时间代替。`F < .1` 后记录进入归档，过期的旧 `D` 不再允许强化；再次遇到相同内容属于重新学习：写新 Episode/Evidence，通过正常写入侧身份解析器对 archived/forgotten 指纹做有界查找，复用已解析的 Node/Assertion 身份，把 `D` 重置为本次准入跨度并让鲜度恢复为一。该查找不是普通 Recall，也不是第二套 Retriever。非 superseded 匹配可以回到 `active`；superseded Assertion 必须有带来源的重新评价/撤销纠正，不能因为再次被提到就自动复活。
+倍数在 `F=1` 时为 `1`，在半衰期 `F=.5` 时为 `2`，并在 `F` 趋近零时趋近硬上限 `3`。初版带版本的调度校准采用 `p_success(F)=F`，因此按成功率加权的相对收益是 `G(F)=p_success(F)*(multiplier-1)=2F(1-F)`，它在 `.5` 有唯一最大值 `G(.5)=.5`。所以半衰期是默认的高效复习目标，但不是强化资格的硬阈值。`G` 只是派生的调度/评测代理量，不持久化，也不参与第二次强化计算。后续可在新策略版本中用实测校准替换 `p_success`，但不得静默改写已存 `H`。Importance 可以决定稀缺主动复习机会优先给谁，但不能改变该公式或直接改变 `H`。
+
+更新按目标串行且幂等，把 freshness 恢复为一；然后由带版本的 Lifecycle 策略决定是否重新激活非 superseded 归档记录。收据按事件时间重放；强化资格按 `event.occurred_at` 时的状态计算，因此维护时机不能改变结果。收据时间统一使用权威 UTC：超过有界未来时钟偏差的事件直接拒绝，小幅负读取时差钳制到零；缺少原始发生时间时不能用处理时间代替。失败召回且没有权威反馈时，`H` 和强化锚点都不变。失败召回后获得权威再暴露属于重新学习：写入新 Episode/Evidence，使用正常写侧身份解析器对 archived/forgotten 指纹做有界查找——不是普通 Recall，也不是第二个 Retriever——复用已解析的 Node/Assertion 身份，将 `H` 设为 `max(当前 H, 新解析 H0)` 并重置锚点，但不应用成功召回倍数。现实世界中重复发生的事件是新 Episode，不是改写旧 Episode。纠正走带来源的 Evidence/冲突路径，可以在降低 confidence 的同时恢复清晰度；superseded Assertion 必须有带来源的撤销才能重新激活，不能因为再次被提到就自动复活。
 
 #### 2.3.3 confidence
 
@@ -162,7 +165,7 @@ Evidence 权重来自带版本的来源策略；重复 ID 不计数。相关来�
 
 #### 2.3.4 Lifecycle eligibility（不新增分数）
 
-时间和 `D` 产生 `F`，`F` 驱动 Lifecycle eligibility。Lifecycle 不降低 `F`，也不改变 `I`、`D` 或 `C`。子级别名、描述和提及跟随父记录/来源依赖。设计不持久化 freshness 或综合召回分数。
+时间和 `H` 产生 `F`，`F` 驱动 Lifecycle eligibility。带版本的 Lifecycle 策略独占压缩、归档和遗忘阈值；强化不含这些阈值，Recall 只消费生命周期状态，不重新定义阈值。Lifecycle 不降低 `F`，也不改变 `I`、`H` 或 `C`。子级别名、描述和提及跟随父记录/来源依赖。设计不持久化 freshness 或综合召回分数。
 
 #### 2.3.5 detail level
 
@@ -198,7 +201,7 @@ Genesis 使用“单次提交”完成合同。一次 Genesis submission 是调�
 
 对于一次有效 submission，所有预期的权威记录和子记录——Node、Assertion、Evidence、传记 Episode、别名、描述和提及——以及本次 submission 的完成标记，必须作为一个完整单元持久化并可见。原子性就是“只接受当前提交”：写入前完成校验；Unit of Work 要么提交所有输出和标记，要么一个都不提交。失败调用只能返回失败或可重试结果，绝不能返回 `committed`。相同 submission 身份和哈希重放必须幂等；同一身份换用不同哈希必须拒绝。后续 submission 失败不能回滚先前已经成功提交的 submission。
 
-Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只向读取和维护暴露已经提交的 submission，不报告整个 Genesis 操作是否完成。已提交的 Elfie 不能被不同 manifest 静默重新初始化；升级是另一个经批准的操作。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的 Episode/Node/Assertion 初始 `importance` 和 Node/Assertion `confidence`；Genesis 产生的每条语义记录都从 `retention_days=3650` 开始。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
+Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只向读取和维护暴露已经提交的 submission，不报告整个 Genesis 操作是否完成。已提交的 Elfie 不能被不同 manifest 静默重新初始化；升级是另一个经批准的操作。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的 Episode/Node/Assertion 初始 `importance` 和 Node/Assertion `confidence`；它的授权准入统一选择 `genesis` profile，使 Genesis 产生的每条语义记录都获得 `retention_profile=genesis` 和 `half_life_days=3650`。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
 
 Genesis 对每只 Elfie 的准入按串行方式执行。完成标记是 Genesis 行的唯一可见性闸门：标记出现前，读取和维护都不能使用该 submission 的任何行。Genesis 可以接受只包含部分批准种子类别的一次完整 submission，不要求每次 submission 都包含所有种子类别，也不会推断调用方的批次策略。
 
@@ -227,14 +230,9 @@ Memory Maintenance 是一个有界操作，可以持续小批量运行，也可�
 
 #### 3.3.2 Lifecycle Stage
 
-对任何 `lifecycle` 为 active 的 Episode/Assertion，或 `status` 为 active 且没有规范合并目标的 Node，只要派生 freshness 到达阈值，就执行生命周期策略，不受捕获日期限制，并且不修改 `importance`、`retention_days`、`confidence` 或 `last_reinforced_at`：
+对任何 `lifecycle` 为 active 的 Episode/Assertion，或 `status` 为 active 且没有规范合并目标的 Node，只要派生 freshness 到达阈值，就执行第 6.3 节带版本的转换，不受捕获日期限制，并且不修改 `importance`、`retention_profile`、`half_life_days`、`confidence` 或 `last_reinforced_at`。这些阈值是 Lifecycle 运行参数，不是强化或 Recall 常量。
 
-- `F <= .40`：符合条件且已投影的 Episode 可以从 `full` 变为 `compressed`；
-- `F <= .20`：符合条件且已投影的 Episode 可以从 `compressed` 变为 `digest`；
-- `F < .10`：符合条件的 active 记录进入归档并退出普通 Recall；
-- `F <= .01` 且 `I <= .10`：归档至少 90 天后，只有来源和图依赖检查安全才标记为 `forgotten`。
-
-一个事务最多推进一个阶段。当前来源版本没有成功投影的 Episode 必须保留足够完整来源。自动遗忘只做逻辑标记并保留最小 digest、哈希和来源链；物理删除不属于 `memory.v2`。低 confidence 不是删除理由。旧记录由计算出的 `next_review_at` 发现，单条不安全目标不会阻塞其他有界记录。
+当前来源版本没有成功投影的 Episode 必须保留足够完整来源。自动遗忘只做逻辑标记并保留最小 digest、哈希和来源链；物理删除不属于 `memory.v3`。低 confidence 不是删除理由。旧记录由计算出的 `next_review_at` 发现，单条不安全目标不会阻塞其他有界记录。
 
 ### 3.4 Hybrid Recall
 
@@ -254,21 +252,7 @@ Memory Maintenance 是一个有界操作，可以持续小批量运行，也可�
 
 #### 3.4.4 RecallBundle
 
-最小路径是 Basic/Text → 种子 Node/Episode → 有界 Local/Graph 扩展 → 来源 Episode/Evidence 获取。排序前先执行隐私、namespace 和生命周期过滤。查询相关性 `R` 综合文本/语义匹配、路径及请求的时间/facet；Memory 再派生 `A=.65F+.35I`。active Node/Assertion 使用 `R*A*(.25+.75C)`，没有 confidence 的 Episode 使用 `R*A`；superseded/冲突 Assertion 进入独立的 `R*A` 通道，避免低 confidence 隐藏历史。每种记录各有自己的有界配额和稳定 ID 决胜规则；`D` 已经决定 `F`，不能重复计分。
-
-### 3.5 延期的 Memory Abstraction Loop
-
-本能力当前明确不实现。未来必须一次交付完整闭环：
-
-```text
-Node + Assertion → 夜间图上聚合 → 模型提案 + 确定性校验
-                 → Pattern 知识 Node → 按场景召回 → Reasoning 应用
-                 → 结果反馈
-```
-
-聚合从图中已有的相关 Node 和带来源 Assertion 出发；Episode 只用于核验来源链和原始语境，不作为主要聚类面。它是 Consolidation Stage 的未来扩展，不新增第三个 Memory Maintenance 阶段或另一维护入口。通过校验的 Pattern 是可复用的 Claim/知识 Node，包含规范化规律、适用条件和限制/反例。其推导必须保留对支撑 Node、Assertion 或下层 Pattern 及底层 Evidence 的引用；具体物理表示随该能力一并设计。
-
-不得只生成 Pattern。相同的端到端切片还必须接收事实所有者提供的类型化当前场景特征，通过直接匹配或向上图遍历召回适用 Pattern，在 `RecallBundle` 中完整保留规律、条件、反例和来源链，由 Reasoning 判断是否应用，并把结果写成新的 Episode，供后续强化、反驳或收窄 Pattern。上述路径及评测未同时完成前，Memory 不宣称支持 Pattern 抽象。
+最小路径是 Basic/Text → 种子 Node/Episode → 有界 Local/Graph 扩展 → 来源 Episode/Evidence 获取。排序前先执行隐私和 namespace 过滤。第一轮 Recall 只使用 active 记录；只有该有界检索不足、查询明确要求历史材料，或存在精确稳定 ID/高相关来源指纹时，独立限额的归档通道才能返回 archived 记录，并且不占用 active 通道配额。查询相关性 `R` 综合文本/语义匹配、路径及请求的时间/facet；Memory 再派生 `A=.65F+.35I`。在任一状态通道内，Node/Assertion 使用 `R*A*(.25+.75C)`，没有 confidence 的 Episode 使用 `R*A`；superseded/冲突 Assertion 进入独立的 `R*A` 通道，避免低 confidence 隐藏历史。每种记录及状态通道各有自己的有界配额和稳定 ID 决胜规则；`H` 已经决定 `F`，不能重复计分。单纯命中不构成强化；只有合格的成功结果才能重新激活并巩固 archived 记录。
 
 ### 3.5 延期的 Memory Abstraction Loop
 
@@ -348,17 +332,17 @@ SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只
 
 | 表 | 必须承担的职责 |
 | --- | --- |
-| `episodes` | 完整来源内容、发生时间范围（未知时可为空）及精度、历史 `life_stage`/`temporal_label`、独立写入时间、带归因的上下文/媒体/来源引用、隐私范围和版本、`importance`、`retention_days`、强化/生命周期元数据、`detail_level`、`lifecycle`、成功投影标记、幂等键和内容哈希。Episode 没有 confidence 列。 |
-| `nodes` | 规范身份、类型/名称、作用域/状态、有界摘要、`importance`、`retention_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据和合并指针。 |
+| `episodes` | 完整来源内容、发生时间范围（未知时可为空）及精度、历史 `life_stage`/`temporal_label`、独立写入时间、带归因的上下文/媒体/来源引用、隐私范围和版本、`importance`、`retention_profile`、`half_life_days`、强化/生命周期元数据、`detail_level`、`lifecycle`、成功投影标记、幂等键和内容哈希。Episode 没有 confidence 列。 |
+| `nodes` | 规范身份、类型/名称、作用域/状态、有界摘要、`importance`、`retention_profile`、`half_life_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据和合并指针。 |
 | `node_aliases` | 多条带作用域的别名及其来源和可信度。 |
 | `node_descriptions` | 多条按语言/种类区分的描述、内容哈希和来源关联。 |
 | `episode_mentions` | Episode 到 Node 的提及、角色/片段以及已解析/歧义/未解析状态。 |
-| `assertions` | 主体、谓词、Node 或显式带类型的字面量对象（type/value/unit）、限定信息、极性、认识状态、视角/上下文、有效期、`importance`、`retention_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据、冲突组、生命周期状态和指纹。 |
+| `assertions` | 主体、谓词、Node 或显式带类型的字面量对象（type/value/unit）、限定信息、极性、认识状态、视角/上下文、有效期、`importance`、`retention_profile`、`half_life_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据、冲突组、生命周期状态和指纹。 |
 | `evidence` | Episode 或种子来源的定位、来源版本、摘录/媒体片段、模态、说话者/视角、捕获时间、`independence_key`、来源可靠性类别/策略版本和抽取元数据。 |
 | `assertion_evidence` | Assertion/Evidence 多对多立场：`supports`、`contradicts` 或 `context`。 |
 | 分数事件收据 | Adapter 私有、不可召回、带来源的 importance 及合格使用/retention 事件，用于幂等、聚合和按事件时间重放；它是权威策略输入/审计状态，不是语义记忆类型，也不是被记住命题的第二来源。 |
 
-每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion，也不是重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。每条 Genesis 产出的行都带有 submission 身份；缺少对应完成标记的行对读取者不可见。可重试或中断的 submission 不是已初始化的 Memory，不能被召回；它的运行控制状态可以从不可变输入重建。完成标记记录（或校验）每类输出的预期 ID/数量，使对账不只检查 Node 是否存在。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。这些记录不形成第二个可变事实源。`importance` 和 Node/Assertion `confidence` 是语义分数；`retention_days` 是持久策略状态，freshness 和查询 rank 只派生。Evidence 行及其立场仍是权威支持记录。
+每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion，也不是重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。每条 Genesis 产出的行都带有 submission 身份；缺少对应完成标记的行对读取者不可见。可重试或中断的 submission 不是已初始化的 Memory，不能被召回；它的运行控制状态可以从不可变输入重建。完成标记记录（或校验）每类输出的预期 ID/数量，使对账不只检查 Node 是否存在。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。这些记录不形成第二个可变事实源。`importance` 和 Node/Assertion `confidence` 是语义分数；`retention_profile` 和 `half_life_days` 是持久策略状态，freshness 和查询 rank 只派生。Evidence 行及其立场仍是权威支持记录。
 
 ### 5.2 派生索引和缓存
 
@@ -388,7 +372,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 6.1 Episode 细节生命周期
 
-生命周期是已经存储记录的细节与可用状态，不是新的记忆类型。到期扫描同时覆盖新旧记录。`next_review_at` 是下一个 freshness 阈值预计被墙钟时间穿越的时刻，Retention 变化时重新计算，因此维护频率不能改变 freshness。Lifecycle 消费派生 `F`，但不更新 `I`、`D`、`C` 或强化锚点。当前来源版本没有成功投影的 Episode 必须保留足够完整来源；已投影 Episode 的细节可以从 `full` 变为 `compressed` 或 `digest`，归档是独立可用状态。两种变化都必须通过来源和图谱依赖检查。
+生命周期是已经存储记录的细节与可用状态，不是新的记忆类型。到期扫描同时覆盖新旧记录。`next_review_at` 是下一个 freshness 阈值预计被墙钟时间穿越的时刻，`H` 变化时重新计算，因此维护频率不能改变 freshness。穿越阈值只会产生待维护工作，不会隐式改状态；Recall 在有界且可观测的维护事务推进前，只能看到最后已提交状态。Lifecycle 消费派生 `F`，但不更新 `I`、`H`、`C` 或强化锚点。当前来源版本没有成功投影的 Episode 必须保留足够完整来源；已投影 Episode 的细节可以从 `full` 变为 `compressed` 或 `digest`，归档是独立可用状态。两种变化都必须通过来源和图谱依赖检查。
 
 ### 6.2 来源证据保护
 
@@ -396,7 +380,16 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 6.3 压缩、归档、摘要存根和遗忘
 
-生命周期维护先在 `F <= .40` 和 `F <= .20` 时降低 Episode 细节，再在 `F < .10` 时归档。只有 `F <= .01`、`I <= .10`、归档至少 90 天且来源/图依赖安全时才能逻辑遗忘。当前来源版本没有成功投影的 Episode 继续保留来源。遗忘保留最小 digest、哈希和来源链，不自动删除 Node、Assertion 或最后一条可审计 Evidence。重新学习归档内容是新的带来源事件，不是维护转换，也不能继续过期的 Retention 跨度。
+`memory.v3` 初版 Lifecycle 策略是：
+
+| 到期条件 | 一次提交的转换 |
+| --- | --- |
+| `F <= .40` | 符合条件且已投影 Episode：`full → compressed` |
+| `F <= .20` | 符合条件且已投影 Episode：`compressed → digest` |
+| `F < .10` | 符合条件的 active 记录：`active → archived` |
+| `F <= .01`、`I <= .10`、已归档至少 90 天且依赖安全 | `archived → forgotten` |
+
+这些数值是带版本的运行参数，不是人类记忆常量。一个事务对每个目标最多推进一个生命周期阶段。当前投影未成功的 Episode 继续保留来源。遗忘保留最小 digest、哈希、来源链、稳定语义/来源指纹，以及有界写侧身份解析和带来源重学所需的 `retention_profile`、`H` 与锚点；它不删除最后一条可审计 Evidence。合格的成功回忆可强化归档记录，并让 Lifecycle 重新激活它，但重新激活不会恢复已丢弃的细节。回忆失败后的权威重新暴露是新的带来源重学事件：至少保留原 `H`，可接受重新解析出的更高 `H0`，但不使用成功回忆倍数。现实世界再次发生的事件写成新 Episode。
 
 ### 6.4 0.x 全新库策略
 
@@ -434,7 +427,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.4 Importance、Retention、confidence 和冲突
 
-验证目标上限式 importance 更新及 24 小时聚合、事件时间重放、检查点压缩等价性和水位前迟到事件拒绝、冻结 freshness 向量、强化资格/增长/上限、过期与重新学习、与 Evidence 到达顺序无关的 Node/Assertion confidence，以及 Episode 不含 confidence。时间和 Lifecycle 不能修改 importance、retention 或 confidence；仅成为 Recall 候选不能强化；冲突 Evidence 仍可见，并且可以在强化 Retention 的同时降低 confidence。
+验证目标上限式 importance 更新及 24 小时聚合、事件时间重放、检查点压缩等价性和水位前迟到事件拒绝、冻结 freshness 向量、强化倍数单调且满足 `M(1)=1`、`M(.5)=2`、`lim(F→0+)M(F)=3`、`2F(1-F)` 在 `.5` 取最大值、归档记录成功回忆后重新激活、失败回忆与带来源重学、与 Evidence 到达顺序无关的 Node/Assertion confidence、每个带版本 Lifecycle 边界，以及 Episode 不含 confidence。时间和 Lifecycle 不能修改 importance、retention 或 confidence；仅成为 active 或 archived Recall 候选不能强化；冲突 Evidence 仍可见，并可以通过带来源的重新评价恢复清晰度，同时降低 confidence。
 
 ### 8.5 性能和容量
 
@@ -454,9 +447,9 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 9.2 分数、复查和生命周期
 
-- `importance` 和 Node/Assertion `confidence` 是持久化语义分数；`retention_days` 是持久策略状态。Episode 没有 confidence；freshness 和综合召回 rank 只派生、不持久化。不再保留 `support_score`。
-- Importance 根据幂等、带来源、已聚合的语义事件收据按事件时间折叠；confidence 根据全部唯一 Evidence/独立性组重算；Retention 根据幂等、按目标的权威结果/复习收据折叠；过期记忆的重新学习是新的有来源准入，不能作为旧跨度上的收据。重试或维护不能重复增加贡献。
-- Episode、Node 和 Assertion 保存 `retention_days`、强化/复查时间和策略版本。Lifecycle 根据 freshness 计算到期条件，不新增分数。
+- `importance` 和 Node/Assertion `confidence` 是持久化语义分数；`retention_profile` 和 `half_life_days` 是持久策略状态。Episode 没有 confidence；freshness、按成功率加权的复习收益和综合召回 rank 只派生、不持久化。不再保留 `support_score`。
+- Importance 根据幂等、带来源、已聚合的语义事件收据按事件时间折叠；confidence 根据全部唯一 Evidence/独立性组重算；成功使用的 Retention 根据幂等、按目标的合格结果/复习收据及 `H'=H*(3-2F)` 全局封顶公式折叠。回忆失败不变；权威重新暴露使用独立的带来源重学规则。重试或维护不能重复增加贡献。
+- Episode、Node 和 Assertion 保存 `retention_profile`、`half_life_days`、强化/复查时间和策略版本。Lifecycle 独占带版本的压缩、归档和遗忘阈值。Recall 只消费 `active`/`archived`/`forgotten` 状态，并把 archived 结果放入独立限额通道；强化保持连续且无阈值。
 - 生命周期转换受保护且按顺序执行：当前来源没有成功投影时先保留来源；再允许 `full` → `compressed` → `digest`，单独归档；只有通过 freshness、importance、驻留期和来源/Evidence 依赖检查后才能逻辑遗忘。遗忘不能删除 active Assertion 的最后可审计 Evidence。
 - Consolidation 租约、重试次数、检查点和被拒绝的提案属于权威事实之外的运行控制数据。一个有界的 Memory Maintenance Unit of Work 拥有写事务；普通捕获和 Genesis submission 仍是独立操作。
 
@@ -470,7 +463,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 ### 9.4 Recall 语义
 
 - Facet 是正向约束：不同 facet 类别之间使用 AND，同一类别内的值使用 OR；缺少 facet 信息不能变成负事实。历史情绪读取 Episode 的带归因来源，不能读取实时 Emotion 状态。
-- 排序按记录种类确定：先派生查询相关性 `R` 和 freshness `F`，active Node/Assertion 使用 `R*(.65F+.35I)*(.25+.75C)`，Episode 和冲突通道使用 `R*(.65F+.35I)`。结果按种类分开并用稳定 ID 决胜；策略分量都有界且带版本。
+- 排序按记录种类确定：先派生查询相关性 `R` 和 freshness `F`，在各自 active 或 archived 通道内的合格 Node/Assertion 使用 `R*(.65F+.35I)*(.25+.75C)`，Episode 和冲突通道使用 `R*(.65F+.35I)`。结果按种类和状态分开并用稳定 ID 决胜；策略分量都有界且带版本。
 - 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
 - 初始模式只有 Basic/Text 和 Local/Graph。Global/community 与向量检索仍是后续的派生能力，初始契约不宣称支持。
 

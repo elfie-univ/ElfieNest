@@ -23,7 +23,7 @@ from elfie.brain.memory.memory_records import (
     RecallAssertion,
     RecallEvidence,
     RecallNode,
-    RetentionClass,
+    RetentionProfile,
 )
 from elfie.brain.memory.predicates import (
     PREDICATE_REGISTRY_VERSION,
@@ -470,24 +470,42 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             return 0
         state = json_object(checkpoint["state_json"])
         if checkpoint["folded_through"]:
-            days = float(state.get("current_retention_days", 7.0))
+            days = float(state.get("current_half_life_days", 30.0))
             anchor = str(state.get("current_anchor") or now)
         else:
-            days = float(state.get("base_retention_days", 7.0))
+            days = float(state.get("base_half_life_days", 30.0))
             anchor = str(state.get("base_anchor") or now)
-        eligible = _retention_target_is_active(target_kind, target)
+        relearnable = _retention_target_is_relearnable(target_kind, target)
+        reactivated = False
         for row in prefix:
-            update = (
-                MemoryScorePolicy.reinforce(
-                    retention_days=days,
+            if str(row["outcome_kind"]) == "independent_evidence":
+                update = (
+                    MemoryScorePolicy.relearn(
+                        half_life_days=days,
+                        retention_profile=str(
+                            target["retention_profile"] or "semantic"
+                        ),
+                        occurred_at=str(row["occurred_at"]),
+                    )
+                    if relearnable
+                    else None
+                )
+                if update is not None:
+                    reactivated = True
+            else:
+                # The receipt was already admitted while the target was
+                # eligible.  Lifecycle may have archived it before this
+                # checkpoint is folded; that must not erase an accepted
+                # event.  Only independent evidence is gated by the current
+                # relearnable state because it is the path allowed to revive
+                # an archived identity.
+                update = MemoryScorePolicy.reinforce(
+                    half_life_days=days,
                     last_reinforced_at=anchor,
                     occurred_at=str(row["occurred_at"]),
                 )
-                if eligible
-                else None
-            )
             if update is not None:
-                days = update.retention_days
+                days = update.half_life_days
                 anchor = update.last_reinforced_at.isoformat(timespec="milliseconds")
         receipt_ids = tuple(str(row["receipt_id"]) for row in prefix)
         placeholders = ",".join("?" for _ in receipt_ids)
@@ -499,7 +517,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         folded_count = int(state.get("folded_event_count", 0) or 0) + len(prefix)
         state.update(
             {
-                "current_retention_days": days,
+                "current_half_life_days": days,
                 "current_anchor": anchor,
                 "folded_event_count": folded_count,
                 "folded_event_hash": _extend_fold_hash(
@@ -534,10 +552,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         self._update_retention_target_locked(
             target_kind=target_kind,
             target_id=target_id,
-            retention_days=days,
+            half_life_days=days,
             anchor=anchor,
             next_review=next_review,
             now=now,
+            reactivate=reactivated,
         )
         # Re-run the still-unfolded suffix from the newly folded state so the
         # materialized target remains equivalent to a full replay.
@@ -631,7 +650,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             now = utc_now()
             evidence_by_id: dict[str, EvidenceInput] = {}
             node_id_map: dict[str, str] = {}
+            node_reinforcement_allowed: dict[str, bool] = {}
             assertion_ids: dict[str, str] = {}
+            assertion_reinforcement_allowed: dict[str, bool] = {}
             importance_targets: list[tuple[str, str, str]] = []
             mentions_truncated = False
             owns = self._begin_write_transaction()
@@ -647,8 +668,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     self._insert_evidence(evidence, now)
                     evidence_by_id[evidence.evidence_id] = evidence
                 for node in projection.nodes:
-                    resolved_node_id = self._resolve_projection_node(node, now)
+                    resolved_node_id, node_was_existing = self._resolve_projection_node(
+                        node, now
+                    )
                     node_id_map[node.node_id] = resolved_node_id
+                    node_reinforcement_allowed[resolved_node_id] = (
+                        node_reinforcement_allowed.get(resolved_node_id, True)
+                        and node_was_existing
+                    )
                     if node.importance_event_class is not None:
                         importance_targets.append(
                             ("node", resolved_node_id, node.importance_event_class)
@@ -670,6 +697,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                             confidence=alias.confidence,
                         ),
                         now,
+                        reinforce_retention=node_reinforcement_allowed.get(
+                            resolved_alias_node_id, True
+                        ),
                     )
                 for description in projection.descriptions:
                     resolved_description_node_id: str | None = node_id_map.get(
@@ -693,6 +723,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                             confidence=description.confidence,
                         ),
                         now,
+                        reinforce_retention=node_reinforcement_allowed.get(
+                            resolved_description_node_id, True
+                        ),
                     )
 
                 existing_mention_keys = {
@@ -745,6 +778,13 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                             ),
                         ),
                         now,
+                        reinforce_retention=(
+                            node_reinforcement_allowed.get(
+                                resolved_mention_node_id, True
+                            )
+                            if resolved_mention_node_id is not None
+                            else True
+                        ),
                     )
                     existing_mention_keys.add(key)
 
@@ -799,8 +839,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         assertion_id=assertion.assertion_id,
                         importance=assertion.importance,
                         initial_importance=assertion.initial_importance,
-                        retention_days=assertion.retention_days,
-                        retention_class=assertion.retention_class,
+                        half_life_days=assertion.half_life_days,
+                        retention_profile=assertion.retention_profile,
                         importance_event_class=assertion.importance_event_class,
                         object_literal_type=assertion.object_literal_type,
                         predicate_registry_version=PREDICATE_REGISTRY_VERSION,
@@ -840,16 +880,31 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                                 assertion_id=normalized_assertion.assertion_id,
                                 importance=normalized_assertion.importance,
                                 initial_importance=normalized_assertion.initial_importance,
-                                retention_days=normalized_assertion.retention_days,
-                                retention_class=normalized_assertion.retention_class,
+                                half_life_days=normalized_assertion.half_life_days,
+                                retention_profile=normalized_assertion.retention_profile,
                                 importance_event_class=normalized_assertion.importance_event_class,
                                 object_literal_type=normalized_assertion.object_literal_type,
                                 predicate_registry_version=normalized_assertion.predicate_registry_version,
                                 policy_version=normalized_assertion.policy_version,
                                 genesis_submission_id=normalized_assertion.genesis_submission_id,
                             )
+                    assertion_was_existing = (
+                        self.conn.execute(
+                            "SELECT 1 FROM assertions WHERE fingerprint=? AND "
+                            + self._assertion_namespace_predicate("assertions"),
+                            (
+                                _assertion_fingerprint(normalized_assertion),
+                                *self._assertion_namespace_params(),
+                            ),
+                        ).fetchone()
+                        is not None
+                    )
                     assertion_id = self._insert_assertion(normalized_assertion, now)
                     assertion_ids[assertion.assertion_id or assertion_id] = assertion_id
+                    assertion_reinforcement_allowed[assertion_id] = (
+                        assertion_reinforcement_allowed.get(assertion_id, True)
+                        and assertion_was_existing
+                    )
                     if normalized_assertion.importance_event_class is not None:
                         importance_targets.append(
                             (
@@ -884,15 +939,19 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                             ),
                             assertion_id,
                             now,
+                            reinforce_retention=assertion_reinforcement_allowed[
+                                assertion_id
+                            ],
                         )
                     if superseded_id is not None:
                         # A correction is both new support for the replacement
                         # claim and an auditable contradiction of the former
                         # claim.  Link the same source Evidence to the old
                         # Assertion while it is still active so its confidence
-                        # is recomputed and its retention can be reinforced by
-                        # the correction event.  The subsequent status change
-                        # only affects availability; it never rewrites I/D/C.
+                        # is recomputed.  The correction is not a successful
+                        # use of the old claim, so it must not reinforce old H;
+                        # the subsequent status change only affects availability
+                        # and never rewrites I/H/C.
                         if normalized_assertion.context == "correction":
                             for evidence_id in assertion.evidence_ids:
                                 self._insert_assertion_evidence(
@@ -903,6 +962,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                                     ),
                                     superseded_id,
                                     now,
+                                    reinforce_retention=False,
                                 )
                         self.conn.execute(
                             "UPDATE assertions SET lifecycle='superseded', "
@@ -935,7 +995,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         raise ValueError(
                             f"unknown evidence in assertion link: {link.evidence_id}"
                         )
-                    self._insert_assertion_evidence(link, assertion_id, now)
+                    self._insert_assertion_evidence(
+                        link,
+                        assertion_id,
+                        now,
+                        reinforce_retention=assertion_reinforcement_allowed.get(
+                            assertion_id, True
+                        ),
+                    )
 
                 # A model appraisal is a sourced semantic event, not a
                 # caller-controlled numeric score.  Record and fold it only
@@ -1203,7 +1270,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params.extend(visibility_params)
             row = self.conn.execute(
                 """SELECT node_id, node_type, canonical_label, description,
-                          confidence, importance, retention_days, last_reinforced_at,
+                          confidence, importance, half_life_days, last_reinforced_at,
                           updated_at, properties_json FROM nodes AS n WHERE n.node_id=?
                           AND n.status IN ('active', 'candidate', 'unresolved')"""
                 + scope
@@ -1231,7 +1298,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params[-1:-1] = visibility_params
             rows = self.conn.execute(
                 """SELECT n.node_id, n.node_type, n.canonical_label, n.description,
-                          n.confidence, n.importance, n.retention_days,
+                          n.confidence, n.importance, n.half_life_days,
                           n.last_reinforced_at, n.updated_at, n.properties_json FROM nodes AS n WHERE n.status <> 'forgotten'
                                               AND n.merged_into IS NULL"""
                 + scope
@@ -1265,7 +1332,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             params.append(max(0, limit))
             rows = self.conn.execute(
                 """SELECT DISTINCT n.node_id, n.node_type, n.canonical_label,
-                          n.description, n.confidence, n.importance, n.retention_days,
+                          n.description, n.confidence, n.importance, n.half_life_days,
                           n.last_reinforced_at, n.updated_at, n.properties_json,
                           CASE WHEN n.normalized_label=? OR a.normalized_alias=? THEN 1.0
                                WHEN n.normalized_label LIKE ? THEN 0.8
@@ -1838,8 +1905,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 assertion_id=assertion.assertion_id,
                 importance=assertion.importance,
                 initial_importance=assertion.initial_importance,
-                retention_days=assertion.retention_days,
-                retention_class=assertion.retention_class,
+                half_life_days=assertion.half_life_days,
+                retention_profile=assertion.retention_profile,
                 importance_event_class=assertion.importance_event_class,
                 object_literal_type=assertion.object_literal_type,
                 predicate_registry_version=assertion.predicate_registry_version,
@@ -1863,6 +1930,20 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         f"unknown assertion object: {assertion.object_node_id}"
                     )
                 self._insert_evidence(evidence, now)
+                canonical_assertion = replace(
+                    assertion, predicate=resolve_predicate(assertion.predicate)
+                )
+                assertion_was_existing = (
+                    self.conn.execute(
+                        "SELECT 1 FROM assertions WHERE fingerprint=? AND "
+                        + self._assertion_namespace_predicate("assertions"),
+                        (
+                            _assertion_fingerprint(canonical_assertion),
+                            *self._assertion_namespace_params(),
+                        ),
+                    ).fetchone()
+                    is not None
+                )
                 assertion_id = self._insert_assertion(assertion, now)
                 self._insert_assertion_evidence(
                     AssertionEvidenceInput(
@@ -1872,6 +1953,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     ),
                     assertion_id,
                     now,
+                    reinforce_retention=assertion_was_existing,
                 )
                 self._commit_write_transaction(owns)
             except Exception:
@@ -1879,7 +1961,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 raise
         return assertion_id
 
-    def _resolve_projection_node(self, node: NodeInput, now: str) -> str:
+    def _resolve_projection_node(self, node: NodeInput, now: str) -> tuple[str, bool]:
         """Resolve a proposed semantic node to one canonical identity.
 
         Event/claim nodes are intentionally episode-scoped and are never
@@ -1918,14 +2000,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     prior_weight=node.prior_weight,
                     importance=node.importance,
                     initial_importance=node.initial_importance,
-                    retention_days=node.retention_days,
-                    retention_class=node.retention_class,
+                    half_life_days=node.half_life_days,
+                    retention_profile=node.retention_profile,
                     importance_event_class=node.importance_event_class,
                     properties=node.properties,
                 ),
                 now,
             )
-            return requested
+            return requested, True
 
         normalized = normalize_text(node.canonical_label)
         if node.node_type not in _NON_CANONICAL_NODE_TYPES:
@@ -1983,17 +2065,17 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         prior_weight=node.prior_weight,
                         importance=node.importance,
                         initial_importance=node.initial_importance,
-                        retention_days=node.retention_days,
-                        retention_class=node.retention_class,
+                        half_life_days=node.half_life_days,
+                        retention_profile=node.retention_profile,
                         importance_event_class=node.importance_event_class,
                         properties=node.properties,
                     ),
                     now,
                 )
-                return resolved
+                return resolved, True
 
         self._upsert_node(node, now)
-        return node.node_id
+        return node.node_id, False
 
     def _upsert_node(self, node: NodeInput, now: str) -> None:
         label = node.canonical_label.strip()
@@ -2002,7 +2084,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         existing = self.conn.execute(
             "SELECT node_type, normalized_label, scope, properties_json, description, "
             "first_seen_at, genesis_submission_id, initial_confidence, prior_weight, "
-            "importance, initial_importance, retention_days, last_reinforced_at, "
+            "importance, initial_importance, half_life_days, retention_profile, "
+            "last_reinforced_at, "
             "last_reviewed_at, next_review_at, lifecycle_changed_at "
             "FROM nodes WHERE node_id=?",
             (node.node_id,),
@@ -2071,17 +2154,24 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if existing is not None and existing["first_seen_at"]
             else now
         )
-        admission_days = MemoryScorePolicy.admission_retention(node.retention_class)
-        retention_days = (
-            float(existing["retention_days"])
-            if existing is not None and existing["retention_days"] is not None
+        retention_profile: RetentionProfile = (
+            str(existing["retention_profile"])  # type: ignore[assignment]
+            if existing is not None and existing["retention_profile"]
+            else (
+                "genesis" if active_submission is not None else node.retention_profile
+            )
+        )
+        admission_days = MemoryScorePolicy.admission_half_life(retention_profile)
+        half_life_days = (
+            float(existing["half_life_days"])
+            if existing is not None and existing["half_life_days"] is not None
             else admission_days
         )
         if (
             existing is None
             and getattr(self, "_active_genesis_submission_id", None) is not None
         ):
-            retention_days = MemoryScorePolicy.initial_retention("genesis")
+            half_life_days = MemoryScorePolicy.initial_half_life("genesis")
         anchor = (
             str(existing["last_reinforced_at"])
             if existing is not None and existing["last_reinforced_at"]
@@ -2092,7 +2182,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if existing is not None and existing["next_review_at"]
             else MemoryScorePolicy.next_review_at(
                 anchor,
-                retention_days,
+                half_life_days,
                 MemoryScorePolicy.active_freshness_threshold,
             ).isoformat(timespec="milliseconds")
         )
@@ -2125,11 +2215,12 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             """INSERT INTO nodes (
                    node_id, node_type, canonical_label, normalized_label,
                    description, scope, status, confidence, initial_confidence, prior_weight,
-                   importance, initial_importance, retention_days, properties_json,
+                   importance, initial_importance, half_life_days, retention_profile,
+                   properties_json,
                    first_seen_at, last_seen_at, updated_at, privacy_scope,
                    genesis_submission_id, last_reinforced_at, last_reviewed_at,
                    next_review_at, lifecycle_changed_at, policy_version
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(node_id) DO UPDATE SET
                    node_type=excluded.node_type,
                    canonical_label=excluded.canonical_label,
@@ -2142,7 +2233,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                    prior_weight=nodes.prior_weight,
                    importance=nodes.importance,
                    initial_importance=nodes.initial_importance,
-                   retention_days=nodes.retention_days,
+                   half_life_days=nodes.half_life_days,
+                   retention_profile=nodes.retention_profile,
                    properties_json=excluded.properties_json,
                    last_seen_at=excluded.last_seen_at,
                    updated_at=excluded.updated_at,
@@ -2172,7 +2264,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 prior_weight,
                 bounded_score(effective_importance),
                 bounded_score(initial_importance),
-                retention_days,
+                half_life_days,
+                retention_profile,
                 canonical_json(properties),
                 first_seen,
                 now,
@@ -2220,7 +2313,13 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             ),
         )
 
-    def _insert_alias(self, alias: AliasInput, now: str) -> None:
+    def _insert_alias(
+        self,
+        alias: AliasInput,
+        now: str,
+        *,
+        reinforce_retention: bool = True,
+    ) -> None:
         if alias.evidence_id is not None:
             self._require_direct_evidence(alias.evidence_id)
         self.conn.execute(
@@ -2252,10 +2351,19 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         self._refresh_node_text_projection(alias.node_id)
         if alias.evidence_id is not None:
             self._record_direct_node_evidence_locked(
-                alias.node_id, alias.evidence_id, now
+                alias.node_id,
+                alias.evidence_id,
+                now,
+                reinforce_retention=reinforce_retention,
             )
 
-    def _insert_description(self, description: DescriptionInput, now: str) -> None:
+    def _insert_description(
+        self,
+        description: DescriptionInput,
+        now: str,
+        *,
+        reinforce_retention: bool = True,
+    ) -> None:
         if description.evidence_id is not None:
             self._require_direct_evidence(description.evidence_id)
         digest = content_hash(description.text)
@@ -2284,10 +2392,19 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         self._refresh_node_text_projection(description.node_id)
         if description.evidence_id is not None:
             self._record_direct_node_evidence_locked(
-                description.node_id, description.evidence_id, now
+                description.node_id,
+                description.evidence_id,
+                now,
+                reinforce_retention=reinforce_retention,
             )
 
-    def _insert_mention(self, mention: MentionInput, now: str) -> None:
+    def _insert_mention(
+        self,
+        mention: MentionInput,
+        now: str,
+        *,
+        reinforce_retention: bool = True,
+    ) -> None:
         # SQLite treats NULLs as distinct in a UNIQUE constraint.  Resolve the
         # nullable span explicitly so replaying the same semantic mention is
         # idempotent even when no character offsets were extracted.
@@ -2347,7 +2464,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         )
         if mention.node_id is not None and mention.evidence_id is not None:
             self._record_direct_node_evidence_locked(
-                mention.node_id, mention.evidence_id, now
+                mention.node_id,
+                mention.evidence_id,
+                now,
+                reinforce_retention=reinforce_retention,
             )
 
     def _insert_evidence(self, evidence: EvidenceInput, now: str) -> None:
@@ -2546,7 +2666,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         assertion_id = assertion.assertion_id or "assertion:" + fingerprint[:24]
         existing_by_id = self.conn.execute(
             "SELECT fingerprint, initial_confidence, prior_weight, importance, "
-            "initial_importance, retention_days, last_reinforced_at, next_review_at, "
+            "initial_importance, half_life_days, retention_profile, last_reinforced_at, "
+            "next_review_at, "
             "lifecycle_changed_at FROM assertions WHERE assertion_id=?",
             (assertion_id,),
         ).fetchone()
@@ -2585,20 +2706,28 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             and existing_by_id["initial_importance"] is not None
             else assertion.initial_importance
         )
-        admission_days = MemoryScorePolicy.admission_retention(
-            assertion.retention_class
+        active_submission = getattr(self, "_active_genesis_submission_id", None)
+        retention_profile: RetentionProfile = (
+            str(existing_by_id["retention_profile"])  # type: ignore[assignment]
+            if existing_by_id is not None and existing_by_id["retention_profile"]
+            else (
+                "genesis"
+                if active_submission is not None
+                else assertion.retention_profile
+            )
         )
-        retention_days = (
-            float(existing_by_id["retention_days"])
+        admission_days = MemoryScorePolicy.admission_half_life(retention_profile)
+        half_life_days = (
+            float(existing_by_id["half_life_days"])
             if existing_by_id is not None
-            and existing_by_id["retention_days"] is not None
+            and existing_by_id["half_life_days"] is not None
             else admission_days
         )
         if (
             existing_by_id is None
             and getattr(self, "_active_genesis_submission_id", None) is not None
         ):
-            retention_days = MemoryScorePolicy.initial_retention("genesis")
+            half_life_days = MemoryScorePolicy.initial_half_life("genesis")
         anchor = (
             str(existing_by_id["last_reinforced_at"])
             if existing_by_id is not None and existing_by_id["last_reinforced_at"]
@@ -2609,7 +2738,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if existing_by_id is not None and existing_by_id["next_review_at"]
             else MemoryScorePolicy.next_review_at(
                 anchor,
-                retention_days,
+                half_life_days,
                 MemoryScorePolicy.active_freshness_threshold,
             ).isoformat(timespec="milliseconds")
         )
@@ -2629,7 +2758,6 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if existing_by_id is not None and existing_by_id["lifecycle_changed_at"]
             else now
         )
-        active_submission = getattr(self, "_active_genesis_submission_id", None)
         if (
             active_submission is not None
             and assertion.genesis_submission_id is not None
@@ -2644,19 +2772,20 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                    object_literal_json, object_literal_type, object_unit, polarity,
                    epistemic_status, viewpoint, context, valid_from, valid_to,
                    confidence, initial_confidence, prior_weight, importance, initial_importance,
-                   retention_days,
+                   half_life_days, retention_profile,
                    conflict_group, fingerprint,
                    lifecycle, supersedes_assertion_id, predicate_registry_version,
                    policy_version, genesis_submission_id, last_reinforced_at,
                    last_reviewed_at, next_review_at, lifecycle_changed_at, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(fingerprint) DO UPDATE SET
                    confidence=assertions.confidence,
                    initial_confidence=assertions.initial_confidence,
                    prior_weight=assertions.prior_weight,
                    importance=assertions.importance,
                    initial_importance=assertions.initial_importance,
-                   retention_days=assertions.retention_days,
+                   half_life_days=assertions.half_life_days,
+                   retention_profile=assertions.retention_profile,
                    updated_at=excluded.updated_at,
                    predicate_registry_version=excluded.predicate_registry_version,
                    policy_version=excluded.policy_version,
@@ -2686,7 +2815,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 prior_weight,
                 bounded_score(effective_importance),
                 bounded_score(initial_importance),
-                retention_days,
+                half_life_days,
+                retention_profile,
                 conflict_group,
                 fingerprint,
                 assertion.supersedes_assertion_id,
@@ -2737,7 +2867,12 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         return stored_assertion_id
 
     def _insert_assertion_evidence(
-        self, link: AssertionEvidenceInput, assertion_id: str, now: str
+        self,
+        link: AssertionEvidenceInput,
+        assertion_id: str,
+        now: str,
+        *,
+        reinforce_retention: bool = True,
     ) -> None:
         existing = self.conn.execute(
             "SELECT stance FROM assertion_evidence WHERE assertion_id=? AND evidence_id=?",
@@ -2774,7 +2909,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             ),
         )
         self._recompute_assertion_confidence(assertion_id=assertion_id, now=now)
-        if link.stance != "context":
+        if link.stance != "context" and reinforce_retention:
             evidence_row = self.conn.execute(
                 "SELECT captured_at FROM evidence WHERE evidence_id=?",
                 (link.evidence_id,),
@@ -2924,7 +3059,12 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         return row
 
     def _record_direct_node_evidence_locked(
-        self, node_id: str, evidence_id: str, now: str
+        self,
+        node_id: str,
+        evidence_id: str,
+        now: str,
+        *,
+        reinforce_retention: bool = True,
     ) -> None:
         """Recompute and reinforce exactly the Node named by an observation."""
         self._recompute_node_confidence(node_id, now)
@@ -2937,14 +3077,15 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             if evidence_row is not None and evidence_row["captured_at"]
             else now
         )
-        self._reinforce_target_locked(
-            target_kind="node",
-            target_id=node_id,
-            occurred_at=event_time,
-            source_ref=evidence_id,
-            outcome_kind="independent_evidence",
-            now=now,
-        )
+        if reinforce_retention:
+            self._reinforce_target_locked(
+                target_kind="node",
+                target_id=node_id,
+                occurred_at=event_time,
+                source_ref=evidence_id,
+                outcome_kind="independent_evidence",
+                now=now,
+            )
 
     def _reinforce_target_locked(
         self,
@@ -2992,7 +3133,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         row = self._retention_target_locked(target_kind, target_id)
         if row is None:
             return False
-        if not _retention_target_is_active(target_kind, row):
+        is_relearning = outcome_kind == "independent_evidence"
+        if not _retention_target_is_active(target_kind, row) and not (
+            is_relearning and _retention_target_is_relearnable(target_kind, row)
+        ):
             self.conn.execute(
                 """INSERT INTO memory_retention_receipts(
                        receipt_id, elfie_id, target_kind, target_id, occurred_at,
@@ -3350,7 +3494,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             scope = " AND " + namespace
             params.append(str(self.elfie_id))
         row = self.conn.execute(
-            f"SELECT retention_days, last_reinforced_at, {state_columns}, "
+            f"SELECT half_life_days, retention_profile, last_reinforced_at, {state_columns}, "
             f"updated_at FROM {table} WHERE {key_column}=?{scope}",
             params,
         ).fetchone()
@@ -3361,22 +3505,32 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         *,
         target_kind: str,
         target_id: str,
-        retention_days: float,
+        half_life_days: float,
         anchor: str,
         next_review: str,
         now: str,
+        reactivate: bool = False,
     ) -> None:
-        """Materialize a replayed D/anchor without touching I or C."""
+        """Materialize replayed H/anchor without touching I or C."""
         table, key_column = _retention_target_table(target_kind)
         namespace_clause = ""
+        assignments = (
+            "half_life_days=?, last_reinforced_at=?, next_review_at=?, policy_version=?"
+        )
         params: list[object] = [
-            retention_days,
+            half_life_days,
             anchor,
             next_review,
             MemoryScorePolicy.version,
-            now,
-            target_id,
         ]
+        if reactivate:
+            if target_kind == "node":
+                assignments += ", status='active', lifecycle_changed_at=?"
+            else:
+                assignments += ", lifecycle='active', lifecycle_changed_at=?"
+            params.append(now)
+        assignments += ", updated_at=?"
+        params.extend((now, target_id))
         if getattr(self, "elfie_id", None) is not None:
             if target_kind == "episode":
                 namespace_clause = " AND json_extract(metadata_json, '$.elfie_id')=?"
@@ -3392,9 +3546,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 raise ValueError(f"unsupported retention target kind: {target_kind}")
             params.append(str(self.elfie_id))
         self.conn.execute(
-            f"UPDATE {table} SET retention_days=?, last_reinforced_at=?, "
-            f"next_review_at=?, policy_version=?, updated_at=? "
-            f"WHERE {key_column}=?{namespace_clause}",
+            f"UPDATE {table} SET {assignments} WHERE {key_column}=?{namespace_clause}",
             params,
         )
 
@@ -3411,9 +3563,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         if existing is not None:
             return
         baseline = {
-            "base_retention_days": float(row["retention_days"] or 7.0),
+            "base_half_life_days": float(row["half_life_days"]),
+            "retention_profile": str(row["retention_profile"] or "semantic"),
             "base_anchor": str(row["last_reinforced_at"] or row["updated_at"] or now),
-            "current_retention_days": float(row["retention_days"] or 7.0),
+            "current_half_life_days": float(row["half_life_days"]),
             "current_anchor": str(
                 row["last_reinforced_at"] or row["updated_at"] or now
             ),
@@ -3454,49 +3607,56 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             # Once a safe prefix has been folded, the checkpoint's current
             # state is the replay baseline; the remaining receipt suffix is
             # still replayed in event-time order.
-            days = float(baseline.get("current_retention_days", 7.0))
+            days = float(baseline.get("current_half_life_days", 30.0))
             anchor = str(baseline.get("current_anchor") or now)
         else:
-            days = float(baseline.get("base_retention_days", 7.0))
+            days = float(baseline.get("base_half_life_days", 30.0))
             anchor = str(baseline.get("base_anchor") or now)
         rows = self.conn.execute(
-            """SELECT receipt_id, occurred_at, state FROM memory_retention_receipts
+            """SELECT receipt_id, occurred_at, outcome_kind, state FROM memory_retention_receipts
                 WHERE elfie_id=? AND target_kind=? AND target_id=?
                   AND state='accepted'
                 ORDER BY occurred_at, receipt_id""",
             (elfie_id, target_kind, target_id),
         ).fetchall()
         accepted_current = False
+        target = self._retention_target_locked(target_kind, target_id)
+        if target is None:
+            return False
+        relearnable = _retention_target_is_relearnable(target_kind, target)
+        reactivated = False
         for item in rows:
-            target = self._retention_target_locked(target_kind, target_id)
-            if target is None:
-                continue
-            lifecycle = target["lifecycle"] if "lifecycle" in target.keys() else None
-            status = target["status"] if "status" in target.keys() else None
-            eligible = (
-                (target_kind == "episode" and lifecycle == "active")
-                or (target_kind == "assertion" and lifecycle == "active")
-                or (
-                    target_kind == "node"
-                    and status in {"active", "candidate", "unresolved"}
+            if str(item["outcome_kind"]) == "independent_evidence":
+                update = (
+                    MemoryScorePolicy.relearn(
+                        half_life_days=days,
+                        retention_profile=str(
+                            target["retention_profile"] or "semantic"
+                        ),
+                        occurred_at=str(item["occurred_at"]),
+                    )
+                    if relearnable
+                    else None
                 )
-            )
-            update = (
-                MemoryScorePolicy.reinforce(
-                    retention_days=days,
+                if update is not None:
+                    reactivated = True
+            else:
+                # ``accepted`` records were authorized at ingestion time;
+                # do not invalidate them merely because Lifecycle archived
+                # the target before replay.  Independent evidence remains
+                # separately gated because it alone may reactivate identity.
+                update = MemoryScorePolicy.reinforce(
+                    half_life_days=days,
                     last_reinforced_at=anchor,
                     occurred_at=str(item["occurred_at"]),
                 )
-                if eligible
-                else None
-            )
             if update is None:
                 self.conn.execute(
                     "UPDATE memory_retention_receipts SET state='ignored', policy_version=? WHERE elfie_id=? AND receipt_id=?",
                     (MemoryScorePolicy.version, elfie_id, item["receipt_id"]),
                 )
                 continue
-            days = update.retention_days
+            days = update.half_life_days
             anchor = update.last_reinforced_at.isoformat(timespec="milliseconds")
             self.conn.execute(
                 "UPDATE memory_retention_receipts SET state='accepted', policy_version=? WHERE elfie_id=? AND receipt_id=?",
@@ -3510,10 +3670,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         self._update_retention_target_locked(
             target_kind=target_kind,
             target_id=target_id,
-            retention_days=days,
+            half_life_days=days,
             anchor=anchor,
             next_review=next_review,
             now=now,
+            reactivate=reactivated,
         )
         checkpoint_row = self.conn.execute(
             """SELECT folded_through FROM memory_score_checkpoints
@@ -3533,11 +3694,17 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 existing_folded_through,
                 canonical_json(
                     {
-                        "base_retention_days": float(
-                            baseline.get("base_retention_days", 7.0)
+                        "base_half_life_days": float(
+                            baseline.get("base_half_life_days", 30.0)
+                        ),
+                        "retention_profile": str(
+                            baseline.get(
+                                "retention_profile",
+                                target["retention_profile"] or "semantic",
+                            )
                         ),
                         "base_anchor": str(baseline.get("base_anchor") or now),
-                        "current_retention_days": days,
+                        "current_half_life_days": days,
                         "current_anchor": anchor,
                         "folded_event_count": folded_event_count,
                         "suffix_event_count": len(rows),
@@ -3717,8 +3884,8 @@ def _row_as_assertion_input(
         # Merges retain the original admission baseline so event replay stays
         # independent of the order in which endpoint rows were rewritten.
         initial_importance=bounded_score(row["initial_importance"]),
-        retention_days=float(row["retention_days"] or 7.0),
-        retention_class=_retention_class(float(row["retention_days"] or 7.0)),
+        half_life_days=float(row["half_life_days"] or 30.0),
+        retention_profile=str(row["retention_profile"] or "semantic"),  # type: ignore[arg-type]
         object_literal_type=row["object_literal_type"],
         predicate_registry_version=str(
             row["predicate_registry_version"] or "memory.predicates.v1"
@@ -3751,10 +3918,10 @@ def _row_to_assertion(row: sqlite3.Row, *, now: str | None = None) -> RecallAsse
     evidence_ids = tuple(
         value for value in str(row["evidence_ids_csv"] or "").split(",") if value
     )
-    retention_days = float(row["retention_days"] or 7.0)
+    half_life_days = float(row["half_life_days"] or 30.0)
     current_now = now or utc_now()
     anchor = row["last_reinforced_at"] or row["updated_at"] or current_now
-    freshness = MemoryScorePolicy.freshness(current_now, str(anchor), retention_days)
+    freshness = MemoryScorePolicy.freshness(current_now, str(anchor), half_life_days)
     status = str(row["lifecycle"])
     quality_confidence = float(row["confidence"]) if status == "active" else None
     score = MemoryScorePolicy.recall_score(
@@ -3778,7 +3945,7 @@ def _row_to_assertion(row: sqlite3.Row, *, now: str | None = None) -> RecallAsse
         importance=float(row["importance"]),
         confidence=float(row["confidence"]),
         freshness=freshness,
-        retention_days=retention_days,
+        half_life_days=half_life_days,
     )
 
 
@@ -3787,10 +3954,10 @@ def _row_to_recall_node(
 ) -> RecallNode:
     """Decode one bounded graph row without leaking the SQLite row itself."""
     properties = json_object(row["properties_json"])
-    retention_days = float(row["retention_days"] or 7.0)
+    half_life_days = float(row["half_life_days"] or 30.0)
     current_now = now or utc_now()
     anchor = row["last_reinforced_at"] or row["updated_at"] or current_now
-    freshness = MemoryScorePolicy.freshness(current_now, str(anchor), retention_days)
+    freshness = MemoryScorePolicy.freshness(current_now, str(anchor), half_life_days)
     base_relevance = min(1.0, max(0.0, float(row[relevance_key])))
     score = MemoryScorePolicy.recall_score(
         relevance=base_relevance,
@@ -3807,7 +3974,7 @@ def _row_to_recall_node(
         importance=float(row["importance"]),
         confidence=float(row["confidence"]),
         freshness=freshness,
-        retention_days=retention_days,
+        half_life_days=half_life_days,
         properties=properties,
     )
 
@@ -3856,16 +4023,6 @@ def _episode_evidence_id(conn: sqlite3.Connection, episode_id: str) -> str | Non
         (episode_id,),
     ).fetchone()
     return None if row is None else str(row["evidence_id"])
-
-
-def _retention_class(days: float) -> RetentionClass:
-    if days >= MemoryScorePolicy.initial_retention("genesis"):
-        return "genesis"
-    if days >= MemoryScorePolicy.initial_retention("salient"):
-        return "salient"
-    if days <= MemoryScorePolicy.initial_retention("transient"):
-        return "transient"
-    return "ordinary"
 
 
 def _importance_target_table(target_kind: str) -> tuple[str, str]:
@@ -3971,6 +4128,18 @@ def _retention_target_is_active(target_kind: str, row: sqlite3.Row) -> bool:
     return row["lifecycle"] == "active"
 
 
+def _retention_target_is_relearnable(target_kind: str, row: sqlite3.Row) -> bool:
+    """Allow sourced re-learning without reviving forgotten/superseded claims."""
+    if target_kind == "node":
+        return row["status"] in {
+            "active",
+            "candidate",
+            "unresolved",
+            "archived",
+        }
+    return row["lifecycle"] in {"active", "archived"}
+
+
 def _timestamp_text(value: object) -> str:
     if isinstance(value, datetime):
         parsed = value
@@ -4015,8 +4184,8 @@ def _projection_revision(projection: ConsolidationProjection) -> str:
                 "prior_weight": node.prior_weight,
                 "importance": node.importance,
                 "initial_importance": node.initial_importance,
-                "retention_days": node.retention_days,
-                "retention_class": node.retention_class,
+                "half_life_days": node.half_life_days,
+                "retention_profile": node.retention_profile,
                 "importance_event_class": node.importance_event_class,
                 "properties": dict(node.properties),
             }
@@ -4076,8 +4245,8 @@ def _projection_revision(projection: ConsolidationProjection) -> str:
                 "prior_weight": assertion.prior_weight,
                 "importance": assertion.importance,
                 "initial_importance": assertion.initial_importance,
-                "retention_days": assertion.retention_days,
-                "retention_class": assertion.retention_class,
+                "half_life_days": assertion.half_life_days,
+                "retention_profile": assertion.retention_profile,
                 "importance_event_class": assertion.importance_event_class,
                 "conflict_group": assertion.conflict_group,
                 "supersedes_assertion_id": assertion.supersedes_assertion_id,

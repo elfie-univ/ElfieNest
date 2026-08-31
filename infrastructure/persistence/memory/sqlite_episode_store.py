@@ -12,7 +12,7 @@ from elfie.brain.memory.memory_records import (
     EpisodeReceipt,
     MediaReference,
     OccurrencePrecision,
-    RetentionClass,
+    RetentionProfile,
     SourceReference,
 )
 from elfie.brain.memory.score_policy import ImportanceEvent, MemoryScorePolicy
@@ -51,8 +51,13 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         with self._lock:
             now = utc_now()
             active_submission = getattr(self, "_active_genesis_submission_id", None)
-            retention_days = MemoryScorePolicy.admission_retention(
-                episode.retention_class,
+            retention_profile: RetentionProfile = (
+                "genesis"
+                if active_submission is not None
+                else episode.retention_profile
+            )
+            half_life_days = MemoryScorePolicy.admission_half_life(
+                retention_profile,
                 emotion_intensity=episode.emotion_intensity,
                 sensory_present=bool(episode.sensory),
                 genesis=active_submission is not None,
@@ -80,7 +85,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             # of the immutable retention anchor.
             next_review_at = MemoryScorePolicy.next_review_at(
                 anchor,
-                retention_days,
+                half_life_days,
                 MemoryScorePolicy.active_freshness_threshold,
             ).isoformat(timespec="milliseconds")
             metadata = {
@@ -142,7 +147,8 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         occurrence_precision, content_text, summary_text, event_kind,
                         source_refs_json, media_refs_json, source_event_ids_json,
                         life_stage, temporal_label, context_text, attribution,
-                        privacy_scope, source_version, importance, initial_importance, retention_days,
+                        privacy_scope, source_version, importance, initial_importance,
+                        half_life_days, retention_profile,
                         detail_level,
                         content_sha256, projection_revision, projection_source_sha256,
                         last_reinforced_at, last_reviewed_at, next_review_at,
@@ -152,7 +158,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?
+                        ?, ?, ?, ?
                     )""",
                     (
                         episode.episode_id,
@@ -178,7 +184,8 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         episode.source_version,
                         episode.importance,
                         episode.initial_importance,
-                        retention_days,
+                        half_life_days,
+                        retention_profile,
                         episode.detail_level,
                         digest,
                         episode.projection_revision,
@@ -717,16 +724,11 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
         ),
         importance=float(row["importance"]),
         initial_importance=float(row["initial_importance"] or row["importance"]),
-        retention_days=float(
-            row["retention_days"]
-            or MemoryScorePolicy.initial_retention_days["ordinary"]
+        half_life_days=float(
+            row["half_life_days"]
+            or MemoryScorePolicy.initial_half_life_days["ordinary"]
         ),
-        retention_class=_retention_class(
-            float(
-                row["retention_days"]
-                or MemoryScorePolicy.initial_retention_days["ordinary"]
-            )
-        ),
+        retention_profile=str(row["retention_profile"] or "ordinary"),  # type: ignore[arg-type]
         detail_level=str(row["detail_level"]),
         lifecycle=str(row["lifecycle"] or "active"),  # type: ignore[arg-type]
         emotion=metadata.get("emotion"),
@@ -807,13 +809,3 @@ def _episode_hash(episode: ClosedEpisode) -> str:
 
 
 __all__ = ["EpisodeIdempotencyError", "SQLiteEpisodeStoreMixin"]
-
-
-def _retention_class(days: float) -> RetentionClass:
-    if days >= MemoryScorePolicy.initial_retention("genesis"):
-        return "genesis"
-    if days >= MemoryScorePolicy.initial_retention("salient"):
-        return "salient"
-    if days <= MemoryScorePolicy.initial_retention("transient"):
-        return "transient"
-    return "ordinary"
