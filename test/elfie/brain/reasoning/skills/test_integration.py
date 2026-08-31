@@ -8,9 +8,11 @@ from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import (
+    CONSTITUTION,
     RecordingChannel,
     TwoTurnRuntime,
     _owner_message,
+    _selfhood_seed,
 )
 
 
@@ -31,6 +33,8 @@ def test_elfie_keeps_authorized_tools_out_of_fast_owner_conversation() -> None:
                 species_id="fox",
                 seed=1,
             ),
+            selfhood_seed=_selfhood_seed("elfie-loop", "技能回路精灵"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             communication=hub,

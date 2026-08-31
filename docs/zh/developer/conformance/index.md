@@ -4,8 +4,7 @@
 重定义目标，也不能批准新增债务。
 
 已退役的通用 System、App、Model/Food/Tool 与 Brain 迁移台账分别达到自身零债务门槛，
-因此对应临时文件和空基线已删除。配置管理、Provider/模型可用性和服务生命周期台账记录
-当前迁移：
+因此对应临时文件和空基线已删除。新的聚焦迁移建立独立台账，不重新恢复通用 Brain 台账：
 
 - [配置管理一致性](./configuration-management)——源码默认值集中、强类型加载与单副本
   打包仍为开放状态。
@@ -18,3 +17,5 @@
 - [Elfie Memory 一致性](./elfie-memory)——记录 Memory 设计的实现状态与剩余外部验收门禁。
 - [Elfie 情绪一致性](./elfie-emotion)——记录已接受 Emotion 设计仍待下一轮处理的语义
   召回率和慢层纠正 Scope 覆盖债务。
+- [Elfie Selfhood 一致性](./elfie-selfhood)——记录已接受 Selfhood 设计的两层状态、
+  创建/运行 authority、固定头部、自然语言投影与单一持久化开放迁移。

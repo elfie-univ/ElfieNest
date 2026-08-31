@@ -211,6 +211,41 @@ class SearchTools:
         )
 
 
+class JsonModeRuntime(SearchRuntime):
+    def capabilities(self) -> ModelGenerationCapabilities:
+        return ModelGenerationCapabilities(
+            provider="fake",
+            model_key="fake/json-mode",
+            supports_json_schema=False,
+            supports_tool_calling=False,
+            supports_json_mode=True,
+            supports_plain_text=True,
+            max_output_tokens=512,
+        )
+
+    def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+        self.calls.append(request)
+        return ModelGenerationResult(
+            text=_plan_json(str(request.turn_id)),
+            selected_mode=StructuredOutputMode.JSON_TEXT,
+            provider="fake",
+            model_key="fake/json-mode",
+        )
+
+
+def test_json_mode_schema_is_added_by_brain_before_provider_boundary() -> None:
+    runtime = JsonModeRuntime()
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+    ).run(_task())
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert "RESPONSE_SCHEMA_JSON:" in runtime.calls[0].system_prompt
+    assert '"type":"object"' in runtime.calls[0].system_prompt
+
+
 class StaticActivityPreflight:
     def __init__(self, status: ActivityPreflightStatus) -> None:
         self.status = status

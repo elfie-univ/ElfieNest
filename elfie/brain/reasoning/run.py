@@ -126,13 +126,6 @@ _TOOL_MARKER = re.compile(
     r"(?P<value>.*?)\s*\[/\s*(?P=kind)\]",
     flags=re.IGNORECASE | re.DOTALL,
 )
-_TOOL_INSTRUCTIONS = (
-    "\nBrain semantic tools are bounded and internal to cognition. "
-    "If evidence is needed, emit exactly one marker: "
-    "[SEARCH]query[/SEARCH], [READ_FILE]relative_path[/READ_FILE], or "
-    "[LIST_FILES]relative_path[/LIST_FILES]. After the observation, return "
-    "a DecisionPlan JSON object only. Never emit message or body tool calls."
-)
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
 _OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
@@ -146,6 +139,38 @@ _TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
     },
     "additionalProperties": False,
 }
+
+
+def _with_brain_owned_schema_protocol(
+    system_prompt: str,
+    response_schema: JsonSchemaDocument,
+    capabilities: ModelGenerationCapabilities | None,
+) -> str:
+    """Keep JSON-mode schema guidance inside Brain's runtime protocol.
+
+    Native schema/tool-call providers receive the typed schema out of band.
+    JSON-mode providers need the schema in text, but Provider adapters are not
+    allowed to mutate a Brain-owned system prompt.  Insert it immediately
+    before dynamic Brain state so the four-block fixed prefix stays byte-stable.
+    """
+
+    if (
+        capabilities is None
+        or capabilities.supports_json_schema
+        or capabilities.supports_tool_calling
+        or not capabilities.supports_json_mode
+    ):
+        return system_prompt
+    instruction = "RESPONSE_SCHEMA_JSON:\n" + json.dumps(
+        response_schema.document,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    state_marker = "\n\n[CURRENT_BRAIN_STATE]\n"
+    if state_marker in system_prompt:
+        protocol, state = system_prompt.split(state_marker, 1)
+        return f"{protocol}\n\n{instruction}{state_marker}{state}"
+    return f"{system_prompt}\n\n{instruction}"
 
 
 class ReasoningRun:
@@ -246,7 +271,11 @@ class ReasoningRun:
         try:
             capabilities = self._model_port.capabilities()
             current_prompt = task.request.user_prompt
-            current_request = self._request(task.request, current_prompt)
+            current_request = self._request(
+                task.request,
+                current_prompt,
+                capabilities=capabilities,
+            )
 
             while True:
                 guard(next_kind=CognitiveStepKind.MODEL, model=True)
@@ -331,6 +360,7 @@ class ReasoningRun:
                         task.request,
                         current_prompt,
                         final_schema=True,
+                        capabilities=capabilities,
                     )
                     continue
 
@@ -345,6 +375,7 @@ class ReasoningRun:
                         task.request,
                         repair_prompt,
                         final_schema=True,
+                        capabilities=capabilities,
                     )
                     repaired = self._model_port.generate(repaired_request)
                     last_generation = repaired
@@ -387,6 +418,7 @@ class ReasoningRun:
                         task.request,
                         current_prompt,
                         final_schema=True,
+                        capabilities=capabilities,
                     )
                     continue
                 if plan is not decode.plan:
@@ -452,6 +484,7 @@ class ReasoningRun:
         user_prompt: str,
         *,
         final_schema: bool = False,
+        capabilities: ModelGenerationCapabilities | None = None,
     ) -> ModelGenerationRequest:
         direct_reply = self._is_fast_owner_reply(base)
         response_schema = base.response_schema
@@ -467,10 +500,10 @@ class ReasoningRun:
             )
         return base.model_copy(
             update={
-                "system_prompt": (
-                    base.system_prompt
-                    if direct_reply or not base.allowed_tools
-                    else base.system_prompt + _TOOL_INSTRUCTIONS
+                "system_prompt": _with_brain_owned_schema_protocol(
+                    base.system_prompt,
+                    response_schema,
+                    capabilities,
                 ),
                 "user_prompt": user_prompt,
                 "response_schema": response_schema,

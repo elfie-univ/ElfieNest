@@ -9,6 +9,7 @@ from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
@@ -24,6 +25,7 @@ class ElfieAssembly:
     profile: ElfieProfile
     memory_store: MemoryStorePort
     selfhood_seed: Mapping[str, object] | None = None
+    reasoning_constitution: ReasoningConstitution | None = None
     energy_limits: Mapping[str, object] | None = None
     emotion_expression_config: Mapping[str, object] | None = None
     emotion_dynamics_config: Mapping[str, object] | None = None
@@ -56,6 +58,7 @@ class ElfieFactory:
             character_profile=assembly.profile,
             memory_store=assembly.memory_store,
             selfhood_seed=assembly.selfhood_seed,
+            reasoning_constitution=assembly.reasoning_constitution,
             energy_limits=assembly.energy_limits,
             emotion_expression_config=assembly.emotion_expression_config,
             emotion_dynamics_config=assembly.emotion_dynamics_config,

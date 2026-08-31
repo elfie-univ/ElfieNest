@@ -22,6 +22,11 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
+from elfie.brain.reasoning.model_header import (
+    ModelHeaderAssembler,
+    ReasoningConstitution,
+)
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     ExternalExecutionDomain,
@@ -39,6 +44,9 @@ from elfie.message_types import (
     EventId,
     MessageMeta,
     TraceId,
+)
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
 )
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -140,6 +148,12 @@ def _context(
             captured_at=NOW,
             recall=recall or RecallBundle(),
         ),
+        selfhood=SelfhoodPromptProjection(
+            revision=1,
+            captured_at=NOW,
+            identity_core_text="我是 Lumi，是一只 Elfie。",
+            adaptive_self_text="我通常会先观察，再清楚表达。",
+        ),
         capabilities=EffectiveCapabilities(
             revision=8,
             captured_at=NOW,
@@ -214,6 +228,9 @@ def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
     _, user_prompt = CoordinatorTurnFactory._model_prompts(
         compiled,
         fast_owner_reply=True,
+        header=ModelHeaderAssembler(
+            ReasoningConstitution.from_mapping(load_reasoning_constitution())
+        ),
     )
 
     assert "RELEVANT_MEMORY:" in user_prompt

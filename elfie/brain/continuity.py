@@ -9,9 +9,15 @@ from elfie.brain.consolidation.system import CognitiveConsolidationCheckpoint
 from elfie.brain.energy.energy import EnergyCheckpoint
 from elfie.brain.memory.contracts import MemoryStateSnapshot
 from elfie.brain.motivation.system import MotivationCheckpoint
-from elfie.brain.orientation.contracts import OrientationSnapshot
+
+# Import the Orientation package before context_types.  OrientationSystem's
+# module imports EffectiveCapabilities from context_types; preloading the
+# package preserves the existing package-initialization order without making
+# Orientation part of this durable checkpoint.
+from elfie.brain.orientation.contracts import (
+    OrientationSnapshot as _OrientationSnapshot,  # noqa: F401
+)
 from elfie.brain.reasoning.context_types import ConversationContextCheckpoint
-from elfie.brain.selfhood.contracts import SelfhoodSnapshot
 from elfie.brain.state_lifecycle import StateCheckpoint
 
 
@@ -26,8 +32,6 @@ class BrainContinuityCheckpoint:
     captured_at: datetime
     energy: EnergyCheckpoint
     memory: StateCheckpoint[MemoryStateSnapshot]
-    orientation: StateCheckpoint[OrientationSnapshot]
-    selfhood: StateCheckpoint[SelfhoodSnapshot]
     motivation: MotivationCheckpoint
     consolidation: CognitiveConsolidationCheckpoint
     conversation: ConversationContextCheckpoint = field(

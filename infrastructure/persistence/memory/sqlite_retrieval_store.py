@@ -328,6 +328,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     cause_labels=request.cause_labels,
                     privacy_scope=request.privacy_scope,
                     include_unknown_time=request.include_unknown_time,
+                    recall_eligible_only=True,
                     now=now,
                 )
                 if len(local_candidates) > request.neighbors_per_node:
@@ -384,6 +385,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 cause_labels=request.cause_labels,
                 privacy_scope=request.privacy_scope,
                 include_unknown_time=request.include_unknown_time,
+                recall_eligible_only=True,
                 now=now,
             )
             if len(basic_candidates) > request.assertion_limit:
@@ -394,19 +396,30 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
 
         focus_ids = list(visited)
         focus_nodes = self._focus_nodes(focus_ids, lexical_scores, request, now=now)
+        ranked_assertions = sorted(
+            assertions.values(),
+            key=lambda item: _assertion_rank(
+                item,
+                hop_count=assertion_hops.get(item.assertion_id, request.hop_limit + 1),
+                explicit_seed_ids=explicit_seed_ids,
+                lexical_scores=lexical_scores,
+                request=request,
+            ),
+        )[: request.assertion_limit]
         assertions_tuple = tuple(
-            sorted(
-                assertions.values(),
-                key=lambda item: _assertion_rank(
+            replace(
+                item,
+                relevance=-_assertion_rank(
                     item,
                     hop_count=assertion_hops.get(
                         item.assertion_id, request.hop_limit + 1
                     ),
-                    seed_ids=seed_ids,
+                    explicit_seed_ids=explicit_seed_ids,
                     lexical_scores=lexical_scores,
                     request=request,
-                ),
-            )[: request.assertion_limit]
+                )[0],
+            )
+            for item in ranked_assertions
         )
         evidence_candidates = self.get_assertion_evidence(
             (assertion.assertion_id for assertion in assertions_tuple),
@@ -689,15 +702,15 @@ def _assertion_rank(
     assertion: RecallAssertion,
     *,
     hop_count: int,
-    seed_ids: Iterable[str],
+    explicit_seed_ids: Iterable[str],
     lexical_scores: dict[str, float],
     request: RecallRequest,
 ) -> tuple[float, int, float, float, float, str]:
     """Return the contract's lexicographic assertion ranking tuple."""
-    seeds = set(seed_ids)
+    explicit_seeds = set(explicit_seed_ids)
     match_strength = max(
         (
-            1.0 if node_id in seeds else lexical_scores.get(node_id, 0.0)
+            1.0 if node_id in explicit_seeds else lexical_scores.get(node_id, 0.0)
             for node_id in (assertion.subject_id, assertion.object_node_id)
             if node_id is not None
         ),

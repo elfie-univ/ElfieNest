@@ -1,14 +1,16 @@
 # Elfie 内部架构契约
 
-**契约版本：** 2.1
+**契约版本：** 2.2
 **采用日期：** 2026-08-11
-**修订日期：** 2026-08-12
+**修订日期：** 2026-08-30
 **适用范围：** `elfie/`，以及 Infrastructure 为单只 Elfie 限定作用域的 Port View
 
 > **规范性目标。** 本契约定义一只完整 Elfie 的生命系统所有权、依赖方向、公开 Facade
 > 和出站 Port。它细化但不改变已冻结的[系统架构契约](./system)。当前实现尚未完全
-> 合规；实现证据暂记录在已准备收口的 [Elfie 一致性台账](../conformance/elfie)，
-> 等待独立治理删除；删除后永久架构门禁仍然有效。
+> 合规；已完成迁移证据保留在准备收口的 [Elfie 一致性台账](../conformance/elfie)，
+> 新 Selfhood 迁移单独记录在开放的
+> [Selfhood 一致性台账](../conformance/elfie-selfhood)。任何临时台账删除后，永久架构
+> 门禁仍然有效。
 
 根模块、系统 authority 和技术 Adapter 最终位置仍以系统契约为权威；`elfie/` 内部以
 本契约为权威。旧 `ai_runtime/` 已完成退役；当前目标所有者实现的模型、Food 与工具
@@ -78,8 +80,10 @@ Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不�
 
 ## 生命系统守恒规则
 
-- Profile 回答“客观上是哪一只 Elfie”，创建后不可变；Brain Selfhood 回答“我现在
-  怎样理解自己”，只能根据经过校验的长期证据缓慢变化。
+- Profile 回答外层客观问题“是哪一只 Elfie”，创建后不可变。Genesis 从同一个已校验
+  Bundle 并列物化 Profile 与 Brain Selfhood；普通 Brain 运行期不读也不同步 Profile。
+  Selfhood 冻结的 `identity_core` 提供 Brain 身份，`adaptive_self` 只能在后续获批的
+  Memory 证据路径中变化。
 - Elfie 只有两条对外线路：经 NervousSystem 和 Body 的具身线路，以及经
   Communication 的数字消息线路。两者可以处于同一生活阶段，但同一个 Turn 不能共享
   输出 authority。
@@ -168,7 +172,8 @@ Brain 拥有十个 authority 不同的概念系统：
 
 1. 事件工作区把通信、具身和内部事件准入为有界、单域 Turn；
 2. 自我定位维护带来源的当前身体、地点、时间、附近人物、会话和活动承诺快照；
-3. 自我认知维护由不可变 Profile 锚定、缓慢变化的自我模型、人格和规范；
+3. 自我认知拥有一份原子状态：创建时冻结的 `identity_core` 与缓慢的 `adaptive_self`；
+   它不在普通运行期读取 Profile/Canon，而向 Brain 提供强类型自我和确定性模型投影；
 4. 情绪维护进程内跨 Turn 连续且会衰减的情感状态，并在睡眠或进程重启时回到人格基线；
 5. 能量维护稳态、昼夜状态、认知/行动预算、紧急储备和确定性降级；
 6. 动机把固定内部需要转换成注意、Goal 或内部触发候选，不能直接行动；
@@ -184,10 +189,16 @@ Brain 拥有十个 authority 不同的概念系统：
 
 ## Genesis
 
-Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它可以生成临时 Bundle：
-Profile 草稿、人格与自我认知种子、不超过五个关键领养前记忆事件、关系种子和有界人生
-补全计划。确定性校验后，每个值分别提交给最终所有者。Genesis 只保留创建状态和来源，
-不能自行决定权限、可用渠道、设备能力、Tool 范围、模型预算或真实账户绑定。
+Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它可以读取已接受领养输入
+与创建时物种/世界 Canon，并生成临时 Bundle：Profile 草稿、完整两层 Selfhood seed、
+不超过五个关键领养前记忆事件、关系种子和有界人生补全计划。Profile 与 Selfhood 是并列
+最终 owner 输出，不是运行时同步对；二者共享身份事实必须一起校验，任何冲突或部分提交都
+导致 resident 准入失败。
+
+`identity_core`、初始 `adaptive_self` 和全应用 Reasoning Constitution 都不能是模型自由
+生成的自然语言；它们必须使用受审、确定性的强类型映射与模板。Genesis 只保留创建状态和
+来源，不能把 Selfhood 绑定到 Canon 版本、长期进入普通 Brain 上下文，也不能自行决定
+权限、可用渠道、设备能力、Tool 范围、模型预算或真实账户绑定。
 
 后续人生补全若启用，是通过心智整理执行的临时有界跨回合活动。它不能无限发明重大
 历史、改写 Profile，或长期作为后台编剧运行。
@@ -271,10 +282,11 @@ Gateway、Godot authority 或共享 Adapter 资源。
 ## 依赖规则
 
 ```text
-Genesis -> Profile + Brain 种子
+Genesis -> Profile + Selfhood + 其他 Brain 种子 + Genesis Memory
 Elfie Facade -> Profile + 私有 Brain 协调
 私有 Brain 协调 -> Brain + NervousSystem + Body + Communication
 Brain -> 自有 Food/Model/Tool/Memory Port
+普通 Brain -X-> Profile / Canon
 NervousSystem -> Body 语义契约 + Brain 感知 Port
 Communication -> 自有 Channel Port + Brain 感知 Port
 Profile -> 自有持久化 Port
@@ -296,6 +308,10 @@ Port，不依赖 SQLite、用户可变 YAML、网络、Godot 或物理设备。I
 Port，实现并注入 Adapter，迁移全部生产调用方，删除旧实现与兼容路径，然后关闭对应
 一致性缺口。现有系统 Baseline 只能缩减；本契约不创建第二份旧架构 Baseline。
 
+Selfhood 迁移还必须在其聚焦台账关闭前删除所有普通 Profile/Canon Brain 输入、Profile
+派生 fallback、Memory 拥有的权威自我叙事和通用 checkpoint 里的 Selfhood 副本。契约
+文字测试在迁移期守住目标；各实现行关闭时，要由永久运行时 Scanner 与行为/重启测试接替。
+
 ADR-0005 接受的 Ports/Adapters 迁移已经完成，并继续作为永久边界。生命系统实现以后
 按独立获批的纵向切片推进：Brain Kernel 与通信闭环、思考中枢、虚拟具身闭环、连续
 生命状态与 Profile 转移、跨回合活动、动机，最后是心智整理和 Genesis 收束。每个切片
@@ -308,4 +324,5 @@ ADR-0005 接受的 Ports/Adapters 迁移已经完成，并继续作为永久边�
 Protocol、通用 Runtime 代理、Elfie 内的技术 Body/Channel SDK、让 App Orchestration
 代理普通认知、多写入者持久化、兼容 Alias、Fallback Read、虚拟与实体身体同时激活、
 为每个概念系统建立空包、把 Genesis 当作日常 Runtime，以及藏在 `ElfieFactory` 中的
-Service Locator。
+Service Locator。本契约还拒绝普通 Brain 读取 Profile/Canon、绑定 Canon 版本的
+Selfhood，以及让 Memory 成为第二套身份/人格 owner。

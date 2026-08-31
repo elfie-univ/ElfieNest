@@ -502,3 +502,34 @@ def test_normal_and_structured_requests_share_the_safe_tool_intersection(
         assert "[SEARCH]" in rendered
         assert "[CODE]" not in rendered
         assert "[READ_FILE]" not in rendered
+
+
+def test_brain_owned_structured_prompt_is_not_augmented_by_provider_injectors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "ok")
+    injected: list[tuple[list[dict[str, object]], list[str]]] = []
+
+    def prompt_injector(messages, tools):
+        injected.append((messages, tools))
+        return messages
+
+    agent._ports.prompt_injector = prompt_injector  # noqa: SLF001 - boundary seam
+    system_prompt = "[APPLICATION_FRAME]\nframe\n\n[IDENTITY_CORE]\nidentity"
+    result = agent.generate_structured(
+        StructuredModelExecutionRequest(
+            prompt="structured",
+            messages=({"role": "system", "content": system_prompt},),
+            response_schema_name="answer",
+            response_schema={"type": "object"},
+            selected_mode=StructuredGenerationMode.JSON_TEXT,
+            allowed_tools=("web_search",),
+            food_key="food_main",
+            brain_owned_system_prompt=True,
+        )
+    )
+
+    assert result.text == "ok"
+    assert injected == []

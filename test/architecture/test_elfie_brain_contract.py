@@ -128,6 +128,64 @@ def test_brain_contract_freezes_the_emotion_owner_and_review_boundary() -> None:
     assert "EMO-002" in _read("docs/zh/developer/conformance/elfie-emotion.md")
 
 
+def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> None:
+    english_raw = _read("docs/developer/contracts/brain.md")
+    chinese_raw = _read("docs/zh/developer/contracts/brain.md")
+    english = " ".join(english_raw.split())
+    chinese = " ".join(chinese_raw.split())
+    block_labels = (
+        "APPLICATION_FRAME",
+        "IDENTITY_CORE",
+        "ADAPTIVE_SELF",
+        "OPERATING_CONTRACT",
+    )
+
+    assert [english_raw.index(label) for label in block_labels] == sorted(
+        english_raw.index(label) for label in block_labels
+    )
+    assert [chinese_raw.index(label) for label in block_labels] == sorted(
+        chinese_raw.index(label) for label in block_labels
+    )
+    assert "[APPLICATION_FRAME]\n   {application_frame_text}" in english_raw
+    assert "[IDENTITY_CORE]\n   {identity_core_text}" in english_raw
+    assert "[ADAPTIVE_SELF]\n   {adaptive_self_text}" in english_raw
+    assert "[OPERATING_CONTRACT]\n   {operating_contract_text}" in english_raw
+    assert "不得新增 system 指令，也不得改变请求消息顺序或内容" in chinese
+    assert (
+        "must not add system instructions or change request message order/content"
+        in english
+    )
+    assert "exactly two semantic layers" in english
+    assert "语义上严格分两层" in chinese
+    assert "Genesis is the only Selfhood initializer" in english
+    assert "Genesis 是唯一 Selfhood 初始化者" in chinese
+    assert "only a typed Memory-consolidation proposal" in english
+    assert "最多允许 Memory 整理生成强类型 proposal" in chinese
+    assert "emits no raw Big Five values or internal IDs" in english
+    assert "不输出大五原始值或内部 ID" in chinese
+    assert "must not fall back to `Elfie`, a generic persona" in english
+    assert "不得 fallback 到 `Elfie`、通用 persona" in chinese
+    assert (
+        "Generic Brain continuity checkpoints must not contain or restore Selfhood"
+        in english
+    )
+    assert "通用 Brain continuity checkpoint 不得包含或恢复 Selfhood" in chinese
+    assert (
+        "Memory must not persist or inject a second authoritative identity" in english
+    )
+    assert "Memory 不得持久化或注入第二套权威" in chinese
+    assert "Ordinary Brain runtime" in english
+    assert "普通 Brain 运行" in chinese
+    assert "../designs/elfie-selfhood-and-fixed-model-header" in english_raw
+    assert "../conformance/elfie-selfhood" in english_raw
+    assert "../designs/elfie-selfhood-and-fixed-model-header" in chinese_raw
+    assert "../conformance/elfie-selfhood" in chinese_raw
+    for gap_id in range(1, 8):
+        marker = f"SHD-{gap_id:03d}"
+        assert marker in _read("docs/developer/conformance/elfie-selfhood.md")
+        assert marker in _read("docs/zh/developer/conformance/elfie-selfhood.md")
+
+
 def test_closed_brain_conformance_registers_do_not_return() -> None:
     retired_registers = (
         "docs/developer/conformance/brain.md",

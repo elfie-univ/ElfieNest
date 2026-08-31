@@ -6,17 +6,23 @@ import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
 from elfie.brain.selfhood import (
     derive_personality,
 )
-from elfie.profile import create_visual_profile
+from elfie.profile import (
+    ELFARIA_CANON,
+    ElfieProfile,
+    create_visual_profile,
+    get_species_canon_for_technical_id,
+)
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_energy_defaults,
     load_selfhood_defaults,
 )
+from infrastructure.persistence.configuration.world import load_world_canon
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
@@ -105,17 +111,13 @@ class ElfieLabStorage:
             values,
             default_big_five=self._default_big_five(),
         )
-        selfhood_seed = {
-            **seed,
-            "big_five": dict(derivation.big_five),
-            "derivation": {
-                "preset": derivation.preset,
-                "matched_keywords": list(derivation.matched_keywords),
-                "provenance": derivation.provenance,
-                "overridden_traits": list(derivation.overridden_traits),
-                "seed": derivation.seed,
-            },
-        }
+        selfhood_seed = dict(seed)
+        adaptive_seed = selfhood_seed.get("adaptive_self")
+        if not isinstance(adaptive_seed, Mapping):
+            raise ValueError("Selfhood seed 缺少 adaptive_self 对象")
+        adaptive = dict(adaptive_seed)
+        adaptive["big_five"] = dict(derivation.big_five)
+        selfhood_seed["adaptive_self"] = adaptive
         repository.save(selfhood_seed)
 
         def rollback() -> None:
@@ -238,7 +240,6 @@ class ElfieLabStorage:
             species_id=spec.species_id,
             seed=seed,
         )
-        selfhood_seed = load_selfhood_defaults()
         energy_limits = load_energy_defaults()
         derivation = derive_personality(
             spec.elfie_id,
@@ -246,17 +247,7 @@ class ElfieLabStorage:
             big_five_overrides,
             default_big_five=self._default_big_five(),
         )
-        selfhood_seed = {
-            **selfhood_seed,
-            "big_five": dict(derivation.big_five),
-            "derivation": {
-                "preset": derivation.preset,
-                "matched_keywords": list(derivation.matched_keywords),
-                "provenance": derivation.provenance,
-                "overridden_traits": list(derivation.overridden_traits),
-                "seed": derivation.seed,
-            },
-        }
+        selfhood_seed = _selfhood_seed(profile, derivation.big_five, derivation.preset)
         YamlProfileStoreAdapter(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
         YamlSelfhoodSeedAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
             selfhood_seed
@@ -325,3 +316,47 @@ class ElfieLabStorage:
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+
+
+def _selfhood_seed(
+    profile: ElfieProfile,
+    big_five: Mapping[str, float],
+    expression_preset: str,
+) -> Dict[str, Any]:
+    """Build the strict two-layer seed used by the Genesis hand-off."""
+
+    species = get_species_canon_for_technical_id(profile.identity.species_id)
+    world = load_world_canon()
+    origin = profile.identity.origin
+    return {
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": profile.identity.elfie_id,
+            "display_name": profile.identity.display_name,
+            "species_id": profile.identity.species_id,
+            "species_name": species.display_name,
+            "home_world_id": origin.home_world_id,
+            "home_world_name": world.display_name or ELFARIA_CANON.display_name,
+            "home_region_id": origin.home_region_id,
+            "home_region_name": (
+                world.known_region_name
+                if origin.home_region_id == world.known_region_id
+                else origin.home_region_id
+            ),
+            "earth_arrival_statement": world.earth_arrival_statement,
+            "resident_role": "ElfieNest 居民",
+        },
+        "adaptive_self": {
+            "big_five": dict(big_five),
+            "interaction_tendency_ids": tuple(species.earth_first_contact_cues),
+            "coping_tendency_ids": tuple(species.common_sensory_biases),
+            "expression_tendency_ids": (expression_preset,),
+            "value_ids": (
+                "尊重自愿选择，不把猜测说成亲历。",
+                "不知道时说明不知道，并在真实接触中学习地球。",
+            ),
+            "speech_marker_ids": ("呢",),
+            "source_event_ids": (),
+        },
+    }

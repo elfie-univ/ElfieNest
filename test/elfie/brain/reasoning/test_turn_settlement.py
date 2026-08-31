@@ -15,7 +15,6 @@ from elfie.brain.reasoning.context_types import (
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.memory_context import MemoryContextReader
 from elfie.brain.reasoning.settlement import TurnSettlement
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import (
@@ -106,9 +105,6 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
             pending_episode_ids=memory.pending_consolidation_ids,
             consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
             initial_at=NOW,
-        ),
-        profile_anchors=ProfileAnchorSnapshot.unknown().model_copy(
-            update={"captured_at": NOW}
         ),
     )
     emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=1)
@@ -224,9 +220,6 @@ def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement(
             pending_episode_ids=memory.pending_consolidation_ids,
             consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
             initial_at=NOW,
-        ),
-        profile_anchors=ProfileAnchorSnapshot.unknown().model_copy(
-            update={"captured_at": NOW}
         ),
     )
     capabilities = context.capabilities(NOW)

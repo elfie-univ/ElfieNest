@@ -72,6 +72,7 @@ class FoodExecutor:
         images: tuple[str, ...] = (),
         audio: str | None = None,
         scope_id: str | None = None,
+        inject_tool_prompt: bool = True,
     ) -> FoodExecutionResult:
         selected = package.assignment_for(semantic_role)
         stage = semantic_role
@@ -101,6 +102,7 @@ class FoodExecutor:
                     images=images,
                     audio=audio,
                     scope_id=scope_id,
+                    inject_tool_prompt=inject_tool_prompt,
                 )
                 attempts.append(
                     {
@@ -144,6 +146,7 @@ class FoodExecutor:
         images: tuple[str, ...],
         audio: str | None,
         scope_id: str | None,
+        inject_tool_prompt: bool,
     ) -> str:
         try:
             reference = parse_model_reference(assignment.model)
@@ -173,7 +176,7 @@ class FoodExecutor:
             if tool in available_tools
             and (tool != "local_file" or scope_id is not None)
         )
-        if effective_tools:
+        if effective_tools and inject_tool_prompt:
             self.prompt_injector(messages, list(effective_tools))
         loop = self.tool_loop_factory(self.tool_port, effective_tools, scope_id)
 

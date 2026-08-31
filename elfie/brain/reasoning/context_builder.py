@@ -17,7 +17,7 @@ from elfie.brain.reasoning.context_types import (
     ConversationContext,
     EffectiveCapabilities,
 )
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import UTCDateTime
 
@@ -40,8 +40,8 @@ class ContextAssembler:
         capabilities: EffectiveCapabilities,
         activities: Optional[ActivityContext] = None,
         orientation: Optional[OrientationSnapshot] = None,
-        selfhood: Optional[SelfhoodSnapshot] = None,
-        profile_anchors: Optional[ProfileAnchorSnapshot] = None,
+        selfhood: Optional[SelfhoodPromptProjection] = None,
+        constitution_version: int = 1,
         captured_at: Optional[UTCDateTime] = None,
         revision: Optional[int] = None,
     ) -> BrainContext:
@@ -53,6 +53,7 @@ class ContextAssembler:
         logger.info("丘脑已接收单域 TurnFrame，正在组装不可变 BrainContext。")
         return BrainContext(
             revision=context_revision,
+            constitution_version=constitution_version,
             captured_at=context_captured_at,
             frame=frame,
             emotion=emotion,
@@ -80,14 +81,9 @@ class ContextAssembler:
             else OrientationSnapshot.unknown().model_copy(
                 update={"captured_at": context_captured_at}
             ),
-            selfhood=selfhood
-            if selfhood is not None
-            else SelfhoodSnapshot.unknown().model_copy(
-                update={"captured_at": context_captured_at}
-            ),
-            profile_anchors=profile_anchors
-            if profile_anchors is not None
-            else ProfileAnchorSnapshot.unknown().model_copy(
-                update={"captured_at": context_captured_at}
+            selfhood=(
+                selfhood.model_copy(update={"captured_at": context_captured_at})
+                if selfhood is not None
+                else SelfhoodPromptProjection.unknown(captured_at=context_captured_at)
             ),
         )

@@ -1,13 +1,15 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.2
+**Contract version:** 1.3
 **Adopted:** 2026-08-12
+**Revised:** 2026-08-30
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
 > events, maintains mental state, reasons, commits decisions and resumes work.
-> The accepted Brain migration is complete; permanent architecture tests now
-> enforce these boundaries directly.
+> Earlier Brain migrations remain protected by permanent architecture tests.
+> The newly accepted Selfhood and fixed-header gaps are tracked in the scoped
+> [Selfhood conformance register](../conformance/elfie-selfhood).
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -23,8 +25,9 @@ It shares one Selfhood and Memory across digital communication and embodied
 life while keeping their Turns and output authority separate.
 
 This contract fixes semantic owners, lifecycle boundaries and deterministic
-guards. It does not fix prompts, model vendors, storage schemas, tunable numeric
-coefficients or process topology. Emotion's six stored channels and signed
+guards. It additionally fixes the four-block prefix and source ownership of
+online Elfie model prompts, but not their release-owned copy, model vendors,
+storage encodings, tunable numeric coefficients or process topology. Emotion's six stored channels and signed
 appraisal contract are intentional fixed semantics; their gains, half-lives and
 presentation thresholds remain configurable. The ten systems are conceptual
 owners, not a requirement for ten processes, databases or empty packages.
@@ -35,7 +38,7 @@ owners, not a requirement for ten processes, databases or empty packages.
 | --- | --- | --- | --- | --- |
 | 1 | Event Workspace | bounded Communication, Embodied and Internal lanes; admission, ordering, deduplication, backpressure, salience and single-domain framing | one immutable `TurnFrame` or an explicit defer/reject result | merge source domains into one Turn, reason about content, or execute actions |
 | 2 | Orientation | sourced current body, place, time, nearby actors, conversation, activity, affordance and uncertainty | versioned `OrientationSnapshot` | copy world authority, store complete history, or define personality |
-| 3 | Selfhood | mutable self-model, personality tendencies, norms and slow change evidence anchored by immutable Profile | versioned Selfhood/Personality/Norms snapshot and validated updates | rewrite Profile, accept one-message personality mutation, or enlarge capabilities |
+| 3 | Selfhood | one atomic state containing creation-frozen `identity_core` and slow `adaptive_self`; deterministic typed/model projections | versioned Selfhood snapshot, two model-header blocks and, only after a later design, validated Memory-evidenced updates | read Profile/Canon at runtime, accept direct Turn/model/state updates, persist final prompt text, or enlarge capabilities |
 | 4 | Emotion | process-local affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions, or persist its live stock |
 | 5 | Energy | homeostasis, circadian state, cognitive/action budgets, emergency reserve and degradation mode | `EnergySnapshot`, reservations and cognitive-mode constraints | choose semantic goals or replace NervousSystem safety reflexes |
 | 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` | create an Activity or act externally |
@@ -95,6 +98,134 @@ the [Emotion conformance register](../conformance/elfie-emotion).
    future detector must produce observation evidence through the same Scope
    boundary and must never mutate Emotion directly or manufacture a calm result.
 
+## Selfhood and the fixed online model header
+
+The detailed
+[Selfhood and fixed model-header design](../designs/elfie-selfhood-and-fixed-model-header)
+is the accepted interpretation of this section. Current implementation gaps
+remain in the
+[Selfhood conformance register](../conformance/elfie-selfhood).
+
+### Selfhood authority and state
+
+1. Selfhood owns one atomic, strongly typed state with one schema version, one
+   Selfhood revision and exactly two semantic layers. `identity_core` contains
+   the minimum per-Elfie identity facts frozen at creation. `adaptive_self`
+   contains bounded personality traits, personal value/norm identifiers and
+   interaction, coping and expression tendencies.
+2. The state must not contain a Profile revision, Canon version/path/reference,
+   final prompt paragraph, free-form model-authored autobiography, detailed
+   world knowledge, biography, relationship state, current Emotion/Energy/
+   Orientation/Activity, capabilities, permissions or application-wide rules.
+3. `identity_core` is immutable after Genesis. Phase 1 exposes no assembled
+   `adaptive_self` mutation route. A later approved growth design may accept
+   only a typed Memory-consolidation proposal carrying a base Selfhood revision,
+   stable proposal/idempotency identity and durable Memory evidence. Memory owns
+   the proposal and evidence. Consolidation may schedule its derivation and a
+   model may be an untrusted helper inside that bounded Memory process, but
+   neither addresses Selfhood directly. Only Selfhood validates and commits,
+   and no proposal may modify `identity_core`.
+4. Selfhood may expose an immutable typed snapshot or narrower trait projection
+   to contracted Brain owners. Reasoning receives only a deterministic,
+   bounded, side-effect-free `SelfhoodPromptProjection` with
+   `identity_core_text`, `adaptive_self_text` and non-prompt revision metadata.
+   The projection is not persisted, reads no Profile, Canon or Memory, invokes
+   no model, emits no raw Big Five values or internal IDs, and cannot invent
+   biography, relationships, knowledge, current state, permissions or actions.
+5. User-controlled names and every bounded text slot are encoded as data.
+   Control characters, reserved fixed-header labels and delimiter-breaking
+   sequences are rejected or escaped before projection. Arbitrary adoption
+   story, Memory content and model text cannot enter a fixed block.
+
+### Genesis and runtime inputs
+
+6. Genesis is the only Selfhood initializer. It may consume accepted adoption
+   input, creation-time Canon/species facts and reviewed deterministic mappings,
+   then co-materializes Profile, complete Selfhood and Genesis Memory as sibling
+   outputs of one validated creation bundle. Selfhood does not derive from a
+   persisted Profile at ordinary startup, and partial/inconsistent creation
+   fails admission.
+7. Profile remains the external immutable dossier. Canon remains a creation-time
+   world/species input and a source for Genesis Memory. Ordinary Brain runtime,
+   Reasoning context assembly and Selfhood projection must not read, accept,
+   refresh or synchronize Profile or Canon. Existing Elfies are not bound to a
+   Canon version; later Canon changes do not alter their Selfhood.
+8. Missing, invalid, unsupported or unrenderable Selfhood fails Brain/resident
+   cognition before `ModelPort` invocation and produces a safe diagnostic. It
+   must not fall back to `Elfie`, a generic persona, all-0.5 traits, Profile,
+   Canon, Memory self narrative or a model-generated repair.
+
+### Four-block fixed prefix
+
+9. Every model request inside an online Elfie `ReasoningRun` starts with exactly
+   one fixed prefix in this order:
+
+   ```text
+   [APPLICATION_FRAME]
+   {application_frame_text}
+
+   [IDENTITY_CORE]
+   {identity_core_text}
+
+   [ADAPTIVE_SELF]
+   {adaptive_self_text}
+
+   [OPERATING_CONTRACT]
+   {operating_contract_text}
+   ```
+
+   Reasoning owns the labels, order and request assembly. Selfhood owns and
+   renders blocks 2 and 3. One required, human-authored, same-release,
+   bundled-only `ReasoningConstitution` owns blocks 1 and 4; Infrastructure only
+   validates/loads it and Bootstrap injects it. Users, Genesis, Canon, models,
+   Providers and per-Elfie data cannot generate, override, hot-reload or branch
+   that constitution.
+10. `APPLICATION_FRAME` contains only the minimum shared ElfieNest application
+    and story premise. `OPERATING_CONTRACT` contains stable identity,
+    epistemic, context-trust, execution-truth and scope rules. Detailed Canon,
+    individual facts and Turn-varying schema/capability instructions do not
+    belong in either block.
+11. Trusted `TURN_PROTOCOL` and current Brain state follow the fixed prefix.
+    Retrieved Memory, Activities, observations, conversation history and the
+    current message remain context data after it. They cannot become a fifth
+    fixed block or replace any fixed source.
+12. The canonical envelope uses LF line endings, no text before its first
+    label, exactly one blank line between sections, and exactly one blank line
+    before the following `[TURN_PROTOCOL]`. Validated block content has no
+    leading/trailing blank lines and cannot contain a reserved header label.
+13. Initial generation, Tool-observation continuation and structured-output
+    repair inside one online Run preserve the exact fixed-prefix bytes and bound
+    source revisions. Genesis, Memory consolidation, Provider probes,
+    evaluation judges and identity-less background Workers must not receive this
+    Elfie header. All online system instructions, including Skill/Tool
+    instructions, are assembled by Reasoning after the fixed prefix as
+    `TURN_PROTOCOL`. Provider/model Adapters and generic prompt injectors must
+    not add system instructions or change request message order/content.
+14. The fixed prefix is reserved before dynamic context trimming. Its byte cap
+    and the complete provider context-window budget are validated before
+    invocation. A fixed block cannot be dropped, truncated or reordered to fit;
+    an invalid request fails explicitly.
+15. `OPERATING_CONTRACT` is model guidance, not a security authority.
+    Deterministic host capability, response/execution scope, privacy, budget,
+    serialized commit and receipt guards remain mandatory and take precedence
+    over a conflicting personal norm or model response.
+
+### Persistence and conflict rules
+
+16. In phase 1 the per-Elfie Selfhood document is the sole durable Selfhood
+    authority. Generic Brain continuity checkpoints must not contain or restore
+    Selfhood. Future adaptive mutation cannot be enabled before one dedicated
+    atomic, revision-checked and idempotent durable commit boundary exists.
+17. Memory must not persist or inject a second authoritative identity,
+    relationship, world and tendency self narrative. Identity conflicts resolve
+    to `identity_core`; recalled Memory remains fallible evidence. Current
+    Emotion/Orientation may temporarily modulate expression but cannot rewrite
+    `adaptive_self`. A Profile/Selfhood conflict during creation fails creation;
+    ordinary runtime cannot reread Profile to repair it.
+18. An application upgrade may replace the same-release Constitution for all
+    Elfies. It does not alter `identity_core`, bind Selfhood to new Canon or
+    silently rewrite existing `adaptive_self` data.
+
 ## Conservation rules
 
 1. Brain accepts exactly three event-source domains: `Communication`,
@@ -151,9 +282,10 @@ reject or backpressure result rather than silent loss.
 ### Context and reasoning
 
 Reasoning Core assembles only the context needed by the admitted Turn. A context
-snapshot records the versions and capture time of Profile anchors, Orientation,
-Selfhood, Emotion, Energy, Motivation, Memory, Activity and effective
-capabilities. Facts, inferences and unknown values remain distinguishable.
+snapshot records the Constitution and Selfhood revisions and the versions and
+capture time of Orientation, Emotion, Energy, Motivation, Memory, Activity and
+effective capabilities. It contains no Profile or Canon runtime projection.
+Facts, inferences and unknown values remain distinguishable.
 
 A `ReasoningRun` may contain multiple cognitive steps and multiple Model,
 Skill, Tool and Observation cycles. It has an explicit budget, deadline,
@@ -175,12 +307,14 @@ and current state before committing any directive. The only action families are:
 - `PersistentActivityRequest` for validated work beyond the current Turn;
 - `No-op` when no action is committed.
 
-Internal memory, emotion, selfhood, orientation, energy or motivation candidates
-are Turn-settlement material, not a fourth action family. Settlement submits
-each candidate or receipt to its true owner, which validates current version and
-causal identity before committing. A stale or duplicate result is rejected or
-reconciled; it is never repaired by merely prompting a later model to assume the
-desired state.
+Internal Memory, Emotion, Orientation, Energy or Motivation candidates are
+Turn-settlement material, not a fourth action family. Selfhood is deliberately
+absent: phase 1 has no update route, and a future update can enter only as the
+Memory-owned consolidation proposal defined above, never as ordinary Turn
+output. Settlement submits each admitted candidate or receipt to its true
+owner, which validates current version and causal identity before committing. A
+stale or duplicate result is rejected or reconciled; it is never repaired by
+merely prompting a later model to assume the desired state.
 
 ## Response scopes
 
@@ -251,13 +385,14 @@ body route, and its textual claim is never an execution receipt.
 
 ## State, persistence and recovery
 
-`MemoryState`, `ReasoningRunState` and `ActivityState` are distinct. Durable
-cognitive infrastructure provides an event journal, authoritative state store,
-Run/Activity checkpoints, budget ledger, causal trace, idempotency records and
-receipt reconciliation. These facilities hold state for the ten systems but do
-not become an eleventh mind or decide behavior.
+`MemoryState`, `SelfhoodState`, `ReasoningRunState` and `ActivityState` are
+distinct. Durable cognitive infrastructure provides owner-appropriate state,
+an event journal, Run/Activity checkpoints, budget ledger, causal trace,
+idempotency records and receipt reconciliation. It does not imply one universal
+checkpoint for every mental owner and does not become an eleventh mind.
 
-After restart, Brain restores durable owners, reconciles in-flight directives
+After restart, Brain loads durable owners from their single authorities,
+reconciles in-flight directives
 and Activities, rejects stale body generations and resumes only work whose
 scope and deadline remain valid. Emotion is the explicit exception: its live
 stocks and transient guidance return to personality-derived baselines on sleep
@@ -267,7 +402,8 @@ does not erase identity, memory, commitments or basic reflex capability.
 ## Dependency and package rules
 
 Brain depends only on its own strongly typed consumer-owned Ports and Elfie
-semantic contracts. It does not import App, Nest, concrete Infrastructure,
+semantic contracts. Ordinary Brain runtime also does not depend on Profile or
+Canon. It does not import App, Nest, concrete Infrastructure,
 Provider SDKs, platform payloads, device transports, filesystem roots or
 database records. AI Runtime implementations remain outside Brain; Brain owns
 when and why they are called inside a Run.

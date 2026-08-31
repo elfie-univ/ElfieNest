@@ -126,6 +126,7 @@ export default defineConfig({
                     { text: "Designs overview", link: "/developer/designs/" },
                     { text: "Elfie top-level module design", link: "/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie Brain ten-system architecture", link: "/developer/designs/elfie-brain-ten-system-architecture" },
+                    { text: "Elfie Selfhood and fixed model header", link: "/developer/designs/elfie-selfhood-and-fixed-model-header" },
                     { text: "Elfie Emotion system", link: "/developer/designs/elfie-emotion-system" },
                     { text: "Elfie Brain evaluation system", link: "/developer/designs/elfie-brain-evaluation-system" },
                     { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" },
@@ -152,7 +153,8 @@ export default defineConfig({
                   items: [
                     { text: "Conformance overview", link: "/developer/conformance/" },
                     { text: "Elfie architecture conformance", link: "/developer/conformance/elfie" },
-                    { text: "Elfie Emotion conformance", link: "/developer/conformance/elfie-emotion" }
+                    { text: "Elfie Emotion conformance", link: "/developer/conformance/elfie-emotion" },
+                    { text: "Elfie Selfhood conformance", link: "/developer/conformance/elfie-selfhood" }
                   ]
                 },
                 {
@@ -271,6 +273,7 @@ export default defineConfig({
                     { text: "设计文档总览", link: "/zh/developer/designs/" },
                     { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie-top-level-module-design" },
                     { text: "Elfie 大脑十系统架构", link: "/zh/developer/designs/elfie-brain-ten-system-architecture" },
+                    { text: "Elfie Selfhood 与固定模型头部", link: "/zh/developer/designs/elfie-selfhood-and-fixed-model-header" },
                     { text: "Elfie 情绪系统", link: "/zh/developer/designs/elfie-emotion-system" },
                     { text: "Elfie Brain 评价与进化系统", link: "/zh/developer/designs/elfie-brain-evaluation-system" },
                     { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" },
@@ -297,7 +300,8 @@ export default defineConfig({
                   items: [
                     { text: "架构一致性总览", link: "/zh/developer/conformance/" },
                     { text: "Elfie 内部架构一致性", link: "/zh/developer/conformance/elfie" },
-                    { text: "Elfie 情绪一致性", link: "/zh/developer/conformance/elfie-emotion" }
+                    { text: "Elfie 情绪一致性", link: "/zh/developer/conformance/elfie-emotion" },
+                    { text: "Elfie Selfhood 一致性", link: "/zh/developer/conformance/elfie-selfhood" }
                   ]
                 },
                 {

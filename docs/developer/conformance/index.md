@@ -6,8 +6,8 @@ never redefine the target or authorize new debt.
 
 The retired general System, App, Model/Food/Tool and Brain migration registers
 reached their own zero-debt gates, so those temporary files and empty baselines
-were removed. The configuration-management, provider/model availability and
-service-lifecycle registers contain the active migrations:
+were removed. New focused migrations use independent registers rather than
+reopening the retired general Brain register:
 
 - [Configuration management conformance](./configuration-management) — open
   for source-default centralization, typed loading and one-copy packaging.
@@ -23,3 +23,6 @@ service-lifecycle registers contain the active migrations:
   external-acceptance gates for the approved Memory design.
 - [Elfie Emotion conformance](./elfie-emotion) — deferred semantic-recall and
   slow-correction Scope coverage debt for the accepted Emotion design.
+- [Elfie Selfhood conformance](./elfie-selfhood) — open two-layer state,
+  creation/runtime authority, fixed-header, projection and single-persistence
+  migration for the accepted Selfhood design.

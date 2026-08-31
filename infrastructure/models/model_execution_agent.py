@@ -304,6 +304,7 @@ class ModelExecutionAgent:
                 allowed_tools=(),
                 allow_fallback=False,
                 scope_id=request.scope_id,
+                inject_tool_prompt=not request.brain_owned_system_prompt,
             )
         except Exception as error:
             raise NoAvailableFoodError(
@@ -369,6 +370,7 @@ class ModelExecutionAgent:
                     allowed_tools=tuple(request.allowed_tools),
                     allow_fallback=request.allow_fallback,
                     scope_id=request.scope_id,
+                    inject_tool_prompt=not request.brain_owned_system_prompt,
                 )
             except Exception as exc:
                 failures.append(f"{attempt_food}: {exc}")
@@ -390,7 +392,10 @@ class ModelExecutionAgent:
     ) -> List[Dict[str, Any]]:
         """Add a host-owned schema instruction when the provider lacks native schema."""
         copied = [dict(message) for message in messages]
-        if selected_mode is not StructuredGenerationMode.JSON_TEXT:
+        if (
+            selected_mode is not StructuredGenerationMode.JSON_TEXT
+            or request.brain_owned_system_prompt
+        ):
             return copied
         instruction = (
             "Return only one JSON value. Do not use Markdown or explanatory text. "

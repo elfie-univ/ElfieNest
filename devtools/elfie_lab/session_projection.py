@@ -38,7 +38,13 @@ def build_profile(
         "personality_summary": _personality_summary(big_five),
         "personality_tags": _personality_tags(big_five),
         "big_five": big_five,
-        "personality_derivation": selfhood.derivation.model_dump(),
+        "personality_derivation": {
+            "preset": "Genesis",
+            "matched_keywords": [],
+            "provenance": "genesis",
+            "overridden_traits": [],
+            "seed": None,
+        },
         "speech_style": {
             "greetings": list(selfhood.speech_style.greetings),
             "verbal_ticks": selfhood.speech_style.verbal_tick,

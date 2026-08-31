@@ -20,7 +20,7 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.decision_types import TurnDecision
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import TurnId, UTCDateTime
 
@@ -78,8 +78,8 @@ class BrainContextSource(Protocol):
     ) -> OrientationSnapshot:
         """Observe the admitted frame and return current self/world placement."""
 
-    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodSnapshot:
-        """Return the committed mutable self-model at the Turn cutoff."""
+    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodPromptProjection:
+        """Return the deterministic model-facing projection at the cutoff."""
 
     def motivation(self, captured_at: UTCDateTime) -> MotivationSnapshot:
         """Return the committed fixed-drive state at the Turn cutoff."""
@@ -106,9 +106,6 @@ class BrainContextSource(Protocol):
         blocked: bool,
     ) -> Optional[CognitiveConsolidationCandidate]:
         """Evaluate one bounded quiet-window consolidation candidate."""
-
-    def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
-        """Return immutable identity and appearance anchors at the Turn cutoff."""
 
     def submit_memory_use_proposal(
         self,

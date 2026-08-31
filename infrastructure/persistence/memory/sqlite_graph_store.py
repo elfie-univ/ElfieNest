@@ -1369,6 +1369,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         cause_labels: Iterable[str] = (),
         privacy_scope: str | None = None,
         include_unknown_time: bool = False,
+        recall_eligible_only: bool = False,
         now: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         ids = tuple(
@@ -1431,6 +1432,28 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 " AND a.predicate IN (" + ",".join("?" for _ in relations) + ")"
             )
             common_params.extend(relations)
+        recall_eligibility_clause = ""
+        if recall_eligible_only:
+            recall_eligibility_clause = """
+                AND EXISTS (
+                    SELECT 1 FROM nodes AS rs
+                     WHERE rs.node_id=a.subject_node_id
+                       AND COALESCE(
+                           json_extract(rs.properties_json, '$.recall_eligible'), 1
+                       ) <> 0
+                )
+                AND (
+                    a.object_node_id IS NULL OR EXISTS (
+                        SELECT 1 FROM nodes AS ro
+                         WHERE ro.node_id=a.object_node_id
+                           AND COALESCE(
+                               json_extract(
+                                   ro.properties_json, '$.recall_eligible'
+                               ), 1
+                           ) <> 0
+                    )
+                )
+            """
         time_clause = ""
         if (
             occurred_from is not None
@@ -1508,6 +1531,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                           AND {endpoint_clause}
                           AND {assertion_visibility}
                           {namespace_clause}
+                          {recall_eligibility_clause}
                           {relation_clause}
                           {time_clause}
                         ORDER BY CASE WHEN a.lifecycle='active' THEN 0 ELSE 1 END,

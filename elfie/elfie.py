@@ -14,11 +14,12 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.selfhood.defaults import load_selfhood_seed_for_profile
+from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub
@@ -38,6 +39,7 @@ class Elfie(ElfieFacadeOperations):
         character_profile: ElfieProfile,
         memory_store: MemoryStorePort,
         selfhood_seed: Mapping[str, object] | None = None,
+        reasoning_constitution: ReasoningConstitution | None = None,
         energy_limits: Mapping[str, object] | None = None,
         emotion_expression_config: Mapping[str, object] | None = None,
         emotion_dynamics_config: Mapping[str, object] | None = None,
@@ -57,12 +59,18 @@ class Elfie(ElfieFacadeOperations):
             dict(energy_limits) if energy_limits is not None else {},
             clock=lambda: self._elapsed_time,
         )
-        self._selfhood = SelfhoodSystem.from_personality_data(
-            selfhood_seed
+        self._selfhood = (
+            SelfhoodSystem.from_seed(
+                selfhood_seed,
+                initial_at=self.cognitive_datetime,
+            )
             if selfhood_seed is not None
-            else load_selfhood_seed_for_profile(self._profile),
-            initial_at=self.cognitive_datetime,
-            profile_revision=self._profile.schema_version,
+            else SelfhoodSystem(
+                initial_at=self.cognitive_datetime,
+                initial=SelfhoodState.unknown(
+                    committed_at=self.cognitive_datetime,
+                ),
+            )
         )
         self._emotion = EmotionSystem(
             personality=self._selfhood.big_five_dict(),
@@ -72,9 +80,6 @@ class Elfie(ElfieFacadeOperations):
         )
         self._memory = MemorySystem(
             elfie_id=self._profile.identity.elfie_id,
-            personality_data=self._selfhood.seed_data(
-                display_name=self._profile.identity.display_name
-            ),
             storage=memory_store,
             clock=lambda: self.cognitive_datetime,
             initial_at=self.cognitive_datetime,
@@ -105,6 +110,7 @@ class Elfie(ElfieFacadeOperations):
         self._communication.bind_identity(str(workspace_id))
         self._skills = skills or SkillManager()
         self._brain_runtime: BrainRuntime | None = None
+        self._reasoning_constitution = reasoning_constitution
         if model_port is not None:
             self.configure_cognition(model_port, tool_port=tool_port)
 

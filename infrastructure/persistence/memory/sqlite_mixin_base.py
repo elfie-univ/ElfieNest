@@ -141,6 +141,7 @@ class SQLiteMemoryMixinBase:
         cause_labels: Iterable[str] = (),
         privacy_scope: str | None = None,
         include_unknown_time: bool = False,
+        recall_eligible_only: bool = False,
         now: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError

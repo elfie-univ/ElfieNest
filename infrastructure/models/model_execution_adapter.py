@@ -136,6 +136,7 @@ class SerializedModelExecutionAdapter:
             food_key=selection.food_id,
             food_unavailable=selection.unavailable,
             scope_id=self._scope_id,
+            brain_owned_system_prompt=True,
             temperature=request.temperature,
             max_tokens=min(request.max_tokens, capabilities.max_output_tokens),
         )

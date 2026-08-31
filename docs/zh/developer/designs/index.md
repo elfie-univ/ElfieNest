@@ -7,6 +7,8 @@
 - [Elfie 顶级模块设计](./elfie-top-level-module-design)：一只完整 Elfie 的目标顶级所有权。
 - [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture)：Brain 的概念系统、边界、
   运行回路和渐进实现顺序。
+- [Elfie Selfhood 与固定模型头部](./elfie-selfhood-and-fixed-model-header)：在线 Reasoning
+  四段前缀、两层 Selfhood 状态、初始化、投影、持久化与未来 Memory-only 更新边界。
 - [Elfie 情绪系统](./elfie-emotion-system)：六通道正负动态、稳定/快速/复核 Turn
   生命周期、人格投影与模态边界。
 - [Elfie Brain 评价与进化系统](./elfie-brain-evaluation-system)：面向一只完整、连续生活

@@ -94,9 +94,13 @@ learns and grows, including:
 - Capability Envelope, budgets and autonomous decisions;
 - structured decisions, internal triggers and execution-receipt feedback.
 
-Brain may read Profile as an immutable objective anchor but cannot modify it.
-Self Model answers how the Elfie currently understands itself and may change
-slowly; Profile answers which Elfie it objectively is.
+Genesis co-materializes Profile and the Brain-owned Selfhood state from one
+validated creation bundle. Profile remains the immutable external dossier, but
+ordinary Brain runtime does not read it as a context source. Selfhood's frozen
+`identity_core` supplies Brain identity, while `adaptive_self` describes the
+slow way the Elfie understands and expresses itself. The focused
+[Selfhood design](./elfie-selfhood-and-fixed-model-header.md) supersedes earlier
+runtime Profile-anchor interpretations.
 
 ### 3.3 Nervous System
 

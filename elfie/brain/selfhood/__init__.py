@@ -1,13 +1,14 @@
-"""Selfhood: the slowly changing self-model anchored by immutable Profile facts."""
+"""Selfhood: one atomic two-layer state and deterministic model projection."""
 
 from .contracts import (
+    AdaptiveSelf,
     BigFiveTraits,
+    IdentityCore,
     ProfileAnchorSnapshot,
-    SelfhoodDerivation,
-    SelfhoodSnapshot,
+    SelfhoodPromptProjection,
     SelfhoodSpeechStyle,
+    SelfhoodState,
 )
-from .defaults import load_selfhood_seed_for_profile
 from .personality_derivation import (
     BIG_FIVE_TRAITS,
     PERSONALITY_KEYWORDS,
@@ -16,20 +17,22 @@ from .personality_derivation import (
     PersonalityDerivationError,
     derive_personality,
 )
-from .system import SelfhoodSystem
+from .system import SelfhoodGrowthDisabledError, SelfhoodSystem
 
 __all__ = (
     "BigFiveTraits",
+    "AdaptiveSelf",
+    "IdentityCore",
     "BIG_FIVE_TRAITS",
     "PERSONALITY_KEYWORDS",
     "PERSONALITY_PRESETS",
     "ProfileAnchorSnapshot",
-    "SelfhoodDerivation",
-    "SelfhoodSnapshot",
+    "SelfhoodPromptProjection",
+    "SelfhoodState",
     "SelfhoodSpeechStyle",
     "SelfhoodSystem",
+    "SelfhoodGrowthDisabledError",
     "PersonalityDerivation",
     "PersonalityDerivationError",
     "derive_personality",
-    "load_selfhood_seed_for_profile",
 )

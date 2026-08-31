@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -57,8 +58,13 @@ from elfie.message_types import (
 from elfie.profile import (
     configure_species_catalog,
     create_visual_profile,
+    get_species_canon_for_technical_id,
+)
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
 )
 from infrastructure.persistence.configuration.species import load_species_catalog
+from infrastructure.persistence.configuration.world import load_world_canon
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     _genesis_bundle,
 )
@@ -441,15 +447,42 @@ def _build_bundle(
         gender="female",
         birth_date="2001-01-01",
     )
+    species = get_species_canon_for_technical_id(species_id)
+    world = load_world_canon()
+    origin = profile.identity.origin
     selfhood_seed = {
-        "big_five": {
-            "openness": 0.5,
-            "conscientiousness": 0.5,
-            "extraversion": 0.5,
-            "agreeableness": 0.5,
-            "neuroticism": 0.5,
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": profile.identity.elfie_id,
+            "display_name": profile.identity.display_name,
+            "species_id": profile.identity.species_id,
+            "species_name": species.display_name,
+            "home_world_id": origin.home_world_id,
+            "home_world_name": world.display_name,
+            "home_region_id": origin.home_region_id,
+            "home_region_name": world.known_region_name,
+            "earth_arrival_statement": world.earth_arrival_statement,
+            "resident_role": "ElfieNest 居民",
         },
-        "speech_style": {"greetings": ("你好呀", "我在听呢"), "verbal_ticks": "呢"},
+        "adaptive_self": {
+            "big_five": {
+                "openness": 0.5,
+                "conscientiousness": 0.5,
+                "extraversion": 0.5,
+                "agreeableness": 0.5,
+                "neuroticism": 0.5,
+            },
+            "interaction_tendency_ids": tuple(species.earth_first_contact_cues),
+            "coping_tendency_ids": tuple(species.common_sensory_biases),
+            "expression_tendency_ids": ("好奇探索",),
+            "value_ids": (
+                "尊重自愿选择，不把猜测说成亲历。",
+                "不知道时说明不知道，并在真实接触中学习地球。",
+            ),
+            "speech_marker_ids": ("呢",),
+            "source_event_ids": (),
+        },
     }
     return _genesis_bundle(reservation, profile, selfhood_seed)
 
@@ -467,9 +500,8 @@ def _build_runtime(
     else:
         memory_path.parent.mkdir(parents=True, exist_ok=True)
         memory_store = SQLiteMemoryStoreAdapter(memory_path)
-    GenesisMemoryCommitter().commit(
-        _build_bundle(spec, elfie_id, display_name), memory_store
-    )
+    bundle = _build_bundle(spec, elfie_id, display_name)
+    GenesisMemoryCommitter().commit(bundle, memory_store)
     body = HeadlessBody(body_id=f"{elfie_id}:e1-body")
     body.connect()
     hub = CommunicationHub(elfie_id)
@@ -486,6 +518,12 @@ def _build_runtime(
             memory_store=memory_store,
             body=body,
             communication=hub,
+            selfhood_seed=bundle.selfhood_state.model_dump(mode="python")
+            if bundle.selfhood_state is not None
+            else None,
+            reasoning_constitution=ReasoningConstitution.from_mapping(
+                load_reasoning_constitution()
+            ),
             model_port=model_port,
         )
     )
