@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, cast
 
@@ -11,11 +12,20 @@ from elfie.brain.memory.memory_records import (
     EpisodeReceipt,
     MediaReference,
     OccurrencePrecision,
+    RetentionClass,
     SourceReference,
 )
+from elfie.brain.memory.score_policy import ImportanceEvent, MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
-from .sqlite_utils import canonical_json, content_hash, json_list, json_object, utc_now
+from .sqlite_utils import (
+    canonical_json,
+    content_hash,
+    json_list,
+    json_object,
+    stable_id,
+    utc_now,
+)
 
 
 class EpisodeIdempotencyError(ValueError):
@@ -40,6 +50,39 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             )
         with self._lock:
             now = utc_now()
+            active_submission = getattr(self, "_active_genesis_submission_id", None)
+            retention_days = MemoryScorePolicy.admission_retention(
+                episode.retention_class,
+                emotion_intensity=episode.emotion_intensity,
+                sensory_present=bool(episode.sensory),
+                genesis=active_submission is not None,
+            )
+            # Genesis stores historical occurrence separately but starts the
+            # retention clock at this admission.  Otherwise a seed written
+            # with an old historical date would already be archival on its
+            # first read despite the fixed ten-year Genesis span.
+            anchor = (
+                episode.last_reinforced_at
+                or (now if active_submission is not None else episode.occurred_from)
+                or now
+            )
+            if episode.occurred_from is not None:
+                MemoryScorePolicy.validate_event_time(
+                    now=now, occurred_at=episode.occurred_from
+                )
+            if episode.occurred_to is not None:
+                MemoryScorePolicy.validate_event_time(
+                    now=now, occurred_at=episode.occurred_to
+                )
+            MemoryScorePolicy.validate_event_time(now=now, occurred_at=anchor)
+            # ``next_review_at`` is derived state.  Ignore a caller-supplied
+            # stale value so lifecycle scheduling cannot be forged independently
+            # of the immutable retention anchor.
+            next_review_at = MemoryScorePolicy.next_review_at(
+                anchor,
+                retention_days,
+                MemoryScorePolicy.active_freshness_threshold,
+            ).isoformat(timespec="milliseconds")
             metadata = {
                 **dict(episode.metadata),
                 "emotion": episode.emotion,
@@ -49,7 +92,6 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             }
             if configured_elfie is not None:
                 metadata["elfie_id"] = str(configured_elfie)
-            active_submission = getattr(self, "_active_genesis_submission_id", None)
             if (
                 active_submission is not None
                 and episode.genesis_submission_id is not None
@@ -100,15 +142,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         occurrence_precision, content_text, summary_text, event_kind,
                         source_refs_json, media_refs_json, source_event_ids_json,
                         life_stage, temporal_label, context_text, attribution,
-                        privacy_scope, source_version, importance, detail_level,
+                        privacy_scope, source_version, importance, initial_importance, retention_days,
+                        detail_level,
                         content_sha256, projection_revision, projection_source_sha256,
                         last_reinforced_at, last_reviewed_at, next_review_at,
-                        policy_version, genesis_submission_id, metadata_json,
+                        lifecycle_changed_at, policy_version, genesis_submission_id, metadata_json,
                         created_at, updated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?
                     )""",
                     (
                         episode.episode_id,
@@ -133,19 +177,40 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         episode.privacy_scope,
                         episode.source_version,
                         episode.importance,
+                        episode.initial_importance,
+                        retention_days,
                         episode.detail_level,
                         digest,
                         episode.projection_revision,
                         episode.projection_source_sha256,
-                        episode.last_reinforced_at,
+                        anchor,
                         episode.last_reviewed_at,
-                        episode.next_review_at,
-                        episode.policy_version,
+                        next_review_at,
+                        now,
+                        MemoryScorePolicy.version,
                         genesis_submission_id,
                         canonical_json(metadata),
                         now,
                         now,
                     ),
+                )
+                self._record_importance_event_locked(
+                    ImportanceEvent(
+                        event_id=stable_id(
+                            "importance-event:",
+                            "episode",
+                            episode.episode_id,
+                            "admission",
+                            length=48,
+                        ),
+                        target_kind="episode",
+                        target_id=episode.episode_id,
+                        direction="raise",
+                        event_class="admission",
+                        source_episode_id=None,
+                        occurred_at=anchor,
+                    ),
+                    now,
                 )
                 self._upsert_episode_fts(episode.episode_id, episode)
                 self._commit_write_transaction(owns)
@@ -176,6 +241,35 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 params,
             ).fetchone()
         return None if row is None else _row_to_episode(row)
+
+    def list_episodes(
+        self, limit: int = 1000, *, include_forgotten: bool = False
+    ) -> tuple[ClosedEpisode, ...]:
+        """Return a bounded, typed read-only view of the Episode source line."""
+        bounded_limit = max(0, min(int(limit), 10_000))
+        if bounded_limit == 0:
+            return ()
+        with self._lock:
+            scope = ""
+            params: list[object] = []
+            if not include_forgotten:
+                scope += " AND e.lifecycle <> 'forgotten'"
+            if getattr(self, "elfie_id", None) is not None:
+                scope += " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("e")
+            params.extend(visibility_params)
+            params.append(bounded_limit)
+            rows = self.conn.execute(
+                """SELECT e.* FROM episodes AS e
+                   WHERE 1=1"""
+                + scope
+                + " AND "
+                + visibility
+                + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
+                params,
+            ).fetchall()
+        return tuple(_row_to_episode(row) for row in rows)
 
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:
         if limit < 1:
@@ -230,7 +324,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 select_params.extend(visibility_params)
                 select_params.append(limit)
                 rows = self.conn.execute(
-                    """SELECT e.episode_id FROM episodes AS e
+                    """SELECT e.episode_id, e.consolidation_attempts FROM episodes AS e
                        WHERE e.lifecycle='active'
                          AND e.consolidation_state IN ('pending', 'failed')
                          AND (e.projection_revision IS NULL OR e.projection_source_sha256 IS NULL
@@ -243,7 +337,11 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                     + " ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?",
                     select_params,
                 ).fetchall()
-                episode_ids = [str(row["episode_id"]) for row in rows]
+                episode_attempts = {
+                    str(row["episode_id"]): int(row["consolidation_attempts"] or 0) + 1
+                    for row in rows
+                }
+                episode_ids = list(episode_attempts)
                 for episode_id in episode_ids:
                     self.conn.execute(
                         """UPDATE episodes SET consolidation_state='processing',
@@ -256,17 +354,41 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             except Exception:
                 self._rollback_write_transaction(owns)
                 raise
-        return tuple(
-            episode
-            for episode_id in episode_ids
-            if (episode := self.get_episode(episode_id)) is not None
-        )
+        claimed: list[ClosedEpisode] = []
+        for episode_id in episode_ids:
+            episode = self.get_episode(episode_id)
+            if episode is None:
+                continue
+            claimed.append(
+                replace(
+                    episode,
+                    metadata={
+                        **dict(episode.metadata),
+                        "_memory_claim_owner": owner,
+                        "_memory_claim_attempt": episode_attempts[episode_id],
+                    },
+                )
+            )
+        return tuple(claimed)
 
     def mark_episode_consolidated(self, episode_id: str) -> bool:
         return self._update_episode_state(episode_id, "consolidated", None)
 
-    def mark_episode_failed(self, episode_id: str, error: str) -> bool:
-        return self._update_episode_state(episode_id, "failed", error)
+    def mark_episode_failed(
+        self,
+        episode_id: str,
+        error: str,
+        *,
+        owner: str | None = None,
+        attempt: int | None = None,
+    ) -> bool:
+        return self._update_episode_state(
+            episode_id,
+            "failed",
+            error,
+            owner=owner,
+            attempt=attempt,
+        )
 
     def archive_episode(self, episode_id: str, summary_text: str | None = None) -> bool:
         """Retain a compact searchable Episode without deleting its source row."""
@@ -292,8 +414,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             try:
                 cursor = self.conn.execute(
                     """UPDATE episodes SET lifecycle='archived', detail_level='compressed',
-                           summary_text=?, updated_at=?, last_reviewed_at=? WHERE episode_id=?""",
-                    (summary, utc_now(), utc_now(), episode_id),
+                           summary_text=?, updated_at=?, last_reviewed_at=?,
+                           lifecycle_changed_at=CASE WHEN lifecycle<>'archived' THEN ? ELSE lifecycle_changed_at END,
+                           next_review_at=NULL, policy_version=? WHERE episode_id=?""",
+                    (
+                        summary,
+                        utc_now(),
+                        utc_now(),
+                        utc_now(),
+                        MemoryScorePolicy.version,
+                        episode_id,
+                    ),
                 )
                 self._upsert_episode_fts_from_values(
                     episode_id, str(row["content_text"]), summary
@@ -305,7 +436,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         return cursor.rowcount > 0
 
     def recover_expired_leases(self) -> int:
-        """Return abandoned processing work to the retryable queue."""
+        """Return abandoned Episode projection work to the retryable queue."""
         now = utc_now()
         with self._lock:
             owns = self._begin_write_transaction()
@@ -344,13 +475,33 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             visibility, visibility_params = self._genesis_visibility("e")
             select_params.extend(visibility_params)
             row = self.conn.execute(
-                "SELECT e.content_sha256 FROM episodes AS e WHERE e.episode_id=?"
+                """SELECT e.content_sha256, e.projection_revision,
+                          e.projection_source_sha256,
+                          (SELECT COUNT(*) FROM evidence AS ev
+                             WHERE ev.source_type='episode' AND ev.source_id=e.episode_id)
+                             AS evidence_count,
+                          (SELECT COUNT(*) FROM evidence AS ev
+                             WHERE ev.source_type='episode' AND ev.source_id=e.episode_id
+                               AND (ev.source_sha256 IS NULL
+                                    OR ev.source_sha256 <> e.content_sha256))
+                             AS ungrounded_evidence_count
+                     FROM episodes AS e WHERE e.episode_id=?"""
                 + scope
                 + " AND "
                 + visibility,
                 select_params,
             ).fetchone()
             if row is None:
+                return False
+            if (
+                row["projection_revision"] is None
+                or row["projection_source_sha256"] != row["content_sha256"]
+                or int(row["evidence_count"] or 0) < 1
+                or int(row["ungrounded_evidence_count"] or 0) > 0
+            ):
+                # Forgetting is allowed only after the current source has a
+                # complete, hash-bound Evidence audit trail.  An unprojected
+                # or partially grounded Episode remains the source of truth.
                 return False
             content = (
                 f"[forgotten:{row['content_sha256']}]"
@@ -361,9 +512,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             try:
                 self.conn.execute(
                     """UPDATE episodes SET content_text=?, summary_text=NULL,
-                           detail_level='digest', lifecycle='forgotten', updated_at=?
+                           detail_level='digest', lifecycle='forgotten',
+                           lifecycle_changed_at=CASE WHEN lifecycle<>'forgotten' THEN ? ELSE lifecycle_changed_at END,
+                           next_review_at=NULL, policy_version=?, updated_at=?
                        WHERE episode_id=?""",
-                    (content, utc_now(), episode_id),
+                    (
+                        content,
+                        utc_now(),
+                        MemoryScorePolicy.version,
+                        utc_now(),
+                        episode_id,
+                    ),
                 )
                 self._upsert_episode_fts(
                     episode_id,
@@ -385,7 +544,12 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         episode_id: str,
         state: str,
         error: Optional[str],
+        *,
+        owner: str | None = None,
+        attempt: int | None = None,
     ) -> bool:
+        if (owner is None) != (attempt is None):
+            raise ValueError("owner and attempt must be supplied together")
         with self._lock:
             scope = ""
             select_params: list[object] = [episode_id]
@@ -395,12 +559,27 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             visibility, visibility_params = self._genesis_visibility("e")
             select_params.extend(visibility_params)
             metadata_row = self.conn.execute(
-                "SELECT e.metadata_json, e.consolidation_attempts FROM episodes AS e "
-                "WHERE e.episode_id=?" + scope + " AND " + visibility,
+                "SELECT e.metadata_json, e.consolidation_attempts, "
+                "e.consolidation_state, e.lease_owner, e.lease_until "
+                "FROM episodes AS e WHERE e.episode_id=?"
+                + scope
+                + " AND "
+                + visibility,
                 select_params,
             ).fetchone()
             if metadata_row is None:
                 return False
+            if owner is not None:
+                if (
+                    str(metadata_row["consolidation_state"]) != "processing"
+                    or str(metadata_row["lease_owner"] or "") != owner
+                    or int(metadata_row["consolidation_attempts"] or 0) != attempt
+                    or metadata_row["lease_until"] is None
+                    or str(metadata_row["lease_until"]) <= utc_now()
+                ):
+                    # A worker that lost its lease must not overwrite the
+                    # retry state written by a newer claimant.
+                    return False
             metadata = json_object(metadata_row["metadata_json"])
             if error:
                 metadata["last_error"] = error
@@ -426,6 +605,14 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 if getattr(self, "elfie_id", None) is not None:
                     update_scope = " AND json_extract(metadata_json, '$.elfie_id')=?"
                     update_params.append(str(self.elfie_id))
+                if owner is not None:
+                    update_scope += (
+                        " AND consolidation_state='processing'"
+                        " AND lease_owner=?"
+                        " AND consolidation_attempts=?"
+                        " AND lease_until>?"
+                    )
+                    update_params.extend((owner, attempt, utc_now()))
                 cursor = self.conn.execute(
                     """UPDATE episodes SET consolidation_state=?, lease_owner=NULL,
                            lease_until=NULL, next_attempt_at=?, metadata_json=?, updated_at=?
@@ -446,6 +633,16 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             for value in (episode.content_text, episode.summary_text or "")
             if value
         )
+        self.conn.execute(
+            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
+            (episode_id, searchable),
+        )
+
+    def _upsert_episode_fts_from_values(
+        self, episode_id: str, content: str, summary: str | None
+    ) -> None:
+        searchable = "\n".join(value for value in (content, summary or "") if value)
         self.conn.execute(
             """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
                ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
@@ -519,7 +716,19 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
             str(value) for value in json_list(row["source_event_ids_json"])
         ),
         importance=float(row["importance"]),
+        initial_importance=float(row["initial_importance"] or row["importance"]),
+        retention_days=float(
+            row["retention_days"]
+            or MemoryScorePolicy.initial_retention_days["ordinary"]
+        ),
+        retention_class=_retention_class(
+            float(
+                row["retention_days"]
+                or MemoryScorePolicy.initial_retention_days["ordinary"]
+            )
+        ),
         detail_level=str(row["detail_level"]),
+        lifecycle=str(row["lifecycle"] or "active"),  # type: ignore[arg-type]
         emotion=metadata.get("emotion"),
         emotion_intensity=metadata.get("emotion_intensity"),
         stimulus=metadata.get("stimulus"),
@@ -543,7 +752,7 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
         last_reinforced_at=row["last_reinforced_at"],
         last_reviewed_at=row["last_reviewed_at"],
         next_review_at=row["next_review_at"],
-        policy_version=str(row["policy_version"] or "memory.v1"),
+        policy_version=str(row["policy_version"] or MemoryScorePolicy.version),
         genesis_submission_id=row["genesis_submission_id"],
         content_sha256=str(row["content_sha256"]),
     )
@@ -551,12 +760,11 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
 
 def _episode_hash(episode: ClosedEpisode) -> str:
     """Hash the complete source payload, never only its displayed text."""
-    # These keys are adapter-owned projections.  They are persisted in
-    # ``metadata_json`` for compatibility, but are also stored in typed
+    # These keys are adapter-owned derived fields.  They are persisted in
+    # ``metadata_json`` for inspection, but are also stored in typed
     # columns/fields and removed again when an Episode is read back.  Exclude
     # them from the source digest so a caller can submit a read-back Episode
-    # (including a legacy node carrying duplicated emotion/sensory metadata)
-    # and still receive the same idempotent source hash.
+    # with the same source content and still receive the same idempotent hash.
     adapter_metadata_keys = {
         "elfie_id",
         "emotion",
@@ -566,6 +774,8 @@ def _episode_hash(episode: ClosedEpisode) -> str:
         # Runtime bookkeeping must not turn a retry into a new source.
         "last_error",
         "written_at",
+        "_memory_claim_owner",
+        "_memory_claim_attempt",
     }
     source_metadata = {
         str(key): value
@@ -597,3 +807,13 @@ def _episode_hash(episode: ClosedEpisode) -> str:
 
 
 __all__ = ["EpisodeIdempotencyError", "SQLiteEpisodeStoreMixin"]
+
+
+def _retention_class(days: float) -> RetentionClass:
+    if days >= MemoryScorePolicy.initial_retention("genesis"):
+        return "genesis"
+    if days >= MemoryScorePolicy.initial_retention("salient"):
+        return "salient"
+    if days <= MemoryScorePolicy.initial_retention("transient"):
+        return "transient"
+    return "ordinary"

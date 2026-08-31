@@ -52,7 +52,7 @@ source of truth.
   conformance is complete and its contract is enforced by permanent
   architecture tests.
 - [Elfie Memory conformance](./conformance/elfie-memory): implementation status
-  and remaining external-acceptance gates for storage, consolidation, retrieval and migration.
+  and remaining external-acceptance gates for storage, consolidation, retrieval and the compatibility boundary.
 - [Application architecture contract](./contracts/application): the
   normative ownership, dependency, Port/Adapter and composition rules for new
   and migrated `app/` code.

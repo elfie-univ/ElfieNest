@@ -166,10 +166,22 @@ class TracingModelExecutionAgent:
                     2,
                 )
                 self.calls.append(call)
-        speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
-        text = (
-            _mock_decision_json(request, speech) if self.food_key == "mock" else speech
-        )
+        if (
+            self.food_key == "mock"
+            and request.response_schema is not None
+            and request.response_schema.name == "MemoryProjection"
+        ):
+            # The offline agent has no semantic extractor. Return an empty,
+            # source-safe projection so the event node and Episode evidence can
+            # still be committed through the same typed maintenance contract.
+            text = _mock_memory_projection_json()
+        else:
+            speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
+            text = (
+                _mock_decision_json(request, speech)
+                if self.food_key == "mock"
+                else speech
+            )
         return ModelGenerationResult(
             text=text,
             selected_mode=(
@@ -204,6 +216,14 @@ class TracingModelExecutionAgent:
         if self.food_key == "mock":
             return "mock"
         return str(getattr(self.inner, "selected_provider", "model_execution_router"))
+
+
+def _mock_memory_projection_json() -> str:
+    """Return a valid conservative MemoryProjection for offline runs."""
+    return json.dumps(
+        {"nodes": [], "mentions": [], "assertions": []},
+        ensure_ascii=False,
+    )
 
 
 def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:

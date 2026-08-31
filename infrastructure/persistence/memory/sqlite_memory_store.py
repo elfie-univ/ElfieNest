@@ -11,7 +11,6 @@ from threading import RLock
 from types import TracebackType
 from typing import Final, Iterator
 
-from infrastructure.persistence.memory.node_store import KnowledgeNodeStoreMixin
 from infrastructure.persistence.memory.schema import (
     INDEX_SQL,
     KNOWLEDGE_TABLES,
@@ -64,8 +63,8 @@ class MemoryStorePathError(Exception):
         return f"SQLite Memory Adapter requires {_FINAL_FILENAME}: {self.db_path}"
 
 
-class MemoryStoreMigrationRequired(RuntimeError):
-    """A legacy database must be imported into a fresh target database first."""
+class MemoryStoreResetRequired(RuntimeError):
+    """An old or mixed database must be backed up and explicitly rebuilt."""
 
 
 class MemoryStoreSchemaError(RuntimeError):
@@ -73,7 +72,6 @@ class MemoryStoreSchemaError(RuntimeError):
 
 
 class SQLiteMemoryStoreAdapter(
-    KnowledgeNodeStoreMixin,
     SQLiteGraphStoreMixin,
     SQLiteEpisodeStoreMixin,
     SQLiteLifecycleStoreMixin,
@@ -105,12 +103,46 @@ class SQLiteMemoryStoreAdapter(
         return cls(":memory:", elfie_id=elfie_id)
 
     def bind_elfie_identity(self, elfie_id: str) -> None:
-        """Bind an unconfigured adapter once to its owning Elfie namespace."""
+        """Bind an adapter to its owning Elfie namespace.
+
+        A freshly assembled Elfie may start with a provisional identity before
+        adoption assigns its stable ID.  Rebinding is safe while this adapter
+        has no durable Memory rows; once a source or projection exists, the
+        namespace is immutable so an existing graph can never be reassigned.
+        """
         if not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
         if self.elfie_id is not None and str(self.elfie_id) != elfie_id:
-            raise ValueError("Memory store is already bound to another Elfie")
+            with self._lock:
+                if self._has_durable_memory_rows():
+                    raise ValueError("Memory store is already bound to another Elfie")
         self.elfie_id = elfie_id
+
+    def _has_durable_memory_rows(self) -> bool:
+        """Return whether rebinding would move any persisted Memory facts."""
+        for table in (
+            "episodes",
+            "nodes",
+            "assertions",
+            "evidence",
+            "node_aliases",
+            "node_descriptions",
+            "episode_mentions",
+            "assertion_evidence",
+            "memory_genesis_submissions",
+            "memory_maintenance",
+            "projection_diagnostics",
+            "memory_importance_events",
+            "memory_retention_receipts",
+            "memory_score_checkpoints",
+            "memory_score_reconciliation",
+        ):
+            if (
+                self.conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+                is not None
+            ):
+                return True
+        return False
 
     @contextmanager
     def write_transaction(self) -> Iterator[None]:
@@ -461,10 +493,19 @@ class SQLiteMemoryStoreAdapter(
             episodes = int(
                 self.conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
             )
+            nodes = int(self.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0])
             source_evidence = int(
                 self.conn.execute(
                     "SELECT COUNT(*) FROM evidence WHERE source_type='episode'"
                 ).fetchone()[0]
+            )
+            evidence = int(
+                self.conn.execute("SELECT COUNT(*) FROM evidence").fetchone()[0]
+            )
+            assertion_evidence = int(
+                self.conn.execute("SELECT COUNT(*) FROM assertion_evidence").fetchone()[
+                    0
+                ]
             )
             grounded = int(
                 self.conn.execute(
@@ -481,11 +522,68 @@ class SQLiteMemoryStoreAdapter(
             )
         return {
             "episodes": episodes,
+            "nodes": nodes,
+            "evidence": evidence,
             "episode_evidence": source_evidence,
             "assertions": assertions,
+            "assertion_evidence": assertion_evidence,
             "grounded_assertions": grounded,
             "all_assertions_grounded": grounded == assertions,
         }
+
+    def count_episodes(self, *, include_forgotten: bool = False) -> int:
+        """Return the durable Episode count in this Elfie namespace."""
+        with self._lock:
+            clauses = [] if include_forgotten else ["lifecycle <> 'forgotten'"]
+            params: list[object] = []
+            if self.elfie_id is not None:
+                clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("episodes")
+            clauses.append(visibility)
+            params.extend(visibility_params)
+            where = " AND ".join(clauses)
+            row = self.conn.execute(
+                "SELECT COUNT(*) FROM episodes WHERE " + where,
+                params,
+            ).fetchone()
+        return int(row[0])
+
+    def count_graph_nodes(
+        self,
+        node_type: str | None = None,
+        *,
+        include_forgotten: bool = False,
+    ) -> int:
+        """Return typed graph-node counts without exposing legacy node APIs."""
+        with self._lock:
+            clauses: list[str] = []
+            params: list[object] = []
+            if not include_forgotten:
+                clauses.append("n.status <> 'forgotten'")
+            clauses.append("n.merged_into IS NULL")
+            if node_type is not None:
+                clauses.append(
+                    "(n.node_type=? OR json_extract(n.properties_json, '$.entity_type')=?)"
+                )
+                params.extend([node_type, node_type])
+            if self.elfie_id is not None:
+                clauses.append("json_extract(n.properties_json, '$.elfie_id')=?")
+                params.append(str(self.elfie_id))
+            visibility, visibility_params = self._genesis_visibility("n")
+            clauses.append(visibility)
+            params.extend(visibility_params)
+            row = self.conn.execute(
+                "SELECT COUNT(*) FROM nodes AS n WHERE " + " AND ".join(clauses),
+                params,
+            ).fetchone()
+        return int(row[0])
+
+    def count_memory_records(self, *, include_forgotten: bool = False) -> int:
+        """Return active/archived Episodes plus graph nodes."""
+        return self.count_episodes(
+            include_forgotten=include_forgotten
+        ) + self.count_graph_nodes(include_forgotten=include_forgotten)
 
     @staticmethod
     def _parse_path(db_path: str | Path) -> str | Path:
@@ -504,8 +602,8 @@ class SQLiteMemoryStoreAdapter(
             ).fetchall()
         }
         if existing.intersection(_LEGACY_TABLES):
-            raise MemoryStoreMigrationRequired(
-                "legacy or mixed Memory database detected; import it into a fresh target database"
+            raise MemoryStoreResetRequired(
+                "legacy or mixed Memory database detected; back it up and rebuild an explicit fresh target"
             )
         user_tables = existing - {"sqlite_sequence"}
         target_tables = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
@@ -546,7 +644,7 @@ class SQLiteMemoryStoreAdapter(
 
 __all__ = [
     "EpisodeIdempotencyError",
-    "MemoryStoreMigrationRequired",
+    "MemoryStoreResetRequired",
     "MemoryStorePathError",
     "MemoryStoreSchemaError",
     "SQLiteMemoryStoreAdapter",

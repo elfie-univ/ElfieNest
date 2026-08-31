@@ -76,7 +76,7 @@ def test_nodes_keep_metadata_but_not_hidden_graph_edges() -> None:
             "SELECT properties_json FROM nodes WHERE node_id='owner'"
         ).fetchone()
         assert "edges" not in row[0]
-        assert store.get_node("owner").content == "主人"
+        assert store.get_graph_node("owner").label == "主人"
 
 
 def test_direct_sql_enforces_json_scores_and_foreign_keys() -> None:

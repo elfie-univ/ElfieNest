@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 4
+SCHEMA_VERSION: Final[int] = 6
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -24,6 +24,10 @@ KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "memory_genesis_submissions",
     "memory_maintenance",
     "projection_diagnostics",
+    "memory_importance_events",
+    "memory_retention_receipts",
+    "memory_score_checkpoints",
+    "memory_score_reconciliation",
 )
 
 SCHEMA_SQL: Final[tuple[str, ...]] = (
@@ -55,6 +59,10 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         source_version TEXT,
         importance REAL NOT NULL DEFAULT 0.5
             CHECK (importance >= 0.0 AND importance <= 1.0),
+        initial_importance REAL NOT NULL DEFAULT 0.5
+            CHECK (initial_importance >= 0.0 AND initial_importance <= 1.0),
+        retention_days REAL NOT NULL DEFAULT 7.0
+            CHECK (retention_days > 0.0 AND retention_days <= 36500.0),
         detail_level TEXT NOT NULL DEFAULT 'full'
             CHECK (detail_level IN ('full', 'compressed', 'digest', 'incomplete')),
         lifecycle TEXT NOT NULL DEFAULT 'active'
@@ -73,7 +81,8 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         last_reinforced_at TEXT,
         last_reviewed_at TEXT,
         next_review_at TEXT,
-        policy_version TEXT NOT NULL DEFAULT 'memory.v1'
+        lifecycle_changed_at TEXT,
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2'
             CHECK (length(trim(policy_version)) > 0),
         genesis_submission_id TEXT,
         metadata_json TEXT NOT NULL DEFAULT '{}'
@@ -96,11 +105,19 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         scope TEXT NOT NULL DEFAULT 'elfie'
             CHECK (length(trim(scope)) > 0),
         status TEXT NOT NULL DEFAULT 'active'
-            CHECK (status IN ('active', 'candidate', 'unresolved', 'forgotten')),
+            CHECK (status IN ('active', 'candidate', 'unresolved', 'archived', 'forgotten')),
         confidence REAL NOT NULL DEFAULT 0.5
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
+        initial_confidence REAL NOT NULL DEFAULT 0.5
+            CHECK (initial_confidence >= 0.0 AND initial_confidence <= 1.0),
+        prior_weight REAL NOT NULL DEFAULT 1.0
+            CHECK (prior_weight > 0.0),
         importance REAL NOT NULL DEFAULT 0.5
             CHECK (importance >= 0.0 AND importance <= 1.0),
+        initial_importance REAL NOT NULL DEFAULT 0.5
+            CHECK (initial_importance >= 0.0 AND initial_importance <= 1.0),
+        retention_days REAL NOT NULL DEFAULT 7.0
+            CHECK (retention_days > 0.0 AND retention_days <= 36500.0),
         properties_json TEXT NOT NULL DEFAULT '{}'
             CHECK (json_valid(properties_json)),
         merged_into TEXT REFERENCES nodes(node_id) ON DELETE RESTRICT,
@@ -113,7 +130,8 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         last_reinforced_at TEXT,
         last_reviewed_at TEXT,
         next_review_at TEXT,
-        policy_version TEXT NOT NULL DEFAULT 'memory.v1'
+        lifecycle_changed_at TEXT,
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2'
             CHECK (length(trim(policy_version)) > 0)
     )
     """,
@@ -159,6 +177,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         span_start INTEGER CHECK (span_start IS NULL OR span_start >= 0),
         span_end INTEGER CHECK (span_end IS NULL OR span_end >= span_start),
         confidence REAL NOT NULL DEFAULT 0.5,
+        evidence_id TEXT REFERENCES evidence(evidence_id) ON DELETE RESTRICT,
         genesis_submission_id TEXT,
         created_at TEXT NOT NULL,
         UNIQUE (episode_id, surface_text, span_start, span_end)
@@ -183,23 +202,30 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         object_literal_type TEXT,
         confidence REAL NOT NULL DEFAULT 0.5
             CHECK (confidence >= 0.0 AND confidence <= 1.0),
+        initial_confidence REAL NOT NULL DEFAULT 0.5
+            CHECK (initial_confidence >= 0.0 AND initial_confidence <= 1.0),
+        prior_weight REAL NOT NULL DEFAULT 1.0
+            CHECK (prior_weight > 0.0),
         importance REAL NOT NULL DEFAULT 0.5
             CHECK (importance >= 0.0 AND importance <= 1.0),
-        support_score REAL NOT NULL DEFAULT 0.5
-            CHECK (support_score >= 0.0 AND support_score <= 1.0),
+        initial_importance REAL NOT NULL DEFAULT 0.5
+            CHECK (initial_importance >= 0.0 AND initial_importance <= 1.0),
+        retention_days REAL NOT NULL DEFAULT 7.0
+            CHECK (retention_days > 0.0 AND retention_days <= 36500.0),
         conflict_group TEXT,
         supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
         predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v1'
             CHECK (length(trim(predicate_registry_version)) > 0),
-        policy_version TEXT NOT NULL DEFAULT 'memory.v1'
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2'
             CHECK (length(trim(policy_version)) > 0),
         genesis_submission_id TEXT,
         last_reinforced_at TEXT,
         last_reviewed_at TEXT,
         next_review_at TEXT,
+        lifecycle_changed_at TEXT,
         fingerprint TEXT NOT NULL UNIQUE,
         lifecycle TEXT NOT NULL DEFAULT 'active'
-            CHECK (lifecycle IN ('active', 'superseded', 'forgotten')),
+            CHECK (lifecycle IN ('active', 'superseded', 'archived', 'forgotten')),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         CHECK (
@@ -212,7 +238,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
     """
     CREATE TABLE IF NOT EXISTS evidence (
         evidence_id TEXT PRIMARY KEY NOT NULL,
-        source_type TEXT NOT NULL CHECK (source_type IN ('episode', 'seed', 'legacy')),
+        source_type TEXT NOT NULL CHECK (source_type IN ('episode', 'seed')),
         source_id TEXT NOT NULL CHECK (length(trim(source_id)) > 0),
         excerpt TEXT,
         media_locator TEXT,
@@ -227,6 +253,12 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         source_version TEXT,
         attribution TEXT
             CHECK (attribution IS NULL OR attribution IN ('observed', 'told', 'inferred', 'felt')),
+        independence_key TEXT NOT NULL DEFAULT 'row'
+            CHECK (length(trim(independence_key)) > 0),
+        source_reliability_class TEXT NOT NULL DEFAULT 'observed'
+            CHECK (length(trim(source_reliability_class)) > 0),
+        source_policy_version TEXT NOT NULL DEFAULT 'memory.v2'
+            CHECK (length(trim(source_policy_version)) > 0),
         genesis_submission_id TEXT,
         created_at TEXT NOT NULL,
         UNIQUE (source_type, source_id, source_version, modality, span_start, span_end, media_locator)
@@ -290,6 +322,66 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS memory_importance_events (
+        event_id TEXT NOT NULL,
+        elfie_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK (length(trim(target_kind)) > 0),
+        target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
+        direction TEXT NOT NULL CHECK (direction IN ('raise', 'lower')),
+        event_class TEXT NOT NULL CHECK (length(trim(event_class)) > 0),
+        source_episode_id TEXT,
+        occurred_at TEXT NOT NULL,
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2',
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (elfie_id, event_id, target_kind, target_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS memory_retention_receipts (
+        receipt_id TEXT NOT NULL,
+        elfie_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK (length(trim(target_kind)) > 0),
+        target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
+        occurred_at TEXT NOT NULL,
+        outcome_kind TEXT NOT NULL CHECK (length(trim(outcome_kind)) > 0),
+        source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) > 0),
+        recall_revision INTEGER,
+        state TEXT NOT NULL DEFAULT 'accepted'
+            CHECK (state IN ('accepted', 'ignored', 'folded', 'reconciled')),
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2',
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (elfie_id, receipt_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS memory_score_checkpoints (
+        elfie_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK (length(trim(target_kind)) > 0),
+        target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
+        score_kind TEXT NOT NULL CHECK (score_kind IN ('importance', 'retention', 'confidence')),
+        folded_through TEXT,
+        state_json TEXT NOT NULL DEFAULT '{}'
+            CHECK (json_valid(state_json)),
+        event_count INTEGER NOT NULL DEFAULT 0 CHECK (event_count >= 0),
+        policy_version TEXT NOT NULL DEFAULT 'memory.v2',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (elfie_id, target_kind, target_id, score_kind)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS memory_score_reconciliation (
+        reconciliation_id TEXT PRIMARY KEY NOT NULL,
+        elfie_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK (length(trim(target_kind)) > 0),
+        target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
+        score_kind TEXT NOT NULL CHECK (score_kind IN ('importance', 'retention', 'confidence')),
+        reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+        payload_json TEXT NOT NULL DEFAULT '{}'
+            CHECK (json_valid(payload_json)),
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS episodes_fts (
         episode_id TEXT PRIMARY KEY NOT NULL REFERENCES episodes(episode_id) ON DELETE CASCADE,
         searchable_text TEXT NOT NULL
@@ -308,25 +400,39 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_episodes_time ON episodes(occurred_from, occurred_to, occurrence_precision)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_hash ON episodes(content_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_review ON episodes(lifecycle, next_review_at, importance)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_retention ON episodes(lifecycle, retention_days, last_reinforced_at)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_projection ON episodes(projection_revision, projection_source_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_stage ON episodes(life_stage, temporal_label)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_label_type ON nodes(normalized_label, node_type, status)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_merged_into ON nodes(merged_into)",
+    "CREATE INDEX IF NOT EXISTS idx_nodes_retention ON nodes(status, retention_days, last_reinforced_at)",
     "CREATE INDEX IF NOT EXISTS idx_aliases_normalized ON node_aliases(normalized_alias, scope)",
     "CREATE INDEX IF NOT EXISTS idx_descriptions_node ON node_descriptions(node_id, language, kind)",
     "CREATE INDEX IF NOT EXISTS idx_mentions_node ON episode_mentions(node_id, resolution_state)",
+    "CREATE INDEX IF NOT EXISTS idx_mentions_evidence ON episode_mentions(evidence_id, node_id)",
     "CREATE INDEX IF NOT EXISTS idx_mentions_episode ON episode_mentions(episode_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_subject_predicate ON assertions(subject_node_id, predicate, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_object_predicate ON assertions(object_node_id, predicate, lifecycle)",
+    # Recall is seed-driven and does not always constrain ``predicate``.
+    # Keep lifecycle and deterministic ranking next to each endpoint so a
+    # large graph does not fall back to scanning the lifecycle index for every
+    # local-walk hop.
+    "CREATE INDEX IF NOT EXISTS idx_assertions_subject_lifecycle ON assertions(subject_node_id, lifecycle, importance DESC, confidence DESC, assertion_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_object_lifecycle ON assertions(object_node_id, lifecycle, importance DESC, confidence DESC, assertion_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_conflict ON assertions(conflict_group, lifecycle)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_supersedes ON assertions(supersedes_assertion_id)",
     "CREATE INDEX IF NOT EXISTS idx_assertions_review ON assertions(lifecycle, importance, updated_at)",
+    "CREATE INDEX IF NOT EXISTS idx_assertions_retention ON assertions(lifecycle, retention_days, last_reinforced_at)",
     "CREATE INDEX IF NOT EXISTS idx_evidence_source ON evidence(source_type, source_id, source_version)",
+    "CREATE INDEX IF NOT EXISTS idx_evidence_independence ON evidence(independence_key, source_reliability_class)",
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_assertion ON assertion_evidence(assertion_id, stance)",
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",
     "CREATE INDEX IF NOT EXISTS idx_genesis_submission_elfie ON memory_genesis_submissions(elfie_id, manifest_id)",
     "CREATE INDEX IF NOT EXISTS idx_maintenance_due ON memory_maintenance(elfie_id, stage, state, next_attempt_at)",
     "CREATE INDEX IF NOT EXISTS idx_diagnostics_episode ON projection_diagnostics(elfie_id, episode_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_importance_events_target ON memory_importance_events(elfie_id, target_kind, target_id, occurred_at)",
+    "CREATE INDEX IF NOT EXISTS idx_retention_receipts_target ON memory_retention_receipts(elfie_id, target_kind, target_id, occurred_at)",
+    "CREATE INDEX IF NOT EXISTS idx_score_reconciliation_target ON memory_score_reconciliation(elfie_id, target_kind, target_id, score_kind, created_at)",
 )
 
 

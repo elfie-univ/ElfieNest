@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
-from elfie.brain.memory.contracts import MemoryContext, MemoryItem
+from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.memory_records import RecallAssertion, RecallBundle, RecallNode
 from elfie.brain.reasoning.context_compiler import (
     ModelContextCompiler,
     ModelTokenBudget,
@@ -20,6 +21,7 @@ from elfie.brain.reasoning.context_types import (
     ConversationMessage,
     EffectiveCapabilities,
 )
+from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     ExternalExecutionDomain,
@@ -61,7 +63,11 @@ def _meta(
     )
 
 
-def _context(long_social_text: str = "please answer from the sofa") -> BrainContext:
+def _context(
+    long_social_text: str = "please answer from the sofa",
+    *,
+    recall: RecallBundle | None = None,
+) -> BrainContext:
     user_actor = _actor("owner-1", "human")
     frame = TurnFrame(
         frame_id=EventId("frame-1"),
@@ -132,14 +138,7 @@ def _context(long_social_text: str = "please answer from the sofa") -> BrainCont
         memory=MemoryContext(
             revision=7,
             captured_at=NOW,
-            items=(
-                MemoryItem(
-                    memory_id=EventId("memory-1"),
-                    content="Owner asked for calm physical responses.",
-                    relevance=0.8,
-                    source_event_ids=(EventId("social-0"),),
-                ),
-            ),
+            recall=recall or RecallBundle(),
         ),
         capabilities=EffectiveCapabilities(
             revision=8,
@@ -180,6 +179,45 @@ def test_compile_preserves_communication_actor_and_channel() -> None:
     assert compiled.emotion.primary is EmotionType.HAPPINESS
     assert compiled.homeostasis.energy == 81.0
     assert compiled.capabilities.current_body.body_id == "headless-body"
+
+
+def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
+    recall = RecallBundle(
+        focus_nodes=(
+            RecallNode("n1", "person", "主人", None, 0.9),
+            RecallNode("n2", "object", "茶", None, 0.9),
+        ),
+        assertions=(
+            RecallAssertion(
+                assertion_id="a1",
+                subject_id="n1",
+                predicate="likes",
+                object_node_id="n2",
+                object_literal=None,
+                qualifiers={"time": "晚饭后"},
+                status="active",
+                evidence_ids=(),
+                relevance=0.9,
+            ),
+        ),
+    )
+
+    compiled = ModelContextCompiler().compile(
+        _context(recall=recall),
+        budget=ModelTokenBudget(max_tokens=800),
+    )
+
+    assert compiled.memory.assertion_ids == ("a1",)
+    assert "n1 --likes--> n2" in compiled.memory.content
+    assert '条件：time="晚饭后"' in compiled.memory.content
+
+    _, user_prompt = CoordinatorTurnFactory._model_prompts(
+        compiled,
+        fast_owner_reply=True,
+    )
+
+    assert "RELEVANT_MEMORY:" in user_prompt
+    assert "n1 --likes--> n2" in user_prompt
 
 
 def test_prompt_injection_text_is_compiled_as_inert_event_data() -> None:
@@ -224,7 +262,9 @@ def test_empty_history_compiles_to_empty_sections() -> None:
         update={
             "frame": _context().frame.model_copy(update={"events": ()}),
             "conversation": _context().conversation.model_copy(update={"messages": ()}),
-            "memory": _context().memory.model_copy(update={"items": ()}),
+            "memory": _context().memory.model_copy(
+                update={"recall": _context().memory.recall}
+            ),
         }
     )
 
@@ -237,5 +277,5 @@ def test_empty_history_compiles_to_empty_sections() -> None:
     # Then: adapters still get a complete typed context with empty collections.
     assert compiled.events == ()
     assert compiled.conversation == ()
-    assert compiled.memories == ()
+    assert compiled.memory.content == ""
     assert compiled.truncated is False

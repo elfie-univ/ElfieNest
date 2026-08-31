@@ -82,6 +82,39 @@ class _FailingProposalModel:
         raise TimeoutError("provider unavailable")
 
 
+class _NoopProposalModel:
+    """Admit the local source-grounded extractor for deterministic replay.
+
+    The production source-first path requires an injected model boundary.  An
+    empty, valid proposal intentionally exercises its conservative local
+    extractor without making this machine gate depend on a provider.
+    """
+
+    def ask_with_food(
+        self,
+        prompt: str,
+        *,
+        food_key: str | None,
+        elfie_id: str | None,
+        scene: str,
+        semantic_role: str,
+        energy: float,
+        task_complexity: int,
+        allowed_skills: list[str] | None,
+    ) -> str:
+        del (
+            prompt,
+            food_key,
+            elfie_id,
+            scene,
+            semantic_role,
+            energy,
+            task_complexity,
+            allowed_skills,
+        )
+        return '{"nodes":[],"mentions":[],"assertions":[]}'
+
+
 class _FailingChannel:
     channel_id = "chat"
 
@@ -166,12 +199,13 @@ def _consolidate(
     limit: int = 8,
 ) -> list[Any]:
     consolidator = MemoryConsolidator(store)
+    resolved_model = model_port or _NoopProposalModel()
     receipts: list[Any] = []
     for _ in range(16):
         if not store.pending_episodes(limit=limit):
             break
         receipt = consolidator.run_batch(
-            ConsolidationRequest(max_episodes=limit), model_port=model_port
+            ConsolidationRequest(max_episodes=limit), model_port=resolved_model
         )
         receipts.append(receipt)
         if not receipt.consolidated_episode_ids and not receipt.failed_episode_ids:
@@ -371,7 +405,7 @@ def _scenario_idempotency() -> Dict[str, Any]:
             {
                 "duplicate_episode_is_deduped": first.status == "committed"
                 and second.status == "duplicate"
-                and store.count_nodes("episodic") == 1,
+                and store.count_episodes() == 1,
                 "duplicate_consolidation_is_noop": len(first_batch) == 1
                 and not second_batch,
                 "projection_has_no_duplicate_assertions": len(assertions)
@@ -497,8 +531,8 @@ def _scenario_isolation() -> Dict[str, Any]:
             {
                 "same_name_is_not_cross_store_data": first_likes == {"蓝色"}
                 and second_likes == {"红色"},
-                "each_store_has_its_own_episode": first.count_nodes("episodic")
-                == second.count_nodes("episodic")
+                "each_store_has_its_own_episode": first.count_episodes()
+                == second.count_episodes()
                 == 1,
                 "each_store_has_its_own_graph": bool(first.find_graph_nodes("小雨"))
                 and bool(second.find_graph_nodes("小雨")),
@@ -528,7 +562,11 @@ def _source_revision() -> Dict[str, Any]:
 
 def run(output: Path | None = None) -> Dict[str, Any]:
     scenario_functions: tuple[tuple[str, Callable[[], Dict[str, Any]]], ...]
-    with tempfile.TemporaryDirectory(prefix="elfie-opt002-") as raw_root:
+    safe_tmp_root = ROOT / "build"
+    safe_tmp_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="elfie-opt002-", dir=str(safe_tmp_root)
+    ) as raw_root:
         restart_path = Path(raw_root) / "knowledge.sqlite"
         scenario_functions = (
             ("episode-boundaries", _scenario_episode_boundaries),

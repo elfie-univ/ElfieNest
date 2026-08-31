@@ -109,8 +109,16 @@ def test_fast_prompt_uses_brain_state_and_does_not_repeat_current_message() -> N
                 content=current_text,
             ),
         ),
-        memories=(
-            SimpleNamespace(content="主人此前说过自己喜欢蓝色。", relevance=0.9),
+        memory=SimpleNamespace(
+            content=(
+                "<MEMORY_CONTEXT>\n"
+                "主人此前说过自己喜欢蓝色。\n"
+                "主人常在傍晚散步。\n"
+                "主人喜欢安静的房间。\n"
+                "主人曾经照顾过一只猫。\n"
+                "主人把这段经历称为重要回忆。\n"
+                "</MEMORY_CONTEXT>"
+            )
         ),
         emotion=EmotionSnapshot(
             revision=1,
@@ -178,6 +186,7 @@ def test_fast_prompt_uses_brain_state_and_does_not_repeat_current_message() -> N
     assert "客厅" in system_prompt
     assert "RELEVANT_MEMORY" in user_prompt
     assert "此前说过自己喜欢蓝色" in user_prompt
+    assert "重要回忆" in user_prompt
     assert "owner: 我喜欢蓝色" in user_prompt
     assert "elfie: 我记住啦" in user_prompt
     assert user_prompt.count(current_text) == 1

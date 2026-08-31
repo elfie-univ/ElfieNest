@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import replace
@@ -19,8 +20,10 @@ from elfie.brain.memory.memory_records import (
     RecallPath,
     RecallRequest,
 )
+from elfie.brain.memory.score_policy import MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
+from .sqlite_utils import normalize_text, normalized_tokens, utc_now
 
 
 class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
@@ -28,38 +31,218 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
 
     conn: sqlite3.Connection
 
+    def search_text(
+        self,
+        query: str,
+        top_k: int = 5,
+        node_type: str | None = None,
+        *,
+        privacy_scope: str | None = None,
+    ) -> list[tuple[str, float]]:
+        """Deterministic lexical search over Episode text and graph labels."""
+        if top_k < 1 or not query.strip():
+            return []
+        terms = list(dict.fromkeys(normalized_tokens(query)))
+        if not terms:
+            return []
+        like_patterns = _lexical_like_patterns(query, terms)
+        # The text tables are rebuildable projections, not a second semantic
+        # authority.  Bound the prefilter before the deterministic scorer so
+        # a common token cannot turn Recall into a full scan of every Episode
+        # and Node.  The generous cap keeps normal small stores exact while
+        # making the large-store path obey the Recall latency budget.
+        candidate_limit = max(512, min(4096, top_k * 64))
+        candidates: list[tuple[str, str, str, str]] = []
+        with self._lock:
+            if node_type in (None, "episodic"):
+                episode_scope = ""
+                episode_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    episode_scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
+                    episode_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    episode_scope += " AND e.privacy_scope=?"
+                    episode_params.append(privacy_scope)
+                episode_visibility, episode_visibility_params = (
+                    self._genesis_visibility("e")
+                )
+                episode_params.extend(episode_visibility_params)
+                episode_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT e.episode_id, f.searchable_text, 'episodic' AS node_type
+                       FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
+                       WHERE e.lifecycle='active' AND ("""
+                    + episode_where
+                    + ")"
+                    + episode_scope
+                    + " AND "
+                    + episode_visibility
+                    + " LIMIT ?",
+                    episode_params + [candidate_limit],
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[1])) for row in rows
+                )
+            if node_type is None or node_type != "episodic":
+                node_scope = ""
+                node_params: list[object] = list(like_patterns)
+                if getattr(self, "elfie_id", None) is not None:
+                    node_scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                    node_params.append(str(self.elfie_id))
+                if privacy_scope is not None:
+                    node_scope += " AND n.privacy_scope=?"
+                    node_params.append(privacy_scope)
+                node_visibility, node_visibility_params = self._genesis_visibility("n")
+                node_params.extend(node_visibility_params)
+                node_where = " OR ".join(
+                    "f.searchable_text LIKE ?" for _ in like_patterns
+                )
+                rows = self.conn.execute(
+                    """SELECT f.node_id, f.searchable_text, n.node_type,
+                                      n.canonical_label,
+                                      json_extract(n.properties_json, '$.entity_type') AS entity_type
+                       FROM nodes_fts AS f JOIN nodes AS n USING (node_id)
+                       WHERE n.status IN ('active', 'candidate', 'unresolved') AND n.merged_into IS NULL
+                         AND COALESCE(json_extract(n.properties_json, '$.recall_eligible'), 1) <> 0
+                         AND ("""
+                    + node_where
+                    + ")"
+                    + node_scope
+                    + " AND "
+                    + node_visibility
+                    + " LIMIT ?",
+                    node_params + [candidate_limit],
+                ).fetchall()
+                candidates.extend(
+                    (str(row[0]), str(row[1]), str(row[2]), str(row[3] or ""))
+                    for row in rows
+                    if node_type is None
+                    or str(row[2]) == node_type
+                    or str(row[3] or "") == node_type
+                )
+        scored: dict[str, float] = {}
+        # Keep lexical matching tolerant of punctuation (for example a user
+        # may search ``rare-term`` while the source stored ``rare term``),
+        # without changing the stricter normalization used for identity keys.
+        query_normalized = _lexical_normalize(query)
+        with self._lock:
+            alias_visibility, alias_visibility_params = self._genesis_visibility("n")
+            alias_scope_params = (
+                [str(self.elfie_id)]
+                if getattr(self, "elfie_id", None) is not None
+                else []
+            )
+            alias_privacy_params = [privacy_scope] if privacy_scope is not None else []
+            exact_alias_ids = {
+                str(row[0])
+                for row in self.conn.execute(
+                    """SELECT DISTINCT a.node_id
+                         FROM node_aliases AS a
+                         JOIN nodes AS n ON n.node_id=a.node_id
+                        WHERE a.normalized_alias=?
+                          AND n.status IN ('active', 'candidate', 'unresolved')
+                          AND n.merged_into IS NULL
+                          AND """
+                    + alias_visibility
+                    + (
+                        " AND json_extract(n.properties_json, '$.elfie_id')=?"
+                        if getattr(self, "elfie_id", None) is not None
+                        else ""
+                    )
+                    + (" AND n.privacy_scope=?" if privacy_scope is not None else ""),
+                    [
+                        normalize_text(query),
+                        *alias_visibility_params,
+                        *alias_scope_params,
+                        *alias_privacy_params,
+                    ],
+                ).fetchall()
+            }
+        for identifier, text, kind, canonical_label in candidates:
+            normalized = _lexical_normalize(text)
+            if not normalized:
+                continue
+            hits = sum(1 for term in terms if term in normalized)
+            if hits == 0:
+                continue
+            score = 0.65 * (hits / max(1, len(terms)))
+            if query_normalized in normalized:
+                score += 0.15
+            # Exact aliases are stronger evidence than an incidental mention
+            # buried in an Episode or a long description.  Keep a small
+            # canonical-label density bonus so a direct knowledge label stays
+            # in the bounded seed set when a short place term matches many
+            # unrelated Episodes.
+            if identifier in exact_alias_ids:
+                score += 0.10
+            label_normalized = _lexical_normalize(canonical_label)
+            if query_normalized and query_normalized in label_normalized:
+                score += min(
+                    0.05,
+                    len(query_normalized) / max(1, len(label_normalized)) * 0.05,
+                )
+            if kind == "knowledge":
+                score += 0.05
+            scored[identifier] = max(scored.get(identifier, 0.0), score)
+        return sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:top_k]
+
     def recall(self, request: RecallRequest) -> RecallBundle:
         request = _bounded_request(request)
+        # Freeze one read boundary for every derived freshness value in this
+        # bundle.  A long graph walk must not observe a moving clock.
+        now = utc_now()
         if not request.text.strip() and not request.seed_node_ids:
             return self._empty_bundle(request)
 
-        lexical_candidates = self.search_by_content(
+        lexical_fetch_limit = (
+            min(
+                200,
+                max(
+                    request.lexical_limit + 1,
+                    request.seed_limit * 4,
+                    request.node_limit * 2,
+                    32,
+                ),
+            )
+            if request.lexical_limit > 0
+            else 0
+        )
+        lexical_candidates = self.search_text(
             request.text,
-            request.lexical_limit + 1 if request.lexical_limit > 0 else 0,
+            lexical_fetch_limit,
             privacy_scope=request.privacy_scope,
         )
         lexical_truncated = len(lexical_candidates) > request.lexical_limit
-        lexical = lexical_candidates[: request.lexical_limit]
+        # Keep oversampled candidates through graph expansion and the v2 score
+        # pass; slicing at the lexical stage would discard rows before F/I/C
+        # can participate in ranking.
+        lexical = lexical_candidates
         lexical_scores = dict(lexical)
         allowed_types = set(request.node_types)
         seed_ids: list[str] = []
+        explicit_seed_ids: list[str] = []
         for node_id in request.seed_node_ids:
             resolved = self.resolve_graph_node_id(node_id)
             if resolved is None:
                 continue
-            node = self.get_graph_node(resolved, privacy_scope=request.privacy_scope)
+            node = self.get_graph_node(
+                resolved, privacy_scope=request.privacy_scope, now=now
+            )
             # Explicit seeds are traversal anchors.  ``node_types`` filters
             # returned focus nodes/neighbors, but must not make a caller's
             # person seed unusable when it asks for related animal/concept
             # nodes.
-            if node is not None:
+            if node is not None and _recall_eligible(node):
                 seed_ids.append(resolved)
+                explicit_seed_ids.append(resolved)
         episode_scores: dict[str, float] = {}
         for node_id, score in lexical:
             graph_node = self.get_graph_node(
-                node_id, privacy_scope=request.privacy_scope
+                node_id, privacy_scope=request.privacy_scope, now=now
             )
-            if graph_node is not None:
+            if graph_node is not None and _recall_eligible(graph_node):
                 if not allowed_types or graph_node.node_type in allowed_types:
                     seed_ids.append(graph_node.node_id)
             else:
@@ -84,17 +267,43 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 if resolved is None:
                     continue
                 node = self.get_graph_node(
-                    resolved, privacy_scope=request.privacy_scope
+                    resolved, privacy_scope=request.privacy_scope, now=now
                 )
-                if node is not None and (
-                    not allowed_types or node.node_type in allowed_types
+                if (
+                    node is not None
+                    and _recall_eligible(node)
+                    and (not allowed_types or node.node_type in allowed_types)
                 ):
                     seed_ids.append(resolved)
         unique_seed_ids = list(dict.fromkeys(seed_ids))
+        explicit_order = {
+            node_id: index
+            for index, node_id in enumerate(dict.fromkeys(explicit_seed_ids))
+        }
+        if len(unique_seed_ids) > request.seed_limit:
+
+            def seed_rank(node_id: str) -> tuple[int, float, str]:
+                if node_id in explicit_order:
+                    return (0, float(explicit_order[node_id]), node_id)
+                node = self.get_graph_node(
+                    node_id, privacy_scope=request.privacy_scope, now=now
+                )
+                if node is None:
+                    return (1, 0.0, node_id)
+                score = MemoryScorePolicy.recall_score(
+                    relevance=lexical_scores.get(node_id, 0.25),
+                    freshness=node.freshness,
+                    importance=node.importance,
+                    confidence=node.confidence,
+                )
+                return (1, -score.rank, node_id)
+
+            unique_seed_ids = sorted(unique_seed_ids, key=seed_rank)
         seeds_truncated = len(unique_seed_ids) > request.seed_limit
         seed_ids = unique_seed_ids[: request.seed_limit]
 
         assertions: dict[str, RecallAssertion] = {}
+        assertion_hops: dict[str, int] = {}
         paths: list[RecallPath] = []
         assertions_truncated = False
         visited: set[str] = set(seed_ids)
@@ -119,6 +328,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     cause_labels=request.cause_labels,
                     privacy_scope=request.privacy_scope,
                     include_unknown_time=request.include_unknown_time,
+                    now=now,
                 )
                 if len(local_candidates) > request.neighbors_per_node:
                     assertions_truncated = True
@@ -127,13 +337,19 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                         assertions_truncated = True
                         break
                     assertions[assertion.assertion_id] = assertion
+                    assertion_hops[assertion.assertion_id] = min(
+                        assertion_hops.get(assertion.assertion_id, depth + 1),
+                        depth + 1,
+                    )
                     neighbor = _neighbor(current, assertion)
                     if neighbor is None:
                         continue
                     neighbor_node = self.get_graph_node(
-                        neighbor, privacy_scope=request.privacy_scope
+                        neighbor,
+                        privacy_scope=request.privacy_scope,
+                        now=now,
                     )
-                    if neighbor_node is None:
+                    if neighbor_node is None or not _recall_eligible(neighbor_node):
                         continue
                     if allowed_types and neighbor_node.node_type not in allowed_types:
                         continue
@@ -168,22 +384,27 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 cause_labels=request.cause_labels,
                 privacy_scope=request.privacy_scope,
                 include_unknown_time=request.include_unknown_time,
+                now=now,
             )
             if len(basic_candidates) > request.assertion_limit:
                 assertions_truncated = True
             for assertion in basic_candidates[: request.assertion_limit]:
                 assertions[assertion.assertion_id] = assertion
+                assertion_hops[assertion.assertion_id] = 0
 
         focus_ids = list(visited)
-        focus_nodes = self._focus_nodes(focus_ids, lexical_scores, request)
+        focus_nodes = self._focus_nodes(focus_ids, lexical_scores, request, now=now)
         assertions_tuple = tuple(
             sorted(
                 assertions.values(),
-                key=lambda item: (
-                    -item.relevance,
-                    -item.importance,
-                    -item.confidence,
-                    item.assertion_id,
+                key=lambda item: _assertion_rank(
+                    item,
+                    hop_count=assertion_hops.get(
+                        item.assertion_id, request.hop_limit + 1
+                    ),
+                    seed_ids=seed_ids,
+                    lexical_scores=lexical_scores,
+                    request=request,
                 ),
             )[: request.assertion_limit]
         )
@@ -201,10 +422,13 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             )
         )
         episodes, episodes_truncated = self._episodes_for_recall(
-            source_ids, episode_scores, request
+            source_ids, episode_scores, request, now=now
         )
         conflicts = self._conflicts(assertions_tuple)
-        paths = paths[: request.node_limit]
+        paths = sorted(
+            paths,
+            key=lambda path: (path.hop_count, path.node_ids, path.assertion_ids),
+        )[: request.node_limit]
         truncated = any(
             (
                 lexical_truncated,
@@ -249,16 +473,27 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         node_ids: Iterable[str],
         lexical_scores: dict[str, float],
         request: RecallRequest,
+        *,
+        now: str,
     ) -> tuple[RecallNode, ...]:
         nodes: list[RecallNode] = []
         allowed = set(request.node_types)
         for node_id in node_ids:
-            node = self.get_graph_node(node_id, privacy_scope=request.privacy_scope)
+            node = self.get_graph_node(
+                node_id, privacy_scope=request.privacy_scope, now=now
+            )
             if node is None or (allowed and node.node_type not in allowed):
                 continue
-            score = max(
-                lexical_scores.get(node_id, 0.0),
-                node.importance * 0.35 + node.confidence * 0.15,
+            base_score = (
+                1.0
+                if node_id in request.seed_node_ids
+                else lexical_scores.get(node_id, 0.0)
+            )
+            score = MemoryScorePolicy.recall_score(
+                relevance=base_score,
+                freshness=node.freshness,
+                importance=node.importance,
+                confidence=node.confidence,
             )
             nodes.append(
                 RecallNode(
@@ -266,9 +501,12 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     node_type=node.node_type,
                     label=node.label,
                     description=node.description,
-                    relevance=min(1.0, score),
+                    relevance=score.rank,
                     importance=node.importance,
                     confidence=node.confidence,
+                    freshness=node.freshness,
+                    retention_days=node.retention_days,
+                    properties=node.properties,
                 )
             )
         return tuple(
@@ -282,7 +520,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     ) -> dict[str, float]:
         ids = tuple(scores)
         placeholders = ",".join("?" for _ in ids)
-        clauses = [f"episode_id IN ({placeholders})", "lifecycle <> 'forgotten'"]
+        clauses = [f"episode_id IN ({placeholders})", "lifecycle='active'"]
         params: list[object] = list(ids)
         if getattr(self, "elfie_id", None) is not None:
             clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
@@ -307,6 +545,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         source_ids: Iterable[str],
         direct_scores: dict[str, float],
         request: RecallRequest,
+        *,
+        now: str,
     ) -> tuple[tuple[RecallEpisode, ...], bool]:
         episode_ids = tuple(dict.fromkeys(source_ids))
         if not episode_ids:
@@ -332,10 +572,11 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 f"""SELECT episode_id, occurred_from, occurred_to,
                            occurrence_precision, life_stage, temporal_label,
                            content_text, summary_text, detail_level, importance,
+                           retention_days, last_reinforced_at, updated_at,
                            source_event_ids_json
                       FROM episodes
                      WHERE episode_id IN ({placeholders})
-                       AND lifecycle <> 'forgotten'
+                       AND lifecycle='active'
                        {namespace_clause}{where}
                      ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?""",
                 list(episode_ids) + namespace_params + time_params + [fetch_limit],
@@ -344,6 +585,15 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         for row in rows:
             episode_id = str(row["episode_id"])
             excerpt = str(row["summary_text"] or row["content_text"])
+            retention_days = float(row["retention_days"] or 7.0)
+            anchor = row["last_reinforced_at"] or row["updated_at"] or now
+            freshness = MemoryScorePolicy.freshness(now, str(anchor), retention_days)
+            score = MemoryScorePolicy.recall_score(
+                relevance=direct_scores.get(episode_id, 0.0),
+                freshness=freshness,
+                importance=float(row["importance"]),
+                confidence=None,
+            )
             result.append(
                 RecallEpisode(
                     episode_id=episode_id,
@@ -355,7 +605,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     occurred_to=row["occurred_to"],
                     excerpt=excerpt,
                     detail_level=str(row["detail_level"]),
-                    relevance=direct_scores.get(episode_id, 0.5),
+                    relevance=score.rank,
                     occurrence_precision=cast(
                         OccurrencePrecision,
                         str(row["occurrence_precision"] or "exact"),
@@ -363,6 +613,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     life_stage=row["life_stage"],
                     temporal_label=row["temporal_label"],
                     importance=float(row["importance"]),
+                    freshness=freshness,
+                    retention_days=retention_days,
                     source_event_ids=tuple(
                         str(value) for value in _json_list(row["source_event_ids_json"])
                     ),
@@ -373,6 +625,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             key=lambda item: (
                 -item.relevance,
                 -item.importance,
+                -_episode_time_relevance(item, request),
                 0 if item.occurred_from is not None else 1,
                 item.occurred_from or "",
                 item.episode_id,
@@ -432,6 +685,75 @@ def _neighbor(current: str, assertion: RecallAssertion) -> str | None:
     return None
 
 
+def _assertion_rank(
+    assertion: RecallAssertion,
+    *,
+    hop_count: int,
+    seed_ids: Iterable[str],
+    lexical_scores: dict[str, float],
+    request: RecallRequest,
+) -> tuple[float, int, float, float, float, str]:
+    """Return the contract's lexicographic assertion ranking tuple."""
+    seeds = set(seed_ids)
+    match_strength = max(
+        (
+            1.0 if node_id in seeds else lexical_scores.get(node_id, 0.0)
+            for node_id in (assertion.subject_id, assertion.object_node_id)
+            if node_id is not None
+        ),
+        default=0.0,
+    )
+    # A superseded claim is historical context, not a current fact.  It stays
+    # recallable for conflict explanation, but its confidence must not hide a
+    # current candidate merely because the old source had a high C.
+    quality_confidence = assertion.confidence if assertion.status == "active" else None
+    score = MemoryScorePolicy.recall_score(
+        relevance=match_strength,
+        freshness=assertion.freshness,
+        importance=assertion.importance,
+        confidence=quality_confidence,
+    )
+    return (
+        -score.rank,
+        hop_count,
+        -assertion.importance,
+        -(quality_confidence or 0.0),
+        -_assertion_time_relevance(assertion, request),
+        assertion.assertion_id,
+    )
+
+
+def _assertion_time_relevance(
+    assertion: RecallAssertion, request: RecallRequest
+) -> float:
+    if request.occurred_from is None and request.occurred_to is None:
+        return 0.0
+    valid_from = assertion.qualifiers.get("valid_from")
+    valid_to = assertion.qualifiers.get("valid_to")
+    if request.occurred_from is not None and valid_to is not None:
+        if str(valid_to) < request.occurred_from:
+            return 0.0
+    if request.occurred_to is not None and valid_from is not None:
+        if str(valid_from) > request.occurred_to:
+            return 0.0
+    return 1.0
+
+
+def _episode_time_relevance(episode: RecallEpisode, request: RecallRequest) -> float:
+    if request.occurred_from is None and request.occurred_to is None:
+        return 0.0
+    if episode.occurred_from is None:
+        return 0.0
+    if (
+        request.occurred_from is not None
+        and episode.occurred_from < request.occurred_from
+    ):
+        return 0.0
+    if request.occurred_to is not None and episode.occurred_from > request.occurred_to:
+        return 0.0
+    return 1.0
+
+
 def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
     """Bound source excerpts without dropping their identity or provenance."""
     if character_limit < 1:
@@ -446,11 +768,12 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
             )
         )
         return RecallBundle(
+            recall_revision=bundle.recall_revision,
             limits=RecallLimits(
                 requested=bundle.limits.requested,
                 returned=dict.fromkeys(bundle.limits.returned, 0),
                 truncated=bundle.limits.truncated or has_payload,
-            )
+            ),
         )
     used = 0
     episodes: list[RecallEpisode] = []
@@ -475,6 +798,8 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
                 life_stage=episode.life_stage,
                 temporal_label=episode.temporal_label,
                 importance=episode.importance,
+                freshness=episode.freshness,
+                retention_days=episode.retention_days,
                 source_event_ids=episode.source_event_ids,
             )
         )
@@ -495,8 +820,29 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
         episodes=tuple(episodes),
         evidence=bundle.evidence,
         conflicts=bundle.conflicts,
+        recall_revision=bundle.recall_revision,
         limits=limits,
     )
+
+
+def _lexical_normalize(value: str) -> str:
+    """Normalize searchable text without weakening semantic identity rules."""
+    cleaned = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", value.casefold())
+    return " ".join(cleaned.split())
+
+
+def _recall_eligible(node: RecallNode) -> bool:
+    """Honor the explicit projection visibility flag during traversal."""
+    return node.properties.get("recall_eligible", True) is not False
+
+
+def _lexical_like_patterns(query: str, terms: list[str]) -> list[str]:
+    """Build SQL prefilters while retaining the deterministic Python scorer."""
+    patterns = [f"%{term}%" for term in terms]
+    ascii_parts = re.findall(r"[a-z0-9]+", query.casefold())
+    if len(ascii_parts) > 1:
+        patterns.append("%" + "%".join(ascii_parts) + "%")
+    return list(dict.fromkeys(patterns))
 
 
 __all__ = ["SQLiteRecallStoreMixin"]

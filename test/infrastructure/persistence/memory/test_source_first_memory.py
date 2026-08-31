@@ -28,8 +28,9 @@ from elfie.brain.memory.recall_renderer import render_recall_bundle
 from elfie.message_types import EventId
 from infrastructure.persistence.memory import (
     EpisodeIdempotencyError,
+    MemoryStoreResetRequired,
+    MemoryStoreSchemaError,
     SQLiteMemoryStoreAdapter,
-    import_legacy_database,
 )
 
 
@@ -58,7 +59,7 @@ def test_episode_write_is_complete_idempotent_and_reopenable(tmp_path: Path) -> 
         )
     with SQLiteMemoryStoreAdapter(path) as reopened:
         assert reopened.get_episode("episode-1").content_text == episode.content_text
-        assert reopened.count_nodes("episodic") == 1
+        assert reopened.count_episodes() == 1
 
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(episode)
@@ -101,7 +102,7 @@ def test_completed_candidate_uses_source_first_episode_even_at_low_intensity(
         restarted = MemorySystem(store)
         duplicate = restarted.commit_episode_candidate(candidate)
         assert duplicate.status.value == "duplicate"
-        assert store.count_nodes("episodic") == 1
+        assert store.count_episodes() == 1
 
 
 def test_consolidation_is_source_grounded_and_retrieval_is_hybrid() -> None:
@@ -132,7 +133,7 @@ def test_consolidation_is_source_grounded_and_retrieval_is_hybrid() -> None:
                         "owner",
                         "likes",
                         object_node_id="coriander",
-                        support_score=0.9,
+                        importance=0.9,
                         evidence_ids=("ev-1",),
                         assertion_id="claim-1",
                     ),
@@ -148,62 +149,34 @@ def test_consolidation_is_source_grounded_and_retrieval_is_hybrid() -> None:
         assert len(bundle.episodes[0].excerpt) <= 1000
 
 
-def test_migration_imports_events_edges_and_reports_source_counts(
+def test_legacy_or_mixed_store_requires_explicit_reset_without_mutation(
     tmp_path: Path,
 ) -> None:
-    source = tmp_path / "legacy.sqlite"
-    target = tmp_path / "knowledge.sqlite"
-    with sqlite3.connect(source) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE entities(
-                entity_id TEXT PRIMARY KEY, entity_type TEXT NOT NULL,
-                name TEXT NOT NULL, summary TEXT, confidence REAL,
-                first_seen_at TEXT, last_seen_at TEXT, meta_json TEXT
-            );
-            CREATE TABLE events(
-                entity_id TEXT PRIMARY KEY, event_time TEXT, event_type TEXT,
-                description TEXT, importance_score REAL, meta_json TEXT
-            );
-            CREATE TABLE entity_edges(
-                edge_id TEXT PRIMARY KEY, source_entity_id TEXT NOT NULL,
-                target_entity_id TEXT NOT NULL, relation_type TEXT NOT NULL,
-                summary TEXT, weight REAL, confidence REAL
-            );
-            """
-        )
+    path = tmp_path / "knowledge.sqlite"
+    with sqlite3.connect(path) as connection:
         connection.execute(
-            "INSERT INTO entities VALUES ('a','person','主人','',.8,'','','{}')"
+            "CREATE TABLE entities(entity_id TEXT PRIMARY KEY, name TEXT NOT NULL)"
         )
-        connection.execute(
-            "INSERT INTO entities VALUES ('b','food','香菜','',.8,'','','{}')"
-        )
-        connection.execute(
-            "INSERT INTO events VALUES ('e',NULL,'chat','主人喜欢香菜',.8,'{}')"
-        )
-        connection.execute(
-            "INSERT INTO entity_edges VALUES ('x','a','b','likes','',.8,.8)"
-        )
-    report = import_legacy_database(source, target)
-    assert report.source_events == report.imported_episodes == 1
-    assert report.source_edges == 1
-    assert report.imported_assertions == 0
-    assert report.imported_nodes == 2
-    assert report.id_mapping["entity:a"] == "a"
-    assert report.id_mapping["event:e"] == "e"
-    assert "edge:x" not in report.id_mapping
-    assert report.episode_hash_matches == 1
-    assert report.reconciled is False
-    assert any(
-        "skipped source-less legacy edge" in warning for warning in report.warnings
-    )
-    assert report.target_digest
-    with SQLiteMemoryStoreAdapter(target) as store:
-        episode = store.get_episode("e")
-        assert episode is not None
-        assert episode.occurred_from is None
-        assert episode.occurrence_precision == "unknown"
-        assert store.graph_assertions_for(("a",)) == ()
+        connection.execute("INSERT INTO entities VALUES ('legacy-1', '旧记录')")
+        connection.commit()
+
+    with pytest.raises(MemoryStoreResetRequired, match="back it up and rebuild"):
+        SQLiteMemoryStoreAdapter(path)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT name FROM entities").fetchone()[0] == "旧记录"
+
+
+def test_unsupported_version_requires_explicit_fresh_store(tmp_path: Path) -> None:
+    path = tmp_path / "knowledge.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA user_version=4")
+        connection.commit()
+
+    with pytest.raises(
+        MemoryStoreSchemaError, match="unsupported Memory schema version"
+    ):
+        SQLiteMemoryStoreAdapter(path)
 
 
 def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> None:
@@ -380,7 +353,8 @@ def test_claim_and_retry_batch_keep_source_episode_on_failure() -> None:
         store.record_episode(ClosedEpisode("episode-1", "k1", "2026-01-01", "包含香菜"))
         consolidator = MemoryConsolidator(store)
         receipt = consolidator.run_batch(
-            ConsolidationRequest(max_episodes=1, worker_id="worker-a")
+            ConsolidationRequest(max_episodes=1, worker_id="worker-a"),
+            model_port=_ProposalModel('{"nodes":[],"mentions":[],"assertions":[]}'),
         )
         assert receipt.status == "completed"
         assert receipt.consolidated_episode_ids == ("episode-1",)
@@ -391,6 +365,46 @@ def test_claim_and_retry_batch_keep_source_episode_on_failure() -> None:
             ).fetchone()[0]
             == "consolidated"
         )
+
+
+def test_source_first_consolidation_without_model_stays_retryable() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("episode-no-model", "k-no-model", "2026-01-01", "包含香菜")
+        )
+        receipt = MemoryConsolidator(store).run_batch(
+            ConsolidationRequest(max_episodes=1)
+        )
+
+        assert receipt.status == "failed"
+        assert receipt.failed_episode_ids == ("episode-no-model",)
+        assert store.get_episode("episode-no-model").content_text == "包含香菜"
+        assert store.connection.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0
+        assert (
+            store.connection.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='episode-no-model'"
+            ).fetchone()[0]
+            == "failed"
+        )
+
+
+def test_source_first_invalid_model_proposal_stays_retryable() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-invalid-model", "k-invalid-model", "2026-01-01", "包含香菜"
+            )
+        )
+        receipt = MemoryConsolidator(store).run_batch(
+            ConsolidationRequest(max_episodes=1),
+            model_port=_ProposalModel(
+                '{"nodes":[{"label":"火星"}],"mentions":[],"assertions":[]}'
+            ),
+        )
+
+        assert receipt.status == "failed"
+        assert receipt.failed_episode_ids == ("episode-invalid-model",)
+        assert not store.find_graph_nodes("火星")
 
 
 def test_expired_lease_is_reclaimable_and_failure_is_scheduled() -> None:
@@ -412,6 +426,59 @@ def test_expired_lease_is_reclaimable_and_failure_is_scheduled() -> None:
         assert "temporary" in row[2]
 
 
+def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        source = ClosedEpisode("episode-fenced", "fenced-key", "2026-01-01", "内容")
+        store.record_episode(source)
+        first = store.claim_episodes(limit=1, owner="worker-a", lease_seconds=1)[0]
+        assert first.metadata["_memory_claim_owner"] == "worker-a"
+        assert first.metadata["_memory_claim_attempt"] == 1
+
+        store.connection.execute(
+            "UPDATE episodes SET lease_until='1970-01-01T00:00:00+00:00' "
+            "WHERE episode_id=?",
+            (source.episode_id,),
+        )
+        store.connection.commit()
+        assert store.recover_expired_leases() == 1
+        second = store.claim_episodes(limit=1, owner="worker-b", lease_seconds=120)[0]
+        assert second.metadata["_memory_claim_attempt"] == 2
+        stored = store.get_episode(source.episode_id)
+
+        with pytest.raises(ValueError, match="stale consolidation claim"):
+            store.apply_consolidation(
+                ConsolidationProjection(
+                    episode_id=source.episode_id,
+                    nodes=(NodeInput("fenced-node", "concept", "内容"),),
+                    evidence=(
+                        EvidenceInput(
+                            "fenced-evidence",
+                            "episode",
+                            source.episode_id,
+                            excerpt=source.content_text,
+                            source_sha256=stored.content_sha256,
+                        ),
+                    ),
+                    claim_owner=str(first.metadata["_memory_claim_owner"]),
+                    claim_attempt=int(first.metadata["_memory_claim_attempt"]),
+                )
+            )
+        assert (
+            store.mark_episode_failed(
+                source.episode_id,
+                "stale worker",
+                owner="worker-a",
+                attempt=1,
+            )
+            is False
+        )
+        assert store.connection.execute(
+            "SELECT consolidation_state, lease_owner, consolidation_attempts "
+            "FROM episodes WHERE episode_id=?",
+            (source.episode_id,),
+        ).fetchone()[:2] == ("processing", "worker-b")
+
+
 class _ProposalModel:
     def __init__(self, payload: str) -> None:
         self.payload = payload
@@ -423,6 +490,21 @@ class _ProposalModel:
 class _FailingProposalModel:
     def ask_with_food(self, **_kwargs: object) -> str:
         raise TimeoutError("provider unavailable")
+
+
+class _NameCorrectionModel:
+    def ask_with_food(self, **kwargs: object) -> str:
+        prompt = str(kwargs.get("prompt", ""))
+        name = "小周" if "小周" in prompt else "小林"
+        context = "correction" if name == "小周" else "owner_claim"
+        return (
+            '{"nodes":[{"label":"我","type":"person"}],'
+            '"mentions":[{"surface_text":"我","label":"我"}],'
+            '"assertions":[{"subject_ref":"我","predicate":"preferred_name",'
+            f'"object_literal":"{name}","context":"{context}",'
+            '"epistemic_status":"reported","confidence":0.95,'
+            '"importance_event":"major"}]}'
+        )
 
 
 def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
@@ -451,7 +533,7 @@ def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
         '"mentions":[{"surface_text":"主人","label":"主人"},'
         '{"surface_text":"香菜","label":"香菜"}],'
         '"assertions":[{"subject_ref":"主人","predicate":"likes",'
-        '"object_ref":"香菜","confidence":0.9,"support_score":0.9}]}'
+        '"object_ref":"香菜","confidence":0.9,"importance_event":"major"}]}'
     )
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(
@@ -469,7 +551,7 @@ def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
         assert claim.evidence_ids
 
 
-def test_ungrounded_model_proposal_is_discarded_without_fabricating_a_node() -> None:
+def test_ungrounded_model_proposal_is_retryable_without_fabricating_a_node() -> None:
     proposal = (
         '{"nodes":[{"label":"火星","type":"place"}],"mentions":[],"assertions":[]}'
     )
@@ -480,7 +562,8 @@ def test_ungrounded_model_proposal_is_discarded_without_fabricating_a_node() -> 
         result = MemoryConsolidator(store).run_batch(
             ConsolidationRequest(max_episodes=1), model_port=_ProposalModel(proposal)
         )
-        assert result.status == "completed"
+        assert result.status == "failed"
+        assert result.failed_episode_ids == ("episode-1",)
         assert not store.find_graph_nodes("火星")
 
 
@@ -607,8 +690,8 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
             )
         )
         store.rebuild_text_indexes()
-        assert store.search_by_content("芫荽", top_k=5)[0][0] == "food"
-        assert store.search_by_content("可食用", top_k=5)[0][0] == "food"
+        assert store.search_text("芫荽", top_k=5)[0][0] == "food"
+        assert store.search_text("可食用", top_k=5)[0][0] == "food"
 
 
 def test_recall_prioritizes_a_direct_label_over_broad_distractors() -> None:
@@ -809,11 +892,17 @@ def test_natural_name_correction_forms_a_supersedes_chain() -> None:
             )
         )
         consolidator = MemoryConsolidator(store)
-        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
-            "completed"
+        assert (
+            consolidator.run_batch(
+                ConsolidationRequest(max_episodes=1), model_port=_NameCorrectionModel()
+            ).status
+            == "completed"
         )
-        assert consolidator.run_batch(ConsolidationRequest(max_episodes=1)).status == (
-            "completed"
+        assert (
+            consolidator.run_batch(
+                ConsolidationRequest(max_episodes=1), model_port=_NameCorrectionModel()
+            ).status
+            == "completed"
         )
 
         rows = store.connection.execute(

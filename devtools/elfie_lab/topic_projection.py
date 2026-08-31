@@ -6,7 +6,7 @@ import re
 from collections import Counter, defaultdict
 from typing import Any, DefaultDict, Dict, List, Sequence, Tuple, TypedDict
 
-from elfie.brain.memory.node_types import MemoryNode
+from elfie.brain.memory.memory_records import ClosedEpisode
 
 TOPIC_CATEGORIES = frozenset({"person", "place", "emotion", "activity"})
 STOP_WORDS = frozenset({"什么", "这个", "那个", "然后", "可以", "精灵"})
@@ -24,17 +24,18 @@ class TopicPayload(TypedDict):
     category: str
 
 
-def build_topics(episodes: Sequence[MemoryNode], limit: int) -> List[TopicPayload]:
+def build_topics(episodes: Sequence[ClosedEpisode], limit: int) -> List[TopicPayload]:
     """Extract ranked topics with stable semantic categories."""
     counts: Counter[str] = Counter()
     categories: DefaultDict[str, Counter[str]] = defaultdict(Counter)
     for episode in episodes:
         for token in re.findall(
-            r"[\u4e00-\u9fff]{2,6}|[A-Za-z][A-Za-z0-9_-]{2,}", episode.content
+            r"[\u4e00-\u9fff]{2,6}|[A-Za-z][A-Za-z0-9_-]{2,}",
+            episode.content_text,
         ):
             if token not in STOP_WORDS:
                 counts[token] += 1
-                categories[token][_topic_category(token, episode.metadata)] += 1
+                categories[token][_topic_category(token, dict(episode.metadata))] += 1
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
     maximum = max((count for _, count in ranked), default=1)
     return [

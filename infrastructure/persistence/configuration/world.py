@@ -124,6 +124,7 @@ def _knowledge(raw: Any) -> WorldKnowledgeFact:
         source_ref=_text(value, "source_ref"),
         related_ids=_texts(value, "related_ids"),
         eligibility=_texts(value, "eligibility"),
+        importance=_optional_float(value, "importance", default=0.5),
     )
 
 
@@ -235,6 +236,16 @@ def _int(document: Mapping[str, Any], key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{key} 必须是整数")
     return value
+
+
+def _optional_float(document: Mapping[str, Any], key: str, *, default: float) -> float:
+    value = document.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} 必须是数字")
+    result = float(value)
+    if not 0.0 <= result <= 1.0:
+        raise ValueError(f"{key} 必须在 [0, 1] 内")
+    return result
 
 
 def _texts(document: Mapping[str, Any], key: str) -> tuple[str, ...]:

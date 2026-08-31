@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
-from elfie.brain.memory.contracts import MemoryContext, MemoryItem
+from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.reasoning.context_builder import ContextAssembler
 from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
@@ -140,14 +140,6 @@ def _memory() -> MemoryContext:
     return MemoryContext(
         revision=7,
         captured_at=NOW,
-        items=(
-            MemoryItem(
-                memory_id=EventId("memory-1"),
-                content="Owner previously asked for calm physical responses.",
-                relevance=0.8,
-                source_event_ids=(EventId("social-0"),),
-            ),
-        ),
     )
 
 

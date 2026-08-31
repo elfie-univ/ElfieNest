@@ -133,9 +133,11 @@ def run(output: Path) -> dict[str, Any]:
                     memory_path = workspace / "memory" / "knowledge.sqlite"
                     try:
                         with SQLiteMemoryStoreAdapter(memory_path) as storage:
-                            episode_count = storage.count_nodes("episodic")
-                            person_count = storage.count_nodes("person")
-                            marker = storage.get_node(f"genesis:manifest:{elfie_id}")
+                            episode_count = storage.count_episodes()
+                            person_count = storage.count_graph_nodes("person")
+                            marker = storage.get_graph_node(
+                                f"genesis:manifest:{elfie_id}"
+                            )
                             valid_graph = (
                                 episode_count == 5
                                 and person_count == 13
@@ -186,8 +188,8 @@ def run(output: Path) -> dict[str, Any]:
                                     )
                             with SQLiteMemoryStoreAdapter(memory_path) as reopened:
                                 restart_ok = (
-                                    reopened.count_nodes("episodic") == 5
-                                    and reopened.get_node(
+                                    reopened.count_episodes() == 5
+                                    and reopened.get_graph_node(
                                         f"genesis:manifest:{elfie_id}"
                                     )
                                     is not None
