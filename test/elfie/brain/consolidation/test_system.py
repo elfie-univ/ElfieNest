@@ -96,3 +96,29 @@ def test_consolidation_checkpoint_restores_pending_candidate_without_running_wor
         candidate.candidate_id, now=now + timedelta(seconds=2), success=True
     )
     assert calls == [1]
+
+
+def test_consolidation_wakes_for_lifecycle_only_memory_work():
+    now = datetime(2026, 8, 12, tzinfo=timezone.utc)
+    calls: list[int] = []
+    system = CognitiveConsolidationSystem(
+        pending_episode_ids=lambda _limit: ("maintenance:lifecycle",),
+        consolidate=lambda limit: (
+            calls.append(limit) or {"consolidated_count": 0, "knowledge_created": 0}
+        ),
+        initial_at=now,
+    )
+
+    candidate = system.evaluate(
+        sleeping=True,
+        now=now + timedelta(seconds=1),
+        blocked=False,
+    )
+    assert candidate is not None
+    assert candidate.episode_ids == ("maintenance:lifecycle",)
+    assert system.settle(
+        candidate.candidate_id,
+        now=now + timedelta(seconds=2),
+        success=True,
+    )
+    assert calls == [1]

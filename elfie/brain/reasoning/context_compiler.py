@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional, Tuple
+from typing import Annotated, Literal, Optional, Tuple, cast
 
 from pydantic import Field
 
@@ -11,11 +11,16 @@ from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.contracts import MemoryStateSnapshot
+from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_types import (
     BrainContext,
     EffectiveCapabilities,
+)
+from elfie.brain.reasoning.memory_compiler import (
+    CompiledMemoryContext,
+    compile_recall_bundle,
 )
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
@@ -65,19 +70,6 @@ class CompiledConversation(FrozenContractModel):
     content: str
 
 
-class CompiledMemory(FrozenContractModel):
-    """One selected memory excerpt."""
-
-    role: Literal["memory_data"] = "memory_data"
-    memory_id: EventId
-    source_event_ids: Tuple[EventId, ...]
-    relevance: float
-    content: str
-    kind: Literal["episodic", "knowledge", "entity", "pattern"] = "episodic"
-    source: Optional[str] = None
-    certainty: Literal["high", "medium", "low"] = "medium"
-
-
 class CompiledStateUpdate(FrozenContractModel):
     """One latest-only state value with explicit source identity."""
 
@@ -111,7 +103,7 @@ class CompiledModelContext(FrozenContractModel):
     state_updates: Tuple[CompiledStateUpdate, ...]
     media_samples: Tuple[CompiledMediaSample, ...]
     conversation: Tuple[CompiledConversation, ...]
-    memories: Tuple[CompiledMemory, ...]
+    memory: CompiledMemoryContext = Field(default_factory=CompiledMemoryContext)
     activities: ActivityContext = Field(default_factory=ActivityContext.unknown)
     emotion: EmotionSnapshot
     homeostasis: EnergySnapshot
@@ -166,15 +158,32 @@ class ModelContextCompiler:
         budget: ModelTokenBudget,
     ) -> CompiledModelContext:
         """Compile one immutable BrainContext without provider wire details."""
+        recall = cast(RecallBundle, context.memory.recall)
         has_data = bool(
             context.frame.events
             or context.frame.state_updates
             or context.frame.media_samples
             or context.conversation.messages
-            or context.memory.items
+            or recall.focus_nodes
+            or recall.assertions
+            or recall.episodes
+            or recall.evidence
+            or recall.paths
+            or recall.conflicts
         )
         reserved = 30 if has_data else 0
-        cursor = _BudgetCursor(max(1, budget.max_tokens - reserved))
+        memory_budget = self._memory_budget(
+            budget.max_tokens,
+            has_memory=bool(
+                recall.focus_nodes
+                or recall.assertions
+                or recall.episodes
+                or recall.evidence
+                or recall.paths
+                or recall.conflicts
+            ),
+        )
+        cursor = _BudgetCursor(max(1, budget.max_tokens - reserved - memory_budget))
         events = tuple(
             self._compile_event(event, cursor) for event in context.frame.events
         )
@@ -194,17 +203,9 @@ class ModelContextCompiler:
             )
             for message in context.conversation.messages
         )
-        memories = tuple(
-            CompiledMemory(
-                memory_id=item.memory_id,
-                source_event_ids=item.source_event_ids,
-                relevance=item.relevance,
-                content=cursor.fit(item.content),
-                kind=item.kind,
-                source=item.source,
-                certainty=item.certainty,
-            )
-            for item in context.memory.items
+        memory = compile_recall_bundle(
+            recall,
+            max_tokens=memory_budget,
         )
         return CompiledModelContext(
             policies=self._POLICIES,
@@ -213,7 +214,7 @@ class ModelContextCompiler:
             state_updates=state_updates,
             media_samples=media_samples,
             conversation=conversation,
-            memories=memories,
+            memory=memory,
             activities=context.activities,
             emotion=context.emotion,
             homeostasis=context.homeostasis,
@@ -221,10 +222,20 @@ class ModelContextCompiler:
             consolidation=context.consolidation,
             orientation=context.orientation,
             capabilities=context.capabilities,
-            truncated=cursor.truncated,
+            truncated=cursor.truncated or memory.truncated,
             selfhood=context.selfhood,
             memory_state=context.memory.state,
         )
+
+    @staticmethod
+    def _memory_budget(max_tokens: int, *, has_memory: bool) -> int:
+        """Reserve a bounded slice so graph facts cannot be starved by history."""
+        if not has_memory:
+            return 0
+        available = max(0, max_tokens - 30)
+        if available < 96:
+            return available
+        return min(384, max(96, (available * 2) // 5))
 
     @staticmethod
     def _compile_event(
@@ -297,7 +308,7 @@ class ModelContextCompiler:
 __all__ = (
     "CompiledConversation",
     "CompiledEvent",
-    "CompiledMemory",
+    "CompiledMemoryContext",
     "CompiledMediaSample",
     "CompiledModelContext",
     "CompiledStateUpdate",

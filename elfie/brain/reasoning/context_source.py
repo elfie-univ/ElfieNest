@@ -19,7 +19,7 @@ from elfie.brain.emotion.contracts import (
 )
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
-from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.memory.memory_records import ClosedEpisode, MemoryUseProposal
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.motivation.system import (
     MotivationCheckpoint,
@@ -163,6 +163,15 @@ class BrainContextProvider:
     def restore_memory_checkpoint(self, checkpoint) -> None:
         with self._memory_lock:
             self._memory.restore(checkpoint)
+
+    def submit_memory_use_proposal(
+        self,
+        frame_id: str,
+        proposal: MemoryUseProposal,
+    ) -> bool:
+        """Settle a model's bounded references against the exact Recall frame."""
+        with self._memory_lock:
+            return self._memory.submit_use_proposal(EventId(frame_id), proposal)
 
     def validate_memory_checkpoint(self, checkpoint) -> None:
         with self._memory_lock:

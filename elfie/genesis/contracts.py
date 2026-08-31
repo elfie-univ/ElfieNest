@@ -92,6 +92,7 @@ class KnowledgeSeed:
     related_ids: tuple[str, ...] = ()
     statement: str = ""
     version: int = 1
+    importance: float = 0.5
 
     def __post_init__(self) -> None:
         content = self.content.strip()
@@ -595,6 +596,8 @@ def _validate_knowledge_seed(seed: KnowledgeSeed, *, typed: bool = False) -> Non
         raise GenesisValidationError("KnowledgeSeed.mastery 无效")
     if seed.status not in ("active", "unknown-boundary"):
         raise GenesisValidationError("KnowledgeSeed.status 无效")
+    if not 0.0 <= seed.importance <= 1.0:
+        raise GenesisValidationError("KnowledgeSeed.importance 必须在 [0, 1] 内")
     _validate_text_collection(seed.aliases, "KnowledgeSeed.aliases")
     _validate_text_collection(seed.retrieval_terms, "KnowledgeSeed.retrieval_terms")
     _validate_text_collection(seed.eligibility, "KnowledgeSeed.eligibility")

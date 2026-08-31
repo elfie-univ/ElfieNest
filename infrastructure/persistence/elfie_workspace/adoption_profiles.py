@@ -564,6 +564,7 @@ def _initial_knowledge_seeds(world, *, species_id: str) -> tuple[KnowledgeSeed, 
                 status=fact.status,
                 eligibility=fact.eligibility,
                 related_ids=fact.related_ids,
+                importance=fact.importance,
                 version=fact.version,
             )
         )

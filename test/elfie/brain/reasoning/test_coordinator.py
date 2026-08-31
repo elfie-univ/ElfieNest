@@ -144,7 +144,6 @@ class EmptyContextSource:
         return MemoryContext(
             revision=frame.revision,
             captured_at=captured_at,
-            items=(),
         )
 
     def capabilities(self, captured_at):

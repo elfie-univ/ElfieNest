@@ -392,6 +392,9 @@ class ReasoningRun:
                     generation=generation,
                     capabilities=capabilities,
                     repair_callback=None if capabilities.plain_text_only else repair,
+                    allowed_memory_references=tuple(
+                        getattr(task, "memory_reference_ids", ())
+                    ),
                 )
                 decode, reply_was_sanitized = self._sanitize_direct_reply(task, decode)
                 plan, preflight_observation = self._preflight_activities(decode.plan)

@@ -146,6 +146,7 @@ class BrainCoordinator:
             plan_sink=plan_sink,
             outcomes=self._outcomes,
             settlement=settlement,
+            context_source=context_source,
         )
 
     def start(self) -> None:

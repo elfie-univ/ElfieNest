@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.energy.contracts import EnergySnapshot
-from elfie.brain.memory.contracts import MemoryContext, MemoryItem
+from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
     BrainContext,
@@ -88,14 +88,6 @@ def test_brain_context_round_trip_preserves_revisions_and_capabilities() -> None
         memory=MemoryContext(
             revision=6,
             captured_at=NOW,
-            items=(
-                MemoryItem(
-                    memory_id=EventId("memory-1"),
-                    content="the user prefers concise replies",
-                    relevance=0.9,
-                    source_event_ids=(EventId("social-event"),),
-                ),
-            ),
         ),
         capabilities=EffectiveCapabilities(
             revision=8,
@@ -168,7 +160,7 @@ def test_brain_context_rejects_snapshot_captured_after_context() -> None:
                 conversation_id=None,
                 messages=(),
             ),
-            memory=MemoryContext(revision=1, captured_at=NOW, items=()),
+            memory=MemoryContext(revision=1, captured_at=NOW),
             capabilities=EffectiveCapabilities(
                 revision=1,
                 captured_at=NOW,

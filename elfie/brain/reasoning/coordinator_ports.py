@@ -8,7 +8,10 @@ from elfie.brain.consolidation.system import CognitiveConsolidationCandidate
 from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
-from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.memory.memory_records import (
+    ClosedEpisode,
+    MemoryUseProposal,
+)
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.motivation.system import RecoveryDriveCandidate
 from elfie.brain.orientation.contracts import OrientationSnapshot
@@ -103,6 +106,13 @@ class BrainContextSource(Protocol):
         blocked: bool,
     ) -> Optional[CognitiveConsolidationCandidate]:
         """Evaluate one bounded quiet-window consolidation candidate."""
+
+    def submit_memory_use_proposal(
+        self,
+        frame_id: str,
+        proposal: MemoryUseProposal,
+    ) -> bool:
+        """Record model-selected IDs against the frame's Recall snapshot."""
 
 
 class TurnDecisionSink(Protocol):

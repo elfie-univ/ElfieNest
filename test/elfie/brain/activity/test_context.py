@@ -25,7 +25,7 @@ from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.memory_context import MemoryContextReader
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.message_types import ActivityId, EventId
-from test.elfie.brain.memory.fake_store import FakeMemoryStore
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
 
@@ -64,7 +64,7 @@ def _context_state(
     capacity: int = 16,
 ) -> BrainContextProvider:
     memory = MemorySystem(
-        FakeMemoryStore.in_memory(),
+        SQLiteMemoryStoreAdapter.in_memory(),
         elfie_id="elfie-1",
         initial_at=NOW,
     )

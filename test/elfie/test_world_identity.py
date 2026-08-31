@@ -1,7 +1,7 @@
 from elfie import ElfieFactory
 from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile, list_species_definitions
-from test.elfie.brain.memory.fake_store import FakeMemoryStore
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 def test_supported_species_carry_canon_into_selfhood_and_memory_identity() -> None:
@@ -36,13 +36,12 @@ def test_supported_species_carry_canon_into_selfhood_and_memory_identity() -> No
                         "big_five": {},
                     },
                 },
-                memory_store=FakeMemoryStore.in_memory(),
+                memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             )
         )
 
         anchor = elfie.profile_anchor_snapshot()
         selfhood = elfie.selfhood_snapshot()
-
         assert (anchor.species_canon_id, anchor.species_name) == (
             canon_id,
             species_name,

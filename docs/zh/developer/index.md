@@ -42,7 +42,7 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   后续 Brain 迁移使用独立的限定范围台账，包括
   [Emotion](./conformance/elfie-emotion) 与
   [Selfhood](./conformance/elfie-selfhood)，不重新打开已经关闭的主体级台账。
-- [Elfie Memory 一致性](./conformance/elfie-memory)：Memory 存储、整理、检索和迁移的实现状态及剩余外部验收门禁。
+- [Elfie Memory 一致性](./conformance/elfie-memory)：Memory 存储、整理、检索和兼容边界的实现状态及剩余外部验收门禁。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。
 - [服务生命周期一致性](./conformance/service-lifecycle)：已接受契约与当前实现之间的开放缺口。

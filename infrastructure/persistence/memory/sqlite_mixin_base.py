@@ -14,18 +14,21 @@ from threading import RLock
 from typing import Iterable
 
 from elfie.brain.memory.memory_records import (
+    AssertionInput,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
     EpisodeReceipt,
+    EvidenceInput,
     MaintenanceReceipt,
     MaintenanceRequest,
     NodeInput,
+    QualifiedReinforcementReceipt,
     RecallAssertion,
     RecallEvidence,
     RecallNode,
 )
-from elfie.brain.memory.node_types import Edge
+from elfie.brain.memory.score_policy import ImportanceEvent
 
 
 class SQLiteMemoryMixinBase:
@@ -53,15 +56,47 @@ class SQLiteMemoryMixinBase:
     def upsert_node_record(self, node: NodeInput) -> str:
         raise NotImplementedError
 
-    def get_edges(self, node_id: str, direction: str = "outgoing") -> list[Edge]:
-        raise NotImplementedError
-
-    def add_edge(
-        self, source_id: str, target_id: str, rel: str, weight: float = 0.5
+    def record_sourced_assertion(
+        self, assertion: AssertionInput, evidence: EvidenceInput
     ) -> str:
         raise NotImplementedError
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        raise NotImplementedError
+
+    def record_importance_event(self, event: ImportanceEvent) -> bool:
+        raise NotImplementedError
+
+    def _record_importance_event_locked(self, event: ImportanceEvent, now: str) -> bool:
+        raise NotImplementedError
+
+    def consume_reinforcement_receipt(
+        self, receipt: QualifiedReinforcementReceipt
+    ) -> bool:
+        raise NotImplementedError
+
+    def compact_score_control(
+        self,
+        *,
+        now: str | None = None,
+        safety_window_days: float = 2.0,
+        max_targets: int = 256,
+    ) -> dict[str, int]:
+        raise NotImplementedError
+
+    def list_episodes(
+        self, limit: int = 1000, *, include_forgotten: bool = False
+    ) -> tuple[ClosedEpisode, ...]:
+        raise NotImplementedError
+
+    def list_graph_nodes(
+        self, limit: int = 1000, *, privacy_scope: str | None = None
+    ) -> tuple[RecallNode, ...]:
+        raise NotImplementedError
+
+    def list_graph_assertions(
+        self, limit: int = 800, *, privacy_scope: str | None = None
+    ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
     def _upsert_episode_fts_from_values(
@@ -69,7 +104,7 @@ class SQLiteMemoryMixinBase:
     ) -> None:
         raise NotImplementedError
 
-    def search_by_content(
+    def search_text(
         self,
         query: str,
         top_k: int = 5,
@@ -83,7 +118,11 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def get_graph_node(
-        self, node_id: str, *, privacy_scope: str | None = None
+        self,
+        node_id: str,
+        *,
+        privacy_scope: str | None = None,
+        now: str | None = None,
     ) -> RecallNode | None:
         raise NotImplementedError
 
@@ -102,6 +141,7 @@ class SQLiteMemoryMixinBase:
         cause_labels: Iterable[str] = (),
         privacy_scope: str | None = None,
         include_unknown_time: bool = False,
+        now: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
@@ -126,7 +166,14 @@ class SQLiteMemoryMixinBase:
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:
         raise NotImplementedError
 
-    def mark_episode_failed(self, episode_id: str, error: str) -> bool:
+    def mark_episode_failed(
+        self,
+        episode_id: str,
+        error: str,
+        *,
+        owner: str | None = None,
+        attempt: int | None = None,
+    ) -> bool:
         raise NotImplementedError
 
     def apply_consolidation(
@@ -138,6 +185,12 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def run_lifecycle(self, request: MaintenanceRequest) -> MaintenanceReceipt:
+        raise NotImplementedError
+
+    def has_due_lifecycle(self) -> bool:
+        raise NotImplementedError
+
+    def recover_expired_maintenance_leases(self) -> int:
         raise NotImplementedError
 
     def inspect_episode(self, episode_id: str) -> ClosedEpisode | None:

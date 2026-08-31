@@ -75,3 +75,17 @@ def test_world_canon_rejects_an_unknown_place_reference(tmp_path: Path) -> None:
 
     with pytest.raises(WorldCanonError):
         load_world_canon(root=tmp_path)
+
+
+def test_world_canon_preserves_optional_knowledge_importance(tmp_path: Path) -> None:
+    path = _copy_world_config(tmp_path)
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["knowledge"][0]["importance"] = 0.91
+    path.write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    package = load_world_canon(root=tmp_path)
+
+    assert package.knowledge[0].importance == 0.91

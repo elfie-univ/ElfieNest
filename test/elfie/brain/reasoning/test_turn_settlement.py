@@ -36,7 +36,7 @@ from elfie.message_types import (
     TraceId,
     TurnId,
 )
-from test.elfie.brain.memory.fake_store import FakeMemoryStore
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
 
@@ -82,7 +82,7 @@ def _frame() -> TurnFrame:
 
 def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() -> None:
     memory = MemorySystem(
-        FakeMemoryStore.in_memory(),
+        SQLiteMemoryStoreAdapter.in_memory(),
         elfie_id="elfie-1",
         initial_at=NOW,
         clock=lambda: NOW,
@@ -111,7 +111,7 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
 
     context.memory(_frame(), emotion, NOW)
     assert memory.revision == 0
-    assert memory.storage.count_nodes("episodic") == 0
+    assert memory.storage.count_episodes() == 0
 
     frame = _frame()
     context.conversation(frame, NOW)
@@ -143,12 +143,12 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
     assert receipts[0].status is StateCommitStatus.COMMITTED
     assert duplicate[0].status is StateCommitStatus.DUPLICATE
     assert memory.revision == 1
-    assert memory.storage.count_nodes("episodic") == 1
+    assert memory.storage.count_episodes() == 1
 
 
 def test_completed_interaction_capture_does_not_require_a_keyword() -> None:
     memory = MemorySystem(
-        FakeMemoryStore.in_memory(),
+        SQLiteMemoryStoreAdapter.in_memory(),
         elfie_id="elfie-1",
         initial_at=NOW,
         clock=lambda: NOW,
@@ -189,14 +189,14 @@ def test_completed_interaction_capture_does_not_require_a_keyword() -> None:
     receipt = reader.commit_completed_interaction(interaction)
     assert receipt is not None
     assert receipt.status is StateCommitStatus.COMMITTED
-    assert memory.storage.count_nodes("episodic") == 1
+    assert memory.storage.count_episodes() == 1
 
 
 def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement() -> (
     None
 ):
     memory = MemorySystem(
-        FakeMemoryStore.in_memory(),
+        SQLiteMemoryStoreAdapter.in_memory(),
         elfie_id="elfie-1",
         initial_at=NOW,
         clock=lambda: NOW,

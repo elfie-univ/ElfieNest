@@ -1,9 +1,13 @@
 from elfie.brain.memory.candidates import EpisodicMemoryCandidate
-from elfie.brain.memory.consolidation import MemoryConsolidator
-from elfie.brain.memory.contracts import MemoryContext, MemoryItem, MemoryStateSnapshot
-from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
-from elfie.brain.memory.emotion_weighting import EmotionWeighting
-from elfie.brain.memory.encoding import MemoryEncoder
+from elfie.brain.memory.consolidation import (
+    MemoryConsolidator,
+    MemoryProjectionDeferred,
+)
+from elfie.brain.memory.contracts import (
+    MemoryContext,
+    MemoryStateSnapshot,
+    RelationshipImportanceProjection,
+)
 from elfie.brain.memory.memory_records import (
     AliasInput,
     AssertionEvidenceInput,
@@ -20,9 +24,12 @@ from elfie.brain.memory.memory_records import (
     MaintenanceReceipt,
     MaintenanceRequest,
     MediaReference,
+    MemoryInspectionSnapshot,
+    MemoryUseProposal,
     MentionInput,
     NodeInput,
     OccurrencePrecision,
+    QualifiedReinforcementReceipt,
     RecallAssertion,
     RecallBundle,
     RecallConflict,
@@ -36,49 +43,39 @@ from elfie.brain.memory.memory_records import (
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
-from elfie.brain.memory.node_types import (
-    Edge,
-    EdgeTypes,
-    MemoryMetadata,
-    MemoryNode,
-    NodeTypes,
-    RetrievalQuery,
-)
+from elfie.brain.memory.model_food import ModelPortMemoryAdapter
 from elfie.brain.memory.predicates import (
     PREDICATE_REGISTRY_VERSION,
     UnknownPredicateError,
     resolve_predicate,
 )
-from elfie.brain.memory.recall_formatter import MemoryRecallFormatter
 from elfie.brain.memory.recall_renderer import render_recall_bundle
-from elfie.brain.memory.retrieval import MemoryRetriever
-from elfie.brain.memory.sensory_buffer import SensoryBuffer
-from elfie.brain.memory.sensory_index import SensoryIndexer
-from elfie.brain.memory.spreading_activation import SpreadingActivation
+from elfie.brain.memory.score_policy import (
+    EvidenceContribution,
+    ImportanceAggregate,
+    ImportanceEvent,
+    MemoryScorePolicy,
+    RetentionUpdate,
+    SemanticScore,
+)
 from elfie.brain.memory.tokenizer import tokenize
 
 __all__ = [
     "MemorySystem",
     "MemoryContext",
-    "MemoryItem",
     "MemoryStateSnapshot",
+    "RelationshipImportanceProjection",
     "EpisodicMemoryCandidate",
     "MemoryStorePort",
-    "MemoryNode",
-    "MemoryMetadata",
-    "Edge",
-    "RetrievalQuery",
-    "NodeTypes",
-    "EdgeTypes",
-    "SensoryBuffer",
-    "MemoryEncoder",
-    "MemoryRetriever",
-    "SpreadingActivation",
-    "EbbinghausDecay",
-    "EmotionWeighting",
     "MemoryConsolidator",
-    "MemoryRecallFormatter",
-    "SensoryIndexer",
+    "MemoryProjectionDeferred",
+    "ModelPortMemoryAdapter",
+    "MemoryScorePolicy",
+    "EvidenceContribution",
+    "ImportanceAggregate",
+    "ImportanceEvent",
+    "RetentionUpdate",
+    "SemanticScore",
     "tokenize",
     "AliasInput",
     "AttributionKind",
@@ -96,6 +93,9 @@ __all__ = [
     "MentionInput",
     "MaintenanceReceipt",
     "MaintenanceRequest",
+    "MemoryInspectionSnapshot",
+    "MemoryUseProposal",
+    "QualifiedReinforcementReceipt",
     "NodeInput",
     "OccurrencePrecision",
     "RecallAssertion",

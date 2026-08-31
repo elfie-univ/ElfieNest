@@ -44,7 +44,7 @@ def _projection(store: SQLiteMemoryStoreAdapter) -> None:
                     "likes",
                     object_node_id="food",
                     confidence=0.9,
-                    support_score=0.9,
+                    importance=0.9,
                     evidence_ids=("ev-1",),
                     assertion_id="claim-1",
                 ),
@@ -96,8 +96,14 @@ def test_evidence_and_mentions_round_trip_and_graph_edges_are_derived() -> None:
         assertion = store.graph_assertions_for(("owner",))[0]
         assert assertion.evidence_ids == ("ev-1",)
         assert store.get_assertion_evidence(("claim-1",))[0].source_id == "episode-1"
-        assert store.get_edges("owner")[0].target == "food"
-        assert store.get_node("episode-1").metadata["consolidated"] is True
+        assert store.graph_assertions_for(("owner",))[0].object_node_id == "food"
+        assert store.get_episode("episode-1") is not None
+        assert (
+            store.connection.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='episode-1'"
+            ).fetchone()[0]
+            == "consolidated"
+        )
 
 
 def test_invalid_episode_evidence_rolls_back_entire_projection() -> None:

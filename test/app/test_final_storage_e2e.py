@@ -13,6 +13,7 @@ from app.bootstrap import create_app
 from app.bootstrap.system_wiring.lifecycle import create_lifecycle_facade
 from app.interfaces.cli.doctor_commands import repair_local_runtime_state
 from elfie import ElfieFactory
+from elfie.brain.memory.memory_records import ClosedEpisode, RecallRequest
 from elfie.communication import InboundDisposition, InboundDispositionStatus
 from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
@@ -90,14 +91,26 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
         data_home=data_home,
     )
     elfie = _restore(workspace)
-    ElfieDiagnostics(elfie).memory.record_episode("今天看到了金色的花", "happy", 80.0)
+    ElfieDiagnostics(elfie).memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="golden-flower-episode",
+            idempotency_key="golden-flower-key",
+            occurred_from="2026-08-01T00:00:00+00:00",
+            content_text="今天看到了金色的花",
+            emotion="happy",
+            importance=0.8,
+        )
+    )
     ElfieDiagnostics(elfie).memory.storage.close()
 
     init_db(str(db_path))
     reopened = _restore(workspace)
-    assert "今天看到了金色的花" in ElfieDiagnostics(
-        reopened
-    ).memory.retrieve_relevant_memories("金色的花")
+    recalled = ElfieDiagnostics(reopened).memory.recall(
+        RecallRequest(text="金色的花", episode_limit=5)
+    )
+    assert any(
+        episode.episode_id == "golden-flower-episode" for episode in recalled.episodes
+    )
     ElfieDiagnostics(reopened).memory.storage.close()
     assert [
         message.text
@@ -177,7 +190,16 @@ def test_full_product_chain_uses_one_explicit_final_root(
             ws_message = websocket.receive_json()
         workspace = data_home / "elfies" / elfie_id
         elfie = _restore(workspace)
-        ElfieDiagnostics(elfie).memory.record_episode("完整链路记忆", "happy", 80.0)
+        ElfieDiagnostics(elfie).memory.record_closed_episode(
+            ClosedEpisode(
+                episode_id="full-chain-episode",
+                idempotency_key="full-chain-key",
+                occurred_from="2026-08-01T00:00:00+00:00",
+                content_text="完整链路记忆",
+                emotion="happy",
+                importance=0.8,
+            )
+        )
         ElfieDiagnostics(elfie).memory.storage.close()
         settings = RuntimeSettingsAdapter(get_config_path())
         settings.save_security_settings(
@@ -202,9 +224,12 @@ def test_full_product_chain_uses_one_explicit_final_root(
             "WS 消息",
         ]
     reopened = _restore(workspace)
-    assert "完整链路记忆" in ElfieDiagnostics(
-        reopened
-    ).memory.retrieve_relevant_memories("完整链路")
+    recalled = ElfieDiagnostics(reopened).memory.recall(
+        RecallRequest(text="完整链路", episode_limit=5)
+    )
+    assert any(
+        episode.episode_id == "full-chain-episode" for episode in recalled.episodes
+    )
     ElfieDiagnostics(reopened).memory.storage.close()
     assert _tables(db_path) == _NEST_TABLES
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES

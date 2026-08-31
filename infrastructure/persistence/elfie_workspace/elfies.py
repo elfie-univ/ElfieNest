@@ -301,7 +301,7 @@ def _cognition_snapshot(connection: sqlite3.Connection) -> CognitionSnapshotReco
     events = tuple(_target_cognition_event(row, connection) for row in event_rows)
     edge_rows = connection.execute(
         """SELECT subject_node_id, object_node_id, predicate, context,
-                  support_score FROM assertions
+                  importance FROM assertions
              WHERE lifecycle='active' AND object_node_id IS NOT NULL
              ORDER BY subject_node_id, object_node_id, predicate, assertion_id"""
     ).fetchall()
@@ -311,7 +311,7 @@ def _cognition_snapshot(connection: sqlite3.Connection) -> CognitionSnapshotReco
             target=str(row["object_node_id"]),
             relation_type=str(row["predicate"]),
             summary=_text(row["context"]),
-            weight=_number(row["support_score"], 0.5),
+            weight=_number(row["importance"], 0.5),
         )
         for row in edge_rows
     )

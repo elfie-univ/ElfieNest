@@ -15,6 +15,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_records import MaintenanceRequest
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.memory.model_food import ModelPortMemoryAdapter
 from elfie.brain.motivation.system import MotivationSystem
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_source import BrainContextProvider
@@ -147,6 +148,11 @@ def assemble_brain_runtime(
     )
     resolved_activity_store = activity_store or InMemoryActivityStore()
     initial_at = clock()
+    memory_model = ModelPortMemoryAdapter(
+        model_port,
+        elfie_id=str(elfie_id),
+        clock=clock,
+    )
 
     def run_memory_maintenance(limit: int) -> Mapping[str, object]:
         """Route the scheduler through Memory's ordered maintenance boundary."""
@@ -154,7 +160,8 @@ def assemble_brain_runtime(
             MaintenanceRequest(
                 max_episodes=limit,
                 worker_id="brain-cognitive-consolidation",
-            )
+            ),
+            model_port=memory_model,
         )
         return {
             "consolidated_count": len(receipt.consolidated_episode_ids),

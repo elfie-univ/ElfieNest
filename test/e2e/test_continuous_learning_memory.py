@@ -69,6 +69,18 @@ class WaitableRecordingChannel(RecordingChannel):
             raise TimeoutError(f"expected {count} delivered replies")
 
 
+class NoopMemoryProjection:
+    """Use the source-grounded deterministic extractor in this replay.
+
+    The SQLite source-first worker deliberately requires an injected model
+    boundary.  A valid empty proposal keeps this end-to-end test provider-free
+    while exercising the same conservative fallback used by the evaluator.
+    """
+
+    def ask_with_food(self, **_kwargs: object) -> str:
+        return '{"nodes":[],"mentions":[],"assertions":[]}'
+
+
 def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
     tmp_path,
 ) -> None:
@@ -124,9 +136,10 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
         channel.wait_for_count(2, timeout=1.0)
 
         assert store.pending_episodes(limit=8)
-        assert store.count_nodes("episodic") >= 1
+        assert store.count_episodes() >= 1
         elfie._memory.run_consolidation_batch(  # noqa: SLF001 - replay seam
-            ConsolidationRequest(max_episodes=8)
+            ConsolidationRequest(max_episodes=8),
+            model_port=NoopMemoryProjection(),
         )
         bundle = store.recall(RecallRequest(text="雨宝", episode_limit=8))
         assert any(

@@ -11,6 +11,7 @@ from elfie.profile import (
 )
 from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -26,7 +27,7 @@ def test_memory_adapter_owns_workspace_knowledge_sqlite(tmp_path: Path) -> None:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         }
-    assert len(tables) == 13
+    assert tables == set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
     assert not (tmp_path / "graph_memory.db").exists()
     store.close()
 

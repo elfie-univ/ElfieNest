@@ -108,6 +108,7 @@ class DecisionPlanDecoder:
         generation: ModelGenerationResult,
         capabilities: ModelGenerationCapabilities,
         repair_callback: Optional[RepairCallback] = None,
+        allowed_memory_references: Optional[Tuple[Tuple[str, str], ...]] = None,
     ) -> DecisionDecodeResult:
         """Validate once, optionally repair once, then degrade safely."""
         selected_mode = self._mode(capabilities, generation.selected_mode)
@@ -142,11 +143,12 @@ class DecisionPlanDecoder:
                 suppress_json_like=extracted is None,
             )
         try:
-            plan = bind_plan_to_seed(
-                DecisionPlan.model_validate_json(generation.text),
-                seed,
+            plan = self._decode_plan(
+                generation.text,
+                seed=seed,
+                allowed_memory_references=allowed_memory_references,
             )
-        except ValidationError as first_error:
+        except (ValidationError, ValueError) as first_error:
             errors = self._errors(first_error)
         else:
             return self._result(plan, generation, selected_mode, (), 0, None)
@@ -154,11 +156,12 @@ class DecisionPlanDecoder:
         if repair_callback is not None:
             repaired_text = repair_callback(generation.text, errors)
             try:
-                plan = bind_plan_to_seed(
-                    DecisionPlan.model_validate_json(repaired_text),
-                    seed,
+                plan = self._decode_plan(
+                    repaired_text,
+                    seed=seed,
+                    allowed_memory_references=allowed_memory_references,
                 )
-            except ValidationError as repair_error:
+            except (ValidationError, ValueError) as repair_error:
                 errors += self._errors(repair_error)
             else:
                 return self._result(plan, generation, selected_mode, errors, 1, None)
@@ -175,6 +178,28 @@ class DecisionPlanDecoder:
             fallback_text=None,
             suppress_json_like=True,
         )
+
+    @staticmethod
+    def _decode_plan(
+        raw_text: str,
+        *,
+        seed: DecisionDecodeSeed,
+        allowed_memory_references: Optional[Tuple[Tuple[str, str], ...]],
+    ) -> DecisionPlan:
+        """Parse, bind and optionally validate model-selected Memory IDs."""
+        plan = bind_plan_to_seed(DecisionPlan.model_validate_json(raw_text), seed)
+        if allowed_memory_references is not None:
+            allowed = {
+                (str(target_kind), str(target_id))
+                for target_kind, target_id in allowed_memory_references
+            }
+            for reference in plan.memory_uses:
+                key = (str(reference.target_kind), str(reference.target_id))
+                if key not in allowed:
+                    raise ValueError(
+                        "memory use reference is outside the supplied RecallBundle"
+                    )
+        return plan
 
     @staticmethod
     def _mode(
@@ -346,8 +371,10 @@ class DecisionPlanDecoder:
         )
 
     @staticmethod
-    def _errors(error: ValidationError) -> Tuple[str, ...]:
-        return tuple(item["msg"] for item in error.errors())
+    def _errors(error: ValidationError | ValueError) -> Tuple[str, ...]:
+        if isinstance(error, ValidationError):
+            return tuple(item["msg"] for item in error.errors())
+        return (str(error),)
 
 
 __all__ = (

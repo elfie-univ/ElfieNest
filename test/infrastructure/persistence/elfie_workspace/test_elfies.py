@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from elfie.brain.memory.node_types import MemoryNode
+from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlSelfhoodSeedAdapter,
@@ -131,15 +131,16 @@ def test_cognition_reader_is_read_only_and_returns_typed_records(
     path = final_root_layout(tmp_path).elfie("00000001").knowledge_database
     path.parent.mkdir(parents=True)
     with SQLiteMemoryStoreAdapter(path) as store:
-        store.add_node(
-            MemoryNode(
-                id="event-adoption",
-                type="episodic",
-                content="被 Alice 领养",
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="event-adoption",
+                idempotency_key="event-adoption-key",
+                occurred_from="2026-08-01T00:00:00Z",
+                content_text="被 Alice 领养",
+                importance=0.95,
+                event_kind="adoption",
                 metadata={
-                    "timestamp": "2026-08-01T00:00:00Z",
                     "major_event": True,
-                    "importance": 0.95,
                     "title": "被领养",
                     "topics": [{"label": "Alice", "category": "person"}],
                 },
