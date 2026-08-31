@@ -505,7 +505,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     importance=node.importance,
                     confidence=node.confidence,
                     freshness=node.freshness,
-                    retention_days=node.retention_days,
+                    half_life_days=node.half_life_days,
                     properties=node.properties,
                 )
             )
@@ -572,7 +572,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 f"""SELECT episode_id, occurred_from, occurred_to,
                            occurrence_precision, life_stage, temporal_label,
                            content_text, summary_text, detail_level, importance,
-                           retention_days, last_reinforced_at, updated_at,
+                           half_life_days, last_reinforced_at, updated_at,
                            source_event_ids_json
                       FROM episodes
                      WHERE episode_id IN ({placeholders})
@@ -585,9 +585,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         for row in rows:
             episode_id = str(row["episode_id"])
             excerpt = str(row["summary_text"] or row["content_text"])
-            retention_days = float(row["retention_days"] or 7.0)
+            half_life_days = float(row["half_life_days"] or 2.0)
             anchor = row["last_reinforced_at"] or row["updated_at"] or now
-            freshness = MemoryScorePolicy.freshness(now, str(anchor), retention_days)
+            freshness = MemoryScorePolicy.freshness(now, str(anchor), half_life_days)
             score = MemoryScorePolicy.recall_score(
                 relevance=direct_scores.get(episode_id, 0.0),
                 freshness=freshness,
@@ -614,7 +614,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     temporal_label=row["temporal_label"],
                     importance=float(row["importance"]),
                     freshness=freshness,
-                    retention_days=retention_days,
+                    half_life_days=half_life_days,
                     source_event_ids=tuple(
                         str(value) for value in _json_list(row["source_event_ids_json"])
                     ),
@@ -799,7 +799,7 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
                 temporal_label=episode.temporal_label,
                 importance=episode.importance,
                 freshness=episode.freshness,
-                retention_days=episode.retention_days,
+                half_life_days=episode.half_life_days,
                 source_event_ids=episode.source_event_ids,
             )
         )

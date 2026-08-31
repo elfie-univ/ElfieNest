@@ -12,14 +12,14 @@ from elfie.brain.memory.score_policy import (
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-def test_v2_freshness_golden_vectors() -> None:
+def test_v3_freshness_golden_vectors() -> None:
     assert MemoryScorePolicy.freshness(NOW, NOW, 7.0) == 1.0
     assert MemoryScorePolicy.freshness(
         NOW + timedelta(days=3.5), NOW, 7.0
-    ) == pytest.approx(0.402504156, rel=1e-7)
+    ) == pytest.approx(2**-0.5)
     assert MemoryScorePolicy.freshness(
         NOW + timedelta(days=7), NOW, 7.0
-    ) == pytest.approx(0.1)
+    ) == pytest.approx(0.5)
 
 
 def test_freshness_clamps_small_future_clock_delta_and_rejects_invalid_span() -> None:
@@ -32,44 +32,79 @@ def test_freshness_clamps_small_future_clock_delta_and_rejects_invalid_span() ->
 
 def test_reinforcement_uses_event_time_and_has_expected_growth() -> None:
     unchanged = MemoryScorePolicy.reinforce(
-        retention_days=7.0,
+        half_life_days=7.0,
         last_reinforced_at=NOW,
         occurred_at=NOW,
     )
     assert unchanged is not None
-    assert unchanged.retention_days == pytest.approx(7.0)
+    assert unchanged.half_life_days == pytest.approx(7.0)
 
     at_half = MemoryScorePolicy.reinforce(
-        retention_days=7.0,
+        half_life_days=7.0,
         last_reinforced_at=NOW,
         occurred_at=NOW + timedelta(days=3.5),
     )
     assert at_half is not None
-    assert at_half.retention_days == pytest.approx(10.085196283, rel=1e-7)
+    assert at_half.half_life_days == pytest.approx(7.0 * (3.0 - 2.0 * 2**-0.5))
     assert at_half.last_reinforced_at == NOW + timedelta(days=3.5)
 
     at_boundary = MemoryScorePolicy.reinforce(
-        retention_days=7.0,
+        half_life_days=7.0,
         last_reinforced_at=NOW,
         occurred_at=NOW + timedelta(days=7),
     )
     assert at_boundary is not None
-    assert at_boundary.retention_days == pytest.approx(14.0)
+    assert at_boundary.half_life_days == pytest.approx(14.0)
 
-    expired = MemoryScorePolicy.reinforce(
-        retention_days=7.0,
+    late = MemoryScorePolicy.reinforce(
+        half_life_days=7.0,
         last_reinforced_at=NOW,
         occurred_at=NOW + timedelta(days=8),
     )
-    assert expired is None
+    assert late is not None
+    assert late.half_life_days == pytest.approx(7.0 * (3.0 - 2.0 * 2 ** (-8.0 / 7.0)))
+
+
+def test_profiles_have_fixed_initial_half_lives_and_relearning_has_no_multiplier() -> (
+    None
+):
+    assert {
+        profile: MemoryScorePolicy.initial_half_life(profile)
+        for profile in (
+            "transient",
+            "ordinary",
+            "salient",
+            "semantic",
+            "stable",
+            "genesis",
+        )
+    } == {
+        "transient": 0.5,
+        "ordinary": 2.0,
+        "salient": 9.0,
+        "semantic": 30.0,
+        "stable": 365.0,
+        "genesis": 3650.0,
+    }
+    assert MemoryScorePolicy.admission_half_life("ordinary") == 2.0
+    assert (
+        MemoryScorePolicy.admission_half_life("ordinary", emotion_intensity=0.8) == 9.0
+    )
+    relearned = MemoryScorePolicy.relearn(
+        half_life_days=2.0,
+        retention_profile="semantic",
+        occurred_at=NOW + timedelta(days=4),
+    )
+    assert relearned.half_life_days == pytest.approx(30.0)
+    assert relearned.last_reinforced_at == NOW + timedelta(days=4)
 
 
 def test_next_review_inverse_vectors() -> None:
     for threshold, expected_ratio in (
-        (0.4, 0.502008485),
-        (0.2, 0.732057485),
-        (0.1, 1.0),
-        (0.01, 2.514986442),
+        (0.4, 1.32192809489),
+        (0.2, 2.32192809489),
+        (0.1, 3.32192809489),
+        (0.01, 6.64385618977),
     ):
         due = MemoryScorePolicy.next_review_at(NOW, 7.0, threshold)
         assert (due - NOW).total_seconds() / 86_400 == pytest.approx(

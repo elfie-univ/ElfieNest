@@ -1,4 +1,4 @@
-"""Behavioral gates for the Retention v2 score and feedback contract."""
+"""Behavioral gates for the Retention v3 score and feedback contract."""
 
 from __future__ import annotations
 
@@ -35,8 +35,118 @@ def _episode(episode_id: str, *, occurred_at: datetime | None = None) -> ClosedE
         episode_id=episode_id,
         idempotency_key=episode_id + ":key",
         occurred_from=occurred.isoformat(),
-        content_text="retention v2 source " + episode_id,
+        content_text="retention v3 source " + episode_id,
     )
+
+
+def test_admission_profile_owns_initial_half_life_and_is_persisted() -> None:
+    occurred = _now() - timedelta(hours=1)
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="profile-transient",
+                idempotency_key="profile-transient:key",
+                occurred_from=occurred.isoformat(),
+                content_text="transient detail",
+                half_life_days=365.0,
+                retention_profile="transient",
+            )
+        )
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="profile-salient",
+                idempotency_key="profile-salient:key",
+                occurred_from=occurred.isoformat(),
+                content_text="salient event",
+                half_life_days=0.5,
+                retention_profile="salient",
+            )
+        )
+        store.upsert_node_record(
+            NodeInput(
+                "profile-node",
+                "person",
+                "稳定身份",
+                half_life_days=0.5,
+                retention_profile="stable",
+            )
+        )
+        store.record_sourced_assertion(
+            AssertionInput(
+                "profile-node",
+                "about",
+                object_literal="semantic fact",
+                half_life_days=365.0,
+                retention_profile="semantic",
+            ),
+            EvidenceInput("profile-evidence", "seed", "profile-seed"),
+        )
+
+        episode_rows = {
+            str(row[0]): (str(row[1]), float(row[2]))
+            for row in store.connection.execute(
+                "SELECT episode_id, retention_profile, half_life_days FROM episodes"
+            ).fetchall()
+        }
+        assert episode_rows == {
+            "profile-salient": ("salient", pytest.approx(9.0)),
+            "profile-transient": ("transient", pytest.approx(0.5)),
+        }
+        node_row = store.connection.execute(
+            "SELECT retention_profile, half_life_days FROM nodes WHERE node_id=?",
+            ("profile-node",),
+        ).fetchone()
+        assert node_row is not None
+        assert node_row[0] == "stable"
+        assert float(node_row[1]) == pytest.approx(365.0)
+        assertion_row = store.connection.execute(
+            "SELECT retention_profile, half_life_days FROM assertions"
+        ).fetchone()
+        assert assertion_row is not None
+        assert assertion_row[0] == "semantic"
+        assert float(assertion_row[1]) == pytest.approx(30.0)
+
+
+def test_first_projection_evidence_does_not_count_as_relearning() -> None:
+    admission_time = _now()
+    episode = _episode(
+        "initial-projection",
+        occurred_at=admission_time - timedelta(days=1),
+    )
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
+        store.record_episode(episode)
+        with patch(
+            "infrastructure.persistence.memory.sqlite_graph_store.utc_now",
+            return_value=admission_time.isoformat(timespec="milliseconds"),
+        ):
+            store.apply_consolidation(
+                ConsolidationProjection(
+                    episode_id=episode.episode_id,
+                    nodes=(NodeInput("initial-node", "person", "初始身份"),),
+                    aliases=(
+                        AliasInput(
+                            "initial-node",
+                            "初始别名",
+                            evidence_id="initial-evidence",
+                        ),
+                    ),
+                    evidence=(
+                        EvidenceInput(
+                            "initial-evidence",
+                            "episode",
+                            episode.episode_id,
+                            captured_at=episode.occurred_from,
+                        ),
+                    ),
+                )
+            )
+        row = store.connection.execute(
+            "SELECT half_life_days, last_reinforced_at FROM nodes WHERE node_id=?",
+            ("initial-node",),
+        ).fetchone()
+        assert row is not None
+        assert float(row[0]) == pytest.approx(30.0)
+        assert datetime.fromisoformat(str(row[1])) == admission_time
 
 
 def test_relation_evidence_does_not_propagate_node_confidence_or_retention() -> None:
@@ -69,11 +179,11 @@ def test_relation_evidence_does_not_propagate_node_confidence_or_retention() -> 
             )
         )
         rows = store.connection.execute(
-            "SELECT node_id, confidence, retention_days FROM nodes ORDER BY node_id"
+            "SELECT node_id, confidence, half_life_days FROM nodes ORDER BY node_id"
         ).fetchall()
         assert [(row[0], row[1], row[2]) for row in rows] == [
-            ("food", pytest.approx(0.5), pytest.approx(7.0)),
-            ("owner", pytest.approx(0.5), pytest.approx(7.0)),
+            ("food", pytest.approx(0.5), pytest.approx(30.0)),
+            ("owner", pytest.approx(0.5), pytest.approx(30.0)),
         ]
 
 
@@ -129,11 +239,11 @@ def test_node_identity_observations_recompute_confidence_and_reinforce_only_that
             )
         )
         row = store.connection.execute(
-            "SELECT confidence, retention_days FROM nodes WHERE node_id='owner'"
+            "SELECT confidence, half_life_days FROM nodes WHERE node_id='owner'"
         ).fetchone()
         assert row is not None
         assert float(row[0]) == pytest.approx((0.5 + 0.9) / (1.0 + 0.9))
-        assert float(row[1]) == pytest.approx(7.0)
+        assert float(row[1]) == pytest.approx(30.0)
 
 
 def test_importance_events_are_idempotent_and_replayed_from_the_admission_baseline() -> (
@@ -275,7 +385,7 @@ def test_retention_score_control_checkpoint_keeps_hash_and_replay_state() -> Non
 
         before = float(
             store.connection.execute(
-                "SELECT retention_days FROM episodes WHERE episode_id=?",
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
                 (episode.episode_id,),
             ).fetchone()[0]
         )
@@ -298,7 +408,7 @@ def test_retention_score_control_checkpoint_keeps_hash_and_replay_state() -> Non
         assert state["last_event_time"] == checkpoint["folded_through"]
         assert float(
             store.connection.execute(
-                "SELECT retention_days FROM episodes WHERE episode_id=?",
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
                 (episode.episode_id,),
             ).fetchone()[0]
         ) == pytest.approx(before)
@@ -310,7 +420,7 @@ def test_qualified_retention_receipts_use_event_time_and_are_idempotent() -> Non
         store.record_episode(episode)
         before = float(
             store.connection.execute(
-                "SELECT retention_days FROM episodes WHERE episode_id=?",
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
                 (episode.episode_id,),
             ).fetchone()[0]
         )
@@ -325,7 +435,7 @@ def test_qualified_retention_receipts_use_event_time_and_are_idempotent() -> Non
         assert store.consume_reinforcement_receipt(receipt) is True
         after = float(
             store.connection.execute(
-                "SELECT retention_days FROM episodes WHERE episode_id=?",
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
                 (episode.episode_id,),
             ).fetchone()[0]
         )
@@ -333,14 +443,16 @@ def test_qualified_retention_receipts_use_event_time_and_are_idempotent() -> Non
         assert store.consume_reinforcement_receipt(receipt) is True
         replay = float(
             store.connection.execute(
-                "SELECT retention_days FROM episodes WHERE episode_id=?",
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
                 (episode.episode_id,),
             ).fetchone()[0]
         )
         assert replay == pytest.approx(after)
 
 
-def test_expired_receipt_is_audited_but_does_not_restart_an_old_memory() -> None:
+def test_expired_active_receipt_still_reinforces_with_the_continuous_multiplier() -> (
+    None
+):
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
         episode = _episode("expired-receipt")
         store.record_episode(episode)
@@ -361,16 +473,60 @@ def test_expired_receipt_is_audited_but_does_not_restart_an_old_memory() -> None
             outcome_kind="deliberate_review",
             source_ref="review:expired",
         )
-        assert store.consume_reinforcement_receipt(receipt) is False
+        assert store.consume_reinforcement_receipt(receipt) is True
         state = store.connection.execute(
-            "SELECT retention_days, state FROM episodes JOIN memory_retention_receipts "
+            "SELECT half_life_days, state FROM episodes JOIN memory_retention_receipts "
             "ON memory_retention_receipts.target_id=episodes.episode_id "
             "WHERE episodes.episode_id=?",
             (episode.episode_id,),
         ).fetchone()
         assert state is not None
-        assert float(state[0]) == pytest.approx(7.0)
-        assert state[1] == "ignored"
+        assert float(state[0]) == pytest.approx(6.0)
+    assert state[1] == "accepted"
+
+
+def test_accepted_active_receipt_survives_archive_before_checkpoint_fold() -> None:
+    now = _now()
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
+        episode = _episode(
+            "archive-before-fold",
+            occurred_at=now - timedelta(days=10),
+        )
+        store.record_episode(episode)
+        receipt = QualifiedReinforcementReceipt(
+            event_id="archive-before-fold-receipt",
+            target_kind="episode",
+            target_id=episode.episode_id,
+            occurred_at=(now - timedelta(days=3)).isoformat(),
+            outcome_kind="action_success",
+            source_ref="action:archive-before-fold",
+        )
+        assert store.consume_reinforcement_receipt(receipt) is True
+        before = float(
+            store.connection.execute(
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
+                (episode.episode_id,),
+            ).fetchone()[0]
+        )
+        store.connection.execute(
+            "UPDATE episodes SET lifecycle='archived' WHERE episode_id=?",
+            (episode.episode_id,),
+        )
+        store.connection.commit()
+
+        assert (
+            store.compact_score_control(now=now.isoformat(), safety_window_days=0.0)[
+                "retention_receipts"
+            ]
+            == 1
+        )
+        after = float(
+            store.connection.execute(
+                "SELECT half_life_days FROM episodes WHERE episode_id=?",
+                (episode.episode_id,),
+            ).fetchone()[0]
+        )
+        assert after == pytest.approx(before)
 
 
 def test_ignored_receipt_is_not_replayed_if_the_target_later_becomes_active() -> None:
@@ -402,6 +558,98 @@ def test_ignored_receipt_is_not_replayed_if_the_target_later_becomes_active() ->
             (receipt.event_id,),
         ).fetchone()
         assert state is not None and state[0] == "ignored"
+
+
+def test_authoritative_evidence_relearns_archived_identity_without_multiplier() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
+        store.upsert_node_record(
+            NodeInput(
+                "cold-node",
+                "concept",
+                "冷记忆",
+                importance=0.7,
+                confidence=0.8,
+                retention_profile="semantic",
+            )
+        )
+        assertion_id = store.record_sourced_assertion(
+            AssertionInput(
+                "cold-node",
+                "about",
+                object_literal="权威事实",
+                assertion_id="cold-assertion",
+                importance=0.6,
+                confidence=0.8,
+                retention_profile="semantic",
+            ),
+            EvidenceInput("cold-seed", "seed", "cold-source"),
+        )
+        before = store.connection.execute(
+            "SELECT importance, confidence FROM nodes WHERE node_id='cold-node'"
+        ).fetchone()
+        assertion_before = store.connection.execute(
+            "SELECT importance, confidence FROM assertions WHERE assertion_id=?",
+            (assertion_id,),
+        ).fetchone()
+        assert before is not None and assertion_before is not None
+        store.connection.execute(
+            "UPDATE nodes SET status='archived', half_life_days=2.0, "
+            "last_reinforced_at=?, next_review_at=NULL WHERE node_id='cold-node'",
+            ((_now() - timedelta(days=10)).isoformat(),),
+        )
+        store.connection.execute(
+            "UPDATE assertions SET lifecycle='archived', half_life_days=2.0, "
+            "last_reinforced_at=?, next_review_at=NULL WHERE assertion_id=?",
+            ((_now() - timedelta(days=10)).isoformat(), assertion_id),
+        )
+        store.connection.commit()
+
+        occurred_at = _now()
+        assert (
+            store.consume_reinforcement_receipt(
+                QualifiedReinforcementReceipt(
+                    event_id="cold-node-relearn",
+                    target_kind="node",
+                    target_id="cold-node",
+                    occurred_at=occurred_at.isoformat(),
+                    outcome_kind="independent_evidence",
+                    source_ref="evidence:authoritative-node",
+                )
+            )
+            is True
+        )
+        assert (
+            store.consume_reinforcement_receipt(
+                QualifiedReinforcementReceipt(
+                    event_id="cold-assertion-relearn",
+                    target_kind="assertion",
+                    target_id=assertion_id,
+                    occurred_at=occurred_at.isoformat(),
+                    outcome_kind="independent_evidence",
+                    source_ref="evidence:authoritative-assertion",
+                )
+            )
+            is True
+        )
+
+        node_row = store.connection.execute(
+            "SELECT half_life_days, status, importance, confidence "
+            "FROM nodes WHERE node_id='cold-node'"
+        ).fetchone()
+        assertion_row = store.connection.execute(
+            "SELECT half_life_days, lifecycle, importance, confidence "
+            "FROM assertions WHERE assertion_id=?",
+            (assertion_id,),
+        ).fetchone()
+        assert node_row is not None and assertion_row is not None
+        assert float(node_row[0]) == pytest.approx(30.0)
+        assert node_row[1] == "active"
+        assert float(node_row[2]) == pytest.approx(float(before[0]))
+        assert float(node_row[3]) == pytest.approx(float(before[1]))
+        assert float(assertion_row[0]) == pytest.approx(30.0)
+        assert assertion_row[1] == "active"
+        assert float(assertion_row[2]) == pytest.approx(float(assertion_before[0]))
+        assert float(assertion_row[3]) == pytest.approx(float(assertion_before[1]))
 
 
 def test_memory_use_proposal_requires_the_recall_revision_and_authoritative_outcome() -> (
@@ -487,16 +735,16 @@ def test_genesis_submission_forces_ten_year_retention_for_all_memory_records() -
                 ),
             )
         assert store.connection.execute(
-            "SELECT retention_days FROM episodes WHERE episode_id='genesis-episode'"
+            "SELECT half_life_days FROM episodes WHERE episode_id='genesis-episode'"
         ).fetchone()[0] == pytest.approx(3650.0)
         node_row = store.connection.execute(
-            "SELECT retention_days, initial_confidence FROM nodes WHERE node_id='genesis-node'"
+            "SELECT half_life_days, initial_confidence FROM nodes WHERE node_id='genesis-node'"
         ).fetchone()
         assert node_row is not None
         assert float(node_row[0]) == pytest.approx(3650.0)
         assert float(node_row[1]) == pytest.approx(1.0)
         assertion_row = store.connection.execute(
-            "SELECT retention_days, initial_confidence FROM assertions"
+            "SELECT half_life_days, initial_confidence FROM assertions"
         ).fetchone()
         assert assertion_row is not None
         assert float(assertion_row[0]) == pytest.approx(3650.0)
@@ -547,7 +795,9 @@ def test_genesis_seed_evidence_is_admission_prior_not_duplicate_confidence_suppo
         assert float(assertion_confidence) == pytest.approx(0.75)
 
 
-def test_correction_contradicts_old_claim_and_can_reinforce_its_retention() -> None:
+def test_correction_contradicts_old_claim_without_reinforcing_superseded_retention() -> (
+    None
+):
     now = _now()
     later = now + timedelta(days=3)
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-v2") as store:
@@ -586,7 +836,7 @@ def test_correction_contradicts_old_claim_and_can_reinforce_its_retention() -> N
                 )
             )
         before = store.connection.execute(
-            "SELECT confidence, retention_days FROM assertions "
+            "SELECT confidence, half_life_days FROM assertions "
             "WHERE assertion_id='correction-old-claim'"
         ).fetchone()
         assert before is not None
@@ -619,11 +869,11 @@ def test_correction_contradicts_old_claim_and_can_reinforce_its_retention() -> N
                 )
             )
         after = store.connection.execute(
-            "SELECT confidence, retention_days, lifecycle, next_review_at "
+            "SELECT confidence, half_life_days, lifecycle, next_review_at "
             "FROM assertions WHERE assertion_id='correction-old-claim'"
         ).fetchone()
         assert after is not None
         assert after[2] == "superseded"
         assert after[3] is None
         assert float(after[0]) < float(before[0])
-        assert float(after[1]) > float(before[1])
+        assert float(after[1]) == pytest.approx(float(before[1]))

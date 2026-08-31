@@ -1,6 +1,6 @@
 # Elfie Memory 一致性
 
-> 状态：source-first Memory 基线、类型化生产调用方、全新库边界和兼容清理已完成。Retention v2 是当前实现基线；已审查目标已升级为 `memory.v3`，因此 MEM-012 对半衰期/profile 策略、有界 archived 状态 Recall、合格结果强化、持久 Outcome/outbox 证据和负责人确认保持 open。Memory Abstraction Loop 仍暂缓。0.5 兼容基线前不执行生产数据迁移。<br>
+> 状态：source-first Memory 基线、类型化生产调用方、全新库边界和兼容清理已完成。最小 Retention v3 公式/profile/schema/lifecycle 切片已实现；MEM-012 仍因有意暂缓的冷 Recall 通道、持久 Outcome/outbox 证据、耐久/重启证据和负责人确认保持 open。Memory Abstraction Loop 仍暂缓。0.5 兼容基线前不执行生产数据迁移。<br>
 > 基线：2026-08-30<br>
 > 目标：[Elfie Memory 设计](../designs/elfie-memory-architecture)
 
@@ -21,7 +21,7 @@
 | MEM-009 | P0 | closed | Brain、Reasoning 和 Lab 生产路径已消费类型化 `RecallBundle`/Memory inspection 和唯一的 `Memory Maintenance` 入口。Lab 回退、旧 Memory 门面分支、旧算法、旧持久化 mixin 及其专门测试均已删除。 | 保持唯一 typed Memory 路径，并证明旧 API/类/模块引用为零。 | target=设计第 4.2、4.4–4.5、6、9.5 节；inventory=`memory_system.py`、`reasoning/memory_context.py`、`devtools/elfie_lab/memory_projection.py`、`devtools/evals/opt003_memory_endurance.py`、`infrastructure/persistence/memory`；references=退役模块扫描和类型化 inspection 回归；verification=旧 API/类/模块引用为零、Memory/Brain/Genesis/Lab/产品回归、架构测试、Ruff 和持久化扫描；residuals=当前目标无残余。 | 生产调用方不构造或导入退役检索/格式化对象。 |
 | MEM-010 | P0 | closed（维护正确性） | Maintenance 共用有界预算，先 Consolidation 后 Lifecycle；强化后会调度 Node/Assertion；失败保留原检查点；可恢复过期租约并按 owner/attempt 隔离旧 Worker。 | 重试或竞争 Worker 不得跳过、重复或覆盖目标；投影失败时来源 Episode 必须可重试。 | target=设计第 4.4、9.2、9.6 节；inventory=`memory_system.py`、`sqlite_lifecycle_store.py`、`sqlite_graph_store.py`；references=维护强化回归；verification=单预算、仅生命周期唤醒、检查点重试、租约恢复、旧 Worker 隔离和来源保留测试；residuals=维护正确性无残余。 | 写事务不会等待模型/网络。 |
 | MEM-011 | P0 | closed（v1 基线，已被替代） | v1 Lifecycle 已安全地将投影 Episode 按 `full → compressed → digest → archived` 推进，保护来源并扫描历史到期记录，但也会直接衰减 `importance`。 | 保留已经验证的租约、重启、来源安全和一次一阶段机制；其评分语义由 MEM-012 替换。 | target=历史 v1 基线；inventory=`score_policy.py`、`sqlite_lifecycle_store.py`、`memory_system.py`；references=维护回归和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=历史到期扫描、未投影来源保护、四步生命周期重放、摘要保留、只衰减 importance 和重启检查；residuals=当前设计符合性在 MEM-012 中保持 open。 | 本行只是实现历史，不能证明符合 `memory.v3`。 |
-| MEM-012 | P0 | open（`memory.v3` 实现和关闭证据待补） | Retention v2 是当前代码基线：单一 `memory.v2` 策略统一拥有 `I/D/C/F`；Schema v6 持久化 `importance`/`retention_days` 和仅 Node/Assertion 的 `confidence`；Evidence 按独立性去重；Genesis 使用 `D=3650`；Recall 按 `R/I/F/C` 排序；Maintenance 使用 freshness 阈值且不修改分数；类型化合格收据具备幂等性。它尚未实现已审查的 `retention_profile`/`half_life_days` 目标、`F=2^(-t/H)`、合格强化 `H'=H*(3-2F)`、独立限额归档通道和带来源重学语义。 | 实现一条完整 `memory.v3` 垂直切片：全新库 schema 和类型化 API 使用带版本的 `retention_profile`/`half_life_days` 准入策略，Genesis 统一使用十年半衰期 profile；Lifecycle 独占带版本的压缩/归档/遗忘阈值；Recall 消费生命周期状态并用 `I/F/C` 排序；只有持久化、合格的结果或直接学习事件按连续冻结公式强化，失败回忆与权威重学走独立规则。然后证明 Outcome/outbox 可重启重放、确定性向量、生命周期/延迟门，重跑真实模型样本并获得负责人确认。Pattern/Abstraction 保持 deferred。 | target=Memory 设计第 2.3、3.3–3.4、4.3、5–6、8.4–8.5 和 9.2/9.4 节；inventory=`memory_records.py`、`score_policy.py`、`memory_store.py`、`memory_system.py`、`schema.py`、SQLite Episode/图谱/召回/生命周期 Store、Reasoning 结果路径、Genesis initializer 和 OPT-003 evaluator；references=当前已审查设计及 `docs/.internal/elfie-memory-retention-v2-execution-plan.md`；verification=仅为 v2 基线：251 项受影响 Memory/Reasoning/Genesis/Eval 测试通过；223 项架构测试通过；Ruff、mypy 和持久化扫描通过；刷新后的 OPT-003 在 10,000 Episode/50,000 Node/200,000 Assertion 上通过，Basic p95 59.503ms、Local p95 47.960ms（30 次采样）；真实 Ark `arrival-memory` 通过确定性门、机器门和裁判门（1 次候选调用 + 1 次裁判调用，全部适用维度 5/5），报告位于 `/private/tmp/elfie-retention-v2-ark-final/report.json`；v2 聚焦测试 23/23 通过。 | 当前代码和数据库仍是 v2/Schema v6，Outcome proposal 只存于进程内，尚无 v3 确定性、耐久性、重启或真实模型证据。v2 真实 Ark 晋级也仍需负责人体验确认。只使用全新 schema；0.5 前不做 migration、回退读取或双写。 |
+| MEM-012 | P0 | open（`memory.v3` 证据和暂缓通道待补） | 当前代码已用单一 `memory.v3` 策略统一管理 `I/H/C/F`：Schema v7 持久化 `half_life_days` 和六值 `retention_profile`；准入使用策略拥有的 H0；`F=2^(-t/H)`；活跃且合格的结果使用 `H'=min(36500,H*(3-2F))`；权威来源 Evidence 可对未 forgotten 的 archived 身份按 `max(旧 H,H0)` 重学且不乘强化倍数；Lifecycle 保留 `.40/.20/.10/.01` 阈值；Recall 仍是现有 active-only 的 `R×A×quality` 路径。这次没有增加冷 Recall 通道或 Recall 状态契约。 | 保持这条最小切片的确定性，并证明聚焦向量、持久化/重开、Lifecycle 边界和按事件时间重放。冷 Recall/Recall 状态、Pattern 专用 H0、持久 Outcome/outbox 接入、大规模耐久性、真实模型验证和负责人确认作为独立验收门；Pattern/Abstraction 继续 deferred。 | target=Memory 设计第 2.3、3.3–3.4、4.3、5–6、8.4–8.5 和 9.2/9.4 节；inventory=`memory_records.py`、`score_policy.py`、`memory_store.py`、`memory_system.py`、`schema.py`、SQLite Episode/图谱/召回/生命周期 Store；references=当前已审查设计；verification=聚焦 Retention v3 策略/持久化测试、受影响 Memory/Brain 测试、compileall、Ruff/mypy 和持久化扫描（见下方当前运行证据）；residuals=上述暂缓通道需要单独范围、测试和负责人决策。 | 全新 schema 会有意拒绝 v6 数据库；本次不包含 migration、回退读取或双写。 |
 
 ## 当前基线后的优化台账
 
@@ -66,6 +66,8 @@ OPT-002 实现与评测证据（2026-08-28）：target=持续学习 source-first
 uv run --no-sync python scripts/governance/persistence/scan.py --project-root . --check
 ```
 
-修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。Retention v2 仍是当前代码基线；`memory.v3`、生产切换、具身世界评测和抽象/应用闭环仍单独治理。
+修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。当前代码已进入 `memory.v3` 最小实现切片；冷 Recall、生产切换、具身世界评测和抽象/应用闭环仍单独治理。
+
+当前最小切片的本地验证证据（2026-08-31）是：受影响 Memory/Brain 与持久化测试 `117 passed`；Ruff 检查和格式检查通过（24 个文件）；mypy 检查 21 个源码文件无问题；compileall 退出码为 0；持久化扫描退出码为 0；`git diff --check` 通过。该证据仍是聚焦验证，不替代 OPT-003 的大规模耐久/重启重跑或其他延期验收门。
 
 **收口状态：** open

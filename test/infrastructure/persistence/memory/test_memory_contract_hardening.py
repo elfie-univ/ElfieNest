@@ -167,7 +167,7 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
         claim = store.connection.execute(
             "SELECT importance, confidence FROM assertions WHERE assertion_id='low-importance-claim'"
         ).fetchone()
-        # Retention v2 recomputes confidence from the immutable .95 prior and
+        # Retention v3 recomputes confidence from the immutable .95 prior and
         # the observed .9 Evidence contribution, rather than applying the v1
         # arrival-order increment.
         assert tuple(round(float(value), 3) for value in claim) == (0.1, 0.974)
@@ -1106,13 +1106,13 @@ def test_lifecycle_checkpoint_does_not_skip_failure_before_later_success(
         calls = 0
 
         def fail_once(
-            anchor: str, retention_days: float, detail_level: str, lifecycle: str
+            anchor: str, half_life_days: float, detail_level: str, lifecycle: str
         ) -> str:
             nonlocal calls
             calls += 1
             if calls == 1:
                 raise RuntimeError("injected earlier failure")
-            return original_next_review(anchor, retention_days, detail_level, lifecycle)
+            return original_next_review(anchor, half_life_days, detail_level, lifecycle)
 
         monkeypatch.setattr(sqlite_lifecycle_store, "_next_lifecycle_review", fail_once)
         failed_then_success = store.run_lifecycle(
