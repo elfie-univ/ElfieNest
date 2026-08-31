@@ -980,7 +980,7 @@ jobs:
     needs:
       - preflight
       - merge-gate
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && needs.merge-gate.result == 'success'
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.mode == 'candidate' && needs.preflight.result == 'success' && needs.merge-gate.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Build evidence record
