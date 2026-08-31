@@ -112,7 +112,10 @@ class ElfieLabStorage:
             default_big_five=self._default_big_five(),
         )
         selfhood_seed = dict(seed)
-        adaptive = dict(selfhood_seed.get("adaptive_self", {}))
+        adaptive_seed = selfhood_seed.get("adaptive_self")
+        if not isinstance(adaptive_seed, Mapping):
+            raise ValueError("Selfhood seed 缺少 adaptive_self 对象")
+        adaptive = dict(adaptive_seed)
         adaptive["big_five"] = dict(derivation.big_five)
         selfhood_seed["adaptive_self"] = adaptive
         repository.save(selfhood_seed)
