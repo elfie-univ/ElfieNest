@@ -61,8 +61,11 @@ There are exactly three final action exits:
 
 A Turn cannot emit both Communication and Nervous System external domains. An
 Activity Request may accompany one of them as an internal follow-up proposal.
-When all three are absent, the result is a `No-op`. Memory, emotion and selfhood update candidates belong to
-internal Turn settlement and do not form a fourth action exit.
+When all three are absent, the result is a `No-op`. Admitted Memory, Emotion,
+Orientation, Energy and Motivation candidates belong to internal Turn
+settlement and do not form a fourth action exit. Selfhood is excluded from
+ordinary Turn output: phase 1 has no update path, and a future update can enter
+only through a Memory-owned consolidation proposal.
 
 ### 2.2 Cognitive infrastructure
 
@@ -179,7 +182,7 @@ commitment summary; available channels, body affordances and key restrictions;
 facts, hypotheses, unknowns, source, version and update time.
 
 **Inputs:** perception events, authoritative runtime state, execution receipts,
-Memory retrieval, Profile anchors and Activity state.
+Memory retrieval and Activity state.
 
 **Output:** `OrientationSnapshot` for Reasoning Core, Workspace, Motivation and
 Persistent Activity.
@@ -199,25 +202,30 @@ may begin as a strongly typed derived snapshot rather than its own process or da
 
 ### 5.3 Selfhood
 
-**Role:** Maintains how I understand myself, how I normally behave and which
-boundaries a single input cannot rewrite. Profile is the immutable objective
-anchor; Selfhood is the subjective model that may change slowly through evidence.
+**Role:** Maintains the Brain-owned answer to who I am and how I normally behave,
+without reading the external Profile at runtime.
 
-**Owns:** a correctable Self Model; stable but slowly evolving personality,
-interests, expression and coping tendencies; long-term value preferences, social
-norms and commitment principles; evidence, versions, rate limits and rollback
-information for personality and selfhood candidates.
+**Owns:** one atomic state with an immutable `identity_core` and a slow
+`adaptive_self`; typed personality, personal values, interaction, expression
+and coping tendencies; deterministic model projections of both layers.
 
-**Inputs:** Profile, long-term memory, relationship evidence, Activity results,
-body-capability changes and consolidation candidates.
+**Initialization input:** one validated `GenesisSelfhoodSeed`. Genesis may use
+Profile/Canon creation inputs while co-materializing the final owners, but
+ordinary Brain runtime receives neither Profile nor Canon.
 
-**Outputs:** Self, Personality and Norms snapshots; expression biases; grounds
-for norm judgments; controlled update results.
+**Future update input:** only a typed Memory-consolidation proposal that can
+modify `adaptive_self` after a separately approved growth design. Phase 1 has no
+assembled update path.
 
-**Does not own:** immutable Profile, complete person relationships, current
-environment facts, hard capability boundaries or external execution authority.
-A normal message, one failure or one consolidation run cannot directly alter
-stable personality or norms.
+**Outputs:** typed Selfhood/trait snapshots for contracted Brain consumers and a
+bounded natural-language model projection. Raw Big Five numbers are not model
+instructions.
+
+**Does not own:** external Profile, detailed world knowledge, biography, complete
+person relationships, current state, hard capabilities, application-wide rules
+or external execution authority. The focused
+[Selfhood design](./elfie-selfhood-and-fixed-model-header.md) is authoritative
+for the detailed boundary.
 
 ### 5.4 Emotion
 
@@ -418,7 +426,7 @@ flowchart TB
     BR["Body Receipt"] --> EW
     EW --> TF["Single-domain TurnFrame"]
 
-    P["Profile: immutable identity"] --> SH["3. Selfhood"]
+    GS["Genesis-created Selfhood state"] --> SH["3. Selfhood"]
 
     subgraph STATE["Context sources for this Turn"]
         OR["2. Orientation"]
@@ -557,11 +565,15 @@ Sleep / Idle / Circadian Window
 → new Turn decides whether to create Persistent Activity
 ```
 
+This generic loop does not authorize a Selfhood writer. For Selfhood, phase 1
+does nothing; a future accepted design may let Memory produce the sole typed
+proposal from already committed Memory evidence.
+
 ## 7. Coverage of top-level functions
 
 | Top-level function | Primary systems | External collaboration or protection | Coverage |
 | --- | --- | --- | --- |
-| Identity, self and personality continuity | 2, 3, 7 | Profile | Complete |
+| Identity, self and personality continuity | 2, 3, 7 | Genesis creation validation; Profile is a sibling external dossier | Complete |
 | Input aggregation, attention and situational understanding | 1, 2 | Nervous System, Communication | Complete |
 | Logical reasoning and Agent capability | 8 | AI Runtime, unified boundary | Complete |
 | Memory, knowledge and relationships | 7 | 2, 10 | Complete |
@@ -590,8 +602,8 @@ external safeguards, not peer mental systems.
 | High-frequency environmental noise | 1 | Chat, commitments and internal needs starve | Deduplication, habituation, backpressure, fair time slices and safety preemption |
 | A stale body receipt arrives after switching | 2 | Old body contaminates current state | Snapshot stores authority generation; stale receipt is history only |
 | Memory says living room while Godot says kitchen | 2, 7 | Memory overwrites physical fact | Runtime receipt updates current snapshot; Memory preserves sourced history |
-| A normal message asks to change personality/rules | 3 | Prompt injection causes drift or escalation | Messages cannot commit personality; candidates change slowly under evidence |
-| One bad event makes Elfie permanently pessimistic | 3, 4, 10 | Emotion is frozen into personality | Emotion changes normally; personality needs repeated evidence and rate limits |
+| A normal message asks to change personality/rules | 3 | Prompt injection causes drift or escalation | Messages cannot commit personality; phase 1 has no Selfhood update route |
+| One bad event makes Elfie permanently pessimistic | 3, 4, 10 | Emotion is frozen into personality | Emotion changes normally; any later growth requires a separately accepted Memory-evidence policy |
 | Low energy while hitting an obstacle | 5 | Model unavailability stops all response | Nervous System reflexes first; emergency reserve preserves basic cognition/help |
 | Curiosity repeatedly wakes itself | 6 | Infinite exploration, messages and energy drain | Satisfaction, saturation, cooldown, fingerprints, budgets and Activity limits |
 | Search result is treated as autobiographical memory | 7, 8 | Observation contaminates long-term memory | Tool result is evidence; sourced candidate is validated before commit |
@@ -639,7 +651,7 @@ whether the stage forms a visible closed loop, not on equal work per system.
 | --- | --- | --- |
 | Event Workspace | three sources, lane isolation, single-domain Turns, basic priority/backpressure | advanced habituation and multimodal fusion |
 | Orientation | current body, scene, people, conversation, Activity, source and time | predictive body model and spatial simulation |
-| Selfhood | stable self, basic personality expression, core norms and Profile anchor | automated personality growth and complex value learning |
+| Selfhood | frozen identity core, basic adaptive-self expression and personal norms | automated personality growth and complex value learning |
 | Emotion | a few persistent dimensions, event feedback, decay and expression effects | complex emotion theory and personality shaping |
 | Energy | energy/fatigue, Turn/Activity budgets, emergency reserve and degradation | full physiology and precise circadian simulation |
 | Motivation | a few safety, rest, attachment, curiosity and commitment drives with satisfaction/cooldown | large need model and reinforcement learning |
@@ -655,7 +667,7 @@ whether the stage forms a visible closed loop, not on equal work per system.
 - explicit circadian rhythm and finer homeostasis feedback;
 - limited complex planning, Skills/Tools and evidence verification;
 - Activity condition composition, recovery, replanning and diagnosis;
-- memory, relationship and controlled self-growth consolidation;
+- Memory-evidenced relationship work and controlled self-growth proposals;
 - procedural experience extraction across outcomes;
 - versioning, evidence thresholds and rollback for selfhood and relationship candidates.
 
@@ -745,15 +757,16 @@ Milestone: a truly embodied Elfie with a virtual-body loop.
 
 Turn Selfhood, Emotion, Energy, Memory and Orientation from context fields into
 authoritative systems: cross-Turn/decaying emotion, resource-aware reasoning,
-retrievable experience and relationships, continuous body/place/activity/self,
-with Profile remaining immutable.
+retrievable experience and relationships, and continuous body/place/activity/self.
+Profile remains the immutable external dossier; Genesis-created Selfhood, not a
+runtime Profile projection, supplies Brain identity.
 
 - **Visible result:** the same event produces coherent, explainable differences
   under different emotion, energy and relationship state.
 - **Boundary attack:** a normal message cannot rewrite Profile or freeze one emotion into personality.
-- **Failure/recovery:** restart restores durable state and body authority while
-  Emotion returns to personality baselines; model outage is not treated as
-  Elfie disappearing.
+- **Failure/recovery:** restart loads each genuinely durable owner separately,
+  re-sources current body/Orientation facts, and resets Emotion to personality
+  baselines; model outage is not treated as Elfie disappearing.
 - **Not included:** automatic personality growth, complex forgetting, full
   physiology or proactive triggers.
 

@@ -10,12 +10,18 @@ import os
 import random
 import shutil
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie.brain.selfhood import PERSONALITY_PRESETS
-from elfie.brain.selfhood.contracts import BigFiveTraits, SelfhoodSpeechStyle
+from elfie.brain.selfhood.contracts import (
+    BigFiveTraits,
+    SelfhoodSpeechStyle,
+    SelfhoodState,
+    normalize_selfhood_mapping,
+)
 from elfie.genesis import (
     BiographyEnrichmentPlan,
     EpisodeSeed,
@@ -289,60 +295,20 @@ def _selfhood_seed(
             )
         }
         labels = candidate.personality.candidate.labels or ("独一无二",)
-        return {
-            "metadata": {
-                "name": reservation.name,
-                "original_name": reservation.original_name,
-                "personal_story": reservation.personal_story,
-                "age_months": reservation.age_months,
-                "life_stage": reservation.life_stage,
-                "gender": reservation.gender,
-                "version": "genesis-v1",
-                "description": "、".join(labels),
-                "appearance": {
-                    "height": reservation.height,
-                    "build": reservation.build,
-                    "species": reservation.species_id,
-                    "height_scale": height_scale,
-                    "build_scale": build_scale,
-                },
-                **_portrait_metadata(reservation),
-            },
-            "big_five": big_five,
-            # The reveal story is a display summary until a structured
-            # biography is validated and committed by Genesis.  Keep the
-            # runtime self-description anchored to Profile/Canon so an
-            # unverified model paragraph cannot become an identity fact.
-            "self_description": (
-                f"我是 {reservation.name}，正式物种名是 {species.display_name}；"
-                f"我来自 {world.display_name} 的 "
-                f"{world.known_region_name}。"
-            ),
-            "species_name": species.display_name,
-            "identity_facts": (
-                f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
-                f"来自 {world.display_name} 的 {world.known_region_name}。",
-                world.earth_arrival_statement,
-                f"{world.earth_home_name} 是在地球生活的基地和家。",
-            ),
-            "behavior_anchors": species.earth_first_contact_cues,
-            "sensory_biases": species.common_sensory_biases,
-            "species_knowledge": species.common_knowledge,
-            "knowledge_boundaries": world.unknown_boundaries,
-            "norms": (
+        return _canonical_selfhood_seed(
+            reservation=reservation,
+            species=species,
+            world=world,
+            big_five=big_five,
+            interaction_tendencies=species.earth_first_contact_cues,
+            coping_tendencies=species.common_sensory_biases,
+            expression_tendencies=labels,
+            values=(
                 "尊重自愿选择，不把猜测说成亲历。",
                 "不知道时说明不知道，并在真实接触中学习地球。",
             ),
-            "speech_style": {
-                "greetings": ("你好，我来啦。", "很高兴见到你。"),
-                "verbal_ticks": "呢",
-            },
-            "derivation": {
-                "preset": "genesis-v1",
-                "provenance": "questionnaire",
-                "seed": candidate.seed,
-            },
-        }
+            speech_markers=("呢",),
+        )
     rng = random.Random(reservation.appearance_seed + 17)
     ranges = PERSONALITY_PRESETS.get(reservation.personality_style)
     if ranges is None:
@@ -351,61 +317,71 @@ def _selfhood_seed(
         trait: round(rng.uniform(lower, upper), 4)
         for trait, (lower, upper) in ranges.items()
     }
-    mutter_templates: dict[str, list[str]] = {}
-    for mood, templates in _MUTTER_TEMPLATES.items():
-        selected = rng.sample(templates, rng.randint(1, min(2, len(templates))))
-        mutter_templates[mood] = [
-            template.replace("{name}", reservation.name) for template in selected
-        ]
-    greeting_pool = _GREETINGS.get(
-        reservation.personality_style,
-        _GREETINGS["完全随机"],
-    )
-    greetings = rng.sample(greeting_pool, rng.randint(2, min(3, len(greeting_pool))))
     species = _species_canon(reservation.species_id, catalog=catalog)
     world = world_canon or load_world_canon()
-    return {
-        "metadata": {
-            "name": reservation.name,
-            "version": "1.0",
-            "description": _DESCRIPTIONS.get(
-                reservation.personality_style,
-                _DESCRIPTIONS["完全随机"],
-            ),
-            "appearance": {
-                "height": reservation.height,
-                "build": reservation.build,
-                "species": reservation.species_id,
-                "height_scale": height_scale,
-                "build_scale": build_scale,
-            },
-        },
-        "big_five": big_five,
-        "self_description": (
-            f"我是 {reservation.name}，正式物种名是 {species.display_name}；"
-            f"我来自 {world.display_name} 的 {world.known_region_name}。"
-        ),
-        "species_name": species.display_name,
-        "identity_facts": (
-            f"正式物种名是 {species.display_name}，{species.earth_shape_label} 只是地球侧形态说明。",
-            f"来自 {world.display_name} 的 {world.known_region_name}。",
-            world.earth_arrival_statement,
-            f"{world.earth_home_name} 是在地球生活的基地和家。",
-        ),
-        "behavior_anchors": species.earth_first_contact_cues,
-        "sensory_biases": species.common_sensory_biases,
-        "species_knowledge": species.common_knowledge,
-        "knowledge_boundaries": world.unknown_boundaries,
-        "norms": (
+    return _canonical_selfhood_seed(
+        reservation=reservation,
+        species=species,
+        world=world,
+        big_five=big_five,
+        interaction_tendencies=species.earth_first_contact_cues,
+        coping_tendencies=species.common_sensory_biases,
+        # Store the reviewed vocabulary key.  The model projection deliberately
+        # ignores arbitrary prose, so persisting the display description here
+        # would silently discard the selected expression tendency.
+        expression_tendencies=(reservation.personality_style,),
+        values=(
             "尊重自愿选择，不把猜测说成亲历。",
             "不知道时说明不知道，并在真实接触中学习地球。",
         ),
-        "speech_style": {
-            "greetings": greetings,
-            "mutter_templates": mutter_templates,
-            "verbal_ticks": rng.choice(_VERBAL_TICKS),
+        speech_markers=(rng.choice(_VERBAL_TICKS),),
+    )
+
+
+def _canonical_selfhood_seed(
+    *,
+    reservation: AcceptedAdoptionReservation,
+    species,
+    world,
+    big_five: dict[str, float],
+    interaction_tendencies: tuple[str, ...],
+    coping_tendencies: tuple[str, ...],
+    expression_tendencies: tuple[str, ...],
+    values: tuple[str, ...],
+    speech_markers: tuple[str, ...],
+) -> dict[str, object]:
+    """Materialize only the durable two-layer Selfhood document."""
+
+    state = {
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": reservation.elfie_id,
+            "display_name": reservation.name,
+            "species_id": reservation.species_id,
+            "species_name": species.display_name,
+            "home_world_id": world.world_id,
+            "home_world_name": world.display_name,
+            "home_region_id": world.known_region_id,
+            "home_region_name": world.known_region_name,
+            "earth_arrival_statement": world.earth_arrival_statement,
+            "resident_role": "ElfieNest 居民",
+        },
+        "adaptive_self": {
+            "big_five": big_five,
+            "interaction_tendency_ids": interaction_tendencies,
+            "coping_tendency_ids": coping_tendencies,
+            "expression_tendency_ids": expression_tendencies,
+            "value_ids": values,
+            "speech_marker_ids": speech_markers,
+            "source_event_ids": (),
         },
     }
+    # Validate the complete typed hand-off before any sibling output is saved.
+    validation_state = dict(state)
+    validation_state["committed_at"] = datetime.fromtimestamp(0, timezone.utc)
+    SelfhoodState.model_validate(validation_state)
+    return state
 
 
 def _genesis_bundle(
@@ -419,7 +395,10 @@ def _genesis_bundle(
     """Compile the bundled Canon into one deterministic personal brain."""
     species = _species_canon(reservation.species_id, catalog=catalog)
     world = world_canon or load_world_canon()
-    raw_big_five = selfhood_seed.get("big_five", {})
+    adaptive_seed = selfhood_seed.get("adaptive_self", {})
+    if not isinstance(adaptive_seed, dict):
+        adaptive_seed = {}
+    raw_big_five = adaptive_seed.get("big_five", {})
     if not isinstance(raw_big_five, dict):
         raw_big_five = {}
     big_five = BigFiveTraits(
@@ -434,11 +413,10 @@ def _genesis_bundle(
             )
         }
     )
-    speech_style = selfhood_seed.get("speech_style", {})
-    if not isinstance(speech_style, dict):
-        speech_style = {}
-    greeting_values = speech_style.get("greetings", ())
-    verbal_tick = speech_style.get("verbal_ticks")
+    speech_markers = adaptive_seed.get("speech_marker_ids", ())
+    if not isinstance(speech_markers, (list, tuple)):
+        speech_markers = ()
+    verbal_tick = speech_markers[0] if speech_markers else None
     knowledge_seeds = _initial_knowledge_seeds(
         world,
         species_id=reservation.species_id,
@@ -464,8 +442,13 @@ def _genesis_bundle(
         episode_seeds,
         relationship_seeds,
     )
+    state_for_bundle = dict(selfhood_seed)
+    state_for_bundle.setdefault("committed_at", datetime.fromtimestamp(0, timezone.utc))
     bundle = GenesisBundle(
         profile_draft=ProfileDraft(profile),
+        selfhood_state=SelfhoodState.model_validate(
+            normalize_selfhood_mapping(state_for_bundle)
+        ),
         personality_seed=PersonalitySeed(
             big_five=big_five,
             self_description=(
@@ -474,15 +457,26 @@ def _genesis_bundle(
                 f"{world.known_region_name}。"
             ),
             speech_style=SelfhoodSpeechStyle(
-                greetings=tuple(str(item) for item in greeting_values),
+                greetings=(),
                 verbal_tick=None if verbal_tick is None else str(verbal_tick),
             ),
             norms=(
-                "尊重自愿选择，不把猜测说成亲历。",
-                "不知道时说明不知道，并在真实接触中学习地球。",
+                *tuple(
+                    str(item)
+                    for item in adaptive_seed.get("value_ids", ())
+                    if isinstance(item, str)
+                ),
             ),
-            behavior_anchors=species.earth_first_contact_cues,
-            sensory_biases=species.common_sensory_biases,
+            behavior_anchors=tuple(
+                str(item)
+                for item in adaptive_seed.get("interaction_tendency_ids", ())
+                if isinstance(item, str)
+            ),
+            sensory_biases=tuple(
+                str(item)
+                for item in adaptive_seed.get("coping_tendency_ids", ())
+                if isinstance(item, str)
+            ),
         ),
         memory_seeds=(),
         knowledge_seeds=knowledge_seeds,

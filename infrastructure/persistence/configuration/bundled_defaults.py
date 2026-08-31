@@ -63,6 +63,14 @@ def load_selfhood_defaults(*, root: Path | None = None) -> dict[str, Any]:
     return _load_brain_section(ConfigDocumentId.SELFHOOD_DEFAULTS, root=root)
 
 
+def load_reasoning_constitution(*, root: Path | None = None) -> dict[str, Any]:
+    """Load the required release-owned online Reasoning constitution."""
+
+    # Unlike tunable Brain defaults, the Constitution's document version is a
+    # captured source revision and must reach ``ReasoningConstitution``.
+    return load_bundled_document(ConfigDocumentId.REASONING_CONSTITUTION, root=root)
+
+
 def load_emotion_expression_defaults(*, root: Path | None = None) -> dict[str, Any]:
     return _load_brain_section(ConfigDocumentId.EMOTION_EXPRESSIONS, root=root)
 
@@ -94,6 +102,7 @@ __all__ = (
     "load_energy_defaults",
     "load_nest_config",
     "load_selfhood_defaults",
+    "load_reasoning_constitution",
     "load_system_defaults",
     "load_tool_defaults",
 )

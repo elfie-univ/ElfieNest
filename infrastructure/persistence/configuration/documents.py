@@ -42,6 +42,7 @@ class ConfigDocumentId(str, Enum):
     TOOL_DEFAULTS = "tool_defaults"
     ENERGY_DEFAULTS = "energy_defaults"
     SELFHOOD_DEFAULTS = "selfhood_defaults"
+    REASONING_CONSTITUTION = "reasoning_constitution"
     EMOTION_EXPRESSIONS = "emotion_expressions"
     EMOTION_DYNAMICS = "emotion_dynamics"
     NEST_DEFAULTS = "nest_defaults"
@@ -155,6 +156,19 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         "elfie.brain.selfhood",
         True,
         "selfhood-defaults-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
+    ),
+    ConfigDocumentId.REASONING_CONSTITUTION: ConfigDocumentSpec(
+        ConfigDocumentId.REASONING_CONSTITUTION,
+        "brain/reasoning-constitution.yaml",
+        None,
+        1,
+        ConfigPolicy.BUNDLED_ONLY,
+        "elfie.brain.reasoning",
+        True,
+        "reasoning-constitution-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

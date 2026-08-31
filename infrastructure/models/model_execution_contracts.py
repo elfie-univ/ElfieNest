@@ -94,6 +94,10 @@ class StructuredModelExecutionRequest(_FrozenModelExecutionContract):
     food_unavailable: bool = False
     allow_fallback: bool = True
     scope_id: Optional[_NonBlankText] = None
+    # Online Elfie requests arrive with the complete Brain-owned system
+    # prompt.  Model execution must not append tool/schema instructions to
+    # that system message when this marker is true.
+    brain_owned_system_prompt: bool = False
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
     timeout_seconds: Optional[Annotated[float, Field(strict=True, gt=0.0)]] = None

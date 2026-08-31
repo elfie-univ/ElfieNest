@@ -250,10 +250,9 @@ def test_snapshot_exposes_p0_brain_system_state(tmp_path, session_factory):
 
     assert snapshot["orientation"] is not None
     assert snapshot["profile_anchor"]["display_name"] == "十系统可见性"
-    assert (
-        snapshot["selfhood"]["profile_revision"]
-        == snapshot["profile_anchor"]["revision"]
-    )
+    assert snapshot["selfhood"]["identity_core"]["display_name"] == "十系统可见性"
+    assert "adaptive_self" in snapshot["selfhood"]
+    assert "profile_revision" not in snapshot["selfhood"]
     assert snapshot["motivation"] is not None
     assert snapshot["cognitive_consolidation"] is not None
     assert snapshot["normal_budget_available"] >= 0

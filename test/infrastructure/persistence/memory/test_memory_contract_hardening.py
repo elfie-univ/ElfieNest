@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -29,6 +30,31 @@ from infrastructure.persistence.memory import (
 
 def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def test_empty_provisional_store_can_bind_to_final_elfie_identity() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="provisional") as store:
+        store.bind_elfie_identity("resident-1")
+
+        assert store.elfie_id == "resident-1"
+
+
+def test_store_with_memory_cannot_rebind_to_another_elfie() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="owned-memory",
+                idempotency_key="owned-memory-key",
+                occurred_from="2026-01-01T00:00:00+00:00",
+                content_text="This memory belongs to elfie-a.",
+            )
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Memory store is already bound to another Elfie",
+        ):
+            store.bind_elfie_identity("elfie-b")
 
 
 def test_unknown_occurrence_time_is_not_replaced_with_a_fake_epoch() -> None:
@@ -734,6 +760,78 @@ def test_recall_privacy_scope_filters_sources_and_graph_nodes() -> None:
         assert all(
             node.node_id == "privacy-node-shared" for node in shared_bundle.focus_nodes
         )
+
+
+@pytest.mark.parametrize("mode", ("basic", "basic_local"))
+def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
+    mode: Literal["basic", "basic_local"],
+) -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="recall-visibility",
+                idempotency_key="recall-visibility-key",
+                occurred_from="2026-01-01T00:00:00+00:00",
+                content_text="visible and internal self facts",
+            )
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="recall-visibility",
+                nodes=(
+                    NodeInput("self", "elfie", "Lumi"),
+                    NodeInput(
+                        "internal-self-model",
+                        "self_model",
+                        "internal projection",
+                        properties={"recall_eligible": False},
+                    ),
+                    NodeInput("visible-fact", "knowledge", "来自 Elfaria"),
+                ),
+                evidence=(
+                    EvidenceInput(
+                        "recall-visibility-evidence",
+                        "episode",
+                        "recall-visibility",
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "self",
+                        "about",
+                        object_node_id="internal-self-model",
+                        evidence_ids=("recall-visibility-evidence",),
+                        assertion_id="internal-self-model-claim",
+                    ),
+                    AssertionInput(
+                        "self",
+                        "about",
+                        object_node_id="visible-fact",
+                        evidence_ids=("recall-visibility-evidence",),
+                        assertion_id="visible-fact-claim",
+                    ),
+                ),
+            )
+        )
+
+        bundle = store.recall(
+            RecallRequest(
+                seed_node_ids=("self",),
+                mode=mode,
+                hop_limit=1,
+                assertion_limit=8,
+            )
+        )
+
+        assert {item.assertion_id for item in bundle.assertions} == {
+            "visible-fact-claim"
+        }
+        focus_ids = {item.node_id for item in bundle.focus_nodes}
+        assert "internal-self-model" not in focus_ids
+        if mode == "basic_local":
+            assert focus_ids == {"self", "visible-fact"}
+        else:
+            assert focus_ids == {"self"}
 
 
 def test_recall_keeps_superseded_claims_after_an_explicit_correction() -> None:

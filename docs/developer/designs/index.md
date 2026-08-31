@@ -10,6 +10,9 @@ in [Conformance](../conformance/).
   top-level ownership for one complete Elfie.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
+- [Elfie Selfhood and fixed model header](./elfie-selfhood-and-fixed-model-header):
+  the four-block online Reasoning prefix, two-layer Selfhood state, initialization,
+  projection, persistence and future Memory-only update boundary.
 - [Elfie Emotion system](./elfie-emotion-system): the six-channel signed dynamics,
   stable/fast/reviewed Turn lifecycle, personality projection and modality boundary.
 - [Elfie Brain evaluation and evolution system](./elfie-brain-evaluation-system):

@@ -1,7 +1,8 @@
 # Configuration management contract
 
-**Contract version:** 1.2
+**Contract version:** 1.3
 **Adopted:** 2026-08-15
+**Revised:** 2026-08-30
 **Scope:** application defaults, user configuration, loading and release packaging
 
 > **Normative target.** This contract defines the one configuration-management
@@ -54,6 +55,7 @@ config/
 ├── brain/
 │   ├── energy.yaml
 │   ├── selfhood.yaml
+│   ├── reasoning-constitution.yaml
 │   └── emotion-expressions.yaml
 ├── nest/
     └── defaults.yaml
@@ -125,6 +127,7 @@ Infrastructure.
 | Global tool settings | `tools/defaults.yaml` | `tools.yaml` | App configuration capabilities | tool-and-field overlay |
 | Energy creation defaults | `brain/energy.yaml` | none | Elfie Brain Energy | bundled only |
 | Selfhood creation defaults | `brain/selfhood.yaml` | none | Elfie Brain Selfhood | bundled only |
+| Reasoning constitution | `brain/reasoning-constitution.yaml` | none | Elfie Brain Reasoning | bundled only |
 | Emotion-expression mapping | `brain/emotion-expressions.yaml` | none | Elfie Brain Emotion | bundled only |
 | Nest initialization defaults | `nest/defaults.yaml` | none | Nest | bundled only |
 | Species catalog and packages | `species/catalog.yaml` and `species/<package>/` | none | Infrastructure loader, typed values injected into Profile/Genesis/Adoption | bundled only |

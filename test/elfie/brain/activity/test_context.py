@@ -23,7 +23,6 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.memory_context import MemoryContextReader
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.message_types import ActivityId, EventId
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
@@ -87,9 +86,6 @@ def _context_state(
             pending_episode_ids=memory.pending_consolidation_ids,
             consolidate=lambda limit: memory.run_consolidation(max_episodes=limit),
             initial_at=NOW,
-        ),
-        profile_anchors=ProfileAnchorSnapshot.unknown().model_copy(
-            update={"captured_at": NOW}
         ),
     )
 

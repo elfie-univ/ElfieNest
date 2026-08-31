@@ -16,6 +16,7 @@ from elfie.public import (
     ElfieAssembly,
     ElfieFactory,
     MainFoodSelection,
+    ReasoningConstitution,
 )
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.body_transport import (
@@ -34,6 +35,7 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_dynamics_defaults,
     load_emotion_expression_defaults,
     load_nest_config,
+    load_reasoning_constitution,
 )
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -170,6 +172,7 @@ def restore_registered_elfies(
     *,
     emotion_expression_config: Mapping[str, object] | None = None,
     emotion_dynamics_config: Mapping[str, object] | None = None,
+    reasoning_constitution: ReasoningConstitution | None = None,
 ) -> ElfieRestoreResult:
     """Restore the existing persisted Elfies and register them in one Nest Session."""
     emotion_expression_config = (
@@ -181,6 +184,11 @@ def restore_registered_elfies(
         emotion_dynamics_config
         if emotion_dynamics_config is not None
         else load_emotion_dynamics_defaults()
+    )
+    reasoning_constitution = (
+        reasoning_constitution
+        if reasoning_constitution is not None
+        else ReasoningConstitution.from_mapping(load_reasoning_constitution())
     )
     # Restoration validates each persisted profile through the domain's injected
     # species catalog. The foreground service restores residents before it
@@ -203,6 +211,7 @@ def restore_registered_elfies(
                 ElfieAssembly(
                     profile=profile,
                     selfhood_seed=YamlSelfhoodSeedAdapter(config_dir / "brain").load(),
+                    reasoning_constitution=reasoning_constitution,
                     energy_limits=YamlEnergyLimitsAdapter(config_dir / "brain").load(),
                     emotion_expression_config=emotion_expression_config,
                     emotion_dynamics_config=emotion_dynamics_config,

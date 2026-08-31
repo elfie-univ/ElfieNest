@@ -3,7 +3,8 @@
 本目录实现一只完整精灵，并受根目录 `AGENTS.md`、
 [`System architecture contract`](../docs/developer/contracts/system.md) 与
 [`Elfie internal architecture contract`](../docs/developer/contracts/elfie.md) 约束。
-已登记的 Elfie 架构债务已经清零；以下长期边界由永久架构测试执行。
+既有 Elfie 迁移已清零；新接受的 Selfhood 迁移差距只记录在聚焦一致性台账中。以下
+长期边界由契约与永久架构测试执行。
 
 - 稳定、强类型的 `Elfie` / `ElfieFactory` Facade 可以直接承担入站 Port；没有真实
   隔离需求时，不再复制一套同形 Protocol。
@@ -12,6 +13,9 @@
 - Profile 只保存不可变固有身份、虚拟外貌和生成来源；人格、自我认知、记忆、能量、
   权限、运行限制和当前能力不得新增到 Profile。Selfhood 与 Energy seed 由 Brain owner
   持有并通过类型化 Assembly 注入。
+- Genesis 从同一份已校验创建 Bundle 并列物化 Profile、两层 Selfhood 与 Genesis
+  Memory。Profile 是外层档案；普通 Brain 运行期不得读取、投影或同步 Profile/Canon，
+  也不得在 Selfhood 缺失时用它们 fallback。
 - 通信、具身和内部触发是 Brain 的三类输入来源；每个 Turn 必须保持单一来源域与响应
   范围。跨域后果形成后续内部事件，不得在同一 Turn 混合通信和身体执行。
 - Elfie 为自己需要的 Food 读取、模型调用、工具执行、身体执行与感知、外部通信和

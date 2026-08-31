@@ -98,8 +98,11 @@ Brain 拥有一只 Elfie 会持续变化、学习和成长的心理状态及认�
 - Capability Envelope、预算与自主决策；
 - 结构化决定、内部触发和执行回执反馈。
 
-Brain 可以读取 Profile 作为不可变客观锚点，但不能修改 Profile。Self Model 回答“我现在怎样理解
-自己”，允许随经历缓慢变化；Profile 回答“我客观上是哪一只 Elfie”。
+Genesis 从同一个已校验创建 Bundle 并列物化 Profile 与 Brain 拥有的 Selfhood。Profile 仍是
+不可变外层档案，但普通 Brain 运行期不再把它作为上下文来源。Selfhood 冻结的
+`identity_core` 提供 Brain 身份，`adaptive_self` 表达这只 Elfie 缓慢稳定的自我理解与
+表达方式。更早的运行时 Profile 锚点解释由聚焦的
+[Selfhood 设计](./elfie-selfhood-and-fixed-model-header.md)取代。
 
 ### 3.3 Nervous System
 

@@ -19,6 +19,7 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -30,6 +31,7 @@ from elfie.brain.reasoning.model_port import (
 from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.turn_outcome import TerminalStatus
 from elfie.brain.reasoning.worker import ReasoningWorker
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
     PerceptionEvent,
     PhysicalModality,
@@ -47,6 +49,9 @@ from elfie.message_types import (
     Priority,
     TraceId,
     TurnId,
+)
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
 )
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -147,6 +152,14 @@ class EmptyContextSource:
             captured_at=captured_at,
             current_body=None,
             connected_channels=(),
+        )
+
+    def selfhood(self, captured_at):
+        return SelfhoodPromptProjection(
+            revision=1,
+            captured_at=captured_at,
+            identity_core_text="我是小狐，是 ElfieNest 的居民。",
+            adaptive_self_text="我会先观察，再清楚地表达。",
         )
 
 
@@ -256,6 +269,7 @@ def _coordinator(
         reasoning_worker=worker,
         plan_sink=sink,
         settlement=NoopSettlement(),
+        constitution=ReasoningConstitution.from_mapping(load_reasoning_constitution()),
         initial_timestamp=initial,
         next_autonomous_at=next_autonomous_at,
         allowed_tools=allowed_tools,

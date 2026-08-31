@@ -25,6 +25,8 @@ source of truth.
   target first-class ownership of one complete Elfie.
 - [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
+- [Elfie Selfhood and fixed model header](./designs/elfie-selfhood-and-fixed-model-header):
+  the two-layer Selfhood authority and the exact four-block online model prefix.
 - [Elfie Brain evaluation and evolution system](./designs/elfie-brain-evaluation-system):
   evidence-first Q6/P0 evaluation, constrained promotion and long-term evolution.
 - [Elfie Memory architecture](./designs/elfie-memory-architecture): episodic memory, the personal
@@ -48,9 +50,11 @@ source of truth.
 - [Elfie Brain internal architecture contract](./contracts/brain): Turn,
   reasoning, mental-state and persistent-activity ownership.
 - [Elfie conformance](./conformance/elfie): closure-ready evidence for the
-  aggregate life-system migration pending governance-only removal. Brain
-  conformance is complete and its contract is enforced by permanent
-  architecture tests.
+  aggregate life-system migration pending governance-only removal. New Brain
+  migrations use independent scoped registers, including
+  [Emotion](./conformance/elfie-emotion) and
+  [Selfhood](./conformance/elfie-selfhood), without reopening that closed
+  aggregate register.
 - [Elfie Memory conformance](./conformance/elfie-memory): implementation status
   and remaining external-acceptance gates for storage, consolidation, retrieval and the compatibility boundary.
 - [Application architecture contract](./contracts/application): the

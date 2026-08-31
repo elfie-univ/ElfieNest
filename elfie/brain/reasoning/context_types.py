@@ -7,6 +7,7 @@ cross-system context capsule consumed by Reasoning.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Annotated, Optional, Tuple
 
 from pydantic import Field, StringConstraints, model_validator
@@ -19,7 +20,7 @@ from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import ActorRef, EventId, FrozenContractModel, UTCDateTime
 
@@ -116,6 +117,7 @@ class BrainContext(FrozenContractModel):
     """Complete immutable input for one reasoning decision."""
 
     revision: _Revision
+    constitution_version: _Revision = 1
     captured_at: UTCDateTime
     frame: TurnFrame
     emotion: EmotionSnapshot
@@ -131,9 +133,10 @@ class BrainContext(FrozenContractModel):
     orientation: OrientationSnapshot = Field(
         default_factory=OrientationSnapshot.unknown
     )
-    selfhood: SelfhoodSnapshot = Field(default_factory=SelfhoodSnapshot.unknown)
-    profile_anchors: ProfileAnchorSnapshot = Field(
-        default_factory=ProfileAnchorSnapshot.unknown
+    selfhood: SelfhoodPromptProjection = Field(
+        default_factory=lambda: SelfhoodPromptProjection.unknown(
+            captured_at=datetime.fromtimestamp(0, timezone.utc)
+        )
     )
 
     @model_validator(mode="after")
@@ -150,7 +153,6 @@ class BrainContext(FrozenContractModel):
             self.capabilities.captured_at,
             self.orientation.captured_at,
             self.selfhood.captured_at,
-            self.profile_anchors.captured_at,
         )
         if any(captured_at > self.captured_at for captured_at in captured_times):
             raise PydanticCustomError(

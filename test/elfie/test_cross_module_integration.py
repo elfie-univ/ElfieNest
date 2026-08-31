@@ -13,6 +13,7 @@ from elfie.body import (
     UtteranceFinal,
 )
 from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
     CommunicationEnvelope,
@@ -24,12 +25,48 @@ from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta
 from elfie.profile import create_visual_profile
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import (
     RecordingChannel,
     TwoTurnRuntime,
     _owner_message,
 )
+
+CONSTITUTION = ReasoningConstitution.from_mapping(load_reasoning_constitution())
+
+
+def _selfhood_seed(elfie_id: str, display_name: str | None = None) -> dict[str, object]:
+    return {
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": elfie_id,
+            "display_name": display_name or elfie_id,
+            "species_id": "fox",
+            "species_name": "Saevi",
+            "home_world_id": "elfaria",
+            "home_world_name": "Elfaria",
+            "home_region_id": "north",
+            "home_region_name": "北境",
+            "earth_arrival_statement": "我被领养来到地球。",
+            "resident_role": "居民",
+        },
+        "adaptive_self": {
+            "big_five": {
+                "openness": 0.91,
+                "conscientiousness": 0.62,
+                "extraversion": 0.21,
+                "agreeableness": 0.83,
+                "neuroticism": 0.31,
+            },
+            "interaction_tendency_ids": ["先观察边缘、声音和可离开的路径"],
+            "value_ids": ["尊重自愿选择，不把猜测说成亲历。"],
+            "speech_marker_ids": ["哒"],
+        },
+    }
 
 
 def test_body_source_identity_reaches_cortical_context() -> None:
@@ -43,6 +80,8 @@ def test_body_source_identity_reaches_cortical_context() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("cross-elfie"),
+            selfhood_seed=_selfhood_seed("cross-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             communication=hub,
@@ -84,6 +123,8 @@ def test_non_owner_social_input_is_not_written_as_owner_memory() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("peer-elfie"),
+            selfhood_seed=_selfhood_seed("peer-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             communication=hub,
@@ -134,6 +175,8 @@ def test_neutral_owner_message_does_not_drift_attachment_in_real_loop() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("neutral-emotion-elfie"),
+            selfhood_seed=_selfhood_seed("neutral-emotion-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             communication=hub,
             model_port=runtime,
@@ -169,6 +212,8 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("embodied-emotion-elfie"),
+            selfhood_seed=_selfhood_seed("embodied-emotion-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             model_port=runtime,
@@ -204,17 +249,7 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
 def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> None:
     # Given: one immutable Profile seed with a deliberately distinctive personality.
     profile = _profile("selfhood-elfie")
-    selfhood_seed = {
-        "metadata": {"description": "安静又好奇"},
-        "big_five": {
-            "openness": 0.91,
-            "conscientiousness": 0.62,
-            "extraversion": 0.21,
-            "agreeableness": 0.83,
-            "neuroticism": 0.31,
-        },
-        "speech_style": {"verbal_ticks": "哒"},
-    }
+    selfhood_seed = _selfhood_seed("selfhood-elfie")
     hub = CommunicationHub("selfhood-elfie")
     hub.register_channel(RecordingChannel(), connect=True)
     runtime = TwoTurnRuntime()
@@ -223,6 +258,7 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
         ElfieAssembly(
             profile=profile,
             selfhood_seed=selfhood_seed,
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             communication=hub,
             model_port=runtime,
@@ -236,18 +272,21 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     elfie.wait_for_outcome_count(1, timeout=1.0)
 
     # When: a source Profile mapping is changed after Brain construction.
-    selfhood_seed["big_five"]["openness"] = 0.01
+    selfhood_seed["adaptive_self"]["big_five"]["openness"] = 0.01
 
-    # Then: the Run still sees Brain Selfhood plus immutable Profile anchors.
+    # Then: the Run still sees the immutable two-layer Brain Selfhood plus
+    # external Profile anchors.
     system_prompt = runtime.requests[0].system_prompt
     user_prompt = runtime.requests[0].user_prompt
-    assert "openness=0.91" in system_prompt
-    assert "SELF_EXPRESSION_POLICY" in system_prompt
-    assert "IMMUTABLE_IDENTITY_FACTS" in system_prompt
-    assert "You are selfhood-elfie" in system_prompt
+    assert "[APPLICATION_FRAME]" in system_prompt
+    assert "[IDENTITY_CORE]" in system_prompt
+    assert "[ADAPTIVE_SELF]" in system_prompt
+    assert "[OPERATING_CONTRACT]" in system_prompt
+    assert "开放性" in system_prompt
+    assert "0.91" not in system_prompt
     assert '"selfhood"' not in user_prompt
     assert '"profile_anchors"' not in user_prompt
-    assert elfie.selfhood_snapshot().big_five.openness == 0.91
+    assert elfie.selfhood_snapshot().adaptive_self.big_five.openness == 0.91
     assert elfie.profile_anchor_snapshot().display_name == "selfhood-elfie"
     elfie.stop()
     elfie.join()
@@ -259,6 +298,8 @@ def test_continuity_restores_energy_and_memory_but_emotion_restarts_fresh() -> N
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("continuity-elfie"),
+            selfhood_seed=_selfhood_seed("continuity-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=store,
             model_port=TwoTurnRuntime(),
         )
@@ -281,6 +322,8 @@ def test_continuity_restores_energy_and_memory_but_emotion_restarts_fresh() -> N
     restored = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("continuity-elfie"),
+            selfhood_seed=_selfhood_seed("continuity-elfie"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=store,
             model_port=TwoTurnRuntime(),
         )
