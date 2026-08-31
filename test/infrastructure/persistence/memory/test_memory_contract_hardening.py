@@ -26,6 +26,31 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def test_empty_provisional_store_can_bind_to_final_elfie_identity() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="provisional") as store:
+        store.bind_elfie_identity("resident-1")
+
+        assert store.elfie_id == "resident-1"
+
+
+def test_store_with_memory_cannot_rebind_to_another_elfie() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="owned-memory",
+                idempotency_key="owned-memory-key",
+                occurred_from="2026-01-01T00:00:00+00:00",
+                content_text="This memory belongs to elfie-a.",
+            )
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Memory store is already bound to another Elfie",
+        ):
+            store.bind_elfie_identity("elfie-b")
+
+
 def test_unknown_occurrence_time_is_not_replaced_with_a_fake_epoch() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(

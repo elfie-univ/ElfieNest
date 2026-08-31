@@ -1,7 +1,8 @@
 # 配置管理契约
 
-**契约版本：** 1.2
+**契约版本：** 1.3
 **采用日期：** 2026-08-15
+**修订日期：** 2026-08-30
 **适用范围：** 应用默认配置、用户配置、读取与发行打包
 
 > **规范性目标。** 本契约定义 ElfieNest 唯一的配置管理方式，只整理现有配置，
@@ -50,6 +51,7 @@ config/
 ├── brain/
 │   ├── energy.yaml
 │   ├── selfhood.yaml
+│   ├── reasoning-constitution.yaml
 │   └── emotion-expressions.yaml
 ├── nest/
     └── defaults.yaml
@@ -112,6 +114,7 @@ Nest、模型或工具语义转交给 Infrastructure。
 | 全局工具设置 | `tools/defaults.yaml` | `tools.yaml` | App 配置能力 | 按工具、按字段覆盖 |
 | Energy 创建期默认值 | `brain/energy.yaml` | 无 | Elfie Brain Energy | 仅内置 |
 | Selfhood 创建期默认值 | `brain/selfhood.yaml` | 无 | Elfie Brain Selfhood | 仅内置 |
+| Reasoning constitution | `brain/reasoning-constitution.yaml` | 无 | Elfie Brain Reasoning | 仅内置 |
 | 情绪表达映射 | `brain/emotion-expressions.yaml` | 无 | Elfie Brain Emotion | 仅内置 |
 | Nest 初始化默认值 | `nest/defaults.yaml` | 无 | Nest | 仅内置 |
 | 物种目录和物种包 | `species/catalog.yaml`、`species/<package>/` | 无 | Infrastructure 加载器，类型化值注入 Profile/Genesis/Adoption | 仅内置 |

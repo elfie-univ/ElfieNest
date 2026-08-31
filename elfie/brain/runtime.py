@@ -48,6 +48,7 @@ from elfie.brain.reasoning.execution_ports import IntentExecutor
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.internal_execution import PersistentActivityRequestExecutor
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.settlement import TurnSettlement
@@ -55,7 +56,7 @@ from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningWorker
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.brain.workspace.system import EventWorkspace
@@ -82,6 +83,7 @@ class BrainRuntime:
         emotion: EmotionSystem,
         homeostasis: EnergySystem,
         context: BrainContextProvider,
+        constitution: ReasoningConstitution,
         memory: MemorySystem,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
@@ -150,6 +152,7 @@ class BrainRuntime:
             homeostasis=homeostasis,
             appraiser=EmotionAppraiser(),
             context_source=context,
+            constitution=constitution,
             reasoning_worker=worker,
             plan_sink=self.router,
             settlement=settlement,
@@ -223,13 +226,9 @@ class BrainRuntime:
         """Expose the latest committed orientation for Lab/Observer inspection."""
         return self.context.orientation_snapshot()
 
-    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+    def selfhood_snapshot(self) -> SelfhoodState:
         """Expose the latest committed mutable self-model for inspection."""
         return self.context.selfhood_snapshot()
-
-    def profile_anchors(self) -> ProfileAnchorSnapshot:
-        """Expose the immutable Profile projection used by Brain context."""
-        return self.context.profile_anchors(self._clock())
 
     def motivation_snapshot(self):
         """Expose the current fixed-drive state for Lab/Observer inspection."""
@@ -245,8 +244,6 @@ class BrainRuntime:
             captured_at=self._clock(),
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
-            orientation=self.context.orientation_checkpoint(),
-            selfhood=self.context.selfhood_checkpoint(),
             motivation=self.context.motivation_checkpoint(),
             consolidation=self.context.consolidation_checkpoint(),
             conversation=self.context.conversation_checkpoint(),
@@ -258,15 +255,11 @@ class BrainRuntime:
             raise RuntimeError("cannot restore Brain continuity while it is running")
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
-        self.context.validate_orientation_checkpoint(checkpoint.orientation)
-        self.context.validate_selfhood_checkpoint(checkpoint.selfhood)
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
         self.context.validate_consolidation_checkpoint(checkpoint.consolidation)
         self.context.validate_conversation_checkpoint(checkpoint.conversation)
         self._homeostasis.restore(checkpoint.energy)
         self.context.restore_memory_checkpoint(checkpoint.memory)
-        self.context.restore_orientation_checkpoint(checkpoint.orientation)
-        self.context.restore_selfhood_checkpoint(checkpoint.selfhood)
         self.context.restore_motivation_checkpoint(checkpoint.motivation)
         self.context.restore_consolidation_checkpoint(checkpoint.consolidation)
         self.context.restore_conversation_checkpoint(checkpoint.conversation)

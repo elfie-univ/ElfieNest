@@ -667,9 +667,6 @@ class TestConsolidationPatternDesignGoals:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        self_narrative = MagicMock()
-        self_narrative.get_core_text.return_value = {}
-
         # 配置storage返回pattern节点
         pattern_node = MemoryNode(
             id="pat_1",
@@ -685,7 +682,6 @@ class TestConsolidationPatternDesignGoals:
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            self_narrative=self_narrative,
         )
 
         result = assembler._assemble_prediction_zone(
@@ -713,22 +709,12 @@ class TestContextAssemblyDesignGoals:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        self_narrative = MagicMock()
-
-        self_narrative.get_core_text.return_value = {
-            "identity": "我是小狐狸艾菲，充满活力。",
-            "relation": "主人是我最信任的人。",
-            "world": "这个世界充满了有趣的事物。",
-            "tendency": "开心时我会很活跃。",
-        }
-
         return MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            self_narrative=self_narrative,
         )
 
     def test_context_assembly_all_zones_present(self, assembler):
@@ -771,9 +757,8 @@ class TestContextAssemblyDesignGoals:
 
         result = assembler.assemble(query, top_k=10)
 
-        # 核心认知
-        assert "【核心认知】" in result
-        assert "我是小狐狸艾菲" in result
+        # Selfhood is supplied by Brain's fixed header, not Memory recall.
+        assert "核心认知" not in result
 
         # 5个区域
         zone_titles = [
@@ -812,8 +797,7 @@ class TestContextAssemblyDesignGoals:
 
         result = assembler.assemble(query, top_k=10)
 
-        # 只有核心认知（因为我们总是有核心认知输出）
-        assert "【核心认知】" in result
+        assert result == ""
 
         # 空区域不出现
         empty_titles = [
@@ -823,11 +807,8 @@ class TestContextAssemblyDesignGoals:
             "预测灵感",  # 预测区域
             "当前情绪对你记忆的影响",  # 情绪区域
         ]
-        # 核心认知末尾之后不应出现其他区域标题
-        core_end = result.index("【核心认知】") + len("【核心认知】")
-        after_core = result[core_end:]
         for title in empty_titles:
-            assert title not in after_core, f"空区域标题不应出现在输出中: {title}"
+            assert title not in result, f"空区域标题不应出现在输出中: {title}"
 
 
 # ==============================================================================

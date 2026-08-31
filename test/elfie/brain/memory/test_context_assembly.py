@@ -38,46 +38,13 @@ class TestMemoryRecallFormatter:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        self_narrative = MagicMock()
-
-        # 默认核心认知返回值
-        self_narrative.get_core_text.return_value = {
-            "identity": "我是一只小狐狸，充满活力。",
-            "relation": "主人是我最信任的人。",
-            "world": "这个世界充满了有趣的事物。",
-            "tendency": "开心时我会很活跃。",
-        }
-
         return MemoryRecallFormatter(
             storage=storage,
             retriever=retriever,
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            self_narrative=self_narrative,
         )
-
-    # ──────────── 核心认知 ────────────
-
-    def test_format_self_narrative(self, assembler):
-        """核心认知格式化：4段内容按顺序列出"""
-        core_text = {
-            "identity": "我是一只小狐狸，充满活力。",
-            "relation": "主人是我最信任的人。",
-            "world": "这个世界充满了有趣的事物。",
-            "tendency": "开心时我会很活跃。",
-        }
-        result = assembler._format_self_narrative(core_text)
-        assert "【核心认知】" in result
-        assert "我是一只小狐狸" in result
-        assert "主人是我最信任的人" in result
-        assert "这个世界充满了有趣的事物" in result
-        assert "开心时我会很活跃" in result
-
-    def test_format_self_narrative_empty(self, assembler):
-        """核心认知格式化：空字典返回空字符串"""
-        result = assembler._format_self_narrative({})
-        assert result == ""
 
     # ──────────── 区域1：实体 ────────────
 
@@ -264,9 +231,8 @@ class TestMemoryRecallFormatter:
 
         result = assembler.assemble(query, top_k=10)
 
-        # 应包含核心认知
-        assert "【核心认知】" in result
-        assert "我是一只小狐狸" in result
+        # Selfhood is supplied by Brain's fixed header, not Memory recall.
+        assert "核心认知" not in result
 
         # 应包含5个区域
         assert "关于主人你知道什么" in result
@@ -279,23 +245,16 @@ class TestMemoryRecallFormatter:
         assert len(result) <= 2000, f"上下文过长: {len(result)}字符，超过了2000限制"
 
     def test_assemble_empty_query(self, assembler):
-        """空查询：只返回核心认知"""
+        """空查询：不伪造 Selfhood 文本"""
         assembler.retriever.retrieve.return_value = []
 
         query = RetrievalQuery()
         result = assembler.assemble(query, top_k=10)
 
-        # 只包含核心认知
-        assert "【核心认知】" in result
-        # 不包含任何区域内容
-        assert "关于" not in result or "关于" not in result.split("【核心认知】")[1]
-        assert "最近相关经历" not in result
-        assert "联想到" not in result
-        assert "预测灵感" not in result
-        assert "当前情绪" not in result
+        assert result == ""
 
-    def test_assemble_with_self_narrative(self, assembler):
-        """包含核心认知和部分区域的上下文"""
+    def test_assemble_with_ordinary_memory_only(self, assembler):
+        """包含普通记忆和动态检索提示，但不包含 Selfhood"""
         assembler.retriever.retrieve.return_value = [
             _make_node("ep_1", "主人喂了我鱼味食物"),
         ]
@@ -317,8 +276,7 @@ class TestMemoryRecallFormatter:
 
         result = assembler.assemble(query, top_k=10)
 
-        # 核心认知
-        assert "【核心认知】" in result
+        assert "核心认知" not in result
         # 情绪区域
         assert "当前情绪对你记忆的影响：" in result
         assert "平静" in result

@@ -1,16 +1,15 @@
-"""MemorySystem 门面类测试
+"""MemorySystem 门面类测试。
 
-测试MemorySystem完整流程：
-- 初始化所有组件
-- 记录事件
-- 检索记忆
-- 运行巩固
-- 获取核心认知
-- 获取5区域上下文
+Selfhood is a Brain-owned fixed header now; Memory only stores and recalls
+ordinary evidence.  The remaining tests cover that boundary plus the existing
+memory facade behavior.
 """
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+from time import sleep
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,25 +20,18 @@ from elfie.brain.memory import (
     MemoryEncoder,
     MemoryRecallFormatter,
     MemoryRetriever,
-    MemorySelfNarrativeProjection,
     MemorySystem,
     SensoryBuffer,
     SensoryIndexer,
     SpreadingActivation,
 )
 from elfie.message_types import EventId
-from infrastructure.persistence.configuration.bundled_defaults import (
-    load_selfhood_defaults,
-)
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
-
-_PERSONALITY_DATA = load_selfhood_defaults()
 
 
 def _new_memory_system() -> MemorySystem:
     return MemorySystem(
         storage=FakeMemoryStore.in_memory(),
-        personality_data=_PERSONALITY_DATA,
     )
 
 
@@ -48,11 +40,11 @@ class TestMemorySystem:
 
     def test_memory_system_accepts_a_brain_owned_storage_port(self):
         store = FakeMemoryStore.in_memory()
-        ms = MemorySystem(storage=store, personality_data=_PERSONALITY_DATA)
+        ms = MemorySystem(storage=store)
 
         assert ms.storage is store
         ms.close()
-        assert store.count_nodes() >= 4
+        assert store.count_nodes() == 0
         store.close()
 
     def test_memory_system_init(self):
@@ -62,8 +54,8 @@ class TestMemorySystem:
         assert isinstance(ms.storage, FakeMemoryStore)
         assert ms.sensory_buffer is not None
         assert isinstance(ms.sensory_buffer, SensoryBuffer)
-        assert ms.self_narrative is not None
-        assert isinstance(ms.self_narrative, MemorySelfNarrativeProjection)
+        assert not hasattr(ms, "self_narrative")
+        assert not hasattr(ms, "get_self_narrative")
         assert ms.encoder is not None
         assert isinstance(ms.encoder, MemoryEncoder)
         assert ms.retriever is not None
@@ -80,6 +72,31 @@ class TestMemorySystem:
         assert isinstance(ms.recall_formatter, MemoryRecallFormatter)
         assert ms.sensory_indexer is not None
         assert isinstance(ms.sensory_indexer, SensoryIndexer)
+
+    def test_semantic_revision_commits_are_serialized(self, monkeypatch):
+        ms = _new_memory_system()
+        original_count = ms.storage.count_nodes
+
+        def slow_count(node_type=None):
+            sleep(0.01)
+            return original_count(node_type)
+
+        monkeypatch.setattr(ms.storage, "count_nodes", slow_count)
+        start = Barrier(3)
+
+        def commit(index: int) -> None:
+            start.wait()
+            ms._commit_state(  # noqa: SLF001 - concurrent owner regression seam
+                causation_id=EventId(f"concurrent-{index}")
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(commit, index) for index in range(2)]
+            start.wait()
+            for future in futures:
+                future.result()
+
+        assert ms.revision == 2
 
     def test_record_episode_high_intensity(self):
         """记录高强度事件 -> 创建episodic节点"""
@@ -188,18 +205,8 @@ class TestMemorySystem:
         assert isinstance(result, dict)
         assert result["consolidated_count"] == 0
 
-    def test_get_self_narrative(self):
-        """获取核心认知"""
-        ms = _new_memory_system()
-        core_text = ms.get_self_narrative()
-        assert isinstance(core_text, dict)
-        assert "identity" in core_text
-        assert "relation" in core_text
-        assert "world" in core_text
-        assert "tendency" in core_text
-
     def test_recall_context(self):
-        """获取5区域上下文文本"""
+        """获取普通记忆上下文文本"""
         ms = _new_memory_system()
         ms.record_episode(content="主人喂我吃了鸡肉", emotion="happy", intensity=80.0)
         ms.record_episode(content="今天去了公园", emotion="happy", intensity=60.0)
@@ -213,7 +220,8 @@ class TestMemorySystem:
         )
         assert isinstance(context, str)
         assert len(context) > 0
-        assert "核心认知" in context
+        assert "核心认知" not in context
+        assert "鸡肉" in context
 
     def test_backward_compatible_record_episode(self):
         """兼容旧API关键字参数名"""

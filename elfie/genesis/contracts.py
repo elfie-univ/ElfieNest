@@ -11,7 +11,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from elfie.brain.selfhood.contracts import BigFiveTraits, SelfhoodSpeechStyle
+from elfie.brain.selfhood.contracts import (
+    BigFiveTraits,
+    SelfhoodSpeechStyle,
+    SelfhoodState,
+)
 from elfie.profile import (
     WORLD_CANON_VERSION,
     AppearanceGenome,
@@ -231,6 +235,10 @@ class GenesisBundle:
 
     profile_draft: ProfileDraft
     personality_seed: PersonalitySeed
+    # Canonical two-layer hand-off used by the long-lived Selfhood owner.
+    # ``personality_seed`` remains for Genesis' memory materialization and
+    # older bundles, but it is not the runtime Selfhood authority.
+    selfhood_state: SelfhoodState | None = None
     memory_seeds: tuple[MemorySeed, ...] = ()
     relationship_seeds: tuple[RelationshipSeed, ...] = ()
     self_model_seed: SelfModelSeed = field(
@@ -262,6 +270,17 @@ class GenesisBundle:
             species = get_species_canon_for_technical_id(profile.identity.species_id)
         except (ValueError, TypeError) as error:
             raise GenesisValidationError(str(error)) from error
+
+        if self.selfhood_state is None:
+            raise GenesisValidationError("Genesis 必须提供完整 SelfhoodState")
+        if not self.selfhood_state.complete:
+            raise GenesisValidationError("Genesis Selfhood identity_core 不能为空")
+        if self.selfhood_state.identity_core.elfie_id != profile.identity.elfie_id:
+            raise GenesisValidationError(
+                "Genesis Selfhood 与 Profile 的 Elfie ID 不一致"
+            )
+        if self.selfhood_state.identity_core.species_id != profile.identity.species_id:
+            raise GenesisValidationError("Genesis Selfhood 与 Profile 的物种不一致")
 
         if not self.personality_seed.self_description.strip():
             raise GenesisValidationError("personality_seed.self_description 不能为空")

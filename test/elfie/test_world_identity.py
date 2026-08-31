@@ -1,5 +1,4 @@
 from elfie import ElfieFactory
-from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile, list_species_definitions
 from test.elfie.brain.memory.fake_store import FakeMemoryStore
@@ -18,13 +17,31 @@ def test_supported_species_carry_canon_into_selfhood_and_memory_identity() -> No
                     species_id=species_id,
                     seed=5,
                 ),
+                selfhood_seed={
+                    "state_schema_version": 1,
+                    "revision": 1,
+                    "identity_core": {
+                        "elfie_id": f"world-identity-{species_id}",
+                        "display_name": "Lumi",
+                        "species_id": species_id,
+                        "species_name": species_name,
+                        "home_world_id": "elfaria",
+                        "home_world_name": "Elfaria",
+                        "home_region_id": "north",
+                        "home_region_name": "北境",
+                        "earth_arrival_statement": "我被领养来到地球。",
+                        "resident_role": "居民",
+                    },
+                    "adaptive_self": {
+                        "big_five": {},
+                    },
+                },
                 memory_store=FakeMemoryStore.in_memory(),
             )
         )
 
         anchor = elfie.profile_anchor_snapshot()
         selfhood = elfie.selfhood_snapshot()
-        identity_text = ElfieDiagnostics(elfie).memory.get_self_narrative()["identity"]
 
         assert (anchor.species_canon_id, anchor.species_name) == (
             canon_id,
@@ -37,4 +54,3 @@ def test_supported_species_carry_canon_into_selfhood_and_memory_identity() -> No
         assert species_name in selfhood.self_description
         assert "Elfaria" in selfhood.self_description
         assert selfhood.identity_facts
-        assert species_name in identity_text

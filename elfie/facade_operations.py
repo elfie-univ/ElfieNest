@@ -26,13 +26,14 @@ from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.system import EventWorkspace
@@ -68,6 +69,7 @@ class _ElfieFacadeState:
     _communication: CommunicationHub
     _skills: SkillManager
     _brain_runtime: BrainRuntime | None
+    _reasoning_constitution: ReasoningConstitution | None
     _clock_lock: Lock
     _elapsed_time: float
 
@@ -184,6 +186,14 @@ class ElfieFacadeOperations(_ElfieFacadeState):
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
+        if not self._selfhood.snapshot().complete:
+            raise ElfieLifecycleError(
+                "Selfhood seed is missing or incomplete; cognition is unavailable"
+            )
+        if self._reasoning_constitution is None:
+            raise ElfieLifecycleError(
+                "Reasoning constitution is missing; cognition is unavailable"
+            )
         if tool_port is None:
             candidate = getattr(model_port, "tool_port", None)
             if candidate is not None:
@@ -199,7 +209,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             emotion=self._emotion,
             homeostasis=self._energy,
             selfhood=self._selfhood,
-            profile_anchors=self._profile_anchor_snapshot(clock()),
+            constitution=self._reasoning_constitution,
             nervous_system=self._nervous_system,
             communication=self._communication,
             skills=self._skills,
@@ -316,7 +326,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         """Return the latest committed self/world orientation snapshot."""
         return self._require_brain_runtime().orientation_snapshot()
 
-    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+    def selfhood_snapshot(self) -> SelfhoodState:
         """Return the Brain-owned self-model, never the mutable Profile seed."""
         runtime = self._brain_runtime
         return (
@@ -326,13 +336,8 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         )
 
     def profile_anchor_snapshot(self) -> ProfileAnchorSnapshot:
-        """Return the immutable identity/appearance projection used by Brain."""
-        runtime = self._brain_runtime
-        return (
-            runtime.profile_anchors()
-            if runtime is not None
-            else self._profile_anchor_snapshot(self.cognitive_datetime)
-        )
+        """Return the external immutable Profile projection for observers."""
+        return self._profile_anchor_snapshot(self.cognitive_datetime)
 
     def motivation_snapshot(self) -> MotivationSnapshot:
         """Return the Brain-owned fixed-drive snapshot for observation."""

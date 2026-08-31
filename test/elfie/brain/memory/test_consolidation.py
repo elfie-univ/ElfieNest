@@ -824,9 +824,6 @@ class TestPatternDiscovery:
         spreading = MagicMock()
         decay = MagicMock()
         weighting = MagicMock()
-        self_narrative = MagicMock()
-        self_narrative.get_core_text.return_value = {}
-
         # 配置storage返回pattern节点
         pattern_node = MemoryNode(
             id="pat_1",
@@ -842,7 +839,6 @@ class TestPatternDiscovery:
             spreading=spreading,
             decay=decay,
             weighting=weighting,
-            self_narrative=self_narrative,
         )
 
         result = assembler._assemble_prediction_zone(

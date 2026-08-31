@@ -25,12 +25,14 @@ from devtools.elfie_lab.turn_projection import project_decision
 from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_dynamics_defaults,
     load_emotion_expression_defaults,
+    load_reasoning_constitution,
 )
 from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
@@ -80,6 +82,9 @@ class ElfieLabSession:
                 energy_limits=YamlEnergyLimitsAdapter(workspace / "brain").load(),
                 emotion_expression_config=load_emotion_expression_defaults(),
                 emotion_dynamics_config=load_emotion_dynamics_defaults(),
+                reasoning_constitution=ReasoningConstitution.from_mapping(
+                    load_reasoning_constitution()
+                ),
                 memory_store=SQLiteMemoryStoreAdapter(
                     storage.memory_path(spec.elfie_id)
                 ),
@@ -270,6 +275,9 @@ class ElfieLabSession:
                     energy_limits=YamlEnergyLimitsAdapter(workspace / "brain").load(),
                     emotion_expression_config=load_emotion_expression_defaults(),
                     emotion_dynamics_config=load_emotion_dynamics_defaults(),
+                    reasoning_constitution=ReasoningConstitution.from_mapping(
+                        load_reasoning_constitution()
+                    ),
                     memory_store=SQLiteMemoryStoreAdapter(
                         self.storage.memory_path(self.spec.elfie_id)
                     ),

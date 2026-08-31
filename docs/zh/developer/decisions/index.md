@@ -32,5 +32,6 @@
 - [ADR-0028：按职责拆分脚本控制面](./0028-script-control-plane-layout)
 - [ADR-0029：显式 Git 动作授权与单 PR 交付](./0029-explicit-git-delivery-authorization)
 - [ADR-0030：情绪状态仅在进程内存续并回归基线](./0030-process-local-emotion-state)
+- [ADR-0031：Selfhood 拥有四段固定模型头中的两个个体段](./0031-selfhood-authority-and-fixed-model-header)
 - [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
 - [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)

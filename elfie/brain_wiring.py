@@ -26,11 +26,11 @@ from elfie.brain.reasoning.context_types import (
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.internal_execution import NoOpExecutor
 from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.communication import CommunicationHub
@@ -125,7 +125,7 @@ def assemble_brain_runtime(
     emotion: EmotionSystem,
     homeostasis: EnergySystem,
     selfhood: SelfhoodSystem,
-    profile_anchors: ProfileAnchorSnapshot,
+    constitution: ReasoningConstitution,
     nervous_system: NervousSystem,
     communication: CommunicationHub,
     skills: SkillManager,
@@ -177,7 +177,6 @@ def assemble_brain_runtime(
             consolidate=run_memory_maintenance,
             initial_at=initial_at,
         ),
-        profile_anchors=profile_anchors,
     )
     return BrainRuntime(
         elfie_id=elfie_id,
@@ -185,6 +184,7 @@ def assemble_brain_runtime(
         emotion=emotion,
         homeostasis=homeostasis,
         context=context,
+        constitution=constitution,
         memory=memory,
         clock=clock,
         model_port=model_port,

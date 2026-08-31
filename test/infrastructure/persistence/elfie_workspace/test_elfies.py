@@ -61,13 +61,29 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     YamlProfileStoreAdapter(layout.profile.parent).save(profile)
     YamlSelfhoodSeedAdapter(layout.brain).save(
         {
-            "big_five": {
-                "openness": 0.9,
-                "conscientiousness": 0.6,
-                "extraversion": 0.8,
-                "agreeableness": 0.7,
-                "neuroticism": 0.2,
-            }
+            "state_schema_version": 1,
+            "revision": 1,
+            "identity_core": {
+                "elfie_id": "00000001",
+                "display_name": "小狐",
+                "species_id": "fox",
+                "species_name": "Saevi",
+                "home_world_id": "elfaria",
+                "home_world_name": "Elfaria",
+                "home_region_id": "north",
+                "home_region_name": "北境",
+                "earth_arrival_statement": "我被领养来到地球。",
+                "resident_role": "居民",
+            },
+            "adaptive_self": {
+                "big_five": {
+                    "openness": 0.9,
+                    "conscientiousness": 0.6,
+                    "extraversion": 0.8,
+                    "agreeableness": 0.7,
+                    "neuroticism": 0.2,
+                }
+            },
         }
     )
     adapter = SQLiteElfiesProjectionAdapter(db_path)

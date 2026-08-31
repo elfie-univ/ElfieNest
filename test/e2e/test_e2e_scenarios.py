@@ -10,9 +10,11 @@ from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import (
+    CONSTITUTION,
     RecordingChannel,
     TwoTurnRuntime,
     _owner_message,
+    _selfhood_seed,
 )
 
 
@@ -27,6 +29,8 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("elfie-loop"),
+            selfhood_seed=_selfhood_seed("elfie-loop"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             communication=hub,
@@ -63,6 +67,8 @@ def test_external_message_replay_is_deduplicated_at_communication_edge() -> None
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=_profile("elfie-loop"),
+            selfhood_seed=_selfhood_seed("elfie-loop"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             communication=hub,
@@ -92,6 +98,8 @@ def test_two_elfies_start_and_stop_without_shared_cognitive_state() -> None:
         elfie = ElfieFactory().create(
             ElfieAssembly(
                 profile=_profile(elfie_id),
+                selfhood_seed=_selfhood_seed(elfie_id),
+                reasoning_constitution=CONSTITUTION,
                 memory_store=SQLiteMemoryStoreAdapter.in_memory(),
                 body=body,
                 communication=hub,

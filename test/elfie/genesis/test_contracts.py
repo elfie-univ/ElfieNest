@@ -1,6 +1,14 @@
+from datetime import datetime, timezone
+
 import pytest
 
-from elfie.brain.selfhood.contracts import BigFiveTraits, SelfhoodSpeechStyle
+from elfie.brain.selfhood.contracts import (
+    AdaptiveSelf,
+    BigFiveTraits,
+    IdentityCore,
+    SelfhoodSpeechStyle,
+    SelfhoodState,
+)
 from elfie.genesis import (
     BiographyEnrichmentPlan,
     GenesisBundle,
@@ -41,6 +49,26 @@ def _bundle(memory_count: int = 2) -> GenesisBundle:
             self_description="我来自 Elfaria 的迷雾镇。",
             speech_style=SelfhoodSpeechStyle(greetings=("你好",)),
             norms=("对不确定保持诚实。",),
+        ),
+        selfhood_state=SelfhoodState(
+            revision=1,
+            committed_at=datetime(2026, 8, 12, tzinfo=timezone.utc),
+            identity_core=IdentityCore(
+                elfie_id="genesis-check",
+                display_name="Lumi",
+                species_id="fox",
+                species_name="Saevi",
+                home_world_id="elfaria",
+                home_world_name="Elfaria",
+                home_region_id="north",
+                home_region_name="北境",
+                earth_arrival_statement="我被领养来到地球。",
+                resident_role="居民",
+            ),
+            adaptive_self=AdaptiveSelf(
+                big_five=BigFiveTraits(openness=0.78),
+                value_ids=("尊重自愿选择，不把猜测说成亲历。",),
+            ),
         ),
         memory_seeds=memory_seeds,
         relationship_seeds=(

@@ -18,6 +18,7 @@ from elfie.brain.activity.system import (
 )
 from elfie.brain.continuity import BrainContinuityCheckpoint
 from elfie.brain.journal import BrainJournalKind
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationResult,
@@ -29,10 +30,44 @@ from elfie.message_types import ActivityId, EventId
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.test_cognitive_lifecycle import RecordingChannel, _owner_message
 
 NOW = datetime(2026, 8, 12, 8, 0, tzinfo=timezone.utc)
+CONSTITUTION = ReasoningConstitution.from_mapping(load_reasoning_constitution())
+
+
+def _selfhood_seed(elfie_id: str, display_name: str) -> dict[str, object]:
+    return {
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": elfie_id,
+            "display_name": display_name,
+            "species_id": "fox",
+            "species_name": "Saevi",
+            "home_world_id": "elfaria",
+            "home_world_name": "Elfaria",
+            "home_region_id": "north",
+            "home_region_name": "北境",
+            "earth_arrival_statement": "我被领养来到地球。",
+            "resident_role": "居民",
+        },
+        "adaptive_self": {
+            "big_five": {
+                "openness": 0.7,
+                "conscientiousness": 0.6,
+                "extraversion": 0.3,
+                "agreeableness": 0.8,
+                "neuroticism": 0.3,
+            },
+            "interaction_tendency_ids": ["先观察边缘、声音和可离开的路径"],
+            "value_ids": ["尊重自愿选择，不把猜测说成亲历。"],
+        },
+    }
 
 
 class FailingModel:
@@ -154,6 +189,8 @@ def test_restart_pauses_inflight_activity_and_journals_uncertainty(
             activity_store=SQLiteActivityStoreAdapter(activity_path),
             journal_store=SQLiteBrainJournalAdapter(journal_path),
             model_port=FailingModel(),
+            selfhood_seed=_selfhood_seed("elfie-recovery", "恢复精灵"),
+            reasoning_constitution=CONSTITUTION,
         )
     )
     try:
@@ -200,6 +237,8 @@ def test_restart_restores_durable_continuity_and_cognitive_clock(
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             journal_store=SQLiteBrainJournalAdapter(journal_path),
             model_port=FailingModel(),
+            selfhood_seed=_selfhood_seed("elfie-continuity", "连续精灵"),
+            reasoning_constitution=CONSTITUTION,
         )
     )
     first.start()
@@ -224,13 +263,15 @@ def test_restart_restores_durable_continuity_and_cognitive_clock(
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             journal_store=SQLiteBrainJournalAdapter(journal_path),
             model_port=FailingModel(),
+            selfhood_seed=_selfhood_seed("elfie-continuity", "连续精灵"),
+            reasoning_constitution=CONSTITUTION,
         )
     )
     try:
         restored.start()
         actual = restored.continuity_checkpoint()
         assert actual.energy == expected.energy
-        assert actual.orientation == expected.orientation
+        assert not hasattr(actual, "orientation")
         assert restored.elapsed_time == expected.captured_at.timestamp()
 
         restored.advance_clock(1.0)
@@ -265,6 +306,8 @@ def test_restart_restores_alternating_owner_conversation_context(
             journal_store=SQLiteBrainJournalAdapter(journal_path),
             communication=first_hub,
             model_port=first_model,
+            selfhood_seed=_selfhood_seed("elfie-conversation", "连续对话精灵"),
+            reasoning_constitution=CONSTITUTION,
         )
     )
     first.start()
@@ -294,6 +337,8 @@ def test_restart_restores_alternating_owner_conversation_context(
             journal_store=SQLiteBrainJournalAdapter(journal_path),
             communication=restored_hub,
             model_port=restored_model,
+            selfhood_seed=_selfhood_seed("elfie-conversation", "连续对话精灵"),
+            reasoning_constitution=CONSTITUTION,
         )
     )
     try:

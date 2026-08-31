@@ -39,6 +39,8 @@ def validate_registered_document(
         _validate_energy_defaults(document, label)
     elif document_id is ConfigDocumentId.SELFHOOD_DEFAULTS:
         _validate_selfhood_defaults(document, label)
+    elif document_id is ConfigDocumentId.REASONING_CONSTITUTION:
+        _validate_reasoning_constitution(document, label)
     elif document_id is ConfigDocumentId.EMOTION_EXPRESSIONS:
         _validate_emotion_defaults(document, label)
     elif document_id is ConfigDocumentId.EMOTION_DYNAMICS:
@@ -439,6 +441,45 @@ def _validate_selfhood_defaults(document: Mapping[str, Any], label: str) -> None
     for mood, values in mutters.items():
         _string_list(values, f"{label}.speech_style.mutter_templates.{mood}")
     _string(speech.get("verbal_ticks"), f"{label}.speech_style.verbal_ticks")
+
+
+def _validate_reasoning_constitution(document: Mapping[str, Any], label: str) -> None:
+    _keys(
+        document,
+        {
+            "version",
+            "application_frame_text",
+            "operating_contract_text",
+            "max_prefix_bytes",
+        },
+        label,
+    )
+    _require_keys(
+        document,
+        {"version", "application_frame_text", "operating_contract_text"},
+        label,
+    )
+    _positive_int(document.get("version"), f"{label}.version")
+    _string(document.get("application_frame_text"), f"{label}.application_frame_text")
+    _string(document.get("operating_contract_text"), f"{label}.operating_contract_text")
+    if "max_prefix_bytes" in document:
+        value = document.get("max_prefix_bytes")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 256:
+            raise ConfigSchemaError(f"{label}.max_prefix_bytes 必须是不小于 256 的整数")
+    reserved = (
+        "[APPLICATION_FRAME]",
+        "[IDENTITY_CORE]",
+        "[ADAPTIVE_SELF]",
+        "[OPERATING_CONTRACT]",
+        "[TURN_PROTOCOL]",
+        "[CURRENT_BRAIN_STATE]",
+    )
+    for field in ("application_frame_text", "operating_contract_text"):
+        value = document.get(field)
+        if isinstance(value, str) and any(
+            label_text in value for label_text in reserved
+        ):
+            raise ConfigSchemaError(f"{label}.{field} 不能包含固定头部标签")
 
 
 def _validate_emotion_defaults(document: Mapping[str, Any], label: str) -> None:

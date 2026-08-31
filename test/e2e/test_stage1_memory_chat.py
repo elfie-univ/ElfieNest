@@ -16,7 +16,12 @@ from elfie.genesis import GenesisMemoryCommitter
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from test.elfie.genesis.test_contracts import _bundle
-from test.elfie.test_cognitive_lifecycle import RecordingChannel, _owner_message
+from test.elfie.test_cognitive_lifecycle import (
+    CONSTITUTION,
+    RecordingChannel,
+    _owner_message,
+    _selfhood_seed,
+)
 
 
 class StableOwnerReplyRuntime:
@@ -71,6 +76,8 @@ def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=profile,
+            selfhood_seed=_selfhood_seed("genesis-check", "Lumi"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=store,
             body=body,
             communication=hub,
@@ -125,6 +132,8 @@ def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
                     species_id="fox",
                     seed=23,
                 ),
+                selfhood_seed=_selfhood_seed("genesis-check", "Lumi"),
+                reasoning_constitution=CONSTITUTION,
                 memory_store=store,
                 body=body,
                 communication=hub,
@@ -190,6 +199,8 @@ def test_stage1_model_failure_delivers_trusted_short_fallback() -> None:
     elfie = ElfieFactory().create(
         ElfieAssembly(
             profile=profile,
+            selfhood_seed=_selfhood_seed("e1-model-failure", "Lumi"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=store,
             body=body,
             communication=hub,

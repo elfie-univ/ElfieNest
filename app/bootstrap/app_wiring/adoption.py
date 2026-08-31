@@ -14,7 +14,7 @@ from app.features.adoption import (
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
-from elfie.public import BodyPort, ElfieFactory
+from elfie.public import BodyPort, ElfieFactory, ReasoningConstitution
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.artifacts.species_package_validation import (
     run_godot_species_validation,
@@ -37,6 +37,7 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_emotion_dynamics_defaults,
     load_emotion_expression_defaults,
     load_nest_config,
+    load_reasoning_constitution,
 )
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -151,6 +152,9 @@ def build_adoption_services(
                 ).load(),
                 emotion_expression_config=load_emotion_expression_defaults(),
                 emotion_dynamics_config=load_emotion_dynamics_defaults(),
+                reasoning_constitution=ReasoningConstitution.from_mapping(
+                    load_reasoning_constitution()
+                ),
             ),
             nest_session,
         ),

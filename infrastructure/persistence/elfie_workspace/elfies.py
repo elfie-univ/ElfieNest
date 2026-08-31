@@ -102,8 +102,12 @@ class SQLiteElfiesProjectionAdapter:
         try:
             profile = repository.load()
             resolved = AppearanceResolver().resolve(profile)
+            raw_seed = YamlSelfhoodSeedAdapter(elfie_layout.brain).load()
+            adaptive_self = raw_seed.get("adaptive_self")
             raw_big_five = (
-                YamlSelfhoodSeedAdapter(elfie_layout.brain).load().get("big_five")
+                adaptive_self.get("big_five")
+                if isinstance(adaptive_self, dict)
+                else None
             )
             if not isinstance(raw_big_five, dict):
                 return ElfieProfileRecord(

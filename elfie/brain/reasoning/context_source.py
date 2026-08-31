@@ -36,7 +36,7 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.conversation_context import ConversationContextStore
 from elfie.brain.reasoning.memory_context import MemoryContextReader
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodSnapshot
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection, SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.state_lifecycle import StateCandidate, StateCommitReceipt
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -66,7 +66,6 @@ class BrainContextProvider:
         selfhood: SelfhoodSystem,
         motivation: MotivationSystem,
         consolidation: CognitiveConsolidationSystem,
-        profile_anchors: ProfileAnchorSnapshot,
     ) -> None:
         self._memory = memory
         self._conversations = conversations
@@ -77,7 +76,6 @@ class BrainContextProvider:
         self._selfhood = selfhood
         self._motivation = motivation
         self._consolidation = consolidation
-        self._profile_anchors = profile_anchors
         self._memory_lock = Lock()
         self._state_lock = Lock()
 
@@ -270,20 +268,13 @@ class BrainContextProvider:
     def restore_orientation_checkpoint(self, checkpoint) -> None:
         self._orientation.restore(checkpoint)
 
-    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodSnapshot:
-        return self._selfhood.snapshot().model_copy(update={"captured_at": captured_at})
+    def selfhood(self, captured_at: UTCDateTime) -> SelfhoodPromptProjection:
+        return self._selfhood.prompt_projection().model_copy(
+            update={"captured_at": captured_at}
+        )
 
-    def selfhood_snapshot(self) -> SelfhoodSnapshot:
+    def selfhood_snapshot(self) -> SelfhoodState:
         return self._selfhood.snapshot()
-
-    def selfhood_checkpoint(self):
-        return self._selfhood.checkpoint()
-
-    def validate_selfhood_checkpoint(self, checkpoint) -> None:
-        self._selfhood.validate_checkpoint(checkpoint)
-
-    def restore_selfhood_checkpoint(self, checkpoint) -> None:
-        self._selfhood.restore(checkpoint)
 
     def motivation(self, captured_at: UTCDateTime) -> MotivationSnapshot:
         with self._state_lock:
@@ -388,9 +379,6 @@ class BrainContextProvider:
     ) -> None:
         with self._state_lock:
             self._consolidation.restore(checkpoint)
-
-    def profile_anchors(self, captured_at: UTCDateTime) -> ProfileAnchorSnapshot:
-        return self._profile_anchors.model_copy(update={"captured_at": captured_at})
 
 
 __all__ = ("BrainContextProvider", "CapabilityReader")

@@ -180,7 +180,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="configuration-management",
-        version="1.2",
+        version="1.3",
         english_path="docs/developer/contracts/configuration-management.md",
         chinese_path="docs/zh/developer/contracts/configuration-management.md",
         decision_paths=(
@@ -188,6 +188,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/developer/decisions/0020-configuration-driven-species-packages.md",
             "docs/zh/developer/decisions/0020-configuration-driven-species-packages.md",
+            "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -242,7 +244,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="2.1",
+        version="2.2",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
@@ -254,6 +256,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0009-zero-debt-governance-closure.md",
             "docs/developer/decisions/0030-process-local-emotion-state.md",
             "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
+            "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -273,7 +277,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.2",
+        version="1.3",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
@@ -281,6 +285,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0007-brain-turn-state-and-activity-ownership.md",
             "docs/developer/decisions/0030-process-local-emotion-state.md",
             "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
+            "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
         ),
         agent_paths=("elfie/brain/AGENTS.md",),
         scanner_paths=(),
@@ -288,6 +294,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
         conformance_paths=(
             "docs/developer/conformance/elfie-emotion.md",
             "docs/zh/developer/conformance/elfie-emotion.md",
+            "docs/developer/conformance/elfie-selfhood.md",
+            "docs/zh/developer/conformance/elfie-selfhood.md",
         ),
     ),
     ContractRegistration(

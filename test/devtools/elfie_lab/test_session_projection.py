@@ -16,9 +16,7 @@ from test.devtools.elfie_lab.projection_test_support import add_node
 @pytest.fixture
 def projection_subject():
     storage = SQLiteMemoryStoreAdapter.in_memory()
-    memory = SimpleNamespace(
-        storage=storage, get_self_narrative=lambda: {"world": "世界仍在展开。"}
-    )
+    memory = SimpleNamespace(storage=storage)
     yield (
         SimpleNamespace(_memory=memory),
         ElfieSpec(elfie_id="test", name="艾菲"),
@@ -385,9 +383,9 @@ def test_world_model_has_fixed_five_rings_without_fabricated_nodes(
     projection = _memory_cognition_projection(elfie, spec)
 
     # Then
-    assert projection["world_understanding"] == "世界仍在展开。"
+    assert projection["world_understanding"] == "回家后先擦脚"
     model = projection["world_model"]
-    assert model["summary"] == "世界仍在展开。"
+    assert model["summary"] == "回家后先擦脚"
     assert [(ring["kind"], ring["label"]) for ring in model["rings"]] == [
         ("self", "自我"),
         ("family", "家人"),

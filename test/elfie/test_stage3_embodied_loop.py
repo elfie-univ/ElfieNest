@@ -16,6 +16,7 @@ from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.test_cognitive_lifecycle import CONSTITUTION, _selfhood_seed
 
 
 class EmbodiedMotionRuntime:
@@ -80,6 +81,8 @@ def _new_elfie(body: HeadlessBody, runtime: EmbodiedMotionRuntime):
                 species_id="fox",
                 seed=3,
             ),
+            selfhood_seed=_selfhood_seed("stage3-elfie", "阶段三精灵"),
+            reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             model_port=runtime,
@@ -116,9 +119,10 @@ def test_physical_observation_drives_current_virtual_body_and_returns_receipt() 
     assert decision.interaction_scope.body_generation == elfie.current_body_generation
     assert runtime.requests[0].interaction_scope.body_generation == 1
     assert runtime.requests[0].response_scope.body_generation == 1
-    compiled_context = json.loads(runtime.requests[0].user_prompt)
-    assert compiled_context["orientation"]["body_id"] == body.body_id
-    assert compiled_context["orientation"]["current_turn_id"] == str(outcome.turn_id)
+    system_prompt = runtime.requests[0].system_prompt
+    assert "[CURRENT_BRAIN_STATE]" in system_prompt
+    assert f"body={body.body_id}" in system_prompt
+    assert "activity=none" in system_prompt
     orientation = elfie.orientation_snapshot()
     assert orientation.current_turn_id == outcome.turn_id
     assert orientation.body_id == body.body_id

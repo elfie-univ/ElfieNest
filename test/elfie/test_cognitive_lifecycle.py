@@ -13,6 +13,7 @@ from pydantic import JsonValue
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.journal import BrainJournalKind
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -32,7 +33,42 @@ from elfie.communication import (
 from elfie.factory import ElfieAssembly
 from elfie.message_types import ActorRef, MessageMeta, TurnId
 from elfie.profile import create_visual_profile
+from infrastructure.persistence.configuration.bundled_defaults import (
+    load_reasoning_constitution,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+
+CONSTITUTION = ReasoningConstitution.from_mapping(load_reasoning_constitution())
+
+
+def _selfhood_seed(elfie_id: str, display_name: str | None = None) -> dict[str, object]:
+    return {
+        "state_schema_version": 1,
+        "revision": 1,
+        "identity_core": {
+            "elfie_id": elfie_id,
+            "display_name": display_name or elfie_id,
+            "species_id": "fox",
+            "species_name": "Saevi",
+            "home_world_id": "elfaria",
+            "home_world_name": "Elfaria",
+            "home_region_id": "north",
+            "home_region_name": "北境",
+            "earth_arrival_statement": "我被领养来到地球。",
+            "resident_role": "居民",
+        },
+        "adaptive_self": {
+            "big_five": {
+                "openness": 0.7,
+                "conscientiousness": 0.6,
+                "extraversion": 0.3,
+                "agreeableness": 0.8,
+                "neuroticism": 0.3,
+            },
+            "interaction_tendency_ids": ["先观察边缘、声音和可离开的路径"],
+            "value_ids": ["尊重自愿选择，不把猜测说成亲历。"],
+        },
+    }
 
 
 class RecordingChannel:
@@ -347,6 +383,8 @@ def _new_elfie(elfie_id: str, **dependencies):
                 seed=1,
             ),
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+            selfhood_seed=_selfhood_seed(elfie_id),
+            reasoning_constitution=CONSTITUTION,
             **dependencies,
         )
     )

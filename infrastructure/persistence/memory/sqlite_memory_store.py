@@ -105,12 +105,28 @@ class SQLiteMemoryStoreAdapter(
         return cls(":memory:", elfie_id=elfie_id)
 
     def bind_elfie_identity(self, elfie_id: str) -> None:
-        """Bind an unconfigured adapter once to its owning Elfie namespace."""
+        """Bind the adapter, allowing an empty provisional store to be renamed.
+
+        ``Elfie`` may be assembled under a provisional identity before
+        adoption publishes the final resident ID.  No durable Memory belongs
+        to that provisional namespace yet, so an empty store can safely follow
+        the identity change.  Once any semantic or operational record exists,
+        rebinding would make those rows unreachable or cross namespaces and is
+        therefore rejected.
+        """
         if not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
-        if self.elfie_id is not None and str(self.elfie_id) != elfie_id:
-            raise ValueError("Memory store is already bound to another Elfie")
-        self.elfie_id = elfie_id
+        with self._lock:
+            if self.elfie_id is not None and str(self.elfie_id) != elfie_id:
+                if any(
+                    self.conn.execute(
+                        f"SELECT 1 FROM {table} LIMIT 1"  # noqa: S608
+                    ).fetchone()
+                    is not None
+                    for table in KNOWLEDGE_TABLES
+                ):
+                    raise ValueError("Memory store is already bound to another Elfie")
+            self.elfie_id = elfie_id
 
     @contextmanager
     def write_transaction(self) -> Iterator[None]:

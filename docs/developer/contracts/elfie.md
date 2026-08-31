@@ -1,17 +1,19 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.1
+**Contract version:** 2.2
 **Adopted:** 2026-08-11
-**Revised:** 2026-08-12
+**Revised:** 2026-08-30
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
 > **Normative target.** This contract defines the life-system ownership,
 > dependency direction, public Facades and outbound Ports of one complete Elfie.
 > It refines,
 > but does not change, the frozen [system architecture contract](./system). The
-> implementation evidence is maintained in the closure-ready
-> [Elfie conformance register](../conformance/elfie) until its governance-only
-> removal; permanent architecture gates remain authoritative after removal.
+> completed migration evidence remains in the closure-ready
+> [Elfie conformance register](../conformance/elfie), while the new Selfhood
+> migration is tracked separately in the open
+> [Selfhood conformance register](../conformance/elfie-selfhood). Permanent
+> architecture gates remain authoritative after any temporary register is removed.
 
 The system contract remains authoritative for root modules, system authority and
 the final location of technical Adapters. This contract is authoritative inside
@@ -91,9 +93,11 @@ contracts or behavior; empty architecture-shaped packages are forbidden.
 
 ## Life-system invariants
 
-- Profile answers the objective question "which Elfie is this?" and is immutable
-  after creation. Brain Selfhood answers "how do I currently understand myself?"
-  and may change slowly through validated long-term evidence.
+- Profile answers the external objective question "which Elfie is this?" and is
+  immutable after creation. Genesis co-materializes Profile and Brain Selfhood
+  from one validated bundle. Ordinary Brain runtime does not read or synchronize
+  Profile; Selfhood's frozen `identity_core` supplies Brain identity and its
+  `adaptive_self` may change only through a later approved Memory-evidenced path.
 - Elfie has two external lines: the embodied line through NervousSystem and Body,
   and the digital-message line through Communication. They may be active in the
   same period but never share an output authority inside one Turn.
@@ -207,8 +211,9 @@ Brain owns ten conceptual systems with distinct authority:
    bounded, single-domain Turns.
 2. Orientation maintains the sourced current snapshot of body, place, time,
    nearby people, conversation and active commitments.
-3. Selfhood maintains the slowly changing self-model, personality and norms,
-   anchored by immutable Profile facts.
+3. Selfhood owns one atomic state with a creation-frozen `identity_core` and a
+   slow `adaptive_self`. It supplies Brain's typed self and deterministic model
+   projection without reading Profile or Canon during ordinary runtime.
 4. Emotion maintains process-local, cross-Turn decaying affective state and
    returns to personality-derived baselines on sleep or process restart.
 5. Energy maintains homeostasis, circadian state and cognitive/action budgets,
@@ -234,11 +239,19 @@ Profile, Selfhood, Memory, Activity or execution facts.
 ## Genesis
 
 Genesis is a one-time creation flow, not a runtime organ and not a second Brain.
-It may generate an ephemeral bundle containing a Profile draft, personality and
-selfhood seeds, no more than five key pre-adoption memory events, relationship
-seeds and a bounded biography-enrichment plan. After deterministic validation,
-each value is committed to its final owner. Genesis keeps only creation status
-and provenance and cannot directly choose permissions, available channels,
+It may consume accepted adoption input and creation-time species/world Canon and
+generate an ephemeral bundle containing a Profile draft, complete two-layer
+Selfhood seed, no more than five key pre-adoption memory events, relationship
+seeds and a bounded biography-enrichment plan. Profile and Selfhood are sibling
+final-owner outputs rather than a runtime synchronization pair. Their shared
+identity facts are validated together; any conflict or partial commit fails
+resident admission.
+
+`identity_core`, initial `adaptive_self` and the application-wide reasoning
+constitution are not freely generated model prose. They use reviewed,
+deterministic typed mappings and templates. Genesis keeps only creation status
+and provenance and cannot bind Selfhood to a Canon version, remain available to
+ordinary Brain context, or directly choose permissions, available channels,
 device abilities, tool scope, model budget or real account bindings.
 
 Later biography enrichment, when enabled, is a temporary bounded Persistent
@@ -354,10 +367,11 @@ Godot authority or a shared Adapter resource.
 ## Dependency rules
 
 ```text
-Genesis -> Profile + Brain seeds
+Genesis -> Profile + Selfhood + other Brain seeds + Genesis Memory
 Elfie Facade -> Profile + private Brain coordination
 private Brain coordination -> Brain + NervousSystem + Body + Communication
 Brain -> its own Food/Model/Tool/Memory Ports
+ordinary Brain -X-> Profile / Canon
 NervousSystem -> Body semantic contracts and Brain perception Port
 Communication -> its own channel Port and Brain perception Port
 Profile -> its own persistence Port
@@ -384,6 +398,12 @@ caller, remove the old implementation and compatibility path, then close the
 matching conformance gap. Existing system baselines only shrink; this contract
 does not create a second legacy baseline.
 
+The Selfhood migration additionally removes every ordinary Profile/Canon Brain
+input, Profile-derived fallback, Memory-owned authoritative self narrative and
+generic-checkpoint Selfhood copy before its scoped register can close. Contract
+text tests protect the target during migration; permanent runtime scanners and
+behavior/restart tests replace them as implementation rows close.
+
 The Ports/Adapters migration accepted by ADR-0005 is complete and remains a
 permanent boundary. Life-system implementation now proceeds as independently
 accepted vertical slices: Brain Kernel and communication loop, Reasoning Core,
@@ -401,4 +421,5 @@ technical Body or channel SDKs inside Elfie, App Orchestration proxying ordinary
 cognition, multiple active persistence writers, compatibility aliases, fallback
 reads, simultaneously active virtual and physical bodies, an empty package per
 conceptual Brain system, Genesis as a daily runtime, and a Service Locator hidden
-in `ElfieFactory`.
+in `ElfieFactory`. It also rejects ordinary Brain reads of Profile/Canon, a
+Canon-version-bound Selfhood, and Memory as a second identity/personality owner.

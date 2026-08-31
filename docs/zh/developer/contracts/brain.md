@@ -1,12 +1,14 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.2
+**契约版本：** 1.3
 **采用日期：** 2026-08-12
+**修订日期：** 2026-08-30
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
-> 思考、提交决定和恢复跨回合工作。已接受的 Brain 迁移现已完成，这些边界由永久
-> 架构测试直接守护。
+> 思考、提交决定和恢复跨回合工作。更早的 Brain 迁移继续由永久架构测试守护；新接受的
+> Selfhood 与固定头部差距记录在聚焦的
+> [Selfhood 一致性台账](../conformance/elfie-selfhood)中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -18,8 +20,9 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 当前认知、缓慢变化的心智状态、跨 Turn 存续的工作，以及无外部副作用的心智整理。数字
 通信生活和具身生活共享同一 Selfhood 与 Memory，但各自的 Turn 和输出 authority 隔离。
 
-本契约固定语义所有者、生命周期边界和确定性守卫，不固定 Prompt、模型供应商、存储
-Schema、可调数值系数或进程拓扑。Emotion 保存六通道并消费正负语义评价属于固定语义；
+本契约固定语义所有者、生命周期边界和确定性守卫；它同时固定在线 Elfie 模型 Prompt
+四段前缀及其来源 authority，但不固定随版本发布的具体文案、模型供应商、存储编码、
+可调数值系数或进程拓扑。Emotion 保存六通道并消费正负语义评价属于固定语义；
 各通道 Gain、半衰期和展示阈值仍由配置调整。十个系统是概念所有者，不代表必须建立十个
 进程、数据库或空包。
 
@@ -29,7 +32,7 @@ Schema、可调数值系数或进程拓扑。Emotion 保存六通道并消费正
 | --- | --- | --- | --- | --- |
 | 1 | 事件工作区 | 有界 Communication、Embodied、Internal Lane；准入、保序、去重、背压、显著性和单域成帧 | 一个不可变 `TurnFrame`，或明确延后/拒绝结果 | 把多个来源域合成一个 Turn、理解复杂内容或执行行动 |
 | 2 | 自我定位 | 带来源的当前身体、地点、时间、附近人物、会话、Activity、Affordance 和不确定性 | 版本化 `OrientationSnapshot` | 复制世界 authority、保存完整历史或定义人格 |
-| 3 | 自我认知 | 由不可变 Profile 锚定的可变自我模型、人格倾向、规范及慢变化证据 | 版本化 Selfhood/Personality/Norms 快照和已校验更新 | 改写 Profile、接受单条消息改变人格或扩大能力 |
+| 3 | 自我认知 | 一份原子状态：创建后冻结的 `identity_core` 与缓慢的 `adaptive_self`；确定性强类型/模型投影 | 版本化 Selfhood 快照、两个模型头部段，以及仅在后续设计获批后的 Memory 证据更新 | 运行时读取 Profile/Canon、接受 Turn/模型/当前状态直接更新、持久化最终 Prompt 或扩大能力 |
 | 4 | 情绪 | 进程内情感、刺激评估、叠加、衰减和恢复 | `EmotionSnapshot` 及对注意、回忆和表达的有界影响 | 创建 Goal、消息或身体动作，或持久化实时存量 |
 | 5 | 能量 | 稳态、昼夜状态、认知/行动预算、紧急储备和降级模式 | `EnergySnapshot`、预算预留和认知模式约束 | 选择语义 Goal 或取代 NervousSystem 安全反射 |
 | 6 | 动机 | 固定驱力、压力、满足、竞争、饱和、冷却和重复抑制 | `AttentionBias`、`GoalCandidate` 或 `InternalTriggerCandidate` | 创建 Activity 或直接对外行动 |
@@ -73,6 +76,101 @@ Schema、可调数值系数或进程拓扑。Emotion 保存六通道并消费正
    音频和图像/视觉传输，但其情绪评价暂缓。未来 Detector 必须通过同一 Scope 边界输出
    观察证据，不能直接修改 Emotion，也不能在无检测结果时伪造 calm。
 
+## Selfhood 与在线模型固定头部
+
+[Selfhood 与固定模型头部设计](../designs/elfie-selfhood-and-fixed-model-header)是本节已经
+接受的详细解释；当前实现差距记录在
+[Selfhood 一致性台账](../conformance/elfie-selfhood)。
+
+### Selfhood authority 与状态
+
+1. Selfhood 拥有一份原子、强类型状态，只有一个 Schema 版本、一个 Selfhood revision，
+   语义上严格分两层。`identity_core` 保存创建时冻结、每只 Elfie 必需的最低身份事实；
+   `adaptive_self` 保存有界人格特征、个人价值/规范 ID，以及互动、应对和表达倾向。
+2. 该状态不得含 Profile revision、Canon 版本/路径/引用、最终 Prompt 段落、模型自由生成的
+   自传、详细世界知识、传记、关系状态、当前 Emotion/Energy/Orientation/Activity、能力、
+   权限或全应用规则。
+3. Genesis 之后 `identity_core` 永久不可变。第一阶段不暴露已装配的 `adaptive_self` 更新
+   路径。后续获批成长设计最多允许 Memory 整理生成强类型 proposal，其中必须有基础
+   Selfhood revision、稳定 proposal/幂等 identity 和持久 Memory 证据。Memory 拥有
+   proposal 与证据；Consolidation 可以调度推导，模型最多是该有界 Memory 流程内部的
+   不可信助手，两者都不能直接调用 Selfhood。只有 Selfhood 可以校验、提交，proposal
+   绝不能修改 `identity_core`。
+4. Selfhood 可以向已签约 Brain owner 提供不可变强类型 snapshot 或更窄 trait 投影。
+   Reasoning 只能收到确定、有界、无副作用的 `SelfhoodPromptProjection`，其中仅含
+   `identity_core_text`、`adaptive_self_text` 和非 Prompt revision 元数据。投影不持久化、
+   不读 Profile/Canon/Memory、不调用模型、不输出大五原始值或内部 ID，也不能编造传记、
+   关系、知识、当前状态、权限或行动。
+5. 用户可控名字与每个有界文本槽都必须按数据编码。控制字符、保留固定头标签和能破坏
+   分隔符的序列必须在投影前拒绝或转义。任意领养故事、Memory 内容与模型文本不能进入
+   固定段。
+
+### Genesis 与运行时输入
+
+6. Genesis 是唯一 Selfhood 初始化者。它可以读取已接受领养输入、创建时 Canon/物种事实
+   与受审的确定性映射，并把 Profile、完整 Selfhood、Genesis Memory 作为同一已校验创建
+   Bundle 的并列输出。普通启动时 Selfhood 不从已持久 Profile 派生；不完整或冲突创建必须
+   拒绝准入。
+7. Profile 仍是外层不可变档案。Canon 仍是创建时世界/物种输入和 Genesis Memory 来源。
+   普通 Brain 运行、Reasoning 上下文与 Selfhood 投影不得读取、接收、刷新或同步 Profile/
+   Canon。既有 Elfie 不绑定 Canon 版本；后续 Canon 改动不能改变它的 Selfhood。
+8. Selfhood 缺失、无效、版本不支持或无法渲染时，必须在调用 `ModelPort` 前让 Brain/
+   resident 认知失败并输出安全诊断。不得 fallback 到 `Elfie`、通用 persona、全 0.5 traits、
+   Profile、Canon、Memory 自我叙事或模型生成修补。
+
+### 四段固定前缀
+
+9. 在线 Elfie `ReasoningRun` 内的每个模型请求都必须严格以一次下列固定前缀开头：
+
+   ```text
+   [APPLICATION_FRAME]
+   {application_frame_text}
+
+   [IDENTITY_CORE]
+   {identity_core_text}
+
+   [ADAPTIVE_SELF]
+   {adaptive_self_text}
+
+   [OPERATING_CONTRACT]
+   {operating_contract_text}
+   ```
+
+   Reasoning 拥有标签、顺序与请求组装；Selfhood 拥有并渲染第二、第三段。一份 required、
+   人工编写、同版本、bundled-only 的 `ReasoningConstitution` 拥有第一、第四段；
+   Infrastructure 只校验/加载，Bootstrap 注入。用户、Genesis、Canon、模型、Provider 与
+   单只 Elfie 数据都不能生成、覆盖、热更新或按条件分支该 Constitution。
+10. `APPLICATION_FRAME` 只含最低限度共同 ElfieNest 应用与故事前提；
+    `OPERATING_CONTRACT` 只含稳定身份、知识边界、上下文信任、执行事实与 Scope 规则。
+    详细 Canon、个体事实和随 Turn 变化的 Schema/能力指令不得进入两段。
+11. 可信 `TURN_PROTOCOL` 与当前 Brain 状态跟在固定前缀之后。检索 Memory、Activity、
+    观察、对话历史和当前消息仍是后续上下文数据，不能形成第五个固定段，也不能替代任何
+    固定来源。
+12. 规范封装统一使用 LF 换行，第一段之前没有文本，段间严格一个空行，与后续
+    `[TURN_PROTOCOL]` 之间也严格一个空行。校验后的段落正文没有首尾空行，也不能含保留
+    头部标签。
+13. 同一在线 Run 的初始生成、Tool Observation 续跑与结构化输出修复，必须保持完全相同的
+    固定前缀字节和绑定来源 revision。Genesis、Memory 整理、Provider 探测、评价 Judge 与
+    无身份后台 Worker 不得收到这个 Elfie 头。所有在线 system 指令，包括 Skill/Tool 指令，
+    都由 Reasoning 放在固定前缀后的 `TURN_PROTOCOL`。Provider/模型 Adapter 与通用 Prompt
+    Injector 不得新增 system 指令，也不得改变请求消息顺序或内容。
+14. 动态上下文裁剪前先为固定前缀保留预算。调用前同时校验其字节上限和 Provider 完整
+    context window。固定段不能为适配预算被删除、截断或重排；无效请求必须明确失败。
+15. `OPERATING_CONTRACT` 是模型指导，不是安全 authority。确定性宿主能力、响应/执行
+    Scope、隐私、预算、串行提交与回执门禁仍为必需，并高于冲突的个人规范或模型输出。
+
+### 持久化与冲突规则
+
+16. 第一阶段每只 Elfie 的 Selfhood 文档是唯一持久 Selfhood authority。通用 Brain
+    continuity checkpoint 不得包含或恢复 Selfhood。未来 adaptive 更新只有在专用、原子、
+    revision 校验且幂等的持久提交边界建立后才能启用。
+17. Memory 不得持久化或注入第二套权威 identity/relation/world/tendency 自我叙事。身份
+    冲突以 `identity_core` 为准，Memory 回忆只是可错证据；当前 Emotion/Orientation 可以
+    暂时调制表达，不能改写 `adaptive_self`。创建时 Profile/Selfhood 冲突就创建失败，
+    普通运行不能回读 Profile 修补。
+18. 应用升级可以为所有 Elfie 统一替换同版本 Constitution，但不能改变 `identity_core`、
+    把 Selfhood 绑定到新 Canon，或静默改写既有 `adaptive_self` 数据。
+
 ## 守恒规则
 
 1. Brain 只接收 `Communication`、`Embodied`、`Internal` 三类事件来源域。
@@ -112,9 +210,9 @@ Turn。无法准入必须产生可观察的延后、拒绝或背压结果，不�
 
 ### 上下文与思考
 
-思考中枢只组装本 Turn 需要的上下文。上下文快照记录 Profile 锚点、自我定位、自我
-认知、情绪、能量、动机、记忆、Activity 和有效能力的版本与采集时间，并区分事实、
-推测和未知。
+思考中枢只组装本 Turn 需要的上下文。上下文快照记录 Constitution 与 Selfhood revision，
+以及自我定位、情绪、能量、动机、记忆、Activity 和有效能力的版本与采集时间；它不含
+Profile 或 Canon 运行时投影，并区分事实、推测和未知。
 
 一个 `ReasoningRun` 可以包含多个 Cognitive Step，以及多次 Model、Skill、Tool 和
 Observation 循环。它必须有明确预算、截止时间、取消状态和完成条件。Tool Observation
@@ -133,9 +231,11 @@ Tool 被拒或预算耗尽不能表示为成功完成。
 - `PersistentActivityRequest`：提交超出当前 Turn 的已校验工作；
 - 没有行动提交时为 `No-op`。
 
-Memory、Emotion、Selfhood、Orientation、Energy 或 Motivation 候选属于 Turn 结算材料，
-不是第四类行动。结算把每个候选或回执交给真实所有者；所有者根据当前版本和因果身份
-校验后提交。陈旧或重复结果必须拒绝或对账，不能只通过下一轮 Prompt 假设状态已经修正。
+Memory、Emotion、Orientation、Energy 或 Motivation 候选属于 Turn 结算材料，不是第四类
+行动。这里刻意没有 Selfhood：第一阶段没有更新路线；未来更新也只能走上文定义的
+Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个获准候选或回执交给真实
+所有者；所有者根据当前版本和因果身份校验后提交。陈旧或重复结果必须拒绝或对账，不能
+只通过下一轮 Prompt 假设状态已经修正。
 
 ## 响应范围
 
@@ -188,18 +288,20 @@ Brain Skills 授权语义认知能力。`ToolPort` 只执行由注入且限定 E
 
 ## 状态、持久化与恢复
 
-`MemoryState`、`ReasoningRunState` 和 `ActivityState` 必须分离。持久认知基础设施提供
-Event Journal、权威 State Store、Run/Activity Checkpoint、预算账本、因果 Trace、幂等
-记录和回执对账。它们为十个系统保存状态，但不成为第十一个心智系统，也不决定行为。
+`MemoryState`、`SelfhoodState`、`ReasoningRunState` 和 `ActivityState` 必须分离。持久
+认知基础设施按各 owner 需要提供状态、Event Journal、Run/Activity Checkpoint、预算账本、
+因果 Trace、幂等记录和回执对账；这不代表每个心智 owner 都进入一个通用 checkpoint，
+也不会形成第十一个心智系统。
 
-重启后，Brain 恢复长期状态，对账未完成 Directive 和 Activity，拒绝旧身体
+重启后，Brain 从各自唯一 authority 加载持久 owner，对账未完成 Directive 和 Activity，拒绝旧身体
 generation，只恢复 Scope 和截止时间仍然有效的工作。Emotion 是明确例外：进入睡眠
 或进程重启时，当前六通道存量和临时指导回到人格基线。模型服务缺失只会延后或降级开放
 认知，不能擦除身份、记忆、承诺或基本反射能力。
 
 ## 依赖与目录规则
 
-Brain 只依赖自身定义的强类型使用方 Port 和 Elfie 语义契约，不导入 App、Nest、具体
+Brain 只依赖自身定义的强类型使用方 Port 和 Elfie 语义契约；普通 Brain 运行期也不依赖
+Profile 或 Canon。Brain 不导入 App、Nest、具体
 Infrastructure、Provider SDK、平台 Payload、设备传输、文件系统 Root 或数据库 Record。
 AI Runtime 实现留在 Brain 外部；Brain 拥有在 Run 中何时以及为什么调用它们。
 

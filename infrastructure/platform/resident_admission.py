@@ -11,6 +11,7 @@ from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
 from elfie.profile import ProfileStorePort
 
@@ -35,6 +36,7 @@ class ElfieFactoryAdapter:
         energy_limits_factory: BrainSeedFactory | None = None,
         emotion_expression_config: Mapping[str, object] | None = None,
         emotion_dynamics_config: Mapping[str, object] | None = None,
+        reasoning_constitution: ReasoningConstitution | None = None,
     ) -> None:
         self._factory = factory
         self._body_factory = body_factory
@@ -46,6 +48,7 @@ class ElfieFactoryAdapter:
         self._energy_limits_factory = energy_limits_factory
         self._emotion_expression_config = emotion_expression_config
         self._emotion_dynamics_config = emotion_dynamics_config
+        self._reasoning_constitution = reasoning_constitution
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
         try:
@@ -58,6 +61,7 @@ class ElfieFactoryAdapter:
                         if self._selfhood_seed_factory is None
                         else self._selfhood_seed_factory(workspace)
                     ),
+                    reasoning_constitution=self._reasoning_constitution,
                     energy_limits=(
                         None
                         if self._energy_limits_factory is None

@@ -52,6 +52,7 @@ from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
 )
 from elfie.brain.reasoning.decision_governance import govern_decision
+from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.run import (
     CognitiveStep,
     CognitiveStepKind,
@@ -83,6 +84,7 @@ class BrainCoordinator:
         homeostasis: EnergySystem,
         appraiser: EmotionAppraiser,
         context_source: BrainContextSource,
+        constitution: ReasoningConstitution,
         reasoning_worker: ReasoningExecutionPort,
         plan_sink: TurnDecisionSink,
         settlement: TurnSettlementPort,
@@ -128,6 +130,7 @@ class BrainCoordinator:
             context_source=context_source,
             hard_timeout_seconds=hard_timeout_seconds,
             allowed_tools=allowed_tools,
+            constitution=constitution,
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None

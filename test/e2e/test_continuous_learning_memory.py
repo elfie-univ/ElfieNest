@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from threading import Condition
+
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.memory import ConsolidationRequest, RecallRequest
@@ -15,7 +17,12 @@ from elfie.communication import CommunicationHub
 from elfie.factory import ElfieAssembly
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from test.elfie.test_cognitive_lifecycle import RecordingChannel, _owner_message
+from test.elfie.test_cognitive_lifecycle import (
+    CONSTITUTION,
+    RecordingChannel,
+    _owner_message,
+    _selfhood_seed,
+)
 
 
 class StableReplyRuntime:
@@ -42,6 +49,26 @@ class StableReplyRuntime:
         )
 
 
+class WaitableRecordingChannel(RecordingChannel):
+    """Expose delivery completion without guessing coordinator outcome order."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._sent = Condition()
+
+    def send_envelope(self, envelope):
+        with self._sent:
+            receipt = super().send_envelope(envelope)
+            self._sent.notify_all()
+            return receipt
+
+    def wait_for_count(self, count: int, *, timeout: float) -> None:
+        with self._sent:
+            reached = self._sent.wait_for(lambda: len(self.sent) >= count, timeout)
+        if not reached:
+            raise TimeoutError(f"expected {count} delivered replies")
+
+
 def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
     tmp_path,
 ) -> None:
@@ -52,7 +79,7 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
         body = HeadlessBody(body_id="opt-002-body")
         body.connect()
         hub = CommunicationHub("opt-002-elfie")
-        channel = RecordingChannel()
+        channel = WaitableRecordingChannel()
         hub.register_channel(channel, connect=True)
         elfie = ElfieFactory().create(
             ElfieAssembly(
@@ -62,63 +89,69 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
                     species_id="fox",
                     seed=23,
                 ),
+                selfhood_seed=_selfhood_seed("opt-002-elfie", "Lumi"),
+                reasoning_constitution=CONSTITUTION,
                 memory_store=store,
                 body=body,
                 communication=hub,
                 model_port=StableReplyRuntime(),
             )
         )
-        return elfie, store
+        return elfie, store, channel
 
-    elfie, store = create()
+    elfie, store, channel = create()
     elfie.start()
-    elfie.receive_communication_envelope(
-        _owner_message(
-            elfie.cognitive_datetime,
-            event_id="opt-002-owner-1",
-            text="我有个朋友叫小雨，小雨也叫雨宝。我喜欢蓝色。",
-            elfie_id="opt-002-elfie",
+    try:
+        elfie.receive_communication_envelope(
+            _owner_message(
+                elfie.cognitive_datetime,
+                event_id="opt-002-owner-1",
+                text="我有个朋友叫小雨，小雨也叫雨宝。我喜欢蓝色。",
+                elfie_id="opt-002-elfie",
+            )
         )
-    )
-    elfie.advance_clock(0.5)
-    elfie.wait_for_outcome_count(1, timeout=1.0)
-    elfie.wait_for_output(elfie.turn_outcomes()[0].turn_id, timeout=1.0)
-    elfie.receive_communication_envelope(
-        _owner_message(
-            elfie.cognitive_datetime,
-            event_id="opt-002-owner-2",
-            text="换个话题，今天先这样。",
-            elfie_id="opt-002-elfie",
+        elfie.advance_clock(0.5)
+        channel.wait_for_count(1, timeout=1.0)
+        elfie.receive_communication_envelope(
+            _owner_message(
+                elfie.cognitive_datetime,
+                event_id="opt-002-owner-2",
+                text="换个话题，今天先这样。",
+                elfie_id="opt-002-elfie",
+            )
         )
-    )
-    elfie.advance_clock(0.5)
-    elfie.wait_for_outcome_count(2, timeout=1.0)
-    elfie.wait_for_output(elfie.turn_outcomes()[1].turn_id, timeout=1.0)
+        elfie.advance_clock(0.5)
+        channel.wait_for_count(2, timeout=1.0)
 
-    assert store.pending_episodes(limit=8)
-    assert store.count_nodes("episodic") >= 1
-    elfie._memory.run_consolidation_batch(  # noqa: SLF001 - deterministic replay seam
-        ConsolidationRequest(max_episodes=8)
-    )
-    bundle = store.recall(RecallRequest(text="雨宝", episode_limit=8))
-    assert any(item.episode_id.startswith("episode:topic:") for item in bundle.episodes)
-    assert store.find_graph_nodes("雨宝")[0].label == "小雨"
-    assert any(
-        assertion.predicate == "likes"
-        for assertion in store.graph_assertions_for(
-            (store.find_graph_nodes("主人")[0].node_id,)
+        assert store.pending_episodes(limit=8)
+        assert store.count_nodes("episodic") >= 1
+        elfie._memory.run_consolidation_batch(  # noqa: SLF001 - replay seam
+            ConsolidationRequest(max_episodes=8)
         )
-    )
-    elfie.stop()
-    elfie.join()
-    store.close()
+        bundle = store.recall(RecallRequest(text="雨宝", episode_limit=8))
+        assert any(
+            item.episode_id.startswith("episode:topic:") for item in bundle.episodes
+        )
+        assert store.find_graph_nodes("雨宝")[0].label == "小雨"
+        assert any(
+            assertion.predicate == "likes"
+            for assertion in store.graph_assertions_for(
+                (store.find_graph_nodes("主人")[0].node_id,)
+            )
+        )
+    finally:
+        elfie.stop()
+        elfie.join()
+        store.close()
 
-    restarted, restarted_store = create()
-    restarted_bundle = restarted_store.recall(
-        RecallRequest(text="雨宝", episode_limit=8)
-    )
-    assert any(
-        item.episode_id.startswith("episode:topic:")
-        for item in restarted_bundle.episodes
-    )
-    restarted_store.close()
+    restarted, restarted_store, _ = create()
+    try:
+        restarted_bundle = restarted_store.recall(
+            RecallRequest(text="雨宝", episode_limit=8)
+        )
+        assert any(
+            item.episode_id.startswith("episode:topic:")
+            for item in restarted_bundle.episodes
+        )
+    finally:
+        restarted_store.close()

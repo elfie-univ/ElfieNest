@@ -64,7 +64,6 @@ def test_workspace_adapter_materializes_the_final_elfie_profile(
         assert elfie.profile.identity.origin.home_world_id == "elfaria"
         assert elfie.selfhood_snapshot().species_name == species_name
         assert elfie.selfhood_snapshot().sensory_biases
-        assert elfie.selfhood_snapshot().species_knowledge
         assert any(
             "Elfaria" in fact for fact in elfie.selfhood_snapshot().identity_facts
         )
@@ -158,16 +157,19 @@ def test_stage1_speech_templates_do_not_claim_unobserved_current_facts(
 
     workspace = Path(adapter.materialize(reservation))
     seed = YamlSelfhoodSeedAdapter(workspace / "brain").load()
-    speech_style = seed["speech_style"]
+    adaptive_self = seed["adaptive_self"]
+    assert isinstance(adaptive_self, dict)
+    speech_markers = adaptive_self.get("speech_marker_ids", ())
+    assert isinstance(speech_markers, (list, tuple))
     rendered = "\n".join(
         [
-            *(str(item) for item in speech_style["greetings"]),
-            *(
-                str(item)
-                for values in speech_style.get("mutter_templates", {}).values()
-                for item in values
-            ),
+            *(str(item) for item in adaptive_self.get("expression_tendency_ids", ())),
+            *(str(item) for item in speech_markers),
         ]
+    )
+
+    assert tuple(adaptive_self.get("expression_tendency_ids", ())) == (
+        personality_style,
     )
 
     assert not any(
@@ -265,9 +267,11 @@ def test_unverified_adoption_story_is_not_selfhood_identity_fact(
     workspace = Path(adapter.materialize(reservation))
     selfhood = YamlSelfhoodSeedAdapter(workspace / "brain").load()
 
-    assert selfhood["self_description"] != story
-    assert "Elfaria" in selfhood["self_description"]
-    assert selfhood["metadata"]["personal_story"] == story
+    assert story not in str(selfhood)
+    identity_core = selfhood["identity_core"]
+    assert isinstance(identity_core, dict)
+    assert "Elfaria" in identity_core["home_world_name"]
+    assert identity_core["earth_arrival_statement"] != story
     adapter.release(reservation.elfie_id)
 
 

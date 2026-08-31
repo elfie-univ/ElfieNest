@@ -297,11 +297,17 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     ):
         assert owner in chinese_contract
 
-    assert "Profile answers the objective question" in english_contract
-    assert "Profile 回答“客观上是哪一只 Elfie”" in chinese_contract
+    assert "Profile answers the external objective question" in english_contract
+    assert "Profile 回答外层客观问题“是哪一只 Elfie”" in chinese_contract
     assert "embodiments are mutually exclusive" in english_contract
     assert "虚拟和实体具身互斥" in chinese_contract
     assert "Genesis is a one-time creation flow" in english_contract
     assert "Genesis 是一次性创建流程" in chinese_contract
+    assert "Genesis co-materializes Profile and Brain Selfhood" in english_contract
+    assert "Ordinary Brain runtime does not read or synchronize" in english_contract
+    assert "cannot bind Selfhood to a Canon version" in english_contract
+    assert "并列物化 Profile 与 Brain Selfhood" in chinese_contract
+    assert "普通 Brain 运行期不读也不同步 Profile" in chinese_contract
+    assert "不能把 Selfhood 绑定到 Canon 版本" in chinese_contract
     for gap_id in range(10, 18):
         assert f"ELF-{gap_id:03d}" in conformance

@@ -39,6 +39,10 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_types import DecisionPlan, TurnDecision
+from elfie.brain.reasoning.model_header import (
+    ModelHeaderAssembler,
+    ReasoningConstitution,
+)
 from elfie.brain.reasoning.run import (
     CognitiveStep,
     CognitiveStepKind,
@@ -50,13 +54,15 @@ from elfie.brain.reasoning.run import (
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.selfhood.contracts import (
+    AdaptiveSelf,
     BigFiveTraits,
+    IdentityCore,
     ProfileAnchorSnapshot,
-    SelfhoodDerivation,
-    SelfhoodSnapshot,
+    SelfhoodPromptProjection,
     SelfhoodSpeechStyle,
+    SelfhoodState,
 )
-from elfie.brain.selfhood.system import SelfhoodSystem
+from elfie.brain.selfhood.system import SelfhoodGrowthDisabledError, SelfhoodSystem
 from elfie.brain.state_lifecycle import (
     StateCandidate,
     StateCheckpoint,
@@ -88,6 +94,8 @@ __all__ = [
     "ActivityContextItem",
     "BrainContinuityCheckpoint",
     "BigFiveTraits",
+    "AdaptiveSelf",
+    "IdentityCore",
     "OrientationSnapshot",
     "ProfileAnchorSnapshot",
     "MemoryStateSnapshot",
@@ -100,10 +108,13 @@ __all__ = [
     "CognitiveConsolidationCheckpoint",
     "CognitiveConsolidationRestoreError",
     "CognitiveConsolidationSystem",
-    "SelfhoodDerivation",
-    "SelfhoodSnapshot",
+    "SelfhoodPromptProjection",
+    "SelfhoodState",
     "SelfhoodSpeechStyle",
     "SelfhoodSystem",
+    "SelfhoodGrowthDisabledError",
+    "ModelHeaderAssembler",
+    "ReasoningConstitution",
     "OrientationSystem",
     "BrainCoordinator",
     "DecisionPlan",

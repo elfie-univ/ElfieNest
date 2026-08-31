@@ -1,25 +1,24 @@
-"""5区域上下文组装：将检索结果组装为LLM prompt注入的上下文
+"""将检索结果组装为供 Reasoning 使用的 Memory 证据
 
 从多个记忆子系统获取数据，组装为结构化文本，
 注入到LLM的system prompt中，提供丰富的上下文信息。
 """
 
 import logging
-from typing import Dict, List
+from typing import List
 
 from elfie.brain.memory.ebbinghaus_decay import EbbinghausDecay
 from elfie.brain.memory.emotion_weighting import EmotionWeighting
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.node_types import MemoryNode, NodeTypes, RetrievalQuery
 from elfie.brain.memory.retrieval import MemoryRetriever
-from elfie.brain.memory.self_narrative import MemorySelfNarrativeProjection
 from elfie.brain.memory.spreading_activation import SpreadingActivation
 
 logger = logging.getLogger("elfie.brain.memory.recall_formatter")
 
 
 class MemoryRecallFormatter:
-    """5区域上下文组装：将检索结果组装为LLM prompt注入的上下文"""
+    """组装有来源的记忆证据；Selfhood 固定头不在此处生成。"""
 
     def __init__(
         self,
@@ -28,28 +27,22 @@ class MemoryRecallFormatter:
         spreading: SpreadingActivation,
         decay: EbbinghausDecay,
         weighting: EmotionWeighting,
-        self_narrative: MemorySelfNarrativeProjection,
     ):
         self.storage = storage
         self.retriever = retriever
         self.spreading = spreading
         self.decay = decay
         self.weighting = weighting
-        self.self_narrative = self_narrative
 
     def assemble(self, query: RetrievalQuery, top_k: int = 10) -> str:
-        """组装5区域上下文文本
+        """组装有来源的记忆上下文文本
 
         流程：
         1. 用MemoryRetriever检索相关记忆
-        2. 获取MemorySelfNarrativeProjection核心认知
-        3. 从检索结果取种子节点做SpreadingActivation
-        4. 顺序组装5个区域 + 核心认知前置
+        2. 从检索结果取种子节点做 SpreadingActivation
+        3. 顺序组装各个记忆证据区域
 
         返回格式（≤800 tokens）：
-            【核心认知】
-              - 我是XX，一只小狐狸。
-
             关于{实体}你知道什么：
               - 主人每天8点喂我
 
@@ -62,23 +55,19 @@ class MemoryRecallFormatter:
             预测灵感：
               - 现在8点主人走过来，可能要喂我了
 
-            当前情绪对你记忆的影响：
+            当前情绪对记忆的影响：
               - 你现在很开心，更容易想起开心的事
         """
         # 1. 多维检索
         nodes = self.retriever.retrieve(query, top_k)
 
-        # 2. 获取核心认知
-        core_text = self.self_narrative.get_core_text()
+        # Selfhood is supplied by Brain's fixed header; Memory only returns
+        # recalled evidence and never emits a second self narrative.
         entities = query.current_entities
         seed_ids = [n.id for n in nodes[:5]]
 
         # 3. 组装各区域（只有非空区域才添加）
         zones: List[str] = []
-
-        core_str = self._format_self_narrative(core_text)
-        if core_str:
-            zones.append(core_str)
 
         zone1 = self._assemble_entity_zone(entities)
         if zone1:
@@ -103,23 +92,6 @@ class MemoryRecallFormatter:
             zones.append(zone5)
 
         return "\n\n".join(zones)
-
-    # ------------------------------------------------------------------
-    # 核心认知前置
-    # ------------------------------------------------------------------
-
-    def _format_self_narrative(self, core_text: Dict[str, str]) -> str:
-        """格式化核心认知为LLM可读的列表文本"""
-        if not core_text:
-            return ""
-        # Selfhood/Profile are the authoritative current identity.  These
-        # durable texts are subjective memory evidence and may be stale.
-        lines = ["【核心认知】", "  （记忆中的自我叙事，非身份权威）"]
-        for key in ["identity", "relation", "world", "tendency"]:
-            text = core_text.get(key, "")
-            if text:
-                lines.append(f"  - {text}")
-        return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # 区域1：关于实体你知道什么

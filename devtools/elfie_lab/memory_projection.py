@@ -55,8 +55,6 @@ class ProjectionStorage(Protocol):
 class ProjectionMemory(Protocol):
     storage: ProjectionStorage
 
-    def get_self_narrative(self) -> Dict[str, str]: ...
-
 
 def build_memory_cognition(
     memory: ProjectionMemory,
@@ -69,7 +67,7 @@ def build_memory_cognition(
         *_nodes(memory.storage, "knowledge"),
         *_nodes(memory.storage, "pattern"),
     ]
-    world_understanding = str(memory.get_self_narrative().get("world", ""))
+    world_understanding = _world_understanding(knowledge)
     relation_nodes, relation_links = _relation_graph(
         memory.storage, entities, elfie_name
     )
@@ -281,3 +279,20 @@ def _world_model(summary: str, candidates: Sequence[MemoryNode]) -> WorldModelPa
         ][:MAX_ITEMS]
         rings.append({"kind": key, "label": label, "nodes": nodes})
     return {"summary": summary, "rings": rings}
+
+
+def _world_understanding(candidates: Sequence[MemoryNode]) -> str:
+    """Summarize ordinary world-knowledge nodes for the external Lab view.
+
+    Memory no longer owns a parallel self narrative.  The Lab therefore reads
+    only typed knowledge/pattern nodes and never asks Brain Memory for an
+    identity, relationship or tendency projection.
+    """
+
+    selected = [
+        node
+        for node in _rank_nodes(candidates)
+        if node.metadata.get("world_ring") in {"outside", "society", "nest"}
+        or node.metadata.get("topic") in {"world", "place", "environment"}
+    ][:5]
+    return "；".join(node.content.strip() for node in selected if node.content.strip())

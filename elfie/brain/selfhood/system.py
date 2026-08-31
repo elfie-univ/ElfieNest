@@ -1,15 +1,15 @@
-"""Brain-owned mutable self-model anchored by one immutable Profile."""
+"""Brain-owned Selfhood state and its deterministic model projection."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 from elfie.brain.selfhood.contracts import (
     BigFiveTraits,
-    SelfhoodDerivation,
-    SelfhoodSnapshot,
-    SelfhoodSpeechStyle,
+    SelfhoodPromptProjection,
+    SelfhoodState,
+    normalize_selfhood_mapping,
 )
 from elfie.brain.state_lifecycle import (
     StateCandidate,
@@ -20,342 +20,284 @@ from elfie.brain.state_lifecycle import (
     VersionedState,
     VersionedStateStore,
 )
-from elfie.message_types import EventId, UTCDateTime
+from elfie.message_types import UTCDateTime
 
-_BIG_FIVE_KEYS = (
-    "openness",
-    "conscientiousness",
-    "extraversion",
-    "agreeableness",
-    "neuroticism",
-)
-_MAX_TRAIT_DELTA_PER_COMMIT = 0.05
-_MIN_SLOW_CHANGE_SOURCES = 3
+
+class SelfhoodGrowthDisabledError(RuntimeError):
+    """Phase 1 deliberately has no automatic adaptive-self mutation route."""
 
 
 class SelfhoodSystem:
-    """Own the slow-changing self-model; Profile remains read-only input."""
+    """Own the one atomic Selfhood state for an Elfie.
+
+    ``from_seed`` is the Genesis hand-off used by production assembly.  It
+    accepts a complete, already validated state and never reads Profile, Canon,
+    Memory, Turn, Emotion or model output.  No other initializer is available
+    to ordinary runtime assembly.
+    """
 
     def __init__(
         self,
         *,
         initial_at: UTCDateTime,
-        profile_revision: int = 1,
-        initial: SelfhoodSnapshot | None = None,
+        initial: SelfhoodState | None = None,
     ) -> None:
-        if profile_revision < 1:
-            raise ValueError("profile_revision must be positive")
-        snapshot = initial or SelfhoodSnapshot(
-            revision=0,
-            captured_at=initial_at,
-            profile_revision=profile_revision,
-            big_five=BigFiveTraits(),
-        )
-        if snapshot.profile_revision != profile_revision:
-            raise ValueError(
-                "Selfhood snapshot is anchored to another Profile revision"
-            )
-        self._profile_revision = profile_revision
+        state = initial or SelfhoodState.unknown(committed_at=initial_at)
+        if state.complete and state.revision <= 0:
+            state = state.model_copy(update={"revision": 1})
+        self._identity_core = state.identity_core
         self._store = VersionedStateStore(
             VersionedState(
-                revision=snapshot.revision,
-                committed_at=snapshot.captured_at,
-                source_event_ids=snapshot.source_event_ids,
+                revision=state.revision,
+                committed_at=state.committed_at,
+                source_event_ids=state.adaptive_self.source_event_ids,
                 causation_id=None,
-                value=snapshot,
+                value=state,
             )
         )
 
     @classmethod
-    def from_personality_data(
+    def from_seed(
         cls,
-        personality_data: Mapping[str, Any] | None,
+        seed: Mapping[str, Any],
         *,
         initial_at: UTCDateTime,
-        profile_revision: int = 1,
     ) -> SelfhoodSystem:
-        """Create the initial Brain seed without retaining Profile ownership."""
-        data = dict(personality_data) if isinstance(personality_data, Mapping) else {}
-        big_five_data = data.get("big_five")
-        big_five = _big_five(
-            big_five_data if isinstance(big_five_data, Mapping) else {}
-        )
-        metadata = data.get("metadata")
-        metadata_map = metadata if isinstance(metadata, Mapping) else {}
-        description = _optional_text(
-            data.get("self_description") or metadata_map.get("description")
-        )
-        species_name = _optional_text(data.get("species_name"))
-        speech_style_data = data.get("speech_style")
-        speech_style_map = (
-            speech_style_data if isinstance(speech_style_data, Mapping) else {}
-        )
-        greetings = _text_tuple(speech_style_map.get("greetings"))
-        verbal_tick = _optional_text(
-            speech_style_map.get("verbal_tick") or speech_style_map.get("verbal_ticks")
-        )
-        unknown_fields = []
-        if not isinstance(big_five_data, Mapping):
-            unknown_fields.append("personality.big_five")
-        if description is None:
-            unknown_fields.append("self_description")
-        if species_name is None:
-            unknown_fields.append("species_name")
-        if not greetings and verbal_tick is None:
-            unknown_fields.append("speech_style")
-        identity_facts = _text_tuple(data.get("identity_facts"))
-        behavior_anchors = _text_tuple(data.get("behavior_anchors"))
-        sensory_biases = _text_tuple(data.get("sensory_biases"))
-        species_knowledge = _text_tuple(data.get("species_knowledge"))
-        knowledge_boundaries = _text_tuple(data.get("knowledge_boundaries"))
-        norms = _text_tuple(data.get("norms"))
-        if not identity_facts:
-            unknown_fields.append("identity_facts")
-        if not behavior_anchors:
-            unknown_fields.append("behavior_anchors")
-        if not sensory_biases:
-            unknown_fields.append("sensory_biases")
-        if not species_knowledge:
-            unknown_fields.append("species_knowledge")
-        if not knowledge_boundaries:
-            unknown_fields.append("knowledge_boundaries")
-        if not norms:
-            unknown_fields.append("norms")
-        derivation_data = data.get("derivation")
-        derivation_map = derivation_data if isinstance(derivation_data, Mapping) else {}
-        snapshot = SelfhoodSnapshot(
-            revision=0,
-            captured_at=initial_at,
-            profile_revision=profile_revision,
-            big_five=big_five,
-            self_description=description,
-            species_name=species_name,
-            speech_style=SelfhoodSpeechStyle(
-                greetings=greetings,
-                verbal_tick=verbal_tick,
-            ),
-            derivation=SelfhoodDerivation(
-                preset=_optional_text(derivation_map.get("preset")),
-                matched_keywords=_text_tuple(derivation_map.get("matched_keywords")),
-                provenance=_optional_text(derivation_map.get("provenance")),
-                overridden_traits=_text_tuple(derivation_map.get("overridden_traits")),
-                seed=(
-                    int(derivation_map["seed"])
-                    if isinstance(derivation_map.get("seed"), int)
-                    and not isinstance(derivation_map.get("seed"), bool)
-                    else None
-                ),
-            ),
-            norms=norms,
-            unknown_fields=tuple(unknown_fields),
-            identity_facts=identity_facts,
-            behavior_anchors=behavior_anchors,
-            sensory_biases=sensory_biases,
-            species_knowledge=species_knowledge,
-            knowledge_boundaries=knowledge_boundaries,
-            freshness="current" if data else "unknown",
-        )
-        return cls(
-            initial_at=initial_at,
-            profile_revision=profile_revision,
-            initial=snapshot,
-        )
+        """Load one complete Genesis-created Selfhood document.
 
-    def snapshot(self) -> SelfhoodSnapshot:
-        """Return the latest committed self-model."""
+        Missing or legacy-shaped documents fail closed.  No Profile/Canon or
+        generic persona is consulted to repair them.
+        """
+
+        if not isinstance(seed, Mapping):
+            raise ValueError("Selfhood seed must be a mapping")
+        try:
+            state_data = normalize_selfhood_mapping(seed)
+            state_data.setdefault("state_schema_version", 1)
+            state_data.setdefault("revision", 1)
+            state_data.setdefault("committed_at", initial_at)
+            state = SelfhoodState.model_validate(state_data)
+        except Exception as error:  # noqa: BLE001 - contract boundary
+            raise ValueError("invalid Selfhood state") from error
+        if state.revision <= 0:
+            state = state.model_copy(update={"revision": 1})
+        if not state.complete:
+            raise ValueError("Selfhood identity_core is incomplete")
+        return cls(initial_at=initial_at, initial=state)
+
+    def snapshot(self) -> SelfhoodState:
+        """Return the latest committed state."""
+
         return self._store.snapshot().value
 
-    def checkpoint(self) -> StateCheckpoint[SelfhoodSnapshot]:
-        """Return a persistence-neutral checkpoint."""
+    def prompt_projection(self) -> SelfhoodPromptProjection:
+        """Render a bounded natural-language projection without side effects."""
+
+        state = self.snapshot()
+        if not state.complete:
+            raise ValueError("Selfhood identity_core is incomplete")
+        return render_prompt_projection(state)
+
+    def checkpoint(self) -> StateCheckpoint[SelfhoodState]:
+        """Return a dedicated diagnostic checkpoint, not Brain continuity."""
+
         return self._store.checkpoint()
 
-    def restore(self, checkpoint: StateCheckpoint[SelfhoodSnapshot]) -> None:
-        """Restore only a checkpoint anchored to this immutable Profile."""
+    def restore(self, checkpoint: StateCheckpoint[SelfhoodState]) -> None:
         self.validate_checkpoint(checkpoint)
         self._store.restore(checkpoint)
 
-    def validate_checkpoint(
-        self, checkpoint: StateCheckpoint[SelfhoodSnapshot]
-    ) -> None:
-        """Reject foreign-Profile and backwards Selfhood checkpoints."""
-        if checkpoint.value.profile_revision != self._profile_revision:
-            raise ValueError("Selfhood checkpoint belongs to another Profile revision")
+    def validate_checkpoint(self, checkpoint: StateCheckpoint[SelfhoodState]) -> None:
+        if not isinstance(checkpoint.value, SelfhoodState):
+            raise ValueError("invalid Selfhood checkpoint")
         if checkpoint.revision < self._store.snapshot().revision:
             raise StateRestoreError("selfhood checkpoint revision is older")
+        if not checkpoint.value.complete:
+            raise ValueError("Selfhood checkpoint identity_core is incomplete")
+        if checkpoint.value.identity_core != self._identity_core:
+            raise ValueError("Selfhood identity_core is immutable")
 
-    def propose_update(
-        self,
-        *,
-        candidate_id: EventId,
-        created_at: UTCDateTime,
-        big_five: BigFiveTraits | None = None,
-        self_description: Optional[str] = None,
-        speech_style: SelfhoodSpeechStyle | None = None,
-        norms: tuple[str, ...] | None = None,
-        source_event_ids: tuple[EventId, ...] = (),
-        causation_id: EventId | None = None,
-    ) -> StateCandidate[SelfhoodSnapshot]:
-        """Build an explicit, reviewable Selfhood update candidate.
+    def propose_update(self, *args, **kwargs):
+        """Reject the old broad update API until the Memory proposal is designed."""
 
-        A normal input Turn never calls this method implicitly. Callers that do
-        use it must provide a stable candidate identity and commit through the
-        same owner guard as every other Brain state.
-        """
-        current = self._store.snapshot()
-        value = current.value.model_copy(
-            update={
-                "revision": current.revision + 1,
-                "captured_at": created_at,
-                "big_five": big_five or current.value.big_five,
-                "self_description": (
-                    current.value.self_description
-                    if self_description is None
-                    else self_description
-                ),
-                "speech_style": speech_style or current.value.speech_style,
-                "norms": current.value.norms if norms is None else norms,
-                "source_event_ids": _unique_event_ids(source_event_ids),
-                "unknown_fields": (),
-                "freshness": "current",
-            }
-        )
-        return StateCandidate(
-            candidate_id=candidate_id,
-            owner="selfhood",
-            base_revision=current.revision,
-            source_event_ids=value.source_event_ids,
-            causation_id=causation_id,
-            created_at=created_at,
-            value=value,
+        del args, kwargs
+        raise SelfhoodGrowthDisabledError(
+            "adaptive_self updates are disabled until a MemorySelfhoodProposal contract exists"
         )
 
-    def validate(
-        self, candidate: StateCandidate[SelfhoodSnapshot]
-    ) -> StateCommitReceipt:
-        """Validate without mutating the current Selfhood."""
-        if candidate.owner != "selfhood":
-            return StateCommitReceipt(
-                candidate_id=candidate.candidate_id,
-                status=StateCommitStatus.REJECTED,
-                revision=self._store.snapshot().revision,
-                reason="candidate_owner_mismatch",
-            )
-        return self._store.validate(candidate, validator=self._validate_value)
+    def validate(self, candidate: StateCandidate[SelfhoodState]) -> StateCommitReceipt:
+        return StateCommitReceipt(
+            candidate_id=candidate.candidate_id,
+            status=StateCommitStatus.REJECTED,
+            revision=self._store.snapshot().revision,
+            reason="selfhood_growth_disabled",
+        )
 
-    def commit(
-        self,
-        candidate: StateCandidate[SelfhoodSnapshot],
-    ) -> StateCommitReceipt:
-        """Validate and commit one explicit Selfhood update."""
-        if candidate.owner != "selfhood":
-            return StateCommitReceipt(
-                candidate_id=candidate.candidate_id,
-                status=StateCommitStatus.REJECTED,
-                revision=self._store.snapshot().revision,
-                reason="candidate_owner_mismatch",
-            )
-        return self._store.commit(candidate, validator=self._validate_value)
+    def commit(self, candidate: StateCandidate[SelfhoodState]) -> StateCommitReceipt:
+        return self.validate(candidate)
 
     def big_five_dict(self) -> dict[str, float]:
-        """Return a narrow legacy-shaped projection for existing algorithms."""
-        return self.snapshot().big_five.model_dump()
+        """Return the narrow trait projection needed by Emotion baselines."""
+
+        return self.snapshot().adaptive_self.big_five.model_dump()
 
     def seed_data(self, *, display_name: str | None = None) -> dict[str, Any]:
-        """Return initialization data for existing Memory core generators."""
-        snapshot = self.snapshot()
-        return {
-            "big_five": snapshot.big_five.model_dump(),
-            "metadata": {
-                "name": display_name or "Elfie",
-                "description": snapshot.self_description or "",
-            },
-            "self_description": snapshot.self_description,
-            "species_name": snapshot.species_name,
-            "speech_style": {
-                "greetings": list(snapshot.speech_style.greetings),
-                "verbal_ticks": snapshot.speech_style.verbal_tick,
-            },
-            "derivation": snapshot.derivation.model_dump(),
-            "norms": list(snapshot.norms),
-            "identity_facts": list(snapshot.identity_facts),
-            "behavior_anchors": list(snapshot.behavior_anchors),
-            "sensory_biases": list(snapshot.sensory_biases),
-            "species_knowledge": list(snapshot.species_knowledge),
-            "knowledge_boundaries": list(snapshot.knowledge_boundaries),
-        }
+        """Return the canonical state shape for diagnostics only."""
 
-    def _validate_value(
-        self,
-        current: SelfhoodSnapshot,
-        candidate: SelfhoodSnapshot,
-    ) -> str | None:
-        if candidate.profile_revision != self._profile_revision:
-            return "profile_revision_mismatch"
-        if candidate.revision <= current.revision:
-            return "selfhood_revision_not_advanced"
-        if any(
-            (
-                candidate.species_name != current.species_name,
-                candidate.identity_facts != current.identity_facts,
-                candidate.behavior_anchors != current.behavior_anchors,
-                candidate.sensory_biases != current.sensory_biases,
-                candidate.species_knowledge != current.species_knowledge,
-                candidate.knowledge_boundaries != current.knowledge_boundaries,
-            )
-        ):
-            return "selfhood_identity_anchors_immutable"
-        changed_traits = tuple(
-            key
-            for key in _BIG_FIVE_KEYS
-            if getattr(candidate.big_five, key) != getattr(current.big_five, key)
-        )
-        identity_changed = any(
-            (
-                changed_traits,
-                candidate.self_description != current.self_description,
-                candidate.speech_style != current.speech_style,
-                candidate.norms != current.norms,
-            )
-        )
-        if not identity_changed:
-            return "selfhood_update_has_no_change"
-        if len(candidate.source_event_ids) < _MIN_SLOW_CHANGE_SOURCES:
-            return "selfhood_requires_multiple_sources"
-        if any(
-            abs(getattr(candidate.big_five, key) - getattr(current.big_five, key))
-            > _MAX_TRAIT_DELTA_PER_COMMIT
-            for key in changed_traits
-        ):
-            return "personality_change_exceeds_slow_limit"
-        return None
+        del display_name
+        return self.snapshot().model_dump(mode="python")
 
 
-def _big_five(raw: Mapping[str, Any]) -> BigFiveTraits:
-    values: dict[str, float] = {}
-    for key in _BIG_FIVE_KEYS:
-        value = raw.get(key, 0.5)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            value = 0.5
-        values[key] = max(0.0, min(1.0, float(value)))
-    return BigFiveTraits(**values)
+def render_prompt_projection(state: SelfhoodState) -> SelfhoodPromptProjection:
+    """Deterministically map typed Selfhood to model-understandable Chinese."""
 
+    core = state.identity_core
+    adaptive = state.adaptive_self
+    if not core.complete:
+        raise ValueError("cannot render incomplete Selfhood")
+    identity = (
+        f"我是 {_slot(core.display_name)}，是一只 Elfie；我的正式物种是 "
+        f"{_slot(core.species_name)}。"
+        f"我来自 {_slot(core.home_world_name)} 的 {_slot(core.home_region_name)}，"
+        f"现在是 ElfieNest 的{_slot(core.resident_role)}。"
+    )
+    if core.earth_arrival_statement:
+        identity += f" {_slot(core.earth_arrival_statement)}"
 
-def _optional_text(value: Any) -> str | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    return value.strip()
-
-
-def _text_tuple(value: Any) -> tuple[str, ...]:
-    if not isinstance(value, (list, tuple)):
-        return ()
-    return tuple(
-        item.strip() for item in value if isinstance(item, str) and item.strip()
+    trait_lines = _trait_lines(adaptive.big_five)
+    adaptive_lines = ["我的稳定相处与表达方式："]
+    adaptive_lines.extend(f"- {line}" for line in trait_lines)
+    _append_tendencies(
+        adaptive_lines,
+        "互动倾向",
+        adaptive.interaction_tendency_ids,
+        _INTERACTION_LABELS,
+    )
+    _append_tendencies(
+        adaptive_lines,
+        "应对与注意倾向",
+        adaptive.coping_tendency_ids,
+        _COPING_LABELS,
+    )
+    _append_tendencies(
+        adaptive_lines,
+        "表达倾向",
+        adaptive.expression_tendency_ids,
+        _EXPRESSION_LABELS,
+    )
+    _append_tendencies(adaptive_lines, "个人规范", adaptive.value_ids, _VALUE_LABELS)
+    _append_tendencies(
+        adaptive_lines,
+        "可选口癖",
+        adaptive.speech_marker_ids,
+        _SPEECH_LABELS,
+    )
+    return SelfhoodPromptProjection(
+        revision=state.revision,
+        captured_at=state.committed_at,
+        identity_core_text=identity,
+        adaptive_self_text="\n".join(adaptive_lines),
     )
 
 
-def _unique_event_ids(event_ids: Iterable[EventId]) -> tuple[EventId, ...]:
-    return tuple(dict.fromkeys(event_ids))
+def _trait_lines(traits: BigFiveTraits) -> tuple[str, ...]:
+    labels = (
+        ("开放性", traits.openness, "喜欢探索新事物", "偏好熟悉且有依据的做法"),
+        (
+            "尽责性",
+            traits.conscientiousness,
+            "做事通常有条理并重视兑现",
+            "会保留余地并避免仓促承诺",
+        ),
+        (
+            "外向性",
+            traits.extraversion,
+            "更愿意主动交流和分享",
+            "更偏好安静、短而清楚的交流",
+        ),
+        (
+            "宜人性",
+            traits.agreeableness,
+            "通常温和、体谅他人",
+            "会保持礼貌并清楚表达界限",
+        ),
+        (
+            "敏感度",
+            traits.neuroticism,
+            "会留意风险和细微变化",
+            "通常能保持平稳，再根据证据调整",
+        ),
+    )
+    lines = []
+    for label, value, high, low in labels:
+        if value >= 0.66:
+            lines.append(f"在{label}上，{high}。")
+        elif value <= 0.33:
+            lines.append(f"在{label}上，{low}。")
+        else:
+            lines.append(f"在{label}上，我会根据情境保持适度。")
+    return tuple(lines)
 
 
-__all__ = ("SelfhoodSystem",)
+def _append_tendencies(
+    lines: list[str],
+    label: str,
+    values: Iterable[str],
+    vocabulary: dict[str, str],
+) -> None:
+    # Only reviewed release vocabulary is rendered.  Unknown/opaque IDs stay
+    # internal and cannot become arbitrary model instructions.
+    items = tuple(vocabulary[value] for value in values if value in vocabulary)
+    if items:
+        lines.append(f"{label}：" + "；".join(items) + "。")
+
+
+def _slot(value: str | None) -> str:
+    """Quote a validated data slot so the model sees it as a fact, not a rule."""
+
+    return f"〈{value or '未知'}〉"
+
+
+_INTERACTION_LABELS = {
+    "先观察边缘、声音和可离开的路径": "先观察环境边缘、声音和可离开的路径",
+    "再询问陌生设备的具体用途": "会先询问陌生设备的具体用途",
+    "先判断声音来源、距离和是否有同伴回应": "会先判断声音来源、距离和同伴回应",
+    "再理解通信设备的用途": "会先理解通信设备的用途",
+    "先观察边缘、反光、声音和运动轨迹": "会先观察边缘、反光、声音和运动轨迹",
+    "接触并记忆后再把设备当作熟悉事物": "接触并记住后再把设备当作熟悉事物",
+}
+_COPING_LABELS = {
+    "环境变化": "留意环境变化",
+    "路径与空间边界": "留意路径与空间边界",
+    "气味和方向": "留意气味和方向",
+    "声音方向": "留意声音方向",
+    "脚步与呼唤": "留意脚步与呼唤",
+    "群体节奏和协作信号": "留意群体节奏和协作信号",
+    "细微声音": "留意细微声音",
+    "距离和高低差": "留意距离和高低差",
+    "平衡与安静移动": "留意平衡与安静移动",
+}
+_EXPRESSION_LABELS = {
+    "活泼好动": "表达可以活泼一些",
+    "安静温顺": "表达通常安静温和",
+    "好奇探索": "表达会带着好奇心",
+    "胆小害羞": "表达会保留谨慎和害羞",
+    "傲娇独立": "表达会保留独立感和轻微的傲娇",
+    "完全随机": "表达保留个人差异",
+    "独一无二": "表达保留个人差异",
+}
+_VALUE_LABELS = {
+    "尊重自愿选择，不把猜测说成亲历。": "尊重自愿选择，不把猜测说成亲历",
+    "不知道时说明不知道，并在真实接触中学习地球。": "不知道时说明不知道，并在真实接触中学习地球",
+}
+_SPEECH_LABELS = {
+    marker: f"偶尔使用“{marker}”作为轻微语气标记"
+    for marker in ("哒", "喵", "呢", "啦", "呀")
+}
+
+
+__all__ = (
+    "SelfhoodGrowthDisabledError",
+    "SelfhoodSystem",
+    "render_prompt_projection",
+)

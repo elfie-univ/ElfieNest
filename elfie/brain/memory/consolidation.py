@@ -53,11 +53,9 @@ class MemoryConsolidator:
     def __init__(
         self,
         storage: MemoryStorePort,
-        self_narrative=None,
         elfie_id: str | None = None,
     ):
         self.storage = storage
-        self.self_narrative = self_narrative
         self._consolidation_count = 0  # 巩固次数计数
         self._knowledge_counter = 0  # 知识节点ID计数器
         self._pattern_counter = 0  # pattern节点ID计数器
@@ -182,16 +180,6 @@ class MemoryConsolidator:
         result["consolidated_count"] = len(set(all_source_ids))
         result["knowledge_created"] = len(all_knowledge_ids)
 
-        # 核心认知更新
-        if self.self_narrative is not None:
-            try:
-                self.self_narrative.update(
-                    consolidation_results=result,
-                    model_port=model_port,
-                )
-            except Exception as e:
-                logger.error("核心认知更新失败: %s", e)
-
         logger.info(
             "巩固完成：处理%d条episodic，创建%d个knowledge节点，%d个pattern，%d条边",
             result["consolidated_count"],
@@ -279,19 +267,6 @@ class MemoryConsolidator:
                 self.storage.mark_episode_failed(episode.episode_id, message)
                 failed.append(episode.episode_id)
                 errors[episode.episode_id] = message
-        if consolidated and self.self_narrative is not None:
-            try:
-                self.self_narrative.update(
-                    consolidation_results={
-                        "consolidated_count": len(consolidated),
-                        "knowledge_created": nodes_created,
-                        "edges_created": assertions_created,
-                        "patterns_created": 0,
-                    },
-                    model_port=model_port,
-                )
-            except Exception as error:
-                logger.error("核心认知更新失败: %s", error)
         return ConsolidationBatchReceipt(
             worker_id=request.worker_id,
             requested=request.max_episodes,

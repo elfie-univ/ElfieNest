@@ -14,6 +14,20 @@
   Cognitive Consolidation 默认没有外部副作用权限。
 - 权威状态变更采用候选—校验—提交；模型文本、Tool Observation、后台整理和 Worker
   都不得直接改写 Profile、Selfhood、Memory、Activity 或执行成功事实。
+- Selfhood 是一份原子两层状态：Genesis 后不可变的 `identity_core` 与缓慢的
+  `adaptive_self`。第一阶段不得装配成长写路径；未来只能接受 Memory 整理生成的强类型
+  proposal，且不能修改 `identity_core`。普通 Brain 不读取 Profile/Canon。
+- 在线 Elfie `ReasoningRun` 的每个模型请求必须严格以 `APPLICATION_FRAME`、
+  `IDENTITY_CORE`、`ADAPTIVE_SELF`、`OPERATING_CONTRACT` 四段开头。第一、第四段只来自
+  Bootstrap 注入的同版本 bundled-only Constitution；第二、第三段只来自 Selfhood 的
+  确定性投影。动态协议和当前状态必须跟在四段之后。
+- Reasoning 不得把大五原始数值、任意 Memory/用户/模型自然语言或原始 Selfhood 字典直接
+  拼进固定头。所有动态 Skill/Tool 指令进入 Brain 拥有的 `TURN_PROTOCOL`；下游
+  Model/Provider Adapter 与通用 Prompt Injector 不得新增 system 指令或改变消息顺序/
+  内容。Prompt 规则不能替代能力、Scope、提交和回执的确定性门禁。
+- 每只 Elfie 的 Selfhood 文档是第一阶段唯一持久 authority；通用 Brain continuity
+  checkpoint 不得包含 Selfhood，Memory 不得维护第二套权威自我叙事。缺失或无效状态必须
+  在 ModelPort 前 fail closed，不得通用 persona、Profile、Canon 或 Memory fallback。
 - 一个 Turn 只能结算一个 `TurnDecision`，且至多提交 Communication 或 NervousSystem
   一个外部域；长短 Run 即使并行计算，也必须经过唯一串行提交边界。
 - Persistent Activity 必须先无副作用 Preflight、再在 Turn 结算后 Commit；到期只产生

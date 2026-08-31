@@ -111,7 +111,6 @@ def test_product_memory_modules_do_not_reference_legacy_graph_store() -> None:
         "encoding.py",
         "retrieval.py",
         "spreading_activation.py",
-        "self_narrative.py",
         "consolidation.py",
         "sensory_index.py",
     )
