@@ -86,29 +86,31 @@ def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
     )
 
     elfie.start()
-    elfie.receive_communication_envelope(
-        _owner_message(
-            elfie.cognitive_datetime,
-            event_id="e1-owner-1",
-            conversation_id="owner-chat",
-            text="你来自哪里？",
-            elfie_id="genesis-check",
+    try:
+        elfie.receive_communication_envelope(
+            _owner_message(
+                elfie.cognitive_datetime,
+                event_id="e1-owner-1",
+                conversation_id="owner-chat",
+                text="你来自哪里？",
+                elfie_id="genesis-check",
+            )
         )
-    )
-    elfie.advance_clock(0.5)
-    elfie.wait_for_outcome_count(1, timeout=1.0)
-    outcome = elfie.turn_outcomes()[0]
-    elfie.wait_for_output(outcome.turn_id, timeout=1.0)
+        elfie.advance_clock(0.5)
+        elfie.wait_for_outcome_count(1, timeout=1.0)
+        outcome = elfie.turn_outcomes()[0]
+        elfie.wait_for_output(outcome.turn_id, timeout=1.0)
 
-    assert len(runtime.requests) == 1
-    assert "RELEVANT_MEMORY" in runtime.requests[0].user_prompt
-    assert "genesis:knowledge:genesis-check:0" in runtime.requests[0].user_prompt
-    assert "我来自 Elfaria。" in runtime.requests[0].user_prompt
-    assert len(channel.sent) == 1
-    assert channel.sent[0].parts[0].text == "我来自 Elfaria。"
-
-    elfie.stop()
-    elfie.join()
+        assert len(runtime.requests) == 1
+        assert "RELEVANT_MEMORY" in runtime.requests[0].user_prompt
+        assert "genesis:knowledge:genesis-check:0" in runtime.requests[0].user_prompt
+        assert "我来自 Elfaria。" in runtime.requests[0].user_prompt
+        assert len(channel.sent) == 1
+        assert channel.sent[0].parts[0].text == "我来自 Elfaria。"
+    finally:
+        elfie.stop()
+        elfie.join()
+        store.close()
 
 
 def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
