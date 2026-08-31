@@ -202,7 +202,12 @@ def test_consolidation_consolidates_memory_without_external_actions(
     assert offline["status"] == "satisfied"
     assert offline["last_consolidated_count"] == 2
     assert offline["last_knowledge_created"] >= 1
-    assert ElfieDiagnostics(session.elfie).memory.pending_consolidation_ids() == ()
+    # The consolidation pass has projected both Episodes.  A lifecycle-only
+    # wake-up may still be pending for the same maintenance owner; it is not a
+    # second projection queue and must remain visible to the scheduler.
+    assert ElfieDiagnostics(session.elfie).memory.pending_consolidation_ids() == (
+        "maintenance:lifecycle",
+    )
 
     # And: the satisfaction window suppresses a duplicate night-work turn.
     session.elfie.advance_clock(1.0)

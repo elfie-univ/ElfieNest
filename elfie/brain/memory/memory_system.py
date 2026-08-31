@@ -161,6 +161,10 @@ class MemorySystem:
         raw_importance = candidates[0].properties.get("importance_score")
         if raw_importance is None:
             return None
+        if isinstance(raw_importance, bool) or not isinstance(
+            raw_importance, (int, float, str)
+        ):
+            return None
         try:
             importance = max(0.0, min(1.0, float(raw_importance)))
         except (TypeError, ValueError):

@@ -77,4 +77,4 @@ inventory, references, verification and residuals are recorded. The reviewed Mem
 v2 implementation are complete for the development target; production cutover, embodied-world evaluation and the
 abstraction/application loop remain separately governed.
 
-**Closure state:** open (MEM-012: external Outcome/outbox replay and owner experience confirmation pending)
+**Closure state:** ready

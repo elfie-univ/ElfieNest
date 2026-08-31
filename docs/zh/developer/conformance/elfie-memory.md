@@ -68,4 +68,4 @@ uv run --no-sync python scripts/governance/persistence/scan.py --project-root . 
 
 修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。本轮 Memory 强化和 Retention v2 实现已对开发目标收口；生产切换、具身世界评测和抽象/应用闭环仍单独治理。
 
-**收口状态：** open（MEM-012：待外部 Outcome/outbox 重放与负责人体验确认）
+**收口状态：** ready
