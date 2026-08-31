@@ -91,10 +91,13 @@ def test_update_big_five_refreshes_current_session_profile(tmp_path, client_for)
         "agreeableness": 0.78,
         "neuroticism": 0.9,
     }
-    assert (
-        current.json()["profile"]["personality_derivation"]["provenance"]
-        == "description+manual_override"
-    )
+    assert current.json()["profile"]["personality_derivation"] == {
+        "preset": "Genesis",
+        "matched_keywords": [],
+        "provenance": "genesis",
+        "overridden_traits": [],
+        "seed": None,
+    }
 
 
 def test_app_rejects_untrusted_host_for_mutating_requests(tmp_path, client_for):
@@ -166,7 +169,8 @@ def test_create_elfie_derives_personality_and_preserves_appearance_text(
     assert profile["appearance_description"] == "银白色毛发，耳尖是灰色"
     assert profile["personality_description"] == "温柔、乖巧，也很爱探索"
     assert 0.7 <= profile["big_five"]["agreeableness"] <= 0.95
-    assert profile["personality_derivation"]["preset"] == "安静温顺"
+    assert profile["personality_derivation"]["preset"] == "Genesis"
+    assert profile["personality_derivation"]["provenance"] == "genesis"
     assert profile["personality_derivation"]["overridden_traits"] == []
 
 
