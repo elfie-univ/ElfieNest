@@ -129,15 +129,18 @@ class DecisionPlanDecoder:
                 suppress_json_like=True,
             )
         if selected_mode is DecisionDecodeMode.PLAIN_TEXT:
+            extracted = self._extract_decision_message(generation.text)
             return self._fallback(
                 seed=seed,
                 generation=generation,
                 selected_mode=selected_mode,
                 errors=(),
                 repair_count=0,
-                reason=None,
-                fallback_text=None,
-                suppress_json_like=False,
+                reason=(
+                    None if extracted is None else "structured_reply_on_plain_model"
+                ),
+                fallback_text=extracted,
+                suppress_json_like=extracted is None,
             )
         try:
             plan = self._decode_plan(
@@ -289,6 +292,30 @@ class DecisionPlanDecoder:
     def _looks_like_json(text: str) -> bool:
         stripped = text.lstrip()
         return stripped.startswith(("{", "[", "```"))
+
+    @staticmethod
+    def _extract_decision_message(text: str) -> Optional[str]:
+        """Avoid leaking a structured envelope from a text-only local model."""
+        candidate = text.strip()
+        fenced = _FENCED_JSON_PATTERN.fullmatch(candidate)
+        if fenced is not None:
+            candidate = fenced.group("body").strip()
+        try:
+            parsed: Any = json.loads(candidate)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        intents = parsed.get("intents")
+        if not isinstance(intents, list):
+            return None
+        for intent in intents:
+            if not isinstance(intent, dict) or intent.get("type") != "message":
+                continue
+            content = intent.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+        return None
 
     @staticmethod
     def _legacy_response_wrapper(raw_text: str) -> Tuple[bool, Optional[str]]:

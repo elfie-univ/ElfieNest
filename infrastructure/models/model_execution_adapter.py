@@ -11,7 +11,6 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
-    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.reasoning.tool_port import ToolPort
@@ -198,15 +197,17 @@ class SerializedModelExecutionAdapter:
         capabilities: ModelGenerationCapabilities,
         request: ModelGenerationRequest,
     ) -> StructuredOutputMode:
-        if (
-            request.response_mode is ModelResponseMode.DIRECT_REPLY
-            and capabilities.supports_plain_text
-        ):
-            return StructuredOutputMode.PLAIN_TEXT
         if capabilities.supports_json_schema:
             return StructuredOutputMode.JSON_SCHEMA
         if capabilities.supports_tool_calling:
             return StructuredOutputMode.TOOL_CALL
+        if capabilities.supports_json_mode:
+            return StructuredOutputMode.JSON_TEXT
+        # A genuinely text-only model is the sole case where a direct reply
+        # may remain plain text.  Remote/modern models must not lose the
+        # DecisionPlan envelope merely because the response is conversational.
+        if capabilities.supports_plain_text:
+            return StructuredOutputMode.PLAIN_TEXT
         return StructuredOutputMode.JSON_TEXT
 
 

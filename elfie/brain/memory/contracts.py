@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated, Literal, Mapping, Optional, Tuple, cast
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from elfie.brain.memory.memory_records import (
@@ -21,7 +21,12 @@ from elfie.brain.memory.memory_records import (
 )
 from elfie.message_types import EventId, FrozenContractModel, UTCDateTime
 
+_NonBlankText = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
+]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
+_Ratio = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
 
 
 class MemoryStateSnapshot(FrozenContractModel):
@@ -129,9 +134,6 @@ class MemoryContext(FrozenContractModel):
                 "memory state cannot be newer than MemoryContext",
             )
         return self
-
-
-__all__ = ("MemoryContext", "MemoryStateSnapshot")
 
 
 def _recall_node(raw: Mapping[str, object]) -> RecallNode:
@@ -249,3 +251,18 @@ def _as_float(value: object) -> float:
 
 def _as_int(value: object) -> int:
     return int(str(value))
+
+
+class RelationshipImportanceProjection(FrozenContractModel):
+    """Trusted relationship importance used by bounded empathic appraisal."""
+
+    actor_id: _NonBlankText
+    revision: _Revision
+    importance: _Ratio
+
+
+__all__ = (
+    "MemoryContext",
+    "MemoryStateSnapshot",
+    "RelationshipImportanceProjection",
+)

@@ -1,6 +1,6 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.0
+**Contract version:** 1.2
 **Adopted:** 2026-08-12
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
@@ -23,10 +23,11 @@ It shares one Selfhood and Memory across digital communication and embodied
 life while keeping their Turns and output authority separate.
 
 This contract fixes semantic owners, lifecycle boundaries and deterministic
-guards. It does not fix prompts, model vendors, storage schemas, scoring
-formulas, thresholds, class counts or process topology. The ten systems are
-conceptual owners, not a requirement for ten processes, databases or empty
-packages.
+guards. It does not fix prompts, model vendors, storage schemas, tunable numeric
+coefficients or process topology. Emotion's six stored channels and signed
+appraisal contract are intentional fixed semantics; their gains, half-lives and
+presentation thresholds remain configurable. The ten systems are conceptual
+owners, not a requirement for ten processes, databases or empty packages.
 
 ## Ten conceptual systems
 
@@ -35,7 +36,7 @@ packages.
 | 1 | Event Workspace | bounded Communication, Embodied and Internal lanes; admission, ordering, deduplication, backpressure, salience and single-domain framing | one immutable `TurnFrame` or an explicit defer/reject result | merge source domains into one Turn, reason about content, or execute actions |
 | 2 | Orientation | sourced current body, place, time, nearby actors, conversation, activity, affordance and uncertainty | versioned `OrientationSnapshot` | copy world authority, store complete history, or define personality |
 | 3 | Selfhood | mutable self-model, personality tendencies, norms and slow change evidence anchored by immutable Profile | versioned Selfhood/Personality/Norms snapshot and validated updates | rewrite Profile, accept one-message personality mutation, or enlarge capabilities |
-| 4 | Emotion | persistent affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions |
+| 4 | Emotion | process-local affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions, or persist its live stock |
 | 5 | Energy | homeostasis, circadian state, cognitive/action budgets, emergency reserve and degradation mode | `EnergySnapshot`, reservations and cognitive-mode constraints | choose semantic goals or replace NervousSystem safety reflexes |
 | 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` | create an Activity or act externally |
 | 7 | Memory | subjective episodes, working memory, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated memory commits | own current Orientation, Run state or Activity state |
@@ -46,6 +47,53 @@ packages.
 Context assembly, Turn settlement, decision governance, routing, Journal,
 Checkpoint and receipt reconciliation are mandatory mechanisms serving these
 owners. They are not additional peer mental systems.
+
+## Emotion state and appraisal
+
+The detailed [Elfie Emotion system design](../designs/elfie-emotion-system) is
+the accepted interpretation of this section. Its current quality gaps remain in
+the [Emotion conformance register](../conformance/elfie-emotion).
+
+1. Emotion owns Elfie's process-local affect, not an observed actor's affect.
+   Another person's feeling is evidence only; changing Elfie requires a direct
+   self-relevance appraisal or a host-resolved, relationship-weighted indirect
+   appraisal.
+2. The only stored version-1 stocks are `happiness`, `sadness`, `anger`, `fear`,
+   `surprise` and `disgust`, each bounded to `[0, 1]`. Several may coexist.
+   Primary, secondary, active labels and trends are derived projections; VAD,
+   Episode lists and fixed interaction matrices are not parallel state owners.
+3. Fast and model appraisal output is sparse signed semantic evidence bound to
+   a host-trusted Scope. Omitted channels remain unchanged. A model returns
+   direction, semantic strength and confidence, never a stock delta or final
+   value; the deterministic Emotion owner calculates all numeric changes.
+4. Same-direction evidence must combine without diluting a strong signal.
+   Positive drive approaches saturation, negative drive consumes existing
+   stock, and absent drive returns each stock exponentially toward its
+   personality-derived baseline. Big Five may adjust bounded baselines, gains
+   and half-lives, but cannot become a second state source.
+5. Emotion applies every event admitted by Event Workspace. It does not
+   deduplicate again. Repeated admitted observations can refresh a continuing
+   state while saturation bounds growth.
+6. One frame captures a pre-fast stable anchor. Fast appraisal may commit a
+   provisional candidate, but the model receives only the pre-fast stable
+   emotion projection plus host-trusted candidate Scopes. Valid structured slow
+   feedback recomputes from the same anchor and atomically replaces the fast
+   candidate; explicit empty feedback cancels that frame's fast effect, while
+   missing, invalid or failed feedback leaves it in place.
+7. Host framing must make eligible self-relevance candidate Scopes available to
+   slow review independently of a fast lexical hit. A model cannot invent or
+   widen a Scope. A bounded correction for one continuing causal identity may
+   affect later observations of that exact cause, not unrelated events.
+8. Live stocks, frame transactions and continuing-cause guidance are not
+   durable. Sleep or process restart restores personality-derived baselines and
+   clears transient guidance. Emotion owns no database, checkpoint or
+   historical change-event ledger; a bounded recent source-ID projection is
+   diagnostic provenance, not a second history.
+9. Version 1 appraises social text, physical touch, execution outcomes and
+   explicit internal/model evidence. Typed audio and image/vision transport may
+   exist at perception boundaries, but their affect appraisal is deferred. A
+   future detector must produce observation evidence through the same Scope
+   boundary and must never mutate Emotion directly or manufacture a calm result.
 
 ## Conservation rules
 
@@ -209,11 +257,12 @@ Run/Activity checkpoints, budget ledger, causal trace, idempotency records and
 receipt reconciliation. These facilities hold state for the ten systems but do
 not become an eleventh mind or decide behavior.
 
-After restart, Brain restores the last committed state, reconciles in-flight
-directives and Activities, rejects stale body generations and resumes only work
-whose scope and deadline remain valid. Missing model service delays or degrades
-open cognition; it does not erase identity, emotion, memory, commitments or
-basic reflex capability.
+After restart, Brain restores durable owners, reconciles in-flight directives
+and Activities, rejects stale body generations and resumes only work whose
+scope and deadline remain valid. Emotion is the explicit exception: its live
+stocks and transient guidance return to personality-derived baselines on sleep
+or process restart. Missing model service delays or degrades open cognition; it
+does not erase identity, memory, commitments or basic reflex capability.
 
 ## Dependency and package rules
 

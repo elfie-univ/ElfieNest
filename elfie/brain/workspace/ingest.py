@@ -1,11 +1,16 @@
 """Bounded deduplication and receipt creation for perception ingestion."""
 
+from __future__ import annotations
+
+import json
 from collections import OrderedDict
+from hashlib import sha256
 from typing import Optional, Tuple
 
 from elfie.brain.workspace.contracts import (
     IngestDisposition,
     IngestReceipt,
+    PerceptionWrite,
     WorkspaceSeenEvent,
 )
 from elfie.brain.workspace.types import FrameLifecycleError
@@ -19,22 +24,53 @@ class WorkspaceIngestIndex:
         if capacity < 1:
             raise FrameLifecycleError("dedupe capacity must be positive")
         self._capacity = capacity
-        self._sequences: OrderedDict[EventId, int] = OrderedDict()
+        self._entries: OrderedDict[EventId, tuple[int, str]] = OrderedDict()
 
     def duplicate_seq(self, event_id: EventId) -> Optional[int]:
-        return self._sequences.get(event_id)
+        entry = self._entries.get(event_id)
+        return entry[0] if entry is not None else None
 
-    def remember(self, event_id: EventId, seq: int) -> None:
-        self._sequences[event_id] = seq
-        self._sequences.move_to_end(event_id)
-        while len(self._sequences) > self._capacity:
-            self._sequences.popitem(last=False)
+    def duplicate(self, write: PerceptionWrite) -> tuple[int, bool] | None:
+        """Return the prior sequence and whether the complete write is equal."""
+
+        entry = self._entries.get(write.meta.event_id)
+        if entry is None:
+            return None
+        seq, digest = entry
+        return seq, digest == self.digest(write)
+
+    def remember(self, write: PerceptionWrite, seq: int) -> None:
+        event_id = write.meta.event_id
+        self._entries[event_id] = (seq, self.digest(write))
+        self._entries.move_to_end(event_id)
+        while len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+
+    def restore(self, entry: WorkspaceSeenEvent) -> None:
+        self._entries[entry.event_id] = (entry.ingest_seq, entry.write_digest)
+        self._entries.move_to_end(entry.event_id)
+        while len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+
+    @staticmethod
+    def digest(write: PerceptionWrite) -> str:
+        normalized = json.dumps(
+            write.model_dump(mode="json", exclude_none=False),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        return sha256(normalized.encode("utf-8")).hexdigest()
 
     def entries(self) -> Tuple[WorkspaceSeenEvent, ...]:
         """Return the bounded dedupe window in admission order."""
         return tuple(
-            WorkspaceSeenEvent(event_id=event_id, ingest_seq=seq)
-            for event_id, seq in self._sequences.items()
+            WorkspaceSeenEvent(
+                event_id=event_id,
+                ingest_seq=seq,
+                write_digest=digest,
+            )
+            for event_id, (seq, digest) in self._entries.items()
         )
 
     @staticmethod

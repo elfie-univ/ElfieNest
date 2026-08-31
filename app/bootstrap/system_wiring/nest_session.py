@@ -31,6 +31,7 @@ from infrastructure.models.model_execution_adapter import (
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 from infrastructure.persistence.configuration.bundled_defaults import (
+    load_emotion_dynamics_defaults,
     load_emotion_expression_defaults,
     load_nest_config,
 )
@@ -89,6 +90,11 @@ class ElfieRestoreResult:
 def load_emotion_expression_config():
     """Expose bundled emotion defaults through the Bootstrap boundary."""
     return load_emotion_expression_defaults()
+
+
+def load_emotion_dynamics_config():
+    """Expose bundled emotion dynamics through the Bootstrap boundary."""
+    return load_emotion_dynamics_defaults()
 
 
 def bind_service_endpoints(
@@ -163,8 +169,19 @@ def restore_registered_elfies(
     session: NestSession,
     *,
     emotion_expression_config: Mapping[str, object] | None = None,
+    emotion_dynamics_config: Mapping[str, object] | None = None,
 ) -> ElfieRestoreResult:
     """Restore the existing persisted Elfies and register them in one Nest Session."""
+    emotion_expression_config = (
+        emotion_expression_config
+        if emotion_expression_config is not None
+        else load_emotion_expression_defaults()
+    )
+    emotion_dynamics_config = (
+        emotion_dynamics_config
+        if emotion_dynamics_config is not None
+        else load_emotion_dynamics_defaults()
+    )
     # Restoration validates each persisted profile through the domain's injected
     # species catalog. The foreground service restores residents before it
     # constructs the HTTP application container, so this bootstrap boundary must
@@ -188,6 +205,7 @@ def restore_registered_elfies(
                     selfhood_seed=YamlSelfhoodSeedAdapter(config_dir / "brain").load(),
                     energy_limits=YamlEnergyLimitsAdapter(config_dir / "brain").load(),
                     emotion_expression_config=emotion_expression_config,
+                    emotion_dynamics_config=emotion_dynamics_config,
                     memory_store=memory_store,
                     activity_store=SQLiteActivityStoreAdapter(
                         config_dir / "activity" / "activity.sqlite"

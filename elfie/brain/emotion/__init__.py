@@ -1,42 +1,37 @@
 from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
-from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
-from elfie.brain.emotion.decay_calculator import EmotionDecayCalculator
-from elfie.brain.emotion.emotion_input import EmotionInput
+from elfie.brain.emotion.contracts import (
+    AffectDirection,
+    AffectiveAppraisal,
+    ChannelEffect,
+    EmotionSnapshot,
+    EmotionValue,
+)
 from elfie.brain.emotion.emotion_system import (
     EmotionSystem,
     EmotionTimeRegressionError,
 )
 from elfie.brain.emotion.emotion_types import (
-    EMOTION_ALIASES,
     EMOTION_CONFIGS,
+    EMOTION_NAMES,
     EmotionType,
-    resolve_emotion_name,
 )
-from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
-from elfie.brain.emotion.interactions import EmotionInteractionSystem
-from elfie.brain.emotion.personality import (
-    PersonalityModifier,
-    calculate_personality_modifier,
-)
+from elfie.brain.emotion.personality import PersonalityModifier
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 
 __all__ = [
-    "AmygdalaEmotionalState",
     "BrainClockPulse",
-    "EmotionDecayCalculator",
     "EmotionAppraiser",
     "EmotionSystem",
     "EmotionSnapshot",
     "EmotionValue",
     "EmotionTimeRegressionError",
+    "AffectDirection",
+    "AffectiveAppraisal",
+    "ChannelEffect",
     "EmotionStimulusEvent",
-    "EmotionInput",
     "EmotionType",
     "EMOTION_CONFIGS",
-    "EMOTION_ALIASES",
-    "resolve_emotion_name",
+    "EMOTION_NAMES",
     "PersonalityModifier",
-    "calculate_personality_modifier",
-    "EmotionInteractionSystem",
     "StimulusSource",
 ]

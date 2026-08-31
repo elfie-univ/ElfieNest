@@ -67,6 +67,10 @@ def load_emotion_expression_defaults(*, root: Path | None = None) -> dict[str, A
     return _load_brain_section(ConfigDocumentId.EMOTION_EXPRESSIONS, root=root)
 
 
+def load_emotion_dynamics_defaults(*, root: Path | None = None) -> dict[str, Any]:
+    return _load_brain_section(ConfigDocumentId.EMOTION_DYNAMICS, root=root)
+
+
 def load_nest_config(*, root: Path | None = None) -> NestConfig:
     """Load the typed Nest initialization defaults from the bundled root."""
 
@@ -86,6 +90,7 @@ def load_nest_config(*, root: Path | None = None) -> NestConfig:
 __all__ = (
     "load_bundled_document",
     "load_emotion_expression_defaults",
+    "load_emotion_dynamics_defaults",
     "load_energy_defaults",
     "load_nest_config",
     "load_selfhood_defaults",

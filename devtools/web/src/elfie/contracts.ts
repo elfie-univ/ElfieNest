@@ -121,7 +121,7 @@ export const turnSchema = z.object({
     activity_intents: z.array(activityIntentSchema).default([]),
     noop_intents: z.array(intentSchema).default([]),
   }).passthrough(),
-  trace: z.object({}).passthrough().optional(), state_after: z.object({ dominant_emotion: z.string().optional() }).passthrough().optional(), state_diff: z.object({}).passthrough().optional(), duration_ms: z.number().optional(), used_state_injection: z.boolean().optional(),
+  trace: z.object({}).passthrough().optional(), state_after: z.object({ primary_emotion: z.string().optional() }).passthrough().optional(), state_diff: z.object({}).passthrough().optional(), duration_ms: z.number().optional(), used_state_injection: z.boolean().optional(),
 }).passthrough();
 
 export const elfieListSchema = z.object({
@@ -139,7 +139,7 @@ export const sessionSchema = z.object({
     memory_cognition: memoryCognitionSchema.prefault({ topics: [], important_events: [], relations: { nodes: [], links: [] }, knowledge: { nodes: [], links: [] }, world_understanding: "尚未形成稳定的世界理解" }),
     spec_revision: z.number().optional(), updated_at: z.string().optional(),
   }).passthrough(),
-  current_state: z.object({ energy: z.number(), fatigue: z.number(), dominant_emotion: z.string(), is_sleeping: z.boolean(), normal_budget_available: z.number().default(0), emergency_reserve_available: z.number().default(0), reserved_cognitive_budget: z.number().default(0), memory_count: z.number().default(0), activity_count: z.number().default(0), activities: z.array(z.record(z.string(), z.unknown())).default([]), motivation: z.record(z.string(), z.unknown()).nullable().optional(), orientation: z.record(z.string(), z.unknown()).nullable().optional(), selfhood: z.record(z.string(), z.unknown()).nullable().optional(), profile_anchor: z.record(z.string(), z.unknown()).nullable().optional(), cognitive_consolidation: z.record(z.string(), z.unknown()).nullable().optional(), journal: z.record(z.string(), z.unknown()).nullable().optional() }).passthrough(),
+  current_state: z.object({ energy: z.number(), fatigue: z.number(), primary_emotion: z.string(), is_sleeping: z.boolean(), normal_budget_available: z.number().default(0), emergency_reserve_available: z.number().default(0), reserved_cognitive_budget: z.number().default(0), memory_count: z.number().default(0), activity_count: z.number().default(0), activities: z.array(z.record(z.string(), z.unknown())).default([]), motivation: z.record(z.string(), z.unknown()).nullable().optional(), orientation: z.record(z.string(), z.unknown()).nullable().optional(), selfhood: z.record(z.string(), z.unknown()).nullable().optional(), profile_anchor: z.record(z.string(), z.unknown()).nullable().optional(), cognitive_consolidation: z.record(z.string(), z.unknown()).nullable().optional(), journal: z.record(z.string(), z.unknown()).nullable().optional() }).passthrough(),
   turns: z.array(turnSchema),
 }).passthrough();
 

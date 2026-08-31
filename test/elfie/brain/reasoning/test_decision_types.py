@@ -6,14 +6,19 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from elfie.brain.emotion.contracts import AffectDirection
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
     DecisionIntent,
     DecisionPlan,
+    EmotionFeedback,
     ExpressionIntent,
     MessageIntent,
+    ModelAffectiveAppraisal,
     MotionIntent,
     NoOpIntent,
+    SemanticEmotionEffect,
     SpeechIntent,
 )
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
@@ -226,3 +231,44 @@ def test_message_intent_preserves_sequence_and_send_after() -> None:
     assert intent.sequence_id == "reply-sequence"
     assert intent.ordinal == 2
     assert intent.send_after == send_after
+
+
+def test_emotion_feedback_is_sparse_and_explicit_empty_is_valid() -> None:
+    assert EmotionFeedback(appraisals=()).appraisals == ()
+    feedback = EmotionFeedback(
+        appraisals=(
+            ModelAffectiveAppraisal(
+                scope_id="appraisal:event-1:direct",
+                effects=(
+                    SemanticEmotionEffect(
+                        channel=EmotionType.ANGER,
+                        direction=AffectDirection.INCREASE,
+                        strength=80,
+                        confidence=0.9,
+                    ),
+                ),
+            ),
+        )
+    )
+    assert len(feedback.appraisals) == 1
+    assert len(feedback.appraisals[0].effects) == 1
+
+
+def test_emotion_feedback_rejects_duplicate_scope_and_observed_other_output() -> None:
+    appraisal = {
+        "scope_id": "appraisal:event-1:direct",
+        "effects": [
+            {
+                "channel": "anger",
+                "direction": "increase",
+                "strength": 80,
+                "confidence": 0.9,
+            }
+        ],
+    }
+    with pytest.raises(ValidationError, match="scope"):
+        EmotionFeedback.model_validate({"appraisals": [appraisal, appraisal]})
+    with pytest.raises(ValidationError, match="observed_other_affect"):
+        EmotionFeedback.model_validate(
+            {"appraisals": [], "observed_other_affect": "sad"}
+        )

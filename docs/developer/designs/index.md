@@ -10,6 +10,8 @@ in [Conformance](../conformance/).
   top-level ownership for one complete Elfie.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
+- [Elfie Emotion system](./elfie-emotion-system): the six-channel signed dynamics,
+  stable/fast/reviewed Turn lifecycle, personality projection and modality boundary.
 - [Elfie Brain evaluation and evolution system](./elfie-brain-evaluation-system):
   the Quality Constitution, Q6/P0 evidence protocol, statistical decision and safe
   continuous-improvement loop for one complete continuous Elfie.

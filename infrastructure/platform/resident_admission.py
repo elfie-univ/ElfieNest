@@ -34,6 +34,7 @@ class ElfieFactoryAdapter:
         selfhood_seed_factory: BrainSeedFactory | None = None,
         energy_limits_factory: BrainSeedFactory | None = None,
         emotion_expression_config: Mapping[str, object] | None = None,
+        emotion_dynamics_config: Mapping[str, object] | None = None,
     ) -> None:
         self._factory = factory
         self._body_factory = body_factory
@@ -44,6 +45,7 @@ class ElfieFactoryAdapter:
         self._selfhood_seed_factory = selfhood_seed_factory
         self._energy_limits_factory = energy_limits_factory
         self._emotion_expression_config = emotion_expression_config
+        self._emotion_dynamics_config = emotion_dynamics_config
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
         try:
@@ -62,6 +64,7 @@ class ElfieFactoryAdapter:
                         else self._energy_limits_factory(workspace)
                     ),
                     emotion_expression_config=self._emotion_expression_config,
+                    emotion_dynamics_config=self._emotion_dynamics_config,
                     memory_store=self._memory_store_factory(workspace),
                     activity_store=(
                         None

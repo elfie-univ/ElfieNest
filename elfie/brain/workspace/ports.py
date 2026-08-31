@@ -11,6 +11,7 @@ from elfie.brain.workspace.contracts import (
     TurnFrame,
     WorkspacePersistentState,
 )
+from elfie.brain.workspace.types import ReleaseDisposition
 from elfie.message_types import EventId, TurnId, UTCDateTime
 
 
@@ -57,7 +58,9 @@ class TurnFrameSource(Protocol):
         """Commit a successfully completed frame claim."""
         ...
 
-    def release(self, frame_id: EventId, turn_id: TurnId, reason: str) -> None:
+    def release(
+        self, frame_id: EventId, turn_id: TurnId, reason: str
+    ) -> ReleaseDisposition:
         """Release a failed claim so the frame can be replayed."""
         ...
 

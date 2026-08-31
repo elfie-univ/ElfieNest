@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from elfie.brain.activity.context import ActivityContextReader
 from elfie.brain.consolidation.system import CognitiveConsolidationSystem
-from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import ClosedEpisode, MemorySystem
 from elfie.brain.motivation.system import MotivationSystem
 from elfie.brain.orientation.system import OrientationSystem
@@ -111,12 +111,7 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
             update={"captured_at": NOW}
         ),
     )
-    emotion = EmotionSnapshot(
-        revision=1,
-        captured_at=NOW,
-        values=(EmotionValue(name="calm", intensity=0.2),),
-        dominant="calm",
-    )
+    emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=1)
 
     context.memory(_frame(), emotion, NOW)
     assert memory.revision == 0

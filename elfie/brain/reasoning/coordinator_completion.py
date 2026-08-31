@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from enum import Enum, unique
 from typing import Literal
 
 from elfie.brain.memory.memory_records import MemoryUseProposal
@@ -16,6 +17,17 @@ from elfie.brain.reasoning.run import ReasoningStatus
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus
 from elfie.brain.workspace.system import EventWorkspace
+from elfie.brain.workspace.types import ReleaseDisposition
+
+
+@unique
+class CompletionDisposition(str, Enum):
+    """Frame outcome needed by process-local affect transaction ownership."""
+
+    COMMITTED = "committed"
+    REPLAY = "replay"
+    DEAD_LETTERED = "dead_lettered"
+
 
 logger = logging.getLogger("elfie.brain.reasoning.memory_use")
 MemoryTargetKind = Literal["episode", "node", "assertion"]
@@ -43,12 +55,12 @@ class CoordinatorCompletionHandler:
         self,
         inflight: InFlightTurn,
         control: WorkerDoneControl,
-    ) -> None:
+    ) -> CompletionDisposition:
         """Commit, release, or discard one late model result."""
         try:
             result = control.future.result()
         except Exception as error:  # noqa: BLE001 - Future boundary owns failure mapping
-            self._workspace.release(
+            released = self._workspace.release(
                 inflight.frame.frame_id,
                 inflight.task.seed.turn_id,
                 type(error).__name__,
@@ -60,7 +72,7 @@ class CoordinatorCompletionHandler:
                     error_code=type(error).__name__,
                 )
             )
-            return
+            return _released_disposition(released)
         if inflight.terminal_status is TerminalStatus.STALE:
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             self._outcomes.record(
@@ -70,11 +82,11 @@ class CoordinatorCompletionHandler:
                     stale_reason=inflight.terminal_reason,
                 )
             )
-            return
+            return CompletionDisposition.COMMITTED
         try:
             self._settlement.settle(inflight.task.state_candidates)
         except Exception as error:  # noqa: BLE001 - owner commit boundary
-            self._workspace.release(
+            released = self._workspace.release(
                 inflight.frame.frame_id,
                 inflight.task.seed.turn_id,
                 "turn_settlement_failed",
@@ -86,7 +98,7 @@ class CoordinatorCompletionHandler:
                     error_code=f"turn_settlement_failed:{type(error).__name__}",
                 )
             )
-            return
+            return _released_disposition(released)
         decision = govern_decision(inflight.frame, result.decode.plan)
         if result.reasoning.status not in {
             ReasoningStatus.COMPLETED,
@@ -97,12 +109,14 @@ class CoordinatorCompletionHandler:
                     inflight.frame.frame_id,
                     inflight.task.seed.turn_id,
                 )
+                disposition = CompletionDisposition.COMMITTED
             else:
-                self._workspace.release(
+                released = self._workspace.release(
                     inflight.frame.frame_id,
                     inflight.task.seed.turn_id,
                     "reasoning_failed_router_rejected",
                 )
+                disposition = _released_disposition(released)
             self._outcomes.record(
                 result.decode.report.to_turn_outcome(
                     plan=decision.plan,
@@ -111,7 +125,7 @@ class CoordinatorCompletionHandler:
                     or result.reasoning.status.value,
                 )
             )
-            return
+            return disposition
         if self._plan_sink.accept(decision):
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             if result.reasoning.status is ReasoningStatus.COMPLETED:
@@ -122,8 +136,8 @@ class CoordinatorCompletionHandler:
                     status=TerminalStatus.COMPLETED,
                 )
             )
-            return
-        self._workspace.release(
+            return CompletionDisposition.COMMITTED
+        released = self._workspace.release(
             inflight.frame.frame_id,
             inflight.task.seed.turn_id,
             "router_rejected",
@@ -135,6 +149,7 @@ class CoordinatorCompletionHandler:
                 error_code="router_rejected",
             )
         )
+        return _released_disposition(released)
 
     def _submit_memory_use_proposals(self, inflight: InFlightTurn, plan) -> None:
         """Record bounded model references; never turn them into reinforcement."""
@@ -176,4 +191,10 @@ class CoordinatorCompletionHandler:
                 )
 
 
-__all__ = ("CoordinatorCompletionHandler",)
+def _released_disposition(released: ReleaseDisposition) -> CompletionDisposition:
+    if released is ReleaseDisposition.DEAD_LETTERED:
+        return CompletionDisposition.DEAD_LETTERED
+    return CompletionDisposition.REPLAY
+
+
+__all__ = ("CompletionDisposition", "CoordinatorCompletionHandler")

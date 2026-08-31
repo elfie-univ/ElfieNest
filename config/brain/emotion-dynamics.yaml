@@ -1,0 +1,66 @@
+version: 1
+
+# Names are fixed by EmotionType; these are tunable dynamic parameters only.
+channels:
+  happiness:
+    baseline: 0.04
+    positive_gain: 1.0
+    negative_gain: 1.0
+    # Calibrated against a typical joy episode of roughly 20–30 minutes.
+    half_life_seconds: 760.0
+    activation_threshold: 0.18
+  sadness:
+    baseline: 0.02
+    positive_gain: 1.0
+    negative_gain: 1.0
+    # Everyday sadness uses a roughly 20-minute active episode target;
+    # repeated/ruminative inputs can still refresh it.
+    half_life_seconds: 640.0
+    activation_threshold: 0.18
+  anger:
+    baseline: 0.01
+    positive_gain: 1.15
+    negative_gain: 1.0
+    # Calibrated against a typical anger episode of roughly 15–25 minutes.
+    half_life_seconds: 740.0
+    activation_threshold: 0.20
+  fear:
+    baseline: 0.02
+    positive_gain: 1.25
+    negative_gain: 1.0
+    # A single clear threat remains active for roughly a quarter hour.
+    half_life_seconds: 500.0
+    activation_threshold: 0.20
+  surprise:
+    baseline: 0.0
+    positive_gain: 1.50
+    negative_gain: 1.0
+    # Surprise is intentionally a short burst: about one minute after onset.
+    half_life_seconds: 27.0
+    activation_threshold: 0.16
+  disgust:
+    baseline: 0.01
+    positive_gain: 1.0
+    negative_gain: 1.0
+    # Shorter-lived than the persistent social emotions, about five minutes.
+    half_life_seconds: 180.0
+    activation_threshold: 0.20
+
+strength_knots: [0.0, 0.12, 0.28, 0.55, 0.85, 1.0]
+
+source_weights:
+  physical: 1.0
+  social: 0.8
+  execution: 1.0
+  internal: 0.7
+  model: 1.0
+
+# Presentation affects only the sparse natural-language projection sent to the
+# model. It never changes the six stored channel values.
+presentation:
+  trend_threshold: 0.05
+  secondary_ratio: 0.35
+
+# Sparse personality overrides are applied on top of the deterministic Big
+# Five projection and remain bounded by the domain implementation.
+personality: {}

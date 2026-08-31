@@ -43,6 +43,7 @@ class ConfigDocumentId(str, Enum):
     ENERGY_DEFAULTS = "energy_defaults"
     SELFHOOD_DEFAULTS = "selfhood_defaults"
     EMOTION_EXPRESSIONS = "emotion_expressions"
+    EMOTION_DYNAMICS = "emotion_dynamics"
     NEST_DEFAULTS = "nest_defaults"
     SPECIES_CATALOG = "species_catalog"
     WORLD_CANON = "world_canon"
@@ -167,6 +168,19 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         "elfie.brain.emotion",
         True,
         "emotion-expressions-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
+    ),
+    ConfigDocumentId.EMOTION_DYNAMICS: ConfigDocumentSpec(
+        ConfigDocumentId.EMOTION_DYNAMICS,
+        "brain/emotion-dynamics.yaml",
+        None,
+        1,
+        ConfigPolicy.BUNDLED_ONLY,
+        "elfie.brain.emotion",
+        True,
+        "emotion-dynamics-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

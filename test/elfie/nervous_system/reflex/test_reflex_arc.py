@@ -4,7 +4,7 @@ import unittest
 
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.body.native.anatomy.quadruped import QuadrupedAnatomy
-from elfie.brain.emotion.emotional_state import AmygdalaEmotionalState
+from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.nervous_system.reflex.reflex_arc import SomaticReflexArc
 
 
@@ -16,7 +16,7 @@ class TestSomaticReflexArc(unittest.TestCase):
         self.reflex_arc = SomaticReflexArc()
         self.biped_anatomy = BipedAnatomy()
         self.quad_anatomy = QuadrupedAnatomy()
-        self.amygdala = AmygdalaEmotionalState()
+        self.amygdala = EmotionSystem()
 
     # ==================== 初始化测试 ====================
     def test_init(self):
@@ -218,9 +218,9 @@ class TestSomaticReflexArc(unittest.TestCase):
 
     # ==================== 情绪影响测试 ====================
     def test_shock_emotion_impact(self):
-        """测试 12: 验证撞击时情绪变化"""
-        amygdala = AmygdalaEmotionalState()
-        # 初始值: anxiety=10, happiness=50
+        """撞击反射不绕过感知链路直接改写情绪。"""
+        amygdala = EmotionSystem()
+        # 情绪由后续 PerceptionEvent -> EmotionAppraiser 统一写入。
         tactile_sensor = {
             "impact_force": 30.0,
             "impact_direction": "right",
@@ -231,14 +231,17 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.biped_anatomy, tactile_sensor, amygdala
         )
 
-        # anxiety 暴增 25, happiness 下降 15
-        self.assertEqual(amygdala.emotions["anxiety"], 35.0)  # 10 + 25
-        self.assertEqual(amygdala.emotions["happiness"], 35.0)  # 50 - 15
+        self.assertEqual(
+            amygdala.emotions["fear"], amygdala.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala.emotions["happiness"],
+            amygdala.parameters("happiness").baseline,
+        )
 
     def test_stroke_emotion_impact(self):
-        """测试 13: 验证抚摸时情绪变化"""
-        amygdala = AmygdalaEmotionalState()
-        # 初始值: anxiety=10, boredom=20, happiness=50
+        """抚摸反射不绕过感知链路直接改写情绪。"""
+        amygdala = EmotionSystem()
         tactile_sensor = {
             "impact_force": 0.0,
             "impact_direction": "none",
@@ -249,10 +252,13 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.quad_anatomy, tactile_sensor, amygdala
         )
 
-        # anxiety 减少 15, boredom 减少 20, happiness 增加 15
-        self.assertEqual(amygdala.emotions["anxiety"], 0.0)  # max(10-15, 0)
-        self.assertEqual(amygdala.emotions["boredom"], 0.0)  # max(20-20, 0)
-        self.assertEqual(amygdala.emotions["happiness"], 65.0)  # 50 + 15
+        self.assertEqual(
+            amygdala.emotions["fear"], amygdala.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala.emotions["happiness"],
+            amygdala.parameters("happiness").baseline,
+        )
 
     # ==================== 边界情况测试 ====================
     def test_missing_tactile_sensor_keys(self):
@@ -316,8 +322,8 @@ class TestSomaticReflexArc(unittest.TestCase):
 
     def test_multiple_reflex_calls_isolated(self):
         """测试 18: 验证多次反射调用之间状态隔离"""
-        amygdala1 = AmygdalaEmotionalState()
-        amygdala2 = AmygdalaEmotionalState()
+        amygdala1 = EmotionSystem()
+        amygdala2 = EmotionSystem()
 
         tactile_shock = {
             "impact_force": 20.0,
@@ -341,9 +347,12 @@ class TestSomaticReflexArc(unittest.TestCase):
             self.quad_anatomy, tactile_stroke, amygdala2
         )
 
-        # 两者应该有不同的情绪状态
-        self.assertNotEqual(
-            amygdala1.emotions["anxiety"], amygdala2.emotions["anxiety"]
+        # 两者仍保持基线；反射不持有 EmotionSystem 的写权限。
+        self.assertEqual(
+            amygdala1.emotions["fear"], amygdala1.parameters("fear").baseline
+        )
+        self.assertEqual(
+            amygdala2.emotions["fear"], amygdala2.parameters("fear").baseline
         )
 
 
@@ -353,7 +362,7 @@ class TestReflexArcEdgeCases(unittest.TestCase):
     def setUp(self):
         self.reflex_arc = SomaticReflexArc()
         self.anatomy = BipedAnatomy()
-        self.amygdala = AmygdalaEmotionalState()
+        self.amygdala = EmotionSystem()
 
     def test_extreme_impact_force(self):
         """测试极端撞击力值"""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory.memory_records import AssertionInput, EvidenceInput, NodeInput
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.reasoning.memory_context import MemoryContextReader
@@ -100,12 +100,7 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
 
     context = MemoryContextReader(memory).read(
         frame,
-        EmotionSnapshot(
-            revision=1,
-            captured_at=NOW,
-            values=(EmotionValue(name="curiosity", intensity=0.5),),
-            dominant="curiosity",
-        ),
+        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
         NOW,
     )
 
@@ -123,3 +118,49 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
     assert bundle.evidence[0].source_id == "genesis:fact:elfie-1:0"
     assert "memory-context:frame-1" not in str(node.node_id)
     assert "预测灵感" not in node.label
+
+
+def test_relationship_importance_uses_entity_metadata_not_retrieval_score() -> None:
+    store = SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1")
+    store.upsert_node_record(
+        NodeInput(
+            node_id="person:owner-1",
+            node_type="entity",
+            canonical_label="主人",
+            properties={
+                "person_id": "owner-1",
+                "is_owner": True,
+                "importance_score": 0.85,
+                "retrieval_relevance": 0.02,
+            },
+            importance=0.85,
+        )
+    )
+    memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
+
+    relationship = memory.relationship_importance("owner-1", owner=True)
+
+    assert relationship is not None
+    assert relationship.importance == 0.85
+    assert relationship.revision == memory.revision
+
+
+def test_relationship_importance_rejects_an_ambiguous_owner_fallback() -> None:
+    store = SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1")
+    for person_id in ("owner-a", "owner-b"):
+        store.upsert_node_record(
+            NodeInput(
+                node_id=f"person:{person_id}",
+                node_type="entity",
+                canonical_label=person_id,
+                properties={
+                    "person_id": person_id,
+                    "is_owner": True,
+                    "importance_score": 0.8,
+                },
+                importance=0.8,
+            )
+        )
+    memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
+
+    assert memory.relationship_importance("unknown-owner", owner=True) is None

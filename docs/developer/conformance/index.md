@@ -21,3 +21,5 @@ service-lifecycle registers contain the active migrations:
   accepted lifecycle contract and current startup, ownership and entrypoints.
 - [Elfie Memory conformance](./elfie-memory) — implementation status and remaining
   external-acceptance gates for the approved Memory design.
+- [Elfie Emotion conformance](./elfie-emotion) — deferred semantic-recall and
+  slow-correction Scope coverage debt for the accepted Emotion design.

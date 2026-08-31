@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from concurrent.futures import Future
+from dataclasses import replace
 from datetime import datetime, timezone
 from threading import Event
 from typing import Callable, Optional, Tuple
@@ -11,11 +13,20 @@ from uuid import uuid4
 
 from elfie.brain.consolidation.system import consolidation_candidate_to_perception
 from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
-from elfie.brain.emotion.emotion_system import EmotionSystem
+from elfie.brain.emotion.contracts import (
+    AffectDirection,
+    AffectiveAppraisal,
+    ChannelEffect,
+)
+from elfie.brain.emotion.emotion_system import EmotionSystem, EmotionTurnSnapshot
+from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournal
 from elfie.brain.motivation.system import recovery_candidate_to_perception
-from elfie.brain.reasoning.coordinator_completion import CoordinatorCompletionHandler
+from elfie.brain.reasoning.coordinator_completion import (
+    CompletionDisposition,
+    CoordinatorCompletionHandler,
+)
 from elfie.brain.reasoning.coordinator_outcomes import (
     reasoning_failure_outcome,
     reasoning_stale_outcome,
@@ -29,22 +40,33 @@ from elfie.brain.reasoning.coordinator_runtime import (
 from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
 from elfie.brain.reasoning.coordinator_types import (
     BarrierControl,
+    FrameAffectTxn,
     InFlightTurn,
     PerceptionControl,
     StopControl,
     WorkerDoneControl,
 )
+from elfie.brain.reasoning.decision_decoder import (
+    DecisionDecodeMode,
+    DecisionDecodeReport,
+    DecisionDecodeResult,
+)
 from elfie.brain.reasoning.decision_governance import govern_decision
-from elfie.brain.reasoning.run import ReasoningRunResult
+from elfie.brain.reasoning.run import (
+    CognitiveStep,
+    CognitiveStepKind,
+    ReasoningRunResult,
+    ReasoningStatus,
+)
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
-from elfie.brain.reasoning.worker import ReasoningExecutionPort
+from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
 from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
-from elfie.message_types import ElfieId, TurnId
+from elfie.message_types import ElfieId, EventId, TurnId
 
 diagnostic_logger = logging.getLogger("elfienest.diagnostics.brain")
 
@@ -102,15 +124,14 @@ class BrainCoordinator:
         self._consolidation_due = False
         self._turn_factory = CoordinatorTurnFactory(
             elfie_id=elfie_id,
-            emotion=emotion,
             homeostasis=homeostasis,
-            appraiser=appraiser,
             context_source=context_source,
             hard_timeout_seconds=hard_timeout_seconds,
             allowed_tools=allowed_tools,
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None
+        self._affect_txn: Optional[FrameAffectTxn] = None
         self._reasoning: OrderedDict[TurnId, ReasoningRunResult] = OrderedDict()
         self._reasoning_retention = reasoning_retention
         self._evicted_reasoning_count = 0
@@ -212,8 +233,14 @@ class BrainCoordinator:
                 message.reached.set()
 
     def _handle_clock(self, pulse: BrainClockPulse) -> None:
-        self._emotion.advance_to(pulse.timestamp)
+        if pulse.timestamp < self._timestamp:
+            raise ValueError("brain clock cannot move backwards")
+        was_sleeping = self._homeostasis.is_sleeping
         self._homeostasis.advance_to(pulse.timestamp)
+        if not was_sleeping and self._homeostasis.is_sleeping:
+            self._emotion.reset_to_baseline(pulse.timestamp)
+        else:
+            self._emotion.advance_to(pulse.timestamp)
         self._timestamp = pulse.timestamp
         self._maybe_emit_motivation()
         self._maybe_emit_consolidation()
@@ -279,6 +306,83 @@ class BrainCoordinator:
             )
             self._consolidation_due = ingest.disposition is IngestDisposition.ACCEPTED
 
+    def _prepare_affect_transaction(
+        self,
+        frame,
+    ) -> tuple[FrameAffectTxn, bool]:
+        """Calculate this frame's fast affect once, retaining it across replay."""
+
+        existing = self._affect_txn
+        if existing is not None:
+            if existing.frame_id != frame.frame_id:
+                raise RuntimeError("another frame already owns the affect transaction")
+            if existing.anchor.lifecycle_epoch != self._emotion.lifecycle_epoch:
+                self._rebase_affect_transaction_after_sleep()
+                existing = self._affect_txn
+                if existing is None:
+                    raise RuntimeError("affect transaction disappeared during rebase")
+            return existing, False
+
+        self._emotion.advance_to(self._timestamp)
+        anchor = self._emotion.capture_turn_state()
+        stable = self._emotion.snapshot_from_turn_state(anchor)
+        scope_reader = getattr(self._context_source, "emotion_appraisal_scopes", None)
+        indirect_scopes = tuple(scope_reader(frame)) if callable(scope_reader) else ()
+        stimuli: list[EmotionStimulusEvent] = []
+        scopes_by_id = {scope.scope_id: scope for scope in indirect_scopes}
+        for event in frame.events:
+            stimulus = self._appraiser.appraise(
+                event,
+                trusted_scopes=indirect_scopes,
+            )
+            if stimulus is None:
+                continue
+            for appraisal in stimulus.appraisals:
+                current = scopes_by_id.get(appraisal.scope.scope_id)
+                if current is not None and current != appraisal.scope:
+                    raise RuntimeError("conflicting appraisal scope identity")
+                scopes_by_id[appraisal.scope.scope_id] = appraisal.scope
+            guidance = self._emotion.guidance_appraisal(
+                stimulus.cause_key,
+                event_id=event.meta.event_id,
+            )
+            if guidance is not None:
+                stimulus = stimulus.model_copy(
+                    update={"appraisals": stimulus.appraisals + (guidance,)}
+                )
+            stimuli.append(stimulus)
+        fast_candidate = self._emotion.candidate_from(
+            anchor,
+            tuple(stimuli),
+            timestamp=self._timestamp,
+        )
+        return (
+            FrameAffectTxn(
+                frame_id=frame.frame_id,
+                anchor=anchor,
+                fast_candidate=fast_candidate,
+                stable_snapshot=stable,
+                appraisal_scopes=tuple(scopes_by_id.values()),
+                fast_stimuli=tuple(stimuli),
+            ),
+            True,
+        )
+
+    def _rebase_affect_transaction_after_sleep(self) -> None:
+        """Keep replay identity while invalidating every pre-sleep candidate."""
+
+        if self._affect_txn is None:
+            return
+        baseline = self._emotion.capture_turn_state()
+        snapshot = self._emotion.snapshot_from_turn_state(baseline)
+        self._affect_txn = replace(
+            self._affect_txn,
+            anchor=baseline,
+            fast_candidate=baseline,
+            stable_snapshot=snapshot,
+            fast_stimuli=(),
+        )
+
     def _maybe_start_turn(self) -> None:
         if self._inflight is not None:
             return
@@ -313,12 +417,37 @@ class BrainCoordinator:
         try:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
-            task = self._turn_factory.build_task(frame, turn_id, self._timestamp)
+            requires_model = self._requires_model(frame)
+            affect_txn, is_new_affect_txn = self._prepare_affect_transaction(frame)
+            task = self._turn_factory.build_task(
+                frame,
+                turn_id,
+                self._timestamp,
+                emotion=affect_txn.stable_snapshot,
+                appraisal_scopes=affect_txn.appraisal_scopes,
+                requires_model=requires_model,
+            )
             self._capture_closed_episodes(task)
-            future = self._worker.submit(task)
+            if requires_model:
+                future = self._worker.submit(task)
+            else:
+                future = Future()
+                future.set_result(self._no_model_result(task))
+            if is_new_affect_txn:
+                if not self._emotion.commit_turn_state(affect_txn.fast_candidate):
+                    raise RuntimeError(
+                        "emotion lifecycle changed during turn admission"
+                    )
+                self._affect_txn = affect_txn
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
             self._homeostasis.release_cognitive_budget(turn_id)
-            self._workspace.release(frame.frame_id, turn_id, type(error).__name__)
+            released = self._workspace.release(
+                frame.frame_id,
+                turn_id,
+                type(error).__name__,
+            )
+            if getattr(released, "value", None) == "dead_lettered":
+                self._affect_txn = None
             self._outcomes.record(
                 reasoning_failure_outcome(
                     turn_id=turn_id,
@@ -347,6 +476,56 @@ class BrainCoordinator:
         future.add_done_callback(
             lambda completed: self._runtime.post(WorkerDoneControl(turn_id, completed))
         )
+
+    @staticmethod
+    def _requires_model(frame) -> bool:
+        """Admit model work only for owner interaction, internal work, or salient input."""
+
+        if any(
+            getattr(event.payload, "sender", None) is not None
+            and event.payload.sender.source_kind == "owner"
+            for event in frame.events
+        ):
+            return True
+        if (
+            str(frame.source_domain) == "SourceDomain.INTERNAL"
+            or getattr(frame.source_domain, "value", None) == "internal"
+        ):
+            return True
+        return any(event.salience >= 0.75 for event in frame.events)
+
+    @staticmethod
+    def _no_model_result(task) -> ReasoningTurnResult:
+        """Build an auditable local NoOp for routine frames without inference."""
+
+        plan = CoordinatorTurnFactory.noop_plan(task.seed, "routine_frame_no_model")
+        report = DecisionDecodeReport(
+            selected_mode=DecisionDecodeMode.JSON_TEXT,
+            validation_errors=(),
+            repair_count=0,
+            fallback_reason="routine_frame_no_model",
+            model_id="none",
+            provider="brain",
+            token_count=None,
+            latency_ms=0.0,
+        )
+        decode = DecisionDecodeResult(plan=plan, report=report)
+        reasoning = ReasoningRunResult(
+            status=ReasoningStatus.SAFE_NOOP,
+            steps=(
+                CognitiveStep(
+                    ordinal=1,
+                    kind=CognitiveStepKind.VERIFY,
+                    status="skipped",
+                    summary="routine frame handled without model inference",
+                ),
+            ),
+            model_calls=0,
+            tool_calls=0,
+            failure_reason="routine_frame_no_model",
+            decode=decode,
+        )
+        return ReasoningTurnResult(decode=decode, reasoning=reasoning)
 
     def _capture_closed_episodes(self, task) -> None:
         """Persist upstream-closed Episodes before inference starts.
@@ -381,6 +560,7 @@ class BrainCoordinator:
         inflight = self._inflight
         if inflight is None or control.turn_id != inflight.task.seed.turn_id:
             return
+        slow_candidate: EmotionTurnSnapshot | None = None
         try:
             result = control.future.result()
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
@@ -396,7 +576,23 @@ class BrainCoordinator:
                 control.turn_id,
                 consumed=max(0.25, consumed),
             )
-        self._completion.complete(inflight, control)
+            slow_candidate = self._slow_emotion_candidate(inflight, result)
+        disposition = self._completion.complete(inflight, control)
+        if disposition is CompletionDisposition.COMMITTED:
+            if slow_candidate is not None:
+                if self._emotion.commit_turn_state(slow_candidate):
+                    self._record_slow_guidance(inflight, result)
+                else:
+                    diagnostic_logger.info(
+                        "Ignored emotion feedback from an expired lifecycle epoch",
+                        extra={
+                            "diagnostic_event": "emotion_feedback_epoch_expired",
+                            "turn_id": str(control.turn_id),
+                        },
+                    )
+            self._affect_txn = None
+        elif disposition is CompletionDisposition.DEAD_LETTERED:
+            self._affect_txn = None
         self._inflight = None
         if self._on_state_change is not None:
             self._on_state_change()
@@ -404,6 +600,119 @@ class BrainCoordinator:
         # the coordinator once. Re-evaluate the workspace after closing the
         # claim so a queued follow-up message can form its own Turn.
         self._maybe_start_turn()
+
+    def _slow_emotion_candidate(
+        self,
+        inflight: InFlightTurn,
+        result: ReasoningTurnResult,
+    ) -> EmotionTurnSnapshot | None:
+        """Calculate a reviewed replacement from the pre-fast frame anchor."""
+
+        if inflight.terminal_status is not None:
+            return None
+        if result.reasoning.status not in {
+            ReasoningStatus.COMPLETED,
+            ReasoningStatus.SAFE_NOOP,
+        }:
+            return None
+        txn = self._affect_txn
+        if txn is None or txn.frame_id != inflight.frame.frame_id:
+            return None
+        if txn.anchor.lifecycle_epoch != self._emotion.lifecycle_epoch:
+            return None
+        feedback = result.decode.plan.emotion_feedback
+        if feedback is None:
+            return None
+        try:
+            scopes = {scope.scope_id: scope for scope in txn.appraisal_scopes}
+            appraisals = []
+            for model_appraisal in feedback.appraisals:
+                scope = scopes.get(model_appraisal.scope_id)
+                if scope is None:
+                    raise ValueError("model selected an unknown appraisal scope")
+                appraisals.append(
+                    AffectiveAppraisal(
+                        scope=scope,
+                        effects=tuple(
+                            ChannelEffect(
+                                channel=effect.channel,
+                                direction=effect.direction,
+                                strength=effect.strength,
+                                confidence=effect.confidence,
+                            )
+                            for effect in model_appraisal.effects
+                        ),
+                        reason="model-reviewed self appraisal",
+                    )
+                )
+            stimuli: tuple[EmotionStimulusEvent, ...] = ()
+            if appraisals:
+                stimuli = (
+                    EmotionStimulusEvent(
+                        event_id=EventId(
+                            f"emotion-feedback:{inflight.task.seed.turn_id}"
+                        ),
+                        appraisals=tuple(appraisals),
+                        source=StimulusSource.MODEL,
+                        cause_key=f"turn:{inflight.task.seed.turn_id}",
+                    ),
+                )
+            return self._emotion.candidate_from(
+                txn.anchor,
+                stimuli,
+                timestamp=self._timestamp,
+            )
+        except Exception as error:  # noqa: BLE001 - preserve completed turn
+            diagnostic_logger.warning(
+                "Model emotion feedback could not reconcile the turn",
+                extra={
+                    "diagnostic_event": "emotion_feedback_reconcile_failed",
+                    "turn_id": str(inflight.task.seed.turn_id),
+                    "error": type(error).__name__,
+                },
+            )
+            return None
+
+    def _record_slow_guidance(
+        self,
+        inflight: InFlightTurn,
+        result: ReasoningTurnResult,
+    ) -> None:
+        """Retain only explicit corrections to a fast rise for the same cause."""
+
+        feedback = result.decode.plan.emotion_feedback
+        txn = self._affect_txn
+        if feedback is None or txn is None:
+            return
+        scopes = {scope.scope_id: scope for scope in txn.appraisal_scopes}
+        fast_by_event = {stimulus.event_id: stimulus for stimulus in txn.fast_stimuli}
+        for model_appraisal in feedback.appraisals:
+            scope = scopes.get(model_appraisal.scope_id)
+            if scope is None:
+                return
+            stimulus = fast_by_event.get(scope.cause_event_id)
+            if stimulus is None or stimulus.cause_key is None:
+                continue
+            fast_rises = {
+                effect.channel
+                for appraisal in stimulus.appraisals
+                for effect in appraisal.effects
+                if effect.direction is AffectDirection.INCREASE
+                and not appraisal.scope.scope_id.startswith("guidance:")
+            }
+            updates = tuple(
+                ChannelEffect(
+                    channel=effect.channel,
+                    direction=effect.direction,
+                    strength=effect.strength,
+                    confidence=effect.confidence * scope.relationship_weight,
+                )
+                for effect in model_appraisal.effects
+                if effect.direction is AffectDirection.INCREASE
+                or effect.channel in fast_rises
+            )
+            if updates:
+                self._emotion.update_cause_guidance(stimulus.cause_key, updates)
 
     def _mark_stale(self, inflight: InFlightTurn, reason: str) -> None:
         if inflight.terminal_status is not None:
@@ -419,11 +728,13 @@ class BrainCoordinator:
         try:
             self._settlement.settle(inflight.task.state_candidates)
         except Exception as error:  # noqa: BLE001 - owner commit boundary
-            self._workspace.release(
+            released = self._workspace.release(
                 inflight.frame.frame_id,
                 inflight.task.seed.turn_id,
                 "turn_settlement_failed",
             )
+            if getattr(released, "value", None) == "dead_lettered":
+                self._affect_txn = None
             self._outcomes.record(
                 reasoning_failure_outcome(
                     turn_id=inflight.task.seed.turn_id,
@@ -437,6 +748,7 @@ class BrainCoordinator:
             inflight.frame.frame_id,
             inflight.task.seed.turn_id,
         )
+        self._affect_txn = None
         self._outcomes.record(
             reasoning_stale_outcome(
                 turn_id=inflight.task.seed.turn_id,
@@ -458,11 +770,13 @@ class BrainCoordinator:
         try:
             self._settlement.settle(inflight.task.state_candidates)
         except Exception as error:  # noqa: BLE001 - owner commit boundary
-            self._workspace.release(
+            released = self._workspace.release(
                 inflight.frame.frame_id,
                 inflight.task.seed.turn_id,
                 "turn_settlement_failed",
             )
+            if getattr(released, "value", None) == "dead_lettered":
+                self._affect_txn = None
             self._outcomes.record(
                 reasoning_failure_outcome(
                     turn_id=inflight.task.seed.turn_id,
@@ -479,15 +793,18 @@ class BrainCoordinator:
         decision = govern_decision(inflight.frame, plan)
         if self._plan_sink.accept(decision):
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
+            self._affect_txn = None
             self._outcomes.record(reasoning_timeout_outcome(plan))
             inflight.terminal_status = TerminalStatus.TIMED_OUT
             inflight.terminal_reason = "reasoning_hard_timeout"
         else:
-            self._workspace.release(
+            released = self._workspace.release(
                 inflight.frame.frame_id,
                 inflight.task.seed.turn_id,
                 "router_rejected_timeout",
             )
+            if getattr(released, "value", None) == "dead_lettered":
+                self._affect_txn = None
             self._outcomes.record(
                 reasoning_failure_outcome(
                     turn_id=inflight.task.seed.turn_id,
@@ -522,11 +839,13 @@ class BrainCoordinator:
             self._inflight = None
             return
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, "coordinator_stopped")
-        self._workspace.release(
+        released = self._workspace.release(
             inflight.frame.frame_id,
             inflight.task.seed.turn_id,
             "coordinator_stopped",
         )
+        if getattr(released, "value", None) == "dead_lettered":
+            self._affect_txn = None
         self._inflight = None
 
 

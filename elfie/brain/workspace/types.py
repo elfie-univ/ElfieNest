@@ -37,6 +37,14 @@ class WaitStatus(str, Enum):
     STOPPED = "stopped"
 
 
+@unique
+class ReleaseDisposition(str, Enum):
+    """Whether releasing a frame scheduled replay or closed it terminally."""
+
+    REPLAY = "replay"
+    DEAD_LETTERED = "dead_lettered"
+
+
 class TriggerMetrics(FrozenContractModel):
     """O(1) trigger-policy snapshot maintained by the workspace."""
 
@@ -141,6 +149,7 @@ __all__ = (
     "ActiveClaimError",
     "FrameLifecycleError",
     "ProcessingFailureEvent",
+    "ReleaseDisposition",
     "TriggerMetrics",
     "WaitStatus",
     "WorkspaceStorageMetrics",

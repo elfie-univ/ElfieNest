@@ -8,7 +8,7 @@ from typing import Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
-from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.contracts import MemoryContext, RelationshipImportanceProjection
 from elfie.brain.memory.memory_records import (
     MemoryUseProposal,
     RecallBundle,
@@ -104,6 +104,14 @@ class MemoryContextReader:
         """
         del frame, emotion, captured_at
         return ()
+
+    def relationship_importance(
+        self,
+        actor_id: str,
+        *,
+        owner: bool = False,
+    ) -> RelationshipImportanceProjection | None:
+        return self._memory.relationship_importance(actor_id, owner=owner)
 
     def completed_interaction_candidate(
         self,

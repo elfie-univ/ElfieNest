@@ -243,7 +243,6 @@ class BrainRuntime:
         """Capture one checkpoint for the Stage 4C continuous state owners."""
         return BrainContinuityCheckpoint(
             captured_at=self._clock(),
-            emotion=self._emotion.checkpoint(),
             energy=self._homeostasis.checkpoint(),
             memory=self.context.memory_checkpoint(),
             orientation=self.context.orientation_checkpoint(),
@@ -257,7 +256,6 @@ class BrainRuntime:
         """Prevalidate and restore all continuous owners while Brain is stopped."""
         if self._started:
             raise RuntimeError("cannot restore Brain continuity while it is running")
-        self._emotion.validate_checkpoint(checkpoint.emotion)
         self._homeostasis.validate_checkpoint(checkpoint.energy)
         self.context.validate_memory_checkpoint(checkpoint.memory)
         self.context.validate_orientation_checkpoint(checkpoint.orientation)
@@ -265,7 +263,6 @@ class BrainRuntime:
         self.context.validate_motivation_checkpoint(checkpoint.motivation)
         self.context.validate_consolidation_checkpoint(checkpoint.consolidation)
         self.context.validate_conversation_checkpoint(checkpoint.conversation)
-        self._emotion.restore(checkpoint.emotion)
         self._homeostasis.restore(checkpoint.energy)
         self.context.restore_memory_checkpoint(checkpoint.memory)
         self.context.restore_orientation_checkpoint(checkpoint.orientation)

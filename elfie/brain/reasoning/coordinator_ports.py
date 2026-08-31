@@ -5,7 +5,7 @@ from typing import Optional, Protocol
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.consolidation.system import CognitiveConsolidationCandidate
-from elfie.brain.emotion.contracts import EmotionSnapshot
+from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
 from elfie.brain.memory import EpisodicMemoryCandidate
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import (
@@ -50,6 +50,12 @@ class BrainContextSource(Protocol):
         captured_at: UTCDateTime,
     ) -> tuple[EpisodicMemoryCandidate, ...]:
         """Return explicit candidates without mutating Memory."""
+
+    def emotion_appraisal_scopes(
+        self,
+        frame: TurnFrame,
+    ) -> tuple[TrustedAppraisalScope, ...]:
+        """Return host-signed indirect scopes for source actors in this frame."""
 
     def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
         """Return Episodes closed by WorkingContext and awaiting source capture."""
