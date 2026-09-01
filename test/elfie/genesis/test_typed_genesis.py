@@ -61,6 +61,16 @@ def test_typed_genesis_records_story_graph_manifest_and_recall(tmp_path: Path) -
         rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
         assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
 
+        identity = storage.recall(RecallRequest(text="你来自哪里？", lexical_limit=10))
+        assert any(
+            item.node_id.endswith(":world-identity") for item in identity.focus_nodes
+        )
+        assert any(
+            assertion.object_node_id
+            and assertion.object_node_id.endswith(":world-identity")
+            for assertion in identity.assertions
+        )
+
         unknown = storage.recall(RecallRequest(text="完整地图", lexical_limit=10))
         assert any(
             assertion.predicate == "knows_boundary"

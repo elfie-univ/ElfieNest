@@ -108,6 +108,9 @@ class PendingReplyProjection(FrozenContractModel):
     content: _NonBlankText
     cause_event_ids: Tuple[EventId, ...]
     prepared_at: UTCDateTime
+    # Host provenance, never model-controlled: failed/placeholder notices can
+    # remain in short-term history without becoming durable topic Memory.
+    memory_eligible: bool = True
 
 
 class ConversationTopicCheckpoint(FrozenContractModel):
