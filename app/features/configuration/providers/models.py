@@ -13,6 +13,7 @@ from .port_models import (
     DiscoveryStrategy,
     LatencyClass,
     LocalProviderState,
+    ModelPricing,
     ModelSource,
     StoredCapabilityProbeResult,
     StoredEndpointCapability,
@@ -274,6 +275,8 @@ class ProviderProductResult:
     api_mode: ApiMode
     api_base: str
     auth_type: AuthType
+    api_key_url: str | None = None
+    has_free_models: bool = False
 
 
 @dataclass(frozen=True)
@@ -321,6 +324,7 @@ class ProviderModelResult:
     request_profile_version: int | None = None
     supports_structured_output: bool | None = None
     capability_evidence: Mapping[str, str] = field(default_factory=dict)
+    pricing: ModelPricing = "unknown"
 
 
 @dataclass(frozen=True)

@@ -54,7 +54,7 @@ type OtherSubscriptionOption =
 const NO_PRODUCT = "__none__"
 const OPENAI_INTERFACE_OPTION = "__openai_interface__"
 const ANTHROPIC_INTERFACE_OPTION = "__anthropic_interface__"
-const FEATURED_BRAND_LIMIT = 8
+const FEATURED_BRAND_LIMIT = 10
 const FEATURED_BRAND_ORDER = [
   "google",
   "openai",
@@ -64,7 +64,19 @@ const FEATURED_BRAND_ORDER = [
   "zhipu",
   "moonshot",
   "minimax",
+  "volcengine",
+  "xai",
 ] as const
+const OTHER_BRAND_ORDER = [
+  "openrouter",
+  "siliconflow",
+  "groq",
+  "huggingface",
+  "mistral",
+  "together",
+  "deepinfra",
+] as const
+const OTHER_BRAND_LIMIT = 5
 
 export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }) {
   const { i18n, t } = useTranslation("manage")
@@ -149,7 +161,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     .sort((left, right) => featuredBrandRank(left.brand.brand_id) - featuredBrandRank(right.brand.brand_id))
     .slice(0, FEATURED_BRAND_LIMIT), [brandGroups])
   const featuredBrandIds = useMemo(() => new Set(featuredBrands.map((group) => group.brand.brand_id)), [featuredBrands])
-  const otherBrands = useMemo(() => brandGroups.filter((group) => !featuredBrandIds.has(group.brand.brand_id)), [brandGroups, featuredBrandIds])
+  const otherBrands = useMemo(() => brandGroups
+    .filter((group) => !featuredBrandIds.has(group.brand.brand_id))
+    .sort((left, right) => otherBrandRank(left.brand.brand_id) - otherBrandRank(right.brand.brand_id))
+    .slice(0, OTHER_BRAND_LIMIT), [brandGroups, featuredBrandIds])
   const otherOptions = useMemo<readonly OtherSubscriptionOption[]>(() => [
     { kind: "interface" as const, label: t("providerConnections.other.openaiInterface"), preset: "openai" as const, value: OPENAI_INTERFACE_OPTION },
     { kind: "interface" as const, label: t("providerConnections.other.anthropicInterface"), preset: "anthropic" as const, value: ANTHROPIC_INTERFACE_OPTION },
@@ -211,10 +226,10 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
     }
   }
 
-  const verify = async (connection: ProviderConnection): Promise<void> => {
+  const verify = async (connection: ProviderConnection, forceFull = false): Promise<void> => {
     setPending(`verify:${connection.connection_id}`)
     try {
-      await verifyProviderConnection(connection.connection_id, csrfToken)
+      await verifyProviderConnection(connection.connection_id, csrfToken, forceFull)
       show({ kind: "success", message: t("providerConnections.notices.validated", { name: connection.alias }) })
       await load()
     } catch (reason: unknown) {
@@ -308,13 +323,13 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
         onModels={() => setViewingModels(connection)}
         onDelete={() => setDeleting(connection)}
         onLifecycle={(action) => { void lifecycle(connection, action) }}
-        onVerify={() => { void verify(connection) }}
+        onVerify={() => { void verify(connection, connection.verification.status === "failed") }}
         onForceFull={() => { void forceFullVerify(connection) }}
         foodPackages={foodPackages}
       />)}</div>}
     </section>
     <section aria-labelledby="available-provider-title" className="provider-section provider-section--available"><div className="provider-section__heading"><div><h3 id="available-provider-title">{t("providerConnections.available.title")}</h3></div></div><div className="provider-grid">
-      {featuredBrands.map((group) => <button aria-label={t("providerConnections.actions.configure", { name: group.brand.name })} className="provider-card provider-card--available" key={group.brand.brand_id} onClick={() => setEditing({ connection: null, products: group.products })} type="button"><span className="provider-card__brand"><ProviderBrandLogo brand={group.brand} /><strong>{group.brand.name}</strong></span></button>)}
+      {featuredBrands.map((group) => <button aria-label={t("providerConnections.actions.configure", { name: group.brand.name })} className="provider-card provider-card--available" key={group.brand.brand_id} onClick={() => setEditing({ connection: null, products: group.products })} type="button"><span className="provider-card__brand"><ProviderBrandLogo brand={group.brand} /><strong>{group.brand.name}</strong></span>{group.products.some((item) => item.has_free_models === true) ? <span className="provider-card__free-badge">{t("providerConnections.labels.freeQuota")}</span> : null}</button>)}
       <button aria-label={t("providerConnections.actions.addOther")} className="provider-card provider-card--add" onClick={() => setOtherOpen(true)} type="button"><span className="provider-card__add-mark"><Icon name="plus" size={24} /></span><strong>{t("providerConnections.actions.addOther")}</strong></button>
     </div></section>
     <ProviderFormDialog connection={editing?.connection ?? null} onAuthorize={authorize} onOpenChange={(open) => { if (!open) setEditing(null) }} onSave={save} open={editing !== null} products={editing?.products ?? []} />
@@ -334,7 +349,7 @@ export function OwnerProviderPanel({ csrfToken }: { readonly csrfToken: string }
           setInitialModelError(null)
         }
       }}
-      onVerify={viewingModels ? async () => { await verify(viewingModels) } : undefined}
+      onVerify={viewingModels ? async () => { await verify(viewingModels, true) } : undefined}
       foodReferenceCount={viewingModels ? countFoodReferences(viewingModels.connection_id, foodPackages) : null}
       open={viewingModels !== null}
     />
@@ -358,6 +373,11 @@ function groupRemoteProductsByBrand(catalog: readonly ProviderProduct[]): readon
 function featuredBrandRank(brandId: string): number {
   const rank = FEATURED_BRAND_ORDER.indexOf(brandId as typeof FEATURED_BRAND_ORDER[number])
   return rank === -1 ? FEATURED_BRAND_ORDER.length : rank
+}
+
+function otherBrandRank(brandId: string): number {
+  const rank = OTHER_BRAND_ORDER.indexOf(brandId as typeof OTHER_BRAND_ORDER[number])
+  return rank === -1 ? OTHER_BRAND_ORDER.length : rank
 }
 
 function waitForOAuthPoll(delayMs: number, signal: AbortSignal): Promise<void> {
@@ -393,6 +413,8 @@ function ConfiguredConnectionCard({ busy, connection, foodPackages, onDelete, on
   const counts = connection.model_counts
   const foodReferenceCount = countFoodReferences(connection.connection_id, foodPackages)
   const health = availabilityCardHealth(connection)
+  const canDelete = connection.catalog_id !== "ollama"
+    && (connection.archived || foodReferenceCount === 0)
   const status = availabilityCardLabel(health, t, counts)
   const modelStats = t(foodReferenceCount === null
     ? "providerConnections.card.modelStats"
@@ -403,7 +425,7 @@ function ConfiguredConnectionCard({ busy, connection, foodPackages, onDelete, on
     available: counts.available,
     foods: foodReferenceCount ?? 0,
   })
-  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
+  return <article className={`provider-card provider-card--${health}`}><div className="provider-card__title"><h4>{connection.alias}</h4><span className={`status-badge status-badge--${health}`}>{status}</span></div><p className="provider-card__model-stats">{modelStats}</p><div className="manage-actions"><Button disabled={busy} onClick={onModels} type="button" variant="outline">{t("providerConnections.actions.models")}</Button><Button disabled={busy} onClick={onVerify} type="button" variant="outline">{busy ? t("providerConnections.actions.validating") : t("providerConnections.actions.validate")}</Button><Button disabled={busy} onClick={onEdit} type="button" variant="outline">{t("providerConnections.actions.edit")}</Button><ProviderLifecycleMenu archived={connection.archived} busy={busy} canDelete={canDelete} enabled={connection.enabled} onDelete={onDelete} onForceFull={onForceFull} onLifecycle={onLifecycle} /></div></article>
 }
 
 function countFoodReferences(connectionId: string, foodPackages: readonly FoodPackage[] | null): number | null {
@@ -417,6 +439,7 @@ function availabilityCardHealth(
   const counts = connection.model_counts
   if (!connection.enabled || connection.archived) return "disabled"
   if (counts.enabled === 0) return "never"
+  if (connection.verification.status === "failed" && counts.available === 0 && counts.degraded > 0 && counts.unavailable === 0) return "partial"
   if (connection.verification.status === "failed" || connection.verification.availability_status === "unavailable") return "failed"
   if (counts.available > 0) return "passed"
   if (counts.unavailable === counts.enabled) return "failed"

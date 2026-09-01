@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import TypeVar
@@ -112,6 +114,56 @@ _T = TypeVar("_T")
 
 LOCAL_STATUS_FRESHNESS = timedelta(minutes=10)
 LOCAL_STATUS_REFRESH_COOLDOWN = timedelta(minutes=5)
+
+diagnostic_logger = logging.getLogger("elfienest.diagnostics.provider_management")
+
+
+def _log_provider_event(
+    operation: str,
+    phase: str,
+    status: str,
+    *,
+    connection_id: str | None = None,
+    catalog_id: str | None = None,
+    model_count: int | None = None,
+    result_count: int | None = None,
+    duration_ms: float | None = None,
+    force_full: bool | None = None,
+    reason: str | None = None,
+    error: BaseException | None = None,
+) -> None:
+    fields: dict[str, object] = {
+        "diagnostic_event": "provider_management",
+        "component": "provider_management",
+        "operation": operation,
+        "phase": phase,
+        "status": status,
+    }
+    if connection_id is not None:
+        fields["connection_id"] = connection_id
+    if catalog_id is not None:
+        fields["catalog_id"] = catalog_id
+    if model_count is not None:
+        fields["model_count"] = model_count
+    if result_count is not None:
+        fields["result_count"] = result_count
+    if duration_ms is not None:
+        fields["duration_ms"] = round(duration_ms, 1)
+    if force_full is not None:
+        fields["force_full"] = force_full
+    if reason:
+        fields["reason"] = reason[:512]
+    if error is not None:
+        fields["error_type"] = type(error).__name__
+    diagnostic_logger.log(
+        logging.WARNING if error is not None else logging.INFO,
+        "Provider management operation",
+        extra=fields,
+    )
+
+
+def _elapsed_ms(started_at: float) -> float:
+    return (time.monotonic() - started_at) * 1000
 
 
 class ProvidersService:
@@ -720,11 +772,28 @@ class ProvidersService:
     ) -> tuple[ProviderProductResult, ...]:
         _ = query
         self._require_manager(principal)
+        started_at = time.monotonic()
+        _log_provider_event("list_products", "start", "started")
         try:
-            return tuple(
+            products = tuple(
                 self._product_result(item) for item in self._catalog.list_products()
             )
+            _log_provider_event(
+                "list_products",
+                "complete",
+                "succeeded",
+                result_count=len(products),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            return products
         except ProviderPortError as error:
+            _log_provider_event(
+                "list_products",
+                "complete",
+                "failed",
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable("Provider catalog unavailable") from error
 
     def list_connections(
@@ -734,6 +803,8 @@ class ProvidersService:
     ) -> tuple[ProviderConnectionResult, ...]:
         _ = query
         self._require_manager(principal)
+        started_at = time.monotonic()
+        _log_provider_event("list_connections", "start", "started")
         try:
             connections = self._connections.list_connections()
             projections = self._technology.project_connections(connections)
@@ -746,14 +817,29 @@ class ProvidersService:
                 or set(projections_by_id) != connection_ids
             ):
                 raise ProviderPortError("Provider projection inventory mismatch")
-            return tuple(
+            results = tuple(
                 self._connection_result(
                     item,
                     projection=projections_by_id[item.connection_id],
                 )
                 for item in connections
             )
+            _log_provider_event(
+                "list_connections",
+                "complete",
+                "succeeded",
+                model_count=sum(len(item.models) for item in connections),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            return results
         except ProviderPortError as error:
+            _log_provider_event(
+                "list_connections",
+                "complete",
+                "failed",
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable("Provider connections unavailable") from error
 
     async def create_connection(
@@ -762,6 +848,13 @@ class ProvidersService:
         command: CreateProviderConnectionCommand,
     ) -> ProviderConnectionResult:
         self._require_manager(principal)
+        started_at = time.monotonic()
+        _log_provider_event(
+            "create_connection",
+            "start",
+            "started",
+            catalog_id=command.catalog_id,
+        )
         product = self._product(command.catalog_id)
         if product.connection_method == "local" and command.api_key:
             raise ProvidersValidationError("Local connections do not accept an API key")
@@ -795,6 +888,14 @@ class ProvidersService:
                 ),
                 command.api_key,
             )
+            _log_provider_event(
+                "create_connection",
+                "persist",
+                "succeeded",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+            )
             await self._probe_reachability(connection)
             refresh = None
             if command.refresh_models:
@@ -805,17 +906,55 @@ class ProvidersService:
                 if command.verify
                 else None
             )
+            if verification is not None:
+                _log_provider_event(
+                    "create_connection",
+                    "verification",
+                    verification.status,
+                    connection_id=connection.connection_id,
+                    catalog_id=connection.catalog_id,
+                    force_full=False,
+                    reason=verification.error or verification.reason,
+                )
             if not command.verify:
                 await self._probe_representative(connection)
-            return self._connection_result(
+            result = self._connection_result(
                 connection,
                 verification=verification,
                 refresh=refresh,
             )
+            _log_provider_event(
+                "create_connection",
+                "complete",
+                "succeeded",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            return result
         except ProviderPortError as error:
+            _log_provider_event(
+                "create_connection",
+                "complete",
+                "failed",
+                catalog_id=command.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable(
                 "Provider connection could not be created"
             ) from error
+        except Exception as error:
+            _log_provider_event(
+                "create_connection",
+                "complete",
+                "failed",
+                catalog_id=command.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
+            raise
 
     async def update_connection(
         self,
@@ -824,6 +963,15 @@ class ProvidersService:
     ) -> ProviderConnectionResult:
         self._require_manager(principal)
         connection = self._require_connection(command.connection_id)
+        started_at = time.monotonic()
+        _log_provider_event(
+            "update_connection",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(connection.models),
+        )
         self._product(connection.catalog_id)
         models = connection.models
         if "models" in command.fields:
@@ -857,6 +1005,14 @@ class ProvidersService:
                 command.api_key,
                 update_credential="api_key" in command.fields,
             )
+            _log_provider_event(
+                "update_connection",
+                "persist",
+                "succeeded",
+                connection_id=updated.connection_id,
+                catalog_id=updated.catalog_id,
+                model_count=len(updated.models),
+            )
             if command.verify or bool(
                 set(command.fields)
                 & {"api_base", "api_mode", "auth_type", "api_key", "models"}
@@ -871,20 +1027,60 @@ class ProvidersService:
                 if command.verify
                 else None
             )
+            if verification is not None:
+                _log_provider_event(
+                    "update_connection",
+                    "verification",
+                    verification.status,
+                    connection_id=updated.connection_id,
+                    catalog_id=updated.catalog_id,
+                    force_full=False,
+                    reason=verification.error or verification.reason,
+                )
             if not command.verify and bool(
                 set(command.fields)
                 & {"api_base", "api_mode", "auth_type", "api_key", "models"}
             ):
                 await self._probe_representative(updated)
-            return self._connection_result(
+            result = self._connection_result(
                 updated,
                 verification=verification,
                 refresh=refresh,
             )
+            _log_provider_event(
+                "update_connection",
+                "complete",
+                "succeeded",
+                connection_id=updated.connection_id,
+                catalog_id=updated.catalog_id,
+                model_count=len(updated.models),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            return result
         except ProviderPortError as error:
+            _log_provider_event(
+                "update_connection",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable(
                 "Provider connection could not be updated"
             ) from error
+        except Exception as error:
+            _log_provider_event(
+                "update_connection",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
+            raise
 
     def delete_connection(
         self,
@@ -897,13 +1093,15 @@ class ProvidersService:
             raise ProvidersValidationError(
                 "The default Ollama connection cannot be deleted"
             )
-        if not connection.archived:
-            raise ProvidersConflict("The connection must be archived before deletion")
         try:
             references = self._references.connections_referenced_by_food(
                 connection.connection_id
             )
             if references:
+                if not connection.archived:
+                    raise ProvidersConflict(
+                        "The connection must be archived before deletion"
+                    )
                 raise ProvidersConflict(
                     "The connection is referenced by food packages: "
                     + ", ".join(references)
@@ -973,18 +1171,72 @@ class ProvidersService:
     ) -> ProviderConnectionVerificationResult:
         self._require_manager(principal)
         connection = self._require_connection(command.connection_id)
+        started_at = time.monotonic()
+        _log_provider_event(
+            "verify_connection",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(connection.models),
+            force_full=command.force_full,
+        )
         try:
             await self._probe_reachability(connection)
             verification = await self._technology.verify_connection(
                 connection,
                 force_full=command.force_full,
             )
+            _log_provider_event(
+                "verify_connection",
+                "validation",
+                verification.status,
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                force_full=command.force_full,
+                reason=verification.error or verification.reason,
+            )
         except ProviderPortError as error:
+            _log_provider_event(
+                "verify_connection",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                force_full=command.force_full,
+                error=error,
+            )
             raise ProvidersUnavailable("Provider validation unavailable") from error
-        return ProviderConnectionVerificationResult(
+        except Exception as error:
+            _log_provider_event(
+                "verify_connection",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                force_full=command.force_full,
+                error=error,
+            )
+            raise
+        result = ProviderConnectionVerificationResult(
             connection_id=connection.connection_id,
             verification=self._verification_result(verification),
         )
+        _log_provider_event(
+            "verify_connection",
+            "complete",
+            verification.status,
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(connection.models),
+            duration_ms=_elapsed_ms(started_at),
+            force_full=command.force_full,
+            reason=verification.error or verification.reason,
+        )
+        return result
 
     async def verify_local_models(
         self,
@@ -1054,10 +1306,53 @@ class ProvidersService:
         command: RefreshProviderModelsCommand,
     ) -> ProviderModelRefreshResult:
         self._require_manager(principal)
-        return self._refresh_result(
-            await self._refresh(self._require_connection(command.connection_id)),
-            command.connection_id,
+        connection = self._require_connection(command.connection_id)
+        started_at = time.monotonic()
+        _log_provider_event(
+            "refresh_models",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(connection.models),
         )
+        try:
+            refresh = await self._refresh(connection)
+            result = self._refresh_result(refresh, command.connection_id)
+        except ProviderPortError as error:
+            _log_provider_event(
+                "refresh_models",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
+            raise
+        except Exception as error:
+            _log_provider_event(
+                "refresh_models",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
+            raise
+        _log_provider_event(
+            "refresh_models",
+            "complete",
+            refresh.status,
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(refresh.models),
+            duration_ms=_elapsed_ms(started_at),
+        )
+        return result
 
     async def probe_capabilities(
         self,
@@ -1065,7 +1360,15 @@ class ProvidersService:
         command: ProbeProviderModelCapabilitiesCommand,
     ) -> ProviderCapabilityProbeResult:
         self._require_manager(principal)
-        self._require_connection(command.connection_id)
+        connection = self._require_connection(command.connection_id)
+        started_at = time.monotonic()
+        _log_provider_event(
+            "probe_capabilities",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+        )
         reference = f"{command.connection_id}/{command.model_id}"
         try:
             results = await self._technology.probe_capabilities(
@@ -1073,13 +1376,32 @@ class ProvidersService:
                 command.capabilities,
             )
         except ProviderPortError as error:
+            _log_provider_event(
+                "probe_capabilities",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable(
                 "Provider capability probe unavailable"
             ) from error
-        return ProviderCapabilityProbeResult(
+        result = ProviderCapabilityProbeResult(
             reference=reference,
             results=tuple(results),
         )
+        _log_provider_event(
+            "probe_capabilities",
+            "complete",
+            "succeeded",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            result_count=len(result.results),
+            duration_ms=_elapsed_ms(started_at),
+        )
+        return result
 
     def list_obsolete_models(
         self,
@@ -1564,6 +1886,8 @@ class ProvidersService:
     ) -> ProviderValidationRunResult:
         _ = command
         self._require_manager(principal)
+        started_at = time.monotonic()
+        _log_provider_event("validate_all", "start", "started")
         try:
             run = await self._technology.validate_all(
                 tuple(
@@ -1574,14 +1898,29 @@ class ProvidersService:
                 cancelled,
             )
         except ProviderPortError as error:
+            _log_provider_event(
+                "validate_all",
+                "complete",
+                "failed",
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable("Provider validation unavailable") from error
-        return ProviderValidationRunResult(
+        result = ProviderValidationRunResult(
             run_id=run.run_id,
             status=run.status,
             results=tuple(
                 ProviderValidationItemResult(**vars(item)) for item in run.results
             ),
         )
+        _log_provider_event(
+            "validate_all",
+            "complete",
+            result.status,
+            result_count=len(result.results),
+            duration_ms=_elapsed_ms(started_at),
+        )
+        return result
 
     def _product(self, catalog_id: str) -> StoredProviderProduct:
         try:
@@ -1614,13 +1953,42 @@ class ProvidersService:
         connection: StoredProviderConnection,
         models: tuple[StoredProviderModel, ...],
     ) -> StoredProviderConnection:
+        started_at = time.monotonic()
+        _log_provider_event(
+            "persist_models",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(models),
+        )
         try:
-            return self._connections.replace_connection(
+            updated = self._connections.replace_connection(
                 replace(connection, models=models),
                 None,
                 update_credential=False,
             )
+            _log_provider_event(
+                "persist_models",
+                "complete",
+                "succeeded",
+                connection_id=updated.connection_id,
+                catalog_id=updated.catalog_id,
+                model_count=len(updated.models),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            return updated
         except ProviderPortError as error:
+            _log_provider_event(
+                "persist_models",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(models),
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable(
                 "Provider models could not be updated"
             ) from error
@@ -1629,21 +1997,84 @@ class ProvidersService:
         self,
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
+        started_at = time.monotonic()
+        _log_provider_event(
+            "refresh_models",
+            "discovery",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=len(connection.models),
+        )
         try:
             refresh = await self._technology.refresh_models(connection)
-            self._replace_models(
-                connection,
-                refresh.persisted_models or refresh.models,
+            persisted_models = refresh.persisted_models
+            if persisted_models is None:
+                persisted_models = refresh.models
+            # A failed or malformed discovery response must never erase a
+            # previously usable inventory. An intentional empty inventory is
+            # represented explicitly by authoritative_empty plus a persisted
+            # snapshot from the technology adapter.
+            if persisted_models or refresh.status == "authoritative_empty":
+                self._replace_models(connection, persisted_models)
+            else:
+                _log_provider_event(
+                    "refresh_models",
+                    "preserve_inventory",
+                    "succeeded",
+                    connection_id=connection.connection_id,
+                    catalog_id=connection.catalog_id,
+                    model_count=len(connection.models),
+                )
+            _log_provider_event(
+                "refresh_models",
+                "discovery",
+                refresh.status,
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(persisted_models),
+                duration_ms=_elapsed_ms(started_at),
+                reason=refresh.message,
             )
             return refresh
         except ProviderPortError as error:
+            _log_provider_event(
+                "refresh_models",
+                "discovery",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             raise ProvidersUnavailable("Provider model refresh unavailable") from error
+        except Exception as error:
+            _log_provider_event(
+                "refresh_models",
+                "discovery",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=len(connection.models),
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
+            raise
 
     async def _probe_representative(
         self,
         connection: StoredProviderConnection,
     ) -> None:
         """Spend at most one tiny request after a new/changed connection save."""
+        started_at = time.monotonic()
+        _log_provider_event(
+            "probe_representative",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+        )
         candidate = next(
             (
                 item
@@ -1655,33 +2086,101 @@ class ProvidersService:
             None,
         )
         if candidate is None:
+            _log_provider_event(
+                "probe_representative",
+                "complete",
+                "skipped",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+            )
             return
         probe = getattr(self._technology, "probe_model", None)
         if not callable(probe):
+            _log_provider_event(
+                "probe_representative",
+                "complete",
+                "skipped",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+            )
             return
         try:
             await probe(f"{connection.connection_id}/{candidate.model_id}")
-        except (ProviderPortError, ValueError, OSError):
+        except (ProviderPortError, ValueError, OSError) as error:
             # The connection and inventory are already durable.  The probe
             # boundary records the failure; a failed check must not roll back
             # the user's configuration or hide the inventory.
+            _log_provider_event(
+                "probe_representative",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                model_count=1,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             return
+        _log_provider_event(
+            "probe_representative",
+            "complete",
+            "succeeded",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            model_count=1,
+            duration_ms=_elapsed_ms(started_at),
+        )
 
     async def _probe_reachability(
         self,
         connection: StoredProviderConnection,
     ) -> None:
         """Record zero-generation transport/auth evidence after saving config."""
+        started_at = time.monotonic()
+        _log_provider_event(
+            "probe_reachability",
+            "start",
+            "started",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+        )
         probe = getattr(self._technology, "probe_reachability", None)
         if not callable(probe):
+            _log_provider_event(
+                "probe_reachability",
+                "complete",
+                "skipped",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+            )
             return
         try:
             await probe(connection.connection_id)
-        except (ProviderPortError, ValueError, OSError):
+        except (ProviderPortError, ValueError, OSError) as error:
             # Reachability is evidence, not a save gate. The connection and
             # inventory remain durable so the Owner can repair credentials or
             # the endpoint and retry explicitly.
+            _log_provider_event(
+                "probe_reachability",
+                "complete",
+                "failed",
+                connection_id=connection.connection_id,
+                catalog_id=connection.catalog_id,
+                duration_ms=_elapsed_ms(started_at),
+                error=error,
+            )
             return
+        _log_provider_event(
+            "probe_reachability",
+            "complete",
+            "succeeded",
+            connection_id=connection.connection_id,
+            catalog_id=connection.catalog_id,
+            duration_ms=_elapsed_ms(started_at),
+        )
 
     def _connection_result(
         self,
@@ -1781,6 +2280,7 @@ class ProvidersService:
             discovery_state=model.discovery_state,
             consecutive_missing=model.consecutive_missing,
             last_seen_at=model.last_seen_at,
+            pricing=model.pricing,
         )
 
     def _refresh_result(
@@ -1843,6 +2343,8 @@ class ProvidersService:
             api_mode=product.api_mode,
             api_base=product.api_base,
             auth_type=product.auth_type,
+            api_key_url=product.api_key_url,
+            has_free_models=product.has_free_models,
         )
 
     @staticmethod

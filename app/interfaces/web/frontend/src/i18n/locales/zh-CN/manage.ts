@@ -53,8 +53,9 @@ export const manage = {
     verifyingSession: "正在验证会话…",
   },
   providerConnections: {
-    actions: { addOther: "添加其他订阅", archive: "归档", authorize: "使用 OpenAI 账号登录", authorizing: "正在生成授权码…", back: "上一步", batchValidate: "批量验证", cancel: "取消", cancelWaiting: "取消等待", choose: "继续", configure: "配置 {{name}}", copyCode: "复制授权码", delete: "删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", regenerateCode: "重新生成授权码", restore: "恢复", save: "保存配置", saving: "保存中…", validate: "验证", validating: "验证中…" },
+    actions: { addOther: "添加其他订阅", archive: "归档", authorize: "使用 OpenAI 账号登录", authorizing: "正在生成授权码…", back: "上一步", batchValidate: "批量验证", cancel: "取消", cancelWaiting: "取消等待", choose: "继续", configure: "配置 {{name}}", copyCode: "复制授权码", delete: "删除", deleteRequiresArchive: "请先归档后删除", disable: "停用", edit: "修改", enable: "启用", forceFullValidate: "强制全量验证", matrix: "同模型对比", models: "模型", more: "更多", refresh: "重新读取", regenerateCode: "重新生成授权码", restore: "恢复", save: "保存配置", saving: "保存中…", validate: "验证", validating: "验证中…" },
     available: { title: "添加新的远程订阅" },
+    labels: { freeQuota: "有免费额度" },
     card: { availabilityStats: "{{available}}/{{total}} 个模型可用", cached: "24 小时内沿用上次验证结果", modelStats: "{{available}}/{{total}} 个模型可用", modelStatsUnused: "{{available}}/{{total}} 个模型可用 · 未被粮食使用", modelStatsWithFoods: "{{available}}/{{total}} 个模型可用 · 被 {{foods}} 个粮食使用", needsFullValidation: "需要重新进行全量验证", needsHeartbeat: "需要验证一个代表模型", otherDiscovered: "另有 {{count}} 个已发现模型待启用" },
     ollama: {
       actions: { download: "下载安装", downloading: "下载中…", install: "安装", installing: "安装中… {{progress}}%", repairRequired: "需要修复", restart: "重启", start: "启动", starting: "启动中…" },
@@ -68,7 +69,7 @@ export const manage = {
     custom: { anthropicTitle: "配置 Anthropic 接口", apiKey: "API 密钥", apiMode: "API 协议", authType: "认证方式", displayName: "显示名称", displayNamePlaceholder: "例如 火山引擎 Coding Plan", noAuth: "无认证", openaiTitle: "配置 OpenAI 接口" },
     delete: { confirm: "确认删除", description: "将删除 {{name}} 的本机密钥和模型清单。", descriptionGeneric: "确认删除这个订阅连接吗？", title: "删除模型订阅" },
     errors: { save: "订阅配置没有保存" },
-    form: { alias: "订阅别名", apiKey: "API 密钥", method: "连接方式", methods: { apiKey: "API Key", chatgpt: "ChatGPT 账号授权（订阅）", openaiApi: "OpenAI API Key（按量计费）" }, oauthCancelled: "授权已停止。", oauthCode: "请在授权页输入代码：{{code}}", oauthCodeLabel: "第 1 步：复制授权码", oauthOpen: "第 2 步：打开 OpenAI 授权页", oauthWaiting: "等待授权…", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
+    form: { alias: "订阅别名", apiKey: "API 密钥", getApiKey: "前往官方页面获取 API Key ↗", method: "连接方式", methods: { apiKey: "API Key", chatgpt: "ChatGPT 账号授权（订阅）", openaiApi: "OpenAI API Key（按量计费）" }, oauthCancelled: "授权已停止。", oauthCode: "请在授权页输入代码：{{code}}", oauthCodeLabel: "第 1 步：复制授权码", oauthOpen: "第 2 步：打开 OpenAI 授权页", oauthWaiting: "等待授权…", titleConfigure: "配置 {{name}}", titleEdit: "修改 {{name}}" },
     notices: { added: "{{name}} 已添加。", authorized: "{{name}} 已通过 OpenAI 账号授权。", forceValidated: "{{name}} 已完成强制全量验证。", modelLoadFailed: "模型清单读取失败，请稍后重试。", saved: "{{name}} 已保存。", validated: "{{name}} 验证已完成。", validatedAll: "批量验证完成：{{count}} 项通过，报告 {{runId}}。" },
     other: { anthropicInterface: "Anthropic 接口", openaiInterface: "OpenAI 接口", placeholder: "请选择", product: "订阅产品", title: "添加其他订阅" },
     section: { configuredEmpty: "尚未配置远程模型订阅。", configuredTitle: "已配置的远程订阅", count: "{{count}} 个" },
@@ -82,7 +83,7 @@ export const manage = {
     emptyObsolete: "没有可处理的过期模型。",
     errors: { cleanup: "过期模型没有清理", load: "模型清单读取失败", probe: "模型能力验证失败", save: "模型信息没有保存", update: "模型没有更新" },
     fields: { context: "上下文窗口", displayName: "显示名称", displayNamePlaceholder: "例如 GLM-5", maxOutput: "最大输出 Token", modelId: "模型 ID", modelIdPlaceholder: "服务端实际模型 ID" },
-    labels: { available: "可用", degraded: "降级", list: "{{name}} 模型列表", neverVerified: "暂不可用", obsolete: "来源已缺失的模型", otherDiscovered: "其它已发现模型（{{count}}）", reasoning: "推理", title: "{{name}} 的模型", tools: "工具", unavailable: "不可用", vision: "视觉" },
+    labels: { available: "可用", degraded: "降级", free: "免费", list: "{{name}} 模型列表", neverVerified: "暂不可用", obsolete: "来源已缺失的模型", otherDiscovered: "其它已发现模型（{{count}}）", rateLimited: "临时限流", reasoning: "推理", title: "{{name}} 的模型", tools: "工具", unavailable: "不可用", vision: "视觉" },
     summary: "{{available}}/{{total}} 个模型可用",
     summaryUnused: "{{available}}/{{total}} 个模型可用 · 未被粮食使用",
     summaryWithFoods: "{{available}}/{{total}} 个模型可用 · 被 {{foods}} 个粮食使用",

@@ -15,6 +15,7 @@ ModelSource = Literal[
     "bundled_catalog",
     "manual",
 ]
+ModelPricing = Literal["free", "unknown"]
 DiscoveryState = Literal["present", "source_missing"]
 CapabilityEvidenceLevel = Literal[
     "declared",
@@ -65,6 +66,7 @@ _MODEL_FIELDS = frozenset(
         "discovery_state",
         "consecutive_missing",
         "last_seen_at",
+        "pricing",
     }
 )
 
@@ -102,6 +104,7 @@ class ProviderModelRecord:
     discovery_state: DiscoveryState = "present"
     consecutive_missing: int = 0
     last_seen_at: Optional[str] = None
+    pricing: ModelPricing = "unknown"
 
     def __post_init__(self) -> None:
         endpoint_model_id = self.endpoint_model_id.strip()
@@ -111,6 +114,8 @@ class ProviderModelRecord:
             raise ValueError(f"未知模型来源: {self.source}")
         if self.discovery_state not in _DISCOVERY_STATES:
             raise ValueError(f"未知模型发现状态: {self.discovery_state}")
+        if self.pricing not in {"free", "unknown"}:
+            raise ValueError(f"未知模型计价方式: {self.pricing}")
         if self.request_profile_id is None and self.request_profile_version is not None:
             raise ValueError("request_profile_version 不能脱离 request_profile_id")
         if (
@@ -197,6 +202,8 @@ class ProviderModelRecord:
             result["consecutive_missing"] = self.consecutive_missing
         if self.last_seen_at:
             result["last_seen_at"] = self.last_seen_at
+        if self.pricing == "free":
+            result["pricing"] = self.pricing
         return result
 
     @classmethod
@@ -242,6 +249,7 @@ class ProviderModelRecord:
                 raw.get("consecutive_missing", 0), "consecutive_missing"
             ),
             last_seen_at=_optional_string(raw.get("last_seen_at")),
+            pricing=_pricing(raw.get("pricing", "unknown")),
         )
 
 
@@ -381,6 +389,12 @@ def parse_provider_document(raw: Mapping[str, Any]) -> ProviderConnectionDocumen
 def _optional_string(value: Any) -> Optional[str]:
     normalized = str(value or "").strip()
     return normalized or None
+
+
+def _pricing(value: Any) -> ModelPricing:
+    if value not in {"free", "unknown"}:
+        raise ValueError(f"未知模型计价方式: {value}")
+    return cast(ModelPricing, value)
 
 
 def _optional_positive_int(value: Any, field_name: str) -> Optional[int]:

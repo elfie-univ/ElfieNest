@@ -192,10 +192,20 @@ async def run_full(
             )
             blocked = record_batch(batch, tuple(raw_results))
         finished_at = _now()
+        passed_count = sum(1 for item in model_results if item["status"] == "passed")
+        has_connection_block = preflight_connection_block is not None or any(
+            item.get("error_scope") == "connection" for item in model_results
+        )
+        # The connection result is a serving-level signal. An endpoint-scoped
+        # failure (most notably a transient 429) must not hide a sibling model
+        # that just passed. Exact model observations remain authoritative for
+        # the model table and can still be degraded independently.
         status = (
             "passed"
             if model_results
-            and all(item["status"] == "passed" for item in model_results)
+            and passed_count > 0
+            and not has_connection_block
+            and not promoted_transport_outage
             else "failed"
         )
         error = next(
@@ -225,9 +235,7 @@ async def run_full(
             "config_fingerprint": decision.fingerprint,
             "model_ids": sorted(model_ids),
             "model_count": len(model_results),
-            "passed_count": sum(
-                1 for item in model_results if item["status"] == "passed"
-            ),
+            "passed_count": passed_count,
         }
         first_error = next(
             (item for item in model_results if item.get("error_code")), None
@@ -285,7 +293,7 @@ async def run_full(
             full_checked_at=finished_at,
             model_results=model_results,
             model_count=len(model_results),
-            passed_count=sum(1 for item in model_results if item["status"] == "passed"),
+            passed_count=passed_count,
         )
     except asyncio.CancelledError:
         if owns_run:
@@ -416,7 +424,7 @@ def _reachability_failure_scope(
 ) -> Literal["connection", "transport"] | None:
     details = observation.details
     scope = details.get("error_scope")
-    category = observation.error_category or details.get("error_category")
+    category = details.get("error_category") or observation.error_category
     code = details.get("error_code") or details.get("reason_code")
     if (
         scope == "connection"

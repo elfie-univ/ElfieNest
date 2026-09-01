@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +25,7 @@ from app.features.configuration import (
     ProvidersForbidden,
     ProvidersService,
     ProvidersValidationError,
+    RefreshProviderModelsCommand,
     RemoveLocalProviderConnectionCommand,
     ReplaceProviderModelsCommand,
     StartProviderOAuthLoginCommand,
@@ -172,6 +174,7 @@ class FakeTechnology:
         self.projection_calls: list[tuple[str, ...]] = []
         self.connection_summary_calls = 0
         self.model_summary_calls: list[tuple[str, str]] = []
+        self.refresh_result: StoredModelRefresh | None = None
 
     def prepare_manual_model(self, model: ProviderModelInput) -> StoredProviderModel:
         return StoredProviderModel(model.model_id, model.display_name or model.model_id)
@@ -239,6 +242,8 @@ class FakeTechnology:
         self,
         connection: StoredProviderConnection,
     ) -> StoredModelRefresh:
+        if self.refresh_result is not None:
+            return self.refresh_result
         return StoredModelRefresh(
             "updated", "2026-08-10T00:00:00+00:00", None, connection.models
         )
@@ -521,6 +526,59 @@ def test_manual_verification_records_zero_generation_reachability() -> None:
     assert technology.reachability_calls == ["openai_api_0001"]
 
 
+def test_failed_empty_model_refresh_preserves_inventory_and_emits_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service, port, _ = _service()
+    connection = StoredProviderConnection(
+        connection_id="openai_api_0001",
+        catalog_id="openai_api",
+        alias="OpenAI",
+        api_base="https://api.openai.com/v1",
+        api_mode="chat_completions",
+        auth_type="bearer",
+        credential_ref="OPENAI_KEY",
+        models=(StoredProviderModel("gpt-test", "GPT Test"),),
+    )
+    port.items[connection.connection_id] = connection
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    technology.refresh_result = StoredModelRefresh(
+        "failed",
+        "2026-08-10T00:00:00+00:00",
+        "model endpoint unavailable",
+        (),
+    )
+    caplog.set_level(logging.INFO, logger="elfienest.diagnostics.provider_management")
+
+    result = asyncio.run(
+        service.refresh_models(
+            _principal(),
+            RefreshProviderModelsCommand(connection.connection_id),
+        )
+    )
+
+    assert result.status == "failed"
+    assert port.items[connection.connection_id].models == connection.models
+    events = [
+        record
+        for record in caplog.records
+        if getattr(record, "diagnostic_event", None) == "provider_management"
+    ]
+    assert any(
+        record.operation == "refresh_models" and record.phase == "preserve_inventory"
+        for record in events
+    )
+    assert any(
+        record.operation == "refresh_models"
+        and record.phase == "complete"
+        and record.status == "failed"
+        and record.duration_ms >= 0
+        for record in events
+    )
+    assert all("OPENAI_KEY" not in record.getMessage() for record in events)
+
+
 def test_default_local_connection_is_an_explicit_provider_use_case() -> None:
     service, port, _ = _service()
     port.product = replace(port.product, catalog_id="ollama", name="Ollama")
@@ -772,6 +830,23 @@ def test_delete_preserves_food_reference_protection() -> None:
         )
 
     assert created.connection_id in port.items
+
+
+def test_delete_allows_unused_unarchived_connection() -> None:
+    service, port, _ = _service()
+    created = asyncio.run(
+        service.create_connection(
+            _principal(),
+            CreateProviderConnectionCommand(catalog_id="openai_api"),
+        )
+    )
+
+    service.delete_connection(
+        _principal(),
+        DeleteProviderConnectionCommand(created.connection_id),
+    )
+
+    assert created.connection_id not in port.items
 
 
 def test_manual_model_management_reuses_connection_fact() -> None:

@@ -58,7 +58,7 @@ def write_provider_validation_report(
         observed_at=checked_at,
         status=status,
         latency_ms=latency_ms,
-        error_category=_error_category(error),
+        error_category=_error_category(error, details),
         error_message=error,
         details=details,
     )
@@ -134,7 +134,7 @@ def write_model_validation_report(
         observed_at=checked_at,
         status=status,
         latency_ms=latency_ms,
-        error_category=_error_category(error),
+        error_category=_error_category(error, metadata),
         error_message=error,
         details=metadata,
     )
@@ -224,7 +224,14 @@ def _validate_status(status: str) -> None:
         raise ValueError(f"不支持的验证报告状态: {status}")
 
 
-def _error_category(error: Optional[str]) -> Optional[str]:
+def _error_category(
+    error: Optional[str],
+    details: Mapping[str, JsonValue] | None = None,
+) -> Optional[str]:
+    if details is not None:
+        structured = details.get("error_category")
+        if isinstance(structured, str) and structured:
+            return structured
     if not error:
         return None
     normalized = error.lower()

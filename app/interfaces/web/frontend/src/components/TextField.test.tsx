@@ -22,4 +22,13 @@ describe("TextField", () => {
     expect(input).toHaveAccessibleDescription("请输入一个可以访问的 API Base URL，长中文错误必须完整保留。")
     expect(within(field).getAllByText("API Base URL")).toHaveLength(1)
   })
+
+  it("masks non-login secrets without exposing them to password managers", () => {
+    render(<TextField label="API Key" masked onChange={() => undefined} value="secret" />)
+
+    const input = screen.getByRole("textbox", { name: "API Key" })
+    expect(input).toHaveAttribute("type", "text")
+    expect(input).toHaveAttribute("autocomplete", "off")
+    expect(input).toHaveClass("input--masked")
+  })
 })
