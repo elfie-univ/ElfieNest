@@ -200,10 +200,8 @@ promotion decisions, see [Brain evaluation workflow](./brain-evaluation).
 ## Quality checks and tests
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync pytest test/architecture/
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
 ```

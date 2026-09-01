@@ -100,10 +100,8 @@ checkout 只用于开发，不是安装方式。详见[用户指南](docs/zh/use
 
 ```bash
 uv sync --locked --extra dev
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync pytest test/architecture/
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 测试路径、Desktop 与 Godot 构建命令分别由

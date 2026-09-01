@@ -76,7 +76,7 @@ export function WebSearchToolDetails({
         label={t("tools.webSearch.apiBase")}
       />
       <FieldRow
-        control={<Input autoComplete="new-password" placeholder={draft.has_api_key ? "••••••••" : undefined} type="password" value={draft.api_key} onChange={(event) => onChange({ api_key: event.target.value })} />}
+        control={<Input autoComplete="off" className="input--masked" placeholder={draft.has_api_key ? "••••••••" : undefined} type="text" value={draft.api_key} onChange={(event) => onChange({ api_key: event.target.value })} />}
         inputId="web-search-api-key"
         label={t("tools.webSearch.apiKey")}
       />

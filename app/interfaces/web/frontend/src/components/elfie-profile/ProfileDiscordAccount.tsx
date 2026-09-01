@@ -216,7 +216,7 @@ export function ProfileDiscordAccount({
       </ol> : null}
       {setupStep === 2 ? <>
         <p className="profile-private-telegram__token-instruction">{t("profile.private.discord.stepTwo.instruction")}</p>
-        <TextField autoComplete="off" disabled={busy} hint={t("profile.private.discord.tokenHint")} label={t("profile.private.discord.tokenLabel")} onChange={(value) => { setBotToken(value); setError(null) }} placeholder={t("profile.private.discord.tokenPlaceholder")} type="password" value={botToken} />
+        <TextField disabled={busy} hint={t("profile.private.discord.tokenHint")} label={t("profile.private.discord.tokenLabel")} masked onChange={(value) => { setBotToken(value); setError(null) }} placeholder={t("profile.private.discord.tokenPlaceholder")} value={botToken} />
       </> : null}
       {setupStep === 3 ? <>
         <dl className="profile-private-telegram__summary profile-private-telegram__summary--wizard">

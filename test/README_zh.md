@@ -62,8 +62,7 @@ uv sync --locked --extra dev
 完整测试：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 .venv/bin/python3 scripts/quality/validation/test_bundles.py --all
 ```
 
@@ -79,8 +78,7 @@ Pytest 当前声明的 markers：
 例如：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -m "not slow" test/
+uv run --no-sync pytest -m "not slow" test/
 ```
 
 pytest 缓存、uv 缓存和覆盖率报告都是本地或 CI 产物，不得作为源码提交。质量

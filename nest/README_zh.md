@@ -94,11 +94,9 @@ resync 与 focus intent，单独授权的高层 interaction 请求会被限流�
 从仓库根目录运行 Nest 领域和 Godot 协议检查：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q test/nest/
+uv run --no-sync pytest -q test/nest/
 
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q \
+uv run --no-sync pytest -q \
   test/nest/test_nest.py \
   test/infrastructure/godot/gateway/test_api_handshake.py
 ```

@@ -144,6 +144,9 @@ def query_model_evidence(
                     preference.priority if preference is not None else 100
                 ),
                 quality_tier=preference.quality_tier if preference is not None else 0,
+                pricing=profile.pricing_for_model(model.endpoint_model_id)
+                if profile is not None
+                else model.pricing,
             )
     return result
 

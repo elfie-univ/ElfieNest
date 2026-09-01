@@ -5,8 +5,7 @@
 启动全仓 pytest 门禁前，先检查当前宿主是否能绑定回环端口：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 预检不会跳过或降级任何测试，退出码含义如下：
@@ -22,10 +21,10 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 ## 测试层级
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/<changed-module>/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/<changed-module>/
+uv run --no-sync pytest test/architecture/
 # 仅在上方预检返回 0 后运行。
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
+uv run --no-sync pytest test/
 ```
 
 测试目录镜像源码目录。根 `test/` 不直接放测试文件；架构测试负责目录边界、旧包名、
@@ -81,7 +80,7 @@ App 和系统 Scanner 债务已经清零，两套永久 Scanner 均以 `deny-all
 ## 质量门
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 

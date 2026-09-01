@@ -115,11 +115,9 @@ credential access.
 Run Nest domain and Godot protocol checks from the repository root:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q test/nest/
+uv run --no-sync pytest -q test/nest/
 
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q \
+uv run --no-sync pytest -q \
   test/nest/test_nest.py \
   test/infrastructure/godot/gateway/test_api_handshake.py
 ```

@@ -58,6 +58,9 @@ class FoodPlanner:
             and (not scope or item.reference.split("/", 1)[0] in scope)
             and (allow_remote or item.local)
         ]
+        free_eligible = [item for item in eligible if item.pricing == "free"]
+        if free_eligible:
+            eligible = free_eligible
         eligible.sort(
             key=lambda item: (
                 0 if local_first and item.local else 1,
