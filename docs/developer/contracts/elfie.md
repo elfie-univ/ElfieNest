@@ -1,17 +1,17 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.2
+**Contract version:** 2.3
 **Adopted:** 2026-08-11
-**Revised:** 2026-08-30
+**Revised:** 2026-09-01
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
 > **Normative target.** This contract defines the life-system ownership,
 > dependency direction, public Facades and outbound Ports of one complete Elfie.
 > It refines,
 > but does not change, the frozen [system architecture contract](./system). The
-> completed migration evidence remains in the closure-ready
-> [Elfie conformance register](../conformance/elfie), while the new Selfhood
-> migration is tracked separately in the open
+> implementation evidence and the newly exposed Genesis/Profile gaps remain in
+> the open [Elfie conformance register](../conformance/elfie), while the
+> Selfhood migration is tracked separately in the open
 > [Selfhood conformance register](../conformance/elfie-selfhood). Permanent
 > architecture gates remain authoritative after any temporary register is removed.
 
@@ -23,7 +23,7 @@ implemented by the target owners.
 
 ## Purpose and non-goals
 
-`elfie/` owns one complete, independently testable creature: immutable Profile,
+`elfie/` owns one complete, independently testable creature: immutable external Profile,
 continuous Brain, nervous-system processing, body semantics, digital
 communication semantics, creation-time Genesis rules and its own internal
 lifecycle. Internally it uses a lightweight nested Ports/Adapters shape so that
@@ -38,11 +38,19 @@ the stable `Elfie` and `ElfieFactory` Facades.
 ## Aggregate shape
 
 One Elfie is one aggregate and one internal lifecycle boundary; it is not a
-system Runtime authority. Genesis runs before the ordinary aggregate lifecycle
-and commits its values to their final owners:
+system Runtime authority. Genesis runs before the ordinary aggregate lifecycle,
+compiles creation-only inputs and commits sibling outputs to their final owners:
 
 ```text
-Genesis ---> Profile + Brain seeds
+CreatorWorldSkeleton -> ResidentKnowledgeBaseline -> GenesisSourcePackage --+
+accepted adoption input -----------------------------------------------------+-> Genesis
+                                                                                 |
+                  +----------------------+----------------------+----------------+
+                  v                      v                      v
+               Profile               Selfhood                Memory
+          external dossier        Brain identity       knowledge/people/events
+
+--------------------------- successful creation commit ---------------------------
 
 Elfie / ElfieFactory Facades
             |
@@ -69,14 +77,14 @@ coordination, not an App Runtime, Infrastructure Adapter or public product API.
 
 | Module | Owns | Must not own |
 | --- | --- | --- |
-| `elfie/profile/` | Immutable intrinsic identity, species, virtual appearance, provenance and immutable appearance defaults | Personality, memory, permissions, runtime limits, current capabilities/state, YAML/file persistence, user paths, App adoption or account rules |
+| `elfie/profile/` | Immutable external objective identity, stable age/birth and personal-origin anchors, final virtual appearance and immutable appearance defaults | World knowledge/Canon, generator or model provenance, source-package references, seeds, user answers, arrival/training history, personality, memory, relationships, permissions, runtime limits, current capabilities/state, YAML/file persistence, user paths, App adoption or account rules |
 | `elfie/brain/` | Event Workspace, Orientation, Selfhood, Emotion, Energy, Motivation, Memory, Reasoning Core, Persistent Activity, Cognitive Consolidation and Skills | Provider selection/configuration, SDK requests, concrete tool execution, device/channel transport or product workflow |
 | `elfie/brain/memory/` | Memory nodes, relations, encoding, retrieval, consolidation and the semantic storage Port | SQLite connections, schema, paths or persistence records |
 | `elfie/brain/reasoning/skills/` | Skill declarations, the per-Elfie catalog, policy and authorization of semantic tool requests | Runtime proxies, platform tools, workspace paths or tool execution |
 | `elfie/nervous_system/` | Body-event normalization, filtering, reflexes, perception delivery and translation of validated body intents | Device transport, Godot protocol, geometry or body registration policy |
 | `elfie/body/` | Body identity, capabilities, anatomy, commands, sensor events, receipts, candidate registry, switching and the single active binding | Concurrent virtual/physical authority, Godot/WebSocket/device transport, credentials, process ownership or device product authorization |
 | `elfie/communication/` | Canonical envelopes, admission and delivery semantics, policy, inbox/outbox, Hub and channel routing | Product conversation authority/history, account membership, platform SDKs, credentials or network transport |
-| `elfie/genesis/` | Creation-time generation rules, validation and the ephemeral initialization bundle | Daily cognition, permanent duplicate state, technical Adapter construction or lifecycle authority |
+| `elfie/genesis/` | Creation-time semantic compilation, deterministic generation rules, validation and the ephemeral initialization bundle | Daily cognition, permanent duplicate state, technical Adapter construction, persistence implementation or lifecycle authority |
 
 Skills are part of Brain because they influence cognition and authorize which
 semantic tool requests one Elfie may make. A Skill names a semantic `tool_key`
@@ -94,10 +102,24 @@ contracts or behavior; empty architecture-shaped packages are forbidden.
 ## Life-system invariants
 
 - Profile answers the external objective question "which Elfie is this?" and is
-  immutable after creation. Genesis co-materializes Profile and Brain Selfhood
-  from one validated bundle. Ordinary Brain runtime does not read or synchronize
-  Profile; Selfhood's frozen `identity_core` supplies Brain identity and its
-  `adaptive_self` may change only through a later approved Memory-evidenced path.
+  immutable after creation. Its semantic allowlist is stable identity, a stable
+  age/birth anchor, immutable personal-origin identifiers/labels and final
+  virtual appearance. Schema revision is technical metadata. It contains no
+  world knowledge or Canon reference, generation source/version/seed, user
+  answer, life event, relationship, personality, ability, permission, current
+  body or runtime state.
+- Genesis co-materializes Profile and Brain Selfhood, Memory and any other
+  owner-specific startup seed from one validated bundle. Shared minimum identity
+  values are checked as sibling outputs; neither Profile nor Selfhood is derived
+  from or synchronized with the other after commit. Ordinary Brain runtime does
+  not read or synchronize Profile; Selfhood's frozen `identity_core` supplies
+  Brain identity and its `adaptive_self` may change only through a later approved
+  Memory-evidenced path.
+- A successful Genesis commit severs operational dependency on adoption answers,
+  Canon/source packages, `LifeContext`, `PersonalGenesisPlan`, generation seeds
+  and full manifests. Ordinary restore uses final-owner state. Source updates
+  affect only future creations unless a separate migration or real learning event
+  is approved.
 - Elfie has two external lines: the embodied line through NervousSystem and Body,
   and the digital-message line through Communication. They may be active in the
   same period but never share an output authority inside one Turn.
@@ -239,24 +261,40 @@ Profile, Selfhood, Memory, Activity or execution facts.
 ## Genesis
 
 Genesis is a one-time creation flow, not a runtime organ and not a second Brain.
-It may consume accepted adoption input and creation-time species/world Canon and
-generate an ephemeral bundle containing a Profile draft, complete two-layer
-Selfhood seed, no more than five key pre-adoption memory events, relationship
-seeds and a bounded biography-enrichment plan. Profile and Selfhood are sibling
-final-owner outputs rather than a runtime synchronization pair. Their shared
-identity facts are validated together; any conflict or partial commit fails
-resident admission.
+It consumes a published typed `GenesisSourcePackage`, accepted transient
+adoption input and controlled randomness. `elfie/genesis/` owns every semantic
+decision that turns those inputs into an individual: identity resolution,
+life context, personal knowledge eligibility/mastery, people, relationships,
+episode skeletons and owner-specific seed policy. Infrastructure may load the
+typed package and persist the validated outputs through Ports, but it must not
+make any of those decisions.
+
+Genesis co-materializes Profile and Brain Selfhood plus Genesis Memory and any
+other explicitly owned startup seed in one ephemeral bundle. Profile and
+Selfhood are sibling final-owner outputs rather than a runtime synchronization
+pair. Their shared minimum identity facts are validated together; any conflict
+or partial commit fails resident admission. Memory receives the Elfie's actual
+initial knowledge, people, relationships and episodes. Departure, training,
+arrival and adoption are episodes, not Profile fields. A model may render
+bounded non-authoritative wording from an already fixed plan; model text cannot
+change structured facts or become a second recall source.
 
 `identity_core`, initial `adaptive_self` and the application-wide reasoning
 constitution are not freely generated model prose. They use reviewed,
-deterministic typed mappings and templates. Genesis keeps only creation status
-and provenance and cannot bind Selfhood to a Canon version, remain available to
-ordinary Brain context, or directly choose permissions, available channels,
-device abilities, tool scope, model budget or real account bindings.
+deterministic typed mappings and templates. Genesis cannot bind Selfhood to a
+Canon version, remain available to ordinary Brain context, or directly choose
+permissions, available channels, device abilities, tool scope, model budget or
+real account bindings.
 
-Later biography enrichment, when enabled, is a temporary bounded Persistent
-Activity executed through Cognitive Consolidation. It cannot invent unlimited
-major history, rewrite Profile or remain as a permanent background storyteller.
+Accepted questionnaire answers, `LifeContext`, `PersonalGenesisPlan`, source
+package bindings, generation seeds and model projection inputs are temporary.
+They may exist only inside a bounded in-flight admission transaction and are
+deleted after successful commit or terminal abort. A minimal technical receipt
+outside Profile may preserve output identity/digest, schema/generator revision,
+completion time and idempotency result; it contains no answers, world knowledge,
+replay seed or complete life plan. A committed Elfie is backed up and restored
+from its Profile, Selfhood, Memory and other final-owner state, never regenerated
+from that receipt or an old source package.
 
 ## Body candidates and one active body
 
@@ -367,7 +405,10 @@ Godot authority or a shared Adapter resource.
 ## Dependency rules
 
 ```text
-Genesis -> Profile + Selfhood + other Brain seeds + Genesis Memory
+Creator/Resident sources -> published GenesisSourcePackage -> Genesis
+transient adoption input -------------------------------> Genesis
+Genesis -> Profile + Selfhood + other owner seeds + Genesis Memory
+successful commit -X-> questionnaire / LifeContext / plan / source package
 Elfie Facade -> Profile + private Brain coordination
 private Brain coordination -> Brain + NervousSystem + Body + Communication
 Brain -> its own Food/Model/Tool/Memory Ports
@@ -375,7 +416,8 @@ ordinary Brain -X-> Profile / Canon
 NervousSystem -> Body semantic contracts and Brain perception Port
 Communication -> its own channel Port and Brain perception Port
 Profile -> its own persistence Port
-Infrastructure -> only the Elfie Port it implements
+Infrastructure -> only the typed loader or Elfie Port it implements
+Infrastructure -X-> semantic life compilation
 ```
 
 `elfie/` never imports `app`, `nest`, `ai_runtime`, `godot_runtime`, concrete
@@ -398,11 +440,15 @@ caller, remove the old implementation and compatibility path, then close the
 matching conformance gap. Existing system baselines only shrink; this contract
 does not create a second legacy baseline.
 
-The Selfhood migration additionally removes every ordinary Profile/Canon Brain
-input, Profile-derived fallback, Memory-owned authoritative self narrative and
-generic-checkpoint Selfhood copy before its scoped register can close. Contract
-text tests protect the target during migration; permanent runtime scanners and
-behavior/restart tests replace them as implementation rows close.
+The current Genesis/Profile migration removes generation provenance, choices,
+capability/arrival facts and Canon projections from Profile; moves every
+personal knowledge, relationship and episode decision out of Infrastructure;
+and deletes creation-only inputs after commit. The Selfhood migration also
+removes every Profile/Canon projection owned by Selfhood, ordinary
+Profile/Canon Brain input, Profile-derived fallback, Memory-owned authoritative
+self narrative and generic-checkpoint Selfhood copy. Contract text tests protect
+the targets during migration; permanent runtime scanners and behavior/restart
+tests replace them as implementation rows close.
 
 The Ports/Adapters migration accepted by ADR-0005 is complete and remains a
 permanent boundary. Life-system implementation now proceeds as independently
@@ -422,4 +468,7 @@ cognition, multiple active persistence writers, compatibility aliases, fallback
 reads, simultaneously active virtual and physical bodies, an empty package per
 conceptual Brain system, Genesis as a daily runtime, and a Service Locator hidden
 in `ElfieFactory`. It also rejects ordinary Brain reads of Profile/Canon, a
-Canon-version-bound Selfhood, and Memory as a second identity/personality owner.
+Canon-version-bound Selfhood, Memory as a second identity/personality owner,
+Profile as a creation ledger or world encyclopedia, persisted adoption
+questionnaires/replay seeds, silent regeneration of committed Elfies, and
+semantic life compilation inside an Infrastructure Adapter.

@@ -201,6 +201,12 @@ godot_project/    独立 Godot 源工程与物理 authority
   空间与设施、巢内生活规则、时间与环境、精灵与巢交互四个功能所有者管理世界语义，
   公共事件机制横贯四者但不是第五个业务模块。两者不得互相导入，也不得导入 `app/`
   或具体 Infrastructure。真实 Elfie 对象与 Nest 状态只在 `app/orchestration/` 组合。
+- 世界骨架、居民知识和领养输入只能经 `elfie/genesis/` 在创建期单向编译为并列的
+  Profile、Selfhood、Memory 及其他 owner Seed；成功提交后删除问卷、LifeContext、Plan、
+  Seed 和源资料绑定。Profile 只保存对外不可变身份锚点与最终虚拟外貌；世界知识、经历、
+  人物关系、人格和能力分别归 Memory、Selfhood、Body/Brain。普通 Brain 只使用 Selfhood、
+  Memory 与当前状态，不读取 Profile/Canon。Infrastructure 只加载/保存强类型值，绝不
+  决定生命语义或成为第二 Genesis。
 - 稳定强类型的 `Elfie`、`ElfieFactory`、`Nest` Facade 可以直接承担入站 Port；没有
   多实现、独立版本、进程边界或调用方隔离需求时，不为形式对称复制 Protocol。
 - `app/features/` 拥有产品用例，`app/interfaces/` 处理协议，`app/orchestration/` 只编排

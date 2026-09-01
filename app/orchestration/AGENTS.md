@@ -25,7 +25,9 @@ Elfie 事件 fan-out。
   不把原始 Runtime 事件广播给所有 Body，也不替 Nest 决定家庭含义；它拥有当前 Nest
   状态存储 Port 及加载/保存/回滚/恢复时机，但只能通过 Nest Facade 接受或产生快照，
   不直接修改 Nest 内部状态；
-- `resident_admission` 只协调已接受领养、Elfie 构造、Nest 接纳和失败补偿；
+- `resident_admission` 只协调已接受临时选择、调用 Elfie Genesis、最终 owner 提交、Nest
+  接纳、幂等恢复和失败补偿；不得决定出生地、知识、人格、人物、关系或经历，也不得把
+  创建输入持久化为运行时事实；
 - `setup_installation` 只协调 Setup 状态与 Accounts、Provider/模型、Food、Nest 和受管
   安装 Runner；
 - `message_delivery` 协调已授权会话、用户可见历史、真实 Elfie 投递与回执；

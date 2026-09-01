@@ -1,7 +1,8 @@
 # 应用架构契约
 
-**契约版本：** 1.10
+**契约版本：** 1.11
 **采用日期：** 2026-08-15
+**修订日期：** 2026-09-01
 **适用范围：** `app/`，以及位于根 `infrastructure/` 的 App Adapter
 
 > **规范性目标。** 本文是 `app/` 下代码的长期架构权威，定义所有权、依赖方向和
@@ -42,7 +43,7 @@
 | `app/interfaces/` | HTTP、WebSocket、CLI、Web、Desktop 协议入口；凭据解析；请求响应映射；协议错误映射 | 产品规则、SQL、数据根解析、具体 Repository、Runtime authority |
 | `app/features/` | 产品用例、授权、命令、查询、结果、业务错误和用例所需 Port | FastAPI、SQLite、具体 Adapter、线程/进程所有权、跨 authority Runtime 流程 |
 | `app/orchestration/` | 跨两个以上 authority 的流程、非原子外部副作用、Runtime 生命周期协同 | 普通 CRUD、协议 DTO、具体持久化或设备 Adapter |
-| `infrastructure/` | 持久化、文件、网络、模型平台、设备和操作系统能力的 Port 实现 | 产品授权、页面行为、用例流程决策 |
+| `infrastructure/` | 持久化、文件、网络、模型平台、设备和操作系统能力的 Port 实现 | 产品授权、页面行为、用例流程决策或 Genesis 生命语义编译 |
 | `app/bootstrap/` | 组合根：创建、注入、对象生命周期、启动和收束装配 | 业务分支、SQL、协议映射、第二套配置事实 |
 
 四个 App 自有区域是 Interface、Feature、Orchestration 和 Bootstrap。根
@@ -85,7 +86,7 @@ Feature 所有者如下：
 | Feature | 拥有 | 明确不拥有 |
 | --- | --- | --- |
 | `accounts` | 账户、Session、密码、角色、成员资料、成员管理和偏好 | 领养决策、Runtime 生命周期或协议认证 DTO |
-| `adoption` | 候选、领养和所有权关系、单成员额度覆盖与最终领养资格 | Nest 床位容量、Elfie Profile 事实或实时 Nest 接纳 |
+| `adoption` | 候选、临时领养选择、领养和所有权关系、单成员额度覆盖与最终领养资格 | Genesis 生命语义、Nest 床位容量、Elfie Profile 事实、实时 Nest 接纳，以及创建终态后的原始选择/问卷 Payload |
 | `communication` | 产品当前已有的会话关系和用户可见消息历史 | Elfie 通信/记忆语义、传输 Session 或实时投递协调 |
 | `elfies` | 获授权的 Elfie 目录、关系/权限投影，以及成员/管理员 Profile 或认知视图 | Elfie Profile、认知或记忆事实；领养所有权；Nest 居民状态 |
 | `nest_management` | 通过唯一公开 Nest 门面提供的授权产品用例 | 第二套 Nest Repository 语义、几何、坐标或真实 Elfie 组合 |
@@ -97,19 +98,39 @@ Feature 所有者如下：
 | `bodies` | 外部身体注册、配对、撤销、授权和 Elfie/body 关联 | 凭据内容、设备传输 Session、身体语义或托管/归巢工作流 |
 | `operations` | 当前已有的授权系统统计、维护、备份/重置用例和稳定 Runtime 管理投影 | Runtime 生命周期决策、Observer Session、原始技术对象或重复业务事实 |
 
-### 物种可用性与领养
+### 物种可用性、Genesis 与领养
 
-`elfie/profile` 中的不可变物种注册表是系统支持哪些物种的唯一事实源。物种注册定义
-标记为启用，并且它关联的世界设定、外貌 profile 和运行时资源通过注册表校验后，才属于
-领养系统可用物种。领养功能直接读取注册表生成选项和校验资格，因此新增一个完整的注册
-表物种后，已有安装无需管理员写入配置，也无需按精灵巢单独批准，就应当自动可用。
+不可变的已发布 Genesis 资料注册表是“哪些物种可以被创建”的唯一发行 authority。
+Infrastructure 校验资料包并暴露两份分离的强类型 View：供 `elfie/genesis/` 使用、连接物种
+规则与世界资料的创建投影，以及供 Godot/展示装配使用的运行时资产投影。Adoption 只消费
+强类型可用性投影来展示选项和校验资格。Profile 只接收最终生成的档案字段；
+`elfie/profile` 和可变 App 设置都不得再拥有第二份物种/世界 Canon。
+
+注册项启用且全部引用包/资源校验通过后，该物种才可用于领养。新增一个完整的已发布注册项
+后，已有安装无需管理员写入配置，也无需按精灵巢单独批准，就应当自动可用。该变更只影响
+未来候选和创建，不能刷新既有 Elfie 的 Profile、Selfhood 或 Memory。
 
 `configuration/settings` 只拥有额度、人格预设开关等可变全局规则，不得暴露、持久化或
 执行 `allowed_species_ids` 之类的物种白名单；设置变更不能增加或移除物种。未来如果确实
 需要灰度发布，必须单独设计明确的发布契约，不能重新利用管理员设置字段。
 
-验收不变量是：在已有设置文档不变的情况下，向注册表加入一个有效且启用的物种后，
+验收不变量是：在已有设置文档不变的情况下，向已发布资料注册表加入一个有效且启用的物种后，
 `GET /api/v1/me/adoption` 必须列出它，并且该物种的候选生成必须成功。
+
+已接受创建只有一条所有权路径：
+
+```text
+Adoption Feature 接受的临时选择
+        -> resident_admission 协调
+        -> Elfie Genesis 语义编译器
+        -> 并列 Profile / Selfhood / Memory 产物
+        -> 最终 owner 持久化 Port 与 Nest 接纳
+```
+
+`resident_admission` 拥有顺序、崩溃恢复、幂等和补偿，但不决定出生地、知识、人格、关系或
+人生事件。Infrastructure 只保存强类型产物，不能生成它们。成功提交或终止失败后，原始问卷/
+选择、`LifeContext`、计划和生成 Seed 必须删除。App 只保留真实领养/所有权关系与有界技术
+事务结果，不能保留足以重新生成 Elfie 的语义输入。
 
 Orchestration 工作流如下：
 
@@ -117,7 +138,7 @@ Orchestration 工作流如下：
 | --- | --- |
 | `lifecycle` | Core、Gateway、Godot authority 的启动、停止、重启、恢复和就绪状态 |
 | `nest_session` | 唯一 Nest、真实 Elfie 实例、世界事件和共享 Godot world channel |
-| `resident_admission` | 已接受领养、Elfie 构造、Nest 接纳和明确失败补偿 |
+| `resident_admission` | 已接受临时选择、调用 Elfie Genesis、最终 owner 提交、Nest 接纳、幂等恢复和明确失败补偿；绝不拥有生命语义 |
 | `setup_installation` | Setup 状态与 Accounts、Provider/模型、Food、Nest、受管安装 Runner |
 | `message_delivery` | 已授权会话命令、用户可见历史、真实 Elfie 投递和回执 |
 | `embodiment` | 真实 Elfie、Nest 和外部身体的托管、归巢、切换与恢复 |

@@ -93,8 +93,9 @@ Every later refinement must preserve these rules:
    one source domain.
 4. The virtual and physical body are mutually exclusive; one body authority
    exists at every stable moment.
-5. Profile stores immutable identity, virtual appearance and provenance; Brain
-   cannot rewrite it.
+5. Profile stores only immutable external identity/age/origin anchors, final
+   virtual appearance and technical schema revision; Brain cannot read or
+   rewrite it as a cognition source.
 6. One Elfie's body, communication, cross-turn activity and consolidation share
    one personality and one memory.
 7. Emotion, energy and drives may influence decisions but cannot gain external
@@ -209,9 +210,10 @@ without reading the external Profile at runtime.
 `adaptive_self`; typed personality, personal values, interaction, expression
 and coping tendencies; deterministic model projections of both layers.
 
-**Initialization input:** one validated `GenesisSelfhoodSeed`. Genesis may use
-Profile/Canon creation inputs while co-materializing the final owners, but
-ordinary Brain runtime receives neither Profile nor Canon.
+**Initialization input:** one validated `GenesisSelfhoodSeed`. Genesis may use a
+published typed source package and transient adoption inputs while
+co-materializing final owners, but Selfhood stores neither input and ordinary
+Brain runtime receives neither Profile, Canon nor creation-source material.
 
 **Future update input:** only a typed Memory-consolidation proposal that can
 modify `adaptive_self` after a separately approved growth design. Phase 1 has no

@@ -3,13 +3,13 @@
 > 本文是规范性[配置管理契约](../contracts/configuration-management)的开放迁移台账，
 > 只记录当前实现事实和删除门，不授权新增散落配置或产品行为。
 
-**状态：** closed
-**收口状态：** ready
+**状态：** open
+**收口状态：** open
 
 ## 当前清单
 
 当前登记的内置 YAML 已全部位于仓库根 `config/`：系统配置、Provider 与模型目录、
-工具、Brain Energy、Selfhood、情绪表达、Nest 默认值，以及物种目录。物种包成员由已登记
+工具、Brain Energy、Selfhood、情绪表达、Nest 默认值、Elfaria 世界资料，以及物种目录。物种包成员由已登记
 的物种 Adapter 动态发现并校验，不为每个未来物种增加封闭的文档 ID，因此新增物种仍只需
 配置文件。算法常量、构建配置与协议常量不进入本次迁移，除非契约分类规则明确把它们识别
 为产品配置。
@@ -25,9 +25,10 @@
 | ID | 严重度 | 状态 | 当前偏差 | 收口门 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | CFG-001 | P0 | closed | 本次范围内默认值只有一个根 `config/`；旧包内 YAML、重复模型目录数据与散落运行时读取已删除或完成归类。物种包也注册在同一根目录，并且只由 Infrastructure Adapter 加载。 | 保持双根清单精确，并拒绝未归类的内置文件。 | target=two-root-source-inventory; inventory=`config/` 内置文档及 `config/species/` 物种包、用户 `configs/` 文档、旧路径、加载器、package data 与发行消费方；references=`infrastructure/persistence/configuration/documents.py`、`infrastructure/persistence/configuration/species.py`、`test/infrastructure/persistence/configuration/test_species.py`、`test/architecture/test_configuration_management.py`; verification=注册表清单测试、物种包测试与仓库/package 审计；residuals=zero |
-| CFG-002 | P0 | closed | 注册表现在记录 Schema、写入、重载和失败元数据；内置源与用户源在暴露前校验，语义所有者拒绝自有字段中的未知字段，生产根由 resolver 所有。测试和开发工具明确保留注入沙箱根。 | 保持字段覆盖、整文档替换、仅内置、仅用户、失败、Secret 与生产路径规则由永久测试保护。 | target=registered-document-boundary; inventory=十三个文档 ID、严格 Schema、目录/连接语义校验器、Secret 边界与测试/开发沙箱入口；references=`infrastructure/persistence/configuration/documents.py`、`schemas.py`、模型/Provider 解析器、`test/infrastructure/persistence/configuration/test_documents.py`; verification=配置聚焦测试与架构测试；residuals=zero |
+| CFG-002 | P0 | closed | 注册表现在记录 Schema、写入、重载和失败元数据；内置源与用户源在暴露前校验，语义所有者拒绝自有字段中的未知字段，生产根由 resolver 所有。测试和开发工具明确保留注入沙箱根。 | 保持字段覆盖、整文档替换、仅内置、仅用户、失败、Secret 与生产路径规则由永久测试保护。 | target=registered-document-boundary; inventory=全部已注册文档 ID、严格 Schema、目录/连接语义校验器、Secret 边界与测试/开发沙箱入口；references=`infrastructure/persistence/configuration/documents.py`、`schemas.py`、模型/Provider 解析器、`test/infrastructure/persistence/configuration/test_documents.py`; verification=配置聚焦测试与架构测试；residuals=zero |
 | CFG-003 | P0 | closed | Desktop staging 只把仓库 `config/` 复制一次到 `resources/config/`；发行 manifest 覆盖每个 staging 文件，用户配置不会被复制或覆盖；发行态解析必须由 launcher 提供资源根。 | 保持单份 staging、完整哈希、脱离源码 checkout 启动和用户文件保留。 | target=single-staged-bundled-root; inventory=资源组装、manifest 必需路径/哈希、发行态 resolver 与首次运行/用户写入行为；references=`scripts/internal/build/assemble_desktop_resources.py`、`scripts/internal/release/release_manifest.py`、`test/scripts/test_assemble_desktop_resources.py`、`test/scripts/test_release_manifest.py`; verification=组装、manifest、安装根与用户保留测试；residuals=zero |
 | CFG-004 | P1 | closed | 双语契约、ADR、Contract Registry、Agent 规则和永久 deny-all 检查现在都与双根配置契约及明确的沙箱例外一致。 | 保持五类证据结构，并在后续治理专用删除前保留永久目标检查的 deny-all 模式。 | target=configuration-contract-closure; inventory=契约、ADR、Registry、Agent 规则、架构门禁与双语台账行；references=`docs/developer/contracts/configuration-management.md`、`docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md`、`scripts/governance/contract_registry.py`; verification=治理架构测试与双语镜像检查；residuals=zero |
+| CFG-005 | P0 | open | `config/world/elfaria.yaml` 已登记并类型化，但 `infrastructure/persistence/configuration/world.py` 仍拿它与 `elfie/profile/canon.py` 对照，形成第二份硬编码世界/物种来源；当前物种加载也把创建语义与 Profile/Adoption 可用性混在一起。 | 让内置世界/物种文档成为未来创建的唯一资料源，语义模型归 Elfie Genesis，Infrastructure 只做 Schema/引用/包校验；分离 Genesis 创建投影与 Godot/展示运行时资产投影，Profile 两者都不接收；删除 Profile Canon 副本，并证明已提交 Elfie 的生命状态不加载创建资料包也能恢复。 | target=Configuration 1.4、Species Package 3、Elfie 2.3 与 ADR-0033；inventory=`config/world/`、`config/species/`、文档 registry/schema/loader、`elfie/profile/canon.py`、Genesis、Adoption 与运行时资产消费方；references=递归 literal/import/source 盘点及 `species-asset-package.md`；verification=待完成单一来源架构测试、投影/资料包测试与无创建资料恢复验收；residuals=当前重复来源与混合投影仍存在。 |
 
 ## 收口顺序
 
@@ -35,5 +36,6 @@
 2. 完成聚焦策略和边界验收矩阵，不新增产品行为。
 3. 为每一行记录五类证据，只关闭残留清单为空的行。
 
-全部行具备完整证据并标记 ready 后，再以独立治理收口删除本台账。产品迁移不能删除
+全部行具备完整证据并标记 ready 后，再以独立治理收口删除本台账；CFG-005 使其当前保持
+开放。产品迁移不能删除
 或削弱本台账、契约及其永久检查。

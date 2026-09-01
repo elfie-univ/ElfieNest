@@ -1,8 +1,8 @@
 # Configuration management contract
 
-**Contract version:** 1.3
+**Contract version:** 1.4
 **Adopted:** 2026-08-15
-**Revised:** 2026-08-30
+**Revised:** 2026-09-01
 **Scope:** application defaults, user configuration, loading and release packaging
 
 > **Normative target.** This contract defines the one configuration-management
@@ -58,7 +58,9 @@ config/
 │   ├── reasoning-constitution.yaml
 │   └── emotion-expressions.yaml
 ├── nest/
-    └── defaults.yaml
+│   └── defaults.yaml
+├── world/
+│   └── elfaria.yaml
 └── species/
     ├── catalog.yaml
     └── <package>/
@@ -68,12 +70,16 @@ config/
         └── assets/*.png
 ```
 
-This tree is the source of bundled defaults and the registered species
-configuration packages. `species/catalog.yaml` is the registered document;
-the package members are validated as one immutable package by its Infrastructure
-Adapter. Profile and Genesis receive typed values and do not read YAML. The
-Godot 3D package remains under `godot_project/characters/`; only its semantic
-package link and appearance bindings are represented in species configuration.
+This tree is the source of bundled defaults and registered Genesis creation
+sources. `world/elfaria.yaml` and `species/catalog.yaml` are registered
+documents; species members are validated as immutable packages by Infrastructure
+Adapters and joined into a typed published `GenesisSourcePackage` before domain
+use. Genesis receives typed values and does not read YAML. Profile receives only
+the final generated dossier fields, never the source package. The Godot 3D
+package remains under `godot_project/characters/`; only its semantic package link
+and appearance bindings are represented in species configuration. The loader
+exposes that runtime asset view separately from the Genesis creation projection;
+there is no universal catalog injected into Profile.
 
 The user-owned layout remains:
 
@@ -130,7 +136,8 @@ Infrastructure.
 | Reasoning constitution | `brain/reasoning-constitution.yaml` | none | Elfie Brain Reasoning | bundled only |
 | Emotion-expression mapping | `brain/emotion-expressions.yaml` | none | Elfie Brain Emotion | bundled only |
 | Nest initialization defaults | `nest/defaults.yaml` | none | Nest | bundled only |
-| Species catalog and packages | `species/catalog.yaml` and `species/<package>/` | none | Infrastructure loader, typed values injected into Profile/Genesis/Adoption | bundled only |
+| Elfaria resident/creator source | `world/elfaria.yaml` | none | Elfie Genesis source semantics; Infrastructure typed loader | bundled only |
+| Species catalog and packages | `species/catalog.yaml` and `species/<package>/` | none | Elfie Genesis source semantics; Infrastructure typed loader; typed availability projection to Adoption | bundled only |
 | Provider connections and endpoint models | none | `providers.yaml` | App configuration providers | user only |
 | API and OAuth credentials | none | `auth.env`, `credentials/oauth/` or process environment | secret capability | user only; never merged |
 
@@ -155,7 +162,7 @@ read config root          read/write ELFIE_HOME/configs
            validate + apply declared policy
                          |
         SystemSettings / ProviderCatalog / ToolSettings /
-        Brain defaults / Nest defaults
+        Brain defaults / Nest defaults / Genesis source packages
 ```
 
 The rules are:
@@ -175,6 +182,13 @@ The rules are:
   merge, copy or own configuration facts; and
 - consumers receive named typed values, never a generic nested dictionary,
   arbitrary section API or service locator.
+
+World and species loaders validate schema, references, package completeness and
+release hashes. They must not compare the loaded package with a second hard-coded
+Profile Canon, collapse creation and runtime-asset projections into one consumer
+catalog, choose personal knowledge/people/events, or materialize an Elfie.
+Those are Genesis semantics. The bundled document is the sole world/species
+source for future creation; a committed Elfie has no runtime dependency on it.
 
 A static bundled-only value may be injected directly at construction. A Port is
 required only when a real consumer needs replaceable reads or writes; this
@@ -265,7 +279,8 @@ recomputed on the next declared load boundary.
 The governance layer is active before implementation:
 
 - this bilingual contract fixes the target;
-- ADR-0017 and ADR-0020 record the species-configuration decision;
+- ADR-0017, ADR-0020 and ADR-0033 record the configuration and one-time Genesis
+  decisions;
 - the Contract Registry binds the contract, ADR, Agent rules, machine-governance
   test and temporary conformance register; and
 - the conformance register names every current implementation gap without
@@ -301,6 +316,7 @@ This reorganization does not add a Provider, model, tool, Brain or Nest
 capability. It does not add filesystem auto-discovery, configuration-driven
 protocol implementations, a public arbitrary-config API, UI fields, data
 migration, dual reads, dual writes, compatibility aliases, remote
-configuration or global hot reload. Species package registration is fixed by
-the catalog and still requires a matching Godot package and code-owned runtime
-protocol support.
+configuration or global hot reload. Genesis source registration is fixed by the
+catalog and still requires a matching Godot package and code-owned runtime
+protocol support. Configuration loading never becomes a semantic life generator
+or a runtime world-knowledge service.

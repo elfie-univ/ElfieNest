@@ -140,6 +140,9 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
         "OPERATING_CONTRACT",
     )
 
+    assert "**Contract version:** 1.5" in english_raw
+    assert "**契约版本：** 1.5" in chinese_raw
+
     assert [english_raw.index(label) for label in block_labels] == sorted(
         english_raw.index(label) for label in block_labels
     )
@@ -176,6 +179,13 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
     assert "Memory 不得持久化或注入第二套权威" in chinese
     assert "Ordinary Brain runtime" in english
     assert "普通 Brain 运行" in chinese
+    assert "questionnaire answer, generation seed/policy trace" in english
+    assert "问卷答案、生成 Seed/" in chinese
+    assert "deleted after the creation transaction ends" in english
+    assert "在创建事务结束后删除" in chinese
+    assert "| SHD-002 | P0 | open |" in _read(
+        "docs/developer/conformance/elfie-selfhood.md"
+    )
     assert "../designs/elfie-selfhood-and-fixed-model-header" in english_raw
     assert "../conformance/elfie-selfhood" in english_raw
     assert "../designs/elfie-selfhood-and-fixed-model-header" in chinese_raw

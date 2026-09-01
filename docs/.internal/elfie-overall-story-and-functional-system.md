@@ -237,6 +237,12 @@ Executive 必须把它拆成不同 Activity Step，并分别触发通信回合�
 初始化器是一次创建流程，不是这些数据之后的长期所有者。初始化结束后，不可变身份和虚拟外貌由
 Profile 维护，记忆由记忆系统维护，人格与自我由大脑维护，身体能力由身体与治理边界维护。
 
+创建链路严格单向：人工确认的世界骨架先导出居民公共知识，再发布为 Genesis 资料包；领养问卷和候选
+选择只作为本次创建参数。`elfie/genesis` 一次性把它们编译为 Profile、Brain Selfhood 和 Memory，App
+只协调发布，Infrastructure 只加载和保存强类型值。成功提交或终止失败后，问卷、LifeContext、计划、
+资料包绑定和 Seed 全部删除。普通 Brain 运行只依赖 Selfhood、Memory 与当前 Brain 状态，不再读取
+Profile、世界资料或 Genesis 创建回执。
+
 ### 7.2 单机版冷启动原则
 
 当前单机版在本地完成生成和保存。领养前历史采用“少而硬的骨架”，而不是一次生成完整传记：
@@ -524,13 +530,11 @@ Nest、Godot 的详细功能模块、接口面和协调过程见
 ```mermaid
 flowchart TB
     subgraph Elfie["一只完整 Elfie"]
-        Profile["Profile<br/>不可变身份、虚拟外貌与生成来源"]
-        Brain["Brain<br/>自我、人格、记忆、情绪、能量、驱力、认知、活动、离线整理与治理"]
+        Profile["Profile<br/>外部可见的冻结客观档案"]
+        Brain["Brain<br/>Selfhood、Memory、情绪、能量、驱力、认知、活动、离线整理与治理"]
         Nervous["Nervous System<br/>身体感知、反射与动作适配"]
         Comm["Communication<br/>联系人、渠道、会话与消息收发"]
         Body["Body<br/>虚拟/实体躯体、唯一身体权威与切换状态"]
-        Profile --> Brain
-        Profile --> Body
         Brain <--> Nervous
         Brain <--> Comm
         Nervous <--> Body
@@ -548,12 +552,20 @@ flowchart TB
     Comm <--> Channels["聊天页面、App 与外部通信渠道"]
     Host["ElfieNest 应用编排与本地运行设施"] --> Elfie
     Host --> NestCore
+    Host -->|"装配时读取 Profile 的虚拟外貌"| Body
+
+    Sources["世界骨架 → 居民知识 → Genesis 资料包<br/>+ 临时领养输入"]
+    Genesis["一次性 elfie/genesis"]
+    Sources --> Genesis
+    Genesis -->|"提交后断开"| Profile
+    Genesis -->|"提交 Selfhood 与 Memory 后断开"| Brain
 ```
 
 ### 10.1 Profile
 
-保存创建后不再变化的稳定身份、Godot 虚拟外貌和生成来源。Profile 是一级数据模块，但不是持续
-运行的生命循环；它不保存人格、记忆、关系、权限、当前身体、实体玩具外形或当前通信状态。
+保存创建后不再变化、需要由外部消费者查看的客观身份档案和 Godot 虚拟外貌。Profile 是一级数据模块，
+但不是持续运行的生命循环或 Brain 输入；它不保存世界知识、创建来源、问卷/Seed、人格、记忆、关系、
+权限、能力、当前身体、实体玩具外形或当前通信状态。
 
 ### 10.2 Brain
 
@@ -588,7 +600,9 @@ Elfie，不保存 Elfie 的核心人格，也不能绕过大脑直接行动。
 ### 10.8 ElfieNest 应用编排
 
 负责把真实 Elfie、本地 Nest、Godot/设备、通信接口、AI Runtime 和持久化设施组合起来。它不应
-把几何事实复制到 Python，也不应让网页观察界面成为身体权威。
+把几何事实复制到 Python，也不应让网页观察界面成为身体权威。领养时 App 只协调一次性 Genesis；
+LifeContext、知识过滤、人物、关系和故事语义属于 `elfie/genesis`，Infrastructure 只负责强类型
+加载与持久化，二者都不能在 App 或 Adapter 中另建生成器。
 
 ## 11. Profile 的最终定位
 
@@ -596,19 +610,21 @@ Elfie，不保存 Elfie 的核心人格，也不能绕过大脑直接行动。
 
 | 信息 | 应由谁拥有 |
 | --- | --- |
-| 稳定 ID、名字、物种、出生时间和来源 | Profile / Identity |
+| 技术 Schema 修订、稳定 ID、最终名字、正式物种、适用时的固定性别、稳定年龄/出生锚点、不可变个人来源 ID/冻结标签 | Profile / Identity |
 | Godot 中的外貌、材质、配饰与语义形象规格 | Profile / VirtualAppearance |
-| Profile Schema、生成版本与 Seed | Profile / Provenance |
 | 大五人格、兴趣、表达倾向 | Brain 的人格系统 |
-| 我是谁、我会什么、我在做什么 | Brain 的自我模型 |
-| 领养前后经历和人物关系 | Brain 的记忆与关系系统 |
+| 我是谁、我的人格与价值、我怎样理解自己 | Brain / Selfhood |
+| 已知世界与地方知识、职业知识、熟人关系、领养前后经历 | Brain / Memory |
+| 生成版本、策略/资料包绑定、Seed、问卷和候选生成参数 | 创建期临时数据；提交或终止失败后删除 |
+| 最小提交状态、输出 ID/摘要和幂等键摘要 | Profile 外的技术创建回执 |
+| 我会什么、我在做什么 | Brain 的自我模型与当前状态 |
 | 可用工具、联系人、数据和动作范围 | 自主治理的 Capability Envelope |
 | 当前是虚拟身体还是实体身体 | Embodiment Authority |
 | 实体玩具的型号与能力 | 设备/身体配置 |
 
 当前年龄由出生时间推导，不作为不可变值保存。“不会变化”也不是进入 Profile 的充分条件：童年
 事件即使不会改变仍属于 Memory，母亲身份即使稳定仍属于 Relationship。Profile 不再充当人格、
-能力、限制和身体状态的杂项容器。
+能力、限制、身体状态或创建溯源的杂项容器。
 
 前端仍然可以有“Elfie 档案页”。其中 Profile 字段来自 Profile，动态人格和状态来自 Brain；页面
 本身只是聚合视图，不获得这些事实的所有权。
@@ -664,6 +680,11 @@ Elfie，不保存 Elfie 的核心人格，也不能绕过大脑直接行动。
 22. 一个内部回合只有一个外部执行域，跨域活动必须拆分；
 23. 原始日志与长期记忆不是同一概念，但所有正式记忆属于同一个记忆系统；
 24. 联网补全尊重记忆的来源和可信度，不把主观视角强行改成统一口供。
+25. 世界骨架、居民公共知识和 Genesis 资料包只按单向链路服务未来创建，不是运行时世界知识服务；
+26. Profile 只保存外部可见的冻结客观档案，不保存世界观、人格、能力、关系、经历或创建溯源；
+27. Selfhood 是 Brain 内部身份人格权威，Memory 是知识、人物关系与经历权威；普通 Brain 不读取 Profile；
+28. 问卷、候选输入、LifeContext、计划、资料绑定和 Seed 在提交或终止失败后删除；
+29. `elfie/genesis` 拥有生命语义编译，App 只协调，Infrastructure 只加载和保存强类型值。
 
 ## 14. 典型运行效果
 
@@ -760,8 +781,9 @@ ElfieAtlas 中的历史产品蓝图，以及旧 Vault 中的世界观、记忆�
 强制 `SourceDomain`、`ResponseScope`、单域 Turn 和 Directive 校验；只给 Payload 加来源标签、
 继续让一个模型回合随意向多个执行器输出，仍然会重现聊天时身体乱动的问题。
 
-同样，当前 `Profile` 中仍有过渡性 personality、capabilities 和 system limits 字段。本文确定的是
-目标所有权，不构成这一轮立刻迁移代码或数据的授权；后续应在单独实现方案中处理。
+同样，当前代码仍把生成版本、Seed、用户选择、能力引用和抵达字段放进 Profile，并由 Selfhood 持有带
+世界资料的动态 Profile 投影；Genesis 语义编译也仍部分位于 Infrastructure。它们都是相对于最新契约的
+已知实现偏差，统一记录在 Elfie、Selfhood 与 Configuration 一致性台账中，不能反过来修改本文边界。
 
 ### 16.4 审查结论与本轮修订
 
@@ -781,6 +803,7 @@ ElfieAtlas 中的历史产品蓝图，以及旧 Vault 中的世界观、记忆�
 ### 16.5 顶级模块规约的后续确认
 
 后续讨论进一步确认：Profile 不删除，也不把 Identity 和 VirtualAppearance 拆成两个顶级目录。
-Profile 作为一级数据模块保留，只保存创建后不变的固有身份、Godot 虚拟外貌和生成来源；动态人格、
-自我、记忆、关系、能力和身体状态仍由各自系统拥有。完整边界以
+Profile 作为一级数据模块保留，只保存契约白名单内、外部可见的冻结客观身份和 Godot 虚拟外貌；它不
+保存生成来源。动态人格、自我、记忆、关系、能力和身体状态仍由各自系统拥有；创建输入在成功或终止
+失败后删除。完整边界以
 [Elfie 顶级模块设计](../zh/developer/designs/elfie-top-level-module-design.md)为准。

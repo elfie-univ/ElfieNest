@@ -3,6 +3,8 @@
 > 状态：目标设计。本文是 Memory 语义和类型化访问契约的权威；代码和一致性台账记录实际实现状态。
 >
 > 范围：持久化的主观经历、有来源的个人知识和确定性召回。不定义 Event Workspace 或 Reasoning 的完整上下文策略，也不定义其他模块的状态。
+>
+> 契约对齐：2026-09-01，ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
 
 ## 1. 目标、边界和所有权
 
@@ -175,8 +177,8 @@ Evidence 权重来自带版本的来源策略；重复 ID 不计数。相关来�
 
 ```text
 一次性 Genesis
-ApprovedSeedSource ──► Genesis manifest
-                         └─ 每次 submission：原子提交 ──► 本次 Memory 输出 + 完成标记
+ApprovedSeedSource ──► 临时 GenesisMemorySubmission
+                         └─ 原子提交 ──► 最终 Memory 输出 + 完成标记
 
 普通运行时
 Workspace 闭合 ClosedEpisode ── 捕获事务 ──► 完整 Episode + 来源引用
@@ -195,15 +197,17 @@ Genesis 是一次性的侧入口。普通路径不会从不完整事件写入图
 
 ### 3.1 Genesis 初始化
 
-`ApprovedSeedSource` 不可变、有版本并带哈希。Genesis manifest 只有三类种子：`KnowledgeSeed[]`（已掌握的世界/知识）、`EpisodeSeed[]`（个体过去，每条都物化为完整 Episode）和 `RelationshipSeed[]`（关联 Episode 或种子 Evidence 的类型化关系 Assertion）。不存在第四类传记或关系记忆：传记就是 Episode 的物化，关系就是 RelationshipSeed 的投影。世界/知识与关系种子可以直接投影；每条 `EpisodeSeed` 必须保留为完整 Episode，也可以在同一完整包内投影其派生 Node/Assertion。所有输出都带种子 Evidence。
+`ApprovedSeedSource` 是创建期不可变、有版本并带哈希的值。临时 `GenesisMemorySubmission` 只接收三类种子：`KnowledgeSeed[]`（已掌握的世界/知识）、`EpisodeSeed[]`（个体过去，每条都物化为完整 Episode）和 `RelationshipSeed[]`（关联 Episode 或创建 Evidence 的类型化关系 Assertion）。不存在第四类传记或关系记忆：传记就是 Episode 的物化，关系就是 RelationshipSeed 的投影。世界/知识与关系种子可以直接投影；每条 `EpisodeSeed` 必须保留为完整 Episode，也可以在同一完整包内投影其派生 Node/Assertion。最终输出带 Memory 自有创建 Evidence，不带资料包绑定或重放 Seed。
 
 Genesis 使用“单次提交”完成合同。一次 Genesis submission 是调用方交给 Memory、准备在一次原子提交中写入的完整、不可变 Memory 输出集合。Genesis 可以调用 Memory 任意多次；提交次数、大小、顺序、分组、调度以及这些提交代表核心知识还是扩展知识、前台还是夜间任务，都由 Genesis 决定，Memory 不负责决定。即使多个 submission 属于同一次更高层 Genesis 操作，每个 submission 也必须有自己的稳定提交/幂等身份和内容哈希。
 
 对于一次有效 submission，所有预期的权威记录和子记录——Node、Assertion、Evidence、传记 Episode、别名、描述和提及——以及本次 submission 的完成标记，必须作为一个完整单元持久化并可见。原子性就是“只接受当前提交”：写入前完成校验；Unit of Work 要么提交所有输出和标记，要么一个都不提交。失败调用只能返回失败或可重试结果，绝不能返回 `committed`。相同 submission 身份和哈希重放必须幂等；同一身份换用不同哈希必须拒绝。后续 submission 失败不能回滚先前已经成功提交的 submission。
 
-Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只向读取和维护暴露已经提交的 submission，不报告整个 Genesis 操作是否完成。已提交的 Elfie 不能被不同 manifest 静默重新初始化；升级是另一个经批准的操作。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的 Episode/Node/Assertion 初始 `importance` 和 Node/Assertion `confidence`；它的授权准入统一选择 `genesis` profile，使 Genesis 产生的每条语义记录都获得 `retention_profile=genesis` 和 `half_life_days=3650`。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
+Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只在仍未发布的创建工作区内暴露已完成 submission，最终工作区是否可见由 App admission 决定；Memory 不报告整个 Genesis 操作是否完成。已提交 Elfie 不提供 Genesis 重新初始化入口；获批迁移或真实学习事件只能操作最终 owner 状态。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的 Episode/Node/Assertion 初始 `importance` 和 Node/Assertion `confidence`；它的授权准入统一选择 `genesis` profile，使 Genesis 产生的每条语义记录都获得 `retention_profile=genesis` 和 `half_life_days=3650`。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
 
 Genesis 对每只 Elfie 的准入按串行方式执行。完成标记是 Genesis 行的唯一可见性闸门：标记出现前，读取和维护都不能使用该 submission 的任何行。Genesis 可以接受只包含部分批准种子类别的一次完整 submission，不要求每次 submission 都包含所有种子类别，也不会推断调用方的批次策略。
+
+最终创建成功提交或终止失败后，`ApprovedSeedSource`、submission Payload、资料包绑定和生成 Seed 全部删除。Memory 数据库只保留最终 Episode、Node、Assertion、Evidence，以及自身原子合同所需的最小 submission 完成/幂等标记；该标记不能重建 submission，也绝不进入 Recall。
 
 ### 3.2 普通运行时写入
 

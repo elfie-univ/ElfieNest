@@ -6,6 +6,9 @@
 > 评测基础：[Elfie Brain 评价体系与自动化试验场](./elfie-brain-evaluation-system.md)、[E1 火山 Ark 评测计划](./elfie-stage1-ark-evaluation-plan.md)
 > 当前优先级：P0；先完成“通过聊天认识一只完整外星精灵”，不进入精灵巢真实生活
 > 文档边界：本文冻结目标、事实所有权、实施顺序和验收门；不表示这些能力已经实现
+> 当前架构说明：本文保留 Stage 1 的历史实施与验收证据；Profile、Genesis 和创建输入的现行边界以
+> ADR-0033、Elfie 2.3、Brain 1.5 与 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 为准，本文旧有
+> Manifest/Profile-Canon 表述不得覆盖它们
 
 ## 当前基线后的执行窗口（2026-08-27）
 
@@ -45,13 +48,13 @@ Memory 是这条主干的核心内容所有者，但不是新的总控模块。�
 Orientation 的当前状态、Communication 的送达事实、Selfhood 的人格表达，也不接管客观世界设定的
 编辑来源。
 
-世界/物种 Canon 与 Memory 的关系固定为：
+世界/物种创建资料与 Memory 的关系固定为：
 
-- Canon 是版本化的客观参考资料，是“产品设计规定这个世界是什么”；它不是第十一个 Brain 系统；
+- 世界骨架、居民公共知识和 Genesis 资料包是未来创建的版本化上游，不是第十一个 Brain 系统或运行时知识服务；
 - 一只 Elfie 实际知道的世界知识，是 Genesis 从对应版本资料交付给它、并由 Memory 持有的语义知识；
-- Profile 只保留名字、物种、出生来源、世界/地区 ID、版本和生成来源等不可变锚点；
-- 运行时回答不能长期依赖把整套 Canon 直接塞入 Prompt。直接层最终只保留身份硬锚点和防虚构规则；
-- Canon 更新不会静默改写既有 Elfie 的记忆。版本升级、补课或迁移是以后单独批准的产品行为。
+- Profile 只保留契约白名单内、给外部消费者查看的冻结客观档案，不保存资料版本、生成来源或世界知识；
+- Brain 的运行时身份来自 Selfhood，世界知识只来自 Memory Recall；Profile 和整套资料都不进入普通 Prompt；
+- 资料更新只影响未来创建。既有 Elfie 的学习、修复或迁移只能以最终所有者为输入另立行为，不能重放 Genesis。
 
 因此，“记忆优先”不是先横向做完一个庞大的 Memory 系统，而是先让一条记忆支撑的用户路径真实
 闭环。高级遗忘、自动巩固、模式预测、向量数据库和人格成长都不能抢在这条主干之前。
@@ -92,12 +95,12 @@ Orientation 的当前状态、Communication 的送达事实、Selfhood 的人格
 
 | 事实或能力 | 唯一权威 | 第一阶段用途 | 明确不能做什么 |
 | --- | --- | --- | --- |
-| 名字、物种、出生来源、稳定 ID、版本 | Profile | 固定“我是谁” | 不能保存人格、主人喜好、当前地点或完整世界百科 |
-| 世界与物种客观设定 | 版本化 Canon 参考资料 | 作为 Genesis 知识来源和硬约束 | 不能成为运行时第二份个人记忆，也不能伪装亲历 |
+| 外部可见的名字、物种、稳定年龄/出生锚点、不可变个人来源 ID/冻结标签、稳定 ID、虚拟外貌 | Profile | 对外展示冻结客观档案 | 不能作为 Brain 身份输入，也不能保存世界知识、人格、问卷/Seed、关系、经历或能力 |
+| 世界与物种客观设定 | CreatorWorldSkeleton → ResidentKnowledgeBaseline → GenesisSourcePackage | 只作为未来创建的知识来源和硬约束 | 不能成为运行时第二份个人记忆，也不能被已提交 Elfie 读取 |
 | 已知世界知识、个人经历、人物与关系 | Memory | 支撑问答、回忆、纠正和连续性 | 不能覆盖当前权威状态或自行宣布外部动作完成 |
 | 当前会话、身体、地点、可用动作 | Orientation + EffectiveCapabilities | 回答“现在能做什么” | 不能用旧记忆推断当前仍在某处或正在做某事 |
 | 当前情绪、能量、睡眠 | Emotion + Energy | 有限影响语气和回复深度 | 不能改写身份、历史和世界事实 |
-| 人格、表达风格、自我模型 | Selfhood | 让同一事实以这只 Elfie 的方式表达 | 不能保存世界百科或把一次情绪固化成人格 |
+| 运行时身份、人格、表达风格、自我模型 | Selfhood | 固定“我是谁”，让同一事实以这只 Elfie 的方式表达 | 不能保存世界百科、创建资料绑定或把一次情绪固化成人格 |
 | 主人消息、Elfie 回复和用户可见历史 | Communication history | 证明双方实际说过什么 | 不能把“准备发送”当作“已经说过” |
 | 投递是否成立 | Communication Receipt | 决定回复是否成为共同经历 | 模型文本和广播调用本身不能替代回执 |
 | 选择上下文和组织回答 | Reasoning | 组合各权威来源 | 不能直接写 Memory、Profile 或伪造 Receipt |
@@ -114,11 +117,14 @@ Orientation 的当前状态、Communication 的送达事实、Selfhood 的人格
 ### 2.2 第一阶段公共主干
 
 ```text
-版本化世界/物种资料 ─┐
-领养后一次性传记 ─────┼→ GenesisBundle → 每只 Elfie 的 Memory Store
-Profile 身份锚点 ──────┘                       │
-                                                ▼
-主人消息 → Workspace → typed recall → BrainContext → Reasoning
+世界骨架 → 居民知识 → GenesisSourcePackage ─┐
+临时领养输入/候选选择 ───────────────────────┼→ 一次性 elfie/genesis
+                                             ├→ Profile（外部冻结档案）
+                                             ├→ Selfhood（Brain 身份人格）
+                                             └→ Memory（知识、关系、经历）
+                                                        │
+                                                        ▼
+主人消息 → Workspace → Selfhood + typed recall → BrainContext → Reasoning
    │                                              │
    │                                              ▼
    └──── stable message ID ← Directive → Communication → history/transport
@@ -132,6 +138,9 @@ Profile 身份锚点 ──────┘                       │
                          └──────────────────→ Memory commit ←──────────────┘
 ```
 
+Profile、Selfhood 和 Memory 成功提交后，左侧资料包绑定、问卷、LifeContext、计划和 Seed 全部删除；
+普通聊天链路只读取 Selfhood、Memory 与当前状态。最小技术创建回执不进入 Brain。
+
 这里有两个不能混淆的时间点：
 
 1. 主人消息进入权威聊天历史并被通信边界交给认知后，可以记录“主人说过 X”，但 X 仍是主人
@@ -144,16 +153,17 @@ Profile 身份锚点 ──────┘                       │
 | 冲突 | 处理规则 |
 | --- | --- |
 | Memory 说在 A，当前运行时状态说在 B | 当前 Orientation/执行回执优先；A 只作为过去经历 |
-| 主人要求 Elfie 改名、改物种或改母星 | Profile 身份锚点优先；普通消息不能改不可变身份 |
-| 主人陈述与世界 Canon 冲突 | 保存为“主人这样说”，不能升级为客观知识 |
+| 主人要求 Elfie 改名、改物种或改母星 | Selfhood 与冻结外部档案共同通过创建校验；运行时身份以 Selfhood 为准，普通消息不能改不可变身份 |
+| 主人陈述与 Elfie 已有可靠世界知识冲突 | 保存为“主人这样说”，不能升级为客观知识 |
 | 主人后来纠正自己的称呼或喜好 | 新陈述显式取代旧主人事实；旧记录保留来源但不再作为当前答案 |
 | 两段个人经历互相矛盾 | 不让模型现场圆谎；返回不确定，并把冲突暴露给验证/后续修复流程 |
-| 新版本 Canon 与旧 Elfie 记忆不同 | 不静默覆盖；继续使用该 Elfie 已提交的版本，等待显式升级策略 |
+| 新版创建资料与旧 Elfie 记忆不同 | 不静默覆盖；旧 Elfie 已与资料包断开，只继续使用自己的 Selfhood 与 Memory |
 | 预测、联想或 Consolidation 产物与正式事实冲突 | P0 一律不得进入事实回答上下文 |
 
 ## 3. 当前实现事实与根因
 
-以下结论来自当前代码、测试和调用链，不把目标设计写成已实现能力。
+以下结论是 2026-08-25 制定 Stage 1 时的代码快照，只用于解释当时实施顺序，不再代表仓库“当前事实”；
+其中旧 Profile/Canon/Manifest 形态属于历史实现，不能作为现行目标。不把目标设计写成已实现能力。
 
 | 部位 | 当前已经有的能力 | 当前关键缺口 | 直接影响 |
 | --- | --- | --- | --- |
@@ -212,7 +222,8 @@ memory_id + kind + content + topics/entities + relevance
 - `KnowledgeSeed[]`：数量不受“最多 5 段经历”限制；由版本化世界/地区/物种资料编译而来；
 - `EpisodeSeed[3..5]`：只保存这只 Elfie 的关键领养前经历；
 - `RelationshipSeed[]`：初始化自我、原生重要人物和领养家庭关系骨架；
-- `ProfileDraft`、`PersonalitySeed`、`SelfModelSeed` 与 Manifest 保持各自所有权。
+- `ProfileDraft` 只含冻结客观档案，`SelfhoodSeed` 只含 Brain 身份人格；创建期
+  `GenesisCompileEnvelope` 保存临时资料绑定和 Seed，提交后只留下最小 `GenesisCommitReceipt`。
 
 传记不是五张互不相关的故事卡，而是一张最小人生图：
 
@@ -231,16 +242,19 @@ memory_id + kind + content + topics/entities + relevance
 生产消费者的 `BiographyEnrichmentPlan` 不作为完成依据；在传记切片中确认无调用者后删除，不保留
 一个看似会自动丰富、实际无人执行的承诺。
 
-Genesis 提交使用稳定节点 ID、Manifest 最后可见和可重放 upsert：
+Genesis 提交使用稳定节点 ID、未发布工作区与事务内幂等 upsert：
 
-- 全部节点、人物、地点和边使用 Manifest + seed ID 推导的确定性 ID；
-- Manifest 未完成时，运行时不得把半套 Genesis 当作可用生命资料；
-- 崩溃后重放同一 Manifest 必须补齐而不是复制；
+- 全部节点、人物、地点和边使用创建期命名空间 + seed ID 推导的确定性 ID；
+- 创建事务未完成时，运行时不得把半套 Genesis 当作可用生命资料；
+- 崩溃后只恢复同一未完成事务，必须补齐而不是复制；
 - 不依赖只存在于内存的“已经提交 candidate ID”集合；
 - EpisodeSeed 最终写成运行期也使用的普通 Episode 合同，使第二阶段真实巢内经历沿用同一读链，
   不为“初始故事”另造永久记忆类型；
 - 第一轮优先复用现有表和 JSON metadata。若无法满足原子可见与重放语义，再进入第 7 节数据库门，
   不能直接加表或字段。
+
+成功提交或终止失败后，预约、CompileEnvelope、LifeContext、Plan、问卷、资料包绑定和 Seed 全部删除；
+已提交 Elfie 只能从 Profile、Selfhood、Memory 与必要运行态恢复，不能重放 Genesis。
 
 ### 4.3 世界知识密度与版本
 
@@ -261,8 +275,8 @@ Prompt。内容资料建议作为一个注册、类型化、版本化的 bundled
 加载后在领养/Genesis 边界转换为领域合同；它不成为 Brain 模块，也不由 Memory 自行读 YAML。
 具体文件结构在第 2 轮开工卡中冻结，并遵守现有配置单一事实源规则。
 
-旧 Elfie 的 Manifest 版本和当前 bundled 版本不一致时，P0 默认继续使用已提交 Memory，不自动
-补课、不静默换设定。产品若要求升级，另立迁移与叙事策略。
+创建资料更新时，旧 Elfie 默认继续使用已提交 Selfhood 与 Memory，不自动补课、不静默换设定，也不
+需要保存旧资料包。产品若要求升级，另立以最终所有者为输入的学习或迁移策略。
 
 ### 4.4 检索、上下文和回答边界
 
@@ -278,7 +292,7 @@ P0 检索采用现有存储上的有界混合检索，不引入向量基础设�
 - 每条项目独立保留来源和置信度；被截断时整条淘汰或明确截断，不能拼坏字段；
 - P0 事实上下文排除 Pattern、预测灵感、未经校验的 Consolidation 产物、技术性情绪权重和
   Memory 自我叙事投影；
-- Selfhood/Profile 仍是当前身份权威，Memory 中的自我叙事只是可出错的历史证据。
+- Selfhood 是 Brain 当前身份权威；Profile 只是外部冻结档案，Memory 中的自我叙事是可出错的历史证据。
 
 正常回答策略是“事实优先、自然表达、缺口显式”：
 
@@ -286,8 +300,8 @@ P0 检索采用现有存储上的有界混合检索，不引入向量基础设�
 - 只有相邻信息时说明“我只知道这些”，不把推断补成确定事实；
 - 完全未知时自然承认不知道，并说明是未亲历、当前无法感知还是资料未覆盖；
 - 当前精灵巢、天气、动作和其他 Elfie 只能由当前状态、感知、工具结果或回执支持；
-- 在第 2 轮检索验收通过前，不删除现有硬身份安全锚点；通过后移除重复的丰富世界/物种 Prompt
-  注入，只保留名字、物种、来源等身份锚点与防虚构政策，避免双事实源。
+- 移除 Profile、世界/物种资料对普通 Brain Prompt 的直接注入；运行时身份只由 Selfhood 提供，
+  世界知识只由 Memory Recall 提供，宿主防虚构政策不携带另一份世界事实。
 
 ### 4.5 通信、写回和失败语义
 
@@ -383,14 +397,14 @@ Web 通道的完成阈值固定为：
 4. 改进有界 topic/entity/lexical 检索，解决中文逐字匹配的误召回；不加向量数据库；
 5. 修正中文上下文预算，并建立固定问题库，逐项验证 top-k 命中、未知问题零伪召回、不同 Elfie
    存储隔离和版本不混用；
-6. 验收全绿后，删除 Reasoning/Selfhood 中重复注入的丰富物种知识和世界描述；只保留不可变身份
-   锚点、Canon 版本和硬认知边界；
+6. 删除 Reasoning/Selfhood 中重复注入的物种知识、世界描述、Profile 投影和资料版本；运行时身份只由
+   Selfhood 提供，世界知识只由 Memory Recall 提供，硬认知边界不携带另一份世界事实；
 7. 对所有当前公开物种做知识合同/问题覆盖验证；至少一只完成全链路，其余物种通过相同 schema、
    Genesis 和召回合同；
 8. 验证当前问题仍由 Capability/Orientation 回答：没有位置、天气和巢内感知就不编造。
 
-**主要涉及**：版本化 `config/` 内容及其类型化加载、`elfie/profile` 的参考合同、`elfie/genesis/`、
-`elfie/brain/memory/`、Reasoning 上下文及配置/领域测试。
+**主要涉及**：版本化 `config/` 内容及其类型化加载、`elfie/genesis/`、`elfie/brain/selfhood/`、
+`elfie/brain/memory/`、Reasoning 上下文及配置/领域测试；Infrastructure 不拥有知识筛选语义。
 
 **完成门**：
 
@@ -415,13 +429,13 @@ Elfie 不再像从领养当天才出现。
    生命史；
 3. Genesis 使用 `EpisodeSeed` 写入正确历史时间、life stage、地点、人物、情绪、结果和影响；修复
    所有种子都连接地球地点的问题；
-4. 用稳定 ID 和 Manifest 门保证失败、崩溃、重复提交不会复制人物或经历；
+4. 用稳定 ID、未发布工作区和创建期幂等门保证失败、崩溃、重复提交不会复制人物或经历；提交后销毁创建输入；
 5. 记忆检索按话题召回相关 Episode，并可沿人物/地点/因果边补一条关联经历；
 6. 未保存细节允许自然说“记不清”，模型生成的新细节不在这一轮自动写回；
 7. 删除确认无生产消费者的 `BiographyEnrichmentPlan`，避免假完成和未来第二条传记生成路径。
 
-**主要涉及**：`infrastructure/models/adoption_narrative.py`、Adoption 的 reveal 合同、
-`elfie/genesis/`、`infrastructure/persistence/elfie_workspace/adoption_profiles.py`、Memory 检索和测试。
+**主要涉及**：Adoption 的 reveal 合同、`elfie/genesis/`、Memory 检索和测试；App 只协调，
+Infrastructure 只保存 Genesis 生成的强类型值，不生成传记。
 
 **完成门**：
 
@@ -526,7 +540,7 @@ Elfie 不再像从领养当天才出现。
 
 1. 题库、阈值、模型配置和基础数据在看候选结果前冻结；失败后可以新增回归题，不能删除题目或
    放宽阈值来“做绿”；
-2. 基线与候选使用同一代码外配置、Canon 版本、Profile/Genesis seed、模型版本和运行环境；不可控
+2. 基线与候选使用同一代码外配置、GenesisSourcePackage、创建期 seed、模型版本和运行环境；不可控
    随机性必须如实记录；
 3. 同一真实模型场景至少重复 3 次。硬门按最差一次判定，软质量同时报告中位数和最差样本，不能
    用平均分冲掉一次身份矛盾或伪事实；
@@ -542,7 +556,7 @@ Elfie 不再像从领养当天才出现。
 | 层 | 证明什么 | 代表检查 |
 | --- | --- | --- |
 | 领域单元 | 类型、来源、冲突、eligibility、检索、候选和幂等规则 | Genesis/Memory/Reasoning/Communication 对应单测 |
-| Adapter 合同 | Memory metadata 映射、聊天稳定 ID、持久化重放和每 Elfie 隔离 | SQLite Memory、history Adapter 聚焦测试 |
+| Adapter 合同 | Memory metadata 映射、聊天稳定 ID、事务恢复和每 Elfie 隔离 | SQLite Memory、history Adapter 聚焦测试 |
 | Brain 集成 | 一条消息如何读取 Memory、形成回答、取得 Receipt 并结算 | 现有 cognitive loop 上新增聚焦场景 |
 | 产品纵向 | 新领养 → Web 消息 → 回复 → 历史 → 重启 → 再问 | 临时数据根下的 API/E2E 场景 |
 | 用户入口 | 真实用户入口是否呈现同一结果 | 既有 Web 聊天页上一条受控端到端场景，不扩大为全站 QA |
@@ -558,7 +572,7 @@ Elfie 不再像从领养当天才出现。
 的匿名基线/候选对话供负责人评审，抽样规则也在开工前冻结，不能由实现者事后挑最好看的回复。
 
 每个场景至少冻结：`case_id`、所属轮次、初始 Elfie/主人/会话数据、输入及改写问法、故障点、预期
-命中的 Memory ID/kind/source（动态场景可引用 Genesis Manifest）、必须/禁止出现的事实、预期
+命中的 Memory ID/kind/source（创建场景可引用临时计划或最小创建回执中的输出 ID）、必须/禁止出现的事实、预期
 Receipt/持久化差异、机器断言和体验 Rubric。每个 `EvalRun` 至少记录候选与基线 SHA、场景集版本、
 模型/Prompt/Canon 版本、seed、命令、时间、指标和失败 Trace；统一使用隔离的合成主人数据，诊断只
 记录必要 ID 与来源，不复制真实主人隐私文本。
@@ -567,7 +581,7 @@ Receipt/持久化差异、机器断言和体验 Rubric。每个 `EvalRun` 至少
 
 | P0 硬门 | 零容忍失败 |
 | --- | --- |
-| 身份与来源 | 名字、物种、来历矛盾；将主人陈述或模型补写冒充 Profile/Canon/正式 Memory |
+| 身份与来源 | 名字、物种、来历矛盾；将主人陈述或模型补写冒充 Selfhood、冻结 Profile 档案或正式 Memory |
 | 当前事实边界 | 虚构巢内事件、地球实时情况、感知、地点、身体动作或完成状态 |
 | 通信真实性 | 被接受消息沉默、重复回复、错误 Receipt、未送达却形成“我说过/做过” |
 | 记忆连续性 | 错误召回、来源丢失、重启丢失或重复、旧纠正重新成为 active |
@@ -607,21 +621,23 @@ Receipt/持久化差异、机器断言和体验 Rubric。每个 `EvalRun` 至少
 | 攻击或漏洞 | 如果不处理会怎样 | 本计划的收束措施 | 所在轮次 |
 | --- | --- | --- | --- |
 | 继续只增加静态故事词条 | 条目写入但 Knowledge 不可召回 | 先完成 typed Knowledge recall，再扩内容 | 1–2 |
-| Canon 与 Memory 同时给完整答案 | 同一事实两套版本，更新后互相矛盾 | Canon 只做版本化来源；个人已知知识进 Memory；验收后移除重复 Prompt 注入 | 2 |
-| 新 Canon 自动覆盖旧 Elfie | 既有角色一夜之间“记忆被改写” | Manifest 版本冻结，升级另立策略 | 2、5 |
+| 创建资料与 Memory 同时给完整答案 | 同一事实两套版本，更新后互相矛盾 | 资料只在 Genesis 创建期使用；个人已知知识进 Memory；普通 Brain 不加载资料 | 2 |
+| 新创建资料自动覆盖旧 Elfie | 既有角色一夜之间“记忆被改写” | 已提交 Elfie 与资料包断开；学习或迁移以最终所有者为输入另立策略 | 2、5 |
 | 中文逐字词袋误召回 | 问“天气”可能召回只共享几个字的无关故事 | topic alias + entity + lexical 混合，固定 top-k 问题库 | 2 |
 | 世界知识一多就塞满 Prompt | 当前消息、会话和身份被挤掉 | 最多 8 条、按类型配额、总预算裁剪 | 2、5 |
 | 中文文本绕过空格预算 | 长知识被当成一个词，名义预算不生效 | 使用保守中文字符/token 估算并加整条淘汰门 | 2、5 |
 | 同情绪检索压过问题相关性 | 问母星时突然召回一段无关悲伤经历 | 情绪只调整已相关结果，不能独立制造候选 | 1–2 |
 | Pattern/预测进入事实区 | 把“可能发生”说成“已经发生” | P0 eligibility 白名单，预测和未经校验巩固结果隔离 | 1 |
-| Memory 自我叙事覆盖 Profile | 旧叙事改变名字、物种和来源 | Profile/Selfhood 保持身份权威，Memory 仅作历史证据 | 1、5 |
-| 传记生成一半失败 | 一只 Elfie 只有半套人物或故事 | 整包验证、Manifest 最后可见、稳定 ID 重放 | 3 |
+| Memory 自我叙事覆盖 Selfhood | 旧叙事改变运行时名字、物种和来源 | Selfhood 保持 Brain 身份权威，Profile 仅是外部档案，Memory 仅作历史证据 | 1、5 |
+| 传记生成一半失败 | 一只 Elfie 只有半套人物或故事 | 整包验证、未发布工作区、稳定 ID 与事务内恢复 | 3 |
 | 所有经历连接地球家 | 母星童年被错误说成发生在地球 | EpisodeSeed 显式 place/person 边 | 3 |
 | 提交时间冒充历史时间 | 童年故事看起来发生在领养当天 | `created_at` 与 `occurred_at/temporal_label` 分开 | 3 |
 | 模型临场补故事 | 每次追问换一个人物或结局 | 核心事实只读已提交 Episode；新增细节不自动写回 | 3 |
 | 未校验 `personal_story` 直接进入 Selfhood Prompt | 结构化传记尚未完成，简介已经污染身份和世界事实 | 早期仅作展示摘要；第 3 轮由已校验传记派生 | 1、3 |
 | `BiographyEnrichmentPlan` 被当成已实现 | 计划存在但没人执行，形成假完成 | 确认无消费者后移除；P0 一次性生成完整最小传记 | 3 |
-| 主人说错话污染世界知识 | 普通消息改写母星、身份或权限 | owner claim 有 attribution，不能升级 Canon/Profile | 4 |
+| 主人说错话污染世界知识 | 普通消息改写母星、身份或权限 | owner claim 有 attribution，不能升级 Selfhood、冻结 Profile 档案或正式世界知识 | 4 |
+| 创建输入长期保留 | 问卷、Seed 或资料绑定变成第二份人格/人生来源 | 成功或终止失败后销毁创建输入；回执只保留技术完成证据 | 1、3、5 |
+| Infrastructure 生成传记 | Adapter 变成第二个 Genesis | `elfie/genesis` 独占生命语义，App 只协调，Infrastructure 只加载/保存 | 1、3 |
 | 主人纠正后旧值仍被召回 | 同一问题时而答旧名时而答新名 | active/supersedes 状态和冲突检索规则 | 4 |
 | 必须回复成功才记得主人说过 | 模型或出站失败导致主人事实丢失 | 入站陈述和已完成共同互动分开结算 | 4 |
 | 进程内去重在重启后失效 | 重放同一回执形成多段重复记忆 | 从稳定消息/回执 ID 推导持久节点 ID | 1、4 |
