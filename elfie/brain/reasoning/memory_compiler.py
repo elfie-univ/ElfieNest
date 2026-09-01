@@ -157,6 +157,31 @@ def compile_recall_bundle(
 
     processed_groups: set[Tuple[str, ...]] = set()
     packets_by_assertion = {packet.assertion.assertion_id: packet for packet in packets}
+
+    # Conversation episodes are the durable source for facts that have not
+    # yet been projected into graph assertions.  They are otherwise treated
+    # as "orphans" and appended after every graph packet; under a normal P0
+    # context budget the graph packet loop can consume the whole allowance
+    # before the episode is ever considered.  Give orphan episodes a bounded
+    # opportunity first, while retaining the same packet provenance and
+    # truncation semantics for all remaining records.
+    orphan_episodes = _orphan_episodes(bundle.episodes, linked_episode_ids)
+    for episode in orphan_episodes:
+        rendered = _render_episode(episode)
+        cost = estimate_prompt_tokens(rendered)
+        if cost > available - used:
+            compact = _render_episode(episode, compact=True)
+            compact_cost = estimate_prompt_tokens(compact)
+            if compact_cost <= available - used and compact_cost > 0:
+                rendered = compact
+                cost = compact_cost
+            else:
+                truncated = True
+                continue
+        lines.append(rendered)
+        used += cost
+        selected_episodes.append(episode.episode_id)
+
     for packet in packets:
         group_ids = _conflict_group_ids(packet, packets_by_assertion)
         group_key = group_ids
@@ -233,17 +258,6 @@ def compile_recall_bundle(
             continue
         lines.append(rendered)
         used += cost
-
-    orphan_episodes = _orphan_episodes(bundle.episodes, linked_episode_ids)
-    for episode in orphan_episodes:
-        rendered = _render_episode(episode)
-        cost = estimate_prompt_tokens(rendered)
-        if cost > available - used:
-            truncated = True
-            continue
-        lines.append(rendered)
-        used += cost
-        selected_episodes.append(episode.episode_id)
 
     known_assertion_ids = set(packets_by_assertion)
     for conflict in bundle.conflicts:
@@ -502,6 +516,20 @@ def _render_episode(
     compact: bool = False,
     include_excerpt: bool = True,
 ) -> str:
+    if compact:
+        # Keep an orphan conversational episode useful even when the full
+        # provenance block cannot fit.  The id remains the canonical handle;
+        # the bounded excerpt is still inert data and is escaped below.
+        excerpt = _safe(episode.excerpt, 128) if include_excerpt else ""
+        lines = [
+            f'<EPISODE id="{_safe_attr(episode.episode_id)}">',
+            f"相关性：{episode.relevance:.3f}；重要性：{episode.importance:.3f}",
+        ]
+        if excerpt:
+            lines.append(f"叙事摘要：{excerpt}")
+        lines.append("</EPISODE>")
+        return "\n".join(lines)
+
     occurred = episode.occurred_from or "unknown"
     if episode.occurred_to:
         occurred += f"..{episode.occurred_to}"
