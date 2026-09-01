@@ -3,7 +3,7 @@
 > 状态：第一阶段实现已落地；模型行为与既有 workspace 迁移仍开放<br>
 > 基线：2026-08-30，`91c26643`<br>
 > 目标：[Elfie Selfhood 与固定模型头部设计](../designs/elfie-selfhood-and-fixed-model-header.md)<br>
-> 契约：[Elfie 2.2](../contracts/elfie.md) 与 [Brain 1.3](../contracts/brain.md)
+> 契约：[Elfie 2.2](../contracts/elfie.md) 与 [Brain 1.4](../contracts/brain.md)
 
 这份临时台账记录第一阶段 Selfhood/固定头部实现切片之后仍然存在的源码与验收差距。
 标记为 closed 的行只在本阶段范围内关闭；开放行仍需完成各自行规定的证据，结构性单元

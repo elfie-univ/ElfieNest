@@ -10,6 +10,9 @@ in [Conformance](../conformance/).
   top-level ownership for one complete Elfie.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
+- [Elfie Reasoning Core](./elfie-reasoning-core): the Reasoning-owned Context
+  Workspace, context/Memory boundary, bounded single-Turn Agent loop, compaction,
+  completion and P0 no-tool owner-chat scope.
 - [Elfie Selfhood and fixed model header](./elfie-selfhood-and-fixed-model-header):
   the four-block online Reasoning prefix, two-layer Selfhood state, initialization,
   projection, persistence and future Memory-only update boundary.

@@ -24,9 +24,9 @@ from elfie.brain.reasoning.context_types import (
     ConnectedChannelDescriptor,
     EffectiveCapabilities,
 )
-from elfie.brain.reasoning.conversation_context import ConversationContextStore
+from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
 from elfie.brain.reasoning.internal_execution import NoOpExecutor
-from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
@@ -171,8 +171,8 @@ def assemble_brain_runtime(
         }
 
     context = BrainContextProvider(
-        memory=MemoryContextReader(memory),
-        conversations=ConversationContextStore(),
+        memory=ReasoningMemoryBridge(memory),
+        conversations=ReasoningContextWorkspace(),
         activities=ActivityContextReader(resolved_activity_store),
         capability_reader=capabilities.current,
         clock=clock,

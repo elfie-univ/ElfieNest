@@ -37,7 +37,7 @@ from elfie.brain.reasoning.coordinator_runtime import (
     CoordinatorRuntime,
     TurnOutcomeBuffer,
 )
-from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
+from elfie.brain.reasoning.coordinator_turn import ReasoningRunController
 from elfie.brain.reasoning.coordinator_types import (
     BarrierControl,
     FrameAffectTxn,
@@ -62,7 +62,6 @@ from elfie.brain.reasoning.run import (
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
-from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import IngestDisposition
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
@@ -124,7 +123,7 @@ class BrainCoordinator:
         # accidentally be starved by the normal input thresholds.
         self._motivation_due = False
         self._consolidation_due = False
-        self._turn_factory = CoordinatorTurnFactory(
+        self._turn_factory = ReasoningRunController(
             elfie_id=elfie_id,
             homeostasis=homeostasis,
             context_source=context_source,
@@ -422,6 +421,8 @@ class BrainCoordinator:
                 self._journal.record_run_started(frame, turn_id)
             requires_model = self._requires_model(frame)
             affect_txn, is_new_affect_txn = self._prepare_affect_transaction(frame)
+            conversation = self._turn_factory.observe_conversation(frame, now)
+            self._flush_pending_handoffs()
             task = self._turn_factory.build_task(
                 frame,
                 turn_id,
@@ -429,8 +430,8 @@ class BrainCoordinator:
                 emotion=affect_txn.stable_snapshot,
                 appraisal_scopes=affect_txn.appraisal_scopes,
                 requires_model=requires_model,
+                conversation=conversation,
             )
-            self._capture_closed_episodes(task)
             if requires_model:
                 future = self._worker.submit(task)
             else:
@@ -501,7 +502,7 @@ class BrainCoordinator:
     def _no_model_result(task) -> ReasoningTurnResult:
         """Build an auditable local NoOp for routine frames without inference."""
 
-        plan = CoordinatorTurnFactory.noop_plan(task.seed, "routine_frame_no_model")
+        plan = ReasoningRunController.noop_plan(task.seed, "routine_frame_no_model")
         report = DecisionDecodeReport(
             selected_mode=DecisionDecodeMode.JSON_TEXT,
             validation_errors=(),
@@ -530,34 +531,11 @@ class BrainCoordinator:
         )
         return ReasoningTurnResult(decode=decode, reasoning=reasoning)
 
-    def _capture_closed_episodes(self, task) -> None:
-        """Persist upstream-closed Episodes before inference starts.
-
-        WorkingContext owns topic boundaries; this coordinator only forwards
-        the resulting typed source records to Memory.  A failed write aborts
-        the frame claim while the upstream queue remains retryable.
-        """
-        episodes = getattr(task, "closed_episodes", ())
-        if not episodes:
-            return
+    def _flush_pending_handoffs(self) -> None:
+        """Flush the Context Workspace handoff before Memory Recall is pinned."""
         capture = getattr(self._settlement, "capture_episodes", None)
-        if not callable(capture):
-            raise RuntimeError("source-first Episode capture is unavailable")
-        receipts = capture(tuple(episodes))
-        failed = tuple(
-            receipt
-            for receipt in receipts
-            if receipt.status
-            not in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
-        )
-        if failed:
-            reasons = ",".join(
-                receipt.reason or receipt.status.value for receipt in failed
-            )
-            raise RuntimeError(f"Episode source capture failed: {reasons}")
-        acknowledge = getattr(self._context_source, "ack_closed_episodes", None)
-        if callable(acknowledge):
-            acknowledge(tuple(episode.episode_id for episode in episodes))
+        if callable(capture):
+            self._context_source.flush_pending_handoffs(capture)
 
     def _handle_worker_done(self, control: WorkerDoneControl) -> None:
         inflight = self._inflight

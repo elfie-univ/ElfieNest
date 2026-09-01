@@ -14,14 +14,12 @@ from elfie.brain.memory.contracts import MemoryStateSnapshot
 from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
-from elfie.brain.reasoning.context_types import (
-    BrainContext,
-    EffectiveCapabilities,
-)
+from elfie.brain.reasoning.context_types import BrainContext, EffectiveCapabilities
 from elfie.brain.reasoning.memory_compiler import (
     CompiledMemoryContext,
     compile_recall_bundle,
 )
+from elfie.brain.reasoning.run import CurrentRunObservation
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
     ExecutionPayload,
@@ -70,6 +68,30 @@ class CompiledConversation(FrozenContractModel):
     content: str
 
 
+class CompiledContextSummary(FrozenContractModel):
+    """One source-backed compressed range from the Reasoning workspace."""
+
+    role: Literal["context_summary_data"] = "context_summary_data"
+    summary_id: str
+    version: int
+    source_event_ids: Tuple[EventId, ...]
+    occurred_from: UTCDateTime
+    occurred_to: UTCDateTime
+    content: str
+    unresolved_items: Tuple[str, ...] = ()
+
+
+class CompiledRunObservation(FrozenContractModel):
+    """One bounded, structured observation from the current ReasoningRun."""
+
+    role: Literal["run_observation_data"] = "run_observation_data"
+    kind: str
+    status: str
+    content: str
+    source_ids: Tuple[str, ...] = ()
+    revision: Optional[int] = None
+
+
 class CompiledStateUpdate(FrozenContractModel):
     """One latest-only state value with explicit source identity."""
 
@@ -103,6 +125,8 @@ class CompiledModelContext(FrozenContractModel):
     state_updates: Tuple[CompiledStateUpdate, ...]
     media_samples: Tuple[CompiledMediaSample, ...]
     conversation: Tuple[CompiledConversation, ...]
+    summaries: Tuple[CompiledContextSummary, ...] = ()
+    run_observations: Tuple[CompiledRunObservation, ...] = ()
     memory: CompiledMemoryContext = Field(default_factory=CompiledMemoryContext)
     activities: ActivityContext = Field(default_factory=ActivityContext.unknown)
     emotion: EmotionSnapshot
@@ -113,6 +137,7 @@ class CompiledModelContext(FrozenContractModel):
     capabilities: EffectiveCapabilities
     truncated: bool
     selfhood: SelfhoodPromptProjection
+    memory_recall_revision: int = 0
     memory_state: MemoryStateSnapshot = Field(
         default_factory=MemoryStateSnapshot.unknown
     )
@@ -129,7 +154,10 @@ class _BudgetCursor:
         words = content.split()
         if not words:
             return content
-        allowed = max(1, self.remaining)
+        if self.remaining <= 0:
+            self.truncated = True
+            return "[truncated]"
+        allowed = self.remaining
         if len(words) <= allowed:
             self.remaining -= len(words)
             return content
@@ -156,6 +184,7 @@ class ModelContextCompiler:
         context: BrainContext,
         *,
         budget: ModelTokenBudget,
+        observations: Tuple[CurrentRunObservation, ...] = (),
     ) -> CompiledModelContext:
         """Compile one immutable BrainContext without provider wire details."""
         recall = cast(RecallBundle, context.memory.recall)
@@ -164,6 +193,8 @@ class ModelContextCompiler:
             or context.frame.state_updates
             or context.frame.media_samples
             or context.conversation.messages
+            or context.conversation.summaries
+            or observations
             or recall.focus_nodes
             or recall.assertions
             or recall.episodes
@@ -183,9 +214,31 @@ class ModelContextCompiler:
                 or recall.conflicts
             ),
         )
-        cursor = _BudgetCursor(max(1, budget.max_tokens - reserved - memory_budget))
+        content_budget = max(1, budget.max_tokens - reserved - memory_budget)
+        has_events = bool(context.frame.events)
+        has_run_observations = bool(observations)
+        if has_events and has_run_observations:
+            event_budget = min(256, max(1, (content_budget * 3) // 5))
+            observation_budget = min(
+                192,
+                max(1, content_budget - event_budget),
+            )
+        elif has_events:
+            event_budget = min(256, max(1, (content_budget * 2) // 3))
+            observation_budget = 0
+        elif has_run_observations:
+            event_budget = 0
+            observation_budget = min(192, max(1, (content_budget * 2) // 3))
+        else:
+            event_budget = 0
+            observation_budget = 0
+        cursor = _BudgetCursor(
+            max(0, content_budget - event_budget - observation_budget)
+        )
+        event_cursor = _BudgetCursor(event_budget)
+        observation_cursor = _BudgetCursor(observation_budget)
         events = tuple(
-            self._compile_event(event, cursor) for event in context.frame.events
+            self._compile_event(event, event_cursor) for event in context.frame.events
         )
         state_updates = tuple(
             self._compile_state(update, cursor)
@@ -194,14 +247,40 @@ class ModelContextCompiler:
         media_samples = tuple(
             self._compile_media(sample) for sample in context.frame.media_samples
         )
-        conversation = tuple(
+        summaries = tuple(
+            CompiledContextSummary(
+                summary_id=summary.summary_id,
+                version=summary.version,
+                source_event_ids=summary.source_event_ids,
+                occurred_from=summary.occurred_from,
+                occurred_to=summary.occurred_to,
+                content=cursor.fit(summary.content),
+                unresolved_items=summary.unresolved_items,
+            )
+            for summary in context.conversation.summaries
+        )
+        # Spend the remaining history budget from newest to oldest, then put
+        # rows back into chronological order.  This keeps the latest confirmed
+        # exchange usable under pressure instead of preserving an old prefix.
+        conversation_reversed = tuple(
             CompiledConversation(
                 event_id=message.event_id,
                 actor=message.sender,
                 occurred_at=message.occurred_at,
                 content=cursor.fit(message.content),
             )
-            for message in context.conversation.messages
+            for message in reversed(context.conversation.messages)
+        )
+        conversation = tuple(reversed(conversation_reversed))
+        run_observations = tuple(
+            CompiledRunObservation(
+                kind=observation.kind,
+                status=observation.status,
+                content=observation_cursor.fit(observation.content),
+                source_ids=observation.source_ids,
+                revision=observation.revision,
+            )
+            for observation in observations
         )
         memory = compile_recall_bundle(
             recall,
@@ -214,6 +293,8 @@ class ModelContextCompiler:
             state_updates=state_updates,
             media_samples=media_samples,
             conversation=conversation,
+            summaries=summaries,
+            run_observations=run_observations,
             memory=memory,
             activities=context.activities,
             emotion=context.emotion,
@@ -222,8 +303,14 @@ class ModelContextCompiler:
             consolidation=context.consolidation,
             orientation=context.orientation,
             capabilities=context.capabilities,
-            truncated=cursor.truncated or memory.truncated,
+            truncated=(
+                cursor.truncated
+                or event_cursor.truncated
+                or observation_cursor.truncated
+                or memory.truncated
+            ),
             selfhood=context.selfhood,
+            memory_recall_revision=context.memory.recall_revision,
             memory_state=context.memory.state,
         )
 
@@ -307,10 +394,12 @@ class ModelContextCompiler:
 
 __all__ = (
     "CompiledConversation",
+    "CompiledContextSummary",
     "CompiledEvent",
     "CompiledMemoryContext",
     "CompiledMediaSample",
     "CompiledModelContext",
+    "CompiledRunObservation",
     "CompiledStateUpdate",
     "ModelContextCompiler",
     "ModelTokenBudget",

@@ -15,6 +15,7 @@ from elfie.brain.memory.memory_records import (
 from elfie.brain.reasoning.memory_compiler import (
     compile_recall_bundle,
     estimate_prompt_tokens,
+    recall_memory_reference_ids,
 )
 
 NOW = datetime(2026, 8, 30, 8, 0, tzinfo=timezone.utc)
@@ -113,11 +114,25 @@ def test_compiler_keeps_assertions_paths_evidence_episodes_and_conflicts() -> No
     assert '条件：time="晚饭后"' in compiled.content
     assert "路径：n1 -> n2" in compiled.content
     assert "证据原文 e1" in compiled.content
+    assert '<FACT id="a1">' in compiled.content
     assert '<EPISODE id="ep1">' in compiled.content
+    assert "target_id 必须逐字复制" in compiled.content
     assert "source=ep1" in compiled.content
     assert "断言 a1, a2" in compiled.content
     assert compiled.content.startswith("<MEMORY_CONTEXT")
     assert compiled.content.endswith("</MEMORY_CONTEXT>")
+
+
+def test_memory_reference_ids_use_the_model_facing_canonical_pair() -> None:
+    assert recall_memory_reference_ids(_bundle()) == (
+        ("node", "n1"),
+        ("node", "n2"),
+        ("node", "n3"),
+        ("assertion", "a1"),
+        ("assertion", "a2"),
+        ("episode", "ep1"),
+        ("episode", "ep2"),
+    )
 
 
 def test_compiler_truncates_whole_packets_and_marks_the_block() -> None:

@@ -18,7 +18,6 @@ from elfie.brain.emotion.contracts import (
     TrustedAppraisalScope,
 )
 from elfie.brain.memory import EpisodicMemoryCandidate
-from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import ClosedEpisode, MemoryUseProposal
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.motivation.system import (
@@ -34,13 +33,20 @@ from elfie.brain.reasoning.context_types import (
     ConversationContextCheckpoint,
     EffectiveCapabilities,
 )
-from elfie.brain.reasoning.conversation_context import ConversationContextStore
-from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.memory_context import (
+    ReasoningMemoryBridge,
+    ReasoningMemoryTurn,
+)
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection, SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
-from elfie.brain.state_lifecycle import StateCandidate, StateCommitReceipt
-from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
-from elfie.message_types import EventId, TurnId, UTCDateTime
+from elfie.brain.state_lifecycle import (
+    StateCandidate,
+    StateCommitReceipt,
+    StateCommitStatus,
+)
+from elfie.brain.workspace.contracts import ExecutionStatus, SocialPayload, TurnFrame
+from elfie.message_types import ActorRef, EventId, IntentId, TurnId, UTCDateTime
 
 CapabilityReader = Callable[
     [UTCDateTime, Mapping[str, Tuple[str, ...]]], EffectiveCapabilities
@@ -50,15 +56,15 @@ CapabilityReader = Callable[
 class BrainContextProvider:
     """Compose owner snapshots without constructing or committing mental owners.
 
-    ``ConversationContextStore.observe`` owns its bounded working history; durable
+    The Reasoning Context Workspace owns its bounded working history; durable
     Memory and versioned mental-state changes are emitted as settlement candidates.
     """
 
     def __init__(
         self,
         *,
-        memory: MemoryContextReader,
-        conversations: ConversationContextStore,
+        memory: ReasoningMemoryBridge,
+        conversations: ReasoningContextWorkspace,
         activities: ActivityContextReader,
         capability_reader: CapabilityReader,
         clock: Callable[[], UTCDateTime],
@@ -86,14 +92,14 @@ class BrainContextProvider:
     ) -> ConversationContext:
         return self._conversations.observe(frame, captured_at)
 
-    def memory(
+    def memory_turn(
         self,
         frame: TurnFrame,
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
-    ) -> MemoryContext:
+    ) -> ReasoningMemoryTurn:
         with self._memory_lock:
-            return self._memory.read(frame, emotion, captured_at)
+            return self._memory.open_turn(frame, emotion, captured_at)
 
     def memory_candidates(
         self,
@@ -134,31 +140,44 @@ class BrainContextProvider:
                 )
         return tuple(scopes)
 
-    def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
-        """Return upstream-closed Episodes awaiting source-first capture."""
-        return self._conversations.pending_closed_episodes()
-
-    def ack_closed_episodes(self, episode_ids: tuple[str, ...]) -> None:
-        """Acknowledge Episodes after the Memory source write succeeds."""
-        self._conversations.ack_closed_episodes(episode_ids)
+    def flush_pending_handoffs(
+        self,
+        capture: Callable[[tuple[ClosedEpisode, ...]], tuple[StateCommitReceipt, ...]],
+    ) -> tuple[StateCommitReceipt, ...]:
+        """Run the sole retryable Context Workspace -> Memory handoff path."""
+        episodes = self._conversations.pending_closed_episodes()
+        if not episodes:
+            return ()
+        receipts = capture(episodes)
+        failed = tuple(
+            receipt
+            for receipt in receipts
+            if receipt.status
+            not in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
+        )
+        if failed:
+            reasons = ",".join(
+                receipt.reason or receipt.status.value for receipt in failed
+            )
+            raise RuntimeError(f"Episode source capture failed: {reasons}")
+        accepted_ids = {
+            str(receipt.candidate_id)
+            for receipt in receipts
+            if receipt.status
+            in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
+        }
+        self._conversations.ack_closed_episodes(
+            tuple(
+                episode.episode_id
+                for episode in episodes
+                if episode.episode_id in accepted_ids
+            )
+        )
+        return receipts
 
     def memory_checkpoint(self):
         with self._memory_lock:
             return self._memory.checkpoint()
-
-    def completed_interaction_candidate(
-        self,
-        interaction: CompletedConversationInteraction,
-    ) -> EpisodicMemoryCandidate | None:
-        with self._memory_lock:
-            return self._memory.completed_interaction_candidate(interaction)
-
-    def commit_completed_interaction(
-        self,
-        interaction: CompletedConversationInteraction,
-    ) -> StateCommitReceipt | None:
-        with self._memory_lock:
-            return self._memory.commit_completed_interaction(interaction)
 
     def restore_memory_checkpoint(self, checkpoint) -> None:
         with self._memory_lock:
@@ -177,10 +196,39 @@ class BrainContextProvider:
         with self._memory_lock:
             self._memory.validate_checkpoint(checkpoint)
 
-    def record_completed_reply(
-        self, **values
+    def prepare_reply(self, **values) -> bool:
+        return self._conversations.prepare_reply(**values)
+
+    def settle_reply(
+        self,
+        *,
+        intent_id: IntentId,
+        status: ExecutionStatus,
+        receipt_id: EventId,
+        occurred_at: UTCDateTime,
+        sender: ActorRef,
     ) -> CompletedConversationInteraction | None:
-        return self._conversations.record_completed_reply(**values)
+        return self._conversations.settle_reply(
+            intent_id=intent_id,
+            status=status,
+            receipt_id=receipt_id,
+            occurred_at=occurred_at,
+            sender=sender,
+        )
+
+    def discard_pending_reply(
+        self,
+        intent_id: IntentId,
+        *,
+        occurred_at: UTCDateTime,
+    ) -> bool:
+        return self._conversations.discard_pending_reply(
+            intent_id,
+            occurred_at=occurred_at,
+        )
+
+    def pending_reply_ids(self) -> tuple[str, ...]:
+        return self._conversations.pending_reply_ids()
 
     def conversation_checkpoint(self) -> ConversationContextCheckpoint:
         return self._conversations.checkpoint()

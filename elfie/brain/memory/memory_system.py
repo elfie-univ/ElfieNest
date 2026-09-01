@@ -181,7 +181,14 @@ class MemorySystem:
         if not callable(recorder):
             raise TypeError("the configured Memory store does not support Episodes")
         receipt = recorder(episode)
-        if receipt.status == "committed":
+        state = self._state.snapshot().value
+        durable_episode_count = self.storage.count_episodes()
+        durable_total_count = self.storage.count_memory_records()
+        needs_state_alignment = receipt.status == "duplicate" and (
+            durable_episode_count != state.episodic_count
+            or durable_total_count != state.total_count
+        )
+        if receipt.status == "committed" or needs_state_alignment:
             self._commit_state(
                 source_event_ids=tuple(
                     EventId(value) for value in episode.source_event_ids

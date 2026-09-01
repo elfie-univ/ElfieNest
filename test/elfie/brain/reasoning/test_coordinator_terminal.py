@@ -156,14 +156,14 @@ def test_timeout_isolates_hung_provider_and_join_returns_before_release() -> Non
     workspace.publish(_physical(2, 45_000, salience=0.95))
     coordinator.notify_perception()
     coordinator.synchronize()
+    assert runtime.second_started.wait(1)
     coordinator.stop()
     joined = Event()
     join_thread = Thread(target=lambda: (coordinator.join(), joined.set()), daemon=True)
     join_thread.start()
 
     try:
-        # Then: the replacement call starts and lifecycle join does not depend on it.
-        assert runtime.second_started.wait(0.2)
+        # Then: lifecycle join does not depend on the already-started replacement.
         assert joined.wait(0.2)
     finally:
         runtime.release.set()

@@ -5,18 +5,24 @@ from __future__ import annotations
 import json
 import re
 from enum import Enum, unique
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Mapping, Optional, Tuple, cast
 
-from pydantic import ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from elfie.brain.reasoning.decision_seed import DecisionDecodeSeed
 from elfie.brain.reasoning.decision_trust import bind_plan_to_seed
 from elfie.brain.reasoning.decision_types import (
+    AnswerDraft,
     CancelPolicy,
+    ClarificationDraft,
+    CognitiveAction,
     DecisionIntent,
     DecisionPlan,
+    MemoryUseReference,
     MessageIntent,
+    NoOpDraft,
     NoOpIntent,
+    RecallMemory,
     SpeechIntent,
 )
 from elfie.brain.reasoning.model_port import (
@@ -37,6 +43,7 @@ _FENCED_JSON_PATTERN = re.compile(
     r"^```(?:json)?\s*(?P<body>.*?)\s*```$",
     flags=re.IGNORECASE | re.DOTALL,
 )
+_COGNITIVE_ACTION_ADAPTER = TypeAdapter(CognitiveAction)
 
 
 @unique
@@ -95,6 +102,13 @@ class DecisionDecodeResult(FrozenContractModel):
     """Validated plan and its minimal decode evidence."""
 
     plan: DecisionPlan
+    report: DecisionDecodeReport
+
+
+class CognitiveActionDecodeResult(FrozenContractModel):
+    """Validated P0 cognitive action before host-owned decision compilation."""
+
+    action: Optional[CognitiveAction]
     report: DecisionDecodeReport
 
 
@@ -178,6 +192,139 @@ class DecisionPlanDecoder:
             fallback_text=None,
             suppress_json_like=True,
         )
+
+    def decode_cognitive_action(
+        self,
+        *,
+        generation: ModelGenerationResult,
+        capabilities: ModelGenerationCapabilities,
+        allowed_memory_references: Tuple[Tuple[str, str], ...] = (),
+    ) -> CognitiveActionDecodeResult:
+        """Decode the P0 control union; only plain text may become an answer."""
+        selected_mode = self._mode(capabilities, generation.selected_mode)
+        action: Optional[CognitiveAction]
+        errors: Tuple[str, ...] = ()
+        raw = generation.text.strip()
+        if selected_mode is DecisionDecodeMode.PLAIN_TEXT and not self._looks_like_json(
+            raw
+        ):
+            action = AnswerDraft(type="answer", content=raw) if raw else None
+            if action is None:
+                errors = ("empty_or_meaningless_output",)
+        else:
+            candidate = raw
+            fenced = _FENCED_JSON_PATTERN.fullmatch(candidate)
+            if fenced is not None:
+                candidate = fenced.group("body").strip()
+            try:
+                action = _COGNITIVE_ACTION_ADAPTER.validate_json(candidate)
+                self._validate_action_memory_references(
+                    action,
+                    allowed_memory_references=allowed_memory_references,
+                )
+            except (ValidationError, ValueError) as error:
+                action = None
+                errors = self._errors(error)
+        report = DecisionDecodeReport(
+            selected_mode=selected_mode,
+            validation_errors=errors,
+            repair_count=0,
+            fallback_reason=(
+                None if action is not None else "cognitive_action_validation_failed"
+            ),
+            model_id=generation.model_key,
+            provider=generation.provider,
+            token_count=generation.token_count,
+            latency_ms=generation.latency_ms,
+        )
+        return CognitiveActionDecodeResult(action=action, report=report)
+
+    def compile_cognitive_draft(
+        self,
+        *,
+        seed: DecisionDecodeSeed,
+        action: CognitiveAction,
+        report: DecisionDecodeReport,
+    ) -> DecisionDecodeResult:
+        """Bind one accepted draft to the trusted Turn envelope and reply scope."""
+        if isinstance(action, RecallMemory):
+            raise ValueError("RecallMemory cannot be compiled as a final decision")
+        intent_id = IntentId(f"cognitive-intent-{seed.turn_id}")
+        intent: DecisionIntent
+        if isinstance(action, (AnswerDraft, ClarificationDraft)):
+            if seed.reply_channel_id is None or seed.reply_conversation_id is None:
+                raise ValueError(
+                    "owner reply draft requires a trusted communication scope"
+                )
+            intent = MessageIntent(
+                type="message",
+                intent_id=intent_id,
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.ALWAYS,
+                channel_id=seed.reply_channel_id,
+                conversation_id=seed.reply_conversation_id,
+                content=action.content,
+            )
+        elif isinstance(action, NoOpDraft):
+            intent = NoOpIntent(
+                type="noop",
+                intent_id=intent_id,
+                cause_event_ids=seed.cause_event_ids,
+                dependency_ids=(),
+                deadline=seed.deadline,
+                cancel_policy=CancelPolicy.IF_NOT_STARTED,
+                reason=action.reason,
+            )
+        else:  # pragma: no cover - discriminated union is exhaustive
+            raise TypeError("unsupported cognitive draft")
+        memory_uses = tuple(
+            MemoryUseReference(
+                target_kind=item.target_kind,
+                target_id=item.target_id,
+                claim_ref=item.claim_ref,
+                intent_id=intent_id,
+            )
+            for item in action.memory_uses
+        )
+        plan = DecisionPlan(
+            plan_id=PlanId(f"cognitive-plan-{seed.turn_id}"),
+            turn_id=seed.turn_id,
+            frame_id=seed.frame_id,
+            context_revision=seed.context_revision,
+            capability_revision=seed.capability_revision,
+            created_at=seed.created_at,
+            deadline=seed.deadline,
+            cause_event_ids=seed.cause_event_ids,
+            intents=(intent,),
+            memory_uses=memory_uses,
+            emotion_feedback=action.emotion_feedback,
+        )
+        return DecisionDecodeResult(plan=plan, report=report)
+
+    @staticmethod
+    def cognitive_action_schema() -> Mapping[str, JsonValue]:
+        """Return the single P0 cognitive-action schema used by every step."""
+        return cast(Mapping[str, JsonValue], _COGNITIVE_ACTION_ADAPTER.json_schema())
+
+    @staticmethod
+    def _validate_action_memory_references(
+        action: CognitiveAction,
+        *,
+        allowed_memory_references: Tuple[Tuple[str, str], ...],
+    ) -> None:
+        if isinstance(action, RecallMemory):
+            return
+        allowed = {
+            (str(target_kind), str(target_id))
+            for target_kind, target_id in allowed_memory_references
+        }
+        for reference in action.memory_uses:
+            if (str(reference.target_kind), str(reference.target_id)) not in allowed:
+                raise ValueError(
+                    "memory use reference is outside the supplied RecallBundle"
+                )
 
     @staticmethod
     def _decode_plan(
@@ -378,6 +525,7 @@ class DecisionPlanDecoder:
 
 
 __all__ = (
+    "CognitiveActionDecodeResult",
     "DecisionDecodeMode",
     "DecisionDecodeReport",
     "DecisionDecodeResult",
