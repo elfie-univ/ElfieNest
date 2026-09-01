@@ -21,8 +21,8 @@ from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
-from elfie.brain.reasoning.conversation_context import ConversationContextStore
-from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.message_types import ActivityId, EventId
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
@@ -69,8 +69,8 @@ def _context_state(
         initial_at=NOW,
     )
     return BrainContextProvider(
-        memory=MemoryContextReader(memory),
-        conversations=ConversationContextStore(),
+        memory=ReasoningMemoryBridge(memory),
+        conversations=ReasoningContextWorkspace(),
         activities=ActivityContextReader(store, capacity=capacity),
         capability_reader=lambda captured_at, _authorized: EffectiveCapabilities(
             revision=0,

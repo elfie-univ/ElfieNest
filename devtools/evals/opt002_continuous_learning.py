@@ -29,9 +29,10 @@ from elfie.brain.memory import (
 )
 from elfie.brain.memory.consolidation import MemoryConsolidator
 from elfie.brain.memory.model_food import MemoryModelPort
-from elfie.brain.reasoning.conversation_context import ConversationContextStore
+from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
+    ExecutionStatus,
     ExternalExecutionDomain,
     PerceptionEvent,
     ResponseScope,
@@ -53,6 +54,7 @@ from elfie.message_types import (
     ActorRef,
     ElfieId,
     EventId,
+    IntentId,
     MessageMeta,
     TraceId,
 )
@@ -227,7 +229,7 @@ def _result(
 
 
 def _scenario_episode_boundaries() -> Dict[str, Any]:
-    context = ConversationContextStore(topic_idle_seconds=60)
+    context = ReasoningContextWorkspace(topic_idle_seconds=60)
     context.observe(_frame(1, "我们讨论周末去爬山。", at=NOW), NOW)
     context.observe(
         _frame(2, "我想带一件外套。", at=NOW + timedelta(seconds=1)),
@@ -237,7 +239,27 @@ def _scenario_episode_boundaries() -> Dict[str, Any]:
         _frame(3, "换个话题，厨房要买什么？", at=NOW + timedelta(seconds=2)),
         NOW + timedelta(seconds=2),
     )
-    context.close_topics(captured_at=NOW + timedelta(seconds=3))
+    context.prepare_reply(
+        intent_id=IntentId("opt002-reply-intent-3"),
+        channel_id="chat",
+        conversation_id="owner-chat",
+        reply_event_id=EventId("opt002-elfie-reply-3"),
+        content="好，我们转到厨房采购。",
+        cause_event_ids=(EventId("opt002-owner-3"),),
+        prepared_at=NOW + timedelta(seconds=2),
+    )
+    context.settle_reply(
+        intent_id=IntentId("opt002-reply-intent-3"),
+        status=ExecutionStatus.COMPLETED,
+        receipt_id=EventId("opt002-delivery-receipt-3"),
+        occurred_at=NOW + timedelta(seconds=3),
+        sender=ActorRef(actor_id=ActorId("opt002-elfie"), source_kind="elfie"),
+    )
+    context.observe(
+        _frame(4, "厨房先买盐和面粉。", at=NOW + timedelta(seconds=4)),
+        NOW + timedelta(seconds=4),
+    )
+    context.close_topics(captured_at=NOW + timedelta(seconds=5))
     episodes = context.pending_closed_episodes()
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         receipts = [store.record_episode(item) for item in episodes]
@@ -248,9 +270,14 @@ def _scenario_episode_boundaries() -> Dict[str, Any]:
             {
                 "same_topic_is_one_episode": len(episodes) == 2
                 and episodes[0].source_event_ids
-                == ("opt002-owner-1", "opt002-owner-2"),
+                == (
+                    "opt002-owner-1",
+                    "opt002-owner-2",
+                    "opt002-owner-3",
+                    "opt002-elfie-reply-3",
+                ),
                 "topic_shift_is_new_episode": episodes[1].source_event_ids
-                == ("opt002-owner-3",),
+                == ("opt002-owner-4",),
                 "source_first_persisted": all(
                     receipt.status in {"committed", "duplicate"} for receipt in receipts
                 ),
@@ -442,7 +469,7 @@ def _scenario_failure_retry() -> Dict[str, Any]:
 
 
 def _scenario_delivery_failure() -> Dict[str, Any]:
-    context = ConversationContextStore()
+    context = ReasoningContextWorkspace()
     frame = _frame(1, "我喜欢蓝色。", at=NOW)
     context.observe(frame, NOW)
     hub = CommunicationHub("opt002-elfie")

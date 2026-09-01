@@ -21,6 +21,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from infrastructure.models.model_execution_adapter import (
@@ -178,9 +179,9 @@ class TracingModelExecutionAgent:
         else:
             speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
             text = (
-                _mock_decision_json(request, speech)
-                if self.food_key == "mock"
-                else speech
+                _mock_cognitive_action_json(speech)
+                if request.response_mode is ModelResponseMode.DIRECT_REPLY
+                else _mock_decision_json(request, speech)
             )
         return ModelGenerationResult(
             text=text,
@@ -222,6 +223,14 @@ def _mock_memory_projection_json() -> str:
     """Return a valid conservative MemoryProjection for offline runs."""
     return json.dumps(
         {"nodes": [], "mentions": [], "assertions": []},
+        ensure_ascii=False,
+    )
+
+
+def _mock_cognitive_action_json(speech: str) -> str:
+    """Return the current P0 owner-chat action shape for the offline adapter."""
+    return json.dumps(
+        {"type": "answer", "content": speech},
         ensure_ascii=False,
     )
 

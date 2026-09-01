@@ -18,6 +18,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.runtime import BrainRuntime
@@ -120,6 +121,13 @@ class TwoTurnRuntime:
         if len(self.requests) == 1:
             self.first_started.set()
             self.release_first.wait()
+            if request.response_mode is ModelResponseMode.DIRECT_REPLY:
+                return ModelGenerationResult(
+                    text=json.dumps({"type": "answer", "content": "reply one"}),
+                    selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                    provider="fake",
+                    model_key="fake/schema",
+                )
             intents = self._first_intents(request)
         else:
             self.second_started.set()
@@ -249,7 +257,12 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
         model_port=runtime,
     )
     elfie.start()
-    elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
+    elfie.receive_communication_envelope(
+        _owner_message(
+            elfie.cognitive_datetime,
+            text="请提醒我稍后看看窗外",
+        )
+    )
     elfie.advance_clock(0.5)
     assert runtime.first_started.wait(1)
 
@@ -395,7 +408,9 @@ def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> Non
     runtime._started = False
     runtime._journal_store = MagicMock()
     runtime._journal_store.load_checkpoint.return_value = None
+    runtime._reconcile_pending_reply_receipts = MagicMock(return_value=False)
     runtime._reconcile_interrupted_work = MagicMock(return_value=False)
+    runtime._flush_pending_handoffs = MagicMock()
     runtime.router = MagicMock()
     runtime.coordinator = MagicMock()
     runtime.coordinator.start.side_effect = RuntimeError("coordinator failed")

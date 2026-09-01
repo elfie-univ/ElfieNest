@@ -97,14 +97,13 @@ class ModelGenerationRequest(FrozenContractModel):
         if self.response_mode is not ModelResponseMode.DIRECT_REPLY:
             return self
         if (
-            self.reasoning_mode != "fast"
-            or self.source_domain is not SourceDomain.COMMUNICATION
+            self.source_domain is not SourceDomain.COMMUNICATION
             or self.response_scope.external_domain
             is not ExternalExecutionDomain.COMMUNICATION
         ):
             raise PydanticCustomError(
                 "direct_reply_scope",
-                "direct replies require a fast communication Turn and target",
+                "direct replies require a communication Turn and target",
             )
         return self
 

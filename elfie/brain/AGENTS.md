@@ -10,6 +10,12 @@
   的 Turn，并在宿主边界校验 `ResponseScope`。模型输出不能扩大响应域。
 - Model、Skill、Tool 调用发生在同一 Turn 的思考循环内部，不是外部执行线路；最终外部
   决定只允许通信指令、神经系统指令、跨回合活动请求或 No-op。
+- `workspace/` 只实现一级 Event Workspace，负责事件 Lane、准入和单域成帧；
+  `Reasoning Context Workspace` 只存在于 Reasoning 内部，负责有界交替对话、活跃话题、
+  带来源摘要、本 Run Observation 和待确认 Memory handoff，不得建立平级或跨模块副本。
+- Memory 只拥有持久 Episode、知识、人物、关系、来源和检索，不拥有短期会话 tail、
+  Context Summary、Run 草稿或通用工作缓冲；Reasoning 只能通过类型化 Recall/候选/Receipt
+  与 Memory 交互。
 - Motivation 只能产生注意、Goal 或内部触发候选，不能直接创建 Activity 或执行动作；
   Cognitive Consolidation 默认没有外部副作用权限。
 - 权威状态变更采用候选—校验—提交；模型文本、Tool Observation、后台整理和 Worker
@@ -30,6 +36,9 @@
   在 ModelPort 前 fail closed，不得通用 persona、Profile、Canon 或 Memory fallback。
 - 一个 Turn 只能结算一个 `TurnDecision`，且至多提交 Communication 或 NervousSystem
   一个外部域；长短 Run 即使并行计算，也必须经过唯一串行提交边界。
+- 同一 Run 的其他 owner 快照只读且冻结；基础与按需 Memory Recall 必须绑定一个明确
+  revision。Prompt 压缩生成的 `ContextSummary` 仍归 Reasoning，不能直接当作持久 Memory
+  事实；完整来源交接只有 Memory Receipt 成功后才能确认。
 - Persistent Activity 必须先无副作用 Preflight、再在 Turn 结算后 Commit；到期只产生
   Internal Event。Activity 可靠存续前不得开放 Motivation 主动创建工作。
 

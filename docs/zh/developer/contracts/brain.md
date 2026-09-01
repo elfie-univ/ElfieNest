@@ -1,14 +1,15 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.3
+**契约版本：** 1.4
 **采用日期：** 2026-08-12
-**修订日期：** 2026-08-30
+**修订日期：** 2026-08-31
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
-> 思考、提交决定和恢复跨回合工作。更早的 Brain 迁移继续由永久架构测试守护；新接受的
-> Selfhood 与固定头部差距记录在聚焦的
-> [Selfhood 一致性台账](../conformance/elfie-selfhood)中。
+> 思考、提交决定和恢复跨回合工作。更早的 Brain 迁移继续由永久架构测试守护；已接受的
+> Selfhood/固定头部差距继续记录在聚焦的
+> [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
+> Workspace P0 边界由永久聚焦测试守护。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -36,8 +37,8 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 | 4 | 情绪 | 进程内情感、刺激评估、叠加、衰减和恢复 | `EmotionSnapshot` 及对注意、回忆和表达的有界影响 | 创建 Goal、消息或身体动作，或持久化实时存量 |
 | 5 | 能量 | 稳态、昼夜状态、认知/行动预算、紧急储备和降级模式 | `EnergySnapshot`、预算预留和认知模式约束 | 选择语义 Goal 或取代 NervousSystem 安全反射 |
 | 6 | 动机 | 固定驱力、压力、满足、竞争、饱和、冷却和重复抑制 | `AttentionBias`、`GoalCandidate` 或 `InternalTriggerCandidate` | 创建 Activity 或直接对外行动 |
-| 7 | 记忆 | 主观情景、工作记忆、知识、人物、关系、来源、检索、巩固和遗忘 | 有界检索结果和已校验记忆提交 | 拥有当前 Orientation、Run 状态或 Activity 状态 |
-| 8 | 思考中枢 | 上下文组装、有界 Model/Skill/Tool 循环、Observation、验证、抑制、完成判断和一个 `TurnDecision` | 一个已结算决定及内部状态候选 | 跨 Turn 等待、宣称执行成功或绕过确定性策略 |
+| 7 | 记忆 | 持久主观情景、知识、人物、关系、来源、检索、巩固和遗忘 | 有界检索结果和已校验持久记忆提交 | 拥有短期会话/上下文状态、当前 Orientation、Run 状态或 Activity 状态 |
+| 8 | 思考中枢 | `Reasoning Context Workspace`、上下文组装、有界 Model/Skill/Tool 循环、Observation、验证、抑制、完成判断和一个 `TurnDecision` | 一个已结算决定及内部状态候选 | 跨 Turn 等待、让其他系统拥有其短期上下文、宣称执行成功或绕过确定性策略 |
 | 9 | 跨回合活动 | 经过校验且跨当前 Turn 存续的 Goal 和工作；Step、条件、调度、暂停/恢复/取消、重试、幂等和回执 | Preflight 结果、状态事件和有界 Internal Trigger | 成为第二个 Brain 或直接执行开放式外部行动 |
 | 10 | 心智整理 | 在无外部副作用 Scope 中可中断地整理睡眠/空闲期记忆、Activity、情绪轨迹和结果 | 已校验状态候选或未来 Internal Trigger | 直接发消息、移动、创建 Activity、扩权或改写权威状态 |
 
@@ -210,9 +211,38 @@ Turn。无法准入必须产生可观察的延后、拒绝或背压结果，不�
 
 ### 上下文与思考
 
+[Reasoning Core 单 Turn Agent 详细设计](../designs/elfie-reasoning-core)是本节的已接受
+解释；已完成的 P0 主人聊天边界由聚焦的架构、上下文、Memory、Runtime、Receipt 与
+重启测试守护。
+
+Event Workspace 与 Reasoning Context Workspace 完全不同。Event Workspace 拥有事件 Lane、
+准入和不可变单域成帧；Reasoning 内部 Context Workspace 拥有有界最近交替对话、活跃话题、
+带来源的上下文摘要、本 Run Observation、待确认 Memory handoff 和自己的有界恢复
+checkpoint。它不是平级心智系统；Memory 不拥有短期 conversation tail、context summary、
+Run 草稿状态或通用上下文缓冲。
+
 思考中枢只组装本 Turn 需要的上下文。上下文快照记录 Constitution 与 Selfhood revision，
-以及自我定位、情绪、能量、动机、记忆、Activity 和有效能力的版本与采集时间；它不含
-Profile 或 Canon 运行时投影，并区分事实、推测和未知。
+以及自我定位、情绪、能量、动机、记忆、Activity 和有效能力的版本与采集时间；这些 owner
+投影在 Run 内只读且保持冻结。Snapshot 不含 Profile 或 Canon 运行时投影，并区分事实、
+推测和未知。
+
+每个 Turn 都可以执行基础 Memory Recall。需要解析人物、指代、冲突或缺失事实时，认知步骤
+可以通过 Reasoning 自有 Memory Bridge 请求额外有界 Recall。同一 Run 使用的全部 Recall
+必须绑定一个明确 Memory revision；除非完整 Run context 整体 rebase，否则禁止混合 revision。
+Reasoning 拥有查询意图、时机和上下文放置，Memory 拥有检索语义、来源、冲突处理、校验和
+持久提交；模型不能直接读写 Memory。
+
+每次模型调用前，Reasoning 都从冻结快照和当前 Context Workspace 重建一份
+provider-neutral model context。它先预留回复 headroom，优先保留当前 Frame、可信 Scope、
+未解决事项和完整 Action/Observation 配对，再裁剪低相关材料。Prompt 压力下的压缩生成
+Reasoning 自有、带来源的 `ContextSummary`；持久捕获是另一条完整、带来源
+`ClosedEpisode` 与类型化候选交给 Memory 的线路，有损摘要不是持久事实。只有收到 Memory
+Receipt 后才能删除 pending handoff。
+
+`DIRECT` 与 `DELIBERATE` 是根据上游提示、任务复杂度/风险、Energy、截止时间和可用模型能力
+选择的 Reasoning 深度；它们不改变 Memory 可用性或硬权限。Food 只选择请求模型角色和回退
+路线，不定义认知模式，也不携带另一套模式 allow-list。Skill、Tool 和 Worker 是彼此独立的
+阶段能力门。
 
 一个 `ReasoningRun` 可以包含多个 Cognitive Step，以及多次 Model、Skill、Tool 和
 Observation 循环。它必须有明确预算、截止时间、取消状态和完成条件。Tool Observation
@@ -288,10 +318,11 @@ Brain Skills 授权语义认知能力。`ToolPort` 只执行由注入且限定 E
 
 ## 状态、持久化与恢复
 
-`MemoryState`、`SelfhoodState`、`ReasoningRunState` 和 `ActivityState` 必须分离。持久
-认知基础设施按各 owner 需要提供状态、Event Journal、Run/Activity Checkpoint、预算账本、
-因果 Trace、幂等记录和回执对账；这不代表每个心智 owner 都进入一个通用 checkpoint，
-也不会形成第十一个心智系统。
+`MemoryState`、`SelfhoodState`、`ReasoningContextWorkspaceState`、
+`ReasoningRunState` 和 `ActivityState` 必须分离。Reasoning Context Workspace 的有界
+checkpoint 只服务崩溃恢复，不是持久 Memory。持久认知基础设施按各 owner 需要提供状态、
+Event Journal、Run/Activity Checkpoint、预算账本、因果 Trace、幂等记录和回执对账；这不代表
+每个心智 owner 都进入一个通用 checkpoint，也不会形成第十一个心智系统。
 
 重启后，Brain 从各自唯一 authority 加载持久 owner，对账未完成 Directive 和 Activity，拒绝旧身体
 generation，只恢复 Scope 和截止时间仍然有效的工作。Emotion 是明确例外：进入睡眠

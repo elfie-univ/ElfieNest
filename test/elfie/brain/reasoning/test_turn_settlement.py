@@ -12,13 +12,14 @@ from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
-from elfie.brain.reasoning.conversation_context import ConversationContextStore
-from elfie.brain.reasoning.memory_context import MemoryContextReader
+from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.reasoning.settlement import TurnSettlement
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
+    ExecutionStatus,
     ExternalExecutionDomain,
     PerceptionEvent,
     ResponseScope,
@@ -32,6 +33,7 @@ from elfie.message_types import (
     ActorRef,
     ElfieId,
     EventId,
+    IntentId,
     MessageMeta,
     TraceId,
     TurnId,
@@ -87,9 +89,10 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
         initial_at=NOW,
         clock=lambda: NOW,
     )
+    conversations = ReasoningContextWorkspace()
     context = BrainContextProvider(
-        memory=MemoryContextReader(memory),
-        conversations=ConversationContextStore(),
+        memory=ReasoningMemoryBridge(memory),
+        conversations=conversations,
         activities=ActivityContextReader(None),
         capability_reader=lambda captured_at, _authorized: EffectiveCapabilities(
             revision=0,
@@ -109,51 +112,54 @@ def test_owner_memory_waits_for_completed_reply_and_settlement_commits_once() ->
     )
     emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=1)
 
-    context.memory(_frame(), emotion, NOW)
+    context.memory_turn(_frame(), emotion, NOW)
     assert memory.revision == 0
     assert memory.storage.count_episodes() == 0
 
     frame = _frame()
     context.conversation(frame, NOW)
     assert context.memory_candidates(frame, emotion, NOW) == ()
-    interaction = context.record_completed_reply(
+    assert context.prepare_reply(
+        intent_id=IntentId("reply-intent-1"),
         channel_id="chat",
         conversation_id="owner-chat",
         reply_event_id=EventId("elfie-reply-1"),
-        sender=ActorRef(actor_id=ActorId("elfie-1"), source_kind="elfie"),
-        occurred_at=NOW,
         content="好，我会在时间明确后提醒你。",
         cause_event_ids=(EventId("message-1"),),
+        prepared_at=NOW,
+    )
+    interaction = context.settle_reply(
+        intent_id=IntentId("reply-intent-1"),
+        status=ExecutionStatus.COMPLETED,
         receipt_id=EventId("delivery-receipt-1"),
+        occurred_at=NOW,
+        sender=ActorRef(actor_id=ActorId("elfie-1"), source_kind="elfie"),
     )
     assert interaction is not None
-    candidate = context.completed_interaction_candidate(interaction)
-    assert candidate is not None
-    assert "主人对我说: '今晚提醒我带钥匙'" in candidate.content
-    assert "我回复主人: '好，我会在时间明确后提醒你。'" in candidate.content
-    assert candidate.source_event_ids == (
-        EventId("message-1"),
-        EventId("elfie-reply-1"),
-        EventId("delivery-receipt-1"),
-    )
+    assert memory.storage.count_episodes() == 0
+    episodes = conversations.close_topics(captured_at=NOW)
+    assert len(episodes) == 1
+    assert "今晚提醒我带钥匙" in episodes[0].content_text
+    assert "好，我会在时间明确后提醒你" in episodes[0].content_text
 
-    receipts = TurnSettlement(memory).settle((candidate,))
-    duplicate = TurnSettlement(memory).settle((candidate,))
+    settlement = TurnSettlement(memory)
+    receipts = context.flush_pending_handoffs(settlement.capture_episodes)
+    duplicate = context.flush_pending_handoffs(settlement.capture_episodes)
 
     assert receipts[0].status is StateCommitStatus.COMMITTED
-    assert duplicate[0].status is StateCommitStatus.DUPLICATE
+    assert duplicate == ()
     assert memory.revision == 1
     assert memory.storage.count_episodes() == 1
 
 
-def test_completed_interaction_capture_does_not_require_a_keyword() -> None:
+def test_failed_reply_never_enters_the_topic_episode() -> None:
     memory = MemorySystem(
         SQLiteMemoryStoreAdapter.in_memory(),
         elfie_id="elfie-1",
         initial_at=NOW,
         clock=lambda: NOW,
     )
-    context = ConversationContextStore()
+    context = ReasoningContextWorkspace()
     frame = _frame()
     event = frame.events[0]
     frame = frame.model_copy(
@@ -170,26 +176,28 @@ def test_completed_interaction_capture_does_not_require_a_keyword() -> None:
         }
     )
     context.observe(frame, NOW)
-    interaction = context.record_completed_reply(
+    assert context.prepare_reply(
+        intent_id=IntentId("reply-intent-no-keyword"),
         channel_id="chat",
         conversation_id="owner-chat",
         reply_event_id=EventId("elfie-reply-no-keyword"),
-        sender=ActorRef(actor_id="elfie-1", source_kind="elfie"),
-        occurred_at=NOW,
         content="好的。",
         cause_event_ids=(EventId("message-1"),),
+        prepared_at=NOW,
+    )
+    interaction = context.settle_reply(
+        intent_id=IntentId("reply-intent-no-keyword"),
+        status=ExecutionStatus.FAILED,
         receipt_id=EventId("delivery-receipt-no-keyword"),
+        occurred_at=NOW,
+        sender=ActorRef(actor_id="elfie-1", source_kind="elfie"),
     )
 
-    assert interaction is not None
-    reader = MemoryContextReader(memory)
-    candidate = reader.completed_interaction_candidate(interaction)
-    assert candidate is not None
-    assert "蓝色指南针放在书房北侧的第三层抽屉里。" in candidate.content
-    receipt = reader.commit_completed_interaction(interaction)
-    assert receipt is not None
-    assert receipt.status is StateCommitStatus.COMMITTED
-    assert memory.storage.count_episodes() == 1
+    assert interaction is None
+    episode = context.close_topics(captured_at=NOW)[0]
+    assert "蓝色指南针放在书房北侧的第三层抽屉里。" in episode.content_text
+    assert "好的。" not in episode.content_text
+    assert memory.storage.count_episodes() == 0
 
 
 def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement() -> (
@@ -203,8 +211,8 @@ def test_orientation_candidate_is_visible_to_run_but_commits_only_at_settlement(
     )
     orientation = OrientationSystem(initial_at=NOW)
     context = BrainContextProvider(
-        memory=MemoryContextReader(memory),
-        conversations=ConversationContextStore(),
+        memory=ReasoningMemoryBridge(memory),
+        conversations=ReasoningContextWorkspace(),
         activities=ActivityContextReader(None),
         capability_reader=lambda captured_at, _authorized: EffectiveCapabilities(
             revision=0,
@@ -283,3 +291,39 @@ def test_closed_episode_capture_is_source_first_and_idempotent() -> None:
         "episode-capture-1",
         "episode-capture-1",
     ]
+
+
+def test_duplicate_episode_replay_repairs_semantic_state_after_checkpoint_crash() -> (
+    None
+):
+    storage = SQLiteMemoryStoreAdapter.in_memory()
+    first = MemorySystem(
+        storage,
+        elfie_id="elfie-1",
+        initial_at=NOW,
+        clock=lambda: NOW,
+    )
+    before = first.checkpoint()
+    episode = ClosedEpisode(
+        episode_id="episode-crash-1",
+        idempotency_key="episode-crash-1",
+        occurred_from=NOW.isoformat(),
+        content_text="已持久化但 checkpoint 尚未更新的话题",
+        source_event_ids=("source-crash-1",),
+    )
+    assert first.record_closed_episode(episode).status == "committed"
+    assert first.revision == 1
+
+    restarted = MemorySystem(
+        storage,
+        elfie_id="elfie-1",
+        initial_at=NOW,
+        clock=lambda: NOW,
+    )
+    restarted.restore(before)
+    assert restarted.revision == 0
+    assert restarted.snapshot(NOW).episodic_count == 0
+
+    assert restarted.record_closed_episode(episode).status == "duplicate"
+    assert restarted.revision == 1
+    assert restarted.snapshot(NOW).episodic_count == 1

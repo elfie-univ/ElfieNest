@@ -188,6 +188,49 @@ class EmotionFeedback(FrozenContractModel):
         return self
 
 
+class CognitiveDraft(FrozenContractModel):
+    """Model-owned draft fields that remain proposals until final acceptance."""
+
+    memory_uses: Annotated[Tuple[MemoryUseReference, ...], Field(max_length=64)] = ()
+    emotion_feedback: Optional[EmotionFeedback] = None
+
+
+class RecallMemory(FrozenContractModel):
+    """Request one bounded, host-executed Recall inside a DELIBERATE Run."""
+
+    type: Literal["recall_memory"]
+    query: _NonBlankText
+    reason: _NonBlankText
+
+
+class AnswerDraft(CognitiveDraft):
+    """A proposed ordinary owner-facing answer."""
+
+    type: Literal["answer"]
+    content: _NonBlankText
+
+
+class ClarificationDraft(CognitiveDraft):
+    """A proposed question for a genuinely missing required fact."""
+
+    type: Literal["clarification"]
+    content: _NonBlankText
+    missing_facts: Annotated[Tuple[_NonBlankText, ...], Field(max_length=8)] = ()
+
+
+class NoOpDraft(CognitiveDraft):
+    """A proposed explicit no-op when a response cannot be formed safely."""
+
+    type: Literal["noop"]
+    reason: _NonBlankText
+
+
+CognitiveAction: TypeAlias = Annotated[
+    Union[RecallMemory, AnswerDraft, ClarificationDraft, NoOpDraft],
+    Field(discriminator="type"),
+]
+
+
 DecisionIntent: TypeAlias = Annotated[
     Union[
         SpeechIntent,
@@ -414,7 +457,11 @@ class TurnDecision(FrozenContractModel):
 
 
 __all__ = (
+    "AnswerDraft",
     "CancelPolicy",
+    "ClarificationDraft",
+    "CognitiveAction",
+    "CognitiveDraft",
     "DecisionIntent",
     "DecisionPlan",
     "MemoryUseReference",
@@ -424,7 +471,9 @@ __all__ = (
     "MotionIntent",
     "ModelAffectiveAppraisal",
     "NoOpIntent",
+    "NoOpDraft",
     "PersistentActivityRequest",
+    "RecallMemory",
     "SpeechIntent",
     "SemanticEmotionEffect",
     "TurnDecision",

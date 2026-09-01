@@ -48,7 +48,9 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
     elfie.advance_clock(5.0)
     elfie.wait_for_outcome_count(2, timeout=1.0)
 
-    assert len(channel.sent) == 2
+    # P0 owner chat emits one CognitiveAction answer; the following
+    # receipt-only Turn is a NoOp and must not send a second message.
+    assert len(channel.sent) == 1
     assert "execution:receipt" in runtime.requests[1].user_prompt
     emotion = ElfieDiagnostics(elfie).emotion
     assert (

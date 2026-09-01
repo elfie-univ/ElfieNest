@@ -2,7 +2,7 @@
 
 > Status: target design. This document is the authority for Memory semantics and its typed access contract. Code and the Conformance register describe implementation status.
 >
-> Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or Reasoning's complete context policy, nor another module's state.
+> Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or the Reasoning Context Workspace, nor another module's state.
 
 ## 1. Purpose, boundary and authority
 
@@ -22,7 +22,11 @@ This is the **source-first** design: the graph is a projection of the historical
 
 Memory receives an already-closed event; it does not decide where an event begins or ends. It does not own Profile, immutable identity, current location, live body state, live emotion, active plans, commitments, permissions or external actions. It does not directly read Profile, Communication history, world runtime state or another module's database. A relevant fact must be supplied by its owner as a sourced event or reference.
 
-Memory does not narrate a reply or define Brain's working memory or the complete Reasoning context. It returns bounded, sourced material through its typed Recall contract.
+Every semantic state owned by Memory is durable. Memory does not narrate a
+reply and owns no transient conversation tail, context summary, Run observation
+buffer or complete Reasoning context. It returns bounded, sourced material
+through its typed Recall contract; request-local retrieval structures are
+protocol payloads or implementation caches, not another memory state.
 
 ### 1.3 Memory and Brain / Cognitive Consolidation
 
