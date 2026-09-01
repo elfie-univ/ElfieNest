@@ -15,6 +15,8 @@ describe("CustomProviderDialog", () => {
     fireEvent.change(within(dialog).getByRole("textbox", { name: "显示名称" }), { target: { value: "Custom" } })
     fireEvent.change(within(dialog).getByRole("textbox", { name: "API Base URL" }), { target: { value: "https://host.example/v1" } })
     fireEvent.change(within(dialog).getByLabelText("API 密钥", { selector: "input" }), { target: { value: "secret" } })
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("type", "text")
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("autocomplete", "off")
     fireEvent.click(within(dialog).getByRole("button", { name: "保存配置" }))
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("后端拒绝了自定义连接")

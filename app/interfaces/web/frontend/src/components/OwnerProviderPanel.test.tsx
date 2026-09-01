@@ -108,6 +108,8 @@ const googleProduct = {
   catalog_id: "gemini_api",
   name: "Google Gemini",
   brand: { brand_id: "google", name: "Google", logo_asset: "brands/google.svg" },
+  has_free_models: true,
+  api_key_url: "https://aistudio.google.com/app/apikey",
 } satisfies ProviderProduct
 
 const model = {
@@ -342,6 +344,34 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(available).queryByRole("button", { name: "配置 OpenAI (ChatGPT)" })).not.toBeInTheDocument()
   })
 
+  it("selects a product-specific endpoint inside one brand card", async () => {
+    const user = userEvent.setup()
+    const alibabaProducts = [
+      { ...product, catalog_id: "qwen_api", name: "百炼 API（按量付费）", brand: { ...product.brand, brand_id: "alibaba", name: "Alibaba Cloud", logo_asset: "" } },
+      { ...product, catalog_id: "qwen_coding_plan", name: "百炼 Coding Plan（中国内地）", brand: { ...product.brand, brand_id: "alibaba", name: "Alibaba Cloud", logo_asset: "" } },
+      { ...product, catalog_id: "qwen_token_plan", name: "百炼 Token Plan（中国内地）", brand: { ...product.brand, brand_id: "alibaba", name: "Alibaba Cloud", logo_asset: "" } },
+    ] satisfies ProviderProduct[]
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(alibabaProducts)
+    vi.mocked(ownerProviderConnections).mockResolvedValue([])
+
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "配置 Alibaba Cloud" }))
+    const dialog = screen.getByRole("dialog", { name: "配置 Alibaba Cloud" })
+    await user.click(within(dialog).getByRole("combobox", { name: "连接方式" }))
+    expect(screen.getByRole("option", { name: "百炼 API（按量付费）" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "百炼 Coding Plan（中国内地）" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "百炼 Token Plan（中国内地）" })).toBeInTheDocument()
+    await user.click(screen.getByRole("option", { name: "百炼 Coding Plan（中国内地）" }))
+    await user.type(within(dialog).getByLabelText("API 密钥", { selector: "input" }), "secret")
+    await user.click(within(dialog).getByRole("button", { name: "保存配置" }))
+
+    await waitFor(() => expect(createProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ catalog_id: "qwen_coding_plan", api_key: "secret" }),
+      "csrf",
+    ))
+  })
+
   it("shows how many Foods use a configured subscription", async () => {
     vi.mocked(ownerFoods).mockResolvedValue({
       ...emptyFoodCatalog,
@@ -415,34 +445,37 @@ describe("OwnerProviderPanel v2 behavior", () => {
     resolveFood(emptyFoodCatalog)
   })
 
-  it("shows the eight priority brands and one add-other entry", async () => {
+  it("shows priority brands and one add-other entry", async () => {
     const catalog = [
       { ...product, catalog_id: "xai_api", name: "xAI", brand: { ...product.brand, brand_id: "xai", name: "xAI", logo_asset: "" } },
       { ...product, catalog_id: "qwen_api", name: "Qwen", brand: { ...product.brand, brand_id: "alibaba", name: "Alibaba Cloud", logo_asset: "" } },
       chatGptProduct,
       { ...product, catalog_id: "minimax_api", name: "MiniMax", brand: { ...product.brand, brand_id: "minimax", name: "MiniMax", logo_asset: "" } },
-      { ...product, catalog_id: "gemini_api", name: "Gemini", brand: { ...product.brand, brand_id: "google", name: "Google", logo_asset: "" } },
+      { ...product, catalog_id: "gemini_api", name: "Gemini", brand: { ...product.brand, brand_id: "google", name: "Google", logo_asset: "" }, has_free_models: true },
       product,
       { ...product, catalog_id: "kimi_api", name: "Kimi", brand: { ...product.brand, brand_id: "moonshot", name: "Kimi", logo_asset: "" } },
       { ...product, catalog_id: "deepseek_api", name: "DeepSeek", brand: { ...product.brand, brand_id: "deepseek", name: "DeepSeek", logo_asset: "" } },
       { ...product, catalog_id: "anthropic_api", name: "Anthropic", brand: { ...product.brand, brand_id: "anthropic", name: "Anthropic", logo_asset: "" } },
-      { ...product, catalog_id: "glm_api", name: "GLM", brand: { ...product.brand, brand_id: "zhipu", name: "Zhipu AI", logo_asset: "" } },
+      { ...product, catalog_id: "glm_api", name: "GLM", brand: { ...product.brand, brand_id: "zhipu", name: "Zhipu AI", logo_asset: "" }, has_free_models: true },
+      { ...product, catalog_id: "volcengine_coding_plan", name: "Volcengine", brand: { ...product.brand, brand_id: "volcengine", name: "Volcengine", logo_asset: "" } },
+      { ...product, catalog_id: "siliconflow_api", name: "SiliconFlow", brand: { ...product.brand, brand_id: "siliconflow", name: "SiliconFlow", logo_asset: "" }, has_free_models: true },
     ] satisfies ProviderProduct[]
     vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
     renderPanel()
 
     const available = await screen.findByRole("region", { name: "添加新的远程订阅" })
-    await waitFor(() => expect(within(available).getAllByRole("button")).toHaveLength(9))
-    for (const name of ["Google", "OpenAI", "Anthropic", "DeepSeek", "Alibaba Cloud", "Zhipu AI", "Kimi", "MiniMax"]) {
+    await waitFor(() => expect(within(available).getAllByRole("button")).toHaveLength(11))
+    for (const name of ["Google", "OpenAI", "Anthropic", "DeepSeek", "Alibaba Cloud", "Zhipu AI", "Kimi", "MiniMax", "xAI"]) {
       expect(within(available).getByRole("button", { name: `配置 ${name}` })).toBeInTheDocument()
     }
-    expect(within(available).queryByRole("button", { name: "配置 xAI" })).not.toBeInTheDocument()
+    expect(within(available).getAllByText("有免费额度")).toHaveLength(2)
+    expect(within(available).queryByRole("button", { name: "配置 SiliconFlow" })).not.toBeInTheDocument()
   })
 
   it("pins custom interfaces above the non-featured provider list", async () => {
     const user = userEvent.setup()
     const catalog = [
-      ...Array.from({ length: 8 }, (_, index) => ({
+      ...Array.from({ length: 10 }, (_, index) => ({
         ...product,
         catalog_id: `provider-${index}`,
         name: `Provider ${index + 1}`,
@@ -473,6 +506,48 @@ describe("OwnerProviderPanel v2 behavior", () => {
     ])
     expect(screen.queryByRole("option", { name: "Provider 1" })).not.toBeInTheDocument()
     expect(screen.queryByRole("option", { name: "自定义 OpenAI 兼容接口" })).not.toBeInTheDocument()
+  })
+
+  it("keeps model aggregators in the other-subscriptions picker", async () => {
+    const user = userEvent.setup()
+    const catalog = [
+      ...Array.from({ length: 10 }, (_, index) => ({
+        ...product,
+        catalog_id: `featured-${index}`,
+        name: `Featured ${index + 1}`,
+        brand: { ...product.brand, brand_id: `featured-${index}`, name: `Featured ${index + 1}`, logo_asset: "" },
+      })),
+      { ...product, catalog_id: "deepinfra_api", name: "DeepInfra", brand: { ...product.brand, brand_id: "deepinfra", name: "DeepInfra", logo_asset: "" } },
+      { ...product, catalog_id: "together_api", name: "Together AI", brand: { ...product.brand, brand_id: "together", name: "Together AI", logo_asset: "" } },
+      { ...product, catalog_id: "huggingface_api", name: "Hugging Face Inference Providers", brand: { ...product.brand, brand_id: "huggingface", name: "Hugging Face", logo_asset: "" } },
+      { ...product, catalog_id: "siliconflow_api", name: "SiliconFlow", brand: { ...product.brand, brand_id: "siliconflow", name: "SiliconFlow", logo_asset: "" } },
+      { ...product, catalog_id: "groq_api", name: "Groq", brand: { ...product.brand, brand_id: "groq", name: "Groq", logo_asset: "" } },
+      { ...product, catalog_id: "mistral_api", name: "Mistral AI", brand: { ...product.brand, brand_id: "mistral", name: "Mistral AI", logo_asset: "" } },
+      { ...product, catalog_id: "openrouter_api", name: "OpenRouter", brand: { ...product.brand, brand_id: "openrouter", name: "OpenRouter", logo_asset: "" } },
+    ] satisfies ProviderProduct[]
+    vi.mocked(ownerProviderCatalog).mockResolvedValue(catalog)
+    renderPanel()
+
+    await screen.findByRole("button", { name: "配置 Featured 1" })
+    await user.click(await screen.findByRole("button", { name: "添加其他订阅" }))
+    const dialog = screen.getByRole("dialog", { name: "添加其他订阅" })
+    await user.click(within(dialog).getByRole("combobox", { name: "订阅产品" }))
+
+    for (const name of ["OpenRouter", "SiliconFlow", "Groq", "Hugging Face", "Mistral AI"]) {
+      expect(screen.getByRole("option", { name })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole("option", { name: "Together AI" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "DeepInfra" })).not.toBeInTheDocument()
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "请选择",
+      "OpenAI 接口",
+      "Anthropic 接口",
+      "OpenRouter",
+      "SiliconFlow",
+      "Groq",
+      "Hugging Face",
+      "Mistral AI",
+    ])
   })
 
   it("opens Anthropic interface configuration with its protocol and auth defaults", async () => {
@@ -513,7 +588,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const card = await findConfiguredProviderCard()
     await user.click(within(card).getByRole("button", { name: "验证" }))
 
-    expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf")
+    expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf", false)
     expect(await screen.findByText("OpenAI Main 验证已完成。")).toBeInTheDocument()
     expect(vi.mocked(ownerProviderConnections).mock.calls.length).toBeGreaterThanOrEqual(2)
   })
@@ -530,7 +605,18 @@ describe("OwnerProviderPanel v2 behavior", () => {
     expect(within(methodField).queryByRole("combobox")).not.toBeInTheDocument()
     expect(within(methodField).getByRole("textbox")).toBeDisabled()
     expect(within(methodField).getByRole("textbox")).toHaveValue("API Key")
-    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toBeInTheDocument()
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("type", "text")
+    expect(within(dialog).getByLabelText("API 密钥", { selector: "input" })).toHaveAttribute("autocomplete", "off")
+  })
+
+  it("shows the official API key page in the provider form", async () => {
+    const user = userEvent.setup()
+    vi.mocked(ownerProviderCatalog).mockResolvedValue([googleProduct])
+    renderPanel()
+
+    await user.click(await screen.findByRole("button", { name: "配置 Google" }))
+
+    expect(within(screen.getByRole("dialog", { name: "配置 Google" })).getByRole("link", { name: "前往官方页面获取 API Key ↗" })).toHaveAttribute("href", "https://aistudio.google.com/app/apikey")
   })
 
   it("turns the connection green as soon as refreshed validation state arrives", async () => {
@@ -563,6 +649,7 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     await user.click(within(card).getByRole("button", { name: "验证" }))
 
+    expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf", true)
     expect(await within(card).findByText("可用")).toBeInTheDocument()
     expect(within(card).getByText("2/2 个模型可用 · 未被粮食使用")).toBeInTheDocument()
   })
@@ -577,6 +664,19 @@ describe("OwnerProviderPanel v2 behavior", () => {
     const card = await findConfiguredProviderCard()
     expect(card).toHaveClass("provider-card--failed")
     expect(within(card).getByText("不可用")).toBeInTheDocument()
+  })
+
+  it("shows a rate-limited connection as partly available instead of unavailable", async () => {
+    vi.mocked(ownerProviderConnections).mockResolvedValue([{
+      ...connection,
+      verification: { ...connection.verification, status: "failed" as const, error: "temporarily rate limited" },
+      model_counts: { total: 2, enabled: 2, in_use: 0, available: 0, degraded: 2, pending: 0, unavailable: 0 },
+    }])
+    renderPanel()
+
+    const card = await findConfiguredProviderCard()
+    expect(card).toHaveClass("provider-card--partial")
+    expect(within(card).getByText("部分可用")).toBeInTheDocument()
   })
 
   it("creates a catalog connection through the product-specific form", async () => {
@@ -659,6 +759,17 @@ describe("OwnerProviderPanel v2 behavior", () => {
 
     expect(verifyProviderConnection).toHaveBeenCalledWith("conn-openai", "csrf", true)
     expect(await screen.findByText("OpenAI Main 已完成强制全量验证。")).toBeInTheDocument()
+  })
+
+  it("allows an unused unarchived subscription to be deleted", async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    const card = await findConfiguredProviderCard()
+    await user.click(within(card).getByRole("button", { name: "更多" }))
+
+    expect(screen.getByRole("menuitem", { name: "删除" })).not.toBeDisabled()
+    expect(screen.getByRole("menuitem", { name: "删除" })).not.toHaveAttribute("title")
   })
 
   it("does not show an all-unverified connection as failed", async () => {

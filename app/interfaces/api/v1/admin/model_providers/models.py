@@ -238,6 +238,8 @@ class ProviderProductResponse(BaseModel):
     usage_scope: str
     discovery_strategy: str
     api_mode: ApiMode
+    api_key_url: Optional[str] = None
+    has_free_models: bool = False
 
     @classmethod
     def from_result(cls, item: ProviderProductResult) -> ProviderProductResponse:
@@ -250,6 +252,8 @@ class ProviderProductResponse(BaseModel):
             usage_scope=item.usage_scope,
             discovery_strategy=item.discovery_strategy,
             api_mode=item.api_mode,
+            api_key_url=item.api_key_url,
+            has_free_models=item.has_free_models,
         )
 
 
@@ -294,6 +298,7 @@ class ProviderModelResponse(BaseModel):
     model_config = StrictModel
     id: str
     display_name: str
+    pricing: Literal["free", "unknown"] = "unknown"
     canonical_model_id: Optional[str]
     source: Literal["official", "remote_catalog", "bundled_catalog", "manual"]
     context_window_tokens: Optional[int]
@@ -327,6 +332,7 @@ class ProviderModelResponse(BaseModel):
         return cls(
             id=item.model_id,
             display_name=item.display_name,
+            pricing=item.pricing,
             canonical_model_id=item.canonical_model_id,
             source=item.source,
             context_window_tokens=item.context_window_tokens,

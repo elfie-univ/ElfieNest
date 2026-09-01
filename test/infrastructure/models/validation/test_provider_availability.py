@@ -133,6 +133,32 @@ def test_account_block_and_request_error_have_different_scopes() -> None:
     assert neutral.status == "unknown"
 
 
+def test_rate_limit_details_do_not_become_connection_block_from_legacy_quota() -> None:
+    observation = _observation(
+        1,
+        "2026-08-15T11:59:00+00:00",
+        "failed",
+        error_category="quota",
+        details={
+            "evidence_kind": "reachability",
+            "error_code": "rate_limited",
+            "error_scope": "endpoint",
+            "error_category": "rate_limit",
+        },
+    )
+
+    endpoint = project_endpoint_availability(
+        "connection/model", (observation,), now=NOW
+    )
+    reachability = project_reachability("connection", (observation,), now=NOW)
+
+    assert endpoint.status == "degraded"
+    assert endpoint.reason_code == "rate_limited"
+    assert endpoint.error_scope == "endpoint"
+    assert reachability.status == "degraded"
+    assert reachability.reason_code == "rate_limited"
+
+
 def test_provider_aggregation_uses_serving_scope_when_supplied() -> None:
     first = project_endpoint_availability(
         "connection/primary",

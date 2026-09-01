@@ -77,6 +77,47 @@ def test_model_validation_uses_connection_and_endpoint_identity(
     }
 
 
+def test_structured_error_category_wins_over_legacy_429_heuristic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    details = {
+        "error_code": "rate_limited",
+        "error_scope": "endpoint",
+        "error_category": "rate_limit",
+    }
+
+    write_provider_validation_report(
+        "openai_api_0001",
+        status="failed",
+        checked_at="2026-07-29T01:02:03+00:00",
+        latency_ms=12.5,
+        error="HTTP 429: temporary overload",
+        trigger="single",
+        details=details,
+    )
+    write_model_validation_report(
+        "openai_api_0001",
+        "gpt-test",
+        status="failed",
+        checked_at="2026-07-29T01:02:04+00:00",
+        latency_ms=22.0,
+        latency_class="fast",
+        error="HTTP 429: temporary overload",
+        trigger="full",
+        details=details,
+    )
+
+    repository = ReportRepository(get_report_database_path())
+    provider = repository.latest("provider", "openai_api_0001")
+    model = repository.latest("model", "openai_api_0001/gpt-test")
+
+    assert provider is not None
+    assert model is not None
+    assert provider.error_category == "rate_limit"
+    assert model.error_category == "rate_limit"
+
+
 def test_report_storage_adapter_keeps_injected_repository_as_fact_source(
     tmp_path: Path,
 ) -> None:

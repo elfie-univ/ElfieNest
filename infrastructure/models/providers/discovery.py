@@ -24,14 +24,17 @@ def bundled_catalog_models(
     *,
     provider_id: str | None = None,
     identity_catalog: ModelIdentityCatalog | None = None,
+    free_model_ids: Iterable[str] = (),
 ) -> tuple[ProviderModelRecord, ...]:
     """Build records from the flattened bundled catalog model list."""
+    free_ids = set(free_model_ids)
     return tuple(
         _catalog_model(
             model_id,
             source="bundled_catalog",
             provider_id=provider_id,
             identity_catalog=identity_catalog,
+            pricing="free" if model_id in free_ids else "unknown",
         )
         for model_id in dict.fromkeys(model_ids)
     )
@@ -43,14 +46,17 @@ def remote_catalog_models(
     fetcher: Callable[[str], tuple[str, ...]] = fetch_remote_models,
     provider_id: str | None = None,
     identity_catalog: ModelIdentityCatalog | None = None,
+    free_model_ids: Iterable[str] = (),
 ) -> tuple[ProviderModelRecord, ...]:
     """Build records from the configured remote catalog adapter."""
+    free_ids = set(free_model_ids)
     return tuple(
         _catalog_model(
             model_id,
             source="remote_catalog",
             provider_id=provider_id or catalog_id,
             identity_catalog=identity_catalog,
+            pricing="free" if model_id in free_ids else "unknown",
         )
         for model_id in fetcher(catalog_id)
     )
@@ -230,6 +236,7 @@ def _catalog_model(
     source: ModelSource,
     provider_id: str | None = None,
     identity_catalog: ModelIdentityCatalog | None = None,
+    pricing: str = "unknown",
 ) -> ProviderModelRecord:
     identity = match_model_identity(model_id, model_id, catalog=identity_catalog)
     declaration = (
@@ -244,6 +251,7 @@ def _catalog_model(
         # turn a generic model capability into an Endpoint capability.
         canonical_model_id=(identity.canonical_model_id if identity else None),
         source=source,
+        pricing=pricing,  # type: ignore[arg-type]
         context_window_tokens=(
             None if declaration is None else declaration.context_window_tokens
         ),

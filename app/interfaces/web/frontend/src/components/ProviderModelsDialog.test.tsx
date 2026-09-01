@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  refreshProviderModels,
   saveProviderModels,
   updateProviderModel,
   type ProviderConnection,
@@ -100,7 +101,8 @@ describe("ProviderModelsDialog", () => {
       expect(within(toolbar).getByRole("button", { name: label })).toHaveAttribute("data-variant", "default")
     }
     expect(within(dialog).queryByRole("textbox", { name: "搜索模型" })).not.toBeInTheDocument()
-    expect(toolbar.querySelector(".provider-models-toolbar__left")).toBeNull()
+    expect(toolbar.querySelector(".provider-models-toolbar__left")).not.toBeNull()
+    expect(within(toolbar).getByText("1/1 个模型可用 · 被 2 个粮食使用")).toBeInTheDocument()
     expect(within(toolbar).queryByRole("button", { name: "查看过期模型" })).not.toBeInTheDocument()
   })
 
@@ -115,11 +117,39 @@ describe("ProviderModelsDialog", () => {
     await waitFor(() => expect(onVerify).toHaveBeenCalledTimes(1))
   })
 
+  it("keeps model verification available after the initial load", async () => {
+    const onVerify = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    renderDialog(connection, { onVerify })
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    await user.click(within(dialog).getByRole("button", { name: "验证模型" }))
+
+    await waitFor(() => expect(onVerify).toHaveBeenCalledTimes(1))
+  })
+
   it("keeps the first model list in a neutral loading state", () => {
     renderDialog(connection, { initialLoad: true, initializing: true })
 
     expect(screen.getByRole("status")).toHaveTextContent("正在读取模型清单…")
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
+  })
+
+  it("keeps a failed refresh visible without reporting success", async () => {
+    const user = userEvent.setup()
+    vi.mocked(refreshProviderModels).mockResolvedValueOnce({
+      status: "failed",
+      checked_at: "2026-08-10T00:00:00Z",
+      message: "模型清单接口暂时不可用",
+      models: connection.models,
+    })
+    renderDialog()
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    await user.click(within(dialog).getByRole("button", { name: "重新读取模型" }))
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("模型清单接口暂时不可用")
+    expect(screen.queryByText("模型清单已更新。")).not.toBeInTheDocument()
   })
 
   it("keeps capability symbols compact in read and edit states", async () => {
@@ -226,6 +256,46 @@ describe("ProviderModelsDialog", () => {
     const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
     expect(within(dialog).queryByText("Retired model")).not.toBeInTheDocument()
     expect(within(dialog).queryByRole("button", { name: "查看过期模型" })).not.toBeInTheDocument()
+  })
+
+  it("puts free models first and labels them in green without changing the table layout", () => {
+    const target = {
+      ...connection,
+      model_counts: { ...connection.model_counts, total: 2, enabled: 2, available: 2 },
+      models: [
+        { ...connection.models[0]!, id: "paid-model", display_name: "Paid model", pricing: "unknown" as const },
+        { ...connection.models[0]!, id: "free-model", display_name: "Free model", pricing: "free" as const },
+      ],
+    } satisfies ProviderConnection
+    renderDialog(target)
+
+    const rows = within(screen.getByRole("dialog", { name: "OpenAI Main 的模型" })).getAllByRole("row")
+    expect(rows[1]).toHaveTextContent("Free model")
+    expect(rows[1]).toHaveTextContent("免费")
+    expect(rows[1]!.querySelector(".provider-model-free-badge")).not.toBeNull()
+    expect(rows[2]).toHaveTextContent("Paid model")
+  })
+
+  it("places discovered non-core models after the enabled model table", () => {
+    renderDialog({
+      ...connection,
+      models: [connection.models[0]!, {
+        ...connection.models[0]!,
+        id: "platform-model",
+        display_name: "Platform model",
+        source: "official",
+        hidden: true,
+        available: false,
+      }],
+    })
+
+    const dialog = screen.getByRole("dialog", { name: "OpenAI Main 的模型" })
+    const table = dialog.querySelector(".provider-model-table-wrap")
+    const otherModels = dialog.querySelector(".provider-other-models")
+    expect(table).not.toBeNull()
+    expect(otherModels).not.toBeNull()
+    if (!table || !otherModels) return
+    expect(table.compareDocumentPosition(otherModels) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("offers discovered non-core models without asking the user to retype them", async () => {

@@ -6,6 +6,7 @@ import {
   ownerModelMatrix,
   ownerProviderCatalog,
   ownerProviderConnections,
+  refreshProviderModels,
   startProviderOAuthLogin,
   validateAllProviderModels,
   verifyProviderConnection,
@@ -182,6 +183,25 @@ describe("versioned model Provider client", () => {
     expect(ownerWrite).toHaveBeenNthCalledWith(
       2,
       "/api/v1/admin/model-providers/model-validations",
+      "POST",
+      "csrf",
+      undefined,
+      { timeout: false },
+    )
+  })
+
+  it("does not time out while refreshing a remote model inventory", async () => {
+    vi.mocked(ownerWrite).mockResolvedValue({
+      status: "updated",
+      checked_at: "2026-08-10T00:00:00Z",
+      message: null,
+      models: [],
+    })
+
+    await refreshProviderModels("openai_api_0001", "csrf")
+
+    expect(ownerWrite).toHaveBeenCalledWith(
+      "/api/v1/admin/model-providers/connections/openai_api_0001/models/refresh",
       "POST",
       "csrf",
       undefined,
