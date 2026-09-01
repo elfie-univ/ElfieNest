@@ -218,7 +218,7 @@ class DecisionPlanDecoder:
                 candidate = fenced.group("body").strip()
             try:
                 action = _COGNITIVE_ACTION_ADAPTER.validate_json(candidate)
-                self._validate_action_memory_references(
+                action = self._normalize_action_memory_references(
                     action,
                     allowed_memory_references=allowed_memory_references,
                 )
@@ -309,22 +309,76 @@ class DecisionPlanDecoder:
         return cast(Mapping[str, JsonValue], _COGNITIVE_ACTION_ADAPTER.json_schema())
 
     @staticmethod
-    def _validate_action_memory_references(
+    def _normalize_action_memory_references(
         action: CognitiveAction,
         *,
         allowed_memory_references: Tuple[Tuple[str, str], ...],
-    ) -> None:
+    ) -> CognitiveAction:
         if isinstance(action, RecallMemory):
-            return
-        allowed = {
+            return action
+        normalized = DecisionPlanDecoder._normalize_memory_references(
+            action.memory_uses,
+            allowed_memory_references=allowed_memory_references,
+        )
+        if normalized == action.memory_uses:
+            return action
+        return action.model_copy(update={"memory_uses": normalized})
+
+    @staticmethod
+    def _normalize_memory_references(
+        references: Tuple[MemoryUseReference, ...],
+        *,
+        allowed_memory_references: Tuple[Tuple[str, str], ...],
+    ) -> Tuple[MemoryUseReference, ...]:
+        """Return RecallBundle IDs, accepting only an unambiguous assertion suffix."""
+        allowed = tuple(
             (str(target_kind), str(target_id))
             for target_kind, target_id in allowed_memory_references
-        }
-        for reference in action.memory_uses:
-            if (str(reference.target_kind), str(reference.target_id)) not in allowed:
-                raise ValueError(
-                    "memory use reference is outside the supplied RecallBundle"
+        )
+        allowed_set = set(allowed)
+        normalized: list[MemoryUseReference] = []
+        for reference in references:
+            target_kind = str(reference.target_kind)
+            target_id = str(reference.target_id)
+            key = (target_kind, target_id)
+            if key in allowed_set:
+                canonical_id = target_id
+            else:
+                canonical_id = DecisionPlanDecoder._assertion_suffix_match(
+                    target_kind,
+                    target_id,
+                    allowed=allowed,
                 )
+                if canonical_id is None:
+                    raise ValueError(
+                        "memory use reference is outside the supplied RecallBundle"
+                    )
+            if canonical_id == target_id:
+                normalized.append(reference)
+            else:
+                normalized.append(
+                    reference.model_copy(update={"target_id": canonical_id})
+                )
+        return tuple(normalized)
+
+    @staticmethod
+    def _assertion_suffix_match(
+        target_kind: str,
+        target_id: str,
+        *,
+        allowed: Tuple[Tuple[str, str], ...],
+    ) -> Optional[str]:
+        """Resolve only a unique omitted ``assertion:`` namespace."""
+        if target_kind != "assertion":
+            return None
+        matches = tuple(
+            candidate_id
+            for candidate_kind, candidate_id in allowed
+            if candidate_kind == "assertion"
+            and candidate_id.startswith("assertion:")
+            and candidate_id[len("assertion:") :] == target_id
+        )
+        return matches[0] if len(matches) == 1 else None
 
     @staticmethod
     def _decode_plan(
@@ -336,16 +390,12 @@ class DecisionPlanDecoder:
         """Parse, bind and optionally validate model-selected Memory IDs."""
         plan = bind_plan_to_seed(DecisionPlan.model_validate_json(raw_text), seed)
         if allowed_memory_references is not None:
-            allowed = {
-                (str(target_kind), str(target_id))
-                for target_kind, target_id in allowed_memory_references
-            }
-            for reference in plan.memory_uses:
-                key = (str(reference.target_kind), str(reference.target_id))
-                if key not in allowed:
-                    raise ValueError(
-                        "memory use reference is outside the supplied RecallBundle"
-                    )
+            normalized = DecisionPlanDecoder._normalize_memory_references(
+                plan.memory_uses,
+                allowed_memory_references=allowed_memory_references,
+            )
+            if normalized != plan.memory_uses:
+                plan = plan.model_copy(update={"memory_uses": normalized})
         return plan
 
     @staticmethod
