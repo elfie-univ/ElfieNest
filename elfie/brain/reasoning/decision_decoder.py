@@ -30,6 +30,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.brain.reasoning.reply_safety import TRUSTED_OWNER_FAILURE_REPLY
 from elfie.brain.reasoning.turn_outcome import ModelMode, TerminalStatus, TurnOutcome
 from elfie.message_types import (
     FrozenContractModel,
@@ -38,7 +39,6 @@ from elfie.message_types import (
 )
 
 RepairCallback = Callable[[str, Tuple[str, ...]], str]
-_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
 _FENCED_JSON_PATTERN = re.compile(
     r"^```(?:json)?\s*(?P<body>.*?)\s*```$",
     flags=re.IGNORECASE | re.DOTALL,
@@ -440,7 +440,7 @@ class DecisionPlanDecoder:
                 cancel_policy=CancelPolicy.ALWAYS,
                 channel_id=seed.reply_channel_id,
                 conversation_id=seed.reply_conversation_id,
-                content=text if meaningful else _OWNER_MESSAGE_FALLBACK,
+                content=text if meaningful else TRUSTED_OWNER_FAILURE_REPLY,
             )
             fallback_reason = reason or "owner_message_fallback"
         elif meaningful:

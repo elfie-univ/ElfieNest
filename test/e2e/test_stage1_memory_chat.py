@@ -185,7 +185,7 @@ def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
     second_store.close()
 
 
-def test_stage1_model_failure_delivers_trusted_short_fallback() -> None:
+def test_stage1_model_failure_delivers_truthful_short_failure_notice() -> None:
     profile = create_visual_profile(
         elfie_id="e1-model-failure",
         display_name="Lumi",
@@ -227,7 +227,7 @@ def test_stage1_model_failure_delivers_trusted_short_fallback() -> None:
 
     assert outcome.status.value == "failed"
     assert len(channel.sent) == 1
-    assert channel.sent[0].parts[0].text == "我收到你的消息了，正在想一想。"
+    assert channel.sent[0].parts[0].text == "我这次没能完成回复，请稍后再试。"
 
     elfie.stop()
     elfie.join()
