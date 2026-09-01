@@ -254,13 +254,12 @@ export function ProfileTelegramAccount({
           {t("profile.private.telegram.stepTwo.beforeBotFather")}{" "}<a href="https://t.me/BotFather" rel="noreferrer" target="_blank">@BotFather<ExternalLink aria-hidden="true" /></a>{" "}{t("profile.private.telegram.stepTwo.afterBotFather")}
         </p>
         <TextField
-          autoComplete="off"
           disabled={busy}
           hint={t("profile.private.telegram.tokenHint")}
           label={t("profile.private.telegram.tokenLabel")}
           onChange={(value) => { setBotToken(value); setError(null) }}
+          masked
           placeholder={t("profile.private.telegram.tokenPlaceholder")}
-          type="password"
           value={botToken}
         />
       </> : null}

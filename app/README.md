@@ -85,11 +85,9 @@ must not be restored.
 Run the most relevant application-layer checks from the repository root:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q test/app/
+uv run --no-sync pytest -q test/app/
 
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q \
+uv run --no-sync pytest -q \
   test/app/orchestration/test_engine.py \
   test/app/orchestration/test_engine_cognitive_loop.py
 ```

@@ -9,6 +9,7 @@ FoodSystemRole = Literal["emergency", "common"]
 FoodVisibilityMode = Literal["global", "users"]
 ModelHealthStatus = Literal["unconfigured", "healthy", "degraded", "unavailable"]
 CapabilityState = Literal["supported", "unsupported", "unknown"]
+ModelPricing = Literal["free", "unknown"]
 
 FOOD_ROLES = ("primary", "reasoning", "vision", "tool", "fallback")
 
@@ -80,6 +81,7 @@ class StoredModelEvidence:
     # catalog.
     auto_selection_priority: int = 100
     quality_tier: int = 0
+    pricing: ModelPricing = "unknown"
     latency_ms: float | None = None
     tool_test_passed: bool = False
     local: bool = False

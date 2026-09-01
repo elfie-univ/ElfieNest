@@ -134,10 +134,9 @@ node_major="${node_major%%.*}"
 [[ "$(pnpm --version)" == "10.12.1" ]] || \
     fail "pnpm 10.12.1 is required, found $(pnpm --version)"
 
-UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"
 PRE_COMMIT_HOME="${PRE_COMMIT_HOME:-/tmp/elfienest-precommit}"
 VALIDATION_CACHE_ROOT="${ELFIENEST_VALIDATION_CACHE_ROOT:-$PROJECT_ROOT/build/validation-cache}"
-export UV_CACHE_DIR PRE_COMMIT_HOME
+export PRE_COMMIT_HOME
 
 run_step() {
     CURRENT_STEP="$1"

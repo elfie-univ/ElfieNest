@@ -6,7 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"
+# Let uv use its platform-appropriate persistent user cache.  Respect an
+# explicitly supplied UV_CACHE_DIR for CI or isolated diagnostics.
 
 # Default arguments
 TIER="dev"
@@ -144,8 +145,12 @@ ensure_python() {
     fi
 
     if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync $sync_args >&2; then
-        echo "${RED}  ❌ Dependency sync failed${RESET}" >&2
-        return 1
+        echo "${YELLOW}  ⚠️  Dependency sync failed; refreshing the uv cache and retrying once.${RESET}" >&2
+        if ! UV_PROJECT_ENVIRONMENT="$PROJECT_ROOT/.venv" "$uv_bin" sync $sync_args --refresh >&2; then
+            echo "${RED}  ❌ Dependency sync failed after refreshing the uv cache${RESET}" >&2
+            return 1
+        fi
+        echo "${GREEN}  ✅ Python environment recovered after refreshing the uv cache${RESET}"
     fi
 
     echo "${GREEN}  ✅ Python environment is ready${RESET}"

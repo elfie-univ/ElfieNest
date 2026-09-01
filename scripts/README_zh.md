@@ -93,15 +93,13 @@ bash scripts/quality/checks/node_toolchain.sh
 ./elfienest.sh serve
 ./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 运行全仓 pytest 前先做一次宿主能力预检：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 退出码 `0` 表示允许回环端口绑定。退出码 `2` 表示当前沙箱或宿主策略拒绝

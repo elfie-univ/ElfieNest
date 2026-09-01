@@ -53,6 +53,8 @@ bash scripts/quality/checks/node_toolchain.sh
 代码审查与脚本均通过 `scripts/bootstrap.sh` 和仓库 `.venv/bin/python3` 运行；
 不要调用系统 `python`/`python3`、复用其他虚拟环境或设置 `ELFIENEST_PYTHON` 覆盖入口。
 
+uv 默认使用平台对应的持久化用户级缓存。多个 WorkTree 共用这份缓存，但每个 WorkTree 保留自己的 `.venv`，避免 editable package 路径互相污染。只有明确需要隔离或 CI 运行时才设置 `UV_CACHE_DIR`。Bootstrap 在依赖同步失败后会用 `--refresh` 自动重试一次以修复过期缓存；刷新后仍失败就停止并报告原始错误。
+
 ### 前端开发
 
 前端使用 Node.js 20+ 和 pnpm：
@@ -127,8 +129,7 @@ pnpm build
 运行全仓 pytest 命令前，先执行一次回环端口能力预检：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 如果返回 `2`，表示当前沙箱无法绑定 `127.0.0.1:0`。不要先在当前环境运行全量套件再
@@ -179,8 +180,8 @@ Lane；`elfienest/ci-gate` 聚合结果，再由跨事件稳定的 `elfienest/me
 门禁包含的单项检查如下：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync pytest test/architecture/
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 
