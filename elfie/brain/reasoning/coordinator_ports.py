@@ -1,13 +1,12 @@
 """Narrow typed dependencies consumed by BrainCoordinator."""
 
-from typing import Optional, Protocol
+from typing import Callable, Optional, Protocol
 
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.consolidation.system import CognitiveConsolidationCandidate
 from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
 from elfie.brain.memory import EpisodicMemoryCandidate
-from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import (
     ClosedEpisode,
     MemoryUseProposal,
@@ -20,7 +19,9 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.decision_types import TurnDecision
+from elfie.brain.reasoning.memory_context import ReasoningMemoryTurn
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
+from elfie.brain.state_lifecycle import StateCommitReceipt
 from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import TurnId, UTCDateTime
 
@@ -35,13 +36,13 @@ class BrainContextSource(Protocol):
     ) -> ConversationContext:
         """Return bounded conversation history for the frame."""
 
-    def memory(
+    def memory_turn(
         self,
         frame: TurnFrame,
         emotion: EmotionSnapshot,
         captured_at: UTCDateTime,
-    ) -> MemoryContext:
-        """Return memory excerpts selected by the Brain owner."""
+    ) -> ReasoningMemoryTurn:
+        """Return pinned baseline Recall and the only same-Run Recall session."""
 
     def memory_candidates(
         self,
@@ -57,11 +58,11 @@ class BrainContextSource(Protocol):
     ) -> tuple[TrustedAppraisalScope, ...]:
         """Return host-signed indirect scopes for source actors in this frame."""
 
-    def pending_closed_episodes(self) -> tuple[ClosedEpisode, ...]:
-        """Return Episodes closed by WorkingContext and awaiting source capture."""
-
-    def ack_closed_episodes(self, episode_ids: tuple[str, ...]) -> None:
-        """Acknowledge source Episodes after durable capture."""
+    def flush_pending_handoffs(
+        self,
+        capture: Callable[[tuple[ClosedEpisode, ...]], tuple[StateCommitReceipt, ...]],
+    ) -> tuple[StateCommitReceipt, ...]:
+        """Run the only Context Workspace to persistent Memory handoff path."""
 
     def activities(self, captured_at: UTCDateTime) -> ActivityContext:
         """Return the bounded committed Activity projection at the Turn cutoff."""

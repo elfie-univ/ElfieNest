@@ -8,8 +8,12 @@
 > **Normative target.** This contract defines how one continuous Elfie admits
 > events, maintains mental state, reasons, commits decisions and resumes work.
 > Earlier Brain migrations remain protected by permanent architecture tests.
-> The newly accepted Selfhood and fixed-header gaps are tracked in the scoped
-> [Selfhood conformance register](../conformance/elfie-selfhood).
+> The accepted Selfhood/fixed-header gaps remain tracked in the scoped
+> [Selfhood conformance register](../conformance/elfie-selfhood). The completed
+> Reasoning Context Workspace P0 boundary is protected by permanent focused
+> tests. Version 1.5 additionally freezes the one-time Genesis and final-owner
+> isolation rules accepted by ADR-0033; remaining implementation gaps stay in
+> their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -42,8 +46,8 @@ owners, not a requirement for ten processes, databases or empty packages.
 | 4 | Emotion | process-local affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions, or persist its live stock |
 | 5 | Energy | homeostasis, circadian state, cognitive/action budgets, emergency reserve and degradation mode | `EnergySnapshot`, reservations and cognitive-mode constraints | choose semantic goals or replace NervousSystem safety reflexes |
 | 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` | create an Activity or act externally |
-| 7 | Memory | subjective episodes, working memory, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated memory commits | own current Orientation, Run state or Activity state |
-| 8 | Reasoning Core | context assembly, bounded Model/Skill/Tool loop, observations, verification, inhibition, completion judgment and one `TurnDecision` | one settled decision plus internal state candidates | wait across Turns, claim execution success, or bypass deterministic policy |
+| 7 | Memory | durable subjective episodes, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated durable memory commits | own transient conversation/context state, current Orientation, Run state or Activity state |
+| 8 | Reasoning Core | `Reasoning Context Workspace`, context assembly, bounded Model/Skill/Tool loop, observations, verification, inhibition, completion judgment and one `TurnDecision` | one settled decision plus internal state candidates | wait across Turns, let another system own its transient context, claim execution success, or bypass deterministic policy |
 | 9 | Persistent Activity | validated goals and work that survive the current Turn; steps, conditions, scheduling, pause/resume/cancel, retry, idempotency and receipts | preflight results, state events and bounded Internal triggers | become a second Brain or directly perform open-ended external actions |
 | 10 | Cognitive Consolidation | interruptible sleep/idle review of memories, activities, emotion trajectories and outcomes under a no-external-side-effect scope | validated state candidates or a later Internal trigger | directly message, move, create Activity, expand permission or rewrite authoritative state |
 
@@ -288,11 +292,51 @@ reject or backpressure result rather than silent loss.
 
 ### Context and reasoning
 
+The detailed
+[Reasoning Core single-Turn Agent design](../designs/elfie-reasoning-core) is
+the accepted interpretation of this section. Its completed P0 owner-chat
+boundary is protected by focused architecture, context, memory, runtime,
+receipt and restart tests.
+
+Event Workspace and Reasoning Context Workspace are distinct. Event Workspace
+owns event lanes, admission and immutable single-domain framing. The
+Reasoning-internal Context Workspace owns bounded recent alternating dialogue,
+active-topic state, source-linked context summaries, current-Run observations,
+pending Memory handoffs and its own bounded recovery checkpoint. It is not a
+peer mental system, and Memory owns no transient conversation tail, context
+summary, Run scratch state or generic context buffer.
+
 Reasoning Core assembles only the context needed by the admitted Turn. A context
 snapshot records the Constitution and Selfhood revisions and the versions and
 capture time of Orientation, Emotion, Energy, Motivation, Memory, Activity and
-effective capabilities. It contains no Profile or Canon runtime projection.
-Facts, inferences and unknown values remain distinguishable.
+effective capabilities. These owner projections are read-only and remain
+frozen during the Run. The snapshot contains no Profile or Canon runtime
+projection. Facts, inferences and unknown values remain distinguishable.
+
+Every Turn may perform baseline Memory Recall. A cognitive step may request an
+additional bounded Recall through a Reasoning-owned Memory Bridge when required
+to resolve a person, reference, conflict or missing fact. All Recall results
+used by one Run bind to one explicit Memory revision unless the complete Run
+context is rebased; mixed revisions are invalid. Reasoning owns query intent,
+timing and context placement. Memory owns retrieval semantics, provenance,
+conflict handling, validation and durable commit. A model never reads or writes
+Memory directly.
+
+Before every model call, Reasoning rebuilds one provider-neutral model context
+from the frozen snapshots and current Context Workspace. It reserves response
+headroom and retains the current Frame, trusted Scope, unresolved items and
+complete Action/Observation pairs before trimming less relevant material.
+Prompt-pressure compaction creates a source-linked `ContextSummary` owned by
+Reasoning. Durable capture is a separate handoff of complete sourced
+`ClosedEpisode` records and typed candidates to Memory; a lossy summary is not
+a durable fact. A pending handoff is removed only after a Memory receipt.
+
+`DIRECT` and `DELIBERATE` are Reasoning depth choices derived from upstream
+hints, task complexity/risk, Energy, deadline and available model capability.
+They do not change Memory availability or hard permissions. Food selects the
+requested model role and fallback route; it does not define cognitive modes or
+carry a separate allow-list of modes. Skill, Tool and Worker remain independent
+stage-gated capabilities.
 
 A `ReasoningRun` may contain multiple cognitive steps and multiple Model,
 Skill, Tool and Observation cycles. It has an explicit budget, deadline,
@@ -392,9 +436,11 @@ body route, and its textual claim is never an execution receipt.
 
 ## State, persistence and recovery
 
-`MemoryState`, `SelfhoodState`, `ReasoningRunState` and `ActivityState` are
-distinct. Durable cognitive infrastructure provides owner-appropriate state,
-an event journal, Run/Activity checkpoints, budget ledger, causal trace,
+`MemoryState`, `SelfhoodState`, `ReasoningContextWorkspaceState`,
+`ReasoningRunState` and `ActivityState` are distinct. A bounded Reasoning
+Context Workspace checkpoint supports crash recovery but is not durable
+Memory. Durable cognitive infrastructure provides owner-appropriate state, an
+event journal, Run/Activity checkpoints, budget ledger, causal trace,
 idempotency records and receipt reconciliation. It does not imply one universal
 checkpoint for every mental owner and does not become an eleventh mind.
 

@@ -59,6 +59,7 @@ class OutputRouter:
             [DecisionPlan, DecisionIntent, ExecutionReceipt], None
         ]
         | None = None,
+        decision_handler: Callable[[TurnDecision], None] | None = None,
         journal: BrainJournal | None = None,
     ) -> None:
         self._capabilities = capabilities
@@ -70,6 +71,7 @@ class OutputRouter:
         self._max_workers = max_workers
         self._completed_retention = completed_retention
         self._receipt_handler = receipt_handler
+        self._decision_handler = decision_handler
         self._journal = journal
         self._queue: Queue[BatchRuntime] = Queue(max_pending_batches)
         self._executors = ExecutorRegistry(
@@ -152,6 +154,16 @@ class OutputRouter:
                         "journal_unavailable",
                         f"decision was not durably journaled: {type(error).__name__}",
                         record_journal=False,
+                    )
+            if self._decision_handler is not None:
+                try:
+                    self._decision_handler(decision)
+                except (OSError, RuntimeError, ValueError) as error:
+                    return self._reject(
+                        decision,
+                        "context_checkpoint_unavailable",
+                        "reply projection was not durably checkpointed: "
+                        f"{type(error).__name__}",
                     )
             self._decisions[str(plan.plan_id)] = decision
             self._runtimes[plan.turn_id] = runtime

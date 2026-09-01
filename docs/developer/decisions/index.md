@@ -34,6 +34,7 @@ The current contract always states the enforceable rule.
 - [ADR-0029: Explicit Git action authorization and one-PR delivery](./0029-explicit-git-delivery-authorization)
 - [ADR-0030: Emotion state is process-local and returns to baseline](./0030-process-local-emotion-state)
 - [ADR-0031: Selfhood owns the two individual blocks of one fixed model header](./0031-selfhood-authority-and-fixed-model-header)
+- [ADR-0032: Reasoning owns the Context Workspace; Memory owns durable memory](./0032-reasoning-context-workspace-ownership)
 - [ADR-0033: Genesis compiles once and committed Elfies depend only on final owners](./0033-one-time-genesis-and-final-owner-isolation)
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)

@@ -2,7 +2,7 @@
 
 > 状态：目标设计。本文是 Memory 语义和类型化访问契约的权威；代码和一致性台账记录实际实现状态。
 >
-> 范围：持久化的主观经历、有来源的个人知识和确定性召回。不定义 Event Workspace 或 Reasoning 的完整上下文策略，也不定义其他模块的状态。
+> 范围：持久化的主观经历、有来源的个人知识和确定性召回。不定义 Event Workspace 或 Reasoning Context Workspace，也不定义其他模块的状态。
 >
 > 契约对齐：2026-09-01，ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
 
@@ -24,7 +24,9 @@ Memory 为一只精灵提供持久、有来源的个人记忆。它既保留发�
 
 Memory 接收已经闭合的事件，不决定事件从哪里开始或结束。它不拥有 Profile、不可变身份、当前位置、实时身体状态、实时情绪、进行中的计划、承诺、权限或外部行动。它不直接读取 Profile、Communication 历史、世界运行时状态或其他模块的数据库。需要使用的事实必须由所有者作为带来源的事件或引用提供。
 
-Memory 不负责组织回复，也不定义 Brain 的 Working Memory 或 Reasoning 的完整上下文，只通过类型化 Recall 契约返回有界、带来源的材料。
+Memory 拥有的全部语义状态都是持久状态。Memory 不负责组织回复，也不拥有短期会话 tail、
+上下文摘要、Run Observation 缓冲或 Reasoning 完整上下文；它只通过类型化 Recall 契约返回
+有界、带来源的材料。请求内检索结构只是协议载荷或实现缓存，不是第二套记忆状态。
 
 ### 1.3 Memory 与 Brain / Cognitive Consolidation 的关系
 

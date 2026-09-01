@@ -135,6 +135,21 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
         elfie.advance_clock(0.5)
         channel.wait_for_count(2, timeout=1.0)
 
+        # Channel delivery can be observed just before the OutputRouter's
+        # terminal Receipt callback settles Context/Memory on its worker. Wait
+        # for the causal user Turn to finish before inspecting the durable
+        # pending Episode, rather than racing that callback.
+        second_turn = next(
+            outcome
+            for outcome in reversed(elfie.turn_outcomes())
+            if (
+                (decision := elfie.turn_decision(outcome.turn_id)) is not None
+                and "opt-002-owner-2"
+                in {str(event_id) for event_id in decision.plan.cause_event_ids}
+            )
+        )
+        elfie.wait_for_output(second_turn.turn_id, timeout=1.0)
+
         assert store.pending_episodes(limit=8)
         assert store.count_episodes() >= 1
         elfie._memory.run_consolidation_batch(  # noqa: SLF001 - replay seam

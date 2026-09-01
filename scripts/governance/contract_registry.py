@@ -291,10 +291,15 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
             "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
             "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/developer/decisions/0032-reasoning-context-workspace-ownership.md",
+            "docs/zh/developer/decisions/0032-reasoning-context-workspace-ownership.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
-        agent_paths=("elfie/brain/AGENTS.md",),
+        agent_paths=(
+            "elfie/brain/AGENTS.md",
+            "elfie/brain/memory/AGENTS.md",
+        ),
         scanner_paths=(),
         test_paths=("test/architecture/test_elfie_brain_contract.py",),
         conformance_paths=(

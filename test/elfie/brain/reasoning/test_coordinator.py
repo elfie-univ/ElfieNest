@@ -13,12 +13,17 @@ from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.reasoning.context_types import (
     ConversationContext,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
+from elfie.brain.reasoning.memory_context import (
+    MemoryRecallResult,
+    ReasoningMemoryTurn,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
@@ -61,6 +66,10 @@ ELFIE_ID = ElfieId("elfie-coordinator")
 class NoopSettlement:
     def settle(self, candidates):
         del candidates
+        return ()
+
+    def capture_episodes(self, episodes):
+        del episodes
         return ()
 
 
@@ -132,6 +141,10 @@ def _physical(
 
 
 class EmptyContextSource:
+    def flush_pending_handoffs(self, capture):
+        del capture
+        return ()
+
     def conversation(self, frame, captured_at):
         return ConversationContext(
             revision=frame.revision,
@@ -140,10 +153,34 @@ class EmptyContextSource:
             messages=(),
         )
 
-    def memory(self, frame, emotion, captured_at):
-        return MemoryContext(
-            revision=frame.revision,
-            captured_at=captured_at,
+    def memory_turn(self, frame, emotion, captured_at):
+        del emotion
+
+        class EmptyMemorySession:
+            pinned_revision = 0
+            baseline_result = MemoryRecallResult(
+                status="skipped",
+                query="",
+                pinned_revision=0,
+                bundle=RecallBundle(),
+                reason="test_empty_memory",
+            )
+
+            def recall(self, query):
+                return MemoryRecallResult(
+                    status="skipped",
+                    query=query,
+                    pinned_revision=0,
+                    bundle=RecallBundle(),
+                    reason="test_empty_memory",
+                )
+
+        return ReasoningMemoryTurn(
+            context=MemoryContext(
+                revision=frame.revision,
+                captured_at=captured_at,
+            ),
+            session=EmptyMemorySession(),
         )
 
     def capabilities(self, captured_at):
@@ -208,6 +245,19 @@ class BlockingPlanRuntime:
         if len(self.calls) == 2:
             self.second_started.set()
         self.release.wait()
+        if request.response_schema.name == "CognitiveAction":
+            cognitive: dict[str, object] = {
+                "type": "answer",
+                "content": "hello",
+            }
+            if self.feedback is not None:
+                cognitive["emotion_feedback"] = self.feedback
+            return ModelGenerationResult(
+                text=json.dumps(cognitive),
+                selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                provider="fake",
+                model_key="fake/schema",
+            )
         intent_id = f"speech-{request.turn_id}"
         payload: dict[str, object] = {
             "schema_version": 1,
@@ -666,13 +716,7 @@ def test_frame_replay_reuses_fast_candidate_without_double_application() -> None
     assert emotion.get_emotion_value("anger") == pytest.approx(first_anger)
 
 
-@pytest.mark.parametrize(
-    "owner_text",
-    (
-        "明天上午九点提醒我带钥匙",
-        "请你比较这三个模型并整理一份报告",
-    ),
-)
+@pytest.mark.parametrize("owner_text", ("明天上午九点提醒我带钥匙",))
 def test_explicit_task_uses_structured_activity_route_without_tools(
     owner_text: str,
 ) -> None:
@@ -711,6 +755,48 @@ def test_explicit_task_uses_structured_activity_route_without_tools(
         assert coordinator._inflight is not None
         assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_complex_owner_chat_uses_bounded_deliberation_without_tool_protocol() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="请比较这三个模型的优缺点，并解释你的判断。",
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.response_mode is ModelResponseMode.DIRECT_REPLY
+        assert request.reasoning_mode == "long"
+        assert request.allowed_tools == ()
+        assert "[SEARCH]" not in request.system_prompt
+        assert "PERSISTENT_ACTIVITY_ROUTING" not in request.system_prompt
+        assert coordinator._inflight is not None
+        task = coordinator._inflight.task
+        assert task.reasoning_depth.value == "deliberate"
+        assert task.reasoning_budget.max_model_calls == 2
+        assert task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()
         coordinator.stop()

@@ -2,7 +2,7 @@
 
 > 状态：已确认设计
 > 确认日期：2026-08-12
-> 最近修订：2026-08-12
+> 最近修订：2026-08-31
 > 性质：跨版本 Brain 概念设计、职责边界、运行关系、对抗检查与渐进实现优先级
 > 不代表：当前源码已经实现本文能力，也不在本阶段固定目录、Schema、阈值和通信协议
 
@@ -118,8 +118,8 @@ Activity、重启恢复和重复发送保护都只是口头设计。
 | 4 | 情绪 | Emotion | `emotion/` | 有独立状态、衰减和跨回合反馈 | 少量可解释维度和确定性更新 |
 | 5 | 能量 | Energy | `energy/` | 生命节律、认知资源和行为预算具有独立时钟与硬约束 | 基本能量、疲劳和预算；复杂昼夜后加 |
 | 6 | 动机 | Motivation | `motivation/` | 主动生活不能靠随机定时器或外部消息伪造 | 少量驱力、满足、饱和和冷却 |
-| 7 | 记忆 | Memory | `memory/` | 长期经历、关系和知识有独立编码与检索规则 | 工作记忆、关键情景和人物关系最小闭环 |
-| 8 | 思考中枢 | Reasoning Core | `reasoning/` | 当前 Turn 的理解、推理、验证、抑制和选择需要统一所有者 | 单次结构化认知回合；复杂 Agent 能力后加 |
+| 7 | 记忆 | Memory | `memory/` | 持久经历、关系和知识有独立编码与检索规则 | 关键情景、来源、最小人物/关系与检索闭环 |
+| 8 | 思考中枢 | Reasoning Core | `reasoning/` | 当前 Turn 的理解、上下文连续、推理、验证、抑制和选择需要统一所有者 | Reasoning Context Workspace 与单次结构化认知回合；复杂 Agent 能力后加 |
 | 9 | 跨回合活动 | Persistent Activity | `activity/` | 未来等待、承诺和多步工作不能塞进当前 Turn | 基本创建、等待、触发、回执和终态 |
 | 10 | 心智整理 | Cognitive Consolidation | `consolidation/` | 经历整理具有独立时机、预算和禁止外部行动的权限边界 | 后期启用；初期只预留接口和状态边界 |
 
@@ -277,7 +277,7 @@ Profile、Canon，也不接收任何创建资料。
 
 **拥有**：
 
-- 感觉缓冲、工作记忆、情景记忆和语义知识；
+- 持久情景记忆和语义知识；
 - 人物、关系、联系方式、信任和社会语境；
 - 程序性经验和结果经验；
 - 来源、可信度、冲突、不确定性和主观视角；
@@ -288,13 +288,18 @@ Profile、Canon，也不接收任何创建资料。
 
 **输出**：面向人物、时间、地点、情绪、主题和因果的检索结果，以及正式记忆提交结果。
 
-**不拥有**：不可变身份、当前 Orientation Snapshot、CognitiveRunState、ActivityState 和所有学习。
+**不拥有**：不可变身份、Event Workspace、Reasoning Context Workspace、当前
+Orientation Snapshot、CognitiveRunState、ActivityState 和所有学习。Memory 的语义状态
+全部持久化；请求内 Recall 载荷和缓存不是另一套状态 owner。
 
 知识是 Memory 内部保存的一类内容。学习是跨系统协议：Memory 学事实和经验，Personality 学稳定倾向，
 Attention 学习惯化，Drive 学满足路径，Reasoning Core 学解决策略。所有学习都应采用
 “候选 → 证据/边界校验 → 权威所有者提交”，不能由模型直接改写权威状态。
 
 ### 5.8 思考中枢（Reasoning Core）
+
+本系统已经确认的内部展开见
+[Reasoning Core 单 Turn Agent 详细设计](./elfie-reasoning-core.md)。
 
 **定位**：接收一个单域 `TurnFrame`，组装这一轮所需上下文，并通过可多步迭代的 Agent 思考循环形成
 最终 `TurnDecision`。
@@ -306,9 +311,11 @@ Observation，不等于一次大模型请求。
 **拥有**：
 
 - Turn 理解和复杂度判断；
-- Context Assembler：按本轮事件从自我定位、自我认知、情绪、能量、动机、记忆和跨回合活动中读取、
-  检索、裁剪并组织上下文；
-- `ReasoningRun` 与内部 Cognitive Step；
+- 内部 `Reasoning Context Workspace`：有界交替对话、活跃话题、带来源摘要和本 Run Observation；
+- Context Engine：每个认知步骤前，从自我定位、自我认知、情绪、能量、动机、记忆和跨回合活动中
+  读取、检索、裁剪、压缩并组织上下文；
+- Memory Bridge：绑定同一 revision 的基础 Recall 和按需 Recall；
+- `ReasoningRun`、`DIRECT/DELIBERATE` 深度与内部 Cognitive Step；
 - 临时 Cognitive Plan；
 - Reason/Act/Observation 循环；
 - Model、Skill、Tool 和受限 Worker 的选择与调用编排；
@@ -316,8 +323,9 @@ Observation，不等于一次大模型请求。
 - 元认知检查、冲动抑制、候选竞争和行动选择；
 - 结构化 `TurnDecision`。
 
-**输入**：TurnFrame、OrientationSnapshot、Self/Personality/Norms、Emotion、Energy、Motivation、Memory、
-Activity 摘要、能力和预算摘要。
+**输入**：一个 `TurnFrame`；只读 Orientation、Selfhood、Emotion、Energy、Motivation 与 Activity
+投影；Food/能力/预算投影；以及通过 Memory Bridge 获得的类型化 Recall。相关聊天历史从
+Reasoning 自己的 Context Workspace 读取，不再由外部输入第二份 Conversation authority。
 
 **AI Runtime 关系**：Model、Skill 和 Tool 的真实调用设施由外部 AI Runtime 提供，但调用发生在思考
 中枢的一次 `ReasoningRun` 内部。这里的 Tool 专指帮助认知的 Agent 工具，例如受限命令行、简单代码
@@ -337,11 +345,11 @@ Persistent Activity Request 三类受限行动候选，或者 `No-op`。澄清�
 **内部结算**：MemoryCandidate、情绪证据、自我或其他状态更新候选由各权威系统校验提交，不属于
 最终行动出口。
 
-**不拥有**：跨回合等待、长期 Activity、AI Runtime 的 Provider/Tool 实现、设备执行、硬能力边界和
-执行成功事实。
+**不拥有**：Event Workspace 准入、跨回合等待、长期 Activity、持久 Memory、AI Runtime 的
+Provider/Tool 实现、设备执行、硬能力边界和执行成功事实。
 
-Turn Admission 属于事件工作区；Cognitive Run State、Context Assembler、Agent Loop 和验证收敛属于
-思考中枢内部机制，不作为额外一级心智系统。
+Turn Admission 属于事件工作区；Context Workspace、Cognitive Run State、Context Engine、
+Agent Loop 和验证收敛属于思考中枢内部机制，不作为额外一级心智系统。
 
 ### 5.9 跨回合活动（Persistent Activity）
 
@@ -410,7 +418,7 @@ flowchart TB
 
     GS["Genesis 创建的 Selfhood 状态"] --> SH["3. 自我认知"]
 
-    subgraph STATE["本轮上下文来源"]
+    subgraph STATE["本轮只读状态来源"]
         OR["2. 自我定位"]
         SH
         EM["4. 情绪"]
@@ -420,34 +428,23 @@ flowchart TB
         AC["9. 跨回合活动"]
     end
 
-    subgraph RC["8. 思考中枢：一次完整 Turn"]
-        CA["Context Assembler"] --> LOOP["Agent Loop"]
+    RC["8. 思考中枢<br/>一个 Turn / 一个 ReasoningRun<br/>内部 1..N 次有界认知迭代"]
+    AIR["AI Runtime<br/>Model · 分阶段启用的 Skill / Tool"]
+    TD["TurnDecision"]
 
-        subgraph AIR["AI Runtime"]
-            MODEL["Model"]
-            SKILL["Skill"]
-            TOOL["Tool"]
-        end
-
-        LOOP <--> MODEL
-        LOOP <--> SKILL
-        LOOP --> TOOL
-        TOOL -->|"Observation"| LOOP
-        LOOP -->|"ActivityDraft / Preflight"| AC
-        AC -->|"Preflight Result"| LOOP
-        LOOP --> CHECK["Verifier / Completion Judge"]
-        CHECK -->|"未收敛"| LOOP
-        CHECK -->|"收敛"| TD["TurnDecision"]
-    end
-
-    TF --> CA
-    OR --> CA
-    SH --> CA
-    EM --> CA
-    EN --> CA
-    MO --> CA
-    ME --> CA
-    AC --> CA
+    TF --> RC
+    OR --> RC
+    SH --> RC
+    EM --> RC
+    EN --> RC
+    MO --> RC
+    AC -->|"冻结状态投影 / Preflight Result"| RC
+    RC -->|"无副作用 ActivityDraft / Preflight"| AC
+    RC -->|"Recall query"| ME
+    ME -->|"Recall evidence"| RC
+    RC -->|"Model / 分阶段认知调用"| AIR
+    AIR -->|"Result / Observation"| RC
+    RC --> TD
 
     TD --> DB["统一决策与执行边界"]
     DB --> CD["Communication Directive"]
@@ -466,6 +463,7 @@ flowchart TB
     CC --> IT
 
     TF --> TS["Turn Settlement<br/>候选、证据与回执结算"]
+    RC -->|"Context / Memory candidates"| TS
     TD --> TS
     CR --> TS
     BR --> TS
@@ -478,16 +476,22 @@ flowchart TB
     TS --> MO
     TS --> ME
     TS --> AC
+    TS -->|"Reasoning context settlement"| RC
 ```
 
-图中的 AI Runtime 位于思考中枢的 Agent Loop 内，表示 Model、Skill 和 Tool 调用都发生在同一个 Turn
-的内部思考过程中；AI Runtime 仍是外部提供的计算与执行底座，不取得人格、长期状态或最终行动权。
-Context Assembler 是思考中枢的内部组件，不是第十一个一级系统。Activity Preflight 只是当前 Agent
-Loop 的同步校验调用，不创建 Activity，也不取得外部行动权。
+十系统总图刻意把思考中枢折叠成一个节点，只表达系统关系和 Turn 边界；节点中的 `1..N` 表示
+`DIRECT` 通常一次认知迭代结束，而 `DELIBERATE`、Recall 或修正可以在同一 Run 内有界回环。
+回环的唯一权威定义见 [Reasoning Core 单 Turn Agent 详细设计](./elfie-reasoning-core.md#5-权威内部流程图)，
+本图不再复制另一套内部控制流。
+
+AI Runtime 仍是思考中枢调用的外部计算与执行底座，不取得人格、长期状态或最终行动权。
+Reasoning Context Workspace、Context Engine、Memory Bridge、Run Controller 和 Agent Loop 都是
+思考中枢内部组件，不是新的一级系统。Activity Preflight 只是当前 Agent Loop 的同步校验调用，
+不创建 Activity，也不取得外部行动权。
 
 `Turn Settlement` 同样不是新的一级系统，而是在线回合结束和执行回执到达时的内部结算协议。它把
 TurnFrame、状态候选、Directive Receipt 和 Activity 状态事件按来源、版本、因果 ID 与幂等键交给
-真正拥有状态的系统校验和提交；只有提交成功的状态才能进入以后回合的 Context Assembler。
+真正拥有状态的系统校验和提交；只有提交成功的状态才能进入以后回合的 Context Engine。
 
 ### 6.1 在线认知回路
 
@@ -495,20 +499,18 @@ TurnFrame、状态候选、Directive Receipt 和 Activity 状态事件按来源�
 Domain Event
 → Event Workspace
 → 单域 TurnFrame
-→ Context Assembler 按当前事件读取并裁剪相关状态、记忆和活动摘要
-→ Agent Loop 多次调用 Model / Skill / Tool
-→ Observation 返回同一 Turn 继续思考
-→ 如需跨回合活动，以 ActivityDraft 同步 Preflight；不完整则在本 Turn 澄清
-→ 验证、完成判断、抑制和收敛
+→ 思考中枢执行一个有界 ReasoningRun（内部 1..N 次认知迭代）
 → TurnDecision
 → 统一决策与执行边界
 → Communication Directive / Nervous System Directive / Persistent Activity Request
 → 通过 Preflight 的 Activity Request 提交，或外部系统执行
 → Turn Settlement 根据候选、回执和状态事件更新各权威系统
+→ 只有投递完成 Receipt 才把 Elfie 回复追加进 Context Workspace
 → 外部执行回执或活动触发事件重新进入 Event Workspace
 ```
 
-一个 Turn 可以包含多个 Cognitive Step，但始终只有一个 `SourceDomain` 和一个最终 `TurnDecision`。
+一个 Turn 可以包含多个 Cognitive Step，但始终只有一个 `SourceDomain`、一个 `ReasoningRun` 和一个
+最终 `TurnDecision`；内部回边、继续条件和终止条件只由 Reasoning 详细设计第 5 节定义。
 Communication 与 Nervous System 是互斥的外部执行域；Persistent Activity Request 是内部后续请求。
 MemoryCandidate 等内部状态候选在 Turn Settlement 中交给相应权威系统，不经过外部执行路由。
 Tool 对认知工作区的合法修改在 Agent Loop 内完成；它既不进入三类最终行动出口，也不能被借用来
@@ -630,8 +632,8 @@ Infrastructure 分别属于十系统内部机制或外部保障，不是平级�
 | 情绪 | 少量持续维度、事件反馈、衰减和表达影响 | 复杂情绪理论和长期人格塑形 |
 | 能量 | 基本能量/疲劳、Turn/Activity 预算、紧急储备和低能量降级 | 完整生理仿真和精密昼夜模型 |
 | 动机 | 少量安全、休息、依恋、好奇和承诺驱力，带满足与冷却 | 大规模需求模型和强化学习 |
-| 记忆 | 工作记忆、关键情景、人物关系、来源和最小检索 | 全图谱推理、复杂遗忘与自动知识体系 |
-| 思考中枢 | 基本理解、结构化决定、必要验证和抑制 | 通用长链 Planner、大量 Skills、Worker 编排 |
+| 记忆 | 关键持久情景、人物关系、来源和最小检索 | 全图谱推理、复杂遗忘与自动知识体系 |
+| 思考中枢 | Reasoning Context Workspace、Direct/Deliberate 无工具聊天、结构化决定、必要验证和抑制 | 通用长链 Planner、大量 Skills、Worker 编排 |
 | 跨回合活动 | 创建校验、等待、内部触发、单域 Step、回执和终态 | 复杂 Goal 图、深层派生和高级重规划 |
 | 心智整理 | 只预留输入、候选输出和权限边界 | P0 不启用完整 Consolidation Run |
 

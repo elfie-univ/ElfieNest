@@ -176,6 +176,72 @@ def test_memory_use_references_are_limited_to_the_recall_allow_list() -> None:
     )
 
 
+def test_cognitive_action_canonicalizes_omitted_assertion_namespace() -> None:
+    # Given: RecallBundle exposes the persisted assertion id with its namespace,
+    # while the model copies only the visible assertion suffix.
+    raw = {
+        "type": "answer",
+        "content": "记得，是蓝色。",
+        "memory_uses": [
+            {
+                "target_kind": "assertion",
+                "target_id": "a1",
+                "claim_ref": "主人喜欢蓝色",
+            }
+        ],
+    }
+
+    result = DecisionPlanDecoder().decode_cognitive_action(
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=(("assertion", "assertion:a1"),),
+    )
+
+    # Then: the decoder accepts the boundary shorthand but returns the one
+    # canonical id that downstream Memory settlement understands.
+    assert result.action is not None
+    assert result.action.memory_uses[0].target_id == "assertion:a1"
+    assert result.report.fallback_reason is None
+
+
+def test_cognitive_action_rejects_unknown_assertion_suffix() -> None:
+    # Given: an assertion suffix that is not present in the RecallBundle.
+    raw = {
+        "type": "answer",
+        "content": "我不确定。",
+        "memory_uses": [
+            {
+                "target_kind": "assertion",
+                "target_id": "unknown",
+            }
+        ],
+    }
+
+    result = DecisionPlanDecoder().decode_cognitive_action(
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=(("assertion", "assertion:a1"),),
+    )
+
+    # Then: unknown references remain fail-closed.
+    assert result.action is None
+    assert result.report.fallback_reason == "cognitive_action_validation_failed"
+    assert any(
+        "outside the supplied RecallBundle" in error
+        for error in result.report.validation_errors
+    )
+
+
 def test_json_mode_valid_text_decodes_without_repair() -> None:
     # Given: a JSON-mode model returns valid DecisionPlan text.
     # When: the decoder validates the JSON boundary.

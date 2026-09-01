@@ -2,7 +2,7 @@
 
 > Status: accepted design<br>
 > Confirmed: 2026-08-12<br>
-> Last revised: 2026-08-12<br>
+> Last revised: 2026-08-31<br>
 > Nature: cross-version Brain conceptual design, responsibility boundaries,
 > runtime relationships, adversarial checks and incremental implementation priorities<br>
 > Does not mean: the current source already implements these capabilities, or
@@ -140,8 +140,8 @@ created before real state, contracts and behavior exist.
 | 4 | Emotion | `emotion/` | Has independent state, decay and cross-turn feedback | A few explainable dimensions with deterministic updates |
 | 5 | Energy | `energy/` | Life rhythm, cognitive resources and behavior budgets have their own clocks and hard constraints | Basic energy, fatigue and budgets; complex circadian behavior later |
 | 6 | Motivation | `motivation/` | Proactive life cannot be simulated by random timers or external messages | A few drives with satisfaction, saturation and cooldown |
-| 7 | Memory | `memory/` | Long-lived experience, relationships and knowledge have independent encoding and retrieval rules | Working memory, key episodes and minimum person relationships |
-| 8 | Reasoning Core | `reasoning/` | Understanding, reasoning, verification, inhibition and choice for the current Turn need one owner | One structured cognitive Turn; advanced Agent ability later |
+| 7 | Memory | `memory/` | Durable experience, relationships and knowledge have independent encoding and retrieval rules | Key episodes, provenance, minimum people/relationships and retrieval |
+| 8 | Reasoning Core | `reasoning/` | Understanding, context continuity, reasoning, verification, inhibition and choice for the current Turn need one owner | Reasoning Context Workspace and one structured cognitive Turn; advanced Agent ability later |
 | 9 | Persistent Activity | `activity/` | Future waits, commitments and multi-step work cannot live inside the current Turn | Creation, waiting, triggering, receipts and terminal states |
 | 10 | Cognitive Consolidation | `consolidation/` | Experience organization has its own schedule, budget and no-external-action boundary | Enabled later; initially only its interface and state boundary |
 
@@ -298,11 +298,11 @@ permissions. Drives cannot act directly.
 **Role:** Stores Elfie's subjective experiences, knowledge, person relationships
 and reusable experience.
 
-**Owns:** sensory buffer, working, episodic and semantic memory; people,
-relationships, contact details, trust and social context; procedural and outcome
-experience; source, confidence, conflict, uncertainty and subjective viewpoint;
-encoding, retrieval, consolidation, forgetting, reactivation and association;
-one pre- and post-adoption memory timeline.
+**Owns:** durable episodic and semantic memory; people, relationships, contact
+details, trust and social context; procedural and outcome experience; source,
+confidence, conflict, uncertainty and subjective viewpoint; encoding,
+retrieval, consolidation, forgetting, reactivation and association; one pre-
+and post-adoption memory timeline.
 
 **Inputs:** event evidence, MemoryCandidates from Reasoning Core, execution
 receipts and consolidation candidates.
@@ -310,8 +310,10 @@ receipts and consolidation candidates.
 **Outputs:** retrieval by person, time, place, emotion, topic and cause, plus
 formal memory-commit results.
 
-**Does not own:** immutable identity, current Orientation Snapshot,
-CognitiveRunState, ActivityState or every kind of learning.
+**Does not own:** immutable identity, Event Workspace, Reasoning Context
+Workspace, current Orientation Snapshot, CognitiveRunState, ActivityState or
+every kind of learning. Memory semantic state is durable; request-local Recall
+payloads and caches are not another state owner.
 
 Knowledge is content stored by Memory. Learning is a cross-system protocol:
 Memory learns facts and experience, Personality learns stable tendencies,
@@ -322,17 +324,30 @@ authoritative state.
 
 ### 5.8 Reasoning Core
 
+The accepted internal expansion is the
+[Reasoning Core single-Turn Agent design](./elfie-reasoning-core.md).
+
 **Role:** Accepts one single-domain `TurnFrame`, assembles the necessary context
 and produces the final `TurnDecision` through a potentially multi-step Agent loop.
 A Turn begins when Workspace admits a Communication, Embodied or Internal event
 and ends when the final decision is formed. It may include multiple model,
 Skill and Tool calls and Observations; it is not one model request.
 
-**Owns:** Turn understanding and complexity assessment; a Context Assembler that
-reads, retrieves, trims and organizes Orientation, Selfhood, Emotion, Energy,
-Motivation, Memory and Activity context; `ReasoningRun` and Cognitive Steps;
-temporary Cognitive Plan; Reason/Act/Observation loop; selection and orchestration
-of Model, Skill, Tool and scoped Worker; Evidence, Verifier and Completion Judge;
+**Inputs:** one `TurnFrame`; read-only Orientation, Selfhood, Emotion, Energy,
+Motivation and Activity projections; Food/capability/budget projections; and
+typed Memory Recall through Memory Bridge. Relevant conversation is read from
+Reasoning's own Context Workspace rather than supplied as a second external
+Conversation authority.
+
+**Owns:** Turn understanding and complexity assessment; the internal
+`Reasoning Context Workspace` containing bounded alternating dialogue, active
+topic, source-linked summaries and current-Run Observations; a Context Engine
+that reads, retrieves, trims, compacts and organizes Orientation, Selfhood,
+Emotion, Energy, Motivation, Memory and Activity context before every cognitive
+step; a Memory Bridge for revision-bound baseline and on-demand Recall;
+`ReasoningRun`, `DIRECT/DELIBERATE` depth and Cognitive Steps; temporary
+Cognitive Plan; Reason/Act/Observation loop; selection and orchestration of
+Model, Skill, Tool and scoped Worker; Evidence, Verifier and Completion Judge;
 metacognitive checks, impulse inhibition, candidate competition and action
 selection; structured `TurnDecision`.
 
@@ -358,10 +373,11 @@ A clarification question is expressed through the current source domain.
 **Internal settlement:** Memory, emotion, selfhood and other state candidates
 are validated and committed by their authoritative systems, not action exits.
 
-**Does not own:** cross-turn waiting, durable Activities, AI Runtime provider or
-Tool implementations, device execution, hard capability boundaries or execution
-success facts. Turn Admission belongs to Workspace; run state, context assembly,
-the Agent loop and convergence are internal Reasoning Core mechanisms.
+**Does not own:** Event Workspace admission, cross-turn waiting, durable
+Activities, durable Memory, AI Runtime provider or Tool implementations, device
+execution, hard capability boundaries or execution-success facts. Turn
+Admission belongs to Event Workspace; Context Workspace, Run state, context
+assembly, the Agent loop and convergence are internal Reasoning Core mechanisms.
 
 ### 5.9 Persistent Activity
 
@@ -430,7 +446,7 @@ flowchart TB
 
     GS["Genesis-created Selfhood state"] --> SH["3. Selfhood"]
 
-    subgraph STATE["Context sources for this Turn"]
+    subgraph STATE["Read-only state sources for this Turn"]
         OR["2. Orientation"]
         SH
         EM["4. Emotion"]
@@ -440,34 +456,23 @@ flowchart TB
         AC["9. Persistent Activity"]
     end
 
-    subgraph RC["8. Reasoning Core: one complete Turn"]
-        CA["Context Assembler"] --> LOOP["Agent Loop"]
+    RC["8. Reasoning Core<br/>one Turn / one ReasoningRun<br/>bounded 1..N cognitive iterations inside"]
+    AIR["AI Runtime<br/>Model · stage-gated Skill / Tool"]
+    TD["TurnDecision"]
 
-        subgraph AIR["AI Runtime"]
-            MODEL["Model"]
-            SKILL["Skill"]
-            TOOL["Tool"]
-        end
-
-        LOOP <--> MODEL
-        LOOP <--> SKILL
-        LOOP --> TOOL
-        TOOL -->|"Observation"| LOOP
-        LOOP -->|"ActivityDraft / Preflight"| AC
-        AC -->|"Preflight Result"| LOOP
-        LOOP --> CHECK["Verifier / Completion Judge"]
-        CHECK -->|"not converged"| LOOP
-        CHECK -->|"converged"| TD["TurnDecision"]
-    end
-
-    TF --> CA
-    OR --> CA
-    SH --> CA
-    EM --> CA
-    EN --> CA
-    MO --> CA
-    ME --> CA
-    AC --> CA
+    TF --> RC
+    OR --> RC
+    SH --> RC
+    EM --> RC
+    EN --> RC
+    MO --> RC
+    AC -->|"frozen projection / Preflight Result"| RC
+    RC -->|"side-effect-free ActivityDraft / Preflight"| AC
+    RC -->|"Recall query"| ME
+    ME -->|"Recall evidence"| RC
+    RC -->|"Model / stage-gated cognitive call"| AIR
+    AIR -->|"Result / Observation"| RC
+    RC --> TD
 
     TD --> DB["Unified decision and execution boundary"]
     DB --> CD["Communication Directive"]
@@ -486,6 +491,7 @@ flowchart TB
     CC --> IT
 
     TF --> TS["Turn Settlement<br/>candidate, evidence and receipt settlement"]
+    RC -->|"Context / Memory candidates"| TS
     TD --> TS
     CR --> TS
     BR --> TS
@@ -498,14 +504,22 @@ flowchart TB
     TS --> MO
     TS --> ME
     TS --> AC
+    TS -->|"Reasoning context settlement"| RC
 ```
 
-AI Runtime is inside Reasoning Core's Agent loop in the diagram because Model,
-Skill and Tool calls occur inside one Turn. It remains external computation and
-execution infrastructure and acquires neither personality, durable state nor
-final action authority. Context Assembler is internal, not an eleventh system.
-Activity Preflight is a synchronous validation call; it neither creates an
-Activity nor gains external action authority.
+The ten-system diagram deliberately collapses Reasoning Core into one node and
+shows only system relationships and the Turn boundary. The node's `1..N` means
+that `DIRECT` normally ends after one cognitive iteration, while `DELIBERATE`,
+Recall or revision may loop within the same bounded Run. The sole authoritative
+back edge is defined by the [Reasoning Core single-Turn Agent design](./elfie-reasoning-core.md#5-authoritative-internal-control-flow-diagram);
+this diagram does not duplicate that internal control flow.
+
+AI Runtime remains external computation and execution infrastructure invoked by
+Reasoning Core; it acquires neither personality, durable state nor final action
+authority. Reasoning Context Workspace, Context Engine, Memory Bridge, Run
+Controller and Agent Loop are internal, not additional peer systems. Activity
+Preflight is a synchronous validation call; it neither creates an Activity nor
+gains external action authority.
 
 Turn Settlement is also an internal protocol, not another system. It submits
 TurnFrame, state candidates, directive receipts and Activity events to the real
@@ -518,21 +532,20 @@ state may enter later Context Assembly.
 Domain Event
 → Event Workspace
 → single-domain TurnFrame
-→ Context Assembler reads and trims relevant state, memory and activity summaries
-→ Agent Loop calls Model / Skill / Tool as needed
-→ Observations return to the same Turn
-→ cross-turn work uses synchronous ActivityDraft Preflight; incomplete work is clarified now
-→ verification, completion judgment, inhibition and convergence
+→ Reasoning Core executes one bounded ReasoningRun (1..N cognitive iterations inside)
 → TurnDecision
 → unified decision and execution boundary
 → Communication Directive / Nervous System Directive / Persistent Activity Request
 → validated Activity Request is committed, or an external system executes
 → Turn Settlement applies candidates, receipts and state events to authoritative systems
+→ only a completed delivery receipt appends the Elfie reply to Context Workspace
 → external receipts or activity triggers re-enter Event Workspace
 ```
 
-One Turn may have many Cognitive Steps but one `SourceDomain` and one final
-`TurnDecision`. Communication and Nervous System are mutually exclusive external
+One Turn may have many Cognitive Steps but only one `SourceDomain`, one
+`ReasoningRun` and one final `TurnDecision`; its back edge, continuation guard
+and termination rules are defined only by section 5 of the detailed Reasoning
+design. Communication and Nervous System are mutually exclusive external
 domains; Persistent Activity Request is an internal follow-up. Internal state
 candidates go directly to their owners during Settlement. Legal cognitive Tool
 changes stay inside the Agent loop and cannot access files outside the workspace,
@@ -657,8 +670,8 @@ whether the stage forms a visible closed loop, not on equal work per system.
 | Emotion | a few persistent dimensions, event feedback, decay and expression effects | complex emotion theory and personality shaping |
 | Energy | energy/fatigue, Turn/Activity budgets, emergency reserve and degradation | full physiology and precise circadian simulation |
 | Motivation | a few safety, rest, attachment, curiosity and commitment drives with satisfaction/cooldown | large need model and reinforcement learning |
-| Memory | working memory, key episodes, relationships, source and minimum retrieval | full graph reasoning, complex forgetting and automatic knowledge system |
-| Reasoning Core | basic understanding, structured decision, validation and inhibition | generic long-horizon Planner, many Skills and Worker orchestration |
+| Memory | key durable episodes, relationships, provenance and minimum retrieval | full graph reasoning, complex forgetting and automatic knowledge system |
+| Reasoning Core | Reasoning Context Workspace, direct/deliberate no-tool chat, structured decision, validation and inhibition | generic long-horizon Planner, many Skills and Worker orchestration |
 | Persistent Activity | validation, waiting, internal trigger, single-domain Steps, receipts and terminal states | complex Goal graph, deep derivation and advanced replanning |
 | Cognitive Consolidation | reserve inputs, candidate outputs and permission boundary | a complete Consolidation Run |
 

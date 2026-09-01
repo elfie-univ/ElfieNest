@@ -19,6 +19,8 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   一级所有权。
 - [Elfie 大脑十系统架构](./designs/elfie-brain-ten-system-architecture)：Brain 的概念系统、
   运行关系和渐进实现顺序。
+- [Elfie Reasoning Core](./designs/elfie-reasoning-core)：Reasoning 自有 Context Workspace
+  与有界单 Turn Agent 循环。
 - [Elfie Selfhood 与固定模型头部](./designs/elfie-selfhood-and-fixed-model-header)：
   Selfhood 两层 authority 与在线模型严格四段固定前缀。
 - [Elfie Brain 评价与进化系统](./designs/elfie-brain-evaluation-system)：以证据为先的
@@ -42,6 +44,7 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
   后续 Brain 迁移使用独立的限定范围台账，包括
   [Emotion](./conformance/elfie-emotion) 与
   [Selfhood](./conformance/elfie-selfhood)，不重新打开已经关闭的主体级台账。
+  Reasoning P0 由永久聚焦测试继续守护。
 - [Elfie Memory 一致性](./conformance/elfie-memory)：Memory 存储、整理、检索和兼容边界的实现状态及剩余外部验收门禁。
 - [应用架构契约](./contracts/application)：`app/` 新增和已迁移代码的所有权、
   依赖方向、Port/Adapter 和组合根规范。
