@@ -43,7 +43,7 @@ _FENCED_JSON_PATTERN = re.compile(
     r"^```(?:json)?\s*(?P<body>.*?)\s*```$",
     flags=re.IGNORECASE | re.DOTALL,
 )
-_COGNITIVE_ACTION_ADAPTER = TypeAdapter(CognitiveAction)
+_COGNITIVE_ACTION_ADAPTER: TypeAdapter[CognitiveAction] = TypeAdapter(CognitiveAction)
 
 
 @unique
@@ -342,7 +342,7 @@ class DecisionPlanDecoder:
             target_id = str(reference.target_id)
             key = (target_kind, target_id)
             if key in allowed_set:
-                canonical_id = target_id
+                canonical_id: Optional[str] = target_id
             else:
                 canonical_id = DecisionPlanDecoder._assertion_suffix_match(
                     target_kind,
