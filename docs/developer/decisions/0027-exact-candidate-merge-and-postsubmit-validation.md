@@ -89,6 +89,17 @@ GitHub's native merge queue supplies ElfieNest's exact synthetic merge.
   path-scoped independent review for governance/CI. Repository source alone
   cannot claim that external state is active.
 
+## Operational clarification: skipped affected lanes
+
+The candidate-evidence publisher is downstream of the affected-path graph. The
+graph intentionally skips lanes unrelated to a candidate, so this publisher
+must evaluate its dispatch condition with `always()` and then require successful
+`preflight` and `merge-gate` results explicitly. This keeps skipped lanes out of
+the publisher's implicit success predicate; it does not treat a skipped selected
+lane as success, because `elfienest/ci-gate` still rejects missing, skipped,
+cancelled or failed selected lanes. No validation scope or branch-protection
+requirement changes.
+
 ## Alternatives rejected
 
 - **Keep full G3 before every merge:** preserves broad coverage but violates the

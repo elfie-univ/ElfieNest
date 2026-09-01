@@ -1,6 +1,6 @@
 # Elfie Memory 一致性
 
-> 状态：source-first Memory 基线、类型化生产调用方、全新库边界、兼容清理和 Retention v2 实现均已完成（当前开发目标）；MEM-012 只剩外部 Outcome/outbox 边界和负责人体验确认，Memory Abstraction Loop 仍暂缓。0.5 兼容基线前不执行生产数据迁移。<br>
+> 状态：source-first Memory 基线、类型化生产调用方、全新库边界和兼容清理已完成。最小 Retention v3 公式/profile/schema/lifecycle 切片已实现；MEM-012 仍因有意暂缓的冷 Recall 通道、持久 Outcome/outbox 证据、耐久/重启证据和负责人确认保持 open。Memory Abstraction Loop 仍暂缓。0.5 兼容基线前不执行生产数据迁移。<br>
 > 基线：2026-08-30<br>
 > 目标：[Elfie Memory 设计](../designs/elfie-memory-architecture)
 
@@ -20,8 +20,8 @@
 | MEM-008 | P0 | closed | 确定性结构门、完整真实 Ark 门和负责人体验复核均已完成，第一阶段已通过。 | 可重放脱敏报告必须在 Stage 1 晋级前证明结构门、来源锚定、关系/冲突、重启和延迟。 | target=设计第 9.7 节及 `docs/.internal/elfie-stage1-memory-backed-chat-execution-plan.md`；inventory=`devtools/evals/stage1_chat_ark.py`、场景集和聚焦测试；references=`build/evaluations/stage1-chat/e1-ark-real-final/report.json`；verification=最终候选报告记录确定性 E1 86 项测试、33/33 个重复机器场景、33 次结构化 Ark 裁判调用，各适用维度最差分数均不低于 4，持久化扫描退出码 0，负责人已确认匿名样本；1 次 provider 空响应由既有有界失败路径恢复；residuals=0.5 之前不执行生产数据迁移，旧库按 MEM-007 备份/重建。 | Ark 鉴权和结构化裁判返回均通过，报告未写入密钥。 |
 | MEM-009 | P0 | closed | Brain、Reasoning 和 Lab 生产路径已消费类型化 `RecallBundle`/Memory inspection 和唯一的 `Memory Maintenance` 入口。Lab 回退、旧 Memory 门面分支、旧算法、旧持久化 mixin 及其专门测试均已删除。 | 保持唯一 typed Memory 路径，并证明旧 API/类/模块引用为零。 | target=设计第 4.2、4.4–4.5、6、9.5 节；inventory=`memory_system.py`、`reasoning/memory_context.py`、`devtools/elfie_lab/memory_projection.py`、`devtools/evals/opt003_memory_endurance.py`、`infrastructure/persistence/memory`；references=退役模块扫描和类型化 inspection 回归；verification=旧 API/类/模块引用为零、Memory/Brain/Genesis/Lab/产品回归、架构测试、Ruff 和持久化扫描；residuals=当前目标无残余。 | 生产调用方不构造或导入退役检索/格式化对象。 |
 | MEM-010 | P0 | closed（维护正确性） | Maintenance 共用有界预算，先 Consolidation 后 Lifecycle；强化后会调度 Node/Assertion；失败保留原检查点；可恢复过期租约并按 owner/attempt 隔离旧 Worker。 | 重试或竞争 Worker 不得跳过、重复或覆盖目标；投影失败时来源 Episode 必须可重试。 | target=设计第 4.4、9.2、9.6 节；inventory=`memory_system.py`、`sqlite_lifecycle_store.py`、`sqlite_graph_store.py`；references=维护强化回归；verification=单预算、仅生命周期唤醒、检查点重试、租约恢复、旧 Worker 隔离和来源保留测试；residuals=维护正确性无残余。 | 写事务不会等待模型/网络。 |
-| MEM-011 | P0 | closed（v1 基线，已被替代） | v1 Lifecycle 已安全地将投影 Episode 按 `full → compressed → digest → archived` 推进，保护来源并扫描历史到期记录，但也会直接衰减 `importance`。 | 保留已经验证的租约、重启、来源安全和一次一阶段机制；其评分语义由 MEM-012 替换。 | target=历史 v1 基线；inventory=`score_policy.py`、`sqlite_lifecycle_store.py`、`memory_system.py`；references=维护回归和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=历史到期扫描、未投影来源保护、四步生命周期重放、摘要保留、只衰减 importance 和重启检查；residuals=当前设计符合性在 MEM-012 中保持 open。 | 本行只是实现历史，不能证明固定 importance 衰减符合 Retention v2。 |
-| MEM-012 | P0 | open（关闭证据待补） | Retention v2 已实现：单一 `memory.v2` 策略统一拥有 `I/D/C/F`；全新 Schema v6 持久化 `importance`/`retention_days` 和仅 Node/Assertion 的 `confidence`；Evidence 按独立性去重；Genesis 使用 `D=3650`；Recall 按 `R/I/F/C` 排序；Maintenance 按 freshness 阈值推进且不改分数；类型化权威回执具备幂等性。 | 还需补齐外部边界证据：权威 Outcome 所有者持久化 outbox/proposal 并在进程重启后重放；同时由负责人确认脱敏真实模型样本。Pattern/Abstraction 保持 deferred。 | target=Memory Retention v2 设计第 2.3、3.3–3.4、4.3、5–6、9.2/9.4 节；inventory=`memory_records.py`、`score_policy.py`、`memory_store.py`、`memory_system.py`、`schema.py`、SQLite Episode/图谱/召回/生命周期 Store、Reasoning 结果路径、Genesis initializer 和 OPT-003 evaluator；references=`docs/.internal/elfie-memory-retention-v2-execution-plan.md`；verification=受影响 Memory/Reasoning/Genesis/Eval 测试 251/251、架构测试 223/223、Ruff/mypy、持久化扫描均通过；刷新后的 OPT-003 通过 10,000 Episode/50,000 Node/200,000 Assertion，Basic P95 59.503ms、Local P95 47.960ms（各 30 次）；真实 Ark `arrival-memory` 通过确定性门、机器门和裁判门（候选 1 次+裁判 1 次，各适用维度 5/5），报告 `/private/tmp/elfie-retention-v2-ark-final/report.json`；Retention v2 聚焦测试 23/23 通过。 | 本仓库的 `MemoryUseProposal` 目前暂存在 MemorySystem 内存中，没有独立持久化 Outcome store/outbox，因此跨进程崩溃/重放仍是外部集成门。真实 Ark promotion 仅因负责人体验确认保持 `BLOCKED`。只使用全新 schema；0.5 前不做 migration、回退读取或双写。 | Pattern 抽象不属于本行。 |
+| MEM-011 | P0 | closed（v1 基线，已被替代） | v1 Lifecycle 已安全地将投影 Episode 按 `full → compressed → digest → archived` 推进，保护来源并扫描历史到期记录，但也会直接衰减 `importance`。 | 保留已经验证的租约、重启、来源安全和一次一阶段机制；其评分语义由 MEM-012 替换。 | target=历史 v1 基线；inventory=`score_policy.py`、`sqlite_lifecycle_store.py`、`memory_system.py`；references=维护回归和 `build/evaluations/stage1-chat/opt003-current/report.json`；verification=历史到期扫描、未投影来源保护、四步生命周期重放、摘要保留、只衰减 importance 和重启检查；residuals=当前设计符合性在 MEM-012 中保持 open。 | 本行只是实现历史，不能证明符合 `memory.v3`。 |
+| MEM-012 | P0 | open | 当前代码已用单一 `memory.v3` 策略统一管理 `I/H/C/F`：Schema v7 持久化 `half_life_days` 和六值 `retention_profile`；准入使用策略拥有的 H0；`F=2^(-t/H)`；活跃且合格的结果使用 `H'=min(36500,H*(3-2F))`；权威来源 Evidence 可对未 forgotten 的 archived 身份按 `max(旧 H,H0)` 重学且不乘强化倍数；Lifecycle 保留 `.40/.20/.10/.01` 阈值；Recall 仍是现有 active-only 的 `R×A×quality` 路径。这次没有增加冷 Recall 通道或 Recall 状态契约。 | 保持这条最小切片的确定性，并证明聚焦向量、持久化/重开、Lifecycle 边界和按事件时间重放。冷 Recall/Recall 状态、Pattern 专用 H0、持久 Outcome/outbox 接入、大规模耐久性、真实模型验证和负责人确认作为独立验收门；Pattern/Abstraction 继续 deferred。 | target=Memory 设计第 2.3、3.3–3.4、4.3、5–6、8.4–8.5 和 9.2/9.4 节；inventory=`memory_records.py`、`score_policy.py`、`memory_store.py`、`memory_system.py`、`schema.py`、SQLite Episode/图谱/召回/生命周期 Store；references=当前已审查设计；verification=聚焦 Retention v3 策略/持久化测试、受影响 Memory/Brain 测试、compileall、Ruff/mypy 和持久化扫描（见下方当前运行证据）；residuals=上述暂缓通道需要单独范围、测试和负责人决策。 | 全新 schema 会有意拒绝 v6 数据库；本次不包含 migration、回退读取或双写。 |
 
 ## 当前基线后的优化台账
 
@@ -31,7 +31,7 @@
 | --- | --- | --- | --- | --- | --- |
 | OPT-001 | P0 | closed | 有界切片现已让冻结的 E1 fixture 走类型化 Elfaria World Canon/Genesis 路径，移除推理提示中与 Profile/Canon 重复的身份事实，覆盖跨文件发布失败时的清理，并通过确定性 E2/E3 门。 | OPT-001 无后续实现门。 | target=OPT-001；inventory=`config/world/elfaria.yaml`、类型化 Genesis 和领养模块；references=OPT-001 开工文档与 E1/E2/E3 场景集；verification=类型化 fixture、受影响 Memory/Reasoning 测试、确定性 E2/E3、Ruff 和持久化扫描通过；residuals=生产回填按计划未执行。 |
 | OPT-002 | P0 | closed | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链。 | 确定性持续学习回归的八类 source-first 场景全部通过。 | target=OPT-002；inventory=`conversation_context.py`、`settlement.py`、`consolidation.py` 和 SQLite Memory Adapter；references=OPT-002 开工文档与 Memory 设计第 9.4–9.5 节；verification=八类持续学习场景、受影响测试、Ruff 和持久化扫描通过；residuals=生产切换仍由 MEM-007 单独治理。 |
-| OPT-003 | P1 | closed（开发目标，v2 已刷新） | Lifecycle/Memory Maintenance 已采用经过审查的策略驱动遗忘/归档路径；耐久性评测覆盖代表性增长、来源锚定、重启、重试、锁等待以及 Basic/Local 延迟，且不调用模型。 | 无人值守维护继续受同一套有界 Worker/租约控制；存储或排序契约变化时重新运行评测。 | target=设计第 6、8.5、9.2 和 9.6 节；inventory=`sqlite_lifecycle_store.py`、`score_policy.py`、`sqlite_graph_store.py`、`devtools/evals/opt003_memory_endurance.py`；references=`/private/tmp/opt003-v2-full.json`（本机脱敏机器报告）；verification=10,000 Episode、50,000 Node、200,000 Assertion；全部 Assertion 有来源；Basic p95 59.503ms、Local p95 47.960ms（各 30 次）；幂等重试、重启一致、锁等待完成、退役模块/导入为零以及 full→compressed→digest→archived→forgotten 全部通过；seed 513.232s、总时长 537.174s；residuals=当前开发目标无残余。 |
+| OPT-003 | P1 | closed（v2 基线；`memory.v3` 必须重跑） | v2 Lifecycle/Memory Maintenance 和耐久性评测已覆盖代表性增长、来源锚定、重启、重试、锁等待以及 Basic/Local 延迟，且不调用模型。 | 保留同一套有界 Worker/租约控制；MEM-012 修改 schema、排序或生命周期语义后，必须重跑同等数据量及 v3 强化、archived 通道和重学门，才能把结果当作当前证据。 | target=设计第 6、8.4–8.5、9.2 和 9.6 节；inventory=`sqlite_lifecycle_store.py`、`score_policy.py`、`sqlite_graph_store.py`、`devtools/evals/opt003_memory_endurance.py`；references=`/private/tmp/opt003-v2-full.json`（历史本机脱敏机器报告）；verification=v2 基线：10,000 Episode、50,000 Node、200,000 Assertion；全部 Assertion 有来源；Basic p95 59.503ms、Local p95 47.960ms（各 30 次）；幂等重试、重启一致、锁等待完成、退役模块/导入为零以及 `full→compressed→digest→archived→forgotten` 全链路重放均通过；seed 513.232 秒，进程总时长 537.174 秒；residuals=v2 开发目标当时无残余，v3 证据则在 MEM-012 下保持 open。 |
 | OPT-004 | P1/P2 | deferred | 真实精灵巢观测、活动和多精灵互动尚未进入当前聊天闭环。 | 第二阶段真实巢场景接入后，再验证具身记忆和世界事件来源。 | — |
 | OPT-005 | P1 | deferred | 当前图谱能保存并召回带来源的 Node/Assertion，但尚未把它们聚合为 Pattern 知识 Node，也不能按场景召回并应用 Pattern；`patterns_created` 按设计保持为零。 | 将 Consolidation 内的图上聚合、带来源模型提案、确定性校验、Pattern 持久化、由事实所有者提供的场景特征匹配/向上遍历、结构化 `RecallBundle` 消费和结果反馈作为一个经过评测的端到端切片交付。 | target=设计第 3.5 节；inventory=`elfie/brain/memory/consolidation.py`、`memory_records.py`、`reasoning/memory_context.py`；references=Memory Abstraction Loop 边界；verification=未来的来源/幂等测试及跨场景召回、应用和反馈评测；residuals=Pattern 生成和应用当前均明确缺失。 |
 
@@ -58,7 +58,7 @@ OPT-002 实现与评测证据（2026-08-28）：target=持续学习 source-first
 2. 如果持久化 schema 或排序策略变化，重新运行 OPT-003 的有界增长和可恢复生命周期评测。
 3. 第二阶段真实巢接入后，为 OPT-004 建立具身记忆评测。
 4. 只按设计第 3.5 节定义的完整“抽象—应用”切片实施 OPT-005，不先制造无法使用的 Pattern 数据。
-5. 把 MEM-012 作为完整 Retention v2 垂直切片关闭后，v1 生命周期和排序证据才不再是当前缺口。
+5. 实现并关闭完整 `memory.v3` 垂直切片 MEM-012 后，Retention、生命周期和排序证据才能视为当前证据。
 
 要求的只读持久化盘点命令是：
 
@@ -66,6 +66,8 @@ OPT-002 实现与评测证据（2026-08-28）：target=持续学习 source-first
 uv run --no-sync python scripts/governance/persistence/scan.py --project-root . --check
 ```
 
-修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。本轮 Memory 强化和 Retention v2 实现已对开发目标收口；生产切换、具身世界评测和抽象/应用闭环仍单独治理。
+修改 schema 后必须再次运行。每一行只有在 target、inventory、references、verification 和 residuals 五类信息都记录完整后才能关闭。当前代码已进入 `memory.v3` 最小实现切片；冷 Recall、生产切换、具身世界评测和抽象/应用闭环仍单独治理。
 
-**收口状态：** ready
+当前最小切片的本地验证证据（2026-08-31）是：受影响 Memory/Brain 与持久化测试 `117 passed`；Ruff 检查和格式检查通过（24 个文件）；mypy 检查 21 个源码文件无问题；compileall 退出码为 0；持久化扫描退出码为 0；`git diff --check` 通过。该证据仍是聚焦验证，不替代 OPT-003 的大规模耐久/重启重跑或其他延期验收门。
+
+**收口状态：** open
