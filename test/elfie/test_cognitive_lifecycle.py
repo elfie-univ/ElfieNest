@@ -287,11 +287,17 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     # When: receipt facts age into the next frame.
     elfie.advance_clock(5.0)
 
-    # Then: the second turn sees execution receipts from the first turn.
-    assert runtime.second_started.wait(1)
+    # Then: the receipt-only frame is handled locally without another Provider call.
     elfie.wait_for_outcome_count(2, timeout=1)
-    assert "execution:receipt" in runtime.requests[1].user_prompt
+    assert len(runtime.requests) == 1
     second = elfie.turn_outcomes()[1]
+    second_decision = elfie.turn_decision(second.turn_id)
+    assert second_decision is not None
+    assert tuple(intent.type for intent in second_decision.plan.intents) == ("noop",)
+    second_reasoning = elfie.turn_reasoning(second.turn_id)
+    assert second_reasoning is not None
+    assert second_reasoning.model_calls == 0
+    assert second_reasoning.tool_calls == 0
     elfie.wait_for_output(second.turn_id, timeout=1)
 
     # When: the second turn deliberately completes with NoOp and time advances.
@@ -301,7 +307,7 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     # into cognition forever.
     with pytest.raises(TimeoutError):
         elfie.wait_for_outcome_count(3, timeout=0.2)
-    assert len(runtime.requests) == 2
+    assert len(runtime.requests) == 1
     journal_kinds = {entry.kind for entry in elfie.brain_journal()}
     assert BrainJournalKind.RUN_STARTED in journal_kinds
     assert BrainJournalKind.RUN_TERMINATED in journal_kinds
