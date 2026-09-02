@@ -6,8 +6,7 @@ Before starting the repository-wide pytest gate, check whether the current
 host can bind a loopback socket:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 The preflight does not skip or downgrade any test. It returns:
@@ -25,10 +24,10 @@ test or to rerun the entire suite after an isolated retry.
 ## Test layers
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/<changed-module>/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/<changed-module>/
+uv run --no-sync pytest test/architecture/
 # Run this only after the preflight above returns 0.
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/
+uv run --no-sync pytest test/
 ```
 
 The test directory mirrors the source. The root `test/` does not hold test
@@ -95,7 +94,7 @@ judges itself. See the
 ## Quality gate
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 

@@ -76,7 +76,7 @@ export function CustomProviderDialog({ onOpenChange, onSave, open, preset = "ope
     <form className="provider-form" onSubmit={(event) => { void submit(event) }}>
       <TextField autoFocus label={t("providerConnections.custom.displayName")} onChange={setAlias} placeholder={t("providerConnections.custom.displayNamePlaceholder")} required value={alias} />
       <TextField label="API Base URL" onChange={setApiBase} placeholder="https://host.example/v1" required type="url" value={apiBase} />
-      {authType === "none" ? null : <TextField autoComplete="new-password" label={t("providerConnections.custom.apiKey")} onChange={setApiKey} required type="password" value={apiKey} />}
+      {authType === "none" ? null : <TextField label={t("providerConnections.custom.apiKey")} masked onChange={setApiKey} required value={apiKey} />}
       <SelectField label={t("providerConnections.custom.apiMode")} onValueChange={setApiMode} options={[
         { label: "OpenAI Chat Completions", value: "chat_completions" },
         { label: "Anthropic Messages", value: "anthropic_messages" },

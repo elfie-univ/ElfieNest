@@ -129,8 +129,8 @@ knowledge:
     statement: Elfie 的母星名为 Elfaria。
     scope: world
     topic: world_identity
-    aliases: [母星, 家乡星球]
-    retrieval_terms: [Elfaria, 母星]
+    aliases: [母星, 家乡星球, 家乡, 来自哪里]
+    retrieval_terms: [Elfaria, 母星, 家乡, 来自哪里, 来自哪儿, 母星叫什么]
     level: common
     certainty: high
     status: active
@@ -979,4 +979,4 @@ genesis:
       - earth.adaptation
     required_module_ids:
       - earth_program
-  content_sha256: b14a4fa7115175fe479aa1e530910090d02c22d178acf5a63d034247125446da
+  content_sha256: 8f855c6d3ef1f5751dbd32331a7f9d8eb66b8619082245e5e7c849a1066735d1

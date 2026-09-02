@@ -1,11 +1,15 @@
 import json
 import urllib.error
 
+from infrastructure.models.report_records import ValidationObservation
 from infrastructure.models.validation.provider_validation import (
     ProviderValidationRunner,
     classify_latency,
     discover_provider_models,
     discover_provider_models_result,
+)
+from infrastructure.models.validation.provider_validation_runs import (
+    _reachability_failure_scope,
 )
 from infrastructure.models.validation.validation_models import CheckStatus
 from test.support.model_execution import model_execution_config
@@ -46,6 +50,87 @@ def test_transport_probe_uses_get_only_and_treats_missing_models_endpoint_as_rea
     assert result["transport_status"] == "reachable"
     assert captured[0][0].method == "GET"
     assert captured[0][0].data is None
+
+
+def test_transport_probe_treats_rate_limit_as_reachable(monkeypatch, tmp_path):
+    from infrastructure.models.catalog import verify_provider_transport
+
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["custom_openai"] = {
+        "api_base": "https://gateway.example/v1",
+        "api_mode": "chat_completions",
+        "api_key": "secret-for-test",
+    }
+    response = FakeResponse({})
+    response.status = 429
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request",
+        lambda request, timeout: response,
+    )
+
+    result = verify_provider_transport("custom_openai", config)
+
+    assert result["status"] == "active"
+    assert result["transport_status"] == "reachable"
+    assert result["error_code"] == "rate_limited"
+    assert result["error_scope"] == "endpoint"
+    assert result["error_category"] == "rate_limit"
+
+
+def test_transport_probe_treats_http_error_rate_limit_as_reachable(
+    monkeypatch, tmp_path
+):
+    from infrastructure.models.catalog import verify_provider_transport
+
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["custom_openai"] = {
+        "api_base": "https://gateway.example/v1",
+        "api_mode": "chat_completions",
+        "api_key": "secret-for-test",
+    }
+
+    def rate_limited(request, timeout):
+        _ = timeout
+        raise urllib.error.HTTPError(
+            request.full_url, 429, "Too Many Requests", {}, None
+        )
+
+    monkeypatch.setattr(
+        "infrastructure.models.catalog.open_provider_request",
+        rate_limited,
+    )
+
+    result = verify_provider_transport("custom_openai", config)
+
+    assert result["status"] == "active"
+    assert result["transport_status"] == "reachable"
+    assert result["error_code"] == "rate_limited"
+    assert result["error_scope"] == "endpoint"
+    assert result["error_category"] == "rate_limit"
+
+
+def test_legacy_quota_outer_category_does_not_block_rate_limited_reachability():
+    observation = ValidationObservation(
+        observation_id=1,
+        run_id="run-1",
+        subject_kind="provider",
+        subject_id="custom_openai_0001",
+        observed_at="2026-08-15T11:59:00+00:00",
+        status="failed",
+        latency_ms=100.0,
+        time_to_first_token_ms=None,
+        error_category="quota",
+        error_message="HTTP 429: temporary overload",
+        details={
+            "error_code": "rate_limited",
+            "error_scope": "endpoint",
+            "error_category": "rate_limit",
+        },
+    )
+
+    assert _reachability_failure_scope(observation) is None
 
 
 class FakeResponse:
@@ -161,6 +246,86 @@ def test_curated_provider_keeps_inventory_when_no_id_matches_core_list(
     assert [model.name for model in result.models] == ["unknown-platform-model"]
     assert result.models[0].curated is False
     assert result.authoritative is True
+
+
+def test_gemini_model_ids_are_normalized_and_free_models_are_curated(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["gemini_test"] = {
+        "catalog_id": "gemini_api",
+        "api_base": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "api_mode": "chat_completions",
+        "api_key": "local-test-key",
+    }
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        lambda request, timeout: FakeResponse(
+            {
+                "data": [
+                    {"id": "models/gemini-2.5-flash"},
+                    {"id": "models/gemini-3.6-flash"},
+                ]
+            }
+        ),
+    )
+
+    result = discover_provider_models_result(
+        "gemini_test", config, allow_configured_fallback=False
+    )
+
+    assert [item.name for item in result.models] == [
+        "gemini-2.5-flash",
+        "gemini-3.6-flash",
+    ]
+    assert result.models[0].curated is True
+    assert result.models[0].source == "provider_models"
+    assert result.models[1].source == "provider_models"
+
+
+def test_zhipu_free_flash_models_are_added_when_general_inventory_omits_them(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config = model_execution_config()
+    config.providers["zhipu_test"] = {
+        "catalog_id": "glm_api",
+        "api_base": "https://open.bigmodel.cn/api/paas/v4",
+        "api_mode": "chat_completions",
+        "api_key": "local-test-key",
+    }
+    monkeypatch.setattr(
+        "infrastructure.models.validation.provider_validation.open_provider_request",
+        lambda request, timeout: FakeResponse(
+            {
+                "data": [
+                    {"id": "glm-4.5-air"},
+                    {"id": "glm-5.2"},
+                ]
+            }
+        ),
+    )
+
+    result = discover_provider_models_result(
+        "zhipu_test", config, allow_configured_fallback=False
+    )
+
+    assert {item.name for item in result.models} == {
+        "glm-4.5-air",
+        "glm-4.6v-flash",
+        "glm-4.7-flash",
+        "glm-5.2",
+    }
+    assert {item.name for item in result.models if item.curated} == {
+        "glm-4.6v-flash",
+        "glm-4.7-flash",
+    }
+    assert all(
+        item.source == "bundled_catalog"
+        for item in result.models
+        if item.name in {"glm-4.6v-flash", "glm-4.7-flash"}
+    )
 
 
 def test_custom_openai_discovery_uses_gateway_models_without_requiring_manual_ids(

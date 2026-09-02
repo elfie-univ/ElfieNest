@@ -699,10 +699,12 @@ def verify_provider_transport(provider_id: str, config: Any) -> Dict[str, Any]:
             }
         if status_code == 429:
             return {
-                "status": "inactive",
-                "error_code": "quota_exhausted",
-                "error_scope": "connection",
-                "error_category": "quota",
+                "status": "active",
+                "latency_ms": latency_ms,
+                "transport_status": "reachable",
+                "error_code": "rate_limited",
+                "error_scope": "endpoint",
+                "error_category": "rate_limit",
             }
         return {
             "status": "inactive",
@@ -727,9 +729,13 @@ def verify_provider_transport(provider_id: str, config: Any) -> Dict[str, Any]:
             category = "billing"
             scope = "connection"
         elif error.code == 429:
-            code = "quota_exhausted"
-            category = "quota"
-            scope = "connection"
+            return {
+                "status": "active",
+                "transport_status": "reachable",
+                "error_code": "rate_limited",
+                "error_scope": "endpoint",
+                "error_category": "rate_limit",
+            }
         else:
             code = "provider_unreachable"
             category = "server" if error.code >= 500 else "network"

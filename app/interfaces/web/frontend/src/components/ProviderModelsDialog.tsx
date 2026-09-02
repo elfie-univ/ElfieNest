@@ -94,7 +94,9 @@ export function ProviderModelsDialog({
   if (!connection) return null
 
   const visibleModels = connection.models.filter((model) => model.discovery_state !== "source_missing")
-  const normalModels = visibleModels.filter((model) => !model.hidden)
+  const normalModels = visibleModels
+    .filter((model) => !model.hidden)
+    .sort((left, right) => Number(right.pricing === "free") - Number(left.pricing === "free"))
   const otherModels = visibleModels.filter((model) => model.hidden)
   const availableCount = connection.model_counts.available
 
@@ -104,8 +106,12 @@ export function ProviderModelsDialog({
       const result = await refreshProviderModels(connection.connection_id, csrfToken)
       setEditing(false)
       setAddingManual(false)
-      show({ kind: "success", message: result?.message ?? t("providerModels.notices.refreshed") })
-      setError(null)
+      if (result?.status === "failed") {
+        setError(result.message ?? t("providerModels.errors.load"))
+      } else {
+        show({ kind: "success", message: result?.message ?? t("providerModels.notices.refreshed") })
+        setError(null)
+      }
       await onChanged()
     } catch (reason: unknown) {
       setError(reason instanceof ApiError ? reason.message : t("providerModels.errors.load"))
@@ -230,12 +236,12 @@ export function ProviderModelsDialog({
     {initialError ? <Notice kind="error" message={initialError} /> : null}
     {initializing ? <div className="provider-models-loading" role="status">{t("providerModels.notices.initialLoading")}</div> : <>
       {notice ? <Notice message={notice} /> : null}
-      <div className="provider-models-summary">
-        <strong>{t(foodReferenceCount === null ? "providerModels.summary" : foodReferenceCount === 0 ? "providerModels.summaryUnused" : "providerModels.summaryWithFoods", { available: availableCount, total: connection.model_counts.enabled, foods: foodReferenceCount ?? 0 })}</strong>
-        {initialLoad && onVerify ? <Button disabled={pending || verifying || normalModels.length === 0} onClick={() => { void verifyInitial() }} type="button">{verifying ? t("providerModels.actions.verifying") : t("providerModels.actions.verify")}</Button> : null}
-      </div>
       <div className="provider-models-toolbar">
+        <div className="provider-models-toolbar__left">
+          <strong>{t(foodReferenceCount === null ? "providerModels.summary" : foodReferenceCount === 0 ? "providerModels.summaryUnused" : "providerModels.summaryWithFoods", { available: availableCount, total: connection.model_counts.enabled, foods: foodReferenceCount ?? 0 })}</strong>
+        </div>
         <div className="provider-models-toolbar__right">
+          {onVerify ? <Button disabled={pending || verifying || normalModels.length === 0} onClick={() => { void verifyInitial() }} type="button">{verifying ? t("providerModels.actions.verifying") : t("providerModels.actions.verify")}</Button> : null}
           <RefreshButton disabled={pending} label={t("providerModels.actions.refresh")} onClick={() => { void refresh() }} />
           <Button disabled={pending} onClick={() => { setAddingManual((value) => !value); setEditing(false) }} type="button">{t("providerModels.actions.addManual")}</Button>
           {editing
@@ -253,16 +259,6 @@ export function ProviderModelsDialog({
       <Input aria-label={t("providerModels.fields.maxOutput")} min={1} onChange={(event) => setManualOutput(event.target.value)} placeholder={t("providerModels.fields.maxOutput")} type="number" value={manualOutput} />
       <Button disabled={pending} type="submit">{t("providerModels.actions.add")}</Button>
     </form> : null}
-    {otherModels.length > 0 ? <details className="provider-other-models">
-      <summary>{t("providerModels.labels.otherDiscovered", { count: otherModels.length })}</summary>
-      <div className="provider-other-model-list">
-        {otherModels.map((model) => <div className="provider-other-model" key={model.id}>
-          <span className="provider-other-model__name"><strong>{model.display_name}</strong> <code>{model.id}</code></span>
-          <span className="provider-other-model__meta">{t(sourceKey(model.source))}</span>
-          <Button disabled={pending} onClick={() => { void toggleEnabled(model, true) }} size="sm" type="button">{t("providerModels.actions.enable")}</Button>
-        </div>)}
-      </div>
-    </details> : null}
       {normalModels.length === 0 ? <p className="empty-state">{otherModels.length > 0 ? t("providerModels.emptyEnabled") : t("providerModels.empty")}</p> : <div className="provider-model-table-wrap">
       <Table aria-label={t("providerModels.labels.list", { name: connection.alias })} className="provider-model-table">
         <TableHeader><TableRow>
@@ -278,7 +274,7 @@ export function ProviderModelsDialog({
           const draft = drafts.find((item) => item.original_id === model.id) ?? toEditableModel(model)
           const row = editing ? draft : toEditableModel(model)
           return <TableRow key={model.id}>
-            <TableCell>{editing ? <Input aria-label={`${t("providerModels.fields.displayName")} ${model.display_name}`} onChange={(event) => updateDraft(model.id, { display_name: event.target.value })} value={row.display_name} /> : <strong>{model.display_name}</strong>}</TableCell>
+            <TableCell>{editing ? <><Input aria-label={`${t("providerModels.fields.displayName")} ${model.display_name}`} onChange={(event) => updateDraft(model.id, { display_name: event.target.value })} value={row.display_name} />{model.pricing === "free" ? <span className="status-badge provider-model-free-badge">{t("providerModels.labels.free")}</span> : null}</> : <><strong>{model.display_name}</strong>{model.pricing === "free" ? <span className="status-badge provider-model-free-badge">{t("providerModels.labels.free")}</span> : null}</>}</TableCell>
             <TableCell>{editing && model.source === "manual" ? <Input aria-label={`Model ID ${model.display_name}`} onChange={(event) => updateDraft(model.id, { id: event.target.value })} value={row.id} /> : <code>{row.id}</code>}</TableCell>
             <TableCell>{t(sourceKey(model.source))}</TableCell>
             <TableCell>{editing
@@ -300,6 +296,16 @@ export function ProviderModelsDialog({
         })}</TableBody>
       </Table>
       </div>}
+    {otherModels.length > 0 ? <details className="provider-other-models">
+      <summary>{t("providerModels.labels.otherDiscovered", { count: otherModels.length })}</summary>
+      <div className="provider-other-model-list">
+        {otherModels.map((model) => <div className="provider-other-model" key={model.id}>
+          <span className="provider-other-model__name"><strong>{model.display_name}</strong> <code>{model.id}</code></span>
+          <span className="provider-other-model__meta">{t(sourceKey(model.source))}</span>
+          <Button disabled={pending} onClick={() => { void toggleEnabled(model, true) }} size="sm" type="button">{t("providerModels.actions.enable")}</Button>
+        </div>)}
+      </div>
+    </details> : null}
     </>}
   </ManageDialog>
 }

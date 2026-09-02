@@ -943,7 +943,7 @@ def test_reasoning_run_exposes_model_unavailable_as_failure() -> None:
     assert result.decode.plan.intents[0].type == "noop"
 
 
-def test_reasoning_run_keeps_owner_chat_alive_when_model_generation_fails() -> None:
+def test_reasoning_run_uses_truthful_owner_notice_when_model_generation_fails() -> None:
     class UnavailableOwnerRuntime(SearchRuntime):
         def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
             del request
@@ -982,7 +982,7 @@ def test_reasoning_run_keeps_owner_chat_alive_when_model_generation_fails() -> N
 
     assert result.status is ReasoningStatus.FAILED
     assert result.decode.plan.intents[0].type == "message"
-    assert result.decode.plan.intents[0].content == "我收到你的消息了，正在想一想。"
+    assert result.decode.plan.intents[0].content == "我这次没能完成回复，请稍后再试。"
     assert result.decode.report.fallback_reason == "model_unavailable:RuntimeError"
 
 

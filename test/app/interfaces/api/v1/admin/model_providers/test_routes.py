@@ -327,7 +327,12 @@ def test_versioned_provider_accepts_admin_and_requires_authentication(
     admin = _client(tmp_path, monkeypatch, role="admin")
     anonymous = _anonymous_client(tmp_path, monkeypatch)
 
-    assert admin.get("/api/v1/admin/model-providers/catalog").status_code == 200
+    catalog = admin.get("/api/v1/admin/model-providers/catalog")
+
+    assert catalog.status_code == 200
+    products = {item["catalog_id"]: item for item in catalog.json()["items"]}
+    assert products["glm_api"]["api_key_url"].endswith("/apikeys")
+    assert products["siliconflow_api"]["api_key_url"].endswith("/account/ak")
     assert anonymous.get("/api/v1/admin/model-providers/catalog").status_code == 401
 
 

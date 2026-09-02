@@ -18,6 +18,7 @@ def _evidence(
     capabilities: tuple[str, ...] = ("text",),
     auto_selection_priority: int = 100,
     quality_tier: int = 0,
+    pricing: str = "unknown",
 ) -> StoredModelEvidence:
     return StoredModelEvidence(
         reference=reference,
@@ -27,6 +28,7 @@ def _evidence(
         local=local,
         auto_selection_priority=auto_selection_priority,
         quality_tier=quality_tier,
+        pricing=pricing,
         tool_test_passed="tools" in capabilities,
         observed_at=(datetime.now(timezone.utc) - timedelta(hours=age)).isoformat(),
     )
@@ -95,6 +97,29 @@ def test_planner_prefers_curated_quality_model_over_unknown_discovery() -> None:
     )
 
     assert proposal.package.primary_model == "deepseek/flash"
+
+
+def test_planner_uses_free_models_without_paid_fallback() -> None:
+    proposal = FoodPlanner().propose_package(
+        StoredFoodPackage(food_id="food_common", display_name="Common"),
+        (
+            _evidence(
+                "glm/free",
+                pricing="free",
+                quality_tier=2,
+                auto_selection_priority=50,
+            ),
+            _evidence(
+                "openai/paid",
+                quality_tier=2,
+                auto_selection_priority=0,
+            ),
+        ),
+        connection_ids=("glm", "openai"),
+    )
+
+    assert proposal.package.primary_model == "glm/free"
+    assert proposal.package.fallback_model is None
 
 
 def test_emergency_planner_keeps_usable_local_model_before_curated_remote() -> None:

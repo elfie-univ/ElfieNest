@@ -28,18 +28,14 @@ uv lock --check
 
 ```bash
 # 示例：只修改认知协调器
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/elfie/brain/reasoning/test_coordinator.py
+uv run --no-sync pytest test/elfie/brain/reasoning/test_coordinator.py
 
 # 所有跨模块或目录边界改动都要运行
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/architecture/
 
 # 需要完整回归时
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/
+uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync pytest test/
 ```
 
 如果预检返回 `2`，不要在受阻环境中先运行 `pytest test/` 再重复一遍；应在允许回环端口
@@ -55,8 +51,7 @@ UV_CACHE_DIR=/tmp/elfienest-uv-cache \
 存在，但会阻止任何新增诊断：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -214,8 +209,7 @@ PR 的范围、测试证据和审阅要求见
 把缓存放入临时目录，不要删除仓库或用户数据：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/architecture/
 ```
 
 ### 测试读取了日常数据

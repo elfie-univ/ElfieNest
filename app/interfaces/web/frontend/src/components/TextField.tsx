@@ -11,6 +11,7 @@ type TextFieldProps = {
   readonly error?: string
   readonly hint?: string
   readonly label: string
+  readonly masked?: boolean
   readonly min?: number
   readonly minLength?: number
   readonly name?: string
@@ -29,6 +30,7 @@ export function TextField({
   error,
   hint,
   label,
+  masked = false,
   min,
   minLength,
   name,
@@ -42,10 +44,11 @@ export function TextField({
   const id = useId()
   return <FieldRow
     control={<Input
-      autoComplete={autoComplete}
+      autoComplete={masked ? "off" : autoComplete}
       autoFocus={autoFocus}
       disabled={disabled}
       id={id}
+      className={masked ? "input--masked" : undefined}
       min={min}
       minLength={minLength}
       name={name}
@@ -53,7 +56,7 @@ export function TextField({
       placeholder={placeholder}
       readOnly={readOnly}
       required={required}
-      type={type}
+      type={masked ? "text" : type}
       value={value}
     />}
     error={error}

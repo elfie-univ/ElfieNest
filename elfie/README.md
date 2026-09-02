@@ -107,11 +107,9 @@ Orchestration.
 Run single-Elfie and cognitive-loop checks from the repository root:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q test/elfie/
+uv run --no-sync pytest -q test/elfie/
 
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q \
+uv run --no-sync pytest -q \
   test/elfie/test_cognitive_lifecycle.py \
   test/elfie/brain/workspace/test_system.py \
   test/elfie/brain/reasoning/test_coordinator.py \

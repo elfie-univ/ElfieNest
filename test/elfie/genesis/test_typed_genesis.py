@@ -51,6 +51,24 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
         assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
 
+        identity = storage.recall(RecallRequest(text="你来自哪里？", lexical_limit=10))
+        assert any(
+            item.node_id.endswith(":world-identity") for item in identity.focus_nodes
+        )
+        assert any(
+            assertion.object_node_id
+            and assertion.object_node_id.endswith(":world-identity")
+            for assertion in identity.assertions
+        )
+
+        unknown = storage.recall(RecallRequest(text="完整地图", lexical_limit=10))
+        assert any(
+            assertion.predicate == "knows_boundary"
+            and assertion.qualifiers.get("epistemic_status") == "uncertain"
+            for assertion in unknown.assertions
+        )
+
+    # A close/reopen cycle must preserve the same source Episodes and marker.
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as reopened:
         assert reopened.count_episodes() == 5
         assert reopened.get_graph_node("genesis:receipt:00000101") is not None
