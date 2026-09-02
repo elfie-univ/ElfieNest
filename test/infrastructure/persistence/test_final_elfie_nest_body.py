@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from app.features.adoption import AdoptionReservationRecord
 from app.features.bodies.ports import (
     BodiesPortCredentialRejected,
 )
@@ -18,7 +17,6 @@ from app.orchestration.nest_session import (
     ElfieNestEngine,
     LiveNestManagementCommands,
 )
-from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
@@ -45,6 +43,7 @@ from test.app.orchestration.nest_session.fakes import FakeWorldRuntime
 FINAL_TABLES = {
     "device_audit_events",
     "elfies",
+    "resident_admissions",
     "embodiment_sessions",
     "external_bodies",
     "food_packages",
@@ -88,17 +87,12 @@ def _reserve_elfie(
     elfie_id: str = "00000001",
     summary: str = "好奇探索",
 ) -> None:
-    SQLiteAdoptionAdapter(db_path).reserve(
-        AdoptionReservationRecord(
-            elfie_id=elfie_id,
-            owner_user_id=1,
-            name="小狐",
-            species_id="fox",
-            gender="female",
-            birth_date="2026-07-30",
-            summary=summary,
-        ),
-        default_limit=2,
+    adopt_test_elfie(
+        db_path,
+        1,
+        elfie_id=elfie_id,
+        name="小狐",
+        personality_style=summary,
     )
 
 

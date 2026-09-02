@@ -5,8 +5,8 @@
 > It records current implementation facts and deletion gates; it does not
 > authorize new scattered configuration or product behavior.
 
-**State:** open
-**Closure state:** open
+**State:** ready (v0.2 structural rows closed)
+**Closure state:** ready (v0.2 structural rows closed)
 
 ## Current inventory
 
@@ -35,7 +35,7 @@ Those conforming behaviors must be preserved during migration.
 | CFG-002 | P0 | closed | The registry now carries schema, writer, reload and failure metadata; bundled and user sources validate before exposure, semantic owners reject unknown owned fields, and production/user roots are resolver-owned. Test and developer tools explicitly retain injected sandbox roots. | Keep field overlay, complete replacement, bundled-only, user-only, failure, secret and production-path rules under permanent tests. | target=registered-document-boundary; inventory=all registered document IDs, strict schemas, semantic catalog/connection validators, secret boundary and test/dev sandbox seam; references=`infrastructure/persistence/configuration/documents.py`, `schemas.py`, model/provider parsers, `test/infrastructure/persistence/configuration/test_documents.py`; verification=focused configuration and architecture tests; residuals=zero |
 | CFG-003 | P0 | closed | Desktop staging copies repository `config/` once to `resources/config/`; the release manifest covers every staged file and user configuration is not copied or overwritten. Release-mode resolution requires a launcher-provided resource root. | Keep one staged copy, complete hashes, source-checkout independence and user-file preservation. | target=single-staged-bundled-root; inventory=resource assembly, manifest required paths/hashes, release resolver and first-run/user-write behavior; references=`scripts/internal/build/assemble_desktop_resources.py`, `scripts/internal/release/release_manifest.py`, `test/scripts/test_assemble_desktop_resources.py`, `test/scripts/test_release_manifest.py`; verification=assembly, manifest, installed-root and user-preservation tests; residuals=zero |
 | CFG-004 | P1 | closed | The bilingual contract, ADR, Contract Registry, Agent rules and permanent deny-all checks now agree on the two-root configuration contract and its explicit sandbox exception. | Keep the five-part evidence shape and leave permanent target checks in deny-all mode until a later governance-only removal. | target=configuration-contract-closure; inventory=contract, ADR, registry, Agent rules, architecture gates and bilingual conformance rows; references=`docs/developer/contracts/configuration-management.md`, `docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md`, `scripts/governance/contract_registry.py`; verification=governance architecture tests and mirrored-document checks; residuals=zero |
-| CFG-005 | P0 | open | `config/world/elfaria.yaml` is registered and typed, but `infrastructure/persistence/configuration/world.py` still validates it against `elfie/profile/canon.py`, leaving a second hard-coded world/species source. Current species loading also mixes creation semantics with Profile/Adoption availability. | Make the bundled world/species documents the sole future-creation source, keep semantic models with Elfie Genesis, and limit Infrastructure to schema/reference/package validation. Separate the Genesis creation projection from the runtime Godot/presentation asset projection; Profile receives neither package. Remove the Profile Canon duplicate and prove a committed Elfie's life state restores without a creation package. | target=Configuration 1.4, Species Package 3, Elfie 2.3 and ADR-0033; inventory=`config/world/`, `config/species/`, document registry/schema/loaders, `elfie/profile/canon.py`, Genesis, Adoption and runtime asset consumers; references=recursive literal/import/source inventory plus `species-asset-package.md`; verification=pending single-source architecture test, projection/package tests and restore-without-source acceptance; residuals=current duplicate source and mixed projection remain. |
+| CFG-005 | P0 | closed (v0.2 structural) | The registered world and species documents are the only creation-package source. Infrastructure validates schema, references and package shape; `elfie/genesis` owns semantic compilation. The former Profile Canon source is deleted, Genesis and runtime-asset projections are separate, and a committed Elfie restores without loading the creation package. | Keep the bundled world/species documents as the sole future-creation source, keep semantic models with Elfie Genesis, and limit Infrastructure to schema/reference/package validation. Profile receives neither creation package nor runtime asset projection. | target=Configuration 1.4, Species Package 3, Elfie 2.3 and ADR-0033; inventory=`config/world/`, `config/species/`, document registry/schema/loaders, Genesis, Adoption and runtime asset consumers; references=recursive source inventory, species-package tests, Genesis compiler tests, final-schema tests and restore-without-source acceptance; verification=configuration, architecture, staging/reopen and final-restore tests; residuals=real-workspace data policy remains separately tracked by SHD-007. |
 
 ## Closure order
 
@@ -46,5 +46,7 @@ Those conforming behaviors must be preserved during migration.
    inventory is empty.
 
 The register is removed in a later governance-only closure after every row is
-closed with complete evidence and marked ready. CFG-005 keeps it open. Product migration cannot delete
-or weaken this register, the contract or its permanent checks.
+closed with complete evidence and marked ready. The v0.2 structural rows are
+closed; future world-content revisions and real-workspace data policy remain
+separate decisions. Product migration cannot delete or weaken this register,
+the contract or its permanent checks.

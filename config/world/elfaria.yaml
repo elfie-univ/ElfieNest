@@ -1,6 +1,6 @@
 version: 1
 schema_version: 1
-canon_version: elfaria-world.v0.1
+package_version: elfaria-world.v0.1
 world_id: elfaria
 display_name: Elfaria
 known_region:
@@ -62,6 +62,30 @@ places:
     parent_id: earth
     aliases: [地球的家, 在地球的基地]
     description: Elfie 抵达地球后的生活基地和家；具体当天状态需要真实巢观测才能知道。
+    status: active
+  - id: saevi_center
+    version: 1
+    label: 灵狐聚居地
+    kind: settlement_center
+    parent_id: mistyville
+    aliases: [灵狐聚居区, 狐族一带]
+    description: 迷雾镇内灵狐较常往来的居住、照料和小规模协作区域。
+    status: active
+  - id: tovren_center
+    version: 1
+    label: 灵犬聚居地
+    kind: settlement_center
+    parent_id: mistyville
+    aliases: [灵犬聚居区, 犬族一带]
+    description: 迷雾镇内灵犬较常往来的居住、照料和小规模协作区域。
+    status: active
+  - id: myelle_center
+    version: 1
+    label: 灵猫聚居地
+    kind: settlement_center
+    parent_id: mistyville
+    aliases: [灵猫聚居区, 猫族一带]
+    description: 迷雾镇内灵猫较常往来的居住、照料和小规模协作区域。
     status: active
 story_events:
   - id: story_signal
@@ -141,41 +165,41 @@ knowledge:
     eligibility: [all]
   - id: nature.light_cycle
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的昼夜与明暗周期；个体只能说明自己亲历或学过的部分。
+    statement: 带来白昼的恒星名为伊洛拉（Ilora）；居民长期没有在天空中观测到环绕 Elfaria 运行的天然卫星，因此没有月相周期。一个完整昼夜是一个本地日，迷雾镇历法中一年有 196 个本地日。
     scope: world
     topic: nature_and_physics
-    aliases: [明暗规律, 光照周期]
-    retrieval_terms: [昼夜, 休息, 明暗]
-    level: unknown
+    aliases: [伊洛拉, 恒星, 明暗规律, 光照周期, 天然卫星, 月相]
+    retrieval_terms: [伊洛拉, 恒星, 昼夜, 白昼, 天然卫星, 月相, 本地日, "196"]
+    level: common
     certainty: high
-    status: unknown-boundary
-    source_ref: canon:elfaria-world.v0.1#nature.light_cycle
+    status: active
+    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.light_cycle
     related_ids: []
     eligibility: [all]
   - id: nature.seasons
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的季节、气候和年度变化规律，不能用地球季节补齐。
+    statement: 一年只分雨季和旱季，每季固定 98 个本地日。雨季炎热、降雨频繁；旱季仍然温暖，只是雨水较少、空气和地表稍干，森林和其他长期植物仍能存活。
     scope: world
     topic: nature_and_physics
-    aliases: [季节阶段, 时令变化]
-    retrieval_terms: [季节, 时令, 出行]
-    level: unknown
+    aliases: [雨季, 旱季, 季节阶段, 时令变化]
+    retrieval_terms: [雨季, 旱季, 季节, 98 个本地日, 降雨, 出行]
+    level: common
     certainty: high
-    status: unknown-boundary
-    source_ref: canon:elfaria-world.v0.1#nature.seasons
+    status: active
+    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.seasons
     related_ids: []
     eligibility: [all]
   - id: nature.water_cycle
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的水循环或供水制度；具体水源和管理方式需要来源支持。
+    statement: 居民能看到湿地逐渐变干、云层聚集后降雨，雨水汇入河湖并渗入地下；这些现象可以帮助安排取水、渡运和出行，但不等于知道水循环的深层原理。
     scope: world
     topic: nature_and_physics
-    aliases: [水的循环, 饮用水]
-    retrieval_terms: [水, 循环, 饮用]
-    level: unknown
+    aliases: [水的循环, 降雨, 河湖水位, 饮用水]
+    retrieval_terms: [水, 水循环, 降雨, 河湖, 湿地, 取水, 渡运]
+    level: common
     certainty: high
-    status: unknown-boundary
-    source_ref: canon:elfaria-world.v0.1#nature.water_cycle
+    status: active
+    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.water_cycle
     related_ids: []
     eligibility: [all]
   - id: nature.life_needs
@@ -269,6 +293,8 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#geography.waystation
     related_ids: [mistyville_waystation, story_program]
     eligibility: [all]
+    statement_variants:
+      partial: 我知道赴地设施是受控的跨世界设施，但不了解其中的具体工作。
   - id: geography.map_boundary
     version: 1
     statement: 目前公开知识只覆盖 Elfaria、迷雾镇及已批准地点，不能据此推断完整星球地图。
@@ -362,7 +388,7 @@ knowledge:
     eligibility: [all]
   - id: society.elder_role
     version: 1
-    statement: 经验较多的居民可能向其他人传授一部分共同经验；“长老”的正式职责和权限尚未在当前 Canon 中完整定义。
+    statement: 经验较多的居民会向其他人传授共同经验；长老通常承担经验传承和公共协调，但具体职责和权限因地区与共同体规则而异。
     scope: society
     topic: society_and_civilization
     aliases: [长老, 经验传承]
@@ -388,7 +414,7 @@ knowledge:
     eligibility: [all]
   - id: society.labor
     version: 1
-    statement: 当前 Canon 尚未完整定义迷雾镇的职业、劳动分工或物资制度，不能凭地球经济常识补齐。
+    statement: 当前公开记录尚未完整说明迷雾镇的职业、劳动分工或物资制度，不能凭地球经济常识补齐。
     scope: region
     topic: society_and_civilization
     aliases: [日常劳动, 共同工作]
@@ -414,7 +440,7 @@ knowledge:
     eligibility: [all]
   - id: society.exchange
     version: 1
-    statement: 当前 Canon 尚未定义迷雾镇的交换、计量、货币或个人账目制度；这些内容属于待补充知识。
+    statement: 当前公开记录尚未说明迷雾镇的交换、计量、货币或个人账目制度；这些内容属于待补充知识。
     scope: society
     topic: society_and_civilization
     aliases: [物资交换, 经验交换]
@@ -427,7 +453,7 @@ knowledge:
     eligibility: [all]
   - id: culture.language
     version: 1
-    statement: Elfaria 有自己的语言和交流方式；具体称呼、礼貌规则和不可直译表达尚未在当前 Canon 中完整定义。
+    statement: Elfaria 有自己的语言和交流方式；具体称呼、礼貌规则和不可直译表达尚未在当前公开记录中完整说明。
     scope: culture
     topic: history_and_culture
     aliases: [称呼, 礼貌距离]
@@ -440,7 +466,7 @@ knowledge:
     eligibility: [all]
   - id: culture.food
     version: 1
-    statement: Elfaria 的生命需要进食，但具体食物、烹饪方式和分享礼俗尚未在当前 Canon 中完整定义。
+    statement: Elfaria 的生命需要进食，但具体食物、烹饪方式和分享礼俗尚未在当前公开记录中完整说明。
     scope: culture
     topic: history_and_culture
     aliases: [食物分享, 欢迎食物]
@@ -464,6 +490,8 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#culture.daily_rhythm
     related_ids: [nature.light_cycle]
     eligibility: [all]
+    statement_variants:
+      partial: 我知道生活要在进食、活动、休息和安全空间之间安排，但每家的节奏可能不同。
   - id: culture.local_memory
     version: 1
     statement: 迷雾镇的共同记忆会同时受到个人经历和他人讲述影响；当前没有完整的公共记录体系，听说不等于亲历。
@@ -492,7 +520,7 @@ knowledge:
     eligibility: [all]
   - id: history.local_detail_boundary
     version: 1
-    statement: 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事没有在当前公开 Canon 中完整定义。
+    statement: 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事没有在当前公开记录中完整保存。
     scope: world
     topic: knowledge_boundary
     aliases: [更早历史未知, 镇史边界]
@@ -583,7 +611,7 @@ knowledge:
     eligibility: [all]
   - id: knowledge.personal_mastery
     version: 1
-    statement: 公共 Canon 说明的是世界事实；每只 Elfie 实际掌握多少，还取决于它的物种、生活地点、经历和角色。
+    statement: 公共知识说明的是可共享的世界事实；每只 Elfie 实际掌握多少，还取决于它的物种、生活地点、经历和角色。
     scope: world
     topic: knowledge_boundary
     aliases: [个人掌握程度, 学会多少]
@@ -651,3 +679,304 @@ unknown_boundaries:
   - 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事
   - 未亲历的具体天气、当天位置、实时活动、动作和巢内状态
   - 没有来源支持的地球技术细节或其他 Elfie 的私人经历
+genesis:
+  package_id: elfaria-genesis
+  package_version: elfaria-world.v0.1
+  schema_version: 1
+  status: published
+  member_ids:
+    - resident-knowledge-v1
+    - place-catalog-v1
+    - route-catalog-v1
+    - coverage-manifest-v1
+    - life-archetypes-v1
+    - relationship-archetypes-v1
+    - episode-themes-v1
+    - generation-policy-v1
+    - arrival-rules-v1
+  source_refs:
+    - docs/.internal/elfaria-bottom-up-world-design-v0.1.md
+    - docs/.internal/elfaria-public-knowledge-overview-v0.1.md
+  coverage_manifest:
+    creator_source_ref: docs/.internal/elfaria-bottom-up-world-design-v0.1.md
+    resident_source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md
+    links:
+      - {upstream_id: world.identity, resident_fact_ids: [world.identity]}
+      - {upstream_id: world.known_region, resident_fact_ids: [world.known_region]}
+      - {upstream_id: world.earth_relation, resident_fact_ids: [world.earth_relation]}
+      - {upstream_id: nature.light_cycle, resident_fact_ids: [nature.light_cycle]}
+      - {upstream_id: nature.seasons, resident_fact_ids: [nature.seasons]}
+      - {upstream_id: nature.water_cycle, resident_fact_ids: [nature.water_cycle]}
+      - {upstream_id: nature.life_needs, resident_fact_ids: [nature.life_needs]}
+      - {upstream_id: nature.distance_sound, resident_fact_ids: [nature.distance_sound]}
+      - {upstream_id: geography.settlement, resident_fact_ids: [geography.settlement]}
+      - {upstream_id: geography.dispersed_homes, resident_fact_ids: [geography.dispersed_homes]}
+      - {upstream_id: geography.shared_spaces, resident_fact_ids: [geography.shared_spaces]}
+      - {upstream_id: geography.three_species, resident_fact_ids: [geography.three_species]}
+      - {upstream_id: geography.waystation, resident_fact_ids: [geography.waystation]}
+      - {upstream_id: geography.map_boundary, resident_fact_ids: [geography.map_boundary]}
+      - {upstream_id: species.shared_body, resident_fact_ids: [species.shared_body]}
+      - {upstream_id: species.shared_senses, resident_fact_ids: [species.shared_senses]}
+      - {upstream_id: species.saevi_paths, resident_fact_ids: [species.saevi_paths]}
+      - {upstream_id: species.tovren_group, resident_fact_ids: [species.tovren_group]}
+      - {upstream_id: species.myelle_distance, resident_fact_ids: [species.myelle_distance]}
+      - {upstream_id: society.household, resident_fact_ids: [society.household]}
+      - {upstream_id: society.elder_role, resident_fact_ids: [society.elder_role]}
+      - {upstream_id: society.trust, resident_fact_ids: [society.trust]}
+      - {upstream_id: society.labor, resident_fact_ids: [society.labor]}
+      - {upstream_id: society.learning, resident_fact_ids: [society.learning]}
+      - {upstream_id: society.exchange, resident_fact_ids: [society.exchange]}
+      - {upstream_id: culture.language, resident_fact_ids: [culture.language]}
+      - {upstream_id: culture.food, resident_fact_ids: [culture.food]}
+      - {upstream_id: culture.daily_rhythm, resident_fact_ids: [culture.daily_rhythm]}
+      - {upstream_id: culture.local_memory, resident_fact_ids: [culture.local_memory]}
+      - {upstream_id: history.contact_arc, resident_fact_ids: [history.contact_arc]}
+      - {upstream_id: history.local_detail_boundary, resident_fact_ids: [history.local_detail_boundary]}
+      - {upstream_id: earth.signal, resident_fact_ids: [earth.signal]}
+      - {upstream_id: earth.station, resident_fact_ids: [earth.station]}
+      - {upstream_id: earth.voluntary_program, resident_fact_ids: [earth.voluntary_program]}
+      - {upstream_id: earth.gateway, resident_fact_ids: [earth.gateway]}
+      - {upstream_id: earth.adaptation, resident_fact_ids: [earth.adaptation]}
+      - {upstream_id: knowledge.common_vs_specialist, resident_fact_ids: [knowledge.common_vs_specialist]}
+      - {upstream_id: knowledge.personal_mastery, resident_fact_ids: [knowledge.personal_mastery]}
+      - {upstream_id: boundary.full_map, resident_fact_ids: [boundary.full_map]}
+      - {upstream_id: boundary.real_time_nest, resident_fact_ids: [boundary.real_time_nest]}
+      - {upstream_id: boundary.other_elfies, resident_fact_ids: [boundary.other_elfies]}
+      - {upstream_id: boundary.unexperienced_detail, resident_fact_ids: [boundary.unexperienced_detail]}
+  life_archetypes:
+    - id: saevi_household_cultivator
+      species_ids: [fox]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [saevi_center]
+      weight: 1.0
+      household_roles: [caregiver, household_member]
+      care_and_trade_context: 在灵狐聚居地参与植物照料、家庭照护和邻里互助。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [plant_care]
+      vocation_id: plant_cultivator
+      proficiency_band: developing
+      workplace_place_id: saevi_center
+    - id: tovren_household_route_keeper
+      species_ids: [dog]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [tovren_center]
+      weight: 1.0
+      household_roles: [caregiver, household_member]
+      care_and_trade_context: 在灵犬聚居地参与路线照看、家庭照护和群体协作。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [route_care]
+      vocation_id: route_keeper
+      proficiency_band: developing
+      workplace_place_id: tovren_center
+    - id: shared_settlement_learner
+      species_ids: [fox, dog]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [mistyville_homes]
+      weight: 1.0
+      household_roles: [household_member, learner]
+      care_and_trade_context: 在分散居住区依靠家庭照护、学习和公共空间中的互助生活。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [shared_space_care]
+      vocation_id: community_helper
+      proficiency_band: introductory
+      workplace_place_id: mistyville_square
+  names:
+    default:
+      - Nemi
+      - Ari
+      - Sora
+      - Tavi
+      - Mira
+      - Lio
+      - Ena
+      - Rin
+      - Kio
+      - Veya
+      - Oru
+      - Pela
+    by_species:
+      fox: [Saevi, Veya, Nemi, Pela]
+      dog: [Tovren, Ari, Lio, Kio]
+      cat: [Myelle, Sora, Mira, Ena]
+  population:
+    settlement_weights:
+      mistyville: 1.0
+    cells:
+      - id: saevi-home-range
+        place_id: saevi_center
+        species_ids: [fox]
+        weight: 0.65
+        private_home_kind: household
+      - id: tovren-home-range
+        place_id: tovren_center
+        species_ids: [dog]
+        weight: 0.65
+        private_home_kind: household
+      - id: mistyville-home-range
+        place_id: mistyville_homes
+        species_ids: [fox, dog]
+        weight: 0.35
+        private_home_kind: household
+  routes:
+    - id: route-saevi-square
+      from_place_id: saevi_center
+      to_place_id: mistyville_square
+      label: 灵狐聚居地到公共空间的常走路线
+      aliases: [去公共空间的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [熟悉路线或跟随熟人]
+    - id: route-tovren-square
+      from_place_id: tovren_center
+      to_place_id: mistyville_square
+      label: 灵犬聚居地到公共空间的常走路线
+      aliases: [去公共空间的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [熟悉路线或跟随熟人]
+    - id: route-homes-learning
+      from_place_id: mistyville_homes
+      to_place_id: mistyville_learning_house
+      label: 居住区到学习场所的常走路线
+      aliases: [去学习场的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [沿熟悉路径前往]
+    - id: route-waystation-gateway
+      from_place_id: mistyville_waystation
+      to_place_id: earth_gateway_station
+      label: 赴地设施连接地球侧基站的受控路线
+      aliases: [赴地路线]
+      travel_time_band: 只有获准时才能通行
+      access_conditions: [通过赴地计划和必修培训]
+  relationship_archetypes:
+    - {id: kin-01, role: family, person_species_ids: [fox], life_stages: [], weight: 1.0, initial_trust: 0.88, importance: 0.95, familiarity: intimate, vocation_id: plant_cultivator, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: kin-02, role: family, person_species_ids: [dog], life_stages: [], weight: 1.0, initial_trust: 0.88, importance: 0.95, familiarity: intimate, vocation_id: route_keeper, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: kin-03, role: family, person_species_ids: [cat], life_stages: [], weight: 0.5, initial_trust: 0.82, importance: 0.88, familiarity: intimate, vocation_id: quiet_care, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: friend-01, role: friend, person_species_ids: [fox, dog], life_stages: [], weight: 1.0, initial_trust: 0.78, importance: 0.90, familiarity: known, vocation_id: community_helper, competency_ids: [cooperation], episode_theme_ids: [shared-space-choice, craft-practice]}
+    - {id: friend-02, role: friend, person_species_ids: [cat, fox, dog], life_stages: [], weight: 0.8, initial_trust: 0.58, importance: 0.62, familiarity: known, vocation_id: path_observer, competency_ids: [observation], episode_theme_ids: [shared-space-choice, rain-route]}
+    - {id: mentor-01, role: teacher, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.8, initial_trust: 0.70, importance: 0.82, familiarity: known, vocation_id: local_teacher, competency_ids: [teaching], episode_theme_ids: [learning-path]}
+    - {id: elder-01, role: elder, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.7, initial_trust: 0.55, importance: 0.78, familiarity: known, vocation_id: experience_keeper, competency_ids: [memory], episode_theme_ids: [shared-space-choice]}
+    - {id: neighbor-01, role: neighbor, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.8, initial_trust: 0.42, importance: 0.48, familiarity: acquainted, vocation_id: community_helper, competency_ids: [cooperation], episode_theme_ids: [craft-practice, rain-route]}
+    - {id: route-keeper, role: route_keeper, person_species_ids: [fox, dog], life_stages: [], weight: 0.8, initial_trust: 0.50, importance: 0.56, familiarity: known, vocation_id: route_keeper, competency_ids: [navigation], episode_theme_ids: [rain-route, departure-decision]}
+    - {id: learning-keeper, role: learning_keeper, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.6, initial_trust: 0.48, importance: 0.50, familiarity: known, vocation_id: local_teacher, competency_ids: [teaching], episode_theme_ids: [learning-path]}
+    - {id: departure-guide, role: departure_guide, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.7, initial_trust: 0.64, importance: 0.72, familiarity: known, vocation_id: earth_program_guide, competency_ids: [orientation], episode_theme_ids: [departure-decision, arrival-nest]}
+    - {id: program-contact, role: program_contact, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.5, initial_trust: 0.38, importance: 0.58, familiarity: acquainted, vocation_id: earth_program_guide, competency_ids: [orientation], episode_theme_ids: [departure-decision, arrival-nest]}
+    - {id: earth-contact, role: earth_contact, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.5, initial_trust: 0.30, importance: 0.70, familiarity: acquainted, vocation_id: earth_host, competency_ids: [earth_care], episode_theme_ids: [arrival-nest]}
+  episode_themes:
+    - id: early-home
+      label: 归属
+      order: 10
+      required: true
+      weight: 0.8
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [family]
+      place_kinds: [private_home]
+      emotional_tone: belonging
+      goal: 熟悉家附近的生活路径
+      obstacle: 住处分散，回去的路需要自己慢慢辨认
+      outcome: 在家人照料下记住一条回家的路径
+      impact: 遇到陌生地方时会先寻找熟悉的回去路线
+    - id: learning-path
+      label: 学习
+      order: 20
+      weight: 0.82
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [teacher]
+      place_kinds: [learning_place]
+      emotional_tone: curiosity
+      goal: 学会一项需要向有经验者请教的事情
+      obstacle: 自己只能看到一部分线索
+      outcome: 明白复杂事情需要观察、询问和练习
+      impact: 面对不懂的事会先承认边界，再向熟悉的人请教
+    - id: shared-space-choice
+      label: 协作
+      order: 30
+      required: true
+      weight: 0.88
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [friend]
+      place_kinds: [settlement_shared_space]
+      emotional_tone: trust
+      goal: 和别人一起处理一件日常事务
+      obstacle: 每个人一开始理解的分工不一样
+      outcome: 重新约定每个人愿意承担的部分
+      impact: 遇到协作分歧时会先确认约定，而不是直接猜测
+    - id: craft-practice
+      label: 第一次责任
+      order: 35
+      weight: 0.8
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 2
+      required_roles: [neighbor]
+      place_kinds: [settlement_center]
+      emotional_tone: resolve
+      goal: 在熟悉的聚居地完成一项小责任
+      obstacle: 事情比预想的更需要耐心
+      outcome: 在邻里提醒下完成并复盘做法
+      impact: 逐渐相信小的可靠行动也能改变关系
+    - id: rain-route
+      label: 雨季路线
+      order: 36
+      weight: 0.7
+      life_stages: [young_adult, mature, elder]
+      min_age_years: 3
+      required_roles: [route_keeper]
+      place_kinds: [settlement_center]
+      emotional_tone: alert
+      goal: 在雨水增多时沿熟悉路线往返
+      obstacle: 水面和气味线索会随着天气变化
+      outcome: 学会根据当时看到的路径和水势调整出行
+      impact: 天气变化时会先观察实际状况，再决定是否出行
+    - id: departure-decision
+      label: 赴地决定
+      order: 40
+      required: true
+      weight: 0.94
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [departure_guide]
+      place_kinds: [departure_facility]
+      emotional_tone: resolve
+      goal: 在了解赴地边界后作出自己的选择
+      obstacle: 新世界和离开熟悉生活都带来不确定
+      outcome: 在自愿前提下报名并完成必要准备
+      impact: 重要决定要在知道边界后由自己确认
+      required_knowledge_ids: [earth.voluntary_program]
+    - id: arrival-nest
+      label: 抵达
+      order: 50
+      required: true
+      weight: 1.0
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [departure_guide, earth_contact]
+      place_kinds: [earth_gateway_station, earth_home]
+      emotional_tone: wonder
+      goal: 通过获准的设施抵达 ElfieNest
+      obstacle: 地球设备和新的生活空间都不熟悉
+      outcome: 抵达后开始和领养家庭真实相处
+      impact: 面对陌生设备和生活方式时会通过观察、接触和询问学习
+      required_knowledge_ids: [earth.gateway, earth.adaptation]
+  policy:
+    version: genesis-policy.v0.2
+    seed_algorithm: blake2b-labeled-v1
+    relationship_count: [10, 20]
+    episode_count: [3, 5]
+    salient_relationship_count: [3, 5]
+    repeated_relationship_count: [1, 2]
+  arrival:
+    eligible_species_ids: [fox, dog]
+    eligible_life_stages: [youth, young_adult, mature, elder]
+    required_knowledge_ids:
+      - earth.signal
+      - earth.station
+      - earth.voluntary_program
+      - earth.gateway
+      - earth.adaptation
+    required_module_ids:
+      - earth_program
+  content_sha256: b14a4fa7115175fe479aa1e530910090d02c22d178acf5a63d034247125446da

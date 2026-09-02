@@ -183,7 +183,7 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
     assert "问卷答案、生成 Seed/" in chinese
     assert "deleted after the creation transaction ends" in english
     assert "在创建事务结束后删除" in chinese
-    assert "| SHD-002 | P0 | open |" in _read(
+    assert "| SHD-002 | P0 | closed (v0.2 structural) |" in _read(
         "docs/developer/conformance/elfie-selfhood.md"
     )
     assert "../designs/elfie-selfhood-and-fixed-model-header" in english_raw

@@ -12,8 +12,11 @@ from app.features.operations import (
     OperationsPortUnsafeTarget,
     StoredSpeciesCount,
 )
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.operations import SQLiteOperationsAdapter
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -26,9 +29,9 @@ def test_adapter_reads_existing_usage_sessions_and_tables(tmp_path: Path) -> Non
     with get_db(str(db_path)) as connection:
         connection.execute(
             """INSERT INTO elfies
-               (elfie_id,name,owner_user_id,species,adopted_at,status)
-               VALUES (?,?,?,?,CURRENT_TIMESTAMP,'offline')""",
-            ("00000001", "小白", owner_id, "dog"),
+               (elfie_id,owner_user_id,adopted_at,status)
+               VALUES (?, ?, CURRENT_TIMESTAMP, 'offline')""",
+            ("00000001", owner_id),
         )
         connection.execute(
             "INSERT INTO sessions (token_hash,user_id,expires_at) VALUES (?,?,?)",
@@ -37,6 +40,15 @@ def test_adapter_reads_existing_usage_sessions_and_tables(tmp_path: Path) -> Non
         connection.execute('CREATE TABLE "quoted table" (id INTEGER PRIMARY KEY)')
         connection.execute('INSERT INTO "quoted table" DEFAULT VALUES')
         connection.commit()
+    layout = final_root_layout(db_path.parent).elfie("00000001")
+    YamlProfileStoreAdapter(layout.profile.parent).save(
+        create_visual_profile(
+            elfie_id="00000001",
+            display_name="小白",
+            species_id="dog",
+            seed=1,
+        )
+    )
 
     adapter = SQLiteOperationsAdapter(str(db_path))
     usage = adapter.collect_usage_stats()

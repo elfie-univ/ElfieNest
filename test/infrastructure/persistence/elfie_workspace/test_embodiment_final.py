@@ -6,9 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.features.adoption import AdoptionReservationRecord
 from app.features.bodies.ports import BodiesPortConflict
-from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.elfie_workspace.bodies import SQLiteBodiesAdapter
 from infrastructure.persistence.elfie_workspace.embodiment import (
     begin_hosting,
@@ -18,21 +16,11 @@ from infrastructure.persistence.elfie_workspace.embodiment import (
 )
 from infrastructure.persistence.nest_db.final_schema import create_final_nest_database
 from infrastructure.persistence.nest_db.store import get_db
+from test.app.interfaces.api._helpers import adopt_test_elfie
 
 
 def _reserve_elfie(db_path: str) -> None:
-    SQLiteAdoptionAdapter(db_path).reserve(
-        AdoptionReservationRecord(
-            elfie_id="00000001",
-            owner_user_id=1,
-            name="小狐",
-            species_id="fox",
-            gender="female",
-            birth_date="2026-07-30",
-            summary="好奇探索",
-        ),
-        default_limit=2,
-    )
+    adopt_test_elfie(db_path, 1, elfie_id="00000001", name="小狐")
 
 
 def test_returned_elfie_can_host_again_with_next_lease_version(tmp_path: Path) -> None:

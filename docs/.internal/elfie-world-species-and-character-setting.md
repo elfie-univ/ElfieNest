@@ -13,8 +13,9 @@
 
 本总览对应的 v0.1 设定稿：
 
-- [Elfaria 世界设定 v0.1](elfaria-world-canon-v0.1.md)
-- [Elfaria 首版物种卡 v0.1](elfaria-species-cards-v0.1.md)
+- [Elfaria 自底向上世界设定 v0.1](elfaria-bottom-up-world-design-v0.1.md)
+- [Elfaria 世界公共知识总览 v0.1](elfaria-public-knowledge-overview-v0.1.md)
+- [Elfaria 首版物种资料速查表 v0.1](elfaria-species-cards-v0.1.md)
 - [Saevi 参考个体：Lumi v0.1](saevi-reference-elfie-v0.1.md)
 
 ## 1. 基本叙事原则

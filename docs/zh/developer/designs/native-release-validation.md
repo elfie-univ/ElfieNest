@@ -83,13 +83,13 @@ CI 应当在临时 loopback 端口启动仓库拥有的**脚本化协议模型�
 | 请求 | 确定性回复 | 验收断言 |
 | --- | --- | --- |
 | Provider inventory/probe | 为一个合格模型返回符合协议的模型清单、文本探测与结构化能力结果。 | Connection、准确 Endpoint 模型、Common Food 与 Emergency Food 通过持久化投影变成可执行状态。 |
-| `adoption_candidate_reveal_v1` | 合法的 `original_name`、不同的 `suggested_name` 以及符合限制的第一人称 `personal_story`。 | 至少一位受邀候选走完真实身份揭晓与 admission。 |
+| 领养候选回复 | 结构化回复包含已接受的候选 ID，以及当前候选字段（物种、生命阶段、地球年年龄、性别、外貌、性格和消息）。 | 至少一位受邀候选走完确定性回复与 admission。 |
 | Owner chat | 一条非空、第一人称 Elfie 完整回复。 | 请求穿过 WebSocket、App、NestSession、Brain 和生产模型 Adapter，且不会静默启用 Provider streaming。 |
 | 未知 Schema、工具或 Endpoint | 测试服务明确失败。 | 新增模型行为不能静默得到通用成功回复。 |
 
-候选遗传生成和接受选择仍由生产代码拥有。脚本服务只提供接受后身份揭晓和聊天所需的合格
-模型输出。服务缺失、能力不合格、JSON 无效、出现未知请求或尝试 fallback 时，门禁直接失败；
-绝不能因为没有模型就跳过核心旅程。
+候选生成、回复和接受选择仍由生产代码拥有，且不调用模型边界。脚本服务只用于 Provider
+能力检查和 Owner 聊天。服务缺失、能力不合格、JSON 无效、出现未知请求或尝试 fallback 时，
+门禁直接失败；绝不能因为没有模型就跳过核心旅程。
 
 模型服务只记录请求类别、Schema 名、模型 ID、耗时、响应类别和通过/失败次数。上传证据中
 不得保留 Prompt、Cookie、凭据或会话内容。
@@ -126,7 +126,7 @@ Harness 拥有模型服务 PID 与实际绑定端口，等待其就绪，并在�
    Common Food 与 Emergency Food。
 6. 要求领养与聊天所需模型能力投影及预期模型聚合状态就绪；断言打包默认值没有复制到用户
    配置根，缺失资源也没有从源码 checkout 补齐。
-7. 创建一组候选、发出邀请、选择一位已接受且完成揭晓的候选，领养一只 Elfie。
+7. 创建一组候选、发出邀请、校验接受的结构化回复并领养一只 Elfie。
 8. 要求该 Elfie 同时出现在成员列表和运行中的 Nest/Runtime 投影。
 9. 打开已认证的生产 Chat WebSocket，发送一条消息，收到一条非空完整 Elfie 回复，要求
    用户/Elfie 两条消息都写入持久历史，并只保留无敏感信息的 Provider/模型/角色执行收据。
@@ -334,7 +334,7 @@ Tag 或发布授权。
 ### 阶段 1——脚本化模型边界
 
 - 实现 loopback 协议服务和按 Schema 路由的脚本回复。
-- 覆盖 inventory/probe、准确能力证据、Common/Emergency 路由、领养揭晓、完整回复 Chat、
+- 覆盖 inventory/probe、准确能力证据、Common/Emergency 路由、确定性领养回复、完整回复 Chat、
   畸形请求和未知请求。
 - 使用合成凭据走生产 Secret Store，并证明服务不能绑定非 loopback、访问外网或记录敏感字段。
 

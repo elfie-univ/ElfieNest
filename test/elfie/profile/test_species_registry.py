@@ -20,8 +20,10 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
     )
     assert tuple(definition.sort_order for definition in definitions) == (0, 1)
     assert all(definition.scene_id for definition in definitions)
+    assert all(definition.identity_card.package_id for definition in definitions)
     assert all(
-        not hasattr(definition.canon, "candidate_names") for definition in definitions
+        definition.species_package_id == definition.identity_card.package_id
+        for definition in definitions
     )
 
     project_root = Path(__file__).resolve().parents[3]
@@ -54,7 +56,7 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
 def test_species_lookup_is_data_driven_for_each_registered_id() -> None:
     for definition in list_species_definitions():
         resolved = get_species_definition(definition.species_id)
-        assert resolved.canon_id == definition.canon_id
+        assert resolved.species_package_id == definition.species_package_id
         assert resolved.appearance.species_id == definition.species_id
 
     with pytest.raises(ValueError, match="cat"):

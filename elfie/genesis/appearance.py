@@ -26,11 +26,13 @@ def generate_appearance(
     role: str,
     rng: random.Random,
     life_stage: str,
-    age_months: int,
+    age_years: float | None = None,
     gender: str,
     variant_index: int | None = None,
     catalog: SpeciesCatalog | None = None,
 ) -> AppearanceGenome:
+    if age_years is None or age_years <= 0:
+        raise ValueError("age_years 必须为正数")
     height = {"small": "short", "tall": "tall"}.get(intent.stature)
     build = {"slim": "slim", "round": "plump"}.get(intent.build)
     if height is None:
@@ -65,7 +67,7 @@ def generate_appearance(
         genome,
         species_id=species_id,
         life_stage=life_stage,
-        age_months=age_months,
+        age_years=age_years,
         gender=gender,
         catalog=catalog,
     )
@@ -277,7 +279,7 @@ def _apply_creation_context(
     *,
     species_id: str,
     life_stage: str,
-    age_months: int,
+    age_years: float,
     gender: str,
     catalog: SpeciesCatalog | None,
 ) -> AppearanceGenome:
@@ -290,12 +292,12 @@ def _apply_creation_context(
     if definition.genesis is None:
         return genome
     ranges = definition.genesis.stage_ranges
-    growth = _growth_progress(age_months, ranges)
+    growth = _growth_progress(age_years, ranges)
     juvenile = 1.0 - growth
     elder_minimum, elder_maximum = ranges["elder"]
     elder_progress = (
         clamp(
-            (age_months - elder_minimum)
+            (age_years - elder_minimum)
             / max(float(elder_maximum - elder_minimum), 1.0),
             0.0,
             1.0,
@@ -359,21 +361,21 @@ def _apply_creation_context(
 
 
 def _growth_progress(
-    age_months: int, stage_ranges: Mapping[str, tuple[int, int]]
+    age_years: float, stage_ranges: Mapping[str, tuple[int, int]]
 ) -> float:
     youth_minimum = stage_ranges["youth"][0]
     young_adult_minimum = stage_ranges["young_adult"][0]
     mature_minimum = stage_ranges["mature"][0]
-    if age_months < young_adult_minimum:
+    if age_years < young_adult_minimum:
         return 0.65 * clamp(
-            (age_months - youth_minimum)
+            (age_years - youth_minimum)
             / max(float(young_adult_minimum - youth_minimum), 1.0),
             0.0,
             1.0,
         )
-    if age_months < mature_minimum:
+    if age_years < mature_minimum:
         return 0.65 + 0.35 * clamp(
-            (age_months - young_adult_minimum)
+            (age_years - young_adult_minimum)
             / max(float(mature_minimum - young_adult_minimum), 1.0),
             0.0,
             1.0,

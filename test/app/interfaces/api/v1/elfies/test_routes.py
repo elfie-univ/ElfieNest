@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,11 +11,16 @@ from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.admin.elfies.routes import router as admin_router
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.elfies.routes import router as member_router
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.elfie_workspace.brain_state import (
+    YamlSelfhoodSeedAdapter,
+)
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.store import get_db, init_db
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
 def _principal(
@@ -42,12 +48,40 @@ def _client(
         )
         connection.execute(
             """INSERT INTO elfies(
-                   elfie_id,name,owner_user_id,species,adopted_at,status,summary
+                   elfie_id,owner_user_id,adopted_at,status
                ) VALUES
-                   ('00000001','小狐',1,'fox','2026-08-01T00:00:00Z','offline','好奇探索'),
-                   ('00000002','小犬',2,'dog','2026-08-02T00:00:00Z','offline','安静温顺')"""
+                   ('00000001',1,'2026-08-01T00:00:00Z','offline'),
+                   ('00000002',2,'2026-08-02T00:00:00Z','offline')"""
         )
         connection.commit()
+    for elfie_id, display_name, species_id, expression in (
+        ("00000001", "小狐", "fox", "好奇探索"),
+        ("00000002", "小犬", "dog", "安静温顺"),
+    ):
+        layout = final_root_layout(tmp_path).elfie(elfie_id)
+        YamlProfileStoreAdapter(layout.profile.parent).save(
+            create_visual_profile(
+                elfie_id=elfie_id,
+                display_name=display_name,
+                species_id=species_id,
+                seed=1,
+            )
+        )
+        YamlSelfhoodSeedAdapter(layout.brain).save(
+            {
+                "state_schema_version": 1,
+                "revision": 1,
+                "committed_at": datetime(2026, 8, 1, tzinfo=timezone.utc),
+                "identity_core": {
+                    "elfie_id": elfie_id,
+                    "display_name": display_name,
+                    "species_id": species_id,
+                    "species_name": species_id,
+                    "resident_role": "ElfieNest 居民",
+                },
+                "adaptive_self": {"expression_tendency_ids": [expression]},
+            }
+        )
     application = FastAPI()
     elfie_projection = SQLiteElfiesProjectionAdapter(db_path)
     application.state.elfies = ElfiesService(elfie_projection, elfie_projection)

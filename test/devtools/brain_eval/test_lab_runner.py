@@ -18,7 +18,7 @@ from infrastructure.persistence.layout.data_home import get_elfie_home
 def test_capture_runs_the_real_brain_with_isolated_lab_state(tmp_path: Path) -> None:
     fixture = LabFixtureDefinition(
         fixture_id="anchor-elfie",
-        elfie_id="eval-anchor-elfie",
+        elfie_id="00001001",
         name="小榛",
         species_id="fox",
         age_years=2.0,
@@ -61,7 +61,7 @@ def test_capture_runs_the_real_brain_with_isolated_lab_state(tmp_path: Path) -> 
 def test_capture_rejects_every_path_inside_production_data_root() -> None:
     fixture = LabFixtureDefinition(
         fixture_id="anchor-elfie",
-        elfie_id="eval-anchor-elfie",
+        elfie_id="00001001",
         name="小榛",
         species_id="fox",
         age_years=2.0,

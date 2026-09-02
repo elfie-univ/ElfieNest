@@ -140,11 +140,16 @@ class FakeSession:
                         {
                             "candidate_id": "candidate-1",
                             "status": "accepted",
-                            "reveal": {
-                                "original_name": "Lumi",
-                                "suggested_name": "露米",
-                                "personal_story": "我是露米，喜欢慢慢听你说话，也愿意陪你一起把每个小问题想清楚。",
-                            },
+                            "species_id": "fox",
+                            "life_stage": "young_adult",
+                            "age_years": 4,
+                            "gender": "female",
+                            "full_body_image_url": "",
+                            "headshot_image_url": "",
+                            "appearance_tags": ["standard"],
+                            "personality_tags": ["steady"],
+                            "runtime_appearance": {},
+                            "message": "我读完你的同行意向了，愿意继续认识你。",
                         }
                     ]
                 },

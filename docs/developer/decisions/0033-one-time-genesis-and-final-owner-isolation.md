@@ -95,10 +95,11 @@ creation provenance or left creation-input persistence ambiguous.
   requiring an old source package to recreate the same person.
 - Genesis algorithms remain deterministic and testable in the domain; storage
   and configuration Adapters remain replaceable technical edges.
-- Current source does not yet fully conform. The Elfie, Selfhood and
-  Configuration conformance registers remain open for the exact Profile,
-  compiler-placement, source-duplication and input-disposal gaps. This governance
-  decision does not claim that those product migrations have landed.
+- The v0.2 structural migration has landed for Profile ownership, compiler
+  placement, source uniqueness and creation-input disposal. The conformance
+  registers continue to track only the remaining independent gates, including
+  supported-model behavior and the policy for existing real workspaces; those
+  gates are not silently implied by the structural implementation.
 
 ## Rejected alternatives
 

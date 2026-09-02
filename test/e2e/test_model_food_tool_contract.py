@@ -187,8 +187,8 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         )
         connection.execute(
             """
-            INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status, main_food_id)
-            VALUES ('00000001', 'Test Elfie', ?, 'default', CURRENT_TIMESTAMP, 'online', ?)
+            INSERT INTO elfies (elfie_id, owner_user_id, adopted_at, status, main_food_id)
+            VALUES ('00000001', ?, CURRENT_TIMESTAMP, 'online', ?)
             """,
             (user_id, custom_id),
         )

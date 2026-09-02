@@ -235,6 +235,10 @@ def test_smalltalk_skips_baseline_recall_without_hiding_the_status() -> None:
     recall.assert_not_called()
 
 
+def test_direct_mother_star_question_requests_baseline_recall() -> None:
+    assert ReasoningMemoryBridge.should_recall("你的母星是什么？")
+
+
 def test_on_demand_recall_is_deduplicated_and_rejects_a_new_revision() -> None:
     memory = MemorySystem(
         SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1"),

@@ -1,15 +1,5 @@
 """精灵稳定档案、物种外貌配置和解析接口。"""
 
-from .canon import (
-    ELFARIA_CANON,
-    SPECIES_CANON_VERSION,
-    WORLD_CANON_VERSION,
-    SpeciesCanon,
-    WorldCanon,
-    get_species_canon,
-    get_species_canon_for_technical_id,
-    list_species_canons,
-)
 from .generator import AppearanceGenerator, create_visual_profile
 from .models import (
     SUPPORTED_MORPHOLOGIES,
@@ -17,8 +7,7 @@ from .models import (
     ElfieIdentity,
     ElfieOrigin,
     ElfieProfile,
-    EmbodimentProfile,
-    ProfileProvenance,
+    ProfileDossier,
     RegionAccent,
 )
 from .port import ProfileStorePort
@@ -41,6 +30,7 @@ from .species_registry import (
     SpeciesCatalog,
     SpeciesDefinition,
     SpeciesGenesisProfile,
+    SpeciesIdentityCard,
     SpeciesPresentationImages,
     SpeciesStatus,
     configure_species_catalog,
@@ -55,13 +45,11 @@ __all__ = [
     "AppearanceGenome",
     "RegionAccent",
     "AppearanceResolver",
-    "ELFARIA_CANON",
     "ElfieOrigin",
-    "EmbodimentProfile",
     "ElfieIdentity",
     "ElfieProfile",
+    "ProfileDossier",
     "ProfileStorePort",
-    "ProfileProvenance",
     "ResolvedAppearance",
     "SUPPORTED_MORPHOLOGIES",
     "SUPPORTED_SPECIES",
@@ -73,9 +61,7 @@ __all__ = [
     "AppearanceRegionRule",
     "RegionAccentSpec",
     "ScaleRange",
-    "SPECIES_CANON_VERSION",
-    "WORLD_CANON_VERSION",
-    "SpeciesCanon",
+    "SpeciesIdentityCard",
     "SpeciesAppearanceProfile",
     "SpeciesCatalog",
     "SpeciesDefinition",
@@ -83,15 +69,11 @@ __all__ = [
     "SpeciesPresentationImages",
     "SpeciesStatus",
     "SPECIES_REGISTRY",
-    "WorldCanon",
     "configure_species_catalog",
     "current_species_catalog",
     "create_visual_profile",
     "get_species_profile",
-    "get_species_canon",
-    "get_species_canon_for_technical_id",
     "get_species_definition",
-    "list_species_canons",
     "list_species_definitions",
     "validate_species_registry",
 ]

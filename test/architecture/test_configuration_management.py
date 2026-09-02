@@ -204,7 +204,7 @@ def test_configuration_contract_freezes_genesis_source_ownership() -> None:
     assert "运行时资产 View 与 Genesis 创建投影分开暴露" in chinese_normalized
     assert "second hard-coded Profile Canon" in english_normalized
     assert "第二份硬编码 Profile Canon" in chinese_normalized
-    assert "| CFG-005 | P0 | open |" in conformance
+    assert "| CFG-005 | P0 | closed (v0.2 structural) |" in conformance
     assert "Status: normative, version 3" in species_english_normalized
     assert "状态：规范性契约，版本 3" in species_chinese_normalized
     assert "Profile receives neither catalog nor package" in species_english_normalized

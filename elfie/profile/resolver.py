@@ -40,12 +40,24 @@ class AppearanceResolver:
 
     def resolve(self, profile: ElfieProfile) -> ResolvedAppearance:
         profile.validate(catalog=self._catalog)
-        species = (
-            self._catalog.definition(profile.identity.species_id).appearance
-            if self._catalog is not None
-            else get_species_profile(profile.identity.species_id)
+        return self.resolve_genome(
+            profile.appearance,
+            species_id=profile.identity.species_id,
         )
-        genome = profile.appearance
+
+    def resolve_genome(
+        self,
+        genome: AppearanceGenome,
+        *,
+        species_id: str,
+    ) -> ResolvedAppearance:
+        """Resolve a transient candidate genome without creating a Profile."""
+
+        species = (
+            self._catalog.definition(species_id).appearance
+            if self._catalog is not None
+            else get_species_profile(species_id)
+        )
         if genome.species_profile_version != species.profile_version:
             raise ValueError(
                 "外貌基因使用的物种配置版本与当前解析器不一致: "
@@ -67,7 +79,7 @@ class AppearanceResolver:
         build_scale = _map_z(build_z, species.build_scale)
 
         return ResolvedAppearance(
-            species_id=profile.identity.species_id,
+            species_id=species_id,
             profile_version=species.profile_version,
             height_scale=height_scale,
             build_scale=build_scale,

@@ -278,7 +278,7 @@ Elfaria 的原生季节名和计量词已经确定。
 
 #### 2. 迷雾镇宏观底图
 
-![迷雾镇宏观地形图 v0.5](elfaria-image-review/elfaria-mistyville-surface-map-v0.5.png)
+![迷雾镇宏观地形图 v0.5](elfaria-world-images/surface-map.png)
 
 - 这张底图只概括自然地形、河网和主要地点，不显示每一条道路、建筑或住宅，也不能按图片像素直接量距。
 - 地点的正式名称、位置关系、道路和访问限制以公共地图和路线记录为准；示意画面的细节可能被省略或简化。

@@ -1,18 +1,20 @@
-"""Deterministic OPT-001 E2/E3 gates for the typed Canon/Genesis path."""
+"""Deterministic OPT-001 E2/E3 gates for the typed Genesis path."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
-from app.features.adoption import AcceptedAdoptionReservation
 from elfie.brain.memory.memory_records import RecallRequest
-from elfie.profile import configure_species_catalog
-from infrastructure.persistence.configuration.species import load_species_catalog
-from infrastructure.persistence.configuration.world import load_world_canon
+from elfie.genesis import GenesisCompileInput, GenesisCompiler
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -24,7 +26,7 @@ SEEDS = (11, 23, 47)
 
 
 def _published_species() -> tuple[str, ...]:
-    catalog = load_species_catalog()
+    catalog = load_and_configure_species_catalog()
     return tuple(
         definition.species_id
         for definition in catalog.definitions
@@ -32,22 +34,39 @@ def _published_species() -> tuple[str, ...]:
     )
 
 
-def _reservation(elfie_id: str, species_id: str, seed: int, stage: str):
-    return AcceptedAdoptionReservation(
-        elfie_id=elfie_id,
-        owner_user_id=1,
-        name=f"E2E3-{species_id}-{stage}-{seed}",
-        species_id=species_id,
-        personality_style="好奇探索",
-        height="standard",
-        build="standard",
-        appearance_seed=seed,
-        face="soft",
-        signature="warm",
-        gender="female",
-        birth_date="2001-01-01",
-        age_months={"youth": 36, "young_adult": 96, "mature": 156, "elder": 216}[stage],
-        life_stage=stage,
+def _compilation(
+    compiler: GenesisCompiler,
+    catalog: Any,
+    elfie_id: str,
+    species_id: str,
+    seed: int,
+    stage: str,
+):
+    definition = catalog.definition(species_id, adoptable_only=True)
+    if definition.genesis is None:
+        raise RuntimeError(f"物种 {species_id} 缺少 Genesis 配置")
+    age_years = definition.genesis.stage_ranges[stage][0]
+    return compiler.compile(
+        GenesisCompileInput(
+            elfie_id=elfie_id,
+            owner_reference="opt001-owner",
+            display_name=f"E2E3-{species_id}-{stage}-{seed}",
+            species_id=species_id,
+            gender="female",
+            life_stage=stage,
+            age_years_at_adoption=age_years,
+            appearance_seed=seed,
+            height="standard",
+            build="standard",
+            face="soft",
+            signature="warm",
+            personality_style="好奇探索",
+            original_name=f"origin-{species_id}-{seed}",
+            adoption_anchor_at="2001-01-01T00:00:00+00:00",
+            reservation_id=f"opt001:{elfie_id}",
+            idempotency_key=f"opt001-submit:{elfie_id}",
+            arrival_base_id="elfie_nest",
+        )
     )
 
 
@@ -96,8 +115,9 @@ def _contains_fact(bundle: Any, fact_id: str) -> bool:
 
 
 def run(output: Path) -> dict[str, Any]:
-    world = load_world_canon()
-    configure_species_catalog(load_species_catalog())
+    world = load_genesis_source_package()
+    catalog = load_and_configure_species_catalog()
+    compiler = GenesisCompiler(world, catalog=catalog)
     species_ids = _published_species()
     if not species_ids:
         raise RuntimeError("没有 published 物种，不能运行 OPT-001 E2/E3")
@@ -128,15 +148,18 @@ def run(output: Path) -> dict[str, Any]:
                     e3_total += 1
                     elfie_id = f"{species_index + 1:02d}{stage_index + 1:02d}{seed:04d}"
                     adapter = FinalElfieWorkspaceAdapter(root)
-                    reservation = _reservation(elfie_id, species_id, seed, stage)
-                    workspace = Path(adapter.materialize(reservation))
+                    compilation = _compilation(
+                        compiler, catalog, elfie_id, species_id, seed, stage
+                    )
+                    adapter.stage(compilation)
+                    workspace = Path(adapter.publish(elfie_id))
                     memory_path = workspace / "memory" / "knowledge.sqlite"
                     try:
                         with SQLiteMemoryStoreAdapter(memory_path) as storage:
                             episode_count = storage.count_episodes()
                             person_count = storage.count_graph_nodes("person")
                             marker = storage.get_graph_node(
-                                f"genesis:manifest:{elfie_id}"
+                                f"genesis:receipt:{elfie_id}"
                             )
                             valid_graph = (
                                 episode_count == 5
@@ -190,7 +213,7 @@ def run(output: Path) -> dict[str, Any]:
                                 restart_ok = (
                                     reopened.count_episodes() == 5
                                     and reopened.get_graph_node(
-                                        f"genesis:manifest:{elfie_id}"
+                                        f"genesis:receipt:{elfie_id}"
                                     )
                                     is not None
                                 )
@@ -201,14 +224,16 @@ def run(output: Path) -> dict[str, Any]:
                             if valid_graph and restart_ok:
                                 e3_passed += 1
                     finally:
-                        adapter.release(elfie_id)
+                        # The workspace is a test-only final owner; remove the
+                        # exact directory after the evaluation completes.
+                        shutil.rmtree(workspace)
 
     e2_rate = e2_hits / e2_total if e2_total else 0.0
     unknown_rate = unknown_hits / unknown_total if unknown_total else 0.0
     e3_rate = e3_passed / e3_total if e3_total else 0.0
     report = {
         "schema_version": "opt001-e2e3.v1",
-        "canon_version": world.canon_version,
+        "package_version": world.package_version,
         "published_species": list(species_ids),
         "e2": {
             "queries": e2_total,

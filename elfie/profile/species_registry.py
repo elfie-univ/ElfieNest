@@ -6,7 +6,6 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Mapping, overload
 
-from .canon import SpeciesCanon
 from .species import SpeciesAppearanceProfile
 
 SpeciesStatus = Literal["draft", "published", "retired"]
@@ -19,6 +18,22 @@ class SpeciesPresentationImages:
 
     headshot: str
     full_body: str
+
+
+@dataclass(frozen=True)
+class SpeciesIdentityCard:
+    """Stable species presentation data, separate from world knowledge."""
+
+    package_id: str
+    display_name: str
+    display_name_zh: str
+    earth_shape_label: str
+    technical_species_id: str
+    sort_order: int
+    common_sensory_biases: tuple[str, ...]
+    common_knowledge: tuple[str, ...]
+    earth_first_contact_cues: tuple[str, ...]
+    package_version: str
 
 
 @dataclass(frozen=True)
@@ -36,7 +51,7 @@ class SpeciesDefinition:
     """Complete typed product definition for one catalog member."""
 
     species_id: str
-    canon_id: str
+    species_package_id: str
     display_name: str
     display_name_zh: str
     earth_shape_label: str
@@ -47,7 +62,7 @@ class SpeciesDefinition:
     definition_version: str
     appearance_profile_version: int
     appearance: SpeciesAppearanceProfile
-    canon: SpeciesCanon
+    identity_card: SpeciesIdentityCard
     presentation_images: SpeciesPresentationImages | None
     genesis: SpeciesGenesisProfile | None
 
@@ -74,6 +89,30 @@ class SpeciesDefinition:
     @property
     def adoptable(self) -> bool:
         return self.resolvable and self.enabled
+
+    @property
+    def species_version(self) -> str:
+        """Published species-package revision for creation-time validation."""
+
+        return self.identity_card.package_version
+
+    @property
+    def common_sensory_biases(self) -> tuple[str, ...]:
+        """Species tendencies used by Selfhood Genesis seeding."""
+
+        return self.identity_card.common_sensory_biases
+
+    @property
+    def common_knowledge(self) -> tuple[str, ...]:
+        """Species-level knowledge labels supplied by the species package."""
+
+        return self.identity_card.common_knowledge
+
+    @property
+    def earth_first_contact_cues(self) -> tuple[str, ...]:
+        """Bounded species cues for first-contact expression."""
+
+        return self.identity_card.earth_first_contact_cues
 
 
 @dataclass(frozen=True)
@@ -203,12 +242,12 @@ def get_species_definition(
 def validate_species_registry() -> None:
     definitions = list(current_species_catalog().definitions)
     ids = [item.species_id for item in definitions]
-    canon_ids = [item.canon_id for item in definitions]
+    package_ids = [item.species_package_id for item in definitions]
     sort_orders = [item.sort_order for item in definitions]
     if len(set(ids)) != len(ids):
         raise ValueError("物种注册表包含重复的 species_id")
-    if len(set(canon_ids)) != len(canon_ids):
-        raise ValueError("物种注册表包含重复的 canon_id")
+    if len(set(package_ids)) != len(package_ids):
+        raise ValueError("物种注册表包含重复的 species_package_id")
     if len(set(sort_orders)) != len(sort_orders):
         raise ValueError("物种注册表包含重复的 sort_order")
     for definition in definitions:
@@ -230,6 +269,7 @@ __all__ = (
     "SpeciesCatalog",
     "SpeciesDefinition",
     "SpeciesGenesisProfile",
+    "SpeciesIdentityCard",
     "SpeciesPresentationImages",
     "SpeciesStatus",
     "configure_species_catalog",

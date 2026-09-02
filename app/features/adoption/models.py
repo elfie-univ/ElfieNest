@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
-from elfie.genesis import CandidateReveal, GenesisCandidate
+from elfie.public import GenesisCandidate
 
 SpeciesId = str
 LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
@@ -16,7 +16,6 @@ AdoptionAvailability = Literal[
     "available",
     "nest_full",
     "member_quota_full",
-    "model_unavailable",
     "species_unavailable",
 ]
 
@@ -58,7 +57,7 @@ class AdoptionSpecies:
     """Stable metadata projected from the immutable species registry."""
 
     species_id: SpeciesId
-    canon_id: str
+    species_package_id: str
     display_name: str
     display_name_zh: str
     earth_shape_label: str
@@ -107,7 +106,7 @@ class CreateCandidateSetCommand:
     appearance: CandidateAppearance
     answers: tuple[str, ...]
     batch_number: int = 1
-    adoption_session_id: Optional[str] = None
+    adoption_session_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -115,7 +114,7 @@ class CandidateResult:
     candidate_id: str
     species_id: SpeciesId
     life_stage: ExposedLifeStage
-    age_months: int
+    age_years: int
     gender: ElfieGender
     full_body_image_url: str
     headshot_image_url: str
@@ -147,7 +146,6 @@ class CandidateReplyResult:
     candidate: CandidateResult
     status: CandidateReplyStatus
     message: str
-    reveal: Optional[CandidateReveal] = None
 
 
 @dataclass(frozen=True)
@@ -157,7 +155,7 @@ class CandidateRepliesResult:
 
 
 @dataclass(frozen=True)
-class ReserveAcceptedAdoptionCommand:
+class AcceptAdoptionCommand:
     candidate_set_id: str
     candidate_id: str
     name: str
@@ -166,30 +164,35 @@ class ReserveAcceptedAdoptionCommand:
 
 
 @dataclass(frozen=True)
-class AcceptedAdoptionReservation:
+class AcceptedGenesisReservation:
+    """Accepted candidate core held only during the creation transaction.
+
+    The reservation is not a Profile or a life-history record.  Its candidate
+    is consumed by Genesis immediately; successful creation leaves only the
+    final owner documents and the minimal technical receipt.
+    """
+
+    reservation_id: str
+    idempotency_key: str
     elfie_id: str
     owner_user_id: int
     name: str
-    species_id: SpeciesId
-    personality_style: str
-    height: str
-    build: str
-    appearance_seed: int
-    face: str
-    signature: str
-    gender: ElfieGender
-    birth_date: str
-    original_name: str = ""
-    genesis_candidate: Optional[GenesisCandidate] = None
-    personal_story: str = ""
-    age_months: int = 0
-    life_stage: str = ""
+    candidate: GenesisCandidate
+    adoption_anchor_at: str
     full_body_image_url: str = ""
     headshot_image_url: str = ""
 
+    @property
+    def species_id(self) -> SpeciesId:
+        return self.candidate.species_id
+
+    @property
+    def gender(self) -> ElfieGender:
+        return self.candidate.gender  # type: ignore[return-value]
+
 
 __all__ = (
-    "AcceptedAdoptionReservation",
+    "AcceptedGenesisReservation",
     "AdoptionSpecies",
     "AdoptionAppearanceControl",
     "AdoptionOptionsResult",
@@ -203,7 +206,6 @@ __all__ = (
     "CandidateRepliesResult",
     "CandidateReplyResult",
     "CandidateReplyStatus",
-    "CandidateReveal",
     "CandidateResult",
     "CandidateSetResult",
     "CreateCandidateSetCommand",
@@ -212,7 +214,7 @@ __all__ = (
     "GetAdoptionOptionsQuery",
     "LifeStage",
     "ReplyToCandidatesCommand",
-    "ReserveAcceptedAdoptionCommand",
+    "AcceptAdoptionCommand",
     "SpeciesId",
     "SpeciesImageKind",
 )

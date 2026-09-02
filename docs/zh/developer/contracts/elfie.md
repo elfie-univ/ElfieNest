@@ -7,10 +7,9 @@
 
 > **规范性目标。** 本契约定义一只完整 Elfie 的生命系统所有权、依赖方向、公开 Facade
 > 和出站 Port。它细化但不改变已冻结的[系统架构契约](./system)。当前实现尚未完全
-> 合规；实现证据和本次暴露出的 Genesis/Profile 缺口保留在开放的
-> [Elfie 一致性台账](../conformance/elfie)，Selfhood 迁移单独记录在开放的
-> [Selfhood 一致性台账](../conformance/elfie-selfhood)。任何临时台账删除后，永久架构
-> 门禁仍然有效。
+> 合规；v0.2 的结构实现证据记录在[Elfie 一致性台账](../conformance/elfie)中。支持模型的
+> 行为和既有 workspace 数据政策仍单独记录在开放的[Selfhood 一致性台账](../conformance/elfie-selfhood)
+> 中。任何临时台账删除后，永久架构门禁仍然有效。
 
 根模块、系统 authority 和技术 Adapter 最终位置仍以系统契约为权威；`elfie/` 内部以
 本契约为权威。旧 `ai_runtime/` 已完成退役；当前目标所有者实现的模型、Food 与工具

@@ -326,8 +326,8 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     assert "Genesis 成功提交后，必须切断" in chinese_normalized
     assert "Infrastructure -X-> semantic life compilation" in english_normalized
     assert "Infrastructure -X-> 生命语义编译" in chinese_normalized
-    assert "| ELF-010 | P0 | open |" in conformance
-    assert "| ELF-013 | P0 | open |" in conformance
+    assert "| ELF-010 | P0 | closed (v0.2 structural) |" in conformance
+    assert "| ELF-013 | P0 | closed (v0.2 structural) |" in conformance
     for gap_id in range(10, 18):
         assert f"ELF-{gap_id:03d}" in conformance
 

@@ -87,6 +87,11 @@ def create_app(
                     pass
                 else:
                     cleanup.callback(restore_asyncio_handler)
+            # Admission recovery only reopens durable staged output; it never
+            # recompiles from the creation source.  Run it before ordinary
+            # runtime services so a restart cannot expose a half-published
+            # resident.
+            container.resident_admission.recover_pending()
             container.setup_installation.recover()
             container.provider_scheduler.start()
             cleanup.callback(container.provider_scheduler.stop)

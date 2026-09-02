@@ -342,9 +342,9 @@ class TestUserCRUD:
         with get_db(db_path) as conn:
             conn.execute(
                 """INSERT INTO elfies
-                   (elfie_id,name,owner_user_id,species,adopted_at,status)
-                   VALUES (?,?,?,?,?,'offline')""",
-                ("00000001", "测试精灵", alice_id, "fox", "2026-07-30T00:00:00Z"),
+                   (elfie_id,owner_user_id,adopted_at,status)
+                   VALUES (?,?,?,'offline')""",
+                ("00000001", alice_id, "2026-07-30T00:00:00Z"),
             )
             conn.commit()
 

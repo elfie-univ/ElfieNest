@@ -9,9 +9,9 @@
 > dependency direction, public Facades and outbound Ports of one complete Elfie.
 > It refines,
 > but does not change, the frozen [system architecture contract](./system). The
-> implementation evidence and the newly exposed Genesis/Profile gaps remain in
-> the open [Elfie conformance register](../conformance/elfie), while the
-> Selfhood migration is tracked separately in the open
+> the v0.2 structural implementation evidence is recorded in the
+> [Elfie conformance register](../conformance/elfie). Supported-model behavior
+> and existing-workspace policy remain separately tracked in the open
 > [Selfhood conformance register](../conformance/elfie-selfhood). Permanent
 > architecture gates remain authoritative after any temporary register is removed.
 

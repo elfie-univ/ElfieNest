@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-import secrets
+import hashlib
+import json
+from datetime import datetime, timezone
 
 from app.features.accounts import AccountPrincipal
 from elfie.profile import SpeciesCatalog, SpeciesDefinition, current_species_catalog
 
 from ._candidate_registry import CandidateRegistry
 from .errors import (
-    AdoptionCapacityReached,
     AdoptionInvalid,
-    AdoptionNestCapacityReached,
     AdoptionOwnerNotFound,
     AdoptionUnavailable,
 )
 from .models import (
-    AcceptedAdoptionReservation,
+    AcceptAdoptionCommand,
+    AcceptedGenesisReservation,
     AdoptionAppearanceControl,
     AdoptionAvailability,
     AdoptionNestCapacity,
@@ -31,18 +32,13 @@ from .models import (
     GetAdoptionOptionsQuery,
     LifeStage,
     ReplyToCandidatesCommand,
-    ReserveAcceptedAdoptionCommand,
     SpeciesImageKind,
 )
-from .port_models import AdoptionPolicyRecord, AdoptionReservationRecord
+from .port_models import AdoptionPolicyRecord
 from .ports import (
-    AdoptionNarrativePort,
     AdoptionPersistencePort,
     AdoptionPolicyPort,
-    AdoptionPortCapacityReached,
     AdoptionPortError,
-    AdoptionPortNestCapacityReached,
-    AdoptionPortOwnerNotFound,
     CandidatePortraitPort,
     SpeciesPresentationPort,
     SpeciesRuntimeReadinessPort,
@@ -67,14 +63,12 @@ class AdoptionService:
         persistence: AdoptionPersistencePort,
         candidates: CandidateRegistry | None = None,
         portraits: CandidatePortraitPort | None = None,
-        narrative: AdoptionNarrativePort | None = None,
         catalog: SpeciesCatalog | None = None,
         species_presentation: SpeciesPresentationPort | None = None,
         species_runtime: SpeciesRuntimeReadinessPort | None = None,
     ) -> None:
         self._policy = policy
         self._persistence = persistence
-        self._narrative = narrative
         self._catalog = catalog or current_species_catalog()
         self._species_presentation = species_presentation
         self._species_runtime = species_runtime or StaticSpeciesRuntimeReadiness(
@@ -86,7 +80,6 @@ class AdoptionService:
         )
         self._candidates = candidates or CandidateRegistry(
             portraits=portraits,
-            narrative=narrative,
             catalog=self._catalog,
         )
 
@@ -117,8 +110,6 @@ class AdoptionService:
             else "species_unavailable"
             if not self._available_definitions()
             else "available"
-            if self._narrative_ready()
-            else "model_unavailable"
         )
         return AdoptionOptionsResult(
             personality_styles=policy.enabled_personality_styles,
@@ -182,8 +173,8 @@ class AdoptionService:
     def prepare_accepted(
         self,
         principal: AccountPrincipal,
-        command: ReserveAcceptedAdoptionCommand,
-    ) -> AcceptedAdoptionReservation:
+        command: AcceptAdoptionCommand,
+    ) -> AcceptedGenesisReservation:
         name = command.name.strip()
         if not name or len(name) > 20:
             raise AdoptionInvalid("名字长度必须在 1-20 字之间")
@@ -198,34 +189,41 @@ class AdoptionService:
             raise AdoptionInvalid(
                 f"不支持的 species_id={candidate.public.species_id!r}"
             ) from error
-        elfie_id = f"{secrets.randbelow(100_000_000):08d}"
-        reservation = AcceptedAdoptionReservation(
+        full_body_image_url = (
+            command.full_body_image_url or candidate.public.full_body_image_url
+        )
+        headshot_image_url = (
+            command.headshot_image_url or candidate.public.headshot_image_url
+        )
+        acceptance_digest = _acceptance_digest(
+            principal.user_id,
+            command.candidate_set_id,
+            command.candidate_id,
+            full_body_image_url,
+            headshot_image_url,
+        )
+        # The numeric identity is deterministic for one accepted decision.  A
+        # collision is rejected by the durable Admission store instead of
+        # silently replacing another resident.
+        elfie_id = f"{(int(acceptance_digest[:16], 16) % 99_999_999) + 1:08d}"
+        reservation = AcceptedGenesisReservation(
+            reservation_id=f"admission:{acceptance_digest}",
+            idempotency_key=f"adoption:{acceptance_digest}",
             elfie_id=elfie_id,
             owner_user_id=principal.user_id,
             name=name,
-            original_name=candidate.original_name,
-            species_id=candidate.public.species_id,
-            personality_style=candidate.personality_style,
-            height=candidate.height,
-            build=candidate.build,
-            appearance_seed=candidate.appearance_seed,
-            face=candidate.face,
-            signature=candidate.signature,
-            gender=candidate.public.gender,
-            birth_date=candidate.birth_date,
-            genesis_candidate=candidate.genesis,
-            personal_story=candidate.personal_story,
-            age_months=candidate.public.age_months,
-            life_stage=candidate.public.life_stage,
-            full_body_image_url=(
-                command.full_body_image_url or candidate.public.full_body_image_url
-            ),
-            headshot_image_url=(
-                command.headshot_image_url or candidate.public.headshot_image_url
-            ),
+            candidate=candidate.genesis,
+            adoption_anchor_at=datetime.now(timezone.utc).isoformat(),
+            full_body_image_url=full_body_image_url,
+            headshot_image_url=headshot_image_url,
         )
 
         return reservation
+
+    def get_default_elfie_limit(self) -> int:
+        """Return the current quota policy for the Admission transaction."""
+
+        return self._load_policy().default_elfie_limit
 
     def get_species_image(
         self,
@@ -248,46 +246,11 @@ class AdoptionService:
         except (OSError, RuntimeError) as error:
             raise AdoptionUnavailable("物种图片暂不可用") from error
 
-    def publish_accepted(self, reservation: AcceptedAdoptionReservation) -> None:
-        """Atomically publish one fully constructed Elfie as a final resident."""
-        policy = self._load_policy()
-        try:
-            self._persistence.reserve(
-                AdoptionReservationRecord(
-                    elfie_id=reservation.elfie_id,
-                    owner_user_id=reservation.owner_user_id,
-                    name=reservation.name,
-                    original_name=reservation.original_name,
-                    species_id=reservation.species_id,
-                    gender=reservation.gender,
-                    birth_date=reservation.birth_date,
-                    summary=reservation.personality_style,
-                ),
-                policy.default_elfie_limit,
-            )
-        except AdoptionPortCapacityReached as error:
-            raise AdoptionCapacityReached(error.limit) from error
-        except AdoptionPortNestCapacityReached as error:
-            raise AdoptionNestCapacityReached(error.limit) from error
-        except AdoptionPortOwnerNotFound as error:
-            raise AdoptionOwnerNotFound("用户不存在") from error
-        except AdoptionPortError as error:
-            raise AdoptionUnavailable("无法保存领养关系") from error
-
     def _load_policy(self) -> AdoptionPolicyRecord:
         try:
             return self._policy.load_policy()
         except AdoptionPortError as error:
             raise AdoptionUnavailable("领养规则暂不可用") from error
-
-    def _narrative_ready(self) -> bool:
-        """Expose the same strong-model gate used by the reveal stage."""
-        if self._narrative is None:
-            return False
-        try:
-            return self._narrative.is_ready()
-        except (OSError, RuntimeError, ValueError):
-            return False
 
     def _available_definitions(self) -> tuple[SpeciesDefinition, ...]:
         return tuple(
@@ -320,7 +283,7 @@ def _species_result(
             raise AdoptionUnavailable("物种图片暂不可用") from error
     return AdoptionSpecies(
         species_id=definition.species_id,
-        canon_id=definition.canon_id,
+        species_package_id=definition.species_package_id,
         display_name=definition.display_name,
         display_name_zh=definition.display_name_zh,
         earth_shape_label=definition.earth_shape_label,
@@ -343,3 +306,38 @@ def _default_species_images(species_id: str) -> AdoptionSpeciesImages:
         headshot_url=f"{prefix}/headshot",
         full_body_url=f"{prefix}/full-body",
     )
+
+
+def _acceptance_digest(
+    owner_user_id: int,
+    candidate_set_id: str,
+    candidate_id: str,
+    full_body_image_url: str,
+    headshot_image_url: str,
+) -> str:
+    """Build one stable accepted-candidate identity.
+
+    The display name is deliberately excluded: changing it on a retry must
+    address the same accepted candidate and therefore the same durable
+    Admission record.  The selected portrait references remain part of the
+    decision because they affect the immutable external appearance projection.
+    """
+
+    payload = {
+        "candidate_id": candidate_id,
+        "candidate_set_id": candidate_set_id,
+        "full_body_image_sha256": hashlib.sha256(
+            full_body_image_url.encode("utf-8")
+        ).hexdigest(),
+        "headshot_image_sha256": hashlib.sha256(
+            headshot_image_url.encode("utf-8")
+        ).hexdigest(),
+        "owner_user_id": owner_user_id,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
