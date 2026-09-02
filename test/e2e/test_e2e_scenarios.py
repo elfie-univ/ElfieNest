@@ -49,9 +49,17 @@ def test_owner_message_runs_through_output_and_receipt_feedback() -> None:
     elfie.wait_for_outcome_count(2, timeout=1.0)
 
     # P0 owner chat emits one CognitiveAction answer; the following
-    # receipt-only Turn is a NoOp and must not send a second message.
+    # receipt-only Turn is a local NoOp and must not call the Provider again.
     assert len(channel.sent) == 1
-    assert "execution:receipt" in runtime.requests[1].user_prompt
+    assert len(runtime.requests) == 1
+    second = elfie.turn_outcomes()[1]
+    second_decision = elfie.turn_decision(second.turn_id)
+    assert second_decision is not None
+    assert tuple(intent.type for intent in second_decision.plan.intents) == ("noop",)
+    second_reasoning = elfie.turn_reasoning(second.turn_id)
+    assert second_reasoning is not None
+    assert second_reasoning.model_calls == 0
+    assert second_reasoning.tool_calls == 0
     emotion = ElfieDiagnostics(elfie).emotion
     assert (
         emotion.get_emotion_value("happiness")

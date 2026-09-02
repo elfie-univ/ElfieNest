@@ -352,6 +352,10 @@ class TurnDecision(FrozenContractModel):
     interaction_scope: InteractionScope
     response_scope: ResponseScope
     plan: DecisionPlan
+    # Host-owned provenance gate for durable conversation Memory.  This is
+    # deliberately outside the provider-facing DecisionPlan so a model cannot
+    # grant or revoke its own persistence eligibility.
+    memory_eligible: bool = True
 
     @model_validator(mode="after")
     def validate_response_boundary(self) -> TurnDecision:

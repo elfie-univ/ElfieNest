@@ -216,6 +216,7 @@ class ReasoningContextWorkspace:
         content: str,
         cause_event_ids: Tuple[EventId, ...],
         prepared_at: UTCDateTime,
+        memory_eligible: bool = True,
     ) -> bool:
         """Persist one reply proposal before external execution begins."""
         projection = PendingReplyProjection(
@@ -226,6 +227,7 @@ class ReasoningContextWorkspace:
             content=content,
             cause_event_ids=cause_event_ids,
             prepared_at=prepared_at,
+            memory_eligible=memory_eligible,
         )
         key = str(intent_id)
         with self._lock:
@@ -329,7 +331,7 @@ class ReasoningContextWorkspace:
         )
         self._append_history(key, reply)
         topic = self._topic_for_causes(key, causes)
-        if topic is not None:
+        if topic is not None and projection.memory_eligible:
             topic.messages.append(reply)
             participant = str(sender.actor_id)
             if participant not in topic.participants:

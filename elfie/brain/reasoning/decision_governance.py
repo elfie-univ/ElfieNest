@@ -12,10 +12,15 @@ from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import IntentId, PlanId
 
 
-def govern_decision(frame: TurnFrame, proposal: DecisionPlan) -> TurnDecision:
+def govern_decision(
+    frame: TurnFrame,
+    proposal: DecisionPlan,
+    *,
+    memory_eligible: bool = True,
+) -> TurnDecision:
     """Bind a proposal to host-owned scopes and degrade violations to No-op."""
     try:
-        return _bind(frame, proposal)
+        return _bind(frame, proposal, memory_eligible=memory_eligible)
     except ValidationError:
         noop = DecisionPlan(
             plan_id=PlanId(f"scope-noop-{proposal.turn_id}"),
@@ -38,10 +43,15 @@ def govern_decision(frame: TurnFrame, proposal: DecisionPlan) -> TurnDecision:
                 ),
             ),
         )
-        return _bind(frame, noop)
+        return _bind(frame, noop, memory_eligible=memory_eligible)
 
 
-def _bind(frame: TurnFrame, plan: DecisionPlan) -> TurnDecision:
+def _bind(
+    frame: TurnFrame,
+    plan: DecisionPlan,
+    *,
+    memory_eligible: bool = True,
+) -> TurnDecision:
     if plan.frame_id != frame.frame_id:
         raise ValueError("decision frame does not match admitted turn")
     return TurnDecision(
@@ -49,6 +59,7 @@ def _bind(frame: TurnFrame, plan: DecisionPlan) -> TurnDecision:
         interaction_scope=frame.interaction_scope,
         response_scope=frame.response_scope,
         plan=plan,
+        memory_eligible=memory_eligible,
     )
 
 

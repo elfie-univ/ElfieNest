@@ -62,7 +62,12 @@ from elfie.brain.reasoning.run import (
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
-from elfie.brain.workspace.contracts import IngestDisposition
+from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
+    IngestDisposition,
+    SourceDomain,
+)
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
@@ -483,7 +488,10 @@ class BrainCoordinator:
 
     @staticmethod
     def _requires_model(frame) -> bool:
-        """Admit model work only for owner interaction, internal work, or salient input."""
+        """Admit model work for meaningful inputs, not routine receipt bookkeeping."""
+
+        if BrainCoordinator._is_routine_receipt_frame(frame):
+            return False
 
         if any(
             getattr(event.payload, "sender", None) is not None
@@ -497,6 +505,35 @@ class BrainCoordinator:
         ):
             return True
         return any(event.salience >= 0.75 for event in frame.events)
+
+    @staticmethod
+    def _is_routine_receipt_frame(frame) -> bool:
+        """Keep successful OutputRouter receipts on the local NoOp path.
+
+        Receipts are still appraised, settled, journaled, and committed by the
+        existing completion/output chain.  Only an errored receipt is allowed
+        to re-enter model reasoning, so salient failures and explicit internal
+        Activity signals retain their existing model-backed behavior.
+        """
+
+        if (
+            frame.source_domain is not SourceDomain.INTERNAL
+            or not frame.events
+            or frame.state_updates
+            or frame.media_samples
+        ):
+            return False
+        return all(
+            isinstance(event.payload, ExecutionPayload)
+            and event.payload.status
+            in {
+                ExecutionStatus.ACCEPTED,
+                ExecutionStatus.STARTED,
+                ExecutionStatus.COMPLETED,
+            }
+            and event.payload.error is None
+            for event in frame.events
+        )
 
     @staticmethod
     def _no_model_result(task) -> ReasoningTurnResult:
