@@ -521,12 +521,14 @@ def _validate_catalogs(
     if len(relationship_ids) != len(set(relationship_ids)):
         raise ValueError("RelationshipArchetypes ID 必须唯一")
     theme_ids = {theme.theme_id for theme in package.episode_themes}
-    for rule in package.relationship_archetypes:
-        if not rule.person_species_ids or not rule.role:
-            raise ValueError(f"RelationshipArchetype {rule.archetype_id} 条件不完整")
-        if set(rule.episode_theme_ids) - theme_ids:
+    for relationship_rule in package.relationship_archetypes:
+        if not relationship_rule.person_species_ids or not relationship_rule.role:
             raise ValueError(
-                f"RelationshipArchetype {rule.archetype_id} 引用了未定义经历主题"
+                f"RelationshipArchetype {relationship_rule.archetype_id} 条件不完整"
+            )
+        if set(relationship_rule.episode_theme_ids) - theme_ids:
+            raise ValueError(
+                f"RelationshipArchetype {relationship_rule.archetype_id} 引用了未定义经历主题"
             )
 
     if not package.episode_themes:
