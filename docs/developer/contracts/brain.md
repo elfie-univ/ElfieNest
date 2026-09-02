@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.4
+**Contract version:** 1.5
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-31
+**Revised:** 2026-09-01
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -10,7 +10,10 @@
 > Earlier Brain migrations remain protected by permanent architecture tests.
 > The accepted Selfhood/fixed-header gaps remain tracked in the scoped
 > [Selfhood conformance register](../conformance/elfie-selfhood). The completed
-> Reasoning Context Workspace P0 boundary is protected by permanent focused tests.
+> Reasoning Context Workspace P0 boundary is protected by permanent focused
+> tests. Version 1.5 additionally freezes the one-time Genesis and final-owner
+> isolation rules accepted by ADR-0033; remaining implementation gaps stay in
+> their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -114,7 +117,8 @@ remain in the
    the minimum per-Elfie identity facts frozen at creation. `adaptive_self`
    contains bounded personality traits, personal value/norm identifiers and
    interaction, coping and expression tendencies.
-2. The state must not contain a Profile revision, Canon version/path/reference,
+2. The state must not contain a Profile revision, Canon or source-package
+   version/path/reference, questionnaire answer, generation seed/policy trace,
    final prompt paragraph, free-form model-authored autobiography, detailed
    world knowledge, biography, relationship state, current Emotion/Energy/
    Orientation/Activity, capabilities, permissions or application-wide rules.
@@ -140,17 +144,23 @@ remain in the
 
 ### Genesis and runtime inputs
 
-6. Genesis is the only Selfhood initializer. It may consume accepted adoption
-   input, creation-time Canon/species facts and reviewed deterministic mappings,
-   then co-materializes Profile, complete Selfhood and Genesis Memory as sibling
-   outputs of one validated creation bundle. Selfhood does not derive from a
-   persisted Profile at ordinary startup, and partial/inconsistent creation
-   fails admission.
-7. Profile remains the external immutable dossier. Canon remains a creation-time
-   world/species input and a source for Genesis Memory. Ordinary Brain runtime,
-   Reasoning context assembly and Selfhood projection must not read, accept,
-   refresh or synchronize Profile or Canon. Existing Elfies are not bound to a
-   Canon version; later Canon changes do not alter their Selfhood.
+6. Genesis is the only Selfhood initializer. It may consume a published typed
+   source package, transient accepted adoption input and reviewed deterministic
+   mappings, then co-materializes Profile, complete Selfhood and Genesis Memory
+   as sibling outputs of one validated creation bundle. Selfhood does not derive
+   from a persisted Profile at ordinary startup, and partial/inconsistent
+   creation fails admission. A Selfhood-owned contract must not define an
+   external Profile/Canon observer projection; that projection belongs to the
+   Profile/App view that owns it.
+7. Profile remains the external immutable dossier. The source package remains a
+   creation-time world/species input and a source for Genesis Memory only until
+   commit. Accepted answers, `LifeContext`, `PersonalGenesisPlan`, source-package
+   bindings and generation seeds are not persisted in Selfhood or any ordinary
+   Brain state and are deleted after the creation transaction ends. Ordinary
+   Brain runtime, Reasoning context assembly and Selfhood projection must not
+   read, accept, refresh or synchronize Profile, Canon or any creation source.
+   Existing Elfies are not bound to a Canon version; later source changes do not
+   alter their Selfhood or Memory.
 8. Missing, invalid, unsupported or unrenderable Selfhood fails Brain/resident
    cognition before `ModelPort` invocation and produces a safe diagnostic. It
    must not fall back to `Elfie`, a generic persona, all-0.5 traits, Profile,
@@ -445,8 +455,9 @@ does not erase identity, memory, commitments or basic reflex capability.
 ## Dependency and package rules
 
 Brain depends only on its own strongly typed consumer-owned Ports and Elfie
-semantic contracts. Ordinary Brain runtime also does not depend on Profile or
-Canon. It does not import App, Nest, concrete Infrastructure,
+semantic contracts. Ordinary Brain runtime also does not depend on Profile,
+Canon, a Genesis source package or adoption inputs. It does not import App,
+Nest, concrete Infrastructure,
 Provider SDKs, platform payloads, device transports, filesystem roots or
 database records. AI Runtime implementations remain outside Brain; Brain owns
 when and why they are called inside a Run.

@@ -3,13 +3,11 @@
 from datetime import datetime, timezone
 
 import pytest
-from pydantic import ValidationError
 
 from elfie.brain.selfhood.contracts import (
     AdaptiveSelf,
     BigFiveTraits,
     IdentityCore,
-    ProfileAnchorSnapshot,
     SelfhoodState,
 )
 from elfie.brain.selfhood.system import SelfhoodGrowthDisabledError, SelfhoodSystem
@@ -26,11 +24,6 @@ def _seed(*, display_name: str = "小狐", openness: float = 0.8) -> dict:
             "display_name": display_name,
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "north",
-            "home_region_name": "北境",
-            "earth_arrival_statement": "我被领养来到地球。",
             "resident_role": "居民",
         },
         "adaptive_self": {
@@ -109,22 +102,6 @@ def test_identity_core_is_immutable_for_dedicated_checkpoint_restore() -> None:
 
     with pytest.raises(ValueError, match="identity_core is immutable"):
         system.restore(tampered_checkpoint)
-
-
-def test_profile_anchor_remains_external_and_requires_complete_identity() -> None:
-    anchor = ProfileAnchorSnapshot(
-        revision=1,
-        captured_at=NOW,
-        elfie_id="elfie-1",
-        display_name="小狐",
-        species_id="fox",
-        appearance_seed=7,
-        appearance_genome_version=1,
-        primary_morphology="biped",
-    )
-    assert anchor.display_name == "小狐"
-    with pytest.raises(ValidationError, match="identity anchors"):
-        ProfileAnchorSnapshot(revision=1, captured_at=NOW, elfie_id="elfie-1")
 
 
 def test_selfhood_state_has_exactly_identity_and_adaptive_layers() -> None:

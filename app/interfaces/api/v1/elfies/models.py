@@ -34,7 +34,7 @@ class ElfieAppearanceResponse(_StrictModel):
 
 class ElfieSpeciesPresentationResponse(_StrictModel):
     species_id: str
-    canon_id: str
+    species_package_id: str
     display_name: str
     display_name_zh: str
     earth_shape_label: str

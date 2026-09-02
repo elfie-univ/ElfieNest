@@ -31,7 +31,6 @@ from scripts.internal.release.scripted_model_server import (
     SYNTHETIC_CREDENTIAL,
 )
 
-ADOPTION_SCHEMA_NAME = "adoption_candidate_reveal_v1"
 JOURNEY_SCHEMA_VERSION = 1
 DEFAULT_OWNER_ACCOUNT = "release_owner"
 DEFAULT_OWNER_DISPLAY_NAME = "Release Owner"
@@ -785,12 +784,13 @@ class InstalledProductJourney:
             or not candidates
         ):
             raise JourneyFailure("candidate_set_invalid", phase="adoption")
-        candidate_ids = [
-            item.get("candidate_id")
-            for item in candidates[:2]
-            if isinstance(item, dict)
-        ]
-        candidate_ids = [item for item in candidate_ids if isinstance(item, str)]
+        candidate_ids: list[str] = []
+        for item in candidates[:2]:
+            if not isinstance(item, dict):
+                continue
+            candidate_id = item.get("candidate_id")
+            if isinstance(candidate_id, str):
+                candidate_ids.append(candidate_id)
         if not candidate_ids:
             raise JourneyFailure("candidate_ids_missing", phase="adoption")
         replies = session.post_json(
@@ -808,15 +808,12 @@ class InstalledProductJourney:
                 for item in (reply_items if isinstance(reply_items, list) else [])
                 if isinstance(item, dict)
                 and item.get("status") == "accepted"
-                and isinstance(item.get("reveal"), dict)
+                and _valid_candidate_reply(item, expected_candidate_ids=candidate_ids)
             ),
             None,
         )
         if accepted is None:
             raise JourneyFailure("candidate_not_accepted", phase="adoption")
-        reveal = accepted.get("reveal")
-        if not isinstance(reveal, dict) or not _valid_reveal(reveal):
-            raise JourneyFailure("candidate_reveal_invalid", phase="adoption")
         candidate_id = accepted.get("candidate_id")
         if not isinstance(candidate_id, str):
             raise JourneyFailure("accepted_candidate_id_missing", phase="adoption")
@@ -825,7 +822,7 @@ class InstalledProductJourney:
             {
                 "candidate_set_id": candidate_set_id,
                 "candidate_id": candidate_id,
-                "name": str(reveal.get("suggested_name") or "露米"),
+                "name": "露米",
                 "full_body_image_url": "",
                 "headshot_image_url": "",
             },
@@ -840,10 +837,14 @@ class InstalledProductJourney:
         evidence.details["adoption"] = {
             "resumed": False,
             "elfie_id": elfie_id,
-            "reveal_valid": True,
+            "candidate_reply_valid": True,
         }
         _phase(
-            evidence, "adoption", resumed=False, elfie_id=elfie_id, reveal_valid=True
+            evidence,
+            "adoption",
+            resumed=False,
+            elfie_id=elfie_id,
+            candidate_reply_valid=True,
         )
         return elfie_id
 
@@ -1036,19 +1037,37 @@ def _food_usable(package: Mapping[str, Any], reference: str) -> bool:
     )
 
 
-def _valid_reveal(reveal: Mapping[str, Any]) -> bool:
-    original = reveal.get("original_name")
-    suggested = reveal.get("suggested_name")
-    story = reveal.get("personal_story")
+def _valid_candidate_reply(
+    reply: Mapping[str, Any], *, expected_candidate_ids: Sequence[str]
+) -> bool:
+    candidate_id = reply.get("candidate_id")
+    species_id = reply.get("species_id")
+    life_stage = reply.get("life_stage")
+    age_years = reply.get("age_years")
+    gender = reply.get("gender")
+    full_body_url = reply.get("full_body_image_url")
+    headshot_url = reply.get("headshot_image_url")
+    appearance_tags = reply.get("appearance_tags")
+    personality_tags = reply.get("personality_tags")
+    runtime_appearance = reply.get("runtime_appearance")
+    message = reply.get("message")
     return bool(
-        isinstance(original, str)
-        and isinstance(suggested, str)
-        and isinstance(story, str)
-        and 2 <= len(original) <= 16
-        and 2 <= len(suggested) <= 12
-        and original.strip() != suggested.strip()
-        and "我" in story
-        and 24 <= len(story) <= 220
+        isinstance(candidate_id, str)
+        and candidate_id in expected_candidate_ids
+        and isinstance(species_id, str)
+        and bool(species_id.strip())
+        and life_stage in {"youth", "young_adult", "mature", "elder"}
+        and isinstance(age_years, int)
+        and not isinstance(age_years, bool)
+        and 1 <= age_years <= 20
+        and gender in {"male", "female"}
+        and isinstance(full_body_url, str)
+        and isinstance(headshot_url, str)
+        and isinstance(appearance_tags, (list, tuple))
+        and isinstance(personality_tags, (list, tuple))
+        and isinstance(runtime_appearance, dict)
+        and isinstance(message, str)
+        and bool(message.strip())
     )
 
 

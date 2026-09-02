@@ -65,7 +65,7 @@ class ElfieAppearanceResult:
 @dataclass(frozen=True)
 class ElfieSpeciesPresentation:
     species_id: str
-    canon_id: str
+    species_package_id: str
     display_name: str
     display_name_zh: str
     earth_shape_label: str

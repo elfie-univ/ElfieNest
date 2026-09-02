@@ -64,7 +64,7 @@ function candidate(index: number) {
     candidate_id: `candidate-${index}`,
     species_id: "fox" as const,
     life_stage: "young_adult" as const,
-    age_months: 36,
+    age_years: 3,
     gender: index % 2 === 0 ? "male" as const : "female" as const,
     full_body_image_url: `data:image/png;base64,full-${index}`,
     headshot_image_url: `data:image/png;base64,head-${index}`,
@@ -78,19 +78,14 @@ function reply(index: number) {
   return {
     ...candidate(index),
     status: "accepted" as const,
-    message: "",
-    reveal: {
-      original_name: `Aro ${index}`,
-      suggested_name: `阿洛 ${index}`,
-      personal_story: `我是 Aro ${index}，很高兴来到 Nest。`,
-    },
+    message: "我读完你的同行意向了，愿意继续认识你。",
   }
 }
 
 const species = [
   {
     species_id: "fox",
-    canon_id: "saevi",
+    species_package_id: "species-fox",
     display_name: "Saevi",
     display_name_zh: "灵狐",
     earth_shape_label: "fox-like",
@@ -103,7 +98,7 @@ const species = [
   },
   {
     species_id: "dog",
-    canon_id: "tovren",
+    species_package_id: "species-dog",
     display_name: "Tovren",
     display_name_zh: "灵犬",
     earth_shape_label: "dog-like",
@@ -203,7 +198,7 @@ describe("AdoptionJourneyDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it("shows only the compact administrator message when interstellar travel is unavailable", async () => {
+  it("shows only the compact administrator message when no species is available", async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     api.adoptionInfo.mockResolvedValueOnce({
@@ -213,7 +208,7 @@ describe("AdoptionJourneyDialog", () => {
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
       nest_capacity: { used: 0, max: 4, remaining: 4 },
-      availability: "model_unavailable",
+      availability: "species_unavailable",
     })
 
     renderJourney({ onOpenChange })
@@ -348,7 +343,7 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
-    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 Aro 1" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 候选者 2" })).toBeInTheDocument()
     expect(screen.getByText("确认后 TA 才会正式加入 Nest")).toBeInTheDocument()
     expect(api.commitAdoption).not.toHaveBeenCalled()
     expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-1"], "", "csrf")
@@ -417,7 +412,7 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: "候选者 3" }))
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
-    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 Aro 2" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 候选者 3" })).toBeInTheDocument()
     expect(onRefreshCsrfToken).toHaveBeenCalledTimes(1)
     expect(api.adoptionReplies).toHaveBeenNthCalledWith(1, "set-1", ["candidate-2"], "", "csrf")
     expect(api.adoptionReplies).toHaveBeenNthCalledWith(2, "set-1", ["candidate-2"], "", "fresh-csrf")

@@ -76,7 +76,8 @@ Activity、重启恢复和重复发送保护都只是口头设计。
 2. 对外只有具身线路和数字通信线路，两条线路不能在同一认知回合混合输出；
 3. Brain 有 Communication、Embodied、Internal 三类触发来源，每个 Turn 只有一个来源域；
 4. 虚拟和实体身体二选一，任何稳定时刻只有一个身体权威；
-5. Profile 保存不可变身份、虚拟外貌和生成来源，Brain 不能改写 Profile；
+5. Profile 只保存不可变外部身份/年龄/出身锚点、最终虚拟外貌和技术 Schema revision；
+   Brain 不能把它当认知来源读取或改写；
 6. 同一个 Elfie 的身体、通信、跨回合活动和心智整理共享同一人格和记忆；
 7. 情绪、能量和驱力只能影响决策，不能直接取得外部执行权或扩大权限；
 8. 跨回合活动到期后生成新的 Internal Trigger，不能绕过思考中枢直接执行开放行为；
@@ -197,7 +198,8 @@ World Runtime：外部世界实际上是什么
 人格、个人价值、互动、表达和应对倾向；两层对应的确定性模型投影。
 
 **初始化输入**：一份已校验 `GenesisSelfhoodSeed`。Genesis 在并列物化最终 owner 时可以读取
-Profile/Canon 创建输入，但普通 Brain 运行期既不接收 Profile，也不接收 Canon。
+已发布强类型资料包和临时领养输入，但 Selfhood 不保存这些输入；普通 Brain 运行期既不接收
+Profile、Canon，也不接收任何创建资料。
 
 **未来更新输入**：只允许 Memory 整理生成的强类型 proposal，并且只有后续独立成长设计获批后
 才能修改 `adaptive_self`。第一阶段不装配更新路径。

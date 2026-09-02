@@ -239,7 +239,7 @@ def _species_presentation(
         return None
     return ElfieSpeciesPresentation(
         species_id=definition.species_id,
-        canon_id=definition.canon_id,
+        species_package_id=definition.species_package_id,
         display_name=definition.display_name,
         display_name_zh=definition.display_name_zh,
         earth_shape_label=definition.earth_shape_label,

@@ -4,6 +4,11 @@
 - **Date:** 2026-08-12
 - **Scope:** one Elfie's stable Profile, Brain systems, Genesis and embodiment authority
 
+> **Later refinement:** ADR-0033 supersedes this record's creation-provenance
+> wording. The current contract limits Profile to an external objective dossier,
+> makes Genesis the sole semantic compiler and removes creation-input bindings
+> after commit. This file remains historical evidence, not the active rule.
+
 ## Context
 
 ADR-0005 established the internal Ports/Adapters direction for one Elfie. Its
@@ -24,9 +29,11 @@ implementation preserve the wrong owners and require a second migration later.
 
 Revise the Elfie internal architecture contract to version 2.0:
 
-- Profile owns only immutable intrinsic identity, virtual appearance and
-  provenance. It does not own personality, memory, capabilities, permissions,
-  runtime limits, current body or current state.
+- As refined by ADR-0033, Profile owns only immutable externally visible
+  objective identity, stable age/birth and personal-origin anchors, and final
+  virtual appearance. Creation provenance is transaction-only; Profile does not
+  own it, personality, memory, capabilities, permissions, runtime limits,
+  current body or current state.
 - Brain owns ten conceptual systems: Event Workspace, Orientation, Selfhood,
   Emotion, Energy, Motivation, Memory, Reasoning Core, Persistent Activity and
   Cognitive Consolidation. Skills belong to the Reasoning Core side of Brain.

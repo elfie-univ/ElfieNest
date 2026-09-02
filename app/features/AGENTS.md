@@ -19,6 +19,9 @@
 子域。目录存在不等于批准尚未实现的能力。
 
 - `elfies` 只拥有授权目录与投影，不写 Elfie Profile、认知或记忆事实。
+- `adoption` 只拥有候选、临时领养选择、资格及最终领养/归属关系；不编译生命语义。成功
+  提交或终止失败后，不得保留原始问卷、LifeContext、Plan、生成 Seed 或足以再生 Elfie
+  的输入。
 - `nest_management` 只通过公开 Nest 边界提供产品用例，不复制 Nest 事实。
 - `bodies` 拥有注册、授权和 Elfie/body 关联；技术传输属于 Infrastructure，托管、
   归巢和切换属于 Orchestration。

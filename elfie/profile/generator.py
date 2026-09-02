@@ -17,10 +17,8 @@ from .models import (
     ElfieIdentity,
     ElfieOrigin,
     ElfieProfile,
-    EmbodimentProfile,
     FaceAppearance,
     FurAppearance,
-    ProfileProvenance,
     RegionAccent,
 )
 from .species import get_species_profile
@@ -127,7 +125,6 @@ class AppearanceGenerator:
         genome = AppearanceGenome(
             genome_version=2,
             species_profile_version=species.profile_version,
-            seed=self.seed,
             macro=AppearanceMacro(
                 stature_z=stature_z,
                 frame_size_z=frame_size_z,
@@ -255,11 +252,12 @@ def create_visual_profile(
     appearance_overrides: Mapping[str, Any] | None = None,
     appearance: AppearanceGenome | None = None,
     origin: ElfieOrigin | None = None,
+    gender: str | None = None,
     catalog: SpeciesCatalog | None = None,
 ) -> ElfieProfile:
     """创建当前阶段可直接持久化的视觉个体档案。"""
     catalog = catalog or current_species_catalog()
-    species_definition = catalog.definition(species_id, adoptable_only=True)
+    catalog.definition(species_id, adoptable_only=True)
     if appearance is None:
         appearance = AppearanceGenerator(seed, catalog=catalog).generate(
             species_id=species_id,
@@ -274,24 +272,9 @@ def create_visual_profile(
             display_name=display_name,
             species_id=species_id,
             origin=origin or ElfieOrigin(),
+            gender=gender,
         ),
         appearance=appearance,
-        embodiment=EmbodimentProfile(
-            primary_morphology="biped",
-            supported_morphologies=("biped",),
-            skeleton_profile_id="humanoid_mixamo_v1",
-            capability_profile_id=species_definition.godot_package_id,
-        ),
-        provenance=ProfileProvenance(
-            generator_version=GENERATOR_VERSION,
-            master_seed=seed,
-            appearance_seed=seed,
-            user_choices={
-                "height_direction": height_direction,
-                "build_direction": build_direction,
-                "primary_morphology": "biped",
-            },
-        ),
     )
     profile.validate(catalog=catalog)
     return profile
@@ -379,11 +362,6 @@ def _validate_generated_appearance(
             species_id=species_id,
         ),
         appearance=genome,
-        provenance=ProfileProvenance(
-            generator_version=GENERATOR_VERSION,
-            master_seed=genome.seed,
-            appearance_seed=genome.seed,
-        ),
     )
     validation_profile.validate()
 

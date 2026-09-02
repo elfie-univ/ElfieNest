@@ -5,6 +5,12 @@
 **Scope:** Selfhood authority, Genesis initialization and online Elfie
 `ReasoningRun` context assembly
 
+> **Later refinement:** ADR-0033 keeps the Selfhood and fixed-header decision,
+> but makes adoption answers, source-package bindings, plans and seeds strictly
+> transaction-local. Profile and Selfhood are sibling final outputs; committed
+> Brain runtime uses Selfhood and Memory without reading either Profile or the
+> creation source.
+
 ## Context
 
 The accepted Brain architecture separated Selfhood from Memory and Profile, but

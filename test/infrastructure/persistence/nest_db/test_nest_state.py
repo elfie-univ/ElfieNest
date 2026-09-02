@@ -60,8 +60,8 @@ def _seed_elfie(db_path: str) -> None:
         )
         connection.execute(
             "INSERT INTO elfies "
-            "(elfie_id, name, owner_user_id, species, adopted_at, status) "
-            "VALUES ('00000001', '小狐', 1, 'fox', CURRENT_TIMESTAMP, 'offline')"
+            "(elfie_id, owner_user_id, adopted_at, status) "
+            "VALUES ('00000001', 1, CURRENT_TIMESTAMP, 'offline')"
         )
         connection.commit()
 

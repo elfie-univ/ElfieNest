@@ -40,7 +40,10 @@ class LabFixtureDefinition(EvalContract):
     """Public synthetic fixture used to build the same Lab Elfie per candidate."""
 
     fixture_id: str = Field(min_length=1, max_length=160)
-    elfie_id: str = Field(min_length=1, max_length=160)
+    # Lab fixtures use the same final workspace identity contract as the
+    # product owner.  Fixture IDs remain descriptive; this ID is the actual
+    # workspace key and therefore must be eight ASCII digits.
+    elfie_id: str = Field(pattern=r"^[0-9]{8}$")
     name: str = Field(min_length=1, max_length=160)
     species_id: Literal["dog", "fox"]
     age_years: float = Field(gt=0.0, le=100.0)

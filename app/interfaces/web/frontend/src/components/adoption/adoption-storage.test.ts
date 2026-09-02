@@ -9,7 +9,7 @@ describe("adoption storage", () => {
   })
 
   it("does not restore an interrupted invitation as a permanent waiting screen", async () => {
-    window.localStorage.setItem("elfienest.adoption-draft.owner.v2", JSON.stringify({
+    window.localStorage.setItem("elfienest.adoption-draft.owner.v3", JSON.stringify({
       accountId: "owner",
       savedAt: Date.now(),
       sessionExpiresAt: Date.now() + 60_000,

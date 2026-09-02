@@ -92,7 +92,7 @@ def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
                 elfie.cognitive_datetime,
                 event_id="e1-owner-1",
                 conversation_id="owner-chat",
-                text="你来自哪里？",
+                text="你的母星是什么？",
                 elfie_id="genesis-check",
             )
         )
@@ -103,8 +103,11 @@ def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
 
         assert len(runtime.requests) == 1
         assert "RELEVANT_MEMORY" in runtime.requests[0].user_prompt
-        assert "genesis:knowledge:genesis-check:0" in runtime.requests[0].user_prompt
-        assert "我来自 Elfaria。" in runtime.requests[0].user_prompt
+        assert (
+            "genesis:knowledge:genesis-check:world-identity"
+            in runtime.requests[0].user_prompt
+        )
+        assert "Elfie 的母星名为 Elfaria。" in runtime.requests[0].user_prompt
         assert len(channel.sent) == 1
         assert channel.sent[0].parts[0].text == "我来自 Elfaria。"
     finally:
@@ -151,7 +154,7 @@ def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
             first.cognitive_datetime,
             event_id="e1-restart-owner-1",
             conversation_id="owner-chat",
-            text="你来自哪里？",
+            text="你的母星是什么？",
             elfie_id="genesis-check",
         )
     )
@@ -169,7 +172,7 @@ def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
             second.cognitive_datetime,
             event_id="e1-restart-owner-2",
             conversation_id="owner-chat",
-            text="你来自哪里？",
+            text="你的母星是什么？",
             elfie_id="genesis-check",
         )
     )

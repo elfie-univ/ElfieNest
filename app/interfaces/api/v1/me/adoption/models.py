@@ -12,7 +12,6 @@ from app.features.adoption import (
     CandidateRepliesResult,
     CandidateReplyResult,
     CandidateResult,
-    CandidateReveal,
     CandidateSetResult,
 )
 from app.orchestration.resident_admission import ResidentAdmissionResult
@@ -129,7 +128,7 @@ class AdoptionSpeciesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     species_id: str = Field(min_length=1)
-    canon_id: str = Field(min_length=1)
+    species_package_id: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
     earth_shape_label: str = Field(min_length=1)
@@ -153,7 +152,6 @@ class AdoptionOptionsResponse(BaseModel):
         "available",
         "nest_full",
         "member_quota_full",
-        "model_unavailable",
         "species_unavailable",
     ]
 
@@ -164,7 +162,7 @@ class AdoptionOptionsResponse(BaseModel):
             species=tuple(
                 AdoptionSpeciesResponse(
                     species_id=species.species_id,
-                    canon_id=species.canon_id,
+                    species_package_id=species.species_package_id,
                     display_name=species.display_name,
                     display_name_zh=species.display_name_zh,
                     earth_shape_label=species.earth_shape_label,
@@ -208,7 +206,7 @@ class AdoptionCandidateResponse(BaseModel):
     candidate_id: str
     species_id: str = Field(min_length=1)
     life_stage: Literal["youth", "young_adult", "mature", "elder"]
-    age_months: int = Field(ge=1, le=240)
+    age_years: int = Field(ge=1, le=20)
     gender: Literal["male", "female"]
     full_body_image_url: str
     headshot_image_url: str
@@ -242,22 +240,9 @@ class CandidateSetResponse(BaseModel):
         )
 
 
-class CandidateRevealResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    original_name: str
-    suggested_name: str
-    personal_story: str
-
-    @classmethod
-    def from_result(cls, result: CandidateReveal) -> CandidateRevealResponse:
-        return cls(**result.__dict__)
-
-
 class CandidateReplyResponse(AdoptionCandidateResponse):
     status: Literal["accepted", "unsure"]
     message: str
-    reveal: Optional[CandidateRevealResponse] = None
 
     @classmethod
     def from_reply(cls, result: CandidateReplyResult) -> CandidateReplyResponse:
@@ -265,11 +250,6 @@ class CandidateReplyResponse(AdoptionCandidateResponse):
             **result.candidate.__dict__,
             status=result.status,
             message=result.message,
-            reveal=(
-                None
-                if result.reveal is None
-                else CandidateRevealResponse.from_result(result.reveal)
-            ),
         )
 
 
@@ -295,6 +275,8 @@ class AdoptionResultResponse(BaseModel):
     elfie_id: str = Field(pattern=r"^[0-9]{8}$")
     name: str
     species_id: str = Field(min_length=1)
+    persistence_status: Literal["committed"]
+    runtime_status: Literal["registered", "offline"]
 
     @classmethod
     def from_result(cls, result: ResidentAdmissionResult) -> AdoptionResultResponse:
@@ -302,6 +284,8 @@ class AdoptionResultResponse(BaseModel):
             elfie_id=result.elfie_id,
             name=result.name,
             species_id=result.species_id,
+            persistence_status=result.persistence_status,
+            runtime_status=result.runtime_status,
         )
 
 
@@ -341,7 +325,6 @@ __all__ = (
     "CandidateRepliesRequest",
     "CandidateRepliesResponse",
     "CandidateReplyResponse",
-    "CandidateRevealResponse",
     "CandidateSetRequest",
     "CandidateSetResponse",
 )

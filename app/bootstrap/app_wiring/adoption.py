@@ -14,7 +14,12 @@ from app.features.adoption import (
 from app.features.configuration.settings import SettingsStorePort
 from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
-from elfie.public import BodyPort, ElfieFactory, ReasoningConstitution
+from elfie.public import (
+    BodyPort,
+    ElfieFactory,
+    GenesisCompiler,
+    ReasoningConstitution,
+)
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
 from infrastructure.godot.artifacts.species_package_validation import (
     run_godot_species_validation,
@@ -25,10 +30,6 @@ from infrastructure.godot.artifacts.species_runtime_catalog import (
 from infrastructure.godot.body_transport import (
     RuntimeIntentPayload,
     RuntimeIntentResult,
-)
-from infrastructure.models.adoption_narrative import (
-    AdoptionStructuredModelExecution,
-    StructuredAdoptionNarrativeAdapter,
 )
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
@@ -45,6 +46,7 @@ from infrastructure.persistence.configuration.species import (
 from infrastructure.persistence.configuration.species_assets import (
     BundledSpeciesPresentationAdapter,
 )
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -72,7 +74,6 @@ def build_adoption_services(
     *,
     settings: SettingsStorePort,
     nest_session: NestSession | None,
-    model_execution: AdoptionStructuredModelExecution | None = None,
     portraits: CandidatePortraitPort | None = None,
     nest_config: NestConfig | None = None,
     catalog: Any | None = None,
@@ -108,28 +109,37 @@ def build_adoption_services(
             ),
         )
 
-    narrative = (
-        None
-        if model_execution is None
-        else StructuredAdoptionNarrativeAdapter(model_execution)
+    adoption_persistence = SQLiteAdoptionAdapter(
+        db_path,
+        nest_config=nest_config or load_nest_config(),
     )
     adoption = AdoptionService(
         SettingsAdoptionPolicyAdapter(settings),
-        SQLiteAdoptionAdapter(
-            db_path,
-            nest_config=nest_config or load_nest_config(),
-        ),
+        adoption_persistence,
         portraits=portraits,
-        narrative=narrative,
         catalog=catalog,
         species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
         species_runtime=species_runtime,
     )
+
+    def build_genesis_compiler() -> GenesisCompiler:
+        """Load the creation source only when a new resident is compiled.
+
+        Committed residents must be restorable after the bundled source is no
+        longer available.  ResidentAdmission remains the sole compiler caller;
+        this closure only defers construction until its compiling state.
+        """
+
+        return GenesisCompiler(
+            load_genesis_source_package(),
+            catalog=catalog,
+        )
+
     return AdoptionServices(
         adoption=adoption,
         resident_admission=ResidentAdmissionService(
             adoption,
-            FinalElfieWorkspaceAdapter.from_database_path(db_path, catalog=catalog),
+            FinalElfieWorkspaceAdapter.from_database_path(db_path),
             ElfieFactoryAdapter(
                 ElfieFactory(),
                 body_factory,
@@ -157,6 +167,8 @@ def build_adoption_services(
                 ),
             ),
             nest_session,
+            build_genesis_compiler,
+            admission_store=adoption_persistence,
         ),
     )
 

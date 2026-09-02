@@ -86,7 +86,7 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
     ]
     orientation = elfie.orientation_snapshot() if elfie.cognition_configured else None
     selfhood = elfie.selfhood_snapshot()
-    profile_anchor = elfie.profile_anchor_snapshot()
+    profile_anchor = elfie.profile_dossier()
     journal = elfie.brain_journal()
     return {
         "energy": round(energy.get_energy(), 2),

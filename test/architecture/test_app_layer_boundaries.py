@@ -173,14 +173,21 @@ def test_application_contract_has_bilingual_authority_markers() -> None:
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
-    assert "**Contract version:** 1.10" in english_contract
-    assert "**契约版本：** 1.10" in chinese_contract
+    assert "**Contract version:** 1.11" in english_contract
+    assert "**契约版本：** 1.11" in chinese_contract
     assert "[service lifecycle contract](service-lifecycle)" in english_contract
     assert "[服务生命周期契约](service-lifecycle)" in chinese_contract
-    assert "immutable species registry" in english_contract
-    assert "不可变物种注册表" in chinese_contract
+    assert "immutable published Genesis source registry" in english_contract
+    assert "不可变的已发布 Genesis 资料注册表" in chinese_contract
     assert "must not expose, persist or enforce a species" in english_contract
     assert "不得暴露、持久化或" in chinese_contract
+    assert "successful commit or terminal abort" in english_contract
+    assert "成功提交或终止失败后" in chinese_contract
+    assert (
+        "Infrastructure stores the typed outputs and cannot generate them"
+        in english_contract
+    )
+    assert "Infrastructure 只保存强类型产物，不能生成它们" in chinese_contract
     assert "test_app_layer_boundaries.py" in english_contract
     assert "test_app_layer_boundaries.py" in chinese_contract
 

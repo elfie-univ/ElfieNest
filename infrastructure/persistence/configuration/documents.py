@@ -47,7 +47,7 @@ class ConfigDocumentId(str, Enum):
     EMOTION_DYNAMICS = "emotion_dynamics"
     NEST_DEFAULTS = "nest_defaults"
     SPECIES_CATALOG = "species_catalog"
-    WORLD_CANON = "world_canon"
+    GENESIS_SOURCE_PACKAGE = "genesis_source_package"
     RUNTIME_SETTINGS = "runtime_settings"
     PROVIDER_CONNECTIONS = "provider_connections"
     TOOL_SETTINGS = "tool_settings"
@@ -225,15 +225,15 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
         "bootstrap",
         "fail-closed",
     ),
-    ConfigDocumentId.WORLD_CANON: ConfigDocumentSpec(
-        ConfigDocumentId.WORLD_CANON,
+    ConfigDocumentId.GENESIS_SOURCE_PACKAGE: ConfigDocumentSpec(
+        ConfigDocumentId.GENESIS_SOURCE_PACKAGE,
         "world/elfaria.yaml",
         None,
         1,
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.genesis",
         True,
-        "world-canon-v1",
+        "genesis-source-package-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

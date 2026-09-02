@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.features.accounts import AccountPrincipal
-from app.features.adoption import AdoptionPolicyRecord, AdoptionService, CandidateReveal
+from app.features.adoption import AdoptionPolicyRecord, AdoptionService
 from app.interfaces.api.runtime_capability import RuntimeCapabilityDenied
 from app.interfaces.api.v1.auth import require_user
 from app.interfaces.api.v1.me.adoption.dependencies import (
@@ -16,10 +16,16 @@ from app.interfaces.api.v1.me.adoption.dependencies import (
 from app.interfaces.api.v1.me.adoption.routes import router
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
+from elfie.genesis import GenesisCompiler
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
+from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
@@ -29,20 +35,6 @@ from infrastructure.platform import ElfieFactoryAdapter
 class Policy:
     def load_policy(self) -> AdoptionPolicyRecord:
         return AdoptionPolicyRecord(3, ("好奇探索",))
-
-
-class Narrative:
-    def is_ready(self) -> bool:
-        return True
-
-    def reveal(self, candidate, invitation_message: str) -> CandidateReveal:
-        return CandidateReveal("Vulpes", "小狐", "我喜欢在安静的地方慢慢观察世界。")
-
-    def reveal_many(self, candidates, invitation_message: str):
-        return {
-            candidate.candidate_id: self.reveal(candidate, invitation_message)
-            for candidate in candidates
-        }
 
 
 def _client(tmp_path: Path) -> tuple[TestClient, str]:
@@ -60,8 +52,9 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
             ).lastrowid
         )
         connection.commit()
+    catalog = load_and_configure_species_catalog()
     adoption = AdoptionService(
-        Policy(), SQLiteAdoptionAdapter(db_path), narrative=Narrative()
+        Policy(), SQLiteAdoptionAdapter(db_path), catalog=catalog
     )
     admission = ResidentAdmissionService(
         adoption,
@@ -75,6 +68,8 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
             ),
         ),
         None,
+        GenesisCompiler(load_genesis_source_package(), catalog=catalog),
+        admission_store=SQLiteAdoptionAdapter(db_path),
     )
     app = FastAPI()
     app.include_router(router)
@@ -164,15 +159,32 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         },
     )
     assert committed.status_code == 201
-    with get_db(db_path) as connection:
-        stored = connection.execute(
-            "SELECT name,gender,birth_date FROM elfies WHERE elfie_id=?",
-            (committed.json()["elfie_id"],),
-        ).fetchone()
-    assert tuple(stored) == ("星砂", selected["gender"], stored["birth_date"])
+    committed_id = committed.json()["elfie_id"]
+    profile = YamlProfileStoreAdapter(
+        final_root_layout(tmp_path).elfie(committed_id).profile.parent
+    ).load()
+    assert profile.identity.display_name == "星砂"
+    assert profile.identity.gender == selected["gender"]
+    assert committed.json()["persistence_status"] == "committed"
+
+    workspace = final_root_layout(tmp_path).elfie(committed_id)
+    with SQLiteMemoryStoreAdapter(
+        workspace.knowledge_database, elfie_id=committed_id
+    ) as memory:
+        person = memory.get_graph_node(f"genesis:person:{committed_id}:kin-01")
+        assert person is not None
+        assert person.properties["person_species_id"] == "fox"
+        assert person.properties["vocation_id"] == "plant_cultivator"
+        assert person.properties["episode_ids"]
+        assert memory.count_episodes() == 5
+        assert memory.count_graph_nodes("knowledge") == 40
+    assert not workspace.genesis_compile_envelope.exists()
+    assert not workspace.genesis_stage_marker.exists()
 
 
-def test_adoption_is_rejected_until_world_and_models_are_ready(tmp_path: Path) -> None:
+def test_adoption_is_rejected_when_the_runtime_capability_is_denied(
+    tmp_path: Path,
+) -> None:
     client, _db_path = _client(tmp_path)
 
     class DenyAdoption:
@@ -225,11 +237,9 @@ def test_options_report_global_nest_full_before_member_quota(tmp_path: Path) -> 
         for index in range(4):
             connection.execute(
                 """INSERT INTO elfies(
-                       elfie_id,name,owner_user_id,species,gender,birth_date,
-                       adopted_at,status,summary
-                   ) VALUES (?,?,?,'fox','female','2000-01-01',
-                             CURRENT_TIMESTAMP,'offline','steady')""",
-                (f"{index + 1:08d}", f"Elfie {index + 1}", owner_id),
+                       elfie_id,owner_user_id,adopted_at,status
+                   ) VALUES (?,?,CURRENT_TIMESTAMP,'offline')""",
+                (f"{index + 1:08d}", owner_id),
             )
         connection.commit()
 

@@ -5,6 +5,10 @@
 **范围：** Selfhood authority、Genesis 初始化与在线 Elfie `ReasoningRun`
 上下文组装
 
+> **后续细化：** ADR-0033 保留本文的 Selfhood 与固定头部决策，但把领养答案、资料包绑定、
+> Plan 和 Seed 严格限制在创建事务内。Profile 与 Selfhood 是并列最终产物；已提交 Brain
+> 运行只使用 Selfhood 与 Memory，不读取 Profile 或创建资料。
+
 ## 背景
 
 既有 Brain 架构已经把 Selfhood 与 Memory、Profile 分开，但实现与契约仍把 Profile 写成

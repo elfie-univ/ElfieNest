@@ -1,16 +1,15 @@
 # Elfie 内部架构契约
 
-**契约版本：** 2.2
+**契约版本：** 2.3
 **采用日期：** 2026-08-11
-**修订日期：** 2026-08-30
+**修订日期：** 2026-09-01
 **适用范围：** `elfie/`，以及 Infrastructure 为单只 Elfie 限定作用域的 Port View
 
 > **规范性目标。** 本契约定义一只完整 Elfie 的生命系统所有权、依赖方向、公开 Facade
 > 和出站 Port。它细化但不改变已冻结的[系统架构契约](./system)。当前实现尚未完全
-> 合规；已完成迁移证据保留在准备收口的 [Elfie 一致性台账](../conformance/elfie)，
-> 新 Selfhood 迁移单独记录在开放的
-> [Selfhood 一致性台账](../conformance/elfie-selfhood)。任何临时台账删除后，永久架构
-> 门禁仍然有效。
+> 合规；v0.2 的结构实现证据记录在[Elfie 一致性台账](../conformance/elfie)中。支持模型的
+> 行为和既有 workspace 数据政策仍单独记录在开放的[Selfhood 一致性台账](../conformance/elfie-selfhood)
+> 中。任何临时台账删除后，永久架构门禁仍然有效。
 
 根模块、系统 authority 和技术 Adapter 最终位置仍以系统契约为权威；`elfie/` 内部以
 本契约为权威。旧 `ai_runtime/` 已完成退役；当前目标所有者实现的模型、Food 与工具
@@ -18,7 +17,7 @@
 
 ## 目标与明确不做的事
 
-`elfie/` 拥有一只完整、可独立测试的精灵：不可变 Profile、连续 Brain、神经系统
+`elfie/` 拥有一只完整、可独立测试的精灵：不可变外部 Profile、连续 Brain、神经系统
 处理、身体语义、数字通信语义、创建期 Genesis 规则和自身内部生命周期。内部采用
 轻量嵌套 Ports/Adapters，使领域行为不依赖 SQLite、用户可变 YAML、Provider SDK、
 Godot 帧、设备传输或通信平台协议。
@@ -30,10 +29,18 @@ Protocol 或第二套 App Orchestration。稳定的 `Elfie` 和 `ElfieFactory` F
 ## 聚合形态
 
 一只 Elfie 是一个聚合，也是一个内部生命周期边界；它不是系统 Runtime authority。
-Genesis 在普通聚合生命周期之前运行，并把产物提交给最终所有者：
+Genesis 在普通聚合生命周期之前运行，编译仅创建期存在的输入，并把并列产物提交给最终所有者：
 
 ```text
-Genesis ---> Profile + Brain seeds
+CreatorWorldSkeleton -> ResidentKnowledgeBaseline -> GenesisSourcePackage --+
+已接受领养输入 -------------------------------------------------------------+-> Genesis
+                                                                                 |
+                  +----------------------+----------------------+----------------+
+                  v                      v                      v
+               Profile               Selfhood                Memory
+              外部档案              Brain 内部身份         知识/人物/经历
+
+------------------------------- 创建成功提交边界 -------------------------------
 
 Elfie / ElfieFactory Facade
             |
@@ -59,14 +66,14 @@ Runtime、Infrastructure Adapter 或公开产品 API。
 
 | 模块 | 拥有 | 不得拥有 |
 | --- | --- | --- |
-| `elfie/profile/` | 不可变固有身份、物种、虚拟外貌、生成来源和不可变外貌默认资源 | 人格、记忆、权限、运行限制、当前能力/状态、YAML/文件持久化、用户路径、App 领养或账户规则 |
+| `elfie/profile/` | 不可变外部客观身份、稳定年龄/出生与个人出身锚点、最终虚拟外貌和不可变外貌默认资源 | 世界知识/Canon、生成器或模型来源、资料包引用、Seed、用户答案、抵达/培训历史、人格、记忆、关系、权限、运行限制、当前能力/状态、YAML/文件持久化、用户路径、App 领养或账户规则 |
 | `elfie/brain/` | 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、心智整理和 Skills | Provider 选择/配置、SDK 请求、具体工具执行、设备/渠道传输或产品工作流 |
 | `elfie/brain/memory/` | 记忆节点、关系、编码、检索、巩固和语义存储 Port | SQLite 连接、Schema、路径或持久化 Record |
 | `elfie/brain/reasoning/skills/` | Skill 声明、单只精灵的目录、策略和语义工具请求授权 | Runtime 代理、平台工具、工作区路径或工具执行 |
 | `elfie/nervous_system/` | 身体事件规范化、过滤、反射、感知投递和已校验身体意图转换 | 设备传输、Godot 协议、几何或身体注册策略 |
 | `elfie/body/` | 身体身份、能力、解剖、命令、传感事件、回执、候选 Registry、切换和唯一当前 Binding | 虚拟/实体并发 authority、Godot/WebSocket/设备传输、凭据、进程所有权或设备产品授权 |
 | `elfie/communication/` | 标准 Envelope、准入与投递语义、策略、Inbox/Outbox、Hub 和渠道路由 | 产品会话 authority/历史、账户成员、平台 SDK、凭据或网络传输 |
-| `elfie/genesis/` | 创建期生成规则、校验和临时初始化 Bundle | 日常认知、永久重复状态、技术 Adapter 构造或生命周期 authority |
+| `elfie/genesis/` | 创建期语义编译、确定性生成规则、校验和临时初始化 Bundle | 日常认知、永久重复状态、技术 Adapter 构造、持久化实现或生命周期 authority |
 
 Skills 属于 Brain，因为它们影响认知并授权某只 Elfie 可以提出哪些语义工具请求。
 Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不自行执行工具。
@@ -80,10 +87,18 @@ Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不�
 
 ## 生命系统守恒规则
 
-- Profile 回答外层客观问题“是哪一只 Elfie”，创建后不可变。Genesis 从同一个已校验
-  Bundle 并列物化 Profile 与 Brain Selfhood；普通 Brain 运行期不读也不同步 Profile。
-  Selfhood 冻结的 `identity_core` 提供 Brain 身份，`adaptive_self` 只能在后续获批的
-  Memory 证据路径中变化。
+- Profile 回答外层客观问题“是哪一只 Elfie”，创建后不可变。其语义白名单只有稳定
+  身份、稳定年龄/出生锚点、不可变个人出身标识/名称和最终虚拟外貌；Schema revision
+  属于技术元数据。Profile 不得包含世界知识或 Canon 引用、生成来源/版本/Seed、用户
+  答案、人生事件、关系、人格、能力、权限、当前身体或运行状态。
+- Genesis 从同一个已校验 Bundle 并列物化 Profile 与 Brain Selfhood、Memory 和其他
+  owner 专属启动 Seed。两者重复的最低限度身份值只在创建时作为并列产物共同校验；提交
+  后 Profile 与 Selfhood 谁也不能从另一方派生或同步。普通 Brain 运行期不读也不同步
+  Profile。Selfhood 冻结的 `identity_core` 提供 Brain 身份，`adaptive_self` 只能在后续
+  获批的 Memory 证据路径中变化。
+- Genesis 成功提交后，必须切断对领养答案、Canon/资料包、`LifeContext`、
+  `PersonalGenesisPlan`、生成 Seed 和完整 Manifest 的运行依赖。普通恢复只使用最终 owner
+  状态；源资料升级只影响未来创建，除非另行批准迁移或发生真实学习事件。
 - Elfie 只有两条对外线路：经 NervousSystem 和 Body 的具身线路，以及经
   Communication 的数字消息线路。两者可以处于同一生活阶段，但同一个 Turn 不能共享
   输出 authority。
@@ -189,19 +204,30 @@ Brain 拥有十个 authority 不同的概念系统：
 
 ## Genesis
 
-Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它可以读取已接受领养输入
-与创建时物种/世界 Canon，并生成临时 Bundle：Profile 草稿、完整两层 Selfhood seed、
-不超过五个关键领养前记忆事件、关系种子和有界人生补全计划。Profile 与 Selfhood 是并列
-最终 owner 输出，不是运行时同步对；二者共享身份事实必须一起校验，任何冲突或部分提交都
-导致 resident 准入失败。
+Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它读取已发布的强类型
+`GenesisSourcePackage`、仅创建期存在的已接受领养输入和受控随机源。`elfie/genesis/`
+拥有把这些输入变成一个个体的全部语义决定：身份解析、生活上下文、个人知识资格/掌握、
+人物、关系、经历骨架和各 owner 启动 Seed 策略。Infrastructure 可以加载强类型资料包，
+也可以通过 Port 保存已校验输出，但不得作出这些决定。
+
+Genesis 在同一个临时 Bundle 中并列物化 Profile、Brain Selfhood、Genesis Memory 和其他
+明确归属 owner 的启动 Seed。Profile 与 Selfhood 是并列最终 owner 输出，不是运行时同步
+对；两者共享的最低限度身份事实必须一起校验，任何冲突或部分提交都导致 resident 准入
+失败。Memory 接收这只 Elfie 实际拥有的初始知识、人物、关系和经历；离开、培训、抵达与
+领养属于 Episode，不属于 Profile。模型最多根据已经冻结的计划渲染有界、非权威措辞，
+不能改动结构化事实，也不能成为第二条 Recall 来源。
 
 `identity_core`、初始 `adaptive_self` 和全应用 Reasoning Constitution 都不能是模型自由
-生成的自然语言；它们必须使用受审、确定性的强类型映射与模板。Genesis 只保留创建状态和
-来源，不能把 Selfhood 绑定到 Canon 版本、长期进入普通 Brain 上下文，也不能自行决定
+生成的自然语言；它们必须使用受审、确定性的强类型映射与模板。Genesis 不能把 Selfhood
+绑定到 Canon 版本、长期进入普通 Brain 上下文，也不能自行决定
 权限、可用渠道、设备能力、Tool 范围、模型预算或真实账户绑定。
 
-后续人生补全若启用，是通过心智整理执行的临时有界跨回合活动。它不能无限发明重大
-历史、改写 Profile，或长期作为后台编剧运行。
+已接受问卷答案、`LifeContext`、`PersonalGenesisPlan`、资料包绑定、生成 Seed 和模型投影
+输入都只是临时数据，只能存在于有界的未完成准入事务中，并在成功提交或终止失败后删除。
+Profile 之外可以保留最小技术回执，记录输出身份/摘要、Schema/生成器 revision、完成时间
+和幂等结果；其中不得保存答案、世界知识、重放 Seed 或完整人生计划。已提交 Elfie 的备份
+和恢复只使用 Profile、Selfhood、Memory 及其他最终 owner 状态，不能根据回执或旧资料包
+重新生成。
 
 ## 身体候选与唯一当前身体
 
@@ -282,7 +308,10 @@ Gateway、Godot authority 或共享 Adapter 资源。
 ## 依赖规则
 
 ```text
-Genesis -> Profile + Selfhood + 其他 Brain 种子 + Genesis Memory
+造物者/居民资料 -> 已发布 GenesisSourcePackage -> Genesis
+临时领养输入 -------------------------------------> Genesis
+Genesis -> Profile + Selfhood + 其他 owner Seed + Genesis Memory
+成功提交 -X-> 问卷 / LifeContext / Plan / 资料包
 Elfie Facade -> Profile + 私有 Brain 协调
 私有 Brain 协调 -> Brain + NervousSystem + Body + Communication
 Brain -> 自有 Food/Model/Tool/Memory Port
@@ -290,7 +319,8 @@ Brain -> 自有 Food/Model/Tool/Memory Port
 NervousSystem -> Body 语义契约 + Brain 感知 Port
 Communication -> 自有 Channel Port + Brain 感知 Port
 Profile -> 自有持久化 Port
-Infrastructure -> 只依赖它实现的 Elfie Port
+Infrastructure -> 只依赖它实现的强类型 Loader 或 Elfie Port
+Infrastructure -X-> 生命语义编译
 ```
 
 `elfie/` 永不导入 `app`、`nest`、`ai_runtime`、`godot_runtime`、具体
@@ -308,9 +338,12 @@ Port，不依赖 SQLite、用户可变 YAML、网络、Godot 或物理设备。I
 Port，实现并注入 Adapter，迁移全部生产调用方，删除旧实现与兼容路径，然后关闭对应
 一致性缺口。现有系统 Baseline 只能缩减；本契约不创建第二份旧架构 Baseline。
 
-Selfhood 迁移还必须在其聚焦台账关闭前删除所有普通 Profile/Canon Brain 输入、Profile
-派生 fallback、Memory 拥有的权威自我叙事和通用 checkpoint 里的 Selfhood 副本。契约
-文字测试在迁移期守住目标；各实现行关闭时，要由永久运行时 Scanner 与行为/重启测试接替。
+当前 Genesis/Profile 迁移必须从 Profile 删除生成来源、用户选择、能力/抵达事实和 Canon
+投影；把所有个人知识、关系和经历决定移出 Infrastructure；并在提交后删除创建期输入。
+Selfhood 迁移还必须删除 Selfhood 拥有的 Profile/Canon 投影、所有普通 Profile/Canon
+Brain 输入、Profile 派生 fallback、Memory 拥有的权威自我叙事和通用 checkpoint 里的
+Selfhood 副本。契约文字测试在迁移期守住目标；各实现行关闭时，要由永久运行时 Scanner
+与行为/重启测试接替。
 
 ADR-0005 接受的 Ports/Adapters 迁移已经完成，并继续作为永久边界。生命系统实现以后
 按独立获批的纵向切片推进：Brain Kernel 与通信闭环、思考中枢、虚拟具身闭环、连续
@@ -325,4 +358,6 @@ Protocol、通用 Runtime 代理、Elfie 内的技术 Body/Channel SDK、让 App
 代理普通认知、多写入者持久化、兼容 Alias、Fallback Read、虚拟与实体身体同时激活、
 为每个概念系统建立空包、把 Genesis 当作日常 Runtime，以及藏在 `ElfieFactory` 中的
 Service Locator。本契约还拒绝普通 Brain 读取 Profile/Canon、绑定 Canon 版本的
-Selfhood，以及让 Memory 成为第二套身份/人格 owner。
+Selfhood、让 Memory 成为第二套身份/人格 owner、把 Profile 当创建账本或世界百科、
+持久化领养问卷/重放 Seed、静默重新生成已提交 Elfie，以及在 Infrastructure Adapter
+中编译生命语义。

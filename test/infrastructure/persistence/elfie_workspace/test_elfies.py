@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from elfie.brain.memory.memory_records import ClosedEpisode
@@ -25,12 +26,42 @@ def _database(tmp_path: Path) -> str:
         )
         connection.execute(
             """INSERT INTO elfies(
-                   elfie_id,name,owner_user_id,species,adopted_at,status,summary
+                   elfie_id,owner_user_id,adopted_at,status
                ) VALUES
-                   ('00000001','小狐',1,'fox','2026-08-01T00:00:00Z','offline','好奇探索'),
-                   ('00000002','小犬',2,'dog','2026-08-02T00:00:00Z','offline','安静温顺')"""
+                   ('00000001',1,'2026-08-01T00:00:00Z','offline'),
+                   ('00000002',2,'2026-08-02T00:00:00Z','offline')"""
         )
         connection.commit()
+    for elfie_id, display_name, species_id, summary in (
+        ("00000001", "小狐", "fox", "好奇探索"),
+        ("00000002", "小犬", "dog", "安静温顺"),
+    ):
+        layout = final_root_layout(tmp_path).elfie(elfie_id)
+        YamlProfileStoreAdapter(layout.profile.parent).save(
+            create_visual_profile(
+                elfie_id=elfie_id,
+                display_name=display_name,
+                species_id=species_id,
+                seed=1,
+            )
+        )
+        YamlSelfhoodSeedAdapter(layout.brain).save(
+            {
+                "state_schema_version": 1,
+                "revision": 1,
+                "committed_at": datetime(2026, 8, 1, tzinfo=timezone.utc),
+                "identity_core": {
+                    "elfie_id": elfie_id,
+                    "display_name": display_name,
+                    "species_id": species_id,
+                    "species_name": species_id,
+                    "resident_role": "ElfieNest 居民",
+                },
+                "adaptive_self": {
+                    "expression_tendency_ids": [summary],
+                },
+            }
+        )
     return db_path
 
 
@@ -63,17 +94,13 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
         {
             "state_schema_version": 1,
             "revision": 1,
+            "committed_at": datetime(2026, 8, 1, tzinfo=timezone.utc),
             "identity_core": {
                 "elfie_id": "00000001",
                 "display_name": "小狐",
                 "species_id": "fox",
                 "species_name": "Saevi",
-                "home_world_id": "elfaria",
-                "home_world_name": "Elfaria",
-                "home_region_id": "north",
-                "home_region_name": "北境",
-                "earth_arrival_statement": "我被领养来到地球。",
-                "resident_role": "居民",
+                "resident_role": "ElfieNest 居民",
             },
             "adaptive_self": {
                 "big_five": {

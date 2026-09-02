@@ -135,8 +135,8 @@ def test_failed_member_delete_keeps_existing_sessions_atomic(tmp_path: Path) -> 
     with get_db(db_path) as connection:
         connection.execute(
             "INSERT INTO elfies "
-            "(elfie_id,name,owner_user_id,species,adopted_at,status) "
-            "VALUES ('00000001','Elfie',?,'fox',CURRENT_TIMESTAMP,'offline')",
+            "(elfie_id,owner_user_id,adopted_at,status) "
+            "VALUES ('00000001',?,CURRENT_TIMESTAMP,'offline')",
             (member_id,),
         )
         connection.commit()

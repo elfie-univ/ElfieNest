@@ -269,6 +269,11 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     conformance = (PROJECT_ROOT / "docs/developer/conformance/elfie.md").read_text(
         encoding="utf-8"
     )
+    english_normalized = " ".join(english_contract.split())
+    chinese_normalized = " ".join(chinese_contract.split())
+
+    assert "**Contract version:** 2.3" in english_contract
+    assert "**契约版本：** 2.3" in chinese_contract
 
     for owner in (
         "Event Workspace",
@@ -297,17 +302,44 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     ):
         assert owner in chinese_contract
 
-    assert "Profile answers the external objective question" in english_contract
-    assert "Profile 回答外层客观问题“是哪一只 Elfie”" in chinese_contract
-    assert "embodiments are mutually exclusive" in english_contract
-    assert "虚拟和实体具身互斥" in chinese_contract
-    assert "Genesis is a one-time creation flow" in english_contract
-    assert "Genesis 是一次性创建流程" in chinese_contract
-    assert "Genesis co-materializes Profile and Brain Selfhood" in english_contract
-    assert "Ordinary Brain runtime does not read or synchronize" in english_contract
-    assert "cannot bind Selfhood to a Canon version" in english_contract
-    assert "并列物化 Profile 与 Brain Selfhood" in chinese_contract
-    assert "普通 Brain 运行期不读也不同步 Profile" in chinese_contract
-    assert "不能把 Selfhood 绑定到 Canon 版本" in chinese_contract
+    assert "Profile answers the external objective question" in english_normalized
+    assert "Profile 回答外层客观问题“是哪一只 Elfie”" in chinese_normalized
+    assert "embodiments are mutually exclusive" in english_normalized
+    assert "虚拟和实体具身互斥" in chinese_normalized
+    assert "Genesis is a one-time creation flow" in english_normalized
+    assert "Genesis 是一次性创建流程" in chinese_normalized
+    assert "Genesis co-materializes Profile and Brain Selfhood" in english_normalized
+    assert (
+        "Ordinary Brain runtime does not read or synchronize Profile"
+        in english_normalized
+    )
+    assert "cannot bind Selfhood to a Canon version" in english_normalized
+    assert "并列物化 Profile 与 Brain Selfhood" in chinese_normalized
+    assert "普通 Brain 运行期不读也不同步 Profile" in chinese_normalized
+    assert "不能把 Selfhood 绑定到 Canon 版本" in chinese_normalized
+    assert "It contains no world knowledge or Canon reference" in english_normalized
+    assert "Profile 不得包含世界知识或 Canon 引用" in chinese_normalized
+    assert (
+        "A successful Genesis commit severs operational dependency"
+        in english_normalized
+    )
+    assert "Genesis 成功提交后，必须切断" in chinese_normalized
+    assert "Infrastructure -X-> semantic life compilation" in english_normalized
+    assert "Infrastructure -X-> 生命语义编译" in chinese_normalized
+    assert "| ELF-010 | P0 | closed |" in conformance
+    assert "| ELF-013 | P0 | closed |" in conformance
     for gap_id in range(10, 18):
         assert f"ELF-{gap_id:03d}" in conformance
+
+
+def test_current_genesis_design_uses_memory_owned_retention_and_severs_inputs() -> None:
+    design = (
+        PROJECT_ROOT / "docs/.internal/genesis-core-kernel-design-v0.2.md"
+    ).read_text(encoding="utf-8")
+
+    assert "`retention_profile=genesis`" in design
+    assert "`half_life_days=3650`" in design
+    assert "Memory 的版本化准入策略" in design
+    assert "成功提交或终止失败后必须删除" in design
+    assert "普通 Brain 运行只读取 Selfhood、Memory 与当前 Brain 状态" in design
+    assert "`retention_days`" not in design

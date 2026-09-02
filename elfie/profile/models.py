@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields, replace
-from typing import TYPE_CHECKING, Any, Dict, Type, TypeVar, cast
+from dataclasses import asdict, dataclass, field, fields
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type, TypeVar, cast
+
+from pydantic import Field, StringConstraints
+from typing_extensions import Annotated
+
+from elfie.message_types import FrozenContractModel, UTCDateTime
 
 from .species_registry import SUPPORTED_SPECIES
 
@@ -144,7 +149,6 @@ class CoatAppearance:
 class AppearanceGenome:
     genome_version: int
     species_profile_version: int
-    seed: int
     macro: AppearanceMacro = field(default_factory=AppearanceMacro)
     proportions: AppearanceProportions = field(default_factory=AppearanceProportions)
     body_bias: BodyAppearance = field(default_factory=BodyAppearance)
@@ -156,22 +160,27 @@ class AppearanceGenome:
 
 
 @dataclass(frozen=True)
-class EmbodimentProfile:
-    primary_morphology: str = "biped"
-    supported_morphologies: tuple[str, ...] = ("biped",)
-    skeleton_profile_id: str = "humanoid_mixamo_v1"
-    capability_profile_id: str = "default_biped_v1"
-
-
-@dataclass(frozen=True)
 class ElfieOrigin:
-    """Immutable origin and arrival facts owned by the Elfie Profile."""
+    """Stable personal-origin and Earth-age values exposed by Profile.
 
-    home_world_id: str = "elfaria"
-    home_region_id: str = "mistyville"
-    birth_at: str | None = None
-    arrival_mode: str = "earth_gateway"
-    arrival_base_id: str = "elfie_nest"
+    This is deliberately narrower than a life history.  It identifies where
+    the individual says they come from and fixes the age anchor used by
+    external projections; routes, training, arrival events and world facts
+    belong to Memory or to the one-time Genesis transaction.
+    """
+
+    origin_place_id: str = "unknown-origin"
+    origin_place_label: str = "未知来源"
+    age_years: int | None = None
+    age_anchor_at: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize the two stable origin labels before validation."""
+
+        place_id = self.origin_place_id.strip()
+        place_label = (self.origin_place_label or place_id).strip()
+        object.__setattr__(self, "origin_place_id", place_id)
+        object.__setattr__(self, "origin_place_label", place_label)
 
 
 @dataclass(frozen=True)
@@ -180,23 +189,22 @@ class ElfieIdentity:
     display_name: str
     species_id: str
     origin: ElfieOrigin = field(default_factory=ElfieOrigin)
-
-
-@dataclass(frozen=True)
-class ProfileProvenance:
-    generator_version: str
-    master_seed: int
-    appearance_seed: int
-    user_choices: Dict[str, str] = field(default_factory=dict)
+    gender: str | None = None
 
 
 @dataclass(frozen=True)
 class ElfieProfile:
+    """Frozen external identity dossier.
+
+    Profile is intentionally not a Genesis ledger.  Only stable identity,
+    personal-origin labels, age anchor and final virtual appearance live here.
+    Personality, capabilities, world knowledge, relationships, stories and
+    all generation inputs are owned elsewhere.
+    """
+
     schema_version: int
     identity: ElfieIdentity
     appearance: AppearanceGenome
-    provenance: ProfileProvenance
-    embodiment: EmbodimentProfile = field(default_factory=EmbodimentProfile)
 
     def validate(self, *, catalog: SpeciesCatalog | None = None) -> None:
         if self.schema_version != PROFILE_SCHEMA_VERSION:
@@ -220,32 +228,20 @@ class ElfieProfile:
                 f"可选: {', '.join(available)}"
             ) from error
         origin = self.identity.origin
-        for field_name in (
-            "home_world_id",
-            "home_region_id",
-            "arrival_mode",
-            "arrival_base_id",
+        if not origin.origin_place_id.strip():
+            raise ValueError("origin.origin_place_id 不能为空")
+        if not origin.origin_place_label.strip():
+            raise ValueError("origin.origin_place_label 不能为空")
+        if origin.age_years is not None and (
+            isinstance(origin.age_years, bool) or origin.age_years < 1
         ):
-            if not getattr(origin, field_name).strip():
-                raise ValueError(f"origin.{field_name} 不能为空")
-        if origin.home_world_id != "elfaria":
-            raise ValueError("当前 Profile 只支持 Elfaria 作为原生世界")
+            raise ValueError("origin.age_years 必须为正整数")
+        if origin.age_anchor_at is not None and not origin.age_anchor_at.strip():
+            raise ValueError("origin.age_anchor_at 不能为空")
+        if self.identity.gender is not None and not self.identity.gender.strip():
+            raise ValueError("identity.gender 不能为空")
         if self.appearance.genome_version not in (1, 2):
             raise ValueError("当前只支持 appearance genome_version=1/2")
-        if self.embodiment.primary_morphology not in SUPPORTED_MORPHOLOGIES:
-            raise ValueError(
-                f"primary_morphology 必须是 {', '.join(SUPPORTED_MORPHOLOGIES)}"
-            )
-        if not self.embodiment.supported_morphologies:
-            raise ValueError("supported_morphologies 至少包含一个形态")
-        for morphology in self.embodiment.supported_morphologies:
-            if morphology not in SUPPORTED_MORPHOLOGIES:
-                raise ValueError(f"不支持的 supported_morphologies 项: {morphology!r}")
-        if (
-            self.embodiment.primary_morphology
-            not in self.embodiment.supported_morphologies
-        ):
-            raise ValueError("primary_morphology 必须包含在 supported_morphologies 中")
         if catalog is None:
             from .species import get_species_profile  # noqa: PLC0415
 
@@ -409,25 +405,91 @@ class ElfieProfile:
                 raise ValueError(f"species_traits.{name} 必须在 [-1, 1] 内")
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize only the public, immutable Profile contract.
+
+        In particular this method must never make a saved Profile a Genesis
+        replay record.  ``seed``, provenance, embodiment/capability, world
+        facts, arrival/training details and personality are intentionally not
+        emitted here.
+        """
+
         self.validate()
-        return asdict(self)
+        origin = self.identity.origin
+        identity: Dict[str, Any] = {
+            "elfie_id": self.identity.elfie_id,
+            "display_name": self.identity.display_name,
+            "species_id": self.identity.species_id,
+            "origin": {
+                "place_id": origin.origin_place_id,
+                "place_label": origin.origin_place_label,
+                "age_years": origin.age_years,
+                "age_anchor_at": origin.age_anchor_at,
+            },
+        }
+        if self.identity.gender is not None:
+            identity["gender"] = self.identity.gender
+        appearance = asdict(self.appearance)
+        return {
+            "schema_version": self.schema_version,
+            "identity": identity,
+            "appearance": appearance,
+        }
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> ElfieProfile:
+        if not isinstance(raw, dict):
+            raise ValueError("Profile 根节点必须是对象")
+        _reject_keys(raw, {"schema_version", "identity", "appearance"}, "Profile")
         identity_raw = _mapping(raw.get("identity"))
         appearance_raw = _mapping(raw.get("appearance"))
-        embodiment_raw = _mapping(raw.get("embodiment"))
-        if "supported_morphologies" in embodiment_raw:
-            raw_morphologies = embodiment_raw.get("supported_morphologies")
-            if isinstance(raw_morphologies, (list, tuple)):
-                embodiment_raw["supported_morphologies"] = tuple(
-                    str(item) for item in raw_morphologies
-                )
-        provenance_raw = _mapping(raw.get("provenance"))
-        identity_fields = _construct(ElfieIdentity, identity_raw)
-        identity_fields = replace(
-            identity_fields,
-            origin=_construct(ElfieOrigin, _mapping(identity_raw.get("origin"))),
+        _reject_keys(
+            identity_raw,
+            {"elfie_id", "display_name", "species_id", "gender", "origin"},
+            "Profile.identity",
+        )
+        origin_raw = _mapping(identity_raw.get("origin"))
+        _reject_keys(
+            origin_raw,
+            {"place_id", "place_label", "age_years", "age_anchor_at"},
+            "Profile.identity.origin",
+        )
+        _reject_keys(
+            appearance_raw,
+            {
+                "genome_version",
+                "species_profile_version",
+                "macro",
+                "proportions",
+                "body_bias",
+                "face",
+                "appendages",
+                "fur",
+                "coat",
+                "species_traits",
+            },
+            "Profile.appearance",
+        )
+        place_id = str(origin_raw.get("place_id", "")).strip()
+        place_label = str(origin_raw.get("place_label", place_id)).strip()
+        age_years = origin_raw.get("age_years")
+        if age_years is not None:
+            age_years = int(age_years)
+        age_anchor = origin_raw.get("age_anchor_at")
+        identity_fields = ElfieIdentity(
+            elfie_id=str(identity_raw.get("elfie_id", "")),
+            display_name=str(identity_raw.get("display_name", "")),
+            species_id=str(identity_raw.get("species_id", "")),
+            gender=(
+                None
+                if identity_raw.get("gender") is None
+                else str(identity_raw.get("gender"))
+            ),
+            origin=ElfieOrigin(
+                origin_place_id=place_id,
+                origin_place_label=place_label,
+                age_years=age_years,
+                age_anchor_at=None if age_anchor is None else str(age_anchor),
+            ),
         )
         profile = cls(
             schema_version=int(raw.get("schema_version", PROFILE_SCHEMA_VERSION)),
@@ -437,7 +499,6 @@ class ElfieProfile:
                 species_profile_version=int(
                     appearance_raw.get("species_profile_version", 1)
                 ),
-                seed=int(appearance_raw.get("seed", 0)),
                 macro=_construct(
                     AppearanceMacro, _mapping(appearance_raw.get("macro"))
                 ),
@@ -463,8 +524,6 @@ class ElfieProfile:
                     ).items()
                 },
             ),
-            embodiment=_construct(EmbodimentProfile, embodiment_raw),
-            provenance=_construct(ProfileProvenance, provenance_raw),
         )
         profile.validate()
         return profile
@@ -473,8 +532,40 @@ class ElfieProfile:
 T = TypeVar("T")
 
 
+_ProfileText = Annotated[
+    str,
+    StringConstraints(strict=True, min_length=1, max_length=512, pattern=r".*\S.*"),
+]
+_ProfileOptionalText = Optional[_ProfileText]
+
+
+class ProfileDossier(FrozenContractModel):
+    """Read-only observer projection of the Profile-owned public identity."""
+
+    revision: int = Field(strict=True, ge=1)
+    captured_at: UTCDateTime
+    elfie_id: _ProfileText
+    display_name: _ProfileText
+    species_id: _ProfileText
+    species_name: _ProfileText
+    species_shape: _ProfileText
+    gender: _ProfileOptionalText = None
+    age_years: Optional[int] = Field(default=None, strict=True, ge=1)
+    origin_place_id: _ProfileText
+    origin_place_label: _ProfileText
+    appearance_genome_version: int = Field(strict=True, ge=1)
+
+
 def _mapping(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _reject_keys(raw: Dict[str, Any], allowed: set[str], label: str) -> None:
+    unknown = sorted(set(raw) - allowed)
+    if unknown:
+        raise ValueError(
+            f"{label} 包含不属于当前 Profile 契约的字段: {', '.join(unknown)}"
+        )
 
 
 def _construct(model: Type[T], raw: Dict[str, Any]) -> T:

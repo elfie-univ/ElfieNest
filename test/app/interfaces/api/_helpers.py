@@ -8,18 +8,25 @@
     user_id = create_test_user(db_path, "alice", "pass")
 """
 
+from __future__ import annotations
+
 import secrets
-from datetime import date
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from app.features.adoption import (
-    AcceptedAdoptionReservation,
-    AdoptionReservationRecord,
+from app.orchestration.resident_admission import (
+    AdmissionReservation,
+    idempotency_key_digest,
 )
 from elfie import ElfieFactory
+from elfie.genesis import GenesisCompileInput, GenesisCompiler, stage_for_age
 from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -75,6 +82,7 @@ def adopt_test_elfie(
     db_path: str,
     user_id: int,
     *,
+    elfie_id: str | None = None,
     name: str = "小白",
     species_id: str = "fox",
     personality_style: str = "好奇探索",
@@ -83,36 +91,82 @@ def adopt_test_elfie(
     engine: Any = None,
 ) -> str:
     """通过正式 Adoption 服务创建测试精灵，不依赖已退役 HTTP 入口。"""
-    elfie_id = f"{secrets.randbelow(100_000_000):08d}"
-    reservation = AcceptedAdoptionReservation(
-        elfie_id=elfie_id,
-        owner_user_id=user_id,
-        name=name,
-        species_id=species_id,
-        personality_style=personality_style,
-        height=height,
-        build=build,
-        appearance_seed=secrets.randbits(63),
-        face="any",
-        signature="any",
-        gender="female",
-        birth_date=date.today().isoformat(),
-    )
-    SQLiteAdoptionAdapter(db_path).reserve(
-        AdoptionReservationRecord(
+    elfie_id = elfie_id or f"{secrets.randbelow(100_000_000):08d}"
+    catalog = load_and_configure_species_catalog()
+    source = load_genesis_source_package()
+    age_years = 2
+    compilation = GenesisCompiler(source, catalog=catalog).compile(
+        GenesisCompileInput(
             elfie_id=elfie_id,
-            owner_user_id=user_id,
-            name=name,
+            owner_reference=str(user_id),
+            display_name=name,
             species_id=species_id,
             gender="female",
-            birth_date=reservation.birth_date,
-            summary=personality_style,
+            life_stage=stage_for_age(species_id, age_years, catalog),
+            age_years_at_adoption=age_years,
+            appearance_seed=secrets.randbits(63),
+            height=height,
+            build=build,
+            face="any",
+            signature="any",
+            personality_style=personality_style,
+            adoption_anchor_at="2001-01-01T00:00:00+00:00",
+            reservation_id=f"test:{elfie_id}",
+            idempotency_key=f"test-submit:{elfie_id}",
+            arrival_base_id="elfie_nest",
+        )
+    )
+    idempotency_key = f"test-submit:{elfie_id}"
+    admission_store = SQLiteAdoptionAdapter(db_path)
+    admission_id = f"test:{elfie_id}"
+    record = admission_store.reserve(
+        AdmissionReservation(
+            admission_id=admission_id,
+            idempotency_key_digest=idempotency_key_digest(idempotency_key),
+            elfie_id=elfie_id,
+            owner_user_id=user_id,
+            candidate_set_id=f"test-set:{elfie_id}",
+            candidate_id=f"test-candidate:{elfie_id}",
+            display_name=name,
+            species_id=species_id,
+            gender="female",
+            age_years=age_years,
+            adoption_anchor_at="2001-01-01T00:00:00+00:00",
         ),
         default_limit=1000,
     )
-    workspace = FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path)).materialize(
-        reservation
-    )
+    record = admission_store.transition(record.admission_id, "reserved", "compiling")
+    workspace_adapter = FinalElfieWorkspaceAdapter(data_home_from_db_path(db_path))
+    try:
+        workspace_adapter.stage(compilation)
+        publication = workspace_adapter.publication(elfie_id)
+        record = admission_store.transition(
+            record.admission_id,
+            "compiling",
+            "staged",
+            manifest_id=publication.manifest_id,
+            content_hash=publication.content_hash,
+            output_ids_hash=publication.output_ids_hash,
+            compiler_version=publication.compiler_version,
+            schema_version=publication.schema_version,
+        )
+        workspace_adapter.reopen(
+            elfie_id,
+            manifest_id=record.manifest_id,
+            content_hash=record.content_hash,
+            output_ids_hash=record.output_ids_hash,
+        )
+        record = admission_store.transition(record.admission_id, "staged", "publishing")
+        workspace_adapter.publish(elfie_id)
+        admission_store.commit(
+            record.admission_id,
+            replace(publication, adopted_at=record.created_at),
+        )
+        workspace_adapter.finalize(elfie_id)
+    except Exception:
+        workspace_adapter.abort(elfie_id)
+        admission_store.abort(record.admission_id, error_code="test_failure")
+        raise
     if engine is not None:
         elfie = ElfieFactoryAdapter(
             ElfieFactory(),
@@ -131,7 +185,7 @@ def adopt_test_elfie(
             lambda path: SQLiteMemoryStoreAdapter(
                 Path(path) / "memory" / "knowledge.sqlite"
             ),
-        ).restore(elfie_id, workspace)
+        ).restore(elfie_id, workspace_adapter.final_workspace(elfie_id))
         engine.session.register_elfie(elfie_id, elfie)
     return elfie_id
 

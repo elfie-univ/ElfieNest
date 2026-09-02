@@ -6,6 +6,7 @@ import json
 import math
 import os
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Final
 
@@ -23,13 +24,13 @@ from app.features.elfies import (
     ElfiesPortError,
 )
 from elfie.profile import AppearanceResolver, ResolvedAppearance
-from infrastructure.persistence.elfie_workspace.brain_state import (
-    YamlSelfhoodSeedAdapter,
+from infrastructure.persistence.elfie_workspace.identity import (
+    load_profile_from_db,
+    load_selfhood_from_db,
 )
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _REQUIRED_COGNITION_TABLES: Final[frozenset[str]] = frozenset(
     {"episodes", "nodes", "assertions"}
@@ -58,58 +59,65 @@ class SQLiteElfiesProjectionAdapter:
         clauses: list[str] = []
         parameters: list[str | int] = []
         if owner_user_id is not None:
-            clauses.append("elfies.owner_user_id=?")
+            clauses.append("e.owner_user_id=?")
             parameters.append(owner_user_id)
-        if species_id is not None:
-            clauses.append("elfies.species=?")
-            parameters.append(species_id)
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 rows = connection.execute(
-                    _DIRECTORY_SELECT
+                    _OPERATIONAL_DIRECTORY_SELECT
                     + where
-                    + " ORDER BY elfies.adopted_at, elfies.elfie_id",
+                    + " ORDER BY e.adopted_at, e.elfie_id",
                     parameters,
                 ).fetchall()
         except sqlite3.Error as error:
             raise ElfiesPortError("unable to read Elfie directory") from error
-        return tuple(_directory_record(row) for row in rows)
+        records: list[ElfieDirectoryRecord] = []
+        for row in rows:
+            record = self._directory_record(row)
+            if species_id is None or record.species_id == species_id:
+                records.append(record)
+        return tuple(records)
 
     def get_directory(self, elfie_id: str) -> ElfieDirectoryRecord | None:
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 row = connection.execute(
-                    _DIRECTORY_SELECT + " WHERE elfies.elfie_id=?",
+                    _OPERATIONAL_DIRECTORY_SELECT + " WHERE e.elfie_id=?",
                     (elfie_id,),
                 ).fetchone()
         except sqlite3.Error as error:
             raise ElfiesPortError("unable to read Elfie directory") from error
-        return None if row is None else _directory_record(row)
+        return None if row is None else self._directory_record(row)
+
+    def _directory_record(self, row: sqlite3.Row) -> ElfieDirectoryRecord:
+        try:
+            profile = load_profile_from_db(self._db_path, str(row["elfie_id"]))
+        except (OSError, TypeError, ValueError, yaml.YAMLError) as error:
+            raise ElfiesPortError("committed Elfie Profile is unavailable") from error
+        try:
+            selfhood = load_selfhood_from_db(self._db_path, str(row["elfie_id"]))
+        except (OSError, TypeError, ValueError, yaml.YAMLError):
+            selfhood = None
+        return _directory_record(row, profile, selfhood)
 
     def load_profile(self, elfie_id: str) -> ElfieProfileRecord:
         try:
             layout = final_root_layout(data_home_from_db_path(self._db_path))
             elfie_layout = layout.elfie(elfie_id)
-            repository = YamlProfileStoreAdapter(elfie_layout.profile.parent)
         except ValueError as error:
             raise ElfiesPortError("invalid Elfie identity") from error
-        if not repository.exists():
+        if not elfie_layout.profile.is_file():
             return ElfieProfileRecord(
                 status="empty",
                 portrait_url=_portrait_url(elfie_layout, elfie_id),
             )
         try:
-            profile = repository.load()
+            profile = load_profile_from_db(self._db_path, elfie_id)
             resolved = AppearanceResolver().resolve(profile)
-            raw_seed = YamlSelfhoodSeedAdapter(elfie_layout.brain).load()
-            adaptive_self = raw_seed.get("adaptive_self")
-            raw_big_five = (
-                adaptive_self.get("big_five")
-                if isinstance(adaptive_self, dict)
-                else None
-            )
-            if not isinstance(raw_big_five, dict):
+            selfhood = load_selfhood_from_db(self._db_path, elfie_id)
+            raw_big_five = selfhood.adaptive_self.big_five.model_dump()
+            if not raw_big_five:
                 return ElfieProfileRecord(
                     status="ready",
                     appearance=_appearance_record(resolved),
@@ -118,7 +126,7 @@ class SQLiteElfiesProjectionAdapter:
             values = {
                 key: _optional_number(raw_big_five.get(key)) for key in _BIG_FIVE_KEYS
             }
-        except (OSError, ValueError, yaml.YAMLError):
+        except (OSError, TypeError, ValueError, yaml.YAMLError):
             return ElfieProfileRecord(status="unavailable")
         return ElfieProfileRecord(
             status="ready",
@@ -170,13 +178,10 @@ class SQLiteElfiesProjectionAdapter:
         return _read_cognition(path)
 
 
-_DIRECTORY_SELECT = """
-SELECT elfies.elfie_id, elfies.name, elfies.owner_user_id,
-       users.account_id AS owner_account_id,
-       users.display_name AS owner_display_name,
-       elfies.species, elfies.gender, elfies.birth_date,
-       elfies.adopted_at, elfies.summary
-FROM elfies JOIN users ON users.id=elfies.owner_user_id
+_OPERATIONAL_DIRECTORY_SELECT = """
+SELECT e.elfie_id, e.owner_user_id, u.account_id AS owner_account_id,
+       u.display_name AS owner_display_name, e.adopted_at
+FROM elfies AS e JOIN users AS u ON u.id=e.owner_user_id
 """
 
 
@@ -209,10 +214,15 @@ def _appearance_record(resolved: ResolvedAppearance) -> ElfieAppearanceRecord:
     )
 
 
-def _directory_record(row: sqlite3.Row) -> ElfieDirectoryRecord:
+def _directory_record(
+    row: sqlite3.Row,
+    profile,
+    selfhood,
+) -> ElfieDirectoryRecord:
+    origin = profile.identity.origin
     return ElfieDirectoryRecord(
         elfie_id=str(row["elfie_id"]),
-        name=str(row["name"]),
+        name=profile.identity.display_name,
         owner_user_id=int(row["owner_user_id"]),
         owner_account_id=str(row["owner_account_id"]),
         owner_display_name=(
@@ -220,12 +230,40 @@ def _directory_record(row: sqlite3.Row) -> ElfieDirectoryRecord:
             if row["owner_display_name"] is None
             else str(row["owner_display_name"])
         ),
-        species_id=str(row["species"]),
-        gender=None if row["gender"] is None else str(row["gender"]),
-        birth_date=(None if row["birth_date"] is None else str(row["birth_date"])),
+        species_id=profile.identity.species_id,
+        gender=profile.identity.gender,
+        birth_date=_birth_date_projection(origin.age_years, origin.age_anchor_at),
         adopted_at=str(row["adopted_at"]),
-        summary=None if row["summary"] is None else str(row["summary"]),
+        summary=_selfhood_summary(selfhood),
     )
+
+
+def _selfhood_summary(selfhood) -> str | None:
+    if selfhood is None:
+        return None
+    values = selfhood.adaptive_self.expression_tendency_ids
+    if values:
+        return values[0]
+    return None
+
+
+def _birth_date_projection(age_years: int | None, anchor: str | None) -> str | None:
+    """Project the legacy UI field without storing a second age fact."""
+
+    if age_years is None or not anchor:
+        return None
+    try:
+        current = datetime.fromisoformat(anchor.replace("Z", "+00:00")).date()
+        try:
+            return current.replace(year=current.year - age_years).isoformat()
+        except ValueError:
+            return current.replace(
+                year=current.year - age_years,
+                month=2,
+                day=28,
+            ).isoformat()
+    except (TypeError, ValueError):
+        return None
 
 
 def _portrait_url(layout, elfie_id: str) -> str:

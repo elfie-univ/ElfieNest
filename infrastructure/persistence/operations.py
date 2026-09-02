@@ -5,9 +5,12 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Final, Tuple
+
+import yaml
 
 from app.features.operations import (
     OperationsPortDatabaseMissing,
@@ -19,6 +22,7 @@ from app.features.operations import (
     StoredTableCount,
     StoredUsageStats,
 )
+from infrastructure.persistence.elfie_workspace.identity import load_profile_from_db
 from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
@@ -49,13 +53,20 @@ class SQLiteOperationsAdapter:
                     (now,),
                 ).fetchone()
                 session_count = 0 if session_row is None else int(session_row[0])
+                species_counts: Counter[str] = Counter()
+                resident_rows = connection.execute(
+                    "SELECT elfie_id FROM elfies ORDER BY elfie_id"
+                ).fetchall()
+                for resident_row in resident_rows:
+                    profile = load_profile_from_db(
+                        database_path, str(resident_row["elfie_id"])
+                    )
+                    species_counts[profile.identity.species_id] += 1
                 species_stats = tuple(
-                    StoredSpeciesCount(species_id=str(row[0]), count=int(row[1]))
-                    for row in connection.execute(
-                        "SELECT species,COUNT(*) FROM elfies GROUP BY species"
-                    ).fetchall()
+                    StoredSpeciesCount(species_id=species_id, count=count)
+                    for species_id, count in sorted(species_counts.items())
                 )
-        except sqlite3.Error as error:
+        except (OSError, TypeError, ValueError, yaml.YAMLError, sqlite3.Error) as error:
             raise OperationsPortError("unable to read system statistics") from error
         return StoredUsageStats(
             user_count=user_count,

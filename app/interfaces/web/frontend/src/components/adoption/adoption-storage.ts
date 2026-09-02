@@ -4,10 +4,10 @@ import {
   type AdoptionDraftState,
 } from "./adoption-model"
 
-const DATABASE_NAME = "elfienest-adoption"
+const DATABASE_NAME = "elfienest-adoption-v2"
 const DATABASE_VERSION = 1
 const STORE_NAME = "drafts"
-const STORAGE_VERSION = "v2"
+const STORAGE_VERSION = "v3"
 const pendingWrites = new Map<string, Promise<void>>()
 
 export const ADOPTION_SESSION_TTL_MILLISECONDS = 5 * 60 * 60 * 1000

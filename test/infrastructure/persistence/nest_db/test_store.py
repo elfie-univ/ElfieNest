@@ -77,6 +77,7 @@ class TestInitDb:
             "food_packages",
             "local_installations",
             "nest_settings",
+            "resident_admissions",
             "sessions",
             "users",
         }
@@ -148,9 +149,9 @@ class TestCountElfiesByOwner:
         with get_db(db) as conn:
             conn.execute(
                 "INSERT INTO elfies "
-                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
-                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
-                ("00000001", "小白", owner_id),
+                "(elfie_id, owner_user_id, adopted_at, status) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP, 'offline')",
+                ("00000001", owner_id),
             )
             conn.commit()
 
@@ -165,15 +166,15 @@ class TestCountElfiesByOwner:
         with get_db(db) as conn:
             conn.execute(
                 "INSERT INTO elfies "
-                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
-                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
-                ("00000001", "小白", owner_id),
+                "(elfie_id, owner_user_id, adopted_at, status) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP, 'offline')",
+                ("00000001", owner_id),
             )
             conn.execute(
                 "INSERT INTO elfies "
-                "(elfie_id, name, owner_user_id, species, adopted_at, status) "
-                "VALUES (?, ?, ?, 'fox', CURRENT_TIMESTAMP, 'offline')",
-                ("00000002", "小黑", owner_id),
+                "(elfie_id, owner_user_id, adopted_at, status) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP, 'offline')",
+                ("00000002", owner_id),
             )
             conn.commit()
 
