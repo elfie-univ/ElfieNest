@@ -135,7 +135,7 @@ Elfaria 的资源丰度、分布和物质形态可以不同于地球，并影响
 
 ### 5.5 迷雾镇所在区域与宏观地形图
 
-迷雾镇是当前展开的一个局部适生区。宏观地形图直接采用[二维底图 v0.5](elfaria-image-review/elfaria-mistyville-surface-map-v0.5.png)，
+迷雾镇是当前展开的一个局部适生区。宏观地形图直接采用[二维底图 v0.5](elfaria-world-images/surface-map.png)，
 只表达自然地形和空间锚点：北部、西部为连续山地，西北较高；南部和西南部为平原；东部为森林；
 东南部为大湖。山地有上游小湖和瀑布，水系向东南汇入大湖；平原孤峰旁有一段开放弧形支流，
 绕过孤峰下半部后离开，不形成闭环。
@@ -339,6 +339,10 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 和幼体主要在森林等少数环境出现，存活率低，因此成为稀缺交易品。水生动物仍是无智慧生态对象，
 不进入陆地社会和通信系统。
 
+Elfaria 的建筑材料总体与地球相近，普通木材、石材和土都可以直接使用。差异主要在于：植物树脂与纤维
+可以制成类似玻璃的半透明或不透明材料；来自山地的紫色矿石具有发射和增强 Aethersense 信号的作用，
+常被做成发光装饰或共振构件。
+
 ### 8.4 资源稀缺、劳动与交换
 
 资源先按稀缺程度分层，再决定劳动和交易：
@@ -358,7 +362,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 还具有礼物、奖励、身份和关系表达功能。
 
 个人物品、家庭住宅、工具和长期维护的种植/中继节点由个人或家庭占有和使用；道路、桥梁、公共中继、
-大型水源、地下入口、稀有矿脉和赴地设施属于共同体管理。首版不建立现代产权、金融或公司制度。
+大型水源、地下入口、稀有矿脉和赴地跃迁基站属于共同体管理。首版不建立现代产权、金融或公司制度。
 
 #### 8.4.1 区域产出、家庭手艺与交换
 
@@ -380,7 +384,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 
 - 家庭是生活、休息、通信、繁衍和照护的基本单位，可以包含多代成员和非血缘成员；
 - 森林以树屋和架构植物为主，山地以洞穴/山地居所为主，平原以地面住宅为主，镇中心使用公共建筑；
-- 每个家庭通常维护一个通信中继植物作为家庭节点和居所标志；它是基础设施，不要求具备意识；
+- 每个家庭通常围绕一棵中继树建立通信节点和居所标志；它是基础设施，不要求具备意识；
 - 有意识伴生植物可以领养和结伴，但不能作为无意志物品任意转让或处置；
 - 幼体、长者、伤病成员和伴生植物的照护是家庭与社区的共同责任。
 
@@ -389,6 +393,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 - Aethersense 是无线电式通信通道，不是语言本身；近距离可以说话，远距离通过 Aethersense 传递语言内容；
 - 三个物种共享语言来自共同起源和长期社会往来，不是通信能力自动生成的结果；
 - 家庭节点、镇中心公共节点和区域中继构成有限网络；通信受距离、噪声、地形、天气、电离和场扰动限制；
+- 普通家庭主要使用中继树；长老院、学疗院等重要公共建筑会使用来自山地的紫色共振矿石，增强远距离通信；
 - 私人通信必须先完成共振认签；中继只扩大已建立联系的可达范围，不能把全体居民变成彼此可搜索的通讯录；
 - 社会形成公共通信、私人通信和受限远距通信三种基本权限；
 - 镇级长老或专职守护者负责知识记录、中继维护、旧档案和跨区域通信许可；
@@ -435,7 +440,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
   Tovren 更强调水路、互助与归返，Myelle 更强调深层聆听、记录和谨慎进入。三者是同一共同体中的不同表达，
   会随交流彼此影响，不构成互斥宗教或真实神权。
 - **边界与未知**：天空之城和深层地下是知识边界，值得敬畏和探索；“神圣起源”只属于信念或传说。
-- **赴地与归返**：赴地设施象征主动探索、承担风险和保持联系，不把任何个体的地球经历预写成集体事实。
+- **赴地与归返**：赴地跃迁基站象征主动探索、承担风险和保持联系，不把任何个体的地球经历预写成集体事实。
 
 #### 8.8.2 仪式与公共传统
 
@@ -468,7 +473,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 4. **建镇期**：镇中心、道路、桥梁和共同规则形成；镇中心承担交换、记录和公共通信。
 5. **深层发现期**：地下通道、矿物和场异常被发现，探索资格、风险规则和奖励制度建立。
 6. **仰望期**：天空之城被长期观测并成为共同谜题；普通飞行不可达，接近经历的细节保留为不同版本。
-7. **赴地期**：赴地设施和联络机制建立，少数个体开始自愿参加；个体的出生、选择和地球经历不属于本节。
+7. **赴地期**：赴地跃迁基站和联络机制建立，少数个体开始自愿参加；个体的出生、选择和地球经历不属于本节。
 
 除分化期的起源解释明确属于文化信念外，后续时代以道路、建筑、样本、制度和长期记录等可核实内容
 作为共同事实骨架。三个物种可以保留不同叙述角度；具体战役、纪念碑名称和精确年代不在 v0.1 中
@@ -544,7 +549,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 本区域中文正式名为“迷雾镇”，English canonical name 为 **Mistyville**。
 “迷雾镇”是既定专名，不表示当地存在气象雾；名称来历在本版不作解释。
 
-底图文件：[elfaria-mistyville-surface-map-v0.5.png](elfaria-image-review/elfaria-mistyville-surface-map-v0.5.png)。图片是视觉底稿，
+镇中心详图文件：[town-map.png](elfaria-world-images/town/town-map.png)。图片是视觉底稿，
 不是 Godot 坐标图，也不替代地点 Canon。第三层冻结的自然锚点不能在本层改写。
 
 ### 9.1.1 四张局部地图
@@ -554,7 +559,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 
 | 局部图 | 相对范围 | 必须展开的内容 |
 | --- | --- | --- |
-| 迷雾镇中心 / Mistyville Town Center | 最大、最密 | 通天广场、通天古树、长老院、学疗院、百业街、赴地码头、地下城门、出镇道路和住宅 |
+| 迷雾镇中心 / Mistyville Town Center | 最大、最密 | 通天广场、通天古树、长老院、学疗院、百业街、赴地跃迁基站、地下城门、出镇道路和住宅 |
 | Saevi 部落中心 / Saevi Tribal Center | 森林 | 一条林中主街、沿街和树间住宅、Saevi 长老屋、通往镇中心的林路 |
 | Tovren 部落中心 / Tovren Tribal Center | 平原 | 一条平原主街、沿街和草地住宅、Tovren 长老屋、通往镇中心的平原路 |
 | Myelle 部落中心 / Myelle Tribal Center | 山地 | 一条山地主街、沿坡和洞穴住宅、Myelle 长老屋、通往镇中心的山路 |
@@ -564,7 +569,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 ### 9.2 迷雾镇中心
 
 迷雾镇中心（English canonical name：**Mistyville Town Center**）位于山地、森林和平原道路的交会处。
-它是全域唯一集中设置公共治理、学习诊疗和赴地设施的地方，不设置工厂或复杂公共产业。
+它是全域唯一集中设置公共治理、学习诊疗和赴地跃迁基站的地方，不设置工厂或复杂公共产业。
 
 | 中文正式名 | English canonical name | 功能 |
 | --- | --- | --- |
@@ -573,7 +578,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 | 长老院 | Elder Council Hall | 三部落共同议事、仲裁、记录和发布规则 |
 | 学疗院 | Learning and Healing Hall | 学校与医院合一；教授通识、记录和医学，也接诊病伤；各部落选少量学习者前来受训 |
 | 百业街 | Hundred Trades Street | 镇内唯一成规模商业街；包含铁匠铺、小卖铺、杂货铺、修理铺、手工作坊、摊位和住宿 |
-| 赴地码头 | Earthbound Dock | 受控的赴地出发、联络和归返设施，不是日常公共场所 |
+| 赴地跃迁基站 | Earthbound Transit Station | 受控的赴地跃迁、联络和归返设施，不是日常公共场所；简称“赴地基站” |
 | 地下城门 | Undercity Gate | 地下城唯一公开入口，负责进入登记、开放期和安全管理 |
 
 镇内不再拆分档案院、学校、医院、修复点、交换市场、综合工坊或公共产业机构。知识和医疗集中在学疗院；
@@ -589,7 +594,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 | 长老巷 / Council Lane | 通天广场 → 长老院 | 约 0.5 公里 | 约 10 分钟 |
 | 学疗路 / Learning Lane | 通天广场 → 学疗院 | 约 0.8 公里 | 约 15～20 分钟 |
 | 百业街 / Hundred Trades Street | 通天广场 → 商业街南端 | 约 1.5 公里 | 约 30 分钟 |
-| 赴地路 / Earthbound Road | 通天广场 → 赴地码头 | 约 2.5 公里 | 约 50 分钟 |
+| 赴地路 / Earthbound Road | 通天广场 → 赴地跃迁基站 | 约 2.5 公里 | 约 50 分钟 |
 | 地下城路 / Undercity Road | 通天广场 → 地下城门 | 约 3.0 公里 | 约 1 小时 |
 
 镇内地点按这张道路图计算：出生点先接入最近道路，再走最短路径；若两个地点分属不同支路，默认经通天广场
@@ -667,7 +672,7 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 
 | 层级 | 造物者空间规模 | 人员与治理 |
 | --- | --- | --- |
-| 迷雾镇中心 | 约 500～600 户、2,000～3,000 人 | 全域最密集；设长老院、学疗院、百业街、赴地码头和地下城门 |
+| 迷雾镇中心 | 约 500～600 户、2,000～3,000 人 | 全域最密集；设长老院、学疗院、百业街、赴地跃迁基站和地下城门 |
 | 三个部落中心 | 每处约 50～100 户、200～500 人 | 只有主街、住宅和长老屋，不另设公共机构 |
 | 外围小聚落 | 每处约 3～10 户、10～50 人 | 数量至少数十万，散布在森林、山地、平原和湖岸；依靠家庭生产、当地能人和中继联络 |
 
@@ -676,151 +681,36 @@ ElfieNest 既不提供这种远距中继，也不提供首次共振认签环境�
 交换伙伴和已完成共振认签的人；同属迷雾镇或同一物种不等于彼此认识。具体精灵的出生地、家庭、朋友和经历
 由一次性 Genesis 从地点节点中生成，并分别提交给契约规定的 Profile、Selfhood 或 Memory 最终所有者。
 
-### 9.7 图片插入清单
+### 9.7 图片基线
 
-本节仅记录待插入图片的主题和数量。图片由用户另行制作并粘贴；宏观底图 v0.5 已由第三层引用，
-不计入本节新增图片。
+迷雾镇中心局部地图已确定为 [town-map.png](elfaria-world-images/town/town-map.png)；Saevi、Tovren 和 Myelle 三个部落中心的局部地图尚未收敛。
 
-**四张局部地图**
+#### 9.7.1 已确定地点图
 
-1. 迷雾镇中心；
-2. Saevi 部落中心；
-3. Tovren 部落中心；
-4. Myelle 部落中心。
-
-![迷雾镇中心局部地图](elfaria-image-review/elfaria-mistyville-local-map-commons-v0.2.png)
-
-![Saevi 部落中心局部地图](elfaria-image-review/elfaria-mistyville-local-map-saevi-v0.2.png)
-
-![Tovren 部落中心局部地图](elfaria-image-review/elfaria-mistyville-local-map-tovren-v0.2.png)
-
-![Myelle 部落中心局部地图](elfaria-image-review/elfaria-mistyville-local-map-myelle-v0.1.png)
-
-**十二张地点图**
-
-| 类别 | 图片主题 | 数量 |
+| 空间或地点 | 视图 | 最终图片 |
 | --- | --- | --- |
-| 自然景观 | 云冠城＋天镜湖＋垂云瀑；祖树；回澜丘＋回澜河湾；澄心湖＋湖心岛 | 4 |
-| 镇中心人造地点 | 长老院；学疗院；地下城门；通天广场＋通天古树；百业街 | 5 |
-| 部落中心 | Saevi 部落中心；Tovren 部落中心；Myelle 部落中心 | 3 |
+| 长老院 | 建筑主视图 | [查看](elfaria-world-images/town/elder-council-hall.png) |
+| 学疗院 | 教学楼主视图 | [查看](elfaria-world-images/town/learning-healing-hall-teaching-building.png) |
+| 学疗院 | 校园全景 | [查看](elfaria-world-images/town/learning-healing-hall-campus.png) |
+| 地下城门 | 入口主视图 | [查看](elfaria-world-images/town/undercity-gate.png) |
+| 通天广场＋通天古树 | 广场主视图 | [查看](elfaria-world-images/town/skyreach-tree-plaza.png) |
+| 百业街 | 商业街全景 | [查看](elfaria-world-images/town/hundred-trades-street.png) |
+| 百业街 | 交换市场 | [查看](elfaria-world-images/town/exchange-market.png) |
+| 赴地跃迁基站 | 基站与广场全景 | [查看](elfaria-world-images/town/earthbound-transit-station.png) |
+| 祖树 | 森林核心主视图 | [查看](elfaria-world-images/forest/firstroot-tree.png) |
+| Saevi 部落中心 | 林冠聚落全景 | [查看](elfaria-world-images/forest/saevi-village-canopy.png) |
+| Saevi 部落中心 | 中央聚落视图 | [查看](elfaria-world-images/forest/saevi-village-center.png) |
+| 云冠城＋天镜湖 | 近景：湖与浮空山体 | [查看](elfaria-world-images/mountain/cloudcrown-city-near.png) |
+| 云冠城＋天镜湖＋垂云瀑 | 远景：湖、瀑布与浮空山体 | [查看](elfaria-world-images/mountain/cloudcrown-city-distant.png) |
+| 回澜丘＋回澜河湾 | 河湾景观主视图 | [查看](elfaria-world-images/land/riverturn-hill.png) |
 
-以下 12 张是此前已经生成的地点参考图，先原样保留在文档中供审查；它们的旧名称和画面不覆盖本版文字设定：
+#### 9.7.2 尚未最终收敛
 
-自然景点：
-1. 云冠城＋天镜湖＋垂云瀑
-2. 祖树
-3. 回澜丘＋回澜河湾
-4. 澄心湖＋湖心岛
+- 迷雾镇中心局部地图已确定为 `town-map.png`；Saevi、Tovren 和 Myelle 三个部落中心的局部地图仍待确定。
+- 澄心湖＋湖心岛当前优化稿为 `land/clearheart-lake-draft-v5.png`，仅新增一条由左下方汇入原有河道的支流；v2 保留作为干净底图，v3、v4 不作为当前版本。
+- Tovren 与 Myelle 部落中心尚无最终地点图。
 
-人道景点：
-
-1. 长老院
-2. 学疗院
-3. 地下城门
-4. 通天广场＋通天古树
-5. 百业街
-6. Saevi 部落中心
-7. Tovren 部落中心
-8. Myelle 部落中心
-
-
-
-另有一张此前的镇中心总览图，作为附加参考保留，不计入以下 12 张地点图：
-
-![迷雾镇中心旧版总览参考图](elfaria-mistyville-images/01-town-center-overview.png)
-
-![长老院旧版参考图](elfaria-mistyville-images/02-elder-council-hall.png)
-
-![通天广场与通天古树旧版参考图](elfaria-mistyville-images/03-skyreach-tree-plaza.png)
-
-![档案与学习院旧版参考图](elfaria-mistyville-images/04-archive-learning-hall.png)
-
-![修复屋旧版参考图](elfaria-mistyville-images/05-restoration-house.png)
-
-![交换市场旧版参考图](elfaria-mistyville-images/06-exchange-market.png)
-![赴地设施旧版参考图](elfaria-mistyville-images/08-earth-gateway.png)
-
-![地下城门旧版参考图](elfaria-mistyville-images/09-underground-gate.png)
-
-![Saevi 森林部落中心旧版参考图](elfaria-mistyville-images/10-saevi-forest-ward.png)
-
-![Saevi 林冠街旧版参考图](elfaria-mistyville-images/11-saevi-canopy-way.png)
-
-![Saevi 育苗地旧版参考图](elfaria-mistyville-images/12-saevi-nursery.png)
-
-本节保留现有局部地图与地点参考图，另保留 1 张旧版镇中心总览图；本轮生成候选图归档见 9.7.1。
-赴地码头不单列地点图；旧版图只能作为视觉参考，不能新增建筑、道路、设施或地点事实。
-
-#### 9.7.1 本轮生成候选图整理归档
-
-本次以当时仍存在于本目录根、`elfaria-mistyville-images/` 与 `elfaria-generated-images/` 的 74 张 PNG 为准，已全部集中到 `elfaria-image-review/`。按 SHA-256 去掉 20 张完全重复图片，保留 54 张唯一图片；相近但不完全相同的构图和版本全部保留。原来没有语义名称的候选图按内容采用共同前缀，并使用 `candidate-01` 等编号；已有版本号和 `reference` 标识保留，便于逐张比较和回溯。
-
-以下链接均指向整理后的候选图，不改变本层文字设定，也不视为已选定资产。
-
-<details>
-<summary>展开查看按主题整理的候选预览</summary>
-
-![候选图 01 · 港口聚落](elfaria-image-review/elfaria-mistyville-place-harbor-settlement-candidate-01.png)
-
-![候选图 02 · 湖畔聚落](elfaria-image-review/elfaria-mistyville-place-lakeside-settlement-candidate-01.png)
-
-![候选图 03 · 植物园](elfaria-image-review/elfaria-mistyville-place-saevi-nursery-reference.png)
-
-![候选图 04 · 林冠聚落](elfaria-image-review/elfaria-mistyville-place-saevi-forest-ward-reference.png)
-
-![候选图 05 · 水园建筑](elfaria-image-review/elfaria-mistyville-place-restoration-house-reference.png)
-
-![候选图 06 · 大型公共建筑](elfaria-image-review/elfaria-mistyville-place-archive-learning-hall-reference.png)
-
-![候选图 07 · 中央广场](elfaria-image-review/elfaria-mistyville-place-central-plaza-candidate-01.png)
-
-![候选图 08 · 古树广场](elfaria-image-review/elfaria-mistyville-place-skyreach-tree-plaza-reference.png)
-
-![候选图 09 · 树心广场](elfaria-image-review/elfaria-mistyville-place-town-center-overview-reference.png)
-
-![候选图 10 · 迷雾镇标注地图](elfaria-image-review/elfaria-mistyville-local-map-commons-v0.2.png)
-
-![候选图 11 · Myelle 标注地图](elfaria-image-review/elfaria-mistyville-local-map-myelle-v0.1.png)
-
-![候选图 12 · 浮空岛与湖瀑](elfaria-image-review/elfaria-mistyville-landscape-lakefall-floating-city-candidate-01.png)
-
-![候选图 13 · 独立山峰](elfaria-image-review/elfaria-mistyville-landscape-independent-mountain-candidate-01.png)
-
-![候选图 14 · 环岛湖](elfaria-image-review/elfaria-mistyville-landmark-ring-island-lake-candidate-01.png)
-
-![候选图 15 · 浮空岛版本 A](elfaria-image-review/elfaria-mistyville-landmark-floating-island-candidate-01.png)
-
-![候选图 16 · 浮空岛变体](elfaria-image-review/elfaria-mistyville-landmark-floating-island-candidate-02.png)
-
-![候选图 17 · 山峰与河湾](elfaria-image-review/elfaria-mistyville-landscape-mountain-river-bend-candidate-01.png)
-
-![候选图 18 · 大湖总览](elfaria-image-review/elfaria-mistyville-landscape-great-lake-overview-candidate-01.png)
-
-![候选图 19 · 祖树早期变体](elfaria-image-review/elfaria-mistyville-landmark-ancient-tree-candidate-01.png)
-
-![候选图 20 · 祖树放大变体](elfaria-image-review/elfaria-mistyville-landmark-ancient-tree-candidate-02.png)
-
-![候选图 21 · 长老院](elfaria-image-review/elfaria-mistyville-place-elder-council-hall-candidate-01.png)
-
-![候选图 22 · 镇中心全景](elfaria-image-review/elfaria-mistyville-place-town-center-overview-candidate-02.png)
-
-![候选图 23 · 山地部落中心](elfaria-image-review/elfaria-mistyville-place-myelle-mountain-settlement-candidate-02.png)
-
-![候选图 24 · 百业街](elfaria-image-review/elfaria-mistyville-place-exchange-market-candidate-01.png)
-
-![候选图 25 · 地下城门](elfaria-image-review/elfaria-mistyville-place-underground-gate-candidate-01.png)
-
-![候选图 26 · 赴地设施](elfaria-image-review/elfaria-mistyville-place-earth-gateway-candidate-01.png)
-
-![候选图 27 · Myelle 部落中心](elfaria-image-review/elfaria-mistyville-place-myelle-mountain-settlement-candidate-01.png)
-
-![候选图 28 · Saevi 部落中心](elfaria-image-review/elfaria-mistyville-place-saevi-forest-ward-candidate-01.png)
-
-![候选图 29 · Tovren 部落中心](elfaria-image-review/elfaria-mistyville-place-tovren-plainshore-ward-candidate-01.png)
-
-</details>
-
-整理文件夹中的其余候选也按相同规则命名：`local-map-*` 为局部地图，`surface-map-*` 为宏观底图，`place-*` 为地点/建筑参考，`landmark-*` 为浮空岛、古树等地标，`landscape-*` 为自然景观。此前已移除的旧文件不在本次归档中。
+旧候选图、旧版地点图和已经移除的文件不再作为文档图片来源。以上表格是当前地点图的唯一权威引用清单。
 
 ### 9.8 与前面各层的边界
 
