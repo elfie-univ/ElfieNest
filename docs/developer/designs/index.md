@@ -8,6 +8,12 @@ in [Conformance](../conformance/).
 
 - [Elfie top-level module design](./elfie-top-level-module-design): target
   top-level ownership for one complete Elfie.
+- [Elfie embodied control chain design](./elfie-embodied-control-chain): the
+  Brain-to-body semantic command path, Godot and physical-device routes, and
+  BodyPort/Adapter/Transport/Gateway boundaries.
+- [Elfie Godot virtual-body vertical-slice plan](./elfie-godot-vertical-slice-plan): the
+  sequential plan for movement, receipts, hearing, semantic vision, touch and
+  later-Turn Brain feedback through the frozen chain.
 - [Elfie Brain ten-system architecture](./elfie-brain-ten-system-architecture):
   the conceptual systems, boundaries, runtime loops and implementation order of Brain.
 - [Elfie Reasoning Core](./elfie-reasoning-core): the Reasoning-owned Context

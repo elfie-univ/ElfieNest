@@ -1,8 +1,8 @@
 # System architecture contract
 
-**Contract version:** 1.9
+**Contract version:** 1.10
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-15
+**Revised:** 2026-09-02
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
@@ -274,16 +274,52 @@ for the requested Elfie scope from those stored facts; it does not make a new
 authorization decision. Elfie selects the semantic role and invokes
 `ModelPort` separately.
 
+### Body, Adapter, Transport and Gateway boundary
+
+`BodyPort` is the Elfie-owned semantic contract for one selected actor body. It
+describes registered capabilities, typed body commands, body-scoped sensor
+events, proprioception, lifecycle binding and receipts; it contains no socket,
+wire frame or vendor protocol. `NativeBody` (Godot) and `ExternalBody` (a
+host-side remote-device proxy) are Infrastructure implementations of this same
+Port, not additional domain bodies.
+
+A Body Adapter maps the Port's semantic call to one target body's command
+vocabulary. Transport is the Infrastructure connection/message-delivery
+component used by that Adapter; it encodes, sends, receives and correlates
+messages but does not choose capabilities or own physical truth. A Gateway is
+needed when a real endpoint/session/authentication/routing boundary exists. It
+owns that boundary and queues/routes messages; it is not a second BodyPort or a
+decision layer. A device-specific driver is optional and may live beside the
+Adapter; vendor translation should remain in the remote Device Agent/firmware
+when the device owns it.
+
+The remote physical path is therefore:
+
+```text
+Elfie BodyPort -> ExternalBody -> ExternalTransport -> DeviceGateway
+  -> authenticated Wi-Fi/LAN -> Device Agent/firmware -> sensors/actuators
+```
+
+The return path reverses through the same boundaries. The remote Device Agent
+is separate code running on the physical device; host-side Infrastructure code
+is never assumed to be installed on the toy. The Godot path uses the same
+semantic Port boundary with a Godot Adapter/Transport/Gateway and the
+`godot_project/` authority.
+
 ## Godot authority semantic lanes
 
 The Godot authority is reached through one shared, versioned and authenticated
 Gateway connection, not one raw connection per Elfie. Sharing transport does
 not merge semantic ownership. The boundary has three lane families:
 
-1. **Actor body channel.** An Elfie emits semantic body intents through its
-   body/actor Port. The Godot Adapter returns accepted, started, terminal,
-   blocked, cancelled or timed-out receipts plus body-scoped perception to the
-   originating body. Known-target body traffic does not pass through Nest.
+1. **Actor body channel.** Brain emits one or more catalog-checked capability
+   calls within a finite plan; NervousSystem validates them and submits them
+   through the selected BodyPort.
+   The Godot Adapter returns body-scoped perceptions and an action receipt to
+   the originating Body. `ACCEPTED` and `STARTED` remain ledger states; the
+   Brain-facing terminal set is `COMPLETED`, `REJECTED`, `FAILED`,
+   `INTERRUPTED` or `TIMED_OUT` (`cancelled` is represented as `INTERRUPTED`
+   with a reason). Known-target body traffic does not pass through Nest.
 2. **Nest semantic-world lanes.** Semantic action, structured vision, virtual
    speech/hearing and environment commands/facts cross narrow Nest-owned
    capabilities. Godot supplies physical candidates or actual results; Nest
@@ -293,10 +329,12 @@ not merge semantic ownership. The boundary has three lane families:
 
 One physical cause may produce a body receipt, body perception and environment
 fact, but these are distinct typed events with distinct recipients and a shared
-cause identity. Runtime events are classified before delivery; broadcasting a
-raw event to all Bodies or sending one semantic event through both Body and Nest
-paths is forbidden. The semantic lanes may be implemented by one shared Godot
-Gateway Adapter.
+cause identity. Body receipts and body perceptions return through Body and
+NervousSystem; a targeted Nest semantic result enters the target Body input
+boundary before NervousSystem. Runtime events are classified before delivery;
+broadcasting a raw event to all Bodies or sending one semantic event through
+both Body and Nest paths is forbidden. The semantic lanes may be implemented by
+one shared Godot Gateway Adapter.
 
 Godot protocol transport, authority-host selection, artifacts and process
 launch belong to `infrastructure/godot/`. Godot source assets and physical

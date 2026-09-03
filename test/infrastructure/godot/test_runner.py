@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from infrastructure.godot import runner
-from infrastructure.godot.runner import godot_version, run_headless
+from infrastructure.godot.runner import godot_version, run_headless, run_import
 
 _TEST_GODOT_VERSION = "9.8"
 _TEST_GODOT_OUTPUT = f"{_TEST_GODOT_VERSION}.7.stable"
@@ -117,6 +117,33 @@ def test_crash_is_failed_once_and_is_not_retried(
     stderr = capsys.readouterr().err
     assert "GODOT_CRASH: one invocation failed; no retry was attempted." in stderr
     assert _invocation_records(stderr)[-1]["status"] == "crashed"
+
+
+def test_import_runner_uses_the_headless_project_import_boundary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = _fake_godot(tmp_path)
+    project = tmp_path / "godot_project"
+    project.mkdir()
+
+    result = run_import(
+        binary,
+        project,
+        godot_version=_TEST_GODOT_VERSION,
+        purpose="test-import",
+    )
+
+    assert result.exit_code == 0
+    assert result.command[:5] == (
+        str(binary),
+        "--headless",
+        "--import",
+        "--path",
+        str(project.resolve()),
+    )
+    records = _invocation_records(capsys.readouterr().err)
+    assert records[-1]["purpose"] == "test-import"
+    assert records[-1]["status"] == "exited"
 
 
 def test_crash_exit_codes_skip_signals_unavailable_on_the_host(

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum, unique
-from typing import Annotated, Literal, Optional, Tuple, Union
+from typing import Annotated, Literal, Mapping, Optional, Tuple, Union
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, JsonValue, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 from typing_extensions import TypeAlias
 
@@ -61,6 +61,15 @@ class IntentContract(FrozenContractModel):
     dependency_ids: Tuple[IntentId, ...]
     deadline: UTCDateTime
     cancel_policy: CancelPolicy
+
+
+class CapabilityIntent(IntentContract):
+    """One dynamically registered semantic capability invocation."""
+
+    type: Literal["capability"]
+    category: Literal["body", "world"]
+    capability_id: _NonBlankText
+    arguments: Mapping[str, JsonValue] = Field(default_factory=dict)
 
 
 class SpeechIntent(IntentContract):
@@ -234,6 +243,7 @@ CognitiveAction: TypeAlias = Annotated[
 DecisionIntent: TypeAlias = Annotated[
     Union[
         SpeechIntent,
+        CapabilityIntent,
         MessageIntent,
         MotionIntent,
         ExpressionIntent,
@@ -426,7 +436,13 @@ class TurnDecision(FrozenContractModel):
             if self.response_scope.external_domain is None and any(
                 isinstance(
                     intent,
-                    (SpeechIntent, MessageIntent, MotionIntent, ExpressionIntent),
+                    (
+                        SpeechIntent,
+                        CapabilityIntent,
+                        MessageIntent,
+                        MotionIntent,
+                        ExpressionIntent,
+                    ),
                 )
                 for intent in self.plan.intents
             ):
@@ -438,7 +454,15 @@ class TurnDecision(FrozenContractModel):
                 self.response_scope.external_domain
                 is ExternalExecutionDomain.COMMUNICATION
                 and any(
-                    isinstance(intent, (SpeechIntent, MotionIntent, ExpressionIntent))
+                    isinstance(
+                        intent,
+                        (
+                            SpeechIntent,
+                            CapabilityIntent,
+                            MotionIntent,
+                            ExpressionIntent,
+                        ),
+                    )
                     for intent in self.plan.intents
                 )
             ):
@@ -463,6 +487,7 @@ class TurnDecision(FrozenContractModel):
 __all__ = (
     "AnswerDraft",
     "CancelPolicy",
+    "CapabilityIntent",
     "ClarificationDraft",
     "CognitiveAction",
     "CognitiveDraft",

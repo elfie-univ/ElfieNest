@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, Tuple
 
 from elfie.body.contracts import (
+    ActionOutcomePayload,
     BodySensorEvent,
     EnvironmentSample,
     HeardUtterancePayload,
@@ -88,6 +89,18 @@ class BodyPerceptionNormalizer:
                 PhysicalModality.PROPRIOCEPTION,
                 (
                     f"action={payload.target}; anchor={payload.resolved_anchor_id}; "
+                    f"status={payload.status}{reason}"
+                ),
+                (),
+                salience=0.7,
+            )
+        if isinstance(payload, ActionOutcomePayload):
+            reason = f"; reason={payload.reason}" if payload.reason else ""
+            return self._reliable(
+                event,
+                PhysicalModality.PROPRIOCEPTION,
+                (
+                    f"action={payload.command_id}; intent={payload.intent_id}; "
                     f"status={payload.status}{reason}"
                 ),
                 (),
@@ -209,6 +222,10 @@ class BodyPerceptionNormalizer:
         )
         if payload.target is not None:
             values += (("target", payload.target),)
+        if payload.zone_id is not None:
+            values += (("location", payload.zone_id),)
+        if payload.active_command_id is not None:
+            values += (("active_command_id", payload.active_command_id),)
         return tuple(
             self._state(event, f"{prefix}:{name}", value) for name, value in values
         )

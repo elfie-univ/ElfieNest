@@ -3,14 +3,35 @@
 from threading import Event, Thread
 
 from elfie.body import HeadlessBody
-from elfie.body.contracts import BodyCommand
-from elfie.brain.reasoning.decision_types import MotionIntent, SpeechIntent
+from elfie.body.capabilities import BodyCapabilities
+from elfie.body.contracts import BodyCommand, CapabilityCommand, MotionCommand
+from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
+    MotionIntent,
+    SpeechIntent,
+)
 from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.message_types import IntentId
 from elfie.nervous_system import NervousSystem
 from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
 from test.elfie.brain.reasoning.test_output_router import NOW, _base, _plan
+
+
+class RecordingBody(HeadlessBody):
+    def __init__(self) -> None:
+        super().__init__(
+            body_id="body-1",
+            capabilities=BodyCapabilities(
+                sensors=frozenset({"proprioception"}),
+                actions=frozenset({"move_to_anchor", "vendor.wave"}),
+            ),
+        )
+        self.commands: list[BodyCommand] = []
+
+    def execute(self, command: BodyCommand, *, now=None):
+        self.commands.append(command)
+        return super().execute(command, now=now)
 
 
 def test_physical_executor_builds_correlated_typed_body_commands() -> None:
@@ -33,6 +54,57 @@ def test_physical_executor_builds_correlated_typed_body_commands() -> None:
     snapshot = body.snapshot_body(now=NOW)
     assert snapshot.last_status is not None
     assert snapshot.last_status.value == ExecutionStatus.COMPLETED.value
+
+
+def test_capability_executor_maps_registered_world_call_to_body_command() -> None:
+    body = RecordingBody()
+    body.connect()
+    executor = NervousSystemIntentExecutor(
+        nervous_system=NervousSystem(),
+        current_body=lambda: body,
+        clock=lambda: NOW,
+    )
+    intent = CapabilityIntent(
+        type="capability",
+        category="world",
+        capability_id="world.go_to",
+        arguments={"anchor_id": "activity-01/activity"},
+        **_base("go-to"),
+    )
+
+    result = executor.execute(_plan((intent,)), intent)
+
+    assert result == IntentExecutionResult.completed()
+    command = body.commands[-1]
+    assert isinstance(command, MotionCommand)
+    assert command.kind == "move_to_anchor"
+    assert command.target == "activity-01/activity"
+    assert command.intent_id == intent.intent_id
+
+
+def test_capability_executor_preserves_unmapped_registered_body_call() -> None:
+    body = RecordingBody()
+    body.connect()
+    executor = NervousSystemIntentExecutor(
+        nervous_system=NervousSystem(),
+        current_body=lambda: body,
+        clock=lambda: NOW,
+    )
+    intent = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="vendor.wave",
+        arguments={"strength": 0.5},
+        **_base("vendor-wave"),
+    )
+
+    result = executor.execute(_plan((intent,)), intent)
+
+    assert result == IntentExecutionResult.completed()
+    command = body.commands[-1]
+    assert isinstance(command, CapabilityCommand)
+    assert command.capability_id == "vendor.wave"
+    assert command.arguments == {"strength": 0.5}
 
 
 def test_physical_executor_interrupts_running_motion_with_emergency_stop() -> None:

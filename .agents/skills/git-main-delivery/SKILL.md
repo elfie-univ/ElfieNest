@@ -81,6 +81,9 @@ gh workflow run ci.yml --ref main -f mode=candidate -f target_sha=<候选 SHA>
   gh api graphql -f query='mutation($id:ID!){dequeuePullRequest(input:{pullRequestId:$id}){mergeQueueEntry{id}}}' -F id=<PR_NODE_ID>
   ```
 
-- CI 失败先报告精确失败项。修复会产生新候选，因此本次合并授权到此终止；不得在原授权下继续改代码、更新 PR 或创建第二个 PR。
+- CI 失败先报告精确失败项。修复会产生新候选，因此旧候选的证据及冻结授权失效；不得
+  在旧候选下继续改代码、更新 PR 或创建第二个 PR。若用户随后授权修复并再次推送，必须
+  保留原“合并 main”目标，不得把功能分支 push 当作交付完成；新候选须重新冻结、验证，
+  并按当前授权边界继续或明确报告主线下一步。
 - 合并后确认 PR 状态为 `MERGED`、PR head 仍是冻结 SHA，且 merge commit 属于当前远端 main 的祖先。多人并发时不要求 main tip 等于本次 merge SHA。
 - 报告从冻结候选获得用户放行到远端 main 核验完成的总耗时；不要按 PR 数量重置计时，也不要把 GitHub/Runner 故障伪造成达标。

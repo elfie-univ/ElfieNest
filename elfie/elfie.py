@@ -14,6 +14,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
@@ -22,6 +23,7 @@ from elfie.brain.runtime import BrainRuntime
 from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.system import EventWorkspace
+from elfie.brain_wiring import DEFAULT_EMBODIED_INPUT_MODE
 from elfie.communication import CommunicationHub
 from elfie.facade_operations import ElfieFacadeOperations
 from elfie.initialization import assemble_anatomy
@@ -50,6 +52,7 @@ class Elfie(ElfieFacadeOperations):
         tool_port: ToolPort | None = None,
         activity_store: ActivityStorePort | None = None,
         journal_store: BrainJournalPort | None = None,
+        embodied_input_mode: EmbodiedInputMode = DEFAULT_EMBODIED_INPUT_MODE,
     ) -> None:
         character_profile.validate()
         self._profile = character_profile
@@ -95,6 +98,7 @@ class Elfie(ElfieFacadeOperations):
             perception_sink=self._workspace,
             elfie_id=workspace_id,
             body_port=body,
+            logical_clock=lambda: self.cognitive_datetime,
         )
         self._anatomy_type, self._anatomy = assemble_anatomy(
             self._profile,
@@ -111,8 +115,13 @@ class Elfie(ElfieFacadeOperations):
         self._skills = skills or SkillManager()
         self._brain_runtime: BrainRuntime | None = None
         self._reasoning_constitution = reasoning_constitution
+        self._embodied_input_mode = EmbodiedInputMode(embodied_input_mode)
         if model_port is not None:
-            self.configure_cognition(model_port, tool_port=tool_port)
+            self.configure_cognition(
+                model_port,
+                tool_port=tool_port,
+                embodied_input_mode=self._embodied_input_mode,
+            )
 
     @property
     def profile(self) -> ElfieProfile:

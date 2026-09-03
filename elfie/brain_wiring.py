@@ -21,10 +21,12 @@ from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
+    CapabilityDescriptor,
     ConnectedChannelDescriptor,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.internal_execution import NoOpExecutor
 from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.reasoning.model_header import ReasoningConstitution
@@ -41,6 +43,10 @@ from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
 from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
 
+# Stage-one default. Change this code switch to ``BRAIN`` when embodied
+# Reasoning is ready to receive physical input.
+DEFAULT_EMBODIED_INPUT_MODE = EmbodiedInputMode.MOCK
+
 
 class EffectiveCapabilityProjection:
     """Version the capabilities currently exposed by sibling authorities."""
@@ -51,10 +57,15 @@ class EffectiveCapabilityProjection:
         current_body: Callable[[], BodyPort | None],
         current_body_generation: Callable[[], int | None] | None = None,
         communication: CommunicationHub,
+        world_capabilities: Callable[[], tuple[str, ...]] | None = None,
+        world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
+        | None = None,
     ) -> None:
         self._current_body = current_body
         self._current_body_generation = current_body_generation or (lambda: 1)
         self._communication = communication
+        self._world_capabilities = world_capabilities or (lambda: ())
+        self._world_capability_catalog = world_capability_catalog or (lambda: ())
         self._signature: tuple[str, ...] | None = None
         self._revision = 0
         self._lock = Lock()
@@ -98,6 +109,23 @@ class EffectiveCapabilityProjection:
             for channel in self._communication.router.list_channels()
             if channel.is_connected
         )
+        world_capabilities = tuple(sorted(set(self._world_capabilities())))
+        capability_catalog = tuple(
+            sorted(
+                (
+                    descriptor
+                    for descriptor in self._world_capability_catalog()
+                    if descriptor.category == "world"
+                    and descriptor.capability_id in world_capabilities
+                ),
+                key=lambda descriptor: descriptor.capability_id,
+            )
+        )
+        signature.extend(f"world-capability:{item}" for item in world_capabilities)
+        signature.extend(
+            "world-capability-contract:" + descriptor.model_dump_json()
+            for descriptor in capability_catalog
+        )
         for channel in channels:
             signature.append(f"channel:{channel.channel_id}")
             signature.extend(
@@ -114,6 +142,8 @@ class EffectiveCapabilityProjection:
             revision=revision,
             captured_at=captured_at,
             current_body=current_body,
+            world_capabilities=world_capabilities,
+            capability_catalog=capability_catalog,
             connected_channels=channels,
         )
 
@@ -134,6 +164,10 @@ def assemble_brain_runtime(
     current_body_generation: Callable[[], int | None] | None = None,
     clock: Callable[[], datetime],
     model_port: ModelPort,
+    embodied_input_mode: EmbodiedInputMode = DEFAULT_EMBODIED_INPUT_MODE,
+    world_capabilities: Callable[[], tuple[str, ...]] | None = None,
+    world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
+    | None = None,
     tool_port: ToolPort | None = None,
     activity_store: ActivityStorePort | None = None,
     journal_store: BrainJournalPort | None = None,
@@ -145,6 +179,8 @@ def assemble_brain_runtime(
         current_body=current_body,
         current_body_generation=current_body_generation,
         communication=communication,
+        world_capabilities=world_capabilities,
+        world_capability_catalog=world_capability_catalog,
     )
     resolved_activity_store = activity_store or InMemoryActivityStore()
     initial_at = clock()
@@ -185,7 +221,7 @@ def assemble_brain_runtime(
             initial_at=initial_at,
         ),
     )
-    return BrainRuntime(
+    brain_runtime = BrainRuntime(
         elfie_id=elfie_id,
         workspace=workspace,
         emotion=emotion,
@@ -195,6 +231,7 @@ def assemble_brain_runtime(
         memory=memory,
         clock=clock,
         model_port=model_port,
+        embodied_input_mode=embodied_input_mode,
         tool_port=tool_port,
         skills=skills,
         body_executor=NervousSystemIntentExecutor(
@@ -214,6 +251,8 @@ def assemble_brain_runtime(
         journal_store=journal_store,
         restore_clock=restore_clock,
     )
+    nervous_system.bind_perception_notifier(brain_runtime.notify_perception)
+    return brain_runtime
 
 
 __all__ = ("assemble_brain_runtime",)

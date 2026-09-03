@@ -1,8 +1,8 @@
 # 系统架构契约
 
-**契约版本：** 1.9
+**契约版本：** 1.10
 **采用日期：** 2026-08-12
-**修订日期：** 2026-08-15
+**修订日期：** 2026-09-02
 **适用范围：** 全仓目标架构
 **宏观架构基线：** v1（已冻结）
 
@@ -227,14 +227,41 @@ App Configuration Feature 写入 Food 可见性、授权、分配和套餐选择
 根据这些已保存事实，为请求中的 Elfie 作用域解析有效投影，不重新作出授权决策。
 Elfie 自己选择语义角色，并单独调用 `ModelPort`。
 
+### Body、Adapter、Transport、Gateway 边界
+
+`BodyPort` 是 Elfie 拥有的单个当前 Actor 身体语义契约。它描述已注册能力、类型化身体
+命令、身体作用域传感事件、本体感觉、生命周期绑定和回执，不包含 Socket、Wire Frame 或
+厂商协议。`NativeBody`（Godot）和 `ExternalBody`（实体设备的主机侧远程代理）都是这份
+Port 的 Infrastructure 实现，不是额外的领域身体。
+
+Body Adapter 把 Port 的语义调用映射为某个目标身体的命令词汇。Transport 是 Adapter 使用
+的 Infrastructure 连接/消息投递组件，负责编码、发送、接收和关联消息，但不选择能力，也
+不拥有物理事实。只有存在真实的端点、Session、认证和路由边界时才需要 Gateway；Gateway
+拥有这个边界并负责排队/路由，不是第二个 BodyPort 或决定层。设备专属 Driver 是可选的，
+可以放在 Adapter 旁边；如果设备自己能做厂商协议转换，则优先由远端 Device Agent/固件
+负责。
+
+实体设备链路为：
+
+```text
+Elfie BodyPort -> ExternalBody -> ExternalTransport -> DeviceGateway
+  -> 认证的 Wi-Fi/LAN -> Device Agent/firmware -> 传感器/执行器
+```
+
+回传沿同一组边界反向经过。Device Agent 是运行在物理设备上的另一套代码；不能假设
+`infrastructure/` 主机代码安装在玩具上。Godot 路径使用同一个语义 Port 边界，只是换成
+Godot Adapter/Transport/Gateway，并由 `godot_project/` 拥有物理 authority。
+
 ## Godot authority 语义线路
 
 Godot authority 通过一个共享、版本化且经过认证的 Gateway 连接访问，不能每只 Elfie
 各自建立原始连接。共享传输不会合并语义所有权。边界分为三类线路：
 
-1. **Actor 身体通道。** Elfie 通过 body/actor Port 发出语义身体意图；Godot Adapter
-   向原身体返回 accepted、started、terminal、blocked、cancelled 或 timed-out 回执，
-   以及身体作用域感知。已知目标的身体流量不经过 Nest。
+1. **Actor 身体通道。** Brain 在有限计划内产生一个或多个目录校验后的能力调用；NervousSystem 校验后通过当前
+   BodyPort 提交。Godot Adapter 向原 Body 返回身体作用域感知和动作回执。`ACCEPTED`、
+   `STARTED` 只留在动作账本；发给 Brain 的终态是 `COMPLETED`、`REJECTED`、`FAILED`、
+   `INTERRUPTED` 或 `TIMED_OUT`（`cancelled` 统一表示为带原因的 `INTERRUPTED`）。
+   已知目标的身体流量不经过 Nest。
 2. **Nest 语义世界线路。** 语义行动、结构化视觉、虚拟说话/听见和环境命令/事实通过
    Nest 拥有的窄能力跨界。Godot 提供物理候选或实际结果；Nest 提供家庭含义、规则、
    关联和定向语义输出。
@@ -242,9 +269,10 @@ Godot authority 通过一个共享、版本化且经过认证的 Gateway 连接�
    不能成为 Nest 或 Body 感知。
 
 一次物理原因可以产生身体回执、身体感知和环境事实，但它们是面向不同接收者的不同
-类型事件，只共享 cause 身份。Runtime 事件必须先分类再投递；禁止把原始事件广播给
-全部 Body，也禁止让同一个语义事件同时走 Body 与 Nest 两条路径。多个语义线路可以
-由同一个共享 Godot Gateway Adapter 实现。
+类型事件，只共享 cause 身份。身体回执和身体感知回传时经过 Body 与 NervousSystem；
+Nest 的定向语义结果进入目标 Body 输入边界后再经过 NervousSystem。Runtime 事件必须先
+分类再投递；禁止把原始事件广播给全部 Body，也禁止让同一个语义事件同时走 Body 与 Nest
+两条路径。多个语义线路可以由同一个共享 Godot Gateway Adapter 实现。
 
 Godot 协议传输、authority 宿主选择、产物与进程启动属于
 `infrastructure/godot/`；Godot 源资产和物理 authority 永久保留在根

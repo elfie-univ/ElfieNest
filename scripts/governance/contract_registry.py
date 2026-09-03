@@ -100,7 +100,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.9",
+        version="1.10",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -120,6 +120,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
             "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
+            "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -212,7 +214,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="nest-godot-semantic-world",
-        version="1.1",
+        version="1.2",
         english_path="docs/developer/contracts/nest-godot-semantic-world.md",
         chinese_path="docs/zh/developer/contracts/nest-godot-semantic-world.md",
         decision_paths=(
@@ -222,6 +224,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0015-evidence-backed-cleanup-closure.md",
             "docs/developer/decisions/0016-nest-persistence-port-ownership.md",
             "docs/zh/developer/decisions/0016-nest-persistence-port-ownership.md",
+            "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -246,7 +250,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="2.3",
+        version="2.4",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
@@ -260,6 +264,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0030-process-local-emotion-state.md",
             "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
             "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
@@ -281,7 +287,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.5",
+        version="1.6",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
@@ -293,6 +299,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
             "docs/developer/decisions/0032-reasoning-context-workspace-ownership.md",
             "docs/zh/developer/decisions/0032-reasoning-context-workspace-ownership.md",
+            "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),

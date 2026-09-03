@@ -14,9 +14,9 @@ reopening the retired general Brain register:
   policy remain separate gates.
 - [Provider/model availability conformance](./provider-model-availability) —
   open for endpoint-scoped capabilities, serving-core evidence and shared health.
-- [Elfie internal architecture conformance](./elfie) — v0.2 structural rows
-  closed for strict Profile ownership, one-time Genesis placement,
-  creation-input disposal and final-owner isolation.
+- [Elfie internal architecture conformance](./elfie) — open for the latest
+  Activity-domain and embodied-control migration; prior Profile/Brain ownership,
+  one-time Genesis placement and final-owner isolation rows remain closed.
 - [Nest–Godot semantic-world conformance](./nest-godot-semantic-world) —
   closure-ready after the clause-by-clause and directory-by-directory audit.
 - [Service lifecycle conformance](./service-lifecycle) — open gaps between the

@@ -2,13 +2,17 @@
 
 from elfie import Elfie, ElfieFactory
 from elfie.body import (
+    ActionOutcomePayload,
     BodyCommand,
     BodyId,
     BodyPort,
     BodySensorEvent,
+    CapabilityCommand,
     CommandReceipt,
     HeardUtterancePayload,
     NestFactNoticePayload,
+    ObservationCommand,
+    ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualEntityPayload,
     SemanticVisualScenePayload,
@@ -16,6 +20,7 @@ from elfie.body import (
     UtteranceFinal,
     VisionChange,
 )
+from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.food_port import MainFoodSelection
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -51,14 +56,19 @@ from elfie.profile import AppearanceResolver, ElfieProfile
 __all__ = [
     "ActorId",
     "ActorRef",
+    "ActionOutcomePayload",
     "AppearanceResolver",
     "BodyCommand",
     "BodyId",
     "BodyPort",
     "BodySensorEvent",
+    "CapabilityDescriptor",
+    "CapabilityCommand",
     "CommandReceipt",
     "HeardUtterancePayload",
     "NestFactNoticePayload",
+    "ObservationCommand",
+    "ProprioceptionSample",
     "CommunicationEnvelope",
     "CommunicationChannel",
     "DeliveryReceipt",

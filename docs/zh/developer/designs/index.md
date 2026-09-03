@@ -5,6 +5,10 @@
 为准，当前实现差距仍由[一致性台账](../conformance/)跟踪。
 
 - [Elfie 顶级模块设计](./elfie-top-level-module-design)：一只完整 Elfie 的目标顶级所有权。
+- [Elfie 具身控制链路设计](./elfie-embodied-control-chain)：从 Brain 到身体的语义指令链路、
+  Godot/物理设备两条路径，以及 BodyPort、Adapter、Transport、Gateway 的边界。
+- [Elfie Godot 虚拟身体端到端执行计划](./elfie-godot-vertical-slice-plan)：基于冻结链路打通
+  虚拟身体的动作、回执、听觉、语义视觉、触觉和下一轮 Brain 反馈。
 - [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture)：Brain 的概念系统、边界、
   运行回路和渐进实现顺序。
 - [Elfie Reasoning Core](./elfie-reasoning-core)：Reasoning 自有 Context Workspace、
