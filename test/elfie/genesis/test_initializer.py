@@ -100,7 +100,7 @@ def test_genesis_materializes_each_selected_fact_as_recallable_knowledge() -> No
 
         fact_nodes = [
             node
-            for node in storage.list_graph_nodes(limit=100)
+            for node in storage.list_graph_nodes(limit=1000)
             if node.node_type == "knowledge"
         ]
 
