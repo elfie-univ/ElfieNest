@@ -1,7 +1,7 @@
 """Deterministic tests for the single-domain response boundary."""
 
 from elfie.brain.reasoning.decision_governance import govern_decision
-from elfie.brain.reasoning.decision_types import MotionIntent, NoOpIntent
+from elfie.brain.reasoning.decision_types import CapabilityIntent, NoOpIntent
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     ExternalExecutionDomain,
@@ -35,7 +35,17 @@ def _communication_frame() -> TurnFrame:
 
 
 def test_communication_turn_rejects_body_motion_before_output_router() -> None:
-    proposal = _plan((MotionIntent(type="motion", motion="walk", **_base("motion")),))
+    proposal = _plan(
+        (
+            CapabilityIntent(
+                type="capability",
+                category="body",
+                capability_id="move.forward",
+                arguments={"distance": 1.0},
+                **_base("motion"),
+            ),
+        )
+    )
 
     decision = govern_decision(_communication_frame(), proposal)
 

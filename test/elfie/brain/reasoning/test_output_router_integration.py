@@ -2,10 +2,8 @@
 
 from elfie.body import HeadlessBody
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
-    ExpressionIntent,
-    MotionIntent,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.workspace.system import EventWorkspace
@@ -62,12 +60,25 @@ def test_real_body_executes_one_embodied_turn() -> None:
         clock=lambda: NOW,
     )
     physical: tuple[DecisionIntent, ...] = (
-        SpeechIntent(type="speech", text="hello room", **_base("speech")),
-        MotionIntent(type="motion", motion="walk", **_base("motion")),
-        ExpressionIntent(
-            type="expression",
-            expression="happy",
-            intensity=0.8,
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="speak",
+            arguments={"text": "hello room"},
+            **_base("speech"),
+        ),
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="move.forward",
+            arguments={"distance": 1.0},
+            **_base("motion"),
+        ),
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="expression",
+            arguments={"kind": "happy", "intensity": 0.8},
             **_base("expression"),
         ),
     )

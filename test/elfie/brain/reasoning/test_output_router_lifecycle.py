@@ -6,8 +6,8 @@ from threading import Event, Thread
 
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    CapabilityIntent,
     DecisionPlan,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.reasoning.execution_types import ExecutionBatch, IntentExecutionResult
@@ -39,14 +39,16 @@ class BlockingExecutor(RecordingExecutor):
 
 
 def _speech_plan(index: int) -> DecisionPlan:
-    intent = SpeechIntent(
-        type="speech",
+    intent = CapabilityIntent(
+        type="capability",
         intent_id=IntentId(f"speech-{index}"),
         cause_event_ids=(EventId(f"cause-{index}"),),
         dependency_ids=(),
         deadline=DEADLINE,
         cancel_policy=CancelPolicy.ALWAYS,
-        text=f"message {index}",
+        category="body",
+        capability_id="speak",
+        arguments={"text": f"message {index}"},
     )
     return DecisionPlan(
         plan_id=PlanId(f"plan-{index}"),

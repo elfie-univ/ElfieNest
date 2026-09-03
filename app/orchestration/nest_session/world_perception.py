@@ -172,6 +172,9 @@ def world_snapshot_to_body_sensor_event(
             zone_id=resident.current_zone_id,
             active_command_id=resident.active_command_id,
             arrived=resident.active_command_id is None,
+            position=resident.position,
+            heading_degrees=resident.heading_degrees,
+            velocity=resident.velocity,
         ),
     )
 

@@ -74,6 +74,9 @@ class ProprioceptionSample(FrozenContractModel):
     zone_id: Optional[_NonBlankText] = None
     active_command_id: Optional[_NonBlankText] = None
     arrived: bool = False
+    position: Optional[Tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[Tuple[float, float, float]] = None
 
 
 class ActionOutcomePayload(FrozenContractModel):

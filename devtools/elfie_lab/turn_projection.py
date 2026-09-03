@@ -6,13 +6,11 @@ from collections import defaultdict
 from typing import Any, DefaultDict, Dict, Iterable, List, Optional
 
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionPlan,
-    ExpressionIntent,
     MessageIntent,
-    MotionIntent,
     NoOpIntent,
     PersistentActivityRequest,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 
@@ -33,7 +31,6 @@ def project_decision(
         "motion_intents": [],
         "expression_intents": [],
         "action_intents": [],
-        "internal_intents": [],
         "activity_intents": [],
         "noop_intents": [],
     }
@@ -51,9 +48,8 @@ def project_decision(
             "status": statuses[-1] if statuses else "pending",
             "receipts": statuses,
         }
-        if isinstance(intent, SpeechIntent):
-            projected["spoken_texts"].append(intent.text)
-            projected["speech_intents"].append({**common, "text": intent.text})
+        if isinstance(intent, CapabilityIntent):
+            _project_capability(projected, common, intent)
         elif isinstance(intent, MessageIntent):
             projected["message_texts"].append(intent.content)
             projected["message_intents"].append(
@@ -64,18 +60,6 @@ def project_decision(
                     "content": intent.content,
                 }
             )
-        elif isinstance(intent, MotionIntent):
-            action = {**common, "motion": intent.motion, "target": intent.target}
-            projected["motion_intents"].append(action)
-            projected["action_intents"].append({"type": "motion", **action})
-        elif isinstance(intent, ExpressionIntent):
-            action = {
-                **common,
-                "expression": intent.expression,
-                "intensity": intent.intensity,
-            }
-            projected["expression_intents"].append(action)
-            projected["action_intents"].append({"type": "expression", **action})
         elif isinstance(intent, PersistentActivityRequest):
             projected["activity_intents"].append(
                 {
@@ -94,6 +78,63 @@ def project_decision(
         elif isinstance(intent, NoOpIntent):
             projected["noop_intents"].append({**common, "reason": intent.reason})
     return projected
+
+
+def _project_capability(
+    projected: Dict[str, Any],
+    common: Dict[str, Any],
+    intent: CapabilityIntent,
+) -> None:
+    """Project dynamic capability calls into the stable Lab display groups."""
+    capability_id = intent.capability_id
+    arguments = dict(intent.arguments)
+    if intent.category == "body" and capability_id in {
+        "speak",
+        "body.speak",
+        "speech.say",
+    }:
+        text = arguments.get("text")
+        if isinstance(text, str):
+            projected["spoken_texts"].append(text)
+            projected["speech_intents"].append({**common, "text": text})
+        return
+    if capability_id == "expression" or capability_id.startswith("expression."):
+        expression = arguments.get("kind")
+        if not isinstance(expression, str):
+            expression = capability_id.removeprefix("expression.")
+        intensity = arguments.get("intensity", 1.0)
+        action = {
+            **common,
+            "expression": expression,
+            "intensity": intensity,
+            "capability_id": capability_id,
+        }
+        projected["expression_intents"].append(action)
+        projected["action_intents"].append({"type": "expression", **action})
+        return
+    if capability_id.startswith("move.") or capability_id in {
+        "move.to",
+        "body.move_to_anchor",
+        "move_to_anchor",
+    }:
+        action = {
+            **common,
+            "motion": capability_id,
+            "target": arguments.get("anchor_id"),
+            "capability_id": capability_id,
+        }
+        projected["motion_intents"].append(action)
+        projected["action_intents"].append({"type": "motion", **action})
+        return
+    projected["action_intents"].append(
+        {
+            "type": "capability",
+            **common,
+            "category": intent.category,
+            "capability_id": capability_id,
+            "arguments": arguments,
+        }
+    )
 
 
 def _receipt_statuses(

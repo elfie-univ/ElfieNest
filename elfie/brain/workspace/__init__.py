@@ -1,11 +1,11 @@
 """Event Workspace: admission, lane isolation, and immutable Turn framing."""
 
 from .contracts import (
+    ActivityScope,
     CommunicationScope,
     EmbodiedScope,
     ExternalExecutionDomain,
     IngestReceipt,
-    InternalScope,
     PerceptionEvent,
     ResponseScope,
     SourceDomain,
@@ -18,7 +18,7 @@ __all__ = (
     "EmbodiedScope",
     "ExternalExecutionDomain",
     "IngestReceipt",
-    "InternalScope",
+    "ActivityScope",
     "PerceptionEvent",
     "EventWorkspace",
     "ResponseScope",

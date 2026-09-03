@@ -31,7 +31,11 @@ from elfie.brain.reasoning.execution_types import (
     ExecutionReceipt,
     ExecutorKind,
 )
-from elfie.brain.workspace.contracts import EmbodiedScope, ExecutionStatus
+from elfie.brain.workspace.contracts import (
+    EmbodiedScope,
+    ExecutionStatus,
+    InteractionScope,
+)
 from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ElfieId, ErrorInfo, EventId, TurnId, UTCDateTime
 
@@ -171,7 +175,14 @@ class OutputRouter:
             self._trim_completed_locked()
             for intent in plan.intents:
                 kind, _executor = self._executors.for_intent(intent)
-                self._emit(plan, intent, kind, ExecutionStatus.ACCEPTED, None)
+                self._emit(
+                    plan,
+                    intent,
+                    kind,
+                    ExecutionStatus.ACCEPTED,
+                    None,
+                    interaction_scope=decision.interaction_scope,
+                )
             self._queue.put_nowait(runtime)
         return batch
 
@@ -315,7 +326,27 @@ class OutputRouter:
         kind: ExecutorKind,
         status: ExecutionStatus,
         error: Optional[ErrorInfo],
+        *,
+        interaction_scope: InteractionScope | None = None,
     ) -> None:
+        publish_to_workspace = (
+            not isinstance(intent, NoOpIntent)
+            and status not in {ExecutionStatus.ACCEPTED, ExecutionStatus.STARTED}
+            and not (
+                kind is ExecutorKind.BODY
+                and bool(
+                    getattr(
+                        self._body_executor,
+                        "publishes_embodied_outcome",
+                        False,
+                    )
+                )
+            )
+        )
+        if publish_to_workspace and interaction_scope is None:
+            with self._lock:
+                decision = self._decisions.get(str(plan.plan_id))
+            interaction_scope = None if decision is None else decision.interaction_scope
         receipt = self._publisher.emit(
             plan=plan,
             intent=intent,
@@ -326,19 +357,8 @@ class OutputRouter:
             # frame. Re-publishing its own receipts would create an endless
             # receipt-only cognition loop. The receipt remains available to
             # journaling and settlement below.
-            publish_to_workspace=(
-                not isinstance(intent, NoOpIntent)
-                and not (
-                    kind is ExecutorKind.BODY
-                    and bool(
-                        getattr(
-                            self._body_executor,
-                            "publishes_embodied_outcome",
-                            False,
-                        )
-                    )
-                )
-            ),
+            publish_to_workspace=publish_to_workspace,
+            interaction_scope=interaction_scope,
         )
         if self._journal is not None:
             self._journal.record_receipt(receipt)

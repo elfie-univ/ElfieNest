@@ -383,7 +383,7 @@ An embodied decision invokes one or more capabilities from the read-only catalog
 exposed by the current Body and other authorized owners. The finite structured
 plan contains calls with the broad category, dynamic `capability_id`, typed
 arguments, call/cause IDs, deadline and current subject. Concrete names such as
-`go_to`, `turn` or `speak` are catalog entries, not a fixed Brain decision
+`move.to`, `move.turn` or `speak` are catalog entries, not a fixed Brain decision
 union. Calls may be ordered or run concurrently within the same external
 domain. Each call is checked by NervousSystem and routed through the current
 BodyBinding; Brain does not select an Adapter, Transport or Gateway.

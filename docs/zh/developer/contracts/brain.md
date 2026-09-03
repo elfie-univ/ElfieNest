@@ -281,7 +281,7 @@ Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个�
 
 具身决定从当前 Body 和其他已授权所有者提供的只读能力目录中选择一个或多个能力，形成有限计划。
 每个结构化调用包含大类、动态 `capability_id`、类型化参数、call/cause 身份、截止时间和当前主体。
-`go_to`、`turn`、`speak` 等具体名称是能力目录条目，不是 Brain 固定的决定联合类型。同一外部域内的
+`move.to`、`move.turn`、`speak` 等具体名称是能力目录条目，不是 Brain 固定的决定联合类型。同一外部域内的
 调用可以有序执行或并发执行。调用由 NervousSystem 校验并通过当前 BodyBinding 路由；Brain 不选择
 Adapter、Transport 或 Gateway。
 

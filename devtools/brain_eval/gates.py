@@ -80,7 +80,7 @@ def _scope_violations(episode: EpisodeEvidence) -> List[GateViolation]:
                 domain is not ExternalDomain.EMBODIED for domain in turn.output_domains
             )
         )
-        if turn.source_domain is SourceDomain.INTERNAL:
+        if turn.source_domain is SourceDomain.ACTIVITY:
             invalid_domain = len(set(turn.output_domains)) > 1
         if invalid_domain:
             result.append(

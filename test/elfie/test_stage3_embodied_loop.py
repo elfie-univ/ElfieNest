@@ -6,6 +6,7 @@ import json
 
 from elfie import ElfieFactory
 from elfie.body import BodyId, BodySensorEvent, HeadlessBody, UtteranceFinal
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
@@ -53,14 +54,15 @@ class EmbodiedMotionRuntime:
             "cause_event_ids": list(request.cause_event_ids),
             "intents": [
                 {
-                    "type": "motion",
+                    "type": "capability",
                     "intent_id": f"motion-{request.turn_id}",
                     "cause_event_ids": list(request.cause_event_ids),
                     "dependency_ids": [],
                     "deadline": request.deadline.isoformat(),
                     "cancel_policy": "if_not_started",
-                    "motion": "walk",
-                    "target": "room-center",
+                    "category": "body",
+                    "capability_id": "move.forward",
+                    "arguments": {"distance": 1.0},
                 }
             ],
         }
@@ -86,6 +88,7 @@ def _new_elfie(body: HeadlessBody, runtime: EmbodiedMotionRuntime):
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
             model_port=runtime,
+            embodied_input_mode=EmbodiedInputMode.BRAIN,
         )
     )
 

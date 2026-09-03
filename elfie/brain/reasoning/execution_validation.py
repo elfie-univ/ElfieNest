@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
 from functools import singledispatch
-from typing import Optional
+from typing import Any, Optional
 
 from elfie.brain.activity.system import ActivityStepKind
-from elfie.brain.reasoning.context_types import EffectiveCapabilities
+from elfie.brain.reasoning.context_types import (
+    CapabilityDescriptor,
+    EffectiveCapabilities,
+)
 from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
-    ExpressionIntent,
     MessageIntent,
-    MotionIntent,
     NoOpIntent,
     PersistentActivityRequest,
-    SpeechIntent,
 )
 from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import ErrorInfo, UTCDateTime
@@ -91,28 +92,113 @@ def _body_action_supported(capabilities: EffectiveCapabilities, action: str) -> 
     return True
 
 
-def _registered_body_capability(
+def _find_capability(
     capabilities: EffectiveCapabilities,
     capability_id: str,
-) -> bool:
-    """Accept the semantic aliases while preserving the existing Body vocabulary."""
-    if _body_action_supported(capabilities, capability_id):
-        return True
-    aliases = {
-        "body.speak": "speech.say",
-        "body.move_to_anchor": "move_to_anchor",
-        "body.emergency_stop": "system.emergency_stop",
-    }
-    alias = aliases.get(capability_id)
-    if alias is not None and _body_action_supported(capabilities, alias):
-        return True
-    if capability_id == "body.expression":
-        body = capabilities.current_body
-        return body is not None and (
-            "*" in body.actions
-            or any(action.startswith("expression.") for action in body.actions)
+    category: str,
+) -> CapabilityDescriptor | None:
+    descriptor = next(
+        (
+            item
+            for item in capabilities.capability_catalog
+            if item.capability_id == capability_id and item.category == category
+        ),
+        None,
+    )
+    if descriptor is not None:
+        return descriptor
+    body = capabilities.current_body
+    if category == "body" and body is not None:
+        if "*" in body.actions or capability_id in body.actions:
+            return CapabilityDescriptor(
+                capability_id=capability_id,
+                category="body",
+            )
+    if category == "world" and capability_id in capabilities.world_capabilities:
+        return CapabilityDescriptor(
+            capability_id=capability_id,
+            category="world",
         )
-    return False
+    return None
+
+
+def _validate_arguments(
+    arguments: Mapping[str, Any],
+    schema: Mapping[str, Any],
+) -> Optional[ErrorInfo]:
+    """Validate the small JSON-Schema subset used by capability catalogs."""
+    required = schema.get("required", ())
+    if isinstance(required, (list, tuple)):
+        for name in required:
+            if isinstance(name, str) and name not in arguments:
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability requires argument '{name}'",
+                )
+    properties = schema.get("properties", {})
+    if not isinstance(properties, Mapping):
+        properties = {}
+    if schema.get("additionalProperties") is False:
+        unknown = sorted(set(arguments) - set(properties))
+        if unknown:
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message=f"unknown capability argument: {unknown[0]}",
+            )
+    for name, value in arguments.items():
+        definition = properties.get(name)
+        if not isinstance(definition, Mapping):
+            continue
+        expected_type = definition.get("type")
+        if expected_type == "string":
+            if not isinstance(value, str):
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' must be a string",
+                )
+            min_length = definition.get("minLength")
+            if isinstance(min_length, int) and len(value) < min_length:
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' is too short",
+                )
+        elif expected_type == "integer":
+            if not isinstance(value, int) or isinstance(value, bool):
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' must be an integer",
+                )
+        elif expected_type == "number":
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' must be a number",
+                )
+        elif expected_type == "boolean" and not isinstance(value, bool):
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message=f"capability argument '{name}' must be a boolean",
+            )
+        enum = definition.get("enum")
+        if isinstance(enum, (list, tuple)) and value not in enum:
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message=f"capability argument '{name}' is not registered",
+            )
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            minimum = definition.get("minimum")
+            maximum = definition.get("maximum")
+            if isinstance(minimum, (int, float)) and value < minimum:
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' is below minimum",
+                )
+            if isinstance(maximum, (int, float)) and value > maximum:
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=f"capability argument '{name}' is above maximum",
+                )
+    return None
 
 
 @singledispatch
@@ -128,107 +214,37 @@ def _validate_capability(
     intent: CapabilityIntent,
     capabilities: EffectiveCapabilities,
 ) -> Optional[ErrorInfo]:
-    if intent.category == "world":
-        if intent.capability_id not in capabilities.world_capabilities:
-            return ErrorInfo(
-                code="world_capability_unavailable",
-                message=f"world capability is not registered: {intent.capability_id}",
-            )
-        if intent.capability_id == "world.go_to":
-            anchor_id = intent.arguments.get("anchor_id")
-            if not isinstance(anchor_id, str) or not anchor_id.strip():
-                return ErrorInfo(
-                    code="invalid_capability_arguments",
-                    message="world.go_to requires a non-blank anchor_id",
-                )
-            if not _body_action_supported(capabilities, "move_to_anchor"):
-                return ErrorInfo(
-                    code="motion_unavailable",
-                    message="current body cannot execute semantic movement",
-                )
-        elif intent.capability_id == "world.observe":
-            max_results = intent.arguments.get("max_results", 32)
-            if (
-                not isinstance(max_results, int)
-                or isinstance(max_results, bool)
-                or not 1 <= max_results <= 64
-            ):
-                return ErrorInfo(
-                    code="invalid_capability_arguments",
-                    message="world.observe max_results must be an integer from 1 to 64",
-                )
-            if not _body_action_supported(capabilities, "world.observe"):
-                return ErrorInfo(
-                    code="vision_unavailable",
-                    message="current body cannot request semantic vision",
-                )
-        return None
-
-    if not _registered_body_capability(capabilities, intent.capability_id):
-        return ErrorInfo(
-            code="body_capability_unavailable",
-            message=f"body capability is not registered: {intent.capability_id}",
+    descriptor = _find_capability(capabilities, intent.capability_id, intent.category)
+    if descriptor is None:
+        unavailable_code = (
+            "world_capability_unavailable"
+            if intent.category == "world"
+            else "body_capability_unavailable"
         )
-    if intent.capability_id in {"body.speak", "speech.say"}:
-        text = intent.arguments.get("text")
-        if not isinstance(text, str) or not text.strip():
+        return ErrorInfo(
+            code=unavailable_code,
+            message=f"{intent.category} capability is not registered: {intent.capability_id}",
+        )
+    argument_error = _validate_arguments(intent.arguments, descriptor.argument_schema)
+    if argument_error is not None:
+        return argument_error
+    if intent.category == "world" and intent.capability_id == "move.to":
+        if not (
+            _body_action_supported(capabilities, "move.forward")
+            or _body_action_supported(capabilities, "move_to_anchor")
+        ):
             return ErrorInfo(
-                code="invalid_capability_arguments",
-                message="body.speak requires a non-blank text",
+                code="motion_unavailable",
+                message="current body cannot execute semantic movement",
             )
-    elif intent.capability_id == "body.move_to_anchor":
-        anchor_id = intent.arguments.get("anchor_id")
-        if not isinstance(anchor_id, str) or not anchor_id.strip():
+    if intent.category == "world" and intent.capability_id == "observe":
+        body = capabilities.current_body
+        if body is None or ("*" not in body.sensors and "vision" not in body.sensors):
             return ErrorInfo(
-                code="invalid_capability_arguments",
-                message="body.move_to_anchor requires a non-blank anchor_id",
+                code="vision_unavailable",
+                message="current body has no vision input",
             )
-    elif intent.capability_id == "body.expression":
-        kind = intent.arguments.get("kind")
-        if not isinstance(kind, str) or not kind.strip():
-            return ErrorInfo(
-                code="invalid_capability_arguments",
-                message="body.expression requires a non-blank kind",
-            )
-        if not _registered_body_capability(capabilities, f"expression.{kind}"):
-            body = capabilities.current_body
-            if body is None or "body.expression" not in body.actions:
-                return ErrorInfo(
-                    code="expression_unavailable",
-                    message=f"expression is not registered: {kind}",
-                )
     return None
-
-
-@_validate_target.register
-def _validate_speech(
-    _intent: SpeechIntent,
-    capabilities: EffectiveCapabilities,
-) -> Optional[ErrorInfo]:
-    if _body_action_supported(capabilities, "speech.say"):
-        return None
-    return ErrorInfo(code="speech_unavailable", message="current body cannot speak")
-
-
-@_validate_target.register
-def _validate_motion(
-    intent: MotionIntent,
-    capabilities: EffectiveCapabilities,
-) -> Optional[ErrorInfo]:
-    action = "move_to_anchor" if intent.target else intent.motion
-    if _body_action_supported(capabilities, action):
-        return None
-    return ErrorInfo(code="motion_unavailable", message="current body cannot move")
-
-
-@_validate_target.register
-def _validate_expression(
-    intent: ExpressionIntent,
-    capabilities: EffectiveCapabilities,
-) -> Optional[ErrorInfo]:
-    if _body_action_supported(capabilities, f"expression.{intent.expression}"):
-        return None
-    return ErrorInfo(code="expression_unavailable", message="expression unavailable")
 
 
 @_validate_target.register

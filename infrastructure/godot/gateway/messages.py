@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum, unique
-from typing import Dict, List, Literal, Optional, Type
+from typing import Dict, List, Literal, Optional, Tuple, Type
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from typing_extensions import TypeAlias
@@ -118,6 +118,9 @@ class _SnapshotActorPayload(_Payload):
     posture: str
     active_command_id: Optional[str]
     mock_motion: Optional[_MockMotionPayload] = None
+    position: Optional[Tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[Tuple[float, float, float]] = None
 
 
 class _WorldSnapshotPayload(_Payload):
@@ -224,11 +227,20 @@ class _ExecuteIntentPayload(_Payload):
     actor_id: str = Field(min_length=1)
     body_generation: int = Field(ge=1)
     initiator: Literal["elfie"]
-    intent: Literal["move_to_anchor", "speak", "emotion_expression"]
+    intent: Literal[
+        "move_to_anchor",
+        "move_forward",
+        "turn",
+        "speak",
+        "emotion_expression",
+    ]
     deadline_seconds: float = Field(gt=0.0)
     anchor_id: Optional[str] = None
+    distance: Optional[float] = Field(default=None, gt=0.0)
+    angle_degrees: Optional[float] = Field(default=None, ge=-360.0, le=360.0)
     text: Optional[str] = None
     expression: Optional[str] = None
+    intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _validate_intent_fields(self) -> _ExecuteIntentPayload:
@@ -238,28 +250,44 @@ class _ExecuteIntentPayload(_Payload):
             # text; a direct protocol caller may still include non-empty text.
             if self.text is not None and not self.text.strip():
                 raise ValueError("speak payload is incomplete")
-        else:
+        elif self.intent == "move_to_anchor":
             required = {
                 "move_to_anchor": self.anchor_id,
-                "emotion_expression": self.expression,
             }
-            value = required[self.intent]
+            value = required["move_to_anchor"]
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{self.intent} payload is incomplete")
+        elif self.intent == "move_forward":
+            if self.distance is None:
+                raise ValueError("move_forward payload is incomplete")
+        elif self.intent == "turn":
+            if self.angle_degrees is None:
+                raise ValueError("turn payload is incomplete")
+        else:
+            value = self.expression
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{self.intent} payload is incomplete")
         supplied = {
             name
             for name, field_value in {
                 "anchor_id": self.anchor_id,
+                "distance": self.distance,
+                "angle_degrees": self.angle_degrees,
                 "text": self.text,
                 "expression": self.expression,
+                "intensity": self.intensity,
             }.items()
             if field_value is not None
         }
         expected = {
             "move_to_anchor": {"anchor_id"},
+            "move_forward": {"distance"},
+            "turn": {"angle_degrees"},
             "speak": {"text"} if self.text is not None else set(),
             "emotion_expression": {"expression"},
         }[self.intent]
+        if self.intent == "emotion_expression" and self.intensity is not None:
+            expected = expected | {"intensity"}
         if supplied != expected:
             raise ValueError(f"{self.intent} payload has incompatible fields")
         return self

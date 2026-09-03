@@ -38,7 +38,6 @@ _NonBlankText = Annotated[
     StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
 _Revision = Annotated[int, Field(strict=True, ge=0)]
-_Intensity = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
 _Ordinal = Annotated[int, Field(strict=True, ge=0)]
 _SemanticStrength = Annotated[int, Field(strict=True, ge=1, le=100)]
 _Confidence = Annotated[float, Field(strict=True, gt=0.0, le=1.0)]
@@ -72,13 +71,6 @@ class CapabilityIntent(IntentContract):
     arguments: Mapping[str, JsonValue] = Field(default_factory=dict)
 
 
-class SpeechIntent(IntentContract):
-    """Speech routed through NervousSystem to the current Body."""
-
-    type: Literal["speech"]
-    text: _NonBlankText
-
-
 class MessageIntent(IntentContract):
     """A platform-neutral message routed through Communication."""
 
@@ -105,22 +97,6 @@ class MessageIntent(IntentContract):
                 "send_after cannot be later than the intent deadline",
             )
         return self
-
-
-class MotionIntent(IntentContract):
-    """A semantic motion routed through current Body capability checks."""
-
-    type: Literal["motion"]
-    motion: _NonBlankText
-    target: Optional[_NonBlankText] = None
-
-
-class ExpressionIntent(IntentContract):
-    """A semantic expression routed through the current Body."""
-
-    type: Literal["expression"]
-    expression: _NonBlankText
-    intensity: _Intensity
 
 
 class PersistentActivityRequest(IntentContract):
@@ -242,11 +218,8 @@ CognitiveAction: TypeAlias = Annotated[
 
 DecisionIntent: TypeAlias = Annotated[
     Union[
-        SpeechIntent,
         CapabilityIntent,
         MessageIntent,
-        MotionIntent,
-        ExpressionIntent,
         PersistentActivityRequest,
         NoOpIntent,
     ],
@@ -431,24 +404,21 @@ class TurnDecision(FrozenContractModel):
             if self.response_scope != expected_scope:
                 raise PydanticCustomError(
                     "decision_interaction_scope",
-                    "internal decisions cannot exceed their trigger response scope",
+                    "activity decisions cannot exceed their trigger response scope",
                 )
             if self.response_scope.external_domain is None and any(
                 isinstance(
                     intent,
                     (
-                        SpeechIntent,
                         CapabilityIntent,
                         MessageIntent,
-                        MotionIntent,
-                        ExpressionIntent,
                     ),
                 )
                 for intent in self.plan.intents
             ):
                 raise PydanticCustomError(
                     "decision_external_domain",
-                    "internal turns without an allowed scope cannot produce external intents",
+                    "activity turns without an allowed scope cannot produce external intents",
                 )
             if (
                 self.response_scope.external_domain
@@ -456,19 +426,14 @@ class TurnDecision(FrozenContractModel):
                 and any(
                     isinstance(
                         intent,
-                        (
-                            SpeechIntent,
-                            CapabilityIntent,
-                            MotionIntent,
-                            ExpressionIntent,
-                        ),
+                        (CapabilityIntent,),
                     )
                     for intent in self.plan.intents
                 )
             ):
                 raise PydanticCustomError(
                     "decision_external_domain",
-                    "communication-scoped internal turns cannot produce body intents",
+                    "communication-scoped activity turns cannot produce body intents",
                 )
             if (
                 self.response_scope.external_domain
@@ -479,7 +444,7 @@ class TurnDecision(FrozenContractModel):
             ):
                 raise PydanticCustomError(
                     "decision_external_domain",
-                    "body-scoped internal turns cannot produce communication intents",
+                    "body-scoped activity turns cannot produce communication intents",
                 )
         return self
 
@@ -495,15 +460,12 @@ __all__ = (
     "DecisionPlan",
     "MemoryUseReference",
     "EmotionFeedback",
-    "ExpressionIntent",
     "MessageIntent",
-    "MotionIntent",
     "ModelAffectiveAppraisal",
     "NoOpIntent",
     "NoOpDraft",
     "PersistentActivityRequest",
     "RecallMemory",
-    "SpeechIntent",
     "SemanticEmotionEffect",
     "TurnDecision",
 )

@@ -7,8 +7,6 @@ from elfie.body.capabilities import BodyCapabilities
 from elfie.body.contracts import BodyCommand, CapabilityCommand, MotionCommand
 from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
-    MotionIntent,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.brain.workspace.contracts import ExecutionStatus
@@ -43,7 +41,13 @@ def test_physical_executor_builds_correlated_typed_body_commands() -> None:
         current_body=lambda: body,
         clock=lambda: NOW,
     )
-    speech = SpeechIntent(type="speech", text="hello", **_base("speech"))
+    speech = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="speak",
+        arguments={"text": "hello"},
+        **_base("speech"),
+    )
     plan = _plan((speech,))
 
     # When: the physical intent executes.
@@ -67,7 +71,7 @@ def test_capability_executor_maps_registered_world_call_to_body_command() -> Non
     intent = CapabilityIntent(
         type="capability",
         category="world",
-        capability_id="world.go_to",
+        capability_id="move.to",
         arguments={"anchor_id": "activity-01/activity"},
         **_base("go-to"),
     )
@@ -116,7 +120,13 @@ def test_physical_executor_interrupts_running_motion_with_emergency_stop() -> No
         current_body=lambda: body,
         clock=lambda: NOW,
     )
-    motion = MotionIntent(type="motion", motion="walk", **_base("motion"))
+    motion = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="move.forward",
+        arguments={"distance": 1.0},
+        **_base("motion"),
+    )
     plan = _plan((motion,))
     assert executor.execute(plan, motion) == IntentExecutionResult.completed()
 
@@ -154,7 +164,13 @@ def test_completed_receipt_from_previous_body_generation_is_not_reported_success
         current_body_generation=lambda: generation[0],
         clock=lambda: NOW,
     )
-    motion = MotionIntent(type="motion", motion="walk", **_base("motion"))
+    motion = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="move.forward",
+        arguments={"distance": 1.0},
+        **_base("motion"),
+    )
     plan = _plan((motion,))
     result = []
 

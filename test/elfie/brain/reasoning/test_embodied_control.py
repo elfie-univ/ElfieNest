@@ -41,10 +41,10 @@ class StaticContext:
                 sensors=("proprioception",),
                 actions=("move_to_anchor",),
             ),
-            world_capabilities=("world.go_to",),
+            world_capabilities=("move.to",),
             capability_catalog=(
                 CapabilityDescriptor(
-                    capability_id="world.go_to",
+                    capability_id="move.to",
                     category="world",
                     argument_schema={
                         "type": "object",
@@ -52,7 +52,7 @@ class StaticContext:
                         "properties": {
                             "anchor_id": {
                                 "type": "string",
-                                "enum": ["room/chair", "room/door"],
+                                "enum": ["room/chair", "room/activity"],
                             }
                         },
                     },
@@ -113,8 +113,8 @@ def test_mock_gate_issues_semantic_move_without_model_and_consumes_terminal_feed
     assert controller.drain(NOW) is True
     assert len(sink.decisions) == 1
     intent = sink.decisions[0].plan.intents[0]
-    assert intent.capability_id == "world.go_to"
-    assert intent.arguments["anchor_id"] in {"room/chair", "room/door"}
+    assert intent.capability_id == "move.to"
+    assert intent.arguments["anchor_id"] in {"room/chair", "room/activity"}
 
     terminal = _event(
         "action-terminal",

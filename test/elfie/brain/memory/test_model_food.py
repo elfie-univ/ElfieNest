@@ -82,6 +82,6 @@ def test_brain_model_adapter_keeps_memory_on_primary_model_boundary():
 
     assert result.startswith("{")
     request = primary.requests[0]
-    assert request.source_domain.value == "internal"
+    assert request.source_domain.value == "activity"
     assert request.response_schema.name == "MemoryProjection"
     assert request.allowed_tools == ()

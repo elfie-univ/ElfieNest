@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Protocol, Tuple, runtime_checkable
 
-from elfie.body.capabilities import BodyCapabilities
+from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.contracts import (
     BodyCommand,
     BodySensorEvent,
@@ -47,6 +47,26 @@ class BodyPort(Protocol):
     def disconnect(self) -> None: ...
 
     def describe(self) -> BodyDescriptor: ...
+
+    def list_actions(
+        self, *, model_visible: bool = False
+    ) -> Tuple[BodyCapabilityDescriptor, ...]: ...
+
+    def list_inputs(
+        self, *, model_visible: bool = False
+    ) -> Tuple[BodyCapabilityDescriptor, ...]: ...
+
+    def register_action(
+        self, descriptor: BodyCapabilityDescriptor
+    ) -> BodyCapabilities: ...
+
+    def unregister_action(self, capability_id: str) -> BodyCapabilities: ...
+
+    def register_input(
+        self, descriptor: BodyCapabilityDescriptor
+    ) -> BodyCapabilities: ...
+
+    def unregister_input(self, capability_id: str) -> BodyCapabilities: ...
 
     def read_sensor_events(self) -> List[BodySensorEvent]: ...
 

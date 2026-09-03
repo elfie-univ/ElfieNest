@@ -75,7 +75,7 @@ function Section({ title, children }: Readonly<{ title: string; children: React.
 }
 
 function DecisionSection({ turn }: Readonly<{ turn: ElfieTurn }>): React.JSX.Element {
-  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Internal", turn.decision.internal_intents], ["Activity", turn.decision.activity_intents], ["No-op", turn.decision.noop_intents]];
+  const groups: readonly (readonly [string, readonly unknown[]])[] = [["Speech", turn.decision.speech_intents], ["Message", turn.decision.message_intents], ["Motion", turn.decision.motion_intents], ["Expression", turn.decision.expression_intents], ["Action", turn.decision.action_intents], ["Activity", turn.decision.activity_intents], ["No-op", turn.decision.noop_intents]];
   const cards = groups.flatMap(([label, intents]) => intents.map((intent) => <StageCard key={`${label}-${text(intent)}`} label={label} meta={typeof record(intent).status === "string" ? String(record(intent).status) : "pending"} value={intent} />));
   return <Section title="决策意图">{cards.length ? cards : <StageCard label="无决策计划" meta="只读" value="本轮没有持久化 typed intent" />}</Section>;
 }

@@ -1,7 +1,7 @@
 """Elfie 可替换身体语义与端口的公共导出。"""
 
 from elfie.body.binding import BodyBinding, BodySwitchError
-from elfie.body.capabilities import BodyCapabilities
+from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.contracts import (
     ActionOutcomePayload,
     BodyCommand,
@@ -57,6 +57,7 @@ __all__ = [
     "ActuatorPort",
     "BodyPort",
     "BodyCapabilities",
+    "BodyCapabilityDescriptor",
     "BodyRegistry",
     "BodyRegistrationError",
     "BodyNotFoundError",

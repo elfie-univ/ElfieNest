@@ -811,7 +811,7 @@ class NestSession:
         )
         return (
             CapabilityDescriptor(
-                capability_id="world.go_to",
+                capability_id="move.to",
                 category="world",
                 description="Move the current Elfie to a semantic Nest anchor.",
                 argument_schema={
@@ -828,7 +828,7 @@ class NestSession:
                 },
             ),
             CapabilityDescriptor(
-                capability_id="world.observe",
+                capability_id="observe",
                 category="world",
                 description="Return semantic objects visible to the current Elfie.",
                 argument_schema={

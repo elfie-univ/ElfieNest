@@ -216,7 +216,7 @@ class BodyPerceptionNormalizer:
         payload: ProprioceptionSample,
     ) -> Tuple[PerceptionWrite, ...]:
         prefix = f"body:{event.body_id}:proprioception"
-        values: Tuple[Tuple[str, bool | str], ...] = (
+        values: Tuple[Tuple[str, bool | float | str], ...] = (
             ("posture", payload.posture),
             ("arrived", payload.arrived),
         )
@@ -226,6 +226,18 @@ class BodyPerceptionNormalizer:
             values += (("location", payload.zone_id),)
         if payload.active_command_id is not None:
             values += (("active_command_id", payload.active_command_id),)
+        if payload.position is not None:
+            values += tuple(
+                (f"position_{axis}", value)
+                for axis, value in zip(("x", "y", "z"), payload.position)
+            )
+        if payload.heading_degrees is not None:
+            values += (("heading_degrees", payload.heading_degrees),)
+        if payload.velocity is not None:
+            values += tuple(
+                (f"velocity_{axis}", value)
+                for axis, value in zip(("x", "y", "z"), payload.velocity)
+            )
         return tuple(
             self._state(event, f"{prefix}:{name}", value) for name, value in values
         )

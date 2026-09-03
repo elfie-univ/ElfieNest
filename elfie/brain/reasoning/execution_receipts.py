@@ -10,9 +10,13 @@ from uuid import uuid4
 from elfie.brain.reasoning.decision_types import DecisionIntent, DecisionPlan
 from elfie.brain.reasoning.execution_types import ExecutionReceipt, ExecutorKind
 from elfie.brain.workspace.contracts import (
+    ActivityScope,
+    CommunicationScope,
+    EmbodiedScope,
     ExecutionPayload,
     ExecutionStatus,
     IngestDisposition,
+    InteractionScope,
     PerceptionEvent,
 )
 from elfie.brain.workspace.ports import PerceptionSink
@@ -66,6 +70,7 @@ class ExecutionReceiptPublisher:
         status: ExecutionStatus,
         error: ErrorInfo | None = None,
         publish_to_workspace: bool = True,
+        interaction_scope: InteractionScope | None = None,
     ) -> ExecutionReceipt:
         """Create one transition and publish its normalized perception event."""
         receipt = ExecutionReceipt(
@@ -85,7 +90,7 @@ class ExecutionReceiptPublisher:
             self._receipts.append(receipt)
         if not publish_to_workspace:
             return receipt
-        event = self._event(plan, intent, receipt)
+        event = self._event(plan, intent, receipt, interaction_scope)
         ingest = self._sink.publish(event)
         if ingest.disposition is IngestDisposition.BACKPRESSURED:
             with self._lock:
@@ -130,7 +135,29 @@ class ExecutionReceiptPublisher:
         plan: DecisionPlan,
         intent: DecisionIntent,
         receipt: ExecutionReceipt,
+        interaction_scope: InteractionScope | None,
     ) -> PerceptionEvent:
+        body_id = None
+        body_generation = None
+        channel_id = None
+        conversation_id = None
+        if receipt.executor is ExecutorKind.BODY:
+            if not isinstance(interaction_scope, EmbodiedScope):
+                raise ValueError("body receipt requires an embodied interaction scope")
+            body_id = interaction_scope.body_id
+            body_generation = interaction_scope.body_generation
+        elif receipt.executor is ExecutorKind.COMMUNICATION:
+            if not isinstance(interaction_scope, CommunicationScope):
+                raise ValueError(
+                    "communication receipt requires a communication interaction scope"
+                )
+            channel_id = interaction_scope.channel_id
+            conversation_id = interaction_scope.conversation_id
+        elif receipt.executor is ExecutorKind.ACTIVITY:
+            if interaction_scope is not None and not isinstance(
+                interaction_scope, ActivityScope
+            ):
+                raise ValueError("activity receipt requires an activity scope")
         source = ActorRef(
             actor_id=ActorId(f"{self._elfie_id}:output-router"),
             source_kind="internal",
@@ -158,6 +185,10 @@ class ExecutionReceiptPublisher:
                 executor=receipt.executor.value,
                 status=receipt.status,
                 error=receipt.error,
+                body_id=body_id,
+                body_generation=body_generation,
+                channel_id=channel_id,
+                conversation_id=conversation_id,
             ),
             salience=0.8 if receipt.error is not None else 0.4,
         )

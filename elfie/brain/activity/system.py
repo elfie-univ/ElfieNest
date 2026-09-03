@@ -18,9 +18,9 @@ from pydantic_core import PydanticCustomError
 from typing_extensions import Annotated
 
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
+    ActivitySignal,
     ExternalExecutionDomain,
-    InternalPayload,
-    InternalSignal,
     PerceptionEvent,
     ResponseScope,
 )
@@ -142,7 +142,7 @@ class ExecutionScope(FrozenContractModel):
         return "*" in self.allowed_operations or operation in self.allowed_operations
 
     def response_scope(self) -> ResponseScope:
-        """Project the maximum response boundary for a future Internal Turn."""
+        """Project the maximum response boundary for a future Activity Turn."""
         return ResponseScope(
             external_domain=self.external_domain,
             channel_id=self.channel_id,
@@ -307,7 +307,7 @@ class ActivityRecord(FrozenContractModel):
 
 
 class ActivityStateEvent(FrozenContractModel):
-    """Typed state transition that can re-enter Brain as an Internal event."""
+    """Typed state transition that can re-enter Brain as an Activity event."""
 
     activity_id: ActivityId
     revision: _Revision
@@ -319,7 +319,7 @@ class ActivityStateEvent(FrozenContractModel):
 
 
 def activity_scope_for_record(record: ActivityRecord) -> Optional[ResponseScope]:
-    """Return the external scope of the step owned by the next Internal Turn."""
+    """Return the external scope of the step owned by the next Activity Turn."""
     step_id = record.current_step_id
     if step_id is None:
         return None
@@ -333,7 +333,7 @@ def activity_state_event_to_perception(
     elfie_id: ElfieId,
     response_scope: Optional[ResponseScope] = None,
 ) -> PerceptionEvent:
-    """Represent one Activity fact as a deduplicable typed Internal event."""
+    """Represent one Activity fact as a deduplicable typed Activity event."""
     event_id = EventId(
         f"activity-event:{event.activity_id}:{event.revision}:{event.state.value}"
     )
@@ -357,9 +357,9 @@ def activity_state_event_to_perception(
                 else Priority.NORMAL
             ),
         ),
-        payload=InternalPayload(
-            type="internal",
-            signal=InternalSignal.ACTIVITY,
+        payload=ActivityPayload(
+            type="activity",
+            signal=ActivitySignal.ACTIVITY,
             detail=json.dumps(event.model_dump(mode="json"), ensure_ascii=False),
             response_scope=response_scope,
         ),

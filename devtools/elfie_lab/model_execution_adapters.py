@@ -326,22 +326,31 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
     ):
         intents = [
             {
-                "type": "speech",
-                "intent_id": f"mock-internal-speech:{intent_suffix}",
-                "text": speech,
+                "type": "capability",
+                "intent_id": f"mock-body-speak:{intent_suffix}",
+                "category": "body",
+                "capability_id": "speak",
+                "arguments": {"text": speech},
                 **common,
             },
             {
-                "type": "motion",
-                "intent_id": f"mock-internal-motion:{intent_suffix}",
-                "motion": "nod_head",
-                "target": None,
+                "type": "capability",
+                "intent_id": f"mock-body-turn:{intent_suffix}",
+                "category": "body",
+                "capability_id": "move.turn",
+                "arguments": {"angle_degrees": 15.0},
                 **common,
             },
         ]
     else:
-        recovery_trigger = "internal:motivation" in request.user_prompt
-        offline_trigger = "internal:consolidation" in request.user_prompt
+        recovery_trigger = any(
+            str(event_id).startswith("motivation:recovery:")
+            for event_id in request.cause_event_ids
+        )
+        offline_trigger = any(
+            str(event_id).startswith("consolidation:")
+            for event_id in request.cause_event_ids
+        )
         intents = [
             {
                 "type": "noop",
@@ -351,7 +360,7 @@ def _mock_decision_json(request: ModelGenerationRequest, speech: str) -> str:
                     if recovery_trigger
                     else "离线整理已完成：只更新记忆，不产生外部动作"
                     if offline_trigger
-                    else "internal trigger has no external scope"
+                    else "Activity trigger has no external scope"
                 ),
                 "cancel_policy": "if_not_started",
                 **{

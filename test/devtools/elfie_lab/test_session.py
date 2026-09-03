@@ -82,7 +82,7 @@ def test_mock_embodied_turn_uses_body_output_only(tmp_path, session_factory):
     assert turn["trace"]["stages"]["turn_boundary"]["source_domain"] == "embodied"
     assert turn["decision"]["message_intents"] == []
     assert turn["decision"]["spoken_texts"]
-    assert turn["decision"]["motion_intents"][0]["motion"] == "nod_head"
+    assert turn["decision"]["motion_intents"][0]["motion"] == "move.turn"
 
 
 def test_mock_activity_wakes_and_settles_from_child_receipt(tmp_path, session_factory):

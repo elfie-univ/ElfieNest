@@ -24,7 +24,7 @@ from elfie.brain.reasoning.worker import (
     WorkerNotRunningError,
     WorkerQueueFullError,
 )
-from elfie.brain.workspace.contracts import InternalScope, ResponseScope, SourceDomain
+from elfie.brain.workspace.contracts import ActivityScope, ResponseScope, SourceDomain
 from elfie.message_types import EventId, TurnId
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
@@ -45,13 +45,15 @@ def _plan_json(turn_id: str) -> str:
             "cause_event_ids": ["event-1"],
             "intents": [
                 {
-                    "type": "speech",
+                    "type": "capability",
                     "intent_id": f"speech-{turn_id}",
                     "cause_event_ids": ["event-1"],
                     "dependency_ids": [],
                     "deadline": DEADLINE.isoformat(),
                     "cancel_policy": "if_not_started",
-                    "text": "hello",
+                    "category": "body",
+                    "capability_id": "speak",
+                    "arguments": {"text": "hello"},
                 }
             ],
         }
@@ -68,8 +70,8 @@ def _task(turn_id: str) -> ReasoningTask:
             created_at=NOW,
             deadline=DEADLINE,
             cause_event_ids=(EventId("event-1"),),
-            source_domain=SourceDomain.INTERNAL,
-            interaction_scope=InternalScope(cause_id="event-1"),
+            source_domain=SourceDomain.ACTIVITY,
+            interaction_scope=ActivityScope(cause_id="event-1"),
             response_scope=ResponseScope(external_domain=None),
             system_prompt="Return a safe DecisionPlan.",
             user_prompt="event data",

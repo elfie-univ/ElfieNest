@@ -150,7 +150,7 @@ The authority split for important calls is:
 | Call | Lane | Semantic owner | Physical executor |
 | --- | --- | --- | --- |
 | `move_forward(distance)`, `turn(angle)` | Direct Body | current Body capability | Godot Actor or Device Agent |
-| `move_to(anchor_id)`, `go_home` | World | Nest resolves target, meaning and permission | Godot pathfinding in the virtual world; physical controller/planner outside it |
+| `move.to(anchor_id)`, `go_home` | World | Nest resolves target, meaning and permission | Godot pathfinding in the virtual world; physical controller/planner outside it |
 | `open_door`, `turn_on_light` | World | Nest-owned environment intention | Godot World or the corresponding environment controller |
 
 ### The physical body is a remote runtime
@@ -235,7 +235,7 @@ a semantic description:
   structured output. Each call contains `call_id + category + capability_id +
   typed arguments + subject=self`; calls may be ordered or run concurrently
   within the one settled DecisionPlan.
-  `DecisionIntent` does not enumerate verbs such as `go_to`, `turn` or `speak`.
+  `DecisionIntent` does not enumerate verbs such as `move.to`, `turn` or `speak`.
   Those are catalog entries that can vary by body. Brain does not provide a
   Godot/device/Transport/Body route; the lower layer selects it from the
   catalog and active `BodyBinding`.
@@ -254,9 +254,9 @@ a semantic description:
   blocked is a typed failure reason, not a second status vocabulary.
 
 Example catalog entries, not a fixed `DecisionIntent` union, are
-`body.move_forward(distance)`, `body.turn(angle)`, `body.speak(text)`,
-`body.expression(kind)`, `body.emergency_stop(reason)` and
-`world.go_to(anchor_id)`.
+`move.forward(distance)`, `move.turn(angle_degrees)`, `speak(text)`,
+`expression(kind)`, `emergency_stop(reason)`, `move.to(anchor_id)` and
+`observe()`.
 
 > This call shape does **not** make body capabilities ToolPort. `ToolPort` is
 > the cognitive-tool line (web search, bounded workspace file). Body and device
@@ -537,7 +537,7 @@ placed in NervousSystem, Gateway or Brain.
 | Capability invocation is a precise, MCP-style method call | Pass |
 | Per-body/per-device capability catalog is enumerable | Pass |
 | Physical pairing is separated from virtual binding | Pass |
-| `move_to`/`go_home` world ownership is separated from body-relative motion | Pass |
+| `move.to`/`go_home` world ownership is separated from body-relative motion | Pass |
 | Hosting/return is a Brain decision plus an external ready gate | Pass |
 | No fabricated real-world semantic authority parallel to Nest | Pass |
 | The Elfie does not control environment objects | Pass |

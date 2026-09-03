@@ -8,9 +8,6 @@ from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
-    ExpressionIntent,
-    MotionIntent,
-    SpeechIntent,
 )
 from elfie.message_types import PlanId
 
@@ -50,7 +47,7 @@ def _bind_intent(
 def _trusted_cancel_policy(intent: DecisionIntent) -> CancelPolicy:
     if isinstance(
         intent,
-        (CapabilityIntent, SpeechIntent, MotionIntent, ExpressionIntent),
+        (CapabilityIntent,),
     ):
         return CancelPolicy.ALWAYS
     return CancelPolicy.IF_NOT_STARTED

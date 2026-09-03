@@ -53,11 +53,11 @@ def utc_now() -> datetime:
 
 def command_capability(command: BodyCommand) -> str:
     if isinstance(command, SpeechCommand):
-        return "speech.say"
+        return "speak"
     if isinstance(command, MotionCommand):
-        return "move_to_anchor" if command.target else command.kind
+        return "move.to" if command.target else command.kind
     if isinstance(command, ObservationCommand):
-        return "world.observe"
+        return "observe"
     if isinstance(command, CapabilityCommand):
         return command.capability_id
     if isinstance(command, ExpressionCommand):
@@ -90,11 +90,12 @@ def validate_command(
             "command capability revision is stale",
             now,
         )
-    if not capabilities.supports_action(command_capability(command)):
+    capability_id = command_capability(command)
+    if not capabilities.supports_action(capability_id):
         return rejected(
             command,
             "unsupported_capability",
-            f"body does not support {command_capability(command)}",
+            f"body does not support {capability_id}",
             now,
         )
     return None

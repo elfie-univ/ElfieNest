@@ -15,9 +15,9 @@ from elfie.brain.reasoning.model_port import (
     StructuredOutputMode,
 )
 from elfie.brain.workspace.contracts import (
+    ActivityScope,
     CommunicationScope,
     ExternalExecutionDomain,
-    InternalScope,
     ResponseScope,
     SourceDomain,
 )
@@ -46,8 +46,8 @@ def _request(turn_id: str = "turn-1") -> ModelGenerationRequest:
         created_at=now,
         deadline=now + timedelta(seconds=45),
         cause_event_ids=("event-1",),
-        source_domain=SourceDomain.INTERNAL,
-        interaction_scope=InternalScope(cause_id="event-1"),
+        source_domain=SourceDomain.ACTIVITY,
+        interaction_scope=ActivityScope(cause_id="event-1"),
         response_scope=ResponseScope(external_domain=None),
         system_prompt="You are Elfie.",
         user_prompt="Return a decision plan.",

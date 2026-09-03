@@ -39,6 +39,7 @@ class NativeSensors:
             event_id=EventId(event.message_id),
             cause_id=EventId(event.cause_id) if event.cause_id is not None else None,
             body_id=BodyId(self.body_id),
+            body_generation=int(payload.get("body_generation", 1)),
             source=ActorRef(
                 actor_id=ActorId(source_semantic_id),
                 source_kind="elfie" if contact_kind == "actor" else "world",

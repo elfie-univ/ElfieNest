@@ -38,12 +38,9 @@ from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
 from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
-    ExpressionIntent,
     MessageIntent,
-    MotionIntent,
     NoOpIntent,
     PersistentActivityRequest,
-    SpeechIntent,
     TurnDecision,
 )
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
@@ -341,7 +338,7 @@ class BrainRuntime:
         return recovered
 
     def _wake_due_activities(self, now: datetime) -> None:
-        """Turn due durable work into one deduplicable Internal event."""
+        """Turn due durable work into one deduplicable Activity event."""
         events: list[tuple[ActivityStateEvent, ActivityRecord]] = []
         with self._activity_lock:
             for record in self.activity_store.list():
@@ -421,9 +418,6 @@ class BrainRuntime:
             (
                 CapabilityIntent,
                 MessageIntent,
-                SpeechIntent,
-                MotionIntent,
-                ExpressionIntent,
             ),
         ):
             return
@@ -540,7 +534,7 @@ class BrainRuntime:
         intent: DecisionIntent,
         receipt: ExecutionReceipt,
     ) -> None:
-        """Mark one bounded drive handled after its Internal Turn settles."""
+        """Mark one bounded drive handled after its Activity Turn settles."""
         if receipt.status is not ExecutionStatus.COMPLETED or not isinstance(
             intent, (NoOpIntent, PersistentActivityRequest)
         ):
@@ -565,7 +559,7 @@ class BrainRuntime:
         intent: DecisionIntent,
         receipt: ExecutionReceipt,
     ) -> None:
-        """Commit memory整理 only after its inert Internal Turn settles."""
+        """Commit memory整理 only after its inert Activity Turn settles."""
         if not isinstance(intent, (NoOpIntent, PersistentActivityRequest)):
             return
         terminal = {
@@ -658,7 +652,7 @@ def _activity_step_matches_intent(
     if kind is ActivityStepKind.NERVOUS_SYSTEM:
         return isinstance(
             intent,
-            (CapabilityIntent, SpeechIntent, MotionIntent, ExpressionIntent),
+            (CapabilityIntent,),
         )
     return False
 

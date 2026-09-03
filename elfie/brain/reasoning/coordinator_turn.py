@@ -46,9 +46,9 @@ from elfie.brain.reasoning.run import (
 )
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
+    ActivitySignal,
     ExternalExecutionDomain,
-    InternalPayload,
-    InternalSignal,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
@@ -449,7 +449,7 @@ class ReasoningRunController:
     ) -> ReasoningDepth:
         """Select one Turn's cognitive depth without granting capabilities."""
         if (
-            frame.source_domain is SourceDomain.INTERNAL
+            frame.source_domain is SourceDomain.ACTIVITY
             and homeostasis.long_reasoning_allowed
         ):
             return ReasoningDepth.DELIBERATE
@@ -484,7 +484,7 @@ class ReasoningRunController:
     ) -> tuple[str, ...]:
         """Freeze one capability set shared by Prompt, schema, budget and request."""
         if (
-            frame.source_domain is SourceDomain.INTERNAL
+            frame.source_domain is SourceDomain.ACTIVITY
             and reasoning_depth is ReasoningDepth.DELIBERATE
             and homeostasis.long_reasoning_allowed
         ):
@@ -499,7 +499,7 @@ class ReasoningRunController:
         for event in reversed(frame.events):
             payload = event.payload
             if not isinstance(payload, SocialPayload):
-                if isinstance(payload, InternalPayload):
+                if isinstance(payload, ActivityPayload):
                     scope = payload.response_scope
                     if (
                         scope is not None
@@ -637,7 +637,7 @@ class ReasoningRunController:
             response_policy += (
                 " For any embodied operation, use CapabilityIntent with the exact "
                 "registered capability_id and typed arguments from "
-                "CAPABILITY_CATALOG; do not invent a body method."
+                "CAPABILITY_CATALOG; do not invent a body method or route."
             )
         else:
             response_policy = (
@@ -798,6 +798,22 @@ class ReasoningRunController:
             )
         if not fast_owner_reply:
             body = compiled.capabilities.current_body
+            body_actions = (
+                [
+                    descriptor.model_dump(mode="json")
+                    for descriptor in body.action_catalog
+                ]
+                if body is not None
+                else []
+            )
+            body_inputs = (
+                [
+                    descriptor.model_dump(mode="json")
+                    for descriptor in body.input_catalog
+                ]
+                if body is not None
+                else []
+            )
             capability_catalog = {
                 "body": (
                     {
@@ -805,13 +821,14 @@ class ReasoningRunController:
                         "body_generation": body.body_generation,
                         "capability_revision": body.capability_revision,
                         "sensors": list(body.sensors),
-                        "capabilities": list(body.actions),
+                        "inputs": body_inputs,
+                        "actions": body_actions,
                     }
                     if body is not None
                     else None
                 ),
                 "world": list(compiled.capabilities.world_capabilities),
-                "world_contracts": [
+                "capabilities": [
                     descriptor.model_dump(mode="json")
                     for descriptor in compiled.capabilities.capability_catalog
                 ],
@@ -933,9 +950,9 @@ class ReasoningRunController:
                 trace_id=TraceId(f"autonomous:{event_id}"),
                 priority=Priority.NORMAL,
             ),
-            payload=InternalPayload(
-                type="internal",
-                signal=InternalSignal.AUTONOMOUS_DEADLINE,
+            payload=ActivityPayload(
+                type="activity",
+                signal=ActivitySignal.AUTONOMOUS_DEADLINE,
                 detail="autonomous cognitive deadline reached",
             ),
             salience=0.5,
