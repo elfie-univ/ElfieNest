@@ -92,7 +92,7 @@ learns and grows, including:
 - Executive and cross-turn Activities;
 - Offline Cognition / Night Work;
 - Capability Envelope, budgets and autonomous decisions;
-- structured decisions, internal triggers and execution-receipt feedback.
+- structured decisions, Activity triggers and execution-receipt feedback.
 
 Genesis co-materializes Profile and the Brain-owned Selfhood state from one
 validated creation bundle. Profile remains the immutable external dossier, but
@@ -228,7 +228,7 @@ and cannot become its personality or embodiment authority.
 | Virtual Appearance | Profile / VirtualAppearance |
 | Personality, Self, Memory, Emotion, Energy | Brain |
 | Skills, Planner, Tool Loop, Worker | Brain / Cortex; execution infrastructure is injected |
-| Activity, internal triggers and Night Work | Brain |
+| Activity, Activity triggers and Night Work | Brain |
 | Embodiment Authority | Body |
 | Lifecycle System | Not created; retain the thin Elfie Facade |
 | Profile Page | Product-layer aggregate view, not a new data owner |

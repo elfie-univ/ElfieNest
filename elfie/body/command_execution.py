@@ -13,10 +13,12 @@ from elfie.body.capabilities import BodyCapabilities
 from elfie.body.contracts import (
     BodyCommand,
     BodyId,
+    CapabilityCommand,
     CommandReceipt,
     CommandStatus,
     ExpressionCommand,
     MotionCommand,
+    ObservationCommand,
     SpeechCommand,
 )
 from elfie.message_types import (
@@ -53,7 +55,11 @@ def command_capability(command: BodyCommand) -> str:
     if isinstance(command, SpeechCommand):
         return "speech.say"
     if isinstance(command, MotionCommand):
-        return command.kind
+        return "move_to_anchor" if command.target else command.kind
+    if isinstance(command, ObservationCommand):
+        return "world.observe"
+    if isinstance(command, CapabilityCommand):
+        return command.capability_id
     if isinstance(command, ExpressionCommand):
         return f"expression.{command.kind}"
     return "system.emergency_stop"

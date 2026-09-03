@@ -4,7 +4,7 @@
 > Confirmed: 2026-08-31<br>
 > Scope: detailed expansion of system 8, `Reasoning Core`, in the
 > [Brain ten-system architecture](./elfie-brain-ten-system-architecture.md)<br>
-> Normative boundary: [Brain contract 1.4](../contracts/brain.md)<br>
+> Normative boundary: [Brain contract 1.5](../contracts/brain.md)<br>
 > Implementation status: P0 owner chat is implemented and protected by focused tests;
 > later Skill/Tool stages remain outside P0.
 
@@ -242,7 +242,7 @@ the system-level Reasoning boundary and does not duplicate this control flow.
 
 ```mermaid
 flowchart TB
-    IN[Communication / Embodied / Internal Event] --> EW[1. Event Workspace]
+    IN[Communication / Embodied / Activity Event] --> EW[1. Event Workspace]
     EW --> TF[Single-domain TurnFrame]
 
     subgraph OWNERS["Read-only Turn sources"]

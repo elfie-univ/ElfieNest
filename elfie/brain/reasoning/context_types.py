@@ -8,9 +8,9 @@ cross-system context capsule consumed by Reasoning.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Optional, Tuple
+from typing import Annotated, Literal, Mapping, Optional, Tuple
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, JsonValue, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 
 from elfie.brain.activity.context import ActivityContext
@@ -152,6 +152,15 @@ class BodyCapabilityDescriptor(FrozenContractModel):
     actions: Tuple[_NonBlankText, ...]
 
 
+class CapabilityDescriptor(FrozenContractModel):
+    """One model-visible capability with its typed argument contract."""
+
+    capability_id: _NonBlankText
+    category: Literal["body", "world"]
+    description: Optional[_NonBlankText] = None
+    argument_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+
+
 class ConnectedChannelDescriptor(FrozenContractModel):
     """Capabilities of one currently connected communication channel."""
 
@@ -163,11 +172,13 @@ class ConnectedChannelDescriptor(FrozenContractModel):
 
 
 class EffectiveCapabilities(FrozenContractModel):
-    """Only the current Body and connected communication endpoints."""
+    """Current Body, semantic-world capabilities and communication endpoints."""
 
     revision: _Revision
     captured_at: UTCDateTime
     current_body: Optional[BodyCapabilityDescriptor]
+    world_capabilities: Tuple[_NonBlankText, ...] = ()
+    capability_catalog: Tuple[CapabilityDescriptor, ...] = ()
     connected_channels: Tuple[ConnectedChannelDescriptor, ...]
 
     @model_validator(mode="after")
@@ -176,6 +187,14 @@ class EffectiveCapabilities(FrozenContractModel):
         if len(set(channel_ids)) != len(channel_ids):
             raise PydanticCustomError(
                 "duplicate_channel_id", "connected channel IDs must be unique"
+            )
+        capability_ids = tuple(
+            descriptor.capability_id for descriptor in self.capability_catalog
+        )
+        if len(set(capability_ids)) != len(capability_ids):
+            raise PydanticCustomError(
+                "duplicate_capability_id",
+                "capability catalog IDs must be unique",
             )
         return self
 

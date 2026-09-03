@@ -21,6 +21,7 @@ const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.g
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
+const VISUAL_AUTHORITY_ENV := "ELFIENEST_GODOT_SHOW_VISUALS"
 ## Temporary monitor-only visual behavior; remove when real action control lands.
 const MOCK_WANDER_ENABLED := false
 const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := true
@@ -91,13 +92,18 @@ func _ready() -> void:
 		return
 	_runtime_mode = RUNTIME_MODE.new()
 	_runtime_mode.setup(_resolve_runtime_mode())
-	if _runtime_mode.disables_visual_runtime_services():
+	if _runtime_mode.disables_visual_runtime_services() and not _show_visual_authority():
 		nest.visible = false
 	if not _runtime_mode.allows_authority_transport():
 		if _runtime_mode.requires_web_ready_signal():
 			await _notify_web_runtime_ready()
 		return
 	_start_authority_runtime()
+
+
+func _show_visual_authority() -> bool:
+	var value := OS.get_environment(VISUAL_AUTHORITY_ENV).strip_edges().to_lower()
+	return value in ["1", "true", "yes"]
 
 
 func _process(_delta: float) -> void:

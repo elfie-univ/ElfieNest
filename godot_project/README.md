@@ -47,6 +47,11 @@ skill available, follow the conditional routing in `AGENTS.md`:
 4. Check Git status before and after the operation; do not leave `.godot/`,
    import caches or unrelated `.import` noise behind.
 
+When the repository validation entry point detects missing or stale `.godot/`
+state, it first runs Godot's official headless import phase to generate the
+script-class and asset caches, then runs the validation. These caches remain
+local generated artifacts and are not committed to Git.
+
 Do not treat `godot_project/` as a generic script directory to be bulk
 formatted, and never commit editor-generated artifacts as source.
 

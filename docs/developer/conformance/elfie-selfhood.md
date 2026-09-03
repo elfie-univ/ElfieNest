@@ -3,8 +3,8 @@
 > State: phase-1 implementation landed; model behavior and existing-workspace migration remain open<br>
 > Baseline: 2026-08-30, `91c26643`<br>
 > Target: [Elfie Selfhood and fixed model-header design](../designs/elfie-selfhood-and-fixed-model-header.md)<br>
-> Contracts: [Elfie 2.2](../contracts/elfie.md) and
-> [Brain 1.4](../contracts/brain.md)
+> Contracts: [Elfie 2.3](../contracts/elfie.md) and
+> [Brain 1.5](../contracts/brain.md)
 
 This temporary register records the remaining source and acceptance gaps after
 the phase-1 Selfhood/fixed-header implementation slice. Rows marked closed are

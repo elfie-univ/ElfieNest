@@ -4,7 +4,7 @@
 > 确认日期：2026-08-31<br>
 > 范围：对[大脑十系统架构](./elfie-brain-ten-system-architecture.md)中第 8 系统
 > `Reasoning Core` 的内部细化<br>
-> 规范边界：[Brain 1.4 契约](../contracts/brain.md)<br>
+> 规范边界：[Brain 1.5 契约](../contracts/brain.md)<br>
 > 实现状态：P0 主人聊天已实现并由聚焦测试守护；后续 Skill/Tool 阶段不属于 P0。
 
 ## 1. 核心结论
@@ -201,7 +201,7 @@ Reasoning 的系统级边界，不再复制这套内部控制流。
 
 ```mermaid
 flowchart TB
-    IN[Communication / Embodied / Internal Event] --> EW[1. Event Workspace]
+    IN[Communication / Embodied / Activity Event] --> EW[1. Event Workspace]
     EW --> TF[Single-domain TurnFrame]
 
     subgraph OWNERS["Read-only Turn sources"]

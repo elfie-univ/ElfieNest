@@ -105,6 +105,10 @@ def build_adoption_services(
                     Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
                     nest_session.complete_semantic_action,
                 ),
+                visual_observation=cast(
+                    Callable[[RuntimeIntentPayload], bool],
+                    nest_session.prepare_visual_observation,
+                ),
             ),
         )
 

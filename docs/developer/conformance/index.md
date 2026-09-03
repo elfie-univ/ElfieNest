@@ -13,8 +13,9 @@ reopening the retired general Brain register:
   for source-default centralization, typed loading and one-copy packaging.
 - [Provider/model availability conformance](./provider-model-availability) —
   open for endpoint-scoped capabilities, serving-core evidence and shared health.
-- [Elfie internal architecture conformance](./elfie) — closure-ready after the
-  Profile/Brain ownership and Genesis migration.
+- [Elfie internal architecture conformance](./elfie) — open for the latest
+  Activity-domain and embodied-control migration; prior Profile/Brain ownership
+  and Genesis rows remain closed.
 - [Nest–Godot semantic-world conformance](./nest-godot-semantic-world) —
   closure-ready after the clause-by-clause and directory-by-directory audit.
 - [Service lifecycle conformance](./service-lifecycle) — open gaps between the

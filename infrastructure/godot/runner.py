@@ -187,6 +187,41 @@ def run_headless(
     )
 
 
+def run_import(
+    binary: Path,
+    project: Path,
+    *,
+    timeout_seconds: float = 600.0,
+    godot_version: Optional[str] = None,
+    purpose: str = "project-import",
+    env: Optional[Mapping[str, str]] = None,
+) -> GodotExecutionResult:
+    """Run Godot's synchronous headless project import/prewarm phase.
+
+    Godot keeps imported assets and the global script-class registry under the
+    generated ``.godot`` directory.  A clean checkout must complete this
+    phase before a headless script can load scenes that use those resources.
+    This is a preparation process, not the Runtime authority.
+    """
+
+    resolved_project = project.expanduser().resolve()
+    command = (
+        str(binary),
+        "--headless",
+        "--import",
+        "--path",
+        str(resolved_project),
+    )
+    return _run_once(
+        command,
+        project=resolved_project,
+        godot_version=godot_version,
+        timeout_seconds=timeout_seconds,
+        purpose=purpose,
+        env=env,
+    )
+
+
 def forward_output(result: GodotExecutionResult) -> None:
     """Preserve the existing build-script output behavior after capture."""
 
@@ -408,6 +443,7 @@ __all__ = (
     "godot_version",
     "main",
     "project_version",
+    "run_import",
     "run_headless",
 )
 

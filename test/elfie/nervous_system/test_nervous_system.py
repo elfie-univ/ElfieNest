@@ -6,11 +6,14 @@ from elfie import Elfie
 from elfie.body import BodyId, CommandStatus, HeadlessBody, MotionCommand
 from elfie.body.native.anatomy.biped import BipedAnatomy
 from elfie.brain.emotion import EmotionSystem
+from elfie.brain.workspace.contracts import PerceptionEvent, PhysicalPayload
+from elfie.brain.workspace.system import EventWorkspace
 from elfie.diagnostics import ElfieDiagnostics
-from elfie.message_types import CommandId, IntentId, TurnId
+from elfie.message_types import CommandId, ElfieId, IntentId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from test.elfie.nervous_system.perception_bridge_fixtures import claim_all
 
 NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
 
@@ -70,6 +73,101 @@ def test_nervous_system_controls_current_body_through_body_port() -> None:
 
     assert receipts[-1].status is CommandStatus.COMPLETED
     assert body.snapshot_body(now=NOW).last_command_id == command.command_id
+
+
+def test_nervous_system_returns_one_terminal_action_outcome_to_workspace() -> None:
+    workspace = EventWorkspace(ElfieId("action-feedback"))
+    body = HeadlessBody(body_id="body-action-feedback")
+    body.connect()
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ElfieId("action-feedback"),
+        body_port=body,
+        body_generation=1,
+    )
+    command = MotionCommand(
+        command_type="motion",
+        command_id=CommandId("command-feedback"),
+        turn_id=TurnId("turn-feedback"),
+        intent_id=IntentId("intent-feedback"),
+        body_id=BodyId("body-action-feedback"),
+        issued_at=NOW,
+        deadline=NOW + timedelta(seconds=1),
+        capability_revision=body.capabilities.revision,
+        kind="walk",
+    )
+
+    nervous_system.execute_body_command(body, command, now=NOW)
+    frame = claim_all(workspace)
+
+    assert len(frame.events) == 1
+    event = frame.events[0]
+    assert isinstance(event, PerceptionEvent)
+    assert isinstance(event.payload, PhysicalPayload)
+    assert event.payload.body_id == "body-action-feedback"
+    assert event.payload.content == (
+        "action=command-feedback; intent=intent-feedback; status=completed"
+    )
+
+
+def test_terminal_action_outcome_uses_injected_brain_clock() -> None:
+    workspace = EventWorkspace(ElfieId("action-clock"))
+    body = HeadlessBody(body_id="body-action-clock")
+    body.connect()
+    logical_now = NOW + timedelta(seconds=7)
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ElfieId("action-clock"),
+        body_port=body,
+        body_generation=1,
+        logical_clock=lambda: logical_now,
+    )
+    command = MotionCommand(
+        command_type="motion",
+        command_id=CommandId("command-clock"),
+        turn_id=TurnId("turn-clock"),
+        intent_id=IntentId("intent-clock"),
+        body_id=BodyId("body-action-clock"),
+        issued_at=NOW,
+        deadline=NOW + timedelta(seconds=1),
+        capability_revision=body.capabilities.revision,
+        kind="walk",
+    )
+
+    nervous_system.execute_body_command(body, command, now=NOW)
+    frame = claim_all(workspace)
+
+    assert frame.events[0].meta.occurred_at == logical_now
+    assert frame.events[0].meta.received_at == NOW
+
+
+def test_nervous_system_notifies_brain_after_direct_action_feedback() -> None:
+    workspace = EventWorkspace(ElfieId("action-notification"))
+    body = HeadlessBody(body_id="body-action-notification")
+    body.connect()
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ElfieId("action-notification"),
+        body_port=body,
+        body_generation=1,
+    )
+    notifications: list[None] = []
+    nervous_system.bind_perception_notifier(lambda: notifications.append(None))
+    command = MotionCommand(
+        command_type="motion",
+        command_id=CommandId("command-notification"),
+        turn_id=TurnId("turn-notification"),
+        intent_id=IntentId("intent-notification"),
+        body_id=BodyId("body-action-notification"),
+        issued_at=NOW,
+        deadline=NOW + timedelta(seconds=1),
+        capability_revision=body.capabilities.revision,
+        kind="walk",
+    )
+
+    nervous_system.execute_body_command(body, command, now=NOW)
+
+    assert notifications == [None]
 
 
 def test_nervous_system_processes_reflex_through_existing_reflex_arc() -> None:

@@ -7,6 +7,7 @@ from threading import Event, Lock
 from typing import Dict, Optional, Tuple
 
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
@@ -71,6 +72,7 @@ def executor_kind(intent: DecisionIntent) -> ExecutorKind:
 
 
 @executor_kind.register(SpeechIntent)
+@executor_kind.register(CapabilityIntent)
 @executor_kind.register(MotionIntent)
 @executor_kind.register(ExpressionIntent)
 def _body_kind(_intent: DecisionIntent) -> ExecutorKind:

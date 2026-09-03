@@ -10,7 +10,8 @@
   打包仍为开放状态。
 - [Provider/模型可用性一致性](./provider-model-availability)——Endpoint 级能力、在用核心
   证据与统一健康投影仍为开放状态。
-- [Elfie 内部架构一致性](./elfie)——Profile/Brain 所有权与 Genesis 迁移已准备收口。
+- [Elfie 内部架构一致性](./elfie)——旧 Profile/Brain 所有权与 Genesis 条目已关闭，但
+  最新 Activity 来源域和具身控制迁移仍为开放状态。
 - [Nest–Godot 语义世界一致性](./nest-godot-semantic-world)——逐条款、逐目录复查已准备收口。
 - [服务生命周期一致性](./service-lifecycle)——已接受契约与当前启动、所有权和入口之间的
   开放缺口。

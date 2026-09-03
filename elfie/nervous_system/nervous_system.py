@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Literal, Optional, Tuple, cast
 
 from elfie.body.contracts import (
+    ActionOutcomePayload,
     BodyCommand,
+    BodyId,
     BodySensorEvent,
     CommandReceipt,
+    CommandStatus,
     EmergencyStopCommand,
 )
 from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.ports import PerceptionSink
-from elfie.message_types import ElfieId
+from elfie.message_types import ActorId, ActorRef, ElfieId, EventId
 from elfie.nervous_system.actuators import (
     MotionActuator,
     MutterActuator,
@@ -41,6 +44,7 @@ class NervousSystem:
         elfie_id: Optional[ElfieId] = None,
         body_port: Optional[BodyPort] = None,
         body_generation: int | None = None,
+        logical_clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
         self.speech_actuator = SpeechActuator()
         self.motion_actuator = MotionActuator()
@@ -50,6 +54,11 @@ class NervousSystem:
         self.physical_limits = PhysicalLimitsReflex(capabilities_config)
         self.reflex = SomaticReflexArc()
         self._perception_bridge: Optional[BodyPerceptionBridge] = None
+        self._perception_notifier: Optional[Callable[[], None]] = None
+        # External Bodies report wall-clock occurrence times, while Brain uses
+        # Elfie's own simulation/cognitive clock.  Keep the source time in
+        # ``received_at`` and stamp the re-entering fact on the Brain clock.
+        self._logical_clock = logical_clock
         if perception_sink is not None and elfie_id is not None:
             self._perception_bridge = BodyPerceptionBridge(
                 sink=perception_sink,
@@ -66,6 +75,11 @@ class NervousSystem:
     @property
     def pending_count(self) -> int:
         return self._require_perception_bridge().pending_count
+
+    @property
+    def perception_configured(self) -> bool:
+        """Whether terminal Body outcomes can re-enter the Brain boundary."""
+        return self._perception_bridge is not None
 
     @property
     def filtered_count(self) -> int:
@@ -109,6 +123,13 @@ class NervousSystem:
             body_generation=body_generation,
         )
 
+    def bind_perception_notifier(
+        self,
+        notifier: Optional[Callable[[], None]],
+    ) -> None:
+        """Wake the generic Brain perception loop after direct Body input."""
+        self._perception_notifier = notifier
+
     def retry_pending(self) -> Tuple[IngestReceipt, ...]:
         """Retry reliable writes retained after Workspace backpressure."""
         return self._require_perception_bridge().retry_pending()
@@ -133,7 +154,58 @@ class NervousSystem:
         now: datetime,
     ) -> Tuple[CommandReceipt, ...]:
         """Pass an already typed physical intent to the current Body boundary."""
-        return body.execute(command, now=now)
+        receipts = body.execute(command, now=now)
+        terminal = next(
+            (
+                receipt
+                for receipt in reversed(receipts)
+                if receipt.status not in {CommandStatus.ACCEPTED, CommandStatus.STARTED}
+            ),
+            None,
+        )
+        if terminal is not None and self._perception_bridge is not None:
+            self.receive_body_event(
+                BodySensorEvent(
+                    event_id=terminal.receipt_id,
+                    cause_id=terminal.cause_id or EventId(str(command.command_id)),
+                    body_id=BodyId(str(body.body_id)),
+                    body_generation=terminal.body_generation,
+                    source=ActorRef(
+                        actor_id=ActorId(str(body.body_id)),
+                        source_kind="body",
+                    ),
+                    occurred_at=(
+                        self._logical_clock()
+                        if self._logical_clock is not None
+                        else terminal.occurred_at
+                    ),
+                    received_at=terminal.occurred_at,
+                    payload=ActionOutcomePayload(
+                        kind="action_outcome",
+                        command_id=str(terminal.command_id),
+                        intent_id=str(terminal.intent_id),
+                        status=cast(
+                            Literal[
+                                "completed",
+                                "rejected",
+                                "failed",
+                                "interrupted",
+                                "timed_out",
+                            ],
+                            terminal.status.value,
+                        ),
+                        reason=(
+                            terminal.error.message
+                            if terminal.error is not None
+                            else None
+                        ),
+                    ),
+                )
+            )
+            notifier = self._perception_notifier
+            if notifier is not None:
+                notifier()
+        return receipts
 
     def filter_signals(self, raw_sensor_data: Dict[str, Any]) -> bool:
         """过滤重复或无价值的感知信号。"""

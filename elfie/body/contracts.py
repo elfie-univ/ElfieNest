@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from enum import Enum, unique
-from typing import Annotated, Literal, NewType, Optional, Tuple, Union
+from typing import Annotated, Literal, Mapping, NewType, Optional, Tuple, Union
 from uuid import uuid4
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, JsonValue, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 from typing_extensions import TypeAlias
 
@@ -27,6 +27,7 @@ _NonBlankText = Annotated[
     StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
 ]
 _PositiveDimension = Annotated[int, Field(strict=True, gt=0)]
+_ObservationCount = Annotated[int, Field(strict=True, ge=1, le=64)]
 _NonNegativeFloat = Annotated[float, Field(strict=True, ge=0)]
 _Ratio = Annotated[float, Field(strict=True, ge=0, le=1)]
 _Revision = Annotated[int, Field(strict=True, ge=1)]
@@ -70,7 +71,25 @@ class ProprioceptionSample(FrozenContractModel):
     kind: Literal["proprioception_sample"]
     posture: _NonBlankText
     target: Optional[_NonBlankText] = None
+    zone_id: Optional[_NonBlankText] = None
+    active_command_id: Optional[_NonBlankText] = None
     arrived: bool = False
+
+
+class ActionOutcomePayload(FrozenContractModel):
+    """One terminal Body action outcome re-entering the perception path."""
+
+    kind: Literal["action_outcome"]
+    command_id: _NonBlankText
+    intent_id: _NonBlankText
+    status: Literal[
+        "completed",
+        "rejected",
+        "failed",
+        "interrupted",
+        "timed_out",
+    ]
+    reason: Optional[_NonBlankText] = None
 
 
 class EnvironmentSample(FrozenContractModel):
@@ -151,6 +170,7 @@ SensorPayload: TypeAlias = Annotated[
         VisionChange,
         TactileImpact,
         ProprioceptionSample,
+        ActionOutcomePayload,
         EnvironmentSample,
         HeardUtterancePayload,
         SemanticVisualScenePayload,
@@ -217,12 +237,30 @@ class EmergencyStopCommand(_CommandBase):
     reason: _NonBlankText
 
 
+class ObservationCommand(_CommandBase):
+    """Request one bounded semantic observation through the active Body path."""
+
+    command_type: Literal["observation"]
+    observation_id: _NonBlankText
+    max_results: _ObservationCount = 32
+
+
+class CapabilityCommand(_CommandBase):
+    """Carry a registered Body capability without fixing its future vocabulary."""
+
+    command_type: Literal["capability"]
+    capability_id: _NonBlankText
+    arguments: Mapping[str, JsonValue] = Field(default_factory=dict)
+
+
 BodyCommand: TypeAlias = Annotated[
     Union[
         SpeechCommand,
         MotionCommand,
         ExpressionCommand,
         EmergencyStopCommand,
+        ObservationCommand,
+        CapabilityCommand,
     ],
     Field(discriminator="command_type"),
 ]
@@ -323,6 +361,8 @@ __all__ = (
     "BodyId",
     "BodySensorEvent",
     "BodySnapshot",
+    "ActionOutcomePayload",
+    "CapabilityCommand",
     "CommandReceipt",
     "CommandStatus",
     "EmergencyStopCommand",
@@ -331,6 +371,7 @@ __all__ = (
     "HeardUtterancePayload",
     "MotionCommand",
     "NestFactNoticePayload",
+    "ObservationCommand",
     "ProprioceptionSample",
     "SemanticActionResultPayload",
     "SemanticVisualEntityPayload",

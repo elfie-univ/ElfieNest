@@ -62,7 +62,11 @@ from elfie.brain.reasoning.run import (
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
-from elfie.brain.workspace.contracts import IngestDisposition
+from elfie.brain.workspace.contracts import (
+    IngestDisposition,
+    PhysicalModality,
+    PhysicalPayload,
+)
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
@@ -483,7 +487,7 @@ class BrainCoordinator:
 
     @staticmethod
     def _requires_model(frame) -> bool:
-        """Admit model work only for owner interaction, internal work, or salient input."""
+        """Admit model work for decisions and meaningful embodied outcomes."""
 
         if any(
             getattr(event.payload, "sender", None) is not None
@@ -496,7 +500,15 @@ class BrainCoordinator:
             or getattr(frame.source_domain, "value", None) == "internal"
         ):
             return True
-        return any(event.salience >= 0.75 for event in frame.events)
+        return any(
+            event.salience >= 0.75
+            or (
+                isinstance(event.payload, PhysicalPayload)
+                and event.payload.modality is PhysicalModality.PROPRIOCEPTION
+                and event.payload.content.startswith("action=")
+            )
+            for event in frame.events
+        )
 
     @staticmethod
     def _no_model_result(task) -> ReasoningTurnResult:

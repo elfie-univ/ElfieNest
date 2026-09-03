@@ -390,6 +390,41 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         coordinator.join()
 
 
+def test_embodied_fast_turn_reserves_complete_decision_plan_budget() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_physical(1, 0, salience=0.95))
+    coordinator.notify_perception()
+    assert runtime.started.wait(1), coordinator.outcomes()
+
+    try:
+        assert runtime.calls[0].response_mode is ModelResponseMode.DECISION_PLAN
+        assert runtime.calls[0].max_tokens == 1024
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_terminal_action_outcome_frame_is_model_admitted_without_new_trigger() -> None:
+    event = _physical(1, 0, salience=0.7).model_copy(
+        update={
+            "payload": PhysicalPayload(
+                type="physical",
+                body_id="body-1",
+                modality=PhysicalModality.PROPRIOCEPTION,
+                content="action=command-1; intent=intent-1; status=completed",
+            )
+        }
+    )
+    frame = MagicMock(events=(event,))
+
+    assert BrainCoordinator._requires_model(frame) is True
+
+
 def test_owner_text_affect_cannot_use_an_untrusted_direct_scope() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()

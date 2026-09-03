@@ -241,6 +241,10 @@ def restore_registered_elfies(
                                 ],
                                 session.complete_semantic_action,
                             ),
+                            visual_observation=cast(
+                                Callable[[RuntimeIntentPayload], bool],
+                                session.prepare_visual_observation,
+                            ),
                         ),
                     ),
                 ),

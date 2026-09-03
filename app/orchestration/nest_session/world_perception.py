@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Union
 
+from app.orchestration.nest_session.models import ResidentMirror, WorldEvent
 from elfie.public import (
     ActorId,
     ActorRef,
@@ -14,6 +15,7 @@ from elfie.public import (
     EventId,
     HeardUtterancePayload,
     NestFactNoticePayload,
+    ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualEntityPayload,
     SemanticVisualScenePayload,
@@ -49,6 +51,12 @@ def _body_scope(elfie: Elfie, target_id: str) -> tuple[BodyId, int]:
         else 1
     )
     return body_id, generation
+
+
+def _brain_occurred_at(elfie: Elfie, fallback: datetime) -> datetime:
+    """Translate external facts onto Brain time without weakening test doubles."""
+    candidate = getattr(elfie, "cognitive_datetime", None)
+    return candidate if isinstance(candidate, datetime) else fallback
 
 
 def nest_event_to_body_sensor_event(
@@ -125,10 +133,50 @@ def nest_event_to_body_sensor_event(
         body_id=body_id,
         body_generation=body_generation,
         source=source,
-        occurred_at=envelope.occurred_at,
+        occurred_at=_brain_occurred_at(elfie, envelope.occurred_at),
         received_at=received_at or datetime.now(timezone.utc),
         payload=sensor_payload,
     )
 
 
-__all__ = ("nest_event_to_body_sensor_event",)
+def world_snapshot_to_body_sensor_event(
+    *,
+    event: WorldEvent,
+    resident: ResidentMirror,
+    elfie: Elfie,
+    received_at: datetime | None = None,
+) -> BodySensorEvent:
+    """Re-enter one authoritative Godot resident state through Body input."""
+    body_id, body_generation = _body_scope(elfie, resident.elfie_id)
+    # Runtime timestamps belong to the external wall clock.  Once the fact
+    # crosses into Brain, use the target Elfie's cognitive timeline; retain the
+    # actual arrival time separately in ``received_at``.
+    occurred_at = _brain_occurred_at(
+        elfie,
+        event.occurred_at or received_at or datetime.now(timezone.utc),
+    )
+    return BodySensorEvent(
+        event_id=EventId(f"{event.event_id}:body:{resident.elfie_id}"),
+        cause_id=EventId(event.event_id),
+        body_id=body_id,
+        body_generation=body_generation,
+        source=ActorRef(
+            actor_id=ActorId("godot-runtime"),
+            source_kind="godot",
+        ),
+        occurred_at=occurred_at,
+        received_at=received_at or datetime.now(timezone.utc),
+        payload=ProprioceptionSample(
+            kind="proprioception_sample",
+            posture=resident.posture,
+            zone_id=resident.current_zone_id,
+            active_command_id=resident.active_command_id,
+            arrived=resident.active_command_id is None,
+        ),
+    )
+
+
+__all__ = (
+    "nest_event_to_body_sensor_event",
+    "world_snapshot_to_body_sensor_event",
+)

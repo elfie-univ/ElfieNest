@@ -63,6 +63,7 @@ class OutputRouter:
         journal: BrainJournal | None = None,
     ) -> None:
         self._capabilities = capabilities
+        self._body_executor = body_executor
         self._clock = clock
         self._max_intents = max_intents_per_plan
         self._max_schedule_horizon = timedelta(
@@ -325,7 +326,19 @@ class OutputRouter:
             # frame. Re-publishing its own receipts would create an endless
             # receipt-only cognition loop. The receipt remains available to
             # journaling and settlement below.
-            publish_to_workspace=not isinstance(intent, NoOpIntent),
+            publish_to_workspace=(
+                not isinstance(intent, NoOpIntent)
+                and not (
+                    kind is ExecutorKind.BODY
+                    and bool(
+                        getattr(
+                            self._body_executor,
+                            "publishes_embodied_outcome",
+                            False,
+                        )
+                    )
+                )
+            ),
         )
         if self._journal is not None:
             self._journal.record_receipt(receipt)

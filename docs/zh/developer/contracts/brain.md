@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.4
+**契约版本：** 1.5
 **采用日期：** 2026-08-12
-**修订日期：** 2026-08-31
+**修订日期：** 2026-09-02
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -31,16 +31,16 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 
 | 编号 | 系统 | 拥有 | 产生 | 绝对不能做 |
 | --- | --- | --- | --- | --- |
-| 1 | 事件工作区 | 有界 Communication、Embodied、Internal Lane；准入、保序、去重、背压、显著性和单域成帧 | 一个不可变 `TurnFrame`，或明确延后/拒绝结果 | 把多个来源域合成一个 Turn、理解复杂内容或执行行动 |
+| 1 | 事件工作区 | 有界 Communication、Embodied、Activity Lane；准入、保序、去重、背压、显著性和单域成帧 | 一个不可变 `TurnFrame`，或明确延后/拒绝结果 | 把多个来源域合成一个 Turn、理解复杂内容或执行行动 |
 | 2 | 自我定位 | 带来源的当前身体、地点、时间、附近人物、会话、Activity、Affordance 和不确定性 | 版本化 `OrientationSnapshot` | 复制世界 authority、保存完整历史或定义人格 |
 | 3 | 自我认知 | 一份原子状态：创建后冻结的 `identity_core` 与缓慢的 `adaptive_self`；确定性强类型/模型投影 | 版本化 Selfhood 快照、两个模型头部段，以及仅在后续设计获批后的 Memory 证据更新 | 运行时读取 Profile/Canon、接受 Turn/模型/当前状态直接更新、持久化最终 Prompt 或扩大能力 |
 | 4 | 情绪 | 进程内情感、刺激评估、叠加、衰减和恢复 | `EmotionSnapshot` 及对注意、回忆和表达的有界影响 | 创建 Goal、消息或身体动作，或持久化实时存量 |
 | 5 | 能量 | 稳态、昼夜状态、认知/行动预算、紧急储备和降级模式 | `EnergySnapshot`、预算预留和认知模式约束 | 选择语义 Goal 或取代 NervousSystem 安全反射 |
-| 6 | 动机 | 固定驱力、压力、满足、竞争、饱和、冷却和重复抑制 | `AttentionBias`、`GoalCandidate` 或 `InternalTriggerCandidate` | 创建 Activity 或直接对外行动 |
+| 6 | 动机 | 固定驱力、压力、满足、竞争、饱和、冷却和重复抑制 | `AttentionBias`、`GoalCandidate` 或 `ActivityTriggerCandidate` | 创建 Activity 或直接对外行动 |
 | 7 | 记忆 | 持久主观情景、知识、人物、关系、来源、检索、巩固和遗忘 | 有界检索结果和已校验持久记忆提交 | 拥有短期会话/上下文状态、当前 Orientation、Run 状态或 Activity 状态 |
 | 8 | 思考中枢 | `Reasoning Context Workspace`、上下文组装、有界 Model/Skill/Tool 循环、Observation、验证、抑制、完成判断和一个 `TurnDecision` | 一个已结算决定及内部状态候选 | 跨 Turn 等待、让其他系统拥有其短期上下文、宣称执行成功或绕过确定性策略 |
-| 9 | 跨回合活动 | 经过校验且跨当前 Turn 存续的 Goal 和工作；Step、条件、调度、暂停/恢复/取消、重试、幂等和回执 | Preflight 结果、状态事件和有界 Internal Trigger | 成为第二个 Brain 或直接执行开放式外部行动 |
-| 10 | 心智整理 | 在无外部副作用 Scope 中可中断地整理睡眠/空闲期记忆、Activity、情绪轨迹和结果 | 已校验状态候选或未来 Internal Trigger | 直接发消息、移动、创建 Activity、扩权或改写权威状态 |
+| 9 | 跨回合活动 | 经过校验且跨当前 Turn 存续的 Goal 和工作；Step、条件、调度、暂停/恢复/取消、重试、幂等和回执 | Preflight 结果、状态事件和有界 Activity Trigger | 成为第二个 Brain 或直接执行开放式外部行动 |
+| 10 | 心智整理 | 在无外部副作用 Scope 中可中断地整理睡眠/空闲期记忆、Activity、情绪轨迹和结果 | 已校验状态候选或未来 Activity Trigger | 直接发消息、移动、创建 Activity、扩权或改写权威状态 |
 
 上下文组装、Turn 结算、决策治理、路由、Journal、Checkpoint 和回执对账是服务这些
 所有者的必需机制，不是额外平级心智系统。
@@ -174,14 +174,17 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 
 ## 守恒规则
 
-1. Brain 只接收 `Communication`、`Embodied`、`Internal` 三类事件来源域。
-   消息/命令回执与 Activity 状态事件以绑定原始因果身份的 `Internal` 事件重新进入；
-   随后在世界中实际观察到的事实仍是新的 `Embodied` 事件。回执不形成第四个来源域。
+1. Brain 只接收 `Communication`、`Embodied`、`Activity` 三类事件来源域。身体动作结果
+   是外部 `Embodied` 事实；消息投递结果是 `Communication` 事实；Activity 状态事件以
+   `Activity` 事件重新进入。每个外部结果保留自己的来源域和原始因果身份；回执不形成
+   第四个来源域。
 2. 一个 `TurnFrame` 只有一个 `SourceDomain`、一个 `InteractionScope` 和一个有界
    `ResponseScope`；模型输出不能扩大任一范围。
 3. 同时到达的通信与具身事件必须形成不同 Turn。它们可以读取共享的已提交心智状态，
    但不能共享 Frame、临时推理状态或输出 authority。
-4. 跨域后果必须成为经过校验的跨回合活动请求，或者未来 Internal 事件和新 Turn。
+   同一具身因果窗口内兼容的事实（例如一个动作的终态、位置、姿态、到达和触觉）可以
+   合并到同一个 Embodied Frame；动作回执没有独立的 Brain 触发规则。
+4. 跨域后果必须成为经过校验的跨回合活动请求，或者未来 Activity 事件和新 Turn。
    Communication Turn 当前不能输出 NervousSystem 指令。
 5. 每个 Turn 只结算为一个 `TurnDecision`。它至多请求一个外部执行域：Communication
    或 NervousSystem；可以同时携带一个已校验跨回合活动请求；全部为空即 `No-op`。
@@ -202,11 +205,15 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 逻辑 Lane 和明确背压。它可以去重、合并状态更新、习惯化重复刺激、优先处理安全事件并
 保证公平，但必须保留来源和因果身份。
 
+三个 Lane 同时接受 Brain 触发的结果和外部主动输入。身体传感器、Godot/设备感知以及
+Nest 定向语义结果都可以主动进入 Body 输入边界，不要求先有 Brain Turn。单个输入事件不
+等于一次模型 Turn；准入会在 cutoff 内批量合并兼容事件，并执行显著性、去抖和背压。
+
 准入生成不可变单域 `TurnFrame`，其中包含稳定 Turn ID、来源域、交互 Scope、触发事件、
 cutoff、截止时间和响应范围。Communication Scope 绑定渠道、会话和相关参与者，不同会话
 必须形成不同 Turn；Embodied Scope 绑定当前 Body ID/generation 和一个连贯现场窗口；
-Internal Scope 绑定一个 Trigger 或 Activity 因果链。因此一个 Frame 可以聚合多个兼容
-事件，但不能混合独立会话、身体 generation 或内部原因。cutoff 之外的事件留给后续
+Activity Scope 绑定一个 Trigger 或 Activity 因果链。因此一个 Frame 可以聚合多个兼容
+事件，但不能混合独立会话、身体 generation 或 Activity 原因。cutoff 之外的事件留给后续
 Turn。无法准入必须产生可观察的延后、拒绝或背压结果，不能静默丢失。
 
 ### 上下文与思考
@@ -267,6 +274,19 @@ Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个�
 所有者；所有者根据当前版本和因果身份校验后提交。陈旧或重复结果必须拒绝或对账，不能
 只通过下一轮 Prompt 假设状态已经修正。
 
+具身决定从当前 Body 和其他已授权所有者提供的只读能力目录中选择一个或多个能力，形成有限计划。
+每个结构化调用包含大类、动态 `capability_id`、类型化参数、call/cause 身份、截止时间和当前主体。
+`go_to`、`turn`、`speak` 等具体名称是能力目录条目，不是 Brain 固定的决定联合类型。同一外部域内的
+调用可以有序执行或并发执行。调用由 NervousSystem 校验并通过当前 BodyBinding 路由；Brain 不选择
+Adapter、Transport 或 Gateway。
+
+具身动作账本记录 `ACCEPTED`、`STARTED` 供对账，但它们不是发给 Brain 的事件。Brain 只
+接收一个终态：`COMPLETED`、`REJECTED`、`FAILED`、`INTERRUPTED` 或 `TIMED_OUT`。
+取消统一表示为带原因的 `INTERRUPTED`。Watchdog 将逾期动作转为 `TIMED_OUT`，请求
+stop/cancel；迟到的终态按幂等规则对账，不能重新打开动作。第一版允许隔离执行 Worker
+等待终态，但 Gateway 接收器和传感入口必须保持工作；完全非阻塞的 BodyPort 提交/回执流
+延后到第二版。
+
 ## 响应范围
 
 - Communication Turn 可以产生 Communication 指令、已校验跨回合活动请求或 `No-op`，
@@ -274,7 +294,7 @@ Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个�
   会话必须形成经过校验的后续 Scope。
 - Embodied Turn 可以产生 NervousSystem 指令、已校验跨回合活动请求或 `No-op`，不能
   产生数字消息指令。
-- Internal Turn 可以在自身 `ExecutionScope` 允许范围内选择至多一个外部域，可以创建或
+- Activity Turn 可以在自身 `ExecutionScope` 允许范围内选择至多一个外部域，可以创建或
   更新已校验 Activity，也可以选择 `No-op`。
 - 澄清必须使用当前来源域。目标身份、联系方式、能力、时间语义或成功条件缺失时，应尽量
   在原始 Turn 当场确认，不能拖到 Activity 到期时才发现。
@@ -287,11 +307,12 @@ Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个�
 成功条件和执行 Scope，并返回 `VALIDATED`、`NEEDS_CLARIFICATION` 或 `REJECTED`；它不
 产生持久化或外部副作用。
 
-只有已校验 Draft 可以在 Turn 结算后正式提交。到期时间、条件、重试或回执只产生类型化
-Internal 事件，不能直接执行开放行动。通信与具身后果必须是不同 Activity Step 和不同
-Turn。稳定因果 ID、幂等键、Checkpoint 和回执保证中断或重启后不丢承诺、不重复副作用。
+只有已校验 Draft 可以在 Turn 结算后正式提交。到期时间、条件或重试产生类型化 Activity
+事件；外部身体或消息回执保留在自己的外部来源域，不能变成 Activity 事件。这些事件都
+不能直接执行开放行动。通信与具身后果必须是不同 Activity Step 和不同 Turn。稳定因果 ID、
+幂等键、Checkpoint 和回执保证中断或重启后不丢承诺、不重复副作用。
 
-动机和心智整理不能直接创建 Activity，只能产生重新进入事件工作区的 Internal Turn 候选。
+动机和心智整理不能直接创建 Activity，只能产生重新进入事件工作区的 Activity Turn 候选。
 跨回合活动尚未具备有界创建、取消、冷却和恢复前，不得把 Motivation 开放为行动来源。
 
 ## 能量、长思考与中断

@@ -27,6 +27,7 @@ from elfie import Elfie
 from elfie.body.contracts import (
     HeardUtterancePayload,
     NestFactNoticePayload,
+    ProprioceptionSample,
     SemanticActionResultPayload,
     SemanticVisualScenePayload,
 )
@@ -39,7 +40,8 @@ def test_new_runtime_restores_catalog_assigns_homes_and_syncs_all_actors() -> No
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
+    fox = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
     engine.session.register_elfie("dog-1", MagicMock(spec=Elfie))
     runtime.events.extend(
         (
@@ -97,7 +99,8 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
+    fox = MagicMock(spec=Elfie)
+    engine.session.register_elfie("fox-1", fox)
     runtime.events.extend(
         (
             _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
@@ -129,6 +132,20 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
     assert mirror.runtime_generation == 1
     assert mirror.world_revision == 1
     assert engine.nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
+    body_event_calls = [
+        call.args[0] for call in fox.pump_body_events.call_args_list if call.args
+    ]
+    assert body_event_calls
+    body_events = next(
+        batch
+        for batch in body_event_calls
+        if any(isinstance(item.payload, ProprioceptionSample) for item in batch)
+    )
+    assert len(body_events) == 1
+    assert isinstance(body_events[0].payload, ProprioceptionSample)
+    assert body_events[0].payload.zone_id == "activity-01"
+    assert body_events[0].payload.posture == "standing"
+    assert body_events[0].payload.arrived is True
 
 
 def test_speech_reach_uses_nest_semantic_interaction() -> None:

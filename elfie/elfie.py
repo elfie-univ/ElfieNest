@@ -95,6 +95,7 @@ class Elfie(ElfieFacadeOperations):
             perception_sink=self._workspace,
             elfie_id=workspace_id,
             body_port=body,
+            logical_clock=lambda: self.cognitive_datetime,
         )
         self._anatomy_type, self._anatomy = assemble_anatomy(
             self._profile,

@@ -16,6 +16,7 @@ from elfie.brain.reasoning.context_compiler import (
 from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
     BrainContext,
+    CapabilityDescriptor,
     ConnectedChannelDescriptor,
     ContextSummary,
     ConversationContext,
@@ -195,6 +196,45 @@ def test_compile_preserves_communication_actor_and_channel() -> None:
     assert compiled.emotion.primary is EmotionType.HAPPINESS
     assert compiled.homeostasis.energy == 81.0
     assert compiled.capabilities.current_body.body_id == "headless-body"
+
+
+def test_decision_prompt_exposes_registered_capability_argument_contracts() -> None:
+    context = _context().model_copy(
+        update={
+            "capabilities": _context().capabilities.model_copy(
+                update={
+                    "world_capabilities": ("world.go_to",),
+                    "capability_catalog": (
+                        CapabilityDescriptor(
+                            capability_id="world.go_to",
+                            category="world",
+                            description="Move to a semantic anchor.",
+                            argument_schema={
+                                "type": "object",
+                                "required": ["anchor_id"],
+                                "properties": {"anchor_id": {"type": "string"}},
+                            },
+                        ),
+                    ),
+                }
+            )
+        }
+    )
+    compiled = ModelContextCompiler().compile(
+        context,
+        budget=ModelTokenBudget(max_tokens=800),
+    )
+
+    _system, user_prompt = ReasoningRunController._model_prompts(
+        compiled,
+        fast_owner_reply=False,
+        header=ModelHeaderAssembler(
+            ReasoningConstitution.from_mapping(load_reasoning_constitution())
+        ),
+    )
+
+    assert '"world_contracts"' in user_prompt
+    assert '"anchor_id"' in user_prompt
 
 
 def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:

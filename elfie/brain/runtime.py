@@ -36,6 +36,7 @@ from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
     ExpressionIntent,
     MessageIntent,
@@ -409,7 +410,14 @@ class BrainRuntime:
         if receipt.status is not ExecutionStatus.COMPLETED:
             return
         if not isinstance(
-            intent, (MessageIntent, SpeechIntent, MotionIntent, ExpressionIntent)
+            intent,
+            (
+                CapabilityIntent,
+                MessageIntent,
+                SpeechIntent,
+                MotionIntent,
+                ExpressionIntent,
+            ),
         ):
             return
         with self._activity_lock:
@@ -640,7 +648,10 @@ def _activity_step_matches_intent(
     if kind is ActivityStepKind.COMMUNICATION:
         return isinstance(intent, MessageIntent)
     if kind is ActivityStepKind.NERVOUS_SYSTEM:
-        return isinstance(intent, (SpeechIntent, MotionIntent, ExpressionIntent))
+        return isinstance(
+            intent,
+            (CapabilityIntent, SpeechIntent, MotionIntent, ExpressionIntent),
+        )
     return False
 
 

@@ -5,20 +5,23 @@ from __future__ import annotations
 from datetime import timedelta
 from functools import singledispatch
 from threading import Lock
-from typing import Callable, Dict, Optional, Tuple, TypedDict
+from typing import Callable, Dict, Mapping, Optional, Tuple, TypedDict
 from uuid import uuid4
 
 from elfie.body.contracts import (
     BodyCommand,
     BodyId,
+    CapabilityCommand,
     CommandStatus,
     EmergencyStopCommand,
     ExpressionCommand,
     MotionCommand,
+    ObservationCommand,
     SpeechCommand,
 )
 from elfie.body.port import BodyPort
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
@@ -57,6 +60,11 @@ class NervousSystemIntentExecutor:
         self._lock = Lock()
         self._interrupt_count = 0
 
+    @property
+    def publishes_embodied_outcome(self) -> bool:
+        """Expose whether NervousSystem owns the Body feedback publication."""
+        return self._nervous_system.perception_configured
+
     def execute(
         self,
         plan: DecisionPlan,
@@ -69,14 +77,22 @@ class NervousSystemIntentExecutor:
             )
         issued_at = self._clock()
         body_generation = self._current_body_generation() or 1
-        command = _build_command(
-            intent,
-            plan,
-            BodyId(body.body_id),
-            body_generation,
-            body.capabilities.revision,
-            issued_at,
-        )
+        try:
+            command = _build_command(
+                intent,
+                plan,
+                BodyId(body.body_id),
+                body_generation,
+                body.capabilities.revision,
+                issued_at,
+            )
+        except (TypeError, ValueError) as error:
+            return IntentExecutionResult.failed(
+                ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message=str(error) or "capability arguments are invalid",
+                )
+            )
         with self._lock:
             self._commands[(plan.turn_id, intent.intent_id)] = (
                 body,
@@ -241,6 +257,181 @@ def _expression_command(
             plan, intent, body_id, body_generation, capability_revision, issued_at
         ),
     )
+
+
+@_build_command.register
+def _capability_command(
+    intent: CapabilityIntent,
+    plan: DecisionPlan,
+    body_id: BodyId,
+    body_generation: int,
+    capability_revision: int,
+    issued_at: UTCDateTime,
+) -> BodyCommand:
+    """Lower one registered semantic call into the current Body contract."""
+    capability_id = intent.capability_id
+    arguments = intent.arguments
+    if intent.category == "world":
+        if capability_id == "world.go_to":
+            return MotionCommand(
+                command_type="motion",
+                kind="move_to_anchor",
+                target=_argument_text(arguments, "anchor_id"),
+                **_identity(
+                    plan,
+                    intent,
+                    body_id,
+                    body_generation,
+                    capability_revision,
+                    issued_at,
+                ),
+            )
+        if capability_id == "world.observe":
+            return ObservationCommand(
+                command_type="observation",
+                observation_id=_argument_text(
+                    arguments,
+                    "observation_id",
+                    f"observation-{intent.intent_id}",
+                ),
+                max_results=_argument_count(arguments, "max_results", 32),
+                **_identity(
+                    plan,
+                    intent,
+                    body_id,
+                    body_generation,
+                    capability_revision,
+                    issued_at,
+                ),
+            )
+        raise ValueError(f"unsupported world capability: {capability_id}")
+
+    if capability_id in {"body.speak", "speech.say"}:
+        return SpeechCommand(
+            command_type="speech",
+            text=_argument_text(arguments, "text"),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    if capability_id in {"body.move_to_anchor", "move_to_anchor"}:
+        return MotionCommand(
+            command_type="motion",
+            kind="move_to_anchor",
+            target=_argument_text(arguments, "anchor_id"),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    if capability_id in {"body.emergency_stop", "system.emergency_stop"}:
+        return EmergencyStopCommand(
+            command_type="emergency_stop",
+            reason=_argument_text(arguments, "reason", "brain_request"),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    if capability_id == "body.expression":
+        return ExpressionCommand(
+            command_type="expression",
+            kind=_argument_text(arguments, "kind"),
+            intensity=_argument_ratio(arguments, "intensity", 1.0),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    if capability_id.startswith("expression."):
+        return ExpressionCommand(
+            command_type="expression",
+            kind=capability_id.removeprefix("expression."),
+            intensity=_argument_ratio(arguments, "intensity", 1.0),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    if capability_id.startswith("gesture."):
+        return MotionCommand(
+            command_type="motion",
+            kind=capability_id,
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
+    return CapabilityCommand(
+        command_type="capability",
+        capability_id=capability_id,
+        arguments=dict(arguments),
+        **_identity(
+            plan,
+            intent,
+            body_id,
+            body_generation,
+            capability_revision,
+            issued_at,
+        ),
+    )
+
+
+def _argument_text(
+    arguments: Mapping[str, object],
+    name: str,
+    default: str | None = None,
+) -> str:
+    value = arguments.get(name, default)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"capability argument '{name}' must be non-blank text")
+    return value
+
+
+def _argument_count(arguments: Mapping[str, object], name: str, default: int) -> int:
+    value = arguments.get(name, default)
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 64:
+        raise ValueError(
+            f"capability argument '{name}' must be an integer from 1 to 64"
+        )
+    return value
+
+
+def _argument_ratio(
+    arguments: Mapping[str, object], name: str, default: float
+) -> float:
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"capability argument '{name}' must be a number from 0 to 1")
+    normalized = float(value)
+    if not 0.0 <= normalized <= 1.0:
+        raise ValueError(f"capability argument '{name}' must be a number from 0 to 1")
+    return normalized
 
 
 __all__ = ("NervousSystemIntentExecutor",)

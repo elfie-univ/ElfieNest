@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safely inspect or validate one Godot project instance."
     )
-    parser.add_argument("command", choices=("doctor", "status", "validate"))
+    parser.add_argument("command", choices=("doctor", "status", "prepare", "validate"))
     parser.add_argument(
         "--project", type=Path, default=DEFAULT_PROJECT, help="Godot project directory"
     )
@@ -209,6 +209,125 @@ def check_environment(
     return True, expected, actual
 
 
+def _import_destinations(import_file: Path) -> list[Path]:
+    try:
+        contents = import_file.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    marker = "dest_files=["
+    marker_start = contents.find(marker)
+    if marker_start < 0:
+        return []
+    values_start = marker_start + len(marker)
+    values_end = contents.find("]", values_start)
+    if values_end < 0:
+        return []
+    destinations: list[Path] = []
+    for raw_value in contents[values_start:values_end].split(","):
+        destination = raw_value.strip().strip('"')
+        if destination.startswith("res://"):
+            destinations.append(Path(destination.removeprefix("res://")))
+    return destinations
+
+
+def project_import_ready(project: Path) -> bool:
+    """Return whether Godot's generated class and asset caches are usable."""
+
+    resolved_project = project.expanduser().resolve()
+    class_cache = resolved_project / ".godot" / "global_script_class_cache.cfg"
+    imported_root = resolved_project / ".godot" / "imported"
+    if not class_cache.is_file() or not imported_root.is_dir():
+        return False
+    try:
+        class_cache_text = class_cache.read_text(encoding="utf-8")
+        class_cache_mtime = class_cache.stat().st_mtime
+    except OSError:
+        return False
+    for required_class in ("ModularNest", "ElfieActor"):
+        if f'"class": &"{required_class}"' not in class_cache_text:
+            return False
+
+    for source_path in resolved_project.rglob("*.gd"):
+        if ".godot" in source_path.parts:
+            continue
+        try:
+            if source_path.stat().st_mtime > class_cache_mtime:
+                return False
+        except OSError:
+            return False
+
+    found_import_metadata = False
+    for import_file in resolved_project.rglob("*.import"):
+        if ".godot" in import_file.parts:
+            continue
+        found_import_metadata = True
+        destinations = _import_destinations(import_file)
+        if not destinations:
+            continue
+        for destination in destinations:
+            generated = resolved_project / destination
+            if not generated.is_file():
+                return False
+    return found_import_metadata
+
+
+def prepare_import(
+    binary: Path,
+    project: Path,
+    processes: list[GodotProcess],
+    expected_version: str | None,
+    allow_version_mismatch: bool,
+) -> int:
+    """Generate Godot's ignored first-run caches when they are absent/stale."""
+
+    if project_import_ready(project):
+        print("Godot project import cache is ready; skipping import preflight.")
+        return 0
+    conflicts = blocking_processes(processes, project)
+    if conflicts:
+        print_processes(conflicts, project)
+        print(
+            "REFUSED: close or reuse the existing instance for this project, or identify the unknown process, before Godot import.",
+            file=sys.stderr,
+        )
+        return 3
+
+    print("Running one synchronous headless Godot project import preflight...")
+    result = godot_runner.run_import(
+        binary,
+        project,
+        godot_version=None,
+        purpose="guard-project-import",
+    )
+    godot_runner.forward_output(result)
+    if result.exit_code != 0:
+        print(
+            f"Godot project import process failed with exit code {result.exit_code}.",
+            file=sys.stderr,
+        )
+        return result.exit_code
+    if (
+        expected_version
+        and result.godot_version
+        and expected_version != result.godot_version
+        and not allow_version_mismatch
+    ):
+        print(
+            f"ERROR: project requires Godot {expected_version}, but import used "
+            f"{result.godot_version}.",
+            file=sys.stderr,
+        )
+        return 2
+    if not project_import_ready(project):
+        print(
+            "ERROR: Godot import exited successfully but did not produce a ready class/resource cache.",
+            file=sys.stderr,
+        )
+        return 1
+    print("Godot project import preflight exited with a ready cache.")
+    return 0
+
+
 def validate(
     binary: Path,
     project: Path,
@@ -217,6 +336,25 @@ def validate(
     expected_version: str | None,
     allow_version_mismatch: bool,
 ) -> int:
+    if not project_import_ready(project):
+        import_exit = prepare_import(
+            binary,
+            project,
+            processes,
+            expected_version=expected_version,
+            allow_version_mismatch=allow_version_mismatch,
+        )
+        if import_exit != 0:
+            return import_exit
+        try:
+            processes = godot_processes()
+        except ProcessInspectionError as error:
+            print(
+                f"ERROR: cannot inspect Godot processes safely: {error}",
+                file=sys.stderr,
+            )
+            print("REFUSED: no validation command was run.", file=sys.stderr)
+            return 4
     conflicts = blocking_processes(processes, project)
     if conflicts:
         print_processes(conflicts, project)
@@ -291,6 +429,14 @@ def main() -> int:
         return 0 if ok else 2
     if not ok or binary is None:
         return 2
+    if args.command == "prepare":
+        return prepare_import(
+            binary,
+            project,
+            processes=processes,
+            expected_version=expected,
+            allow_version_mismatch=args.allow_version_mismatch,
+        )
     return validate(
         binary,
         project,

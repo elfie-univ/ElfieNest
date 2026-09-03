@@ -1,8 +1,8 @@
 # Nest–Godot semantic-world contract
 
-**Contract version:** 1.1
+**Contract version:** 1.2
 **Adopted:** 2026-08-13
-**Amended:** 2026-08-14
+**Amended:** 2026-09-02
 **Scope:** `nest/`, the Godot semantic boundary, and affected App orchestration
 
 > **Normative target.** This contract defines Nest internal fact ownership,
@@ -114,10 +114,10 @@ environment facts and Runtime lifecycle frames are not Nest broadcasts.
 | Path | Direction | Rule |
 | --- | --- | --- |
 | `NestQuery` | Elfie ↔ Nest | Pure household-semantic lookup; no physical execution |
-| `DirectBodyChannel` | Elfie Body ↔ Godot | Known target and no current household-semantic resolution; receipts and body perception return only to the owning Elfie |
-| `SemanticAction` | Elfie → Nest → Godot → Nest → Elfie | One authorized intent covers deterministic target resolution, physical execution and one semantic result; it does not require a second Brain Turn |
-| `SemanticVision` | Elfie → Nest → Godot → Nest → Elfie, or Godot → Nest → Elfie | An active observation is one correlated request; Godot may also report a bounded significant change. Godot computes the physically visible entity set; Nest adds only household meaning and emits one targeted semantic visual perception |
-| `SpeechBridge` | Elfie → Nest → Godot → Nest → target Elfies | Nest retains content and expressed emotion; Godot returns physical listener candidates to Nest; rules filter residents; Nest emits targeted hearing events |
+| `DirectBodyChannel` | Elfie Body ↔ Godot | Known target and no current household-semantic resolution; receipts and body perception return through the owning Body and NervousSystem only |
+| `SemanticAction` | Elfie → Nest → Godot → Nest → target Elfie Body | One authorized intent covers deterministic target resolution, physical execution and one semantic result; a targeted result re-enters Body/NervousSystem and does not require a second Brain Turn just for the receipt |
+| `SemanticVision` | Elfie → Nest → Godot → Nest → target Elfie Body, or Godot → Nest → target Elfie Body | An active observation is one correlated request; Godot may also report a bounded significant change. Godot computes the physically visible entity set; Nest adds only household meaning and emits one targeted semantic visual perception through Body/NervousSystem |
+| `SpeechBridge` | Elfie → Nest → Godot → Nest → target Elfie Body | Nest retains content and expressed emotion; Godot returns physical listener candidates to Nest; rules filter residents; Nest emits targeted hearing events through each target Body/NervousSystem |
 | `EnvironmentChannel` | Nest ↔ Godot world objects | Nest sends desired environment commands; Godot returns actual discrete facts and command results |
 | `RuntimeControl` | App Lifecycle ↔ Godot host/Gateway | startup, readiness, generation, health, disconnect and recovery only |
 
@@ -126,10 +126,14 @@ pathfinding. The route crosses Nest only when current household meaning—such a
 my home, shared, available or allowed—must be resolved.
 
 Nest may forward a resolved Actor target only when the command retains the
-original Elfie intent identity, actor identity and authorization. Nest cannot
-create, schedule, resume or rewrite Actor behavior independently. Time and
-household rules may independently command environment objects such as lights or
-doors because those are Nest-owned world intentions, not Elfie body intentions.
+original Elfie intent identity, actor identity and authorization. A semantic
+result targeted at an Elfie is delivered into that Elfie's Body input boundary
+and then NervousSystem; it never jumps directly to Brain. If the result requires
+a new actor-body command, that command is submitted again through NervousSystem
+and Body before reaching Godot. Nest cannot create, schedule, resume or rewrite
+Actor behavior independently. Time and household rules may independently
+command environment objects such as lights or doors because those are Nest-owned
+world intentions, not Elfie body intentions.
 
 ## Structured virtual perception
 
