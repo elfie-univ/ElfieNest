@@ -42,26 +42,28 @@ class SkillManager:
                 result.append(normalized)
         return tuple(result)
 
+    def allowed_skills(self) -> Tuple[SkillDefinition, ...]:
+        """Return allowed Skill declarations without flattening their bindings."""
+        return tuple(
+            skill for skill in self.registry.list_skills() if self.policy.allows(skill)
+        )
+
     def allowed_tool_keys(self) -> Tuple[str, ...]:
-        """Return allowed semantic tool keys in declaration order."""
-        allowed = {
-            skill.tool_key
-            for skill in self.registry.list_skills()
-            if self.policy.allows(skill)
-        }
+        """Return the ordered union of tools bound by allowed Skills."""
         result: List[str] = []
-        for skill in self.registry.list_skills():
-            if skill.tool_key in allowed and skill.tool_key not in result:
-                result.append(skill.tool_key)
+        for skill in self.allowed_skills():
+            for tool_key in skill.tool_keys:
+                if tool_key not in result:
+                    result.append(tool_key)
         return tuple(result)
 
     def snapshot(self) -> Dict[str, Any]:
-        allowed = set(self.allowed_tool_keys())
+        allowed = {skill.skill_id for skill in self.allowed_skills()}
         return {
             "skills": [
                 {
                     **skill.to_dict(),
-                    "allowed": skill.tool_key in allowed,
+                    "allowed": skill.skill_id in allowed,
                 }
                 for skill in self.registry.list_skills()
             ],

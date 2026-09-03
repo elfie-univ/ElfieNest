@@ -4,19 +4,21 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Union
+
+SkillValue = Union[str, Tuple[str, ...]]
 
 
 @dataclass(frozen=True)
 class SkillDefinition:
-    """Immutable declaration of one semantic tool capability."""
+    """Immutable declaration of one Brain capability and its Tool bindings."""
 
     skill_id: str
-    tool_key: str
+    tool_keys: Tuple[str, ...]
     display_name: str
     description: str
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> Dict[str, SkillValue]:
         return asdict(self)
 
 
@@ -36,8 +38,12 @@ class SkillRegistry:
     ) -> SkillDefinition:
         if not skill.skill_id.strip():
             raise SkillRegistrationError("skill_id must not be blank")
-        if not skill.tool_key.strip():
-            raise SkillRegistrationError("tool_key must not be blank")
+        if not skill.tool_keys:
+            raise SkillRegistrationError("tool_keys must not be empty")
+        if any(not tool_key.strip() for tool_key in skill.tool_keys):
+            raise SkillRegistrationError("tool_keys must not contain blanks")
+        if len(set(skill.tool_keys)) != len(skill.tool_keys):
+            raise SkillRegistrationError("tool_keys must be unique")
         with self._lock:
             existing = self._skills.get(skill.skill_id)
             if existing is not None and existing != skill and not replace:

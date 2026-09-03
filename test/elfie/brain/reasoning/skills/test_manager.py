@@ -13,7 +13,10 @@ from infrastructure.tools.execution.config import TOOL_KEYS
 
 
 def test_builtin_skill_definitions_use_semantic_tool_keys() -> None:
-    assert tuple(skill.tool_key for skill in BUILTIN_SKILLS) == TOOL_KEYS
+    assert (
+        tuple(tool_key for skill in BUILTIN_SKILLS for tool_key in skill.tool_keys)
+        == TOOL_KEYS
+    )
     assert all("runtime" not in skill.description.lower() for skill in BUILTIN_SKILLS)
 
 
@@ -32,13 +35,67 @@ def test_manager_supports_custom_skill_mapped_to_semantic_tool_key() -> None:
     manager.register(
         SkillDefinition(
             skill_id="research_assistant",
-            tool_key="web_search",
+            tool_keys=("web_search",),
             display_name="Research assistant",
             description="A bounded search capability.",
         )
     )
 
     assert manager.authorize(["web_search", "code_sandbox"]) == ("web_search",)
+
+
+def test_one_skill_can_authorize_multiple_tools() -> None:
+    manager = SkillManager(
+        policy=SkillPolicy(
+            allowed_skill_ids=frozenset({"research_assistant"}),
+        ),
+        include_builtins=False,
+    )
+    manager.register(
+        SkillDefinition(
+            skill_id="research_assistant",
+            tool_keys=("web_search", "local_file"),
+            display_name="Research assistant",
+            description="A bounded research capability.",
+        )
+    )
+
+    assert tuple(skill.skill_id for skill in manager.allowed_skills()) == (
+        "research_assistant",
+    )
+    assert manager.allowed_tool_keys() == ("web_search", "local_file")
+    assert manager.authorize(["local_file", "web_search"]) == (
+        "local_file",
+        "web_search",
+    )
+
+
+def test_skill_policy_is_applied_before_tool_bindings_are_flattened() -> None:
+    manager = SkillManager(
+        policy=SkillPolicy(denied_skill_ids=frozenset({"blocked_skill"})),
+        include_builtins=False,
+    )
+    manager.register(
+        SkillDefinition(
+            skill_id="allowed_skill",
+            tool_keys=("web_search",),
+            display_name="Allowed",
+            description="Allowed capability.",
+        )
+    )
+    manager.register(
+        SkillDefinition(
+            skill_id="blocked_skill",
+            tool_keys=("web_search", "local_file"),
+            display_name="Blocked",
+            description="Blocked capability.",
+        )
+    )
+
+    assert manager.allowed_tool_keys() == ("web_search",)
+    snapshot = manager.snapshot()
+    assert snapshot["skills"][0]["allowed"] is True
+    assert snapshot["skills"][1]["allowed"] is False
 
 
 def test_authorization_is_inert_when_no_tools_are_requested() -> None:
@@ -54,10 +111,10 @@ def test_snapshot_exposes_domain_fields_without_runtime_proxy_state() -> None:
     ).snapshot()
 
     assert snapshot["allowed_tool_keys"] == ["web_search"]
-    assert snapshot["skills"][0]["tool_key"] == "web_search"
+    assert snapshot["skills"][0]["tool_keys"] == ("web_search",)
     assert set(snapshot["skills"][0]) >= {
         "skill_id",
-        "tool_key",
+        "tool_keys",
         "display_name",
         "description",
         "allowed",
