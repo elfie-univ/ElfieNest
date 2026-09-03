@@ -744,7 +744,9 @@ def _fixture_from_profile(
     return LabFixtureDefinition(
         fixture_id=f"elfie-lab-{spec.elfie_id}",
         elfie_id=(
-            spec.elfie_id if preserve_elfie_id else f"evaluation-{spec.elfie_id}"
+            spec.elfie_id
+            if preserve_elfie_id
+            else _evaluation_workspace_id(spec.elfie_id)
         ),
         name=spec.name,
         species_id=species_id,
@@ -761,6 +763,19 @@ def _fixture_from_profile(
         ),
         initial_state=dict(state or {}),
     )
+
+
+def _evaluation_workspace_id(source_elfie_id: str) -> str:
+    """Derive an isolated, final-layout-safe workspace identity."""
+
+    value = (
+        int.from_bytes(
+            sha256(f"elfie-lab-evaluation:{source_elfie_id}".encode()).digest()[:8],
+            "big",
+        )
+        % 100_000_000
+    )
+    return f"{value or 1:08d}"
 
 
 def _apply_deterministic_verdict(

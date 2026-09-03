@@ -33,8 +33,8 @@ def _client(tmp_path: Path, role: AccountRole) -> TestClient:
         )
         connection.execute(
             """INSERT INTO elfies(
-                   elfie_id,name,owner_user_id,species,adopted_at,status
-               ) VALUES ('00000001','小狐',1,'fox','2026-08-01','offline')"""
+                   elfie_id,owner_user_id,adopted_at,status
+               ) VALUES ('00000001',1,'2026-08-01','offline')"""
         )
         connection.commit()
     application = FastAPI()

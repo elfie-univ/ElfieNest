@@ -9,7 +9,9 @@
 > 思考、提交决定和恢复跨回合工作。更早的 Brain 迁移继续由永久架构测试守护；已接受的
 > Selfhood/固定头部差距继续记录在聚焦的
 > [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
-> Workspace P0 边界由永久聚焦测试守护。
+> Workspace P0 边界由永久聚焦测试守护。版本 1.5 冻结了一次性 Genesis 与最终所有者隔离
+> 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由。尚未
+> 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -88,9 +90,9 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 1. Selfhood 拥有一份原子、强类型状态，只有一个 Schema 版本、一个 Selfhood revision，
    语义上严格分两层。`identity_core` 保存创建时冻结、每只 Elfie 必需的最低身份事实；
    `adaptive_self` 保存有界人格特征、个人价值/规范 ID，以及互动、应对和表达倾向。
-2. 该状态不得含 Profile revision、Canon 版本/路径/引用、最终 Prompt 段落、模型自由生成的
-   自传、详细世界知识、传记、关系状态、当前 Emotion/Energy/Orientation/Activity、能力、
-   权限或全应用规则。
+2. 该状态不得含 Profile revision、Canon 或资料包版本/路径/引用、问卷答案、生成 Seed/
+   策略轨迹、最终 Prompt 段落、模型自由生成的自传、详细世界知识、传记、关系状态、当前
+   Emotion/Energy/Orientation/Activity、能力、权限或全应用规则。
 3. Genesis 之后 `identity_core` 永久不可变。第一阶段不暴露已装配的 `adaptive_self` 更新
    路径。后续获批成长设计最多允许 Memory 整理生成强类型 proposal，其中必须有基础
    Selfhood revision、稳定 proposal/幂等 identity 和持久 Memory 证据。Memory 拥有
@@ -108,13 +110,16 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 
 ### Genesis 与运行时输入
 
-6. Genesis 是唯一 Selfhood 初始化者。它可以读取已接受领养输入、创建时 Canon/物种事实
-   与受审的确定性映射，并把 Profile、完整 Selfhood、Genesis Memory 作为同一已校验创建
-   Bundle 的并列输出。普通启动时 Selfhood 不从已持久 Profile 派生；不完整或冲突创建必须
-   拒绝准入。
-7. Profile 仍是外层不可变档案。Canon 仍是创建时世界/物种输入和 Genesis Memory 来源。
-   普通 Brain 运行、Reasoning 上下文与 Selfhood 投影不得读取、接收、刷新或同步 Profile/
-   Canon。既有 Elfie 不绑定 Canon 版本；后续 Canon 改动不能改变它的 Selfhood。
+6. Genesis 是唯一 Selfhood 初始化者。它可以读取已发布强类型资料包、仅创建期存在的已接受
+   领养输入和受审的确定性映射，并把 Profile、完整 Selfhood、Genesis Memory 作为同一已
+   校验创建 Bundle 的并列输出。普通启动时 Selfhood 不从已持久 Profile 派生；不完整或冲突
+   创建必须拒绝准入。Selfhood 自有契约不得定义外部 Profile/Canon Observer 投影；这类投影
+   归拥有它的 Profile/App View。
+7. Profile 仍是外层不可变档案。资料包只在提交前作为世界/物种输入和 Genesis Memory 来源。
+   已接受答案、`LifeContext`、`PersonalGenesisPlan`、资料包绑定和生成 Seed 不得持久化到
+   Selfhood 或普通 Brain 状态，并在创建事务结束后删除。普通 Brain 运行、Reasoning 上下文
+   与 Selfhood 投影不得读取、接收、刷新或同步 Profile、Canon 或任何创建资料。既有 Elfie
+   不绑定 Canon 版本；后续源资料改动不能改变它的 Selfhood 或 Memory。
 8. Selfhood 缺失、无效、版本不支持或无法渲染时，必须在调用 `ModelPort` 前让 Brain/
    resident 认知失败并输出安全诊断。不得 fallback 到 `Elfie`、通用 persona、全 0.5 traits、
    Profile、Canon、Memory 自我叙事或模型生成修补。
@@ -353,7 +358,7 @@ generation，只恢复 Scope 和截止时间仍然有效的工作。Emotion 是�
 ## 依赖与目录规则
 
 Brain 只依赖自身定义的强类型使用方 Port 和 Elfie 语义契约；普通 Brain 运行期也不依赖
-Profile 或 Canon。Brain 不导入 App、Nest、具体
+Profile、Canon、Genesis 资料包或领养输入。Brain 不导入 App、Nest、具体
 Infrastructure、Provider SDK、平台 Payload、设备传输、文件系统 Root 或数据库 Record。
 AI Runtime 实现留在 Brain 外部；Brain 拥有在 Run 中何时以及为什么调用它们。
 

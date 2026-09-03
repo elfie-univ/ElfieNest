@@ -153,6 +153,39 @@ def test_compact_packets_keep_bounded_source_evidence() -> None:
     assert "<EPISODE" not in compiled.content
 
 
+def test_orphan_conversation_episode_survives_p0_memory_budget() -> None:
+    base = _bundle()
+    compiled = compile_recall_bundle(
+        RecallBundle(
+            focus_nodes=base.focus_nodes,
+            assertions=base.assertions,
+            paths=base.paths,
+            episodes=base.episodes
+            + (
+                RecallEpisode(
+                    episode_id="episode:topic:owner:blue-fact",
+                    occurred_from="2026-08-30T08:00:00Z",
+                    occurred_to=None,
+                    excerpt="主人说：请记住，我喜欢蓝色。",
+                    detail_level="full",
+                    relevance=0.99,
+                    importance=0.9,
+                    source_event_ids=("owner-blue-fact",),
+                ),
+            ),
+            evidence=base.evidence,
+            conflicts=base.conflicts,
+        ),
+        max_tokens=295,
+    )
+
+    # This is the normal P0 context slice.  The durable conversational
+    # episode must remain model-visible even when unrelated graph packets do
+    # not fit; checking only the final answer would miss this regression.
+    assert "episode:topic:owner:blue-fact" in compiled.episode_ids
+    assert "主人说：请记住，我喜欢蓝色。" in compiled.content
+
+
 def test_memory_excerpts_are_escaped_as_data() -> None:
     malicious = _bundle()
     evidence = malicious.evidence[0]

@@ -49,6 +49,7 @@ _NEST_TABLES = {
     "food_packages",
     "local_installations",
     "nest_settings",
+    "resident_admissions",
     "sessions",
     "users",
 }
@@ -236,6 +237,33 @@ def test_full_product_chain_uses_one_explicit_final_root(
     assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
         KNOWLEDGE_TABLES
     ) | {"episodes_fts", "nodes_fts"}
+
+
+def test_committed_resident_starts_without_genesis_source(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Final-owner restore must not eagerly reload creation materials."""
+    data_home = tmp_path / "source-deleted"
+    db_path = data_home / "nest.db"
+    monkeypatch.setenv("ELFIE_HOME", str(data_home))
+    init_db(str(db_path))
+    owner_id = create_test_owner(str(db_path))
+    adopt_test_elfie(str(db_path), owner_id, name="断源后仍在的精灵")
+
+    def fail_source_load():
+        raise AssertionError("committed restore loaded the Genesis source package")
+
+    monkeypatch.setattr(
+        "app.bootstrap.app_wiring.adoption.load_genesis_source_package",
+        fail_source_load,
+    )
+
+    application = create_app(engine=None, db_path=str(db_path))
+    with TestClient(application, base_url="http://127.0.0.1:8000") as client:
+        response = client.get("/api/health")
+
+    assert response.status_code == 200
 
 
 def _tables(db_path: Path) -> set[str]:

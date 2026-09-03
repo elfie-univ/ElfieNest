@@ -182,7 +182,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="configuration-management",
-        version="1.3",
+        version="1.4",
         english_path="docs/developer/contracts/configuration-management.md",
         chinese_path="docs/zh/developer/contracts/configuration-management.md",
         decision_paths=(
@@ -192,6 +192,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0020-configuration-driven-species-packages.md",
             "docs/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
             "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
+            "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
         agent_paths=(
             "AGENTS.md",
@@ -264,6 +266,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0031-selfhood-authority-and-fixed-model-header.md",
             "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -297,6 +301,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0032-reasoning-context-workspace-ownership.md",
             "docs/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
+            "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
         agent_paths=(
             "elfie/brain/AGENTS.md",
@@ -313,7 +319,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.10",
+        version="1.11",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
@@ -331,6 +337,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
             "docs/developer/decisions/0028-script-control-plane-layout.md",
             "docs/zh/developer/decisions/0028-script-control-plane-layout.md",
+            "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
         ),
         agent_paths=(
             "app/AGENTS.md",

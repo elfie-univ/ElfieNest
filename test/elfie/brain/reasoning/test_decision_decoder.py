@@ -390,7 +390,7 @@ def test_failed_json_repair_suppresses_json_like_raw_text() -> None:
     )
 
 
-def test_invalid_owner_model_output_falls_back_to_the_trusted_chat_target() -> None:
+def test_invalid_owner_model_output_falls_back_to_a_truthful_chat_notice() -> None:
     # Given: the host has proven the inbound owner conversation and the model
     # returned an unusable JSON-shaped response.
     seed = _seed().model_copy(
@@ -415,7 +415,7 @@ def test_invalid_owner_model_output_falls_back_to_the_trusted_chat_target() -> N
     assert intent.type == "message"
     assert intent.channel_id == "godot-owner"  # type: ignore[attr-defined]
     assert intent.conversation_id == "owner:7"  # type: ignore[attr-defined]
-    assert intent.content == "我收到你的消息了，正在想一想。"  # type: ignore[attr-defined]
+    assert intent.content == "我这次没能完成回复，请稍后再试。"  # type: ignore[attr-defined]
 
 
 def test_known_legacy_decision_plan_wrapper_extracts_reply_without_repair() -> None:

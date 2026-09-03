@@ -41,6 +41,8 @@ from elfie.brain.reasoning.turn_outcome import TerminalStatus
 from elfie.brain.reasoning.worker import ReasoningWorker
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
@@ -53,7 +55,9 @@ from elfie.message_types import (
     ActorRef,
     ElfieId,
     EventId,
+    IntentId,
     MessageMeta,
+    PlanId,
     Priority,
     TraceId,
     TurnId,
@@ -140,6 +144,40 @@ def _physical(
             content=f"touch {index}",
         ),
         salience=salience,
+    )
+
+
+def _receipt(
+    index: int,
+    *,
+    status: ExecutionStatus = ExecutionStatus.COMPLETED,
+    error=None,
+) -> PerceptionEvent:
+    at = NOW + timedelta(milliseconds=index)
+    return PerceptionEvent(
+        meta=MessageMeta(
+            event_id=EventId(f"receipt-{index}"),
+            elfie_id=ELFIE_ID,
+            source=ActorRef(
+                actor_id=ActorId("elfie-coordinator:output-router"),
+                source_kind="internal",
+            ),
+            occurred_at=at,
+            received_at=at,
+            trace_id=TraceId("trace-receipt"),
+            causation_id=EventId("owner-cause"),
+        ),
+        payload=ExecutionPayload(
+            type="execution",
+            receipt_id=EventId(f"receipt-{index}"),
+            plan_id=PlanId("plan-owner"),
+            turn_id=TurnId("turn-owner"),
+            intent_id=IntentId(f"message-{index}"),
+            executor="communication",
+            status=status,
+            error=error,
+        ),
+        salience=0.8 if error is not None else 0.4,
     )
 
 
@@ -415,6 +453,39 @@ def test_mock_mode_keeps_communication_on_the_model_path() -> None:
         coordinator.join()
 
     assert len(runtime.calls) == 1
+
+
+def test_routine_receipts_bypass_model_but_failed_receipts_remain_eligible() -> None:
+    routine_workspace = EventWorkspace(ELFIE_ID)
+    for index, status in enumerate(
+        (
+            ExecutionStatus.ACCEPTED,
+            ExecutionStatus.STARTED,
+            ExecutionStatus.COMPLETED,
+        ),
+        start=1,
+    ):
+        routine_workspace.publish(_receipt(index, status=status))
+    routine_frame = routine_workspace.claim_frame(
+        routine_workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-receipt-routine"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+    )
+
+    failed_workspace = EventWorkspace(ELFIE_ID)
+    failed_workspace.publish(
+        _receipt(4, status=ExecutionStatus.REJECTED),
+    )
+    failed_frame = failed_workspace.claim_frame(
+        failed_workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-receipt-failed"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+    )
+
+    assert BrainCoordinator._requires_model(routine_frame) is False
+    assert BrainCoordinator._requires_model(failed_frame) is True
 
 
 def test_completed_reasoning_traces_have_a_bounded_in_memory_retention() -> None:

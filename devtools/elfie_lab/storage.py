@@ -1,30 +1,36 @@
 """测试精灵和调试会话的独立本地存储。"""
 
+import hashlib
 import json
+import math
 import os
 import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
+from uuid import uuid4
 
-from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage, new_id
+from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage
 from elfie.brain.selfhood import (
     derive_personality,
 )
-from elfie.profile import (
-    ELFARIA_CANON,
-    ElfieProfile,
-    create_visual_profile,
-    get_species_canon_for_technical_id,
+from elfie.genesis import (
+    GenesisCompileInput,
+    GenesisCompiler,
+    stage_for_age,
 )
 from infrastructure.persistence.configuration.bundled_defaults import (
-    load_energy_defaults,
     load_selfhood_defaults,
 )
-from infrastructure.persistence.configuration.world import load_world_canon
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
+from infrastructure.persistence.elfie_workspace.adoption_profiles import (
+    FinalElfieWorkspaceAdapter,
+)
 from infrastructure.persistence.elfie_workspace.brain_state import (
-    YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
 )
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
@@ -35,12 +41,23 @@ class ElfieLabStorage:
     def __init__(self, data_dir: Optional[str] = None):
         configured = data_dir or os.getenv("ELFIE_LAB_DATA_DIR")
         self.root = (
-            Path(configured) if configured else get_elfie_developer_home() / "elfie_lab"
+            (
+                Path(configured)
+                if configured
+                else get_elfie_developer_home() / "elfie_lab"
+            )
+            .expanduser()
+            .resolve()
         )
         self.elfies_dir = self.root / "elfies"
         self.sessions_dir = self.root / "sessions"
         self.elfies_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self._catalog = load_and_configure_species_catalog()
+        self._genesis = GenesisCompiler(
+            load_genesis_source_package(),
+            catalog=self._catalog,
+        )
 
     def list_elfies(self) -> List[ElfieSpec]:
         specs: List[ElfieSpec] = []
@@ -68,8 +85,15 @@ class ElfieLabStorage:
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("精灵名称不能为空")
-        if age_years <= 0 or age_years > 100:
-            raise ValueError("精灵年龄必须在 0 到 100 岁之间")
+        if (
+            isinstance(age_years, bool)
+            or not isinstance(age_years, (int, float))
+            or not math.isfinite(float(age_years))
+            or not float(age_years).is_integer()
+            or age_years <= 0
+            or age_years > 100
+        ):
+            raise ValueError("精灵年龄必须是 1 到 100 岁之间的整数")
         required_text = {
             "用途描述": description,
             "性格描述": personality_description,
@@ -78,22 +102,25 @@ class ElfieLabStorage:
         for label, value in required_text.items():
             if not value.strip():
                 raise ValueError(f"{label}不能为空")
-        selected_elfie_id = elfie_id or new_id("elfie")
+        selected_elfie_id = elfie_id or _new_final_elfie_id(self.elfies_dir)
         self._validate_id(selected_elfie_id)
+        if len(selected_elfie_id) != 8 or not selected_elfie_id.isdigit():
+            raise ValueError("测试精灵标识必须是 8 位数字")
         if self.profile_path(selected_elfie_id).exists():
             raise ValueError(f"测试精灵已经存在: {selected_elfie_id}")
+        normalized_age = float(age_years)
         spec = ElfieSpec(
             elfie_id=selected_elfie_id,
             name=clean_name,
             species_id=species_id,
-            age_years=age_years,
-            life_stage=derive_life_stage(species_id, age_years),
+            age_years=normalized_age,
+            life_stage=derive_life_stage(species_id, normalized_age),
             description=description.strip(),
             appearance_description=appearance_description.strip(),
             personality_description=personality_description.strip(),
         )
-        self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         self._save_character_profile(spec, big_five_overrides)
+        self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         return spec
 
     def update_big_five(
@@ -233,28 +260,41 @@ class ElfieLabStorage:
         spec: ElfieSpec,
         big_five_overrides: Optional[Dict[str, float]] = None,
     ) -> None:
-        seed = int.from_bytes(spec.elfie_id.encode("utf-8"), "little") % (2**31)
-        profile = create_visual_profile(
-            elfie_id=spec.elfie_id,
-            display_name=spec.name,
-            species_id=spec.species_id,
-            seed=seed,
+        if spec.age_years is None or not float(spec.age_years).is_integer():
+            raise ValueError("测试精灵年龄必须是整数年")
+        age_years = int(spec.age_years)
+        life_stage = stage_for_age(spec.species_id, age_years, self._catalog)
+        appearance_seed = int.from_bytes(
+            hashlib.sha256(f"{spec.elfie_id}:appearance".encode()).digest()[:8],
+            "big",
         )
-        energy_limits = load_energy_defaults()
-        derivation = derive_personality(
-            spec.elfie_id,
-            spec.personality_description,
-            big_five_overrides,
-            default_big_five=self._default_big_five(),
+        compilation = self._genesis.compile(
+            GenesisCompileInput(
+                elfie_id=spec.elfie_id,
+                owner_reference="developer-tool",
+                display_name=spec.name,
+                species_id=spec.species_id,
+                gender="female",
+                life_stage=life_stage,
+                age_years_at_adoption=age_years,
+                appearance_seed=appearance_seed,
+                height="standard",
+                build="standard",
+                face="balanced",
+                signature="any",
+                personality_description=spec.personality_description,
+                big_five_overrides=big_five_overrides,
+                original_name=spec.name,
+                adoption_anchor_at=spec.created_at,
+                reservation_id=f"lab-genesis:{spec.elfie_id}",
+                idempotency_key=f"lab-genesis-submit:{spec.elfie_id}",
+                arrival_base_id="elfie_nest",
+            )
         )
-        selfhood_seed = _selfhood_seed(profile, derivation.big_five, derivation.preset)
-        YamlProfileStoreAdapter(self.elfie_dir(spec.elfie_id) / "profile").save(profile)
-        YamlSelfhoodSeedAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
-            selfhood_seed
-        )
-        YamlEnergyLimitsAdapter(self.elfie_dir(spec.elfie_id) / "brain").save(
-            energy_limits
-        )
+        workspace = FinalElfieWorkspaceAdapter(data_home=self.root)
+        workspace.stage(compilation)
+        workspace.publish(spec.elfie_id)
+        workspace.finalize(spec.elfie_id)
 
     @staticmethod
     def _default_big_five() -> Dict[str, object]:
@@ -318,45 +358,10 @@ class ElfieLabStorage:
                 os.unlink(temporary)
 
 
-def _selfhood_seed(
-    profile: ElfieProfile,
-    big_five: Mapping[str, float],
-    expression_preset: str,
-) -> Dict[str, Any]:
-    """Build the strict two-layer seed used by the Genesis hand-off."""
+def _new_final_elfie_id(elfies_dir: Path) -> str:
+    """Generate an ID accepted by the shared final workspace layout."""
 
-    species = get_species_canon_for_technical_id(profile.identity.species_id)
-    world = load_world_canon()
-    origin = profile.identity.origin
-    return {
-        "state_schema_version": 1,
-        "revision": 1,
-        "identity_core": {
-            "elfie_id": profile.identity.elfie_id,
-            "display_name": profile.identity.display_name,
-            "species_id": profile.identity.species_id,
-            "species_name": species.display_name,
-            "home_world_id": origin.home_world_id,
-            "home_world_name": world.display_name or ELFARIA_CANON.display_name,
-            "home_region_id": origin.home_region_id,
-            "home_region_name": (
-                world.known_region_name
-                if origin.home_region_id == world.known_region_id
-                else origin.home_region_id
-            ),
-            "earth_arrival_statement": world.earth_arrival_statement,
-            "resident_role": "ElfieNest 居民",
-        },
-        "adaptive_self": {
-            "big_five": dict(big_five),
-            "interaction_tendency_ids": tuple(species.earth_first_contact_cues),
-            "coping_tendency_ids": tuple(species.common_sensory_biases),
-            "expression_tendency_ids": (expression_preset,),
-            "value_ids": (
-                "尊重自愿选择，不把猜测说成亲历。",
-                "不知道时说明不知道，并在真实接触中学习地球。",
-            ),
-            "speech_marker_ids": ("呢",),
-            "source_event_ids": (),
-        },
-    }
+    while True:
+        candidate = f"{uuid4().int % 100_000_000:08d}"
+        if not (elfies_dir / candidate).exists():
+            return candidate

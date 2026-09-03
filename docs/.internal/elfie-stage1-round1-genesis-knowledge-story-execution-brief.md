@@ -1,9 +1,14 @@
-# 第一批任务开工文档：知识密度与故事/初始化包（OPT-001）
+# 第一批任务历史开工文档：知识密度与故事/初始化包（OPT-001）
 
-> 状态：待实施
+> 状态：冻结的 OPT-001 历史执行简报；对应实现与旧 E2/E3 门已关闭，不再作为新 Genesis
+> 任务的开工合同。
 >
 > 本文对应基线后的优化轮次 1（`OPT-001`），不是第一阶段验收中的 `E1` 或 `E2`。
 > 目标是让新领养的 Elfie 从第一次聊天开始，就拥有可探索、可追问、可溯源的异星知识、个人过去和关系骨架。
+>
+> 现行创建边界以 ADR-0033、Elfie 2.3、Brain 1.5 与
+> [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 为准。本文旧有 Canon、Manifest、Profile
+> 来源字段和提交后重放措辞只说明当时实现，不能覆盖现行契约。
 
 ## 1. 用户目标
 
@@ -43,7 +48,10 @@
 | `EpisodeSeed[]` | 这只 Elfie 的领养前个人经历 | 3–5 个有顺序、人物、地点、结果、感受和影响的 Episode；历史发生时间与写入时间分开 |
 | `RelationshipSeed[]` | 人物、地点及其他实体之间的关系骨架 | 带角色、方向、熟悉/信任、共同 Episode 和来源；不得只存一个主人节点 |
 
-`ProfileDraft`、`SelfhoodSeed` 和 `InitializationManifest` 是 Genesis 的其他产物，不属于上述三类记忆内容：Profile 保存稳定身份，Selfhood 保存自我/人格，Manifest 保存版本、来源和幂等信息。`personal_story` 只能是这些正式数据派生出的展示摘要，不能成为第四个事实源。
+`ProfileDraft` 与 `SelfhoodSeed` 是 Genesis 的其他最终 owner 提交材料，不属于上述三类记忆内容：
+Profile 只保存严格外部客观档案，Selfhood 保存 Brain 内部身份/人格。创建期版本、来源绑定和 Seed
+随事务销毁；事务外最多保留不可重建人生的最小技术回执。`personal_story` 只能是正式 Memory Episode
+的受限展示投影，不能成为第四个事实源。
 
 ### 世界知识与个体记忆
 
@@ -137,13 +145,13 @@ Canon 是公共来源，不直接替代个体 Memory；Memory 保存“这只 El
 
 ### 交付证据
 
-必须通过 `E2`（异星知识）及 `E3`（领养前人生），并回归 `E1`；机器硬门全部 100% 通过。报告至少记录候选 SHA、Canon/物种/Prompt 版本、Manifest/seed、预期与实际 Memory ID、逐例结果、重启结果、失败证据和剩余项。完成后明确保留给 `OPT-002/003/004` 的内容；不能把“有几条故事词条”或“模型说得像”当作完成证明。
+必须通过 `E2`（异星知识）及 `E3`（领养前人生），并回归 `E1`；机器硬门全部 100% 通过。历史评测报告可以记录候选 SHA、测试所用资料/策略修订、事务内 Seed、预期与实际 Memory ID、逐例结果、重启结果、失败证据和剩余项；这些测试证据不能进入已提交 Elfie。完成后明确保留给 `OPT-002/003/004` 的内容；不能把“有几条故事词条”或“模型说得像”当作完成证明。
 
 ## 交给另一个任务的执行指令
 
 ```text
 请实现 OPT-001（知识密度与故事/初始化包），以本文件和现有阶段执行计划为唯一范围。
 目标：新领养 Elfie 从第一次聊天开始，就能通过 Memory 可靠回答母星/物种/家乡问题，并拥有 3–5 个可追问、互相关联、有来源的领养前经历和关系骨架；换问法、重启、重复初始化后仍一致，未知边界不编造。
-必须保持：World/Species Canon 是版本化来源；Memory 保存个体实际知道和经历过的内容；Profile/Selfhood 各自保持所有权；Genesis 只在领养时运行；source-first 导入、稳定 ID、Manifest 幂等；Reasoning 不依赖重复的丰富 Prompt；不读 Communication History，不做真实巢、不做 OPT-002/003/004。
+必须保持：已发布 World/Species 资料是未来创建的版本化来源；Memory 保存个体实际知道和经历过的内容；Profile/Selfhood 各自保持所有权；Genesis 只在领养时运行；source-first 导入、稳定 ID 和事务内幂等；提交或终止后删除输入与资料绑定；Reasoning 不依赖重复的丰富 Prompt，也不回读 Profile/创建资料；不读 Communication History，不做真实巢、不做 OPT-002/003/004。
 先读本文件、Memory 设计和 conformance 台账，先写失败测试，再按七个工作包实施。默认复用现有 schema/Adapter/RecallBundle；若需要 schema、系统级 Port 或真实数据迁移，停止并报告，不要扩大范围。完成 E2/E3、E1 回归和 OPT-001 台账证据后再交付。
 ```

@@ -35,6 +35,13 @@ from elfie.communication import (
     TextPart,
 )
 from elfie.factory import ElfieAssembly
+from elfie.genesis import (
+    GenesisCandidate,
+    GenesisCompilation,
+    GenesisCompileEnvelope,
+    GenesisCompileInput,
+    GenesisCompiler,
+)
 from elfie.initialization import assemble_profile
 from elfie.message_types import (
     ActorId,
@@ -71,6 +78,11 @@ __all__ = [
     "ElfieAssembly",
     "ElfieId",
     "ElfieProfile",
+    "GenesisCandidate",
+    "GenesisCompilation",
+    "GenesisCompileEnvelope",
+    "GenesisCompileInput",
+    "GenesisCompiler",
     "EventId",
     "InboundDisposition",
     "MainFoodSelection",

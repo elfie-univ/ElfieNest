@@ -3,6 +3,7 @@
 > 状态：已接受目标设计<br>
 > 确认日期：2026-08-30<br>
 > 审查：已于 2026-08-30 完成源码审计与反抗性审查<br>
+> 契约对齐：2026-09-01，ADR-0033 与 Brain 1.5<br>
 > 范围：Selfhood 初始化、内部状态、未来更新边界、模型投影，以及在线 Elfie
 > `ReasoningRun` 模型调用的固定头部<br>
 > 性质：跨版本设计，不表示当前实现已经合规<br>
@@ -40,7 +41,7 @@ Turn 的其他链路。
 | 状态事实 | 这只 Elfie 是谁、当前缓慢自我是什么 | Selfhood | 是 |
 | 输入证据 | 发生了什么、未来可能为何支持缓慢变化 | Memory | 是，存在 Memory 中 |
 | 派生描述 | 确定性生成、交给模型理解的自然语言 | Selfhood renderer | 否 |
-| 审计记录 | 初始化或未来提交为何获准 | Genesis manifest 或未来 Selfhood commit receipt | 仅由对应 owner 按需保存 |
+| 审计记录 | 创建或未来 Selfhood 提交已经完成的技术证明 | Profile 外最小 Genesis 回执或未来 Selfhood commit receipt | 只由对应 owner 按需保存，绝不成为 Selfhood 身份/人格的一部分 |
 
 派生描述永远不是第二份状态。Memory 中一句话不会因为长期存在就自动升到 system 头部。
 审计版本也不把既有 Elfie 绑定到当前 Canon 版本。
@@ -200,7 +201,7 @@ SelfhoodState
     ├── 类型化互动与表达倾向
     ├── 类型化应对与注意倾向
     ├── 个人规范/价值 ID
-    └── 初始化来源或未来 Memory 证据引用
+    └── 只供未来已批准成长使用的 Memory 证据引用
 ```
 
 第一阶段闭合状态表面是：
@@ -215,8 +216,9 @@ SelfhoodState
 一律拒绝。倾向、规范与口癖 ID 由应用版本拥有的稳定映射表解析；仍有 resident 使用某个
 ID 时，应用升级不能在没有显式数据迁移的情况下删除它。
 
-状态中不保存最终 Prompt 段落，也不保存由模型自由生成的自传。人输入的名字和任何有界
-文本槽都按数据校验，禁止带 Prompt 分段标记，并由 renderer 引用/转义。
+状态中不保存最终 Prompt 段落，也不保存由模型自由生成的自传、问卷答案、创建资料绑定、
+生成器/模型/策略版本、Seed 或 LifeContext/Plan 引用。人输入的名字和任何有界文本槽都按
+数据校验，禁止带 Prompt 分段标记，并由 renderer 引用/转义。
 
 Selfhood 对外提供两种输出：
 
@@ -232,12 +234,12 @@ Reasoning 只能消费投影，不能直接把原始状态字典塞给模型。
 
 ## 8. 初始化
 
-Genesis 是唯一初始化者。它读取已接受的领养输入、创建时 Canon/物种事实和受审的确定性
+Genesis 是唯一初始化者。它读取临时的已接受领养输入、已发布 Genesis 资料包和受审的确定性
 映射/模板，与 Profile、Genesis Memory 一起产出一份通过校验的
 `GenesisSelfhoodSeed`。
 
 ```text
-已接受领养输入 + 创建时 Canon + 受审映射
+临时领养输入 + GenesisSourcePackage + 受审映射
                           |
                           v
                  确定性 Genesis 校验
@@ -248,8 +250,9 @@ Genesis 是唯一初始化者。它读取已接受的领养输入、创建时 Ca
 ```
 
 Profile 不是 Selfhood 的运行时来源；两者是同一个创建 Bundle 的并列输出。普通 Brain
-运行期不可访问 Canon。既有 Elfie 不绑定、不追随、也不比较 Canon 版本；创建时复制进
-最终 owner 的事实就是它已拥有的事实。
+运行期不可访问资料包。既有 Elfie 不绑定、不追随、也不比较资料版本；创建时复制进
+最终 owner 的事实就是它已拥有的事实。成功提交或终止失败后，问卷答案、资料绑定、Seed、
+LifeContext 和 Plan 全部删除；Selfhood 不保留它们的来源痕迹。
 
 `identity_core` 与初始 `adaptive_self` 都由确定且受审的规则生成。模型若参与传记
 Memory 生成，也必须走单独校验；它不能自由生成固定身份或应用 Constitution。校验失败

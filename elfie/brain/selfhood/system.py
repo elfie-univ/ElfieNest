@@ -158,11 +158,8 @@ def render_prompt_projection(state: SelfhoodState) -> SelfhoodPromptProjection:
     identity = (
         f"我是 {_slot(core.display_name)}，是一只 Elfie；我的正式物种是 "
         f"{_slot(core.species_name)}。"
-        f"我来自 {_slot(core.home_world_name)} 的 {_slot(core.home_region_name)}，"
         f"现在是 ElfieNest 的{_slot(core.resident_role)}。"
     )
-    if core.earth_arrival_statement:
-        identity += f" {_slot(core.earth_arrival_statement)}"
 
     trait_lines = _trait_lines(adaptive.big_five)
     adaptive_lines = ["我的稳定相处与表达方式："]

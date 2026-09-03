@@ -137,6 +137,18 @@ class FinalElfieLayout:
     def concepts_memory(self) -> Path:
         return self.workspace / "memory" / "concepts"
 
+    @property
+    def genesis_stage_marker(self) -> Path:
+        """Temporary integrity marker for one unpublished Genesis workspace."""
+
+        return self.workspace / ".genesis-stage.json"
+
+    @property
+    def genesis_compile_envelope(self) -> Path:
+        """Private input needed only to resume an unfinished Genesis compile."""
+
+        return self.workspace / ".genesis-compile-envelope.json"
+
 
 @dataclass(frozen=True)  # CPython 3.9 uses explicit __slots__.
 class FinalRootLayout:
@@ -186,6 +198,12 @@ class FinalRootLayout:
         return self.data_home / "runtime" / "runtime.json"
 
     @property
+    def staging_elfies(self) -> Path:
+        """Hidden sibling root for unpublished Elfie workspaces."""
+
+        return self.data_home / "elfies" / ".staging"
+
+    @property
     def runtime_locks(self) -> Path:
         return self.data_home / "runtime" / "locks"
 
@@ -207,6 +225,13 @@ class FinalRootLayout:
         if _ELFIE_ID_PATTERN.fullmatch(elfie_id) is None:
             raise InvalidFinalElfieIdError(elfie_id)
         return FinalElfieLayout(self.data_home / "elfies" / elfie_id)
+
+    def staging_elfie(self, elfie_id: str) -> FinalElfieLayout:
+        """Resolve the exact hidden staging path for one numeric Elfie ID."""
+
+        if _ELFIE_ID_PATTERN.fullmatch(elfie_id) is None:
+            raise InvalidFinalElfieIdError(elfie_id)
+        return FinalElfieLayout(self.staging_elfies / elfie_id)
 
 
 def final_root_layout(data_home: Path) -> FinalRootLayout:
@@ -283,4 +308,33 @@ def ensure_final_elfie_layout(data_home: Path, elfie_id: str) -> FinalElfieLayou
         elfie_layout.concepts_memory,
     )
     _ensure_directories((*_root_directories(root_layout), *workspace_directories))
+    return elfie_layout
+
+
+def ensure_staging_elfie_layout(data_home: Path, elfie_id: str) -> FinalElfieLayout:
+    """Create one unpublished workspace under the controlled staging root."""
+
+    root_layout = final_root_layout(data_home)
+    elfie_layout = root_layout.staging_elfie(elfie_id)
+    workspace_directories = (
+        elfie_layout.workspace,
+        elfie_layout.assets,
+        elfie_layout.godot,
+        elfie_layout.profile.parent,
+        elfie_layout.skills,
+        elfie_layout.brain,
+        elfie_layout.history_database.parent,
+        elfie_layout.attachments,
+        elfie_layout.knowledge_database.parent,
+        elfie_layout.daily_memory,
+        elfie_layout.people_memory,
+        elfie_layout.concepts_memory,
+    )
+    _ensure_directories(
+        (
+            *_root_directories(root_layout),
+            root_layout.staging_elfies,
+            *workspace_directories,
+        )
+    )
     return elfie_layout

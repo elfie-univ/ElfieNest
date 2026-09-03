@@ -15,7 +15,6 @@ from typing import Any, Mapping, cast
 
 from elfie.profile import (
     APPEARANCE_REGION_IDS,
-    SPECIES_CANON_VERSION,
     AppearanceMarkingRule,
     AppearanceRegionRecipe,
     AppearanceRegionRule,
@@ -24,10 +23,10 @@ from elfie.profile import (
     RegionAccentSpec,
     ScaleRange,
     SpeciesAppearanceProfile,
-    SpeciesCanon,
     SpeciesCatalog,
     SpeciesDefinition,
     SpeciesGenesisProfile,
+    SpeciesIdentityCard,
     SpeciesPresentationImages,
     SpeciesStatus,
 )
@@ -43,7 +42,7 @@ from .documents import (
 _PACKAGE_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _STAGES = ("youth", "young_adult", "mature", "elder")
 _GENESIS_TRAITS = 5
-_MAX_AGE_MONTHS = 240
+_MAX_AGE_YEARS = 100
 _REQUIRED_PROPORTION_SCALES = (
     "HeadScale",
     "NeckLength",
@@ -140,8 +139,8 @@ class BundledSpeciesCatalogSource:
         if expected_id != species_id:
             raise ValueError("species.yaml technical_species_id 与 catalog 不一致")
         appearance = _appearance_profile(species_id, appearance_document)
-        canon = SpeciesCanon(
-            canon_id=_string(species_document, "canon_id"),
+        identity_card = SpeciesIdentityCard(
+            package_id=_string(species_document, "species_package_id"),
             display_name=_string(species_document, "display_name"),
             display_name_zh=_string(species_document, "display_name_zh"),
             earth_shape_label=_string(species_document, "earth_shape_label"),
@@ -154,32 +153,30 @@ class BundledSpeciesCatalogSource:
             earth_first_contact_cues=_string_tuple(
                 species_document, "earth_first_contact_cues"
             ),
-            canon_version=str(
-                species_document.get("canon_version", SPECIES_CANON_VERSION)
-            ),
+            package_version=_string(species_document, "package_version"),
         )
         images = self._presentation_images(package_root, species_document, entry)
         genesis = _genesis_profile(genesis_document) if genesis_document else None
         status = _status(entry)
-        canon_id = _string(entry, "canon_id")
-        if canon_id != canon.canon_id:
-            raise ValueError("catalog canon_id 与 species.yaml 不一致")
+        species_package_id = _string(entry, "species_package_id")
+        if species_package_id != identity_card.package_id:
+            raise ValueError("catalog species_package_id 与 species.yaml 不一致")
         if status in ("published", "retired") and (images is None or genesis is None):
             raise ValueError("已发布或已退役物种必须同时具备两张 PNG 和 Genesis 配置")
         return SpeciesDefinition(
             species_id=species_id,
-            canon_id=canon_id,
-            display_name=canon.display_name,
-            display_name_zh=canon.display_name_zh,
-            earth_shape_label=canon.earth_shape_label,
+            species_package_id=species_package_id,
+            display_name=identity_card.display_name,
+            display_name_zh=identity_card.display_name_zh,
+            earth_shape_label=identity_card.earth_shape_label,
             config_package_id=package,
             godot_package_id=_package_id(species_document, "godot_package_id"),
-            sort_order=canon.sort_order,
+            sort_order=identity_card.sort_order,
             status=status,
             definition_version=_string(entry, "definition_version"),
             appearance_profile_version=appearance.profile_version,
             appearance=appearance,
-            canon=canon,
+            identity_card=identity_card,
             presentation_images=images,
             genesis=genesis,
         )
@@ -605,8 +602,8 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         ):
             raise ValueError(f"genesis.stage_ranges.{stage} 必须是两个整数")
         minimum, maximum = int(raw_range[0]), int(raw_range[1])
-        if minimum < 1 or maximum < minimum or maximum > _MAX_AGE_MONTHS:
-            raise ValueError(f"genesis.stage_ranges.{stage} 超出安全范围")
+        if minimum < 1 or maximum < minimum or maximum > _MAX_AGE_YEARS:
+            raise ValueError(f"genesis.stage_ranges.{stage} 超出地球年龄范围")
         stage_ranges[stage] = (minimum, maximum)
     prior = document.get("personality_prior")
     if (
@@ -894,9 +891,9 @@ def _validate_catalog(catalog: SpeciesCatalog) -> None:
     ids = [item.species_id for item in catalog.definitions]
     if len(ids) != len(set(ids)):
         raise ValueError("物种注册表包含重复的 species_id")
-    canon_ids = [item.canon_id for item in catalog.definitions]
-    if len(canon_ids) != len(set(canon_ids)):
-        raise ValueError("物种注册表包含重复的 canon_id")
+    package_ids = [item.species_package_id for item in catalog.definitions]
+    if len(package_ids) != len(set(package_ids)):
+        raise ValueError("物种注册表包含重复的 species_package_id")
 
 
 __all__ = (

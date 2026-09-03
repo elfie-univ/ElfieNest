@@ -1,13 +1,23 @@
 import base64
+import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from app.features.adoption import AcceptedAdoptionReservation
 from app.orchestration.resident_admission import ResidentAdmissionPortError
 from elfie import ElfieFactory
 from elfie.factory import ElfieAssembly
-from elfie.genesis import GenesisAppearanceIntent, GenesisEngine
+from elfie.genesis import (
+    GenesisAppearanceIntent,
+    GenesisCompileInput,
+    GenesisCompiler,
+    GenesisEngine,
+)
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -15,113 +25,165 @@ from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
 )
+from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
+from test.elfie.genesis.test_contracts import _compilation
 
 
-@pytest.mark.parametrize(
-    ("species_id", "species_name"),
-    (("fox", "Saevi"), ("dog", "Tovren")),
-)
-def test_workspace_adapter_materializes_the_final_elfie_profile(
-    tmp_path: Path,
-    species_id: str,
-    species_name: str,
+@pytest.mark.parametrize("species_id", ("fox", "dog"))
+def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
+    tmp_path: Path, species_id: str
 ) -> None:
+    compilation = _compilation("00000001", species_id=species_id)
     adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000001",
-        owner_user_id=7,
-        name="星砂",
-        species_id=species_id,
-        personality_style="好奇探索",
-        height="tall",
-        build="plump",
-        appearance_seed=42,
-        face="soft",
-        signature="warm",
-        gender="female",
-        birth_date="2000-01-01",
-    )
 
-    workspace = adapter.materialize(reservation)
-    workspace_path = Path(workspace)
-    profile_store = YamlProfileStoreAdapter(Path(workspace) / "profile")
-    with SQLiteMemoryStoreAdapter(
-        Path(workspace) / "memory" / "knowledge.sqlite"
-    ) as memory_store:
-        elfie = ElfieFactory().restore(
-            ElfieAssembly(
-                profile=profile_store.load(),
-                selfhood_seed=YamlSelfhoodSeedAdapter(workspace_path / "brain").load(),
-                energy_limits=YamlEnergyLimitsAdapter(workspace_path / "brain").load(),
-                memory_store=memory_store,
+    staged = Path(adapter.stage(compilation))
+    assert staged == tmp_path / "elfies" / ".staging" / "00000001"
+    assert not final_root_layout(tmp_path).elfie("00000001").workspace.exists()
+    assert (
+        Path(
+            adapter.reopen(
+                "00000001",
+                manifest_id=compilation.bundle.manifest.manifest_id,
+                content_hash=compilation.bundle.manifest.content_hash,
             )
         )
+        == staged
+    )
 
-        assert elfie.profile.identity.display_name == "星砂"
-        assert elfie.profile.identity.species_id == species_id
-        assert elfie.profile.identity.origin.home_world_id == "elfaria"
-        assert elfie.selfhood_snapshot().species_name == species_name
-        assert elfie.selfhood_snapshot().sensory_biases
-        assert any(
-            "Elfaria" in fact for fact in elfie.selfhood_snapshot().identity_facts
+    publication = adapter.publication("00000001")
+    assert publication.manifest_id == compilation.bundle.manifest.manifest_id
+    published = Path(adapter.publish("00000001"))
+    assert published == tmp_path / "elfies" / "00000001"
+    assert not staged.exists()
+    assert (
+        Path(
+            adapter.reopen(
+                "00000001",
+                manifest_id=publication.manifest_id,
+                content_hash=publication.content_hash,
+                output_ids_hash=publication.output_ids_hash,
+            )
         )
-        assert any("尊重自愿选择" in norm for norm in elfie.selfhood_snapshot().norms)
-        assert memory_store.count_episodes() == 5
-        assert memory_store.get_graph_node("genesis:self:00000001") is not None
-        known_elfie = memory_store.get_graph_node("genesis:self:00000001")
-        assert known_elfie is not None
-        assert (
-            known_elfie.properties["species"],
-            known_elfie.properties["is_self"],
-        ) == (
-            species_name,
-            True,
+        == published
+    )
+
+    profile = YamlProfileStoreAdapter(published / "profile").load()
+    selfhood_seed = YamlSelfhoodSeedAdapter(published / "brain").load()
+    energy_limits = YamlEnergyLimitsAdapter(published / "brain").load()
+    assert profile.to_dict() == compilation.profile.to_dict()
+    assert set(profile.to_dict()) == {"schema_version", "identity", "appearance"}
+    assert selfhood_seed["identity_core"]["elfie_id"] == "00000001"
+    assert "world" not in selfhood_seed
+    assert "canon" not in str(selfhood_seed).lower()
+    assert energy_limits["limits"]
+
+    with SQLiteMemoryStoreAdapter(
+        published / "memory" / "knowledge.sqlite", elfie_id="00000001"
+    ) as memory:
+        elfie = ElfieFactory().restore(
+            ElfieAssembly(
+                profile=profile,
+                selfhood_seed=selfhood_seed,
+                energy_limits=energy_limits,
+                memory_store=memory,
+            )
         )
-        self_model = memory_store.get_graph_node("genesis:self-model:00000001")
-        assert self_model is not None
-        assert self_model.properties["species_knowledge"]
-        person = memory_store.get_graph_node("genesis:person:owner-7")
-        assert person is not None
-        assert (
-            person.properties["relationship_label"],
-            person.properties["is_owner"],
-        ) == (
-            "earth_household",
-            True,
-        )
+        assert elfie.selfhood_snapshot().species_name
+        assert memory.count_episodes() == 5
+        assert memory.count_graph_nodes("person") == 13
+        assert memory.get_graph_node("genesis:self:00000001") is not None
+        assert memory.get_graph_node("genesis:self-model:00000001") is not None
+        assert memory.get_graph_node("genesis:receipt:00000001") is not None
 
-    first_profile = profile_store.load()
-    first_selfhood = YamlSelfhoodSeedAdapter(workspace_path / "brain").load()
-    first_energy = YamlEnergyLimitsAdapter(workspace_path / "brain").load()
-    adapter.materialize(reservation)
-    second_profile = profile_store.load()
-    assert second_profile == first_profile
-    assert YamlSelfhoodSeedAdapter(workspace_path / "brain").load() == first_selfhood
-    assert YamlEnergyLimitsAdapter(workspace_path / "brain").load() == first_energy
-
-    adapter.release(reservation.elfie_id)
+    adapter.finalize("00000001")
+    assert not (published / ".genesis-stage.json").exists()
+    assert published.exists()
 
 
-def test_workspace_materialization_cleans_all_files_when_genesis_commit_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_workspace_adapter_round_trips_the_real_compile_envelope(
+    tmp_path: Path,
 ) -> None:
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000006",
-        owner_user_id=7,
-        name="失败回滚精灵",
-        species_id="fox",
-        personality_style="好奇探索",
+    catalog = load_and_configure_species_catalog()
+    source = load_genesis_source_package()
+    candidate = (
+        GenesisEngine(catalog=catalog)
+        .generate_batch(
+            master_seed=23,
+            batch_number=1,
+            species_id="fox",
+            life_stage="mature",
+            gender="female",
+            appearance=GenesisAppearanceIntent(
+                stature="standard",
+                build="standard",
+                face="soft",
+                signature="warm",
+                priority="face",
+            ),
+            answers=("observe", "research", "comfort", "adapt", "steady"),
+        )
+        .candidates[0]
+    )
+    request = GenesisCompileInput(
+        elfie_id="00000011",
+        owner_reference="envelope-owner",
+        display_name="信使",
+        species_id=candidate.species_id,
+        gender=candidate.gender,
+        life_stage=candidate.life_stage,
+        age_years_at_adoption=candidate.age_years,
+        appearance_seed=candidate.seed,
         height="standard",
         build="standard",
-        appearance_seed=46,
         face="soft",
         signature="warm",
-        gender="female",
-        birth_date="2001-01-01",
+        candidate=candidate,
+        personality_style="好奇探索",
+        adoption_anchor_at="2026-09-02T00:00:00+00:00",
+        reservation_id="envelope:00000011",
+        idempotency_key="envelope-submit:00000011",
     )
+    compiler = GenesisCompiler(source, catalog=catalog)
+    envelope = compiler.create_compile_envelope(request)
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+
+    adapter.stage_envelope(envelope)
+    recovered = adapter.load_envelope("00000011")
+
+    assert recovered is not None
+    assert recovered.to_dict() == envelope.to_dict()
+    compilation = compiler.compile_envelope(recovered)
+    adapter.stage(compilation)
+    adapter.publish("00000011")
+    adapter.finalize("00000011")
+
+    assert adapter.load_envelope("00000011") is None
+    assert (
+        not final_root_layout(tmp_path)
+        .elfie("00000011")
+        .genesis_compile_envelope.exists()
+    )
+
+
+def test_workspace_adapter_does_not_overwrite_a_final_owner(
+    tmp_path: Path,
+) -> None:
+    compilation = _compilation("00000002")
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+
+    adapter.stage(compilation)
+    adapter.publish("00000002")
+    with pytest.raises(ResidentAdmissionPortError, match="already exists"):
+        adapter.stage(compilation)
+    assert adapter.publish("00000002").endswith("/00000002")
+
+
+def test_workspace_staging_removes_new_workspace_when_memory_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    compilation = _compilation("00000003")
 
     def fail_commit(*_args, **_kwargs):
         raise OSError("synthetic memory publish failure")
@@ -131,202 +193,11 @@ def test_workspace_materialization_cleans_all_files_when_genesis_commit_fails(
         fail_commit,
     )
 
-    with pytest.raises(ResidentAdmissionPortError):
-        adapter.materialize(reservation)
+    with pytest.raises(ResidentAdmissionPortError, match="stage"):
+        FinalElfieWorkspaceAdapter(tmp_path).stage(compilation)
 
-    assert not (tmp_path / "elfies" / reservation.elfie_id).exists()
-
-
-@pytest.mark.parametrize(
-    "personality_style",
-    ("活泼好动", "安静温顺", "好奇探索", "胆小害羞", "傲娇独立", "完全随机"),
-)
-def test_stage1_speech_templates_do_not_claim_unobserved_current_facts(
-    tmp_path: Path,
-    personality_style: str,
-) -> None:
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000042",
-        owner_user_id=7,
-        name="模板精灵",
-        species_id="fox",
-        personality_style=personality_style,
-        height="standard",
-        build="standard",
-        appearance_seed=42,
-        face="soft",
-        signature="warm",
-        gender="female",
-        birth_date="2000-01-01",
-    )
-
-    workspace = Path(adapter.materialize(reservation))
-    seed = YamlSelfhoodSeedAdapter(workspace / "brain").load()
-    adaptive_self = seed["adaptive_self"]
-    assert isinstance(adaptive_self, dict)
-    speech_markers = adaptive_self.get("speech_marker_ids", ())
-    assert isinstance(speech_markers, (list, tuple))
-    rendered = "\n".join(
-        [
-            *(str(item) for item in adaptive_self.get("expression_tendency_ids", ())),
-            *(str(item) for item in speech_markers),
-        ]
-    )
-
-    assert tuple(adaptive_self.get("expression_tendency_ids", ())) == (
-        personality_style,
-    )
-
-    assert not any(
-        marker in rendered
-        for marker in (
-            "天气",
-            "元气满满",
-            "那边",
-            "快来看",
-            "正忙",
-            "窗外",
-            "盯着",
-            "耳朵耷",
-            "揉眼睛",
-            "打哈欠",
-            "咬了咬",
-            "画圈圈",
-        )
-    )
-    adapter.release(reservation.elfie_id)
-    assert not Path(workspace).exists()
-
-
-def test_workspace_adapter_uses_a_species_compatible_pattern_for_marked_signature(
-    tmp_path: Path,
-) -> None:
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000002",
-        owner_user_id=7,
-        name="星砂",
-        species_id="dog",
-        personality_style="好奇探索",
-        height="standard",
-        build="standard",
-        appearance_seed=43,
-        face="soft",
-        signature="marked",
-        gender="female",
-        birth_date="2001-01-01",
-    )
-
-    workspace = adapter.materialize(reservation)
-    profile = YamlProfileStoreAdapter(Path(workspace) / "profile").load()
-
-    assert profile.identity.species_id == "dog"
-    assert profile.appearance.coat.pattern_id in ("solid", "classic")
-    assert profile.appearance.coat.marking_id != "none"
-    assert profile.appearance.coat.marking_placement != "none"
-    profile.validate()
-    adapter.release(reservation.elfie_id)
-
-
-def test_unverified_adoption_story_is_not_selfhood_identity_fact(
-    tmp_path: Path,
-) -> None:
-    candidate = (
-        GenesisEngine()
-        .generate_batch(
-            master_seed=99,
-            batch_number=1,
-            species_id="fox",
-            life_stage="young_adult",
-            gender="female",
-            appearance=GenesisAppearanceIntent(
-                stature="any",
-                build="any",
-                face="balanced",
-                signature="any",
-                priority="face",
-            ),
-            answers=("quiet", "explore", "plan", "discuss", "steady"),
-        )
-        .candidates[0]
-    )
-    story = "我有一段还没有经过正式记忆校验的自我介绍。"
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000043",
-        owner_user_id=7,
-        name="故事精灵",
-        species_id="fox",
-        personality_style="Genesis",
-        height="standard",
-        build="standard",
-        appearance_seed=candidate.seed,
-        face="balanced",
-        signature="any",
-        gender="female",
-        birth_date="2001-01-01",
-        genesis_candidate=candidate,
-        personal_story=story,
-    )
-
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    workspace = Path(adapter.materialize(reservation))
-    selfhood = YamlSelfhoodSeedAdapter(workspace / "brain").load()
-
-    assert story not in str(selfhood)
-    identity_core = selfhood["identity_core"]
-    assert isinstance(identity_core, dict)
-    assert "Elfaria" in identity_core["home_world_name"]
-    assert identity_core["earth_arrival_statement"] != story
-    adapter.release(reservation.elfie_id)
-
-
-@pytest.mark.parametrize("species_id", ("dog", "fox"))
-def test_workspace_adapter_persists_the_exact_accepted_candidate_appearance(
-    tmp_path: Path,
-    species_id: str,
-) -> None:
-    candidate = (
-        GenesisEngine()
-        .generate_batch(
-            master_seed=77,
-            batch_number=1,
-            species_id=species_id,
-            life_stage="young_adult",
-            gender="female",
-            appearance=GenesisAppearanceIntent(
-                stature="any",
-                build="any",
-                face="balanced",
-                signature="any",
-                priority="face",
-            ),
-            answers=("quiet", "explore", "plan", "discuss", "steady"),
-        )
-        .candidates[0]
-    )
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000004" if species_id == "dog" else "00000005",
-        owner_user_id=7,
-        name="候选精灵",
-        species_id=species_id,
-        personality_style="Genesis",
-        height="standard",
-        build="standard",
-        appearance_seed=candidate.seed,
-        face="balanced",
-        signature="any",
-        gender="female",
-        birth_date="2001-01-01",
-        genesis_candidate=candidate,
-    )
-
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    workspace = Path(adapter.materialize(reservation))
-    profile = YamlProfileStoreAdapter(workspace / "profile").load()
-
-    assert profile.appearance == candidate.appearance
-    adapter.release(reservation.elfie_id)
+    assert not (tmp_path / "elfies" / ".staging" / "00000003").exists()
+    assert not (tmp_path / "elfies" / "00000003").exists()
 
 
 def test_workspace_adapter_persists_both_accepted_portrait_views(
@@ -334,26 +205,82 @@ def test_workspace_adapter_persists_both_accepted_portrait_views(
 ) -> None:
     png = b"\x89PNG\r\n\x1a\nportrait"
     data_url = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-    adapter = FinalElfieWorkspaceAdapter(tmp_path)
-    reservation = AcceptedAdoptionReservation(
-        elfie_id="00000003",
-        owner_user_id=7,
-        name="星砂",
-        species_id="fox",
-        personality_style="好奇探索",
-        height="standard",
-        build="standard",
-        appearance_seed=42,
-        face="soft",
-        signature="warm",
-        gender="female",
-        birth_date="2000-01-01",
+    compilation = replace(
+        _compilation("00000004"),
         full_body_image_url=data_url,
         headshot_image_url=data_url,
     )
 
-    workspace = Path(adapter.materialize(reservation))
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    adapter.stage(compilation)
+    workspace = Path(adapter.publish("00000004"))
 
     assert (workspace / "assets" / "portrait-full.png").read_bytes() == png
     assert (workspace / "assets" / "portrait-head.png").read_bytes() == png
-    adapter.release(reservation.elfie_id)
+
+
+@pytest.mark.parametrize(
+    "full_body_url,headshot_url",
+    (
+        ("data:image/png;base64,not-base64", ""),
+        ("", "data:image/png;base64,not-base64"),
+    ),
+)
+def test_workspace_adapter_rejects_incomplete_or_invalid_portraits(
+    tmp_path: Path, full_body_url: str, headshot_url: str
+) -> None:
+    compilation = replace(
+        _compilation("00000005"),
+        full_body_image_url=full_body_url,
+        headshot_image_url=headshot_url,
+    )
+
+    with pytest.raises(ResidentAdmissionPortError):
+        FinalElfieWorkspaceAdapter(tmp_path).stage(compilation)
+
+    assert not (tmp_path / "elfies" / ".staging" / "00000005").exists()
+    assert not (tmp_path / "elfies" / "00000005").exists()
+
+
+def test_workspace_reopen_rejects_a_tampered_marker(
+    tmp_path: Path,
+) -> None:
+    compilation = _compilation("00000006")
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    adapter.stage(compilation)
+    marker = tmp_path / "elfies" / ".staging" / "00000006" / ".genesis-stage.json"
+    payload = json.loads(marker.read_text(encoding="utf-8"))
+    payload["content_hash"] = "0" * 64
+    marker.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ResidentAdmissionPortError, match="integrity"):
+        adapter.reopen("00000006")
+
+    adapter.abort("00000006")
+
+
+def test_workspace_reopen_rejects_a_missing_declared_output(
+    tmp_path: Path,
+) -> None:
+    compilation = _compilation("00000007")
+    adapter = FinalElfieWorkspaceAdapter(tmp_path)
+    adapter.stage(compilation)
+    memory_path = (
+        tmp_path / "elfies" / ".staging" / "00000007" / "memory" / "knowledge.sqlite"
+    )
+    with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000007") as memory:
+        knowledge_id = next(
+            identifier
+            for identifier in compilation.bundle.manifest.output_ids
+            if ":knowledge:" in identifier
+        )
+        memory.conn.execute(
+            "UPDATE nodes SET status='forgotten' WHERE node_id=?",
+            (knowledge_id,),
+        )
+        memory.conn.commit()
+
+    with pytest.raises(ResidentAdmissionPortError, match="integrity"):
+        adapter.reopen("00000007")
+
+    adapter.abort("00000007")

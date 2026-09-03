@@ -1,14 +1,10 @@
-from dataclasses import replace
 from pathlib import Path
 
 from elfie import Elfie, ElfieFactory
-from elfie.body import BodyMode, HeadlessBody, QuadrupedAnatomy
+from elfie.body import BodyMode, HeadlessBody
 from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
-from elfie.profile import (
-    EmbodimentProfile,
-    create_visual_profile,
-)
+from elfie.profile import create_visual_profile
 from infrastructure.godot import GodotTransport, NativeBody
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
@@ -212,31 +208,6 @@ def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> 
     assert elfie.profile.to_dict() == profile.to_dict()
     assert elfie.current_body is explicit
     assert explicit.connected is True
-
-
-def test_factory_uses_profile_embodiment_as_the_anatomy_source(
-    tmp_path: Path,
-) -> None:
-    profile = replace(
-        make_profile(tmp_path),
-        embodiment=EmbodimentProfile(
-            primary_morphology="quadruped",
-            supported_morphologies=("quadruped",),
-            skeleton_profile_id="quadruped_test_v1",
-            capability_profile_id="fox_quadruped_v1",
-        ),
-    )
-    YamlProfileStoreAdapter(tmp_path / "profile").save(profile)
-
-    elfie = ElfieFactory().restore(
-        ElfieAssembly(
-            profile=YamlProfileStoreAdapter(tmp_path / "profile").load(),
-            memory_store=SQLiteMemoryStoreAdapter.in_memory(),
-        )
-    )
-
-    assert elfie.anatomy_type == "quadruped"
-    assert isinstance(ElfieDiagnostics(elfie).anatomy, QuadrupedAnatomy)
 
 
 def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:

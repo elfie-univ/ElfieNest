@@ -11,20 +11,13 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from elfie.brain.selfhood.contracts import (
-    BigFiveTraits,
-    SelfhoodSpeechStyle,
-    SelfhoodState,
-)
+from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.profile import (
-    WORLD_CANON_VERSION,
     AppearanceGenome,
     ElfieProfile,
-    get_species_canon_for_technical_id,
 )
 
 GenesisStatus = Literal["draft", "validated", "committed"]
-MemorySource = Literal["personal_memory", "witnessed", "program_brief"]
 MemoryCertainty = Literal["high", "medium", "low"]
 KnowledgeMastery = Literal["known", "partial", "heard", "unknown"]
 KnowledgeLevel = Literal["common", "regional", "specialist", "unknown"]
@@ -43,43 +36,14 @@ class ProfileDraft:
 
 
 @dataclass(frozen=True)
-class PersonalitySeed:
-    """Initial Selfhood input; ordinary turns cannot rewrite it directly."""
-
-    big_five: BigFiveTraits
-    self_description: str
-    speech_style: SelfhoodSpeechStyle = SelfhoodSpeechStyle()
-    norms: tuple[str, ...] = ()
-    behavior_anchors: tuple[str, ...] = ()
-    sensory_biases: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class MemorySeed:
-    """One bounded pre-arrival event that Memory may commit."""
-
-    seed_id: str
-    content: str
-    source: MemorySource
-    certainty: MemoryCertainty = "high"
-    emotional_tone: str = "calm"
-    intensity: float = 0.5
-
-
-@dataclass(frozen=True)
 class KnowledgeSeed:
-    """One public-canon fact selected for this Elfie's personal knowledge.
-
-    ``content`` is the storage-facing spelling.  ``statement`` is accepted as
-    a narrative alias so a canon author can use the same vocabulary as the
-    bundled World Canon.  Both are normalized to the same immutable value.
-    """
+    """One published resident-facing fact selected for this Elfie's Memory."""
 
     seed_id: str
     content: str = ""
-    source: str = "canon"
-    source_ref: str = "canon:elfaria"
-    source_version: str = WORLD_CANON_VERSION
+    source: str = "genesis_source"
+    source_ref: str = "source-package"
+    source_version: str = "genesis-source.v1"
     scope: str = "world"
     topic: str = "world"
     aliases: tuple[str, ...] = ()
@@ -90,20 +54,19 @@ class KnowledgeSeed:
     status: KnowledgeStatus = "active"
     eligibility: tuple[str, ...] = ()
     related_ids: tuple[str, ...] = ()
-    statement: str = ""
     version: int = 1
     importance: float = 0.5
-
-    def __post_init__(self) -> None:
-        content = self.content.strip()
-        statement = self.statement.strip()
-        if content and statement and content != statement:
-            raise ValueError("KnowledgeSeed.content 与 statement 不能冲突")
-        text = content or statement
-        if not text:
-            return
-        object.__setattr__(self, "content", text)
-        object.__setattr__(self, "statement", text)
+    # These fields are creation-time decisions.  Memory uses them to build
+    # indexes and resolve its own retention policy; they are not replay
+    # instructions and must not be copied into the Profile.
+    epistemic_kind: str = "documented"
+    prerequisite_ids: tuple[str, ...] = ()
+    acquired_via: str = "public_exposure"
+    acquired_stage: str = ""
+    consultable_target_ids: tuple[str, ...] = ()
+    confidence_class: str = "high"
+    initial_confidence: float = 1.0
+    recall_eligible: bool = True
 
 
 @dataclass(frozen=True)
@@ -114,7 +77,7 @@ class EpisodeSeed:
     content: str = ""
     source: str = "personal_memory"
     source_ref: str = "approved-seed:elfaria"
-    source_version: str = WORLD_CANON_VERSION
+    source_version: str = "genesis-source.v1"
     scope: str = "elfie"
     topic: str = "biography"
     aliases: tuple[str, ...] = ()
@@ -135,18 +98,9 @@ class EpisodeSeed:
     emotional_tone: str = "calm"
     emotion_intensity: float = 0.5
     importance: float = 0.5
-    statement: str = ""
     version: int = 1
-
-    def __post_init__(self) -> None:
-        content = self.content.strip()
-        statement = self.statement.strip()
-        if content and statement and content != statement:
-            raise ValueError("EpisodeSeed.content 与 statement 不能冲突")
-        text = content or statement
-        if text:
-            object.__setattr__(self, "content", text)
-            object.__setattr__(self, "statement", text)
+    theme_id: str = ""
+    age_years_at_event: int | None = None
 
 
 @dataclass(frozen=True)
@@ -159,8 +113,7 @@ class RelationshipSeed:
     initial_trust: float
     shared_facts: tuple[str, ...] = ()
     unknown_facts: tuple[str, ...] = ()
-    relationship_id: str | None = None
-    relation_id: str | None = None
+    relationship_id: str = ""
     subject_id: str = ""
     object_id: str = ""
     object_kind: Literal["person", "place", "group"] = "person"
@@ -174,13 +127,21 @@ class RelationshipSeed:
     episode_ids: tuple[str, ...] = ()
     source: str = "approved_seed"
     source_ref: str = "approved-seed:relationship"
-    source_version: str = WORLD_CANON_VERSION
+    source_version: str = "genesis-source.v1"
     certainty: MemoryCertainty = "high"
     version: int = 1
+    related_species_id: str = ""
+    age_band_at_genesis: str = ""
+    home_place_id: str = ""
+    vocation_id: str = ""
+    person_species_id: str = ""
+    age_years_at_genesis: int | None = None
+    competency_ids: tuple[str, ...] = ()
+    eligible_episode_theme_ids: tuple[str, ...] = ()
 
     @property
     def stable_relationship_id(self) -> str:
-        return self.relationship_id or self.relation_id or self.person_id
+        return self.relationship_id
 
 
 @dataclass(frozen=True)
@@ -201,29 +162,19 @@ class SelfModelSeed:
 
 
 @dataclass(frozen=True)
-class BiographyEnrichmentPlan:
-    """Temporary, bounded follow-up work for early Night Work only."""
-
-    allowed_memory_seed_ids: tuple[str, ...] = ()
-    max_additional_memories: int = 0
-    expires_after_events: int = 0
-
-
-@dataclass(frozen=True)
 class InitializationManifest:
-    """Creation provenance and validation status retained after hand-off."""
+    """Minimal transient receipt for one creation hand-off.
+
+    Source-package bindings, questionnaire values, generation seeds and input
+    inventories remain in the unpublished transaction envelope.  They are not
+    part of this object and must not be copied to a final owner.
+    """
 
     manifest_id: str
-    canon_version: str
-    species_version: str
-    reference_version: str
     status: GenesisStatus = "draft"
     validation_errors: tuple[str, ...] = ()
-    namespace: str = ""
-    generator_version: str = "genesis.v1"
+    compiler_version: str = "genesis-compiler.v0.2"
     schema_version: int = 1
-    master_seed: int | None = None
-    input_ids: tuple[str, ...] = ()
     output_ids: tuple[str, ...] = ()
     content_hash: str = ""
     idempotency_key: str = ""
@@ -231,16 +182,31 @@ class InitializationManifest:
 
 
 @dataclass(frozen=True)
+class PlaceSeed:
+    """A resident-visible place projection selected by Genesis.
+
+    Geometry, population weights and route costs never cross this boundary.
+    Private places are namespaced by the owning Elfie and are only used by
+    that Elfie's personal Memory.
+    """
+
+    place_id: str
+    label: str
+    kind: str
+    parent_id: str = ""
+    aliases: tuple[str, ...] = ()
+    description: str = ""
+    visibility: Literal["public", "private"] = "public"
+    source_ref: str = ""
+
+
+@dataclass(frozen=True)
 class GenesisBundle:
     """The complete, temporary creation package for one Elfie."""
 
     profile_draft: ProfileDraft
-    personality_seed: PersonalitySeed
     # Canonical two-layer hand-off used by the long-lived Selfhood owner.
-    # ``personality_seed`` remains for Genesis' memory materialization and
-    # older bundles, but it is not the runtime Selfhood authority.
     selfhood_state: SelfhoodState | None = None
-    memory_seeds: tuple[MemorySeed, ...] = ()
     relationship_seeds: tuple[RelationshipSeed, ...] = ()
     self_model_seed: SelfModelSeed = field(
         default_factory=lambda: SelfModelSeed(
@@ -249,307 +215,189 @@ class GenesisBundle:
             unknown_facts=(),
         )
     )
-    biography_plan: BiographyEnrichmentPlan = field(
-        default_factory=BiographyEnrichmentPlan
-    )
     manifest: InitializationManifest = field(
         default_factory=lambda: InitializationManifest(
             manifest_id="",
-            canon_version=WORLD_CANON_VERSION,
-            species_version="",
-            reference_version="",
         )
     )
     knowledge_seeds: tuple[KnowledgeSeed, ...] = ()
     episode_seeds: tuple[EpisodeSeed, ...] = ()
+    place_seeds: tuple[PlaceSeed, ...] = ()
 
     def validate(self) -> None:
-        """Reject an incomplete or over-powered creation package."""
+        """Reject an incomplete or over-powered creation package.
+
+        There is one accepted shape: a typed knowledge/relationship/episode
+        package plus the resident-visible place projection.  The former
+        legacy memory-only submission is intentionally not accepted.
+        """
         profile = self.profile_draft.profile
         try:
             profile.validate()
-            species = get_species_canon_for_technical_id(profile.identity.species_id)
         except (ValueError, TypeError) as error:
             raise GenesisValidationError(str(error)) from error
 
-        if self.selfhood_state is None:
+        selfhood = self.selfhood_state
+        if selfhood is None or not selfhood.complete:
             raise GenesisValidationError("Genesis 必须提供完整 SelfhoodState")
-        if not self.selfhood_state.complete:
-            raise GenesisValidationError("Genesis Selfhood identity_core 不能为空")
-        if self.selfhood_state.identity_core.elfie_id != profile.identity.elfie_id:
+        core = selfhood.identity_core
+        if core.elfie_id != profile.identity.elfie_id:
             raise GenesisValidationError(
                 "Genesis Selfhood 与 Profile 的 Elfie ID 不一致"
             )
-        if self.selfhood_state.identity_core.species_id != profile.identity.species_id:
+        if core.display_name != profile.identity.display_name:
+            raise GenesisValidationError("Genesis Selfhood 与 Profile 的名字不一致")
+        if core.species_id != profile.identity.species_id:
             raise GenesisValidationError("Genesis Selfhood 与 Profile 的物种不一致")
-
-        if not self.personality_seed.self_description.strip():
-            raise GenesisValidationError("personality_seed.self_description 不能为空")
-        if len(self.memory_seeds) > 5:
-            raise GenesisValidationError("Genesis 最多只能提供 5 个 MemorySeed")
-        _require_unique(
-            (seed.seed_id for seed in self.memory_seeds),
-            "memory seed_id",
-        )
-        typed_seed_package = bool(self.knowledge_seeds or self.episode_seeds)
-        if not typed_seed_package:
-            _require_unique(
-                (seed.person_id for seed in self.relationship_seeds),
-                "relationship person_id",
-            )
-        for seed in self.memory_seeds:
-            if not seed.seed_id.strip() or not seed.content.strip():
-                raise GenesisValidationError("MemorySeed 的 ID 和内容不能为空")
-            if not 0.0 <= seed.intensity <= 1.0:
-                raise GenesisValidationError("MemorySeed.intensity 必须在 [0, 1] 内")
-        # ``relationship_seeds`` alone is retained for the pre-source-first
-        # compatibility bundle used by older callers.  The typed path starts
-        # when either of the new knowledge/episode collections is present and
-        # then requires the complete three-collection package.
-        if typed_seed_package and not (
-            self.knowledge_seeds and self.episode_seeds and self.relationship_seeds
-        ):
-            raise GenesisValidationError(
-                "结构化 Genesis 必须同时提供 KnowledgeSeed、EpisodeSeed 和 RelationshipSeed"
-            )
-        if self.episode_seeds and not 3 <= len(self.episode_seeds) <= 5:
+        if not self.knowledge_seeds:
+            raise GenesisValidationError("Genesis 必须提供个人 KnowledgeSeed")
+        if not 3 <= len(self.episode_seeds) <= 5:
             raise GenesisValidationError("EpisodeSeed 必须有 3 到 5 段连续经历")
+        if not 10 <= len(self.relationship_seeds) <= 20:
+            raise GenesisValidationError("Genesis 必须初始化 10 到 20 个关系对象")
+        if not self.place_seeds:
+            raise GenesisValidationError("Genesis 必须提供个人可见地点投影")
+
         _require_unique(
-            (seed.seed_id for seed in self.knowledge_seeds),
-            "knowledge seed_id",
+            (seed.seed_id for seed in self.knowledge_seeds), "knowledge seed_id"
         )
         _require_unique(
-            (seed.seed_id for seed in self.episode_seeds),
-            "episode seed_id",
+            (seed.seed_id for seed in self.episode_seeds), "episode seed_id"
         )
         _require_unique(
             (seed.stable_relationship_id for seed in self.relationship_seeds),
             "relationship_id",
         )
-        all_seed_ids = (
-            [seed.seed_id for seed in self.memory_seeds]
-            + [seed.seed_id for seed in self.knowledge_seeds]
-            + [seed.seed_id for seed in self.episode_seeds]
+        _require_unique(
+            (seed.person_id for seed in self.relationship_seeds),
+            "relationship person_id",
         )
-        _require_unique(all_seed_ids, "Genesis seed_id")
-        for knowledge_seed in self.knowledge_seeds:
-            _validate_knowledge_seed(knowledge_seed, typed=typed_seed_package)
-        for index, episode_seed in enumerate(self.episode_seeds):
-            _validate_episode_seed(episode_seed, typed=typed_seed_package)
-            if set(episode_seed.predecessor_ids) - {
+        _require_unique(
+            (seed.object_id for seed in self.relationship_seeds),
+            "relationship object_id",
+        )
+        _require_unique((seed.place_id for seed in self.place_seeds), "place_id")
+        _require_unique(
+            [seed.seed_id for seed in self.knowledge_seeds]
+            + [seed.seed_id for seed in self.episode_seeds],
+            "Genesis seed_id",
+        )
+
+        for seed in self.knowledge_seeds:
+            _validate_knowledge_seed(seed)
+        episode_ids = {seed.seed_id for seed in self.episode_seeds}
+        for index, episode in enumerate(self.episode_seeds):
+            _validate_episode_seed(episode)
+            if set(episode.predecessor_ids) - {
                 prior.seed_id for prior in self.episode_seeds[:index]
             }:
                 raise GenesisValidationError(
                     "EpisodeSeed 的 predecessor_ids 必须只引用更早的 Episode"
                 )
-        if self.episode_seeds:
-            if not 10 <= len(self.relationship_seeds) <= 20:
-                raise GenesisValidationError(
-                    "带结构化 Episode 的 Genesis 必须初始化 10 到 20 个关系对象"
-                )
-            if not any(seed.place_ids for seed in self.episode_seeds):
-                raise GenesisValidationError("EpisodeSeed 至少需要一个生活地点引用")
-            if not any(seed.person_ids for seed in self.episode_seeds):
-                raise GenesisValidationError("EpisodeSeed 至少需要一个人物引用")
-            if not any(seed.impact.strip() for seed in self.episode_seeds):
-                raise GenesisValidationError("EpisodeSeed 至少需要一条长期影响")
-            if not any(seed.predecessor_ids for seed in self.episode_seeds):
-                raise GenesisValidationError("EpisodeSeed 至少需要一条前后因果链")
-            if not any(
-                any(
-                    marker in (seed.topic + seed.content + seed.temporal_label)
-                    for marker in ("赴地", "抵达", "地球", "arrival", "earth")
-                )
-                for seed in self.episode_seeds
+        place_ids = {seed.place_id for seed in self.place_seeds}
+        relationship_people = {seed.person_id for seed in self.relationship_seeds}
+        for place in self.place_seeds:
+            if (
+                not place.place_id.strip()
+                or not place.label.strip()
+                or not place.kind.strip()
             ):
-                raise GenesisValidationError("EpisodeSeed 必须包含赴地或抵达地球经历")
+                raise GenesisValidationError("PlaceSeed 的 ID、名称和类型不能为空")
+            if place.visibility not in ("public", "private"):
+                raise GenesisValidationError("PlaceSeed.visibility 无效")
+            if (
+                place.parent_id
+                and place.parent_id not in place_ids
+                and place.parent_id != "earth"
+            ):
+                raise GenesisValidationError(
+                    "PlaceSeed.parent_id 必须引用本次地点或 earth"
+                )
+            _validate_text_collection(place.aliases, "PlaceSeed.aliases")
+
         for relationship in self.relationship_seeds:
-            if (
-                not relationship.person_id.strip()
-                or not relationship.display_name.strip()
-            ):
-                raise GenesisValidationError("RelationshipSeed 的身份不能为空")
-            if not 0.0 <= relationship.initial_trust <= 1.0:
+            _validate_relationship_seed(relationship)
+            if relationship.subject_id != f"elfie:{profile.identity.elfie_id}":
                 raise GenesisValidationError(
-                    "RelationshipSeed.initial_trust 必须在 [0, 1] 内"
+                    "RelationshipSeed.subject_id 必须指向当前 Elfie"
                 )
-            if not 0.0 <= relationship.importance <= 1.0:
+            if relationship.object_kind != "person":
+                raise GenesisValidationError("当前 Genesis 关系只允许人物对象")
+            if relationship.object_id != relationship.person_id:
                 raise GenesisValidationError(
-                    "RelationshipSeed.importance 必须在 [0, 1] 内"
+                    "RelationshipSeed.object_id 必须与 person_id 一致"
                 )
-            if not relationship.stable_relationship_id.strip():
-                raise GenesisValidationError("RelationshipSeed 的关系 ID 不能为空")
-            if (
-                isinstance(relationship.version, bool)
-                or not isinstance(relationship.version, int)
-                or relationship.version < 1
-            ):
-                raise GenesisValidationError("RelationshipSeed.version 必须为正整数")
-            if relationship.object_kind not in ("person", "place", "group"):
-                raise GenesisValidationError("RelationshipSeed.object_kind 无效")
-            if relationship.familiarity not in (
-                "intimate",
-                "known",
-                "acquainted",
-                "heard",
-            ):
-                raise GenesisValidationError("RelationshipSeed.familiarity 无效")
-            if relationship.subject_id and not relationship.subject_id.strip():
-                raise GenesisValidationError("RelationshipSeed.subject_id 不能为空")
-            if relationship.object_id and not relationship.object_id.strip():
-                raise GenesisValidationError("RelationshipSeed.object_id 不能为空")
-            if typed_seed_package and (
-                not relationship.subject_id.strip()
-                or not relationship.object_id.strip()
-            ):
-                raise GenesisValidationError(
-                    "结构化 RelationshipSeed 必须带 subject_id/object_id"
-                )
-            if (
-                not relationship.source.strip()
-                or not relationship.source_ref.strip()
-                or not relationship.source_version.strip()
-            ):
-                raise GenesisValidationError(
-                    "RelationshipSeed 必须带 source/source_ref/source_version"
-                )
-            if not relationship.scope.strip() or not relationship.topic.strip():
-                raise GenesisValidationError("RelationshipSeed 必须带 scope/topic")
-            _validate_text_collection(relationship.aliases, "RelationshipSeed.aliases")
-            _validate_text_collection(
-                relationship.retrieval_terms,
-                "RelationshipSeed.retrieval_terms",
-            )
-            if typed_seed_package and not (
-                relationship.aliases or relationship.retrieval_terms
-            ):
-                raise GenesisValidationError(
-                    "结构化 RelationshipSeed 至少需要一个别名或检索词"
-                )
-            if relationship.episode_ids and set(relationship.episode_ids) - {
-                seed.seed_id for seed in self.episode_seeds
-            }:
+            if set(relationship.episode_ids) - episode_ids:
                 raise GenesisValidationError(
                     "RelationshipSeed 只能引用本次 Genesis 的 Episode"
+                )
+
+        for episode in self.episode_seeds:
+            if not set(episode.place_ids) <= place_ids:
+                raise GenesisValidationError(
+                    "EpisodeSeed 引用的地点必须存在于 PlaceSeed"
+                )
+            if not set(episode.person_ids) <= relationship_people:
+                raise GenesisValidationError(
+                    "EpisodeSeed 引用的人物必须存在于 RelationshipSeed"
+                )
+            if episode.age_years_at_event is not None and (
+                isinstance(episode.age_years_at_event, bool)
+                or episode.age_years_at_event < 1
+                or episode.age_years_at_event
+                > (profile.identity.origin.age_years or episode.age_years_at_event)
+            ):
+                raise GenesisValidationError(
+                    "EpisodeSeed.age_years_at_event 超出当前年龄"
+                )
+        if not any(seed.place_ids for seed in self.episode_seeds):
+            raise GenesisValidationError("EpisodeSeed 至少需要一个生活地点引用")
+        if not any(seed.person_ids for seed in self.episode_seeds):
+            raise GenesisValidationError("EpisodeSeed 至少需要一个人物引用")
+        if not any(seed.impact.strip() for seed in self.episode_seeds):
+            raise GenesisValidationError("EpisodeSeed 至少需要一条长期影响")
+        if not any(seed.predecessor_ids for seed in self.episode_seeds):
+            raise GenesisValidationError("EpisodeSeed 至少需要一条前后因果链")
+
+        knowledge_ids = {seed.seed_id for seed in self.knowledge_seeds}
+        for seed in self.knowledge_seeds:
+            if not set(seed.prerequisite_ids) <= knowledge_ids:
+                raise GenesisValidationError(
+                    "KnowledgeSeed.prerequisite_ids 必须引用本次知识"
                 )
         if not self.self_model_seed.identity_summary.strip():
             raise GenesisValidationError("self_model_seed.identity_summary 不能为空")
         if not self.self_model_seed.known_facts:
             raise GenesisValidationError("SelfModelSeed 至少需要一个已知事实")
-        memory_ids = {seed.seed_id for seed in self.memory_seeds}
-        if not set(self.biography_plan.allowed_memory_seed_ids) <= memory_ids:
-            raise GenesisValidationError(
-                "BiographyEnrichmentPlan 只能引用本次 Genesis 的 MemorySeed"
-            )
-        if self.episode_seeds and self.relationship_seeds:
-            episode_ids = {seed.seed_id for seed in self.episode_seeds}
-            referenced_people = {
-                person_id
-                for seed in self.episode_seeds
-                for person_id in seed.person_ids
-            }
-            relationship_people = {
-                relationship.person_id for relationship in self.relationship_seeds
-            }
-            if not referenced_people <= relationship_people:
-                raise GenesisValidationError(
-                    "EpisodeSeed 引用的人物必须存在于 RelationshipSeed"
-                )
-            if not any(
-                set(relationship.episode_ids) & episode_ids
-                for relationship in self.relationship_seeds
-            ):
-                raise GenesisValidationError("至少一段关系必须关联 Episode")
-            person_occurrences: dict[str, int] = {}
-            for episode_seed in self.episode_seeds:
-                for person_id in episode_seed.person_ids:
-                    person_occurrences[person_id] = (
-                        person_occurrences.get(person_id, 0) + 1
-                    )
-            if not any(count >= 2 for count in person_occurrences.values()):
-                raise GenesisValidationError(
-                    "至少一个重要人物必须在多个 Episode 中重复出现"
-                )
-        if not 0 <= self.biography_plan.max_additional_memories <= 12:
-            raise GenesisValidationError(
-                "BiographyEnrichmentPlan.max_additional_memories 必须在 [0, 12] 内"
-            )
-        if self.biography_plan.expires_after_events < 0:
-            raise GenesisValidationError(
-                "BiographyEnrichmentPlan.expires_after_events 不能为负数"
-            )
-        if self.manifest.species_version != species.canon_version:
-            raise GenesisValidationError(
-                "manifest.species_version 与 Profile 物种版本不一致"
-            )
-        if self.manifest.canon_version != WORLD_CANON_VERSION:
-            raise GenesisValidationError(
-                "manifest.canon_version 与世界 Canon 版本不一致"
-            )
-        if (
-            not self.manifest.manifest_id.strip()
-            or not self.manifest.reference_version.strip()
+        manifest = self.manifest
+        if not (
+            manifest.manifest_id.strip()
+            and manifest.compiler_version.strip()
+            and manifest.idempotency_key.strip()
         ):
             raise GenesisValidationError("InitializationManifest 的身份字段不能为空")
-        if (
-            self.manifest.status in ("validated", "committed")
-            and self.manifest.validation_errors
-        ):
+        if manifest.status in ("validated", "committed") and manifest.validation_errors:
             raise GenesisValidationError(
-                "已校验或已提交的 InitializationManifest 不能保留 validation_errors"
+                "已校验或已提交的 Manifest 不能保留 validation_errors"
             )
         if (
-            isinstance(self.manifest.schema_version, bool)
-            or not isinstance(self.manifest.schema_version, int)
-            or self.manifest.schema_version < 1
+            isinstance(manifest.schema_version, bool)
+            or not isinstance(manifest.schema_version, int)
+            or manifest.schema_version < 1
         ):
             raise GenesisValidationError(
                 "InitializationManifest.schema_version 必须为正数"
             )
-        if self.manifest.namespace == "":
-            # Empty is allowed for legacy bundles; typed bundles are rejected
-            # below because their per-Elfie namespace is part of the contract.
-            pass
-        elif not self.manifest.namespace.strip():
-            raise GenesisValidationError("InitializationManifest.namespace 不能为空")
-        if self.episode_seeds and not self.manifest.namespace.strip():
+        _validate_manifest_ids(manifest.output_ids, "output_ids")
+        if not manifest.output_ids:
+            raise GenesisValidationError("Genesis 必须记录 output_ids")
+        if len(manifest.content_hash) != 64 or any(
+            character not in "0123456789abcdefABCDEF"
+            for character in manifest.content_hash
+        ):
             raise GenesisValidationError(
-                "带结构化 Episode 的 Genesis 必须声明 Elfie namespace"
+                "InitializationManifest.content_hash 必须是 64 位十六进制摘要"
             )
-        if typed_seed_package:
-            expected_namespace = f"elfie:{profile.identity.elfie_id}"
-            if self.manifest.namespace != expected_namespace:
-                raise GenesisValidationError(
-                    "InitializationManifest.namespace 必须与 Elfie identity 一致"
-                )
-            if not self.manifest.idempotency_key.strip():
-                raise GenesisValidationError("结构化 Genesis 必须声明 idempotency_key")
-            _validate_manifest_ids(self.manifest.input_ids, "input_ids")
-            _validate_manifest_ids(self.manifest.output_ids, "output_ids")
-            expected_input_ids = (
-                {seed.seed_id for seed in self.knowledge_seeds}
-                | {seed.seed_id for seed in self.episode_seeds}
-                | {seed.stable_relationship_id for seed in self.relationship_seeds}
-            )
-            if not expected_input_ids <= set(self.manifest.input_ids):
-                raise GenesisValidationError(
-                    "InitializationManifest.input_ids 必须覆盖全部 Genesis Seed"
-                )
-            if not self.manifest.output_ids:
-                raise GenesisValidationError("结构化 Genesis 必须记录 output_ids")
-            if not self.manifest.generator_version.strip():
-                raise GenesisValidationError(
-                    "结构化 Genesis 必须声明 generator_version"
-                )
-            if not self.manifest.content_hash:
-                raise GenesisValidationError("结构化 Genesis 必须记录 content_hash")
-            if len(self.manifest.content_hash) != 64 or any(
-                character not in "0123456789abcdefABCDEF"
-                for character in self.manifest.content_hash
-            ):
-                raise GenesisValidationError(
-                    "InitializationManifest.content_hash 必须是 64 位十六进制摘要"
-                )
 
 
 def validate_genesis_bundle(bundle: GenesisBundle) -> GenesisBundle:
@@ -569,7 +417,7 @@ def _validate_text_collection(values: tuple[str, ...], label: str) -> None:
         raise GenesisValidationError(f"{label} 必须是非空字符串数组")
 
 
-def _validate_knowledge_seed(seed: KnowledgeSeed, *, typed: bool = False) -> None:
+def _validate_knowledge_seed(seed: KnowledgeSeed) -> None:
     if not seed.seed_id.strip() or not seed.content.strip():
         raise GenesisValidationError("KnowledgeSeed 的 ID 和陈述不能为空")
     if (
@@ -602,7 +450,7 @@ def _validate_knowledge_seed(seed: KnowledgeSeed, *, typed: bool = False) -> Non
     _validate_text_collection(seed.retrieval_terms, "KnowledgeSeed.retrieval_terms")
     _validate_text_collection(seed.eligibility, "KnowledgeSeed.eligibility")
     _validate_text_collection(seed.related_ids, "KnowledgeSeed.related_ids")
-    if typed and not (seed.aliases or seed.retrieval_terms):
+    if not (seed.aliases or seed.retrieval_terms):
         raise GenesisValidationError("结构化 KnowledgeSeed 至少需要一个别名或检索词")
     if seed.status == "active" and seed.level == "unknown":
         raise GenesisValidationError("active KnowledgeSeed 不能使用 unknown level")
@@ -610,7 +458,46 @@ def _validate_knowledge_seed(seed: KnowledgeSeed, *, typed: bool = False) -> Non
         raise GenesisValidationError("unknown-boundary 知识不能标记为 known")
 
 
-def _validate_episode_seed(seed: EpisodeSeed, *, typed: bool = False) -> None:
+def _validate_relationship_seed(seed: RelationshipSeed) -> None:
+    if not seed.person_id.strip() or not seed.display_name.strip():
+        raise GenesisValidationError("RelationshipSeed 的身份不能为空")
+    if not 0.0 <= seed.initial_trust <= 1.0:
+        raise GenesisValidationError("RelationshipSeed.initial_trust 必须在 [0, 1] 内")
+    if not 0.0 <= seed.importance <= 1.0:
+        raise GenesisValidationError("RelationshipSeed.importance 必须在 [0, 1] 内")
+    if not seed.relationship_id.strip():
+        raise GenesisValidationError("RelationshipSeed.relationship_id 不能为空")
+    if (
+        isinstance(seed.version, bool)
+        or not isinstance(seed.version, int)
+        or seed.version < 1
+    ):
+        raise GenesisValidationError("RelationshipSeed.version 必须为正整数")
+    if seed.object_kind not in ("person", "place", "group"):
+        raise GenesisValidationError("RelationshipSeed.object_kind 无效")
+    if seed.familiarity not in ("intimate", "known", "acquainted", "heard"):
+        raise GenesisValidationError("RelationshipSeed.familiarity 无效")
+    if not seed.subject_id.strip() or not seed.object_id.strip():
+        raise GenesisValidationError(
+            "结构化 RelationshipSeed 必须带 subject_id/object_id"
+        )
+    if (
+        not seed.source.strip()
+        or not seed.source_ref.strip()
+        or not seed.source_version.strip()
+    ):
+        raise GenesisValidationError(
+            "RelationshipSeed 必须带 source/source_ref/source_version"
+        )
+    if not seed.scope.strip() or not seed.topic.strip():
+        raise GenesisValidationError("RelationshipSeed 必须带 scope/topic")
+    _validate_text_collection(seed.aliases, "RelationshipSeed.aliases")
+    _validate_text_collection(seed.retrieval_terms, "RelationshipSeed.retrieval_terms")
+    if not (seed.aliases or seed.retrieval_terms):
+        raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")
+
+
+def _validate_episode_seed(seed: EpisodeSeed) -> None:
     if not seed.seed_id.strip() or not seed.content.strip():
         raise GenesisValidationError("EpisodeSeed 的 ID 和内容不能为空")
     if (
@@ -644,7 +531,7 @@ def _validate_episode_seed(seed: EpisodeSeed, *, typed: bool = False) -> None:
     _validate_text_collection(seed.predecessor_ids, "EpisodeSeed.predecessor_ids")
     _validate_text_collection(seed.causal_links, "EpisodeSeed.causal_links")
     _validate_text_collection(seed.related_ids, "EpisodeSeed.related_ids")
-    if typed and not (seed.aliases or seed.retrieval_terms):
+    if not (seed.aliases or seed.retrieval_terms):
         raise GenesisValidationError("结构化 EpisodeSeed 至少需要一个别名或检索词")
     if len(set(seed.place_ids)) != len(seed.place_ids):
         raise GenesisValidationError("EpisodeSeed.place_ids 必须唯一")
@@ -658,7 +545,7 @@ def _validate_episode_seed(seed: EpisodeSeed, *, typed: bool = False) -> None:
         raise GenesisValidationError("EpisodeSeed.occurred_from 不能为空")
     if seed.occurred_to is not None and not seed.occurred_to.strip():
         raise GenesisValidationError("EpisodeSeed.occurred_to 不能为空")
-    if typed and (not seed.result.strip() or not seed.feeling.strip()):
+    if not seed.result.strip() or not seed.feeling.strip():
         raise GenesisValidationError("结构化 EpisodeSeed 必须带 result 和 feeling")
 
 
@@ -697,15 +584,6 @@ class GenesisError(ValueError):
 
 
 @dataclass(frozen=True)
-class CandidateReveal:
-    """Identity details disclosed only after a candidate accepts contact."""
-
-    original_name: str
-    suggested_name: str
-    personal_story: str
-
-
-@dataclass(frozen=True)
 class GenesisAppearanceIntent:
     stature: str
     build: str
@@ -739,12 +617,14 @@ class CandidateSignature:
 
 @dataclass(frozen=True)
 class GenesisCandidate:
+    """One deterministic candidate using the Earth-year age contract."""
+
     candidate_id: str
     role: str
     seed: int
     species_id: str
     life_stage: str
-    age_months: int
+    age_years: int
     gender: str
     appearance: AppearanceGenome
     personality: GenesisPersonality
@@ -759,10 +639,8 @@ class GenesisBatch:
 
 
 __all__ = (
-    "BiographyEnrichmentPlan",
     "BIG_FIVE_TRAITS",
     "CANDIDATE_ROLES",
-    "CandidateReveal",
     "CandidateSignature",
     "GenesisBundle",
     "GenesisAppearanceIntent",
@@ -781,9 +659,7 @@ __all__ = (
     "STAGE_PLASTICITY",
     "InitializationManifest",
     "MemoryCertainty",
-    "MemorySeed",
-    "MemorySource",
-    "PersonalitySeed",
+    "PlaceSeed",
     "ProfileDraft",
     "RelationshipSeed",
     "SelfModelSeed",

@@ -21,8 +21,8 @@ def _adapter_with_owner(tmp_path: Path) -> SQLiteBodiesAdapter:
         )
         connection.execute(
             """INSERT INTO elfies(
-                   elfie_id, name, owner_user_id, species, adopted_at, status
-               ) VALUES ('00000001', '测试精灵', 1, 'test', CURRENT_TIMESTAMP, 'offline')"""
+                   elfie_id, owner_user_id, adopted_at, status
+               ) VALUES ('00000001', 1, CURRENT_TIMESTAMP, 'offline')"""
         )
         connection.commit()
     return SQLiteBodiesAdapter(db_path)

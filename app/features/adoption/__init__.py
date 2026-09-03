@@ -14,7 +14,8 @@ from .errors import (
 )
 from .facade import AdoptionService
 from .models import (
-    AcceptedAdoptionReservation,
+    AcceptAdoptionCommand,
+    AcceptedGenesisReservation,
     AdoptionAppearanceControl,
     AdoptionNestCapacity,
     AdoptionOptionsResult,
@@ -26,12 +27,10 @@ from .models import (
     CandidateRepliesResult,
     CandidateReplyResult,
     CandidateResult,
-    CandidateReveal,
     CandidateSetResult,
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
-    ReserveAcceptedAdoptionCommand,
     SpeciesId,
     SpeciesImageKind,
 )
@@ -39,10 +38,8 @@ from .port_models import (
     AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
     AdoptionQuotaRecord,
-    AdoptionReservationRecord,
 )
 from .ports import (
-    AdoptionNarrativePort,
     AdoptionPersistencePort,
     AdoptionPolicyPort,
     AdoptionPortCapacityReached,
@@ -56,7 +53,7 @@ from .ports import (
 )
 
 __all__ = (
-    "AcceptedAdoptionReservation",
+    "AcceptedGenesisReservation",
     "AdoptionAppearanceControl",
     "AdoptionSpecies",
     "AdoptionCandidateNotAccepted",
@@ -74,7 +71,6 @@ __all__ = (
     "AdoptionOwnerNotFound",
     "AdoptionSessionBusy",
     "AdoptionPersistencePort",
-    "AdoptionNarrativePort",
     "AdoptionPolicyPort",
     "AdoptionPolicyRecord",
     "AdoptionPortCapacityReached",
@@ -83,13 +79,11 @@ __all__ = (
     "AdoptionPortOwnerNotFound",
     "AdoptionQuota",
     "AdoptionQuotaRecord",
-    "AdoptionReservationRecord",
     "AdoptionService",
     "AdoptionUnavailable",
     "CandidateAppearance",
     "CandidateRepliesResult",
     "CandidateReplyResult",
-    "CandidateReveal",
     "CandidateResult",
     "CandidateSetResult",
     "CandidatePortraitPort",
@@ -100,6 +94,6 @@ __all__ = (
     "CreateCandidateSetCommand",
     "GetAdoptionOptionsQuery",
     "ReplyToCandidatesCommand",
-    "ReserveAcceptedAdoptionCommand",
+    "AcceptAdoptionCommand",
     "SpeciesId",
 )

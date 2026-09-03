@@ -3,7 +3,7 @@
 The provider receives an inert request on every cognitive step.  Semantic tool
 execution stays behind Brain's injected ``ToolPort`` and never becomes a
 communication or body action.  A run always closes with either a verified
-decision or an explicit safe NoOp result.
+decision or an explicit safe failure result.
 """
 
 from __future__ import annotations
@@ -51,7 +51,10 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
     ModelResponseMode,
 )
-from elfie.brain.reasoning.reply_safety import sanitize_direct_owner_reply
+from elfie.brain.reasoning.reply_safety import (
+    TRUSTED_OWNER_FAILURE_REPLY,
+    sanitize_direct_owner_reply,
+)
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
@@ -154,7 +157,6 @@ _TOOL_MARKER = re.compile(
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
-_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
 _HONEST_EXTERNAL_BOUNDARY_REPLY = (
     "我目前没有执行或确认任何外部操作；如果你愿意，我可以先就现有信息继续聊。"
 )
@@ -994,7 +996,7 @@ class ReasoningRun:
                 cancel_policy=CancelPolicy.ALWAYS,
                 channel_id=seed.reply_channel_id,
                 conversation_id=seed.reply_conversation_id,
-                content=_OWNER_MESSAGE_FALLBACK,
+                content=TRUSTED_OWNER_FAILURE_REPLY,
             )
         else:
             intent = NoOpIntent(

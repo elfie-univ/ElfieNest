@@ -65,12 +65,7 @@ def _selfhood_seed(elfie_id: str, display_name: str) -> dict[str, object]:
             "display_name": display_name,
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "north",
-            "home_region_name": "北境",
-            "earth_arrival_statement": "我被领养来到地球。",
-            "resident_role": "居民",
+            "resident_role": "ElfieNest 居民",
         },
         "adaptive_self": {
             "big_five": {

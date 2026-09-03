@@ -484,6 +484,7 @@ class BrainRuntime:
                             content=intent.content,
                             cause_event_ids=intent.cause_event_ids,
                             prepared_at=self._clock(),
+                            memory_eligible=decision.memory_eligible,
                         )
                         or changed
                     )

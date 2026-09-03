@@ -6,8 +6,9 @@
 [`System architecture contract`](../docs/developer/contracts/system.md) 的顶层边界及
 [`Service lifecycle contract`](../docs/developer/contracts/service-lifecycle.md) 的运行时
 边界约束。当前用户指令和根目录 `AGENTS.md` 优先；子目录 `AGENTS.md` 只能
-细化本文件，不能改变依赖方向、所有权或契约。App 架构债务已清零；以下长期边界由
-永久 Scanner 和架构测试直接执行。
+细化本文件，不能改变依赖方向、所有权或契约。以下长期边界由永久 Scanner 和架构测试
+直接执行；ADR-0033 对应的 Genesis 迁移缺口以 Elfie/Configuration Conformance 中的
+`ELF-013`、`CFG-005` 为准，不得把当前实现倒写成契约。
 
 ## 目标依赖方向
 
@@ -74,6 +75,18 @@ orchestration/
 - 新能力以可运行的纵向切片完成必要的 Interface、Feature/Orchestration、Port、根
   Infrastructure Adapter、Bootstrap 装配和真实调用方；Bootstrap 与 Infrastructure
   不作为独立横向阶段。
+
+## Genesis 创建事务边界
+
+- 已发布世界/物种资料先形成只供创建使用的强类型投影；物种包另行形成供 Godot/展示装配
+  使用的运行时资产投影。两种投影不得合并成万能目录，也都不得写入 Profile。
+- `features/adoption` 只拥有候选、临时用户选择和领养关系；`orchestration/resident_admission`
+  只协调一次创建事务；生命语义编译只属于 `elfie/genesis/`；Infrastructure 只加载、校验
+  和保存调用方已经形成的强类型值。
+- 问卷答案、`LifeContext`、个体计划、资料包绑定、Seed 和模型投影输入只在创建事务内存在。
+  成功提交或终止放弃后必须删除；事务外最多保留不含生命语义的最小技术回执。
+- 已提交 Elfie 的普通运行只使用最终所有者中的 Selfhood、Memory 和当前 Brain 状态；不得
+  回读 Profile、创建资料包、Canon、问卷或技术回执来重新构造心智。
 
 ## Feature、Port 与公开门面
 

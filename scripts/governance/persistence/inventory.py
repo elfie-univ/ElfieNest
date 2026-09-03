@@ -168,7 +168,8 @@ def transient_final_state_violations(
     schema_path = project_root / "infrastructure/persistence/nest_db/final_schema.py"
     source = schema_path.read_text(encoding="utf-8")
     start = source.find("CREATE TABLE IF NOT EXISTS elfies")
-    end = source.find("CREATE TABLE IF NOT EXISTS food_packages", start)
+    next_table = source.find("CREATE TABLE IF NOT EXISTS", start + 1)
+    end = next_table if next_table >= 0 else len(source)
     if start < 0 or end < 0:
         return ("final_schema.py does not expose a recognizable elfies table block",)
     block = source[start:end]

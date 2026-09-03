@@ -95,7 +95,7 @@ describe("adoption journey model", () => {
         candidateId: "candidate-1",
         speciesId: "fox",
         lifeStage: "young_adult",
-        ageMonths: 36,
+        ageYears: 3,
         gender: "male",
         fullBodyImageUrl: "",
         headshotImageUrl: "",
@@ -104,10 +104,9 @@ describe("adoption journey model", () => {
         personalityTags: [],
         status: "accepted",
         message: "",
-        reveal: { originalName: "Aro", suggestedName: "Roro", personalStory: "" },
       }],
       finalCandidateId: "candidate-1",
-    }, { type: "name-mode", mode: "suggested" })
+    }, { type: "custom-name", value: "Roro" })
 
     expect(selectedName(state)).toBe("Roro")
   })

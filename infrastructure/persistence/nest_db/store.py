@@ -22,6 +22,7 @@ from infrastructure.persistence.nest_db.final_schema import (
     create_final_nest_database,
     missing_final_schema_columns,
     repair_final_nest_database,
+    unexpected_final_schema_columns,
     unsupported_final_schema_columns,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
@@ -32,6 +33,7 @@ _FINAL_TABLES: Final[frozenset[str]] = frozenset(
     {
         "device_audit_events",
         "elfies",
+        "resident_admissions",
         "embodiment_sessions",
         "external_bodies",
         "food_packages",
@@ -241,6 +243,17 @@ def inspect_data_home(data_home: Path) -> DataHomeInspection:
                     state=DataHomeState.LEGACY,
                     home=home,
                     detail="数据库结构与当前版本不兼容：users.role 仍是旧版账号约束",
+                    recoverable=True,
+                )
+            unexpected_columns = unexpected_final_schema_columns(connection)
+            if unexpected_columns:
+                return DataHomeInspection(
+                    state=DataHomeState.LEGACY,
+                    home=home,
+                    detail=(
+                        "数据库结构与当前版本不兼容：存在当前版本不认识的字段 "
+                        + ", ".join(unexpected_columns)
+                    ),
                     recoverable=True,
                 )
             missing_columns = missing_final_schema_columns(connection)

@@ -1,8 +1,8 @@
 # 配置管理契约
 
-**契约版本：** 1.3
+**契约版本：** 1.4
 **采用日期：** 2026-08-15
-**修订日期：** 2026-08-30
+**修订日期：** 2026-09-01
 **适用范围：** 应用默认配置、用户配置、读取与发行打包
 
 > **规范性目标。** 本契约定义 ElfieNest 唯一的配置管理方式，只整理现有配置，
@@ -54,7 +54,9 @@ config/
 │   ├── reasoning-constitution.yaml
 │   └── emotion-expressions.yaml
 ├── nest/
-    └── defaults.yaml
+│   └── defaults.yaml
+├── world/
+│   └── elfaria.yaml
 └── species/
     ├── catalog.yaml
     └── <package>/
@@ -64,10 +66,12 @@ config/
         └── assets/*.png
 ```
 
-这棵目录是内置默认值和物种配置包的来源。`species/catalog.yaml` 是已注册文档；
-其余包成员由 Infrastructure Adapter 作为一个不可变物种包统一校验。Profile 和
-Genesis 只接收类型化值，不读取 YAML。Godot 的 3D 资源包仍位于
-`godot_project/characters/`；物种配置只保存它的语义链接和外观绑定。
+这棵目录是内置默认值和已注册 Genesis 创建资料的来源。`world/elfaria.yaml` 与
+`species/catalog.yaml` 是已注册文档；物种成员由 Infrastructure Adapter 作为不可变包
+统一校验，并在领域使用前组成强类型、已发布的 `GenesisSourcePackage`。Genesis 只接收
+强类型值，不读取 YAML；Profile 只接收最终生成的档案字段，绝不接收资料包。Godot 的 3D
+资源包仍位于 `godot_project/characters/`；物种配置只保存语义链接和外观绑定。Loader 必须把
+运行时资产 View 与 Genesis 创建投影分开暴露，不能向 Profile 注入一个万能目录。
 
 用户目录保持为：
 
@@ -117,7 +121,8 @@ Nest、模型或工具语义转交给 Infrastructure。
 | Reasoning constitution | `brain/reasoning-constitution.yaml` | 无 | Elfie Brain Reasoning | 仅内置 |
 | 情绪表达映射 | `brain/emotion-expressions.yaml` | 无 | Elfie Brain Emotion | 仅内置 |
 | Nest 初始化默认值 | `nest/defaults.yaml` | 无 | Nest | 仅内置 |
-| 物种目录和物种包 | `species/catalog.yaml`、`species/<package>/` | 无 | Infrastructure 加载器，类型化值注入 Profile/Genesis/Adoption | 仅内置 |
+| Elfaria 居民/造物者资料 | `world/elfaria.yaml` | 无 | Elfie Genesis 资料语义；Infrastructure 强类型 Loader | 仅内置 |
+| 物种目录和物种包 | `species/catalog.yaml`、`species/<package>/` | 无 | Elfie Genesis 资料语义；Infrastructure 强类型 Loader；向 Adoption 提供强类型可用性投影 | 仅内置 |
 | Provider 连接与 endpoint 模型 | 无 | `providers.yaml` | App 配置 Provider | 仅用户 |
 | API 与 OAuth 凭据 | 无 | `auth.env`、`credentials/oauth/` 或进程环境 | Secret 能力 | 仅用户，绝不合并 |
 
@@ -140,7 +145,7 @@ BundledConfigSource       RuntimeConfigSource
              校验 + 执行已声明策略
                          |
         SystemSettings / ProviderCatalog / ToolSettings /
-        Brain 默认值 / Nest 默认值
+        Brain 默认值 / Nest 默认值 / Genesis 资料包
 ```
 
 具体规则如下：
@@ -156,6 +161,12 @@ BundledConfigSource       RuntimeConfigSource
   事实；
 - 消费方只能收到命名强类型值，不能收到通用嵌套字典、任意 section API 或 Service
   Locator。
+
+世界与物种 Loader 只校验 Schema、引用、包完整性和发行哈希。它们不得把已加载资料与
+第二份硬编码 Profile Canon 对照，不得把创建投影和运行时资产投影压成一个消费目录，不得决定
+个人知识/人物/经历，也不得物化 Elfie；这些
+属于 Genesis 语义。内置文档是未来创建的唯一世界/物种资料源，已提交 Elfie 在运行期不
+依赖它。
 
 仅内置的静态值可以在构造时直接注入。只有消费方确实需要可替换读写时才建立 Port；
 本契约不要求为每个不可变值机械复制一层 Protocol。
@@ -233,7 +244,7 @@ resources/
 实现开始前，治理层已经生效：
 
 - 本双语契约固定目标；
-- ADR-0017 和 ADR-0020 记录物种配置决策；
+- ADR-0017、ADR-0020 和 ADR-0033 记录配置与一次性 Genesis 决策；
 - Contract Registry 绑定契约、ADR、Agent 规则、机器治理测试与临时一致性台账；
 - 一致性台账列出全部当前实现差距，但不削弱目标。
 
@@ -259,5 +270,6 @@ resources/
 
 本次整理不新增 Provider、模型、工具、Brain 或 Nest 能力；不新增文件系统自动发现、
 配置驱动协议实现、公开任意配置 API、UI 字段、数据迁移、双读、双写、兼容别名、远程
-配置或全局热加载。物种包注册固定由目录文件控制，并且仍必须配套完整 Godot 资源包
-和代码拥有的运行时协议支持。
+配置或全局热加载。Genesis 资料注册固定由目录文件控制，并且仍必须配套完整 Godot
+资源包和代码拥有的运行时协议支持。配置加载绝不能变成生命语义生成器或运行期世界知识
+服务。

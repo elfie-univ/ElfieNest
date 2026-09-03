@@ -3,6 +3,8 @@
 > Status: target design. This document is the authority for Memory semantics and its typed access contract. Code and the Conformance register describe implementation status.
 >
 > Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or the Reasoning Context Workspace, nor another module's state.
+>
+> Contract alignment: 2026-09-01, ADR-0033 and Elfie 2.3. Creation inputs and full Genesis manifests are ephemeral; Memory retains only its final records, evidence and atomic completion markers.
 
 ## 1. Purpose, boundary and authority
 
@@ -181,8 +183,8 @@ Time and `H` produce `F`; `F` drives lifecycle eligibility. The versioned Lifecy
 
 ```text
 One-time Genesis
-ApprovedSeedSource ──► Genesis manifest
-                         └─ each submission: atomic commit ──► its Memory outputs + marker
+ApprovedSeedSource ──► ephemeral GenesisMemorySubmission
+                         └─ atomic commit ──► final Memory outputs + marker
 
 Normal runtime
 Workspace closes ClosedEpisode ── capture transaction ──► complete Episode + source references
@@ -201,15 +203,17 @@ Genesis is a one-time side entrance. The normal path never writes graph facts fr
 
 ### 3.1 Genesis initialization
 
-`ApprovedSeedSource` is immutable, versioned and hashable. A Genesis manifest has exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or seed Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. All outputs carry seed Evidence.
+`ApprovedSeedSource` is an immutable, versioned and hashable creation-time value. An ephemeral `GenesisMemorySubmission` accepts exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or creation Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. Final outputs carry Memory-owned creation Evidence, not the source-package binding or replay seed.
 
 Genesis uses a submission-level completion contract. A Genesis submission is one complete, immutable set of Memory outputs supplied to Memory for one atomic commit. Genesis may call Memory any number of times; Memory does not choose the number, size, order, grouping, scheduling or meaning of those submissions (for example, core versus enrichment or foreground versus night work). Each submission has its own stable submission/idempotency identity and content hash, even when several submissions belong to one higher-level Genesis operation.
 
 For one valid submission, every expected authoritative and child record—Nodes, Assertions, Evidence, biography Episodes, aliases, descriptions and mentions—and that submission's completion marker must be durable and visible as one completed unit. Atomicity means “accept only the current submission”: validation happens before any write; the Unit of Work either commits every output and the marker or commits none of them. A failed call returns only a failed or retryable result and never `committed`. Retrying the same submission identity and hash is idempotent; reusing an identity with a different hash is rejected. Previously committed submissions remain valid when a later submission fails.
 
-The Genesis caller owns batching, ordering, retry timing and the decision about when adoption is published. Memory only exposes committed submissions to readers and maintenance; it does not report an overall Genesis operation as complete. A committed Elfie cannot be silently reinitialized by a different manifest; an upgrade is a separate approved operation. Cross-owner adoption publication remains its own contract and is not a fictitious cross-store transaction. Genesis accepts explicit initial Episode/Node/Assertion `importance` and Node/Assertion `confidence`; its authorized admission selects the common `genesis` profile, giving every Genesis-produced semantic record `retention_profile=genesis` and `half_life_days=3650`. It does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
+The Genesis caller owns batching, ordering, retry timing and the decision about when adoption is published. Memory only exposes completed submissions inside the still-unpublished creation workspace; App admission controls final workspace visibility. Memory does not report an overall Genesis operation as complete. A committed Elfie has no Genesis reinitialization path; an approved migration or a real learning event must operate on final-owner state. Cross-owner adoption publication remains its own contract and is not a fictitious cross-store transaction. Genesis accepts explicit initial Episode/Node/Assertion `importance` and Node/Assertion `confidence`; its authorized admission selects the common `genesis` profile, giving every Genesis-produced semantic record `retention_profile=genesis` and `half_life_days=3650`. It does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
 
 Genesis admission is serialized per Elfie. The completion marker is the sole visibility gate for Genesis rows: no reader or maintenance pass may use a row from that submission before its marker is present. Genesis accepts any valid complete submission, including a submission containing only a subset of the approved seed families. It does not require every seed family in every submission and does not infer a caller's batching policy.
+
+After final creation commit or terminal abort, the `ApprovedSeedSource`, submission payload, source-package binding and generation seeds are deleted. The Memory database keeps only final Episodes, Nodes, Assertions, Evidence and the minimal submission completion/idempotency marker required by its own atomicity contract. That marker cannot regenerate the submission and is never Recall content.
 
 ### 3.2 Normal runtime write
 

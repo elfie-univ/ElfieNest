@@ -3,6 +3,7 @@
 > Status: accepted target design<br>
 > Confirmed: 2026-08-30<br>
 > Review: source audit and adversarial review completed on 2026-08-30<br>
+> Contract alignment: 2026-09-01, ADR-0033 and Brain 1.5<br>
 > Scope: Selfhood initialization, state, future update boundary, model projection,
 > and the fixed header of online Elfie `ReasoningRun` model calls<br>
 > Nature: cross-version design; it does not claim that the current implementation
@@ -49,7 +50,7 @@ The design keeps four categories separate:
 | State fact | What this Elfie is or what its slow self currently is | Selfhood | yes |
 | Input evidence | What happened and may later justify slow change | Memory | yes, in Memory |
 | Derived description | Deterministic natural language shown to a model | Selfhood renderer | no |
-| Audit record | Why initialization or a future commit was accepted | Genesis manifest or future Selfhood commit receipt | only where its owner requires it |
+| Audit record | Technical proof that creation or a future Selfhood commit completed | minimal Profile-external Genesis receipt or future Selfhood commit receipt | only where its owner requires it; never part of Selfhood identity/personality |
 
 A derived description is never another state store. A Memory statement is never
 promoted to the system header merely because it is long-lived. An audit version
@@ -236,7 +237,7 @@ SelfhoodState
     ├── typed interaction and expression tendencies
     ├── typed coping and attention tendencies
     ├── personal norm/value identifiers
-    └── initialization provenance or future Memory evidence references
+    └── future Memory evidence references for accepted growth only
 ```
 
 The phase-1 closed state surface is:
@@ -254,9 +255,10 @@ tables; an application release cannot remove a still-used identifier without an
 explicit data migration.
 
 The state does not persist rendered prompt paragraphs. It does not store a
-free-form model-authored autobiography. Human-entered names and any bounded text
-slots are validated as data, cannot contain prompt section markers, and are
-quoted/escaped by the renderer.
+free-form model-authored autobiography, questionnaire answer, creation-source
+binding, generator/model/policy version, seed or LifeContext/plan reference.
+Human-entered names and any bounded text slots are validated as data, cannot
+contain prompt section markers, and are quoted/escaped by the renderer.
 
 Selfhood exposes two kinds of output:
 
@@ -273,13 +275,13 @@ receive raw state, and it does not create another writer.
 
 ## 8. Initialization
 
-Genesis is the only initializer. It consumes the accepted adoption inputs,
-creation-time Canon/species facts and reviewed deterministic mapping/templates,
-then emits one validated `GenesisSelfhoodSeed` alongside the Profile and Genesis
-Memory outputs.
+Genesis is the only initializer. It consumes transient accepted adoption inputs,
+the published creation source package and reviewed deterministic
+mapping/templates, then emits one validated `GenesisSelfhoodSeed` alongside the
+Profile and Genesis Memory outputs.
 
 ```text
-accepted adoption input + creation-time Canon + reviewed mappings
+transient adoption input + GenesisSourcePackage + reviewed mappings
                               |
                               v
                  deterministic Genesis validation
@@ -290,9 +292,12 @@ accepted adoption input + creation-time Canon + reviewed mappings
 ```
 
 Profile is not used as Selfhood's runtime source. The two artifacts are sibling
-outputs of one creation bundle. Canon is not available to ordinary Brain
-runtime. Existing Elfies do not bind to, follow or compare against a Canon
-version; the facts copied into their creation outputs are simply their facts.
+outputs of one creation bundle. The source package is not available to ordinary
+Brain runtime. Existing Elfies do not bind to, follow or compare against a
+source-package version; the facts copied into their creation outputs are simply
+their facts.
+After commit or terminal abort, questionnaire answers, source bindings, seeds,
+LifeContext and plans are deleted; Selfhood retains none of their provenance.
 
 `identity_core` and the initial `adaptive_self` are created by deterministic,
 reviewed rules. A model may help create biography Memory only behind separate

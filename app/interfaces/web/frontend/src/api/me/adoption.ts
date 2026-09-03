@@ -8,7 +8,7 @@ const AdoptionInfoSchema = z.object({
   personality_styles: z.array(z.string()),
   species: z.array(z.object({
     species_id: z.string().min(1),
-    canon_id: z.string().min(1),
+    species_package_id: z.string().min(1),
     display_name: z.string().min(1),
     display_name_zh: z.string().min(1),
     earth_shape_label: z.string().min(1),
@@ -41,7 +41,6 @@ const AdoptionInfoSchema = z.object({
     "available",
     "nest_full",
     "member_quota_full",
-    "model_unavailable",
     "species_unavailable",
   ]),
 })
@@ -56,7 +55,7 @@ const AdoptionCandidateSchema = z.object({
     z.literal("elder"),
   ]),
   gender: z.union([z.literal("male"), z.literal("female")]),
-  age_months: z.number().int().min(1).max(240),
+  age_years: z.number().int().min(1).max(20),
   full_body_image_url: z.string(),
   headshot_image_url: z.string(),
   appearance_tags: z.array(z.string()),
@@ -74,11 +73,6 @@ const AdoptionCandidateSetSchema = z.object({
 const AdoptionReplySchema = AdoptionCandidateSchema.extend({
   status: z.union([z.literal("accepted"), z.literal("unsure")]),
   message: z.string(),
-  reveal: z.object({
-    original_name: z.string(),
-    suggested_name: z.string(),
-    personal_story: z.string(),
-  }).nullable(),
 })
 
 const AdoptionRepliesSchema = z.object({

@@ -5,6 +5,9 @@
 - 持久化类是 Feature、Orchestration 或领域 Core 出站 Port 的具体 Adapter，不拥有
   产品授权、业务流程或协议 DTO。持久化 Record 只在 Adapter 内部使用，不能作为 API
   响应或跨层通用模型。
+- Profile、Selfhood、Memory 与领养事务的 Adapter 只保存调用方已经生成并校验的强类型
+  结果。禁止在 `materialize`、Repository 或配置 Loader 中选择个人知识、生成关系/经历、
+  推导人格或重新解释问卷/Canon；这些语义只属于 Elfie Genesis。
 - SQL 只能存在于持久化层；API 和业务层不得直接执行 SQL。路径只能通过统一 resolver
   获取，不得在 Repository 中自行拼接新的数据根。
 - 多步写用例的事务由显式 Unit of Work 拥有；Repository 方法不得在调用方仍需继续

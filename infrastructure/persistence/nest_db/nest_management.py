@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
+
+import yaml
 
 from app.features.nest_management import (
     NestBedRecord,
     NestPortError,
     NestSnapshotRecord,
 )
+from infrastructure.persistence.elfie_workspace.identity import load_profile_from_db
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 from nest.public import AnchorKind, NestConfig, WorldCatalog
 
@@ -46,15 +50,7 @@ class SQLiteNestManagementAdapter:
             else int(configuration["applied_world_revision"])
         )
         catalog = self._load_catalog(connection)
-        occupants = {
-            str(row["home_anchor_id"]): row
-            for row in connection.execute(
-                """SELECT e.elfie_id, e.name, e.owner_user_id, e.species,
-                          e.home_anchor_id, u.account_id, u.display_name
-                   FROM elfies e JOIN users u ON u.id=e.owner_user_id
-                   WHERE e.home_anchor_id IS NOT NULL"""
-            ).fetchall()
-        }
+        occupants = self._load_occupants(connection)
         beds = (
             ()
             if catalog is None
@@ -74,33 +70,57 @@ class SQLiteNestManagementAdapter:
             beds=beds,
         )
 
+    def _load_occupants(
+        self, connection: sqlite3.Connection
+    ) -> dict[str, _OccupantProjection]:
+        rows = connection.execute(
+            """SELECT e.elfie_id, e.owner_user_id, e.home_anchor_id,
+                      u.account_id, u.display_name
+               FROM elfies AS e JOIN users AS u ON u.id=e.owner_user_id
+               WHERE e.home_anchor_id IS NOT NULL"""
+        ).fetchall()
+        occupants: dict[str, _OccupantProjection] = {}
+        for row in rows:
+            elfie_id = str(row["elfie_id"])
+            try:
+                profile = load_profile_from_db(self._db_path, elfie_id)
+            except (OSError, TypeError, ValueError, yaml.YAMLError) as error:
+                raise NestPortError("committed Elfie Profile is unavailable") from error
+            occupants[str(row["home_anchor_id"])] = _OccupantProjection(
+                elfie_id=elfie_id,
+                name=profile.identity.display_name,
+                owner_user_id=int(row["owner_user_id"]),
+                species_id=profile.identity.species_id,
+                owner_account_id=str(row["account_id"]),
+                owner_display_name=(
+                    None if row["display_name"] is None else str(row["display_name"])
+                ),
+            )
+        return occupants
+
     @staticmethod
     def _bed_record(
         *,
         anchor_id: str,
         label: str,
         order: int,
-        occupant: sqlite3.Row | None,
+        occupant: _OccupantProjection | None,
     ) -> NestBedRecord:
         return NestBedRecord(
             anchor_id=anchor_id,
             label=label,
             order=order,
-            occupant_id=None if occupant is None else str(occupant["elfie_id"]),
-            occupant_name=None if occupant is None else str(occupant["name"]),
+            occupant_id=None if occupant is None else occupant.elfie_id,
+            occupant_name=None if occupant is None else occupant.name,
             occupant_owner_user_id=(
-                None if occupant is None else int(occupant["owner_user_id"])
+                None if occupant is None else occupant.owner_user_id
             ),
-            occupant_species_id=(
-                None if occupant is None else str(occupant["species"])
-            ),
+            occupant_species_id=(None if occupant is None else occupant.species_id),
             occupant_owner_account_id=(
-                None if occupant is None else str(occupant["account_id"])
+                None if occupant is None else occupant.owner_account_id
             ),
             occupant_owner_display_name=(
-                None
-                if occupant is None or occupant["display_name"] is None
-                else str(occupant["display_name"])
+                None if occupant is None else occupant.owner_display_name
             ),
         )
 
@@ -126,6 +146,16 @@ def _ordered_bed_anchors(catalog: WorldCatalog) -> tuple:
         )
         if anchor.kind is AnchorKind.BED and anchor.active
     )
+
+
+@dataclass(frozen=True)
+class _OccupantProjection:
+    elfie_id: str
+    name: str
+    owner_user_id: int
+    species_id: str
+    owner_account_id: str
+    owner_display_name: str | None
 
 
 __all__ = ("SQLiteNestManagementAdapter",)

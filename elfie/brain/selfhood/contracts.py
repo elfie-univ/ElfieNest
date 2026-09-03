@@ -58,11 +58,6 @@ class IdentityCore(FrozenContractModel):
     display_name: Optional[_OptionalText] = None
     species_id: Optional[_OptionalText] = None
     species_name: Optional[_OptionalText] = None
-    home_world_id: Optional[_OptionalText] = None
-    home_world_name: Optional[_OptionalText] = None
-    home_region_id: Optional[_OptionalText] = None
-    home_region_name: Optional[_OptionalText] = None
-    earth_arrival_statement: Optional[_OptionalText] = None
     resident_role: Optional[_OptionalText] = None
 
     @property
@@ -74,10 +69,6 @@ class IdentityCore(FrozenContractModel):
             self.display_name,
             self.species_id,
             self.species_name,
-            self.home_world_id,
-            self.home_world_name,
-            self.home_region_id,
-            self.home_region_name,
             self.resident_role,
         )
         return all(value is not None for value in required)
@@ -175,19 +166,19 @@ class SelfhoodState(FrozenContractModel):
         core = self.identity_core
         return (
             f"我是 {core.display_name}，正式物种是 {core.species_name}，"
-            f"来自 {core.home_world_name} 的 {core.home_region_name}。"
+            f"现在是 ElfieNest 的{core.resident_role}。"
         )
 
     @property
     def identity_facts(self) -> Tuple[str, ...]:
         core = self.identity_core
         facts = []
+        if core.display_name:
+            facts.append(f"我的名字是 {core.display_name}。")
         if core.species_name:
             facts.append(f"正式物种名是 {core.species_name}。")
-        if core.home_world_name and core.home_region_name:
-            facts.append(f"来自 {core.home_world_name} 的 {core.home_region_name}。")
-        if core.earth_arrival_statement:
-            facts.append(core.earth_arrival_statement)
+        if core.resident_role:
+            facts.append(f"我现在是 ElfieNest 的{core.resident_role}。")
         return tuple(facts)
 
     @property
@@ -237,83 +228,6 @@ class SelfhoodSpeechStyle(FrozenContractModel):
 
     greetings: Tuple[_NonBlankText, ...] = ()
     verbal_tick: Optional[_NonBlankText] = None
-
-
-class ProfileAnchorSnapshot(FrozenContractModel):
-    """Immutable external Profile projection for the facade, never Brain input."""
-
-    revision: _Revision
-    captured_at: UTCDateTime
-    elfie_id: Optional[_NonBlankText] = None
-    display_name: Optional[_NonBlankText] = None
-    species_id: Optional[_NonBlankText] = None
-    appearance_seed: Optional[int] = Field(default=None, strict=True)
-    appearance_genome_version: Optional[_Revision] = None
-    primary_morphology: Optional[_NonBlankText] = None
-    species_canon_id: Optional[_NonBlankText] = None
-    species_name: Optional[_NonBlankText] = None
-    species_shape: Optional[_NonBlankText] = None
-    home_world_id: Optional[_NonBlankText] = None
-    home_world_name: Optional[_NonBlankText] = None
-    home_region_id: Optional[_NonBlankText] = None
-    home_region_name: Optional[_NonBlankText] = None
-    civilization_relation_to_earth: Optional[_NonBlankText] = None
-    earth_arrival_statement: Optional[_NonBlankText] = None
-    earth_home_name: Optional[_NonBlankText] = None
-    earth_home_role: Optional[_NonBlankText] = None
-    knowledge_boundaries: Tuple[_NonBlankText, ...] = ()
-    canon_version: Optional[_NonBlankText] = None
-    unknown_fields: Tuple[_NonBlankText, ...] = ()
-
-    @classmethod
-    def unknown(cls) -> ProfileAnchorSnapshot:
-        return cls(
-            revision=0,
-            captured_at=datetime.fromtimestamp(0, timezone.utc),
-            unknown_fields=(
-                "identity",
-                "appearance",
-                "embodiment",
-                "species_canon",
-                "world_origin",
-            ),
-        )
-
-    @model_validator(mode="after")
-    def validate_identity(self) -> ProfileAnchorSnapshot:
-        identity_values = (self.elfie_id, self.display_name, self.species_id)
-        if any(value is not None for value in identity_values) and not all(
-            value is not None for value in identity_values
-        ):
-            raise PydanticCustomError(
-                "profile_anchor_identity", "profile identity anchors must be complete"
-            )
-        if self.revision == 0 and any(value is not None for value in identity_values):
-            raise PydanticCustomError(
-                "profile_anchor_revision",
-                "unknown profile anchors cannot contain identity values",
-            )
-        species_values = (self.species_canon_id, self.species_name, self.species_shape)
-        if any(value is not None for value in species_values) and not all(
-            value is not None for value in species_values
-        ):
-            raise PydanticCustomError(
-                "profile_anchor_species",
-                "profile species canon anchors must be complete",
-            )
-        world_values = (
-            self.home_world_id,
-            self.home_world_name,
-            self.home_region_id,
-            self.home_region_name,
-        )
-        if any(value is not None for value in world_values) and not all(
-            value is not None for value in world_values
-        ):
-            raise PydanticCustomError(
-                "profile_anchor_origin", "profile world origin anchors must be complete"
-            )
-        return self
 
 
 def _validate_texts(values) -> None:
@@ -385,7 +299,6 @@ __all__ = (
     "AdaptiveSelf",
     "BigFiveTraits",
     "IdentityCore",
-    "ProfileAnchorSnapshot",
     "SelfhoodPromptProjection",
     "SelfhoodSpeechStyle",
     "SelfhoodState",

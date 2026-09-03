@@ -23,6 +23,9 @@
 - Selfhood 是一份原子两层状态：Genesis 后不可变的 `identity_core` 与缓慢的
   `adaptive_self`。第一阶段不得装配成长写路径；未来只能接受 Memory 整理生成的强类型
   proposal，且不能修改 `identity_core`。普通 Brain 不读取 Profile/Canon。
+- Selfhood 不得拥有 Profile/Canon Observer 投影，也不得保存问卷、LifeContext、Plan、
+  资料包版本/引用、生成 Seed 或策略轨迹。创建成功后 Brain 只恢复 Selfhood、Memory 和
+  各心智 owner 自己的状态。
 - 在线 Elfie `ReasoningRun` 的每个模型请求必须严格以 `APPLICATION_FRAME`、
   `IDENTITY_CORE`、`ADAPTIVE_SELF`、`OPERATING_CONTRACT` 四段开头。第一、第四段只来自
   Bootstrap 注入的同版本 bundled-only Constitution；第二、第三段只来自 Selfhood 的

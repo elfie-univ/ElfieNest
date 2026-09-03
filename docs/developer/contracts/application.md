@@ -1,7 +1,8 @@
 # Application architecture contract
 
-**Contract version:** 1.10
+**Contract version:** 1.11
 **Adopted:** 2026-08-15
+**Revised:** 2026-09-01
 **Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
 > **Normative target.** This document is the long-term architecture authority
@@ -51,7 +52,7 @@ directions defined here.
 | `app/interfaces/` | HTTP, WebSocket, CLI, Web and Desktop protocol entry; credential parsing; request/response mapping; protocol error mapping | Product rules, SQL, data-root resolution, concrete repositories, Runtime authority |
 | `app/features/` | Product use-cases, authorization, commands, queries, results, business errors and the Ports required by those use-cases | FastAPI, SQLite, concrete adapters, process/thread ownership, cross-authority Runtime flows |
 | `app/orchestration/` | Workflows crossing two or more authorities, non-atomic external side effects, and Runtime lifecycle coordination | Ordinary CRUD, protocol DTOs, concrete persistence/device adapters |
-| `infrastructure/` | Port implementations for persistence, files, network, model platforms, devices and operating-system facilities | Product authorization, page behavior, use-case sequencing |
+| `infrastructure/` | Port implementations for persistence, files, network, model platforms, devices and operating-system facilities | Product authorization, page behavior, use-case sequencing or Genesis semantic life compilation |
 | `app/bootstrap/` | The composition root: construction, injection, object lifetime, startup and shutdown wiring | Business branches, SQL, protocol mapping, a second configuration source |
 
 The four App-owned areas are Interfaces, Features, Orchestration and Bootstrap.
@@ -95,7 +96,7 @@ The Feature owners are:
 | Feature | Owns | Explicitly does not own |
 | --- | --- | --- |
 | `accounts` | accounts, sessions, passwords, roles, member profiles, member administration and preferences | adoption decisions, Runtime lifecycle or protocol authentication DTOs |
-| `adoption` | candidates, adoption and ownership relations, per-member quota overrides and final adoption eligibility | Nest bed capacity, Elfie profile facts or live Nest admission |
+| `adoption` | candidates, transient adoption selections, adoption and ownership relations, per-member quota overrides and final adoption eligibility | Genesis life semantics, Nest bed capacity, Elfie Profile facts or live Nest admission; original selection/questionnaire payload after terminal creation |
 | `communication` | product conversation relations and user-visible message history already supported by the product | Elfie communication/memory semantics, transport sessions or live delivery coordination |
 | `elfies` | authorized Elfie directory, relationship/permission projection and authorized member/admin profile or cognition views | Elfie profile, cognition or memory facts; adoption ownership; Nest resident state |
 | `nest_management` | authorized product use-cases over the single public Nest facade | a second Nest repository semantic, geometry, coordinates or live Elfie composition |
@@ -107,15 +108,22 @@ The Feature owners are:
 | `bodies` | external-body enrollment, pairing, revoke, grants and Elfie/body association | credential material, device transport sessions, body semantics or hosting/homing workflows |
 | `operations` | existing authorized system statistics, maintenance, backup/reset use-cases and stable Runtime management projections | Runtime lifecycle decisions, Observer sessions, raw technical objects or duplicate business facts |
 
-### Species availability and adoption
+### Species availability, Genesis and adoption
 
-The immutable species registry in `elfie/profile` is the only authority for
-which species the product supports. A species is available to Adoption when its
-registry definition is enabled and its joined canon, appearance profile and
-runtime resources pass registry validation. Adoption reads that registry
-directly for options and eligibility, so adding a complete registry entry makes
-the species available to existing installations without an administrator write
-or a per-Nest approval.
+The immutable published Genesis source registry is the only release authority
+for which species can be created. Infrastructure validates the package and
+exposes two separate typed views: a creation projection joining species rules
+with the world source for `elfie/genesis/`, and a runtime asset projection for
+Godot/presentation assembly. Adoption consumes only a typed availability
+projection for options and eligibility. Profile receives only final generated
+dossier fields; neither `elfie/profile` nor mutable App settings owns a second
+species/world Canon.
+
+A species is available when its registry entry is enabled and every referenced
+package/resource passes validation. Adding a complete published entry makes the
+species available to existing installations without an administrator write or
+per-Nest approval. This changes only future candidates and creations; it never
+refreshes an existing Elfie's Profile, Selfhood or Memory.
 
 `configuration/settings` owns mutable global rules such as quotas and
 personality preset switches. It must not expose, persist or enforce a species
@@ -124,8 +132,26 @@ species. A staged rollout, if ever required, must be designed as a separate
 explicit release contract rather than reusing an administrator settings field.
 
 The acceptance invariant is: with an unchanged existing settings document,
-adding a valid enabled species to the registry causes `GET /api/v1/me/adoption`
-to list it and candidate creation for it to succeed.
+adding a valid enabled species to the published source registry causes
+`GET /api/v1/me/adoption` to list it and candidate creation for it to succeed.
+
+Accepted creation has one ownership path:
+
+```text
+Adoption Feature accepted transient selection
+        -> resident_admission coordination
+        -> Elfie Genesis semantic compiler
+        -> sibling Profile / Selfhood / Memory outputs
+        -> final-owner persistence Ports and Nest admission
+```
+
+`resident_admission` owns ordering, crash recovery, idempotency and compensation;
+it does not choose a birthplace, knowledge, personality, relationships or life
+events. Infrastructure stores the typed outputs and cannot generate them. After
+successful commit or terminal abort, the original questionnaire/selections,
+`LifeContext`, plan and generation seeds are removed. App keeps only the actual
+adoption/ownership relation and a bounded technical transaction result; it does
+not keep enough semantic input to regenerate the Elfie.
 
 The Orchestration workflows are:
 
@@ -133,7 +159,7 @@ The Orchestration workflows are:
 | --- | --- |
 | `lifecycle` | Core, Gateway and Godot-authority start, stop, restart, recovery and readiness |
 | `nest_session` | the one Nest, real Elfie instances, world events and the shared Godot world channel |
-| `resident_admission` | an accepted adoption, Elfie construction, Nest admission and explicit failure compensation |
+| `resident_admission` | an accepted transient selection, invocation of Elfie Genesis, final-owner commit, Nest admission, idempotent recovery and explicit failure compensation; never life semantics |
 | `setup_installation` | Setup state with Accounts, Provider/model, Food, Nest and managed installation runners |
 | `message_delivery` | an authorized conversation command, user-visible history, live Elfie delivery and receipts |
 | `embodiment` | a real Elfie, Nest and external body for hosting, homing, switching and recovery |

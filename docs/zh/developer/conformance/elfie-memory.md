@@ -29,7 +29,7 @@
 
 | ID | 优先级 | 状态 | 当前差距 | 下一验收门 | 证据 / 参考 |
 | --- | --- | --- | --- | --- | --- |
-| OPT-001 | P0 | closed | 有界切片现已让冻结的 E1 fixture 走类型化 Elfaria World Canon/Genesis 路径，移除推理提示中与 Profile/Canon 重复的身份事实，覆盖跨文件发布失败时的清理，并通过确定性 E2/E3 门。 | OPT-001 无后续实现门。 | target=OPT-001；inventory=`config/world/elfaria.yaml`、类型化 Genesis 和领养模块；references=OPT-001 开工文档与 E1/E2/E3 场景集；verification=类型化 fixture、受影响 Memory/Reasoning 测试、确定性 E2/E3、Ruff 和持久化扫描通过；residuals=生产回填按计划未执行。 |
+| OPT-001 | P0 | closed | 有界切片现已让冻结的 E1 fixture 走类型化 Elfaria/Genesis 路径，移除推理提示中重复的身份事实，覆盖跨文件发布失败时的清理，并通过确定性 E2/E3 门。 | OPT-001 没有后续 Memory 实现门；本行不关闭 ELF-010、ELF-013 与 CFG-005 记录的 Profile/Genesis 所有权迁移。 | target=OPT-001；inventory=`config/world/elfaria.yaml`、类型化 Genesis 和领养模块；references=OPT-001 开工文档与 E1/E2/E3 场景集；verification=类型化 fixture、受影响 Memory/Reasoning 测试、确定性 E2/E3、Ruff 和持久化扫描通过；residuals=生产回填按计划未执行；创建资料所有权迁移由其他台账跟踪。 |
 | OPT-002 | P0 | closed | WorkingContext 已能闭合有界话题 Episode，在推理前先落盘来源，抽取带归因的主人/人物事实，保留别名并支持显式纠正链。 | 确定性持续学习回归的八类 source-first 场景全部通过。 | target=OPT-002；inventory=`conversation_context.py`、`settlement.py`、`consolidation.py` 和 SQLite Memory Adapter；references=OPT-002 开工文档与 Memory 设计第 9.4–9.5 节；verification=八类持续学习场景、受影响测试、Ruff 和持久化扫描通过；residuals=生产切换仍由 MEM-007 单独治理。 |
 | OPT-003 | P1 | closed（v2 基线；`memory.v3` 必须重跑） | v2 Lifecycle/Memory Maintenance 和耐久性评测已覆盖代表性增长、来源锚定、重启、重试、锁等待以及 Basic/Local 延迟，且不调用模型。 | 保留同一套有界 Worker/租约控制；MEM-012 修改 schema、排序或生命周期语义后，必须重跑同等数据量及 v3 强化、archived 通道和重学门，才能把结果当作当前证据。 | target=设计第 6、8.4–8.5、9.2 和 9.6 节；inventory=`sqlite_lifecycle_store.py`、`score_policy.py`、`sqlite_graph_store.py`、`devtools/evals/opt003_memory_endurance.py`；references=`/private/tmp/opt003-v2-full.json`（历史本机脱敏机器报告）；verification=v2 基线：10,000 Episode、50,000 Node、200,000 Assertion；全部 Assertion 有来源；Basic p95 59.503ms、Local p95 47.960ms（各 30 次）；幂等重试、重启一致、锁等待完成、退役模块/导入为零以及 `full→compressed→digest→archived→forgotten` 全链路重放均通过；seed 513.232 秒，进程总时长 537.174 秒；residuals=v2 开发目标当时无残余，v3 证据则在 MEM-012 下保持 open。 |
 | OPT-004 | P1/P2 | deferred | 真实精灵巢观测、活动和多精灵互动尚未进入当前聊天闭环。 | 第二阶段真实巢场景接入后，再验证具身记忆和世界事件来源。 | — |
@@ -39,10 +39,10 @@ OPT-001 与 OPT-002 曾使用各自功能分支和独立评测并行开发，组
 
 OPT-001 第一版证据（2026-08-28）：target=OPT-001 计划第 3–5 节；inventory=`config/world/elfaria.yaml`、
 配置 registry/schema、`elfie/genesis/{contracts.py,initializer.py}`、
-`infrastructure/persistence/elfie_workspace/adoption_profiles.py`；references=Elfaria 世界 Canon/物种卡与类型化
+`infrastructure/persistence/elfie_workspace/adoption_profiles.py`；references=类型化 Elfaria 创建资料/物种卡与
 Genesis 测试；verification=类型化 fixture 编译测试、15 项聚焦领养/评测测试、受影响的 Memory/Reasoning 测试、
 Ruff、`git diff --check` 及既有持久化扫描；Canon 共 42 条事实，每个已发布物种的领养按资格选择 40 条知识 seed，
-并生成 5 段 Episode、13 个私有关系对象；注入发布失败测试覆盖物料化清理，推理提示不再重复 Profile/Canon 已提供的
+并生成 5 段 Episode、13 个私有关系对象；注入发布失败测试覆盖物料化清理，推理提示不再重复 Selfhood 已提供的
 Selfhood 身份事实。未做生产回填；OPT-002 和 OPT-003 已对开发目标关闭，OPT-004 仍暂缓。
 类型化 `stage1-e1.v2` fixture 已通过确定性门，并完成一次真实 Ark 单重复运行（26 次 provider 调用；机器门和裁判门均通过），
 报告位于 `/private/tmp/elfie-e1-real-20260828-final2/report.md`。

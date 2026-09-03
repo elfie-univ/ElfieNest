@@ -166,8 +166,8 @@ def test_species_stage_ranges_can_differ() -> None:
         answers=("any",) * 5,
     )
 
-    assert all(120 <= candidate.age_months <= 180 for candidate in fox.candidates)
-    assert all(168 <= candidate.age_months <= 240 for candidate in dog.candidates)
+    assert all(10 <= candidate.age_years <= 15 for candidate in fox.candidates)
+    assert all(14 <= candidate.age_years <= 20 for candidate in dog.candidates)
 
 
 def test_exact_age_continuously_changes_youth_height_and_allometry() -> None:
@@ -183,12 +183,12 @@ def test_exact_age_continuously_changes_youth_height_and_allometry() -> None:
 
     youngest = generate_appearance(
         **common,
-        age_months=6,
+        age_years=1,
         rng=random.Random(73),
     )
     oldest = generate_appearance(
         **common,
-        age_months=23,
+        age_years=2,
         rng=random.Random(73),
     )
 
@@ -206,7 +206,7 @@ def test_sex_is_only_a_weak_adult_height_prior() -> None:
         "role": "appearance_anchor",
         "variant_index": 0,
         "life_stage": "mature",
-        "age_months": 80,
+        "age_years": 8,
     }
 
     female = generate_appearance(

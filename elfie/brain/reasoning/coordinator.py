@@ -68,6 +68,8 @@ from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
 from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
     IngestDisposition,
     PhysicalModality,
     PhysicalPayload,
@@ -536,7 +538,10 @@ class BrainCoordinator:
 
     @staticmethod
     def _requires_model(frame) -> bool:
-        """Admit model work for decisions and meaningful embodied outcomes."""
+        """Admit model work for meaningful inputs, not routine receipt bookkeeping."""
+
+        if BrainCoordinator._is_routine_receipt_frame(frame):
+            return False
 
         if any(
             getattr(event.payload, "sender", None) is not None
@@ -556,6 +561,35 @@ class BrainCoordinator:
                 and event.payload.modality is PhysicalModality.PROPRIOCEPTION
                 and event.payload.content.startswith("action=")
             )
+            for event in frame.events
+        )
+
+    @staticmethod
+    def _is_routine_receipt_frame(frame) -> bool:
+        """Keep successful OutputRouter receipts on the local NoOp path.
+
+        Receipts are still appraised, settled, journaled, and committed by the
+        existing completion/output chain.  Only an errored receipt is allowed
+        to re-enter model reasoning, so salient failures and explicit internal
+        Activity signals retain their existing model-backed behavior.
+        """
+
+        if (
+            frame.source_domain is not SourceDomain.INTERNAL
+            or not frame.events
+            or frame.state_updates
+            or frame.media_samples
+        ):
+            return False
+        return all(
+            isinstance(event.payload, ExecutionPayload)
+            and event.payload.status
+            in {
+                ExecutionStatus.ACCEPTED,
+                ExecutionStatus.STARTED,
+                ExecutionStatus.COMPLETED,
+            }
+            and event.payload.error is None
             for event in frame.events
         )
 

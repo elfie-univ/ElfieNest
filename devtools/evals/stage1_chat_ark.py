@@ -23,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from app.features.adoption import AcceptedAdoptionReservation
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.reasoning.model_header import ReasoningConstitution
@@ -45,6 +44,8 @@ from elfie.communication import (
 from elfie.factory import ElfieAssembly
 from elfie.genesis import (
     GenesisBundle,
+    GenesisCompileInput,
+    GenesisCompiler,
     GenesisMemoryCommitter,
 )
 from elfie.message_types import (
@@ -55,19 +56,13 @@ from elfie.message_types import (
     MessageMeta,
     TraceId,
 )
-from elfie.profile import (
-    configure_species_catalog,
-    create_visual_profile,
-    get_species_canon_for_technical_id,
-)
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_reasoning_constitution,
 )
-from infrastructure.persistence.configuration.species import load_species_catalog
-from infrastructure.persistence.configuration.world import load_world_canon
-from infrastructure.persistence.elfie_workspace.adoption_profiles import (
-    _genesis_bundle,
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
 )
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -423,68 +418,42 @@ class RuntimeBundle:
 def _build_bundle(
     spec: Mapping[str, Any], elfie_id: str, display_name: str
 ) -> GenesisBundle:
-    """Build the E1 fixture through the same typed Canon compiler as adoption."""
+    """Build the E1 fixture through the same typed Genesis compiler as adoption."""
     elfie_spec = spec["elfie"]
     species_id = str(elfie_spec["species_id"])
     appearance_seed = int(elfie_spec["profile_seed"])
-    profile = create_visual_profile(
-        elfie_id=elfie_id,
-        display_name=display_name,
-        species_id=species_id,
-        seed=appearance_seed,
+    catalog = load_and_configure_species_catalog()
+    source = load_genesis_source_package()
+    definition = catalog.definition(species_id, adoptable_only=True)
+    if definition.genesis is None:
+        raise ValueError(f"物种 {species_id} 缺少 Genesis 配置")
+    age_years = definition.genesis.stage_ranges["youth"][0]
+    return (
+        GenesisCompiler(source, catalog=catalog)
+        .compile(
+            GenesisCompileInput(
+                elfie_id=elfie_id,
+                owner_reference="stage1-e1-owner",
+                display_name=display_name,
+                species_id=species_id,
+                gender="female",
+                life_stage="youth",
+                age_years_at_adoption=age_years,
+                appearance_seed=appearance_seed,
+                height="standard",
+                build="standard",
+                face="soft",
+                signature="warm",
+                personality_style="好奇探索",
+                original_name="Lumi-origin",
+                adoption_anchor_at="2001-01-01T00:00:00+00:00",
+                reservation_id=f"stage1:{elfie_id}",
+                idempotency_key=f"stage1-submit:{elfie_id}",
+                arrival_base_id="elfie_nest",
+            )
+        )
+        .bundle
     )
-    reservation = AcceptedAdoptionReservation(
-        elfie_id=elfie_id,
-        owner_user_id=1,
-        name=display_name,
-        species_id=species_id,
-        personality_style="好奇探索",
-        height="standard",
-        build="standard",
-        appearance_seed=appearance_seed,
-        face="soft",
-        signature="warm",
-        gender="female",
-        birth_date="2001-01-01",
-    )
-    species = get_species_canon_for_technical_id(species_id)
-    world = load_world_canon()
-    origin = profile.identity.origin
-    selfhood_seed = {
-        "state_schema_version": 1,
-        "revision": 1,
-        "identity_core": {
-            "elfie_id": profile.identity.elfie_id,
-            "display_name": profile.identity.display_name,
-            "species_id": profile.identity.species_id,
-            "species_name": species.display_name,
-            "home_world_id": origin.home_world_id,
-            "home_world_name": world.display_name,
-            "home_region_id": origin.home_region_id,
-            "home_region_name": world.known_region_name,
-            "earth_arrival_statement": world.earth_arrival_statement,
-            "resident_role": "ElfieNest 居民",
-        },
-        "adaptive_self": {
-            "big_five": {
-                "openness": 0.5,
-                "conscientiousness": 0.5,
-                "extraversion": 0.5,
-                "agreeableness": 0.5,
-                "neuroticism": 0.5,
-            },
-            "interaction_tendency_ids": tuple(species.earth_first_contact_cues),
-            "coping_tendency_ids": tuple(species.common_sensory_biases),
-            "expression_tendency_ids": ("好奇探索",),
-            "value_ids": (
-                "尊重自愿选择，不把猜测说成亲历。",
-                "不知道时说明不知道，并在真实接触中学习地球。",
-            ),
-            "speech_marker_ids": ("呢",),
-            "source_event_ids": (),
-        },
-    }
-    return _genesis_bundle(reservation, profile, selfhood_seed)
 
 
 def _build_runtime(
@@ -509,12 +478,7 @@ def _build_runtime(
     hub.register_channel(channel, connect=True)
     elfie = ElfieFactory().create(
         ElfieAssembly(
-            profile=create_visual_profile(
-                elfie_id=elfie_id,
-                display_name=display_name,
-                species_id=str(spec["elfie"]["species_id"]),
-                seed=int(spec["elfie"]["profile_seed"]),
-            ),
+            profile=bundle.profile_draft.profile,
             memory_store=memory_store,
             body=body,
             communication=hub,
@@ -1189,7 +1153,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # The evaluator is a developer-tool entrypoint, so it must perform the
     # same explicit catalog injection that the production Bootstrap and tests
     # perform.  No global fallback is allowed.
-    configure_species_catalog(load_species_catalog())
+    load_and_configure_species_catalog()
     if args.repetitions < 1:
         raise SystemExit("--repetitions 必须大于 0")
     spec = load_json(args.spec)

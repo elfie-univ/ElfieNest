@@ -12,7 +12,7 @@ const candidate = {
   candidate_id: "candidate-1",
   species_id: "fox",
   life_stage: "young_adult" as const,
-  age_months: 36,
+  age_years: 3,
   gender: "male" as const,
   full_body_image_url: "",
   headshot_image_url: "",
@@ -31,7 +31,7 @@ describe("versioned current-member Adoption client", () => {
         species: [
           {
             species_id: "fox",
-            canon_id: "saevi",
+            species_package_id: "species-fox",
             display_name: "Saevi",
             display_name_zh: "灵狐",
             earth_shape_label: "fox-like",
@@ -44,7 +44,7 @@ describe("versioned current-member Adoption client", () => {
           },
           {
             species_id: "dog",
-            canon_id: "tovren",
+            species_package_id: "species-dog",
             display_name: "Tovren",
             display_name_zh: "灵犬",
             earth_shape_label: "dog-like",
@@ -66,7 +66,7 @@ describe("versioned current-member Adoption client", () => {
       .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: Array(5).fill(candidate) })
       .mockResolvedValueOnce({
         candidate_set_id: "set-1",
-        replies: [{ ...candidate, status: "accepted", message: "yes", reveal: null }],
+        replies: [{ ...candidate, status: "accepted", message: "yes" }],
       })
       .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "fox" })
 

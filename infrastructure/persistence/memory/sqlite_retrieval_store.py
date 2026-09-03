@@ -73,7 +73,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 rows = self.conn.execute(
                     """SELECT e.episode_id, f.searchable_text, 'episodic' AS node_type
                        FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
-                       WHERE e.lifecycle='active' AND ("""
+                       WHERE e.lifecycle='active' AND """
+                    + _episode_recall_eligibility("e")
+                    + " AND ("
                     + episode_where
                     + ")"
                     + episode_scope
@@ -533,7 +535,11 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     ) -> dict[str, float]:
         ids = tuple(scores)
         placeholders = ",".join("?" for _ in ids)
-        clauses = [f"episode_id IN ({placeholders})", "lifecycle='active'"]
+        clauses = [
+            f"episode_id IN ({placeholders})",
+            "lifecycle='active'",
+            _episode_recall_eligibility("episodes"),
+        ]
         params: list[object] = list(ids)
         if getattr(self, "elfie_id", None) is not None:
             clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
@@ -587,9 +593,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                            content_text, summary_text, detail_level, importance,
                            half_life_days, last_reinforced_at, updated_at,
                            source_event_ids_json
-                      FROM episodes
+                     FROM episodes
                      WHERE episode_id IN ({placeholders})
                        AND lifecycle='active'
+                       AND {_episode_recall_eligibility("episodes")}
                        {namespace_clause}{where}
                      ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?""",
                 list(episode_ids) + namespace_params + time_params + [fetch_limit],
@@ -847,6 +854,24 @@ def _lexical_normalize(value: str) -> str:
 def _recall_eligible(node: RecallNode) -> bool:
     """Honor the explicit projection visibility flag during traversal."""
     return node.properties.get("recall_eligible", True) is not False
+
+
+def _episode_recall_eligibility(alias: str) -> str:
+    """Hide reserved host-failure Episodes from user-facing Recall.
+
+    Older databases may already contain a host-generated failure notice in a
+    topic Episode.  The source row remains inspectable and recoverable, but
+    its reserved ``fallback-intent`` provenance must not compete with real
+    conversation facts during lexical Recall.
+    """
+    return (
+        "NOT EXISTS ("
+        "SELECT 1 FROM json_each(COALESCE("
+        + alias
+        + ".source_event_ids_json, '[]')) AS source_event "
+        "WHERE lower(CAST(source_event.value AS TEXT)) LIKE '%fallback-intent-%'"
+        ")"
+    )
 
 
 def _lexical_like_patterns(query: str, terms: list[str]) -> list[str]:

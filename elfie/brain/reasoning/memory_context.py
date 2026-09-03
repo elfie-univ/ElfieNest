@@ -33,7 +33,8 @@ MemoryRecallStatus = Literal[
 ]
 
 _RECALL_INTENT = re.compile(
-    r"(?:记得|之前|上次|以前|历史|回忆|偏好|喜欢|不喜欢|习惯|"
+    r"(?:母星|家乡星球|恒星|伊洛拉|雨季|旱季|本地日|迷雾镇|Elfaria|"
+    r"记得|之前|上次|以前|历史|回忆|偏好|喜欢|不喜欢|习惯|"
     r"纠正|更正|其实|冲突|矛盾|那个|这件事|这回事|他(?:说|是)|"
     r"她(?:说|是)|它(?:是|呢)|来自哪里|认识|我们.{0,12}(?:说过|聊过)|"
     r"remember|previous(?:ly)?|last\s+time|history|prefer|like|dislike|"

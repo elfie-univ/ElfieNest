@@ -197,6 +197,52 @@ def test_contract_change_requires_mirror_version_bump_and_bilingual_adr(
     )
 
 
+def test_contract_change_accepts_legacy_bilingual_version_headers(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    english_contract = "docs/developer/contracts/example.md"
+    chinese_contract = "docs/zh/developer/contracts/example.md"
+    english_decision = "docs/developer/decisions/0001-example.md"
+    chinese_decision = "docs/zh/developer/decisions/0001-example.md"
+    for path, source in (
+        (english_contract, "**Contract version:** 3.0\n"),
+        (chinese_contract, "**契约版本：** 3.0\n"),
+        (english_decision, "decision\n"),
+        (chinese_decision, "决策\n"),
+    ):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    def base_source(_base_sha: str, path: str) -> str:
+        if path == english_contract:
+            return "Status: normative, version 2.0\n"
+        if path == chinese_contract:
+            return "状态：规范性契约，版本 2.0\n"
+        raise AssertionError(path)
+
+    monkeypatch.setattr(governance_change, "_base_source", base_source)
+    changed = {
+        english_contract,
+        chinese_contract,
+        english_decision,
+        chinese_decision,
+    }
+
+    assert (
+        governance_change._version("Status: normative, version 2.0\n", english_contract)
+        == "2.0"
+    )
+    assert (
+        governance_change._version("状态：规范性契约，版本 2.0\n", chinese_contract)
+        == "2.0"
+    )
+    assert validate_contract_changes("base", changed) == []
+
+
 def test_contract_indexes_require_mirrors_but_not_contract_versions(
     tmp_path: Path,
     monkeypatch,

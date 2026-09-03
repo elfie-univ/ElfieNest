@@ -49,8 +49,8 @@ def validate_registered_document(
         _validate_nest_defaults(document, label)
     elif document_id is ConfigDocumentId.SPECIES_CATALOG:
         _validate_species_catalog_shape(document, label)
-    elif document_id is ConfigDocumentId.WORLD_CANON:
-        _validate_world_canon_shape(document, label)
+    elif document_id is ConfigDocumentId.GENESIS_SOURCE_PACKAGE:
+        _validate_genesis_source_package_shape(document, label)
     elif document_id is ConfigDocumentId.MODEL_CATALOG:
         _validate_model_catalog_shape(document, label)
     elif document_id in (
@@ -630,7 +630,7 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
             "schema_version",
             "catalog_version",
             "appearance_protocol_version",
-            "world_canon_version",
+            "world_package_version",
             "species",
         },
         label,
@@ -639,7 +639,7 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
     for field in (
         "catalog_version",
         "appearance_protocol_version",
-        "world_canon_version",
+        "world_package_version",
     ):
         _string(document.get(field), f"{label}.{field}")
     species = document.get("species")
@@ -648,7 +648,7 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
     allowed = {
         "species_id",
         "package",
-        "canon_id",
+        "species_package_id",
         "status",
         "sort_order",
         "definition_version",
@@ -656,7 +656,12 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
     for index, raw in enumerate(species):
         item = _object(raw, f"{label}.species[{index}]")
         _keys(item, allowed, f"{label}.species[{index}]")
-        for field in ("species_id", "package", "canon_id", "definition_version"):
+        for field in (
+            "species_id",
+            "package",
+            "species_package_id",
+            "definition_version",
+        ):
             _string(item.get(field), f"{label}.species[{index}].{field}")
         if item.get("status") not in ("draft", "published", "retired"):
             raise ConfigSchemaError(
@@ -673,15 +678,17 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
             )
 
 
-def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None:
-    """Validate the bounded, source-only Elfaria World Canon document."""
+def _validate_genesis_source_package_shape(
+    document: Mapping[str, Any], label: str
+) -> None:
+    """Validate the bounded, source-only Genesis package document."""
 
     _keys(
         document,
         {
             "version",
             "schema_version",
-            "canon_version",
+            "package_version",
             "world_id",
             "display_name",
             "known_region",
@@ -690,6 +697,7 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
             "story_events",
             "knowledge",
             "unknown_boundaries",
+            "genesis",
         },
         label,
     )
@@ -698,7 +706,7 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
         {
             "version",
             "schema_version",
-            "canon_version",
+            "package_version",
             "world_id",
             "display_name",
             "known_region",
@@ -712,7 +720,7 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
     )
     _positive_int(document.get("version"), f"{label}.version")
     _positive_int(document.get("schema_version"), f"{label}.schema_version")
-    for field in ("canon_version", "world_id", "display_name"):
+    for field in ("package_version", "world_id", "display_name"):
         _string(document.get(field), f"{label}.{field}")
 
     region = _object(document.get("known_region"), f"{label}.known_region")
@@ -831,13 +839,26 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
         "related_ids",
         "eligibility",
         "importance",
+        "statement_variants",
+        "epistemic_kind",
+        "prerequisite_ids",
+        "acquisition_channels",
+        "exposure_weight",
     }
     for index, raw in enumerate(knowledge):
         fact = _object(raw, f"{label}.knowledge[{index}]")
         _keys(fact, knowledge_fields, f"{label}.knowledge[{index}]")
         _require_keys(
             fact,
-            knowledge_fields - {"importance"},
+            knowledge_fields
+            - {
+                "importance",
+                "statement_variants",
+                "epistemic_kind",
+                "prerequisite_ids",
+                "acquisition_channels",
+                "exposure_weight",
+            },
             f"{label}.knowledge[{index}]",
         )
         fact_id = _string(fact.get("id"), f"{label}.knowledge[{index}].id")
@@ -867,8 +888,468 @@ def _validate_world_canon_shape(document: Mapping[str, Any], label: str) -> None
                 raise ConfigSchemaError(
                     f"{label}.knowledge[{index}].importance 必须在 [0, 1] 内"
                 )
+        if "statement_variants" in fact:
+            variants = _object(
+                fact["statement_variants"],
+                f"{label}.knowledge[{index}].statement_variants",
+            )
+            for key, value in variants.items():
+                _string(
+                    key,
+                    f"{label}.knowledge[{index}].statement_variants key",
+                )
+                _string(
+                    value,
+                    f"{label}.knowledge[{index}].statement_variants.{key}",
+                )
+        if "epistemic_kind" in fact and fact["epistemic_kind"] not in (
+            "lived_observation",
+            "taught",
+            "documented",
+            "hearsay",
+            "myth",
+            "unknown_boundary",
+        ):
+            raise ConfigSchemaError(f"{label}.knowledge[{index}].epistemic_kind 无效")
+        for field in ("prerequisite_ids", "acquisition_channels"):
+            if field in fact:
+                _string_list(
+                    fact[field],
+                    f"{label}.knowledge[{index}].{field}",
+                    allow_empty=True,
+                )
+        if "exposure_weight" in fact:
+            exposure_weight = _number(
+                fact["exposure_weight"],
+                f"{label}.knowledge[{index}].exposure_weight",
+            )
+            if not 0.0 <= exposure_weight <= 1.0:
+                raise ConfigSchemaError(
+                    f"{label}.knowledge[{index}].exposure_weight 必须在 [0, 1] 内"
+                )
 
     _string_list(document.get("unknown_boundaries"), f"{label}.unknown_boundaries")
+    if "genesis" in document:
+        _validate_genesis_metadata(document["genesis"], label)
+
+
+def _validate_genesis_metadata(value: Any, label: str) -> None:
+    """Validate generator-only metadata without interpreting its semantics."""
+
+    metadata = _object(value, f"{label}.genesis")
+    _keys(
+        metadata,
+        {
+            "package_id",
+            "package_version",
+            "schema_version",
+            "status",
+            "member_ids",
+            "source_refs",
+            "content_sha256",
+            "names",
+            "population",
+            "policy",
+            "arrival",
+            "routes",
+            "coverage_manifest",
+            "life_archetypes",
+            "relationship_archetypes",
+            "episode_themes",
+        },
+        f"{label}.genesis",
+    )
+    for field in ("package_id", "package_version", "content_sha256"):
+        if field in metadata:
+            _string(metadata[field], f"{label}.genesis.{field}")
+    if "schema_version" in metadata:
+        _positive_int(metadata["schema_version"], f"{label}.genesis.schema_version")
+    if "status" in metadata and metadata["status"] not in (
+        "draft",
+        "published",
+        "retired",
+    ):
+        raise ConfigSchemaError(f"{label}.genesis.status 无效")
+    for field in ("member_ids", "source_refs"):
+        if field in metadata:
+            _string_list(metadata[field], f"{label}.genesis.{field}", allow_empty=True)
+    if "names" in metadata:
+        names = _object(metadata["names"], f"{label}.genesis.names")
+        _keys(names, {"default", "by_species"}, f"{label}.genesis.names")
+        if "default" in names:
+            _string_list(
+                names["default"],
+                f"{label}.genesis.names.default",
+                allow_empty=True,
+            )
+        if "by_species" in names:
+            by_species = _object(
+                names["by_species"], f"{label}.genesis.names.by_species"
+            )
+            for species_id, values in by_species.items():
+                _string(species_id, f"{label}.genesis.names.by_species key")
+                _string_list(
+                    values,
+                    f"{label}.genesis.names.by_species.{species_id}",
+                )
+    if "population" in metadata:
+        population = _object(metadata["population"], f"{label}.genesis.population")
+        _keys(
+            population,
+            {"settlement_weights", "cells"},
+            f"{label}.genesis.population",
+        )
+        if "settlement_weights" in population:
+            weights = _object(
+                population["settlement_weights"],
+                f"{label}.genesis.population.settlement_weights",
+            )
+            for key, weight in weights.items():
+                _string(
+                    key,
+                    f"{label}.genesis.population.settlement_weights key",
+                )
+                _positive_number(
+                    weight,
+                    f"{label}.genesis.population.settlement_weights.{key}",
+                )
+        if "cells" in population:
+            cells = population["cells"]
+            if not isinstance(cells, list):
+                raise ConfigSchemaError(f"{label}.genesis.population.cells 必须是数组")
+            cell_fields = {
+                "id",
+                "place_id",
+                "species_ids",
+                "weight",
+                "private_home_kind",
+            }
+            for index, raw in enumerate(cells):
+                cell = _object(raw, f"{label}.genesis.population.cells[{index}]")
+                cell_label = f"{label}.genesis.population.cells[{index}]"
+                _keys(cell, cell_fields, cell_label)
+                _require_keys(
+                    cell,
+                    {"id", "place_id", "species_ids", "weight"},
+                    cell_label,
+                )
+                _string(cell["id"], f"{cell_label}.id")
+                _string(cell["place_id"], f"{cell_label}.place_id")
+                _string_list(
+                    cell["species_ids"],
+                    f"{cell_label}.species_ids",
+                )
+                _positive_number(cell["weight"], f"{cell_label}.weight")
+                if "private_home_kind" in cell:
+                    _string(
+                        cell["private_home_kind"],
+                        f"{cell_label}.private_home_kind",
+                    )
+    if "policy" in metadata:
+        policy = _object(metadata["policy"], f"{label}.genesis.policy")
+        policy_label = f"{label}.genesis.policy"
+        _keys(
+            policy,
+            {
+                "version",
+                "seed_algorithm",
+                "relationship_count",
+                "episode_count",
+                "salient_relationship_count",
+                "repeated_relationship_count",
+            },
+            policy_label,
+        )
+        for field in ("version", "seed_algorithm"):
+            if field in policy:
+                _string(policy[field], f"{policy_label}.{field}")
+        for field in (
+            "relationship_count",
+            "episode_count",
+            "salient_relationship_count",
+            "repeated_relationship_count",
+        ):
+            if field in policy:
+                _integer_pair(policy[field], f"{policy_label}.{field}")
+    if "arrival" in metadata:
+        arrival = _object(metadata["arrival"], f"{label}.genesis.arrival")
+        for field in (
+            "eligible_species_ids",
+            "eligible_life_stages",
+            "required_knowledge_ids",
+            "required_module_ids",
+        ):
+            if field in arrival:
+                _string_list(
+                    arrival[field],
+                    f"{label}.genesis.arrival.{field}",
+                    allow_empty=True,
+                )
+        _keys(
+            arrival,
+            {
+                "eligible_species_ids",
+                "eligible_life_stages",
+                "required_knowledge_ids",
+                "required_module_ids",
+            },
+            f"{label}.genesis.arrival",
+        )
+    if "routes" in metadata:
+        routes = metadata["routes"]
+        if not isinstance(routes, list):
+            raise ConfigSchemaError(f"{label}.genesis.routes 必须是数组")
+        route_fields = {
+            "id",
+            "from_place_id",
+            "to_place_id",
+            "label",
+            "aliases",
+            "travel_time_band",
+            "access_conditions",
+        }
+        for index, raw in enumerate(routes):
+            route = _object(raw, f"{label}.genesis.routes[{index}]")
+            route_label = f"{label}.genesis.routes[{index}]"
+            _keys(route, route_fields, route_label)
+            _require_keys(
+                route,
+                {"id", "from_place_id", "to_place_id", "label"},
+                route_label,
+            )
+            for field in ("id", "from_place_id", "to_place_id", "label"):
+                _string(route[field], f"{route_label}.{field}")
+            for field in ("aliases", "access_conditions"):
+                if field in route:
+                    _string_list(
+                        route[field],
+                        f"{route_label}.{field}",
+                        allow_empty=True,
+                    )
+            if "travel_time_band" in route:
+                _string(
+                    route["travel_time_band"],
+                    f"{route_label}.travel_time_band",
+                )
+    if "coverage_manifest" in metadata:
+        coverage = _object(
+            metadata["coverage_manifest"],
+            f"{label}.genesis.coverage_manifest",
+        )
+        coverage_label = f"{label}.genesis.coverage_manifest"
+        _keys(
+            coverage,
+            {"creator_source_ref", "resident_source_ref", "links"},
+            coverage_label,
+        )
+        _require_keys(
+            coverage,
+            {"creator_source_ref", "resident_source_ref", "links"},
+            coverage_label,
+        )
+        _string(coverage["creator_source_ref"], f"{coverage_label}.creator_source_ref")
+        _string(
+            coverage["resident_source_ref"], f"{coverage_label}.resident_source_ref"
+        )
+        links = coverage["links"]
+        if not isinstance(links, list) or not links:
+            raise ConfigSchemaError(f"{coverage_label}.links 必须是非空数组")
+        link_fields = {"upstream_id", "resident_fact_ids", "disposition", "rationale"}
+        for index, raw in enumerate(links):
+            link = _object(raw, f"{coverage_label}.links[{index}]")
+            link_label = f"{coverage_label}.links[{index}]"
+            _keys(link, link_fields, link_label)
+            _require_keys(link, {"upstream_id", "resident_fact_ids"}, link_label)
+            _string(link["upstream_id"], f"{link_label}.upstream_id")
+            _string_list(
+                link["resident_fact_ids"],
+                f"{link_label}.resident_fact_ids",
+                allow_empty=True,
+            )
+            if "disposition" in link:
+                _string(link["disposition"], f"{link_label}.disposition")
+                if link["disposition"] not in ("mapped", "deferred", "excluded"):
+                    raise ConfigSchemaError(f"{link_label}.disposition 无效")
+            if "rationale" in link:
+                _string(link["rationale"], f"{link_label}.rationale")
+
+    if "life_archetypes" in metadata:
+        _validate_life_archetypes(
+            metadata["life_archetypes"], f"{label}.genesis.life_archetypes"
+        )
+    if "relationship_archetypes" in metadata:
+        _validate_relationship_archetypes(
+            metadata["relationship_archetypes"],
+            f"{label}.genesis.relationship_archetypes",
+        )
+    if "episode_themes" in metadata:
+        _validate_episode_themes(
+            metadata["episode_themes"], f"{label}.genesis.episode_themes"
+        )
+
+
+def _validate_life_archetypes(value: Any, label: str) -> None:
+    if not isinstance(value, list) or not value:
+        raise ConfigSchemaError(f"{label} 必须是非空数组")
+    fields = {
+        "id",
+        "species_ids",
+        "life_stages",
+        "place_ids",
+        "weight",
+        "household_roles",
+        "care_and_trade_context",
+        "learning_path_id",
+        "institution_ids",
+        "apprenticeship_ids",
+        "vocation_id",
+        "proficiency_band",
+        "workplace_place_id",
+    }
+    required = {
+        "id",
+        "species_ids",
+        "life_stages",
+        "weight",
+        "household_roles",
+        "care_and_trade_context",
+        "learning_path_id",
+        "vocation_id",
+        "proficiency_band",
+    }
+    for index, raw in enumerate(value):
+        item = _object(raw, f"{label}[{index}]")
+        item_label = f"{label}[{index}]"
+        _keys(item, fields, item_label)
+        _require_keys(item, required, item_label)
+        for field in (
+            "id",
+            "care_and_trade_context",
+            "learning_path_id",
+            "vocation_id",
+            "proficiency_band",
+        ):
+            _string(item[field], f"{item_label}.{field}")
+        for field in (
+            "species_ids",
+            "life_stages",
+            "household_roles",
+            "institution_ids",
+            "apprenticeship_ids",
+            "place_ids",
+        ):
+            if field in item:
+                _string_list(item[field], f"{item_label}.{field}", allow_empty=True)
+        _positive_number(item["weight"], f"{item_label}.weight")
+        if "workplace_place_id" in item:
+            _string(item["workplace_place_id"], f"{item_label}.workplace_place_id")
+
+
+def _validate_relationship_archetypes(value: Any, label: str) -> None:
+    if not isinstance(value, list) or not value:
+        raise ConfigSchemaError(f"{label} 必须是非空数组")
+    fields = {
+        "id",
+        "role",
+        "person_species_ids",
+        "life_stages",
+        "weight",
+        "initial_trust",
+        "importance",
+        "familiarity",
+        "vocation_id",
+        "competency_ids",
+        "episode_theme_ids",
+    }
+    required = {"id", "role", "person_species_ids", "weight"}
+    for index, raw in enumerate(value):
+        item = _object(raw, f"{label}[{index}]")
+        item_label = f"{label}[{index}]"
+        _keys(item, fields, item_label)
+        _require_keys(item, required, item_label)
+        for field in ("id", "role"):
+            _string(item[field], f"{item_label}.{field}")
+        for field in (
+            "person_species_ids",
+            "life_stages",
+            "competency_ids",
+            "episode_theme_ids",
+        ):
+            if field in item:
+                _string_list(item[field], f"{item_label}.{field}", allow_empty=True)
+        _positive_number(item["weight"], f"{item_label}.weight")
+        for field in ("initial_trust", "importance"):
+            if field in item:
+                number = _number(item[field], f"{item_label}.{field}")
+                if not 0.0 <= number <= 1.0:
+                    raise ConfigSchemaError(f"{item_label}.{field} 必须在 [0, 1] 内")
+        if "familiarity" in item:
+            _string(item["familiarity"], f"{item_label}.familiarity")
+        if "vocation_id" in item:
+            _string(item["vocation_id"], f"{item_label}.vocation_id")
+
+
+def _validate_episode_themes(value: Any, label: str) -> None:
+    if not isinstance(value, list) or not value:
+        raise ConfigSchemaError(f"{label} 必须是非空数组")
+    fields = {
+        "id",
+        "label",
+        "weight",
+        "life_stages",
+        "min_age_years",
+        "required_roles",
+        "place_kinds",
+        "emotional_tone",
+        "goal",
+        "obstacle",
+        "outcome",
+        "impact",
+        "required_knowledge_ids",
+        "required",
+        "order",
+    }
+    required = {
+        "id",
+        "label",
+        "weight",
+        "life_stages",
+        "emotional_tone",
+        "goal",
+        "obstacle",
+        "outcome",
+        "impact",
+    }
+    for index, raw in enumerate(value):
+        item = _object(raw, f"{label}[{index}]")
+        item_label = f"{label}[{index}]"
+        _keys(item, fields, item_label)
+        _require_keys(item, required, item_label)
+        for field in (
+            "id",
+            "label",
+            "emotional_tone",
+            "goal",
+            "obstacle",
+            "outcome",
+            "impact",
+        ):
+            _string(item[field], f"{item_label}.{field}")
+        for field in (
+            "life_stages",
+            "required_roles",
+            "place_kinds",
+            "required_knowledge_ids",
+        ):
+            if field in item:
+                _string_list(item[field], f"{item_label}.{field}", allow_empty=True)
+        _positive_number(item["weight"], f"{item_label}.weight")
+        if "min_age_years" in item:
+            _positive_int(item["min_age_years"], f"{item_label}.min_age_years")
+        if "required" in item:
+            _boolean(item["required"], f"{item_label}.required")
+        if "order" in item:
+            _positive_int(item["order"], f"{item_label}.order")
 
 
 def _validate_emotion_actions(value: Any, label: str) -> None:
@@ -1038,6 +1519,20 @@ def _positive_int(value: Any, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigSchemaError(f"{label} 必须是大于 0 的整数")
     return value
+
+
+def _integer_pair(value: Any, label: str) -> tuple[int, int]:
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or any(
+            isinstance(item, bool) or not isinstance(item, int) or item < 0
+            for item in value
+        )
+        or value[1] < value[0]
+    ):
+        raise ConfigSchemaError(f"{label} 必须是递增的两个非负整数")
+    return int(value[0]), int(value[1])
 
 
 def _boolean(value: Any, label: str) -> bool:

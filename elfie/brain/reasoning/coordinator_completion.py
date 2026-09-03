@@ -99,7 +99,16 @@ class CoordinatorCompletionHandler:
                 )
             )
             return _released_disposition(released)
-        decision = govern_decision(inflight.frame, result.decode.plan)
+        # Only a genuinely completed reasoning result is eligible to become a
+        # durable conversational fact.  SAFE_NOOP/FAILED plans may still send
+        # a truthful host notice, but that notice must not pollute the topic
+        # Episode used by future Memory Recall.
+        memory_eligible = result.reasoning.status is ReasoningStatus.COMPLETED
+        decision = govern_decision(
+            inflight.frame,
+            result.decode.plan,
+            memory_eligible=memory_eligible,
+        )
         if result.reasoning.status not in {
             ReasoningStatus.COMPLETED,
             ReasoningStatus.SAFE_NOOP,

@@ -26,7 +26,7 @@ export type BuildChoice = "slim" | "standard" | "round" | "any"
 export type FaceChoice = "soft" | "balanced" | "defined" | "any"
 export type SignatureChoice = "warm" | "marked" | "ears" | "any"
 export type AppearancePriority = "stature" | "build" | "face" | "signature"
-export type NameMode = "original" | "suggested" | "custom"
+export type NameMode = "custom"
 
 export type CompanionAnswer =
   | "approach"
@@ -62,7 +62,7 @@ export type Candidate = {
   readonly candidateId: string
   readonly speciesId: SpeciesId
   readonly lifeStage: LifeStage
-  readonly ageMonths: number
+  readonly ageYears: number
   readonly gender: "male" | "female"
   readonly fullBodyImageUrl: string
   readonly headshotImageUrl: string
@@ -74,11 +74,6 @@ export type Candidate = {
 export type CandidateReply = Candidate & {
   readonly status: "accepted" | "unsure"
   readonly message: string
-  readonly reveal: {
-    readonly originalName: string
-    readonly suggestedName: string
-    readonly personalStory: string
-  } | null
 }
 
 export type AdoptionDraftState = {
@@ -123,7 +118,7 @@ export const INITIAL_ADOPTION_STATE: AdoptionDraftState = {
   selectedCandidateIds: [],
   replies: [],
   finalCandidateId: null,
-  nameMode: "original",
+  nameMode: "custom",
   customName: "",
   candidateSetId: null,
   adoptionSessionId: null,
@@ -148,7 +143,6 @@ export type AdoptionAction =
   | { readonly type: "invitation-message-enabled"; readonly value: boolean }
   | { readonly type: "invitation-message"; readonly value: string }
   | { readonly type: "select-final"; readonly candidateId: string }
-  | { readonly type: "name-mode"; readonly mode: NameMode }
   | { readonly type: "custom-name"; readonly value: string }
   | { readonly type: "error"; readonly message: string }
   | { readonly type: "clear-error" }
@@ -220,8 +214,6 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
       return { ...state, invitationMessage: action.value, invitationMessageEnabled: true, error: null }
     case "select-final":
       return { ...state, finalCandidateId: action.candidateId, error: null }
-    case "name-mode":
-      return { ...state, nameMode: action.mode, error: null }
     case "custom-name":
       return { ...state, customName: action.value, nameMode: "custom", error: null }
     case "error":
@@ -242,8 +234,5 @@ export function intentComplete(draft: AdoptionDraft): boolean {
 export function selectedName(state: AdoptionDraftState): string {
   const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
   if (candidate === undefined) return ""
-  if (candidate.reveal === null) return state.customName.trim()
-  if (state.nameMode === "suggested") return candidate.reveal.suggestedName
-  if (state.nameMode === "custom") return state.customName.trim() || candidate.reveal.originalName
-  return candidate.reveal.originalName
+  return state.customName.trim()
 }

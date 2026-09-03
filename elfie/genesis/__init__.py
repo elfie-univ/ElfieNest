@@ -1,11 +1,19 @@
 """One-time Elfie creation contracts."""
 
+from .compiler import (
+    GenesisCompilation,
+    GenesisCompileInput,
+    GenesisCompiler,
+    KnowledgeDecisionTrace,
+    LifeContext,
+    PersonalGenesisPlan,
+    PersonalKnowledgeEntry,
+    stage_for_age,
+)
 from .contracts import (
     BIG_FIVE_TRAITS,
     CANDIDATE_ROLES,
     BigFiveProfile,
-    BiographyEnrichmentPlan,
-    CandidateReveal,
     CandidateSignature,
     EpisodeSeed,
     GenesisAppearanceIntent,
@@ -22,28 +30,32 @@ from .contracts import (
     KnowledgeSeed,
     KnowledgeStatus,
     MemoryCertainty,
-    MemorySeed,
-    MemorySource,
-    PersonalitySeed,
+    PlaceSeed,
     ProfileDraft,
     RelationshipSeed,
     SelfModelSeed,
     validate_genesis_bundle,
 )
 from .engine import GenesisEngine
+from .envelope import (
+    GenesisCompileEnvelope,
+    GenesisCompileEnvelopeError,
+)
 from .initializer import (
     GenesisCommitReceipt,
     GenesisMemoryCommitter,
+)
+from .serialization import (
+    genesis_content_hash,
+    output_ids_hash,
     planned_genesis_output_ids,
 )
-from .world import WorldCanonPackage, WorldKnowledgeFact, WorldPlace, WorldStoryEvent
+from .world import GenesisSourcePackage, WorldKnowledgeFact, WorldPlace, WorldStoryEvent
 
 __all__ = (
     "BIG_FIVE_TRAITS",
-    "BiographyEnrichmentPlan",
     "CANDIDATE_ROLES",
     "BigFiveProfile",
-    "CandidateReveal",
     "CandidateSignature",
     "GenesisAppearanceIntent",
     "GenesisBatch",
@@ -51,9 +63,14 @@ __all__ = (
     "GenesisCandidate",
     "GenesisEngine",
     "GenesisError",
+    "GenesisCompileEnvelope",
+    "GenesisCompileEnvelopeError",
     "GenesisPersonality",
     "GenesisCommitReceipt",
     "GenesisMemoryCommitter",
+    "GenesisCompilation",
+    "GenesisCompileInput",
+    "GenesisCompiler",
     "GenesisStatus",
     "GenesisValidationError",
     "planned_genesis_output_ids",
@@ -64,15 +81,21 @@ __all__ = (
     "KnowledgeStatus",
     "InitializationManifest",
     "MemoryCertainty",
-    "MemorySeed",
-    "MemorySource",
-    "PersonalitySeed",
+    "PlaceSeed",
     "ProfileDraft",
     "RelationshipSeed",
     "SelfModelSeed",
     "validate_genesis_bundle",
-    "WorldCanonPackage",
+    "GenesisSourcePackage",
     "WorldKnowledgeFact",
     "WorldPlace",
     "WorldStoryEvent",
+    "KnowledgeDecisionTrace",
+    "LifeContext",
+    "PersonalGenesisPlan",
+    "PersonalKnowledgeEntry",
+    "stage_for_age",
+    "genesis_content_hash",
+    "output_ids_hash",
+    "planned_genesis_output_ids",
 )

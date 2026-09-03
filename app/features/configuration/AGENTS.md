@@ -17,5 +17,6 @@
   对象、数据库 Row 或内部技术 Record。
 - 配置 Command 负责校验业务约束；持久化 Adapter 负责原子写入。普通 Elfie Runtime
   通过自有 Port 读取有效 Food/模型/工具投影，不经过本 Feature 作为运行时中转。
-- 物种可用性由 `elfie/profile` 的不可变注册表和资源校验决定，不属于管理员设置。不得
-  新增或恢复 `allowed_species_ids` 之类的物种白名单、持久化字段或按精灵巢审批流程。
+- 物种可用性来自已发布 Genesis 资料源的强类型“创建可用性”投影，并受独立包/资源校验；
+  它不属于 Profile 或管理员设置，也不得与 Godot/展示使用的运行时资产投影混为一个目录。
+  不得新增或恢复 `allowed_species_ids` 之类的物种白名单、持久化字段或按精灵巢审批流程。

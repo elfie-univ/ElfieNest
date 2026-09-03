@@ -29,7 +29,7 @@ const AppearanceSchema = z.object({
 
 const SpeciesPresentationSchema = z.object({
   species_id: z.string().min(1),
-  canon_id: z.string().min(1),
+  species_package_id: z.string().min(1),
   display_name: z.string().min(1),
   display_name_zh: z.string().min(1),
   earth_shape_label: z.string().min(1),
