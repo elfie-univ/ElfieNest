@@ -11,6 +11,7 @@ from elfie.brain.workspace.contracts import (
     PerceptionEvent,
     PerceptionWrite,
     ProcessingFailureEvent,
+    SourceDomain,
     TriggerReason,
     TurnFrame,
     WorkspacePersistentState,
@@ -161,13 +162,17 @@ class EventWorkspace:
         turn_id: TurnId,
         reason: TriggerReason,
         captured_at: UTCDateTime,
+        source_domain: SourceDomain | None = None,
     ) -> TurnFrame:
         """Atomically build and claim a frame ending at the requested cutoff."""
         with self._signal.locked():
             self._ensure_no_active()
             if self._sealed is None:
                 self._sealed = self._build_frame(
-                    min(cutoff_seq, self._next_seq), reason, captured_at
+                    min(cutoff_seq, self._next_seq),
+                    reason,
+                    captured_at,
+                    source_domain=source_domain,
                 )
             if self._sealed is None:
                 raise FrameLifecycleError("no perception writes are available")
@@ -248,6 +253,7 @@ class EventWorkspace:
         requested_cutoff: int,
         reason: TriggerReason,
         captured_at: UTCDateTime,
+        source_domain: SourceDomain | None = None,
     ) -> Optional[TurnFrame]:
         next_revision = self._frame_revision + 1
         frame = self._storage.build_frame(
@@ -258,6 +264,7 @@ class EventWorkspace:
             frame_event_capacity=self._frame_capacity,
             reason=reason,
             captured_at=captured_at,
+            source_domain=source_domain,
         )
         if frame is not None:
             self._frame_revision = next_revision

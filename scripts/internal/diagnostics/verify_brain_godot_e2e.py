@@ -1,9 +1,12 @@
-"""Run one real Brain -> Body -> Godot -> Body -> Brain acceptance round.
+"""Run one real embodied Brain -> Body -> Godot acceptance round.
 
 The diagnostic uses the production Brain, Nest session, Body, Gateway, and
-configured model execution boundary.  It creates a synthetic Elfie and copies
-only provider configuration into a temporary ELFIE_HOME so private profile,
-memory, and report data stay out of the live run.
+Godot authority.  In the stage-one default ``mock`` embodied mode it verifies
+the Brain-owned semantic wander decision and terminal Body feedback; when the
+code switch is changed to ``brain`` it verifies the model follow-up path.  It
+creates a synthetic Elfie and copies only provider configuration into a temporary
+ELFIE_HOME so private profile, memory, and report data stay out of the live
+run.
 """
 
 from __future__ import annotations
@@ -553,7 +556,11 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
             )
         )
         engine.session.start_elfies()
-        target = "facility/activity-01/activity"
+        brain_runtime = getattr(elfie, "_brain_runtime", None)
+        embodied_input_mode = str(
+            getattr(getattr(brain_runtime, "embodied_input_mode", None), "value", "")
+        )
+        requested_target = "facility/activity-01/activity"
         trigger_at = elfie.cognitive_datetime
         trigger = BodySensorEvent(
             event_id=EventId("e2e-trigger-1"),
@@ -570,7 +577,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 text=(
                     "E2E acceptance request: execute one movement now using the "
                     "registered world.go_to capability; move to "
-                    f"{target}; do not answer with prose."
+                    f"{requested_target}; do not answer with prose."
                 ),
             ),
         )
@@ -597,23 +604,40 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 for request in recorder.requests[1:]
             )
 
+        def has_godot_movement_report() -> bool:
+            if not godot_report.is_file():
+                return False
+            try:
+                report = json.loads(godot_report.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return False
+            return report.get("status") == "passed"
+
+        def has_expected_brain_progress() -> bool:
+            if not has_completed_action() or not has_godot_movement_report():
+                return False
+            if embodied_input_mode == "mock":
+                return not recorder.requests
+            return has_followup_model_turn()
+
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             tick()
-            if has_completed_action() and has_followup_model_turn():
+            if has_expected_brain_progress():
                 break
             time.sleep(0.05)
         else:
             raise TimeoutError(
-                "timed out waiting for completed Godot action and follow-up Brain turn"
+                "timed out waiting for completed Godot action and expected Brain progress"
             )
 
-        _wait_until(
-            lambda: len(elfie.turn_outcomes()) >= 2,
-            timeout=10.0,
-            description="follow-up Brain outcome",
-            pump=tick,
-        )
+        if embodied_input_mode != "mock":
+            _wait_until(
+                lambda: len(elfie.turn_outcomes()) >= 2,
+                timeout=10.0,
+                description="follow-up Brain outcome",
+                pump=tick,
+            )
         time.sleep(0.2)
         godot_report_data: Any = None
         if godot_report.is_file():
@@ -622,6 +646,11 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
             event.get("payload", {}).get("command_id")
             for event in body_events
             if event.get("name") == "intent_terminal"
+        ]
+        actual_targets = [
+            command.get("payload", {}).get("anchor_id")
+            for command in gateway.body_commands
+            if command.get("payload", {}).get("anchor_id")
         ]
         outcomes = elfie.turn_outcomes()
         brain_trace = _brain_trace(elfie)
@@ -639,15 +668,21 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
         result.update(
             {
                 "status": "passed"
-                if godot_report_data and godot_report_data.get("status") == "passed"
+                if (
+                    godot_report_data
+                    and godot_report_data.get("status") == "passed"
+                    and has_expected_brain_progress()
+                )
                 else "failed",
                 "actor_id": actor_id,
-                "target": target,
+                "requested_target": requested_target,
+                "actual_targets": actual_targets,
                 "runtime_world_ready": runtime_world_ready_at_setup,
                 "world_capabilities": world_capabilities_at_setup,
                 "runtime_world_ready_at_finish": engine.session.runtime_world_ready,
                 "world_capabilities_at_finish": engine.session.world_capabilities(),
                 "body_connected": body.connected,
+                "embodied_input_mode": embodied_input_mode,
                 "trigger": _dump(trigger),
                 "trigger_receipts": _dump(trigger_receipts),
                 "model_requests": recorder.requests,
@@ -656,6 +691,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "runtime_commands": gateway.commands,
                 "body_commands": gateway.body_commands,
                 "body_events": body_events,
+                "godot_report": godot_report_data,
                 "nest_lane_events": gateway.runtime_events,
                 "setup_events": setup_events,
                 "setup_snapshot_count": setup_snapshot_count,
@@ -664,7 +700,6 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "turn_outcomes": _dump(outcomes),
                 "brain_trace": brain_trace,
                 "execution_receipts": receipt_dump,
-                "godot_report": godot_report_data,
                 "screenshots": {
                     "initial": str(initial_screenshot),
                     "final": str(final_screenshot),
@@ -736,6 +771,26 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "runtime_commands": gateway.commands,
                 "body_commands": gateway.body_commands,
                 "body_events": body_events,
+                "embodied_input_mode": (
+                    str(
+                        getattr(
+                            getattr(
+                                getattr(elfie, "_brain_runtime", None),
+                                "embodied_input_mode",
+                                None,
+                            ),
+                            "value",
+                            "",
+                        )
+                    )
+                    if elfie is not None
+                    else ""
+                ),
+                "godot_report": (
+                    json.loads(godot_report.read_text(encoding="utf-8"))
+                    if godot_report.is_file()
+                    else None
+                ),
                 "nest_lane_events": gateway.runtime_events,
                 "trigger_receipts": _dump(trigger_receipts),
                 "brain_debug": brain_debug,

@@ -46,6 +46,7 @@ from elfie.brain.reasoning.decision_types import (
     SpeechIntent,
     TurnDecision,
 )
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.execution_ports import IntentExecutor
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
@@ -88,6 +89,7 @@ class BrainRuntime:
         memory: MemorySystem,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
+        embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.MOCK,
         tool_port: ToolPort | None = None,
         skills: SkillManager,
         body_executor: IntentExecutor,
@@ -160,6 +162,7 @@ class BrainRuntime:
             plan_sink=self.router,
             settlement=settlement,
             initial_timestamp=clock().timestamp(),
+            embodied_input_mode=embodied_input_mode,
             allowed_tools=skills.allowed_tool_keys(),
             motivation_blocked=self._motivation_blocked,
             consolidation_blocked=self._consolidation_blocked,
@@ -213,6 +216,10 @@ class BrainRuntime:
     def post_clock(self, timestamp: float) -> None:
         self._wake_due_activities(datetime.fromtimestamp(timestamp, timezone.utc))
         self.coordinator.post_clock(BrainClockPulse(timestamp=timestamp))
+
+    @property
+    def embodied_input_mode(self) -> EmbodiedInputMode:
+        return self.coordinator.embodied_input_mode
 
     def notify_perception(self, *, urgent_reason: Optional[str] = None) -> None:
         self.coordinator.notify_perception(urgent_reason=urgent_reason)

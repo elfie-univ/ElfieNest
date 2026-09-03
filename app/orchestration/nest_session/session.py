@@ -51,6 +51,7 @@ from elfie.public import (
     ModelPort,
 )
 from nest.public import (
+    AnchorKind,
     Nest,
     NestEventEnvelope,
     NestSnapshot,
@@ -796,6 +797,18 @@ class NestSession:
         """Expose registered world calls together with typed model arguments."""
         if not self.runtime_world_ready or self.nest.world_catalog is None:
             return ()
+        wander_targets = tuple(
+            anchor.anchor_id
+            for zone in sorted(
+                self.nest.world_catalog.zones,
+                key=lambda item: (item.order, item.zone_id),
+            )
+            for anchor in sorted(
+                zone.anchors,
+                key=lambda item: (item.order, item.anchor_id),
+            )
+            if anchor.active and anchor.kind is not AnchorKind.BED
+        )
         return (
             CapabilityDescriptor(
                 capability_id="world.go_to",
@@ -808,6 +821,7 @@ class NestSession:
                         "anchor_id": {
                             "type": "string",
                             "description": "Registered semantic anchor ID.",
+                            "enum": list(wander_targets),
                         }
                     },
                     "additionalProperties": False,

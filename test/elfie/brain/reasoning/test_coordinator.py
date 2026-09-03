@@ -15,11 +15,14 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.contracts import MemoryContext
 from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.reasoning.context_types import (
+    BodyCapabilityDescriptor,
+    CapabilityDescriptor,
     ConversationContext,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.memory_context import (
     MemoryRecallResult,
     ReasoningMemoryTurn,
@@ -200,6 +203,39 @@ class EmptyContextSource:
         )
 
 
+class MockEmbodiedContextSource(EmptyContextSource):
+    def capabilities(self, captured_at):
+        return EffectiveCapabilities(
+            revision=1,
+            captured_at=captured_at,
+            current_body=BodyCapabilityDescriptor(
+                body_id="body-1",
+                body_generation=1,
+                capability_revision=1,
+                sensors=("proprioception",),
+                actions=("move_to_anchor",),
+            ),
+            world_capabilities=("world.go_to",),
+            capability_catalog=(
+                CapabilityDescriptor(
+                    capability_id="world.go_to",
+                    category="world",
+                    argument_schema={
+                        "type": "object",
+                        "required": ["anchor_id"],
+                        "properties": {
+                            "anchor_id": {
+                                "type": "string",
+                                "enum": ["room/chair", "room/door"],
+                            }
+                        },
+                    },
+                ),
+            ),
+            connected_channels=(),
+        )
+
+
 class RecordingPlanSink:
     def __init__(self) -> None:
         self.plans = []
@@ -301,6 +337,8 @@ def _coordinator(
     allowed_tools: tuple[str, ...] = (),
     initial_energy: float = 100.0,
     reasoning_retention: int = 256,
+    context_source=None,
+    embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.BRAIN,
 ) -> tuple[BrainCoordinator, EmotionSystem, EnergySystem]:
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
@@ -315,17 +353,68 @@ def _coordinator(
         emotion=emotion,
         homeostasis=energy,
         appraiser=EmotionAppraiser(),
-        context_source=EmptyContextSource(),
+        context_source=context_source or EmptyContextSource(),
         reasoning_worker=worker,
         plan_sink=sink,
         settlement=NoopSettlement(),
         constitution=ReasoningConstitution.from_mapping(load_reasoning_constitution()),
         initial_timestamp=initial,
         next_autonomous_at=next_autonomous_at,
+        embodied_input_mode=embodied_input_mode,
         allowed_tools=allowed_tools,
         reasoning_retention=reasoning_retention,
     )
     return coordinator, emotion, energy
+
+
+def test_mock_mode_routes_embodied_wander_without_model_inference() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        context_source=MockEmbodiedContextSource(),
+        embodied_input_mode=EmbodiedInputMode.MOCK,
+    )
+    coordinator.start()
+
+    try:
+        coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 1.0))
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert runtime.calls == []
+        assert len(sink.plans) == 1
+        assert sink.plans[0].plan.intents[0].capability_id == "world.go_to"
+    finally:
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_mock_mode_keeps_communication_on_the_model_path() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        context_source=MockEmbodiedContextSource(),
+        embodied_input_mode=EmbodiedInputMode.MOCK,
+    )
+    coordinator.start()
+
+    try:
+        workspace.publish(_social(1, 0, source_kind="owner"))
+        coordinator.notify_perception()
+        coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+        assert runtime.started.wait(1), coordinator.outcomes()
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+    assert len(runtime.calls) == 1
 
 
 def test_completed_reasoning_traces_have_a_bounded_in_memory_retention() -> None:

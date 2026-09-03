@@ -26,6 +26,7 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.internal_execution import NoOpExecutor
 from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.reasoning.model_header import ReasoningConstitution
@@ -41,6 +42,10 @@ from elfie.communication.perception_adapter import CommunicationPerceptionAdapte
 from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
 from elfie.nervous_system.output_executor import NervousSystemIntentExecutor
+
+# Stage-one default. Change this code switch to ``BRAIN`` when embodied
+# Reasoning is ready to receive physical input.
+DEFAULT_EMBODIED_INPUT_MODE = EmbodiedInputMode.MOCK
 
 
 class EffectiveCapabilityProjection:
@@ -159,6 +164,7 @@ def assemble_brain_runtime(
     current_body_generation: Callable[[], int | None] | None = None,
     clock: Callable[[], datetime],
     model_port: ModelPort,
+    embodied_input_mode: EmbodiedInputMode = DEFAULT_EMBODIED_INPUT_MODE,
     world_capabilities: Callable[[], tuple[str, ...]] | None = None,
     world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
     | None = None,
@@ -225,6 +231,7 @@ def assemble_brain_runtime(
         memory=memory,
         clock=clock,
         model_port=model_port,
+        embodied_input_mode=embodied_input_mode,
         tool_port=tool_port,
         skills=skills,
         body_executor=NervousSystemIntentExecutor(

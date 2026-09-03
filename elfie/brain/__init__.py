@@ -39,6 +39,7 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_types import DecisionPlan, TurnDecision
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import (
     ModelHeaderAssembler,
     ReasoningConstitution,
@@ -117,6 +118,7 @@ __all__ = [
     "ReasoningConstitution",
     "OrientationSystem",
     "BrainCoordinator",
+    "EmbodiedInputMode",
     "DecisionPlan",
     "TurnDecision",
     "TurnFrame",

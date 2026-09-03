@@ -7,6 +7,7 @@ from collections import OrderedDict
 from concurrent.futures import Future
 from dataclasses import replace
 from datetime import datetime, timezone
+from random import Random
 from threading import Event
 from typing import Callable, Optional, Tuple
 from uuid import uuid4
@@ -52,6 +53,10 @@ from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
 )
 from elfie.brain.reasoning.decision_governance import govern_decision
+from elfie.brain.reasoning.embodied_control import (
+    EmbodiedInputMode,
+    EmbodiedMockController,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.run import (
     CognitiveStep,
@@ -66,6 +71,7 @@ from elfie.brain.workspace.contracts import (
     IngestDisposition,
     PhysicalModality,
     PhysicalPayload,
+    SourceDomain,
 )
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
@@ -93,6 +99,8 @@ class BrainCoordinator:
         settlement: TurnSettlementPort,
         initial_timestamp: float,
         next_autonomous_at: Optional[float] = None,
+        embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.BRAIN,
+        mock_wander_random: Random | None = None,
         hard_timeout_seconds: float = 45.0,
         trigger_policy: Optional[TurnTriggerPolicy] = None,
         allowed_tools: Tuple[str, ...] = (),
@@ -116,6 +124,7 @@ class BrainCoordinator:
         self._settlement = settlement
         self._timestamp = initial_timestamp
         self._next_autonomous_at = next_autonomous_at
+        self._embodied_input_mode = EmbodiedInputMode(embodied_input_mode)
         self._hard_timeout = hard_timeout_seconds
         self._policy = trigger_policy or TurnTriggerPolicy()
         self._motivation_blocked = motivation_blocked or (lambda: False)
@@ -151,6 +160,17 @@ class BrainCoordinator:
             settlement=settlement,
             context_source=context_source,
         )
+        self._embodied_mock = (
+            EmbodiedMockController(
+                elfie_id=elfie_id,
+                workspace=workspace,
+                context_source=context_source,
+                plan_sink=plan_sink,
+                rng=mock_wander_random,
+            )
+            if self._embodied_input_mode is EmbodiedInputMode.MOCK
+            else None
+        )
 
     def start(self) -> None:
         """Start worker and owner thread; repeated calls are idempotent."""
@@ -180,6 +200,10 @@ class BrainCoordinator:
     @property
     def is_alive(self) -> bool:
         return self._runtime.is_alive
+
+    @property
+    def embodied_input_mode(self) -> EmbodiedInputMode:
+        return self._embodied_input_mode
 
     def outcomes(self) -> Tuple[TurnOutcome, ...]:
         return self._outcomes.snapshot()
@@ -248,6 +272,10 @@ class BrainCoordinator:
         else:
             self._emotion.advance_to(pulse.timestamp)
         self._timestamp = pulse.timestamp
+        if self._embodied_mock is not None:
+            self._embodied_mock.on_clock(
+                datetime.fromtimestamp(self._timestamp, timezone.utc)
+            )
         self._maybe_emit_motivation()
         self._maybe_emit_consolidation()
         if (
@@ -392,13 +420,29 @@ class BrainCoordinator:
     def _maybe_start_turn(self) -> None:
         if self._inflight is not None:
             return
+        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
+        if self._embodied_mock is not None:
+            self._embodied_mock.drain(now)
+            if self._workspace.metrics().critical_event_count == 0:
+                self._maybe_start_turn_for_domains(
+                    now,
+                    (SourceDomain.COMMUNICATION, SourceDomain.INTERNAL),
+                )
+                return
+        self._maybe_start_turn_for_domains(now, None)
+
+    def _maybe_start_turn_for_domains(
+        self,
+        now: datetime,
+        source_domains: tuple[SourceDomain, ...] | None,
+    ) -> None:
+        """Start one normal turn, optionally excluding routine embodied input."""
         autonomous_due = (
             self._ensure_autonomous_event()
             or self._motivation_due
             or self._consolidation_due
         )
         metrics = self._workspace.metrics()
-        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
         decision = self._policy.evaluate(
             metrics,
             now=now,
@@ -407,16 +451,21 @@ class BrainCoordinator:
         if decision.reason is None or decision.cutoff_seq is None:
             return
         turn_id = TurnId(f"turn_{uuid4().hex}")
-        try:
-            frame = self._workspace.claim_frame(
-                decision.cutoff_seq,
-                turn_id=turn_id,
-                reason=decision.reason,
-                captured_at=now,
-            )
-        except FrameLifecycleError as error:
-            if error.reason != "no perception writes are available":
-                raise
+        frame = None
+        for source_domain in source_domains or (None,):
+            try:
+                frame = self._workspace.claim_frame(
+                    decision.cutoff_seq,
+                    turn_id=turn_id,
+                    reason=decision.reason,
+                    captured_at=now,
+                    source_domain=source_domain,
+                )
+                break
+            except FrameLifecycleError as error:
+                if error.reason != "no perception writes are available":
+                    raise
+        if frame is None:
             self._motivation_due = False
             self._consolidation_due = False
             return
