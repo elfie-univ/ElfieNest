@@ -1,8 +1,8 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.3
+**Contract version:** 2.4
 **Adopted:** 2026-08-11
-**Revised:** 2026-09-02
+**Revised:** 2026-09-03
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
 > **Normative target.** This contract defines the life-system ownership,

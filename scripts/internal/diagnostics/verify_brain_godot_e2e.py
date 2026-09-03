@@ -20,10 +20,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Optional, cast
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -44,11 +45,13 @@ from elfie.message_types import ActorId, ActorRef, EventId
 from infrastructure.godot.body_transport import (
     GodotTransport,
     RuntimeIntentPayload,
+    RuntimeIntentResult,
 )
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import CommandName, RuntimeEventFrame
 from infrastructure.godot.native_body import NativeBody
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
+from infrastructure.godot.nest_session.ports import BodyEventSink
 from infrastructure.godot.runner import find_godot, forward_output, run_import
 from infrastructure.models.model_execution_adapter import (
     SerializedModelExecutionAdapter,
@@ -160,10 +163,10 @@ class RecordingGateway:
     def mark_world_configured(self, connection: Any, *, world_revision: int) -> None:
         self.raw.mark_world_configured(connection, world_revision=world_revision)
 
-    def register_body_sink(self, actor_id: str, sink: GodotTransport) -> None:
+    def register_body_sink(self, actor_id: str, sink: BodyEventSink) -> None:
         self.raw.register_body_sink(actor_id, sink)
 
-    def unregister_body_sink(self, actor_id: str, sink: GodotTransport) -> None:
+    def unregister_body_sink(self, actor_id: str, sink: BodyEventSink) -> None:
         self.raw.unregister_body_sink(actor_id, sink)
 
     def send_body_command(
@@ -390,7 +393,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
 
     server_socket = _free_socket()
     ws_port = int(server_socket.getsockname()[1])
-    nonce = "e2e-" + next(tempfile._get_candidate_names())
+    nonce = f"e2e-{uuid.uuid4().hex}"
     server = GodotAPIServer(
         host="127.0.0.1",
         port=ws_port,
@@ -506,10 +509,22 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
             transport=GodotTransport(
                 gateway,
                 actor_id=actor_id,
-                speech_intent=engine.session.prepare_speech,
-                semantic_action=engine.session.prepare_semantic_action,
-                semantic_action_result=engine.session.complete_semantic_action,
-                visual_observation=engine.session.prepare_visual_observation,
+                speech_intent=cast(
+                    Callable[[RuntimeIntentPayload], bool],
+                    engine.session.prepare_speech,
+                ),
+                semantic_action=cast(
+                    Callable[[RuntimeIntentPayload], Optional[str]],
+                    engine.session.prepare_semantic_action,
+                ),
+                semantic_action_result=cast(
+                    Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
+                    engine.session.complete_semantic_action,
+                ),
+                visual_observation=cast(
+                    Callable[[RuntimeIntentPayload], bool],
+                    engine.session.prepare_visual_observation,
+                ),
             ),
         )
         transport = body.transport
@@ -722,11 +737,9 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 }
             )
             try:
-                brain_debug["workspace_metrics"] = _dump(
-                    elfie._workspace.metrics()  # type: ignore[attr-defined]
-                )
+                brain_debug["workspace_metrics"] = _dump(elfie._workspace.metrics())
                 brain_debug["workspace_pending_writes"] = _dump(
-                    elfie._workspace._storage.pending_writes()  # type: ignore[attr-defined]
+                    elfie._workspace._storage.pending_writes()
                 )
             except Exception as debug_error:  # noqa: BLE001
                 brain_debug["workspace_metrics_error"] = (
@@ -734,7 +747,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 )
             try:
                 brain_debug["logical_clock_enabled"] = bool(
-                    getattr(elfie._nervous_system, "_logical_clock", None)  # type: ignore[attr-defined]
+                    getattr(elfie._nervous_system, "_logical_clock", None)
                 )
             except Exception as debug_error:  # noqa: BLE001
                 brain_debug["logical_clock_error"] = (

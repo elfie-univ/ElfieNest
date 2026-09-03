@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.5
+**Contract version:** 1.6
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-02
+**Revised:** 2026-09-03
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
