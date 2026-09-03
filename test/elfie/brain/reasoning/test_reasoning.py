@@ -343,6 +343,23 @@ def test_direct_cognitive_action_finishes_in_one_model_call_without_tools() -> N
     assert result.decode.plan.intents[0].content == "我们可以从最小聊天闭环开始。"
     assert runtime.calls[0].response_schema.name == "CognitiveAction"
     assert runtime.calls[0].allowed_tools == ()
+    assert result.plan is None
+
+
+def test_deliberate_first_pass_finishes_without_creating_a_plan() -> None:
+    runtime = SequenceCognitiveRuntime(
+        {"type": "answer", "content": "这一轮可以直接回答。"}
+    )
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=2, max_tool_calls=0),
+    ).run(_owner_cognitive_task(depth=ReasoningDepth.DELIBERATE))
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 1
+    assert result.plan is None
 
 
 def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> None:
@@ -429,6 +446,7 @@ def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> No
     assert observed[1][0].revision == 7
     assert "主人喜欢蓝色" in runtime.calls[1].user_prompt
     assert result.decode.plan.memory_uses[0].target_id == "memory-node-1"
+    assert result.plan is None
 
 
 def test_deliberate_completion_judge_revises_a_fabricated_external_success() -> None:
@@ -461,6 +479,10 @@ def test_deliberate_completion_judge_revises_a_fabricated_external_success() -> 
         for step in result.steps
     )
     assert "do not claim external completion" in runtime.calls[1].user_prompt
+    assert result.plan is not None
+    assert result.plan.trigger == "revision_required"
+    assert result.plan.steps == ("verify_draft", "correct_draft")
+    assert "trigger=revision_required" in runtime.calls[1].user_prompt
 
 
 def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> None:
@@ -481,22 +503,115 @@ def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> Non
         "reason": "模型仍想继续",
     }
     runtime = SequenceCognitiveRuntime(recall_action, recall_action)
+    task = _owner_cognitive_task(
+        depth=ReasoningDepth.DELIBERATE,
+        memory_session=EmptyMemorySession(),
+        memory_revision=3,
+    )
+    observed: list[tuple] = []
+
+    def rebuild(observations):
+        observed.append(observations)
+        rendered = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={"user_prompt": f"CURRENT_RUN_OBSERVATIONS:\n{rendered}"}
+        )
+
+    task = replace(task, context_request_builder=rebuild)
     result = ReasoningRun(
         model_port=runtime,
         decoder=DecisionPlanDecoder(),
         budget=ReasoningBudget(max_steps=5, max_model_calls=2, max_tool_calls=0),
-    ).run(
-        _owner_cognitive_task(
-            depth=ReasoningDepth.DELIBERATE,
-            memory_session=EmptyMemorySession(),
-            memory_revision=3,
-        )
-    )
+    ).run(task)
 
     assert result.status is ReasoningStatus.BUDGET_EXHAUSTED
     assert result.failure_reason == "model_call_budget_exhausted"
     assert result.model_calls == 2
     assert result.tool_calls == 0
+    assert result.plan is not None
+    assert result.plan.trigger == "additional_observation"
+    assert result.plan.steps == (
+        "recall_evidence",
+        "form_reply",
+    )
+    assert len(observed) == 3
+    assert any(
+        item.kind == "short_plan" and "trigger=additional_observation" in item.content
+        for item in observed[2]
+    )
+
+
+def test_deliberate_plan_expands_budget_before_finalizing_after_recall_cap() -> None:
+    class LimitedMemorySession:
+        pinned_revision = 3
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def recall(self, query: str) -> MemoryRecallResult:
+            self.calls += 1
+            if self.calls == 1:
+                return MemoryRecallResult(
+                    status="recalled",
+                    query=query,
+                    pinned_revision=self.pinned_revision,
+                    bundle=RecallBundle(recall_revision=self.pinned_revision),
+                )
+            return MemoryRecallResult(
+                status="budget_exhausted",
+                query=query,
+                pinned_revision=self.pinned_revision,
+                reason="on_demand_recall_budget_exhausted",
+            )
+
+    recall_action = {
+        "type": "recall_memory",
+        "query": "再找一条历史",
+        "reason": "需要补充证据",
+    }
+    runtime = SequenceCognitiveRuntime(
+        recall_action,
+        recall_action,
+        {"type": "answer", "content": "根据目前找到的证据，我不会猜测缺失部分。"},
+    )
+    session = LimitedMemorySession()
+    task = _owner_cognitive_task(
+        depth=ReasoningDepth.DELIBERATE,
+        memory_session=session,
+        memory_revision=3,
+    )
+
+    def rebuild(observations):
+        rendered = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={"user_prompt": f"CURRENT_RUN_OBSERVATIONS:\n{rendered}"}
+        )
+
+    task = replace(task, context_request_builder=rebuild)
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(
+            max_steps=None,
+            max_model_calls=2,
+            max_planned_model_calls=8,
+            max_tool_calls=0,
+        ),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 3
+    assert session.calls == 2
+    assert result.plan is not None
+    assert "RecallMemory is exhausted for this Turn" in runtime.calls[2].user_prompt
+    assert [step.kind for step in result.steps] == [
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.OBSERVATION,
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.OBSERVATION,
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.VERIFY,
+    ]
 
 
 class StaticActivityPreflight:

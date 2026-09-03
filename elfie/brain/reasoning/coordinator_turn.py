@@ -46,12 +46,15 @@ from elfie.brain.reasoning.run import (
 )
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
     ExternalExecutionDomain,
     InternalPayload,
     InternalSignal,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
+    ProcessingFailureEvent,
     SocialPayload,
     SourceDomain,
     TurnFrame,
@@ -76,14 +79,6 @@ _EXPLICIT_STRUCTURED_OWNER_INTENT = re.compile(
     r"你.{0,8}(?:答应|承诺)|"
     r"remind\s+me|set\s+(?:a\s+)?reminder|don['’]?t\s+forget|"
     r"do\s+not\s+forget|schedule\b)",
-    flags=re.IGNORECASE,
-)
-
-_DELIBERATE_OWNER_INTENT = re.compile(
-    r"(?:分析|比较|对比|解释|评估|权衡|梳理|推理|总结|为何|为什么|"
-    r"纠正|更正|不是.{0,20}而是|矛盾|冲突|之前|上次|还记得|"
-    r"analy[sz]e|compare|explain|evaluate|trade-?off|reason|correct|"
-    r"conflict|previous(?:ly)?|last\s+time|remember)",
     flags=re.IGNORECASE,
 )
 
@@ -214,7 +209,12 @@ class ReasoningRunController:
             constitution_version=self._header.version,
         )
         response_mode = self._response_mode(frame)
-        reasoning_depth = self._reasoning_depth(frame, homeostasis)
+        reasoning_depth = self._reasoning_depth(
+            frame,
+            homeostasis,
+            recall=recall,
+            conversation=conversation,
+        )
         reasoning_mode = self._reasoning_mode(reasoning_depth, homeostasis)
         effective_tools = self._effective_tools(
             frame,
@@ -390,7 +390,19 @@ class ReasoningRunController:
         effective_tools: tuple[str, ...] = (),
         structured_owner_reply: bool = False,
     ) -> ReasoningBudget:
-        """Map Energy mode to bounded model/tool/step admission."""
+        """Map Energy mode to staged model admission.
+
+        ``max_model_calls`` is the no-plan allowance.  A DELIBERATE Run may
+        expand to ``max_planned_model_calls`` only after its host-owned plan is
+        activated; the Run still stops as soon as a verified draft settles.
+        """
+        planned_model_calls = (
+            8
+            if reasoning_depth is ReasoningDepth.DELIBERATE
+            and homeostasis.long_reasoning_allowed
+            else None
+        )
+        step_limit = 3 if reasoning_depth is ReasoningDepth.DIRECT else None
         if reasoning_depth is ReasoningDepth.DIRECT:
             deadline = 5.0 if homeostasis.cognitive_mode == "emergency" else 12.0
             return ReasoningBudget(
@@ -398,68 +410,116 @@ class ReasoningRunController:
                 # structured response carries reply text and semantic emotion
                 # effects.  A second call would reintroduce the split
                 # correction path this contract is intended to remove.
-                max_steps=3,
+                max_steps=step_limit,
                 max_model_calls=1,
+                max_planned_model_calls=None,
                 max_tool_calls=0,
                 deadline_seconds=deadline,
             )
         if not effective_tools:
             if homeostasis.cognitive_mode == "emergency":
                 return ReasoningBudget(
-                    max_steps=3,
+                    max_steps=step_limit,
                     max_model_calls=1,
+                    max_planned_model_calls=planned_model_calls,
                     max_tool_calls=0,
                     deadline_seconds=5.0,
                 )
             return ReasoningBudget(
-                max_steps=5,
-                max_model_calls=2,
+                max_steps=step_limit,
+                max_model_calls=3,
+                max_planned_model_calls=planned_model_calls,
                 max_tool_calls=0,
                 deadline_seconds=(
-                    15.0 if homeostasis.cognitive_mode == "degraded" else 30.0
+                    None
+                    if planned_model_calls is not None
+                    else (15.0 if homeostasis.cognitive_mode == "degraded" else 30.0)
                 ),
             )
         if homeostasis.cognitive_mode == "emergency":
             return ReasoningBudget(
-                max_steps=2,
+                max_steps=step_limit,
                 max_model_calls=1,
+                max_planned_model_calls=planned_model_calls,
                 max_tool_calls=0,
                 deadline_seconds=5.0,
             )
         if homeostasis.cognitive_mode == "degraded":
             return ReasoningBudget(
-                max_steps=4,
+                max_steps=step_limit,
                 max_model_calls=2,
+                max_planned_model_calls=planned_model_calls,
                 max_tool_calls=1,
                 deadline_seconds=15.0,
             )
         if homeostasis.cognitive_mode == "normal":
             return ReasoningBudget(
-                max_steps=8,
+                max_steps=step_limit,
                 max_model_calls=3,
+                max_planned_model_calls=planned_model_calls,
                 max_tool_calls=1,
                 deadline_seconds=30.0,
             )
-        return ReasoningBudget()
+        return ReasoningBudget(
+            max_steps=step_limit,
+            max_model_calls=3,
+            max_planned_model_calls=planned_model_calls,
+            max_tool_calls=2,
+            deadline_seconds=None if planned_model_calls is not None else 30.0,
+        )
 
     @staticmethod
     def _reasoning_depth(
         frame: TurnFrame,
         homeostasis: EnergySnapshot,
+        *,
+        recall: RecallBundle | None = None,
+        conversation: ConversationContext | None = None,
     ) -> ReasoningDepth:
-        """Select one Turn's cognitive depth without granting capabilities."""
+        """Select depth from host evidence, never from message vocabulary.
+
+        The depth gate is a budget admission decision.  It uses typed signals
+        already present at the host boundary: internal work, high salience or
+        priority, failed execution evidence, unresolved context, and Memory
+        conflicts.  Ordinary owner text stays DIRECT; the model does not
+        classify its own budget.
+        """
         if (
             frame.source_domain is SourceDomain.INTERNAL
             and homeostasis.long_reasoning_allowed
         ):
             return ReasoningDepth.DELIBERATE
-        owner_messages = tuple(
-            event.payload.content
+        if not homeostasis.long_reasoning_allowed:
+            return ReasoningDepth.DIRECT
+        if frame.source_domain is SourceDomain.COMMUNICATION and any(
+            event.salience >= 0.9
+            or event.meta.priority in (Priority.HIGH, Priority.CRITICAL)
             for event in frame.events
-            if isinstance(event.payload, SocialPayload)
-            and event.payload.sender.source_kind == "owner"
-        )
-        if any(_DELIBERATE_OWNER_INTENT.search(text) for text in owner_messages):
+        ):
+            # Salience already triggers an embodied Turn.  It must not turn
+            # every fast body reaction into a long-budget reasoning run.
+            return ReasoningDepth.DELIBERATE
+        if any(
+            isinstance(event, ProcessingFailureEvent)
+            or (
+                isinstance(event.payload, ExecutionPayload)
+                and event.payload.status
+                in {
+                    ExecutionStatus.REJECTED,
+                    ExecutionStatus.FAILED,
+                    ExecutionStatus.INTERRUPTED,
+                    ExecutionStatus.TIMED_OUT,
+                    ExecutionStatus.CANCELLED,
+                }
+            )
+            for event in frame.events
+        ):
+            return ReasoningDepth.DELIBERATE
+        if recall is not None and recall.conflicts:
+            return ReasoningDepth.DELIBERATE
+        if conversation is not None and any(
+            summary.unresolved_items for summary in conversation.summaries
+        ):
             return ReasoningDepth.DELIBERATE
         return ReasoningDepth.DIRECT
 

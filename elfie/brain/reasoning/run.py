@@ -15,7 +15,7 @@ from datetime import datetime
 from enum import Enum, unique
 from threading import Event
 from time import monotonic
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Tuple
 
 from pydantic import Field, JsonValue
 
@@ -94,11 +94,37 @@ class CognitiveStepKind(str, Enum):
     VERIFY = "verify"
 
 
-class ReasoningBudget(FrozenContractModel):
-    """Hard local bounds; no provider may extend them."""
+ReasoningPlanStepKind = Literal[
+    "recall_evidence",
+    "verify_draft",
+    "correct_draft",
+    "form_reply",
+]
 
-    max_steps: int = Field(default=12, ge=1)
+
+class ReasoningPlan(FrozenContractModel):
+    """A lazily-created 1--3 step plan that exists only inside one Run."""
+
+    trigger: Literal["additional_observation", "revision_required"]
+    steps: Tuple[ReasoningPlanStepKind, ...] = Field(min_length=1, max_length=3)
+
+
+class ReasoningBudget(FrozenContractModel):
+    """Per-Run admission bounds with a host-owned plan expansion."""
+
+    # ``max_steps`` is an optional last-resort loop fuse.  Model calls and
+    # tool calls are the real budgets; ordinary Runs derive their termination
+    # from those counters plus the deadline instead of competing with another
+    # fixed step number.
+    max_steps: Optional[int] = Field(default=None, ge=1)
+    # Before a host-owned ReasoningPlan exists, this is the active model-call
+    # limit.  It remains a hard limit for callers that do not opt into plan
+    # expansion, preserving the existing explicit-budget contract.
     max_model_calls: int = Field(default=4, ge=1)
+    # Once Brain creates a valid short plan, the Run may expand up to this
+    # second ceiling.  It never resets calls already spent and never applies
+    # to DIRECT because DIRECT never creates a plan.
+    max_planned_model_calls: Optional[int] = Field(default=None, ge=1)
     max_tool_calls: int = Field(default=2, ge=0)
     deadline_seconds: Optional[float] = Field(default=None, ge=0.0)
 
@@ -134,6 +160,7 @@ class ReasoningRunResult(FrozenContractModel):
     tool_calls: int
     failure_reason: Optional[str]
     decode: DecisionDecodeResult
+    plan: Optional[ReasoningPlan] = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +184,7 @@ _TOOL_MARKER = re.compile(
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
+_SHORT_PLAN_OBSERVATION_KIND = "short_plan"
 _HONEST_EXTERNAL_BOUNDARY_REPLY = (
     "我目前没有执行或确认任何外部操作；如果你愿意，我可以先就现有信息继续聊。"
 )
@@ -211,6 +239,44 @@ def _with_brain_owned_schema_protocol(
     return f"{system_prompt}\n\n{instruction}"
 
 
+def _new_recall_plan() -> ReasoningPlan:
+    """Describe the second dependent evidence step without reading content."""
+    return ReasoningPlan(
+        trigger="additional_observation",
+        steps=("recall_evidence", "form_reply"),
+    )
+
+
+def _new_revision_plan() -> ReasoningPlan:
+    """Describe one host-requested correction without exposing hidden thoughts."""
+    return ReasoningPlan(
+        trigger="revision_required",
+        steps=("verify_draft", "correct_draft"),
+    )
+
+
+def _replace_plan_observation(
+    observations: List[CurrentRunObservation],
+    plan: ReasoningPlan,
+) -> None:
+    """Expose only the current plan state to the next Context Engine pass."""
+    observations[:] = [
+        observation
+        for observation in observations
+        if observation.kind != _SHORT_PLAN_OBSERVATION_KIND
+    ]
+    rendered_steps = "; ".join(
+        f"{ordinal}:{kind}" for ordinal, kind in enumerate(plan.steps, start=1)
+    )
+    observations.append(
+        CurrentRunObservation(
+            kind=_SHORT_PLAN_OBSERVATION_KIND,
+            status="active",
+            content=f"trigger={plan.trigger}; steps={rendered_steps}",
+        )
+    )
+
+
 class ReasoningRun:
     """Run a bounded cognitive loop for one already-admitted reasoning task."""
 
@@ -247,6 +313,8 @@ class ReasoningRun:
         capabilities: Optional[ModelGenerationCapabilities] = None
         last_generation: Optional[ModelGenerationResult] = None
         run_observations: List[CurrentRunObservation] = []
+        reasoning_plan: Optional[ReasoningPlan] = None
+        active_model_limit = self._budget.max_model_calls
         memory_reference_ids = list(getattr(task, "memory_reference_ids", ()))
         started_at = monotonic()
         turn_deadline_seconds = max(
@@ -259,6 +327,17 @@ class ReasoningRun:
             else turn_deadline_seconds
         )
 
+        def activate_plan_budget() -> None:
+            """Expand only after Brain has created a host-owned plan."""
+            nonlocal active_model_limit
+            planned_limit = self._budget.max_planned_model_calls
+            if planned_limit is not None:
+                active_model_limit = max(active_model_limit, planned_limit)
+
+        def step_limit_reached() -> bool:
+            limit = self._budget.max_steps
+            return limit is not None and len(steps) >= limit
+
         def guard(
             *, next_kind: CognitiveStepKind, model: bool = False, tool: bool = False
         ) -> None:
@@ -266,7 +345,7 @@ class ReasoningRun:
                 raise _ReasoningStop(ReasoningStatus.CANCELLED, "cancelled")
             if monotonic() - started_at >= deadline_seconds:
                 raise _ReasoningStop(ReasoningStatus.TIMED_OUT, "deadline_exceeded")
-            if model and model_calls >= self._budget.max_model_calls:
+            if model and model_calls >= active_model_limit:
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "model_call_budget_exhausted",
@@ -276,7 +355,7 @@ class ReasoningRun:
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "tool_call_budget_exhausted",
                 )
-            if len(steps) >= self._budget.max_steps:
+            if step_limit_reached():
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED, "step_budget_exhausted"
                 )
@@ -291,7 +370,7 @@ class ReasoningRun:
             operation: str | None = None,
             ok: bool | None = None,
         ) -> None:
-            if len(steps) >= self._budget.max_steps:
+            if step_limit_reached():
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "step_budget_exhausted",
@@ -365,7 +444,7 @@ class ReasoningRun:
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is ReasoningDepth.DELIBERATE
-                            and model_calls < self._budget.max_model_calls
+                            and model_calls < active_model_limit
                         ):
                             run_observations.append(
                                 CurrentRunObservation(
@@ -393,6 +472,19 @@ class ReasoningRun:
                             raise _ReasoningStop(
                                 ReasoningStatus.SAFE_NOOP,
                                 "recall_memory_not_allowed_in_direct",
+                            )
+                        if reasoning_plan is None and any(
+                            observation.kind in {"memory", "revision"}
+                            for observation in run_observations
+                        ):
+                            # One Recall followed by an answer stays plan-free.
+                            # A second dependent Recall is the first reliable
+                            # signal that this Turn has become multi-step.
+                            reasoning_plan = _new_recall_plan()
+                            activate_plan_budget()
+                            _replace_plan_observation(
+                                run_observations,
+                                reasoning_plan,
                             )
                         memory_session = getattr(task, "memory_session", None)
                         if memory_session is None:
@@ -424,6 +516,13 @@ class ReasoningRun:
                             f"result={recall_content or 'no additional memory evidence'}; "
                             f"detail={recall_reason or 'none'}"
                         )
+                        if recall_status == "budget_exhausted":
+                            observation_content += (
+                                "; RecallMemory is exhausted for this Turn; "
+                                "do not request RecallMemory again; return a final "
+                                "AnswerDraft or ClarificationDraft using only the "
+                                "supplied evidence"
+                            )
                         add_step(
                             CognitiveStepKind.OBSERVATION,
                             f"memory_{recall_status}",
@@ -464,7 +563,20 @@ class ReasoningRun:
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is ReasoningDepth.DELIBERATE
-                            and model_calls < self._budget.max_model_calls
+                        ):
+                            # The Verifier is a host-owned signal.  It is the
+                            # only point at which a correction plan is needed;
+                            # accepted first-pass drafts never create one.
+                            reasoning_plan = _new_revision_plan()
+                            activate_plan_budget()
+                            _replace_plan_observation(
+                                run_observations,
+                                reasoning_plan,
+                            )
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is ReasoningDepth.DELIBERATE
+                            and model_calls < active_model_limit
                         ):
                             run_observations.append(
                                 CurrentRunObservation(
@@ -512,6 +624,7 @@ class ReasoningRun:
                         tool_calls=tool_calls,
                         failure_reason=None,
                         decode=decode,
+                        plan=reasoning_plan,
                     )
 
                 marker = (
@@ -708,6 +821,7 @@ class ReasoningRun:
                 tool_calls=tool_calls,
                 capabilities=capabilities,
                 generation=last_generation,
+                reasoning_plan=reasoning_plan,
             )
         except Exception as error:  # noqa: BLE001 - model boundary
             return self._failure(
@@ -719,6 +833,7 @@ class ReasoningRun:
                 tool_calls=tool_calls,
                 capabilities=capabilities,
                 generation=last_generation,
+                reasoning_plan=reasoning_plan,
             )
 
     def _request(
@@ -947,6 +1062,7 @@ class ReasoningRun:
         tool_calls: int,
         capabilities: Optional[ModelGenerationCapabilities],
         generation: Optional[ModelGenerationResult],
+        reasoning_plan: Optional[ReasoningPlan],
     ) -> ReasoningRunResult:
         decode = self._safe_noop(
             task,
@@ -954,7 +1070,7 @@ class ReasoningRun:
             capabilities=capabilities,
             generation=generation,
         )
-        if len(steps) < self._budget.max_steps:
+        if self._budget.max_steps is None or len(steps) < self._budget.max_steps:
             steps.append(
                 CognitiveStep(
                     ordinal=len(steps) + 1,
@@ -974,6 +1090,7 @@ class ReasoningRun:
             tool_calls=tool_calls,
             failure_reason=reason,
             decode=decode,
+            plan=reasoning_plan,
         )
 
     @staticmethod
@@ -1058,6 +1175,7 @@ __all__ = (
     "CurrentRunObservation",
     "ReasoningBudget",
     "ReasoningDepth",
+    "ReasoningPlan",
     "ReasoningRun",
     "ReasoningRunResult",
     "ReasoningStatus",
