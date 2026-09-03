@@ -4,9 +4,9 @@
 > Scope: one Elfie, one Godot Runtime, and one virtual body; physical devices are out of scope.
 
 > Design relations: **Owner:** Elfie / Embodiment; **Parent:** [Embodied control chain](./elfie-embodied-control-chain.md);
-> **Children:** none; **Normative contracts:** [System architecture contract](../../contracts/system.md),
-> [Elfie contract](../../contracts/elfie.md), [Nest–Godot semantic-world contract](../../contracts/nest-godot-semantic-world.md),
-> [Brain contract](../../contracts/brain.md); **Current architecture:** [Module boundaries](../../architecture/module-boundaries.md);
+> **Children:** none; **Normative contracts:** [System architecture contract](../../../contracts/system.md),
+> [Elfie contract](../../../contracts/elfie.md), [Nest–Godot semantic-world contract](../../../contracts/nest-godot-semantic-world.md),
+> [Brain contract](../../../contracts/brain.md); **Current architecture:** [Module boundaries](../../../architecture/module-boundaries.md);
 > **Conformance:** none; **Domain sources:** stable identifiers for Elfaria and product inputs.
 
 ## 1. First-version acceptance target

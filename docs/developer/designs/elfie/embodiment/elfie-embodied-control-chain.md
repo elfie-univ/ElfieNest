@@ -8,15 +8,15 @@
 
 > Design relations: **Owner:** Elfie / Embodiment; **Parent:** [Elfie top-level module design](../elfie-top-level-module-design.md);
 > **Children:** [Godot virtual-body vertical-slice plan](./elfie-godot-vertical-slice-plan.md);
-> **Normative contracts:** [System architecture contract](../../contracts/system.md), [Elfie contract](../../contracts/elfie.md),
-> [Nest–Godot semantic-world contract](../../contracts/nest-godot-semantic-world.md), [Brain contract](../../contracts/brain.md);
-> **Current architecture:** [Module boundaries](../../architecture/module-boundaries.md); **Conformance:** none;
+> **Normative contracts:** [System architecture contract](../../../contracts/system.md), [Elfie contract](../../../contracts/elfie.md),
+> [Nest–Godot semantic-world contract](../../../contracts/nest-godot-semantic-world.md), [Brain contract](../../../contracts/brain.md);
+> **Current architecture:** [Module boundaries](../../../architecture/module-boundaries.md); **Conformance:** none;
 > **Domain sources:** stable identifiers for Elfaria and product inputs.
 
 The repository-wide ownership rules remain in the [System architecture
-contract](../../contracts/system), the [Elfie contract](../../contracts/elfie), the
-[Nest–Godot semantic-world contract](../../contracts/nest-godot-semantic-world)
-and the [Brain contract](../../contracts/brain). This design organizes that
+contract](../../../contracts/system), the [Elfie contract](../../../contracts/elfie), the
+[Nest–Godot semantic-world contract](../../../contracts/nest-godot-semantic-world)
+and the [Brain contract](../../../contracts/brain). This design organizes that
 existing boundary around one question: how does one body capability invocation
 reach two different execution targets — the Godot virtual body and a physical
 device — without making Brain or Body depend on either target?

@@ -3,7 +3,7 @@
 > Status: accepted target design<br>
 > Confirmed: 2026-08-30<br>
 > Review: source audit and adversarial review completed on 2026-08-30<br>
-> Contract alignment: 2026-09-03, ADR-0033 and Brain 1.6<br>
+> Contract alignment: 2026-09-03, ADR-0033 and Brain 1.7<br>
 > Scope: Selfhood initialization, state, future update boundary, model projection,
 > and the fixed header of online Elfie `ReasoningRun` model calls<br>
 > Nature: cross-version design; it does not claim that the current implementation

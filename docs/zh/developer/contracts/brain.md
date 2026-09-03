@@ -1,6 +1,6 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.6
+**契约版本：** 1.7
 **采用日期：** 2026-08-12
 **修订日期：** 2026-09-03
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
@@ -10,7 +10,8 @@
 > Selfhood/固定头部差距继续记录在聚焦的
 > [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
 > Workspace P0 边界由永久聚焦测试守护。版本 1.5 冻结了一次性 Genesis 与最终所有者隔离
-> 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由。尚未
+> 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由；版本 1.7
+> 记录已接受 Brain 设计层级的稳定链接。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、

@@ -4,9 +4,9 @@
 > 范围：一只 Elfie、一只 Godot Runtime、一具虚拟身体；不包含物理设备。
 
 > 设计关系：**所属模块：**Elfie / Embodiment；**上级设计：**[具身控制链路设计](./elfie-embodied-control-chain.md)；
-> **下级设计：**无；**规范性契约：**[系统架构契约](../../contracts/system.md)、[Elfie 契约](../../contracts/elfie.md)、
-> [Nest–Godot 语义世界契约](../../contracts/nest-godot-semantic-world.md)、[Brain 契约](../../contracts/brain.md)；
-> **当前架构：**[模块边界](../../architecture/module-boundaries.md)；**一致性：**无；**领域资料源：**Elfaria 与产品资料的稳定标识。
+> **下级设计：**无；**规范性契约：**[系统架构契约](../../../contracts/system.md)、[Elfie 契约](../../../contracts/elfie.md)、
+> [Nest–Godot 语义世界契约](../../../contracts/nest-godot-semantic-world.md)、[Brain 契约](../../../contracts/brain.md)；
+> **当前架构：**[模块边界](../../../architecture/module-boundaries.md)；**一致性：**无；**领域资料源：**Elfaria 与产品资料的稳定标识。
 
 ## 1. 第一版验收目标
 

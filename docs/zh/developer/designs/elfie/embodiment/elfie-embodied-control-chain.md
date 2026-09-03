@@ -5,13 +5,13 @@
 > 本文冻结职责骨架，不表示未来所有物理设备协议已经实现。
 
 > 设计关系：**所属模块：**Elfie / Embodiment；**上级设计：**[Elfie 顶级模块设计](../elfie-top-level-module-design.md)；
-> **下级设计：**[Godot 虚拟身体端到端执行计划](./elfie-godot-vertical-slice-plan.md)；**规范性契约：**[系统架构契约](../../contracts/system.md)、
-> [Elfie 契约](../../contracts/elfie.md)、[Nest–Godot 语义世界契约](../../contracts/nest-godot-semantic-world.md)、[Brain 契约](../../contracts/brain.md)；
-> **当前架构：**[模块边界](../../architecture/module-boundaries.md)；**一致性：**无；**领域资料源：**Elfaria 与产品资料的稳定标识。
+> **下级设计：**[Godot 虚拟身体端到端执行计划](./elfie-godot-vertical-slice-plan.md)；**规范性契约：**[系统架构契约](../../../contracts/system.md)、
+> [Elfie 契约](../../../contracts/elfie.md)、[Nest–Godot 语义世界契约](../../../contracts/nest-godot-semantic-world.md)、[Brain 契约](../../../contracts/brain.md)；
+> **当前架构：**[模块边界](../../../architecture/module-boundaries.md)；**一致性：**无；**领域资料源：**Elfaria 与产品资料的稳定标识。
 
-全局所有权规则仍以[系统架构契约](../../contracts/system)、[Elfie 契约](../../contracts/elfie)、
-[Nest–Godot 语义世界契约](../../contracts/nest-godot-semantic-world)和
-[Brain 契约](../../contracts/brain)为准。本文只围绕一个问题组织已有边界：同一份身体能力调用，
+全局所有权规则仍以[系统架构契约](../../../contracts/system)、[Elfie 契约](../../../contracts/elfie)、
+[Nest–Godot 语义世界契约](../../../contracts/nest-godot-semantic-world)和
+[Brain 契约](../../../contracts/brain)为准。本文只围绕一个问题组织已有边界：同一份身体能力调用，
 如何在不让 Brain 或 Body 依赖目标平台的情况下，落到两个不同的执行端——Godot 虚拟身体和物理设备？
 
 ## 1. 设计目标
