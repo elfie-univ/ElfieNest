@@ -173,7 +173,7 @@ knowledge:
     level: common
     certainty: high
     status: active
-    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.light_cycle
+    source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md#nature.light_cycle
     related_ids: []
     eligibility: [all]
   - id: nature.seasons
@@ -186,7 +186,7 @@ knowledge:
     level: common
     certainty: high
     status: active
-    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.seasons
+    source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md#nature.seasons
     related_ids: []
     eligibility: [all]
   - id: nature.water_cycle
@@ -199,7 +199,7 @@ knowledge:
     level: common
     certainty: high
     status: active
-    source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md#nature.water_cycle
+    source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md#nature.water_cycle
     related_ids: []
     eligibility: [all]
   - id: nature.life_needs
@@ -695,11 +695,11 @@ genesis:
     - generation-policy-v1
     - arrival-rules-v1
   source_refs:
-    - docs/.internal/elfaria-bottom-up-world-design-v0.1.md
-    - docs/.internal/elfaria-public-knowledge-overview-v0.1.md
+    - docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    - docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
   coverage_manifest:
-    creator_source_ref: docs/.internal/elfaria-bottom-up-world-design-v0.1.md
-    resident_source_ref: docs/.internal/elfaria-public-knowledge-overview-v0.1.md
+    creator_source_ref: docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    resident_source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
     links:
       - {upstream_id: world.identity, resident_fact_ids: [world.identity]}
       - {upstream_id: world.known_region, resident_fact_ids: [world.known_region]}
@@ -979,4 +979,4 @@ genesis:
       - earth.adaptation
     required_module_ids:
       - earth_program
-  content_sha256: 8f855c6d3ef1f5751dbd32331a7f9d8eb66b8619082245e5e7c849a1066735d1
+  content_sha256: a7a0f0055b00ebd723aff1e1fa443fa6aaa1925eedd36893fe0b2faeeda934c1

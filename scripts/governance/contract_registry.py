@@ -87,14 +87,21 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="documentation-structure",
-        version="1.1",
+        version="1.2",
         english_path="docs/developer/contracts/documentation-structure.md",
         chinese_path="docs/zh/developer/contracts/documentation-structure.md",
         decision_paths=(
             "docs/developer/decisions/0008-documentation-information-architecture.md",
             "docs/zh/developer/decisions/0008-documentation-information-architecture.md",
+            "docs/developer/decisions/0035-hierarchical-design-placement.md",
+            "docs/zh/developer/decisions/0035-hierarchical-design-placement.md",
         ),
-        agent_paths=("docs/AGENTS.md",),
+        agent_paths=(
+            "docs/AGENTS.md",
+            "docs/.internal/AGENTS.md",
+            "docs/developer/designs/AGENTS.md",
+            "docs/zh/developer/designs/AGENTS.md",
+        ),
         scanner_paths=(),
         test_paths=("test/architecture/test_documentation_structure.py",),
     ),
@@ -155,7 +162,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="service-lifecycle",
-        version="1.3",
+        version="1.4",
         english_path="docs/developer/contracts/service-lifecycle.md",
         chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
         decision_paths=(
@@ -287,7 +294,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.6",
+        version="1.7",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(

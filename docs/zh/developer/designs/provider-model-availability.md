@@ -8,6 +8,11 @@
 > 当前缺口记录在
 > [Provider/模型可用性一致性台账](../conformance/provider-model-availability.md)
 
+> 设计关系：**所属模块：**Infrastructure；**上级设计：**整个系统全局设计（独立的上级设计，本次未移动）；
+> **下级设计：**无；**规范性契约：**[模型、Food 与工具行为契约](../contracts/model-food-tool-behavior.md)；
+> **当前架构：**[运行时与数据](../architecture/runtime.md)；**一致性台账：**[Provider/模型可用性一致性](../conformance/provider-model-availability.md)；
+> **领域资料来源：**Product 配置目标。
+
 ## 1. 目标与边界
 
 本文设计 ElfieNest 如何配置本地或远程 Provider、加载真正有用的 Endpoint 模型、获得

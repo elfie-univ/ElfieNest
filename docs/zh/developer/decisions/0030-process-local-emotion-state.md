@@ -25,7 +25,7 @@ Emotion 不写入 Brain Journal，也不建立专用数据库。Coordinator 持�
 
 模型接收的是快速反应前的稳定 Emotion 投影和宿主可信候选 Scope，不是临时快速存量；
 结构化慢评价必须从同一个快速反应前 Anchor 重新计算。具体动态和当前质量差距分别以
-[Emotion 设计](../designs/elfie-emotion-system)和
+[Emotion 设计](../designs/elfie/brain/elfie-emotion-system)和
 [一致性台账](../conformance/elfie-emotion)为准。
 
 音频/图像情绪检测暂缓。保留已有类型化媒体传输，但不保留无调用 Detector 占位代码；

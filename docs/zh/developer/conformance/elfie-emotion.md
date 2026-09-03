@@ -2,7 +2,7 @@
 
 > 状态：效果质量和慢层纠正覆盖仍有开放债务<br>
 > 基线：2026-08-30，分支候选 `1cc4962d`<br>
-> 目标：[Elfie 情绪系统设计](../designs/elfie-emotion-system)
+> 目标：[Elfie 情绪系统设计](../designs/elfie/brain/elfie-emotion-system)
 
 这是相对于已接受 Emotion 设计的临时差距台账。它不能削弱六通道契约，也不能用低误报
 掩盖召回不足。
