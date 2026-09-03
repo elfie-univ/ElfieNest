@@ -57,12 +57,18 @@ def test_low_data_projection_preserves_existing_payload_shape(tmp_path) -> None:
         "world_model",
         "world_understanding",
     }
-    assert projection["topics"] == projection["important_events"] == []
-    assert projection["relations"] == {
-        "nodes": [{"id": "self", "label": "低数据精灵", "kind": "self", "weight": 1.0}],
-        "links": [],
-    }
-    assert projection["knowledge"] == {"nodes": [], "links": []}
+    # Elfie Lab creation now performs the one-time Genesis hand-off.  The
+    # projection keeps the same public payload shape while exposing those
+    # initial experiences and world knowledge instead of an empty memory.
+    assert projection["topics"]
+    assert len(projection["important_events"]) == 5
+    assert all(
+        set(event)
+        == {"id", "content", "timestamp", "emotion", "importance", "people", "changed"}
+        for event in projection["important_events"]
+    )
+    assert projection["relations"]["nodes"]
+    assert projection["knowledge"]["nodes"]
     assert all(not ring["nodes"] for ring in projection["world_model"]["rings"])
 
 

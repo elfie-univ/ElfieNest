@@ -40,3 +40,4 @@ The current contract always states the enforceable rule.
 - [ADR-0019: Provider availability is endpoint-scoped and serving-driven](./0019-provider-endpoint-availability)
 - [ADR-0020: Configuration-driven species packages](./0020-configuration-driven-species-packages)
 - [ADR-0034: Preserve legacy contract version headers during governance cutover](./0034-legacy-contract-version-header-compatibility)
+- [ADR-0035: Hierarchical placement for internal and public design documents](./0035-hierarchical-design-placement)

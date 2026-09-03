@@ -25,16 +25,34 @@ Developer 内容直接分为 `architecture/`、可选的 `designs/`、`contracts
 `index.md`；可选分类没有获批页面时不创建空目录。
 
 - `architecture/` 只描述当前、已验证的实现；
-- `designs/` 保存有长期价值且已经审阅的跨版本重大设计；
+- `designs/` 保存有长期价值且已经审阅的跨版本重大设计；设计文档内部按全局设计、
+  `app`、`infrastructure`、`elfie`、`nest` 的逻辑所有权组织，具体物理目录遵循
+  `docs/developer/designs/AGENTS.md` 的“文档变多后再分目录”规则；
 - `contracts/` 保存当前权威的版本化规范；
 - `conformance/` 只保存当前差距，完全一致后删除详细台账；
 - `decisions/` 永久保存已接受 ADR；
 - `engineering/` 解释开发、质量、测试、调试、工具、安全和发布实践。
 
+## 私有资料与设计层级
+
+`docs/.internal/` 只保留三个扁平目录：`elfaria/`、`product/` 和 `drafts/`。它们分别
+保存 Elfaria 世界资料、产品/故事资料，以及尚未定稿的领域草稿。详细边界见
+`docs/.internal/AGENTS.md`。
+
+`.internal` 中不新增私有代码设计、执行日志或执行报告。已经采纳的技术设计进入公开
+`developer/designs/`，规范性规则进入 `contracts/`，当前事实进入 `architecture/`，
+验收证据进入对应 Conformance、CI 或任务产物。现存 drafts 中的历史计划和旧技术材料
+统一视为不可作为当前依据的遗留材料，不得继续扩展为新的权威来源。
+
+`developer/designs/index.md` 只是目录页，不是隐藏的父级设计；设计层级由现有设计文档
+之间的父子引用表达。具体阅读顺序、Brain 十系统归属和懒目录规则见
+`docs/developer/designs/AGENTS.md`。
+
 结构权威见双语
 [`Documentation structure contract`](developer/contracts/documentation-structure.md)。修改
-顶级分区、Developer 分类、分类含义、双语镜像或生命周期时，必须使用独立治理变更，
-同步更新新 ADR、契约版本、本文件、VitePress 导航、Contract Registry 和聚焦架构测试。
+顶级分区、Developer 分类、设计层级、私有资料边界、双语镜像或生命周期时，必须使用
+独立治理变更，同步更新新 ADR、契约版本、本文件、作用域内 `AGENTS.md`、VitePress
+导航、Contract Registry 和聚焦架构测试。
 
 ## 架构治理文档
 

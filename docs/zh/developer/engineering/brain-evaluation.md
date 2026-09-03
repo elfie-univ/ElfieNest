@@ -2,7 +2,7 @@
 
 本页说明如何运行已经实现的 Elfie Brain 评价内核。为什么评价一只完整、连续生活的
 Elfie、Q6 与 P0 如何定义、为什么不用平均总分，见
-[Elfie Brain 评价与进化系统设计](../designs/elfie-brain-evaluation-system)。
+[Elfie Brain 评价与进化系统设计](../designs/elfie/brain/elfie-brain-evaluation-system)。
 
 ## 1. 当前工具能做什么
 

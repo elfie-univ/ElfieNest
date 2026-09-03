@@ -8,12 +8,12 @@
 > 避免后续设计人格、背景生成和提示词时反复丢失或改写同一批基础决定。
 >
 > 实现边界以 ADR-0033、Elfie 2.3、Brain 1.5 与
-> [Genesis v0.2](../genesis-core-kernel-design-v0.2.md) 为准；旧 v0.1 的 Profile/Canon 运行时
+> [Genesis v0.2](../drafts/genesis-core-kernel-design-v0.2.md) 为准；旧 v0.1 的 Profile/Canon 运行时
 > 映射不能覆盖这些契约。
 
 本总览对应的 v0.1 设定稿：
 
-- [Genesis v0.2：Genesis 创建与所有权设计](../genesis-core-kernel-design-v0.2.md)
+- [Genesis v0.2：Genesis 创建与所有权设计](../drafts/genesis-core-kernel-design-v0.2.md)
 - [OPT-001 最终设计：Elfaria 世界知识与 Elfie 个体初始化](genesis-core-kernel-design-v0.1.md)
 - [Elfaria 自底向上世界设定 v0.1](elfaria-bottom-up-world-design-v0.1.md)
 - [Elfaria 首版物种卡 v0.1](elfaria-species-cards-v0.1.md)

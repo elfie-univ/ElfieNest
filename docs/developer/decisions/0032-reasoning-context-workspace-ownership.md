@@ -21,7 +21,7 @@ impossible to specify consistently.
 ## Decision
 
 Adopt the
-[Reasoning Core single-Turn Agent design](../designs/elfie-reasoning-core.md)
+[Reasoning Core single-Turn Agent design](../designs/elfie/brain/elfie-reasoning-core.md)
 and revise the Brain contract to 1.4.
 
 1. `Event Workspace` remains system 1 and keeps `workspace/`; it owns event

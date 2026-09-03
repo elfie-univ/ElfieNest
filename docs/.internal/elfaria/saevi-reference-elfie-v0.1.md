@@ -6,7 +6,7 @@
 > 中的身份结构、事件数量、知识边界和行为锚点应保持可复用。
 >
 > 所有权对齐：本文的样板事实必须按 ADR-0033、Elfie 2.3、Brain 1.5 与
-> [Genesis v0.2](../genesis-core-kernel-design-v0.2.md) 分配。Profile 只保存严格外部客观档案；
+> [Genesis v0.2](../drafts/genesis-core-kernel-design-v0.2.md) 分配。Profile 只保存严格外部客观档案；
 > 世界知识、人物、关系和抵达经历归 Memory；创建资料版本、问卷、Plan 和 Seed 提交后销毁。
 
 ## 1. 参考个体定位

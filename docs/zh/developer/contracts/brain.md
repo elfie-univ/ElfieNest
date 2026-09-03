@@ -1,6 +1,6 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.6
+**契约版本：** 1.7
 **采用日期：** 2026-08-12
 **修订日期：** 2026-09-03
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
@@ -10,7 +10,8 @@
 > Selfhood/固定头部差距继续记录在聚焦的
 > [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
 > Workspace P0 边界由永久聚焦测试守护。版本 1.5 冻结了一次性 Genesis 与最终所有者隔离
-> 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由。尚未
+> 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由；版本 1.7
+> 记录已接受 Brain 设计层级的稳定链接。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
@@ -49,7 +50,7 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 
 ## 情绪状态与评价
 
-[Elfie 情绪系统设计](../designs/elfie-emotion-system)是本节已经接受的详细解释；当前效果
+[Elfie 情绪系统设计](../designs/elfie/brain/elfie-emotion-system)是本节已经接受的详细解释；当前效果
 差距记录在[情绪一致性台账](../conformance/elfie-emotion)。
 
 1. Emotion 拥有 Elfie 自己的进程内情绪，不拥有被观察对象的情绪。他人的感受只是证据；
@@ -81,7 +82,7 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 
 ## Selfhood 与在线模型固定头部
 
-[Selfhood 与固定模型头部设计](../designs/elfie-selfhood-and-fixed-model-header)是本节已经
+[Selfhood 与固定模型头部设计](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header)是本节已经
 接受的详细解释；当前实现差距记录在
 [Selfhood 一致性台账](../conformance/elfie-selfhood)。
 
@@ -223,7 +224,7 @@ Turn。无法准入必须产生可观察的延后、拒绝或背压结果，不�
 
 ### 上下文与思考
 
-[Reasoning Core 单 Turn Agent 详细设计](../designs/elfie-reasoning-core)是本节的已接受
+[Reasoning Core 单 Turn Agent 详细设计](../designs/elfie/brain/elfie-reasoning-core)是本节的已接受
 解释；已完成的 P0 主人聊天边界由聚焦的架构、上下文、Memory、Runtime、Receipt 与
 重启测试守护。
 

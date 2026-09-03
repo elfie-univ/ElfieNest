@@ -39,3 +39,4 @@
 - [ADR-0019：Provider 可用性按 Endpoint 定义并由在用路径驱动](./0019-provider-endpoint-availability)
 - [ADR-0020：配置驱动的物种包](./0020-configuration-driven-species-packages)
 - [ADR-0034：治理切换期间兼容旧契约版本标记](./0034-legacy-contract-version-header-compatibility)
+- [ADR-0035：Internal 与公开 Design 文档的分层归置](./0035-hierarchical-design-placement)
