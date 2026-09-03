@@ -35,6 +35,9 @@ class _FakeSession:
     ) -> None:
         return None
 
+    def prepare_visual_observation(self, _payload: dict[str, object]) -> bool:
+        return True
+
 
 def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> None:
     catalog_calls: list[bool] = []
