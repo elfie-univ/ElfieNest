@@ -15,8 +15,8 @@ def test_service_lifecycle_contract_freezes_the_authoritative_state_model() -> N
     english = _source("docs/developer/contracts/service-lifecycle.md")
     chinese = _source("docs/zh/developer/contracts/service-lifecycle.md")
 
-    assert "**Contract version:** 1.3" in english
-    assert "**契约版本：** 1.3" in chinese
+    assert "**Contract version:** 1.4" in english
+    assert "**契约版本：** 1.4" in chinese
     for token in ("`OFFLINE`", "`CORE_READY`", "`WORLD_READY`"):
         assert token in english
         assert token in chinese

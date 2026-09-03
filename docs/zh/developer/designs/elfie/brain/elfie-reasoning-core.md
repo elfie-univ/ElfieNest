@@ -4,7 +4,7 @@
 > 确认日期：2026-08-31<br>
 > 范围：对[大脑十系统架构](./elfie-brain-ten-system-architecture.md)中第 8 系统
 > `Reasoning Core` 的内部细化<br>
-> 规范边界：[Brain 1.5 契约](../../../contracts/brain.md)<br>
+> 规范边界：[Brain 1.6 契约](../../../contracts/brain.md)<br>
 > 实现状态：P0 主人聊天已实现并由聚焦测试守护；后续 Skill/Tool 阶段不属于 P0。
 
 > 设计关系：**所属模块：**Elfie / Brain / Reasoning Core；**上级设计：**[Brain 十系统架构](./elfie-brain-ten-system-architecture.md)；

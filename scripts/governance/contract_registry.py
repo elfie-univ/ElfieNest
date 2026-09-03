@@ -160,7 +160,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="service-lifecycle",
-        version="1.3",
+        version="1.4",
         english_path="docs/developer/contracts/service-lifecycle.md",
         chinese_path="docs/zh/developer/contracts/service-lifecycle.md",
         decision_paths=(
@@ -288,7 +288,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.5",
+        version="1.6",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
