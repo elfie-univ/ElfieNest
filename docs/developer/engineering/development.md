@@ -41,18 +41,14 @@ change first, then widen the verification scope:
 
 ```bash
 # Example: only changed the cognitive coordinator
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/elfie/brain/reasoning/test_coordinator.py
+uv run --no-sync pytest test/elfie/brain/reasoning/test_coordinator.py
 
 # Required for any cross-module or directory-boundary change
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/architecture/
 
 # When you need full regression
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/
+uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync pytest test/
 ```
 
 If the preflight returns `2`, do not run `pytest test/` in the blocked
@@ -72,8 +68,7 @@ recorded by hash. The unified quality gate lets the historical set live on but
 blocks any new diagnostic:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 
 PRE_COMMIT_HOME=/tmp/elfienest-precommit \
   uv run --no-sync pre-commit run --all-files
@@ -269,8 +264,7 @@ and the
 Put the cache in a temporary directory; do not delete the repo or user data:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest test/architecture/
+uv run --no-sync pytest test/architecture/
 ```
 
 ### A test read day-to-day data

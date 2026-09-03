@@ -8,7 +8,7 @@ which leaves a narrow persistence seam for a future remote updater.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Literal, Mapping
 
@@ -57,11 +57,13 @@ _PRODUCT_FIELDS = frozenset(
         "base_url_env_var",
         "api_key_env_var",
         "connection_method",
+        "api_key_url",
         "oauth_available",
         "test_model",
         "usage_scope",
         "discovery_strategy",
         "bundled_models",
+        "free_model_ids",
     }
 )
 _RECOMMENDATION_FIELDS = frozenset({"id", "recommended"})
@@ -90,6 +92,7 @@ class ProviderProfile:
     api_key_env_var: str
     bundled_models: list[str]
     connection_method: Literal["local", "api_key", "oauth"]
+    api_key_url: str = ""
     oauth_available: bool = False
     test_model: str = ""
     usage_scope: Literal["general", "coding_only", "local"] = "general"
@@ -99,6 +102,10 @@ class ProviderProfile:
         "catalog_only",
         "ollama",
     ] = "standard_models"
+    free_model_ids: list[str] = field(default_factory=list)
+
+    def pricing_for_model(self, model_id: str) -> Literal["free", "unknown"]:
+        return "free" if model_id.strip() in self.free_model_ids else "unknown"
 
 
 @dataclass(frozen=True)
@@ -376,6 +383,14 @@ def _parse_profile(
         raise ProviderCatalogError(
             f"Provider {catalog_id!r} has no usable bundled models: {source}"
         )
+    raw_free_models = raw.get("free_model_ids", [])
+    if not isinstance(raw_free_models, list) or any(
+        not isinstance(item, str) or not item.strip() for item in raw_free_models
+    ):
+        raise ProviderCatalogError(
+            f"Provider {catalog_id!r} free_model_ids contains an invalid model: {source}"
+        )
+    free_model_ids = list(dict.fromkeys(item.strip() for item in raw_free_models))
     raw_test_model = raw.get("test_model")
     if raw_test_model is not None and (
         not isinstance(raw_test_model, str) or not raw_test_model.strip()
@@ -396,10 +411,14 @@ def _parse_profile(
         api_key_env_var=api_key_env_var,
         bundled_models=bundled_models,
         connection_method=connection_method,  # type: ignore[arg-type]
+        api_key_url=_optional_string(
+            raw.get("api_key_url"), "api_key_url", catalog_id, source
+        ),
         oauth_available=oauth_available,
         test_model=test_model,
         usage_scope=usage_scope,  # type: ignore[arg-type]
         discovery_strategy=discovery_strategy,  # type: ignore[arg-type]
+        free_model_ids=free_model_ids,
     )
 
 

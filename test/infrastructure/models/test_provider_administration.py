@@ -83,6 +83,44 @@ def test_project_connections_reuses_request_level_provider_facts(tmp_path) -> No
     ]
 
 
+def test_catalog_free_model_is_labelled_on_existing_connection(tmp_path) -> None:
+    adapter = provider_models_adapter(
+        tmp_path / "providers.yaml",
+        tmp_path / "auth.env",
+    )
+    product = adapter.get_product("glm_api")
+    assert product is not None
+
+    connection = adapter.create_connection(
+        StoredProviderConnection(
+            connection_id="",
+            catalog_id=product.catalog_id,
+            alias=product.name,
+            api_base=product.api_base,
+            api_mode=product.api_mode,
+            auth_type=product.auth_type,
+            credential_ref="",
+            models=(StoredProviderModel("glm-4.7-flash", "GLM-4.7-Flash"),),
+        ),
+        None,
+    )
+
+    refreshed = adapter.get_connection(connection.connection_id)
+    assert refreshed is not None
+    assert refreshed.models[0].pricing == "free"
+
+
+def test_glm_free_vision_model_uses_existing_endpoint_capability_catalog() -> None:
+    declaration = load_model_identities().endpoint_declaration(
+        "zhipu",
+        "glm-4.6v-flash",
+    )
+
+    assert declaration is not None
+    assert declaration.supports_vision is True
+    assert declaration.supports_tools is True
+
+
 def test_refresh_keeps_missing_discovered_models_until_two_complete_omissions() -> None:
     existing = (
         ProviderModelRecord(

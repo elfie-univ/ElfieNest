@@ -101,15 +101,13 @@ Typical usage:
 ./elfienest.sh serve
 ./developer.sh build-godot-web --check
 ./developer.sh build-godot-dedicated --check
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 ```
 
 Before a repository-wide pytest run, probe the host once:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 Exit code `0` means loopback binding is available. Exit code `2` means the

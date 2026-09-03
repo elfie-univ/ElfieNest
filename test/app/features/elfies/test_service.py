@@ -279,7 +279,7 @@ def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> No
 
     catalog = current_species_catalog()
     fox = catalog.definition("fox")
-    retired = replace(fox, canon_id="old-fox", status="retired")
+    retired = replace(fox, species_package_id="old-fox", status="retired")
     retired_catalog = replace(
         catalog,
         definitions=tuple(

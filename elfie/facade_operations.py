@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from threading import Lock
-from typing import Iterable
+from typing import Callable, Iterable
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
@@ -24,7 +24,9 @@ from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.decision_types import TurnDecision
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -33,7 +35,7 @@ from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
-from elfie.brain.selfhood.contracts import ProfileAnchorSnapshot, SelfhoodState
+from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.brain.selfhood.system import SelfhoodSystem
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.system import EventWorkspace
@@ -46,9 +48,9 @@ from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
 from elfie.message_types import ElfieId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import (
-    ELFARIA_CANON,
     ElfieProfile,
-    get_species_canon_for_technical_id,
+    ProfileDossier,
+    current_species_catalog,
 )
 
 
@@ -70,6 +72,7 @@ class _ElfieFacadeState:
     _skills: SkillManager
     _brain_runtime: BrainRuntime | None
     _reasoning_constitution: ReasoningConstitution | None
+    _embodied_input_mode: EmbodiedInputMode
     _clock_lock: Lock
     _elapsed_time: float
 
@@ -123,6 +126,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             elfie_id=elfie_id,
             body_port=self.current_body,
             body_generation=self.current_body_generation,
+            logical_clock=lambda: self.cognitive_datetime,
         )
         self._nervous_system.bind_body_port(
             self.current_body,
@@ -183,6 +187,10 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         model_port: ModelPort,
         *,
         tool_port: ToolPort | None = None,
+        world_capabilities: Callable[[], tuple[str, ...]] | None = None,
+        world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
+        | None = None,
+        embodied_input_mode: EmbodiedInputMode | None = None,
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
@@ -215,8 +223,15 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             skills=self._skills,
             current_body=lambda: self.current_body,
             current_body_generation=lambda: self.current_body_generation,
+            world_capabilities=world_capabilities,
+            world_capability_catalog=world_capability_catalog,
             clock=clock,
             model_port=model_port,
+            embodied_input_mode=(
+                embodied_input_mode
+                if embodied_input_mode is not None
+                else self._embodied_input_mode
+            ),
             tool_port=tool_port,
             activity_store=self._activity_store,
             journal_store=self._journal_store,
@@ -335,9 +350,9 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             else self._selfhood.snapshot()
         )
 
-    def profile_anchor_snapshot(self) -> ProfileAnchorSnapshot:
-        """Return the external immutable Profile projection for observers."""
-        return self._profile_anchor_snapshot(self.cognitive_datetime)
+    def profile_dossier(self) -> ProfileDossier:
+        """Return the Profile-owned immutable external identity dossier."""
+        return self._profile_dossier(self.cognitive_datetime)
 
     def motivation_snapshot(self) -> MotivationSnapshot:
         """Return the Brain-owned fixed-drive snapshot for observation."""
@@ -369,36 +384,23 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         """Restore a committed continuity checkpoint while Brain is stopped."""
         self._require_brain_runtime().restore_continuity(checkpoint)
 
-    def _profile_anchor_snapshot(self, captured_at: datetime) -> ProfileAnchorSnapshot:
+    def _profile_dossier(self, captured_at: datetime) -> ProfileDossier:
         profile = self._profile
-        species = get_species_canon_for_technical_id(profile.identity.species_id)
         origin = profile.identity.origin
-        return ProfileAnchorSnapshot(
+        species = current_species_catalog().definition(profile.identity.species_id)
+        return ProfileDossier(
             revision=profile.schema_version,
             captured_at=captured_at,
             elfie_id=profile.identity.elfie_id,
             display_name=profile.identity.display_name,
             species_id=profile.identity.species_id,
-            appearance_seed=profile.appearance.seed,
-            appearance_genome_version=profile.appearance.genome_version,
-            primary_morphology=profile.embodiment.primary_morphology,
-            species_canon_id=species.canon_id,
             species_name=species.display_name,
             species_shape=species.earth_shape_label,
-            home_world_id=origin.home_world_id,
-            home_world_name=ELFARIA_CANON.display_name,
-            home_region_id=origin.home_region_id,
-            home_region_name=(
-                ELFARIA_CANON.known_region_name
-                if origin.home_region_id == ELFARIA_CANON.known_region_id
-                else origin.home_region_id
-            ),
-            civilization_relation_to_earth=ELFARIA_CANON.civilization_relation_to_earth,
-            earth_arrival_statement=ELFARIA_CANON.earth_arrival_statement,
-            earth_home_name=ELFARIA_CANON.earth_home_name,
-            earth_home_role=ELFARIA_CANON.earth_home_role,
-            knowledge_boundaries=ELFARIA_CANON.knowledge_boundaries,
-            canon_version=ELFARIA_CANON.canon_version,
+            gender=profile.identity.gender,
+            age_years=origin.age_years,
+            origin_place_id=origin.origin_place_id,
+            origin_place_label=origin.origin_place_label,
+            appearance_genome_version=profile.appearance.genome_version,
         )
 
     def _require_brain_runtime(self) -> BrainRuntime:

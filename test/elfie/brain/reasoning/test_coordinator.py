@@ -13,12 +13,20 @@ from elfie.brain.emotion.appraiser import BrainClockPulse, EmotionAppraiser
 from elfie.brain.emotion.emotion_system import EmotionSystem
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.contracts import MemoryContext
+from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.reasoning.context_types import (
+    BodyCapabilityDescriptor,
+    CapabilityDescriptor,
     ConversationContext,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
+from elfie.brain.reasoning.memory_context import (
+    MemoryRecallResult,
+    ReasoningMemoryTurn,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
@@ -33,6 +41,8 @@ from elfie.brain.reasoning.turn_outcome import TerminalStatus
 from elfie.brain.reasoning.worker import ReasoningWorker
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
@@ -45,7 +55,9 @@ from elfie.message_types import (
     ActorRef,
     ElfieId,
     EventId,
+    IntentId,
     MessageMeta,
+    PlanId,
     Priority,
     TraceId,
     TurnId,
@@ -61,6 +73,10 @@ ELFIE_ID = ElfieId("elfie-coordinator")
 class NoopSettlement:
     def settle(self, candidates):
         del candidates
+        return ()
+
+    def capture_episodes(self, episodes):
+        del episodes
         return ()
 
 
@@ -131,7 +147,45 @@ def _physical(
     )
 
 
+def _receipt(
+    index: int,
+    *,
+    status: ExecutionStatus = ExecutionStatus.COMPLETED,
+    error=None,
+) -> PerceptionEvent:
+    at = NOW + timedelta(milliseconds=index)
+    return PerceptionEvent(
+        meta=MessageMeta(
+            event_id=EventId(f"receipt-{index}"),
+            elfie_id=ELFIE_ID,
+            source=ActorRef(
+                actor_id=ActorId("elfie-coordinator:output-router"),
+                source_kind="internal",
+            ),
+            occurred_at=at,
+            received_at=at,
+            trace_id=TraceId("trace-receipt"),
+            causation_id=EventId("owner-cause"),
+        ),
+        payload=ExecutionPayload(
+            type="execution",
+            receipt_id=EventId(f"receipt-{index}"),
+            plan_id=PlanId("plan-owner"),
+            turn_id=TurnId("turn-owner"),
+            intent_id=IntentId(f"message-{index}"),
+            executor="communication",
+            status=status,
+            error=error,
+        ),
+        salience=0.8 if error is not None else 0.4,
+    )
+
+
 class EmptyContextSource:
+    def flush_pending_handoffs(self, capture):
+        del capture
+        return ()
+
     def conversation(self, frame, captured_at):
         return ConversationContext(
             revision=frame.revision,
@@ -140,10 +194,34 @@ class EmptyContextSource:
             messages=(),
         )
 
-    def memory(self, frame, emotion, captured_at):
-        return MemoryContext(
-            revision=frame.revision,
-            captured_at=captured_at,
+    def memory_turn(self, frame, emotion, captured_at):
+        del emotion
+
+        class EmptyMemorySession:
+            pinned_revision = 0
+            baseline_result = MemoryRecallResult(
+                status="skipped",
+                query="",
+                pinned_revision=0,
+                bundle=RecallBundle(),
+                reason="test_empty_memory",
+            )
+
+            def recall(self, query):
+                return MemoryRecallResult(
+                    status="skipped",
+                    query=query,
+                    pinned_revision=0,
+                    bundle=RecallBundle(),
+                    reason="test_empty_memory",
+                )
+
+        return ReasoningMemoryTurn(
+            context=MemoryContext(
+                revision=frame.revision,
+                captured_at=captured_at,
+            ),
+            session=EmptyMemorySession(),
         )
 
     def capabilities(self, captured_at):
@@ -160,6 +238,39 @@ class EmptyContextSource:
             captured_at=captured_at,
             identity_core_text="我是小狐，是 ElfieNest 的居民。",
             adaptive_self_text="我会先观察，再清楚地表达。",
+        )
+
+
+class MockEmbodiedContextSource(EmptyContextSource):
+    def capabilities(self, captured_at):
+        return EffectiveCapabilities(
+            revision=1,
+            captured_at=captured_at,
+            current_body=BodyCapabilityDescriptor(
+                body_id="body-1",
+                body_generation=1,
+                capability_revision=1,
+                sensors=("proprioception",),
+                actions=("move_to_anchor",),
+            ),
+            world_capabilities=("world.go_to",),
+            capability_catalog=(
+                CapabilityDescriptor(
+                    capability_id="world.go_to",
+                    category="world",
+                    argument_schema={
+                        "type": "object",
+                        "required": ["anchor_id"],
+                        "properties": {
+                            "anchor_id": {
+                                "type": "string",
+                                "enum": ["room/chair", "room/door"],
+                            }
+                        },
+                    },
+                ),
+            ),
+            connected_channels=(),
         )
 
 
@@ -208,6 +319,19 @@ class BlockingPlanRuntime:
         if len(self.calls) == 2:
             self.second_started.set()
         self.release.wait()
+        if request.response_schema.name == "CognitiveAction":
+            cognitive: dict[str, object] = {
+                "type": "answer",
+                "content": "hello",
+            }
+            if self.feedback is not None:
+                cognitive["emotion_feedback"] = self.feedback
+            return ModelGenerationResult(
+                text=json.dumps(cognitive),
+                selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                provider="fake",
+                model_key="fake/schema",
+            )
         intent_id = f"speech-{request.turn_id}"
         payload: dict[str, object] = {
             "schema_version": 1,
@@ -251,6 +375,8 @@ def _coordinator(
     allowed_tools: tuple[str, ...] = (),
     initial_energy: float = 100.0,
     reasoning_retention: int = 256,
+    context_source=None,
+    embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.BRAIN,
 ) -> tuple[BrainCoordinator, EmotionSystem, EnergySystem]:
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
@@ -265,17 +391,101 @@ def _coordinator(
         emotion=emotion,
         homeostasis=energy,
         appraiser=EmotionAppraiser(),
-        context_source=EmptyContextSource(),
+        context_source=context_source or EmptyContextSource(),
         reasoning_worker=worker,
         plan_sink=sink,
         settlement=NoopSettlement(),
         constitution=ReasoningConstitution.from_mapping(load_reasoning_constitution()),
         initial_timestamp=initial,
         next_autonomous_at=next_autonomous_at,
+        embodied_input_mode=embodied_input_mode,
         allowed_tools=allowed_tools,
         reasoning_retention=reasoning_retention,
     )
     return coordinator, emotion, energy
+
+
+def test_mock_mode_routes_embodied_wander_without_model_inference() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        context_source=MockEmbodiedContextSource(),
+        embodied_input_mode=EmbodiedInputMode.MOCK,
+    )
+    coordinator.start()
+
+    try:
+        coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 1.0))
+        assert sink.accepted.wait(1), coordinator.outcomes()
+        assert runtime.calls == []
+        assert len(sink.plans) == 1
+        assert sink.plans[0].plan.intents[0].capability_id == "world.go_to"
+    finally:
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_mock_mode_keeps_communication_on_the_model_path() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        context_source=MockEmbodiedContextSource(),
+        embodied_input_mode=EmbodiedInputMode.MOCK,
+    )
+    coordinator.start()
+
+    try:
+        workspace.publish(_social(1, 0, source_kind="owner"))
+        coordinator.notify_perception()
+        coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+        assert runtime.started.wait(1), coordinator.outcomes()
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+    assert len(runtime.calls) == 1
+
+
+def test_routine_receipts_bypass_model_but_failed_receipts_remain_eligible() -> None:
+    routine_workspace = EventWorkspace(ELFIE_ID)
+    for index, status in enumerate(
+        (
+            ExecutionStatus.ACCEPTED,
+            ExecutionStatus.STARTED,
+            ExecutionStatus.COMPLETED,
+        ),
+        start=1,
+    ):
+        routine_workspace.publish(_receipt(index, status=status))
+    routine_frame = routine_workspace.claim_frame(
+        routine_workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-receipt-routine"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+    )
+
+    failed_workspace = EventWorkspace(ELFIE_ID)
+    failed_workspace.publish(
+        _receipt(4, status=ExecutionStatus.REJECTED),
+    )
+    failed_frame = failed_workspace.claim_frame(
+        failed_workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-receipt-failed"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+    )
+
+    assert BrainCoordinator._requires_model(routine_frame) is False
+    assert BrainCoordinator._requires_model(failed_frame) is True
 
 
 def test_completed_reasoning_traces_have_a_bounded_in_memory_retention() -> None:
@@ -338,6 +548,41 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         runtime.release.set()
         coordinator.stop()
         coordinator.join()
+
+
+def test_embodied_fast_turn_reserves_complete_decision_plan_budget() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(workspace, runtime, sink)
+    coordinator.start()
+    workspace.publish(_physical(1, 0, salience=0.95))
+    coordinator.notify_perception()
+    assert runtime.started.wait(1), coordinator.outcomes()
+
+    try:
+        assert runtime.calls[0].response_mode is ModelResponseMode.DECISION_PLAN
+        assert runtime.calls[0].max_tokens == 1024
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_terminal_action_outcome_frame_is_model_admitted_without_new_trigger() -> None:
+    event = _physical(1, 0, salience=0.7).model_copy(
+        update={
+            "payload": PhysicalPayload(
+                type="physical",
+                body_id="body-1",
+                modality=PhysicalModality.PROPRIOCEPTION,
+                content="action=command-1; intent=intent-1; status=completed",
+            )
+        }
+    )
+    frame = MagicMock(events=(event,))
+
+    assert BrainCoordinator._requires_model(frame) is True
 
 
 def test_owner_text_affect_cannot_use_an_untrusted_direct_scope() -> None:
@@ -666,13 +911,7 @@ def test_frame_replay_reuses_fast_candidate_without_double_application() -> None
     assert emotion.get_emotion_value("anger") == pytest.approx(first_anger)
 
 
-@pytest.mark.parametrize(
-    "owner_text",
-    (
-        "明天上午九点提醒我带钥匙",
-        "请你比较这三个模型并整理一份报告",
-    ),
-)
+@pytest.mark.parametrize("owner_text", ("明天上午九点提醒我带钥匙",))
 def test_explicit_task_uses_structured_activity_route_without_tools(
     owner_text: str,
 ) -> None:
@@ -711,6 +950,48 @@ def test_explicit_task_uses_structured_activity_route_without_tools(
         assert coordinator._inflight is not None
         assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_complex_owner_chat_uses_bounded_deliberation_without_tool_protocol() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="请比较这三个模型的优缺点，并解释你的判断。",
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.response_mode is ModelResponseMode.DIRECT_REPLY
+        assert request.reasoning_mode == "long"
+        assert request.allowed_tools == ()
+        assert "[SEARCH]" not in request.system_prompt
+        assert "PERSISTENT_ACTIVITY_ROUTING" not in request.system_prompt
+        assert coordinator._inflight is not None
+        task = coordinator._inflight.task
+        assert task.reasoning_depth.value == "deliberate"
+        assert task.reasoning_budget.max_model_calls == 2
+        assert task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()
         coordinator.stop()

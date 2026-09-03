@@ -68,6 +68,12 @@ and the repository's `.venv/bin/python3`; do not call system
 `python` / `python3`, reuse other virtual environments, or set an
 `ELFIENEST_PYTHON` override entry.
 
+uv uses its platform-appropriate persistent user cache by default. Worktrees
+share that cache, while each worktree keeps its own `.venv` so editable package
+paths cannot cross-contaminate. Set `UV_CACHE_DIR` only for an explicitly
+isolated or CI run. Bootstrap retries one failed dependency sync with `--refresh`
+to recover stale cache entries, then stops if the refreshed attempt also fails.
+
 ### Frontend development
 
 The frontend uses Node.js 20+ and pnpm:
@@ -165,8 +171,7 @@ Before running the repository-wide pytest command, run the loopback capability
 preflight once:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 ```
 
 If it returns `2`, the current sandbox cannot bind `127.0.0.1:0`. Do not run
@@ -229,8 +234,8 @@ that raw invocation is not submission-cache evidence.
 The individual checks performed by the gate are:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync pytest test/architecture/
-UV_CACHE_DIR=/tmp/elfienest-uv-cache uv run --no-sync python scripts/quality/checks/python_baseline.py
+uv run --no-sync pytest test/architecture/
+uv run --no-sync python scripts/quality/checks/python_baseline.py
 PRE_COMMIT_HOME=/tmp/elfienest-precommit uv run --no-sync pre-commit run --all-files
 ```
 

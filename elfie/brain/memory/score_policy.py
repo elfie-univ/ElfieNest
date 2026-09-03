@@ -1,9 +1,9 @@
-"""The single deterministic Retention v2 policy owned by Memory.
+"""The single deterministic Retention v3 policy owned by Memory.
 
 The policy keeps three persisted semantic values separate:
 
 * ``importance`` (I) is changed by sourced semantic appraisal events;
-* ``retention_days`` (D) is changed by qualified outcome/review events;
+* ``half_life_days`` (H) is changed by qualified outcome/review events;
 * ``confidence`` (C) is recomputed from unique, independent Evidence.
 
 ``freshness`` (F) and the composite Recall rank are derived values. This
@@ -23,13 +23,11 @@ ImportanceDirection = Literal["raise", "lower"]
 
 _Timestamp = Union[str, datetime]
 
-FRESHNESS_EXPONENT = 2.6
-FRESHNESS_SCALE = 9.0
 FRESHNESS_ACTIVE_THRESHOLD = 0.10
 FRESHNESS_COMPRESS_THRESHOLD = 0.40
 FRESHNESS_DIGEST_THRESHOLD = 0.20
 FRESHNESS_FORGET_THRESHOLD = 0.01
-MAX_RETENTION_DAYS = 36_500.0
+MAX_HALF_LIFE_DAYS = 36_500.0
 SECONDS_PER_DAY = 86_400.0
 MAX_FUTURE_SKEW_SECONDS = 300.0
 UTC = timezone.utc
@@ -95,9 +93,9 @@ class EvidenceContribution:
 
 @dataclass(frozen=True)
 class RetentionUpdate:
-    """Materialized result of one accepted retention reinforcement."""
+    """Materialized result of one accepted reinforcement or relearning."""
 
-    retention_days: float
+    half_life_days: float
     last_reinforced_at: datetime
     freshness: float
 
@@ -114,10 +112,10 @@ class SemanticScore:
 
 
 class MemoryScorePolicy:
-    """The versioned, deterministic Memory Retention v2 policy."""
+    """The versioned, deterministic Memory Retention v3 policy."""
 
-    version = "memory.v2"
-    max_retention_days = MAX_RETENTION_DAYS
+    version = "memory.v3"
+    max_half_life_days = MAX_HALF_LIFE_DAYS
     max_future_skew_seconds = MAX_FUTURE_SKEW_SECONDS
     active_freshness_threshold = FRESHNESS_ACTIVE_THRESHOLD
     compress_freshness_threshold = FRESHNESS_COMPRESS_THRESHOLD
@@ -125,10 +123,12 @@ class MemoryScorePolicy:
     forget_freshness_threshold = FRESHNESS_FORGET_THRESHOLD
 
     # Initial spans are policy classes, not free-form caller numbers.
-    initial_retention_days = {
-        "transient": 2.0,
-        "ordinary": 7.0,
-        "salient": 30.0,
+    initial_half_life_days = {
+        "transient": 0.5,
+        "ordinary": 2.0,
+        "salient": 9.0,
+        "semantic": 30.0,
+        "stable": 365.0,
         "genesis": 3650.0,
     }
 
@@ -161,40 +161,43 @@ class MemoryScorePolicy:
     }
 
     @classmethod
-    def initial_retention(cls, retention_class: str) -> float:
-        """Return the policy-owned initial ``D`` for a typed admission class."""
+    def initial_half_life(cls, retention_profile: str) -> float:
+        """Return the policy-owned initial ``H0`` for a typed profile."""
 
         try:
-            return cls.initial_retention_days[retention_class]
+            return cls.initial_half_life_days[retention_profile]
         except KeyError as exc:
-            raise ValueError(f"unsupported retention class: {retention_class}") from exc
+            raise ValueError(
+                f"unsupported retention profile: {retention_profile}"
+            ) from exc
 
     @classmethod
-    def admission_retention(
+    def admission_half_life(
         cls,
-        retention_class: str,
+        retention_profile: str,
         *,
         emotion_intensity: float | None = None,
         sensory_present: bool = False,
         genesis: bool = False,
     ) -> float:
-        """Resolve one bounded admission class to its initial ``D``.
+        """Resolve one bounded admission profile to its initial ``H0``.
 
-        Strong sourced salience may promote an ordinary/transient admission to
-        the 30-day class.  This is deliberately a retention-only decision:
-        it does not alter ``importance`` or ``confidence``.  Genesis has a
-        fixed ten-year starting span regardless of caller hints.
+        Strong sourced salience may promote a transient/ordinary admission to
+        the salient profile.  This is deliberately a retention-only decision:
+        it does not alter ``importance`` or ``confidence``.  Pattern is not a
+        separate first-version profile and should use ``semantic``. Genesis
+        has a fixed ten-year starting span regardless of caller hints.
         """
         if genesis:
-            return cls.initial_retention("genesis")
-        base = cls.initial_retention(retention_class)
+            return cls.initial_half_life("genesis")
+        base = cls.initial_half_life(retention_profile)
         if emotion_intensity is not None:
             intensity = _finite_ratio(emotion_intensity, "emotion_intensity")
             if intensity >= 0.7:
-                base = max(base, cls.initial_retention("salient"))
+                base = max(base, cls.initial_half_life("salient"))
         if sensory_present:
-            base = max(base, cls.initial_retention("salient"))
-        return min(cls.max_retention_days, base)
+            base = max(base, cls.initial_half_life("salient"))
+        return min(cls.max_half_life_days, base)
 
     @staticmethod
     def bounded(value: float, name: str = "value") -> float:
@@ -207,29 +210,29 @@ class MemoryScorePolicy:
         cls,
         now: _Timestamp,
         last_reinforced_at: _Timestamp,
-        retention_days: float,
+        half_life_days: float,
     ) -> float:
         """Derive current memory clarity from time and the retained span."""
 
-        days = _retention_days(retention_days)
+        days = _half_life_days(half_life_days)
         current = _as_utc(now)
         anchor = _as_utc(last_reinforced_at)
         elapsed_days = max(0.0, (current - anchor).total_seconds() / SECONDS_PER_DAY)
         ratio = elapsed_days / days
         if ratio == 0.0:
             return 1.0
-        # Avoid overflowing pow for very old records; the limit is already
-        # far below any lifecycle threshold.
-        if ratio >= 1e120:
+        # exp2 underflows safely for very old records and keeps the formula
+        # exactly tied to the meaning of H: one H elapsed means F=0.5.
+        if ratio >= 1024.0:
             return 0.0
-        value = 1.0 / (1.0 + FRESHNESS_SCALE * math.pow(ratio, FRESHNESS_EXPONENT))
+        value = 2.0 ** (-ratio)
         return min(1.0, max(0.0, value))
 
     @classmethod
     def next_review_at(
         cls,
         last_reinforced_at: _Timestamp,
-        retention_days: float,
+        half_life_days: float,
         freshness_threshold: float,
     ) -> datetime:
         """Return the UTC crossing time for one lifecycle threshold."""
@@ -237,42 +240,60 @@ class MemoryScorePolicy:
         threshold = _finite_ratio(freshness_threshold, "freshness_threshold")
         if threshold <= 0.0:
             raise ValueError("freshness_threshold must be greater than zero")
-        days = _retention_days(retention_days)
-        ratio = math.pow(
-            ((1.0 / threshold) - 1.0) / FRESHNESS_SCALE,
-            1.0 / FRESHNESS_EXPONENT,
-        )
-        return _as_utc(last_reinforced_at) + timedelta(days=days * ratio)
+        days = _half_life_days(half_life_days)
+        elapsed_days = days * math.log2(1.0 / threshold)
+        return _as_utc(last_reinforced_at) + timedelta(days=elapsed_days)
 
     @classmethod
     def reinforce(
         cls,
         *,
-        retention_days: float,
+        half_life_days: float,
         last_reinforced_at: _Timestamp,
         occurred_at: _Timestamp,
     ) -> Optional[RetentionUpdate]:
-        """Apply one qualified event when its event-time ``F`` is still active.
+        """Apply one qualified event using the continuous v3 multiplier.
 
         Callers replay receipts in event-time order. A late receipt is thus
         evaluated against the state that existed at its original occurrence,
-        never against processing time. ``None`` means the event was already
-        archival or arrived before the current replay anchor.
+        never against processing time. ``None`` means the event arrived before
+        the current replay anchor. Lifecycle/archive eligibility is owned by
+        the adapter, not this formula.
         """
 
-        days = _retention_days(retention_days)
+        days = _half_life_days(half_life_days)
         anchor = _as_utc(last_reinforced_at)
         event_time = _as_utc(occurred_at)
         if event_time < anchor:
             return None
         event_freshness = cls.freshness(event_time, anchor, days)
-        if event_freshness < cls.active_freshness_threshold:
-            return None
-        q = (1.0 - event_freshness) / (1.0 - cls.active_freshness_threshold)
-        new_days = min(cls.max_retention_days, days * (1.0 + q * q))
+        multiplier = 3.0 - 2.0 * event_freshness
+        new_days = min(cls.max_half_life_days, days * multiplier)
         return RetentionUpdate(
-            retention_days=new_days,
+            half_life_days=new_days,
             last_reinforced_at=event_time,
+            freshness=1.0,
+        )
+
+    @classmethod
+    def relearn(
+        cls,
+        *,
+        half_life_days: float,
+        retention_profile: str,
+        occurred_at: _Timestamp,
+    ) -> RetentionUpdate:
+        """Reset an authoritative re-exposure without applying a multiplier.
+
+        The profile is read from the persisted identity, so a previously
+        reinforced record cannot lose its class baseline. Relearning never
+        changes importance or confidence.
+        """
+        current = _half_life_days(half_life_days)
+        baseline = cls.initial_half_life(retention_profile)
+        return RetentionUpdate(
+            half_life_days=min(cls.max_half_life_days, max(current, baseline)),
+            last_reinforced_at=_as_utc(occurred_at),
             freshness=1.0,
         )
 
@@ -525,7 +546,7 @@ class MemoryScorePolicy:
         archived_days: float,
         dependency_safe: bool,
     ) -> bool:
-        """Check the complete v2 logical-forgetting predicate."""
+        """Check the complete v3 logical-forgetting predicate."""
 
         return (
             _finite_ratio(freshness, "freshness") <= cls.forget_freshness_threshold
@@ -583,10 +604,10 @@ def _positive_finite(value: float, name: str) -> float:
     return numeric
 
 
-def _retention_days(value: float) -> float:
-    numeric = _positive_finite(value, "retention_days")
-    if numeric > MAX_RETENTION_DAYS:
-        raise ValueError("retention_days exceeds the v2 maximum")
+def _half_life_days(value: float) -> float:
+    numeric = _positive_finite(value, "half_life_days")
+    if numeric > MAX_HALF_LIFE_DAYS:
+        raise ValueError("half_life_days exceeds the v3 maximum")
     return numeric
 
 

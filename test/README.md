@@ -68,8 +68,7 @@ selector or bundle through the controlled runner once.
 Full test suite:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync python scripts/quality/checks/environment.py
+uv run --no-sync python scripts/quality/checks/environment.py
 .venv/bin/python3 scripts/quality/validation/test_bundles.py --all
 ```
 
@@ -86,8 +85,7 @@ Pytest markers currently declared:
 For example:
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -m "not slow" test/
+uv run --no-sync pytest -m "not slow" test/
 ```
 
 Pytest caches, uv caches and coverage reports are local or CI artifacts and

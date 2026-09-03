@@ -14,6 +14,7 @@ from elfie.brain.reasoning.context_types import (
 )
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
@@ -107,7 +108,12 @@ class BlockingBodyExecutor(RecordingExecutor):
         return IntentExecutionResult.completed()
 
 
-def _capabilities(*, revision: int = 7) -> EffectiveCapabilities:
+def _capabilities(
+    *,
+    revision: int = 7,
+    body_actions: tuple[str, ...] = ("speech.say", "walk", "expression.happy"),
+    world_capabilities: tuple[str, ...] = (),
+) -> EffectiveCapabilities:
     return EffectiveCapabilities(
         revision=revision,
         captured_at=NOW,
@@ -115,8 +121,9 @@ def _capabilities(*, revision: int = 7) -> EffectiveCapabilities:
             body_id="body-1",
             capability_revision=revision,
             sensors=(),
-            actions=("speech.say", "walk", "expression.happy"),
+            actions=body_actions,
         ),
+        world_capabilities=world_capabilities,
         connected_channels=(
             ConnectedChannelDescriptor(
                 channel_id="chat",
@@ -269,6 +276,72 @@ def test_atomic_validation_rejects_stale_capabilities_without_executor_calls() -
     assert message.calls == []
     assert router.last_rejection is not None
     assert router.last_rejection.error.code == "stale_capability_revision"
+    router.stop()
+    router.join()
+
+
+def test_registered_world_capability_is_routed_without_hardcoded_intent_vocabulary() -> (
+    None
+):
+    body = RecordingExecutor()
+    router = OutputRouter(
+        elfie_id=ELFIE_ID,
+        capabilities=StaticCapabilities(
+            _capabilities(
+                body_actions=("speech.say", "move_to_anchor"),
+                world_capabilities=("world.go_to",),
+            )
+        ),
+        perception_sink=EventWorkspace(ELFIE_ID),
+        body_executor=body,
+        message_executor=RecordingExecutor(),
+        internal_executor=RecordingExecutor(),
+        clock=lambda: NOW,
+    )
+    router.start()
+    intent = CapabilityIntent(
+        type="capability",
+        category="world",
+        capability_id="world.go_to",
+        arguments={"anchor_id": "activity-01/activity"},
+        **_base("world-go-to"),
+    )
+
+    batch = router.submit(_embodied_decision(_plan((intent,))))
+    router.wait_for_turn(TurnId("turn-router"), timeout=1)
+
+    assert isinstance(batch, ExecutionBatch)
+    assert body.calls == [IntentId("world-go-to")]
+    router.stop()
+    router.join()
+
+
+def test_unregistered_world_capability_is_rejected_before_execution() -> None:
+    body = RecordingExecutor()
+    router = OutputRouter(
+        elfie_id=ELFIE_ID,
+        capabilities=StaticCapabilities(_capabilities()),
+        perception_sink=EventWorkspace(ELFIE_ID),
+        body_executor=body,
+        message_executor=RecordingExecutor(),
+        internal_executor=RecordingExecutor(),
+        clock=lambda: NOW,
+    )
+    router.start()
+    intent = CapabilityIntent(
+        type="capability",
+        category="world",
+        capability_id="world.fly",
+        arguments={},
+        **_base("world-fly"),
+    )
+
+    result = router.submit(_embodied_decision(_plan((intent,))))
+
+    assert not isinstance(result, ExecutionBatch)
+    assert body.calls == []
+    assert router.last_rejection is not None
+    assert router.last_rejection.error.code == "world_capability_unavailable"
     router.stop()
     router.join()
 

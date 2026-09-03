@@ -44,8 +44,18 @@ def assemble_profile(
 def assemble_anatomy(
     profile: ElfieProfile,
 ) -> tuple[str, SomaticAnatomy]:
-    """Resolve the profile-owned morphology without executing action policy."""
-    morphology = profile.embodiment.primary_morphology
+    """Resolve physical anatomy from the runtime species package.
+
+    Anatomy is a runtime/body concern, not part of the external Profile.  The
+    current validated species packages all use the biped body path; keeping
+    this decision here lets a future body catalog evolve without expanding
+    Profile into a capability container.
+    """
+    catalog = current_species_catalog()
+    definition = catalog.definition(profile.identity.species_id)
+    morphology = "biped"
+    if definition.godot_package_id.endswith("-quadruped"):
+        morphology = "quadruped"
     if morphology == "quadruped":
         return morphology, QuadrupedAnatomy()
     species_id = profile.identity.species_id

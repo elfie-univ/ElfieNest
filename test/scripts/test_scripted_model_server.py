@@ -7,7 +7,6 @@ import urllib.request
 import pytest
 
 from scripts.internal.release.scripted_model_server import (
-    ADOPTION_SCHEMA_NAME,
     MODEL_ID,
     STRUCTURED_PROBE_SCHEMA_NAME,
     SYNTHETIC_CREDENTIAL,
@@ -62,7 +61,7 @@ def test_server_is_loopback_ephemeral_and_supports_inventory_and_chat() -> None:
         server.close()
 
 
-def test_adoption_schema_is_deterministic_and_redacted_snapshot_has_no_prompt() -> None:
+def test_retired_adoption_schema_is_rejected_without_prompt_or_story() -> None:
     server = ScriptedModelServer()
     server.start()
     try:
@@ -74,15 +73,12 @@ def test_adoption_schema_is_deterministic_and_redacted_snapshot_has_no_prompt() 
                 "messages": [{"role": "user", "content": "reveal"}],
                 "response_format": {
                     "type": "json_schema",
-                    "json_schema": {"name": ADOPTION_SCHEMA_NAME},
+                    "json_schema": {"name": "adoption_candidate_reveal_v1"},
                 },
             },
         )
-        assert status == 200
-        content = response["choices"][0]["message"]["content"]  # type: ignore[index]
-        reveal = json.loads(content)
-        assert reveal["original_name"] == "Lumi"
-        assert "我" in reveal["personal_story"]
+        assert status == 400
+        assert response["error"]["message"] == "unknown response schema"  # type: ignore[index]
         snapshot = server.snapshot().to_dict()
         assert "personal_story" not in json.dumps(snapshot, ensure_ascii=False)
         assert "credential" not in json.dumps(snapshot, ensure_ascii=False)

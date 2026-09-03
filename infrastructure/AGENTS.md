@@ -11,6 +11,9 @@
   共享技术模型，由 Bootstrap 注入具体实现。
 - 技术 Record、SDK 对象、SQLite Row 和设备帧只留在 Adapter 内，进入 Port 前映射为
   由消费方拥有的严格模型。
+- 配置与持久化 Adapter 可以加载已发布 Genesis 资料包并保存 Profile/Selfhood/Memory
+  终态，但不得决定身份、生活背景、知识资格/掌握、人物、关系、经历、人格或 Memory
+  参数；不得把写工作区的函数变成第二个 Genesis 编译器。
 - 全局配置的路径解析、文档解码与已声明合并策略只在 Infrastructure 配置 Adapter 中
   实现；生产入口只接受注册文档 ID 和固定相对路径，不暴露任意路径、点分键或通用
   嵌套字典 API。测试与开发工具可以注入隔离沙箱根，但必须复用同一注册文档和解析器，

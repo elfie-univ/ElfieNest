@@ -27,6 +27,7 @@ _UNSAFE_CURRENT_NEST_CLAIM = re.compile(
 )
 
 SAFE_CURRENT_NEST_REPLY = "我现在还没有真实探索精灵巢，所以不知道今天那里发生了什么呢。"
+TRUSTED_OWNER_FAILURE_REPLY = "我这次没能完成回复，请稍后再试。"
 
 
 @dataclass(frozen=True)
@@ -54,5 +55,6 @@ def sanitize_direct_owner_reply(
 __all__ = (
     "ReplySafetyContext",
     "SAFE_CURRENT_NEST_REPLY",
+    "TRUSTED_OWNER_FAILURE_REPLY",
     "sanitize_direct_owner_reply",
 )

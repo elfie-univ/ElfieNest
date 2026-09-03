@@ -165,7 +165,7 @@ class GenesisEngine:
                 (rng.uniform(-0.045, 0.045) for _ in core.latent),
             )
         )
-        age_months = self._age_months(
+        age_years = self._age_years(
             species_id,
             life_stage,
             random.Random(derive_seed(seed, 8, 0, 0)),
@@ -177,7 +177,7 @@ class GenesisEngine:
             role=role,
             rng=rng,
             life_stage=life_stage,
-            age_months=age_months,
+            age_years=age_years,
             gender=gender,
             variant_index=variant_index,
             catalog=self._catalog,
@@ -188,7 +188,7 @@ class GenesisEngine:
             seed=seed,
             species_id=species_id,
             life_stage=life_stage,
-            age_months=age_months,
+            age_years=age_years,
             gender=gender,
             appearance=genome,
             personality=GenesisPersonality(core, profile(latent)),
@@ -265,7 +265,7 @@ class GenesisEngine:
             return requested
         return _GENDERS[(role + seed) % len(_GENDERS)]
 
-    def _age_months(self, species_id: str, stage: str, rng: random.Random) -> int:
+    def _age_years(self, species_id: str, stage: str, rng: random.Random) -> int:
         definition = (
             self._catalog.definition(species_id, adoptable_only=True)
             if self._catalog is not None

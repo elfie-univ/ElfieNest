@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum, unique
-from typing import Annotated, Literal, Optional, Tuple, Union
+from typing import Annotated, Literal, Mapping, Optional, Tuple, Union
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, JsonValue, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 from typing_extensions import TypeAlias
 
@@ -61,6 +61,15 @@ class IntentContract(FrozenContractModel):
     dependency_ids: Tuple[IntentId, ...]
     deadline: UTCDateTime
     cancel_policy: CancelPolicy
+
+
+class CapabilityIntent(IntentContract):
+    """One dynamically registered semantic capability invocation."""
+
+    type: Literal["capability"]
+    category: Literal["body", "world"]
+    capability_id: _NonBlankText
+    arguments: Mapping[str, JsonValue] = Field(default_factory=dict)
 
 
 class SpeechIntent(IntentContract):
@@ -188,9 +197,53 @@ class EmotionFeedback(FrozenContractModel):
         return self
 
 
+class CognitiveDraft(FrozenContractModel):
+    """Model-owned draft fields that remain proposals until final acceptance."""
+
+    memory_uses: Annotated[Tuple[MemoryUseReference, ...], Field(max_length=64)] = ()
+    emotion_feedback: Optional[EmotionFeedback] = None
+
+
+class RecallMemory(FrozenContractModel):
+    """Request one bounded, host-executed Recall inside a DELIBERATE Run."""
+
+    type: Literal["recall_memory"]
+    query: _NonBlankText
+    reason: _NonBlankText
+
+
+class AnswerDraft(CognitiveDraft):
+    """A proposed ordinary owner-facing answer."""
+
+    type: Literal["answer"]
+    content: _NonBlankText
+
+
+class ClarificationDraft(CognitiveDraft):
+    """A proposed question for a genuinely missing required fact."""
+
+    type: Literal["clarification"]
+    content: _NonBlankText
+    missing_facts: Annotated[Tuple[_NonBlankText, ...], Field(max_length=8)] = ()
+
+
+class NoOpDraft(CognitiveDraft):
+    """A proposed explicit no-op when a response cannot be formed safely."""
+
+    type: Literal["noop"]
+    reason: _NonBlankText
+
+
+CognitiveAction: TypeAlias = Annotated[
+    Union[RecallMemory, AnswerDraft, ClarificationDraft, NoOpDraft],
+    Field(discriminator="type"),
+]
+
+
 DecisionIntent: TypeAlias = Annotated[
     Union[
         SpeechIntent,
+        CapabilityIntent,
         MessageIntent,
         MotionIntent,
         ExpressionIntent,
@@ -309,6 +362,10 @@ class TurnDecision(FrozenContractModel):
     interaction_scope: InteractionScope
     response_scope: ResponseScope
     plan: DecisionPlan
+    # Host-owned provenance gate for durable conversation Memory.  This is
+    # deliberately outside the provider-facing DecisionPlan so a model cannot
+    # grant or revoke its own persistence eligibility.
+    memory_eligible: bool = True
 
     @model_validator(mode="after")
     def validate_response_boundary(self) -> TurnDecision:
@@ -379,7 +436,13 @@ class TurnDecision(FrozenContractModel):
             if self.response_scope.external_domain is None and any(
                 isinstance(
                     intent,
-                    (SpeechIntent, MessageIntent, MotionIntent, ExpressionIntent),
+                    (
+                        SpeechIntent,
+                        CapabilityIntent,
+                        MessageIntent,
+                        MotionIntent,
+                        ExpressionIntent,
+                    ),
                 )
                 for intent in self.plan.intents
             ):
@@ -391,7 +454,15 @@ class TurnDecision(FrozenContractModel):
                 self.response_scope.external_domain
                 is ExternalExecutionDomain.COMMUNICATION
                 and any(
-                    isinstance(intent, (SpeechIntent, MotionIntent, ExpressionIntent))
+                    isinstance(
+                        intent,
+                        (
+                            SpeechIntent,
+                            CapabilityIntent,
+                            MotionIntent,
+                            ExpressionIntent,
+                        ),
+                    )
                     for intent in self.plan.intents
                 )
             ):
@@ -414,7 +485,12 @@ class TurnDecision(FrozenContractModel):
 
 
 __all__ = (
+    "AnswerDraft",
     "CancelPolicy",
+    "CapabilityIntent",
+    "ClarificationDraft",
+    "CognitiveAction",
+    "CognitiveDraft",
     "DecisionIntent",
     "DecisionPlan",
     "MemoryUseReference",
@@ -424,7 +500,9 @@ __all__ = (
     "MotionIntent",
     "ModelAffectiveAppraisal",
     "NoOpIntent",
+    "NoOpDraft",
     "PersistentActivityRequest",
+    "RecallMemory",
     "SpeechIntent",
     "SemanticEmotionEffect",
     "TurnDecision",

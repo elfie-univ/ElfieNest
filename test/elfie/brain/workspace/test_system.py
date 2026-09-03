@@ -371,6 +371,47 @@ def test_commit_keeps_other_conversations_and_embodied_events() -> None:
     assert frames[2].interaction_scope.body_id == "body-1"
 
 
+def test_domain_filtered_frame_does_not_claim_an_older_other_domain() -> None:
+    workspace = EventWorkspace(elfie_id=ELFIE_ID)
+    workspace.publish(
+        PerceptionEvent(
+            meta=_meta("message-before-body"),
+            payload=SocialPayload(
+                type="social",
+                channel_id="chat",
+                conversation_id="conversation-a",
+                sender=ActorRef(actor_id=ActorId("owner"), source_kind="human"),
+                content="hello",
+            ),
+        )
+    )
+    workspace.publish(_event(10))
+
+    embodied = workspace.claim_frame(
+        workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-filtered-embodied"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+        source_domain=SourceDomain.EMBODIED,
+    )
+
+    assert embodied.source_domain is SourceDomain.EMBODIED
+    assert tuple(event.meta.event_id for event in embodied.events) == (
+        EventId("event-10"),
+    )
+    workspace.commit(embodied.frame_id, TurnId("turn-filtered-embodied"))
+
+    communication = workspace.claim_frame(
+        workspace.metrics().latest_ingest_seq,
+        turn_id=TurnId("turn-filtered-communication"),
+        reason=TriggerReason.MANUAL,
+        captured_at=NOW,
+        source_domain=SourceDomain.COMMUNICATION,
+    )
+    assert communication.source_domain is SourceDomain.COMMUNICATION
+    assert communication.events[0].meta.event_id == EventId("message-before-body")
+
+
 def test_active_claim_is_exclusive_and_stop_wakes_waiter() -> None:
     # Given: one active claim and one deterministic condition waiter.
     clock = FakeClock()

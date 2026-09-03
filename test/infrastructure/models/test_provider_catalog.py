@@ -108,7 +108,13 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
     assert catalog.profiles == load_provider_catalog().profiles
     assert catalog.products["openai_api"].legacy_provider_id == "openai"
     assert catalog.products["openai_api"].usage_scope == "general"
+    assert catalog.products["openai_api"].api_base == "https://api.openai.com/v1"
+    assert catalog.products["openai_chatgpt"].connection_method == "oauth"
+    assert catalog.products["openai_chatgpt"].api_mode == "codex_responses"
     assert catalog.brands["openai"].logo_asset == "brands/openai.svg"
+    assert catalog.brands["volcengine"].logo_asset == "brands/volcengine.svg"
+    assert catalog.brands["xai"].logo_asset == "brands/xai.svg"
+    assert catalog.brands["minimax"].logo_asset == "brands/minimax.svg"
     assert catalog.products["volcengine_coding_plan"].api_base == (
         "https://ark.cn-beijing.volces.com/api/coding/v3"
     )
@@ -125,8 +131,74 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "kimi-k2.7-code",
     ]
     assert catalog.products["glm_api"].brand_id == "zhipu"
+    assert catalog.products["glm_api"].free_model_ids == [
+        "glm-4.7-flash",
+        "glm-4.6v-flash",
+    ]
+    assert catalog.products["glm_api_international"].api_base == (
+        "https://api.z.ai/api/paas/v4"
+    )
+    assert catalog.products["qwen_api_intl"].api_base == (
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    )
+    assert catalog.products["qwen_coding_plan"].api_base == (
+        "https://coding.dashscope.aliyuncs.com/v1"
+    )
+    assert catalog.products["qwen_coding_plan_intl"].api_base == (
+        "https://coding-intl.dashscope.aliyuncs.com/v1"
+    )
+    assert catalog.products["qwen_token_plan"].api_base == (
+        "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+    )
+    assert catalog.products["qwen_token_plan_intl"].api_base == (
+        "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    )
+    assert catalog.products["glm_coding_plan"].api_base == (
+        "https://open.bigmodel.cn/api/coding/paas/v4"
+    )
+    assert catalog.products["glm_coding_plan_international"].api_base == (
+        "https://api.z.ai/api/coding/paas/v4"
+    )
+    assert catalog.products["gemini_api"].bundled_models == ["gemini-2.5-flash"]
+    assert catalog.products["gemini_api"].free_model_ids == ["gemini-2.5-flash"]
+    assert catalog.products["glm_api"].api_key_url.endswith("/apikeys")
+    assert catalog.products["siliconflow_api"].api_key_url.endswith("/account/ak")
+    assert catalog.products["siliconflow_api"].legacy_provider_id == "siliconflow"
+    assert "Qwen/Qwen3.5-4B" in catalog.products["siliconflow_api"].free_model_ids
+    assert catalog.products["xai_api"].api_key_url == (
+        "https://console.x.ai/team/default/api-keys"
+    )
+    assert catalog.products["groq_api"].api_key_url == "https://console.groq.com/keys"
+    assert catalog.products["volcengine_coding_plan"].api_key_url == (
+        "https://console.volcengine.com/ark/apiKey"
+    )
     assert catalog.products["kimi_api"].brand_id == "moonshot"
+    assert catalog.products["kimi_api_intl"].api_base == "https://api.moonshot.ai/v1"
+    assert catalog.products["kimi_code"].api_base == "https://api.kimi.com/coding/v1"
     assert catalog.products["minimax_api"].brand_id == "minimax"
+    assert catalog.products["minimax_api"].name == "MiniMax API（按量付费）"
+    assert catalog.products["minimax_token_plan"].api_base == (
+        "https://api.minimaxi.com/v1"
+    )
+    assert catalog.products["minimax_token_plan"].api_key_url == (
+        "https://platform.minimaxi.com/subscribe/token-plan"
+    )
+    assert catalog.products["volcengine_api"].api_base == (
+        "https://ark.cn-beijing.volces.com/api/v3"
+    )
+    assert catalog.products["volcengine_agent_plan"].api_base == (
+        "https://ark.cn-beijing.volces.com/api/plan/v3"
+    )
+    assert catalog.products["openrouter_api"].api_base == "https://openrouter.ai/api/v1"
+    assert (
+        catalog.products["huggingface_api"].api_base
+        == "https://router.huggingface.co/v1"
+    )
+    assert catalog.products["together_api"].api_base == "https://api.together.ai/v1"
+    assert (
+        catalog.products["deepinfra_api"].api_base
+        == "https://api.deepinfra.com/v1/openai"
+    )
     assert {
         "ollama",
         "openai",
@@ -135,14 +207,32 @@ def test_builtin_provider_profiles_are_loaded_from_versioned_catalog() -> None:
         "deepseek",
         "gemini",
         "qwen",
+        "qwen_intl",
+        "qwen_coding_plan",
+        "qwen_coding_plan_intl",
+        "qwen_token_plan",
+        "qwen_token_plan_intl",
         "zhipu",
+        "zhipu_international",
+        "glm_coding_plan",
+        "glm_coding_plan_international",
+        "siliconflow",
         "kimi",
+        "kimi_intl",
+        "kimi_code",
         "minimax",
+        "minimax_token_plan",
         "xai",
         "mistral",
         "groq",
         "custom_openai",
+        "volcengine_api",
         "volcengine_coding_plan",
+        "volcengine_agent_plan",
+        "openrouter",
+        "huggingface",
+        "together",
+        "deepinfra",
     } == set(catalog.profiles)
 
 

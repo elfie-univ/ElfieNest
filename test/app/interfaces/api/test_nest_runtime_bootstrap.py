@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 
 from app.bootstrap import create_app
 from app.interfaces.api import app as api_app
+from app.orchestration.lifecycle import ApplicationRuntimeLifecycle
 from app.orchestration.nest_session import ElfieNestEngine
+from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import Elfie
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
@@ -25,13 +27,11 @@ def test_application_lifespan_accepts_engine_with_registered_elfies(tmp_path) ->
         )
         connection.execute(
             """INSERT INTO elfies
-               (elfie_id, name, owner_user_id, species, adopted_at, status)
-               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'offline')""",
+               (elfie_id, owner_user_id, adopted_at, status)
+               VALUES (?, ?, CURRENT_TIMESTAMP, 'offline')""",
             (
                 "00000001",
-                "艾菲",
                 cursor.lastrowid,
-                "human",
             ),
         )
         connection.commit()
@@ -59,3 +59,34 @@ def test_interface_application_factory_has_no_concrete_startup_composition() -> 
     assert "AuthenticatedWSManager(" not in source
     assert "ws_manager.start(" not in source
     assert "ws_manager.stop(" not in source
+
+
+def test_lifespan_recovers_admissions_before_runtime_start(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    order: list[str] = []
+
+    def recover_pending(self) -> tuple[object, ...]:
+        del self
+        order.append("admission-recovery")
+        return ()
+
+    def start(self) -> None:
+        del self
+        order.append("runtime-start")
+
+    def stop(self) -> None:
+        del self
+
+    monkeypatch.setattr(ResidentAdmissionService, "recover_pending", recover_pending)
+    monkeypatch.setattr(ApplicationRuntimeLifecycle, "start", start)
+    monkeypatch.setattr(ApplicationRuntimeLifecycle, "stop", stop)
+
+    application = create_app(engine=None, db_path=db_path)
+    with TestClient(application) as client:
+        assert client.get("/api/health").status_code == 200
+
+    assert order.index("admission-recovery") < order.index("runtime-start")

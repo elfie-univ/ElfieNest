@@ -2,11 +2,11 @@ from devtools.evals.opt001_e2e3 import (
     _eligible_for_species,
     _query_cases_for_species,
 )
-from infrastructure.persistence.configuration.world import load_world_canon
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 
 
 def test_opt001_e2_queries_are_scoped_to_species_and_cover_the_gate() -> None:
-    world = load_world_canon()
+    world = load_genesis_source_package()
     fox_cases = _query_cases_for_species(world.knowledge, "fox")
     dog_cases = _query_cases_for_species(world.knowledge, "dog")
 

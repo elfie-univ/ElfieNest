@@ -1,6 +1,8 @@
 # 物种资源包契约
 
-状态：规范性契约，版本 2
+状态：规范性契约，版本 3<br>
+修订日期：2026-09-01<br>
+决策：[ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 本契约定义一个物种什么时候才是 ElfieNest 可用的运行时物种。不能因为有
 一个名字、一个档案、一张头像或一个占位场景，就把物种当成可选项。只有完整的
@@ -23,13 +25,22 @@
 ```
 
 `published` 物种只有在全部类型化配置、Genesis 数据和两张不同的 PNG 资源都有效时
-才能被领养。`retired` 物种仍可用于解析已有档案，但不再出现在领养选项中。`draft`
-物种失败即关闭，不进入运行时选项。物种定义不包含候选名字；名字由领养过程中的
-已配置模型生成。
+才能被领养。`retired` 物种不再进入新领养；其运行时资产绑定可以继续服务已经提交的
+Elfie，但恢复或刷新这些 Elfie 时不得重新加载其 `genesis.yaml`。`draft` 物种失败即关闭，
+不进入运行时选项。物种定义不包含候选名字；名字由 `elfie/genesis/` 拥有的确定性
+`NameRules` 在创建时生成，模型不能选择或改写结构化名字。
 
-只有 Infrastructure 可以读取 YAML 和路径。它校验物种包后，把不可变的类型化目录
-注入 Profile、Genesis 和 Adoption。前端只从 API 获取图片 URL，不保存物种列表或图片
-副本。PNG 只负责展示；3D 身体仍以 Godot 资源包为唯一事实源。
+只有 Infrastructure 可以读取 YAML 和路径。它只校验 Schema、引用、包完整性和哈希，
+然后暴露两份严格分离的强类型投影：
+
+- 创建投影：组成已发布 `GenesisSourcePackage` 交给 `elfie/genesis/`，另向 Adoption
+  提供窄的可用性投影；
+- 运行时资产投影：只含稳定物种/Godot 包链接、外貌绑定与展示 URL，供 App/Body/UI 装配。
+
+Profile 不接收目录或资料包。Genesis 只把 Profile 契约允许的最终正式物种身份、冻结名称
+和虚拟外貌写入档案。提交后普通 Brain 只读取 Selfhood 与 Memory，绝不读取创建投影。
+前端只从 API 获取 active 可用性和图片 URL，不保存物种列表或图片副本。PNG 只负责展示；
+3D 身体仍以 Godot 资源包为唯一事实源。
 
 ## 资源包目录
 

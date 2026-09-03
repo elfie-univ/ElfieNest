@@ -21,7 +21,17 @@ class BodyCapabilities:
         return "*" in self.sensors or sensor in self.sensors
 
     def supports_action(self, action: str) -> bool:
-        return "*" in self.actions or action in self.actions
+        if "*" in self.actions or action in self.actions:
+            return True
+        aliases = {
+            "speech.say": "body.speak",
+            "move_to_anchor": "body.move_to_anchor",
+            "system.emergency_stop": "body.emergency_stop",
+        }
+        alias = aliases.get(action)
+        if alias is not None and alias in self.actions:
+            return True
+        return action.startswith("expression.") and "body.expression" in self.actions
 
     def to_dict(self) -> dict[str, JsonValue]:
         return cast(

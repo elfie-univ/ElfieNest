@@ -3,7 +3,7 @@
 The provider receives an inert request on every cognitive step.  Semantic tool
 execution stays behind Brain's injected ``ToolPort`` and never becomes a
 communication or body action.  A run always closes with either a verified
-decision or an explicit safe NoOp result.
+decision or an explicit safe failure result.
 """
 
 from __future__ import annotations
@@ -28,12 +28,20 @@ from elfie.brain.reasoning.decision_decoder import (
     DecisionPlanDecoder,
 )
 from elfie.brain.reasoning.decision_types import (
+    AnswerDraft,
     CancelPolicy,
+    ClarificationDraft,
+    CognitiveAction,
     DecisionIntent,
     DecisionPlan,
     MessageIntent,
     NoOpIntent,
     PersistentActivityRequest,
+    RecallMemory,
+)
+from elfie.brain.reasoning.memory_compiler import (
+    compile_recall_bundle,
+    recall_memory_reference_ids,
 )
 from elfie.brain.reasoning.model_port import (
     JsonSchemaDocument,
@@ -43,7 +51,10 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
     ModelResponseMode,
 )
-from elfie.brain.reasoning.reply_safety import sanitize_direct_owner_reply
+from elfie.brain.reasoning.reply_safety import (
+    TRUSTED_OWNER_FAILURE_REPLY,
+    sanitize_direct_owner_reply,
+)
 from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
@@ -63,6 +74,14 @@ class ReasoningStatus(str, Enum):
     TIMED_OUT = "timed_out"
     CANCELLED = "cancelled"
     FAILED = "failed"
+
+
+@unique
+class ReasoningDepth(str, Enum):
+    """Cognitive depth selected for one Turn before the loop starts."""
+
+    DIRECT = "direct"
+    DELIBERATE = "deliberate"
 
 
 @unique
@@ -94,6 +113,16 @@ class CognitiveStep(FrozenContractModel):
     tool_key: Optional[str] = None
     operation: Optional[str] = None
     ok: Optional[bool] = None
+
+
+class CurrentRunObservation(FrozenContractModel):
+    """Structured same-Run material consumed by the one Context Engine path."""
+
+    kind: str
+    status: str
+    content: str
+    source_ids: Tuple[str, ...] = ()
+    revision: Optional[int] = Field(default=None, ge=0)
 
 
 class ReasoningRunResult(FrozenContractModel):
@@ -128,7 +157,16 @@ _TOOL_MARKER = re.compile(
 )
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
-_OWNER_MESSAGE_FALLBACK = "我收到你的消息了，正在想一想。"
+_HONEST_EXTERNAL_BOUNDARY_REPLY = (
+    "我目前没有执行或确认任何外部操作；如果你愿意，我可以先就现有信息继续聊。"
+)
+_UNSUPPORTED_EXTERNAL_COMPLETION = re.compile(
+    r"(?:已经|已|刚刚).{0,16}(?:发送|发出|创建.{0,6}提醒|设好.{0,6}提醒|"
+    r"搜索|查完|读取.{0,6}文件|写入.{0,6}文件|移动|执行完|完成任务)|"
+    r"\bI\s+(?:have\s+)?(?:sent|searched|created\s+(?:the\s+)?reminder|"
+    r"read\s+the\s+file|wrote\s+the\s+file|completed\s+the\s+task)\b",
+    flags=re.IGNORECASE | re.DOTALL,
+)
 _TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "required": ["tool_key", "operation", "value"],
@@ -208,6 +246,8 @@ class ReasoningRun:
         tool_calls = 0
         capabilities: Optional[ModelGenerationCapabilities] = None
         last_generation: Optional[ModelGenerationResult] = None
+        run_observations: List[CurrentRunObservation] = []
+        memory_reference_ids = list(getattr(task, "memory_reference_ids", ()))
         started_at = monotonic()
         turn_deadline_seconds = max(
             0.0,
@@ -271,11 +311,29 @@ class ReasoningRun:
         try:
             capabilities = self._model_port.capabilities()
             current_prompt = task.request.user_prompt
-            current_request = self._request(
-                task.request,
-                current_prompt,
-                capabilities=capabilities,
-            )
+            context_request_builder = getattr(task, "context_request_builder", None)
+
+            def rebuild_request(
+                *,
+                final_schema: bool = False,
+                legacy_prompt: str | None = None,
+            ) -> ModelGenerationRequest:
+                nonlocal current_prompt
+                if context_request_builder is not None:
+                    base = context_request_builder(tuple(run_observations))
+                    current_prompt = base.user_prompt
+                else:
+                    base = task.request
+                    if legacy_prompt is not None:
+                        current_prompt = legacy_prompt
+                return self._request(
+                    base,
+                    current_prompt,
+                    final_schema=final_schema,
+                    capabilities=capabilities,
+                )
+
+            current_request = rebuild_request()
 
             while True:
                 guard(next_kind=CognitiveStepKind.MODEL, model=True)
@@ -287,6 +345,175 @@ class ReasoningRun:
                     "returned",
                     self._model_summary(generation.text),
                 )
+                if current_request.response_mode is ModelResponseMode.DIRECT_REPLY:
+                    action_decode = self._decoder.decode_cognitive_action(
+                        generation=generation,
+                        capabilities=capabilities,
+                        allowed_memory_references=tuple(memory_reference_ids),
+                    )
+                    action = action_decode.action
+                    if action is None:
+                        errors = action_decode.report.validation_errors or (
+                            "invalid cognitive action",
+                        )
+                        add_step(
+                            CognitiveStepKind.OBSERVATION,
+                            "invalid_cognitive_action",
+                            "; ".join(errors),
+                            ok=False,
+                        )
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is ReasoningDepth.DELIBERATE
+                            and model_calls < self._budget.max_model_calls
+                        ):
+                            run_observations.append(
+                                CurrentRunObservation(
+                                    kind="repair",
+                                    status="invalid_cognitive_action",
+                                    content=(
+                                        f"errors={'; '.join(errors)}; "
+                                        f"raw={generation.text[:_MAX_OBSERVATION_CHARS]}; "
+                                        "Return one valid CognitiveAction only."
+                                    ),
+                                )
+                            )
+                            current_request = rebuild_request(final_schema=True)
+                            continue
+                        raise _ReasoningStop(
+                            ReasoningStatus.SAFE_NOOP,
+                            "cognitive_action_validation_failed",
+                        )
+
+                    if isinstance(action, RecallMemory):
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is not ReasoningDepth.DELIBERATE
+                        ):
+                            raise _ReasoningStop(
+                                ReasoningStatus.SAFE_NOOP,
+                                "recall_memory_not_allowed_in_direct",
+                            )
+                        memory_session = getattr(task, "memory_session", None)
+                        if memory_session is None:
+                            recall_status = "unavailable"
+                            recall_reason = "memory_session_unavailable"
+                            recall_revision = getattr(task, "memory_recall_revision", 0)
+                            recall_bundle = None
+                        else:
+                            recall_result = memory_session.recall(action.query)
+                            recall_status = recall_result.status
+                            recall_reason = recall_result.reason
+                            recall_revision = recall_result.pinned_revision
+                            recall_bundle = recall_result.bundle
+                        if recall_bundle is not None:
+                            memory_reference_ids.extend(
+                                recall_memory_reference_ids(recall_bundle)
+                            )
+                            memory_reference_ids = list(
+                                dict.fromkeys(memory_reference_ids)
+                            )
+                            recall_content = compile_recall_bundle(
+                                recall_bundle,
+                                max_tokens=384,
+                            ).content
+                        else:
+                            recall_content = ""
+                        observation_content = (
+                            f"query={action.query}; reason={action.reason}; "
+                            f"result={recall_content or 'no additional memory evidence'}; "
+                            f"detail={recall_reason or 'none'}"
+                        )
+                        add_step(
+                            CognitiveStepKind.OBSERVATION,
+                            f"memory_{recall_status}",
+                            observation_content,
+                            operation="memory_recall",
+                            ok=recall_status in {"recalled", "duplicate", "skipped"},
+                        )
+                        run_observations.append(
+                            CurrentRunObservation(
+                                kind=(
+                                    "revision" if recall_status == "stale" else "memory"
+                                ),
+                                status=recall_status,
+                                content=observation_content,
+                                source_ids=tuple(
+                                    f"{kind}:{record_id}"
+                                    for kind, record_id in recall_memory_reference_ids(
+                                        recall_bundle
+                                    )
+                                )
+                                if recall_bundle is not None
+                                else (),
+                                revision=recall_revision,
+                            )
+                        )
+                        current_request = rebuild_request(final_schema=True)
+                        continue
+
+                    judge_reason = self._completion_revision_reason(action)
+                    judge_sanitized = False
+                    if judge_reason is not None:
+                        add_step(
+                            CognitiveStepKind.VERIFY,
+                            "revision_required",
+                            judge_reason,
+                            ok=False,
+                        )
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is ReasoningDepth.DELIBERATE
+                            and model_calls < self._budget.max_model_calls
+                        ):
+                            run_observations.append(
+                                CurrentRunObservation(
+                                    kind="judge",
+                                    status="revision_required",
+                                    content=(
+                                        f"{judge_reason}. Revise honestly using only "
+                                        "supplied evidence; do not claim external completion."
+                                    ),
+                                )
+                            )
+                            current_request = rebuild_request(final_schema=True)
+                            continue
+                        action = AnswerDraft(
+                            type="answer",
+                            content=_HONEST_EXTERNAL_BOUNDARY_REPLY,
+                        )
+                        judge_sanitized = True
+
+                    decode = self._decoder.compile_cognitive_draft(
+                        seed=task.seed,
+                        action=action,
+                        report=action_decode.report,
+                    )
+                    decode, current_nest_sanitized = self._sanitize_direct_reply(
+                        task, decode
+                    )
+                    verification_summary = self._verification_summary(
+                        "CognitiveAction accepted",
+                        current_nest_sanitized,
+                    )
+                    if judge_sanitized:
+                        verification_summary += (
+                            "; unsupported_external_completion_boundary"
+                        )
+                    add_step(
+                        CognitiveStepKind.VERIFY,
+                        "accepted",
+                        verification_summary,
+                    )
+                    return ReasoningRunResult(
+                        status=ReasoningStatus.COMPLETED,
+                        steps=tuple(steps),
+                        model_calls=model_calls,
+                        tool_calls=tool_calls,
+                        failure_reason=None,
+                        decode=decode,
+                    )
+
                 marker = (
                     None
                     if self._is_fast_owner_reply(current_request)
@@ -351,16 +578,21 @@ class ReasoningRun:
                         operation=request.operation,
                         ok=True,
                     )
-                    current_prompt = self._observation_prompt(
-                        current_prompt,
-                        request,
-                        tool_result,
+                    run_observations.append(
+                        CurrentRunObservation(
+                            kind="tool",
+                            status="received",
+                            content=self._observation_summary(tool_result),
+                            source_ids=(f"{request.tool_key}:{request.operation}",),
+                        )
                     )
-                    current_request = self._request(
-                        task.request,
-                        current_prompt,
+                    current_request = rebuild_request(
                         final_schema=True,
-                        capabilities=capabilities,
+                        legacy_prompt=self._observation_prompt(
+                            current_prompt,
+                            request,
+                            tool_result,
+                        ),
                     )
                     continue
 
@@ -371,11 +603,19 @@ class ReasoningRun:
                         "Repair the following invalid DecisionPlan JSON. Return JSON only.\n"
                         f"Errors: {'; '.join(errors)}\nRaw output:\n{raw_text}"
                     )
-                    repaired_request = self._request(
-                        task.request,
-                        repair_prompt,
+                    run_observations.append(
+                        CurrentRunObservation(
+                            kind="repair",
+                            status="invalid_output",
+                            content=(
+                                f"errors={'; '.join(errors)}; "
+                                f"raw={raw_text[:_MAX_OBSERVATION_CHARS]}"
+                            ),
+                        )
+                    )
+                    repaired_request = rebuild_request(
                         final_schema=True,
-                        capabilities=capabilities,
+                        legacy_prompt=repair_prompt,
                     )
                     repaired = self._model_port.generate(repaired_request)
                     last_generation = repaired
@@ -392,9 +632,7 @@ class ReasoningRun:
                     generation=generation,
                     capabilities=capabilities,
                     repair_callback=None if capabilities.plain_text_only else repair,
-                    allowed_memory_references=tuple(
-                        getattr(task, "memory_reference_ids", ())
-                    ),
+                    allowed_memory_references=tuple(memory_reference_ids),
                 )
                 decode, reply_was_sanitized = self._sanitize_direct_reply(task, decode)
                 plan, preflight_observation = self._preflight_activities(decode.plan)
@@ -406,7 +644,7 @@ class ReasoningRun:
                         operation="activity_preflight",
                         ok=False,
                     )
-                    current_prompt = (
+                    activity_prompt = (
                         f"{current_prompt}\n\n"
                         "[Activity Preflight Observation]\n"
                         f"{preflight_observation}\n"
@@ -414,11 +652,16 @@ class ReasoningRun:
                         "DecisionPlan or a scoped clarification message; do not defer "
                         "clarification to the future Activity."
                     )
-                    current_request = self._request(
-                        task.request,
-                        current_prompt,
+                    run_observations.append(
+                        CurrentRunObservation(
+                            kind="activity",
+                            status="needs_clarification",
+                            content=preflight_observation,
+                        )
+                    )
+                    current_request = rebuild_request(
                         final_schema=True,
-                        capabilities=capabilities,
+                        legacy_prompt=activity_prompt,
                     )
                     continue
                 if plan is not decode.plan:
@@ -488,7 +731,7 @@ class ReasoningRun:
     ) -> ModelGenerationRequest:
         direct_reply = self._is_fast_owner_reply(base)
         response_schema = base.response_schema
-        if not final_schema and not direct_reply:
+        if not final_schema and not direct_reply and base.allowed_tools:
             response_schema = JsonSchemaDocument(
                 name="ReasoningStep",
                 document={
@@ -552,6 +795,15 @@ class ReasoningRun:
         if not reply_was_sanitized:
             return reason
         return f"{reason}; direct_reply_current_nest_boundary"
+
+    @staticmethod
+    def _completion_revision_reason(action: CognitiveAction) -> str | None:
+        """Reject unsupported external-completion claims before decision binding."""
+        if not isinstance(action, (AnswerDraft, ClarificationDraft)):
+            return None
+        if _UNSUPPORTED_EXTERNAL_COMPLETION.search(action.content) is not None:
+            return "unsupported_external_completion_claim"
+        return None
 
     @staticmethod
     def _marker(text: str) -> _ToolMarker | None:
@@ -744,7 +996,7 @@ class ReasoningRun:
                 cancel_policy=CancelPolicy.ALWAYS,
                 channel_id=seed.reply_channel_id,
                 conversation_id=seed.reply_conversation_id,
-                content=_OWNER_MESSAGE_FALLBACK,
+                content=TRUSTED_OWNER_FAILURE_REPLY,
             )
         else:
             intent = NoOpIntent(
@@ -803,7 +1055,9 @@ class ReasoningRun:
 __all__ = (
     "CognitiveStep",
     "CognitiveStepKind",
+    "CurrentRunObservation",
     "ReasoningBudget",
+    "ReasoningDepth",
     "ReasoningRun",
     "ReasoningRunResult",
     "ReasoningStatus",

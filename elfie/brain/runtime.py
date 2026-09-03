@@ -25,6 +25,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import (
     BrainJournal,
     BrainJournalEntry,
+    BrainJournalKind,
     BrainJournalPort,
     InMemoryBrainJournal,
     reconciliation_fact_to_perception,
@@ -35,6 +36,7 @@ from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.coordinator import BrainCoordinator
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
     ExpressionIntent,
     MessageIntent,
@@ -44,6 +46,7 @@ from elfie.brain.reasoning.decision_types import (
     SpeechIntent,
     TurnDecision,
 )
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.execution_ports import IntentExecutor
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
@@ -57,7 +60,6 @@ from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningWorker
 from elfie.brain.selfhood.contracts import SelfhoodState
-from elfie.brain.state_lifecycle import StateCommitStatus
 from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.message_types import (
@@ -87,6 +89,7 @@ class BrainRuntime:
         memory: MemorySystem,
         clock: Callable[[], UTCDateTime],
         model_port: ModelPort,
+        embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.MOCK,
         tool_port: ToolPort | None = None,
         skills: SkillManager,
         body_executor: IntentExecutor,
@@ -133,6 +136,7 @@ class BrainRuntime:
             activity_executor=activity_executor,
             clock=clock,
             receipt_handler=self._settle_activity_receipt,
+            decision_handler=self._prepare_reply_projections,
             journal=self._journal,
         )
         worker = ReasoningWorker(
@@ -145,6 +149,7 @@ class BrainRuntime:
             memory,
             orientation=context.commit_orientation_candidate,
         )
+        self._settlement = settlement
         self.coordinator = BrainCoordinator(
             elfie_id=elfie_id,
             workspace=workspace,
@@ -157,6 +162,7 @@ class BrainRuntime:
             plan_sink=self.router,
             settlement=settlement,
             initial_timestamp=clock().timestamp(),
+            embodied_input_mode=embodied_input_mode,
             allowed_tools=skills.allowed_tool_keys(),
             motivation_blocked=self._motivation_blocked,
             consolidation_blocked=self._consolidation_blocked,
@@ -177,7 +183,11 @@ class BrainRuntime:
             if checkpoint is not None:
                 self._restore_clock(checkpoint.captured_at)
                 self.restore_continuity(checkpoint)
-            recovered = self._reconcile_interrupted_work()
+            recovered = self._reconcile_pending_reply_receipts()
+            recovered = self._reconcile_interrupted_work() or recovered
+            self._flush_pending_handoffs()
+            if recovered:
+                self._save_continuity()
             self.router.start()
             self.coordinator.start()
             if recovered:
@@ -206,6 +216,10 @@ class BrainRuntime:
     def post_clock(self, timestamp: float) -> None:
         self._wake_due_activities(datetime.fromtimestamp(timestamp, timezone.utc))
         self.coordinator.post_clock(BrainClockPulse(timestamp=timestamp))
+
+    @property
+    def embodied_input_mode(self) -> EmbodiedInputMode:
+        return self.coordinator.embodied_input_mode
 
     def notify_perception(self, *, urgent_reason: Optional[str] = None) -> None:
         self.coordinator.notify_perception(urgent_reason=urgent_reason)
@@ -282,6 +296,11 @@ class BrainRuntime:
         """Never replay uncertain side effects after restart; surface them as facts."""
         recovered = False
         for fact in self._journal.reconcile_unfinished():
+            if fact.intent_id is not None:
+                self.context.discard_pending_reply(
+                    fact.intent_id,
+                    occurred_at=self._clock(),
+                )
             self._workspace.publish(
                 reconciliation_fact_to_perception(
                     fact,
@@ -366,10 +385,17 @@ class BrainRuntime:
         """Bind a child external receipt to the Activity step that requested it."""
         self._settle_motivation_receipt(intent, receipt)
         self._settle_consolidation_receipt(intent, receipt)
-        if receipt.status is ExecutionStatus.COMPLETED and isinstance(
-            intent, MessageIntent
-        ):
-            self._record_completed_interaction(intent, receipt)
+        if isinstance(intent, MessageIntent):
+            self.context.settle_reply(
+                intent_id=intent.intent_id,
+                status=receipt.status,
+                receipt_id=receipt.receipt_id,
+                occurred_at=receipt.occurred_at,
+                sender=ActorRef(
+                    actor_id=ActorId(str(self._elfie_id)),
+                    source_kind="elfie",
+                ),
+            )
         if receipt.status in {
             ExecutionStatus.COMPLETED,
             ExecutionStatus.REJECTED,
@@ -378,6 +404,7 @@ class BrainRuntime:
             ExecutionStatus.TIMED_OUT,
             ExecutionStatus.CANCELLED,
         }:
+            self._flush_pending_handoffs()
             self._save_continuity()
         if isinstance(intent, PersistentActivityRequest):
             record = self.activity_store.get(intent.draft.activity_id)
@@ -390,7 +417,14 @@ class BrainRuntime:
         if receipt.status is not ExecutionStatus.COMPLETED:
             return
         if not isinstance(
-            intent, (MessageIntent, SpeechIntent, MotionIntent, ExpressionIntent)
+            intent,
+            (
+                CapabilityIntent,
+                MessageIntent,
+                SpeechIntent,
+                MotionIntent,
+                ExpressionIntent,
+            ),
         ):
             return
         with self._activity_lock:
@@ -432,45 +466,74 @@ class BrainRuntime:
                         detail=f"step_receipt:{receipt.receipt_id}",
                     )
 
-    def _record_completed_interaction(
-        self,
-        intent: MessageIntent,
-        receipt: ExecutionReceipt,
-    ) -> None:
-        """Join and optionally remember only an actually delivered owner reply."""
+    def _prepare_reply_projections(self, decision: TurnDecision) -> None:
+        """Checkpoint reply content before any external execution can begin."""
+        changed = False
         with self._interaction_lock:
-            interaction = self.context.record_completed_reply(
-                channel_id=intent.channel_id,
-                conversation_id=intent.conversation_id,
-                reply_event_id=EventId(f"elfie-reply:{intent.intent_id}"),
+            before = self.context.conversation_checkpoint()
+            try:
+                for intent in decision.plan.intents:
+                    if not isinstance(intent, MessageIntent):
+                        continue
+                    changed = (
+                        self.context.prepare_reply(
+                            intent_id=intent.intent_id,
+                            channel_id=intent.channel_id,
+                            conversation_id=intent.conversation_id,
+                            reply_event_id=EventId(f"elfie-reply:{intent.intent_id}"),
+                            content=intent.content,
+                            cause_event_ids=intent.cause_event_ids,
+                            prepared_at=self._clock(),
+                            memory_eligible=decision.memory_eligible,
+                        )
+                        or changed
+                    )
+                if changed:
+                    self._save_continuity()
+            except Exception:
+                self.context.restore_conversation_checkpoint(before)
+                raise
+
+    def _reconcile_pending_reply_receipts(self) -> bool:
+        """Replay only journaled terminal truth into checkpointed reply proposals."""
+        terminal = {
+            status.value
+            for status in (
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.REJECTED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.INTERRUPTED,
+                ExecutionStatus.TIMED_OUT,
+                ExecutionStatus.CANCELLED,
+            )
+        }
+        pending = set(self.context.pending_reply_ids())
+        changed = False
+        for entry in self._journal.entries():
+            if (
+                entry.kind is not BrainJournalKind.EXECUTION_RECEIPT
+                or entry.intent_id is None
+                or str(entry.intent_id) not in pending
+                or entry.status not in terminal
+                or entry.receipt_id is None
+            ):
+                continue
+            self.context.settle_reply(
+                intent_id=entry.intent_id,
+                status=ExecutionStatus(entry.status),
+                receipt_id=entry.receipt_id,
+                occurred_at=entry.occurred_at,
                 sender=ActorRef(
                     actor_id=ActorId(str(self._elfie_id)),
                     source_kind="elfie",
                 ),
-                occurred_at=receipt.occurred_at,
-                content=intent.content,
-                cause_event_ids=intent.cause_event_ids,
-                receipt_id=receipt.receipt_id,
             )
-            if interaction is None:
-                return
-            try:
-                committed = self.context.commit_completed_interaction(interaction)
-                if committed is None:
-                    return
-                if committed.status not in {
-                    StateCommitStatus.COMMITTED,
-                    StateCommitStatus.DUPLICATE,
-                }:
-                    logger.warning(
-                        "completed interaction memory was not committed: %s",
-                        committed.reason or committed.status.value,
-                    )
-            except (OSError, RuntimeError, ValueError) as error:
-                logger.warning(
-                    "completed interaction memory commit failed: %s",
-                    type(error).__name__,
-                )
+            pending.discard(str(entry.intent_id))
+            changed = True
+        return changed
+
+    def _flush_pending_handoffs(self) -> None:
+        self.context.flush_pending_handoffs(self._settlement.capture_episodes)
 
     def _settle_motivation_receipt(
         self,
@@ -593,7 +656,10 @@ def _activity_step_matches_intent(
     if kind is ActivityStepKind.COMMUNICATION:
         return isinstance(intent, MessageIntent)
     if kind is ActivityStepKind.NERVOUS_SYSTEM:
-        return isinstance(intent, (SpeechIntent, MotionIntent, ExpressionIntent))
+        return isinstance(
+            intent,
+            (CapabilityIntent, SpeechIntent, MotionIntent, ExpressionIntent),
+        )
     return False
 
 

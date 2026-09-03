@@ -140,7 +140,7 @@ function asCandidate(candidate: AdoptionCandidate): Candidate {
     candidateId: candidate.candidate_id,
     speciesId: candidate.species_id,
     lifeStage: candidate.life_stage as LifeStage,
-    ageMonths: candidate.age_months,
+    ageYears: candidate.age_years,
     gender: candidate.gender,
     fullBodyImageUrl: candidate.full_body_image_url,
     headshotImageUrl: candidate.headshot_image_url,
@@ -162,11 +162,7 @@ function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
           ? mapped.runtimeAppearance
           : previous.runtimeAppearance,
       }
-  return { ...candidate, status: reply.status, message: reply.message, reveal: reply.reveal === null ? null : {
-    originalName: reply.reveal.original_name,
-    suggestedName: reply.reveal.suggested_name,
-    personalStory: reply.reveal.personal_story,
-  } }
+  return { ...candidate, status: reply.status, message: reply.message }
 }
 
 function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl">, kind: "headshot" | "fullBody" = "headshot"): string {
@@ -236,12 +232,8 @@ function candidateSetInput(
   }
 }
 
-function candidateAgeLabel(t: JourneyT, ageMonths: number): string {
-  const years = Math.floor(ageMonths / 12)
-  const months = ageMonths % 12
-  if (years === 0) return t("adoption.journey.shortlist.ageMonths", { count: months })
-  if (months === 0) return t("adoption.journey.shortlist.ageYears", { count: years })
-  return t("adoption.journey.shortlist.ageYearsMonths", { years, months })
+function candidateAgeLabel(t: JourneyT, ageYears: number): string {
+  return t("adoption.journey.shortlist.ageYears", { count: ageYears })
 }
 
 function speciesName(
@@ -460,7 +452,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         setInfo(nextInfo)
         if (nextInfo.availability === "nest_full") setEntryBlock("nest-full")
         else if (nextInfo.availability === "member_quota_full") setEntryBlock("member-full")
-        else if (nextInfo.availability === "model_unavailable" || nextInfo.availability === "species_unavailable") setEntryBlock("unavailable")
+        else if (nextInfo.availability === "species_unavailable") setEntryBlock("unavailable")
 
         const saved = loaded.state
         if (
@@ -885,7 +877,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen frameRef={portraitFrameRef} loadCandidates={loadCandidates} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
-          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} nameMode={state.nameMode} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
+          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
         </div>
 
@@ -1376,7 +1368,7 @@ function ShortlistScreen({ candidates, candidateBatch, dispatch, onRegenerate, s
     <div className="adoption-candidate-grid">
       {candidates.map((candidate, index) => {
         const selected = selectedIds.includes(candidate.candidateId)
-        return <ChoiceButton aria-label={t("adoption.journey.shortlist.candidate", { number: index + 1 })} className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selected}><img alt="" src={candidateImageUrl(candidate, "fullBody")} /><span className="adoption-candidate-card__copy"><strong>{t("adoption.journey.shortlist.candidate", { number: index + 1 })}</strong><small>{candidateAgeLabel(t, candidate.ageMonths)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.personalityTags.slice(0, 3)} /></span></ChoiceButton>
+        return <ChoiceButton aria-label={t("adoption.journey.shortlist.candidate", { number: index + 1 })} className="adoption-candidate-card" key={candidate.candidateId} onClick={() => dispatch({ type: "toggle-candidate", candidateId: candidate.candidateId })} selected={selected}><img alt="" src={candidateImageUrl(candidate, "fullBody")} /><span className="adoption-candidate-card__copy"><strong>{t("adoption.journey.shortlist.candidate", { number: index + 1 })}</strong><small>{candidateAgeLabel(t, candidate.ageYears)} · {t(`adoption.journey.genders.${candidate.gender}`)}</small><TagList values={candidate.personalityTags.slice(0, 3)} /></span></ChoiceButton>
       })}
     </div>
   </section>
@@ -1395,8 +1387,7 @@ function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): b
   if (state.screen === "replies") return state.finalCandidateId === null
   if (state.screen === "naming") {
     const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
-    if (candidate?.reveal === null) return !state.customName.trim()
-    return candidate === undefined
+    return candidate === undefined || !state.customName.trim()
   }
   return false
 }

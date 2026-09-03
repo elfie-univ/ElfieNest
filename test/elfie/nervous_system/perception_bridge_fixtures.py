@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from elfie.body.contracts import (
+    ActionOutcomePayload,
     BodyId,
     BodySensorEvent,
     EnvironmentSample,
@@ -41,6 +42,7 @@ def body_event(
         | NestFactNoticePayload
         | SemanticVisualScenePayload
         | SemanticActionResultPayload
+        | ActionOutcomePayload
     ),
     *,
     cause_id: str | None = None,

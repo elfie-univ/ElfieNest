@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Protocol
+from typing import Protocol
 
-from elfie.genesis import CandidateReveal, GenesisCandidate
+from elfie.public import GenesisCandidate
 
 from .models import AdoptionSpeciesImage, AdoptionSpeciesImages, SpeciesImageKind
 from .port_models import (
     AdoptionNestCapacityRecord,
     AdoptionPolicyRecord,
     AdoptionQuotaRecord,
-    AdoptionReservationRecord,
 )
 
 
@@ -48,14 +47,6 @@ class AdoptionPersistencePort(Protocol):
     ) -> AdoptionQuotaRecord | None: ...
 
     def get_nest_capacity(self) -> AdoptionNestCapacityRecord: ...
-
-    def reserve(
-        self,
-        reservation: AdoptionReservationRecord,
-        default_limit: int,
-    ) -> None: ...
-
-    def release(self, elfie_id: str) -> None: ...
 
 
 class CandidatePortraitPort(Protocol):
@@ -95,28 +86,9 @@ class StaticSpeciesRuntimeReadiness:
         return species_id in self.species_ids
 
 
-class AdoptionNarrativePort(Protocol):
-    """Strong-model boundary for post-acceptance names and personal stories."""
-
-    def is_ready(self) -> bool: ...
-
-    def reveal(
-        self,
-        candidate: GenesisCandidate,
-        invitation_message: str,
-    ) -> CandidateReveal: ...
-
-    def reveal_many(
-        self,
-        candidates: tuple[GenesisCandidate, ...],
-        invitation_message: str,
-    ) -> Mapping[str, CandidateReveal]: ...
-
-
 __all__ = (
     "AdoptionPersistencePort",
     "CandidatePortraitPort",
-    "AdoptionNarrativePort",
     "AdoptionPolicyPort",
     "AdoptionPortCapacityReached",
     "AdoptionPortNestCapacityReached",

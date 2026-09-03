@@ -202,6 +202,68 @@ def test_bootstrap_ensure_dev_builds_electron_authority_host(tmp_path: Path) -> 
     assert "Electron authority host is ready" in result.stdout
 
 
+def test_bootstrap_retries_python_sync_once_with_refreshed_uv_cache(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    scripts_dir = copy_bootstrap(project_root)
+    prepare_build_runtime(project_root)
+    subprocess.run(["git", "init", "-q", str(project_root)], check=True)
+    (project_root / ".pre-commit-config.yaml").write_text(
+        "repos: []\n", encoding="utf-8"
+    )
+    call_log = tmp_path / "uv-calls.log"
+    make_executable(
+        project_root / ".fake-bin/uv",
+        "#!/bin/sh\n"
+        'if [ "$1" = "python" ] && [ "$2" = "install" ]; then exit 0; fi\n'
+        'if [ "$1" = "sync" ]; then\n'
+        '  printf "%s\\n" "$*" >> "$UV_CALL_LOG"\n'
+        '  case " $* " in\n'
+        '    *" --refresh "*)\n'
+        "      mkdir -p .venv/bin\n"
+        "      for tool in pre-commit ruff; do\n"
+        '        printf "#!/bin/sh\\nexit 0\\n" > ".venv/bin/$tool"\n'
+        '        chmod +x ".venv/bin/$tool"\n'
+        "      done\n"
+        "      exit 0\n"
+        "      ;;\n"
+        "    *) exit 42 ;;\n"
+        "  esac\n"
+        "fi\n"
+        "exit 1\n",
+    )
+    make_executable(
+        project_root / ".fake-bin/node",
+        "#!/bin/sh\nprintf 'v20.12.0\\n'\n",
+    )
+    elfie_home = tmp_path / "elfie-home"
+    elfie_home.mkdir()
+
+    result = subprocess.run(
+        ["bash", str(scripts_dir / "bootstrap.sh"), "ensure", "--tier=dev"],
+        cwd=project_root,
+        env={
+            **os.environ,
+            "ELFIE_HOME": str(elfie_home),
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{project_root / '.fake-bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "UV_CALL_LOG": str(call_log),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert call_log.read_text(encoding="utf-8").splitlines() == [
+        "sync --locked --extra dev",
+        "sync --locked --extra dev --refresh",
+    ]
+    assert "refreshing the uv cache and retrying once" in result.stderr
+    assert "recovered after refreshing the uv cache" in result.stdout
+
+
 def test_bootstrap_hooks_action_only_installs_the_repository_hook(
     tmp_path: Path,
 ) -> None:
@@ -433,7 +495,11 @@ def test_bootstrap_dev_tier_syncs_locked_development_dependencies() -> None:
 
     assert 'sync_args="$sync_args --extra dev"' in bootstrap_source
     assert 'sync_args="$sync_args --no-dev --extra release"' in bootstrap_source
-    assert 'UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"' in bootstrap_source
+    assert (
+        'UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/elfienest-uv-cache}"'
+        not in bootstrap_source
+    )
+    assert "sync $sync_args --refresh" in bootstrap_source
 
 
 def test_bootstrap_creates_data_home_through_root_infrastructure() -> None:

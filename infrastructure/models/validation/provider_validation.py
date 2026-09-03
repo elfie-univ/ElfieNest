@@ -217,7 +217,13 @@ def discover_provider_models_result(
 
     if discovery_error is None and not _has_model_list(api_mode, payload):
         discovery_error = RuntimeError("模型清单响应结构无效")
-    names = _extract_model_names(api_mode, payload) if discovery_error is None else []
+    names = (
+        _normalize_discovered_model_names(
+            _extract_model_names(api_mode, payload), profile
+        )
+        if discovery_error is None
+        else []
+    )
     if discovery_error is None and len(names) > max_models:
         discovery_error = RuntimeError(f"模型清单超过上限 {max_models}")
         names = []
@@ -266,6 +272,8 @@ def discover_provider_models_result(
             ),
             error_code=None,
         )
+    live_names = set(names)
+    names = _augment_declared_free_models(names, profile)
     curated_ids = set(_bundled_model_names(provider, profile))
     return ModelDiscoveryResult(
         provider_id,
@@ -273,7 +281,13 @@ def discover_provider_models_result(
             DiscoveredModel(
                 provider_id,
                 name,
-                source="ollama" if api_mode == "ollama" else "provider_models",
+                source=(
+                    "bundled_catalog"
+                    if name not in live_names and api_mode != "ollama"
+                    else "ollama"
+                    if api_mode == "ollama"
+                    else "provider_models"
+                ),
                 display_name=name,
                 curated=name in curated_ids,
             )
@@ -401,7 +415,13 @@ def _discover_models_endpoint(
 
     if discovery_error is None and not _has_model_list(api_mode, payload):
         discovery_error = RuntimeError(f"{source_error_prefix}响应结构无效")
-    names = _extract_model_names(api_mode, payload) if discovery_error is None else []
+    names = (
+        _normalize_discovered_model_names(
+            _extract_model_names(api_mode, payload), profile
+        )
+        if discovery_error is None
+        else []
+    )
     if discovery_error is None and len(names) > max_models:
         discovery_error = RuntimeError(f"{source_error_prefix}超过上限 {max_models}")
         names = []
@@ -418,6 +438,8 @@ def _discover_models_endpoint(
             error=str(discovery_error),
             allow_configured_fallback=allow_configured_fallback,
         )
+    live_names = set(names)
+    names = _augment_declared_free_models(names, profile)
     curated_ids = set(_bundled_model_names(provider, profile))
     return ModelDiscoveryResult(
         provider_id,
@@ -425,7 +447,9 @@ def _discover_models_endpoint(
             DiscoveredModel(
                 provider_id,
                 name,
-                source="provider_models",
+                source=(
+                    "bundled_catalog" if name not in live_names else "provider_models"
+                ),
                 display_name=name,
                 curated=name in curated_ids,
             )
@@ -496,6 +520,37 @@ def _bundled_model_names(provider: Mapping[str, Any], profile: Any) -> list[str]
     if not isinstance(raw, (list, tuple)):
         return []
     return list(dict.fromkeys(str(item).strip() for item in raw if str(item).strip()))
+
+
+def _normalize_discovered_model_names(names: Iterable[str], profile: Any) -> list[str]:
+    """Normalize only provider-specific wrappers around endpoint model IDs."""
+    legacy_provider_id = "" if profile is None else str(profile.legacy_provider_id)
+    normalized: list[str] = []
+    for name in names:
+        candidate = name.strip()
+        if legacy_provider_id == "gemini" and candidate.startswith("models/"):
+            candidate = candidate.removeprefix("models/")
+        if candidate and candidate not in normalized:
+            normalized.append(candidate)
+    return normalized
+
+
+def _augment_declared_free_models(names: Iterable[str], profile: Any) -> list[str]:
+    """Include documented free endpoints omitted by the provider inventory.
+
+    Zhipu's general ``/models`` response currently omits its two documented
+    free Flash endpoints. Gemini is included for the same resilience when a
+    compatible endpoint returns a restricted inventory. Other providers keep
+    the live inventory as the sole entitlement authority because their free
+    catalog snapshots can change independently.
+    """
+    result = list(dict.fromkeys(names))
+    if profile is None or str(profile.legacy_provider_id) not in {"gemini", "zhipu"}:
+        return result
+    for model_id in profile.free_model_ids:
+        if model_id not in result:
+            result.append(model_id)
+    return result
 
 
 def _configured_models(

@@ -19,7 +19,6 @@ from urllib.parse import urlsplit
 
 MODEL_ID = "elfienest-release-model"
 SYNTHETIC_CREDENTIAL = "elfienest-release-synthetic-credential"
-ADOPTION_SCHEMA_NAME = "adoption_candidate_reveal_v1"
 STRUCTURED_PROBE_SCHEMA_NAME = "elfienest_probe"
 _MAX_REQUEST_BYTES = 1024 * 1024
 
@@ -257,37 +256,17 @@ def _completion_for(
         raise RequestRejected(
             400, "unknown_schema", "response_format must be an object"
         )
-    is_adoption = _is_adoption_request(messages, response_format)
     is_structured_probe = _is_structured_probe(response_format)
     is_tool_probe = _is_tool_probe(payload.get("tools"))
     is_vision_probe = _is_vision_probe(messages)
     is_reasoning_probe = _is_reasoning_probe(payload)
     if response_format is not None:
-        format_type = response_format.get("type")
-        if is_adoption and format_type not in {"json_schema", "json_object"}:
-            raise RequestRejected(
-                400, "unknown_schema", "unsupported adoption response format"
-            )
-        if not is_adoption and not is_structured_probe:
+        if not is_structured_probe:
             raise RequestRejected(400, "unknown_schema", "unknown response schema")
     tools = payload.get("tools")
     if tools not in (None, [], ()) and not is_tool_probe:
         raise RequestRejected(
             400, "unknown_tool", "tool requests are not in this scripted scenario"
-        )
-    if is_adoption:
-        return (
-            ADOPTION_SCHEMA_NAME,
-            json.dumps(
-                {
-                    "original_name": "Lumi",
-                    "suggested_name": "露米",
-                    "personal_story": "我是露米，喜欢先安静听你说完，再用温柔又具体的方式陪你想办法。我会记得我们一起走过的小片段，也愿意慢慢和你熟悉起来。",
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-            None,
         )
     if is_tool_probe:
         return (
@@ -316,20 +295,6 @@ def _completion_for(
         "我是测试中的 Elfie。我会认真听你说话，也会把这次对话记在自己的生活里。",
         None,
     )
-
-
-def _is_adoption_request(
-    messages: Sequence[Mapping[str, Any]], response_format: Mapping[str, Any] | None
-) -> bool:
-    if response_format is not None:
-        schema = response_format.get("json_schema")
-        if isinstance(schema, dict) and schema.get("name") == ADOPTION_SCHEMA_NAME:
-            return True
-    for message in messages:
-        content = message.get("content")
-        if isinstance(content, str) and ADOPTION_SCHEMA_NAME in content:
-            return True
-    return False
 
 
 def _is_structured_probe(response_format: object) -> bool:
@@ -454,7 +419,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "ADOPTION_SCHEMA_NAME",
     "MODEL_ID",
     "SYNTHETIC_CREDENTIAL",
     "ScriptedModelServer",

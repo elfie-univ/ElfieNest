@@ -1,6 +1,7 @@
 schema_version: 1
 definition_version: tovren.v1
-canon_id: tovren
+species_package_id: tovren
+package_version: tovren.v1
 display_name: Tovren
 display_name_zh: 灵犬
 earth_shape_label: dog-like

@@ -12,8 +12,9 @@ def test_profile_dict_round_trip() -> None:
         height_direction="short",
         build_direction="plump",
     )
-    assert profile.embodiment.primary_morphology == "biped"
-    assert profile.embodiment.supported_morphologies == ("biped",)
+    assert profile.identity.species_id == "dog"
+    assert profile.appearance.genome_version == 2
+    assert profile.appearance.species_profile_version > 0
     assert type(profile).from_dict(profile.to_dict()) == profile
 
 

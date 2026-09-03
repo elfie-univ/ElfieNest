@@ -3,6 +3,10 @@
 > **状态：OPT-001 实现与 E2/E3 机器门已关闭；负责人体验复核归 MEM-008**
 > **目标基线：** `origin/codex/memory-source-first`，`1aa51264`（2026-08-27）
 > **目标：** 让新领养的 Elfie 从第一次对话起，能从自身 Memory 连续回答 Elfaria、物种、迷雾镇、过去、人物和赴地经历；未知处明确说不知道。
+>
+> **历史边界：** 本文是已关闭 OPT-001 的执行与证据快照，不是现行 Genesis 设计。本文中的
+> 长期 Manifest、Profile 来源字段、旧 worktree 路径和提交后重放写法已被 ADR-0033、Elfie 2.3、
+> Brain 1.5 与 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 取代；后续实现不得复制这些旧边界。
 
 当前 worktree 另有本地 `16547111`（OPT-002 连续学习提交，领先 origin 一步）；它不是本计划范围，必须保留但不纳入 OPT-001 的变更或验收。实现前以目标基线与当前提交分别做差异盘点，不得混入或反向修改该提交。
 

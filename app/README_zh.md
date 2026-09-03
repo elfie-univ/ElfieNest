@@ -75,11 +75,9 @@ Food 读取、模型调用和工具执行不进入。具体 Adapter 由 `bootstr
 从仓库根目录运行应用层重点检查：
 
 ```bash
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q test/app/
+uv run --no-sync pytest -q test/app/
 
-UV_CACHE_DIR=/tmp/elfienest-uv-cache \
-  uv run --no-sync pytest -q \
+uv run --no-sync pytest -q \
   test/app/orchestration/test_engine.py \
   test/app/orchestration/test_engine_cognitive_loop.py
 ```

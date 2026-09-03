@@ -257,8 +257,9 @@
 .provider-card--add { min-height: 0; padding-block: 12px; place-items: center; align-content: center; color: var(--text-muted); border-style: dashed; cursor: pointer; text-align: center; }
 .provider-card--add:hover { color: var(--text); border-color: var(--accent); background: var(--hover-bg); }
 .provider-card--add span { font-size: 14px; }
-.provider-card--available { min-height: 0; padding-block: 12px; align-items: center; color: var(--text); cursor: pointer; text-align: left; }
+.provider-card--available { position: relative; min-height: 0; padding-block: 12px; align-items: center; color: var(--text); cursor: pointer; text-align: left; }
 .provider-card--available:hover { border-color: var(--accent); background: var(--hover-bg); }
+.provider-card__free-badge { position: absolute; top: 10px; right: 10px; padding: 3px 7px; border: 1px solid color-mix(in srgb, #43805a 35%, var(--border)); border-radius: 999px; color: #2f6847; background: color-mix(in srgb, #dfefdf 72%, var(--surface-raised)); font-size: 12px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .provider-card__brand { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .provider-card__brand strong { overflow: hidden; font-size: 26px; line-height: 1.12; text-overflow: ellipsis; white-space: nowrap; }
 .provider-card--available .provider-brand-mark { width: 84px; height: 84px; flex-basis: 84px; border-radius: 20px; font-size: 36px; }
@@ -296,12 +297,16 @@
 .status-badge--unavailable, .status-badge--failed, .status-badge--cancelled, .status-badge--repair_required { color: #963f35; background: #f6dddd; }
 .provider-form-dialog { width: min(720px, calc(100vw - 32px)); }
 .provider-form { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0; padding: 0; border: 0; }
+.input--masked { -webkit-text-security: disc; text-security: disc; }
+.provider-form__api-key { display: grid; gap: 5px; }
+.provider-form__api-key-link { justify-self: end; color: var(--accent-hover); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .provider-form__unavailable { margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-muted); background: var(--code-bg); line-height: 1.6; }
 .provider-models-dialog { width: min(1120px, calc(100vw - 32px)); max-width: min(1120px, calc(100vw - 32px)) !important; }
-.provider-models-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
-.provider-models-toolbar__left, .provider-models-toolbar__right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.provider-models-toolbar { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 8px; }
+.provider-models-toolbar__left { display: flex; min-width: 0; align-items: flex-end; padding-bottom: 5px; color: var(--text-muted); font-size: 14px; }
+.provider-models-toolbar__right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .provider-models-loading { display: grid; min-height: 150px; place-items: center; padding: 24px; border: 1px dashed var(--border); border-radius: 12px; color: var(--warning-text); background: var(--warning-soft, #f7e7cc); }
-.provider-models-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-field); }
+.provider-model-free-badge { color: #2e6846; background: #dfefdf; }
 .provider-obsolete-models { display: grid; gap: 10px; margin: 14px 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, var(--warning-text) 12%); }
 .provider-obsolete-models-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .provider-obsolete-model-list { display: grid; gap: 8px; }
@@ -331,6 +336,7 @@
 .provider-model-status { display: inline-flex; align-items: center; gap: 5px; min-width: 82px; white-space: nowrap; }
 .provider-model-status small { color: var(--text-muted); }
 .provider-model-status--available strong { color: #2e6846; }
+.provider-model-status--degraded strong { color: #8b5a1f; }
 .provider-model-status--failed strong, .provider-model-status--unavailable strong { color: #963f35; }
 .provider-model-status--never strong { color: #815b30; }
 .ollama-models-dialog { width: min(720px, calc(100vw - 32px)); max-width: min(720px, calc(100vw - 32px)) !important; }

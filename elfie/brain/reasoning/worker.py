@@ -6,12 +6,11 @@ from collections import deque
 from concurrent.futures import Future
 from dataclasses import dataclass
 from threading import Event, Lock, Thread
-from typing import Deque, Dict, NamedTuple, Optional, Protocol
+from typing import TYPE_CHECKING, Callable, Deque, Dict, NamedTuple, Optional, Protocol
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.emotion.contracts import TrustedAppraisalScope
 from elfie.brain.energy.contracts import CognitiveBudgetReservation
-from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
     DecisionDecodeSeed,
@@ -20,13 +19,18 @@ from elfie.brain.reasoning.decision_decoder import (
 from elfie.brain.reasoning.model_port import ModelGenerationRequest, ModelPort
 from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
+    CurrentRunObservation,
     ReasoningBudget,
+    ReasoningDepth,
     ReasoningRun,
     ReasoningRunResult,
 )
 from elfie.brain.reasoning.settlement import TurnStateCandidate
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.message_types import ElfieId
+
+if TYPE_CHECKING:
+    from elfie.brain.reasoning.memory_context import MemoryRecallSessionPort
 
 
 @dataclass(frozen=True)
@@ -93,12 +97,12 @@ class ReasoningTaskView(Protocol):
         """Return the per-Turn budget selected by Energy, if any."""
 
     @property
-    def state_candidates(self) -> tuple[TurnStateCandidate, ...]:
-        """Return explicit owner candidates prepared before model execution."""
+    def reasoning_depth(self) -> ReasoningDepth:
+        """Return the frozen cognitive depth for this Turn."""
 
     @property
-    def closed_episodes(self) -> tuple[ClosedEpisode, ...]:
-        """Return upstream-closed source Episodes captured before inference."""
+    def state_candidates(self) -> tuple[TurnStateCandidate, ...]:
+        """Return explicit owner candidates prepared before model execution."""
 
     @property
     def reply_safety_context(self) -> ReplySafetyContext | None:
@@ -113,8 +117,18 @@ class ReasoningTaskView(Protocol):
         """Return the Recall revision bound to the allow-list."""
 
     @property
+    def memory_session(self) -> MemoryRecallSessionPort | None:
+        """Return the one revision-pinned Recall session for this Run."""
+
+    @property
     def appraisal_scopes(self) -> tuple[TrustedAppraisalScope, ...]:
         """Return the host-signed scopes exposed to model appraisal."""
+
+    @property
+    def context_request_builder(
+        self,
+    ) -> Callable[[tuple[CurrentRunObservation, ...]], ModelGenerationRequest] | None:
+        """Recompile each cognitive step through the same Context Engine."""
 
 
 @dataclass(frozen=True)
@@ -125,13 +139,19 @@ class ReasoningTask:
     seed: DecisionDecodeSeed
     tool_scope_id: ElfieId | None = None
     reasoning_budget: ReasoningBudget | None = None
+    reasoning_depth: ReasoningDepth = ReasoningDepth.DIRECT
     energy_reservation: CognitiveBudgetReservation | None = None
     state_candidates: tuple[TurnStateCandidate, ...] = ()
-    closed_episodes: tuple[ClosedEpisode, ...] = ()
     reply_safety_context: ReplySafetyContext | None = None
     memory_reference_ids: tuple[tuple[str, str], ...] = ()
     memory_recall_revision: int = 0
+    memory_session: MemoryRecallSessionPort | None = None
+    memory_baseline_status: str = "skipped"
+    memory_baseline_reason: str | None = None
     appraisal_scopes: tuple[TrustedAppraisalScope, ...] = ()
+    context_request_builder: (
+        Callable[[tuple[CurrentRunObservation, ...]], ModelGenerationRequest] | None
+    ) = None
 
 
 @dataclass(frozen=True)

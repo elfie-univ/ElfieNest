@@ -8,6 +8,7 @@ from typing import List, Mapping, Optional, Tuple
 from elfie.body.capabilities import BodyCapabilities
 from elfie.body.command_execution import (
     WireValue,
+    lifecycle_receipts,
     parse_wire_command,
     rejected,
     utc_now,
@@ -18,11 +19,13 @@ from elfie.body.contracts import (
     BodyId,
     BodySensorEvent,
     BodySnapshot,
+    CapabilityCommand,
     CommandReceipt,
     CommandStatus,
     EmergencyStopCommand,
     ExpressionCommand,
     MotionCommand,
+    ObservationCommand,
     SpeechCommand,
 )
 from elfie.body.types import (
@@ -46,8 +49,26 @@ class NativeBody:
         self.body_id = body_id
         self.transport = transport
         self.capabilities = capabilities or BodyCapabilities(
-            sensors=frozenset({"hearing", "proprioception"}),
-            actions=frozenset({"*"}),
+            sensors=frozenset({"hearing", "vision", "touch", "proprioception"}),
+            actions=frozenset(
+                {
+                    "speech.say",
+                    "body.speak",
+                    "move_to_anchor",
+                    "body.move_to_anchor",
+                    "chat_look",
+                    "walking",
+                    "walk",
+                    "go_home",
+                    "gesture.wave",
+                    "body.expression",
+                    "expression.happy",
+                    "expression.blink_eyes",
+                    "system.emergency_stop",
+                    "body.emergency_stop",
+                    "world.observe",
+                }
+            ),
         )
         self.sensors = NativeSensors(body_id)
         self.connected = False
@@ -168,6 +189,29 @@ class NativeBody:
                 "intent": "emotion_expression",
                 "expression": command.kind,
             }
+        elif isinstance(command, ObservationCommand):
+            payload = {
+                "command_id": str(command.command_id),
+                "intent_id": str(command.intent_id),
+                "actor_id": self.body_id,
+                "body_generation": command.body_generation,
+                "initiator": "elfie",
+                "intent": "observe",
+                "observation_id": command.observation_id,
+                "max_results": command.max_results,
+            }
+            if not self.transport.request_visual_observation(payload):
+                receipt = rejected(
+                    command,
+                    "visual_observation_unavailable",
+                    "semantic visual observation is unavailable",
+                    now,
+                )
+                self._last_receipt = receipt
+                return (receipt,)
+            receipts = lifecycle_receipts(command, occurred_at=now)
+            self._last_receipt = receipts[-1]
+            return receipts
         elif isinstance(command, EmergencyStopCommand):
             self.transport.cancel_all(actor_id=self.body_id)
             receipts = (
@@ -180,7 +224,7 @@ class NativeBody:
             )
             self._last_receipt = receipts[-1]
             return receipts
-        else:  # pragma: no cover - discriminated BodyCommand is exhaustive.
+        elif isinstance(command, CapabilityCommand):
             receipt = rejected(
                 command,
                 "unsupported_capability",

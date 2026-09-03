@@ -25,6 +25,7 @@ from devtools.elfie_lab.turn_projection import project_decision
 from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
@@ -95,6 +96,7 @@ class ElfieLabSession:
                     storage.journal_path(spec.elfie_id)
                 ),
                 body=self.body,
+                embodied_input_mode=EmbodiedInputMode.BRAIN,
             ),
         )
         self._turn_adapter = BrainTurnAdapter(self.elfie)
@@ -288,6 +290,7 @@ class ElfieLabSession:
                         self.storage.journal_path(self.spec.elfie_id)
                     ),
                     body=self.body,
+                    embodied_input_mode=EmbodiedInputMode.BRAIN,
                 ),
             )
             self._turn_adapter = BrainTurnAdapter(self.elfie)

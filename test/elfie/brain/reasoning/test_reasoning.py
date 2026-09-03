@@ -9,10 +9,12 @@ from elfie.brain.activity.system import (
     ActivityPreflightResult,
     ActivityPreflightStatus,
 )
+from elfie.brain.memory.memory_records import RecallBundle, RecallNode
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeSeed,
     DecisionPlanDecoder,
 )
+from elfie.brain.reasoning.memory_context import MemoryRecallResult
 from elfie.brain.reasoning.model_port import (
     JsonSchemaDocument,
     ModelGenerationCapabilities,
@@ -25,6 +27,7 @@ from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     CognitiveStepKind,
     ReasoningBudget,
+    ReasoningDepth,
     ReasoningRun,
     ReasoningStatus,
 )
@@ -161,6 +164,52 @@ def _task(
     )
 
 
+def _owner_cognitive_task(
+    *,
+    depth: ReasoningDepth = ReasoningDepth.DIRECT,
+    memory_session=None,
+    memory_revision: int = 0,
+    context_request_builder=None,
+) -> ReasoningTask:
+    base = _task()
+    request = base.request.model_copy(
+        update={
+            "source_domain": SourceDomain.COMMUNICATION,
+            "interaction_scope": CommunicationScope(
+                channel_id="chat", conversation_id="owner:1"
+            ),
+            "response_scope": ResponseScope(
+                external_domain=ExternalExecutionDomain.COMMUNICATION,
+                channel_id="chat",
+                conversation_id="owner:1",
+            ),
+            "response_schema": JsonSchemaDocument(
+                name="CognitiveAction",
+                document=DecisionPlanDecoder.cognitive_action_schema(),
+            ),
+            "response_mode": ModelResponseMode.DIRECT_REPLY,
+            "reasoning_mode": (
+                "long" if depth is ReasoningDepth.DELIBERATE else "fast"
+            ),
+            "allowed_tools": (),
+        }
+    )
+    return replace(
+        base,
+        request=request,
+        seed=base.seed.model_copy(
+            update={
+                "reply_channel_id": "chat",
+                "reply_conversation_id": "owner:1",
+            }
+        ),
+        reasoning_depth=depth,
+        memory_session=memory_session,
+        memory_recall_revision=memory_revision,
+        context_request_builder=context_request_builder,
+    )
+
+
 class SearchRuntime:
     def __init__(self) -> None:
         self.calls: list[ModelGenerationRequest] = []
@@ -189,6 +238,21 @@ class SearchRuntime:
         return ModelGenerationResult(
             text=text,
             selected_mode=StructuredOutputMode.JSON_TEXT,
+            provider="fake",
+            model_key="fake/schema",
+        )
+
+
+class SequenceCognitiveRuntime(SearchRuntime):
+    def __init__(self, *actions: dict[str, object]) -> None:
+        super().__init__()
+        self._actions = actions
+
+    def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+        self.calls.append(request)
+        return ModelGenerationResult(
+            text=json.dumps(self._actions[len(self.calls) - 1], ensure_ascii=False),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
             provider="fake",
             model_key="fake/schema",
         )
@@ -244,6 +308,195 @@ def test_json_mode_schema_is_added_by_brain_before_provider_boundary() -> None:
     assert result.status is ReasoningStatus.COMPLETED
     assert "RESPONSE_SCHEMA_JSON:" in runtime.calls[0].system_prompt
     assert '"type":"object"' in runtime.calls[0].system_prompt
+
+
+def test_no_tool_task_does_not_expose_reasoning_step_tool_schema() -> None:
+    runtime = JsonModeRuntime()
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        tool_port=SearchTools(),
+    ).run(_task())
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert runtime.calls[0].response_schema.name == "DecisionPlan"
+    assert '"tool_key"' not in runtime.calls[0].system_prompt
+
+
+def test_direct_cognitive_action_finishes_in_one_model_call_without_tools() -> None:
+    runtime = SequenceCognitiveRuntime(
+        {"type": "answer", "content": "我们可以从最小聊天闭环开始。"}
+    )
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        tool_port=SearchTools(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=1, max_tool_calls=0),
+    ).run(_owner_cognitive_task())
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 1
+    assert result.tool_calls == 0
+    assert result.decode.plan.intents[0].type == "message"
+    assert result.decode.plan.intents[0].content == "我们可以从最小聊天闭环开始。"
+    assert runtime.calls[0].response_schema.name == "CognitiveAction"
+    assert runtime.calls[0].allowed_tools == ()
+
+
+def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> None:
+    bundle = RecallBundle(
+        focus_nodes=(
+            RecallNode(
+                node_id="memory-node-1",
+                node_type="preference",
+                label="主人喜欢蓝色",
+                description=None,
+                importance=0.9,
+                relevance=0.95,
+            ),
+        ),
+        recall_revision=7,
+    )
+
+    class RecordingMemorySession:
+        pinned_revision = 7
+
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def recall(self, query: str) -> MemoryRecallResult:
+            self.queries.append(query)
+            return MemoryRecallResult(
+                status="recalled",
+                query=query,
+                pinned_revision=self.pinned_revision,
+                bundle=bundle,
+            )
+
+    session = RecordingMemorySession()
+    runtime = SequenceCognitiveRuntime(
+        {
+            "type": "recall_memory",
+            "query": "主人纠正后的颜色偏好",
+            "reason": "回答依赖持久偏好",
+        },
+        {
+            "type": "answer",
+            "content": "你纠正后的偏好是蓝色。",
+            "memory_uses": [
+                {
+                    "target_kind": "node",
+                    "target_id": "memory-node-1",
+                    "claim_ref": "主人喜欢蓝色",
+                }
+            ],
+        },
+    )
+    observed: list[tuple] = []
+    task = _owner_cognitive_task(
+        depth=ReasoningDepth.DELIBERATE,
+        memory_session=session,
+        memory_revision=7,
+    )
+
+    def rebuild(observations):
+        observed.append(observations)
+        rendered = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={
+                "user_prompt": (
+                    "CURRENT_MESSAGE:\n你还记得吗？\n\n"
+                    f"CURRENT_RUN_OBSERVATIONS:\n{rendered or 'none'}"
+                )
+            }
+        )
+
+    task = replace(task, context_request_builder=rebuild)
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=5, max_model_calls=2, max_tool_calls=0),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 2
+    assert result.tool_calls == 0
+    assert session.queries == ["主人纠正后的颜色偏好"]
+    assert observed[0] == ()
+    assert len(observed[1]) == 1
+    assert observed[1][0].revision == 7
+    assert "主人喜欢蓝色" in runtime.calls[1].user_prompt
+    assert result.decode.plan.memory_uses[0].target_id == "memory-node-1"
+
+
+def test_deliberate_completion_judge_revises_a_fabricated_external_success() -> None:
+    runtime = SequenceCognitiveRuntime(
+        {"type": "answer", "content": "我已经创建提醒了。"},
+        {"type": "answer", "content": "我现在不能创建提醒，但可以继续帮你梳理。"},
+    )
+    task = _owner_cognitive_task(depth=ReasoningDepth.DELIBERATE)
+
+    def rebuild(observations):
+        judge = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={"user_prompt": f"CURRENT_MESSAGE:\n提醒我。\n{judge}"}
+        )
+
+    task = replace(task, context_request_builder=rebuild)
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=5, max_model_calls=2, max_tool_calls=0),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 2
+    assert result.decode.plan.intents[0].content == (
+        "我现在不能创建提醒，但可以继续帮你梳理。"
+    )
+    assert any(
+        step.kind is CognitiveStepKind.VERIFY and step.status == "revision_required"
+        for step in result.steps
+    )
+    assert "do not claim external completion" in runtime.calls[1].user_prompt
+
+
+def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> None:
+    class EmptyMemorySession:
+        pinned_revision = 3
+
+        def recall(self, query: str) -> MemoryRecallResult:
+            return MemoryRecallResult(
+                status="recalled",
+                query=query,
+                pinned_revision=3,
+                bundle=RecallBundle(recall_revision=3),
+            )
+
+    recall_action = {
+        "type": "recall_memory",
+        "query": "继续找更多历史",
+        "reason": "模型仍想继续",
+    }
+    runtime = SequenceCognitiveRuntime(recall_action, recall_action)
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=5, max_model_calls=2, max_tool_calls=0),
+    ).run(
+        _owner_cognitive_task(
+            depth=ReasoningDepth.DELIBERATE,
+            memory_session=EmptyMemorySession(),
+            memory_revision=3,
+        )
+    )
+
+    assert result.status is ReasoningStatus.BUDGET_EXHAUSTED
+    assert result.failure_reason == "model_call_budget_exhausted"
+    assert result.model_calls == 2
+    assert result.tool_calls == 0
 
 
 class StaticActivityPreflight:
@@ -690,7 +943,7 @@ def test_reasoning_run_exposes_model_unavailable_as_failure() -> None:
     assert result.decode.plan.intents[0].type == "noop"
 
 
-def test_reasoning_run_keeps_owner_chat_alive_when_model_generation_fails() -> None:
+def test_reasoning_run_uses_truthful_owner_notice_when_model_generation_fails() -> None:
     class UnavailableOwnerRuntime(SearchRuntime):
         def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
             del request
@@ -729,7 +982,7 @@ def test_reasoning_run_keeps_owner_chat_alive_when_model_generation_fails() -> N
 
     assert result.status is ReasoningStatus.FAILED
     assert result.decode.plan.intents[0].type == "message"
-    assert result.decode.plan.intents[0].content == "我收到你的消息了，正在想一想。"
+    assert result.decode.plan.intents[0].content == "我这次没能完成回复，请稍后再试。"
     assert result.decode.report.fallback_reason == "model_unavailable:RuntimeError"
 
 

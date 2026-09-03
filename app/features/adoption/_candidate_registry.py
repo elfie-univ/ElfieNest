@@ -7,12 +7,10 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, replace
-from datetime import date
 from hashlib import blake2b
 from typing import Literal
 
 from elfie.genesis import (
-    CandidateReveal,
     CandidateSignature,
     GenesisAppearanceIntent,
     GenesisCandidate,
@@ -21,16 +19,11 @@ from elfie.genesis import (
 )
 from elfie.profile import (
     AppearanceResolver,
-    ElfieIdentity,
-    ElfieProfile,
-    EmbodimentProfile,
-    ProfileProvenance,
     SpeciesCatalog,
 )
 
 from .errors import (
     AdoptionCandidateSetExpired,
-    AdoptionGenerationTimeout,
     AdoptionInvalid,
     AdoptionSessionBusy,
     AdoptionUnavailable,
@@ -47,7 +40,7 @@ from .models import (
     LifeStage,
     SpeciesId,
 )
-from .ports import AdoptionNarrativePort, CandidatePortraitPort
+from .ports import CandidatePortraitPort
 
 _CANDIDATE_TTL_SECONDS = 5 * 60 * 60
 _MAX_CANDIDATE_BATCHES = 3
@@ -73,16 +66,6 @@ class CandidateSnapshot:
 
     public: CandidateResult
     genesis: GenesisCandidate
-    personality_style: str
-    height: str
-    build: str
-    appearance_seed: int
-    face: str
-    signature: str
-    birth_date: str
-    original_name: str = ""
-    suggested_name: str = ""
-    personal_story: str = ""
 
 
 @dataclass(frozen=True)
@@ -115,9 +98,9 @@ class CandidateSessionSnapshot:
 class CandidateRegistry:
     """Own the bounded candidate workspace used by the current API slice.
 
-    The registry deliberately keeps Genesis output anonymous.  Names, stories and
-    other prose are not part of a candidate-set response; a later model-backed
-    reveal stage will add them only after an invitation is accepted.
+    The registry deliberately keeps Genesis output structural.  Acceptance is a
+    deterministic interaction decision; names, stories and other semantic facts
+    are compiled later by Genesis from the accepted candidate and source package.
     """
 
     def __init__(
@@ -125,13 +108,11 @@ class CandidateRegistry:
         *,
         genesis: GenesisEngine | None = None,
         portraits: CandidatePortraitPort | None = None,
-        narrative: AdoptionNarrativePort | None = None,
         catalog: SpeciesCatalog | None = None,
     ) -> None:
         self._catalog = catalog
         self._genesis = genesis or GenesisEngine(catalog=catalog)
         self._portraits = portraits
-        self._narrative = narrative
         self._candidate_sets: dict[str, CandidateSetSnapshot] = {}
         self._sessions: dict[str, CandidateSessionSnapshot] = {}
         self._active_sessions_by_owner: dict[int, str] = {}
@@ -297,8 +278,6 @@ class CandidateRegistry:
                 }
                 if any(candidate_id not in lookup for candidate_id in candidate_ids):
                     raise AdoptionCandidateSetExpired("候选名单已变化，请重新发送意向")
-                if self._narrative is None or not self._narrative.is_ready():
-                    raise AdoptionUnavailable("强模型不可用，暂时不能生成候选身份")
                 self._sessions[snapshot.adoption_session_id] = replace(
                     session,
                     phase="inviting",
@@ -306,9 +285,6 @@ class CandidateRegistry:
                 )
                 in_flight_version = session.version + 1
 
-        narrative = self._narrative
-        if narrative is None:
-            raise AdoptionUnavailable("强模型不可用，暂时不能生成候选身份")
         replies: list[CandidateReplyResult] = []
         accepted_ids = [
             candidate_id
@@ -327,61 +303,12 @@ class CandidateRegistry:
                     ),
                 )
             ]
-        reveals: dict[str, CandidateReveal] = {}
-        if accepted_ids:
-            try:
-                reveals = dict(
-                    narrative.reveal_many(
-                        tuple(
-                            lookup[candidate_id].genesis
-                            for candidate_id in accepted_ids
-                        ),
-                        invitation_message,
-                    )
-                )
-            except TimeoutError as error:
-                with self._registry_lock:
-                    current = self._sessions.get(snapshot.adoption_session_id)
-                    if current is not None and current.version == in_flight_version:
-                        self._sessions[snapshot.adoption_session_id] = replace(
-                            current,
-                            phase="candidates_ready",
-                            version=current.version + 1,
-                        )
-                raise AdoptionGenerationTimeout(
-                    "候选身份生成超时，请稍后重试"
-                ) from error
-            except Exception as error:
-                with self._registry_lock:
-                    current = self._sessions.get(snapshot.adoption_session_id)
-                    if current is not None and current.version == in_flight_version:
-                        self._sessions[snapshot.adoption_session_id] = replace(
-                            current,
-                            phase="candidates_ready",
-                            version=current.version + 1,
-                        )
-                raise AdoptionUnavailable("候选身份生成失败") from error
         updated_candidates = list(snapshot.candidates)
         for candidate_id in candidate_ids:
             candidate = lookup[candidate_id]
             status: CandidateReplyStatus = (
                 "accepted" if candidate_id in accepted_ids else "unsure"
             )
-            if status == "accepted":
-                reveal = reveals[candidate_id]
-                candidate = replace(
-                    candidate,
-                    original_name=reveal.original_name,
-                    suggested_name=reveal.suggested_name,
-                    personal_story=reveal.personal_story,
-                )
-                lookup[candidate_id] = candidate
-                updated_candidates = [
-                    candidate if item.public.candidate_id == candidate_id else item
-                    for item in updated_candidates
-                ]
-            else:
-                reveal = None
             replies.append(
                 CandidateReplyResult(
                     candidate=candidate.public,
@@ -391,7 +318,6 @@ class CandidateRegistry:
                         if status == "accepted"
                         else "我还想再想一想，但很高兴收到你的信。"
                     ),
-                    reveal=reveal,
                 )
             )
         with self._registry_lock:
@@ -602,7 +528,7 @@ class CandidateRegistry:
             candidate_id=candidate.candidate_id,
             species_id=candidate.species_id,
             life_stage=stage,  # type: ignore[arg-type]
-            age_months=candidate.age_months,
+            age_years=candidate.age_years,
             gender=candidate.gender,  # type: ignore[arg-type]
             full_body_image_url=full_body_url,
             headshot_image_url=headshot_url,
@@ -613,13 +539,6 @@ class CandidateRegistry:
         return CandidateSnapshot(
             public=public,
             genesis=candidate,
-            personality_style="Genesis",
-            height=_height_label(candidate),
-            build=_build_label(candidate),
-            appearance_seed=candidate.seed,
-            face=appearance.face,
-            signature=appearance.signature,
-            birth_date=_birth_date_for_age(candidate.age_months),
         )
 
 
@@ -648,46 +567,16 @@ def _runtime_appearance(
     *,
     catalog: SpeciesCatalog | None = None,
 ) -> dict[str, object]:
-    """Resolve the candidate genome into the payload owned by the Godot Web runtime."""
-    profile = ElfieProfile(
-        schema_version=1,
-        identity=ElfieIdentity(
-            elfie_id=f"candidate-{candidate.candidate_id}",
-            display_name="anonymous-candidate",
+    """Resolve a candidate genome without fabricating a Profile record."""
+
+    return (
+        AppearanceResolver(catalog=catalog)
+        .resolve_genome(
+            candidate.appearance,
             species_id=candidate.species_id,
-        ),
-        appearance=candidate.appearance,
-        provenance=ProfileProvenance(
-            generator_version="genesis-v1",
-            master_seed=candidate.seed,
-            appearance_seed=candidate.seed,
-        ),
-        embodiment=EmbodimentProfile(),
+        )
+        .to_payload()
     )
-    return AppearanceResolver(catalog=catalog).resolve(profile).to_payload()
-
-
-def _height_label(candidate: GenesisCandidate) -> str:
-    return (
-        "short"
-        if candidate.appearance.macro.stature_z < -0.35
-        else ("tall" if candidate.appearance.macro.stature_z > 0.35 else "standard")
-    )
-
-
-def _build_label(candidate: GenesisCandidate) -> str:
-    return (
-        "slim"
-        if candidate.appearance.macro.body_fat_z < -0.35
-        else ("plump" if candidate.appearance.macro.body_fat_z > 0.35 else "standard")
-    )
-
-
-def _birth_date_for_age(age_months: int) -> str:
-    today = date.today()
-    total_months = today.year * 12 + today.month - 1 - age_months
-    year, month = divmod(total_months, 12)
-    return date(year, month + 1, min(today.day, 28)).isoformat()
 
 
 def _intent_fingerprint(

@@ -15,6 +15,7 @@ from elfie.brain.memory.memory_records import (
 from elfie.brain.reasoning.memory_compiler import (
     compile_recall_bundle,
     estimate_prompt_tokens,
+    recall_memory_reference_ids,
 )
 
 NOW = datetime(2026, 8, 30, 8, 0, tzinfo=timezone.utc)
@@ -113,11 +114,25 @@ def test_compiler_keeps_assertions_paths_evidence_episodes_and_conflicts() -> No
     assert '条件：time="晚饭后"' in compiled.content
     assert "路径：n1 -> n2" in compiled.content
     assert "证据原文 e1" in compiled.content
+    assert '<FACT id="a1">' in compiled.content
     assert '<EPISODE id="ep1">' in compiled.content
+    assert "target_id 必须逐字复制" in compiled.content
     assert "source=ep1" in compiled.content
     assert "断言 a1, a2" in compiled.content
     assert compiled.content.startswith("<MEMORY_CONTEXT")
     assert compiled.content.endswith("</MEMORY_CONTEXT>")
+
+
+def test_memory_reference_ids_use_the_model_facing_canonical_pair() -> None:
+    assert recall_memory_reference_ids(_bundle()) == (
+        ("node", "n1"),
+        ("node", "n2"),
+        ("node", "n3"),
+        ("assertion", "a1"),
+        ("assertion", "a2"),
+        ("episode", "ep1"),
+        ("episode", "ep2"),
+    )
 
 
 def test_compiler_truncates_whole_packets_and_marks_the_block() -> None:
@@ -136,6 +151,39 @@ def test_compact_packets_keep_bounded_source_evidence() -> None:
     assert "n1 --likes--> n2" in compiled.content
     assert "证据原文 e1" in compiled.content
     assert "<EPISODE" not in compiled.content
+
+
+def test_orphan_conversation_episode_survives_p0_memory_budget() -> None:
+    base = _bundle()
+    compiled = compile_recall_bundle(
+        RecallBundle(
+            focus_nodes=base.focus_nodes,
+            assertions=base.assertions,
+            paths=base.paths,
+            episodes=base.episodes
+            + (
+                RecallEpisode(
+                    episode_id="episode:topic:owner:blue-fact",
+                    occurred_from="2026-08-30T08:00:00Z",
+                    occurred_to=None,
+                    excerpt="主人说：请记住，我喜欢蓝色。",
+                    detail_level="full",
+                    relevance=0.99,
+                    importance=0.9,
+                    source_event_ids=("owner-blue-fact",),
+                ),
+            ),
+            evidence=base.evidence,
+            conflicts=base.conflicts,
+        ),
+        max_tokens=295,
+    )
+
+    # This is the normal P0 context slice.  The durable conversational
+    # episode must remain model-visible even when unrelated graph packets do
+    # not fit; checking only the final answer would miss this regression.
+    assert "episode:topic:owner:blue-fact" in compiled.episode_ids
+    assert "主人说：请记住，我喜欢蓝色。" in compiled.content
 
 
 def test_memory_excerpts_are_escaped_as_data() -> None:

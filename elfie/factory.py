@@ -9,10 +9,12 @@ from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.skills import SkillManager
 from elfie.brain.reasoning.tool_port import ToolPort
+from elfie.brain_wiring import DEFAULT_EMBODIED_INPUT_MODE
 from elfie.communication import CommunicationHub
 from elfie.elfie import Elfie
 from elfie.profile import ElfieProfile
@@ -38,6 +40,7 @@ class ElfieAssembly:
     tool_port: ToolPort | None = None
     activity_store: ActivityStorePort | None = None
     journal_store: BrainJournalPort | None = None
+    embodied_input_mode: EmbodiedInputMode = DEFAULT_EMBODIED_INPUT_MODE
 
 
 class ElfieFactory:
@@ -69,6 +72,7 @@ class ElfieFactory:
             tool_port=assembly.tool_port,
             activity_store=assembly.activity_store,
             journal_store=assembly.journal_store,
+            embodied_input_mode=assembly.embodied_input_mode,
         )
         for available_body in assembly.bodies:
             if elfie.has_body(available_body.body_id):

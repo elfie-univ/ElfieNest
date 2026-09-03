@@ -168,3 +168,44 @@ def test_model_catalog_values_are_not_redeclared_as_python_literals() -> None:
             literal_entries.append(model_id.value)
 
     assert literal_entries == []
+
+
+def test_configuration_contract_freezes_genesis_source_ownership() -> None:
+    english = (
+        PROJECT_ROOT / "docs/developer/contracts/configuration-management.md"
+    ).read_text(encoding="utf-8")
+    chinese = (
+        PROJECT_ROOT / "docs/zh/developer/contracts/configuration-management.md"
+    ).read_text(encoding="utf-8")
+    conformance = (
+        PROJECT_ROOT / "docs/developer/conformance/configuration-management.md"
+    ).read_text(encoding="utf-8")
+    species_english = (
+        PROJECT_ROOT / "docs/developer/contracts/species-asset-package.md"
+    ).read_text(encoding="utf-8")
+    species_chinese = (
+        PROJECT_ROOT / "docs/zh/developer/contracts/species-asset-package.md"
+    ).read_text(encoding="utf-8")
+    english_normalized = " ".join(english.split())
+    chinese_normalized = " ".join(chinese.split())
+    species_english_normalized = " ".join(species_english.split())
+    species_chinese_normalized = " ".join(species_chinese.split())
+
+    assert "**Contract version:** 1.4" in english
+    assert "**契约版本：** 1.4" in chinese
+    assert "world/elfaria.yaml" in english
+    assert (
+        "Profile receives only the final generated dossier fields" in english_normalized
+    )
+    assert "Profile 只接收最终生成的档案字段" in chinese_normalized
+    assert (
+        "runtime asset view separately from the Genesis creation projection" in english
+    )
+    assert "运行时资产 View 与 Genesis 创建投影分开暴露" in chinese_normalized
+    assert "second hard-coded Profile Canon" in english_normalized
+    assert "第二份硬编码 Profile Canon" in chinese_normalized
+    assert "| CFG-005 | P0 | closed (v0.2 structural) |" in conformance
+    assert "Status: normative, version 3" in species_english_normalized
+    assert "状态：规范性契约，版本 3" in species_chinese_normalized
+    assert "Profile receives neither catalog nor package" in species_english_normalized
+    assert "Profile 不接收目录或资料包" in species_chinese_normalized

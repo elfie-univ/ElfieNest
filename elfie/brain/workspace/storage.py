@@ -11,6 +11,7 @@ from elfie.brain.workspace.contracts import (
     PerceptionMediaSample,
     PerceptionStateUpdate,
     PerceptionWrite,
+    SourceDomain,
     TriggerReason,
     TurnFrame,
     WorkspaceLossRecord,
@@ -100,6 +101,7 @@ class WorkspaceStorage:
         frame_event_capacity: int,
         reason: TriggerReason,
         captured_at: UTCDateTime,
+        source_domain: SourceDomain | None = None,
     ) -> Optional[TurnFrame]:
         reliable = tuple(
             entry
@@ -123,6 +125,12 @@ class WorkspaceStorage:
                 key=lambda entry: entry.seq,
             )
         )
+        if source_domain is not None:
+            candidates = tuple(
+                entry
+                for entry in candidates
+                if domain_for_scope(interaction_scope_for(entry.item)) is source_domain
+            )
         if not candidates:
             return None
         interaction_scope = interaction_scope_for(candidates[0].item)

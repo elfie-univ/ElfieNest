@@ -25,6 +25,8 @@ source of truth.
   target first-class ownership of one complete Elfie.
 - [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
+- [Elfie Reasoning Core](./designs/elfie-reasoning-core): the Reasoning-owned
+  Context Workspace and bounded single-Turn Agent loop.
 - [Elfie Selfhood and fixed model header](./designs/elfie-selfhood-and-fixed-model-header):
   the two-layer Selfhood authority and the exact four-block online model prefix.
 - [Elfie Brain evaluation and evolution system](./designs/elfie-brain-evaluation-system):
@@ -54,7 +56,7 @@ source of truth.
   migrations use independent scoped registers, including
   [Emotion](./conformance/elfie-emotion) and
   [Selfhood](./conformance/elfie-selfhood), without reopening that closed
-  aggregate register.
+  aggregate register. Reasoning P0 is protected by permanent focused tests.
 - [Elfie Memory conformance](./conformance/elfie-memory): implementation status
   and remaining external-acceptance gates for storage, consolidation, retrieval and the compatibility boundary.
 - [Application architecture contract](./contracts/application): the

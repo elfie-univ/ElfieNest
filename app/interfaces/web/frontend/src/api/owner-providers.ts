@@ -29,6 +29,7 @@ const VerificationSchema = z.object({
 const ProviderModelSchema = z.object({
   id: z.string(),
   display_name: z.string(),
+  pricing: z.enum(["free", "unknown"]).optional(),
   canonical_model_id: z.string().nullable(),
   source: z.enum(["official", "remote_catalog", "bundled_catalog", "manual"]),
   context_window_tokens: z.number().nullable(),
@@ -103,6 +104,8 @@ const ProviderProductSchema = z.object({
   usage_scope: z.string(),
   discovery_strategy: z.string(),
   api_mode: z.string(),
+  api_key_url: z.string().url().nullable().optional(),
+  has_free_models: z.boolean().optional(),
 })
 
 const ModelRefreshSchema = z.object({
@@ -371,6 +374,8 @@ export async function refreshProviderModels(
     `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/refresh`,
     "POST",
     csrfToken,
+    undefined,
+    { timeout: false },
   ))
 }
 

@@ -30,10 +30,10 @@ def _database(tmp_path: Path) -> Path:
             ],
         )
         connection.executemany(
-            "INSERT INTO elfies (elfie_id, name, owner_user_id, species, adopted_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO elfies (elfie_id, owner_user_id, adopted_at, status) VALUES (?, ?, ?, ?)",
             [
-                ("00000001", "星星", 7, "fox", "2026-08-16T00:00:00Z", "online"),
-                ("00000002", "月亮", 8, "cat", "2026-08-16T00:00:00Z", "online"),
+                ("00000001", 7, "2026-08-16T00:00:00Z", "online"),
+                ("00000002", 8, "2026-08-16T00:00:00Z", "online"),
             ],
         )
         connection.commit()

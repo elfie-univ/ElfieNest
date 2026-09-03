@@ -2,6 +2,7 @@
 
 > Status: accepted design<br>
 > Confirmed: 2026-08-11<br>
+> Revised: 2026-09-01; aligned with Elfie contract 2.3 and ADR-0033<br>
 > Nature: cross-version target-directory and module-ownership design; it does not
 > claim that source migration is complete and is not the active contract<br>
 > Not covered yet: inter-module protocols, event schemas, call ordering or a
@@ -26,7 +27,7 @@ not be mistaken for that later contract.
 
 ```text
 elfie/
-├── profile/              # immutable identity, virtual appearance and provenance
+├── profile/              # immutable external identity anchors and virtual appearance
 ├── brain/                # persistent psychology, cognition, activity and autonomy
 ├── nervous_system/       # embodied perception, signals, reflexes and action adaptation
 ├── body/                 # virtual/physical bodies, sole authority and switching state
@@ -42,8 +43,9 @@ This is a responsibility map, not a file-by-file layout for each directory.
 
 ### 3.1 Profile
 
-Profile stores the intrinsic record that does not change after creation. It is a
-first-class data module, not a continuously running loop.
+Profile stores the objective external dossier that does not change after
+creation. It is a first-class data module, not a continuously running loop and
+not a creation ledger.
 
 ```text
 ElfieProfile
@@ -51,31 +53,29 @@ ElfieProfile
 │   ├── elfie_id
 │   ├── name
 │   ├── species
-│   ├── birth_at
-│   ├── origin
-│   └── other confirmed immutable identity facts
+│   ├── fixed gender where applicable
+│   ├── stable age / birth anchor
+│   └── immutable personal-origin IDs and frozen labels
 ├── VirtualAppearance
 │   ├── appearance_genome
 │   ├── morphology
 │   ├── proportions
 │   ├── face / fur / coat
 │   └── semantic appearance specifications consumable by Godot
-└── Provenance
-    ├── schema_version
-    ├── generator_version
-    ├── generation_seed
-    └── stable creation-source information
+└── schema_version        # technical envelope only
 ```
 
 Profile does not store current age; personality traits or interests; memories,
 life events or relationships; self-understanding; emotion, energy or drives;
 capability permissions; the active body; physical-toy facts; or current channels
-and conversations.
+and conversations. It also does not store world knowledge/Canon, source-package
+references, generator/model/policy versions, generation seeds, user choices or
+questionnaire answers.
 
 Immutability alone is not sufficient for Profile ownership. A childhood event
 still belongs to Memory, and a stable family relationship still belongs to
-Relationship. Profile owns only intrinsic identity, virtual appearance and
-creation provenance.
+Relationship. Departure, training, arrival and adoption are also Memory events.
+Profile owns only its strict external-dossier allowlist.
 
 ### 3.2 Brain
 
@@ -92,7 +92,7 @@ learns and grows, including:
 - Executive and cross-turn Activities;
 - Offline Cognition / Night Work;
 - Capability Envelope, budgets and autonomous decisions;
-- structured decisions, internal triggers and execution-receipt feedback.
+- structured decisions, Activity triggers and execution-receipt feedback.
 
 Genesis co-materializes Profile and the Brain-owned Selfhood state from one
 validated creation bundle. Profile remains the immutable external dossier, but
@@ -149,50 +149,56 @@ the real connection and delivers the message.
 ## 4. Genesis is creation, not a sixth runtime organ
 
 `genesis/` owns domain rules for life initialization. It runs only during
-adoption and no longer owns the data after creation.
+adoption and no longer owns the data after creation. The one-way source path is
+`CreatorWorldSkeleton -> ResidentKnowledgeBaseline -> GenesisSourcePackage ->
+Genesis`; accepted adoption answers and controlled randomness join only at the
+final Genesis step.
 
 ```text
 GenesisBundle
 ├── ProfileDraft
-├── PersonalitySeed
-├── MemorySeeds
+├── SelfhoodSeed
+├── KnowledgeSeeds
 ├── RelationshipSeeds
-├── SelfModelSeed
-├── BiographyEnrichmentPlan
-└── InitializationManifest
+├── EpisodeSeeds
+├── other explicitly owned startup seeds
+└── minimal commit-receipt draft
 ```
 
 After consistency validation, ownership is committed as follows:
 
 | Generated artifact | Final owner |
 | --- | --- |
-| Intrinsic identity, virtual appearance and provenance | Profile |
-| Initial personality | Brain / Personality |
+| External objective identity anchors and virtual appearance | Profile |
+| Internal identity and initial personality | Brain / Selfhood |
+| Initial known world/professional/local knowledge | Brain / Memory |
 | At most five key pre-adoption events | Brain / Memory |
 | Initial relationships | Brain / Relationship |
-| Initial self-understanding | Brain / Self Model |
-| Boundaries for later biographical enrichment | A temporary scoped Activity in Brain / Offline Cognition |
-| Creation version, completion state and validation result | Initialization Manifest |
+| Minimal schema/output digest, completion and idempotency result | Technical commit receipt outside Profile |
 
-The generation model cannot freely invent the Capability Envelope, permissions,
+The deterministic Genesis compiler—not App, Infrastructure or a model—chooses
+identity resolution, life context, personal knowledge eligibility/mastery,
+people, relationships, episodes and owner-specific seed policy. A model can only
+render bounded non-authoritative wording after those facts are fixed. It cannot
+freely invent the Capability Envelope, permissions,
 real device capabilities, available channels, model/tool budgets, safety
 boundaries or the true local Owner binding. Product configuration, real devices
 and App use cases bind those deterministically.
 
-### 4.1 Genesis and Night Work
+### 4.1 Creation-input disposal and later learning
 
 Before the first awakening, Genesis must create the minimum complete person:
-Profile, initial personality, a relationship skeleton, Self Model and no more
-than five key historical events.
+Profile, Selfhood, actual initial knowledge, a relationship skeleton and no more
+than five key historical events. Questionnaire answers, `LifeContext`,
+`PersonalGenesisPlan`, source-package bindings, generation seeds and model
+projection inputs exist only in the in-flight creation transaction. They are
+deleted after successful commit or terminal abort.
 
-Genesis may create a temporary `BiographyEnrichmentPlan`. Early Night Work may
-add sensory, emotional and associative detail only within its event roots,
-people, facts, budget and expiry. Every addition first becomes a
-`MemoryCandidate` and is committed only after Memory System review.
-
-Night Work cannot modify Profile, add unlimited major history, invent new key
-relationships or become a permanent background storyteller. The special
-enrichment Activity ends when completed or expired.
+Ordinary startup restores the final-owner records; it never replays Genesis or
+requires the old source package. Later knowledge and biographical detail can
+enter only through a separately approved real learning/Memory path. Night Work
+cannot use a retained Genesis plan to invent history, modify Profile or become a
+permanent background storyteller.
 
 ## 5. Factory, Facade and Bootstrap
 
@@ -228,7 +234,7 @@ and cannot become its personality or embodiment authority.
 | Virtual Appearance | Profile / VirtualAppearance |
 | Personality, Self, Memory, Emotion, Energy | Brain |
 | Skills, Planner, Tool Loop, Worker | Brain / Cortex; execution infrastructure is injected |
-| Activity, internal triggers and Night Work | Brain |
+| Activity, Activity triggers and Night Work | Brain |
 | Embodiment Authority | Body |
 | Lifecycle System | Not created; retain the thin Elfie Facade |
 | Profile Page | Product-layer aggregate view, not a new data owner |
@@ -265,11 +271,13 @@ revision before implementation changes responsibilities.
 
 1. Runtime first-class modules are Profile, Brain, Nervous System, Body and
    Communication.
-2. Profile owns immutable identity, virtual appearance and provenance.
+2. Profile owns only immutable external identity/age/origin anchors, final
+   virtual appearance and technical schema revision.
 3. Brain owns growing psychology, selfhood, personality, memory, relationships
    and cognition.
 4. Body owns the mutually exclusive virtual/physical Embodiment Authority.
-5. Genesis is a one-time cross-module creation flow, not a permanent life organ.
+5. Genesis is a one-time cross-module creation flow, not a permanent life organ;
+   committed Elfies have no source-package/questionnaire/plan dependency.
 6. Factory assembles and the Elfie Facade is a thin external boundary; neither
    schedules domain behavior.
 7. Skills, Activities, Night Work and autonomy governance belong to Brain.

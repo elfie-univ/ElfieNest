@@ -52,11 +52,11 @@ def test_brain_contract_keeps_turn_and_output_domain_isolation() -> None:
     english = _normalized("docs/developer/contracts/brain.md")
     chinese = _normalized("docs/zh/developer/contracts/brain.md")
 
-    for source in ("Communication", "Embodied", "Internal"):
+    for source in ("Communication", "Embodied", "Activity"):
         assert source in english
         assert source in chinese
-    assert "Receipts never create a fourth domain" in english
-    assert "回执不形成第四个来源域" in chinese
+    assert "no receipt creates a fourth domain" in english
+    assert "回执不形成 第四个来源域" in chinese
     assert "exactly one `SourceDomain`" in english
     assert "一个 `SourceDomain`" in chinese
     assert "different conversations remain different Turns" in english
@@ -140,6 +140,9 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
         "OPERATING_CONTRACT",
     )
 
+    assert "**Contract version:** 1.6" in english_raw
+    assert "**契约版本：** 1.6" in chinese_raw
+
     assert [english_raw.index(label) for label in block_labels] == sorted(
         english_raw.index(label) for label in block_labels
     )
@@ -176,6 +179,13 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
     assert "Memory 不得持久化或注入第二套权威" in chinese
     assert "Ordinary Brain runtime" in english
     assert "普通 Brain 运行" in chinese
+    assert "questionnaire answer, generation seed/policy trace" in english
+    assert "问卷答案、生成 Seed/" in chinese
+    assert "deleted after the creation transaction ends" in english
+    assert "在创建事务结束后删除" in chinese
+    assert "| SHD-002 | P0 | closed (v0.2 structural) |" in _read(
+        "docs/developer/conformance/elfie-selfhood.md"
+    )
     assert "../designs/elfie-selfhood-and-fixed-model-header" in english_raw
     assert "../conformance/elfie-selfhood" in english_raw
     assert "../designs/elfie-selfhood-and-fixed-model-header" in chinese_raw
@@ -186,12 +196,74 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
         assert marker in _read("docs/zh/developer/conformance/elfie-selfhood.md")
 
 
+def test_brain_contract_freezes_reasoning_context_workspace_ownership() -> None:
+    english_raw = _read("docs/developer/contracts/brain.md")
+    chinese_raw = _read("docs/zh/developer/contracts/brain.md")
+    english = " ".join(english_raw.split())
+    chinese = " ".join(chinese_raw.split())
+
+    assert "**Contract version:** 1.6" in english_raw
+    assert "**契约版本：** 1.6" in chinese_raw
+    for token in (
+        "Event Workspace and Reasoning Context Workspace are distinct",
+        "Memory owns no transient conversation tail",
+        "Every Turn may perform baseline Memory Recall",
+        "All Recall results used by one Run bind to one explicit Memory revision",
+        "Before every model call, Reasoning rebuilds one provider-neutral model context",
+        "Prompt-pressure compaction creates a source-linked `ContextSummary`",
+        "`DIRECT` and `DELIBERATE` are Reasoning depth choices",
+    ):
+        assert token in english
+    for token in (
+        "Event Workspace 与 Reasoning Context Workspace 完全不同",
+        "Memory 不拥有短期 conversation tail",
+        "每个 Turn 都可以执行基础 Memory Recall",
+        "同一 Run 使用的全部 Recall 必须绑定一个明确 Memory revision",
+        "每次模型调用前，Reasoning 都从冻结快照",
+        "Prompt 压力下的压缩生成 Reasoning 自有",
+        "`DIRECT` 与 `DELIBERATE` 是根据上游提示",
+    ):
+        assert token in chinese
+
+    current_boundary_docs = (
+        "docs/developer/contracts/brain.md",
+        "docs/developer/designs/elfie-brain-ten-system-architecture.md",
+        "docs/developer/designs/elfie-memory-architecture.md",
+    )
+    assert all(
+        "working memory" not in _read(path).lower() for path in current_boundary_docs
+    )
+    chinese_boundary_docs = (
+        "docs/zh/developer/contracts/brain.md",
+        "docs/zh/developer/designs/elfie-brain-ten-system-architecture.md",
+        "docs/zh/developer/designs/elfie-memory-architecture.md",
+    )
+    assert all("工作记忆" not in _read(path) for path in chinese_boundary_docs)
+
+    assert "../designs/elfie-reasoning-core" in english_raw
+    assert "../designs/elfie-reasoning-core" in chinese_raw
+
+
 def test_closed_brain_conformance_registers_do_not_return() -> None:
     retired_registers = (
         "docs/developer/conformance/brain.md",
         "docs/zh/developer/conformance/brain.md",
+        "docs/developer/conformance/elfie-reasoning.md",
+        "docs/zh/developer/conformance/elfie-reasoning.md",
     )
 
     assert all(not (PROJECT_ROOT / path).exists() for path in retired_registers)
     assert "conformance/brain" not in _read("docs/developer/contracts/brain.md")
     assert "conformance/brain" not in _read("docs/zh/developer/contracts/brain.md")
+    assert "conformance/elfie-reasoning" not in _read(
+        "docs/developer/contracts/brain.md"
+    )
+    assert "conformance/elfie-reasoning" not in _read(
+        "docs/zh/developer/contracts/brain.md"
+    )
+    assert "Reasoning conformance register" not in _read(
+        "docs/developer/decisions/0032-reasoning-context-workspace-ownership.md"
+    )
+    assert "Reasoning 一致性台账" not in _read(
+        "docs/zh/developer/decisions/0032-reasoning-context-workspace-ownership.md"
+    )

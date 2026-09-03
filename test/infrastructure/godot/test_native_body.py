@@ -12,6 +12,7 @@ from elfie.body import (
     EmergencyStopCommand,
     ExpressionCommand,
     MotionCommand,
+    ObservationCommand,
     SpeechCommand,
 )
 from elfie.message_types import CommandId, IntentId, TurnId
@@ -210,6 +211,48 @@ def test_native_body_resolves_semantic_home_once_before_direct_motion() -> None:
     assert resolved_payloads[0]["body_generation"] == 1
     assert resolved_payloads[0]["initiator"] == "elfie"
     assert completed == ["completed"]
+
+
+def test_native_body_requests_semantic_observation_through_godot_transport() -> None:
+    gateway = FakeGodotGateway()
+    requests: list[dict[str, object]] = []
+    transport = GodotTransport(
+        gateway,
+        actor_id="elfie-1",
+        visual_observation=lambda payload: requests.append(dict(payload)) or True,
+    )
+    gateway.transport = transport
+    body = NativeBody(body_id="elfie-1", transport=transport)
+    body.connect()
+
+    receipts = body.execute(
+        ObservationCommand(
+            command_type="observation",
+            observation_id="observation-1",
+            max_results=8,
+            **_command_fields("observation-1"),
+        ),
+        now=NOW,
+    )
+
+    assert [receipt.status for receipt in receipts] == [
+        CommandStatus.ACCEPTED,
+        CommandStatus.STARTED,
+        CommandStatus.COMPLETED,
+    ]
+    assert requests == [
+        {
+            "command_id": "observation-1",
+            "intent": "observe",
+            "observation_id": "observation-1",
+            "max_results": 8,
+            "actor_id": "elfie-1",
+            "intent_id": "intent-observation-1",
+            "body_generation": 1,
+            "initiator": "elfie",
+        }
+    ]
+    assert gateway.sent == []
 
 
 def test_native_body_disconnects_without_changing_the_shared_gateway() -> None:

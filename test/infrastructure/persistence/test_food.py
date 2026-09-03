@@ -26,8 +26,8 @@ def _seed_user_and_elfie(db_path: str) -> None:
         )
         connection.execute(
             """INSERT INTO elfies
-               (elfie_id,name,owner_user_id,species,adopted_at,status)
-               VALUES('00000001','Elfie',7,'fox','2026-08-01T00:00:00Z','offline')"""
+               (elfie_id,owner_user_id,adopted_at,status)
+               VALUES('00000001',7,'2026-08-01T00:00:00Z','offline')"""
         )
         connection.commit()
 

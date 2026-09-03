@@ -2,7 +2,9 @@
 
 > Status: target design. This document is the authority for Memory semantics and its typed access contract. Code and the Conformance register describe implementation status.
 >
-> Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or Reasoning's complete context policy, nor another module's state.
+> Scope: durable subjective experiences, sourced personal knowledge and deterministic recall. It does not define Event Workspace or the Reasoning Context Workspace, nor another module's state.
+>
+> Contract alignment: 2026-09-01, ADR-0033 and Elfie 2.3. Creation inputs and full Genesis manifests are ephemeral; Memory retains only its final records, evidence and atomic completion markers.
 
 ## 1. Purpose, boundary and authority
 
@@ -22,7 +24,11 @@ This is the **source-first** design: the graph is a projection of the historical
 
 Memory receives an already-closed event; it does not decide where an event begins or ends. It does not own Profile, immutable identity, current location, live body state, live emotion, active plans, commitments, permissions or external actions. It does not directly read Profile, Communication history, world runtime state or another module's database. A relevant fact must be supplied by its owner as a sourced event or reference.
 
-Memory does not narrate a reply or define Brain's working memory or the complete Reasoning context. It returns bounded, sourced material through its typed Recall contract.
+Every semantic state owned by Memory is durable. Memory does not narrate a
+reply and owns no transient conversation tail, context summary, Run observation
+buffer or complete Reasoning context. It returns bounded, sourced material
+through its typed Recall contract; request-local retrieval structures are
+protocol payloads or implementation caches, not another memory state.
 
 ### 1.3 Memory and Brain / Cognitive Consolidation
 
@@ -54,7 +60,7 @@ It retains:
 - complete original text/transcript and durable media references;
 - derived features when available;
 - what Elfie observed, was told, inferred or felt, with attribution;
-- source references, privacy scope, `importance`, `retention_days`, `detail_level`, `lifecycle`, version and content hash.
+- source references, privacy scope, `importance`, `retention_profile`, `half_life_days`, `detail_level`, `lifecycle`, version and content hash.
 
 Runtime learning is written in full before graph projection. For example, learning Newton's first law stores the explanation, teaching context and source in one Episode; later maintenance projects reusable knowledge from it. Genesis seed content remains complete in its approved source, with personal biography seeds represented as complete Episodes.
 
@@ -68,7 +74,7 @@ The graph is Elfie's sourced, subjective understanding. It is not an objective u
 
 Nodes are heterogeneous semantic anchors: Elfie, people, pets, groups, planets, places, facilities, objects, foods, species, concepts, cultural ideas, physical laws, theories, emotions, subjective experiences, event references and Claim/knowledge objects.
 
-A Node has stable identity, `node_type`, canonical label, scope, status, `importance`, `retention_days` and `confidence`. Aliases and sourced descriptions are associated with the Node. Broad and specific concepts use typed relations such as `part_of`, `subtype_of` and `generalizes`. Not every word becomes a Node; reusable semantic units are canonicalized while full wording remains in descriptions or Episodes.
+A Node has stable identity, `node_type`, canonical label, scope, status, `importance`, `retention_profile`, `half_life_days` and `confidence`. Aliases and sourced descriptions are associated with the Node. Broad and specific concepts use typed relations such as `part_of`, `subtype_of` and `generalizes`. Not every word becomes a Node; reusable semantic units are canonicalized while full wording remains in descriptions or Episodes.
 
 #### 2.2.2 Assertions / Relations
 
@@ -79,7 +85,7 @@ Earth --has_shape--> sphere
 Owner --helped--> Elfie
 ```
 
-It may include a node or typed literal as object, polarity, epistemic status, time range, viewpoint, context, validity interval, conflict group, `importance`, `retention_days` and `confidence`.
+It may include a node or typed literal as object, polarity, epistemic status, time range, viewpoint, context, validity interval, conflict group, `importance`, `retention_profile`, `half_life_days` and `confidence`.
 
 For a social tie or another domain-specific degree (for example familiarity or trust), the Assertion carries a typed qualifier; its `importance` is the default edge significance used for recall and maintenance. Evidence rows and their stances provide the support record; no third semantic score is stored.
 
@@ -122,30 +128,33 @@ raise when T_I > I: I' = I + eta * (T_I - I)
 lower when T_I < I: I' = I + eta * (T_I - I)
 ```
 
-The `memory.v2` event classes are `routine` `(T_I=.35, eta=.10)`, `meaningful` `(.60, .20)`, `major` `(.85, .35)` and `core` `(1.0, .50)`. Auditable reappraisal uses `ordinary-lower` `(.30, .25)`, `major-lower` `(.10, .50)` or `revoked` `(0, 1)`. A model may propose an event class but cannot choose `T_I` or `eta`. Node and Assertion importance are independent and never propagate through graph adjacency.
+The `memory.v3` event classes are `routine` `(T_I=.35, eta=.10)`, `meaningful` `(.60, .20)`, `major` `(.85, .35)` and `core` `(1.0, .50)`. Auditable reappraisal uses `ordinary-lower` `(.30, .25)`, `major-lower` `(.10, .50)` or `revoked` `(0, 1)`. A model may propose an event class but cannot choose `T_I` or `eta`. Node and Assertion importance are independent and never propagate through graph adjacency.
 
 Updates are idempotent by `(event_id, target_kind, target_id)`. Repeated signals for the same target, direction and class are collapsed once per ClosedEpisode. Across Episodes, raise and lower directions are aggregated separately into chronological 24-hour windows anchored by the first event in each window; only the highest accepted class in that direction/window contributes. Opposite directions remain distinct reappraisals and are folded in event-time order. Receipts retain source, occurrence time and policy version; late events are replayed in `(occurred_at, event_id)` order so arrival order cannot change the result. Expiry, disuse, recall failure and contradictory Evidence do not lower `importance` without a separate sourced reappraisal event.
 
 #### 2.3.2 Retention and freshness
 
-Each Episode, Node and Assertion stores `retention_days` (`D > 0`), `last_reinforced_at` and a retention policy version. `D` is the span from a fresh state to the ordinary-recall boundary, not a half-life or a remaining-day counter. Current `freshness` (`F`) is derived and never persisted:
+Each Episode, Node and Assertion stores `retention_profile`, `half_life_days` (`H > 0`), `last_reinforced_at` and a retention policy version. `H` is the time for freshness to fall from `1` to `.5`, not a remaining-day counter. Time alone never changes `H`. Current `freshness` (`F`) is derived and never persisted:
 
 ```text
 t = max(0, now - last_reinforced_at)
-F(t) = 1 / (1 + 9 * (t / D)^2.6)
+F(t) = 2^(-t / H)
 ```
 
-Therefore `F(0)=1`, `F(D/2)~=0.4` and `F(D)=0.1`. Runtime admission uses versioned initial spans: transient detail `2` days, ordinary memory `7` days and salient/major experience `30` days. Strong sourced emotional or sensory salience may select the 30-day admission class through bounded deterministic appraisal; it does not automatically raise importance or confidence, and a later emotion/sensory Recall hit is not reinforcement. Every Genesis-created Episode, Node and Assertion starts at `3650` days. The global bound is `36500` days.
+Therefore `F(0)=1`, `F(H)=.5` and `F(2H)=.25`. One versioned Memory admission policy maps record kind, registered Node type or Assertion predicate, authorized source class and bounded salience signals to a policy-owned `retention_profile` and initial half-life `H0`; callers and models never choose a numeric value. The profiles are: transient detail `.5` day, ordinary runtime Episode `2` days, salient Episode `9` days, reusable semantic Node/Assertion `30` days, Pattern/generalization `60` days, stable person/identity/long-lived relation `365` days and authorized Genesis `3650` days. Event/context Nodes and episodic Assertions such as `involves`, `temporal` and `felt` follow their source Episode profile. For one record kind, overlapping matches resolve deterministically in this order: `genesis > stable_identity > pattern > semantic > salient > ordinary > transient`. The selected profile, policy version and admission reason are persisted. Strong sourced emotional, sensory or consequence salience may promote a runtime Episode to `salient`; it does not automatically raise importance or confidence. Reinforcement changes `H` but preserves the profile as admission provenance; sourced relearning may resolve a new profile and `H0`. Every authorized Genesis record selects `genesis`: its ten-year value is a half-life (`F=.5` after ten years), not an archive deadline; Lifecycle independently owns archive and forgetting decisions. The global `H` bound is `36500` days.
 
-Only an active record with `F >= .1` may be reinforced, and only after one of these sourced outcomes: an exact prior use is explicitly confirmed helpful/correct, an action using it succeeds, a deliberate review/rehearsal completes, or new independent Evidence directly revisits it. Merely completing a chat answer is not confirmation. Candidate generation, RecallBundle/Prompt inclusion, graph adjacency, emotion/sensory hits, maintenance, model self-certification and failed/rejected/unknown outcomes do not qualify. A correction is handled as new Evidence: it may strengthen retention while lowering confidence. For one unique qualified event:
+A record may be reinforced only after a sourced qualified outcome or direct learning event: an exact prior use is explicitly confirmed helpful/correct, an action using it succeeds, a deliberate source-hidden review is independently verified, or new independent Evidence directly revisits the exact record through the normal Consolidation path. Authoritative re-exposure after failed retrieval follows the separate relearning rule below and does not receive the successful-use multiplier. Merely completing a chat answer is not confirmation. Candidate generation, RecallBundle/Prompt inclusion, graph adjacency, emotion/sensory hits, maintenance, model self-certification and failed/rejected/unknown outcomes do not qualify. Reinforcement is continuous over `0 < F <= 1` and has no Lifecycle threshold gate; a successfully recalled non-superseded archived record is eligible under the same rule. For one unique qualified event:
 
 ```text
-q = (1 - F) / .9
-D' = min(36500, D * (1 + q^2))
+difficulty = 1 - F
+multiplier = 1 + 2 * difficulty = 3 - 2F
+H' = min(36500, H * multiplier)
 last_reinforced_at = event.occurred_at
 ```
 
-The update is target-scoped and idempotent. Target-serialized receipts are replayed in event-time order so late delivery cannot reset the clock to processing time. Receipt times use authoritative UTC; an event beyond a bounded future-skew tolerance is rejected, a small negative read delta is clamped to zero, and a missing original occurrence time is not replaced by processing time. When `F < .1`, the record is archival and the expired `D` cannot be reinforced. Encountering the same content is relearning: write a new Episode/Evidence, use the normal write-side identity resolver's bounded lookup across archived/forgotten fingerprints, reuse a resolved Node/Assertion identity, reset `D` to the new admission span and set freshness to one. This lookup is not ordinary Recall or a second Retriever. A non-superseded match may return to `active`; a superseded Assertion requires a sourced reappraisal/reversal and never reactivates merely because it was mentioned.
+The multiplier is `1` at `F=1`, `2` at the half-life `F=.5` and approaches the hard cap of `3` as `F` approaches zero. Under the initial versioned scheduling calibration `p_success(F)=F`, the success-weighted relative gain is `G(F)=p_success(F)*(multiplier-1)=2F(1-F)`, whose unique maximum is `G(.5)=.5`; the half-life is therefore the default efficient review target without making it a hard eligibility threshold. `G` is a derived scheduling/evaluation surrogate, not a persisted score or a second reinforcement input. Empirical calibration may replace `p_success` in a later policy version without silently changing stored `H`. Importance may choose which records receive a scarce deliberate-review opportunity, but it never changes this formula or `H` directly.
+
+The update is target-scoped and idempotent and resets freshness to one; the versioned Lifecycle policy may then reactivate a non-superseded archived record. Target-serialized receipts are replayed in event-time order; reinforcement eligibility is evaluated at `event.occurred_at`, so maintenance timing cannot change the result. Receipt times use authoritative UTC; an event beyond a bounded future-skew tolerance is rejected, a small negative read delta is clamped to zero, and a missing original occurrence time is not replaced by processing time. A failed retrieval without authoritative feedback changes neither `H` nor its anchor. Failed retrieval followed by authoritative re-exposure is relearning: write a new Episode/Evidence, use the normal write-side identity resolver's bounded lookup across archived/forgotten fingerprints—not ordinary Recall or a second Retriever—reuse a resolved Node/Assertion identity, set `H` to `max(current H, newly resolved H0)` and reset the anchor without applying the successful-retrieval multiplier. A repeated real-world occurrence is a new Episode, not a rewrite of an old Episode. A correction follows the sourced Evidence/conflict path and may restore clarity while lowering confidence; a superseded Assertion requires sourced reversal and never reactivates merely because it was mentioned.
 
 #### 2.3.3 confidence
 
@@ -164,7 +173,7 @@ The sourced admission establishes immutable `initial_confidence`, `prior_weight`
 
 #### 2.3.4 Lifecycle eligibility (no additional score)
 
-Time and `D` produce `F`; `F` drives lifecycle eligibility. Lifecycle never lowers `F` and never changes `I`, `D` or `C`. Child aliases, descriptions and mentions follow their parent/source dependency. The design stores no freshness or composite retrieval score.
+Time and `H` produce `F`; `F` drives lifecycle eligibility. The versioned Lifecycle policy exclusively owns compression, archive and forgetting thresholds. Reinforcement contains no such thresholds, while Recall consumes lifecycle state rather than redefining them. Lifecycle never lowers `F` and never changes `I`, `H` or `C`. Child aliases, descriptions and mentions follow their parent/source dependency. The design stores no freshness or composite retrieval score.
 
 #### 2.3.5 detail level
 
@@ -174,8 +183,8 @@ Time and `D` produce `F`; `F` drives lifecycle eligibility. Lifecycle never lowe
 
 ```text
 One-time Genesis
-ApprovedSeedSource ──► Genesis manifest
-                         └─ each submission: atomic commit ──► its Memory outputs + marker
+ApprovedSeedSource ──► ephemeral GenesisMemorySubmission
+                         └─ atomic commit ──► final Memory outputs + marker
 
 Normal runtime
 Workspace closes ClosedEpisode ── capture transaction ──► complete Episode + source references
@@ -194,15 +203,17 @@ Genesis is a one-time side entrance. The normal path never writes graph facts fr
 
 ### 3.1 Genesis initialization
 
-`ApprovedSeedSource` is immutable, versioned and hashable. A Genesis manifest has exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or seed Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. All outputs carry seed Evidence.
+`ApprovedSeedSource` is an immutable, versioned and hashable creation-time value. An ephemeral `GenesisMemorySubmission` accepts exactly three seed families: `KnowledgeSeed[]` (known world/knowledge), `EpisodeSeed[]` (the individual's past, each materialized as a complete Episode) and `RelationshipSeed[]` (typed relationship Assertions linked to Episodes or creation Evidence). There is no fourth biography or relationship memory category: biography is the Episode materialization and relationships are the RelationshipSeed projection. World/knowledge and relationship seeds may be directly projected; every `EpisodeSeed` must remain a complete Episode, and its derived Nodes/Assertions may also be projected in the same complete package. Final outputs carry Memory-owned creation Evidence, not the source-package binding or replay seed.
 
 Genesis uses a submission-level completion contract. A Genesis submission is one complete, immutable set of Memory outputs supplied to Memory for one atomic commit. Genesis may call Memory any number of times; Memory does not choose the number, size, order, grouping, scheduling or meaning of those submissions (for example, core versus enrichment or foreground versus night work). Each submission has its own stable submission/idempotency identity and content hash, even when several submissions belong to one higher-level Genesis operation.
 
 For one valid submission, every expected authoritative and child record—Nodes, Assertions, Evidence, biography Episodes, aliases, descriptions and mentions—and that submission's completion marker must be durable and visible as one completed unit. Atomicity means “accept only the current submission”: validation happens before any write; the Unit of Work either commits every output and the marker or commits none of them. A failed call returns only a failed or retryable result and never `committed`. Retrying the same submission identity and hash is idempotent; reusing an identity with a different hash is rejected. Previously committed submissions remain valid when a later submission fails.
 
-The Genesis caller owns batching, ordering, retry timing and the decision about when adoption is published. Memory only exposes committed submissions to readers and maintenance; it does not report an overall Genesis operation as complete. A committed Elfie cannot be silently reinitialized by a different manifest; an upgrade is a separate approved operation. Cross-owner adoption publication remains its own contract and is not a fictitious cross-store transaction. Genesis accepts explicit initial Episode/Node/Assertion `importance` and Node/Assertion `confidence`; every Genesis-produced semantic record starts with `retention_days=3650`. It does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
+The Genesis caller owns batching, ordering, retry timing and the decision about when adoption is published. Memory only exposes completed submissions inside the still-unpublished creation workspace; App admission controls final workspace visibility. Memory does not report an overall Genesis operation as complete. A committed Elfie has no Genesis reinitialization path; an approved migration or a real learning event must operate on final-owner state. Cross-owner adoption publication remains its own contract and is not a fictitious cross-store transaction. Genesis accepts explicit initial Episode/Node/Assertion `importance` and Node/Assertion `confidence`; its authorized admission selects the common `genesis` profile, giving every Genesis-produced semantic record `retention_profile=genesis` and `half_life_days=3650`. It does not simulate conversations or manufacture importance with emotion intensity. Direct graph projection is forbidden for normal runtime callers.
 
 Genesis admission is serialized per Elfie. The completion marker is the sole visibility gate for Genesis rows: no reader or maintenance pass may use a row from that submission before its marker is present. Genesis accepts any valid complete submission, including a submission containing only a subset of the approved seed families. It does not require every seed family in every submission and does not infer a caller's batching policy.
+
+After final creation commit or terminal abort, the `ApprovedSeedSource`, submission payload, source-package binding and generation seeds are deleted. The Memory database keeps only final Episodes, Nodes, Assertions, Evidence and the minimal submission completion/idempotency marker required by its own atomicity contract. That marker cannot regenerate the submission and is never Recall content.
 
 ### 3.2 Normal runtime write
 
@@ -229,14 +240,9 @@ A model may propose extraction, disambiguation or a summary outside the write tr
 
 #### 3.3.2 Lifecycle Stage
 
-For any Episode or Assertion with active `lifecycle`, or Node with active `status` and no canonical merge target, whose derived freshness threshold is due—independent of capture date—apply the lifecycle policy without mutating `importance`, `retention_days`, `confidence` or `last_reinforced_at`:
+For any Episode or Assertion with active `lifecycle`, or Node with active `status` and no canonical merge target, whose derived freshness threshold is due—independent of capture date—apply the versioned transitions in §6.3 without mutating `importance`, `retention_profile`, `half_life_days`, `confidence` or `last_reinforced_at`. These thresholds are operational Lifecycle parameters, not reinforcement or Recall constants.
 
-- `F <= .40`: an eligible projected Episode may move `full` to `compressed`;
-- `F <= .20`: an eligible projected Episode may move `compressed` to `digest`;
-- `F < .10`: an eligible active record becomes archival and leaves ordinary Recall;
-- `F <= .01` and `I <= .10`: after at least 90 archived days, mark the record `forgotten` only when source and graph dependency checks allow it.
-
-One transaction advances at most one stage. An Episode without a successful projection for its current source version retains enough complete source for projection. Automatic forgetting is logical: a minimal digest, hash and provenance remain; physical deletion is outside `memory.v2`. Low confidence is never a deletion reason. An old record is found by its calculated `next_review_at`, not by the current capture batch, and one unsafe target does not block other bounded records.
+An Episode without a successful projection for its current source version retains enough complete source for projection. Automatic forgetting is logical: a minimal digest, hash and provenance remain; physical deletion is outside `memory.v3`. Low confidence is never a deletion reason. An old record is found by its calculated `next_review_at`, not by the current capture batch, and one unsafe target does not block other bounded records.
 
 ### 3.4 Hybrid Recall
 
@@ -256,21 +262,7 @@ Broad thematic or community search is deferred until the graph has representativ
 
 #### 3.4.4 RecallBundle
 
-The minimum route is Basic/Text → seed Nodes/Episodes → bounded Local/Graph expansion → source Episode/Evidence fetch. Privacy, namespace and lifecycle filters run before ranking. Query relevance `R` combines lexical/semantic match, path and requested time/facets; Memory then derives `A=.65F+.35I`. Active Nodes/Assertions rank by `R*A*(.25+.75C)`, while Episodes, which have no confidence, rank by `R*A`. Superseded/conflicting Assertions use a separate `R*A` lane so low confidence does not hide history. Each kind has its own bounded quota and stable-ID tie-breaker; `D` is not scored again because it already determines `F`.
-
-### 3.5 Deferred Memory Abstraction Loop
-
-This capability is intentionally not implemented in the current baseline. Its complete future loop is:
-
-```text
-Node + Assertion → nightly graph-first grouping → model proposal + deterministic validation
-                 → Pattern knowledge Node → scene-aware recall → Reasoning application
-                 → outcome feedback
-```
-
-Grouping starts from related Nodes and sourced Assertions already in the graph. Episodes are consulted only to verify provenance and original context, not as the primary clustering surface. This is a future extension of Consolidation Stage, not a third Memory Maintenance stage or another entry point. An accepted Pattern is a reusable Claim/knowledge Node containing a canonical rule, applicability conditions and limitations/counterexamples. Its derivation must retain references to supporting Nodes, Assertions or lower Patterns and their underlying Evidence; the physical representation is deferred with the capability.
-
-Pattern generation must not ship alone. The same vertical slice must accept a typed current-scene signature from its owner, retrieve applicable Patterns by direct match or upward graph traversal, preserve the rule, conditions, counterexamples and provenance in `RecallBundle`, let Reasoning decide whether to apply it, and capture the outcome as a new Episode that can later support, refute or narrow the Pattern. Until these paths and their evaluation exist together, Pattern abstraction is not a supported Memory behavior.
+The minimum route is Basic/Text → seed Nodes/Episodes → bounded Local/Graph expansion → source Episode/Evidence fetch. Privacy and namespace filters run before ranking. First-pass Recall uses active records. When that bounded pass is insufficient, the query explicitly requests historical material, or an exact stable ID/high-relevance source fingerprint is present, a separately capped archived lane may return archived records without mixing them into the active quota. Query relevance `R` combines lexical/semantic match, path and requested time/facets; Memory then derives `A=.65F+.35I`. Within either state lane, Nodes/Assertions rank by `R*A*(.25+.75C)`, while Episodes, which have no confidence, rank by `R*A`. Superseded/conflicting Assertions use a separate `R*A` lane so low confidence does not hide history. Each kind and state lane has its own bounded quota and stable-ID tie-breaker; `H` is not scored again because it already determines `F`. Retrieval alone is not reinforcement; only a qualified successful outcome can reactivate and strengthen an archived record.
 
 ### 3.5 Deferred Memory Abstraction Loop
 
@@ -350,17 +342,17 @@ SQLite is the first physical implementation. One Memory Adapter/database is boun
 
 | Table | Required responsibility |
 | --- | --- |
-| `episodes` | Complete source content, occurrence range (nullable when unknown) and occurrence precision, historical `life_stage`/`temporal_label`, separate write time, attributed context/media/source references, privacy scope and version, `importance`, `retention_days`, reinforcement/lifecycle metadata, `detail_level`, `lifecycle`, successful projection marker, idempotency key and content hash. Episodes have no confidence column. |
-| `nodes` | Canonical identity, type/label, scope/status, bounded summary, `importance`, `retention_days`, `confidence`, immutable confidence-prior/policy provenance, reinforcement/lifecycle metadata and merge pointer. |
+| `episodes` | Complete source content, occurrence range (nullable when unknown) and occurrence precision, historical `life_stage`/`temporal_label`, separate write time, attributed context/media/source references, privacy scope and version, `importance`, `retention_profile`, `half_life_days`, reinforcement/lifecycle metadata, `detail_level`, `lifecycle`, successful projection marker, idempotency key and content hash. Episodes have no confidence column. |
+| `nodes` | Canonical identity, type/label, scope/status, bounded summary, `importance`, `retention_profile`, `half_life_days`, `confidence`, immutable confidence-prior/policy provenance, reinforcement/lifecycle metadata and merge pointer. |
 | `node_aliases` | Many scoped aliases with their own source and confidence. |
 | `node_descriptions` | Many language/kind-specific descriptions, content hash and source link. |
 | `episode_mentions` | Episode-to-Node links, roles/spans and resolved/ambiguous/unresolved state. |
-| `assertions` | Subject, predicate, Node or explicitly typed-literal object (type/value/unit), qualifiers, polarity, epistemic status, viewpoint/context, validity, `importance`, `retention_days`, `confidence`, immutable confidence-prior/policy provenance, reinforcement/lifecycle metadata, conflict group, lifecycle state and fingerprint. |
+| `assertions` | Subject, predicate, Node or explicitly typed-literal object (type/value/unit), qualifiers, polarity, epistemic status, viewpoint/context, validity, `importance`, `retention_profile`, `half_life_days`, `confidence`, immutable confidence-prior/policy provenance, reinforcement/lifecycle metadata, conflict group, lifecycle state and fingerprint. |
 | `evidence` | Episode or seed source locator, source version, excerpt/media span, modality, speaker/viewpoint, capture time, `independence_key`, source-reliability class/policy version and extraction metadata. |
 | `assertion_evidence` | Many-to-many Assertion/Evidence stance: `supports`, `contradicts` or `context`. |
 | score event receipts | Adapter-private, non-recallable, source-linked importance and qualified-use/retention events used for idempotency, aggregation and event-time replay. They are authoritative policy inputs/audit state, not a semantic memory type or second source of remembered claims. |
 
-Each Genesis submission's ID/version/hash and completion marker are durable package metadata owned by the Memory Adapter, not a semantic Node/Assertion and not a retry queue. The marker lives in the same Memory SQLite database and is committed in the same transaction as that submission; its physical metadata record/table name is adapter-private and is not an additional semantic memory table. The marker is written only after every expected Memory row, including child rows, is ready for the commit. Every Genesis-produced row carries the submission identity, and readers ignore rows whose submission marker is absent. A retryable or interrupted submission is not an initialized Memory and is not recallable as one; its operational control state may be reconstructed from the immutable input. The marker records (or hashes) the expected IDs/counts for each output family so reconciliation proves more than the presence of Node rows. Derived FTS/vector indexes and RAM caches are not part of the fact-package completion check and may be rebuilt only after the complete commit. These records do not form a second mutable fact store. `importance` and Node/Assertion `confidence` are semantic scores; `retention_days` is persisted policy state, while freshness and query rank are derived. Evidence rows and their stances remain the authoritative support record.
+Each Genesis submission's ID/version/hash and completion marker are durable package metadata owned by the Memory Adapter, not a semantic Node/Assertion and not a retry queue. The marker lives in the same Memory SQLite database and is committed in the same transaction as that submission; its physical metadata record/table name is adapter-private and is not an additional semantic memory table. The marker is written only after every expected Memory row, including child rows, is ready for the commit. Every Genesis-produced row carries the submission identity, and readers ignore rows whose submission marker is absent. A retryable or interrupted submission is not an initialized Memory and is not recallable as one; its operational control state may be reconstructed from the immutable input. The marker records (or hashes) the expected IDs/counts for each output family so reconciliation proves more than the presence of Node rows. Derived FTS/vector indexes and RAM caches are not part of the fact-package completion check and may be rebuilt only after the complete commit. These records do not form a second mutable fact store. `importance` and Node/Assertion `confidence` are semantic scores; `retention_profile` and `half_life_days` are persisted policy state, while freshness and query rank are derived. Evidence rows and their stances remain the authoritative support record.
 
 ### 5.2 Derived indexes and cache
 
@@ -390,7 +382,7 @@ Episodes, Nodes, Assertions and Evidence survive restart. Maintenance claims bou
 
 ### 6.1 Episode detail lifecycle
 
-Lifecycle is the detail and availability state of an already stored record, not a new memory type. A due-time scan covers old and new records alike. `next_review_at` is the predicted wall-clock crossing of the next freshness threshold and is recalculated when retention changes; maintenance frequency therefore cannot change freshness. Lifecycle consumes derived `F` but never updates `I`, `D`, `C` or the reinforcement anchor. An Episode without a successful projection for its current source version keeps enough complete source for a future projection; a projected Episode may move from `full` to `compressed` or `digest`, while archiving is a separate availability state. Both changes require source and graph-dependency checks.
+Lifecycle is the detail and availability state of an already stored record, not a new memory type. A due-time scan covers old and new records alike. `next_review_at` is the predicted wall-clock crossing of the next freshness threshold and is recalculated when `H` changes; maintenance frequency therefore cannot change freshness. Crossing a threshold creates due work, not an implicit state mutation: Recall observes the last committed lifecycle state until a bounded, observable maintenance transaction advances it. Lifecycle consumes derived `F` but never updates `I`, `H`, `C` or the reinforcement anchor. An Episode without a successful projection for its current source version keeps enough complete source for a future projection; a projected Episode may move from `full` to `compressed` or `digest`, while archiving is a separate availability state. Both changes require source and graph-dependency checks.
 
 ### 6.2 Source Evidence protection
 
@@ -398,7 +390,16 @@ An Evidence row that is the last auditable source for an active Assertion cannot
 
 ### 6.3 Compression, archive, digest and forgetting
 
-Lifecycle maintenance first reduces Episode detail at `F <= .40` and `F <= .20`, then archives records at `F < .10`. Only an item with `F <= .01`, `I <= .10`, at least 90 archived days and safe source/graph dependencies may become logically forgotten. Episodes without a successful projection for their current source version retain their source. Forgetting keeps a minimal digest, hash and provenance and does not automatically delete Nodes, Assertions or the last auditable Evidence. Relearning an archival item is a new sourced event, not a maintenance transition or a continuation of the expired retention span.
+The initial `memory.v3` Lifecycle policy is:
+
+| Due condition | One committed transition |
+| --- | --- |
+| `F <= .40` | eligible projected Episode: `full → compressed` |
+| `F <= .20` | eligible projected Episode: `compressed → digest` |
+| `F < .10` | eligible active record: `active → archived` |
+| `F <= .01`, `I <= .10`, archived at least 90 days, dependencies safe | `archived → forgotten` |
+
+These values are versioned operational parameters, not human-memory constants. One transaction advances at most one lifecycle stage per target. Episodes without a successful current projection retain their source. Forgetting keeps a minimal digest, hash, provenance, stable semantic/source fingerprint and the `retention_profile`, `H` and anchor required by bounded write-side identity resolution and sourced relearning; it never removes the last auditable Evidence. A qualified successful recall may reinforce an archived record and let Lifecycle reactivate it, but reactivation does not restore discarded detail. Authoritative re-exposure after failed retrieval is a new sourced relearning event: it preserves at least the previous `H`, may adopt a newly resolved higher `H0`, and never applies the successful-retrieval multiplier. A repeated real-world occurrence is captured as a new Episode.
 
 ### 6.4 0.x fresh-store policy
 
@@ -436,7 +437,7 @@ Replay a rare term, a relationship-network query, a knowledge object, an emotion
 
 ### 8.4 Importance, retention, confidence and conflicts
 
-Verify target-ceiling importance updates and 24-hour aggregation, event-time replay, checkpoint-compaction equivalence and pre-watermark late-event rejection, the frozen freshness vectors, reinforcement eligibility/growth/cap, expiry and relearning, Evidence-order-independent Node/Assertion confidence, and the absence of Episode confidence. Time and Lifecycle must not mutate importance, retention or confidence; candidate-only Recall must not reinforce; contradictory Evidence remains visible and may lower confidence while strengthening retention.
+Verify target-ceiling importance updates and 24-hour aggregation, event-time replay, checkpoint-compaction equivalence and pre-watermark late-event rejection, the frozen freshness vectors, monotonic reinforcement with `M(1)=1`, `M(.5)=2` and `lim(F→0+)M(F)=3`, the maximum of `2F(1-F)` at `.5`, archived successful reactivation, failed retrieval and sourced relearning, Evidence-order-independent Node/Assertion confidence, every versioned Lifecycle boundary, and the absence of Episode confidence. Time and Lifecycle must not mutate importance, retention or confidence; candidate-only active or archived Recall must not reinforce; contradictory Evidence remains visible and may lower confidence while restoring clarity through its sourced reappraisal path.
 
 ### 8.5 Performance and capacity
 
@@ -456,9 +457,9 @@ This section closes implementation ambiguities identified during review. It is n
 
 ### 9.2 Scores, review and lifecycle
 
-- `importance` and Node/Assertion `confidence` are persisted semantic scores; `retention_days` is persisted policy state. Episode has no confidence; freshness and composite retrieval rank are derived and never persisted. There is no `support_score` compatibility field.
-- Importance is folded in event-time order from idempotent, source-linked, aggregated semantic-event receipts. Confidence is recomputed from all unique Evidence and independence groups. Retention is folded from idempotent, target-scoped qualified-outcome/review receipts; expired-memory relearning is a new sourced admission, not a receipt against the old span. A retry or maintenance pass cannot add a contribution twice.
-- Episodes, Nodes and Assertions carry `retention_days`, reinforcement/review timestamps and policy version. Lifecycle selection is a due predicate calculated from freshness, not another score.
+- `importance` and Node/Assertion `confidence` are persisted semantic scores; `retention_profile` and `half_life_days` are persisted policy state. Episode has no confidence; freshness, success-weighted review gain and composite retrieval rank are derived and never persisted. There is no `support_score` compatibility field.
+- Importance is folded in event-time order from idempotent, source-linked, aggregated semantic-event receipts. Confidence is recomputed from all unique Evidence and independence groups. Successful-use Retention is folded from idempotent, target-scoped qualified-outcome/review receipts using `H'=H*(3-2F)` with a global cap; failed retrieval changes nothing, while authoritative re-exposure uses the separate sourced relearning rule. A retry or maintenance pass cannot add a contribution twice.
+- Episodes, Nodes and Assertions carry `retention_profile`, `half_life_days`, reinforcement/review timestamps and policy version. Lifecycle alone owns versioned compression, archive and forgetting thresholds. Recall consumes `active`/`archived`/`forgotten` state and keeps archived results in a separately capped lane; reinforcement remains continuous and threshold-free.
 - Lifecycle transitions are guarded and ordered: preserve a source that lacks a successful current projection; then allow `full` → `compressed` → `digest`, archive separately, and forget logically only after freshness, importance, residency and dependency checks. Forgetting never removes the last auditable Evidence for an active Assertion.
 - Consolidation leases, retry attempts, checkpoints and rejected proposals are operational control data outside authoritative fact rows. One bounded Memory Maintenance Unit of Work owns the writer transaction; normal capture and Genesis submissions remain separate operations.
 
@@ -472,7 +473,7 @@ This section closes implementation ambiguities identified during review. It is n
 ### 9.4 Recall semantics
 
 - Facets are positive constraints: different facet families combine with AND, values within one family combine with OR, and missing facet data does not become a negative fact. Historical emotion is read from the Episode's attributed source, never from live Emotion state.
-- Ranking is deterministic and kind-specific: derive query relevance `R` and freshness `F`, then use `R*(.65F+.35I)*(.25+.75C)` for active Nodes/Assertions and `R*(.65F+.35I)` for Episodes and the conflict lane. Results remain separated by kind with stable-ID tie-breakers; policy components are bounded and versioned.
+- Ranking is deterministic and kind-specific: derive query relevance `R` and freshness `F`, then use `R*(.65F+.35I)*(.25+.75C)` for eligible Nodes/Assertions within their active or archived lane, and `R*(.65F+.35I)` for Episodes and the conflict lane. Results remain separated by kind and state with stable-ID tie-breakers; policy components are bounded and versioned.
 - Active Assertions are preferred, while relevant `superseded` and conflicting Assertions remain visible with explicit status and Evidence. Privacy and namespace filtering happen before ranking.
 - Basic/Text and Local/Graph are the initial modes. Global/community and vector retrieval remain derived, later capabilities and are not advertised by the initial contract.
 

@@ -12,6 +12,7 @@ DiscoveryStrategy = Literal[
     "catalog_only", "ollama", "provider_adapter", "standard_models"
 ]
 ModelSource = Literal["official", "remote_catalog", "bundled_catalog", "manual"]
+ModelPricing = Literal["free", "unknown"]
 DiscoveryState = Literal["present", "source_missing"]
 ValidationMode = Literal["none", "full", "cached", "heartbeat", "benchmark"]
 ValidationStatus = Literal["never", "passed", "failed"]
@@ -58,6 +59,8 @@ class StoredProviderProduct:
     api_mode: ApiMode
     api_base: str
     auth_type: AuthType
+    api_key_url: str | None = None
+    has_free_models: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,7 @@ class StoredProviderModel:
     discovery_state: DiscoveryState = "present"
     consecutive_missing: int = 0
     last_seen_at: str | None = None
+    pricing: ModelPricing = "unknown"
 
 
 @dataclass(frozen=True)

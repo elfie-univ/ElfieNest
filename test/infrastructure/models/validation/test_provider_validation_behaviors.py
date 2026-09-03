@@ -370,6 +370,59 @@ def test_connection_block_stops_the_remaining_model_checks(
     assert payload["model_count"] == 1
 
 
+def test_endpoint_failure_does_not_hide_a_passing_sibling_model(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    connection = ProviderConnection(
+        connection_id="custom_openai_0001",
+        catalog_id="custom_openai",
+        alias="Partly throttled",
+        api_base="https://gateway.example/v1",
+        models=(
+            ProviderModelRecord(endpoint_model_id="model-a"),
+            ProviderModelRecord(endpoint_model_id="model-b"),
+        ),
+    )
+    reports = ReportStorageAdapter(ReportRepository())
+
+    def model_check(connection, model_id, model_execution_projection):
+        _ = connection, model_execution_projection
+        if model_id == "model-a":
+            return {"status": "passed", "latency_ms": 10.0, "error": None}
+        return {
+            "status": "failed",
+            "latency_ms": 10.0,
+            "error": "temporarily rate limited",
+            "error_code": "rate_limited",
+            "error_scope": "endpoint",
+            "error_category": "rate_limit",
+        }
+
+    with patch(
+        "infrastructure.models.validation.provider_validation_checks.run_connection_model_check",
+        side_effect=model_check,
+    ):
+        payload = asyncio.run(
+            validate_connection(
+                connection,
+                catalog=PROVIDER_CATALOG,
+                model_execution_projection=model_execution_projection,
+                reports=reports,
+                secret_resolver=resolve_secret,
+                force_full=True,
+            )
+        )
+
+    assert payload["status"] == "passed"
+    assert payload["model_count"] == 2
+    assert payload["passed_count"] == 1
+    latest = reports.read_latest_provider_validation(connection.connection_id)
+    assert latest is not None
+    assert latest["metadata"]["full_status"] == "passed"
+
+
 def test_recent_failed_reachability_stops_model_requests_for_account_block(
     tmp_path: Path,
     monkeypatch,

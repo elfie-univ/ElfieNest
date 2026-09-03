@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import cast
 
 from app.features.accounts import AccountsService
 from app.features.adoption import (
@@ -43,7 +42,6 @@ from app.orchestration.resident_admission import ResidentAdmissionService
 from app.orchestration.setup_installation import SetupInstallationService
 from infrastructure.communication import OwnerMessageSession, SameOriginMessagePublisher
 from infrastructure.devices import DeviceGateway
-from infrastructure.models.adoption_narrative import AdoptionStructuredModelExecution
 from infrastructure.models.model_execution_adapter import StructuredModelExecution
 from infrastructure.models.ollama.provider_ollama import PublicOllamaProviderAdapter
 from infrastructure.models.provider_administration import ProviderModelsAdapter
@@ -349,11 +347,6 @@ def build_application_container(
         db_path,
         settings=settings_adapter,
         nest_session=nest_session,
-        model_execution=(
-            None
-            if model_execution is None
-            else cast(AdoptionStructuredModelExecution, model_execution)
-        ),
         portraits=portraits,
         nest_config=nest_config,
         catalog=species_catalog,

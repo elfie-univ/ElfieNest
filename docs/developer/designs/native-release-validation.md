@@ -96,15 +96,15 @@ loose call counter alone. Its minimum scenarios are:
 | Request | Deterministic response | Acceptance assertion |
 | --- | --- | --- |
 | Provider inventory/probe | Protocol-correct model inventory, text probe and structured-capability responses for one qualified model. | The connection, exact endpoint model, Common Food and Emergency Food become executable through persisted projections. |
-| `adoption_candidate_reveal_v1` | A valid `original_name`, distinct `suggested_name`, and first-person `personal_story` within production limits. | At least one invited candidate completes the real reveal and admission path. |
+| Adoption candidate reply | A structured reply contains an accepted candidate ID and the current candidate fields (`species_id`, life stage, Earth-year age, gender, appearance, personality and message). | At least one invited candidate completes the deterministic reply and admission path. |
 | Owner chat | A non-empty first-person Elfie complete response. | The request crosses WebSocket, App, NestSession, Brain and the production model adapter without silently enabling Provider streaming. |
 | Unexpected schema, tool or endpoint | Explicit test-server failure. | New model behavior cannot silently receive a generic success response. |
 
-Adoption candidate genetics and acceptance selection remain owned by production
-code. The scripted server supplies only the qualified model output required by
-the post-acceptance identity reveal and chat. A missing server, rejected
-capability, invalid JSON, unexpected request or fallback attempt fails the gate;
-the journey is never skipped because a model is absent.
+Adoption candidate generation, replies and acceptance selection remain owned by
+production code and do not call the model boundary. The scripted server is
+needed for provider capability checks and owner chat only. A missing server,
+rejected capability, invalid JSON, unexpected request or fallback attempt fails
+the gate; the journey is never skipped because a model is absent.
 
 The server records only request kind, schema name, model ID, duration, response
 class and pass/fail count. It must not retain prompts, cookies, credentials or
@@ -154,8 +154,8 @@ containing whitespace and non-ASCII characters.
 6. Require the model capability projection needed by adoption and chat and the
    expected aggregate model state; assert no bundled default was copied into the
    user configuration root and no source checkout supplied a missing resource.
-7. Create one candidate set, invite candidates, select an accepted reveal and
-   admit one Elfie.
+7. Create one candidate set, invite candidates, validate an accepted structured
+   reply and admit one Elfie.
 8. Require the Elfie in the member list and in the running Nest/Runtime
    projection.
 9. Open the authenticated production chat WebSocket, send one message, receive
@@ -408,8 +408,8 @@ phase does not authorize push, Pull Request, merge, tag or release.
 
 - Implement the loopback protocol server and schema-routed scripts.
 - Cover inventory/probe, exact capability evidence, Common/Emergency routing,
-  adoption reveal, complete-response chat, malformed request and unexpected
-  request behavior.
+  deterministic adoption replies, complete-response chat, malformed request and
+  unexpected request behavior.
 - Exercise the production secret store with a synthetic credential and prove
   the server cannot bind non-loopback, use external network or log secret fields.
 

@@ -65,7 +65,10 @@ RETIRED_SCRIPT_CONTROL_EXACT = frozenset(
     }
 )
 CONTRACT_VERSION_PATTERN = re.compile(
-    r"\*\*(?:Contract version|契约版本)[：:]\*\*\s*([^\s]+)"
+    r"(?:"
+    r"\*\*(?:Contract version|契约版本)[：:]\*\*\s*"
+    r"|(?:Status:\s*normative,\s*version|状态：规范性契约，版本)\s*"
+    r")([^\s<]+)"
 )
 ARCHITECTURE_TEST_PREFIX = "test/architecture/"
 ARCHITECTURE_BASELINE_PREFIX = "test/architecture/baselines/"

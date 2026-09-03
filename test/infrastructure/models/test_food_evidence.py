@@ -61,6 +61,26 @@ def _evidence(reference: str, verified: bool, observed_at: str) -> StoredModelEv
     )
 
 
+def test_query_model_evidence_marks_catalog_free_models(tmp_path) -> None:
+    store = ProviderConnectionStore(tmp_path / "providers.yaml")
+    store.replace(
+        ProviderConnection(
+            connection_id="glm_0001",
+            catalog_id="glm_api",
+            alias="GLM",
+            models=(ProviderModelRecord("glm-4.7-flash"),),
+        )
+    )
+
+    evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
+        connection_store=store,
+        observations=(),
+    )
+
+    assert evidence["glm_0001/glm-4.7-flash"].pricing == "free"
+
+
 def test_projection_changes_from_never_to_passed_to_failed(tmp_path) -> None:
     provider_path = tmp_path / "providers.yaml"
     provider_store = ProviderConnectionStore(provider_path)

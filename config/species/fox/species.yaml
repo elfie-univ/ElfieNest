@@ -1,6 +1,7 @@
 schema_version: 1
 definition_version: saevi.v1
-canon_id: saevi
+species_package_id: saevi
+package_version: saevi.v1
 display_name: Saevi
 display_name_zh: 灵狐
 earth_shape_label: fox-like

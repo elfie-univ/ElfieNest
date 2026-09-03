@@ -1,6 +1,7 @@
 schema_version: 1
 definition_version: myelle.v1
-canon_id: myelle
+species_package_id: myelle
+package_version: myelle.v1
 display_name: Myelle
 display_name_zh: 灵猫
 earth_shape_label: cat-like

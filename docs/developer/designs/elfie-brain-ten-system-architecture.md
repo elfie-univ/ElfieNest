@@ -2,7 +2,7 @@
 
 > Status: accepted design<br>
 > Confirmed: 2026-08-12<br>
-> Last revised: 2026-08-12<br>
+> Last revised: 2026-08-31<br>
 > Nature: cross-version Brain conceptual design, responsibility boundaries,
 > runtime relationships, adversarial checks and incremental implementation priorities<br>
 > Does not mean: the current source already implements these capabilities, or
@@ -89,19 +89,20 @@ Every later refinement must preserve these rules:
    a task Agent waiting for its owner to approve every step.
 2. External output has only embodied and digital-communication lanes, and a
    cognitive Turn cannot mix them.
-3. Brain has Communication, Embodied and Internal trigger sources; each Turn has
+3. Brain has Communication, Embodied and Activity trigger sources; each Turn has
    one source domain.
 4. The virtual and physical body are mutually exclusive; one body authority
    exists at every stable moment.
-5. Profile stores immutable identity, virtual appearance and provenance; Brain
-   cannot rewrite it.
+5. Profile stores only immutable external identity/age/origin anchors, final
+   virtual appearance and technical schema revision; Brain cannot read or
+   rewrite it as a cognition source.
 6. One Elfie's body, communication, cross-turn activity and consolidation share
    one personality and one memory.
 7. Emotion, energy and drives may influence decisions but cannot gain external
    execution authority or expand permissions.
-8. A due cross-turn activity produces a new Internal Trigger; it cannot bypass
+8. A due cross-turn activity produces a new Activity Trigger; it cannot bypass
    Reasoning Core to perform an open-ended action.
-9. Cognitive Consolidation may produce update candidates or internal triggers,
+9. Cognitive Consolidation may produce update candidates or Activity triggers,
    but cannot directly create cross-turn activities or external actions.
 10. Only real execution receipts prove that a message or body action occurred;
     a cognitive Tool result proves only the corresponding sandbox operation.
@@ -139,8 +140,8 @@ created before real state, contracts and behavior exist.
 | 4 | Emotion | `emotion/` | Has independent state, decay and cross-turn feedback | A few explainable dimensions with deterministic updates |
 | 5 | Energy | `energy/` | Life rhythm, cognitive resources and behavior budgets have their own clocks and hard constraints | Basic energy, fatigue and budgets; complex circadian behavior later |
 | 6 | Motivation | `motivation/` | Proactive life cannot be simulated by random timers or external messages | A few drives with satisfaction, saturation and cooldown |
-| 7 | Memory | `memory/` | Long-lived experience, relationships and knowledge have independent encoding and retrieval rules | Working memory, key episodes and minimum person relationships |
-| 8 | Reasoning Core | `reasoning/` | Understanding, reasoning, verification, inhibition and choice for the current Turn need one owner | One structured cognitive Turn; advanced Agent ability later |
+| 7 | Memory | `memory/` | Durable experience, relationships and knowledge have independent encoding and retrieval rules | Key episodes, provenance, minimum people/relationships and retrieval |
+| 8 | Reasoning Core | `reasoning/` | Understanding, context continuity, reasoning, verification, inhibition and choice for the current Turn need one owner | Reasoning Context Workspace and one structured cognitive Turn; advanced Agent ability later |
 | 9 | Persistent Activity | `activity/` | Future waits, commitments and multi-step work cannot live inside the current Turn | Creation, waiting, triggering, receipts and terminal states |
 | 10 | Cognitive Consolidation | `consolidation/` | Experience organization has its own schedule, budget and no-external-action boundary | Enabled later; initially only its interface and state boundary |
 
@@ -151,12 +152,12 @@ created before real state, contracts and behavior exist.
 **Role:** Brain's event-facing workspace. It admits, separates and slices three
 classes of semantic input, then creates isolated Turns in order.
 
-**Inputs:** Communication messages and channel events; Nervous System perception
-and reflex facts; internal triggers from Activities, drives, time, emotion,
-energy and consolidation; execution receipts or state events from Communication,
-Body and Persistent Activity.
+**Inputs:** Communication messages, channel events and delivery outcomes;
+Nervous System perception, reflex facts and body-action terminal outcomes;
+Activity triggers from Activities, drives, time, emotion, energy and
+consolidation; and other typed state events.
 
-**Owns:** Communication, Embodied and Internal logical lanes; same-domain
+**Owns:** Communication, Embodied and Activity logical lanes; same-domain
 ordering, deduplication, backpressure, aggregation and framing; salience,
 novelty and habituation; emergency preemption, social priority and lane fairness;
 `TurnFrame`, `SourceDomain`, causal references and deadlines; current attention
@@ -209,9 +210,10 @@ without reading the external Profile at runtime.
 `adaptive_self`; typed personality, personal values, interaction, expression
 and coping tendencies; deterministic model projections of both layers.
 
-**Initialization input:** one validated `GenesisSelfhoodSeed`. Genesis may use
-Profile/Canon creation inputs while co-materializing the final owners, but
-ordinary Brain runtime receives neither Profile nor Canon.
+**Initialization input:** one validated `GenesisSelfhoodSeed`. Genesis may use a
+published typed source package and transient adoption inputs while
+co-materializing final owners, but Selfhood stores neither input and ordinary
+Brain runtime receives neither Profile, Canon nor creation-source material.
 
 **Future update input:** only a typed Memory-consolidation proposal that can
 modify `adaptive_self` after a separately approved growth design. Phase 1 has no
@@ -286,7 +288,7 @@ purpose and source evidence.
 **Inputs:** Emotion, Energy, Memory, Self/Personality, current environment, time
 and Activity state.
 
-**Outputs:** attention bias, `GoalCandidate` or `InternalTriggerCandidate`.
+**Outputs:** attention bias, `GoalCandidate` or `ActivityTriggerCandidate`.
 
 **Does not own:** external messages, body actions, formal Activities or execution
 permissions. Drives cannot act directly.
@@ -296,11 +298,11 @@ permissions. Drives cannot act directly.
 **Role:** Stores Elfie's subjective experiences, knowledge, person relationships
 and reusable experience.
 
-**Owns:** sensory buffer, working, episodic and semantic memory; people,
-relationships, contact details, trust and social context; procedural and outcome
-experience; source, confidence, conflict, uncertainty and subjective viewpoint;
-encoding, retrieval, consolidation, forgetting, reactivation and association;
-one pre- and post-adoption memory timeline.
+**Owns:** durable episodic and semantic memory; people, relationships, contact
+details, trust and social context; procedural and outcome experience; source,
+confidence, conflict, uncertainty and subjective viewpoint; encoding,
+retrieval, consolidation, forgetting, reactivation and association; one pre-
+and post-adoption memory timeline.
 
 **Inputs:** event evidence, MemoryCandidates from Reasoning Core, execution
 receipts and consolidation candidates.
@@ -308,8 +310,10 @@ receipts and consolidation candidates.
 **Outputs:** retrieval by person, time, place, emotion, topic and cause, plus
 formal memory-commit results.
 
-**Does not own:** immutable identity, current Orientation Snapshot,
-CognitiveRunState, ActivityState or every kind of learning.
+**Does not own:** immutable identity, Event Workspace, Reasoning Context
+Workspace, current Orientation Snapshot, CognitiveRunState, ActivityState or
+every kind of learning. Memory semantic state is durable; request-local Recall
+payloads and caches are not another state owner.
 
 Knowledge is content stored by Memory. Learning is a cross-system protocol:
 Memory learns facts and experience, Personality learns stable tendencies,
@@ -320,17 +324,30 @@ authoritative state.
 
 ### 5.8 Reasoning Core
 
+The accepted internal expansion is the
+[Reasoning Core single-Turn Agent design](./elfie-reasoning-core.md).
+
 **Role:** Accepts one single-domain `TurnFrame`, assembles the necessary context
 and produces the final `TurnDecision` through a potentially multi-step Agent loop.
-A Turn begins when Workspace admits a Communication, Embodied or Internal event
+A Turn begins when Workspace admits a Communication, Embodied or Activity event
 and ends when the final decision is formed. It may include multiple model,
 Skill and Tool calls and Observations; it is not one model request.
 
-**Owns:** Turn understanding and complexity assessment; a Context Assembler that
-reads, retrieves, trims and organizes Orientation, Selfhood, Emotion, Energy,
-Motivation, Memory and Activity context; `ReasoningRun` and Cognitive Steps;
-temporary Cognitive Plan; Reason/Act/Observation loop; selection and orchestration
-of Model, Skill, Tool and scoped Worker; Evidence, Verifier and Completion Judge;
+**Inputs:** one `TurnFrame`; read-only Orientation, Selfhood, Emotion, Energy,
+Motivation and Activity projections; Food/capability/budget projections; and
+typed Memory Recall through Memory Bridge. Relevant conversation is read from
+Reasoning's own Context Workspace rather than supplied as a second external
+Conversation authority.
+
+**Owns:** Turn understanding and complexity assessment; the internal
+`Reasoning Context Workspace` containing bounded alternating dialogue, active
+topic, source-linked summaries and current-Run Observations; a Context Engine
+that reads, retrieves, trims, compacts and organizes Orientation, Selfhood,
+Emotion, Energy, Motivation, Memory and Activity context before every cognitive
+step; a Memory Bridge for revision-bound baseline and on-demand Recall;
+`ReasoningRun`, `DIRECT/DELIBERATE` depth and Cognitive Steps; temporary
+Cognitive Plan; Reason/Act/Observation loop; selection and orchestration of
+Model, Skill, Tool and scoped Worker; Evidence, Verifier and Completion Judge;
 metacognitive checks, impulse inhibition, candidate competition and action
 selection; structured `TurnDecision`.
 
@@ -353,13 +370,14 @@ does not prove that a message or body action happened.
 Directive, Nervous System Directive, Persistent Activity Request, or `No-op`.
 A clarification question is expressed through the current source domain.
 
-**Internal settlement:** Memory, emotion, selfhood and other state candidates
+**State settlement:** Memory, emotion, selfhood and other state candidates
 are validated and committed by their authoritative systems, not action exits.
 
-**Does not own:** cross-turn waiting, durable Activities, AI Runtime provider or
-Tool implementations, device execution, hard capability boundaries or execution
-success facts. Turn Admission belongs to Workspace; run state, context assembly,
-the Agent loop and convergence are internal Reasoning Core mechanisms.
+**Does not own:** Event Workspace admission, cross-turn waiting, durable
+Activities, durable Memory, AI Runtime provider or Tool implementations, device
+execution, hard capability boundaries or execution-success facts. Turn
+Admission belongs to Event Workspace; Context Workspace, Run state, context
+assembly, the Agent loop and convergence are internal Reasoning Core mechanisms.
 
 ### 5.9 Persistent Activity
 
@@ -374,20 +392,20 @@ receipts; the Activity state machine.
 
 **Inputs:** Persistent Activity Requests submitted by Reasoning Core through the
 final-action boundary, plus time, condition events, receipts and failure state.
-Ideas from Motivation and Consolidation must first become an Internal Turn.
+Ideas from Motivation and Consolidation must first become an Activity Turn.
 
 Before `TurnDecision`, Reasoning Core may submit a side-effect-free, non-persisted
 `ActivityDraft` for Preflight within the same `ReasoningRun`. The Activity system
 returns the result as an Observation. Only a `VALIDATED` draft may enter the
 final request and be committed after the unified boundary approves it.
 
-**Outputs:** `ActivityPreflightResult`, constrained InternalTriggerEvents, state
+**Outputs:** `ActivityPreflightResult`, constrained ActivityTriggerEvents, state
 changes and completion/failure facts.
 
 **Rules:** Preflight immediately checks people, contact details, capability,
 budget, place, time semantics and success criteria, returning `VALIDATED`,
 `NEEDS_CLARIFICATION` or `REJECTED`. It creates nothing. Missing details are
-clarified in the current Turn. A due Activity emits an internal trigger and a
+clarified in the current Turn. A due Activity emits an Activity trigger and a
 new Turn decides against current facts and scope. Communication and embodied
 effects are separate Steps and Turns. Activity is not a second Brain and has no
 independent personality.
@@ -407,8 +425,8 @@ no-direct-external-side-effect scope.
 Self/Personality and time/idle state.
 
 **Outputs:** Memory, Knowledge, Relationship, Personality, Self Model and
-procedural-experience candidates, or a waking `InternalTriggerEvent`. The
-resulting Internal Turn's Reasoning Core decides whether to create an Activity.
+procedural-experience candidates, or a waking `ActivityTriggerEvent`. The
+resulting Activity Turn's Reasoning Core decides whether to create an Activity.
 
 **Does not own:** final write authority for Memory, Personality or Relationship,
 and cannot send messages, move a body or expand permissions. It is implemented
@@ -421,14 +439,14 @@ recovery and side-effect boundary.
 flowchart TB
     C["Communication Event"] --> EW["1. Event Workspace"]
     B["Embodied Event"] --> EW
-    IT["Internal Trigger"] --> EW
-    CR["Communication Receipt"] --> EW
-    BR["Body Receipt"] --> EW
+    IT["Activity Trigger"] --> EW
+    CR["Communication Delivery Outcome"] --> EW
+    BR["Embodied Action Terminal Outcome"] --> EW
     EW --> TF["Single-domain TurnFrame"]
 
     GS["Genesis-created Selfhood state"] --> SH["3. Selfhood"]
 
-    subgraph STATE["Context sources for this Turn"]
+    subgraph STATE["Read-only state sources for this Turn"]
         OR["2. Orientation"]
         SH
         EM["4. Emotion"]
@@ -438,34 +456,23 @@ flowchart TB
         AC["9. Persistent Activity"]
     end
 
-    subgraph RC["8. Reasoning Core: one complete Turn"]
-        CA["Context Assembler"] --> LOOP["Agent Loop"]
+    RC["8. Reasoning Core<br/>one Turn / one ReasoningRun<br/>bounded 1..N cognitive iterations inside"]
+    AIR["AI Runtime<br/>Model · stage-gated Skill / Tool"]
+    TD["TurnDecision"]
 
-        subgraph AIR["AI Runtime"]
-            MODEL["Model"]
-            SKILL["Skill"]
-            TOOL["Tool"]
-        end
-
-        LOOP <--> MODEL
-        LOOP <--> SKILL
-        LOOP --> TOOL
-        TOOL -->|"Observation"| LOOP
-        LOOP -->|"ActivityDraft / Preflight"| AC
-        AC -->|"Preflight Result"| LOOP
-        LOOP --> CHECK["Verifier / Completion Judge"]
-        CHECK -->|"not converged"| LOOP
-        CHECK -->|"converged"| TD["TurnDecision"]
-    end
-
-    TF --> CA
-    OR --> CA
-    SH --> CA
-    EM --> CA
-    EN --> CA
-    MO --> CA
-    ME --> CA
-    AC --> CA
+    TF --> RC
+    OR --> RC
+    SH --> RC
+    EM --> RC
+    EN --> RC
+    MO --> RC
+    AC -->|"frozen projection / Preflight Result"| RC
+    RC -->|"side-effect-free ActivityDraft / Preflight"| AC
+    RC -->|"Recall query"| ME
+    ME -->|"Recall evidence"| RC
+    RC -->|"Model / stage-gated cognitive call"| AIR
+    AIR -->|"Result / Observation"| RC
+    RC --> TD
 
     TD --> DB["Unified decision and execution boundary"]
     DB --> CD["Communication Directive"]
@@ -480,10 +487,11 @@ flowchart TB
     MO --> IT
 
     EN --> CC["10. Cognitive Consolidation"]
-    CC --> IC["Internal state update candidates"]
+    CC --> IC["State update candidates"]
     CC --> IT
 
     TF --> TS["Turn Settlement<br/>candidate, evidence and receipt settlement"]
+    RC -->|"Context / Memory candidates"| TS
     TD --> TS
     CR --> TS
     BR --> TS
@@ -496,14 +504,22 @@ flowchart TB
     TS --> MO
     TS --> ME
     TS --> AC
+    TS -->|"Reasoning context settlement"| RC
 ```
 
-AI Runtime is inside Reasoning Core's Agent loop in the diagram because Model,
-Skill and Tool calls occur inside one Turn. It remains external computation and
-execution infrastructure and acquires neither personality, durable state nor
-final action authority. Context Assembler is internal, not an eleventh system.
-Activity Preflight is a synchronous validation call; it neither creates an
-Activity nor gains external action authority.
+The ten-system diagram deliberately collapses Reasoning Core into one node and
+shows only system relationships and the Turn boundary. The node's `1..N` means
+that `DIRECT` normally ends after one cognitive iteration, while `DELIBERATE`,
+Recall or revision may loop within the same bounded Run. The sole authoritative
+back edge is defined by the [Reasoning Core single-Turn Agent design](./elfie-reasoning-core.md#5-authoritative-internal-control-flow-diagram);
+this diagram does not duplicate that internal control flow.
+
+AI Runtime remains external computation and execution infrastructure invoked by
+Reasoning Core; it acquires neither personality, durable state nor final action
+authority. Reasoning Context Workspace, Context Engine, Memory Bridge, Run
+Controller and Agent Loop are internal, not additional peer systems. Activity
+Preflight is a synchronous validation call; it neither creates an Activity nor
+gains external action authority.
 
 Turn Settlement is also an internal protocol, not another system. It submits
 TurnFrame, state candidates, directive receipts and Activity events to the real
@@ -516,22 +532,21 @@ state may enter later Context Assembly.
 Domain Event
 → Event Workspace
 → single-domain TurnFrame
-→ Context Assembler reads and trims relevant state, memory and activity summaries
-→ Agent Loop calls Model / Skill / Tool as needed
-→ Observations return to the same Turn
-→ cross-turn work uses synchronous ActivityDraft Preflight; incomplete work is clarified now
-→ verification, completion judgment, inhibition and convergence
+→ Reasoning Core executes one bounded ReasoningRun (1..N cognitive iterations inside)
 → TurnDecision
 → unified decision and execution boundary
 → Communication Directive / Nervous System Directive / Persistent Activity Request
 → validated Activity Request is committed, or an external system executes
 → Turn Settlement applies candidates, receipts and state events to authoritative systems
+→ only a completed delivery receipt appends the Elfie reply to Context Workspace
 → external receipts or activity triggers re-enter Event Workspace
 ```
 
-One Turn may have many Cognitive Steps but one `SourceDomain` and one final
-`TurnDecision`. Communication and Nervous System are mutually exclusive external
-domains; Persistent Activity Request is an internal follow-up. Internal state
+One Turn may have many Cognitive Steps but only one `SourceDomain`, one
+`ReasoningRun` and one final `TurnDecision`; its back edge, continuation guard
+and termination rules are defined only by section 5 of the detailed Reasoning
+design. Communication and Nervous System are mutually exclusive external
+domains; Persistent Activity Request is an Activity follow-up. State
 candidates go directly to their owners during Settlement. Legal cognitive Tool
 changes stay inside the Agent loop and cannot access files outside the workspace,
 send messages or control a body.
@@ -541,15 +556,15 @@ send messages or control a body.
 ```text
 Emotion / Energy / Memory / Environment / Commitment
 → Motivation
-→ GoalCandidate / InternalTriggerCandidate
+→ GoalCandidate / ActivityTriggerCandidate
 → Event Workspace
-→ Internal Turn
+→ Activity Turn
 → Reasoning Core
 → ActivityDraft / Preflight
 → Persistent Activity Request
 → Activity creation and waiting
 → time or condition satisfied
-→ new Internal Turn
+→ new Activity Turn
 → constrained external behavior
 ```
 
@@ -561,7 +576,7 @@ Sleep / Idle / Circadian Window
 → organize recent evidence, conflicts and patterns
 → update candidates
 → authoritative validation and versioned commit
-→ optional waking Internal Trigger
+→ optional waking Activity Trigger
 → new Turn decides whether to create Persistent Activity
 ```
 
@@ -610,11 +625,11 @@ external safeguards, not peer mental systems.
 | Tool escapes workspace or sends/controls | 8, boundary | Cognitive tool becomes hidden device route | Sandbox rejects deterministically; communication/body capabilities are not Tools |
 | Reasoning says “message sent” | 8 | Model statement is treated as fact | Only Communication Receipt completes Activity and updates fact |
 | “Tell Xiao Wang to meet at twelve” is ambiguous | 8, 9 | Wrong person or no channel discovered too late | Preflight returns `NEEDS_CLARIFICATION`; do not create before validation |
-| Activity requires both messaging and walking | 9 | Internal Turn becomes mixed universal output | Separate Communication and Embodied Steps and Turns |
+| Activity requires both messaging and walking | 9 | Activity Turn becomes mixed universal output | Separate Communication and Embodied Steps and Turns |
 | Two important Activities become due | 1, 5, 9 | Both seize body or reasoning | Arbitrate by safety, commitment, deadline, energy and switching cost |
 | Restart during message send | 9, infrastructure | Duplicate send or lost commitment | Idempotent directive, durable Activity, receipt reconciliation and recovery fence |
 | Body moved but location remains stale | 2, settlement | Receipt is logged but state stays inconsistent | Settlement commits by causal ID and authority generation to Orientation, Memory and Activity |
-| Consolidation discovers an interesting idea | 10 | Sleep sends messages or moves body | Produce candidates or a waking Internal Trigger only |
+| Consolidation discovers an interesting idea | 10 | Sleep sends messages or moves body | Produce candidates or a waking Activity Trigger only |
 | Worker receives full memory and body tools | 8 | A second actionable Elfie appears | Minimum context only; no durable identity, write authority or external action |
 | Model is unavailable for a long time | 1, 4, 5, 9 | Elfie is treated as dead or success is fabricated | Life state, reflexes, queues and recovery continue; open cognition degrades or waits |
 
@@ -655,9 +670,9 @@ whether the stage forms a visible closed loop, not on equal work per system.
 | Emotion | a few persistent dimensions, event feedback, decay and expression effects | complex emotion theory and personality shaping |
 | Energy | energy/fatigue, Turn/Activity budgets, emergency reserve and degradation | full physiology and precise circadian simulation |
 | Motivation | a few safety, rest, attachment, curiosity and commitment drives with satisfaction/cooldown | large need model and reinforcement learning |
-| Memory | working memory, key episodes, relationships, source and minimum retrieval | full graph reasoning, complex forgetting and automatic knowledge system |
-| Reasoning Core | basic understanding, structured decision, validation and inhibition | generic long-horizon Planner, many Skills and Worker orchestration |
-| Persistent Activity | validation, waiting, internal trigger, single-domain Steps, receipts and terminal states | complex Goal graph, deep derivation and advanced replanning |
+| Memory | key durable episodes, relationships, provenance and minimum retrieval | full graph reasoning, complex forgetting and automatic knowledge system |
+| Reasoning Core | Reasoning Context Workspace, direct/deliberate no-tool chat, structured decision, validation and inhibition | generic long-horizon Planner, many Skills and Worker orchestration |
+| Persistent Activity | validation, waiting, Activity trigger, single-domain Steps, receipts and terminal states | complex Goal graph, deep derivation and advanced replanning |
 | Cognitive Consolidation | reserve inputs, candidate outputs and permission boundary | a complete Consolidation Run |
 
 ### 9.2 P1 after the basic loop stabilizes
@@ -782,7 +797,7 @@ deterministic time/condition events.
 - run side-effect-free Preflight in the current ReasoningRun and commit only `VALIDATED` drafts;
 - persist Context Capsule, ExecutionScope, state, Steps and idempotency;
 - support waiting, waking, pause, cancellation, expiry, bounded retry and receipt reconciliation;
-- emit a new Internal Trigger when due rather than executing directly;
+- emit a new Activity Trigger when due rather than executing directly;
 - split communication and embodied effects into separate Steps and Turns.
 
 - **Visible result:** reliably fulfill an explicit future commitment or reminder.
@@ -800,7 +815,7 @@ After Activities stabilize, enable constrained Motivation:
 - pressure computed from energy, emotion, personality, memory, commitments,
   situation and time;
 - competition, inhibition, saturation, satisfaction, cooldown and fingerprints;
-- only `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` output;
+- only `AttentionBias`, `GoalCandidate` or `ActivityTriggerCandidate` output;
 - a new Turn chooses No-op, clarification or a constrained Activity.
 
 Enable one low-risk, quickly satisfiable drive first.
@@ -822,7 +837,7 @@ Start with memory consolidation and conflict discovery:
   during sleep or long idle windows;
 - form memory, relationship, selfhood, personality and procedural candidates;
 - authoritative owners validate, rate-limit, version and commit candidates;
-- create only a waking Internal Trigger when further action is needed;
+- create only a waking Activity Trigger when further action is needed;
 - remain interruptible, recoverable and independently budgeted.
 
 - **Visible result:** better-organized retrieval next day or one explainable experience candidate.

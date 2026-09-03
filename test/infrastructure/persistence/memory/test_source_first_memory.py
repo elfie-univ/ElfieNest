@@ -74,6 +74,43 @@ def test_episode_write_is_complete_idempotent_and_reopenable(tmp_path: Path) -> 
             )
 
 
+def test_host_failure_notice_is_not_recallable_from_legacy_episode() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="episode-fallback",
+                idempotency_key="fallback-key",
+                occurred_from="2026-08-26T00:00:00+00:00",
+                content_text=(
+                    "[owner:1] 你来自哪里？\n[elfie:1] 我这次没能完成回复，请稍后再试。"
+                ),
+                source_event_ids=(
+                    "owner-fallback-1",
+                    "elfie-reply:reasoning-fallback-intent-turn-1",
+                ),
+            )
+        )
+        store.record_episode(
+            ClosedEpisode(
+                episode_id="episode-real",
+                idempotency_key="real-key",
+                occurred_from="2026-08-26T00:01:00+00:00",
+                content_text="[owner:1] 你来自哪里？\n[elfie:1] 我来自 Elfaria。",
+                source_event_ids=("owner-real-1", "elfie-reply:real-intent-1"),
+            )
+        )
+
+        lexical = store.search_text("你来自哪里？", node_type="episodic", top_k=10)
+        assert "episode-fallback" not in {episode_id for episode_id, _score in lexical}
+        assert "episode-real" in {episode_id for episode_id, _score in lexical}
+
+        recalled = store.recall(RecallRequest(text="你来自哪里？", lexical_limit=10))
+        assert "episode-fallback" not in {
+            episode.episode_id for episode in recalled.episodes
+        }
+        assert "episode-real" in {episode.episode_id for episode in recalled.episodes}
+
+
 def test_completed_candidate_uses_source_first_episode_even_at_low_intensity(
     tmp_path: Path,
 ) -> None:

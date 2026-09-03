@@ -176,6 +176,72 @@ def test_memory_use_references_are_limited_to_the_recall_allow_list() -> None:
     )
 
 
+def test_cognitive_action_canonicalizes_omitted_assertion_namespace() -> None:
+    # Given: RecallBundle exposes the persisted assertion id with its namespace,
+    # while the model copies only the visible assertion suffix.
+    raw = {
+        "type": "answer",
+        "content": "记得，是蓝色。",
+        "memory_uses": [
+            {
+                "target_kind": "assertion",
+                "target_id": "a1",
+                "claim_ref": "主人喜欢蓝色",
+            }
+        ],
+    }
+
+    result = DecisionPlanDecoder().decode_cognitive_action(
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=(("assertion", "assertion:a1"),),
+    )
+
+    # Then: the decoder accepts the boundary shorthand but returns the one
+    # canonical id that downstream Memory settlement understands.
+    assert result.action is not None
+    assert result.action.memory_uses[0].target_id == "assertion:a1"
+    assert result.report.fallback_reason is None
+
+
+def test_cognitive_action_rejects_unknown_assertion_suffix() -> None:
+    # Given: an assertion suffix that is not present in the RecallBundle.
+    raw = {
+        "type": "answer",
+        "content": "我不确定。",
+        "memory_uses": [
+            {
+                "target_kind": "assertion",
+                "target_id": "unknown",
+            }
+        ],
+    }
+
+    result = DecisionPlanDecoder().decode_cognitive_action(
+        generation=ModelGenerationResult(
+            text=json.dumps(raw),
+            selected_mode=StructuredOutputMode.JSON_SCHEMA,
+            model_key="mock-model",
+            provider="mock-provider",
+        ),
+        capabilities=_capabilities(supports_json_schema=True, supports_json_mode=True),
+        allowed_memory_references=(("assertion", "assertion:a1"),),
+    )
+
+    # Then: unknown references remain fail-closed.
+    assert result.action is None
+    assert result.report.fallback_reason == "cognitive_action_validation_failed"
+    assert any(
+        "outside the supplied RecallBundle" in error
+        for error in result.report.validation_errors
+    )
+
+
 def test_json_mode_valid_text_decodes_without_repair() -> None:
     # Given: a JSON-mode model returns valid DecisionPlan text.
     # When: the decoder validates the JSON boundary.
@@ -324,7 +390,7 @@ def test_failed_json_repair_suppresses_json_like_raw_text() -> None:
     )
 
 
-def test_invalid_owner_model_output_falls_back_to_the_trusted_chat_target() -> None:
+def test_invalid_owner_model_output_falls_back_to_a_truthful_chat_notice() -> None:
     # Given: the host has proven the inbound owner conversation and the model
     # returned an unusable JSON-shaped response.
     seed = _seed().model_copy(
@@ -349,7 +415,7 @@ def test_invalid_owner_model_output_falls_back_to_the_trusted_chat_target() -> N
     assert intent.type == "message"
     assert intent.channel_id == "godot-owner"  # type: ignore[attr-defined]
     assert intent.conversation_id == "owner:7"  # type: ignore[attr-defined]
-    assert intent.content == "我收到你的消息了，正在想一想。"  # type: ignore[attr-defined]
+    assert intent.content == "我这次没能完成回复，请稍后再试。"  # type: ignore[attr-defined]
 
 
 def test_known_legacy_decision_plan_wrapper_extracts_reply_without_repair() -> None:

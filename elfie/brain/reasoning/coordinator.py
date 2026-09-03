@@ -7,6 +7,7 @@ from collections import OrderedDict
 from concurrent.futures import Future
 from dataclasses import replace
 from datetime import datetime, timezone
+from random import Random
 from threading import Event
 from typing import Callable, Optional, Tuple
 from uuid import uuid4
@@ -37,7 +38,7 @@ from elfie.brain.reasoning.coordinator_runtime import (
     CoordinatorRuntime,
     TurnOutcomeBuffer,
 )
-from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
+from elfie.brain.reasoning.coordinator_turn import ReasoningRunController
 from elfie.brain.reasoning.coordinator_types import (
     BarrierControl,
     FrameAffectTxn,
@@ -52,6 +53,10 @@ from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
 )
 from elfie.brain.reasoning.decision_governance import govern_decision
+from elfie.brain.reasoning.embodied_control import (
+    EmbodiedInputMode,
+    EmbodiedMockController,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.run import (
     CognitiveStep,
@@ -62,8 +67,14 @@ from elfie.brain.reasoning.run import (
 from elfie.brain.reasoning.settlement import TurnSettlementPort
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
-from elfie.brain.state_lifecycle import StateCommitStatus
-from elfie.brain.workspace.contracts import IngestDisposition
+from elfie.brain.workspace.contracts import (
+    ExecutionPayload,
+    ExecutionStatus,
+    IngestDisposition,
+    PhysicalModality,
+    PhysicalPayload,
+    SourceDomain,
+)
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
@@ -90,6 +101,8 @@ class BrainCoordinator:
         settlement: TurnSettlementPort,
         initial_timestamp: float,
         next_autonomous_at: Optional[float] = None,
+        embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.BRAIN,
+        mock_wander_random: Random | None = None,
         hard_timeout_seconds: float = 45.0,
         trigger_policy: Optional[TurnTriggerPolicy] = None,
         allowed_tools: Tuple[str, ...] = (),
@@ -113,6 +126,7 @@ class BrainCoordinator:
         self._settlement = settlement
         self._timestamp = initial_timestamp
         self._next_autonomous_at = next_autonomous_at
+        self._embodied_input_mode = EmbodiedInputMode(embodied_input_mode)
         self._hard_timeout = hard_timeout_seconds
         self._policy = trigger_policy or TurnTriggerPolicy()
         self._motivation_blocked = motivation_blocked or (lambda: False)
@@ -124,7 +138,7 @@ class BrainCoordinator:
         # accidentally be starved by the normal input thresholds.
         self._motivation_due = False
         self._consolidation_due = False
-        self._turn_factory = CoordinatorTurnFactory(
+        self._turn_factory = ReasoningRunController(
             elfie_id=elfie_id,
             homeostasis=homeostasis,
             context_source=context_source,
@@ -147,6 +161,17 @@ class BrainCoordinator:
             outcomes=self._outcomes,
             settlement=settlement,
             context_source=context_source,
+        )
+        self._embodied_mock = (
+            EmbodiedMockController(
+                elfie_id=elfie_id,
+                workspace=workspace,
+                context_source=context_source,
+                plan_sink=plan_sink,
+                rng=mock_wander_random,
+            )
+            if self._embodied_input_mode is EmbodiedInputMode.MOCK
+            else None
         )
 
     def start(self) -> None:
@@ -177,6 +202,10 @@ class BrainCoordinator:
     @property
     def is_alive(self) -> bool:
         return self._runtime.is_alive
+
+    @property
+    def embodied_input_mode(self) -> EmbodiedInputMode:
+        return self._embodied_input_mode
 
     def outcomes(self) -> Tuple[TurnOutcome, ...]:
         return self._outcomes.snapshot()
@@ -245,6 +274,10 @@ class BrainCoordinator:
         else:
             self._emotion.advance_to(pulse.timestamp)
         self._timestamp = pulse.timestamp
+        if self._embodied_mock is not None:
+            self._embodied_mock.on_clock(
+                datetime.fromtimestamp(self._timestamp, timezone.utc)
+            )
         self._maybe_emit_motivation()
         self._maybe_emit_consolidation()
         if (
@@ -389,13 +422,29 @@ class BrainCoordinator:
     def _maybe_start_turn(self) -> None:
         if self._inflight is not None:
             return
+        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
+        if self._embodied_mock is not None:
+            self._embodied_mock.drain(now)
+            if self._workspace.metrics().critical_event_count == 0:
+                self._maybe_start_turn_for_domains(
+                    now,
+                    (SourceDomain.COMMUNICATION, SourceDomain.INTERNAL),
+                )
+                return
+        self._maybe_start_turn_for_domains(now, None)
+
+    def _maybe_start_turn_for_domains(
+        self,
+        now: datetime,
+        source_domains: tuple[SourceDomain, ...] | None,
+    ) -> None:
+        """Start one normal turn, optionally excluding routine embodied input."""
         autonomous_due = (
             self._ensure_autonomous_event()
             or self._motivation_due
             or self._consolidation_due
         )
         metrics = self._workspace.metrics()
-        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
         decision = self._policy.evaluate(
             metrics,
             now=now,
@@ -404,16 +453,21 @@ class BrainCoordinator:
         if decision.reason is None or decision.cutoff_seq is None:
             return
         turn_id = TurnId(f"turn_{uuid4().hex}")
-        try:
-            frame = self._workspace.claim_frame(
-                decision.cutoff_seq,
-                turn_id=turn_id,
-                reason=decision.reason,
-                captured_at=now,
-            )
-        except FrameLifecycleError as error:
-            if error.reason != "no perception writes are available":
-                raise
+        frame = None
+        for source_domain in source_domains or (None,):
+            try:
+                frame = self._workspace.claim_frame(
+                    decision.cutoff_seq,
+                    turn_id=turn_id,
+                    reason=decision.reason,
+                    captured_at=now,
+                    source_domain=source_domain,
+                )
+                break
+            except FrameLifecycleError as error:
+                if error.reason != "no perception writes are available":
+                    raise
+        if frame is None:
             self._motivation_due = False
             self._consolidation_due = False
             return
@@ -422,6 +476,8 @@ class BrainCoordinator:
                 self._journal.record_run_started(frame, turn_id)
             requires_model = self._requires_model(frame)
             affect_txn, is_new_affect_txn = self._prepare_affect_transaction(frame)
+            conversation = self._turn_factory.observe_conversation(frame, now)
+            self._flush_pending_handoffs()
             task = self._turn_factory.build_task(
                 frame,
                 turn_id,
@@ -429,8 +485,8 @@ class BrainCoordinator:
                 emotion=affect_txn.stable_snapshot,
                 appraisal_scopes=affect_txn.appraisal_scopes,
                 requires_model=requires_model,
+                conversation=conversation,
             )
-            self._capture_closed_episodes(task)
             if requires_model:
                 future = self._worker.submit(task)
             else:
@@ -482,7 +538,10 @@ class BrainCoordinator:
 
     @staticmethod
     def _requires_model(frame) -> bool:
-        """Admit model work only for owner interaction, internal work, or salient input."""
+        """Admit model work for meaningful inputs, not routine receipt bookkeeping."""
+
+        if BrainCoordinator._is_routine_receipt_frame(frame):
+            return False
 
         if any(
             getattr(event.payload, "sender", None) is not None
@@ -495,13 +554,50 @@ class BrainCoordinator:
             or getattr(frame.source_domain, "value", None) == "internal"
         ):
             return True
-        return any(event.salience >= 0.75 for event in frame.events)
+        return any(
+            event.salience >= 0.75
+            or (
+                isinstance(event.payload, PhysicalPayload)
+                and event.payload.modality is PhysicalModality.PROPRIOCEPTION
+                and event.payload.content.startswith("action=")
+            )
+            for event in frame.events
+        )
+
+    @staticmethod
+    def _is_routine_receipt_frame(frame) -> bool:
+        """Keep successful OutputRouter receipts on the local NoOp path.
+
+        Receipts are still appraised, settled, journaled, and committed by the
+        existing completion/output chain.  Only an errored receipt is allowed
+        to re-enter model reasoning, so salient failures and explicit internal
+        Activity signals retain their existing model-backed behavior.
+        """
+
+        if (
+            frame.source_domain is not SourceDomain.INTERNAL
+            or not frame.events
+            or frame.state_updates
+            or frame.media_samples
+        ):
+            return False
+        return all(
+            isinstance(event.payload, ExecutionPayload)
+            and event.payload.status
+            in {
+                ExecutionStatus.ACCEPTED,
+                ExecutionStatus.STARTED,
+                ExecutionStatus.COMPLETED,
+            }
+            and event.payload.error is None
+            for event in frame.events
+        )
 
     @staticmethod
     def _no_model_result(task) -> ReasoningTurnResult:
         """Build an auditable local NoOp for routine frames without inference."""
 
-        plan = CoordinatorTurnFactory.noop_plan(task.seed, "routine_frame_no_model")
+        plan = ReasoningRunController.noop_plan(task.seed, "routine_frame_no_model")
         report = DecisionDecodeReport(
             selected_mode=DecisionDecodeMode.JSON_TEXT,
             validation_errors=(),
@@ -530,34 +626,11 @@ class BrainCoordinator:
         )
         return ReasoningTurnResult(decode=decode, reasoning=reasoning)
 
-    def _capture_closed_episodes(self, task) -> None:
-        """Persist upstream-closed Episodes before inference starts.
-
-        WorkingContext owns topic boundaries; this coordinator only forwards
-        the resulting typed source records to Memory.  A failed write aborts
-        the frame claim while the upstream queue remains retryable.
-        """
-        episodes = getattr(task, "closed_episodes", ())
-        if not episodes:
-            return
+    def _flush_pending_handoffs(self) -> None:
+        """Flush the Context Workspace handoff before Memory Recall is pinned."""
         capture = getattr(self._settlement, "capture_episodes", None)
-        if not callable(capture):
-            raise RuntimeError("source-first Episode capture is unavailable")
-        receipts = capture(tuple(episodes))
-        failed = tuple(
-            receipt
-            for receipt in receipts
-            if receipt.status
-            not in {StateCommitStatus.COMMITTED, StateCommitStatus.DUPLICATE}
-        )
-        if failed:
-            reasons = ",".join(
-                receipt.reason or receipt.status.value for receipt in failed
-            )
-            raise RuntimeError(f"Episode source capture failed: {reasons}")
-        acknowledge = getattr(self._context_source, "ack_closed_episodes", None)
-        if callable(acknowledge):
-            acknowledge(tuple(episode.episode_id for episode in episodes))
+        if callable(capture):
+            self._context_source.flush_pending_handoffs(capture)
 
     def _handle_worker_done(self, control: WorkerDoneControl) -> None:
         inflight = self._inflight

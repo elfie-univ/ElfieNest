@@ -9,13 +9,14 @@ export type ProviderLifecycleAction = "enable" | "disable" | "archive" | "restor
 type ProviderLifecycleMenuProps = {
   readonly archived: boolean
   readonly busy: boolean
+  readonly canDelete: boolean
   readonly enabled: boolean
   readonly onDelete: () => void
   readonly onForceFull: () => void
   readonly onLifecycle: (action: ProviderLifecycleAction) => void
 }
 
-export function ProviderLifecycleMenu({ archived, busy, enabled, onDelete, onForceFull, onLifecycle }: ProviderLifecycleMenuProps) {
+export function ProviderLifecycleMenu({ archived, busy, canDelete, enabled, onDelete, onForceFull, onLifecycle }: ProviderLifecycleMenuProps) {
   const { t } = useTranslation("manage")
 
   return <DropdownMenu.Root>
@@ -34,7 +35,7 @@ export function ProviderLifecycleMenu({ archived, busy, enabled, onDelete, onFor
             ? <DropdownMenu.Item className="provider-lifecycle-menu__item" onSelect={() => onLifecycle("disable")}>{t("providerConnections.actions.disable")}</DropdownMenu.Item>
             : <DropdownMenu.Item className="provider-lifecycle-menu__item" onSelect={() => onLifecycle("enable")}>{t("providerConnections.actions.enable")}</DropdownMenu.Item>}
         {!archived ? <DropdownMenu.Item className="provider-lifecycle-menu__item" onSelect={() => onLifecycle("archive")}>{t("providerConnections.actions.archive")}</DropdownMenu.Item> : null}
-        <DropdownMenu.Item className="provider-lifecycle-menu__item provider-lifecycle-menu__item--danger" disabled={!archived} onSelect={onDelete}>{t("providerConnections.actions.delete")}</DropdownMenu.Item>
+        <DropdownMenu.Item className="provider-lifecycle-menu__item provider-lifecycle-menu__item--danger" disabled={!canDelete} onSelect={onDelete} title={!canDelete ? t("providerConnections.actions.deleteRequiresArchive") : undefined}>{t("providerConnections.actions.delete")}</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Portal>
   </DropdownMenu.Root>

@@ -18,6 +18,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationRequest,
     ModelGenerationResult,
+    ModelResponseMode,
     StructuredOutputMode,
 )
 from elfie.brain.runtime import BrainRuntime
@@ -50,12 +51,7 @@ def _selfhood_seed(elfie_id: str, display_name: str | None = None) -> dict[str, 
             "display_name": display_name or elfie_id,
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "north",
-            "home_region_name": "北境",
-            "earth_arrival_statement": "我被领养来到地球。",
-            "resident_role": "居民",
+            "resident_role": "ElfieNest 居民",
         },
         "adaptive_self": {
             "big_five": {
@@ -120,6 +116,13 @@ class TwoTurnRuntime:
         if len(self.requests) == 1:
             self.first_started.set()
             self.release_first.wait()
+            if request.response_mode is ModelResponseMode.DIRECT_REPLY:
+                return ModelGenerationResult(
+                    text=json.dumps({"type": "answer", "content": "reply one"}),
+                    selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                    provider="fake",
+                    model_key="fake/schema",
+                )
             intents = self._first_intents(request)
         else:
             self.second_started.set()
@@ -249,7 +252,12 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
         model_port=runtime,
     )
     elfie.start()
-    elfie.receive_communication_envelope(_owner_message(elfie.cognitive_datetime))
+    elfie.receive_communication_envelope(
+        _owner_message(
+            elfie.cognitive_datetime,
+            text="请提醒我稍后看看窗外",
+        )
+    )
     elfie.advance_clock(0.5)
     assert runtime.first_started.wait(1)
 
@@ -274,11 +282,17 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     # When: receipt facts age into the next frame.
     elfie.advance_clock(5.0)
 
-    # Then: the second turn sees execution receipts from the first turn.
-    assert runtime.second_started.wait(1)
+    # Then: the receipt-only frame is handled locally without another Provider call.
     elfie.wait_for_outcome_count(2, timeout=1)
-    assert "execution:receipt" in runtime.requests[1].user_prompt
+    assert len(runtime.requests) == 1
     second = elfie.turn_outcomes()[1]
+    second_decision = elfie.turn_decision(second.turn_id)
+    assert second_decision is not None
+    assert tuple(intent.type for intent in second_decision.plan.intents) == ("noop",)
+    second_reasoning = elfie.turn_reasoning(second.turn_id)
+    assert second_reasoning is not None
+    assert second_reasoning.model_calls == 0
+    assert second_reasoning.tool_calls == 0
     elfie.wait_for_output(second.turn_id, timeout=1)
 
     # When: the second turn deliberately completes with NoOp and time advances.
@@ -288,7 +302,7 @@ def test_cognitive_lifecycle_runs_two_turns_without_blocking_clock() -> None:
     # into cognition forever.
     with pytest.raises(TimeoutError):
         elfie.wait_for_outcome_count(3, timeout=0.2)
-    assert len(runtime.requests) == 2
+    assert len(runtime.requests) == 1
     journal_kinds = {entry.kind for entry in elfie.brain_journal()}
     assert BrainJournalKind.RUN_STARTED in journal_kinds
     assert BrainJournalKind.RUN_TERMINATED in journal_kinds
@@ -395,7 +409,9 @@ def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> Non
     runtime._started = False
     runtime._journal_store = MagicMock()
     runtime._journal_store.load_checkpoint.return_value = None
+    runtime._reconcile_pending_reply_receipts = MagicMock(return_value=False)
     runtime._reconcile_interrupted_work = MagicMock(return_value=False)
+    runtime._flush_pending_handoffs = MagicMock()
     runtime.router = MagicMock()
     runtime.coordinator = MagicMock()
     runtime.coordinator.start.side_effect = RuntimeError("coordinator failed")

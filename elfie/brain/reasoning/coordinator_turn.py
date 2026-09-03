@@ -21,9 +21,14 @@ from elfie.brain.reasoning.context_compiler import (
     ModelContextCompiler,
     ModelTokenBudget,
 )
+from elfie.brain.reasoning.context_types import ConversationContext
 from elfie.brain.reasoning.coordinator_ports import BrainContextSource
-from elfie.brain.reasoning.decision_decoder import DecisionDecodeSeed
+from elfie.brain.reasoning.decision_decoder import (
+    DecisionDecodeSeed,
+    DecisionPlanDecoder,
+)
 from elfie.brain.reasoning.decision_types import CancelPolicy, DecisionPlan, NoOpIntent
+from elfie.brain.reasoning.memory_compiler import recall_memory_reference_ids
 from elfie.brain.reasoning.model_header import (
     ModelHeaderAssembler,
     ReasoningConstitution,
@@ -34,7 +39,11 @@ from elfie.brain.reasoning.model_port import (
     ModelResponseMode,
 )
 from elfie.brain.reasoning.reply_safety import ReplySafetyContext
-from elfie.brain.reasoning.run import ReasoningBudget
+from elfie.brain.reasoning.run import (
+    CurrentRunObservation,
+    ReasoningBudget,
+    ReasoningDepth,
+)
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
     ExternalExecutionDomain,
@@ -64,18 +73,22 @@ _EXPLICIT_STRUCTURED_OWNER_INTENT = re.compile(
     r"(?:提醒|别忘|定时|到时(?:候)?(?:告诉|提醒|通知)|"
     r"(?:^|[，,。！？!?])\s*(?:请你?)?记得|"
     r"(?:安排|预约).{0,12}(?:今天|明天|后天|下周|\d{1,2}[点号日])|"
-    r"(?:帮我|请你|麻烦你|你能(?:不能)?).{0,24}"
-    r"(?:分析|研究|比较|整理|制定|规划|写|生成|查找|搜索|执行|完成)|"
     r"你.{0,8}(?:答应|承诺)|"
     r"remind\s+me|set\s+(?:a\s+)?reminder|don['’]?t\s+forget|"
-    r"do\s+not\s+forget|schedule\b|"
-    r"(?:please|can\s+you|could\s+you).{0,32}"
-    r"(?:analy[sz]e|research|compare|organize|plan|write|create|find|search))",
+    r"do\s+not\s+forget|schedule\b)",
+    flags=re.IGNORECASE,
+)
+
+_DELIBERATE_OWNER_INTENT = re.compile(
+    r"(?:分析|比较|对比|解释|评估|权衡|梳理|推理|总结|为何|为什么|"
+    r"纠正|更正|不是.{0,20}而是|矛盾|冲突|之前|上次|还记得|"
+    r"analy[sz]e|compare|explain|evaluate|trade-?off|reason|correct|"
+    r"conflict|previous(?:ly)?|last\s+time|remember)",
     flags=re.IGNORECASE,
 )
 
 
-class CoordinatorTurnFactory:
+class ReasoningRunController:
     """Build turns synchronously under Coordinator single-writer ownership."""
 
     def __init__(
@@ -106,6 +119,7 @@ class CoordinatorTurnFactory:
         emotion: EmotionSnapshot,
         appraisal_scopes: tuple[TrustedAppraisalScope, ...],
         requires_model: bool = True,
+        conversation: ConversationContext | None = None,
     ) -> ReasoningTask:
         """Appraise inputs, seal snapshots, and compile one model request."""
         captured_at = datetime.fromtimestamp(timestamp, timezone.utc)
@@ -119,19 +133,13 @@ class CoordinatorTurnFactory:
             else None
         )
         homeostasis = self._homeostasis.snapshot(timestamp)
-        conversation = self._context_source.conversation(frame, captured_at)
-        memory = self._context_source.memory(frame, emotion, captured_at)
-        recall = cast(RecallBundle, memory.recall)
-        memory_reference_ids = tuple(
-            dict.fromkeys(
-                [("node", node.node_id) for node in recall.focus_nodes]
-                + [
-                    ("assertion", assertion.assertion_id)
-                    for assertion in recall.assertions
-                ]
-                + [("episode", episode.episode_id) for episode in recall.episodes]
-            )
+        conversation = conversation or self._context_source.conversation(
+            frame, captured_at
         )
+        memory_turn = self._context_source.memory_turn(frame, emotion, captured_at)
+        memory = memory_turn.context
+        recall = cast(RecallBundle, memory.recall)
+        memory_reference_ids = recall_memory_reference_ids(recall)
         memory_candidate_reader = getattr(
             self._context_source, "memory_candidates", None
         )
@@ -139,12 +147,6 @@ class CoordinatorTurnFactory:
             memory_candidate_reader(frame, emotion, captured_at)
             if memory_candidate_reader is not None
             else ()
-        )
-        closed_episode_reader = getattr(
-            self._context_source, "pending_closed_episodes", None
-        )
-        closed_episodes = (
-            tuple(closed_episode_reader()) if closed_episode_reader is not None else ()
         )
         activities_reader = getattr(self._context_source, "activities", None)
         activities = (
@@ -211,8 +213,14 @@ class CoordinatorTurnFactory:
             captured_at=captured_at,
             constitution_version=self._header.version,
         )
-        reasoning_mode = self._reasoning_mode(frame, homeostasis)
         response_mode = self._response_mode(frame)
+        reasoning_depth = self._reasoning_depth(frame, homeostasis)
+        reasoning_mode = self._reasoning_mode(reasoning_depth, homeostasis)
+        effective_tools = self._effective_tools(
+            frame,
+            reasoning_depth,
+            homeostasis,
+        )
         structured_owner_reply = (
             reasoning_mode == "fast"
             and self._contains_owner_message(frame)
@@ -221,12 +229,9 @@ class CoordinatorTurnFactory:
         )
         reasoning_budget = self._reasoning_budget(
             homeostasis,
-            reasoning_mode,
+            reasoning_depth,
+            effective_tools=effective_tools,
             structured_owner_reply=structured_owner_reply,
-        )
-        compiled = self._compiler.compile(
-            context,
-            budget=ModelTokenBudget(max_tokens=self._model_token_budget(homeostasis)),
         )
         reply_channel_id, reply_conversation_id = self._owner_reply_target(frame)
         fast_owner_reply = response_mode is ModelResponseMode.DIRECT_REPLY
@@ -246,54 +251,97 @@ class CoordinatorTurnFactory:
             reply_channel_id=reply_channel_id,
             reply_conversation_id=reply_conversation_id,
         )
-        system_prompt, user_prompt = self._model_prompts(
-            compiled,
-            fast_owner_reply=fast_owner_reply,
-            structured_owner_reply=structured_owner_reply,
-            decision_seed=seed,
-            appraisal_scopes=appraisal_scopes,
-            header=self._header,
-            allowed_tools=self._allowed_tools,
+        token_budget = ModelTokenBudget(
+            max_tokens=self._model_token_budget(homeostasis)
         )
-        request = ModelGenerationRequest(
-            turn_id=seed.turn_id,
-            frame_id=seed.frame_id,
-            context_revision=seed.context_revision,
-            capability_revision=seed.capability_revision,
-            created_at=seed.created_at,
-            deadline=seed.deadline,
-            cause_event_ids=seed.cause_event_ids,
-            source_domain=frame.source_domain,
-            interaction_scope=frame.interaction_scope,
-            response_scope=frame.response_scope,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            response_schema=JsonSchemaDocument(
-                name="DecisionPlan",
-                document=DecisionPlan.model_json_schema(),
-            ),
-            reasoning_mode=reasoning_mode,
-            response_mode=response_mode,
-            allowed_tools=self._allowed_tools if reasoning_mode == "long" else (),
-            max_tokens=self._model_output_budget(
-                homeostasis,
-                reasoning_mode,
+
+        def build_context_request(
+            observations: tuple[CurrentRunObservation, ...],
+        ) -> ModelGenerationRequest:
+            """Rebuild every cognitive step through the one Context Engine."""
+            compiled = self._compiler.compile(
+                context,
+                budget=token_budget,
+                observations=observations,
+            )
+            system_prompt, user_prompt = self._model_prompts(
+                compiled,
+                fast_owner_reply=fast_owner_reply,
                 structured_owner_reply=structured_owner_reply,
-            ),
-        )
+                decision_seed=seed,
+                appraisal_scopes=appraisal_scopes,
+                header=self._header,
+                allowed_tools=effective_tools,
+                memory_recall_status=memory_turn.session.baseline_result.status,
+                memory_recall_reason=memory_turn.session.baseline_result.reason,
+                recall_memory_allowed=(
+                    response_mode is ModelResponseMode.DIRECT_REPLY
+                    and reasoning_depth is ReasoningDepth.DELIBERATE
+                ),
+                persistent_activity_allowed=(
+                    response_mode is ModelResponseMode.DECISION_PLAN
+                ),
+            )
+            return ModelGenerationRequest(
+                turn_id=seed.turn_id,
+                frame_id=seed.frame_id,
+                context_revision=seed.context_revision,
+                capability_revision=seed.capability_revision,
+                created_at=seed.created_at,
+                deadline=seed.deadline,
+                cause_event_ids=seed.cause_event_ids,
+                source_domain=frame.source_domain,
+                interaction_scope=frame.interaction_scope,
+                response_scope=frame.response_scope,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_schema=(
+                    JsonSchemaDocument(
+                        name="CognitiveAction",
+                        document=DecisionPlanDecoder.cognitive_action_schema(),
+                    )
+                    if response_mode is ModelResponseMode.DIRECT_REPLY
+                    else JsonSchemaDocument(
+                        name="DecisionPlan",
+                        document=DecisionPlan.model_json_schema(),
+                    )
+                ),
+                reasoning_mode=reasoning_mode,
+                response_mode=response_mode,
+                allowed_tools=effective_tools,
+                max_tokens=self._model_output_budget(
+                    homeostasis,
+                    reasoning_mode,
+                    structured_owner_reply=structured_owner_reply,
+                ),
+            )
+
+        request = build_context_request(())
         return ReasoningTask(
             request=request,
             seed=seed,
             tool_scope_id=self._elfie_id,
             reasoning_budget=reasoning_budget,
+            reasoning_depth=reasoning_depth,
             energy_reservation=energy_reservation,
             state_candidates=state_candidates,
-            closed_episodes=closed_episodes,
             reply_safety_context=self._reply_safety_context(frame),
             memory_reference_ids=memory_reference_ids,
             memory_recall_revision=memory.recall_revision,
+            memory_session=memory_turn.session,
+            memory_baseline_status=memory_turn.session.baseline_result.status,
+            memory_baseline_reason=memory_turn.session.baseline_result.reason,
             appraisal_scopes=appraisal_scopes,
+            context_request_builder=build_context_request,
         )
+
+    def observe_conversation(
+        self,
+        frame: TurnFrame,
+        captured_at: datetime,
+    ) -> ConversationContext:
+        """Append admitted input before Memory revision pinning and Recall."""
+        return self._context_source.conversation(frame, captured_at)
 
     @staticmethod
     def _model_token_budget(homeostasis) -> int:
@@ -317,7 +365,15 @@ class CoordinatorTurnFactory:
         if reasoning_mode == "fast":
             if structured_owner_reply:
                 return 1024 if homeostasis.cognitive_mode == "emergency" else 1536
-            return 192
+            # Embodied fast turns still return a complete DecisionPlan.  The
+            # plan may contain several dynamic capability intents, so the
+            # compact chat budget is not sufficient for this branch.
+            return {
+                "emergency": 384,
+                "degraded": 512,
+                "normal": 768,
+                "long": 1024,
+            }[homeostasis.cognitive_mode]
         if homeostasis.cognitive_mode == "emergency":
             return 768
         if homeostasis.cognitive_mode == "degraded":
@@ -329,12 +385,13 @@ class CoordinatorTurnFactory:
     @staticmethod
     def _reasoning_budget(
         homeostasis: EnergySnapshot,
-        reasoning_mode: Literal["fast", "long"],
+        reasoning_depth: ReasoningDepth,
         *,
+        effective_tools: tuple[str, ...] = (),
         structured_owner_reply: bool = False,
     ) -> ReasoningBudget:
         """Map Energy mode to bounded model/tool/step admission."""
-        if reasoning_mode == "fast":
+        if reasoning_depth is ReasoningDepth.DIRECT:
             deadline = 5.0 if homeostasis.cognitive_mode == "emergency" else 12.0
             return ReasoningBudget(
                 # Owner-facing fast turns are one provider call: the same
@@ -345,6 +402,22 @@ class CoordinatorTurnFactory:
                 max_model_calls=1,
                 max_tool_calls=0,
                 deadline_seconds=deadline,
+            )
+        if not effective_tools:
+            if homeostasis.cognitive_mode == "emergency":
+                return ReasoningBudget(
+                    max_steps=3,
+                    max_model_calls=1,
+                    max_tool_calls=0,
+                    deadline_seconds=5.0,
+                )
+            return ReasoningBudget(
+                max_steps=5,
+                max_model_calls=2,
+                max_tool_calls=0,
+                deadline_seconds=(
+                    15.0 if homeostasis.cognitive_mode == "degraded" else 30.0
+                ),
             )
         if homeostasis.cognitive_mode == "emergency":
             return ReasoningBudget(
@@ -370,17 +443,53 @@ class CoordinatorTurnFactory:
         return ReasoningBudget()
 
     @staticmethod
-    def _reasoning_mode(
+    def _reasoning_depth(
         frame: TurnFrame,
         homeostasis: EnergySnapshot,
-    ) -> Literal["fast", "long"]:
-        """Keep external interaction responsive; only internal work may go long."""
+    ) -> ReasoningDepth:
+        """Select one Turn's cognitive depth without granting capabilities."""
         if (
             frame.source_domain is SourceDomain.INTERNAL
             and homeostasis.long_reasoning_allowed
         ):
+            return ReasoningDepth.DELIBERATE
+        owner_messages = tuple(
+            event.payload.content
+            for event in frame.events
+            if isinstance(event.payload, SocialPayload)
+            and event.payload.sender.source_kind == "owner"
+        )
+        if any(_DELIBERATE_OWNER_INTENT.search(text) for text in owner_messages):
+            return ReasoningDepth.DELIBERATE
+        return ReasoningDepth.DIRECT
+
+    @staticmethod
+    def _reasoning_mode(
+        reasoning_depth: ReasoningDepth,
+        homeostasis: EnergySnapshot,
+    ) -> Literal["fast", "long"]:
+        """Derive the provider thinking hint from the frozen cognitive depth."""
+        if (
+            reasoning_depth is ReasoningDepth.DELIBERATE
+            and homeostasis.long_reasoning_allowed
+        ):
             return "long"
         return "fast"
+
+    def _effective_tools(
+        self,
+        frame: TurnFrame,
+        reasoning_depth: ReasoningDepth,
+        homeostasis: EnergySnapshot,
+    ) -> tuple[str, ...]:
+        """Freeze one capability set shared by Prompt, schema, budget and request."""
+        if (
+            frame.source_domain is SourceDomain.INTERNAL
+            and reasoning_depth is ReasoningDepth.DELIBERATE
+            and homeostasis.long_reasoning_allowed
+        ):
+            return self._allowed_tools
+        return ()
 
     @staticmethod
     def _owner_reply_target(
@@ -462,8 +571,12 @@ class CoordinatorTurnFactory:
         appraisal_scopes: tuple[TrustedAppraisalScope, ...] = (),
         header: ModelHeaderAssembler,
         allowed_tools: tuple[str, ...] = (),
+        memory_recall_status: str = "skipped",
+        memory_recall_reason: str | None = None,
+        recall_memory_allowed: bool = False,
+        persistent_activity_allowed: bool = False,
     ) -> tuple[str, str]:
-        brain_state = CoordinatorTurnFactory._brain_state_context(compiled)
+        brain_state = ReasoningRunController._brain_state_context(compiled)
         owner_events = [
             event
             for event in compiled.events
@@ -471,7 +584,35 @@ class CoordinatorTurnFactory:
         ]
         current = owner_events[-1] if owner_events else None
         latest = current.content if current is not None else ""
-        if structured_owner_reply or fast_owner_reply:
+        if fast_owner_reply:
+            response_policy = (
+                "Return exactly one CognitiveAction JSON object allowed by the supplied "
+                "schema. Use AnswerDraft ('answer') for a complete reply, "
+                "ClarificationDraft ('clarification') only when a required fact is "
+                "genuinely missing, and NoOpDraft ('noop') only when no honest reply is "
+                "possible. Do not emit a DecisionPlan or trusted execution IDs. "
+                "Do not claim that a search, message, reminder, body action, or other "
+                "external operation has completed unless the supplied context contains "
+                "its completed Receipt."
+            )
+            if recall_memory_allowed:
+                response_policy += (
+                    " If more persistent personal history is essential, RecallMemory "
+                    "('recall_memory') may request one focused query; after its "
+                    "MemoryObservation, return a final draft."
+                )
+            else:
+                response_policy += " RecallMemory is not allowed in this DIRECT Turn."
+            response_policy += (
+                "\nMEMORY_USE_POLICY:\n"
+                "- Final drafts may include memory_uses only for exact IDs supplied in "
+                "RELEVANT_MEMORY or a current MemoryObservation.\n"
+                "- memory_uses are auditable proposals; do not invent IDs.\n"
+                "- target_kind must be node, assertion, or episode; copy target_id "
+                "exactly from the matching NODE/FACT/EPISODE id. Never prepend "
+                "fact:, node:, or assertion:."
+            )
+        elif structured_owner_reply:
             response_policy = (
                 "Return one DecisionPlan JSON object allowed by the supplied schema. "
                 "For ordinary owner chat, include exactly one MessageIntent containing "
@@ -482,18 +623,36 @@ class CoordinatorTurnFactory:
                 "specific supplied entry; copy its exact memory_id and target kind.\n"
                 "- memory_uses are an auditable proposal, not proof that the memory "
                 "was correct or successfully used; do not invent IDs.\n"
-                "PERSISTENT_ACTIVITY_ROUTING:\n"
-                "- For an explicit future reminder, scheduled action, conditional "
-                "commitment, or work that cannot finish in this Turn, use a "
-                "PersistentActivityRequest (intent type 'activity').\n"
-                "- If required time, target, or success facts are missing, return a "
-                "scoped MessageIntent that asks one concise clarification question.\n"
-                "- Only execution receipts prove that an action completed."
+            )
+            if persistent_activity_allowed:
+                response_policy += (
+                    "\nPERSISTENT_ACTIVITY_ROUTING:\n"
+                    "- For an explicit future reminder, scheduled action, conditional "
+                    "commitment, or work that cannot finish in this Turn, use a "
+                    "PersistentActivityRequest (intent type 'activity').\n"
+                    "- If required time, target, or success facts are missing, return a "
+                    "scoped MessageIntent that asks one concise clarification question.\n"
+                    "- Only execution receipts prove that an action completed."
+                )
+            response_policy += (
+                " For any embodied operation, use CapabilityIntent with the exact "
+                "registered capability_id and typed arguments from "
+                "CAPABILITY_CATALOG; do not invent a body method."
             )
         else:
-            response_policy = "Return only a validated DecisionPlan JSON object."
+            response_policy = (
+                "Return only a validated DecisionPlan JSON object. For embodied work, "
+                "emit one or more CapabilityIntent objects with type='capability', "
+                "category='body' or 'world', capability_id copied exactly from "
+                "CAPABILITY_CATALOG, and JSON arguments matching the call. Never use "
+                "prose or an unregistered capability to control the body."
+            )
+        emotion_feedback_target = (
+            "final CognitiveAction draft" if fast_owner_reply else "DecisionPlan"
+        )
         emotion_feedback_instruction = (
-            "EMOTION_FEEDBACK: Include emotion_feedback in every DecisionPlan. "
+            "EMOTION_FEEDBACK: Include emotion_feedback in every "
+            f"{emotion_feedback_target}. "
             "Return only sparse appraisals that have positive evidence. An empty "
             "appraisals array is valid and preferred to guessing. Each appraisal must "
             "select exactly one host-provided scope_id and list only changed channels. "
@@ -554,6 +713,15 @@ class CoordinatorTurnFactory:
         history = "\n".join(
             f"{item.actor.source_kind}: {item.content}" for item in recent
         )
+        summaries = "\n".join(
+            "- "
+            f"{item.summary_id}; version={item.version}; "
+            f"sources={','.join(str(event_id) for event_id in item.source_event_ids)}; "
+            f"range={item.occurred_from.isoformat()}..{item.occurred_to.isoformat()}; "
+            f"content={item.content}; "
+            f"unresolved={' | '.join(item.unresolved_items) or 'none'}"
+            for item in compiled.summaries
+        )
         memories = compiled.memory.content
         activities = "\n".join(
             "- "
@@ -566,6 +734,13 @@ class CoordinatorTurnFactory:
             f"{item.actor.actor_id}: {item.content}"
             for item in compiled.events
             if current is None or item.event_id != current.event_id
+        )
+        run_observations = "\n".join(
+            "- "
+            f"kind={item.kind}; status={item.status}; "
+            f"revision={item.revision if item.revision is not None else 'none'}; "
+            f"sources={_format_memory_source_ids(item.source_ids)}; content={item.content}"
+            for item in compiled.run_observations
         )
         sections: list[str] = []
         if structured_owner_reply or fast_owner_reply:
@@ -621,14 +796,52 @@ class CoordinatorTurnFactory:
                 "TRUSTED_EXECUTION_CONTEXT:\n"
                 + json.dumps(trusted, ensure_ascii=False, separators=(",", ":"))
             )
+        if not fast_owner_reply:
+            body = compiled.capabilities.current_body
+            capability_catalog = {
+                "body": (
+                    {
+                        "body_id": body.body_id,
+                        "body_generation": body.body_generation,
+                        "capability_revision": body.capability_revision,
+                        "sensors": list(body.sensors),
+                        "capabilities": list(body.actions),
+                    }
+                    if body is not None
+                    else None
+                ),
+                "world": list(compiled.capabilities.world_capabilities),
+                "world_contracts": [
+                    descriptor.model_dump(mode="json")
+                    for descriptor in compiled.capabilities.capability_catalog
+                ],
+            }
+            sections.append(
+                "CAPABILITY_CATALOG:\n"
+                + json.dumps(
+                    capability_catalog,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+        sections.append(
+            "MEMORY_RECALL_STATUS:\n"
+            f"status={memory_recall_status}; "
+            f"revision={compiled.memory_recall_revision}; "
+            f"reason={memory_recall_reason or 'none'}"
+        )
         if memories:
             sections.append(f"RELEVANT_MEMORY:\n{memories}")
+        if summaries:
+            sections.append(f"CONTEXT_SUMMARIES:\n{summaries}")
         if activities:
             sections.append(f"ACTIVE_ACTIVITIES:\n{activities}")
         if observations:
             sections.append(f"CURRENT_OBSERVATIONS:\n{observations}")
         if history:
             sections.append(f"CONTEXT_ONLY:\n{history}")
+        if run_observations:
+            sections.append(f"CURRENT_RUN_OBSERVATIONS:\n{run_observations}")
         sections.append(f"CURRENT_MESSAGE:\n{latest}")
         user_prompt = "\n\n".join(sections)
         return system_prompt, user_prompt
@@ -729,4 +942,19 @@ class CoordinatorTurnFactory:
         )
 
 
-__all__ = ("CoordinatorTurnFactory",)
+def _format_memory_source_ids(source_ids: tuple[str, ...]) -> str:
+    """Render observation provenance without confusing kind labels for IDs."""
+
+    rendered: list[str] = []
+    for source_id in source_ids:
+        for kind in ("node", "assertion", "episode"):
+            prefix = f"{kind}:"
+            if source_id.startswith(prefix):
+                rendered.append(f"{kind}={source_id[len(prefix) :]}")
+                break
+        else:
+            rendered.append(source_id)
+    return ",".join(rendered) or "none"
+
+
+__all__ = ("ReasoningRunController",)

@@ -128,7 +128,9 @@ export function ProviderFormDialog({
   }
 
   const methodOptions = products.map((item) => ({
-    label: connectionMethodLabel(item, t),
+    label: products.length > 1 && item.brand.brand_id !== "openai"
+      ? item.name
+      : connectionMethodLabel(item, t),
     value: item.catalog_id,
   }))
 
@@ -139,7 +141,7 @@ export function ProviderFormDialog({
       {product.brand.brand_id !== "openai" && methodOptions.length === 1
         ? <TextField disabled label={t("providerConnections.form.method")} onChange={() => undefined} value={methodOptions[0]?.label ?? ""} />
         : <SelectField label={t("providerConnections.form.method")} onValueChange={setSelectedCatalogId} options={methodOptions} value={product.catalog_id} />}
-      {method === "api_key" ? <TextField autoComplete="new-password" autoFocus label={t("providerConnections.form.apiKey")} onChange={setApiKey} required={!connection} type="password" value={apiKey} /> : null}
+      {method === "api_key" ? <div className="provider-form__api-key"><TextField autoFocus label={t("providerConnections.form.apiKey")} masked onChange={setApiKey} required={!connection} value={apiKey} />{product.api_key_url ? <a className="provider-form__api-key-link" href={product.api_key_url} rel="noreferrer" target="_blank">{t("providerConnections.form.getApiKey")}</a> : null}</div> : null}
       {method === "oauth" && !connection && oauthStart ? <div className="provider-form__oauth" role="status">
         <p>{t("providerConnections.form.oauthCodeLabel")}</p>
         <div className="provider-form__oauth-code-row">

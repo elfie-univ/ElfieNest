@@ -21,6 +21,8 @@ class RuntimeIntentPayload(TypedDict, total=False):
     anchor_id: str
     text: str
     expression: str
+    observation_id: str
+    max_results: int
     deadline_seconds: float
     speech_profile: str
     emotion: str
@@ -50,6 +52,7 @@ class GodotGateway(Protocol):
 
 NativeEventHandler = Callable[[RuntimeEventFrame], None]
 SemanticActionResolver = Callable[[RuntimeIntentPayload], Optional[str]]
+VisualObservationRequester = Callable[[RuntimeIntentPayload], bool]
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,7 @@ class GodotTransport:
             [RuntimeIntentPayload, RuntimeIntentResult], None
         ]
         | None = None,
+        visual_observation: VisualObservationRequester | None = None,
     ):
         self.gateway = gateway
         self.actor_id = actor_id
@@ -92,6 +96,13 @@ class GodotTransport:
         self._speech_intent = speech_intent
         self._semantic_action = semantic_action
         self._semantic_action_result = semantic_action_result
+        self._visual_observation = visual_observation
+
+    def request_visual_observation(self, payload: RuntimeIntentPayload) -> bool:
+        """Delegate semantic vision requests to Nest before they reach Godot."""
+        if self._visual_observation is None:
+            return False
+        return bool(self._visual_observation(payload))
 
     def connect(self, handler: NativeEventHandler) -> None:
         with self._condition:

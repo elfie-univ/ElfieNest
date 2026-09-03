@@ -73,7 +73,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 rows = self.conn.execute(
                     """SELECT e.episode_id, f.searchable_text, 'episodic' AS node_type
                        FROM episodes_fts AS f JOIN episodes AS e USING (episode_id)
-                       WHERE e.lifecycle='active' AND ("""
+                       WHERE e.lifecycle='active' AND """
+                    + _episode_recall_eligibility("e")
+                    + " AND ("
                     + episode_where
                     + ")"
                     + episode_scope
@@ -518,7 +520,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     importance=node.importance,
                     confidence=node.confidence,
                     freshness=node.freshness,
-                    retention_days=node.retention_days,
+                    half_life_days=node.half_life_days,
                     properties=node.properties,
                 )
             )
@@ -533,7 +535,11 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     ) -> dict[str, float]:
         ids = tuple(scores)
         placeholders = ",".join("?" for _ in ids)
-        clauses = [f"episode_id IN ({placeholders})", "lifecycle='active'"]
+        clauses = [
+            f"episode_id IN ({placeholders})",
+            "lifecycle='active'",
+            _episode_recall_eligibility("episodes"),
+        ]
         params: list[object] = list(ids)
         if getattr(self, "elfie_id", None) is not None:
             clauses.append("json_extract(metadata_json, '$.elfie_id')=?")
@@ -585,11 +591,12 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 f"""SELECT episode_id, occurred_from, occurred_to,
                            occurrence_precision, life_stage, temporal_label,
                            content_text, summary_text, detail_level, importance,
-                           retention_days, last_reinforced_at, updated_at,
+                           half_life_days, last_reinforced_at, updated_at,
                            source_event_ids_json
-                      FROM episodes
+                     FROM episodes
                      WHERE episode_id IN ({placeholders})
                        AND lifecycle='active'
+                       AND {_episode_recall_eligibility("episodes")}
                        {namespace_clause}{where}
                      ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?""",
                 list(episode_ids) + namespace_params + time_params + [fetch_limit],
@@ -598,9 +605,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         for row in rows:
             episode_id = str(row["episode_id"])
             excerpt = str(row["summary_text"] or row["content_text"])
-            retention_days = float(row["retention_days"] or 7.0)
+            half_life_days = float(row["half_life_days"] or 2.0)
             anchor = row["last_reinforced_at"] or row["updated_at"] or now
-            freshness = MemoryScorePolicy.freshness(now, str(anchor), retention_days)
+            freshness = MemoryScorePolicy.freshness(now, str(anchor), half_life_days)
             score = MemoryScorePolicy.recall_score(
                 relevance=direct_scores.get(episode_id, 0.0),
                 freshness=freshness,
@@ -627,7 +634,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     temporal_label=row["temporal_label"],
                     importance=float(row["importance"]),
                     freshness=freshness,
-                    retention_days=retention_days,
+                    half_life_days=half_life_days,
                     source_event_ids=tuple(
                         str(value) for value in _json_list(row["source_event_ids_json"])
                     ),
@@ -812,7 +819,7 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
                 temporal_label=episode.temporal_label,
                 importance=episode.importance,
                 freshness=episode.freshness,
-                retention_days=episode.retention_days,
+                half_life_days=episode.half_life_days,
                 source_event_ids=episode.source_event_ids,
             )
         )
@@ -847,6 +854,24 @@ def _lexical_normalize(value: str) -> str:
 def _recall_eligible(node: RecallNode) -> bool:
     """Honor the explicit projection visibility flag during traversal."""
     return node.properties.get("recall_eligible", True) is not False
+
+
+def _episode_recall_eligibility(alias: str) -> str:
+    """Hide reserved host-failure Episodes from user-facing Recall.
+
+    Older databases may already contain a host-generated failure notice in a
+    topic Episode.  The source row remains inspectable and recoverable, but
+    its reserved ``fallback-intent`` provenance must not compete with real
+    conversation facts during lexical Recall.
+    """
+    return (
+        "NOT EXISTS ("
+        "SELECT 1 FROM json_each(COALESCE("
+        + alias
+        + ".source_event_ids_json, '[]')) AS source_event "
+        "WHERE lower(CAST(source_event.value AS TEXT)) LIKE '%fallback-intent-%'"
+        ")"
+    )
 
 
 def _lexical_like_patterns(query: str, terms: list[str]) -> list[str]:

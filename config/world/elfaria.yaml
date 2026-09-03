@@ -1,6 +1,6 @@
 version: 1
 schema_version: 1
-canon_version: elfaria-world.v0.1
+package_version: elfaria-world.v0.1
 world_id: elfaria
 display_name: Elfaria
 known_region:
@@ -321,8 +321,8 @@ knowledge:
     statement: Elfie 的母星名为 Elfaria。
     scope: world
     topic: world_identity
-    aliases: [母星, 家乡星球]
-    retrieval_terms: [Elfaria, 母星]
+    aliases: [母星, 家乡星球, 家乡, 来自哪里]
+    retrieval_terms: [Elfaria, 母星, 家乡, 来自哪里, 来自哪儿, 母星叫什么]
     level: common
     certainty: high
     status: active
@@ -357,11 +357,11 @@ knowledge:
     eligibility: [all]
   - id: nature.light_cycle
     version: 1
-    statement: Elfaria 围绕主恒星 Solara 运行；一个本地日约 40 个地球小时，一年约 196 个本地日。具体昼夜体验以个体实际生活和所在区域为准。
+    statement: Elfaria 围绕带来白昼的主恒星 Solara 运行；居民长期没有在天空中观测到环绕 Elfaria 运行的天然卫星，因此没有月相周期。一个完整昼夜约 40 个地球小时，迷雾镇历法中一年有 196 个本地日。
     scope: world
     topic: nature_and_physics
-    aliases: [Solara, 主恒星, 明暗规律, 光照周期]
-    retrieval_terms: [Solara, 恒星, 昼夜, 本地日, 明暗, 光照]
+    aliases: [Solara, 主恒星, 明暗规律, 光照周期, 天然卫星, 月相]
+    retrieval_terms: [Solara, 恒星, 昼夜, 白昼, 天然卫星, 月相, 本地日, "196"]
     level: common
     certainty: high
     status: active
@@ -396,11 +396,11 @@ knowledge:
     eligibility: [all]
   - id: nature.seasons
     version: 1
-    statement: 迷雾镇全年温暖，一年只有雨季和旱季两季；雨季降水增多，旱季降水减少但不会形成严寒。迷雾镇可以出现气象雾，但不会出现霜、雪，露天地表水也不会自然结冰；Elfaria 其他地区可以有不同季节和气候，可能出现这些现象。
+    statement: 迷雾镇全年温暖，一年只有雨季和旱季两季，每季固定 98 个本地日；雨季炎热、降雨频繁，旱季仍然温暖，只是雨水较少、空气和地表稍干。迷雾镇可以出现气象雾，但不会出现霜、雪，露天地表水也不会自然结冰；Elfaria 其他地区可以有不同季节和气候，可能出现这些现象。
     scope: region
     topic: nature_and_physics
     aliases: [迷雾镇气候, 季节阶段, 时令变化, 雨季, 旱季]
-    retrieval_terms: [季节, 时令, 雨季, 旱季, 气候, 雾, 霜, 雪, 结冰]
+    retrieval_terms: [季节, 时令, 雨季, 旱季, 98 个本地日, 气候, 雾, 霜, 雪, 结冰]
     level: common
     certainty: high
     status: active
@@ -409,11 +409,11 @@ knowledge:
     eligibility: [all]
   - id: nature.water_cycle
     version: 1
-    statement: 在迷雾镇，居民能看到降雨补充河流和湖泊，雨季与旱季使水位升落，地面和湿地随后变干；水的来源、地下路径和供水管理若没有具体观察或可靠记录，就只能说不知道，其他地区仍需来源支持。
+    statement: 在迷雾镇，居民能看到云层聚集后降雨，雨水汇入河流和湖泊，部分水渗入地下；雨季与旱季使水位升落，地面和湿地随后变干。这些现象可以帮助安排取水、渡运和出行，但不等于知道水循环的深层原理；水的来源、地下路径和供水管理若没有具体观察或可靠记录，就只能说不知道，其他地区仍需来源支持。
     scope: region
     topic: nature_and_physics
-    aliases: [降雨与河湖, 水位升落, 饮用水]
-    retrieval_terms: [水, 降雨, 雨季, 旱季, 河流, 湖泊, 水位, 地面变干, 饮用]
+    aliases: [降雨与河湖, 水位升落, 饮用水, 水循环]
+    retrieval_terms: [水, 降雨, 雨季, 旱季, 河流, 湖泊, 水位, 地面变干, 湿地, 取水, 渡运, 饮用]
     level: common
     certainty: high
     status: active
@@ -550,6 +550,8 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#geography.waystation
     related_ids: [mistyville_waystation, story_program]
     eligibility: [all]
+    statement_variants:
+      partial: 我知道赴地设施是受控的跨世界设施，但不了解其中的具体工作。
   - id: geography.map_boundary
     version: 1
     statement: 目前公开知识只覆盖 Elfaria、迷雾镇及已批准地点，不能据此推断完整星球地图。
@@ -773,7 +775,7 @@ knowledge:
     eligibility: [all]
   - id: society.elder_role
     version: 1
-    statement: 迷雾镇实行三级治理：外围小聚落协调日常事务，部落长老处理本地区事务，镇中心长老院处理跨地区、跨物种和重大公共事务；争议通常逐级协商。
+    statement: 经验较多的居民会向其他人传授共同经验；迷雾镇实行三级治理：外围小聚落协调日常事务，部落长老处理本地区事务，镇中心长老院处理跨地区、跨物种和重大公共事务；具体职责和权限因地区与共同体规则而异，争议通常逐级协商。
     scope: society
     topic: society_and_civilization
     aliases: [长老, 经验传承]
@@ -799,7 +801,7 @@ knowledge:
     eligibility: [all]
   - id: society.labor
     version: 1
-    statement: 迷雾镇处于前工业手工业阶段，劳动主要围绕植物培育、生态维护、材料加工、道路桥梁、中继维护、运输、教育、照护和地下探索展开；森林、山地、平原和湖岸有不同产出，生产以家庭、师徒和小型作坊为主。
+    statement: 迷雾镇处于前工业手工业阶段，劳动主要围绕植物培育、生态维护、材料加工、道路桥梁、中继维护、运输、教育、照护和地下探索展开；森林、山地、平原和湖岸有不同产出，生产以家庭、师徒和小型作坊为主。具体职业分工和物资制度不能凭地球经济常识补齐。
     scope: region
     topic: society_and_civilization
     aliases: [日常劳动, 共同工作]
@@ -838,7 +840,7 @@ knowledge:
     eligibility: [all]
   - id: society.exchange
     version: 1
-    statement: 迷雾镇的交换重视材料、补充物、中继植物、情绪物、伴生植物和技艺的稀缺程度、培育难度、运输风险与社会用途；百业街集中交换、储藏、零售和修理。
+    statement: 迷雾镇的交换重视材料、补充物、中继植物、情绪物、伴生植物和技艺的稀缺程度、培育难度、运输风险与社会用途；百业街集中交换、储藏、零售和修理。具体计量、货币和个人账目制度若无来源仍不能确定。
     scope: society
     topic: society_and_civilization
     aliases: [物资交换, 经验交换]
@@ -851,7 +853,7 @@ knowledge:
     eligibility: [all]
   - id: culture.language
     version: 1
-    statement: 三种陆地智慧物种共享一套通过长期共同生活和代际教导延续的语言；Aethersense 是传递语言内容的另一条通道，不等于语言本身。
+    statement: Elfaria 有自己的语言和交流方式；三种陆地智慧物种共享一套通过长期共同生活和代际教导延续的语言，Aethersense 是传递语言内容的另一条通道，不等于语言本身。具体称呼、礼貌规则和不可直译表达尚未完整说明。
     scope: culture
     topic: history_and_culture
     aliases: [称呼, 礼貌距离]
@@ -864,7 +866,7 @@ knowledge:
     eligibility: [all]
   - id: culture.food
     version: 1
-    statement: 精灵不必固定一日三餐；环境吸收通常覆盖一部分日常消耗，进食主要补充身体材料和稀缺物质，浓缩补充物可用于恢复、成长和高消耗活动。
+    statement: Elfaria 的生命需要进食，但精灵不必固定一日三餐；环境吸收通常覆盖一部分日常消耗，进食主要补充身体材料和稀缺物质，浓缩补充物可用于恢复、成长和高消耗活动。具体食物、烹饪方式和分享礼俗仍需具体来源补充。
     scope: culture
     topic: history_and_culture
     aliases: [食物分享, 欢迎食物]
@@ -888,6 +890,8 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#culture.daily_rhythm
     related_ids: [nature.light_cycle]
     eligibility: [all]
+    statement_variants:
+      partial: 我知道生活要在进食、活动、休息和安全空间之间安排，但每家的节奏可能不同。
   - id: culture.local_memory
     version: 1
     statement: 迷雾镇保留共同体记录、地方传承和家庭记忆，但记录并不完整；听说、公共记录和亲身经历是不同层级。
@@ -942,7 +946,7 @@ knowledge:
     eligibility: [all]
   - id: history.local_detail_boundary
     version: 1
-    statement: 迷雾镇更早历史的具体年代、地方叙事差异和每个家庭的旧事没有在当前公开 Canon 中完整定义；现行三级治理和共同历史骨架已有公共记录。
+    statement: 迷雾镇更早历史的具体年代、地方叙事差异、所有政治安排和每个家庭的旧事没有在当前公开记录中完整保存；现行三级治理和共同历史骨架已有公共记录。
     scope: world
     topic: knowledge_boundary
     aliases: [更早历史未知, 镇史边界]
@@ -1033,7 +1037,7 @@ knowledge:
     eligibility: [all]
   - id: knowledge.personal_mastery
     version: 1
-    statement: 公共 Canon 说明的是世界事实；每只 Elfie 实际掌握多少，还取决于它的物种、生活地点、经历和角色。
+    statement: 公共知识说明的是可共享的世界事实；每只 Elfie 实际掌握多少，还取决于它的物种、生活地点、经历和角色。
     scope: world
     topic: knowledge_boundary
     aliases: [个人掌握程度, 学会多少]
@@ -2546,3 +2550,433 @@ unknown_boundaries:
   - 作者使用的公里坐标、网格、随机出生点和路径计算，不是居民日常知识
   - 未亲历的具体天气、当天位置、实时活动、动作和巢内状态
   - 没有来源支持的地球技术细节或其他 Elfie 的私人经历
+genesis:
+  package_id: elfaria-genesis
+  package_version: elfaria-world.v0.1
+  schema_version: 1
+  status: published
+  member_ids:
+    - resident-knowledge-v1
+    - place-catalog-v1
+    - route-catalog-v1
+    - coverage-manifest-v1
+    - life-archetypes-v1
+    - relationship-archetypes-v1
+    - episode-themes-v1
+    - generation-policy-v1
+    - arrival-rules-v1
+  source_refs:
+    - docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    - docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
+  coverage_manifest:
+    creator_source_ref: docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    resident_source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
+    links:
+      - {upstream_id: world.identity, resident_fact_ids: [world.identity]}
+      - {upstream_id: world.known_region, resident_fact_ids: [world.known_region]}
+      - {upstream_id: world.earth_relation, resident_fact_ids: [world.earth_relation]}
+      - {upstream_id: nature.light_cycle, resident_fact_ids: [nature.light_cycle]}
+      - {upstream_id: nature.sky_cycle, resident_fact_ids: [nature.sky_cycle]}
+      - {upstream_id: nature.gravity_mobility, resident_fact_ids: [nature.gravity_mobility]}
+      - {upstream_id: nature.seasons, resident_fact_ids: [nature.seasons]}
+      - {upstream_id: nature.water_cycle, resident_fact_ids: [nature.water_cycle]}
+      - {upstream_id: nature.magnetic_tide, resident_fact_ids: [nature.magnetic_tide]}
+      - {upstream_id: nature.underground_recovery, resident_fact_ids: [nature.underground_recovery]}
+      - {upstream_id: nature.life_needs, resident_fact_ids: [nature.life_needs]}
+      - {upstream_id: nature.distance_sound, resident_fact_ids: [nature.distance_sound]}
+      - {upstream_id: geography.settlement, resident_fact_ids: [geography.settlement]}
+      - {upstream_id: geography.settlement_structure, resident_fact_ids: [geography.settlement_structure]}
+      - {upstream_id: geography.dispersed_homes, resident_fact_ids: [geography.dispersed_homes]}
+      - {upstream_id: geography.shared_spaces, resident_fact_ids: [geography.shared_spaces]}
+      - {upstream_id: geography.three_species, resident_fact_ids: [geography.three_species]}
+      - {upstream_id: geography.waystation, resident_fact_ids: [geography.waystation]}
+      - {upstream_id: geography.map_boundary, resident_fact_ids: [geography.map_boundary]}
+      - {upstream_id: geography.landscape_relations, resident_fact_ids: [geography.landscape_relations]}
+      - {upstream_id: geography.territory_scale, resident_fact_ids: [geography.territory_scale]}
+      - {upstream_id: geography.access_boundary, resident_fact_ids: [geography.access_boundary]}
+      - {upstream_id: geography.travel_boundary, resident_fact_ids: [geography.travel_boundary]}
+      - {upstream_id: geography.travel_baseline, resident_fact_ids: [geography.travel_baseline]}
+      - {upstream_id: species.shared_body, resident_fact_ids: [species.shared_body]}
+      - {upstream_id: species.shared_lifecycle, resident_fact_ids: [species.shared_lifecycle]}
+      - {upstream_id: species.shared_senses, resident_fact_ids: [species.shared_senses]}
+      - {upstream_id: species.saevi_paths, resident_fact_ids: [species.saevi_paths]}
+      - {upstream_id: species.tovren_group, resident_fact_ids: [species.tovren_group]}
+      - {upstream_id: species.myelle_distance, resident_fact_ids: [species.myelle_distance]}
+      - {upstream_id: species.shared_capabilities, resident_fact_ids: [species.shared_capabilities]}
+      - {upstream_id: species.aethersense_boundary, resident_fact_ids: [species.aethersense_boundary]}
+      - {upstream_id: species.emotion_boundary, resident_fact_ids: [species.emotion_boundary]}
+      - {upstream_id: species.plant_and_aquatic_boundary, resident_fact_ids: [species.plant_and_aquatic_boundary]}
+      - {upstream_id: society.household, resident_fact_ids: [society.household]}
+      - {upstream_id: society.elder_role, resident_fact_ids: [society.elder_role]}
+      - {upstream_id: society.trust, resident_fact_ids: [society.trust]}
+      - {upstream_id: society.labor, resident_fact_ids: [society.labor]}
+      - {upstream_id: society.technology_boundary, resident_fact_ids: [society.technology_boundary]}
+      - {upstream_id: society.learning, resident_fact_ids: [society.learning]}
+      - {upstream_id: society.exchange, resident_fact_ids: [society.exchange]}
+      - {upstream_id: culture.language, resident_fact_ids: [culture.language]}
+      - {upstream_id: culture.food, resident_fact_ids: [culture.food]}
+      - {upstream_id: culture.daily_rhythm, resident_fact_ids: [culture.daily_rhythm]}
+      - {upstream_id: culture.local_memory, resident_fact_ids: [culture.local_memory]}
+      - {upstream_id: culture.rituals_and_festivals, resident_fact_ids: [culture.rituals_and_festivals]}
+      - {upstream_id: history.local_shared, resident_fact_ids: [history.local_shared]}
+      - {upstream_id: history.contact_arc, resident_fact_ids: [history.contact_arc]}
+      - {upstream_id: history.local_detail_boundary, resident_fact_ids: [history.local_detail_boundary]}
+      - {upstream_id: earth.signal, resident_fact_ids: [earth.signal]}
+      - {upstream_id: earth.station, resident_fact_ids: [earth.station]}
+      - {upstream_id: earth.voluntary_program, resident_fact_ids: [earth.voluntary_program]}
+      - {upstream_id: earth.gateway, resident_fact_ids: [earth.gateway]}
+      - {upstream_id: earth.adaptation, resident_fact_ids: [earth.adaptation]}
+      - {upstream_id: knowledge.common_vs_specialist, resident_fact_ids: [knowledge.common_vs_specialist]}
+      - {upstream_id: knowledge.personal_mastery, resident_fact_ids: [knowledge.personal_mastery]}
+      - {upstream_id: boundary.full_map, resident_fact_ids: [boundary.full_map]}
+      - {upstream_id: boundary.real_time_nest, resident_fact_ids: [boundary.real_time_nest]}
+      - {upstream_id: boundary.other_elfies, resident_fact_ids: [boundary.other_elfies]}
+      - {upstream_id: boundary.unexperienced_detail, resident_fact_ids: [boundary.unexperienced_detail]}
+      - {upstream_id: world.home_world, resident_fact_ids: [world.home_world]}
+      - {upstream_id: world.species_names, resident_fact_ids: [world.species_names]}
+      - {upstream_id: world.earth_shape_labels, resident_fact_ids: [world.earth_shape_labels]}
+      - {upstream_id: world.mistyville_status, resident_fact_ids: [world.mistyville_status]}
+      - {upstream_id: world.region_isolation, resident_fact_ids: [world.region_isolation]}
+      - {upstream_id: nature.calendar_common, resident_fact_ids: [nature.calendar_common]}
+      - {upstream_id: nature.season_terms, resident_fact_ids: [nature.season_terms]}
+      - {upstream_id: nature.mistyville_warmth, resident_fact_ids: [nature.mistyville_warmth]}
+      - {upstream_id: nature.weather_observation, resident_fact_ids: [nature.weather_observation]}
+      - {upstream_id: nature.cloud_light, resident_fact_ids: [nature.cloud_light]}
+      - {upstream_id: nature.recovery_observation, resident_fact_ids: [nature.recovery_observation]}
+      - {upstream_id: nature.recovery_limit, resident_fact_ids: [nature.recovery_limit]}
+      - {upstream_id: nature.health_risks, resident_fact_ids: [nature.health_risks]}
+      - {upstream_id: nature.predation_boundary, resident_fact_ids: [nature.predation_boundary]}
+      - {upstream_id: species.autonomy, resident_fact_ids: [species.autonomy]}
+      - {upstream_id: species.ancestor_claim, resident_fact_ids: [species.ancestor_claim]}
+      - {upstream_id: species.fixed_plants, resident_fact_ids: [species.fixed_plants]}
+      - {upstream_id: species.companion_plants, resident_fact_ids: [species.companion_plants]}
+      - {upstream_id: species.aquatic_animals, resident_fact_ids: [species.aquatic_animals]}
+      - {upstream_id: species.plant_use_categories, resident_fact_ids: [species.plant_use_categories]}
+      - {upstream_id: communication.shared_language, resident_fact_ids: [communication.shared_language]}
+      - {upstream_id: communication.resonance_signature, resident_fact_ids: [communication.resonance_signature]}
+      - {upstream_id: communication.consent_handshake, resident_fact_ids: [communication.consent_handshake]}
+      - {upstream_id: communication.bidirectional, resident_fact_ids: [communication.bidirectional]}
+      - {upstream_id: communication.private_boundary, resident_fact_ids: [communication.private_boundary]}
+      - {upstream_id: communication.relay_network, resident_fact_ids: [communication.relay_network]}
+      - {upstream_id: communication.range, resident_fact_ids: [communication.range]}
+      - {upstream_id: communication.cross_world, resident_fact_ids: [communication.cross_world]}
+      - {upstream_id: emotion.nearby_resonance, resident_fact_ids: [emotion.nearby_resonance]}
+      - {upstream_id: emotion.remote_boundary, resident_fact_ids: [emotion.remote_boundary]}
+      - {upstream_id: emotion.material, resident_fact_ids: [emotion.material]}
+      - {upstream_id: geography.spatial_layers, resident_fact_ids: [geography.spatial_layers]}
+      - {upstream_id: geography.surface_regions, resident_fact_ids: [geography.surface_regions]}
+      - {upstream_id: geography.water_systems, resident_fact_ids: [geography.water_systems]}
+      - {upstream_id: geography.landmark_groups, resident_fact_ids: [geography.landmark_groups]}
+      - {upstream_id: geography.access_layers, resident_fact_ids: [geography.access_layers]}
+      - {upstream_id: geography.public_places, resident_fact_ids: [geography.public_places]}
+      - {upstream_id: geography.controlled_places, resident_fact_ids: [geography.controlled_places]}
+      - {upstream_id: geography.center_role, resident_fact_ids: [geography.center_role]}
+      - {upstream_id: geography.center_facilities, resident_fact_ids: [geography.center_facilities]}
+      - {upstream_id: geography.tribal_centers_structure, resident_fact_ids: [geography.tribal_centers_structure]}
+      - {upstream_id: geography.saevi_center, resident_fact_ids: [geography.saevi_center]}
+      - {upstream_id: geography.tovren_center, resident_fact_ids: [geography.tovren_center]}
+      - {upstream_id: geography.myelle_center, resident_fact_ids: [geography.myelle_center]}
+      - {upstream_id: geography.route_saevi, resident_fact_ids: [geography.route_saevi]}
+      - {upstream_id: geography.route_tovren, resident_fact_ids: [geography.route_tovren]}
+      - {upstream_id: geography.route_myelle, resident_fact_ids: [geography.route_myelle]}
+      - {upstream_id: geography.route_landmarks, resident_fact_ids: [geography.route_landmarks]}
+      - {upstream_id: geography.town_routes, resident_fact_ids: [geography.town_routes]}
+      - {upstream_id: geography.terrain_speeds, resident_fact_ids: [geography.terrain_speeds]}
+      - {upstream_id: geography.remote_travel, resident_fact_ids: [geography.remote_travel]}
+      - {upstream_id: geography.population_layers, resident_fact_ids: [geography.population_layers]}
+      - {upstream_id: geography.population_estimate, resident_fact_ids: [geography.population_estimate]}
+      - {upstream_id: geography.population_boundary, resident_fact_ids: [geography.population_boundary]}
+      - {upstream_id: society.shared_rules, resident_fact_ids: [society.shared_rules]}
+      - {upstream_id: society.household_role, resident_fact_ids: [society.household_role]}
+      - {upstream_id: society.home_relay, resident_fact_ids: [society.home_relay]}
+      - {upstream_id: society.regional_production, resident_fact_ids: [society.regional_production]}
+      - {upstream_id: society.ownership, resident_fact_ids: [society.ownership]}
+      - {upstream_id: society.communication_power, resident_fact_ids: [society.communication_power]}
+      - {upstream_id: society.knowledge_categories, resident_fact_ids: [society.knowledge_categories]}
+      - {upstream_id: society.learning_house, resident_fact_ids: [society.learning_house]}
+      - {upstream_id: society.local_teaching, resident_fact_ids: [society.local_teaching]}
+      - {upstream_id: society.apprenticeship, resident_fact_ids: [society.apprenticeship]}
+      - {upstream_id: society.common_maintenance, resident_fact_ids: [society.common_maintenance]}
+      - {upstream_id: society.plant_cultivator, resident_fact_ids: [society.plant_cultivator]}
+      - {upstream_id: society.craft_worker, resident_fact_ids: [society.craft_worker]}
+      - {upstream_id: society.transport_worker, resident_fact_ids: [society.transport_worker]}
+      - {upstream_id: society.emotion_specialist, resident_fact_ids: [society.emotion_specialist]}
+      - {upstream_id: society.healer, resident_fact_ids: [society.healer]}
+      - {upstream_id: society.teacher, resident_fact_ids: [society.teacher]}
+      - {upstream_id: culture.values, resident_fact_ids: [culture.values]}
+      - {upstream_id: culture.regional_traditions, resident_fact_ids: [culture.regional_traditions]}
+      - {upstream_id: culture.life_rituals, resident_fact_ids: [culture.life_rituals]}
+      - {upstream_id: culture.connection_day, resident_fact_ids: [culture.connection_day]}
+      - {upstream_id: culture.silence_day, resident_fact_ids: [culture.silence_day]}
+      - {upstream_id: culture.deep_opening, resident_fact_ids: [culture.deep_opening]}
+      - {upstream_id: culture.earth_return, resident_fact_ids: [culture.earth_return]}
+      - {upstream_id: culture.cloudcrown_beliefs, resident_fact_ids: [culture.cloudcrown_beliefs]}
+      - {upstream_id: culture.undercity_myths, resident_fact_ids: [culture.undercity_myths]}
+      - {upstream_id: history.common_formation, resident_fact_ids: [history.common_formation]}
+      - {upstream_id: history.hero_sera, resident_fact_ids: [history.hero_sera]}
+      - {upstream_id: history.hero_toro, resident_fact_ids: [history.hero_toro]}
+      - {upstream_id: history.hero_myra, resident_fact_ids: [history.hero_myra]}
+      - {upstream_id: history.hero_vale, resident_fact_ids: [history.hero_vale]}
+      - {upstream_id: history.hero_lin, resident_fact_ids: [history.hero_lin]}
+      - {upstream_id: history.hero_durn, resident_fact_ids: [history.hero_durn]}
+      - {upstream_id: history.hero_reo, resident_fact_ids: [history.hero_reo]}
+      - {upstream_id: history.hero_ning, resident_fact_ids: [history.hero_ning]}
+      - {upstream_id: history.evidence_boundary, resident_fact_ids: [history.evidence_boundary]}
+      - {upstream_id: knowledge.record_types, resident_fact_ids: [knowledge.record_types]}
+      - {upstream_id: knowledge.evidence_rule, resident_fact_ids: [knowledge.evidence_rule]}
+      - {upstream_id: knowledge.earth_default_boundary, resident_fact_ids: [knowledge.earth_default_boundary]}
+      - {upstream_id: species.learning_earth, resident_fact_ids: [species.learning_earth]}
+      - {upstream_id: species.tendency_boundary, resident_fact_ids: [species.tendency_boundary]}
+      - {upstream_id: society.technology_full_boundary, resident_fact_ids: [society.technology_full_boundary]}
+      - {upstream_id: society.regional_outputs, resident_fact_ids: [society.regional_outputs]}
+      - {upstream_id: society.craft_materials, resident_fact_ids: [society.craft_materials]}
+      - {upstream_id: society.relay_maintenance, resident_fact_ids: [society.relay_maintenance]}
+      - {upstream_id: society.governance_levels, resident_fact_ids: [society.governance_levels]}
+      - {upstream_id: society.dispute_escalation, resident_fact_ids: [society.dispute_escalation]}
+      - {upstream_id: society.restricted_operations, resident_fact_ids: [society.restricted_operations]}
+      - {upstream_id: society.explorer_practice, resident_fact_ids: [society.explorer_practice]}
+      - {upstream_id: society.deep_opening_schedule, resident_fact_ids: [society.deep_opening_schedule]}
+      - {upstream_id: society.departure_staff, resident_fact_ids: [society.departure_staff]}
+      - {upstream_id: earth.predeparture_brief, resident_fact_ids: [earth.predeparture_brief]}
+      - {upstream_id: earth.elfie_nest_role, resident_fact_ids: [earth.elfie_nest_role]}
+      - {upstream_id: geography.town_route_distances, resident_fact_ids: [geography.town_route_distances]}
+      - {upstream_id: geography.cloudcrown_signal, resident_fact_ids: [geography.cloudcrown_signal]}
+      - {upstream_id: boundary.cloudcrown_interior, resident_fact_ids: [boundary.cloudcrown_interior]}
+      - {upstream_id: boundary.undercity_interior, resident_fact_ids: [boundary.undercity_interior]}
+  life_archetypes:
+    - id: saevi_household_cultivator
+      species_ids: [fox]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [saevi_tribal_center]
+      weight: 1.0
+      household_roles: [caregiver, household_member]
+      care_and_trade_context: 在灵狐聚居地参与植物照料、家庭照护和邻里互助。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [plant_care]
+      vocation_id: plant_cultivator
+      proficiency_band: developing
+      workplace_place_id: saevi_tribal_center
+    - id: tovren_household_route_keeper
+      species_ids: [dog]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [tovren_tribal_center]
+      weight: 1.0
+      household_roles: [caregiver, household_member]
+      care_and_trade_context: 在灵犬聚居地参与路线照看、家庭照护和群体协作。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [route_care]
+      vocation_id: route_keeper
+      proficiency_band: developing
+      workplace_place_id: tovren_tribal_center
+    - id: shared_settlement_learner
+      species_ids: [fox, dog]
+      life_stages: [youth, young_adult, mature, elder]
+      place_ids: [mistyville_homes]
+      weight: 1.0
+      household_roles: [household_member, learner]
+      care_and_trade_context: 在分散居住区依靠家庭照护、学习和公共空间中的互助生活。
+      learning_path_id: community_basics
+      institution_ids: [mistyville_learning_house]
+      apprenticeship_ids: [shared_space_care]
+      vocation_id: community_helper
+      proficiency_band: introductory
+      workplace_place_id: mistyville_square
+  names:
+    default:
+      - Nemi
+      - Ari
+      - Sora
+      - Tavi
+      - Mira
+      - Lio
+      - Ena
+      - Rin
+      - Kio
+      - Veya
+      - Oru
+      - Pela
+    by_species:
+      fox: [Saevi, Veya, Nemi, Pela]
+      dog: [Tovren, Ari, Lio, Kio]
+      cat: [Myelle, Sora, Mira, Ena]
+  population:
+    settlement_weights:
+      mistyville: 1.0
+    cells:
+      - id: saevi-home-range
+        place_id: saevi_tribal_center
+        species_ids: [fox]
+        weight: 0.65
+        private_home_kind: household
+      - id: tovren-home-range
+        place_id: tovren_tribal_center
+        species_ids: [dog]
+        weight: 0.65
+        private_home_kind: household
+      - id: mistyville-home-range
+        place_id: mistyville_homes
+        species_ids: [fox, dog]
+        weight: 0.35
+        private_home_kind: household
+  routes:
+    - id: route-saevi-square
+      from_place_id: saevi_tribal_center
+      to_place_id: mistyville_square
+      label: 灵狐聚居地到公共空间的常走路线
+      aliases: [去公共空间的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [熟悉路线或跟随熟人]
+    - id: route-tovren-square
+      from_place_id: tovren_tribal_center
+      to_place_id: mistyville_square
+      label: 灵犬聚居地到公共空间的常走路线
+      aliases: [去公共空间的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [熟悉路线或跟随熟人]
+    - id: route-homes-learning
+      from_place_id: mistyville_homes
+      to_place_id: mistyville_learning_house
+      label: 居住区到学习场所的常走路线
+      aliases: [去学习场的路]
+      travel_time_band: 通常需要走一段路
+      access_conditions: [沿熟悉路径前往]
+    - id: route-waystation-gateway
+      from_place_id: mistyville_waystation
+      to_place_id: earth_gateway_station
+      label: 赴地设施连接地球侧基站的受控路线
+      aliases: [赴地路线]
+      travel_time_band: 只有获准时才能通行
+      access_conditions: [通过赴地计划和必修培训]
+  relationship_archetypes:
+    - {id: kin-01, role: family, person_species_ids: [fox], life_stages: [], weight: 1.0, initial_trust: 0.88, importance: 0.95, familiarity: intimate, vocation_id: plant_cultivator, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: kin-02, role: family, person_species_ids: [dog], life_stages: [], weight: 1.0, initial_trust: 0.88, importance: 0.95, familiarity: intimate, vocation_id: route_keeper, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: kin-03, role: family, person_species_ids: [cat], life_stages: [], weight: 0.5, initial_trust: 0.82, importance: 0.88, familiarity: intimate, vocation_id: quiet_care, competency_ids: [care], episode_theme_ids: [early-home]}
+    - {id: friend-01, role: friend, person_species_ids: [fox, dog], life_stages: [], weight: 1.0, initial_trust: 0.78, importance: 0.90, familiarity: known, vocation_id: community_helper, competency_ids: [cooperation], episode_theme_ids: [shared-space-choice, craft-practice]}
+    - {id: friend-02, role: friend, person_species_ids: [cat, fox, dog], life_stages: [], weight: 0.8, initial_trust: 0.58, importance: 0.62, familiarity: known, vocation_id: path_observer, competency_ids: [observation], episode_theme_ids: [shared-space-choice, rain-route]}
+    - {id: mentor-01, role: teacher, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.8, initial_trust: 0.70, importance: 0.82, familiarity: known, vocation_id: local_teacher, competency_ids: [teaching], episode_theme_ids: [learning-path]}
+    - {id: elder-01, role: elder, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.7, initial_trust: 0.55, importance: 0.78, familiarity: known, vocation_id: experience_keeper, competency_ids: [memory], episode_theme_ids: [shared-space-choice]}
+    - {id: neighbor-01, role: neighbor, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.8, initial_trust: 0.42, importance: 0.48, familiarity: acquainted, vocation_id: community_helper, competency_ids: [cooperation], episode_theme_ids: [craft-practice, rain-route]}
+    - {id: route-keeper, role: route_keeper, person_species_ids: [fox, dog], life_stages: [], weight: 0.8, initial_trust: 0.50, importance: 0.56, familiarity: known, vocation_id: route_keeper, competency_ids: [navigation], episode_theme_ids: [rain-route, departure-decision]}
+    - {id: learning-keeper, role: learning_keeper, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.6, initial_trust: 0.48, importance: 0.50, familiarity: known, vocation_id: local_teacher, competency_ids: [teaching], episode_theme_ids: [learning-path]}
+    - {id: departure-guide, role: departure_guide, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.7, initial_trust: 0.64, importance: 0.72, familiarity: known, vocation_id: earth_program_guide, competency_ids: [orientation], episode_theme_ids: [departure-decision, arrival-nest]}
+    - {id: program-contact, role: program_contact, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.5, initial_trust: 0.38, importance: 0.58, familiarity: acquainted, vocation_id: earth_program_guide, competency_ids: [orientation], episode_theme_ids: [departure-decision, arrival-nest]}
+    - {id: earth-contact, role: earth_contact, person_species_ids: [fox, dog, cat], life_stages: [], weight: 0.5, initial_trust: 0.30, importance: 0.70, familiarity: acquainted, vocation_id: earth_host, competency_ids: [earth_care], episode_theme_ids: [arrival-nest]}
+  episode_themes:
+    - id: early-home
+      label: 归属
+      order: 10
+      required: true
+      weight: 0.8
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [family]
+      place_kinds: [private_home]
+      emotional_tone: belonging
+      goal: 熟悉家附近的生活路径
+      obstacle: 住处分散，回去的路需要自己慢慢辨认
+      outcome: 在家人照料下记住一条回家的路径
+      impact: 遇到陌生地方时会先寻找熟悉的回去路线
+    - id: learning-path
+      label: 学习
+      order: 20
+      weight: 0.82
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [teacher]
+      place_kinds: [learning_place]
+      emotional_tone: curiosity
+      goal: 学会一项需要向有经验者请教的事情
+      obstacle: 自己只能看到一部分线索
+      outcome: 明白复杂事情需要观察、询问和练习
+      impact: 面对不懂的事会先承认边界，再向熟悉的人请教
+    - id: shared-space-choice
+      label: 协作
+      order: 30
+      required: true
+      weight: 0.88
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [friend]
+      place_kinds: [settlement_shared_space]
+      emotional_tone: trust
+      goal: 和别人一起处理一件日常事务
+      obstacle: 每个人一开始理解的分工不一样
+      outcome: 重新约定每个人愿意承担的部分
+      impact: 遇到协作分歧时会先确认约定，而不是直接猜测
+    - id: craft-practice
+      label: 第一次责任
+      order: 35
+      weight: 0.8
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 2
+      required_roles: [neighbor]
+      place_kinds: [tribal_center]
+      emotional_tone: resolve
+      goal: 在熟悉的聚居地完成一项小责任
+      obstacle: 事情比预想的更需要耐心
+      outcome: 在邻里提醒下完成并复盘做法
+      impact: 逐渐相信小的可靠行动也能改变关系
+    - id: rain-route
+      label: 雨季路线
+      order: 36
+      weight: 0.7
+      life_stages: [young_adult, mature, elder]
+      min_age_years: 3
+      required_roles: [route_keeper]
+      place_kinds: [tribal_center]
+      emotional_tone: alert
+      goal: 在雨水增多时沿熟悉路线往返
+      obstacle: 水面和气味线索会随着天气变化
+      outcome: 学会根据当时看到的路径和水势调整出行
+      impact: 天气变化时会先观察实际状况，再决定是否出行
+    - id: departure-decision
+      label: 赴地决定
+      order: 40
+      required: true
+      weight: 0.94
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [departure_guide]
+      place_kinds: [departure_facility]
+      emotional_tone: resolve
+      goal: 在了解赴地边界后作出自己的选择
+      obstacle: 新世界和离开熟悉生活都带来不确定
+      outcome: 在自愿前提下报名并完成必要准备
+      impact: 重要决定要在知道边界后由自己确认
+      required_knowledge_ids: [earth.voluntary_program]
+    - id: arrival-nest
+      label: 抵达
+      order: 50
+      required: true
+      weight: 1.0
+      life_stages: [youth, young_adult, mature, elder]
+      min_age_years: 1
+      required_roles: [departure_guide, earth_contact]
+      place_kinds: [earth_gateway_station, earth_home]
+      emotional_tone: wonder
+      goal: 通过获准的设施抵达 ElfieNest
+      obstacle: 地球设备和新的生活空间都不熟悉
+      outcome: 抵达后开始和领养家庭真实相处
+      impact: 面对陌生设备和生活方式时会通过观察、接触和询问学习
+      required_knowledge_ids: [earth.gateway, earth.adaptation]
+  policy:
+    version: genesis-policy.v0.2
+    seed_algorithm: blake2b-labeled-v1
+    relationship_count: [10, 20]
+    episode_count: [3, 5]
+    salient_relationship_count: [3, 5]
+    repeated_relationship_count: [1, 2]
+  arrival:
+    eligible_species_ids: [fox, dog]
+    eligible_life_stages: [youth, young_adult, mature, elder]
+    required_knowledge_ids:
+      - earth.signal
+      - earth.station
+      - earth.voluntary_program
+      - earth.gateway
+      - earth.adaptation
+    required_module_ids:
+      - earth_program
+  content_sha256: cecbad908163c131effdab7a30a43bd5d8f9c7cf729cd3e67c9c002c14a8ddee

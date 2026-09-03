@@ -1,6 +1,7 @@
 """Restart recovery across durable Activity and Brain journal stores."""
 
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Condition
@@ -17,16 +18,31 @@ from elfie.brain.activity.system import (
     ExecutionScope,
 )
 from elfie.brain.continuity import BrainContinuityCheckpoint
-from elfie.brain.journal import BrainJournalKind
+from elfie.brain.journal import BrainJournalEntry, BrainJournalKind
+from elfie.brain.reasoning.context_types import (
+    ConversationContextCheckpoint,
+    ConversationMessage,
+    ConversationThreadCheckpoint,
+    ConversationTopicCheckpoint,
+    PendingReplyProjection,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
     ModelGenerationResult,
     StructuredOutputMode,
 )
+from elfie.brain.workspace.contracts import ExecutionStatus
 from elfie.communication import CommunicationHub
 from elfie.factory import ElfieAssembly
-from elfie.message_types import ActivityId, EventId
+from elfie.message_types import (
+    ActivityId,
+    ActorRef,
+    EventId,
+    IntentId,
+    PlanId,
+    TurnId,
+)
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.activity import SQLiteActivityStoreAdapter
 from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
@@ -49,12 +65,7 @@ def _selfhood_seed(elfie_id: str, display_name: str) -> dict[str, object]:
             "display_name": display_name,
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "north",
-            "home_region_name": "北境",
-            "earth_arrival_statement": "我被领养来到地球。",
-            "resident_role": "居民",
+            "resident_role": "ElfieNest 居民",
         },
         "adaptive_self": {
             "big_five": {
@@ -361,6 +372,113 @@ def test_restart_restores_alternating_owner_conversation_context(
         assert "owner: 我喜欢蓝色。" in prompt
         assert "elfie: 我记住了，你喜欢蓝色。" in prompt
         assert prompt.count("我刚才说喜欢什么颜色？") == 1
+    finally:
+        restored.stop()
+        restored.join()
+        restored.close_resources()
+
+
+def test_restart_replays_a_journaled_completed_reply_then_hands_off_topic_once(
+    tmp_path: Path,
+) -> None:
+    journal_path = tmp_path / "brain" / "journal.sqlite"
+    memory_path = tmp_path / "memory" / "knowledge.sqlite"
+    memory_path.parent.mkdir(parents=True)
+    profile = create_visual_profile(
+        elfie_id="elfie-receipt-recovery",
+        display_name="回执恢复精灵",
+        species_id="fox",
+        seed=19,
+    )
+    journal = SQLiteBrainJournalAdapter(journal_path)
+    initial = ElfieFactory().restore(
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter(memory_path),
+            journal_store=journal,
+            model_port=FailingModel(),
+            selfhood_seed=_selfhood_seed("elfie-receipt-recovery", "回执恢复精灵"),
+            reasoning_constitution=CONSTITUTION,
+        )
+    )
+    owner_message = ConversationMessage(
+        event_id=EventId("owner-topic-close"),
+        sender=ActorRef(actor_id="owner-1", source_kind="owner"),
+        occurred_at=NOW,
+        content="这个话题先这样。",
+    )
+    conversation = ConversationContextCheckpoint(
+        threads=(
+            ConversationThreadCheckpoint(
+                channel_id="chat",
+                conversation_id="owner:1",
+                messages=(owner_message,),
+                pending_topics=(
+                    ConversationTopicCheckpoint(
+                        thread_id="topic:owner-topic-close",
+                        lineage_id="topic:owner-topic-close",
+                        messages=(owner_message,),
+                        started_at=NOW,
+                        last_activity_at=NOW,
+                        close_after_event_id=EventId("owner-topic-close"),
+                        participants=("owner-1",),
+                    ),
+                ),
+            ),
+        ),
+        pending_replies=(
+            PendingReplyProjection(
+                intent_id=IntentId("reply-after-crash"),
+                channel_id="chat",
+                conversation_id="owner:1",
+                reply_event_id=EventId("elfie-reply-after-crash"),
+                content="好，我们先停在这里。",
+                cause_event_ids=(EventId("owner-topic-close"),),
+                prepared_at=NOW,
+            ),
+        ),
+    )
+    journal.save_checkpoint(
+        replace(initial.continuity_checkpoint(), conversation=conversation)
+    )
+    journal.append(
+        BrainJournalEntry(
+            entry_id=EventId("journal-receipt-after-crash"),
+            elfie_id="elfie-receipt-recovery",
+            kind=BrainJournalKind.EXECUTION_RECEIPT,
+            occurred_at=NOW + timedelta(seconds=1),
+            idempotency_key="receipt:completed-after-crash",
+            turn_id=TurnId("turn-after-crash"),
+            plan_id=PlanId("plan-after-crash"),
+            intent_id=IntentId("reply-after-crash"),
+            receipt_id=EventId("receipt-after-crash"),
+            status=ExecutionStatus.COMPLETED.value,
+        )
+    )
+    initial.close_resources()
+
+    restored = ElfieFactory().restore(
+        ElfieAssembly(
+            profile=profile,
+            memory_store=SQLiteMemoryStoreAdapter(memory_path),
+            journal_store=SQLiteBrainJournalAdapter(journal_path),
+            model_port=FailingModel(),
+            selfhood_seed=_selfhood_seed("elfie-receipt-recovery", "回执恢复精灵"),
+            reasoning_constitution=CONSTITUTION,
+        )
+    )
+    try:
+        restored.start()
+        checkpoint = restored.continuity_checkpoint()
+        thread = checkpoint.conversation.threads[0]
+
+        assert [message.content for message in thread.messages] == [
+            "这个话题先这样。",
+            "好，我们先停在这里。",
+        ]
+        assert checkpoint.conversation.pending_replies == ()
+        assert checkpoint.conversation.pending_closed_episode_payloads == ()
+        assert checkpoint.memory.value.episodic_count == 1
     finally:
         restored.stop()
         restored.join()

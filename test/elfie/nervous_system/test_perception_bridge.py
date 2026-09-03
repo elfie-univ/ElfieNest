@@ -347,3 +347,33 @@ def test_samples_are_routed_to_state_and_media_without_reliable_fakes() -> None:
         "body:body-nervous:proprioception:posture",
         "body:body-nervous:proprioception:arrived",
     }
+
+
+def test_proprioception_exposes_semantic_location_and_active_command() -> None:
+    workspace = EventWorkspace(ELFIE_ID)
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ELFIE_ID,
+    )
+
+    nervous_system.receive_body_event(
+        body_event(
+            "proprioception-location",
+            ROOM,
+            ProprioceptionSample(
+                kind="proprioception_sample",
+                posture="walking",
+                zone_id="activity-01",
+                active_command_id="command-walk",
+                arrived=False,
+            ),
+        )
+    )
+    frame = claim_all(workspace)
+
+    assert {update.state_key: update.value for update in frame.state_updates} == {
+        "body:body-nervous:proprioception:posture": "walking",
+        "body:body-nervous:proprioception:arrived": False,
+        "body:body-nervous:proprioception:location": "activity-01",
+        "body:body-nervous:proprioception:active_command_id": "command-walk",
+    }

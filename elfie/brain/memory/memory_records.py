@@ -34,7 +34,14 @@ _RECALL_LIMIT_MAX = {
 
 AttributionKind = Literal["observed", "told", "inferred", "felt"]
 OccurrencePrecision = Literal["exact", "range", "unknown"]
-RetentionClass = Literal["transient", "ordinary", "salient", "genesis"]
+RetentionProfile = Literal[
+    "transient",
+    "ordinary",
+    "salient",
+    "semantic",
+    "stable",
+    "genesis",
+]
 
 
 @dataclass(frozen=True)
@@ -95,8 +102,8 @@ class ClosedEpisode:
     source_event_ids: Tuple[str, ...] = ()
     importance: float = 0.5
     initial_importance: float = 0.5
-    retention_days: float = 7.0
-    retention_class: RetentionClass = "ordinary"
+    half_life_days: float = 2.0
+    retention_profile: RetentionProfile = "ordinary"
     detail_level: str = "full"
     lifecycle: Literal["active", "archived", "forgotten"] = "active"
     emotion: Optional[str] = None
@@ -116,7 +123,7 @@ class ClosedEpisode:
     last_reinforced_at: Optional[str] = None
     last_reviewed_at: Optional[str] = None
     next_review_at: Optional[str] = None
-    policy_version: str = "memory.v2"
+    policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
     content_sha256: Optional[str] = None
 
@@ -142,10 +149,17 @@ class ClosedEpisode:
             raise ValueError("initial_importance must be between 0 and 1")
         if self.initial_importance == 0.5 and self.importance != 0.5:
             object.__setattr__(self, "initial_importance", self.importance)
-        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
-            raise ValueError("retention_days must be between 0 and 36500")
-        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
-            raise ValueError("unsupported retention class")
+        if self.half_life_days <= 0.0 or self.half_life_days > 36500.0:
+            raise ValueError("half_life_days must be between 0 and 36500")
+        if self.retention_profile not in {
+            "transient",
+            "ordinary",
+            "salient",
+            "semantic",
+            "stable",
+            "genesis",
+        }:
+            raise ValueError("unsupported retention profile")
         if (
             self.occurred_to is not None
             and self.occurred_from is not None
@@ -296,8 +310,8 @@ class NodeInput:
     properties: Mapping[str, JsonValue] = field(default_factory=dict)
     importance: float = 0.5
     initial_importance: float = 0.5
-    retention_days: float = 7.0
-    retention_class: RetentionClass = "ordinary"
+    half_life_days: float = 30.0
+    retention_profile: RetentionProfile = "semantic"
     # Consolidation may carry a policy-owned semantic appraisal from a model
     # proposal.  The model supplies only this enum; the adapter records and
     # folds the sourced event instead of accepting an arbitrary score.
@@ -337,10 +351,17 @@ class NodeInput:
             raise ValueError("initial_importance must be between 0 and 1")
         if self.initial_importance == 0.5 and self.importance != 0.5:
             object.__setattr__(self, "initial_importance", self.importance)
-        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
-            raise ValueError("retention_days must be between 0 and 36500")
-        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
-            raise ValueError("unsupported retention class")
+        if self.half_life_days <= 0.0 or self.half_life_days > 36500.0:
+            raise ValueError("half_life_days must be between 0 and 36500")
+        if self.retention_profile not in {
+            "transient",
+            "ordinary",
+            "salient",
+            "semantic",
+            "stable",
+            "genesis",
+        }:
+            raise ValueError("unsupported retention profile")
         if (
             self.importance_event_class is not None
             and not self.importance_event_class.strip()
@@ -450,11 +471,11 @@ class AssertionInput:
     assertion_id: Optional[str] = None
     importance: float = 0.5
     initial_importance: float = 0.5
-    retention_days: float = 7.0
-    retention_class: RetentionClass = "ordinary"
+    half_life_days: float = 30.0
+    retention_profile: RetentionProfile = "semantic"
     object_literal_type: Optional[str] = None
     predicate_registry_version: str = "memory.predicates.v1"
-    policy_version: str = "memory.v2"
+    policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
     # Optional policy event emitted by Consolidation.  It is intentionally a
     # class name, never a caller-controlled numeric target or eta.
@@ -477,10 +498,17 @@ class AssertionInput:
             raise ValueError("initial_importance must be between 0 and 1")
         if self.initial_importance == 0.5 and self.importance != 0.5:
             object.__setattr__(self, "initial_importance", self.importance)
-        if self.retention_days <= 0.0 or self.retention_days > 36500.0:
-            raise ValueError("retention_days must be between 0 and 36500")
-        if self.retention_class not in {"transient", "ordinary", "salient", "genesis"}:
-            raise ValueError("unsupported retention class")
+        if self.half_life_days <= 0.0 or self.half_life_days > 36500.0:
+            raise ValueError("half_life_days must be between 0 and 36500")
+        if self.retention_profile not in {
+            "transient",
+            "ordinary",
+            "salient",
+            "semantic",
+            "stable",
+            "genesis",
+        }:
+            raise ValueError("unsupported retention profile")
         if (
             self.importance_event_class is not None
             and not self.importance_event_class.strip()
@@ -539,7 +567,7 @@ class EvidenceInput:
     attribution: Optional[AttributionKind] = None
     independence_key: Optional[str] = None
     source_reliability_class: str = "observed"
-    source_policy_version: str = "memory.v2"
+    source_policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -819,7 +847,7 @@ class RecallNode:
     importance: float = 0.5
     confidence: float = 0.5
     freshness: float = 1.0
-    retention_days: float = 7.0
+    half_life_days: float = 30.0
     # Bounded, read-only properties are useful to authorized diagnostics and
     # presentation projections (for example a relationship ring).  They are
     # never used as a second fact source by Recall or Reasoning.
@@ -856,7 +884,7 @@ class RecallAssertion:
     importance: float = 0.5
     confidence: float = 0.5
     freshness: float = 1.0
-    retention_days: float = 7.0
+    half_life_days: float = 30.0
 
 
 @dataclass(frozen=True)
@@ -879,7 +907,7 @@ class RecallEpisode:
     temporal_label: Optional[str] = None
     importance: float = 0.5
     freshness: float = 1.0
-    retention_days: float = 7.0
+    half_life_days: float = 2.0
     source_event_ids: Tuple[str, ...] = ()
 
 
@@ -901,7 +929,7 @@ class RecallEvidence:
     attribution: Optional[AttributionKind] = None
     independence_key: Optional[str] = None
     source_reliability_class: str = "observed"
-    source_policy_version: str = "memory.v2"
+    source_policy_version: str = "memory.v3"
 
 
 @dataclass(frozen=True)
@@ -973,7 +1001,7 @@ __all__ = [
     "SourceReference",
     "AttributionKind",
     "OccurrencePrecision",
-    "RetentionClass",
+    "RetentionProfile",
 ]
 
 

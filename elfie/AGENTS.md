@@ -10,12 +10,15 @@
   隔离需求时，不再复制一套同形 Protocol。
 - Elfie 保留不可变 Profile、Brain 十系统、Skills、神经系统、通信语义、身体契约、
   一次性 Genesis 规则和自身内部生命周期；Skills 的目标所有者是 Brain。
-- Profile 只保存不可变固有身份、虚拟外貌和生成来源；人格、自我认知、记忆、能量、
-  权限、运行限制和当前能力不得新增到 Profile。Selfhood 与 Energy seed 由 Brain owner
-  持有并通过类型化 Assembly 注入。
-- Genesis 从同一份已校验创建 Bundle 并列物化 Profile、两层 Selfhood 与 Genesis
-  Memory。Profile 是外层档案；普通 Brain 运行期不得读取、投影或同步 Profile/Canon，
-  也不得在 Selfhood 缺失时用它们 fallback。
+- Profile 只保存外部不可变身份、稳定年龄/出生与个人出身锚点、最终虚拟外貌和技术
+  Schema revision。不得保存 Canon/世界知识、生成版本/Seed、用户选择、抵达/培训经历、
+  人格、自我认知、记忆、关系、能量、权限、运行限制或当前能力/身体。
+- Genesis 从已发布强类型资料包、临时领养输入和受控随机源，并列物化 Profile、两层
+  Selfhood、Genesis Memory 与其他 owner Seed。成功提交后删除问卷、LifeContext、Plan、
+  Seed 和资料包绑定；普通 Brain 运行期不得读取、投影或同步 Profile/Canon，也不得在
+  Selfhood 缺失时用它们 fallback。
+- 身份、个人知识、人物、关系、经历和 Memory 参数的语义编译只属于 `elfie/genesis/`。
+  App 只编排准入事务，Infrastructure 只加载和保存强类型输入/输出。
 - 通信、具身和内部触发是 Brain 的三类输入来源；每个 Turn 必须保持单一来源域与响应
   范围。跨域后果形成后续内部事件，不得在同一 Turn 混合通信和身体执行。
 - Elfie 为自己需要的 Food 读取、模型调用、工具执行、身体执行与感知、外部通信和

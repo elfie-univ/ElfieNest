@@ -142,7 +142,9 @@ export function ModelVerification({ model }: { readonly model: ProviderModel }) 
   const label = status === "available"
     ? t("providerModels.labels.available")
     : status === "degraded"
-      ? t("providerModels.labels.degraded")
+      ? model.verification.reason_code === "rate_limited"
+        ? t("providerModels.labels.rateLimited")
+        : t("providerModels.labels.degraded")
     : status === "failed" || status === "unavailable"
       ? t("providerModels.labels.unavailable")
       : t("providerModels.labels.neverVerified")

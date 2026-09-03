@@ -13,6 +13,7 @@ from elfie.body import (
     UtteranceFinal,
 )
 from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
@@ -47,12 +48,7 @@ def _selfhood_seed(elfie_id: str, display_name: str | None = None) -> dict[str, 
             "display_name": display_name or elfie_id,
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "north",
-            "home_region_name": "北境",
-            "earth_arrival_statement": "我被领养来到地球。",
-            "resident_role": "居民",
+            "resident_role": "ElfieNest 居民",
         },
         "adaptive_self": {
             "big_five": {
@@ -84,6 +80,7 @@ def test_body_source_identity_reaches_cortical_context() -> None:
             reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
+            embodied_input_mode=EmbodiedInputMode.BRAIN,
             communication=hub,
             model_port=runtime,
         )
@@ -216,6 +213,7 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
             reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
+            embodied_input_mode=EmbodiedInputMode.BRAIN,
             model_port=runtime,
         )
     )
@@ -246,7 +244,7 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
     elfie.join()
 
 
-def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> None:
+def test_selfhood_and_profile_dossier_are_separate_model_context_sections() -> None:
     # Given: one immutable Profile seed with a deliberately distinctive personality.
     profile = _profile("selfhood-elfie")
     selfhood_seed = _selfhood_seed("selfhood-elfie")
@@ -287,7 +285,7 @@ def test_selfhood_and_profile_anchors_are_separate_model_context_sections() -> N
     assert '"selfhood"' not in user_prompt
     assert '"profile_anchors"' not in user_prompt
     assert elfie.selfhood_snapshot().adaptive_self.big_five.openness == 0.91
-    assert elfie.profile_anchor_snapshot().display_name == "selfhood-elfie"
+    assert elfie.profile_dossier().display_name == "selfhood-elfie"
     elfie.stop()
     elfie.join()
 

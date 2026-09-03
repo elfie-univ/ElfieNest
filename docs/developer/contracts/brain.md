@@ -1,15 +1,20 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.3
+**Contract version:** 1.6
 **Adopted:** 2026-08-12
-**Revised:** 2026-08-30
+**Revised:** 2026-09-03
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
 > events, maintains mental state, reasons, commits decisions and resumes work.
 > Earlier Brain migrations remain protected by permanent architecture tests.
-> The newly accepted Selfhood and fixed-header gaps are tracked in the scoped
-> [Selfhood conformance register](../conformance/elfie-selfhood).
+> The accepted Selfhood/fixed-header gaps remain tracked in the scoped
+> [Selfhood conformance register](../conformance/elfie-selfhood). The completed
+> Reasoning Context Workspace P0 boundary is protected by permanent focused
+> tests. Version 1.5 froze the one-time Genesis and final-owner isolation rules;
+> version 1.6 additionally freezes the three source domains, embodied terminal
+> outcomes and dynamic capability routing accepted by ADR-0033. Remaining
+> implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -36,16 +41,16 @@ owners, not a requirement for ten processes, databases or empty packages.
 
 | No. | System | Owns | Produces | Must not do |
 | --- | --- | --- | --- | --- |
-| 1 | Event Workspace | bounded Communication, Embodied and Internal lanes; admission, ordering, deduplication, backpressure, salience and single-domain framing | one immutable `TurnFrame` or an explicit defer/reject result | merge source domains into one Turn, reason about content, or execute actions |
+| 1 | Event Workspace | bounded Communication, Embodied and Activity lanes; admission, ordering, deduplication, backpressure, salience and single-domain framing | one immutable `TurnFrame` or an explicit defer/reject result | merge source domains into one Turn, reason about content, or execute actions |
 | 2 | Orientation | sourced current body, place, time, nearby actors, conversation, activity, affordance and uncertainty | versioned `OrientationSnapshot` | copy world authority, store complete history, or define personality |
 | 3 | Selfhood | one atomic state containing creation-frozen `identity_core` and slow `adaptive_self`; deterministic typed/model projections | versioned Selfhood snapshot, two model-header blocks and, only after a later design, validated Memory-evidenced updates | read Profile/Canon at runtime, accept direct Turn/model/state updates, persist final prompt text, or enlarge capabilities |
 | 4 | Emotion | process-local affect, appraisal, accumulation, decay and recovery | `EmotionSnapshot` and bounded influence on attention, recall and expression | create goals, messages or body actions, or persist its live stock |
 | 5 | Energy | homeostasis, circadian state, cognitive/action budgets, emergency reserve and degradation mode | `EnergySnapshot`, reservations and cognitive-mode constraints | choose semantic goals or replace NervousSystem safety reflexes |
-| 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `InternalTriggerCandidate` | create an Activity or act externally |
-| 7 | Memory | subjective episodes, working memory, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated memory commits | own current Orientation, Run state or Activity state |
-| 8 | Reasoning Core | context assembly, bounded Model/Skill/Tool loop, observations, verification, inhibition, completion judgment and one `TurnDecision` | one settled decision plus internal state candidates | wait across Turns, claim execution success, or bypass deterministic policy |
-| 9 | Persistent Activity | validated goals and work that survive the current Turn; steps, conditions, scheduling, pause/resume/cancel, retry, idempotency and receipts | preflight results, state events and bounded Internal triggers | become a second Brain or directly perform open-ended external actions |
-| 10 | Cognitive Consolidation | interruptible sleep/idle review of memories, activities, emotion trajectories and outcomes under a no-external-side-effect scope | validated state candidates or a later Internal trigger | directly message, move, create Activity, expand permission or rewrite authoritative state |
+| 6 | Motivation | fixed drives, pressure, satisfaction, competition, saturation, cooldown and repetition suppression | `AttentionBias`, `GoalCandidate` or `ActivityTriggerCandidate` | create an Activity or act externally |
+| 7 | Memory | durable subjective episodes, knowledge, people, relationships, provenance, retrieval, consolidation and forgetting | bounded retrievals and validated durable memory commits | own transient conversation/context state, current Orientation, Run state or Activity state |
+| 8 | Reasoning Core | `Reasoning Context Workspace`, context assembly, bounded Model/Skill/Tool loop, observations, verification, inhibition, completion judgment and one `TurnDecision` | one settled decision plus internal state candidates | wait across Turns, let another system own its transient context, claim execution success, or bypass deterministic policy |
+| 9 | Persistent Activity | validated goals and work that survive the current Turn; steps, conditions, scheduling, pause/resume/cancel, retry, idempotency and receipts | preflight results, state events and bounded Activity triggers | become a second Brain or directly perform open-ended external actions |
+| 10 | Cognitive Consolidation | interruptible sleep/idle review of memories, activities, emotion trajectories and outcomes under a no-external-side-effect scope | validated state candidates or a later Activity trigger | directly message, move, create Activity, expand permission or rewrite authoritative state |
 
 Context assembly, Turn settlement, decision governance, routing, Journal,
 Checkpoint and receipt reconciliation are mandatory mechanisms serving these
@@ -113,7 +118,8 @@ remain in the
    the minimum per-Elfie identity facts frozen at creation. `adaptive_self`
    contains bounded personality traits, personal value/norm identifiers and
    interaction, coping and expression tendencies.
-2. The state must not contain a Profile revision, Canon version/path/reference,
+2. The state must not contain a Profile revision, Canon or source-package
+   version/path/reference, questionnaire answer, generation seed/policy trace,
    final prompt paragraph, free-form model-authored autobiography, detailed
    world knowledge, biography, relationship state, current Emotion/Energy/
    Orientation/Activity, capabilities, permissions or application-wide rules.
@@ -139,17 +145,23 @@ remain in the
 
 ### Genesis and runtime inputs
 
-6. Genesis is the only Selfhood initializer. It may consume accepted adoption
-   input, creation-time Canon/species facts and reviewed deterministic mappings,
-   then co-materializes Profile, complete Selfhood and Genesis Memory as sibling
-   outputs of one validated creation bundle. Selfhood does not derive from a
-   persisted Profile at ordinary startup, and partial/inconsistent creation
-   fails admission.
-7. Profile remains the external immutable dossier. Canon remains a creation-time
-   world/species input and a source for Genesis Memory. Ordinary Brain runtime,
-   Reasoning context assembly and Selfhood projection must not read, accept,
-   refresh or synchronize Profile or Canon. Existing Elfies are not bound to a
-   Canon version; later Canon changes do not alter their Selfhood.
+6. Genesis is the only Selfhood initializer. It may consume a published typed
+   source package, transient accepted adoption input and reviewed deterministic
+   mappings, then co-materializes Profile, complete Selfhood and Genesis Memory
+   as sibling outputs of one validated creation bundle. Selfhood does not derive
+   from a persisted Profile at ordinary startup, and partial/inconsistent
+   creation fails admission. A Selfhood-owned contract must not define an
+   external Profile/Canon observer projection; that projection belongs to the
+   Profile/App view that owns it.
+7. Profile remains the external immutable dossier. The source package remains a
+   creation-time world/species input and a source for Genesis Memory only until
+   commit. Accepted answers, `LifeContext`, `PersonalGenesisPlan`, source-package
+   bindings and generation seeds are not persisted in Selfhood or any ordinary
+   Brain state and are deleted after the creation transaction ends. Ordinary
+   Brain runtime, Reasoning context assembly and Selfhood projection must not
+   read, accept, refresh or synchronize Profile, Canon or any creation source.
+   Existing Elfies are not bound to a Canon version; later source changes do not
+   alter their Selfhood or Memory.
 8. Missing, invalid, unsupported or unrenderable Selfhood fails Brain/resident
    cognition before `ModelPort` invocation and produces a safe diagnostic. It
    must not fall back to `Elfie`, a generic persona, all-0.5 traits, Profile,
@@ -229,17 +241,22 @@ remain in the
 ## Conservation rules
 
 1. Brain accepts exactly three event-source domains: `Communication`,
-   `Embodied` and `Internal`.
-   Delivery/command receipts and Activity state events re-enter as `Internal`
-   events bound to their original causal identity; later facts observed in the
-   world remain new `Embodied` events. Receipts never create a fourth domain.
+   `Embodied` and `Activity`. A body action outcome is an external `Embodied`
+   fact; a communication delivery outcome is a `Communication` fact. Activity
+   state events re-enter as `Activity` events. Every external result remains in
+   its owning domain and retains its causal identity; no receipt creates a
+   fourth domain.
 2. One `TurnFrame` has exactly one `SourceDomain`, one `InteractionScope` and
    one bounded `ResponseScope`. Model output cannot widen either scope.
 3. Communication and Embodied events that arrive together remain separate
    Turns. They may observe shared committed mental state but cannot share a
    frame, transient reasoning state or output authority.
+   Compatible embodied facts from one causal window—such as one action's
+   terminal outcome, position, posture, arrival and touch—may be coalesced into
+   the same Embodied frame. The action outcome has no separate Brain-trigger
+   rule.
 4. A cross-domain consequence becomes a validated Persistent Activity request
-   or a later Internal event and a new Turn. A Communication Turn cannot emit a
+   or a later Activity event and a new Turn. A Communication Turn cannot emit a
    NervousSystem directive in the current Turn.
 5. Every Turn settles to exactly one `TurnDecision`. It may request at most one
    external execution domain: Communication or NervousSystem. A validated
@@ -268,24 +285,70 @@ backpressure. It may deduplicate, coalesce state updates, habituate repeated
 stimuli, prioritize safety and enforce fairness, but it must preserve source and
 causal identity.
 
+The lanes accept both Brain-caused and unsolicited external input. Body sensors,
+Godot/device perception and targeted Nest semantic results may enter the Body
+input boundary proactively; they do not require a preceding Brain Turn. A
+single incoming event does not imply a model Turn: admission batches compatible
+events within the cutoff and applies salience, debounce and backpressure.
+
 Admission creates an immutable single-domain `TurnFrame` with a stable Turn ID,
 source domain, interaction scope, triggering events, cutoff, deadline and
 response scope. A Communication scope binds channel, conversation and relevant
 participants; different conversations remain different Turns. An Embodied scope
 binds current Body ID/generation and one coherent situation window, while an
-Internal scope binds one trigger or Activity causal chain. One frame may
+Activity scope binds one trigger or Activity causal chain. One frame may
 therefore aggregate several compatible events without mixing independent
-conversations, body generations or internal causes. Events outside the cutoff
+conversations, body generations or Activity causes. Events outside the cutoff
 remain available to later Turns. Failure to admit is an observable defer,
 reject or backpressure result rather than silent loss.
 
 ### Context and reasoning
 
+The detailed
+[Reasoning Core single-Turn Agent design](../designs/elfie-reasoning-core) is
+the accepted interpretation of this section. Its completed P0 owner-chat
+boundary is protected by focused architecture, context, memory, runtime,
+receipt and restart tests.
+
+Event Workspace and Reasoning Context Workspace are distinct. Event Workspace
+owns event lanes, admission and immutable single-domain framing. The
+Reasoning-internal Context Workspace owns bounded recent alternating dialogue,
+active-topic state, source-linked context summaries, current-Run observations,
+pending Memory handoffs and its own bounded recovery checkpoint. It is not a
+peer mental system, and Memory owns no transient conversation tail, context
+summary, Run scratch state or generic context buffer.
+
 Reasoning Core assembles only the context needed by the admitted Turn. A context
 snapshot records the Constitution and Selfhood revisions and the versions and
 capture time of Orientation, Emotion, Energy, Motivation, Memory, Activity and
-effective capabilities. It contains no Profile or Canon runtime projection.
-Facts, inferences and unknown values remain distinguishable.
+effective capabilities. These owner projections are read-only and remain
+frozen during the Run. The snapshot contains no Profile or Canon runtime
+projection. Facts, inferences and unknown values remain distinguishable.
+
+Every Turn may perform baseline Memory Recall. A cognitive step may request an
+additional bounded Recall through a Reasoning-owned Memory Bridge when required
+to resolve a person, reference, conflict or missing fact. All Recall results
+used by one Run bind to one explicit Memory revision unless the complete Run
+context is rebased; mixed revisions are invalid. Reasoning owns query intent,
+timing and context placement. Memory owns retrieval semantics, provenance,
+conflict handling, validation and durable commit. A model never reads or writes
+Memory directly.
+
+Before every model call, Reasoning rebuilds one provider-neutral model context
+from the frozen snapshots and current Context Workspace. It reserves response
+headroom and retains the current Frame, trusted Scope, unresolved items and
+complete Action/Observation pairs before trimming less relevant material.
+Prompt-pressure compaction creates a source-linked `ContextSummary` owned by
+Reasoning. Durable capture is a separate handoff of complete sourced
+`ClosedEpisode` records and typed candidates to Memory; a lossy summary is not
+a durable fact. A pending handoff is removed only after a Memory receipt.
+
+`DIRECT` and `DELIBERATE` are Reasoning depth choices derived from upstream
+hints, task complexity/risk, Energy, deadline and available model capability.
+They do not change Memory availability or hard permissions. Food selects the
+requested model role and fallback route; it does not define cognitive modes or
+carry a separate allow-list of modes. Skill, Tool and Worker remain independent
+stage-gated capabilities.
 
 A `ReasoningRun` may contain multiple cognitive steps and multiple Model,
 Skill, Tool and Observation cycles. It has an explicit budget, deadline,
@@ -307,7 +370,7 @@ and current state before committing any directive. The only action families are:
 - `PersistentActivityRequest` for validated work beyond the current Turn;
 - `No-op` when no action is committed.
 
-Internal Memory, Emotion, Orientation, Energy or Motivation candidates are
+Memory, Emotion, Orientation, Energy or Motivation candidates are
 Turn-settlement material, not a fourth action family. Selfhood is deliberately
 absent: phase 1 has no update route, and a future update can enter only as the
 Memory-owned consolidation proposal defined above, never as ordinary Turn
@@ -315,6 +378,25 @@ output. Settlement submits each admitted candidate or receipt to its true
 owner, which validates current version and causal identity before committing. A
 stale or duplicate result is rejected or reconciled; it is never repaired by
 merely prompting a later model to assume the desired state.
+
+An embodied decision invokes one or more capabilities from the read-only catalog
+exposed by the current Body and other authorized owners. The finite structured
+plan contains calls with the broad category, dynamic `capability_id`, typed
+arguments, call/cause IDs, deadline and current subject. Concrete names such as
+`go_to`, `turn` or `speak` are catalog entries, not a fixed Brain decision
+union. Calls may be ordered or run concurrently within the same external
+domain. Each call is checked by NervousSystem and routed through the current
+BodyBinding; Brain does not select an Adapter, Transport or Gateway.
+
+The embodied action ledger records `ACCEPTED` and `STARTED` for reconciliation,
+but these are not Brain-facing events. Brain receives one terminal outcome:
+`COMPLETED`, `REJECTED`, `FAILED`, `INTERRUPTED` or `TIMED_OUT`. Cancellation is
+represented as `INTERRUPTED` with a reason. A watchdog turns an overdue action
+into `TIMED_OUT`, requests stop/cancel and rejects or idempotently reconciles
+late terminal receipts. In version 1, an isolated execution worker may wait
+for that terminal result as long as the Gateway receiver and sensor ingress
+remain live; a fully non-blocking BodyPort submission/receipt stream is a
+version 2 change.
 
 ## Response scopes
 
@@ -324,7 +406,7 @@ merely prompting a later model to assume the desired state.
   contacting another person or conversation requires a validated later scope.
 - An Embodied Turn may produce a NervousSystem directive, a validated Persistent
   Activity request, or `No-op`; it cannot produce a digital-message directive.
-- An Internal Turn may select at most one external domain allowed by its
+- An Activity Turn may select at most one external domain allowed by its
   `ExecutionScope`, may create/update a validated Activity, or may choose
   `No-op`.
 - A clarification uses the current source domain. Missing identity, contact,
@@ -342,14 +424,15 @@ criteria and execution scope, and returns `VALIDATED`, `NEEDS_CLARIFICATION` or
 `REJECTED`. Preflight has no durable or external side effect.
 
 Only a validated draft may be committed after the Turn settles. A due time,
-condition, retry or receipt creates a typed Internal event; it never executes an
-open action directly. Communication and embodied consequences are separate
-Activity steps and separate Turns. Stable causal IDs, idempotency keys,
-checkpoints and receipts prevent lost commitments and duplicate side effects
-across interruption or restart.
+condition or retry creates a typed Activity event; an external body or message
+receipt remains in its owning external domain and never becomes an Activity
+event. None of these events executes an open action directly. Communication and
+embodied consequences are separate Activity steps and separate Turns. Stable
+causal IDs, idempotency keys, checkpoints and receipts prevent lost commitments
+and duplicate side effects across interruption or restart.
 
 Motivation and Cognitive Consolidation cannot create Activity directly. They
-may only produce candidates that re-enter Event Workspace as an Internal Turn.
+may only produce candidates that re-enter Event Workspace as an Activity Turn.
 Motivation must not be enabled as an action source before Persistent Activity
 has bounded creation, cancellation, cooldown and recovery behavior.
 
@@ -385,9 +468,11 @@ body route, and its textual claim is never an execution receipt.
 
 ## State, persistence and recovery
 
-`MemoryState`, `SelfhoodState`, `ReasoningRunState` and `ActivityState` are
-distinct. Durable cognitive infrastructure provides owner-appropriate state,
-an event journal, Run/Activity checkpoints, budget ledger, causal trace,
+`MemoryState`, `SelfhoodState`, `ReasoningContextWorkspaceState`,
+`ReasoningRunState` and `ActivityState` are distinct. A bounded Reasoning
+Context Workspace checkpoint supports crash recovery but is not durable
+Memory. Durable cognitive infrastructure provides owner-appropriate state, an
+event journal, Run/Activity checkpoints, budget ledger, causal trace,
 idempotency records and receipt reconciliation. It does not imply one universal
 checkpoint for every mental owner and does not become an eleventh mind.
 
@@ -402,8 +487,9 @@ does not erase identity, memory, commitments or basic reflex capability.
 ## Dependency and package rules
 
 Brain depends only on its own strongly typed consumer-owned Ports and Elfie
-semantic contracts. Ordinary Brain runtime also does not depend on Profile or
-Canon. It does not import App, Nest, concrete Infrastructure,
+semantic contracts. Ordinary Brain runtime also does not depend on Profile,
+Canon, a Genesis source package or adoption inputs. It does not import App,
+Nest, concrete Infrastructure,
 Provider SDKs, platform payloads, device transports, filesystem roots or
 database records. AI Runtime implementations remain outside Brain; Brain owns
 when and why they are called inside a Run.

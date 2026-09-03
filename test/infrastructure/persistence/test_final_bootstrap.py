@@ -26,12 +26,13 @@ _FINAL_ROOT_TABLES = {
     "food_packages",
     "local_installations",
     "nest_settings",
+    "resident_admissions",
     "sessions",
     "users",
 }
 
 
-def test_init_db_activates_only_the_final_nine_table_contract(
+def test_init_db_activates_only_the_final_ten_table_contract(
     tmp_path: Path,
 ) -> None:
     # Given: an empty explicit product data root.
@@ -231,6 +232,30 @@ def test_unsupported_missing_column_stays_blocked(tmp_path: Path) -> None:
     assert "users.updated_at" in inspection.detail
     with pytest.raises(LegacyDataRootError, match="数据库结构与当前版本不兼容"):
         init_db(str(db_path))
+
+
+def test_unexpected_identity_column_stays_blocked_without_mutation(
+    tmp_path: Path,
+) -> None:
+    # Given: a current database with an old competing identity column added.
+    home = tmp_path / "data"
+    db_path = home / "nest.db"
+    home.mkdir()
+    create_final_nest_database(db_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("ALTER TABLE elfies ADD COLUMN name TEXT")
+        connection.commit()
+    before = db_path.read_bytes()
+
+    # When: the selected root is inspected and activated.
+    inspection = inspect_data_home(home)
+    assert inspection.state is DataHomeState.LEGACY
+    assert "elfies.name" in inspection.detail
+    with pytest.raises(LegacyDataRootError, match="数据库结构与当前版本不兼容"):
+        init_db(str(db_path))
+
+    # Then: the old schema is neither silently carried forward nor rewritten.
+    assert db_path.read_bytes() == before
 
 
 def test_init_db_rejects_retired_root_entries_before_creating_database(

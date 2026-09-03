@@ -118,7 +118,7 @@ LFC/CFG/PMA 契约提供原生证据，不能仅凭同名台账行关闭或重�
 | NAT-WIN-01 | P0 | 已实现；外部未测试 | 发布 smoke 启动安装版 Windows Controller，运行三轮循环，记录 Controller/Core/Godot PID 并拒绝仍存活的已记录进程。 | 冻结的 Windows 主机通过准确包 smoke、收据/PATH/开始菜单/Apps 注册与移除、普通用户启动、托盘/单实例交接、干净循环和证据保留。 |
 | NAT-LNX-01 | P0 | 已实现；外部未测试 | 发布 smoke 在 Xvfb 下运行安装版 Linux Controller；CI 检查 Dedicated Runtime 与 freedesktop entry。 | 每个命名支持的 DEB 主机通过准确包 smoke、dpkg/desktop-entry/icon/launcher footprint、普通用户启动、图形与 Dedicated authority；命名桌面会话证明应用菜单与托盘行为。 |
 | NAT-COMPAT-01 | P0 | 已实现；外部未测试 | 准确内测 OS 版本、Linux 发行版/会话与原生 runner 镜像已在设计文档和发布 Workflow 冻结。 | 每个声明支持的单元格都有准确 CI 镜像或命名真实主机样本，并记录架构、OS build、桌面/会话和结果；未测单元格从支持结论排除。 |
-| NAT-MODEL-01 | P0 | 已实现；外部未测试 | loopback 脚本模型服务、合成凭据边界、能力探测、Common/Emergency Food、领养/Chat 回复与 fail-closed 请求检查已实现。 | 一条安装版参考旅程通过生产 HTTP Adapter 证明模型聚合就绪、`adoption_candidate_reveal_v1` 与完整回复 Chat；测试服务/凭据无残留且证据无 Secret。 |
+| NAT-MODEL-01 | P0 | 已实现；外部未测试 | loopback 脚本模型服务、合成凭据边界、能力探测、Common/Emergency Food、确定性领养回复、Chat 与 fail-closed 请求检查已实现。 | 一条安装版参考旅程通过生产 HTTP Adapter 证明模型聚合就绪和完整回复 Chat；领养走确定性候选回复路径；测试服务/凭据无残留且证据无 Secret。 |
 | NAT-JOURNEY-01 | P0 | 已实现；外部未测试 | 安装版 Setup/Provider/Food/领养/Chat/重启 Driver 已接入每轮原生 smoke，不写数据库并输出脱敏证据。 | 四个准确包哈希都从中性 cwd 通过，不回退 checkout；证据保留 Setup、Elfie/历史、执行收据与 PID/generation 连续性，失败诊断脱敏。 |
 | NAT-UI-01 | P0 | 部分实现 | 原生 smoke 已激活安装版 Viewer 并要求脱敏的 `management_page_ready` marker；完整渲染版 Setup 到 Chat UI 旅程和事件严重级别门禁仍待补齐。 | 共享 UI 路径通过；四个 target 都证明激活、管理页 ready marker、Observer 已渲染且无致命 Renderer/Console 事件；OS Shell 行为另附证据。 |
 | NAT-RECOVERY-01 | P0 | 部分实现 | 原生 smoke 可运行重复启动矩阵，并拒绝 generation 或受管 PID 集合变化；聚焦生命周期测试覆盖准确身份与有界清理。 | 适用 Windows/POSIX/原生 authority 场景在一次性数据根使用准确 PID 注入通过、有界恢复且不操作无关进程；关联 LFC residual 在自身证据关闭前继续开放。 |

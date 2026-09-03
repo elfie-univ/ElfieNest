@@ -16,16 +16,19 @@ from elfie.brain.reasoning.context_compiler import (
 from elfie.brain.reasoning.context_types import (
     BodyCapabilityDescriptor,
     BrainContext,
+    CapabilityDescriptor,
     ConnectedChannelDescriptor,
+    ContextSummary,
     ConversationContext,
     ConversationMessage,
     EffectiveCapabilities,
 )
-from elfie.brain.reasoning.coordinator_turn import CoordinatorTurnFactory
+from elfie.brain.reasoning.coordinator_turn import ReasoningRunController
 from elfie.brain.reasoning.model_header import (
     ModelHeaderAssembler,
     ReasoningConstitution,
 )
+from elfie.brain.reasoning.run import CurrentRunObservation
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
@@ -76,7 +79,7 @@ def _context(
     *,
     recall: RecallBundle | None = None,
 ) -> BrainContext:
-    user_actor = _actor("owner-1", "human")
+    user_actor = _actor("owner-1", "owner")
     frame = TurnFrame(
         frame_id=EventId("frame-1"),
         elfie_id=ELFIE_ID,
@@ -195,6 +198,45 @@ def test_compile_preserves_communication_actor_and_channel() -> None:
     assert compiled.capabilities.current_body.body_id == "headless-body"
 
 
+def test_decision_prompt_exposes_registered_capability_argument_contracts() -> None:
+    context = _context().model_copy(
+        update={
+            "capabilities": _context().capabilities.model_copy(
+                update={
+                    "world_capabilities": ("world.go_to",),
+                    "capability_catalog": (
+                        CapabilityDescriptor(
+                            capability_id="world.go_to",
+                            category="world",
+                            description="Move to a semantic anchor.",
+                            argument_schema={
+                                "type": "object",
+                                "required": ["anchor_id"],
+                                "properties": {"anchor_id": {"type": "string"}},
+                            },
+                        ),
+                    ),
+                }
+            )
+        }
+    )
+    compiled = ModelContextCompiler().compile(
+        context,
+        budget=ModelTokenBudget(max_tokens=800),
+    )
+
+    _system, user_prompt = ReasoningRunController._model_prompts(
+        compiled,
+        fast_owner_reply=False,
+        header=ModelHeaderAssembler(
+            ReasoningConstitution.from_mapping(load_reasoning_constitution())
+        ),
+    )
+
+    assert '"world_contracts"' in user_prompt
+    assert '"anchor_id"' in user_prompt
+
+
 def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
     recall = RecallBundle(
         focus_nodes=(
@@ -225,7 +267,7 @@ def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
     assert "n1 --likes--> n2" in compiled.memory.content
     assert '条件：time="晚饭后"' in compiled.memory.content
 
-    _, user_prompt = CoordinatorTurnFactory._model_prompts(
+    system_prompt, user_prompt = ReasoningRunController._model_prompts(
         compiled,
         fast_owner_reply=True,
         header=ModelHeaderAssembler(
@@ -235,6 +277,11 @@ def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
 
     assert "RELEVANT_MEMORY:" in user_prompt
     assert "n1 --likes--> n2" in user_prompt
+    assert "我是 Lumi，是一只 Elfie。" in system_prompt
+    assert "[CURRENT_BRAIN_STATE]" in system_prompt
+    assert "elfie emotion: primary=happiness" in system_prompt
+    assert "CONTEXT_ONLY:\nowner: are you awake?" in user_prompt
+    assert "CURRENT_MESSAGE:\nplease answer from the sofa" in user_prompt
 
 
 def test_prompt_injection_text_is_compiled_as_inert_event_data() -> None:
@@ -273,6 +320,30 @@ def test_tight_budget_trims_content_without_dropping_identity_fields() -> None:
     assert social_event.cause_event_ids == ()
 
 
+def test_tight_budget_keeps_current_message_and_current_run_observation_paired() -> (
+    None
+):
+    long_text = " ".join(f"current-{index}" for index in range(40))
+    observation = CurrentRunObservation(
+        kind="memory",
+        status="recalled",
+        content="recall evidence says the corrected preference is blue",
+        source_ids=("node:preference-blue",),
+        revision=7,
+    )
+
+    compiled = ModelContextCompiler().compile(
+        _context(long_text),
+        budget=ModelTokenBudget(max_tokens=52),
+        observations=(observation,),
+    )
+
+    assert compiled.events[0].content.startswith("current-0")
+    assert "blue" in compiled.run_observations[0].content
+    assert compiled.run_observations[0].source_ids == ("node:preference-blue",)
+    assert compiled.run_observations[0].revision == 7
+
+
 def test_empty_history_compiles_to_empty_sections() -> None:
     # Given: a valid context with no frame events, conversation, or memory.
     context = _context().model_copy(
@@ -296,3 +367,42 @@ def test_empty_history_compiles_to_empty_sections() -> None:
     assert compiled.conversation == ()
     assert compiled.memory.content == ""
     assert compiled.truncated is False
+
+
+def test_source_backed_context_summary_reaches_the_final_provider_prompt() -> None:
+    context = _context()
+    summary = ContextSummary(
+        summary_id="context-summary:social-old-1:social-old-2:v1",
+        source_event_ids=(EventId("social-old-1"), EventId("social-old-2")),
+        occurred_from=NOW,
+        occurred_to=NOW,
+        content="[owner:owner-1] 纠正：喜欢蓝色，不是红色。",
+        unresolved_items=("纠正：喜欢蓝色，不是红色。",),
+    )
+    context = context.model_copy(
+        update={
+            "conversation": context.conversation.model_copy(
+                update={"summaries": (summary,)}
+            )
+        }
+    )
+
+    compiled = ModelContextCompiler().compile(
+        context,
+        budget=ModelTokenBudget(max_tokens=800),
+    )
+    _system, user_prompt = ReasoningRunController._model_prompts(
+        compiled,
+        fast_owner_reply=True,
+        header=ModelHeaderAssembler(
+            ReasoningConstitution.from_mapping(load_reasoning_constitution())
+        ),
+    )
+
+    assert compiled.summaries[0].source_event_ids == (
+        EventId("social-old-1"),
+        EventId("social-old-2"),
+    )
+    assert "CONTEXT_SUMMARIES:" in user_prompt
+    assert "喜欢蓝色，不是红色" in user_prompt
+    assert "social-old-1,social-old-2" in user_prompt

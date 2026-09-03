@@ -94,7 +94,7 @@ def test_mock_activity_wakes_and_settles_from_child_receipt(tmp_path, session_fa
     first = session.run_turn(StimulusBundle(message="请提醒我稍后带钥匙"), "mock")
 
     # When: the fake clock reaches the Activity wake-up and the resulting
-    # Internal Turn is allowed to settle its communication step.
+    # Activity Turn is allowed to settle its communication step.
     assert first["decision"]["activity_intents"]
     assert session.snapshot()["activities"][0]["state"] == "waiting"
     session.elfie.advance_clock(31)
@@ -139,7 +139,7 @@ def test_recovery_drive_creates_one_bounded_internal_turn(tmp_path, session_fact
     for outcome in session.elfie.turn_outcomes():
         session.elfie.wait_for_output(outcome.turn_id, timeout=5)
 
-    # Then: one explainable Internal Turn settles to No-op and enters satisfaction.
+    # Then: one explainable Activity Turn settles to No-op and enters satisfaction.
     outcomes = session.elfie.turn_outcomes()
     assert len(outcomes) == 1
     decision = session.elfie.turn_decision(outcomes[0].turn_id)
@@ -183,7 +183,7 @@ def test_consolidation_consolidates_memory_without_external_actions(
     ElfieDiagnostics(session.elfie).energy.is_sleeping = True
     ElfieDiagnostics(session.elfie).energy.fatigue = 90.0
 
-    # When: a clock pulse opens the quiet-window candidate and its Internal Turn.
+    # When: a clock pulse opens the quiet-window candidate and its Activity Turn.
     session.elfie.advance_clock(1.0)
     session.elfie.wait_for_outcome_count(1, timeout=5)
     for outcome in session.elfie.turn_outcomes():

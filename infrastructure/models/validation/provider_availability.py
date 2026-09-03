@@ -45,7 +45,9 @@ _REQUEST_NEUTRAL_CODES = frozenset(
         "request_timeout",
     }
 )
-_TRANSIENT_CATEGORIES = frozenset({"network", "timeout", "server", "transport"})
+_TRANSIENT_CATEGORIES = frozenset(
+    {"network", "timeout", "server", "transport", "rate_limit"}
+)
 NON_RETRYABLE_REASONS = frozenset(
     {
         *_CONNECTION_BLOCK_CODES,
@@ -512,7 +514,7 @@ def _retry_at(observed_at: datetime | None) -> str | None:
 def _is_connection_block(observation: ValidationObservation) -> bool:
     return (
         _reason_code(observation) in _CONNECTION_BLOCK_CODES
-        or observation.error_category in {"authentication", "billing", "quota"}
+        or _error_category(observation) in {"authentication", "billing", "quota"}
         or _error_scope(observation) == "connection"
         and observation.details.get("hard_blocker") is True
     )
@@ -534,7 +536,7 @@ def _is_capability_evidence(observation: ValidationObservation) -> bool:
 
 def _is_transient(observation: ValidationObservation) -> bool:
     return (
-        observation.error_category in _TRANSIENT_CATEGORIES
+        _error_category(observation) in _TRANSIENT_CATEGORIES
         or _reason_code(observation) in {"network_error", "timeout", "server_error"}
         or _error_scope(observation) == "transport"
     )
@@ -566,9 +568,10 @@ def _error_scope(observation: ValidationObservation) -> ErrorScope | None:
         "connection",
     }:
         return raw  # type: ignore[return-value]
-    if observation.error_category in {"authentication", "billing", "quota"}:
+    category = _error_category(observation)
+    if category in {"authentication", "billing", "quota"}:
         return "connection"
-    if observation.error_category in _TRANSIENT_CATEGORIES:
+    if category in _TRANSIENT_CATEGORIES:
         return "transport"
     return "endpoint" if observation.status == "failed" else None
 
@@ -577,7 +580,14 @@ def _reason_code(observation: ValidationObservation) -> str | None:
     raw = observation.details.get("error_code") or observation.details.get(
         "reason_code"
     )
-    return str(raw) if isinstance(raw, str) and raw else observation.error_category
+    return str(raw) if isinstance(raw, str) and raw else _error_category(observation)
+
+
+def _error_category(observation: ValidationObservation) -> str | None:
+    structured = observation.details.get("error_category")
+    if isinstance(structured, str) and structured:
+        return structured
+    return observation.error_category
 
 
 def _evidence_source(observation: ValidationObservation) -> str | None:

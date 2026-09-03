@@ -177,6 +177,7 @@ def _with_request_profile(
             discovery_state=model.discovery_state,
             consecutive_missing=model.consecutive_missing,
             last_seen_at=model.last_seen_at,
+            pricing=model.pricing,
         )
     else:
         record = model
@@ -1243,6 +1244,7 @@ class ProviderModelsAdapter:
                     profile.bundled_models,
                     provider_id=profile.legacy_provider_id,
                     identity_catalog=self._identity_catalog,
+                    free_model_ids=profile.free_model_ids,
                 )
             )
             merged = merge_refreshed_models(
@@ -1431,11 +1433,14 @@ class ProviderModelsAdapter:
         """
         if item.source == "configured":
             return self._provider_model(
-                self.prepare_manual_model(
-                    ProviderModelInput(
-                        model_id=item.name,
-                        display_name=item.display_name or item.name,
-                    )
+                replace(
+                    self.prepare_manual_model(
+                        ProviderModelInput(
+                            model_id=item.name,
+                            display_name=item.display_name or item.name,
+                        )
+                    ),
+                    pricing=profile.pricing_for_model(item.name),
                 ),
                 source="manual",
             )
@@ -1443,6 +1448,7 @@ class ProviderModelsAdapter:
             (item.name,),
             provider_id=profile.legacy_provider_id,
             identity_catalog=self._identity_catalog,
+            free_model_ids=profile.free_model_ids,
         )[0]
         return replace(
             declared,
@@ -1501,6 +1507,7 @@ class ProviderModelsAdapter:
                 profile.bundled_models,
                 provider_id=profile.legacy_provider_id,
                 identity_catalog=self._identity_catalog,
+                free_model_ids=profile.free_model_ids,
             )
         if connection.catalog_id == "custom_openai":
             return ()
@@ -1510,6 +1517,7 @@ class ProviderModelsAdapter:
                 fetcher=fetch_remote_models,
                 provider_id=profile.legacy_provider_id,
                 identity_catalog=self._identity_catalog,
+                free_model_ids=profile.free_model_ids,
             )
         except RemoteCatalogUnavailable:
             catalog_models = ()
@@ -1517,6 +1525,7 @@ class ProviderModelsAdapter:
             profile.bundled_models,
             provider_id=profile.legacy_provider_id,
             identity_catalog=self._identity_catalog,
+            free_model_ids=profile.free_model_ids,
         )
 
     def _serving_model_ids(self, connection_id: str) -> tuple[str, ...]:
@@ -1766,10 +1775,28 @@ class ProviderModelsAdapter:
             api_mode=cast(ApiMode, profile.api_mode),
             api_base=profile.api_base,
             auth_type=cast(AuthType, profile.auth_type),
+            api_key_url=profile.api_key_url or None,
+            has_free_models=bool(profile.free_model_ids),
         )
 
-    @classmethod
-    def _connection(cls, item: ProviderConnection) -> StoredProviderConnection:
+    def _connection(self, item: ProviderConnection) -> StoredProviderConnection:
+        profile = self._catalog.products.get(item.catalog_id)
+        models = tuple(
+            self._model(
+                _with_request_profile(
+                    self._model(
+                        model,
+                        pricing=(
+                            profile.pricing_for_model(model.endpoint_model_id)
+                            if profile is not None
+                            else model.pricing
+                        ),
+                    ),
+                    item.api_mode,
+                )
+            )
+            for model in item.models
+        )
         return StoredProviderConnection(
             connection_id=item.connection_id,
             catalog_id=item.catalog_id,
@@ -1778,10 +1805,7 @@ class ProviderModelsAdapter:
             api_mode=cast(ApiMode, item.api_mode),
             auth_type=cast(AuthType, item.auth_type),
             credential_ref=item.credential_ref,
-            models=tuple(
-                cls._model(_with_request_profile(cls._model(model), item.api_mode))
-                for model in item.models
-            ),
+            models=models,
             enabled=item.enabled,
             archived=item.archived,
         )
@@ -1805,7 +1829,11 @@ class ProviderModelsAdapter:
         )
 
     @staticmethod
-    def _model(item: ProviderModelRecord) -> StoredProviderModel:
+    def _model(
+        item: ProviderModelRecord,
+        *,
+        pricing: str | None = None,
+    ) -> StoredProviderModel:
         return StoredProviderModel(
             model_id=item.endpoint_model_id,
             display_name=item.display_name,
@@ -1830,6 +1858,7 @@ class ProviderModelsAdapter:
             discovery_state=item.discovery_state,
             consecutive_missing=item.consecutive_missing,
             last_seen_at=item.last_seen_at,
+            pricing=item.pricing if pricing is None else pricing,  # type: ignore[arg-type]
         )
 
     @staticmethod
@@ -1862,6 +1891,7 @@ class ProviderModelsAdapter:
             discovery_state=item.discovery_state,
             consecutive_missing=item.consecutive_missing,
             last_seen_at=item.last_seen_at,
+            pricing=item.pricing,
         )
 
     @classmethod

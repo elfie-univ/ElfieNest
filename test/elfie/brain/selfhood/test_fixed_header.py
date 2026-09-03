@@ -29,11 +29,6 @@ def _seed() -> dict[str, object]:
             "display_name": "Lumi",
             "species_id": "fox",
             "species_name": "Saevi",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "mistyville",
-            "home_region_name": "迷雾镇",
-            "earth_arrival_statement": "我通过获准的传送阵来到地球。",
             "resident_role": "ElfieNest 居民",
         },
         "adaptive_self": {
@@ -59,7 +54,7 @@ def test_selfhood_projection_is_natural_language_and_hides_internal_values() -> 
 
     assert projection.revision == 7
     assert "Lumi" in projection.identity_core_text
-    assert "Elfaria" in projection.identity_core_text
+    assert "Elfaria" not in projection.identity_core_text
     assert "0.9" not in projection.adaptive_self_text
     assert "opaque-internal-id" not in projection.adaptive_self_text
     assert "喜欢探索新事物" in projection.adaptive_self_text

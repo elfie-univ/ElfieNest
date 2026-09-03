@@ -1,13 +1,19 @@
 # Elfie 世界观、物种与个体设定基础
 
-> 状态：内部导航总览；机器可读事实以 `config/world/elfaria.yaml` 和 `config/species/` 为准，居民公共知识、
-> 物种先验和个体初始化分别由既有设计链路处理。本文只保留导航和稳定的故事边界，后续剧情扩展仍需单独审阅。
+> 状态：内部叙事设定总览；故事事实仍需由《Elfaria 自底向上世界设定》和居民公共知识
+> 总览确认后，才能进入已发布 Genesis 资料。本文不定义 Profile、Selfhood、Memory 或运行时
+> Prompt 的所有权。
 >
 > 目的：集中保存当前已经形成的世界观方向、首版物种范围、个体设定结构和一致性原则，
 > 避免后续设计人格、背景生成和提示词时反复丢失或改写同一批基础决定。
+>
+> 实现边界以 ADR-0033、Elfie 2.3、Brain 1.5 与
+> [Genesis v0.2](../genesis-core-kernel-design-v0.2.md) 为准；旧 v0.1 的 Profile/Canon 运行时
+> 映射不能覆盖这些契约。
 
 本总览对应的 v0.1 设定稿：
 
+- [Genesis v0.2：Genesis 创建与所有权设计](../genesis-core-kernel-design-v0.2.md)
 - [OPT-001 最终设计：Elfaria 世界知识与 Elfie 个体初始化](genesis-core-kernel-design-v0.1.md)
 - [Elfaria 自底向上世界设定 v0.1](elfaria-bottom-up-world-design-v0.1.md)
 - [Elfaria 首版物种卡 v0.1](elfaria-species-cards-v0.1.md)
@@ -278,11 +284,15 @@ ElfieNest，里面生活一只被这个家庭领养的 Elfie。
 
 ## 12. 与当前实现的关系
 
-当前外貌系统已经具备物种母版和较丰富的个体外貌基因。运行时已经把本文件的事实分层
-接入：Profile 保存 Elfaria 来源、迷雾镇区域和到达基地；`config/` 机器 Canon 提供世界与三种物种的
-只读叙事事实；Selfhood 保存正式物种名、身份事实、行为锚点、规范和知识边界；Genesis
-在领养物化时只提交少量到达/家园 MemorySeed、地点实体和领养家庭关系；对话上下文把
-Profile/Canon 作为身份权威，并明确 ElfieNest 是生活基地而不是记忆容器。
+当前外貌系统已经具备物种母版和较丰富的个体外貌基因，但旧实现仍把来源/到达字段放进
+Profile，并让 Selfhood/对话路径持有当前 Canon 投影。这是 `ELF-010`、`SHD-002` 和
+`CFG-005` 记录的实现偏差，不是本设定认可的所有权。
+
+目标链路只有一个：已确认世界骨架 → 居民公共知识 → 已发布 Genesis 创建投影 → 一次性
+Genesis。Genesis 把外部冻结客观档案交给 Profile，把内部身份人格交给 Selfhood，把世界知识、
+人物、关系、培训、出发、抵达和领养经历交给 Memory；提交后删除问卷、资料绑定、Plan 和 Seed。
+普通 Brain 只使用 Selfhood、Memory 与当前状态，不读取 Profile 或创建资料。物种包供
+Godot/展示使用的运行时资产投影与创建投影分开，二者都不进入 Profile。
 
 当前视觉设计资料覆盖 `fox → Saevi`、`dog → Tovren` 和 `cat → Myelle`；但运行时目录仍把
 Myelle 标记为 draft，当前可选择/可运行范围以完整资产包和物种目录为准。后续不是继续堆叠一段更长的提示词，而是让

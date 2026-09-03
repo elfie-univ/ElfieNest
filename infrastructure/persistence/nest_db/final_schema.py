@@ -80,19 +80,39 @@ FINAL_TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
     "elfies": frozenset(
         {
             "elfie_id",
-            "name",
-            "original_name",
             "owner_user_id",
-            "species",
-            "gender",
-            "birth_date",
             "adopted_at",
             "home_anchor_id",
             "status",
-            "summary",
             "main_food_id",
             "created_at",
             "updated_at",
+        }
+    ),
+    "resident_admissions": frozenset(
+        {
+            "admission_id",
+            "idempotency_key_digest",
+            "elfie_id",
+            "owner_user_id",
+            "state",
+            "candidate_set_id",
+            "candidate_id",
+            "display_name",
+            "species_id",
+            "gender",
+            "age_years",
+            "adoption_anchor_at",
+            "manifest_id",
+            "content_hash",
+            "output_ids_hash",
+            "compiler_version",
+            "schema_version",
+            "runtime_status",
+            "error_code",
+            "created_at",
+            "updated_at",
+            "committed_at",
         }
     ),
     "food_packages": frozenset(
@@ -231,16 +251,10 @@ _ADDITIVE_COLUMN_DEFINITIONS: Final[dict[str, str]] = {
         "TEXT NOT NULL DEFAULT '[]' "
         "CHECK(json_valid(environment_rules_json) AND json_type(environment_rules_json)='array')"
     ),
-    "elfies.original_name": (
-        "TEXT NOT NULL DEFAULT '' CHECK(length(trim(original_name))>=0)"
-    ),
-    "elfies.gender": "TEXT",
-    "elfies.birth_date": "TEXT",
     "elfies.home_anchor_id": (
         "TEXT CHECK(home_anchor_id IS NULL OR "
         "(home_anchor_id=trim(home_anchor_id) AND length(home_anchor_id)>0))"
     ),
-    "elfies.summary": "TEXT",
     "elfies.main_food_id": (
         "TEXT CHECK(main_food_id IS NULL OR length(trim(main_food_id)) > 0)"
     ),
@@ -287,16 +301,27 @@ class FinalNestDatabasePathError(RuntimeError):
 class FinalNestSchemaRepairError(RuntimeError):
     """Raised when a missing column is outside the narrow additive contract."""
 
-    __slots__ = ("missing_columns",)
+    __slots__ = ("missing_columns", "unexpected_columns")
 
-    def __init__(self, missing_columns: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        missing_columns: tuple[str, ...] = (),
+        *,
+        unexpected_columns: tuple[str, ...] = (),
+    ) -> None:
         self.missing_columns = missing_columns
+        self.unexpected_columns = unexpected_columns
         super().__init__(str(self))
 
     def __str__(self) -> str:
-        return "数据库结构与当前版本不兼容：缺少不可安全补齐的字段 " + ", ".join(
-            self.missing_columns
-        )
+        details: list[str] = []
+        if self.missing_columns:
+            details.append("缺少不可安全补齐的字段 " + ", ".join(self.missing_columns))
+        if self.unexpected_columns:
+            details.append(
+                "存在当前版本不认识的字段 " + ", ".join(self.unexpected_columns)
+            )
+        return "数据库结构与当前版本不兼容：" + "；".join(details)
 
 
 def create_final_nest_database(db_path: str | Path) -> Path:
@@ -339,6 +364,9 @@ def repair_final_nest_database(db_path: str | Path) -> Path:
 
 def add_missing_final_schema_columns(connection: sqlite3.Connection) -> tuple[str, ...]:
     """Add only allow-listed nullable/default current-contract columns."""
+    unexpected = unexpected_final_schema_columns(connection)
+    if unexpected:
+        raise FinalNestSchemaRepairError(unexpected_columns=unexpected)
     missing = missing_final_schema_columns(connection)
     unsupported = unsupported_final_schema_columns(missing)
     if unsupported:
@@ -361,6 +389,29 @@ def unsupported_final_schema_columns(
         for column_name in missing_columns
         if column_name not in _ADDITIVE_COLUMN_DEFINITIONS
     )
+
+
+def unexpected_final_schema_columns(
+    connection: sqlite3.Connection,
+) -> tuple[str, ...]:
+    """Return columns outside the exact current root-table contract.
+
+    A database that still has an old identity column is not a partially
+    initialized current database: it contains a competing fact source.  The
+    bootstrap therefore classifies it as incompatible instead of silently
+    carrying that column forward.
+    """
+    unexpected: list[str] = []
+    for table_name, expected_columns in FINAL_TABLE_COLUMNS.items():
+        actual_columns = {
+            str(row[1])
+            for row in connection.execute(f"PRAGMA table_info({table_name})")
+        }
+        unexpected.extend(
+            f"{table_name}.{column_name}"
+            for column_name in sorted(actual_columns - expected_columns)
+        )
+    return tuple(unexpected)
 
 
 def _initialize_final_tables(connection: sqlite3.Connection) -> None:
@@ -470,19 +521,60 @@ _TABLE_STATEMENTS: Final = (
     )""",
     """CREATE TABLE IF NOT EXISTS elfies (
         elfie_id TEXT PRIMARY KEY CHECK(elfie_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
-        name TEXT NOT NULL CHECK(length(trim(name))>0),
-        original_name TEXT NOT NULL DEFAULT '' CHECK(length(trim(original_name))>=0),
         owner_user_id INTEGER NOT NULL REFERENCES users(id),
-        species TEXT NOT NULL CHECK(length(trim(species))>0), gender TEXT, birth_date TEXT,
         adopted_at TEXT NOT NULL,
         home_anchor_id TEXT CHECK(
             home_anchor_id IS NULL OR
             (home_anchor_id=trim(home_anchor_id) AND length(home_anchor_id)>0)
         ),
-        status TEXT NOT NULL CHECK(status IN ('online','away','offline')), summary TEXT,
+        status TEXT NOT NULL CHECK(status IN ('online','away','offline')),
         main_food_id TEXT CHECK(main_food_id IS NULL OR length(trim(main_food_id)) > 0),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS resident_admissions (
+        admission_id TEXT PRIMARY KEY
+            CHECK(admission_id=trim(admission_id) AND length(admission_id) BETWEEN 1 AND 128),
+        idempotency_key_digest TEXT NOT NULL UNIQUE
+            CHECK(length(idempotency_key_digest)=64
+                AND idempotency_key_digest NOT GLOB '*[^0-9a-fA-F]*'),
+        elfie_id TEXT NOT NULL UNIQUE
+            CHECK(elfie_id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
+        owner_user_id INTEGER NOT NULL REFERENCES users(id),
+        state TEXT NOT NULL
+            CHECK(state IN ('reserved','compiling','staged','publishing','committed','aborted')),
+        candidate_set_id TEXT,
+        candidate_id TEXT,
+        display_name TEXT CHECK(display_name IS NULL OR length(trim(display_name)) BETWEEN 1 AND 20),
+        species_id TEXT CHECK(species_id IS NULL OR length(trim(species_id)) > 0),
+        gender TEXT CHECK(gender IS NULL OR gender IN ('male','female')),
+        age_years INTEGER CHECK(age_years IS NULL OR age_years BETWEEN 1 AND 120),
+        adoption_anchor_at TEXT,
+        manifest_id TEXT,
+        content_hash TEXT CHECK(content_hash IS NULL OR (length(content_hash)=64
+            AND content_hash NOT GLOB '*[^0-9a-fA-F]*')),
+        output_ids_hash TEXT CHECK(output_ids_hash IS NULL OR (length(output_ids_hash)=64
+            AND output_ids_hash NOT GLOB '*[^0-9a-fA-F]*')),
+        compiler_version TEXT,
+        schema_version INTEGER CHECK(schema_version IS NULL OR schema_version >= 1),
+        runtime_status TEXT NOT NULL DEFAULT 'pending'
+            CHECK(runtime_status IN ('pending','registered','offline')),
+        error_code TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        committed_at TEXT,
+        CHECK(
+            state <> 'committed'
+            OR (manifest_id IS NOT NULL AND content_hash IS NOT NULL
+                AND output_ids_hash IS NOT NULL AND compiler_version IS NOT NULL
+                AND schema_version IS NOT NULL AND committed_at IS NOT NULL)
+        ),
+        CHECK(
+            state IN ('reserved','compiling','staged','publishing')
+            OR (candidate_set_id IS NULL AND candidate_id IS NULL AND display_name IS NULL
+                AND species_id IS NULL AND gender IS NULL AND age_years IS NULL
+                AND adoption_anchor_at IS NULL)
+        )
     )""",
     """CREATE TABLE IF NOT EXISTS food_packages (
         food_key TEXT PRIMARY KEY
@@ -558,6 +650,8 @@ _INDEX_STATEMENTS: Final = (
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_local_installations_owner ON local_installations(owner_user_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_elfies_home_anchor_id ON elfies(home_anchor_id) WHERE home_anchor_id IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_resident_admissions_owner_state ON resident_admissions(owner_user_id, state)",
+    "CREATE INDEX IF NOT EXISTS idx_resident_admissions_state ON resident_admissions(state)",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_common_role
         ON food_packages(system_role) WHERE system_role='common'""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_food_packages_emergency_role
@@ -586,7 +680,12 @@ _TRIGGER_STATEMENTS: Final = (
         WHEN OLD.role<>'owner' AND NEW.role='owner'
         BEGIN SELECT RAISE(ABORT,'Owner role cannot be granted by update'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_nest_bed_count BEFORE UPDATE OF bed_count ON nest_settings
-        WHEN (SELECT COUNT(*) FROM elfies)>NEW.bed_count
+        WHEN (
+            (SELECT COUNT(*) FROM elfies)
+            + (SELECT COUNT(*) FROM resident_admissions a
+               WHERE a.state IN ('reserved','compiling','staged','publishing')
+                 AND NOT EXISTS (SELECT 1 FROM elfies e WHERE e.elfie_id=a.elfie_id))
+        )>NEW.bed_count
         BEGIN SELECT RAISE(ABORT,'bed_count is below current resident capacity'); END""",
     """CREATE TRIGGER IF NOT EXISTS trg_lease_body_insert BEFORE INSERT ON embodiment_sessions
         WHEN NEW.body_id IS NOT NULL AND EXISTS(SELECT 1 FROM external_bodies

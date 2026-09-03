@@ -180,7 +180,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                         )
                         next_review = _next_lifecycle_review(
                             anchor,
-                            float(row["retention_days"] or 7.0),
+                            float(row["half_life_days"]),
                             detail,
                             lifecycle,
                         )
@@ -537,7 +537,7 @@ def _row_freshness(row: sqlite3.Row, now: str) -> float:
     return MemoryScorePolicy.freshness(
         now,
         str(anchor or now),
-        float(row["retention_days"] or 7.0),
+        float(row["half_life_days"]),
     )
 
 
@@ -652,7 +652,7 @@ def _can_forget_episode(row: sqlite3.Row, freshness: float, now: str) -> bool:
 
 
 def _next_lifecycle_review(
-    anchor: str, retention_days: float, detail: str, lifecycle: str
+    anchor: str, half_life_days: float, detail: str, lifecycle: str
 ) -> str | None:
     if lifecycle == "archived" or lifecycle == "forgotten":
         return None
@@ -662,7 +662,7 @@ def _next_lifecycle_review(
         "digest": MemoryScorePolicy.active_freshness_threshold,
     }.get(detail, MemoryScorePolicy.active_freshness_threshold)
     return MemoryScorePolicy.next_review_at(
-        anchor, retention_days, threshold
+        anchor, half_life_days, threshold
     ).isoformat(timespec="milliseconds")
 
 

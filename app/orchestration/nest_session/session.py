@@ -21,6 +21,8 @@ from app.orchestration.nest_session.models import (
     ObserverSemanticEntity,
     RuntimeMockMotion,
     WorldEvent,
+    WorldEventName,
+    WorldSnapshot,
 )
 from app.orchestration.nest_session.ports import (
     ModelPortFactory,
@@ -38,15 +40,18 @@ from app.orchestration.nest_session.runtime_events import NestRuntimeEventRouter
 from app.orchestration.nest_session.runtime_sync import NestRuntimeSynchronizer
 from app.orchestration.nest_session.world_perception import (
     nest_event_to_body_sensor_event,
+    world_snapshot_to_body_sensor_event,
 )
 from elfie.public import (
     BodySensorEvent,
+    CapabilityDescriptor,
     CommunicationChannel,
     Elfie,
     InboundDisposition,
     ModelPort,
 )
 from nest.public import (
+    AnchorKind,
     Nest,
     NestEventEnvelope,
     NestSnapshot,
@@ -153,7 +158,11 @@ class NestSession:
                             "运行中的 NestSession 没有可用的认知 Runtime"
                         )
                     if model_port is not None:
-                        elfie.configure_cognition(model_port)
+                        elfie.configure_cognition(
+                            model_port,
+                            world_capabilities=self.world_capabilities,
+                            world_capability_catalog=self.world_capability_catalog,
+                        )
                 if self._lifecycle_state == "running":
                     elfie.start()
                     if not elfie.is_running:
@@ -333,7 +342,41 @@ class NestSession:
         """Apply one drained and generation-validated Runtime event."""
         with self._lifecycle_lock:
             self._runtime_events.consume(event)
+            self._deliver_world_snapshot_body_state(event)
             self._deliver_pending_nest_events()
+
+    def _deliver_world_snapshot_body_state(self, event: WorldEvent) -> None:
+        """Route current Godot self-state back through each Elfie's Body input."""
+        if event.name is not WorldEventName.WORLD_SNAPSHOT:
+            return
+        if not isinstance(event.payload, WorldSnapshot):
+            return
+        connection = self.world_runtime.runtime_connection
+        if (
+            connection is None
+            or event.connection != connection
+            or event.world_revision != self._runtime_sync.configured_revision
+        ):
+            return
+        received_at = datetime.now(timezone.utc)
+        for resident in event.payload.residents:
+            elfie = self.elfies.get(resident.elfie_id)
+            if elfie is None:
+                continue
+            sensor_event = world_snapshot_to_body_sensor_event(
+                event=event,
+                resident=resident,
+                elfie=elfie,
+                received_at=received_at,
+            )
+            try:
+                elfie.pump_body_events((sensor_event,))
+            except Exception:
+                logger.warning(
+                    "Failed to deliver Godot body state to Elfie %s",
+                    resident.elfie_id,
+                    exc_info=True,
+                )
 
     def _deliver_pending_nest_events(self) -> None:
         """Deliver each typed Nest event once to its explicit Elfie targets."""
@@ -742,6 +785,68 @@ class NestSession:
             and not self.nest.reconciliation_required
         )
 
+    def world_capabilities(self) -> tuple[str, ...]:
+        """Expose only semantic-world calls available in the current Runtime."""
+        if not self.runtime_world_ready or self.nest.world_catalog is None:
+            return ()
+        return tuple(
+            descriptor.capability_id for descriptor in self.world_capability_catalog()
+        )
+
+    def world_capability_catalog(self) -> tuple[CapabilityDescriptor, ...]:
+        """Expose registered world calls together with typed model arguments."""
+        if not self.runtime_world_ready or self.nest.world_catalog is None:
+            return ()
+        wander_targets = tuple(
+            anchor.anchor_id
+            for zone in sorted(
+                self.nest.world_catalog.zones,
+                key=lambda item: (item.order, item.zone_id),
+            )
+            for anchor in sorted(
+                zone.anchors,
+                key=lambda item: (item.order, item.anchor_id),
+            )
+            if anchor.active and anchor.kind is not AnchorKind.BED
+        )
+        return (
+            CapabilityDescriptor(
+                capability_id="world.go_to",
+                category="world",
+                description="Move the current Elfie to a semantic Nest anchor.",
+                argument_schema={
+                    "type": "object",
+                    "required": ["anchor_id"],
+                    "properties": {
+                        "anchor_id": {
+                            "type": "string",
+                            "description": "Registered semantic anchor ID.",
+                            "enum": list(wander_targets),
+                        }
+                    },
+                    "additionalProperties": False,
+                },
+            ),
+            CapabilityDescriptor(
+                capability_id="world.observe",
+                category="world",
+                description="Return semantic objects visible to the current Elfie.",
+                argument_schema={
+                    "type": "object",
+                    "properties": {
+                        "observation_id": {"type": "string"},
+                        "max_results": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 64,
+                            "default": 32,
+                        },
+                    },
+                    "additionalProperties": False,
+                },
+            ),
+        )
+
     def configure_cognition(self, model_port: ModelPort) -> None:
         """Inject the configured model boundary into every registered Elfie."""
         with self._lifecycle_lock:
@@ -749,7 +854,11 @@ class NestSession:
             self._model_port_factory = lambda _elfie_id: model_port
             for _elfie_id, elfie in self.elfie_items_snapshot():
                 if not elfie.cognition_configured:
-                    elfie.configure_cognition(model_port)
+                    elfie.configure_cognition(
+                        model_port,
+                        world_capabilities=self.world_capabilities,
+                        world_capability_catalog=self.world_capability_catalog,
+                    )
 
     def configure_cognition_factory(
         self,
@@ -761,7 +870,11 @@ class NestSession:
             self._model_port_factory = factory
             for elfie_id, elfie in self.elfie_items_snapshot():
                 if not elfie.cognition_configured:
-                    elfie.configure_cognition(factory(elfie_id))
+                    elfie.configure_cognition(
+                        factory(elfie_id),
+                        world_capabilities=self.world_capabilities,
+                        world_capability_catalog=self.world_capability_catalog,
+                    )
 
     def start_elfies(self) -> None:
         with self._lifecycle_lock:

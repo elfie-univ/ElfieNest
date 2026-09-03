@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from elfie.profile import create_visual_profile
+from infrastructure.persistence.layout.data_layout import final_root_layout
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
 from infrastructure.persistence.nest_db.store import get_db, init_db
+from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from nest import NestConfig
 from nest.public import AnchorKind, InteractionAnchor, WorldCatalog, ZoneDescriptor
 
@@ -20,11 +25,20 @@ def _seed_elfie(db_path: str, elfie_id: str) -> None:
         )
         connection.execute(
             """INSERT INTO elfies(
-                   elfie_id, name, owner_user_id, species, adopted_at, status
-               ) VALUES (?, ?, 1, 'fox', CURRENT_TIMESTAMP, 'offline')""",
-            (elfie_id, elfie_id),
+                   elfie_id, owner_user_id, adopted_at, status
+               ) VALUES (?, 1, CURRENT_TIMESTAMP, 'offline')""",
+            (elfie_id,),
         )
         connection.commit()
+    layout = final_root_layout(Path(db_path).parent).elfie(elfie_id)
+    YamlProfileStoreAdapter(layout.profile.parent).save(
+        create_visual_profile(
+            elfie_id=elfie_id,
+            display_name=elfie_id,
+            species_id="fox",
+            seed=1,
+        )
+    )
 
 
 def _seed_nest(db_path: str) -> None:
