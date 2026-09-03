@@ -1,8 +1,8 @@
 # Service lifecycle contract
 
-**Contract version:** 1.3
+**Contract version:** 1.4
 **Adopted:** 2026-08-15
-**Revised:** 2026-08-19
+**Revised:** 2026-09-03
 **Scope:** installed and source Runtime lifecycle, readiness and process ownership
 
 > **Normative target.** This contract fixes the service-state authority and the
