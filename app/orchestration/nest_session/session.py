@@ -42,9 +42,9 @@ from app.orchestration.nest_session.world_perception import (
     nest_event_to_body_sensor_event,
     world_snapshot_to_body_sensor_event,
 )
-from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.public import (
     BodySensorEvent,
+    CapabilityDescriptor,
     CommunicationChannel,
     Elfie,
     InboundDisposition,
