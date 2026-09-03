@@ -41,7 +41,7 @@ elfie/
 ├── profile/             # 身份、物种、外貌和稳定 Profile
 ├── brain/               # 十系统认知核心与私有运行时
 ├── nervous_system/      # 感知规范化、过滤、反射和物理输出
-├── body/                # Headless、Native、External 可替换身体
+├── body/                # BodyPort/能力/事件契约与 Headless 测试身体
 ├── communication/       # 不经过 NervousSystem 的数字消息通道
 └── brain/reasoning/skills/ # ReasoningRun 内使用的语义 Skill 目录
 ```

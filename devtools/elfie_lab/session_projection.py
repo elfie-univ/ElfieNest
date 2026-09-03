@@ -88,6 +88,12 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
     selfhood = elfie.selfhood_snapshot()
     profile_anchor = elfie.profile_dossier()
     journal = elfie.brain_journal()
+    body = elfie.current_body
+    body_snapshot = (
+        body.snapshot_body(now=elfie.cognitive_datetime).model_dump(mode="json")
+        if body is not None
+        else None
+    )
     return {
         "energy": round(energy.get_energy(), 2),
         "fatigue": round(energy.get_fatigue(), 2),
@@ -107,12 +113,7 @@ def build_snapshot(elfie: Elfie, spec: ElfieSpec) -> Dict[str, Any]:
         "expression": expression,
         "attention_network": "reasoning_worker",
         "species_id": spec.species_id,
-        "anatomy_type": elfie.anatomy_type,
-        "action_intent": diagnostics.nervous_system.motion_actuator.last_action_intent,
-        "joint_angles": {
-            name: round(value, 3)
-            for name, value in diagnostics.anatomy.get_joint_angles().items()
-        },
+        "body_snapshot": body_snapshot,
         "elapsed_time": round(elfie.elapsed_time, 3),
         "memory_count": _memory_episode_count(memory),
         "memory_revision": memory_state.revision,

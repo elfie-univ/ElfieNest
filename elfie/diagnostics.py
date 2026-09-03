@@ -64,9 +64,5 @@ class ElfieDiagnostics:
     def skills(self):
         return self._elfie._skills
 
-    @property
-    def anatomy(self):
-        return self._elfie._anatomy
-
 
 __all__ = ("ElfieDiagnostics",)

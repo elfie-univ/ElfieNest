@@ -47,12 +47,12 @@ function List({ values, diff = false }: Readonly<{ values: Readonly<Record<strin
 function snapshot(value: unknown): Record<string, unknown> {
   const state = record(value);
   const primary = typeof state.primary_emotion === "string" ? state.primary_emotion : "";
-  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "认知模式": state.cognitive_mode, "普通认知配额": state.normal_budget_available, "紧急储备": state.emergency_reserve_available, "已预留认知配额": state.reserved_cognitive_budget, "主导情绪": emotionLabels[primary] ?? primary, "注意力": state.attention_network, "自我定位": state.orientation, "自我认知": state.selfhood, "Profile 锚点": state.profile_anchor, "动作意图": state.action_intent, "恢复驱力": state.motivation, "心智整理": state.cognitive_consolidation, "认知日志": state.journal, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
+  return { "能量": state.energy, "疲劳": state.fatigue, "睡眠": state.is_sleeping === true ? "是" : "否", "认知模式": state.cognitive_mode, "普通认知配额": state.normal_budget_available, "紧急储备": state.emergency_reserve_available, "已预留认知配额": state.reserved_cognitive_budget, "主导情绪": emotionLabels[primary] ?? primary, "注意力": state.attention_network, "自我定位": state.orientation, "自我认知": state.selfhood, "Profile 锚点": state.profile_anchor, "身体": state.body_snapshot, "恢复驱力": state.motivation, "心智整理": state.cognitive_consolidation, "认知日志": state.journal, "记忆数": state.memory_count, "活动数": state.activity_count, "活动": state.activities, "情绪全景": state.emotions };
 }
 
 function liveSummary(value: unknown): Record<string, unknown> {
   const state = snapshot(value);
-  return Object.fromEntries(["能量", "疲劳", "睡眠", "认知模式", "主导情绪", "动作意图"].map((key) => [key, state[key]]));
+  return Object.fromEntries(["能量", "疲劳", "睡眠", "认知模式", "主导情绪", "身体"].map((key) => [key, state[key]]));
 }
 
 function difference(value: unknown, prefix = ""): Record<string, unknown> {

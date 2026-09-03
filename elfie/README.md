@@ -48,7 +48,7 @@ elfie/
 ├── profile/             # identity, species, appearance and the stable Profile
 ├── brain/               # ten-system cognitive core and private runtime
 ├── nervous_system/      # perception normalization, filtering, reflexes and physical output
-├── body/                # Headless, Native, External swappable bodies
+├── body/                # BodyPort/capability/event contracts and Headless test body
 ├── communication/       # digital message channel bypassing the NervousSystem
 └── brain/reasoning/skills/ # semantic Skill catalog used inside a ReasoningRun
 ```
