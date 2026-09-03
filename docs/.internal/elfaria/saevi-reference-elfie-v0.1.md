@@ -29,10 +29,10 @@ ElfieNest 中开始生活。
 | `origin_world` | `Elfaria` | 固定来源世界 |
 | `origin_region` | `Mistyville` | 迷雾镇东侧林缘 |
 | `birth_at` | Elfaria 本地历：秋末；精确日期未知 | 样板不编造没有依据的具体日 |
-| `life_stage` | 成熟初期 | 具体寿命和年龄换算待物种生命周期定稿 |
+| `life_stage` | 成熟初期 | 身体成年与社会/繁育成熟的定义以当前物种卡和后续 Canon 决定为准 |
 | `adoption_status` | 自愿参加赴地计划，已抵达地球 | 领养不是人格重置 |
 | `canon_version` | `elfaria-world.v0.1` | 世界事实来源版本 |
-| `species_version` | `elfaria-species.v0.1` | 物种卡来源版本 |
+| `species_version` | `elfaria-species.v0.2` | 运行时物种 Canon 版本；设计卡正文当前为 v0.1 |
 | `reference_version` | `sample-saevi-001.v0.1` | 本个体样板版本 |
 
 ### 2.1 固定外貌锚点
@@ -281,7 +281,7 @@ birth_at: Elfaria-local, late-autumn, exact-day-unknown
 life_stage: early-adult
 appearance_anchors: five fixed anchors listed above
 canon_version: elfaria-world.v0.1
-species_version: elfaria-species.v0.1
+species_version: elfaria-species.v0.2
 ```
 
 ### PersonalitySeed

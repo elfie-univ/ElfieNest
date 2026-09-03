@@ -51,6 +51,44 @@ def test_world_canon_loads_the_bounded_first_version() -> None:
     assert any(fact.status == "unknown-boundary" for fact in package.knowledge)
 
 
+def test_world_canon_carries_solara_and_mistyville_climate() -> None:
+    package = load_world_canon()
+    facts = {fact.fact_id: fact for fact in package.knowledge}
+
+    light_cycle = facts["nature.light_cycle"]
+    seasons = facts["nature.seasons"]
+    water_cycle = facts["nature.water_cycle"]
+
+    assert light_cycle.status == "active"
+    assert "Solara" in light_cycle.statement
+    assert seasons.status == "active"
+    assert "雨季" in seasons.statement
+    assert "旱季" in seasons.statement
+    assert "可以出现气象雾" in seasons.statement
+    assert "不会出现霜、雪" in seasons.statement
+    assert "其他地区" in seasons.statement
+    assert water_cycle.status == "active"
+    assert "迷雾镇" in water_cycle.statement
+    assert "降雨补充河流和湖泊" in water_cycle.statement
+    assert "蒸发" not in water_cycle.statement
+    assert "凝结" not in water_cycle.statement
+
+
+def test_world_canon_source_refs_resolve_to_machine_ids() -> None:
+    package = load_world_canon()
+    fact_ids = {fact.fact_id for fact in package.knowledge}
+
+    source_ids = {
+        fact.source_ref.split("#", maxsplit=1)[1] for fact in package.knowledge
+    }
+
+    assert all(
+        fact.source_ref.startswith(f"canon:{package.canon_version}#")
+        for fact in package.knowledge
+    )
+    assert source_ids == fact_ids
+
+
 def test_world_canon_rejects_a_modified_core_fact(tmp_path: Path) -> None:
     path = _copy_world_config(tmp_path)
     document = yaml.safe_load(path.read_text(encoding="utf-8"))

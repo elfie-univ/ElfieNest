@@ -6,11 +6,13 @@
 
 当前 worktree 另有本地 `16547111`（OPT-002 连续学习提交，领先 origin 一步）；它不是本计划范围，必须保留但不纳入 OPT-001 的变更或验收。实现前以目标基线与当前提交分别做差异盘点，不得混入或反向修改该提交。
 
-本计划把已保存的 [Genesis 核心设计](/Users/Lendfating/.codex/worktrees/4617/ElfieNest/docs/.internal/genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
+本计划把已保存的 [Genesis 核心设计](genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
 
 本次修订补回实施所需的字段、引用、时间、导入、读取和评测契约；不增加新的世界设定。第一版按本计划的最小垂直切片落地；后续只处理本文件列出的验收残余，不在本阶段发散。
 
 ## 1. 当前结论
+
+> 下表保留开工时的差距记录，用来说明为什么形成当前链路；当前完成状态以本文后面的冻结判定、现行代码和验证证据为准。
 
 | 已有 | 今天缺的 | 处理判断 |
 |---|---|---|
@@ -22,7 +24,7 @@
 
 现有 E1/Memory 证据只能证明基础链路，不能证明 OPT-001 的知识密度或传记完成；`MEM-008` 的 owner review 也不替代本批验收。
 
-事实盘点入口：[`genesis/contracts.py`](/Users/Lendfating/.codex/worktrees/4617/ElfieNest/elfie/genesis/contracts.py)、[`genesis/initializer.py`](/Users/Lendfating/.codex/worktrees/4617/ElfieNest/elfie/genesis/initializer.py)、[`adoption_profiles.py`](/Users/Lendfating/.codex/worktrees/4617/ElfieNest/infrastructure/persistence/elfie_workspace/adoption_profiles.py) 和 [`config/species/catalog.yaml`](/Users/Lendfating/.codex/worktrees/4617/ElfieNest/config/species/catalog.yaml)。
+事实盘点入口：[`genesis/contracts.py`](../../../elfie/genesis/contracts.py)、[`genesis/initializer.py`](../../../elfie/genesis/initializer.py)、[`adoption_profiles.py`](../../../infrastructure/persistence/elfie_workspace/adoption_profiles.py) 和 [`config/species/catalog.yaml`](../../../config/species/catalog.yaml)。
 
 ## 2. 范围与完成定义
 
@@ -45,7 +47,7 @@
 
 | 层 | 只负责什么 | 目标位置/读取 |
 |---|---|---|
-| World/Species Canon | Elfaria、迷雾镇、物种公共事实和未知边界 | 源码 `config/` 的一个注册、版本化 World Canon；复用现有 species package |
+| World/Species Canon | Elfaria、迷雾镇、物种公共事实和未知边界 | `config/world/elfaria.yaml` 与 `config/species/`，版本化且唯一 |
 | Profile | 姓名、物种、出生/来源、外观、Big Five/固定特质锚点 | 精灵运行目录配置；对外稳定，不作百科 |
 | Selfhood | 自我认识、价值、人格表达、边界和当前目标 | Brain 自我模型；不作公共事实总源 |
 | Memory | 这只 Elfie 实际掌握的知识、亲历 Episode、关系及证据 | 现有 source-first SQLite → `RecallBundle`；不直接读 Profile、聊天历史或运行时巢状态 |
@@ -131,7 +133,7 @@ Genesis 选择规则：人人应掌握的 eligible `common` 知识进入 `master
 | 阶段 | 要做 | 进入/退出门 |
 |---|---|---|
 | 0. 冻结内容与范围 | 逐条核对 Elfaria/迷雾镇/三物种现有 Canon；建立八主题覆盖矩阵、未知/禁编表、公开物种表；重写 `devtools/evals/stage1_e1_scenarios.json` 中不合规的 E1 fixture | **退出：**用户确认首版事实、术语、published 范围（fox/Saevi、dog/Tovren；cat/Myelle 仍 draft） |
-| 1. Canon 配置接线 | 在现有配置注册/校验机制下增加唯一 World Canon 文档（拟 `config/world/elfaria.yaml`，文件名按 registry 复核）；把当前硬编码 WorldCanon 迁入该总源，扩展现有 species package 承载公共知识，不建平行知识源 | **退出：**版本、schema、来源、别名、unknown 和范围可加载；所有条目可定位 |
+| 1. Canon 配置接线 | 在现有配置注册/校验机制下维护唯一机器 Canon：`config/world/elfaria.yaml` 与现有 `config/species/`；把硬编码 WorldCanon 收敛到该总源，不建平行知识源 | **退出：**版本、schema、来源、别名、unknown 和范围可加载；所有条目可定位 |
 | 2. Genesis 类型化 | 将通用 `MemorySeed`/现有 `PersonalitySeed`/`SelfModelSeed` 收敛为三类 Seed 与 Selfhood 边界，移除“最多 5 段记忆”对 Knowledge 的限制；基于 Canon、领养上下文和确定性 seed 个体化，Genesis 只在领养时运行 | **退出：**确定性校验拒绝越界物种/地点/年龄/时间线/无引用/矛盾包；同输入生成同 Manifest |
 | 3. 正式导入 | 把三类 Seed 映射到现有普通 Episode、Node、Assertion、Evidence 和 `RecallBundle`；补齐历史时间字段语义、稀有词/别名检索、来源回链、幂等和失败恢复。优先用现有 marker/manifest 与受控暂存实现可见性，不擅自跨库造新事务 | **退出：**整包成功后才可见；重放不复制；崩溃不留下半套 Profile/Selfhood/Memory。若必须新增表、系统 Port 或真实迁移，立即停并单独审批 |
 | 4. 读取与 Prompt 收敛 | 用事实/主题/实体/关系/改写问题验证 typed `RecallBundle`；确认 Memory 独立支撑回答后，删除 Selfhood/Reasoning 中重复丰富世界事实，仅保留身份锚点和硬未知规则 | **退出：**不依赖 Prompt 重复注入仍能回答；未知与实时巢问题不被补写 |

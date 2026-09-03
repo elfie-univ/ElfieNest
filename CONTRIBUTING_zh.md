@@ -81,8 +81,8 @@ pnpm build
 - `elfie/`：单个完整精灵的档案、大脑、神经系统、身体、通信和技能。
 - `nest/`：活动空间、巢内状态、环境时间和互动传播；不得持有真实精灵对象。
 - `app/orchestration/`：组合真实 `Elfie`、`Nest` 与注入能力的跨模块流程。
-- `app/features/`：产品用例；`app/interfaces/`：API、Web、CLI；
-  `app/infrastructure/`：持久化、文件系统、音频和设备能力。
+- `app/features/`：产品用例；`app/interfaces/`：API、Web、CLI；持久化、文件系统、
+  音频和设备的具体适配器统一位于根 `infrastructure/` 包。
 - `infrastructure/`：模型、工具、持久化、Godot、设备、通信与平台 Adapter。
 - `app/interfaces/desktop/`：可见 Electron 窗口、平台适配与公开 Runtime
   lifecycle client；不持有 Runtime 进程。

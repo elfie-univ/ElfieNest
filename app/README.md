@@ -36,7 +36,6 @@ Not responsible for:
 app/
 ├── bootstrap/       # Application composition root — dependency wiring only
 ├── features/        # Product use-cases: accounts, adoption, configuration, setup, ...
-├── infrastructure/  # Adapters: persistence, filesystem, devices, ...
 ├── interfaces/      # Inbound interfaces: api, cli, web
 └── orchestration/   # Cross-authority flows across Elfie, Nest, Godot and platforms
 ```
