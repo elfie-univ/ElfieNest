@@ -52,11 +52,11 @@ def test_brain_contract_keeps_turn_and_output_domain_isolation() -> None:
     english = _normalized("docs/developer/contracts/brain.md")
     chinese = _normalized("docs/zh/developer/contracts/brain.md")
 
-    for source in ("Communication", "Embodied", "Internal"):
+    for source in ("Communication", "Embodied", "Activity"):
         assert source in english
         assert source in chinese
-    assert "Receipts never create a fourth domain" in english
-    assert "回执不形成第四个来源域" in chinese
+    assert "no receipt creates a fourth domain" in english
+    assert "回执不形成 第四个来源域" in chinese
     assert "exactly one `SourceDomain`" in english
     assert "一个 `SourceDomain`" in chinese
     assert "different conversations remain different Turns" in english

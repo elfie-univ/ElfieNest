@@ -852,7 +852,8 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 		_active_camera_index = _observation_view_index_by_id("overview")
 	if _active_camera_index < 0:
 		_active_camera_index = 0
-	_observation_hud.call("set_views", labels, _active_camera_index)
+	if not Engine.is_editor_hint() and _observation_hud != null:
+		_observation_hud.call("set_views", labels, _active_camera_index)
 	select_observation_view(_active_camera_index)
 	_emit_observer_camera_catalog_changed()
 
@@ -982,7 +983,8 @@ func select_observation_view(index: int) -> void:
 	camera.size = float(view["size"])
 	camera.fov = float(view["fov"])
 	_sync_orbit_state(camera)
-	_observation_hud.call("set_selected_view", index)
+	if not Engine.is_editor_hint() and _observation_hud != null:
+		_observation_hud.call("set_selected_view", index)
 	_emit_observer_camera_catalog_changed()
 
 

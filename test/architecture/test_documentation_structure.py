@@ -113,6 +113,12 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
         }
         assert {path.name for path in (design_root / "elfie").glob("*.md")} == {
             "elfie-top-level-module-design.md",
+        }
+        assert {
+            path.name for path in (design_root / "elfie" / "embodiment").glob("*.md")
+        } == {
+            "elfie-embodied-control-chain.md",
+            "elfie-godot-vertical-slice-plan.md",
             "virtual-appearance-generation.md",
         }
         assert {
@@ -129,7 +135,6 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
             "nest",
             "elfie/communication",
             "elfie/genesis",
-            "elfie/embodiment",
         )
         assert all(
             not (design_root / branch).exists() for branch in forbidden_empty_branches
@@ -141,7 +146,7 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
             design_root / "app" / "native-release-validation.md",
             design_root / "app" / "service-lifecycle-state-machine.md",
             design_root / "elfie" / "elfie-top-level-module-design.md",
-            design_root / "elfie" / "virtual-appearance-generation.md",
+            *(design_root / "elfie" / "embodiment").glob("*.md"),
             *(design_root / "elfie" / "brain").glob("*.md"),
         )
         assert all(
@@ -172,7 +177,9 @@ def test_vitepress_navigation_uses_the_protected_paths() -> None:
         'link: "/developer/designs/app/service-lifecycle-state-machine"',
         'link: "/developer/designs/nest-godot-virtual-world-functional-architecture"',
         'link: "/developer/designs/elfie/elfie-top-level-module-design"',
-        'link: "/developer/designs/elfie/virtual-appearance-generation"',
+        'link: "/developer/designs/elfie/embodiment/elfie-embodied-control-chain"',
+        'link: "/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan"',
+        'link: "/developer/designs/elfie/embodiment/virtual-appearance-generation"',
         'link: "/zh/developer/architecture/"',
         'link: "/zh/developer/contracts/"',
         'link: "/zh/developer/conformance/elfie"',
@@ -183,7 +190,9 @@ def test_vitepress_navigation_uses_the_protected_paths() -> None:
         'link: "/zh/developer/designs/app/service-lifecycle-state-machine"',
         'link: "/zh/developer/designs/nest-godot-virtual-world-functional-architecture"',
         'link: "/zh/developer/designs/elfie/elfie-top-level-module-design"',
-        'link: "/zh/developer/designs/elfie/virtual-appearance-generation"',
+        'link: "/zh/developer/designs/elfie/embodiment/elfie-embodied-control-chain"',
+        'link: "/zh/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan"',
+        'link: "/zh/developer/designs/elfie/embodiment/virtual-appearance-generation"',
     }
 
     assert all(path in config for path in required_paths)

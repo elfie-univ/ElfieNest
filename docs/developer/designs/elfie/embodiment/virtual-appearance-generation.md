@@ -4,9 +4,9 @@
 anatomy-spanning body-motif experiment is recorded but deferred and disabled in product candidate
 generation; it is not a release dependency.
 
-> Design relations: **Owner:** Elfie / Embodiment; **Parent:** [Elfie top-level module design](./elfie-top-level-module-design.md);
-> **Children:** none; **Normative contracts:** [Species asset-package contract](../../contracts/species-asset-package.md);
-> **Current architecture:** [Module boundaries](../../architecture/module-boundaries.md); **Conformance:** none;
+> Design relations: **Owner:** Elfie / Embodiment; **Parent:** [Elfie top-level module design](../elfie-top-level-module-design.md);
+> **Children:** none; **Normative contracts:** [Species asset-package contract](../../../contracts/species-asset-package.md);
+> **Current architecture:** [Module boundaries](../../../architecture/module-boundaries.md); **Conformance:** none;
 > **Domain sources:** Elfaria species and appearance inputs by stable source identifier.
 
 ## Scope and ownership

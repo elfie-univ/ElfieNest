@@ -99,7 +99,7 @@ Brain 拥有一只 Elfie 会持续变化、学习和成长的心理状态及认�
 - Executive 与跨回合 Activity；
 - Offline Cognition / Night Work；
 - Capability Envelope、预算与自主决策；
-- 结构化决定、内部触发和执行回执反馈。
+- 结构化决定、Activity 触发和执行回执反馈。
 
 Genesis 从同一个已校验创建 Bundle 并列物化 Profile 与 Brain 拥有的 Selfhood。Profile 仍是
 不可变外层档案，但普通 Brain 运行期不再把它作为上下文来源。Selfhood 冻结的
@@ -241,7 +241,7 @@ Bootstrap 负责依赖注入和进程启动；应用编排负责把 Elfie、Nest
 | Virtual Appearance | Profile / VirtualAppearance |
 | Personality、Self、Memory、Emotion、Energy | Brain |
 | Skills、Planner、Tool Loop、Worker | Brain / Cortex；执行设施由 AI Runtime 注入 |
-| Activity、内部触发和 Night Work | Brain |
+| Activity、Activity 触发和 Night Work | Brain |
 | Embodiment Authority | Body |
 | Lifecycle System | 不创建；保留薄 Elfie Facade |
 | Profile Page | 产品层聚合视图，不是新的数据所有者 |

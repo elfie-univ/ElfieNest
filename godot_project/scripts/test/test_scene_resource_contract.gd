@@ -1,5 +1,7 @@
 extends SceneTree
 
+const PROJECT_READINESS := preload("res://scripts/test/project_readiness.gd")
+
 const REQUIRED_RESOURCES := [
 	"res://main.tscn",
 	"res://rooms/nest.tscn",
@@ -37,6 +39,18 @@ const REQUIRED_RESOURCES := [
 
 
 func _init() -> void:
+	call_deferred("_run_after_project_readiness")
+
+
+func _run_after_project_readiness() -> void:
+	if not await PROJECT_READINESS.wait_until_ready(self):
+		push_error("Godot project import/class scan did not become ready")
+		quit(1)
+		return
+	_validate_resources()
+
+
+func _validate_resources() -> void:
 	var missing: Array[String] = []
 	for resource_path: String in REQUIRED_RESOURCES:
 		if not ResourceLoader.exists(resource_path):

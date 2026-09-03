@@ -75,8 +75,8 @@ Developer 分类直接位于 `developer/` 下。禁止增加 `current/`、`evolu
 只有某个子模块拥有多篇文档时才继续建立子目录。不要增加 `system/` 包装层、空模块目录
 或每个目录的 `index.md`。`designs/index.md` 只是目录页。
 
-当前成组的设计文档位于 `designs/elfie/brain/`，当前 App 文档位于 `designs/app/`。
-当前 Nest/Godot 设计是位于 `designs/nest-godot-virtual-world-functional-architecture.md`
+当前成组的设计文档位于 `designs/elfie/brain/` 和 `designs/elfie/embodiment/`，当前 App 文档位于
+`designs/app/`。当前 Nest/Godot 设计是位于 `designs/nest-godot-virtual-world-functional-architecture.md`
 的单篇文档，因此暂不创建 `nest/` 目录。`Selfhood` 是 Brain 第 3 个系统；Skill 和 Tool
 是 Reasoning Core 的能力，不是额外的 Brain 系统。规范性系统规则仍在 `developer/contracts/system.md`，
 已验证的当前实现地图仍在 `developer/architecture/index.md`。

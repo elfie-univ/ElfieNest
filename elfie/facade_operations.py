@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from threading import Lock
-from typing import Iterable
+from typing import Callable, Iterable
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
@@ -24,7 +24,9 @@ from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.orientation.contracts import OrientationSnapshot
+from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.decision_types import TurnDecision
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -70,6 +72,7 @@ class _ElfieFacadeState:
     _skills: SkillManager
     _brain_runtime: BrainRuntime | None
     _reasoning_constitution: ReasoningConstitution | None
+    _embodied_input_mode: EmbodiedInputMode
     _clock_lock: Lock
     _elapsed_time: float
 
@@ -123,6 +126,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             elfie_id=elfie_id,
             body_port=self.current_body,
             body_generation=self.current_body_generation,
+            logical_clock=lambda: self.cognitive_datetime,
         )
         self._nervous_system.bind_body_port(
             self.current_body,
@@ -183,6 +187,10 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         model_port: ModelPort,
         *,
         tool_port: ToolPort | None = None,
+        world_capabilities: Callable[[], tuple[str, ...]] | None = None,
+        world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
+        | None = None,
+        embodied_input_mode: EmbodiedInputMode | None = None,
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
@@ -215,8 +223,15 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             skills=self._skills,
             current_body=lambda: self.current_body,
             current_body_generation=lambda: self.current_body_generation,
+            world_capabilities=world_capabilities,
+            world_capability_catalog=world_capability_catalog,
             clock=clock,
             model_port=model_port,
+            embodied_input_mode=(
+                embodied_input_mode
+                if embodied_input_mode is not None
+                else self._embodied_input_mode
+            ),
             tool_port=tool_port,
             activity_store=self._activity_store,
             journal_store=self._journal_store,

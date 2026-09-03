@@ -31,9 +31,13 @@ only when an owner has multiple documents. This page is a catalog, not another p
       and retrieval.
     - [Brain evaluation and evolution system](./elfie/brain/elfie-brain-evaluation-system): evidence-
       first evaluation and constrained improvement.
-  - Embodiment singleton:
-    - [Virtual appearance generation](./elfie/virtual-appearance-generation): immutable generated
-      appearance and visual acceptance boundaries.
+  - Embodiment designs:
+    - [Embodied control chain](./elfie/embodiment/elfie-embodied-control-chain): the Brain-to-body
+      semantic command path and the Godot/physical-device execution routes.
+    - [Godot virtual-body vertical-slice plan](./elfie/embodiment/elfie-godot-vertical-slice-plan):
+      the sequential plan for movement, perception and later-Turn Brain feedback.
+    - [Virtual appearance generation](./elfie/embodiment/virtual-appearance-generation): immutable
+      generated appearance and visual acceptance boundaries.
 - Nest singleton:
   - [Nest and Godot virtual living world](./nest-godot-virtual-world-functional-architecture):
     final Nest/Godot functional boundaries, semantic-physical loops and event routing.

@@ -1,8 +1,8 @@
 # Elfie 内部架构契约
 
-**契约版本：** 2.3
+**契约版本：** 2.4
 **采用日期：** 2026-08-11
-**修订日期：** 2026-09-01
+**修订日期：** 2026-09-03
 **适用范围：** `elfie/`，以及 Infrastructure 为单只 Elfie 限定作用域的 Port View
 
 > **规范性目标。** 本契约定义一只完整 Elfie 的生命系统所有权、依赖方向、公开 Facade
@@ -102,9 +102,11 @@ Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不�
 - Elfie 只有两条对外线路：经 NervousSystem 和 Body 的具身线路，以及经
   Communication 的数字消息线路。两者可以处于同一生活阶段，但同一个 Turn 不能共享
   输出 authority。
-- Brain 接收通信事件、具身事件和内部触发三类来源。每个被接纳的 Turn 只有一个
-  `SourceDomain`，模型输出不能扩大其 `ResponseScope`。
-- 跨域后果必须形成新的内部事件和后续 Turn。聊天 Turn 可以申请未来具身工作，但
+- Brain 只接收 `Communication`、`Embodied`、`Activity` 三个来源域。每个被接纳的 Turn
+  只有一个 `SourceDomain`，模型输出不能扩大其 `ResponseScope`。
+- 身体动作结果保留为外部 `Embodied` 事件，消息投递结果保留为 `Communication` 事件；
+  Activity 只表示 Brain 自有的跨 Turn 工作。跨域后果必须形成已校验的 Activity 请求或
+  后续 Activity 事件和 Turn。聊天 Turn 可以申请未来具身工作，但
   当前 Turn 不能输出身体指令。
 - Brain 的外部决策边界只接受通信指令、神经系统指令、跨回合活动请求或 No-op。
   Model、Skill、Tool 调用属于内部认知操作。
@@ -185,18 +187,18 @@ App Configuration 管理全局可用性、分配和授权，但不代理运行�
 
 Brain 拥有十个 authority 不同的概念系统：
 
-1. 事件工作区把通信、具身和内部事件准入为有界、单域 Turn；
+1. 事件工作区把 Communication、Embodied 和 Activity 事件准入为有界、单域 Turn；
 2. 自我定位维护带来源的当前身体、地点、时间、附近人物、会话和活动承诺快照；
 3. 自我认知拥有一份原子状态：创建时冻结的 `identity_core` 与缓慢的 `adaptive_self`；
    它不在普通运行期读取 Profile/Canon，而向 Brain 提供强类型自我和确定性模型投影；
 4. 情绪维护进程内跨 Turn 连续且会衰减的情感状态，并在睡眠或进程重启时回到人格基线；
 5. 能量维护稳态、昼夜状态、认知/行动预算、紧急储备和确定性降级；
-6. 动机把固定内部需要转换成注意、Goal 或内部触发候选，不能直接行动；
+6. 动机把固定需要转换成注意、Goal 或 Activity 触发候选，不能直接行动；
 7. 记忆拥有主观经历、知识、关系、检索、遗忘和语义巩固；
 8. 思考中枢组装 Turn 上下文并执行有界 Model/Skill/Tool 循环、验证、抑制和完成判断；
 9. 跨回合活动拥有超出当前 Turn 的已校验工作，包括等待、唤醒、重试、取消、幂等和回执；
 10. 心智整理在睡眠或空闲期进行可中断、有预算、无外部副作用的整理，只输出经过校验
-    的更新候选或后续内部触发。
+    的更新候选或后续 Activity 触发。
 
 上下文组装、决策治理、结算、Journal、Checkpoint 和回执对账是这些所有者内部或底层
 必需机制，不是额外平级心智系统。权威状态变化统一采用“候选—校验—提交”；模型文本
@@ -253,10 +255,12 @@ Actuator Protocol，但调用方不获得第二套重复公开身体 API。
 拥有发现、登记、授权和 Elfie/body 关联；跨 authority 的托管、身体切换或归巢工作流
 属于 App Orchestration。
 
-Body Channel 只承载 Actor 作用域的命令、感知、本体感觉和回执。权威房屋几何、坐标、
-碰撞/导航及全局互动事实通过 World Channel 进入 Nest；Orchestration 只把由此产生且已
-授权的语义感知交给受影响 Elfie。同一个共享 Godot Gateway 可以支撑两种限定作用域的
-View，但 `BodyPort` 永远不能成为绕过 Nest authority 的路径。
+Body Channel 只承载 Actor 作用域的命令、感知、本体感觉和回执。直接身体流量回传时必须
+经过所属 Body 和 NervousSystem，不经过 Nest。权威房屋几何、坐标、碰撞/导航及全局互动
+含义通过 World Channel 进入 Nest；Nest 产生定向语义结果后，Orchestration 将其注入目标
+Elfie 的 Body 输入边界，再经过 NervousSystem 进入 Event Workspace。同一个共享 Godot
+Gateway 可以支撑两种限定作用域的 View，但不能合并它们的 authority；`BodyPort` 也不能
+绕过 Nest 的世界语义 authority。
 
 ## Communication Port 与多渠道
 
@@ -299,7 +303,9 @@ NervousSystem 把 Body 事件转换为 Brain 感知，应用物理限制与反�
 Pydantic 模型仍是机器可读契约；仓库不维护重复 JSON Schema 文件。
 
 技术失败必须先在 Adapter 边界转换成稳定 Elfie 错误或类型化回执。外部调用明确超时、
-取消、重试、幂等和终态回执语义。Bootstrap 构造限定作用域 View、拥有容器对象生命期
+取消、重试、幂等和终态回执语义。`ACCEPTED`、`STARTED` 只属于动作账本；发给 Brain 的
+身体结果只有 `COMPLETED`、`REJECTED`、`FAILED`、`INTERRUPTED` 或 `TIMED_OUT`。Bootstrap
+构造限定作用域 View、拥有容器对象生命期
 并登记清理；只有 `app/orchestration/lifecycle` 决定和协调系统 Runtime 组件的 start、
 stop 或 restart。Elfie 只拥有内部聚合 start/stop/join 顺序，并且只有注入的生命周期
 契约明确授予单只 Elfie 独占所有权时才能关闭对应 Port；它永不启动或停止 Core、

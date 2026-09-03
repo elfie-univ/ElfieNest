@@ -9,6 +9,7 @@ from typing import Optional
 from elfie.brain.activity.system import ActivityStepKind
 from elfie.brain.reasoning.context_types import EffectiveCapabilities
 from elfie.brain.reasoning.decision_types import (
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
@@ -85,7 +86,33 @@ def validate_plan_for_execution(
 
 def _body_action_supported(capabilities: EffectiveCapabilities, action: str) -> bool:
     body = capabilities.current_body
-    return body is not None and ("*" in body.actions or action in body.actions)
+    if body is None or ("*" not in body.actions and action not in body.actions):
+        return False
+    return True
+
+
+def _registered_body_capability(
+    capabilities: EffectiveCapabilities,
+    capability_id: str,
+) -> bool:
+    """Accept the semantic aliases while preserving the existing Body vocabulary."""
+    if _body_action_supported(capabilities, capability_id):
+        return True
+    aliases = {
+        "body.speak": "speech.say",
+        "body.move_to_anchor": "move_to_anchor",
+        "body.emergency_stop": "system.emergency_stop",
+    }
+    alias = aliases.get(capability_id)
+    if alias is not None and _body_action_supported(capabilities, alias):
+        return True
+    if capability_id == "body.expression":
+        body = capabilities.current_body
+        return body is not None and (
+            "*" in body.actions
+            or any(action.startswith("expression.") for action in body.actions)
+        )
+    return False
 
 
 @singledispatch
@@ -94,6 +121,83 @@ def _validate_target(
     capabilities: EffectiveCapabilities,
 ) -> Optional[ErrorInfo]:
     raise TypeError(type(intent).__name__)
+
+
+@_validate_target.register
+def _validate_capability(
+    intent: CapabilityIntent,
+    capabilities: EffectiveCapabilities,
+) -> Optional[ErrorInfo]:
+    if intent.category == "world":
+        if intent.capability_id not in capabilities.world_capabilities:
+            return ErrorInfo(
+                code="world_capability_unavailable",
+                message=f"world capability is not registered: {intent.capability_id}",
+            )
+        if intent.capability_id == "world.go_to":
+            anchor_id = intent.arguments.get("anchor_id")
+            if not isinstance(anchor_id, str) or not anchor_id.strip():
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message="world.go_to requires a non-blank anchor_id",
+                )
+            if not _body_action_supported(capabilities, "move_to_anchor"):
+                return ErrorInfo(
+                    code="motion_unavailable",
+                    message="current body cannot execute semantic movement",
+                )
+        elif intent.capability_id == "world.observe":
+            max_results = intent.arguments.get("max_results", 32)
+            if (
+                not isinstance(max_results, int)
+                or isinstance(max_results, bool)
+                or not 1 <= max_results <= 64
+            ):
+                return ErrorInfo(
+                    code="invalid_capability_arguments",
+                    message="world.observe max_results must be an integer from 1 to 64",
+                )
+            if not _body_action_supported(capabilities, "world.observe"):
+                return ErrorInfo(
+                    code="vision_unavailable",
+                    message="current body cannot request semantic vision",
+                )
+        return None
+
+    if not _registered_body_capability(capabilities, intent.capability_id):
+        return ErrorInfo(
+            code="body_capability_unavailable",
+            message=f"body capability is not registered: {intent.capability_id}",
+        )
+    if intent.capability_id in {"body.speak", "speech.say"}:
+        text = intent.arguments.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message="body.speak requires a non-blank text",
+            )
+    elif intent.capability_id == "body.move_to_anchor":
+        anchor_id = intent.arguments.get("anchor_id")
+        if not isinstance(anchor_id, str) or not anchor_id.strip():
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message="body.move_to_anchor requires a non-blank anchor_id",
+            )
+    elif intent.capability_id == "body.expression":
+        kind = intent.arguments.get("kind")
+        if not isinstance(kind, str) or not kind.strip():
+            return ErrorInfo(
+                code="invalid_capability_arguments",
+                message="body.expression requires a non-blank kind",
+            )
+        if not _registered_body_capability(capabilities, f"expression.{kind}"):
+            body = capabilities.current_body
+            if body is None or "body.expression" not in body.actions:
+                return ErrorInfo(
+                    code="expression_unavailable",
+                    message=f"expression is not registered: {kind}",
+                )
+    return None
 
 
 @_validate_target.register
@@ -111,7 +215,8 @@ def _validate_motion(
     intent: MotionIntent,
     capabilities: EffectiveCapabilities,
 ) -> Optional[ErrorInfo]:
-    if _body_action_supported(capabilities, intent.motion):
+    action = "move_to_anchor" if intent.target else intent.motion
+    if _body_action_supported(capabilities, action):
         return None
     return ErrorInfo(code="motion_unavailable", message="current body cannot move")
 

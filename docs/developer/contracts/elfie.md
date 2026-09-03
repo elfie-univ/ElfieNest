@@ -1,8 +1,8 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.3
+**Contract version:** 2.4
 **Adopted:** 2026-08-11
-**Revised:** 2026-09-01
+**Revised:** 2026-09-03
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
 > **Normative target.** This contract defines the life-system ownership,
@@ -123,10 +123,13 @@ contracts or behavior; empty architecture-shaped packages are forbidden.
 - Elfie has two external lines: the embodied line through NervousSystem and Body,
   and the digital-message line through Communication. They may be active in the
   same period but never share an output authority inside one Turn.
-- Brain receives communication events, embodied events and internal triggers as
-  three event sources. Every admitted Turn has exactly one `SourceDomain`; its
+- Brain receives `Communication`, `Embodied` and `Activity` events as exactly
+  three source domains. Every admitted Turn has exactly one `SourceDomain`; its
   `ResponseScope` cannot be widened by model output.
-- Cross-domain consequences become a new internal event and a later Turn. A chat
+- A body action outcome remains an external `Embodied` event and a message
+  delivery outcome remains a `Communication` event. Activity events represent
+  only Brain-owned cross-Turn work. Cross-domain consequences become a validated
+  Activity request or a later Activity event and Turn. A chat
   Turn may request future embodied work, but cannot emit a body directive in the
   current Turn.
 - Brain's external decision boundary accepts only communication directives,
@@ -229,7 +232,7 @@ Activity semantics. This section fixes only their aggregate-level ownership.
 
 Brain owns ten conceptual systems with distinct authority:
 
-1. Event Workspace admits communication, embodied and internal events into
+1. Event Workspace admits Communication, Embodied and Activity events into
    bounded, single-domain Turns.
 2. Orientation maintains the sourced current snapshot of body, place, time,
    nearby people, conversation and active commitments.
@@ -240,8 +243,8 @@ Brain owns ten conceptual systems with distinct authority:
    returns to personality-derived baselines on sleep or process restart.
 5. Energy maintains homeostasis, circadian state and cognitive/action budgets,
    including an emergency reserve and deterministic degradation.
-6. Motivation turns fixed internal needs into attention, goal or internal-
-   trigger candidates; it never acts directly.
+6. Motivation turns fixed needs into attention, goal or Activity-trigger
+   candidates; it never acts directly.
 7. Memory owns subjective experience, knowledge, relationships, retrieval,
    forgetting and semantic consolidation.
 8. Reasoning Core assembles Turn context and runs the bounded model/Skill/Tool
@@ -250,7 +253,7 @@ Brain owns ten conceptual systems with distinct authority:
    including waiting, wake-up, retry, cancellation, idempotency and receipts.
 10. Cognitive Consolidation performs interruptible, budgeted, no-external-
     side-effect review during sleep or idle periods and emits only validated
-    update candidates or a later internal trigger.
+    update candidates or a later Activity trigger.
 
 Context assembly, decision governance, settlement, journal, checkpoint and
 receipt reconciliation are required mechanisms inside or underneath these
@@ -327,12 +330,15 @@ control belong to Infrastructure. App Device features own discovery, enrollment,
 authorization and Elfie/body association; cross-authority hosting, switching or
 return-to-Nest workflows belong to App Orchestration.
 
-The Body channel carries only actor-scoped commands, perceptions,
-proprioception and receipts. Authoritative house geometry, coordinates,
-collision/navigation and global interaction facts enter Nest through the world
-channel; Orchestration delivers only the resulting authorized semantic
-perceptions to affected Elfies. A shared Godot Gateway may back both scoped
-views, but `BodyPort` never becomes a bypass around Nest authority.
+The Body channel carries actor-scoped commands, perceptions, proprioception and
+receipts. Direct body traffic returns through the owning Body and NervousSystem
+and does not pass through Nest. Authoritative house geometry, coordinates,
+collision/navigation and global interaction meaning enter Nest through the World
+channel; when Nest produces a targeted semantic result, Orchestration injects it
+at the target Elfie's Body input boundary, after which it follows NervousSystem
+to Event Workspace. A shared Godot Gateway may back both scoped views, but it
+does not merge their authorities and `BodyPort` does not bypass Nest's world
+semantic authority.
 
 ## Communication Ports and multiple channels
 
@@ -394,7 +400,9 @@ the repository does not maintain duplicate JSON Schema files.
 
 Technical failures are translated into stable Elfie errors or typed receipts at
 the Adapter boundary. External calls state timeout, cancellation, retry,
-idempotency and terminal-receipt semantics. Bootstrap constructs scoped views,
+idempotency and terminal-receipt semantics. `ACCEPTED` and `STARTED` are ledger
+states; the Brain-facing body result is one of `COMPLETED`, `REJECTED`, `FAILED`,
+`INTERRUPTED` or `TIMED_OUT`. Bootstrap constructs scoped views,
 owns container object lifetimes and registers cleanup; only
 `app/orchestration/lifecycle` decides and coordinates system Runtime component
 start, stop or restart. Elfie owns only its internal aggregate start/stop/join

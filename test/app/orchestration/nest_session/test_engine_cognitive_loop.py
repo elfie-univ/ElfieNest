@@ -22,7 +22,9 @@ def test_start_loop_uses_injected_model_port_factory_for_resident_elfies() -> No
             interval_sec=0.0,
         )
 
-    elfie.configure_cognition.assert_called_once_with(model_port)
+    elfie.configure_cognition.assert_called_once()
+    assert elfie.configure_cognition.call_args.args == (model_port,)
+    assert callable(elfie.configure_cognition.call_args.kwargs["world_capabilities"])
     elfie.start.assert_called_once_with()
     elfie.stop.assert_called_once_with()
     elfie.join.assert_called_once_with()

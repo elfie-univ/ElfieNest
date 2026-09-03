@@ -79,14 +79,14 @@ Activity、重启恢复和重复发送保护都只是口头设计。
 
 1. Elfie 是独立持续运行的具身智慧体，不是等待主人逐步批准的任务 Agent；
 2. 对外只有具身线路和数字通信线路，两条线路不能在同一认知回合混合输出；
-3. Brain 有 Communication、Embodied、Internal 三类触发来源，每个 Turn 只有一个来源域；
+3. Brain 有 Communication、Embodied、Activity 三类触发来源，每个 Turn 只有一个来源域；
 4. 虚拟和实体身体二选一，任何稳定时刻只有一个身体权威；
 5. Profile 只保存不可变外部身份/年龄/出身锚点、最终虚拟外貌和技术 Schema revision；
    Brain 不能把它当认知来源读取或改写；
 6. 同一个 Elfie 的身体、通信、跨回合活动和心智整理共享同一人格和记忆；
 7. 情绪、能量和驱力只能影响决策，不能直接取得外部执行权或扩大权限；
-8. 跨回合活动到期后生成新的 Internal Trigger，不能绕过思考中枢直接执行开放行为；
-9. 心智整理只能形成更新候选或内部触发，不能直接创建跨回合活动或对外行动；
+8. 跨回合活动到期后生成新的 Activity Trigger，不能绕过思考中枢直接执行开放行为；
+9. 心智整理只能形成更新候选或 Activity 触发，不能直接创建跨回合活动或对外行动；
 10. 只有真实执行回执能够证明消息或身体动作已经发生；认知 Tool 的结果只能证明对应沙箱调用的结果。
 
 ## 4. 十系统总览
@@ -143,12 +143,12 @@ Activity、重启恢复和重复发送保护都只是口头设计。
 
 - Communication 产生的消息和渠道事件；
 - Nervous System 产生的身体感知和反射事实；
-- 跨回合活动、驱力、时间、情绪、能量和心智整理产生的内部触发；
-- Communication、Body 和 Persistent Activity 产生的执行回执或状态事件。
+- 跨回合活动、驱力、时间、情绪、能量和心智整理产生的 Activity 触发；
+- Communication、Body 和 Persistent Activity 产生的类型化结果或状态事件。
 
 **拥有**：
 
-- Communication、Embodied、Internal 三个逻辑 Lane；
+- Communication、Embodied、Activity 三个逻辑 Lane；
 - 同域保序、去重、背压、聚合和成帧；
 - 显著性、新奇性和重复刺激习惯化；
 - 紧急抢占、社会优先级和 Lane 公平性；
@@ -159,7 +159,7 @@ Activity、重启恢复和重复发送保护都只是口头设计。
 
 **不拥有**：原始摄像头像素和电机信号解析、联系人连接、复杂推理、长期记忆和最终执行权。
 
-这里的“注意”是工作区选择下一个 Turn 的内部策略。内部触发与其他事件共同经过工作区的统一准入和
+这里的“注意”是工作区选择下一个 Turn 的内部策略。Activity 触发与其他事件共同经过工作区的统一准入和
 调度；Turn Admission 是事件工作区的内部职责。
 
 ### 5.2 自我定位（Orientation）
@@ -255,7 +255,7 @@ Profile、Canon，也不接收任何创建资料。
 
 **输入**：时间、身体状态、模型/工具成本、Activity 消耗和执行回执。
 
-**输出**：Energy Snapshot、预算决定、认知模式约束、降级约束、睡眠/恢复驱力和内部触发候选。
+**输出**：Energy Snapshot、预算决定、认知模式约束、降级约束、睡眠/恢复驱力和 Activity 触发候选。
 
 **不拥有**：行为目标、人格价值、Activity 语义和安全反射。安全反射仍由 Nervous System 执行。
 
@@ -272,7 +272,7 @@ Profile、Canon，也不接收任何创建资料。
 
 **输入**：Emotion、Energy、Memory、Self/Personality、当前环境、时间和 Activity 状态。
 
-**输出**：注意力偏置、`GoalCandidate` 或 `InternalTriggerCandidate`。
+**输出**：注意力偏置、`GoalCandidate` 或 `ActivityTriggerCandidate`。
 
 **不拥有**：外部消息、身体动作、正式 Activity 和执行权限。驱力不能直接行动。
 
@@ -309,7 +309,7 @@ Attention 学习惯化，Drive 学满足路径，Reasoning Core 学解决策略�
 **定位**：接收一个单域 `TurnFrame`，组装这一轮所需上下文，并通过可多步迭代的 Agent 思考循环形成
 最终 `TurnDecision`。
 
-这里的 Turn 是一次完整认知交互：从一个 Communication、Embodied 或 Internal 事件被事件工作区接纳
+这里的 Turn 是一次完整认知交互：从一个 Communication、Embodied 或 Activity 事件被事件工作区接纳
 开始，到思考中枢形成最终决定结束。一个 Turn 可以包含多次模型调用、多次 Skill/Tool 调用和多轮
 Observation，不等于一次大模型请求。
 
@@ -370,13 +370,13 @@ Agent Loop 和验证收敛属于思考中枢内部机制，不作为额外一级
 - Activity 状态机。
 
 **输入**：思考中枢通过最终行动边界提交的 Persistent Activity Request，以及时间、条件事件、执行回执
-和失败状态。Motivation 和 Cognitive Consolidation 的想法必须先形成 Internal Turn，不能直接创建活动。
+和失败状态。Motivation 和 Cognitive Consolidation 的想法必须先形成 Activity Turn，不能直接创建活动。
 
 在 `TurnDecision` 形成前，思考中枢可以在同一个 `ReasoningRun` 内提交不落库、无外部副作用的
 `ActivityDraft` 进行 Preflight；活动系统把检查结果作为 Observation 返回当前 Agent Loop。只有
 `VALIDATED` 的 Draft 才能进入最终 `Persistent Activity Request`，并在统一边界通过后正式提交。
 
-**输出**：`ActivityPreflightResult`、受限 InternalTriggerEvent、状态变化和完成/失败事实。
+**输出**：`ActivityPreflightResult`、受限 `ActivityTriggerEvent`、状态变化和完成/失败事实。
 
 **关键规则**：
 
@@ -384,7 +384,7 @@ Agent Loop 和验证收敛属于思考中枢内部机制，不作为额外一级
   `VALIDATED`、`NEEDS_CLARIFICATION` 或 `REJECTED`；
 - Preflight 不创建活动；不完整时在当前 Turn 内继续澄清，不能把问题拖到执行时；
 - 只有通过 Preflight 的请求才允许在 Turn 收敛后提交为正式 Activity；
-- 到期后只生成内部触发，由新 Turn 在当前事实和 ExecutionScope 内重新决定；
+- 到期后只生成 Activity 触发，由新 Turn 在当前事实和 ExecutionScope 内重新决定；
 - 通信与具身行为拆成不同 Step 和不同 Turn；
 - Activity 不是第二个 Brain，也不拥有独立人格。
 
@@ -403,7 +403,7 @@ Agent Loop 和验证收敛属于思考中枢内部机制，不作为额外一级
 **输入**：Memory、Activity/Receipt、Emotion/Drive 轨迹、Self/Personality 和时间/空闲状态。
 
 **输出**：Memory、Knowledge、Relationship、Personality、Self Model 和程序经验候选，或者醒后
-`InternalTriggerEvent`。是否创建跨回合活动必须由该 Internal Turn 的思考中枢重新决定。
+`ActivityTriggerEvent`。是否创建跨回合活动必须由该 Activity Turn 的思考中枢重新决定。
 
 **不拥有**：Memory、Personality、Relationship 的最终写权，也不能直接发消息、移动身体或扩权。
 
@@ -416,9 +416,9 @@ Agent Loop 和验证收敛属于思考中枢内部机制，不作为额外一级
 flowchart TB
     C["Communication Event"] --> EW["1. 事件工作区"]
     B["Embodied Event"] --> EW
-    IT["Internal Trigger"] --> EW
-    CR["Communication Receipt"] --> EW
-    BR["Body Receipt"] --> EW
+    IT["Activity Trigger"] --> EW
+    CR["Communication Delivery Outcome"] --> EW
+    BR["Embodied Action Terminal Outcome"] --> EW
     EW --> TF["单域 TurnFrame"]
 
     GS["Genesis 创建的 Selfhood 状态"] --> SH["3. 自我认知"]
@@ -526,15 +526,15 @@ Tool 对认知工作区的合法修改在 Agent Loop 内完成；它既不进入
 ```text
 Emotion / Energy / Memory / Environment / Commitment
 → Motivation
-→ GoalCandidate / InternalTriggerCandidate
+→ GoalCandidate / ActivityTriggerCandidate
 → Event Workspace
-→ Internal Turn
+→ Activity Turn
 → Reasoning Core
 → ActivityDraft / Preflight
 → Persistent Activity Request
 → Activity 创建和等待
 → 到期或条件满足
-→ 新 Internal Turn
+→ 新 Activity Turn
 → 受限外部行为
 ```
 
@@ -546,7 +546,7 @@ Sleep / Idle / Circadian Window
 → 整理近期证据、冲突和模式
 → 各类更新候选
 → 权威系统校验和版本化提交
-→ 必要时形成醒后 Internal Trigger
+→ 必要时形成醒后 Activity Trigger
 → 新 Turn 决定是否创建 Persistent Activity
 ```
 
@@ -595,11 +595,11 @@ Infrastructure 分别属于十系统内部机制或外部保障，不是平级�
 | Tool 尝试越出工作区、发消息或控制设备 | 8、统一边界 | 认知工具成为隐藏的外设控制线路 | 进程沙箱确定性拒绝越界；通信和身体能力不作为 Tool 暴露 |
 | 思考中枢说“消息已经发出” | 8 | 模型自述被当成执行成功 | 只有 Communication Receipt 能完成 Activity 和更新事实 |
 | “告诉小王十二点见”人物不清 | 8、9 | 到十二点才发现找错人或无渠道 | 当前 Agent Loop 先做 Activity Preflight；同步返回 NEEDS_CLARIFICATION 并立即问清，未校验前不创建 |
-| Activity 同时要求发消息和走动 | 9 | Internal Turn 成为万能混合输出 | Activity 拆 Communication Step 与 Embodied Step，分别触发单域 Turn |
+| Activity 同时要求发消息和走动 | 9 | Activity Turn 成为万能混合输出 | Activity 拆 Communication Step 与 Embodied Step，分别触发单域 Turn |
 | 两个重要 Activity 同时到期 | 1、5、9 | 两边同时抢身体或主思考回合 | 按安全、承诺、截止时间、能量和切换成本仲裁、推迟或沟通 |
 | 重启发生在消息发送途中 | 9、基础设施 | 重复发送或丢失承诺 | 幂等 Directive、持久 Activity、Receipt 对账和恢复栅栏 |
 | 身体已移动但当前定位仍停在旧地点 | 2、结算协议 | 回执只进日志，状态系统彼此失步 | Turn Settlement 按因果 ID 和权威代次把回执提交给 Orientation、Memory 和 Activity |
-| 心智整理发现有趣想法 | 10 | 睡眠时直接发消息或乱动 | 只能产生更新候选或醒后 Internal Trigger |
+| 心智整理发现有趣想法 | 10 | 睡眠时直接发消息或乱动 | 只能产生更新候选或醒后 Activity Trigger |
 | Worker 获得完整记忆和身体工具 | 8 | 出现第二个有行动权的 Elfie | Worker 仅获最小上下文，无长期身份、写权和外部行动权 |
 | 模型长期不可用 | 1、4、5、9 | Elfie 被错误视为死亡或伪造认知成功 | 生命状态、反射、排队和恢复继续；开放认知延后或确定性降级 |
 
@@ -639,7 +639,7 @@ Infrastructure 分别属于十系统内部机制或外部保障，不是平级�
 | 动机 | 少量安全、休息、依恋、好奇和承诺驱力，带满足与冷却 | 大规模需求模型和强化学习 |
 | 记忆 | 关键持久情景、人物关系、来源和最小检索 | 全图谱推理、复杂遗忘与自动知识体系 |
 | 思考中枢 | Reasoning Context Workspace、Direct/Deliberate 无工具聊天、结构化决定、必要验证和抑制 | 通用长链 Planner、大量 Skills、Worker 编排 |
-| 跨回合活动 | 创建校验、等待、内部触发、单域 Step、回执和终态 | 复杂 Goal 图、深层派生和高级重规划 |
+| 跨回合活动 | 创建校验、等待、Activity 触发、单域 Step、回执和终态 | 复杂 Goal 图、深层派生和高级重规划 |
 | 心智整理 | 只预留输入、候选输出和权限边界 | P0 不启用完整 Consolidation Run |
 
 ### 9.2 P1：在基本闭环稳定后增强
@@ -761,7 +761,7 @@ P0 不代表十个系统同时开工。实现按七个可独立验收的垂直�
 - 创建前先在当前 ReasoningRun 内完成无副作用 Activity Preflight，只有 `VALIDATED` 才正式提交；
 - 保存 Context Capsule、ExecutionScope、状态、步骤和幂等信息；
 - 支持等待、唤醒、暂停、取消、过期、有限重试和真实回执对账；
-- 到期只产生新的 Internal Trigger，不直接发消息或控制身体；
+- 到期只产生新的 Activity Trigger，不直接发消息或控制身体；
 - 通信和具身后果拆成不同 Step、不同 Turn。
 
 - **可见结果**：Elfie 能接受“现在告诉小王十二点见”或“饭后提醒我”的明确承诺，并在正确时机完成；
@@ -778,7 +778,7 @@ P0 不代表十个系统同时开工。实现按七个可独立验收的垂直�
 - 使用固定 Drive Catalog，不让模型自由编造驱力；
 - 从能量、情绪、人格、记忆、承诺、情境和时间计算压力；
 - 经过竞争、抑制、饱和、满足、冷却和重复指纹限制；
-- 只输出 `AttentionBias`、`GoalCandidate` 或 `InternalTriggerCandidate`；
+- 只输出 `AttentionBias`、`GoalCandidate` 或 `ActivityTriggerCandidate`；
 - 由新 Turn 的思考中枢决定 No-op、澄清或创建受限 Activity。
 
 初次只开放一个低风险、可快速满足的驱力，再逐项增加。
@@ -797,7 +797,7 @@ P0 不代表十个系统同时开工。实现按七个可独立验收的垂直�
 - 在睡眠或长时间空闲窗口整理近期记忆、Activity、情绪轨迹和真实结果；
 - 形成记忆关联、冲突、关系、自我、人格和程序经验更新候选；
 - 候选由各权威系统校验、限幅、版本化提交；
-- 必要时只形成醒后 Internal Trigger；
+- 必要时只形成醒后 Activity Trigger；
 - 整理运行可中断、可恢复并受独立预算约束。
 
 - **可见结果**：第二天能检索到更整理的经历或得到一条可解释的经验候选；

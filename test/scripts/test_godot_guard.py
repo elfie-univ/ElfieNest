@@ -74,6 +74,7 @@ def test_validate_allows_a_known_different_project(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(godot_guard.godot_runner, "run_headless", fake_run_headless)
     monkeypatch.setattr(godot_guard.godot_runner, "forward_output", lambda result: None)
     monkeypatch.setattr(godot_guard, "installed_version", fail_version_probe)
+    monkeypatch.setattr(godot_guard, "project_import_ready", lambda _project: True)
 
     assert (
         godot_guard.validate(
@@ -102,6 +103,7 @@ def test_validate_returns_crash_without_retrying(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(godot_guard.godot_runner, "run_headless", fake_run_headless)
     monkeypatch.setattr(godot_guard.godot_runner, "forward_output", lambda result: None)
+    monkeypatch.setattr(godot_guard, "project_import_ready", lambda _project: True)
 
     assert (
         godot_guard.validate(
@@ -115,3 +117,41 @@ def test_validate_returns_crash_without_retrying(tmp_path: Path, monkeypatch) ->
         == 1
     )
     assert len(calls) == 1
+
+
+def test_validate_prepares_a_cold_project_before_running_the_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "target" / "godot_project"
+    calls = []
+    readiness = iter((False, False, True))
+
+    def fake_ready(_project):
+        return next(readiness)
+
+    def fake_run_import(binary, project, **kwargs):
+        calls.append(("import", binary, project, kwargs))
+        return SimpleNamespace(exit_code=0, godot_version=_TEST_GODOT_VERSION)
+
+    def fake_run_headless(binary, project, args, **kwargs):
+        calls.append(("validate", binary, project, args, kwargs))
+        return SimpleNamespace(exit_code=0, godot_version=_TEST_GODOT_VERSION)
+
+    monkeypatch.setattr(godot_guard, "project_import_ready", fake_ready)
+    monkeypatch.setattr(godot_guard, "godot_processes", lambda: [])
+    monkeypatch.setattr(godot_guard.godot_runner, "run_import", fake_run_import)
+    monkeypatch.setattr(godot_guard.godot_runner, "run_headless", fake_run_headless)
+    monkeypatch.setattr(godot_guard.godot_runner, "forward_output", lambda result: None)
+
+    assert (
+        godot_guard.validate(
+            Path("/godot"),
+            target,
+            "check.gd",
+            [],
+            expected_version=_TEST_GODOT_VERSION,
+            allow_version_mismatch=False,
+        )
+        == 0
+    )
+    assert [call[0] for call in calls] == ["import", "validate"]

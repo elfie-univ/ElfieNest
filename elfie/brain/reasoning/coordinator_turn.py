@@ -365,7 +365,15 @@ class ReasoningRunController:
         if reasoning_mode == "fast":
             if structured_owner_reply:
                 return 1024 if homeostasis.cognitive_mode == "emergency" else 1536
-            return 192
+            # Embodied fast turns still return a complete DecisionPlan.  The
+            # plan may contain several dynamic capability intents, so the
+            # compact chat budget is not sufficient for this branch.
+            return {
+                "emergency": 384,
+                "degraded": 512,
+                "normal": 768,
+                "long": 1024,
+            }[homeostasis.cognitive_mode]
         if homeostasis.cognitive_mode == "emergency":
             return 768
         if homeostasis.cognitive_mode == "degraded":
@@ -626,8 +634,19 @@ class ReasoningRunController:
                     "scoped MessageIntent that asks one concise clarification question.\n"
                     "- Only execution receipts prove that an action completed."
                 )
+            response_policy += (
+                " For any embodied operation, use CapabilityIntent with the exact "
+                "registered capability_id and typed arguments from "
+                "CAPABILITY_CATALOG; do not invent a body method."
+            )
         else:
-            response_policy = "Return only a validated DecisionPlan JSON object."
+            response_policy = (
+                "Return only a validated DecisionPlan JSON object. For embodied work, "
+                "emit one or more CapabilityIntent objects with type='capability', "
+                "category='body' or 'world', capability_id copied exactly from "
+                "CAPABILITY_CATALOG, and JSON arguments matching the call. Never use "
+                "prose or an unregistered capability to control the body."
+            )
         emotion_feedback_target = (
             "final CognitiveAction draft" if fast_owner_reply else "DecisionPlan"
         )
@@ -776,6 +795,34 @@ class ReasoningRunController:
             sections.append(
                 "TRUSTED_EXECUTION_CONTEXT:\n"
                 + json.dumps(trusted, ensure_ascii=False, separators=(",", ":"))
+            )
+        if not fast_owner_reply:
+            body = compiled.capabilities.current_body
+            capability_catalog = {
+                "body": (
+                    {
+                        "body_id": body.body_id,
+                        "body_generation": body.body_generation,
+                        "capability_revision": body.capability_revision,
+                        "sensors": list(body.sensors),
+                        "capabilities": list(body.actions),
+                    }
+                    if body is not None
+                    else None
+                ),
+                "world": list(compiled.capabilities.world_capabilities),
+                "world_contracts": [
+                    descriptor.model_dump(mode="json")
+                    for descriptor in compiled.capabilities.capability_catalog
+                ],
+            }
+            sections.append(
+                "CAPABILITY_CATALOG:\n"
+                + json.dumps(
+                    capability_catalog,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
             )
         sections.append(
             "MEMORY_RECALL_STATUS:\n"

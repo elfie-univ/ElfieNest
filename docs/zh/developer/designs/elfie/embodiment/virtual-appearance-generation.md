@@ -3,8 +3,8 @@
 **状态：** 当前发布基线已确认。正式使用的13个语义区域保持冻结。跨身体外星纹样实验已记录，
 但正式候选暂缓并禁用该功能；它不是本次发布的前置条件。
 
-> 设计关系：**所属模块：**Elfie / Embodiment；**上级设计：**[Elfie 顶级模块设计](./elfie-top-level-module-design.md)；
-> **下级设计：**无；**规范性契约：**[物种资源包契约](../../contracts/species-asset-package.md)；**当前架构：**[模块边界](../../architecture/module-boundaries.md)；
+> 设计关系：**所属模块：**Elfie / Embodiment；**上级设计：**[Elfie 顶级模块设计](../elfie-top-level-module-design.md)；
+> **下级设计：**无；**规范性契约：**[物种资源包契约](../../../contracts/species-asset-package.md)；**当前架构：**[模块边界](../../../architecture/module-boundaries.md)；
 > **一致性台账：**无；**领域资料来源：**Elfaria 物种与外貌输入（使用稳定资料标识）。
 
 ## 范围与所有权

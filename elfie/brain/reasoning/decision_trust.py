@@ -5,6 +5,7 @@ from __future__ import annotations
 from elfie.brain.reasoning.decision_seed import DecisionDecodeSeed
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     ExpressionIntent,
@@ -49,7 +50,7 @@ def _bind_intent(
 def _trusted_cancel_policy(intent: DecisionIntent) -> CancelPolicy:
     if isinstance(
         intent,
-        (SpeechIntent, MotionIntent, ExpressionIntent),
+        (CapabilityIntent, SpeechIntent, MotionIntent, ExpressionIntent),
     ):
         return CancelPolicy.ALWAYS
     return CancelPolicy.IF_NOT_STARTED

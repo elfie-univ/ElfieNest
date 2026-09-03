@@ -205,7 +205,7 @@ Reasoning 的系统级边界，不再复制这套内部控制流。
 
 ```mermaid
 flowchart TB
-    IN[Communication / Embodied / Internal Event] --> EW[1. Event Workspace]
+    IN[Communication / Embodied / Activity Event] --> EW[1. Event Workspace]
     EW --> TF[Single-domain TurnFrame]
 
     subgraph OWNERS["Read-only Turn sources"]

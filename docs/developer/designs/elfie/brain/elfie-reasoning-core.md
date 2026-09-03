@@ -248,7 +248,7 @@ the system-level Reasoning boundary and does not duplicate this control flow.
 
 ```mermaid
 flowchart TB
-    IN[Communication / Embodied / Internal Event] --> EW[1. Event Workspace]
+    IN[Communication / Embodied / Activity Event] --> EW[1. Event Workspace]
     EW --> TF[Single-domain TurnFrame]
 
     subgraph OWNERS["Read-only Turn sources"]

@@ -18,8 +18,8 @@ under `docs/zh/developer/designs/` follows the same rules.
   subdirectory is created only when a submodule has multiple documents. Do not create empty
   directories or `index.md` files merely to represent a future module.
 - A singleton document can stay in its current parent directory and declares its owner and
-  parent design in its relation block. Current grouped documents live under `elfie/brain/`;
-  current App documents live under `app/`.
+  parent design in its relation block. Current grouped documents live under `elfie/brain/` and
+  `elfie/embodiment/`; current App documents live under `app/`.
 
 ## Parent links and reading order
 

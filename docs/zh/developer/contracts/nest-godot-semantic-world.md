@@ -1,8 +1,8 @@
 # Nest–Godot 语义世界契约
 
-**契约版本：** 1.1
+**契约版本：** 1.2
 **采用日期：** 2026-08-13
-**修订日期：** 2026-08-14
+**修订日期：** 2026-09-02
 **适用范围：** `nest/`、Godot 语义边界及受影响的 App 编排
 
 > **规范性目标。** 本契约定义 Nest 内部事实所有权、与权威 Godot 世界的语义交互，
@@ -91,10 +91,10 @@ Nest 有四个一级功能所有者：
 | 路径 | 方向 | 规则 |
 | --- | --- | --- |
 | `NestQuery` | Elfie ↔ Nest | 纯家庭语义查询，不立即执行物理行为 |
-| `DirectBodyChannel` | Elfie Body ↔ Godot | 目标已知且不需要当前家庭语义解析；回执和身体感知只返回所属 Elfie |
-| `SemanticAction` | Elfie → Nest → Godot → Nest → Elfie | 一个已授权 intent 覆盖确定性目标解析、物理执行和一个语义结果，不要求第二个 Brain Turn |
-| `SemanticVision` | Elfie → Nest → Godot → Nest → Elfie，或 Godot → Nest → Elfie | 主动观察是一次完整关联请求；Godot 也可上报有界的重大变化。Godot 计算物理可见实体集合，Nest 只补家庭含义并产生一条定向语义视觉感知 |
-| `SpeechBridge` | Elfie → Nest → Godot → Nest → 目标 Elfie | Nest 保存内容和表露情绪，Godot 把物理听众候选返回 Nest，规则过滤居民，Nest 产生定向听觉事件 |
+| `DirectBodyChannel` | Elfie Body ↔ Godot | 目标已知且不需要当前家庭语义解析；回执和身体感知只经所属 Body 与 NervousSystem 回传 |
+| `SemanticAction` | Elfie → Nest → Godot → Nest → 目标 Elfie Body | 一个已授权 intent 覆盖确定性目标解析、物理执行和一个语义结果；定向结果重新进入 Body/NervousSystem，不因回执本身要求第二个 Brain Turn |
+| `SemanticVision` | Elfie → Nest → Godot → Nest → 目标 Elfie Body，或 Godot → Nest → 目标 Elfie Body | 主动观察是一次完整关联请求；Godot 也可上报有界重大变化。Godot 计算物理可见实体集合，Nest 只补家庭含义，并经 Body/NervousSystem 产生一条定向语义视觉感知 |
+| `SpeechBridge` | Elfie → Nest → Godot → Nest → 目标 Elfie Body | Nest 保存内容和表露情绪，Godot 把物理听众候选返回 Nest，规则过滤居民，Nest 经每个目标 Body/NervousSystem 产生定向听觉事件 |
 | `EnvironmentChannel` | Nest ↔ Godot 世界对象 | Nest 发出期望环境命令，Godot 返回实际离散事实与命令结果 |
 | `RuntimeControl` | App Lifecycle ↔ Godot Host/Gateway | 只处理启动、就绪、generation、健康、断线和恢复 |
 
@@ -102,8 +102,10 @@ Nest 有四个一级功能所有者：
 允许的”等当前家庭语义时，请求才经过 Nest。
 
 Nest 只有在命令保留原始 Elfie intent 身份、actor 身份和授权时，才能转发已解析 Actor
-目标。Nest 不能独立创建、定时触发、恢复或改写 Actor 行为。时间和家庭规则可以独立
-命令灯、门等环境对象，因为那是 Nest 拥有的世界意图，不是 Elfie 身体意图。
+目标。定向给 Elfie 的语义结果必须进入该 Elfie 的 Body 输入边界，再经过 NervousSystem；
+不能直接跳到 Brain。如果结果要求新的身体命令，该命令也必须重新经过 NervousSystem
+和 Body 后才能到达 Godot。Nest 不能独立创建、定时触发、恢复或改写 Actor 行为。时间和
+家庭规则可以独立命令灯、门等环境对象，因为那是 Nest 拥有的世界意图，不是 Elfie 身体意图。
 
 ## 结构化虚拟感知
 

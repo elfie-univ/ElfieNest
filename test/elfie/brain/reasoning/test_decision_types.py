@@ -10,6 +10,7 @@ from elfie.brain.emotion.contracts import AffectDirection
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
     EmotionFeedback,
@@ -113,6 +114,29 @@ def test_plan_preserves_many_ordered_intents_when_round_tripped() -> None:
         "expression",
     )
     assert restored.intents[4].dependency_ids == (IntentId("message-4"),)
+
+
+def test_capability_intent_round_trips_dynamic_body_capability_and_arguments() -> None:
+    intent = CapabilityIntent(
+        type="capability",
+        intent_id=IntentId("move-capability"),
+        cause_event_ids=(EventId("body-event"),),
+        dependency_ids=(),
+        deadline=PLAN_DEADLINE,
+        cancel_policy=CancelPolicy.ALWAYS,
+        category="body",
+        capability_id="body.move_to_anchor",
+        arguments={"anchor_id": "home", "announce": True},
+    )
+
+    restored = TypeAdapter(DecisionIntent).validate_json(
+        TypeAdapter(DecisionIntent).dump_json(intent)
+    )
+
+    assert restored == intent
+    assert isinstance(restored, CapabilityIntent)
+    assert restored.capability_id == "body.move_to_anchor"
+    assert restored.arguments["anchor_id"] == "home"
 
 
 @pytest.mark.parametrize(

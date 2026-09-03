@@ -86,8 +86,9 @@ documents, and create a subdirectory only when a submodule has multiple document
 Do not create a `system/` wrapper, empty module directories or per-directory
 `index.md` files. `designs/index.md` is a catalog only.
 
-The current grouped design documents are under `designs/elfie/brain/`; current
-App documents are under `designs/app/`. The current Nest/Godot design is a
+The current grouped design documents are under `designs/elfie/brain/` and
+`designs/elfie/embodiment/`; current App documents are under `designs/app/`.
+The current Nest/Godot design is a
 singleton at `designs/nest-godot-virtual-world-functional-architecture.md`, so
 no `nest/` directory is created yet. `Selfhood` is Brain system 3. Skill and
 Tool are Reasoning Core capabilities, not an additional Brain system. The

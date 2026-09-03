@@ -156,7 +156,15 @@ export default defineConfig({
                           ]
                         },
                         { text: "Elfie top-level module design", link: "/developer/designs/elfie/elfie-top-level-module-design" },
-                        { text: "Embodiment — virtual appearance", link: "/developer/designs/elfie/virtual-appearance-generation" }
+                        {
+                          text: "Embodiment",
+                          collapsed: true,
+                          items: [
+                            { text: "Embodied control chain", link: "/developer/designs/elfie/embodiment/elfie-embodied-control-chain" },
+                            { text: "Godot virtual-body vertical slice", link: "/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan" },
+                            { text: "Virtual appearance", link: "/developer/designs/elfie/embodiment/virtual-appearance-generation" }
+                          ]
+                        }
                       ]
                     },
                     {
@@ -335,7 +343,15 @@ export default defineConfig({
                           ]
                         },
                         { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie/elfie-top-level-module-design" },
-                        { text: "具身 — 虚拟外貌生成", link: "/zh/developer/designs/elfie/virtual-appearance-generation" }
+                        {
+                          text: "Embodiment",
+                          collapsed: true,
+                          items: [
+                            { text: "具身控制链路", link: "/zh/developer/designs/elfie/embodiment/elfie-embodied-control-chain" },
+                            { text: "Godot 虚拟身体端到端执行计划", link: "/zh/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan" },
+                            { text: "虚拟外貌生成", link: "/zh/developer/designs/elfie/embodiment/virtual-appearance-generation" }
+                          ]
+                        }
                       ]
                     },
                     {

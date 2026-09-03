@@ -22,8 +22,12 @@
     - [Emotion 情绪系统](./elfie/brain/elfie-emotion-system)：情绪状态、动态和边界。
     - [Memory 架构](./elfie/brain/elfie-memory-architecture)：持久经历、知识和召回。
     - [Brain 评价与进化系统](./elfie/brain/elfie-brain-evaluation-system)：证据优先的评价和受约束改进。
-  - Embodiment 单篇设计：
-    - [虚拟外貌生成最终设计](./elfie/virtual-appearance-generation)：不可变外貌生成与视觉验收边界。
+  - Embodiment 设计：
+    - [具身控制链路设计](./elfie/embodiment/elfie-embodied-control-chain)：Brain 到身体的语义指令链路、
+      Godot/物理设备两条执行路径及其边界。
+    - [Godot 虚拟身体端到端执行计划](./elfie/embodiment/elfie-godot-vertical-slice-plan)：动作、感知和
+      下一轮 Brain 反馈的渐进打通计划。
+    - [虚拟外貌生成最终设计](./elfie/embodiment/virtual-appearance-generation)：不可变外貌生成与视觉验收边界。
 - Nest 单篇设计：
   - [Nest 与 Godot 虚拟生活世界](./nest-godot-virtual-world-functional-architecture)：
     Nest/Godot 的最终功能边界、语义—物理闭环和事件路由。

@@ -31,7 +31,13 @@ def test_real_body_executes_one_embodied_turn() -> None:
     capabilities = StaticCapabilities(_capabilities())
     body = HeadlessBody(body_id="body-1")
     body.connect()
-    nervous_system = NervousSystem()
+    workspace = EventWorkspace(ELFIE_ID)
+    nervous_system = NervousSystem(
+        perception_sink=workspace,
+        elfie_id=ELFIE_ID,
+        body_port=body,
+        body_generation=1,
+    )
     body_executor = NervousSystemIntentExecutor(
         nervous_system=nervous_system,
         current_body=lambda: body,
@@ -46,7 +52,6 @@ def test_real_body_executes_one_embodied_turn() -> None:
         capabilities=capabilities,
         clock=lambda: NOW,
     )
-    workspace = EventWorkspace(ELFIE_ID)
     router = OutputRouter(
         elfie_id=ELFIE_ID,
         capabilities=capabilities,
@@ -77,6 +82,6 @@ def test_real_body_executes_one_embodied_turn() -> None:
     assert channel.sent == []
     assert body.snapshot_body(now=NOW).last_status is not None
     assert len(router.receipts(plan.turn_id)) == 9
-    assert workspace.metrics().reliable_event_count == 9
+    assert workspace.metrics().reliable_event_count == 3
     router.stop()
     router.join()

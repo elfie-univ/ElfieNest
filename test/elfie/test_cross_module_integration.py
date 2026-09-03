@@ -13,6 +13,7 @@ from elfie.body import (
     UtteranceFinal,
 )
 from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.state_lifecycle import StateRestoreError
 from elfie.communication import (
@@ -79,6 +80,7 @@ def test_body_source_identity_reaches_cortical_context() -> None:
             reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
+            embodied_input_mode=EmbodiedInputMode.BRAIN,
             communication=hub,
             model_port=runtime,
         )
@@ -211,6 +213,7 @@ def test_tactile_input_updates_fear_in_real_elfie_loop() -> None:
             reasoning_constitution=CONSTITUTION,
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
             body=body,
+            embodied_input_mode=EmbodiedInputMode.BRAIN,
             model_port=runtime,
         )
     )
