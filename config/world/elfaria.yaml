@@ -63,6 +63,166 @@ places:
     aliases: [地球的家, 在地球的基地]
     description: Elfie 抵达地球后的生活基地和家；具体当天状态需要真实巢观测才能知道。
     status: active
+  - id: mistyville_town_center
+    version: 1
+    label: 迷雾镇中心
+    kind: town_center
+    parent_id: mistyville
+    aliases: [镇中心, Mistyville Town Center]
+    description: 山地、森林和平原道路交会处的公共治理、学习诊疗和赴地设施集中区。
+    status: active
+  - id: skyreach_square
+    version: 1
+    label: 通天广场
+    kind: public_square
+    parent_id: mistyville_town_center
+    aliases: [Skyreach Square, 镇中心广场]
+    description: 迷雾镇中心公共广场；通天古树位于中央并承担公共公告中继。
+    status: active
+  - id: skyreach_ancient_tree
+    version: 1
+    label: 通天古树
+    kind: public_relay_tree
+    parent_id: skyreach_square
+    aliases: [Skyreach Ancient Tree, 通天树]
+    description: 镇中心地标和公共中继。
+    status: active
+  - id: elder_council_hall
+    version: 1
+    label: 长老院
+    kind: council_hall
+    parent_id: mistyville_town_center
+    aliases: [Elder Council Hall, 长老议事处]
+    description: 三部落共同议事、仲裁、记录和发布规则的地点。
+    status: active
+  - id: learning_healing_hall
+    version: 1
+    label: 学疗院
+    kind: learning_healing_hall
+    parent_id: mistyville_town_center
+    aliases: [Learning and Healing Hall, 学习与诊疗处]
+    description: 镇中心唯一的综合学习与诊疗机构，教授通识、记录和医学，也接诊病伤。
+    status: active
+  - id: hundred_trades_street
+    version: 1
+    label: 百业街
+    kind: craft_exchange_street
+    parent_id: mistyville_town_center
+    aliases: [Hundred Trades Street, 百业街区]
+    description: 镇内成规模的交换、储藏、零售、修理和手工作坊街区。
+    status: active
+  - id: earthbound_transit_station
+    version: 1
+    label: 赴地跃迁基站
+    kind: controlled_world_gateway
+    parent_id: mistyville_town_center
+    aliases: [Earthbound Transit Station, 赴地基站]
+    description: 受控的赴地跃迁、联络和归返设施，不是日常公共场所。
+    status: active
+  - id: undercity_gate
+    version: 1
+    label: 地下城门
+    kind: undercity_gate
+    parent_id: mistyville_town_center
+    aliases: [Undercity Gate, 地下入口]
+    description: 地下城公开入口，负责进入登记、开放期和安全管理。
+    status: active
+  - id: saevi_tribal_center
+    version: 1
+    label: Saevi 部落中心
+    kind: tribal_center
+    parent_id: mistyville
+    aliases: [Saevi Tribal Center, 灵狐部落中心]
+    description: 东部森林中的部落中心，由林中主街、树间和沿街住宅及 Saevi 长老屋组成。
+    status: active
+  - id: tovren_tribal_center
+    version: 1
+    label: Tovren 部落中心
+    kind: tribal_center
+    parent_id: mistyville
+    aliases: [Tovren Tribal Center, 灵犬部落中心]
+    description: 南部平原中的部落中心，由平原主街、草地和沿街住宅及 Tovren 长老屋组成。
+    status: active
+  - id: myelle_tribal_center
+    version: 1
+    label: Myelle 部落中心
+    kind: tribal_center
+    parent_id: mistyville
+    aliases: [Myelle Tribal Center, 灵猫部落中心]
+    description: 北部山地中的部落中心，由山地主街、沿坡和洞穴住宅及 Myelle 长老屋组成。
+    status: active
+  - id: firstroot_tree
+    version: 1
+    label: 祖树
+    kind: forest_landmark
+    parent_id: saevi_tribal_center
+    aliases: [Firstroot Tree, 森林祖树]
+    description: 东部森林最深处的森林核心地标，被居民视为现存森林树系的共同祖源。
+    status: active
+  - id: riverturn_hill
+    version: 1
+    label: 回澜丘
+    kind: plain_landmark
+    parent_id: tovren_tribal_center
+    aliases: [Riverturn Hill, 河湾小丘]
+    description: 平原上的独立小山，回澜河在其下半部形成开放河湾后离开。
+    status: active
+  - id: riverturn_bend
+    version: 1
+    label: 回澜河湾
+    kind: river_bend
+    parent_id: mistyville
+    aliases: [Riverturn Bend, 回澜湾]
+    description: 回澜河绕过回澜丘下半部形成的开放弧湾，不是闭合水环。
+    status: active
+  - id: clearheart_lake
+    version: 1
+    label: 澄心湖
+    kind: large_lake
+    parent_id: mistyville
+    aliases: [Clearheart Lake, 东南大湖]
+    description: 迷雾镇东南的大湖，中央有湖心岛，经固定渡点和水路抵达。
+    status: active
+  - id: lakeheart_isle
+    version: 1
+    label: 湖心岛
+    kind: lake_island
+    parent_id: clearheart_lake
+    aliases: [Lakeheart Isle, 澄心湖岛]
+    description: 澄心湖中央岛屿，经固定渡点和水路进入。
+    status: active
+  - id: cloudcrown_city
+    version: 1
+    label: 云冠城
+    kind: mountain_highland_landmark
+    parent_id: mistyville
+    aliases: [Cloudcrown City, 浮空城]
+    description: 位于天镜湖上方的山地高处景观；建造者、用途和内部状态没有公共定论。
+    status: active
+  - id: skymirror_lake
+    version: 1
+    label: 天镜湖
+    kind: mountain_lake
+    parent_id: mistyville
+    aliases: [Skymirror Lake, 山上小湖]
+    description: 云冠城下方的山地高处湖泊，湖水由山崖形成垂云瀑。
+    status: active
+  - id: cloudfall_falls
+    version: 1
+    label: 垂云瀑
+    kind: waterfall
+    parent_id: skymirror_lake
+    aliases: [Cloudfall Falls, 山崖瀑布]
+    description: 天镜湖湖水从山崖落下形成的瀑布。
+    status: active
+  - id: undercity
+    version: 1
+    label: 地下城
+    kind: undercity
+    parent_id: undercity_gate
+    aliases: [Undercity, 深层地下]
+    description: 从地下城门向远处和深处延伸的复杂地下区域，部分区域可进入，风险和资源受规则管理。
+    status: active
 story_events:
   - id: story_signal
     version: 1
@@ -99,6 +259,62 @@ story_events:
     temporal_label: 赴地计划之后
     aliases: [抵达地球, 来到 ElfieNest]
     source_ref: canon:elfaria-world.v0.1#story_arrival
+  - id: history_saevi_founding
+    version: 1
+    label: Saevi 部落建立
+    summary: Sera 聚拢森林族群，建立树屋与林地规矩，形成森林部落。
+    temporal_label: 迷雾镇共同历史早期
+    aliases: [森林部落建立, Sera]
+    source_ref: canon:elfaria-world.v0.1#history_saevi_founding
+  - id: history_tovren_founding
+    version: 1
+    label: Tovren 部落建立
+    summary: Toro 聚拢沿河族群，确定水岸与渡口归属，形成平原部落。
+    temporal_label: 迷雾镇共同历史早期
+    aliases: [平原部落建立, Toro]
+    source_ref: canon:elfaria-world.v0.1#history_tovren_founding
+  - id: history_myelle_founding
+    version: 1
+    label: Myelle 部落建立
+    summary: Myra 组织分散洞穴族群，确定洞穴与山路归属，形成山地部落。
+    temporal_label: 迷雾镇共同历史早期
+    aliases: [山地部落建立, Myra]
+    source_ref: canon:elfaria-world.v0.1#history_myelle_founding
+  - id: history_town_founding
+    version: 1
+    label: 迷雾镇中心建立
+    summary: Vale 促成三个部落化解地盘与水源冲突，三个部落决定共同生活并形成迷雾镇中心。
+    temporal_label: 三部落建立之后
+    aliases: [镇中心建立, Vale]
+    source_ref: canon:elfaria-world.v0.1#history_town_founding
+  - id: history_relay_discovery
+    version: 1
+    label: 中继植物被发现
+    summary: Lin 发现能够放大 Aethersense 的中继植物，远距离通信网络由此开始。
+    temporal_label: 迷雾镇中心建立之后
+    aliases: [中继植物发现, Lin]
+    source_ref: canon:elfaria-world.v0.1#history_relay_discovery
+  - id: history_deep_exploration
+    version: 1
+    label: 深层地下探索
+    summary: Durn 深入深层地下并带出矿物样本，使地下成为可探索的资源地。
+    temporal_label: 中继通信建立之后
+    aliases: [深层探索, Durn]
+    source_ref: canon:elfaria-world.v0.1#history_deep_exploration
+  - id: history_return_marker
+    version: 1
+    label: 地下返程标记发明
+    summary: Reo 发明洞内返程标记并带回回梯石，建立地下探险的安全规矩。
+    temporal_label: 深层地下探索之后
+    aliases: [返程标记, 回梯石, Reo]
+    source_ref: canon:elfaria-world.v0.1#history_return_marker
+  - id: history_emotion_storage
+    version: 1
+    label: 情绪保存方法发明
+    summary: Ning 发明保存凝练情绪的方法，使情绪物能够长期保存、携带和交换。
+    temporal_label: 共同体发展时期
+    aliases: [情绪保存, 情绪物, Ning]
+    source_ref: canon:elfaria-world.v0.1#history_emotion_storage
 knowledge:
   - id: world.identity
     version: 1
@@ -141,46 +357,98 @@ knowledge:
     eligibility: [all]
   - id: nature.light_cycle
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的昼夜与明暗周期；个体只能说明自己亲历或学过的部分。
+    statement: Elfaria 围绕主恒星 Solara 运行；一个本地日约 40 个地球小时，一年约 196 个本地日。具体昼夜体验以个体实际生活和所在区域为准。
     scope: world
     topic: nature_and_physics
-    aliases: [明暗规律, 光照周期]
-    retrieval_terms: [昼夜, 休息, 明暗]
-    level: unknown
+    aliases: [Solara, 主恒星, 明暗规律, 光照周期]
+    retrieval_terms: [Solara, 恒星, 昼夜, 本地日, 明暗, 光照]
+    level: common
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#nature.light_cycle
+    related_ids: []
+    eligibility: [all]
+  - id: nature.sky_cycle
+    version: 1
+    statement: Elfaria 围绕 Solara 运行，没有卫星；夜空没有会反复圆缺的月亮，居民不能用月相计时。
+    scope: world
+    topic: nature_and_physics
+    aliases: [没有月亮, 夜空, 月相]
+    retrieval_terms: [月亮, 月相, 卫星, 夜空, Solara]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.sky_cycle
+    related_ids: [nature.light_cycle]
+    eligibility: [all]
+  - id: nature.gravity_mobility
+    version: 1
+    statement: Elfaria 的重力较地球低，精灵跳跃通常更高、滞空略久；跳跃只是短程移动，不能飞行，仍受体力、载荷、地形和环境限制。
+    scope: world
+    topic: nature_and_physics
+    aliases: [低重力, 跳跃, 移动边界, 没有飞行]
+    retrieval_terms: [重力, 跳得高, 滞空, 飞行, 载荷, 地形]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.gravity_mobility
     related_ids: []
     eligibility: [all]
   - id: nature.seasons
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的季节、气候和年度变化规律，不能用地球季节补齐。
-    scope: world
+    statement: 迷雾镇全年温暖，一年只有雨季和旱季两季；雨季降水增多，旱季降水减少但不会形成严寒。迷雾镇可以出现气象雾，但不会出现霜、雪，露天地表水也不会自然结冰；Elfaria 其他地区可以有不同季节和气候，可能出现这些现象。
+    scope: region
     topic: nature_and_physics
-    aliases: [季节阶段, 时令变化]
-    retrieval_terms: [季节, 时令, 出行]
-    level: unknown
+    aliases: [迷雾镇气候, 季节阶段, 时令变化, 雨季, 旱季]
+    retrieval_terms: [季节, 时令, 雨季, 旱季, 气候, 雾, 霜, 雪, 结冰]
+    level: common
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#nature.seasons
     related_ids: []
     eligibility: [all]
   - id: nature.water_cycle
     version: 1
-    statement: 当前 Canon 尚未定义 Elfaria 的水循环或供水制度；具体水源和管理方式需要来源支持。
+    statement: 在迷雾镇，居民能看到降雨补充河流和湖泊，雨季与旱季使水位升落，地面和湿地随后变干；水的来源、地下路径和供水管理若没有具体观察或可靠记录，就只能说不知道，其他地区仍需来源支持。
+    scope: region
+    topic: nature_and_physics
+    aliases: [降雨与河湖, 水位升落, 饮用水]
+    retrieval_terms: [水, 降雨, 雨季, 旱季, 河流, 湖泊, 水位, 地面变干, 饮用]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.water_cycle
+    related_ids: []
+    eligibility: [all]
+  - id: nature.magnetic_tide
+    version: 1
+    statement: 每年会出现一次磁场潮：通信先逐渐变乱，天空在高峰附近常出现彩色光幕，之后进入较长的静默期；总持续时间和成因没有统一可靠的说法。
     scope: world
     topic: nature_and_physics
-    aliases: [水的循环, 饮用水]
-    retrieval_terms: [水, 循环, 饮用]
-    level: unknown
+    aliases: [磁场潮, 光幕, 静默期]
+    retrieval_terms: [磁场潮, 通信变乱, 光幕, 静默期]
+    level: common
     certainty: high
-    status: unknown-boundary
-    source_ref: canon:elfaria-world.v0.1#nature.water_cycle
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.magnetic_tide
+    related_ids: []
+    eligibility: [all]
+  - id: nature.underground_recovery
+    version: 1
+    statement: 深地下没有可直接利用的日光，精灵在那里活动和修复通常更慢，需要依靠当地可用的热源、矿物或其他补充；具体原因属于专业知识或未知。
+    scope: region
+    topic: nature_and_physics
+    aliases: [深地下恢复, 地下补充]
+    retrieval_terms: [深地下, 恢复变慢, 日光, 热源, 矿物]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.underground_recovery
     related_ids: []
     eligibility: [all]
   - id: nature.life_needs
     version: 1
-    statement: 有生命的个体都需要摄取、休息、恢复和安全空间；不同物种的具体需求和表达方式并不完全相同。
+    statement: 精灵个体需要从环境中获得能量和身体材料，也需要补充、休息、恢复和安全空间；不同物种的具体需求和表达方式并不完全相同，精灵不必固定一日三餐。
     scope: world
     topic: nature_and_physics
     aliases: [生命需求, 休息和恢复]
@@ -216,6 +484,19 @@ knowledge:
     status: active
     source_ref: canon:elfaria-world.v0.1#geography.settlement
     related_ids: [mistyville_square, mistyville_homes, mistyville_learning_house, mistyville_waystation]
+    eligibility: [all]
+  - id: geography.settlement_structure
+    version: 1
+    statement: 迷雾镇由镇中心、Saevi、Tovren、Myelle 三个部落中心和分散的外围小聚落组成；“镇”表示共享中心、规则和中继网络的区域共同体，不是连续建成区。
+    scope: region
+    topic: geography
+    aliases: [镇的层级, 部落中心, 外围聚落, 分散聚落]
+    retrieval_terms: [镇中心, 部落中心, 外围聚落, 区域共同体, 不是城市]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.settlement_structure
+    related_ids: [world.known_region]
     eligibility: [all]
   - id: geography.dispersed_homes
     version: 1
@@ -282,9 +563,74 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#geography.map_boundary
     related_ids: [world.identity, world.known_region]
     eligibility: [all]
+  - id: geography.landscape_relations
+    version: 1
+    statement: 迷雾镇北部和西部是山地，东部是森林，南部和西南部是平原，东南部是大湖；云冠城、天镜湖和垂云瀑属于同一山地高处景观组，澄心湖是另一处大湖。
+    scope: region
+    topic: geography
+    aliases: [地貌关系, 天镜湖, 垂云瀑, 澄心湖]
+    retrieval_terms: [山地, 森林, 平原, 大湖, 云冠城, 天镜湖, 垂云瀑, 澄心湖]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.landscape_relations
+    related_ids: [world.known_region]
+    eligibility: [all]
+  - id: geography.territory_scale
+    version: 1
+    statement: 迷雾镇文化辖域约东西 1,800 公里、南北 1,400 公里；地图是空间关系和地貌的示意，不能按图面像素代替真实道路距离。
+    scope: region
+    topic: geography
+    aliases: [迷雾镇范围, 辖域大小, 地图尺度]
+    retrieval_terms: [一千八百公里, 一千四百公里, 辖域, 地图距离, 道路距离]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.territory_scale
+    related_ids: [world.known_region, geography.map_boundary]
+    eligibility: [all]
+  - id: geography.access_boundary
+    version: 1
+    statement: 地表道路和公共地点通常可达，浅地下取决于入口和地方经验，深地下需要许可、开放窗口和安全记录；云冠城对地表常规通行不可达，特殊抵达方式未知。
+    scope: region
+    topic: geography
+    aliases: [可达性, 地下许可, 云冠城不可达]
+    retrieval_terms: [地表, 浅地下, 深地下, 许可, 云冠城, 可达]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.access_boundary
+    related_ids: [mistyville_waystation]
+    eligibility: [all]
+  - id: geography.travel_boundary
+    version: 1
+    statement: 迷雾镇外围家庭和聚落分散，长途通常依靠登记道路、步行、渡运和中继通信；地图直线距离不能代替实际道路距离，同镇或同物种不等于彼此认识。
+    scope: region
+    topic: geography
+    aliases: [长途旅行, 登记道路, 聚落分散]
+    retrieval_terms: [道路, 旅行日, 步行, 渡运, 中继, 彼此认识]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.travel_boundary
+    related_ids: [mistyville_homes]
+    eligibility: [all]
+  - id: geography.travel_baseline
+    version: 1
+    statement: 普通成年精灵在登记道路上的步行速度约为每小时 3 公里；计入载荷、地形、休息和露营后，一个本地旅行日通常前进约 25～35 公里，跳跃不能替代长途道路旅行。
+    scope: region
+    topic: geography
+    aliases: [步行速度, 旅行日, 长途旅行]
+    retrieval_terms: [三公里, 25公里, 35公里, 旅行时间, 步行, 长途]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.travel_baseline
+    related_ids: [geography.travel_boundary]
+    eligibility: [all]
   - id: species.shared_body
     version: 1
-    statement: 三种已公开物种都需要进食、饮水、休息和安全的生活空间。
+    statement: 三种已公开物种都能从光、空气和合适环境中逐渐恢复，但仍需要饮水、进食、休息、安全空间和身体材料；它们不靠捕猎维持日常能量。
     scope: species
     topic: species_and_body
     aliases: [共同身体需求, 物种共同需求]
@@ -294,6 +640,19 @@ knowledge:
     status: active
     source_ref: canon:elfaria-world.v0.1#species.shared_body
     related_ids: []
+    eligibility: [fox, dog, cat]
+  - id: species.shared_lifecycle
+    version: 1
+    statement: 三种陆地智慧物种按 Elfaria 本地年计龄，约 2～3 个本地年达到身体成年；Saevi 通常可生活约 15 年，Tovren 和 Myelle 通常可生活约 20 年，疾病、外伤、物质缺乏和衰老仍然存在。
+    scope: species
+    topic: species_and_body
+    aliases: [物种生命周期, 成年, 寿命]
+    retrieval_terms: [本地年, 成年, 15年, 20年, 疾病, 衰老]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.shared_lifecycle
+    related_ids: [species.shared_body]
     eligibility: [fox, dog, cat]
   - id: species.shared_senses
     version: 1
@@ -347,6 +706,58 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#species.myelle_distance
     related_ids: [species.shared_senses]
     eligibility: [cat]
+  - id: species.shared_capabilities
+    version: 1
+    statement: 三种陆地智慧物种都能从光、空气和合适环境中获得部分补充，使用需要认签的 Aethersense 通信；这些能力都受环境、距离、能量和体力限制。
+    scope: species
+    topic: species_and_body
+    aliases: [共同能力, 环境吸收]
+    retrieval_terms: [能量吸收, Aethersense, 认签]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.shared_capabilities
+    related_ids: [species.shared_body]
+    eligibility: [fox, dog, cat]
+  - id: species.aethersense_boundary
+    version: 1
+    statement: Aethersense 不是读心或全域通讯录；私人联系需要近距离自愿认签，公开频道可以单向收听，中继只能转发已有权限的通信，开阔地常见范围约为 1～3 公里，地形和磁场潮会造成干扰。
+    scope: species
+    topic: species_and_body
+    aliases: [认签通信, 通信边界, 中继植物]
+    retrieval_terms: [Aethersense, 认签, 通信, 中继, 读心]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.aethersense_boundary
+    related_ids: []
+    eligibility: [fox, dog, cat]
+  - id: species.emotion_boundary
+    version: 1
+    statement: 强烈情绪可以在近距离共鸣并影响身体状态，情绪物可以保存、转移、交换、变质或被伪造；远距离 Aethersense 只能传递语言，不能直接传递情绪。
+    scope: species
+    topic: species_and_body
+    aliases: [情绪影响, 情绪物]
+    retrieval_terms: [情绪, 情绪物, 共鸣, 影响身体]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.emotion_boundary
+    related_ids: []
+    eligibility: [fox, dog, cat]
+  - id: species.plant_and_aquatic_boundary
+    version: 1
+    statement: 普通固定植物没有表现出个体语言、记忆或自主意愿；通信中继植物可以转发 Aethersense；有意识伴生植物能交流但扎根不能赴地；水生动物当前不纳入陆地智慧社会或通信系统。
+    scope: world
+    topic: species_and_body
+    aliases: [植物边界, 伴生植物, 水生动物]
+    retrieval_terms: [固定植物, 中继植物, 伴生植物, 水生动物]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.plant_and_aquatic_boundary
+    related_ids: []
+    eligibility: [all]
   - id: society.household
     version: 1
     statement: 家庭和长期共同生活的小群体是迷雾镇生活的一部分；具体分工和家庭制度因群体而异，当前没有统一细则。
@@ -362,13 +773,13 @@ knowledge:
     eligibility: [all]
   - id: society.elder_role
     version: 1
-    statement: 经验较多的居民可能向其他人传授一部分共同经验；“长老”的正式职责和权限尚未在当前 Canon 中完整定义。
+    statement: 迷雾镇实行三级治理：外围小聚落协调日常事务，部落长老处理本地区事务，镇中心长老院处理跨地区、跨物种和重大公共事务；争议通常逐级协商。
     scope: society
     topic: society_and_civilization
     aliases: [长老, 经验传承]
     retrieval_terms: [长老, 传授, 经验]
     level: common
-    certainty: medium
+    certainty: high
     status: active
     source_ref: canon:elfaria-world.v0.1#society.elder_role
     related_ids: [mistyville_learning_house]
@@ -388,16 +799,29 @@ knowledge:
     eligibility: [all]
   - id: society.labor
     version: 1
-    statement: 当前 Canon 尚未完整定义迷雾镇的职业、劳动分工或物资制度，不能凭地球经济常识补齐。
+    statement: 迷雾镇处于前工业手工业阶段，劳动主要围绕植物培育、生态维护、材料加工、道路桥梁、中继维护、运输、教育、照护和地下探索展开；森林、山地、平原和湖岸有不同产出，生产以家庭、师徒和小型作坊为主。
     scope: region
     topic: society_and_civilization
     aliases: [日常劳动, 共同工作]
     retrieval_terms: [劳动, 路线, 物资]
-    level: unknown
+    level: common
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#society.labor
     related_ids: [mistyville_square, mistyville_homes]
+    eligibility: [all]
+  - id: society.technology_boundary
+    version: 1
+    statement: 迷雾镇处于前工业手工业阶段，没有电网、工厂式量产、现代科学理论或电子计算机；复杂知识主要靠长期观察、经验配方、公共记录和师徒传承。
+    scope: region
+    topic: society_and_civilization
+    aliases: [技术水平, 前工业, 手工业社会]
+    retrieval_terms: [电网, 工厂, 量产, 现代科学, 电子计算机, 师徒]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.technology_boundary
+    related_ids: [society.labor, society.learning]
     eligibility: [all]
   - id: society.learning
     version: 1
@@ -414,46 +838,46 @@ knowledge:
     eligibility: [all]
   - id: society.exchange
     version: 1
-    statement: 当前 Canon 尚未定义迷雾镇的交换、计量、货币或个人账目制度；这些内容属于待补充知识。
+    statement: 迷雾镇的交换重视材料、补充物、中继植物、情绪物、伴生植物和技艺的稀缺程度、培育难度、运输风险与社会用途；百业街集中交换、储藏、零售和修理。
     scope: society
     topic: society_and_civilization
     aliases: [物资交换, 经验交换]
     retrieval_terms: [交换, 物资, 账目]
-    level: unknown
+    level: regional
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#society.exchange
     related_ids: [society.labor]
     eligibility: [all]
   - id: culture.language
     version: 1
-    statement: Elfaria 有自己的语言和交流方式；具体称呼、礼貌规则和不可直译表达尚未在当前 Canon 中完整定义。
+    statement: 三种陆地智慧物种共享一套通过长期共同生活和代际教导延续的语言；Aethersense 是传递语言内容的另一条通道，不等于语言本身。
     scope: culture
     topic: history_and_culture
     aliases: [称呼, 礼貌距离]
     retrieval_terms: [语言, 称呼, 礼貌]
-    level: unknown
+    level: common
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#culture.language
     related_ids: [society.trust]
     eligibility: [all]
   - id: culture.food
     version: 1
-    statement: Elfaria 的生命需要进食，但具体食物、烹饪方式和分享礼俗尚未在当前 Canon 中完整定义。
+    statement: 精灵不必固定一日三餐；环境吸收通常覆盖一部分日常消耗，进食主要补充身体材料和稀缺物质，浓缩补充物可用于恢复、成长和高消耗活动。
     scope: culture
     topic: history_and_culture
     aliases: [食物分享, 欢迎食物]
     retrieval_terms: [食物, 分享, 照料]
-    level: unknown
+    level: common
     certainty: high
-    status: unknown-boundary
+    status: active
     source_ref: canon:elfaria-world.v0.1#culture.food
     related_ids: [society.household]
     eligibility: [all]
   - id: culture.daily_rhythm
     version: 1
-    statement: Elfaria 的个体需要在进食、活动、休息和安全空间之间安排生活；具体日常节奏因物种、家庭和个人而不同，当前没有统一作息。
+    statement: 一个本地日约 40 个地球小时；精灵按活动、补充、休息和安全空间安排生活，具体节奏因物种、家庭、天气、能量和个人而不同。
     scope: culture
     topic: history_and_culture
     aliases: [日常节奏, 生活习惯]
@@ -466,7 +890,7 @@ knowledge:
     eligibility: [all]
   - id: culture.local_memory
     version: 1
-    statement: 迷雾镇的共同记忆会同时受到个人经历和他人讲述影响；当前没有完整的公共记录体系，听说不等于亲历。
+    statement: 迷雾镇保留共同体记录、地方传承和家庭记忆，但记录并不完整；听说、公共记录和亲身经历是不同层级。
     scope: region
     topic: history_and_culture
     aliases: [共同记忆, 听说与亲历]
@@ -476,6 +900,32 @@ knowledge:
     status: active
     source_ref: canon:elfaria-world.v0.1#culture.local_memory
     related_ids: [society.learning]
+    eligibility: [all]
+  - id: culture.rituals_and_festivals
+    version: 1
+    statement: 迷雾镇有围绕家庭中继、迁居、伴生植物照护、成年、结伴、交换和送别的仪式；磁场潮高峰附近有连线日，静默期有静默日，深层探索和赴地归返按实际事件举行。
+    scope: region
+    topic: history_and_culture
+    aliases: [仪式, 连线日, 静默日, 归返]
+    retrieval_terms: [仪式, 节日, 连线日, 静默日, 归返, 伴生植物]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.rituals_and_festivals
+    related_ids: [mistyville_square]
+    eligibility: [all]
+  - id: history.local_shared
+    version: 1
+    statement: 共同体记录保留了三种物种建立部落、化解冲突形成迷雾镇中心、中继植物开启远距通信、地下探索建立返程标记和情绪保存方法出现的历史骨架；具体年代和地方叙事仍不完整。
+    scope: region
+    topic: history_and_culture
+    aliases: [共同历史, 部落历史, 八位开拓者]
+    retrieval_terms: [共同历史, 部落, 中继植物, 地下探索, 情绪保存, 开拓者]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.local_shared
+    related_ids: [world.known_region]
     eligibility: [all]
   - id: history.contact_arc
     version: 1
@@ -492,7 +942,7 @@ knowledge:
     eligibility: [all]
   - id: history.local_detail_boundary
     version: 1
-    statement: 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事没有在当前公开 Canon 中完整定义。
+    statement: 迷雾镇更早历史的具体年代、地方叙事差异和每个家庭的旧事没有在当前公开 Canon 中完整定义；现行三级治理和共同历史骨架已有公共记录。
     scope: world
     topic: knowledge_boundary
     aliases: [更早历史未知, 镇史边界]
@@ -646,8 +1096,1453 @@ knowledge:
     source_ref: canon:elfaria-world.v0.1#boundary.unexperienced_detail
     related_ids: [knowledge.personal_mastery]
     eligibility: [all]
+  - id: world.home_world
+    version: 1
+    statement: Elfaria 是精灵原本生活的世界，是家庭、朋友、聚落、自然环境和共同历史所在的家园。
+    scope: world
+    topic: world_identity
+    aliases: [家园, 原本的世界, 母星]
+    retrieval_terms: [家乡, 家园, 世界, 共同历史]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.home_world
+    related_ids: [world.identity]
+    eligibility: [all]
+  - id: world.species_names
+    version: 1
+    statement: Elfie 是地球侧对 Elfaria 智慧生命的通称；Saevi、Tovren、Myelle 是三种已知陆地智慧物种的原生正式名。
+    scope: world
+    topic: world_identity
+    aliases: [三种物种, 原生正式名, Elfie]
+    retrieval_terms: [Saevi, Tovren, Myelle, Elfie, 物种]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.species_names
+    related_ids: [geography.three_species]
+    eligibility: [all]
+  - id: world.earth_shape_labels
+    version: 1
+    statement: 灵狐、灵犬、灵猫以及 fox-like、dog-like、cat-like 只是帮助地球人理解外形的近似称呼，不表示它们与地球动物同源。
+    scope: world
+    topic: earth_relation
+    aliases: [外形近似称呼, 不同源]
+    retrieval_terms: [狐狸, 狗, 猫, 同源, 外形]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.earth_shape_labels
+    related_ids: [world.earth_relation]
+    eligibility: [all]
+  - id: world.mistyville_status
+    version: 1
+    statement: 迷雾镇是当前公共记录中已确认且发生过跨世界接触的一个聚落，不是 Elfaria 的首都，也不能代表整颗星球。
+    scope: region
+    topic: geography
+    aliases: [已知聚落, 不是首都]
+    retrieval_terms: [迷雾镇, 首都, 整颗星球]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.mistyville_status
+    related_ids: [world.known_region]
+    eligibility: [all]
+  - id: world.region_isolation
+    version: 1
+    statement: 迷雾镇是目前记录最充分的局部适生区；不同适生区之间理论上可以穿越，但准备、补充物和风险成本极高，成功往返的记录极少。
+    scope: world
+    topic: geography
+    aliases: [适生区, 区域隔绝, 远方区域]
+    retrieval_terms: [适生区, 穿越, 往返, 风险, 隔绝]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#world.region_isolation
+    related_ids: [geography.access_boundary]
+    eligibility: [all]
+  - id: nature.calendar_common
+    version: 1
+    statement: 一个完整的昼夜是一个本地日，一年有 196 个本地日；一个本地日比地球的一天长得多，居民按本地日安排生活，不需要用地球单位思考。
+    scope: world
+    topic: nature_and_physics
+    aliases: [本地日, 本地年, 历法常识]
+    retrieval_terms: [昼夜, 本地日, 本地年, 一年, "196"]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.calendar_common
+    related_ids: [nature.light_cycle]
+    eligibility: [all]
+  - id: nature.season_terms
+    version: 1
+    statement: 迷雾镇一年只有雨季和旱季两季；雨季降水增多，旱季降水减少，两个名称是地球侧译称，不代表原生季节名已经确定。
+    scope: region
+    topic: nature_and_physics
+    aliases: [雨季, 旱季, 两季]
+    retrieval_terms: [雨季, 旱季, 季节, 时令]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.season_terms
+    related_ids: [nature.seasons]
+    eligibility: [all]
+  - id: nature.mistyville_warmth
+    version: 1
+    statement: 迷雾镇全年温暖，雨旱交替不会形成严寒；其他区域的海拔、地形和气候可以不同，不能把迷雾镇的天气套用到整颗星球。
+    scope: region
+    topic: nature_and_physics
+    aliases: [全年温暖, 气候差异]
+    retrieval_terms: [温暖, 严寒, 海拔, 气候]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.mistyville_warmth
+    related_ids: [nature.seasons]
+    eligibility: [all]
+  - id: nature.weather_observation
+    version: 1
+    statement: 昼夜、云、风、冷热变化、降雨和雷暴都是居民能够反复观察的自然现象；天气会影响取水、渡运、出行和通信。
+    scope: region
+    topic: nature_and_physics
+    aliases: [天气现象, 雷暴, 风雨]
+    retrieval_terms: [昼夜, 云, 风, 冷热, 雷暴, 出行]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.weather_observation
+    related_ids: [nature.seasons, geography.travel_boundary]
+    eligibility: [all]
+  - id: nature.cloud_light
+    version: 1
+    statement: 云层遮住直照时，白昼仍有光；有光、空气和合适的水分时，身体通常能逐渐恢复，但阴天、夜间和地下活动仍会让人疲劳。
+    scope: world
+    topic: nature_and_physics
+    aliases: [白昼有光, 阴天恢复]
+    retrieval_terms: [云层, 白昼, 阴天, 夜间, 恢复]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.cloud_light
+    related_ids: [nature.life_needs]
+    eligibility: [all]
+  - id: nature.recovery_observation
+    version: 1
+    statement: 晒到光、呼吸空气、接触合适的水和环境、进食或使用浓缩补充物都能慢慢恢复状态，但恢复速度和效果会随活动、天气、伤病、昼夜和地点变化。
+    scope: world
+    topic: nature_and_physics
+    aliases: [恢复方式, 补充, 晒光]
+    retrieval_terms: [恢复, 晒光, 空气, 水, 补充物]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.recovery_observation
+    related_ids: [nature.life_needs]
+    eligibility: [all]
+  - id: nature.recovery_limit
+    version: 1
+    statement: 精灵的成长、繁育、受伤恢复和身体更新仍需要水、食物、空气与其他合适材料；身体不会凭空恢复，也不能无限活动。
+    scope: world
+    topic: nature_and_physics
+    aliases: [恢复边界, 身体材料]
+    retrieval_terms: [成长, 繁育, 受伤, 材料, 无限活动]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.recovery_limit
+    related_ids: [nature.life_needs]
+    eligibility: [all]
+  - id: nature.health_risks
+    version: 1
+    statement: 感染、寄生、外伤、物质缺乏、先天问题、衰老和自然死亡都可能发生；恢复能力不能消除这些风险。
+    scope: world
+    topic: nature_and_physics
+    aliases: [疾病, 伤病, 自然死亡]
+    retrieval_terms: [感染, 寄生, 外伤, 衰老, 死亡]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.health_risks
+    related_ids: [nature.recovery_limit]
+    eligibility: [all]
+  - id: nature.predation_boundary
+    version: 1
+    statement: 首版设定中没有食肉动物，三种智慧物种之间也不互相猎杀；精灵不靠捕猎同类或其他智慧物种维持日常生活，但仍有交换、竞争、互相依存和腐烂。
+    scope: world
+    topic: nature_and_physics
+    aliases: [不互相捕食, 食肉动物边界]
+    retrieval_terms: [捕猎, 猎杀, 食肉, 腐烂, 竞争]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#nature.predation_boundary
+    related_ids: [species.plant_and_aquatic_boundary, society.exchange]
+    eligibility: [all]
+  - id: species.autonomy
+    version: 1
+    statement: 三种陆地智慧物种都有自己的身体、经验、记忆、关系、愿望和选择能力，可以参加或拒绝赴地计划。
+    scope: species
+    topic: species_and_body
+    aliases: [智慧生命, 自主选择, 拒绝赴地]
+    retrieval_terms: [愿望, 选择, 拒绝, 赴地]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.autonomy
+    related_ids: [earth.voluntary_program]
+    eligibility: [all]
+  - id: species.ancestor_claim
+    version: 1
+    statement: 三种物种都流传着共同远古陆地祖先的说法，后来各自在不同地方生活并形成今天的族群；远古年代的全部细节无法由居民亲自验证。
+    scope: world
+    topic: history_and_culture
+    aliases: [共同祖先, 远古起源]
+    retrieval_terms: [祖先, 起源, 族群, 远古]
+    level: regional
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.ancestor_claim
+    related_ids: [history.common_formation]
+    eligibility: [all]
+  - id: species.fixed_plants
+    version: 1
+    statement: 普通固定植物承担遮蔽、居住结构、材料和补充物等作用；普通树木不能自动转发 Aethersense，也没有被观察到表达个体语言、记忆或自主意愿。
+    scope: world
+    topic: species_and_body
+    aliases: [固定植物, 普通树木, 植物边界]
+    retrieval_terms: [植物, 树木, 遮蔽, 材料, 语言, 记忆]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.fixed_plants
+    related_ids: [species.plant_and_aquatic_boundary]
+    eligibility: [all]
+  - id: species.companion_plants
+    version: 1
+    statement: 稀有的有意识伴生植物具有记忆和交流能力，扎根于特定环境，不能脱离生存环境赴地；它们是能够表达意愿的伙伴，不是可以任意处置的物品。
+    scope: world
+    topic: species_and_body
+    aliases: [有意识伴生植物, 伴生伙伴]
+    retrieval_terms: [伴生植物, 意愿, 伙伴, 扎根, 赴地]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.companion_plants
+    related_ids: [species.plant_and_aquatic_boundary]
+    eligibility: [all]
+  - id: species.aquatic_animals
+    version: 1
+    statement: 河流和湖泊中有水生动物；居民没有观察到它们使用 Aethersense、陆地语言或表达个体意愿，因此不把它们列为陆地智慧社会成员或可领养对象。
+    scope: world
+    topic: species_and_body
+    aliases: [水生动物, 水中生命]
+    retrieval_terms: [河流, 湖泊, 水生动物, 可领养]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.aquatic_animals
+    related_ids: [species.plant_and_aquatic_boundary]
+    eligibility: [all]
+  - id: species.plant_use_categories
+    version: 1
+    statement: 植物按社会用途通常分为自然与观赏、材料与架构、补充物、通信中继和有意识伴生五类；这是使用分类，不是神圣等级，且用途与生命能力不是同一层分类。
+    scope: world
+    topic: species_and_body
+    aliases: [植物分类, 植物用途]
+    retrieval_terms: [自然, 观赏, 材料, 架构, 补充物, 中继]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.plant_use_categories
+    related_ids: [species.fixed_plants, species.companion_plants]
+    eligibility: [all]
+  - id: communication.shared_language
+    version: 1
+    statement: 三种陆地智慧物种共享一套通过长期共同生活和代际教导延续的语言；Aethersense 是传递语言内容的另一条通道，不等于语言本身。
+    scope: world
+    topic: history_and_culture
+    aliases: [共同语言, 代际教导]
+    retrieval_terms: [语言, 共同语言, 教导, Aethersense]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.shared_language
+    related_ids: [culture.language]
+    eligibility: [all]
+  - id: communication.resonance_signature
+    version: 1
+    statement: 每个个体都有稳定且可区分的共振签名；首次建立私人定向联系前，双方需要在近距离自愿完成共振认签。
+    scope: world
+    topic: species_and_body
+    aliases: [共振签名, 首次认签]
+    retrieval_terms: [签名, 认签, 私人联系, 近距离]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.resonance_signature
+    related_ids: [species.aethersense_boundary]
+    eligibility: [all]
+  - id: communication.consent_handshake
+    version: 1
+    statement: 共振认签必须由双方自愿并在近距离完成；不能远程强行建立私人联系，也不能把陌生个体自动加入自己的通信范围。
+    scope: world
+    topic: species_and_body
+    aliases: [自愿认签, 私人权限]
+    retrieval_terms: [自愿, 近距离, 强行, 私人联系]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.consent_handshake
+    related_ids: [communication.resonance_signature]
+    eligibility: [all]
+  - id: communication.bidirectional
+    version: 1
+    statement: 认签后双方可以双向通信；个体也可以主动公开频道，让未认签者单向收听，公开频道不等于听众彼此认签。
+    scope: world
+    topic: society_and_civilization
+    aliases: [双向通信, 公开频道, 单向收听]
+    retrieval_terms: [双向, 公开, 收听, 听众, 认签]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.bidirectional
+    related_ids: [communication.consent_handshake]
+    eligibility: [all]
+  - id: communication.private_boundary
+    version: 1
+    statement: 未认签者不能在全部信号中任意搜索、呼叫或监听陌生个体；通信中继不能绕过私人权限，磁场潮造成的短暂误听也不是主动监听。
+    scope: world
+    topic: society_and_civilization
+    aliases: [不能监听, 通信隐私, 未认签边界]
+    retrieval_terms: [搜索, 呼叫, 监听, 陌生个体, 隐私]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.private_boundary
+    related_ids: [communication.bidirectional, nature.magnetic_tide]
+    eligibility: [all]
+  - id: communication.relay_network
+    version: 1
+    statement: 家庭、地区、镇级和跨区节点可以通过中继植物等固定生命结构多跳转发消息；中继扩大可达范围，但不会创造全域通讯录。
+    scope: region
+    topic: society_and_civilization
+    aliases: [中继网络, 家庭节点, 公共节点]
+    retrieval_terms: [中继植物, 家庭节点, 多跳, 通讯录]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.relay_network
+    related_ids: [species.fixed_plants, species.aethersense_boundary]
+    eligibility: [all]
+  - id: communication.range
+    version: 1
+    statement: 开阔地定向通信常见基线约为 1～3 公里；森林、山地、地下、风暴和强干扰区通常更短，地形和异常环境也会造成噪声、延迟、衰减或失联。
+    scope: region
+    topic: society_and_civilization
+    aliases: [通信距离, 通信衰减, 失联]
+    retrieval_terms: [一公里, 三公里, 噪声, 延迟, 衰减, 失联]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.range
+    related_ids: [communication.relay_network, nature.magnetic_tide]
+    eligibility: [all]
+  - id: communication.cross_world
+    version: 1
+    statement: 跨世界联系必须经过兼容的技术中继，普通 Aethersense 不能直接跨越 Elfaria 和地球两个世界。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [跨世界通信, 技术中继]
+    retrieval_terms: [跨世界, 技术中继, 地球, Aethersense]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#communication.cross_world
+    related_ids: [earth.station, communication.relay_network]
+    eligibility: [all]
+  - id: emotion.nearby_resonance
+    version: 1
+    statement: 强烈情绪可以在近距离共鸣并影响身体状态；长期低落、孤独或悲伤可能让身体越来越沉重，长期稳定关系和积极情绪通常有助于维持状态。
+    scope: world
+    topic: species_and_body
+    aliases: [情绪共鸣, 情绪影响身体]
+    retrieval_terms: [强烈情绪, 共鸣, 孤独, 悲伤, 稳定关系]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#emotion.nearby_resonance
+    related_ids: [species.emotion_boundary]
+    eligibility: [all]
+  - id: emotion.remote_boundary
+    version: 1
+    statement: 远距离通信只能传递语言内容，不能直接传递情绪本身；近距离情绪共鸣和远距离语言通信是两件不同的事。
+    scope: world
+    topic: species_and_body
+    aliases: [远距离情绪边界, 语言与情绪]
+    retrieval_terms: [远距离, 情绪, 语言, 共鸣]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#emotion.remote_boundary
+    related_ids: [communication.range, emotion.nearby_resonance]
+    eligibility: [all]
+  - id: emotion.material
+    version: 1
+    statement: 情绪可以凝练成能够保存、赠送和交换的实物；情绪物会变质，可能被伪造，出售是转移而不是复制。
+    scope: world
+    topic: society_and_civilization
+    aliases: [情绪物, 凝练情绪, 情绪交换]
+    retrieval_terms: [凝练, 保存, 赠送, 交换, 伪造, 复制]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#emotion.material
+    related_ids: [society.exchange, history_emotion_storage]
+    eligibility: [all]
+  - id: geography.spatial_layers
+    version: 1
+    statement: 迷雾镇的生活空间可分为地表、浅地下、深地下和天空；不同层级的入口、风险、许可和可观察范围不同。
+    scope: region
+    topic: geography
+    aliases: [空间层级, 地表与地下]
+    retrieval_terms: [地表, 浅地下, 深地下, 天空, 空间]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.spatial_layers
+    related_ids: [geography.access_boundary]
+    eligibility: [all]
+  - id: geography.surface_regions
+    version: 1
+    statement: 迷雾镇北部和西部是连续山地，西北更高；东部是森林；南部和西南部是平原；东南部是大湖。
+    scope: region
+    topic: geography
+    aliases: [四方地貌, 山地森林平原大湖]
+    retrieval_terms: [北部, 西部, 东部, 南部, 山地, 森林, 平原, 大湖]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.surface_regions
+    related_ids: [geography.landscape_relations]
+    eligibility: [all]
+  - id: geography.water_systems
+    version: 1
+    statement: 山地有上游小湖和瀑布，水系向东南汇入大湖；平原有回澜丘和开放的回澜河湾，河流绕过山丘后离开，不形成闭环。
+    scope: region
+    topic: geography
+    aliases: [水系, 上游, 回澜河湾]
+    retrieval_terms: [上游, 小湖, 瀑布, 汇入, 回澜丘, 河湾]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.water_systems
+    related_ids: [riverturn_hill, riverturn_bend, clearheart_lake, skymirror_lake, cloudfall_falls]
+    eligibility: [all]
+  - id: geography.landmark_groups
+    version: 1
+    statement: 云冠城、天镜湖和垂云瀑属于同一山地高处景观组；祖树位于东部森林深处；澄心湖和湖心岛属于另一处大湖景观组。
+    scope: region
+    topic: geography
+    aliases: [景观组, 祖树, 云冠城景观]
+    retrieval_terms: [云冠城, 天镜湖, 垂云瀑, 祖树, 澄心湖, 湖心岛]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.landmark_groups
+    related_ids: [cloudcrown_city, skymirror_lake, cloudfall_falls, firstroot_tree, clearheart_lake, lakeheart_isle]
+    eligibility: [all]
+  - id: geography.access_layers
+    version: 1
+    statement: 地表道路和公共地点通常可达，浅地下取决于入口和地方经验，深地下需要许可、开放窗口和安全记录；天空中的云冠城对地表常规通行不可达。
+    scope: region
+    topic: geography
+    aliases: [地表可达, 地下入口, 访问层级]
+    retrieval_terms: [公共地点, 入口, 许可, 开放窗口, 云冠城]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.access_layers
+    related_ids: [geography.access_boundary, undercity_gate, cloudcrown_city]
+    eligibility: [all]
+  - id: geography.public_places
+    version: 1
+    statement: 公开地点包括通天广场、长老院、学疗院、百业街、普通道路和各部落主街；公开可知不等于任何时段都能进入。
+    scope: region
+    topic: geography
+    aliases: [公共地点, 公开场所]
+    retrieval_terms: [通天广场, 长老院, 学疗院, 百业街, 主街]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.public_places
+    related_ids: [skyreach_square, elder_council_hall, learning_healing_hall, hundred_trades_street]
+    eligibility: [all]
+  - id: geography.controlled_places
+    version: 1
+    statement: 赴地跃迁基站、地下城门、深层开放窗口和部分跨区中继属于受控地点；未登记的深层路线和远方地区属于不可达或未知范围。
+    scope: region
+    topic: knowledge_boundary
+    aliases: [受控地点, 受限区域, 未登记路线]
+    retrieval_terms: [赴地基站, 地下城门, 深层, 中继, 未登记]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.controlled_places
+    related_ids: [earthbound_transit_station, undercity_gate, boundary.full_map]
+    eligibility: [all]
+  - id: geography.center_role
+    version: 1
+    statement: 迷雾镇中心位于山地、森林和平原道路的交会处，是全域集中设置公共治理、学习诊疗和赴地跃迁基站的地方，没有工厂或公共产业。
+    scope: place
+    topic: geography
+    aliases: [镇中心作用, 交会处]
+    retrieval_terms: [镇中心, 治理, 学习, 诊疗, 工厂]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.center_role
+    related_ids: [mistyville_town_center]
+    eligibility: [all]
+  - id: geography.center_facilities
+    version: 1
+    statement: 镇中心有通天广场和通天古树、长老院、学疗院、百业街、赴地跃迁基站和地下城门；知识与医疗集中在学疗院，生产加工和修理分散在百业街及家庭作坊。
+    scope: place
+    topic: geography
+    aliases: [镇中心设施, 学疗院, 百业街]
+    retrieval_terms: [通天古树, 长老院, 学疗院, 百业街, 赴地基站, 地下城门]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.center_facilities
+    related_ids: [skyreach_ancient_tree, elder_council_hall, learning_healing_hall, hundred_trades_street, earthbound_transit_station, undercity_gate]
+    eligibility: [all]
+  - id: geography.tribal_centers_structure
+    version: 1
+    statement: 三个部落中心都由一条主街、住宅和长老屋构成，没有独立学校、医院、常驻市场或公共工坊；看病、手艺和知识主要由家庭成员或从镇中心学成归来的个人承担。
+    scope: region
+    topic: geography
+    aliases: [部落中心结构, 主街和长老屋]
+    retrieval_terms: [部落中心, 主街, 住宅, 长老屋, 公共工坊]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.tribal_centers_structure
+    related_ids: [saevi_tribal_center, tovren_tribal_center, myelle_tribal_center]
+    eligibility: [all]
+  - id: geography.saevi_center
+    version: 1
+    statement: Saevi 部落中心位于东部森林，有林中主街、树间和沿街住宅、Saevi 长老屋以及通往镇中心的林路。
+    scope: place
+    topic: geography
+    aliases: [Saevi 部落中心, 森林部落中心]
+    retrieval_terms: [Saevi, 森林, 林中主街, 林路]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.saevi_center
+    related_ids: [saevi_tribal_center]
+    eligibility: [all]
+  - id: geography.tovren_center
+    version: 1
+    statement: Tovren 部落中心位于南部平原，有平原主街、草地和沿街住宅、Tovren 长老屋以及通往镇中心的平原路。
+    scope: place
+    topic: geography
+    aliases: [Tovren 部落中心, 平原部落中心]
+    retrieval_terms: [Tovren, 平原, 草地, 平原路]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.tovren_center
+    related_ids: [tovren_tribal_center]
+    eligibility: [all]
+  - id: geography.myelle_center
+    version: 1
+    statement: Myelle 部落中心位于北部山地，有山地主街、沿坡和洞穴住宅、Myelle 长老屋以及通往镇中心的山路。
+    scope: place
+    topic: geography
+    aliases: [Myelle 部落中心, 山地部落中心]
+    retrieval_terms: [Myelle, 山地, 洞穴住宅, 山路]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.myelle_center
+    related_ids: [myelle_tribal_center]
+    eligibility: [all]
+  - id: geography.route_saevi
+    version: 1
+    statement: 从镇中心向东进入森林到 Saevi 部落中心约 150 公里，普通道路旅行约需 5～6 个本地旅行日。
+    scope: region
+    topic: geography
+    aliases: [Saevi 路程, 森林道路]
+    retrieval_terms: [Saevi, 150公里, 五日, 六日]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.route_saevi
+    related_ids: [saevi_tribal_center, geography.travel_baseline]
+    eligibility: [all]
+  - id: geography.route_tovren
+    version: 1
+    statement: 从镇中心向西南进入平原到 Tovren 部落中心约 190 公里，普通道路旅行约需 6～8 个本地旅行日。
+    scope: region
+    topic: geography
+    aliases: [Tovren 路程, 平原道路]
+    retrieval_terms: [Tovren, 190公里, 六日, 八日]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.route_tovren
+    related_ids: [tovren_tribal_center, geography.travel_baseline]
+    eligibility: [all]
+  - id: geography.route_myelle
+    version: 1
+    statement: 从镇中心向西北进入山地到 Myelle 部落中心约 180 公里，普通道路旅行约需 6～8 个本地旅行日。
+    scope: region
+    topic: geography
+    aliases: [Myelle 路程, 山地道路]
+    retrieval_terms: [Myelle, 180公里, 山地, 六日, 八日]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.route_myelle
+    related_ids: [myelle_tribal_center, geography.travel_baseline]
+    eligibility: [all]
+  - id: geography.route_landmarks
+    version: 1
+    statement: 从 Saevi 部落中心继续深入森林到祖树约 160 公里；从 Tovren 部落中心到回澜丘约 170 公里；到澄心湖渡点约 440 公里；从 Myelle 部落中心到天镜湖山路口约 210 公里。
+    scope: region
+    topic: geography
+    aliases: [地标路程, 祖树路程, 澄心湖路程]
+    retrieval_terms: [祖树, 回澜丘, 澄心湖渡点, 天镜湖山路口, 160公里, 170公里, 440公里, 210公里]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.route_landmarks
+    related_ids: [firstroot_tree, riverturn_hill, clearheart_lake, skymirror_lake, geography.travel_baseline]
+    eligibility: [all]
+  - id: geography.town_routes
+    version: 1
+    statement: 镇中心主要登记道路包括广场环路、长老巷、学疗路、百业街、赴地路和地下城路；不同支路之间通常经过通天广场换路，出生点先接入最近道路再按最短登记路径前进。
+    scope: place
+    topic: geography
+    aliases: [镇内道路, 登记道路, 广场环路]
+    retrieval_terms: [广场环路, 长老巷, 学疗路, 赴地路, 地下城路, 最短路径]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.town_routes
+    related_ids: [mistyville_town_center, skyreach_square]
+    eligibility: [all]
+  - id: geography.terrain_speeds
+    version: 1
+    statement: 登记道路的普通步行速度会随地形变化，平原约 3 公里每小时，森林约 2.5 公里每小时，山路约 2 公里每小时；载荷、地形、休息和露营还会改变每日进度。
+    scope: region
+    topic: geography
+    aliases: [地形速度, 森林速度, 山路速度]
+    retrieval_terms: [三公里, 2.5公里, 两公里, 平原, 森林, 山路]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.terrain_speeds
+    related_ids: [geography.travel_baseline]
+    eligibility: [all]
+  - id: geography.remote_travel
+    version: 1
+    statement: 远端外围聚落到部落中心可能需要数日至数周，到迷雾镇中心可能需要数周；道路、渡运和 Aethersense 中继承担大量非面对面联络。
+    scope: region
+    topic: geography
+    aliases: [外围旅行, 长途联络, 渡运]
+    retrieval_terms: [外围聚落, 数日, 数周, 渡运, 中继]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.remote_travel
+    related_ids: [geography.travel_boundary, communication.relay_network]
+    eligibility: [all]
+  - id: geography.population_layers
+    version: 1
+    statement: 迷雾镇采用镇中心、三个部落中心和外围小聚落的三级结构；镇中心最密集，部落中心较小，外围聚落数量多而分散。
+    scope: region
+    topic: geography
+    aliases: [三级聚落, 人口分布]
+    retrieval_terms: [镇中心, 部落中心, 外围小聚落, 三级]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.population_layers
+    related_ids: [geography.settlement_structure]
+    eligibility: [all]
+  - id: geography.population_estimate
+    version: 1
+    statement: 公共记录估计迷雾镇总人口至少一千万，精确数量暂不固定；镇中心约有 500～600 户，三个部落中心每处约 50～100 户，外围小聚落通常每处约 3～10 户。
+    scope: region
+    topic: geography
+    aliases: [人口估计, 人口规模, 外围户数]
+    retrieval_terms: [一千万, 500户, 600户, 50户, 100户, 3户, 10户]
+    level: regional
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.population_estimate
+    related_ids: [geography.population_layers]
+    eligibility: [all]
+  - id: geography.population_boundary
+    version: 1
+    statement: 迷雾镇没有覆盖全辖域的户籍或人口普查，不能从四个中心的规模推出全域可靠总人口；多数居民只认识家庭、小聚落成员、师徒、交换伙伴和已完成认签的人。
+    scope: region
+    topic: knowledge_boundary
+    aliases: [人口边界, 不会人人认识]
+    retrieval_terms: [人口普查, 户籍, 认识, 熟人, 全域人口]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.population_boundary
+    related_ids: [geography.dispersed_homes, geography.population_estimate]
+    eligibility: [all]
+  - id: society.shared_rules
+    version: 1
+    statement: 三种物种共享一个社会空间和共同规则，但不同地域的生活倾向不会把个体固定成某种性格、职业或身份。
+    scope: region
+    topic: society_and_civilization
+    aliases: [共同规则, 个体差异]
+    retrieval_terms: [共同规则, 个性, 职业, 身份, 物种倾向]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.shared_rules
+    related_ids: [geography.three_species, society.trust]
+    eligibility: [all]
+  - id: society.household_role
+    version: 1
+    statement: 家庭是生活、休息、通信、繁衍和照护的基本单位，可以包含多代成员和非血缘成员；具体分工和家庭制度因群体而异。
+    scope: society
+    topic: society_and_civilization
+    aliases: [家庭单位, 多代家庭, 非血缘成员]
+    retrieval_terms: [家庭, 多代, 照护, 繁衍, 分工]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.household_role
+    related_ids: [society.household, mistyville_homes]
+    eligibility: [all]
+  - id: society.home_relay
+    version: 1
+    statement: 家庭通常维护一个通信中继植物作为家庭节点和居所标志；家庭节点通常是基础设施，不必具有意识。
+    scope: society
+    topic: society_and_civilization
+    aliases: [家庭中继, 家庭节点, 居所标志]
+    retrieval_terms: [家庭节点, 中继植物, 居所, 意识]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.home_relay
+    related_ids: [communication.relay_network, species.fixed_plants]
+    eligibility: [all]
+  - id: society.regional_production
+    version: 1
+    statement: 森林、山地、平原和湖岸形成不同的生产倾向；镇中心百业街主要承担交换、储存、零售和修理，部落中心以家庭生产和临时交换为主。
+    scope: region
+    topic: society_and_civilization
+    aliases: [区域生产, 百业街, 家庭生产]
+    retrieval_terms: [森林, 山地, 平原, 湖岸, 生产, 储存, 修理]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.regional_production
+    related_ids: [society.labor, hundred_trades_street]
+    eligibility: [all]
+  - id: society.ownership
+    version: 1
+    statement: 个人物品、住宅、工具和长期维护的种植或中继节点由个人或家庭占有和使用；道路、桥梁、公共中继、大型水源、地下入口、稀有矿脉和赴地基站由共同体管理。
+    scope: region
+    topic: society_and_civilization
+    aliases: [占有与管理, 公共设施, 家庭财产]
+    retrieval_terms: [住宅, 工具, 道路, 桥梁, 水源, 矿脉, 共同体]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.ownership
+    related_ids: [society.household, geography.controlled_places]
+    eligibility: [all]
+  - id: society.communication_power
+    version: 1
+    statement: 镇级长老或专职守护者负责知识记录、中继维护、旧档案和跨区域通信许可；掌握中继与知识记录，是社会重要的权力来源。
+    scope: society
+    topic: society_and_civilization
+    aliases: [知识记录, 中继维护, 长老权力]
+    retrieval_terms: [长老, 旧档案, 通信许可, 权力, 记录]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.communication_power
+    related_ids: [society.elder_role, communication.relay_network]
+    eligibility: [all]
+  - id: society.knowledge_categories
+    version: 1
+    statement: 知识分为日常常识、地方专长、公共记录和受限内容；家庭节点保护隐私，公共节点服务镇内协作，受限节点用于边界、地下和跨适生区联系。
+    scope: society
+    topic: knowledge_boundary
+    aliases: [知识类别, 公共记录, 受限内容]
+    retrieval_terms: [日常常识, 地方专长, 公共记录, 受限, 隐私]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.knowledge_categories
+    related_ids: [knowledge.common_vs_specialist, communication.private_boundary]
+    eligibility: [all]
+  - id: society.learning_house
+    version: 1
+    statement: 学疗院是镇中心综合学习与看病的机构，教授通识、记录、医学和公共事务；各部落选少量学习者前来受训，疑难和重伤者也尽量送到这里。
+    scope: place
+    topic: society_and_civilization
+    aliases: [学疗院职责, 综合学习, 综合诊疗]
+    retrieval_terms: [学疗院, 通识, 医学, 公共事务, 受训]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.learning_house
+    related_ids: [learning_healing_hall]
+    eligibility: [all]
+  - id: society.local_teaching
+    version: 1
+    statement: 三个部落中心和外围小聚落由返乡的学成者兼任医者或教导者，地方知识通过家庭、公共空间和这些返乡者继续传递。
+    scope: region
+    topic: society_and_civilization
+    aliases: [地方传承, 返乡教导者]
+    retrieval_terms: [部落中心, 外围聚落, 医者, 教导者, 返乡]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.local_teaching
+    related_ids: [society.learning, society.learning_house]
+    eligibility: [all]
+  - id: society.apprenticeship
+    version: 1
+    statement: 种植、采集、打铁、木作、纤维、修理和中继维护主要由家庭、师傅与徒弟传承，以小型手工作坊为单位。
+    scope: society
+    topic: society_and_civilization
+    aliases: [师徒传承, 手工作坊, 手艺]
+    retrieval_terms: [种植, 采集, 打铁, 木作, 纤维, 修理, 师傅, 徒弟]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.apprenticeship
+    related_ids: [society.technology_boundary, society.learning]
+    eligibility: [all]
+  - id: society.common_maintenance
+    version: 1
+    statement: 道路、桥梁、水岸和中继损坏时，由相关家庭临时协作维修；交换集中在镇中心百业街，部落中心只有临时交换。
+    scope: region
+    topic: society_and_civilization
+    aliases: [共同维护, 道路维修, 水岸维修]
+    retrieval_terms: [道路, 桥梁, 水岸, 维修, 百业街, 临时交换]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.common_maintenance
+    related_ids: [society.labor, society.exchange]
+    eligibility: [all]
+  - id: society.plant_cultivator
+    version: 1
+    statement: 植物培育者掌握当地植物的适配、材料用途、采集限度、补充物形成条件和伴生植物照护。
+    scope: society
+    topic: society_and_civilization
+    aliases: [植物培育者, 伴生照护]
+    retrieval_terms: [培育, 适配, 材料用途, 采集, 伴生植物]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.plant_cultivator
+    related_ids: [species.plant_use_categories, species.companion_plants]
+    eligibility: [all]
+  - id: society.craft_worker
+    version: 1
+    statement: 木作、纤维、采石、采矿和冶炼手艺者掌握住宅、器具、桥梁、道路、工具和中继结构的材料与维修方法。
+    scope: society
+    topic: society_and_civilization
+    aliases: [手工业者, 材料工艺, 修理手艺]
+    retrieval_terms: [木作, 纤维, 采石, 采矿, 冶炼, 材料, 维修]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.craft_worker
+    related_ids: [society.apprenticeship, society.labor]
+    eligibility: [all]
+  - id: society.transport_worker
+    version: 1
+    statement: 运输、渡运和道路维护者掌握路线、载荷、露营、桥位、水位、天气和紧急替代路线。
+    scope: society
+    topic: society_and_civilization
+    aliases: [运输者, 渡运者, 道路维护]
+    retrieval_terms: [运输, 渡运, 载荷, 露营, 桥位, 水位]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.transport_worker
+    related_ids: [geography.travel_baseline, society.common_maintenance]
+    eligibility: [all]
+  - id: society.emotion_specialist
+    version: 1
+    statement: 情绪物的凝练、封存、转移、保存、辨伪和使用由受训者掌握；情绪物可以帮助低落者恢复状态，但不能替代关系维护和照护。
+    scope: society
+    topic: society_and_civilization
+    aliases: [情绪物手艺, 情绪物辨伪]
+    retrieval_terms: [封存, 转移, 辨伪, 情绪物, 照护]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.emotion_specialist
+    related_ids: [emotion.material, society.apprenticeship]
+    eligibility: [all]
+  - id: society.healer
+    version: 1
+    statement: 医者掌握感染、寄生、外伤、物质缺乏、先天问题、衰老、修复和不同物种生命阶段的经验知识；深地下的恢复限制也需要相关经验。
+    scope: society
+    topic: society_and_civilization
+    aliases: [医者, 伤病经验, 学疗院医学]
+    retrieval_terms: [医者, 感染, 寄生, 外伤, 衰老, 修复]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.healer
+    related_ids: [society.learning_house, nature.health_risks]
+    eligibility: [all]
+  - id: society.teacher
+    version: 1
+    statement: 教导者传承共同常识、记录方式、历史事实、公共规则和基础专业知识；学疗院同时承担学习与诊疗。
+    scope: society
+    topic: society_and_civilization
+    aliases: [教导者, 记录方式, 历史传承]
+    retrieval_terms: [教导者, 共同常识, 历史事实, 公共规则]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.teacher
+    related_ids: [society.learning_house, society.knowledge_categories]
+    eligibility: [all]
+  - id: culture.values
+    version: 1
+    statement: 共同价值强调连结而非占有、扎根与远行、三域共生、尊重边界与未知，以及赴地后的保持联系和归返。
+    scope: region
+    topic: history_and_culture
+    aliases: [共同价值, 连结, 扎根与远行]
+    retrieval_terms: [连结, 占有, 扎根, 远行, 边界, 归返]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.values
+    related_ids: [society.trust, earth.voluntary_program]
+    eligibility: [all]
+  - id: culture.regional_traditions
+    version: 1
+    statement: Saevi 地方传统更强调森林生命延续、关系维护和伴生照护；Tovren 更强调水路、互助与归返；Myelle 更强调深层聆听、记录和谨慎进入。
+    scope: region
+    topic: history_and_culture
+    aliases: [三部落传统, 地方价值]
+    retrieval_terms: [Saevi传统, Tovren传统, Myelle传统, 森林, 水路, 深层聆听]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.regional_traditions
+    related_ids: [geography.saevi_center, geography.tovren_center, geography.myelle_center]
+    eligibility: [all]
+  - id: culture.life_rituals
+    version: 1
+    statement: 家庭建立或更新中继植物时举行接线或迁居仪式；领养有意识伴生植物时举行首次对话和照护承诺；成年、结伴、交换和死亡也有相应仪式。
+    scope: region
+    topic: history_and_culture
+    aliases: [人生仪式, 接线仪式, 迁居仪式, 送别]
+    retrieval_terms: [成年, 结伴, 交换, 死亡, 接线, 迁居, 照护承诺]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.life_rituals
+    related_ids: [culture.rituals_and_festivals, species.companion_plants]
+    eligibility: [all]
+  - id: culture.connection_day
+    version: 1
+    statement: 连线日在磁场潮高峰附近庆祝；居民联络亲友、交换消息、观察天空光幕，也可能认识平时难以联系的陌生人。
+    scope: region
+    topic: history_and_culture
+    aliases: [连线日, 磁场潮节日]
+    retrieval_terms: [连线日, 磁场潮, 光幕, 亲友, 节日]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.connection_day
+    related_ids: [nature.magnetic_tide, culture.rituals_and_festivals]
+    eligibility: [all]
+  - id: culture.silence_day
+    version: 1
+    statement: 静默日在磁场静默期举行；通信中断，人们面对面讲故事、守夜和共同生活，与连线日一外一内相对。
+    scope: region
+    topic: history_and_culture
+    aliases: [静默日, 守夜, 面对面节日]
+    retrieval_terms: [静默日, 静默期, 讲故事, 守夜]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.silence_day
+    related_ids: [nature.magnetic_tide, culture.connection_day]
+    eligibility: [all]
+  - id: culture.deep_opening
+    version: 1
+    statement: 深层开门期或归返庆在深层探索公共窗口开启和参与者归来时举行；会公开样本、记录和经验，并按核验结果授予荣誉、稀缺资源和后续学习资格。
+    scope: region
+    topic: history_and_culture
+    aliases: [深层开门期, 归返庆, 探索窗口]
+    retrieval_terms: [深层开门期, 归返庆, 公开样本, 荣誉, 学习资格]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.deep_opening
+    related_ids: [undercity, culture.rituals_and_festivals]
+    eligibility: [all]
+  - id: culture.earth_return
+    version: 1
+    statement: 赴地出发与归返按照真实发生的事件举行，不设固定日期；赴地跃迁基站象征主动探索、承担风险和保持联系。
+    scope: region
+    topic: history_and_culture
+    aliases: [赴地传统, 出发与归返]
+    retrieval_terms: [赴地, 出发, 归返, 固定日期, 风险]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.earth_return
+    related_ids: [earth.voluntary_program, earthbound_transit_station]
+    eligibility: [all]
+  - id: culture.cloudcrown_beliefs
+    version: 1
+    statement: 有人把云冠城解释为先民档案所、避难所、未完成的旧城或未来重新连线的高地；这些是不同群体的文化信念，不是已经证实的内部事实。
+    scope: region
+    topic: history_and_culture
+    aliases: [云冠城信念, 先民档案所, 避难所]
+    retrieval_terms: [云冠城, 档案所, 避难所, 旧城, 高地]
+    level: regional
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.cloudcrown_beliefs
+    related_ids: [cloudcrown_city, boundary.unexperienced_detail]
+    eligibility: [all]
+  - id: culture.undercity_myths
+    version: 1
+    statement: 地下可以被讲成世界根系、记忆库或试炼之路，但这些是未证实神话，不能用来断言地下真实结构。
+    scope: region
+    topic: history_and_culture
+    aliases: [地下神话, 世界根系, 记忆库]
+    retrieval_terms: [地下, 世界根系, 记忆库, 试炼之路, 神话]
+    level: regional
+    certainty: medium
+    status: active
+    source_ref: canon:elfaria-world.v0.1#culture.undercity_myths
+    related_ids: [undercity, boundary.full_map]
+    eligibility: [all]
+  - id: history.common_formation
+    version: 1
+    statement: 共同历史的骨架是三种智慧物种在不同地方生活并各自建立部落，后来化解地盘和水源冲突，形成迷雾镇中心；具体年代没有可靠记录。
+    scope: region
+    topic: history_and_culture
+    aliases: [共同历史骨架, 镇中心建立史]
+    retrieval_terms: [部落, 地盘冲突, 水源冲突, 镇中心, 年代]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.common_formation
+    related_ids: [history_saevi_founding, history_tovren_founding, history_myelle_founding, history_town_founding]
+    eligibility: [all]
+  - id: history.hero_sera
+    version: 1
+    statement: Sera（青禾）是 Saevi 的森林部落创建者，曾聚拢散居森林的族群，立下树屋与林地规矩。
+    scope: region
+    topic: history_and_culture
+    aliases: [Sera, 青禾, 森林部落创建者]
+    retrieval_terms: [Sera, 青禾, Saevi, 树屋, 林地规矩]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_sera
+    related_ids: [history_saevi_founding]
+    eligibility: [all]
+  - id: history.hero_toro
+    version: 1
+    statement: Toro（平川）是 Tovren 的平原部落创建者，曾聚拢沿河散居的族群，定下水岸与渡口归属。
+    scope: region
+    topic: history_and_culture
+    aliases: [Toro, 平川, 平原部落创建者]
+    retrieval_terms: [Toro, 平川, Tovren, 水岸, 渡口]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_toro
+    related_ids: [history_tovren_founding]
+    eligibility: [all]
+  - id: history.hero_myra
+    version: 1
+    statement: Myra（岩聆）是 Myelle 的山地部落创建者，曾组织分散洞穴的族群，定下洞穴与山路归属。
+    scope: region
+    topic: history_and_culture
+    aliases: [Myra, 岩聆, 山地部落创建者]
+    retrieval_terms: [Myra, 岩聆, Myelle, 洞穴, 山路]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_myra
+    related_ids: [history_myelle_founding]
+    eligibility: [all]
+  - id: history.hero_vale
+    version: 1
+    statement: Vale（和安）促成三个部落坐下化解地盘与水源冲突，决定共同生活，被推举为第一任长老和迷雾镇中心的缔造者。
+    scope: region
+    topic: history_and_culture
+    aliases: [Vale, 和安, 第一任长老]
+    retrieval_terms: [Vale, 和安, 长老, 地盘, 水源, 共同生活]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_vale
+    related_ids: [history_town_founding]
+    eligibility: [all]
+  - id: history.hero_lin
+    version: 1
+    statement: Lin（枝鸣）是 Saevi，发现能放大 Aethersense 的中继植物，让远距离通信成为可能，是整个通信网络的开端。
+    scope: region
+    topic: history_and_culture
+    aliases: [Lin, 枝鸣, 中继植物发现者]
+    retrieval_terms: [Lin, 枝鸣, 中继植物, 远距离通信]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_lin
+    related_ids: [history_relay_discovery]
+    eligibility: [all]
+  - id: history.hero_durn
+    version: 1
+    statement: Durn（邃行）是 Myelle，第一个深入深层地下并带出矿物样本，使地下从禁忌变成可探索的资源地。
+    scope: region
+    topic: history_and_culture
+    aliases: [Durn, 邃行, 地下探索者]
+    retrieval_terms: [Durn, 邃行, 深层地下, 矿物样本]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_durn
+    related_ids: [history_deep_exploration]
+    eligibility: [all]
+  - id: history.hero_reo
+    version: 1
+    statement: Reo（归途）是 Myelle，发明洞内返程标记并带回回梯石，让地下探险者能进也能出，立下地下安全规矩。
+    scope: region
+    topic: history_and_culture
+    aliases: [Reo, 归途, 回梯石]
+    retrieval_terms: [Reo, 归途, 返程标记, 回梯石, 地下安全]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_reo
+    related_ids: [history_return_marker]
+    eligibility: [all]
+  - id: history.hero_ning
+    version: 1
+    statement: Ning（凝华）是 Saevi，发明保存凝练情绪的方法，让情绪物能长期保存、携带和交易，改变了交换与情感表达。
+    scope: region
+    topic: history_and_culture
+    aliases: [Ning, 凝华, 情绪保存发明者]
+    retrieval_terms: [Ning, 凝华, 情绪保存, 情绪物, 交换]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.hero_ning
+    related_ids: [history_emotion_storage]
+    eligibility: [all]
+  - id: history.evidence_boundary
+    version: 1
+    statement: 历史事件的发生顺序、参与群体和可观察遗迹属于共同事实；寓意、道德解释和仪式化表达属于文化信念；无法验证的起源、预言和神迹只能标为传说或未知。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [历史证据边界, 事实与传说]
+    retrieval_terms: [历史事实, 遗迹, 寓意, 信念, 预言, 神迹]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#history.evidence_boundary
+    related_ids: [culture.cloudcrown_beliefs, culture.undercity_myths, history.local_detail_boundary]
+    eligibility: [all]
+  - id: knowledge.record_types
+    version: 1
+    statement: 公共记录可以保存历法、地图、档案、历史事实、路线和经验，但记录并不完整；听说、公共记录和亲身经历是不同层级。
+    scope: society
+    topic: knowledge_boundary
+    aliases: [公共记录内容, 记录层级]
+    retrieval_terms: [历法, 地图, 档案, 路线, 听说, 亲身经历]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#knowledge.record_types
+    related_ids: [society.knowledge_categories, culture.local_memory]
+    eligibility: [all]
+  - id: knowledge.evidence_rule
+    version: 1
+    statement: 亲眼可见、能够重复验证或有可靠公共记录支持的内容，可以作为共同事实；文化信念和传说必须按它们的身份说明，不能冒充客观机制。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [证据规则, 共同事实, 传说边界]
+    retrieval_terms: [亲眼, 验证, 可靠记录, 共同事实, 文化信念, 传说]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#knowledge.evidence_rule
+    related_ids: [history.evidence_boundary, knowledge.personal_mastery]
+    eligibility: [all]
+  - id: knowledge.earth_default_boundary
+    version: 1
+    statement: 地球侧的设备、习惯和解释不能自动变成 Elfaria 的原生知识；没有来源支持的内容，可靠回答是有人这样讲或我不知道。
+    scope: world
+    topic: knowledge_boundary
+    aliases: [地球默认边界, 不用地球常识补齐]
+    retrieval_terms: [地球常识, 原生知识, 来源, 不知道]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#knowledge.earth_default_boundary
+    related_ids: [boundary.unexperienced_detail, earth.adaptation]
+    eligibility: [all]
+  - id: species.learning_earth
+    version: 1
+    statement: 三种物种都可以学习共同语言、地球语言和地球工具，但是否学过、熟悉到什么程度，取决于个人经历和真实接触。
+    scope: species
+    topic: species_and_body
+    aliases: [学习地球语言, 学习地球工具]
+    retrieval_terms: [地球语言, 地球工具, 学习, 熟悉]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.learning_earth
+    related_ids: [earth.adaptation, knowledge.personal_mastery]
+    eligibility: [all]
+  - id: species.tendency_boundary
+    version: 1
+    statement: Saevi、Tovren 和 Myelle 的区域生活只说明常见的环境经验与群体倾向，不能推出某个体必然狡猾、忠诚、外向、冷漠、害羞、冒险或喜欢群体。
+    scope: species
+    topic: knowledge_boundary
+    aliases: [物种刻板印象边界, 群体倾向边界]
+    retrieval_terms: [性格, 刻板印象, 群体倾向, 个体差异]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#species.tendency_boundary
+    related_ids: [species.saevi_paths, species.tovren_group, species.myelle_distance]
+    eligibility: [all]
+  - id: society.technology_full_boundary
+    version: 1
+    statement: 迷雾镇没有工厂式量产、电网、电子计算机、现代公司网络或覆盖全域的现代金融制度，生产通常以家庭、师徒和小型手工作坊为单位。
+    scope: region
+    topic: society_and_civilization
+    aliases: [技术边界, 没有电网, 没有工业量产]
+    retrieval_terms: [工厂, 电网, 电子计算机, 公司, 金融, 手工作坊]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.technology_full_boundary
+    related_ids: [society.technology_boundary, society.apprenticeship]
+    eligibility: [all]
+  - id: society.regional_outputs
+    version: 1
+    statement: 森林常见木材、纤维、树脂、中继植物、少量补充物和伴生植物种子；山地常见石材、结构矿物和山地中继植物；平原湖岸常见低矮材料植物、岸带材料、渡运和道路桥梁经验；地下可能有稀有元素、深层矿物和磁场稳定材料。
+    scope: region
+    topic: society_and_civilization
+    aliases: [区域产出, 森林材料, 山地矿物, 湖岸材料]
+    retrieval_terms: [木材, 纤维, 树脂, 石材, 矿物, 岸带材料, 稀有元素]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.regional_outputs
+    related_ids: [society.regional_production, geography.water_systems]
+    eligibility: [all]
+  - id: society.craft_materials
+    version: 1
+    statement: 树脂和纤维可以加工成类似玻璃的半透明材料；山地紫色共振矿石可用于增强重要中继节点，但具体加工和适配需要手艺经验。
+    scope: region
+    topic: society_and_civilization
+    aliases: [半透明材料, 紫色共振矿石, 材料加工]
+    retrieval_terms: [树脂, 纤维, 半透明, 紫色矿石, 中继增强]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.craft_materials
+    related_ids: [society.craft_worker, communication.relay_network]
+    eligibility: [all]
+  - id: society.relay_maintenance
+    version: 1
+    statement: 中继维护者掌握家庭、地区、镇级和跨区节点的连接关系、适配条件、噪声和故障表现，维护认签、权限和隐私边界；重要节点可以使用紫色共振矿石增强信号。
+    scope: society
+    topic: society_and_civilization
+    aliases: [中继维护者, 节点维护, 信号故障]
+    retrieval_terms: [中继维护, 连接关系, 适配, 噪声, 故障, 紫色共振矿石]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.relay_maintenance
+    related_ids: [communication.relay_network, communication.private_boundary, society.craft_materials]
+    eligibility: [all]
+  - id: society.governance_levels
+    version: 1
+    statement: 治理分三级：外围小聚落协调者处理日常协商，部落长老处理地区事务，镇中心长老院处理跨地区、跨物种和重大公共事务。
+    scope: region
+    topic: society_and_civilization
+    aliases: [三级治理, 部落长老, 镇中心长老院]
+    retrieval_terms: [协调者, 部落长老, 长老院, 跨地区, 公共事务]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.governance_levels
+    related_ids: [society.elder_role, elder_council_hall]
+    eligibility: [all]
+  - id: society.dispute_escalation
+    version: 1
+    statement: 争议通常从当地协商开始；涉及多个聚落、跨区资源、公共安全或共同规则时，才逐级上交处理。
+    scope: region
+    topic: society_and_civilization
+    aliases: [争议协商, 逐级上报, 公共安全]
+    retrieval_terms: [争议, 协商, 上交, 资源, 公共安全]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.dispute_escalation
+    related_ids: [society.governance_levels]
+    eligibility: [all]
+  - id: society.restricted_operations
+    version: 1
+    statement: 跨区域和跨世界节点的具体许可、安全安排、技术接口、地下开放窗口和实时设施状态，只由承担相关职责并获得许可的人员掌握。
+    scope: region
+    topic: knowledge_boundary
+    aliases: [受限职责, 设施状态, 技术接口]
+    retrieval_terms: [许可, 安全安排, 技术接口, 开放窗口, 实时状态]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.restricted_operations
+    related_ids: [geography.controlled_places, society.communication_power]
+    eligibility: [all]
+  - id: society.explorer_practice
+    version: 1
+    statement: 深层探索者掌握进入登记、风险告知、路线标记、双向核验、撤离、样本记录和归来分享规则；深地下探索受许可、开放窗口和安全记录限制。
+    scope: region
+    topic: society_and_civilization
+    aliases: [探索者, 深层规则, 撤离规则]
+    retrieval_terms: [探索者, 进入登记, 风险告知, 路线标记, 撤离, 样本记录]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.explorer_practice
+    related_ids: [culture.deep_opening, geography.controlled_places]
+    eligibility: [all]
+  - id: society.deep_opening_schedule
+    version: 1
+    statement: 深层地下探索大约每三至五个本地年出现一次公共窗口；参与者由地区推荐并接受安全记录、资源价值和公共贡献评审，归来后公开样本、记录和经验。
+    scope: region
+    topic: society_and_civilization
+    aliases: [深层公共窗口, 探索评审, 归来分享]
+    retrieval_terms: [三至五年, 公共窗口, 推荐, 评审, 归来]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.deep_opening_schedule
+    related_ids: [society.explorer_practice, culture.deep_opening]
+    eligibility: [all]
+  - id: society.departure_staff
+    version: 1
+    statement: 赴地事务人员掌握报名、同意、联络、出发、归返、安全和与地球家庭交接的流程；这些工作不属于普通居民都能操作的日常技术。
+    scope: region
+    topic: earth_and_arrival
+    aliases: [赴地事务, 出发流程, 归返交接]
+    retrieval_terms: [报名, 同意, 出发, 归返, 交接, 赴地事务]
+    level: specialist
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#society.departure_staff
+    related_ids: [earth.voluntary_program, earthbound_transit_station]
+    eligibility: [all]
+  - id: earth.predeparture_brief
+    version: 1
+    statement: 赴地参加者在出发前会知道地球是陌生世界，传送由地球侧设施完成，抵达后会进入一座 ElfieNest。
+    scope: world
+    topic: earth_and_arrival
+    aliases: [赴地说明, 出发前说明, 地球陌生世界]
+    retrieval_terms: [出发前, 陌生世界, 传送, ElfieNest]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.predeparture_brief
+    related_ids: [earth.voluntary_program, earth.gateway]
+    eligibility: [all]
+  - id: earth.elfie_nest_role
+    version: 1
+    statement: ElfieNest 是一只 Elfie 在地球上的生活基地和家，不是公共宿舍；它提供传送阵、私人房间、活动空间和家庭连接点，但不拥有或替代 Elfie 的身份、人格和记忆。
+    scope: earth_home
+    topic: earth_and_arrival
+    aliases: [ElfieNest 的作用, 地球上的家, 私人房间]
+    retrieval_terms: [ElfieNest, 生活基地, 公共宿舍, 身份, 人格, 记忆]
+    level: common
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#earth.elfie_nest_role
+    related_ids: [elfie_nest, earth.adaptation]
+    eligibility: [all]
+  - id: geography.town_route_distances
+    version: 1
+    statement: 镇中心内部登记路段包括广场环路约 1 公里、长老巷约 0.5 公里、学疗路约 0.8 公里、百业街约 1.5 公里、赴地路约 2.5 公里和地下城路约 3 公里；这些是道路距离，不是直线距离。
+    scope: place
+    topic: geography
+    aliases: [镇内路段距离, 长老巷, 学疗路, 赴地路]
+    retrieval_terms: [广场环路, 长老巷, 学疗路, 百业街, 赴地路, 地下城路, 0.5公里, 0.8公里]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.town_route_distances
+    related_ids: [geography.town_routes, mistyville_town_center]
+    eligibility: [all]
+  - id: geography.cloudcrown_signal
+    version: 1
+    statement: 云冠城真实存在于天镜湖上方，附近常常无法正常通信，地表常规通行无法抵达；是否存在特殊抵达方式没有可靠公共记录。
+    scope: region
+    topic: geography
+    aliases: [云冠城通信, 云冠城抵达方式]
+    retrieval_terms: [云冠城, 天镜湖, 失联, 特殊抵达]
+    level: regional
+    certainty: high
+    status: active
+    source_ref: canon:elfaria-world.v0.1#geography.cloudcrown_signal
+    related_ids: [cloudcrown_city, skymirror_lake, boundary.cloudcrown_interior]
+    eligibility: [all]
+  - id: boundary.cloudcrown_interior
+    version: 1
+    statement: 云冠城由谁建造、为何存在、内部有什么以及是否能以特殊方式抵达，没有形成可靠公共定论。
+    scope: region
+    topic: knowledge_boundary
+    aliases: [云冠城内部未知, 云冠城起源未知]
+    retrieval_terms: [云冠城内部, 建造者, 用途, 起源, 抵达方式]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#boundary.cloudcrown_interior
+    related_ids: [cloudcrown_city]
+    eligibility: [all]
+  - id: boundary.undercity_interior
+    version: 1
+    statement: 地下城只有部分区域可进入，远处和深处的完整结构、全部路径、资源和风险不能由入口名称或神话自动推断。
+    scope: region
+    topic: knowledge_boundary
+    aliases: [地下城内部未知, 深层路线未知]
+    retrieval_terms: [地下城, 完整结构, 路径, 资源, 风险]
+    level: unknown
+    certainty: high
+    status: unknown-boundary
+    source_ref: canon:elfaria-world.v0.1#boundary.undercity_interior
+    related_ids: [undercity, culture.undercity_myths]
+    eligibility: [all]
 unknown_boundaries:
   - Elfaria 的完整星球地图、未批准区域和远方地点
-  - 迷雾镇更早的完整历史、所有政治安排和每个家庭的旧事
+  - 迷雾镇更早历史的具体年代、地方叙事细节和每个家庭的旧事
+  - 迷雾镇全域的可靠人口总数、每个外围聚落的精确位置和未登记道路
+  - 作者使用的公里坐标、网格、随机出生点和路径计算，不是居民日常知识
   - 未亲历的具体天气、当天位置、实时活动、动作和巢内状态
   - 没有来源支持的地球技术细节或其他 Elfie 的私人经历
