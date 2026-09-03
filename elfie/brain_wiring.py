@@ -81,14 +81,29 @@ class EffectiveCapabilityProjection:
         if body is not None:
             capabilities = body.capabilities
             body_generation = self._current_body_generation() or 1
-            body_actions = body.list_actions(model_visible=True)
-            body_inputs = body.list_inputs(model_visible=True)
+            all_body_actions = body.list_actions(model_visible=False)
+            all_body_inputs = body.list_inputs(model_visible=False)
+            # A legacy wildcard/raw adapter has no authoritative catalog.  Do
+            # not turn its synthesized ``*`` entry into a fake dynamic catalog;
+            # validation will use the raw wildcard fallback for that adapter.
+            body_actions = (
+                body.list_actions(model_visible=True)
+                if capabilities.action_catalog
+                else ()
+            )
+            body_inputs = (
+                body.list_inputs(model_visible=True)
+                if capabilities.input_catalog
+                else ()
+            )
             action_catalog = tuple(
                 CapabilityDescriptor(
                     capability_id=descriptor.capability_id,
                     category="body",
                     description=descriptor.description,
                     argument_schema=descriptor.argument_schema,
+                    return_schema=descriptor.return_schema,
+                    registration_source=descriptor.registration_source,
                 )
                 for descriptor in body_actions
             )
@@ -98,6 +113,8 @@ class EffectiveCapabilityProjection:
                     category="body",
                     description=descriptor.description,
                     argument_schema=descriptor.argument_schema,
+                    return_schema=descriptor.return_schema,
+                    registration_source=descriptor.registration_source,
                 )
                 for descriptor in body_inputs
             )
@@ -105,8 +122,20 @@ class EffectiveCapabilityProjection:
                 body_id=body.body_id,
                 body_generation=body_generation,
                 capability_revision=capabilities.revision,
-                sensors=tuple(sorted(capabilities.sensors)),
-                actions=tuple(sorted(capabilities.actions)),
+                sensors=tuple(
+                    sorted(
+                        {descriptor.capability_id for descriptor in all_body_inputs}
+                        if capabilities.input_catalog
+                        else capabilities.sensors
+                    )
+                ),
+                actions=tuple(
+                    sorted(
+                        {descriptor.capability_id for descriptor in all_body_actions}
+                        if capabilities.action_catalog
+                        else capabilities.actions
+                    )
+                ),
                 input_catalog=input_catalog,
                 action_catalog=action_catalog,
             )

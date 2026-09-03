@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Tuple
+from typing import Iterable, List, Mapping, Tuple
 
 from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.command_execution import (
@@ -101,6 +101,9 @@ class ExternalBody:
         if not self.connected:
             return []
         return self.sensors.read_sensor_events()
+
+    def ingest_sensor_events(self, events: Iterable[BodySensorEvent]) -> None:
+        self.sensors.ingest(events)
 
     def execute(
         self,

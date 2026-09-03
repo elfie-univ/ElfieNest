@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Tuple
+from typing import Iterable, List, Mapping, Optional, Tuple
 
 from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.command_execution import (
@@ -36,6 +36,27 @@ from elfie.message_types import ErrorInfo, EventId
 from infrastructure.godot.body_sensors import NativeSensors
 from infrastructure.godot.body_transport import GodotTransport, RuntimeIntentPayload
 
+_ACTION_OUTCOME_SCHEMA = {
+    "type": "object",
+    "required": ["kind", "command_id", "intent_id", "status"],
+    "properties": {
+        "kind": {"const": "action_outcome"},
+        "command_id": {"type": "string"},
+        "intent_id": {"type": "string"},
+        "status": {
+            "type": "string",
+            "enum": [
+                "completed",
+                "rejected",
+                "failed",
+                "interrupted",
+                "timed_out",
+            ],
+        },
+        "reason": {"type": "string"},
+    },
+}
+
 
 class NativeBody:
     """连接精灵本体与现有 Godot API，不实现大脑或运动算法。"""
@@ -57,21 +78,6 @@ class NativeBody:
                     "speak",
                     "expression",
                     "emergency_stop",
-                    # Internal lowerings selected by this adapter, never Brain IDs.
-                    "move_to_anchor",
-                    "observe",
-                    # Legacy typed-body callers are accepted but are not catalog entries.
-                    "speech.say",
-                    "body.speak",
-                    "chat_look",
-                    "walking",
-                    "walk",
-                    "gesture.wave",
-                    "body.expression",
-                    "expression.happy",
-                    "expression.blink_eyes",
-                    "system.emergency_stop",
-                    "body.emergency_stop",
                 }
             ),
             action_catalog=(
@@ -90,6 +96,8 @@ class NativeBody:
                         },
                         "additionalProperties": False,
                     },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
                 ),
                 BodyCapabilityDescriptor(
                     capability_id="move.turn",
@@ -106,6 +114,8 @@ class NativeBody:
                         },
                         "additionalProperties": False,
                     },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
                 ),
                 BodyCapabilityDescriptor(
                     capability_id="speak",
@@ -116,6 +126,8 @@ class NativeBody:
                         "properties": {"text": {"type": "string", "minLength": 1}},
                         "additionalProperties": False,
                     },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
                 ),
                 BodyCapabilityDescriptor(
                     capability_id="expression",
@@ -133,6 +145,8 @@ class NativeBody:
                         },
                         "additionalProperties": False,
                     },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
                 ),
                 BodyCapabilityDescriptor(
                     capability_id="emergency_stop",
@@ -142,11 +156,77 @@ class NativeBody:
                         "properties": {"reason": {"type": "string", "minLength": 1}},
                         "additionalProperties": False,
                     },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
                 ),
             ),
             input_catalog=tuple(
-                BodyCapabilityDescriptor(capability_id=name)
-                for name in ("hearing", "vision", "touch", "proprioception")
+                BodyCapabilityDescriptor(
+                    capability_id=name,
+                    description=description,
+                    return_schema=return_schema,
+                    registration_source="godot.native_body",
+                )
+                for name, description, return_schema in (
+                    (
+                        "hearing",
+                        "Receive structured utterances heard by this Elfie.",
+                        {
+                            "type": "object",
+                            "required": ["kind", "text"],
+                            "properties": {"kind": {"const": "utterance_final"}},
+                        },
+                    ),
+                    (
+                        "vision",
+                        "Receive semantic entities visible to this Elfie.",
+                        {
+                            "type": "object",
+                            "required": ["kind", "observation_id", "entities"],
+                            "properties": {
+                                "kind": {"const": "semantic_visual_scene"},
+                                "observation_id": {"type": "string"},
+                                "entities": {"type": "array"},
+                            },
+                        },
+                    ),
+                    (
+                        "touch",
+                        "Receive collision and tactile impact events.",
+                        {
+                            "type": "object",
+                            "required": ["kind", "intensity", "direction"],
+                            "properties": {
+                                "kind": {"const": "tactile_impact"},
+                                "intensity": {"type": "number"},
+                                "direction": {"type": "string"},
+                            },
+                        },
+                    ),
+                    (
+                        "proprioception",
+                        "Receive posture, zone, pose and active-command state.",
+                        {
+                            "type": "object",
+                            "required": ["kind", "posture", "arrived"],
+                            "properties": {
+                                "kind": {"const": "proprioception_sample"},
+                                "posture": {"type": "string"},
+                                "position": {
+                                    "type": "array",
+                                    "minItems": 3,
+                                    "maxItems": 3,
+                                },
+                                "heading_degrees": {"type": "number"},
+                                "velocity": {
+                                    "type": "array",
+                                    "minItems": 3,
+                                    "maxItems": 3,
+                                },
+                            },
+                        },
+                    ),
+                )
             ),
         )
         self.sensors = NativeSensors(body_id)
@@ -203,6 +283,10 @@ class NativeBody:
         if not self.connected:
             return []
         return self.sensors.read_sensor_events()
+
+    def ingest_sensor_events(self, events: Iterable[BodySensorEvent]) -> None:
+        """Route semantic Nest facts into the same Body input queue as runtime facts."""
+        self.sensors.ingest(events)
 
     def execute(
         self,
@@ -275,14 +359,25 @@ class NativeBody:
                     "anchor_id": command.target,
                 }
             else:
-                payload = {
-                    "command_id": str(command.command_id),
-                    "intent_id": str(command.intent_id),
-                    "actor_id": self.body_id,
-                    "body_generation": command.body_generation,
-                    "initiator": "elfie",
-                    "intent": command.kind,
-                }
+                if command.kind == "gesture.wave":
+                    payload = {
+                        "command_id": str(command.command_id),
+                        "intent_id": str(command.intent_id),
+                        "actor_id": self.body_id,
+                        "body_generation": command.body_generation,
+                        "initiator": "elfie",
+                        "intent": "emotion_expression",
+                        "expression": "wave",
+                    }
+                else:
+                    payload = {
+                        "command_id": str(command.command_id),
+                        "intent_id": str(command.intent_id),
+                        "actor_id": self.body_id,
+                        "body_generation": command.body_generation,
+                        "initiator": "elfie",
+                        "intent": command.kind,
+                    }
         elif isinstance(command, ExpressionCommand):
             payload = {
                 "command_id": str(command.command_id),

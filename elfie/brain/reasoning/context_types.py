@@ -156,6 +156,8 @@ class CapabilityDescriptor(FrozenContractModel):
     category: Literal["body", "world"]
     description: Optional[_NonBlankText] = None
     argument_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+    return_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+    registration_source: _NonBlankText = "projection"
 
 
 class BodyCapabilityDescriptor(FrozenContractModel):

@@ -902,6 +902,9 @@ class ReasoningRunController:
                     f"- orientation: location={orientation.location or 'unknown'}; "
                     f"body={orientation.body_id or 'unknown'}; "
                     f"activity={orientation.activity_id or 'none'}; "
+                    f"position={orientation.position or 'unknown'}; "
+                    f"heading_degrees={orientation.heading_degrees if orientation.heading_degrees is not None else 'unknown'}; "
+                    f"velocity={orientation.velocity or 'unknown'}; "
                     f"freshness={orientation.freshness}"
                 ),
             )

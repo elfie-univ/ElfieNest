@@ -90,8 +90,13 @@ def validate_command(
             "command capability revision is stale",
             now,
         )
-    capability_id = command_capability(command)
-    if not capabilities.supports_action(capability_id):
+    if isinstance(command, ObservationCommand):
+        supported = capabilities.supports_sensor("vision")
+        capability_id = "vision"
+    else:
+        capability_id = command_capability(command)
+        supported = capabilities.supports_action(capability_id)
+    if not supported:
         return rejected(
             command,
             "unsupported_capability",

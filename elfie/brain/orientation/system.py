@@ -25,6 +25,8 @@ from elfie.brain.workspace.contracts import (
 from elfie.message_types import ActorRef, EventId, TurnId, UTCDateTime
 
 _LOCATION_KEYS = frozenset({"location", "room", "scene", "place"})
+_POSITION_KEYS = ("position_x", "position_y", "position_z")
+_VELOCITY_KEYS = ("velocity_x", "velocity_y", "velocity_z")
 
 
 class OrientationSystem:
@@ -116,6 +118,10 @@ class OrientationSystem:
             location_source = previous_snapshot.location_source
             location_sources = previous_snapshot.source_event_ids[-4:]
             reused_location = True
+        position, heading_degrees, velocity, pose_sources = _pose_fact(
+            frame.state_updates,
+            previous_snapshot,
+        )
         nearby_actors = _nearby_actors(frame)
         if frame.source_domain is not SourceDomain.EMBODIED:
             nearby_actors = previous_snapshot.nearby_actors
@@ -131,6 +137,16 @@ class OrientationSystem:
             unknown_fields.append("location")
         elif reused_location:
             unknown_fields.append("location_freshness")
+        if position is None:
+            unknown_fields.append("position")
+        elif not pose_sources and previous_snapshot.position is not None:
+            unknown_fields.append("position_freshness")
+        if heading_degrees is None:
+            unknown_fields.append("heading")
+        elif not pose_sources and previous_snapshot.heading_degrees is not None:
+            unknown_fields.append("heading_freshness")
+        if velocity is None:
+            unknown_fields.append("velocity")
         if frame.source_domain is SourceDomain.EMBODIED and not nearby_actors:
             unknown_fields.append("nearby_actors")
         elif frame.source_domain is not SourceDomain.EMBODIED:
@@ -161,12 +177,17 @@ class OrientationSystem:
             body_generation=body.body_generation if body is not None else None,
             location=location,
             location_source=location_source,
+            position=position,
+            heading_degrees=heading_degrees,
+            velocity=velocity,
             active_channel_id=active_channel_id,
             active_conversation_id=active_conversation_id,
             nearby_actors=nearby_actors,
             activity_id=activity_id,
             affordances=body.actions if body is not None else (),
-            source_event_ids=_unique_event_ids(source_event_ids + location_sources),
+            source_event_ids=_unique_event_ids(
+                source_event_ids + location_sources + pose_sources
+            ),
             unknown_fields=tuple(dict.fromkeys(unknown_fields)),
             freshness=freshness,
         )
@@ -201,6 +222,56 @@ def _location_fact(
         return None, "unknown", ()
     assert isinstance(selected.value, str)
     return selected.value.strip(), "observation", (selected.meta.event_id,)
+
+
+def _pose_fact(
+    updates: Iterable[PerceptionStateUpdate],
+    previous: OrientationSnapshot,
+) -> tuple[
+    Optional[Tuple[float, float, float]],
+    Optional[float],
+    Optional[Tuple[float, float, float]],
+    Tuple[EventId, ...],
+]:
+    """Project the latest Body proprioception pose without inventing values."""
+    positions: list[Optional[float]] = list(previous.position or (None, None, None))
+    velocities: list[Optional[float]] = list(previous.velocity or (None, None, None))
+    heading = previous.heading_degrees
+    source_ids: list[EventId] = []
+    position_indexes = {key: index for index, key in enumerate(_POSITION_KEYS)}
+    velocity_indexes = {key: index for index, key in enumerate(_VELOCITY_KEYS)}
+    for update in updates:
+        suffix = update.state_key.rsplit(":", 1)[-1].lower()
+        value = update.value
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            continue
+        numeric_value = float(value)
+        if suffix in position_indexes:
+            positions[position_indexes[suffix]] = numeric_value
+            source_ids.append(update.meta.event_id)
+        elif suffix == "heading_degrees":
+            heading = numeric_value
+            source_ids.append(update.meta.event_id)
+        elif suffix in velocity_indexes:
+            velocities[velocity_indexes[suffix]] = numeric_value
+            source_ids.append(update.meta.event_id)
+
+    position = (
+        (float(positions[0]), float(positions[1]), float(positions[2]))
+        if all(value is not None for value in positions)
+        else None
+    )
+    velocity = (
+        (float(velocities[0]), float(velocities[1]), float(velocities[2]))
+        if all(value is not None for value in velocities)
+        else None
+    )
+    return (
+        position,
+        heading,
+        velocity,
+        _unique_event_ids(source_ids),
+    )
 
 
 def _nearby_actors(frame: TurnFrame) -> Tuple[ActorRef, ...]:

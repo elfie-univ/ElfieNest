@@ -7,6 +7,7 @@ const SHARED_ANIMATIONS := {
 	"running": "res://characters/animation/running.fbx",
 	"jump": "res://characters/animation/jump.fbx",
 	"twist_dance": "res://characters/animation/Twist Dance.fbx",
+	"pose_waving": "res://characters/animation/pose_waving.fbx",
 	"left_strafe": "res://characters/animation/left strafe.fbx",
 	"left_strafe_walking": "res://characters/animation/left strafe walking.fbx",
 	"left_turn": "res://characters/animation/left turn.fbx",
@@ -69,6 +70,8 @@ func play_expression(expression: String) -> bool:
 		animation_name = "twist_dance"
 	elif expression == "excited":
 		animation_name = "jump"
+	elif expression == "wave":
+		animation_name = "pose_waving"
 	if not SHARED_ANIMATIONS.has(animation_name):
 		return false
 	_actor.set_meta("runtime_expression", expression)

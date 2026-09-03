@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timezone
 from threading import RLock
-from typing import List
+from typing import Iterable, List
 
 from elfie.body.contracts import BodyId, BodySensorEvent, TactileImpact
 from elfie.message_types import ActorId, ActorRef, EventId
@@ -64,6 +64,11 @@ class NativeSensors:
             events = list(self._events)
             self._events.clear()
             return events
+
+    def ingest(self, events: Iterable[BodySensorEvent]) -> None:
+        """Accept Nest-owned semantic facts at the Body input boundary."""
+        with self._lock:
+            self._events.extend(events)
 
     @property
     def pending_count(self) -> int:

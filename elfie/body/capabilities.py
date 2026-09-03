@@ -16,6 +16,8 @@ class BodyCapabilityDescriptor:
     description: str | None = None
     argument_schema: Mapping[str, JsonValue] = field(default_factory=dict)
     model_visible: bool = True
+    return_schema: Mapping[str, JsonValue] = field(default_factory=dict)
+    registration_source: str = "body.adapter"
 
     def to_dict(self) -> dict[str, JsonValue]:
         return cast(
@@ -25,6 +27,8 @@ class BodyCapabilityDescriptor:
                 "description": self.description,
                 "argument_schema": dict(self.argument_schema),
                 "model_visible": self.model_visible,
+                "return_schema": dict(self.return_schema),
+                "registration_source": self.registration_source,
             },
         )
 
@@ -151,34 +155,81 @@ class BodyCapabilities:
         )
 
     def supports_sensor(self, sensor: str) -> bool:
-        registered = self.sensors or frozenset(
-            item.capability_id for item in self.input_catalog
+        # Once an explicit catalog exists it is the sole source of truth.  The
+        # raw sets are retained only for legacy adapters that have not yet
+        # registered descriptors.
+        registered = (
+            frozenset(item.capability_id for item in self.input_catalog)
+            if self.input_catalog
+            else self.sensors
         )
         return "*" in registered or sensor in registered
 
     def supports_action(self, action: str) -> bool:
-        registered = self.actions or frozenset(
-            item.capability_id for item in self.action_catalog
+        # Do not let stale/private raw IDs bypass a registered public catalog.
+        registered = (
+            frozenset(item.capability_id for item in self.action_catalog)
+            if self.action_catalog
+            else self.actions
         )
         if "*" in registered or action in registered:
             return True
         aliases = {
-            "speech.say": ("body.speak", "speak"),
-            "speak": ("body.speak", "speech.say"),
+            "speech.say": ("speak", "body.speak"),
+            "speak": ("speech.say", "body.speak"),
             "body.speak": ("speak", "speech.say"),
-            "move_to_anchor": ("body.move_to_anchor", "move.to"),
-            "move.to": ("move_to_anchor", "body.move_to_anchor"),
-            "move.forward": ("walking", "walk"),
+            # Typed Body commands use these internal lowerings.  They are
+            # deliberately aliases, never Brain-visible catalog entries.
+            "move_to_anchor": (
+                "move.forward",
+                "move.to",
+                "body.move_to_anchor",
+                "walking",
+                "walk",
+                "go_home",
+                "chat_look",
+            ),
+            "body.move_to_anchor": (
+                "move.forward",
+                "move.to",
+                "move_to_anchor",
+            ),
+            "move.to": (
+                "move.forward",
+                "move_to_anchor",
+                "body.move_to_anchor",
+            ),
+            "move.forward": (
+                "move_to_anchor",
+                "body.move_to_anchor",
+                "move.to",
+                "walking",
+                "walk",
+                "go_home",
+                "chat_look",
+            ),
+            "walking": ("move.forward", "move_to_anchor", "move.to"),
+            "walk": ("move.forward", "move_to_anchor", "move.to"),
+            "go_home": ("move.forward", "move_to_anchor", "move.to"),
+            "chat_look": ("move.forward", "move_to_anchor", "move.to"),
             "move.turn": ("turn",),
-            "system.emergency_stop": ("body.emergency_stop", "emergency_stop"),
-            "emergency_stop": ("body.emergency_stop", "system.emergency_stop"),
+            "turn": ("move.turn",),
+            "system.emergency_stop": (
+                "body.emergency_stop",
+                "emergency_stop",
+            ),
+            "emergency_stop": (
+                "body.emergency_stop",
+                "system.emergency_stop",
+            ),
         }
         alias = aliases.get(action, ())
-        if any(candidate in registered for candidate in alias) or "*" in registered:
+        if any(candidate in registered for candidate in alias):
             return True
-        return action.startswith("expression.") and (
-            "body.expression" in registered or "expression" in registered
-        )
+        return (
+            action.startswith("expression.")
+            and ("body.expression" in registered or "expression" in registered)
+        ) or (action == "gesture.wave" and "expression" in registered)
 
     def to_dict(self) -> dict[str, JsonValue]:
         return cast(

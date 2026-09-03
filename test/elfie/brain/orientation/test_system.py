@@ -124,6 +124,47 @@ def test_embodied_observation_commits_current_body_location_and_actor() -> None:
     assert "activity" in snapshot.unknown_fields
 
 
+def test_orientation_projects_runtime_pose_from_body_proprioception() -> None:
+    system = OrientationSystem(initial_at=NOW)
+    actor = ActorRef(actor_id=ActorId("godot-runtime"), source_kind="godot")
+    updates = tuple(
+        PerceptionStateUpdate(
+            meta=_meta(f"pose-{key}", actor),
+            body_id="body-1",
+            body_generation=3,
+            state_key=f"body:body-1:proprioception:{key}",
+            revision=1,
+            value=value,
+        )
+        for key, value in (
+            ("location", "activity-01"),
+            ("position_x", 1.25),
+            ("position_y", 0.0),
+            ("position_z", -2.5),
+            ("heading_degrees", 90.0),
+            ("velocity_x", 0.0),
+            ("velocity_y", 0.0),
+            ("velocity_z", 1.15),
+        )
+    )
+    frame = _embodied_frame().model_copy(update={"state_updates": updates})
+
+    snapshot, _receipt = system.observe(
+        frame=frame,
+        capabilities=_capabilities(),
+        turn_id=TurnId("turn-pose"),
+        captured_at=NOW,
+    )
+
+    assert snapshot.location == "activity-01"
+    assert snapshot.position == (1.25, 0.0, -2.5)
+    assert snapshot.heading_degrees == 90.0
+    assert snapshot.velocity == (0.0, 0.0, 1.15)
+    assert "position" not in snapshot.unknown_fields
+    assert "heading" not in snapshot.unknown_fields
+    assert "velocity" not in snapshot.unknown_fields
+
+
 def test_orientation_uses_the_current_activity_owned_by_activity_system() -> None:
     system = OrientationSystem(initial_at=NOW)
 

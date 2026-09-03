@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Tuple
+from typing import Iterable, List, Mapping, Optional, Tuple
 
 from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.command_execution import (
@@ -86,6 +86,10 @@ class HeadlessBody:
 
     def inject_event(self, event: BodySensorEvent) -> None:
         self.sensors.inject_event(event)
+
+    def ingest_sensor_events(self, events: Iterable[BodySensorEvent]) -> None:
+        for event in events:
+            self.inject_event(event)
 
     def read_sensor_events(self) -> List[BodySensorEvent]:
         return self.sensors.read_sensor_events()

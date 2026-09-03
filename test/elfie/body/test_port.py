@@ -99,6 +99,9 @@ class MinimalBody:
     def read_sensor_events(self) -> list[BodySensorEvent]:
         return []
 
+    def ingest_sensor_events(self, events) -> None:
+        del events
+
     def execute(
         self,
         command: BodyCommand,

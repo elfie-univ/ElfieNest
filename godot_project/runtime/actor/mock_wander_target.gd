@@ -93,7 +93,24 @@ static func sleep_target(nest: ModularNest, actor: ElfieActor) -> Variant:
 	var anchor := nest.resolve_anchor(anchor_id)
 	if anchor == null or String(anchor.get_meta("kind", "")) != "bed":
 		return null
-	return anchor.global_position
+	var navigation_map := actor.get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
+		return null
+	var candidate := NavigationServer3D.map_get_closest_point(
+		navigation_map,
+		anchor.global_position,
+	)
+	if candidate.distance_to(anchor.global_position) > MAX_TARGET_SNAP_DISTANCE:
+		return null
+	var path := NavigationServer3D.map_get_path(
+		navigation_map,
+		actor.global_position,
+		candidate,
+		true,
+	)
+	if path.size() < 2:
+		return null
+	return candidate
 
 
 static func _sample_position(

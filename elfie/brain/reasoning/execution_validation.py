@@ -87,9 +87,29 @@ def validate_plan_for_execution(
 
 def _body_action_supported(capabilities: EffectiveCapabilities, action: str) -> bool:
     body = capabilities.current_body
-    if body is None or ("*" not in body.actions and action not in body.actions):
+    if body is None:
         return False
-    return True
+    registered = (
+        frozenset(item.capability_id for item in body.action_catalog)
+        if body.action_catalog
+        else frozenset(body.actions)
+    )
+    if "*" in registered or action in registered:
+        return True
+    return False
+
+
+def _body_input_supported(capabilities: EffectiveCapabilities, sensor: str) -> bool:
+    """Check a Body input against its registered catalog before legacy sets."""
+    body = capabilities.current_body
+    if body is None:
+        return False
+    registered = (
+        frozenset(item.capability_id for item in body.input_catalog)
+        if body.input_catalog
+        else frozenset(body.sensors)
+    )
+    return "*" in registered or sensor in registered
 
 
 def _find_capability(
@@ -108,13 +128,19 @@ def _find_capability(
     if descriptor is not None:
         return descriptor
     body = capabilities.current_body
-    if category == "body" and body is not None:
+    if category == "body" and body is not None and not body.action_catalog:
         if "*" in body.actions or capability_id in body.actions:
             return CapabilityDescriptor(
                 capability_id=capability_id,
                 category="body",
             )
-    if category == "world" and capability_id in capabilities.world_capabilities:
+    if (
+        category == "world"
+        and not any(
+            item.category == "world" for item in capabilities.capability_catalog
+        )
+        and capability_id in capabilities.world_capabilities
+    ):
         return CapabilityDescriptor(
             capability_id=capability_id,
             category="world",
@@ -238,8 +264,7 @@ def _validate_capability(
                 message="current body cannot execute semantic movement",
             )
     if intent.category == "world" and intent.capability_id == "observe":
-        body = capabilities.current_body
-        if body is None or ("*" not in body.sensors and "vision" not in body.sensors):
+        if not _body_input_supported(capabilities, "vision"):
             return ErrorInfo(
                 code="vision_unavailable",
                 message="current body has no vision input",
@@ -324,7 +349,7 @@ def _validate_activity(
                     code="activity_body_unavailable",
                     message="Activity body target is no longer current",
                 )
-            if "*" not in body.actions and step.operation not in body.actions:
+            if not _body_action_supported(capabilities, step.operation):
                 return ErrorInfo(
                     code="activity_operation_unavailable",
                     message="Activity body operation is not currently supported",

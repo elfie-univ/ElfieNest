@@ -21,8 +21,9 @@ import sys
 import tempfile
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, cast
 
@@ -38,10 +39,17 @@ from app.bootstrap.system_wiring.nest_session import (
 from app.features.configuration.food import StoredModelEvidence
 from app.orchestration.nest_session import ElfieNestEngine
 from elfie import Elfie, ElfieFactory
-from elfie.body.contracts import BodyId, BodySensorEvent, UtteranceFinal
+from elfie.body.contracts import (
+    ActionOutcomePayload,
+    BodyId,
+    BodySensorEvent,
+    ObservationCommand,
+    SpeechCommand,
+    UtteranceFinal,
+)
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
-from elfie.message_types import ActorId, ActorRef, EventId
+from elfie.message_types import ActorId, ActorRef, CommandId, EventId, IntentId, TurnId
 from infrastructure.godot.body_transport import (
     GodotTransport,
     RuntimeIntentPayload,
@@ -295,16 +303,21 @@ def _wait_until(
     raise TimeoutError(f"timed out waiting for {description}")
 
 
-def _make_elfie(body: Any) -> Elfie:
+def _make_elfie(
+    body: Any,
+    *,
+    actor_id: str,
+    display_name: str,
+    seed: int,
+) -> Elfie:
     load_and_configure_species_catalog()
-    actor_id = "90000001"
     from elfie.profile import create_visual_profile
 
     profile = create_visual_profile(
         elfie_id=actor_id,
-        display_name="E2E Synthetic Elfie",
+        display_name=display_name,
         species_id="fox",
-        seed=91001,
+        seed=seed,
     )
     selfhood_seed = {
         "state_schema_version": 1,
@@ -312,7 +325,7 @@ def _make_elfie(body: Any) -> Elfie:
         "committed_at": datetime.fromtimestamp(0, timezone.utc),
         "identity_core": {
             "elfie_id": actor_id,
-            "display_name": "E2E Synthetic Elfie",
+            "display_name": display_name,
             "species_id": "fox",
             "species_name": "小狐狸",
             "resident_role": "resident",
@@ -347,6 +360,68 @@ def _make_elfie(body: Any) -> Elfie:
             body=body,
         )
     )
+
+
+def _make_native_body(
+    gateway: RecordingGateway,
+    engine: ElfieNestEngine,
+    actor_id: str,
+) -> NativeBody:
+    """Build one production Godot Body adapter for the live diagnostic."""
+    transport = GodotTransport(
+        gateway,
+        actor_id=actor_id,
+        speech_intent=cast(
+            Callable[[RuntimeIntentPayload], bool],
+            engine.session.prepare_speech,
+        ),
+        semantic_action=cast(
+            Callable[[RuntimeIntentPayload], Optional[str]],
+            engine.session.prepare_semantic_action,
+        ),
+        semantic_action_result=cast(
+            Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
+            engine.session.complete_semantic_action,
+        ),
+        visual_observation=cast(
+            Callable[[RuntimeIntentPayload], bool],
+            engine.session.prepare_visual_observation,
+        ),
+    )
+    return NativeBody(body_id=actor_id, transport=transport)
+
+
+def _record_body_input_reads(
+    body: NativeBody,
+    actor_id: str,
+    sink: dict[str, list[dict[str, Any]]],
+) -> None:
+    """Record events only when the Body actually hands them to NervousSystem."""
+    original_read = body.read_sensor_events
+
+    def read_sensor_events() -> list[BodySensorEvent]:
+        events = original_read()
+        sink[actor_id].extend(_dump(events))
+        return events
+
+    body.read_sensor_events = read_sensor_events  # type: ignore[method-assign]
+
+
+def _record_body_action_outcomes(
+    elfie: Elfie,
+    actor_id: str,
+    sink: list[dict[str, Any]],
+) -> None:
+    """Record terminal action facts at the NS->Workspace ingress."""
+    nervous_system = elfie._nervous_system
+    original_receive = nervous_system.receive_body_event
+
+    def receive_body_event(event: BodySensorEvent) -> Any:
+        if isinstance(event.payload, ActionOutcomePayload):
+            sink.append({"actor_id": actor_id, "event": _dump(event)})
+        return original_receive(event)
+
+    nervous_system.receive_body_event = receive_body_event  # type: ignore[method-assign]
 
 
 def _stop_process(process: subprocess.Popen[str] | None) -> str:
@@ -412,7 +487,29 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
     )
     recorder = RecordingStructuredExecution(services.execution)
     godot_process: subprocess.Popen[str] | None = None
-    body_events: list[dict[str, Any]] = []
+    primary_actor_id = "90000001"
+    listener_actor_id = "90000002"
+    body_events_by_actor: dict[str, list[dict[str, Any]]] = {
+        primary_actor_id: [],
+        listener_actor_id: [],
+    }
+    body_input_events_by_actor: dict[str, list[dict[str, Any]]] = {
+        primary_actor_id: [],
+        listener_actor_id: [],
+    }
+    body_action_outcomes: list[dict[str, Any]] = []
+    bodies_by_actor: dict[str, NativeBody] = {}
+    elfies_by_actor: dict[str, Elfie] = {}
+    body_event_handlers: dict[str, Callable[[RuntimeEventFrame], None]] = {}
+    action_executor: ThreadPoolExecutor | None = None
+    speech_future: Any = None
+    visual_future: Any = None
+    speech_result: Any = None
+    visual_result: Any = None
+    speech_command: SpeechCommand | None = None
+    visual_command: ObservationCommand | None = None
+    sensory_checks: dict[str, bool] = {}
+    body_events = body_events_by_actor[primary_actor_id]
     setup_events: list[str] = []
     trigger_receipts: Any = ()
     elfie: Elfie | None = None
@@ -450,7 +547,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "ELFIENEST_E2E_INITIAL_SCREENSHOT": str(initial_screenshot),
                 "ELFIENEST_E2E_FINAL_SCREENSHOT": str(final_screenshot),
                 "ELFIENEST_E2E_GODOT_REPORT": str(godot_report),
-                "ELFIENEST_E2E_ACTOR_ID": "90000001",
+                "ELFIENEST_E2E_ACTOR_ID": primary_actor_id,
                 "ELFIENEST_E2E_GODOT_TIMEOUT_SECONDS": str(timeout),
                 "ELFIENEST_E2E_POST_VERIFY_SECONDS": str(post_verify_seconds),
             }
@@ -499,38 +596,41 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
 
         # Use the same production Body wiring as a live Elfie, but keep its
         # Brain persistence in memory for a deterministic isolated run.
-        actor_id = "90000001"
-        body = NativeBody(
-            body_id=actor_id,
-            transport=GodotTransport(
-                gateway,
+        for actor_id, display_name, seed in (
+            (primary_actor_id, "E2E Primary Elfie", 91001),
+            (listener_actor_id, "E2E Listener Elfie", 91002),
+        ):
+            body = _make_native_body(gateway, engine, actor_id)
+            bodies_by_actor[actor_id] = body
+            _record_body_input_reads(body, actor_id, body_input_events_by_actor)
+
+            def body_event_handler(
+                event: RuntimeEventFrame,
+                actor_id: str = actor_id,
+            ) -> None:
+                body_events_by_actor[actor_id].append(event.model_dump(mode="json"))
+
+            body_event_handlers[actor_id] = body_event_handler
+            body.transport.connect(body_event_handler)
+            elfie_instance = _make_elfie(
+                body,
                 actor_id=actor_id,
-                speech_intent=cast(
-                    Callable[[RuntimeIntentPayload], bool],
-                    engine.session.prepare_speech,
-                ),
-                semantic_action=cast(
-                    Callable[[RuntimeIntentPayload], Optional[str]],
-                    engine.session.prepare_semantic_action,
-                ),
-                semantic_action_result=cast(
-                    Callable[[RuntimeIntentPayload, RuntimeIntentResult], None],
-                    engine.session.complete_semantic_action,
-                ),
-                visual_observation=cast(
-                    Callable[[RuntimeIntentPayload], bool],
-                    engine.session.prepare_visual_observation,
-                ),
-            ),
-        )
-        transport = body.transport
-        transport.connect(
-            lambda event: body_events.append(event.model_dump(mode="json"))
-        )
-        elfie = _make_elfie(body)
-        engine.session.register_elfie(actor_id, elfie)
-        if not body.connected:
-            body.connect()
+                display_name=display_name,
+                seed=seed,
+            )
+            elfies_by_actor[actor_id] = elfie_instance
+            engine.session.register_elfie(actor_id, elfie_instance)
+            if not body.connected:
+                body.connect()
+            _record_body_action_outcomes(
+                elfie_instance,
+                actor_id,
+                body_action_outcomes,
+            )
+
+        actor_id = primary_actor_id
+        body = bodies_by_actor[primary_actor_id]
+        elfie = elfies_by_actor[primary_actor_id]
 
         # Synchronize the actor into Godot before cognition starts. The setup
         # snapshot is recorded and deliberately not treated as the trigger.
@@ -563,7 +663,7 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
         engine.session.configure_cognition_factory(
             lambda _actor_id: SerializedModelExecutionAdapter(
                 recorder,
-                scope_id=actor_id,
+                scope_id=_actor_id,
             )
         )
         engine.session.start_elfies()
@@ -649,6 +749,149 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 description="follow-up Brain outcome",
                 pump=tick,
             )
+
+        def body_inputs(actor: str) -> list[dict[str, Any]]:
+            return body_input_events_by_actor[actor]
+
+        def has_body_input(
+            actor: str,
+            kind: str,
+            predicate: Callable[[dict[str, Any]], bool] | None = None,
+        ) -> bool:
+            for event in body_inputs(actor):
+                payload = event.get("payload", {})
+                if payload.get("kind") != kind:
+                    continue
+                if predicate is None or predicate(payload):
+                    return True
+            return False
+
+        def has_action_outcome(command_id: str) -> bool:
+            return any(
+                item.get("event", {}).get("payload", {}).get("command_id") == command_id
+                and item.get("event", {}).get("payload", {}).get("status")
+                == "completed"
+                for item in body_action_outcomes
+            )
+
+        # Drive the remaining sensory links through the same production
+        # NervousSystem -> Body path.  The worker waits for one terminal result,
+        # while the main diagnostic thread keeps polling the real Godot socket.
+        speech_now = elfie.cognitive_datetime
+        speech_command = SpeechCommand(
+            command_type="speech",
+            command_id=CommandId("e2e-speech-1"),
+            turn_id=TurnId("e2e-sensory-turn"),
+            intent_id=IntentId("e2e-speech-intent"),
+            body_id=BodyId(primary_actor_id),
+            issued_at=speech_now,
+            deadline=speech_now + timedelta(seconds=20),
+            capability_revision=body.capabilities.revision,
+            body_generation=elfie.current_body_generation or 1,
+            text="E2E hearing and semantic-world verification.",
+        )
+        action_executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="brain-godot-e2e-action",
+        )
+        speech_future = action_executor.submit(
+            elfie._nervous_system.execute_body_command,
+            body,
+            speech_command,
+            now=speech_now,
+        )
+        sensory_deadline = time.monotonic() + timeout
+        while time.monotonic() < sensory_deadline:
+            tick()
+            if speech_future.done() and visual_future is None:
+                speech_result = speech_future.result()
+                if not speech_result or speech_result[-1].status.value != "completed":
+                    raise RuntimeError(
+                        f"Godot speech command did not complete: {_dump(speech_result)}"
+                    )
+                visual_now = elfie.cognitive_datetime
+                visual_command = ObservationCommand(
+                    command_type="observation",
+                    command_id=CommandId("e2e-visual-1"),
+                    turn_id=TurnId("e2e-sensory-turn"),
+                    intent_id=IntentId("e2e-visual-intent"),
+                    body_id=BodyId(primary_actor_id),
+                    issued_at=visual_now,
+                    deadline=visual_now + timedelta(seconds=10),
+                    capability_revision=body.capabilities.revision,
+                    body_generation=elfie.current_body_generation or 1,
+                    observation_id="e2e-observation-1",
+                    max_results=16,
+                )
+                visual_future = action_executor.submit(
+                    elfie._nervous_system.execute_body_command,
+                    body,
+                    visual_command,
+                    now=visual_now,
+                )
+            if visual_future is not None and visual_future.done():
+                visual_result = visual_future.result()
+                if not visual_result or visual_result[-1].status.value != "completed":
+                    raise RuntimeError(
+                        "Godot visual observation request did not complete: "
+                        f"{_dump(visual_result)}"
+                    )
+            sensory_checks = {
+                "speech_reach": any(
+                    event.get("name") == "speech_reach"
+                    and event.get("payload", {}).get("command_id")
+                    == str(speech_command.command_id)
+                    and listener_actor_id
+                    in event.get("payload", {}).get("audience_actor_ids", [])
+                    for event in gateway.runtime_events
+                ),
+                "hearing": has_body_input(
+                    listener_actor_id,
+                    "heard_utterance",
+                    lambda payload: (
+                        payload.get("sender_id") == primary_actor_id
+                        and payload.get("text") == speech_command.text
+                    ),
+                ),
+                "vision_request": any(
+                    event.get("name") == "visual_observation"
+                    and event.get("payload", {}).get("observation_id")
+                    == "e2e-observation-1"
+                    for event in gateway.runtime_events
+                ),
+                "vision": has_body_input(
+                    primary_actor_id,
+                    "semantic_visual_scene",
+                    lambda payload: (
+                        payload.get("observation_id") == "e2e-observation-1"
+                    ),
+                ),
+                "touch": has_body_input(primary_actor_id, "tactile_impact"),
+                "proprioception": has_body_input(
+                    primary_actor_id,
+                    "proprioception_sample",
+                    lambda payload: (
+                        isinstance(payload.get("position"), list)
+                        and len(payload["position"]) == 3
+                    ),
+                ),
+                "speech_action_outcome": has_action_outcome(
+                    str(speech_command.command_id)
+                ),
+                "visual_action_outcome": (
+                    visual_command is not None
+                    and has_action_outcome(str(visual_command.command_id))
+                ),
+            }
+            if all(sensory_checks.values()):
+                break
+            time.sleep(0.05)
+        else:
+            raise TimeoutError(
+                "timed out waiting for real Godot hearing, vision, touch, "
+                "proprioception, and terminal action feedback"
+            )
+
         time.sleep(0.2)
         godot_report_data: Any = None
         if godot_report.is_file():
@@ -676,16 +919,18 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
             if _contains_action_feedback(request.get("prompt", ""))
             or _contains_action_feedback(request.get("messages", ""))
         ]
+        workspace_metrics = _dump(elfie._workspace.metrics())
+        acceptance_passed = bool(
+            godot_report_data
+            and godot_report_data.get("status") == "passed"
+            and has_expected_brain_progress()
+            and all(sensory_checks.values())
+        )
         result.update(
             {
-                "status": "passed"
-                if (
-                    godot_report_data
-                    and godot_report_data.get("status") == "passed"
-                    and has_expected_brain_progress()
-                )
-                else "failed",
+                "status": "passed" if acceptance_passed else "failed",
                 "actor_id": actor_id,
+                "listener_actor_id": listener_actor_id,
                 "requested_target": requested_target,
                 "actual_targets": actual_targets,
                 "runtime_world_ready": runtime_world_ready_at_setup,
@@ -696,12 +941,25 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "embodied_input_mode": embodied_input_mode,
                 "trigger": _dump(trigger),
                 "trigger_receipts": _dump(trigger_receipts),
+                "sensory_commands": {
+                    "speech": _dump(speech_command),
+                    "visual": _dump(visual_command),
+                },
+                "sensory_command_results": {
+                    "speech": _dump(speech_result),
+                    "visual": _dump(visual_result),
+                },
                 "model_requests": recorder.requests,
                 "model_results": recorder.results,
                 "model_errors": recorder.errors,
                 "runtime_commands": gateway.commands,
                 "body_commands": gateway.body_commands,
                 "body_events": body_events,
+                "body_events_by_actor": body_events_by_actor,
+                "body_input_events_by_actor": body_input_events_by_actor,
+                "body_action_outcomes": body_action_outcomes,
+                "sensory_checks": sensory_checks,
+                "workspace_metrics": workspace_metrics,
                 "godot_report": godot_report_data,
                 "nest_lane_events": gateway.runtime_events,
                 "setup_events": setup_events,
@@ -780,6 +1038,10 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
                 "runtime_commands": gateway.commands,
                 "body_commands": gateway.body_commands,
                 "body_events": body_events,
+                "body_events_by_actor": body_events_by_actor,
+                "body_input_events_by_actor": body_input_events_by_actor,
+                "body_action_outcomes": body_action_outcomes,
+                "sensory_checks": sensory_checks,
                 "embodied_input_mode": (
                     str(
                         getattr(
@@ -807,6 +1069,25 @@ def run(timeout: float, post_verify_seconds: float) -> tuple[int, dict[str, Any]
         )
         return 1, result
     finally:
+        for actor_id, body_instance in bodies_by_actor.items():
+            try:
+                body_instance.transport.interrupt_pending("e2e cleanup")
+                handler = body_event_handlers.get(actor_id)
+                if handler is not None:
+                    body_instance.transport.disconnect(handler)
+                body_instance.disconnect()
+            except Exception as error:  # noqa: BLE001
+                cleanup[f"body:{actor_id}"] = (
+                    f"cleanup_error:{type(error).__name__}:{error}"
+                )
+        if action_executor is not None:
+            try:
+                action_executor.shutdown(wait=True, cancel_futures=True)
+                cleanup["action_executor"] = "stopped"
+            except Exception as error:  # noqa: BLE001
+                cleanup["action_executor"] = (
+                    f"cleanup_error:{type(error).__name__}:{error}"
+                )
         if elfie is not None:
             try:
                 engine.session.stop_elfies()
