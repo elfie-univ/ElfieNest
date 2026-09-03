@@ -2,7 +2,7 @@
 
 本目录受上级 `elfie/AGENTS.md`、Elfie 内部架构契约与 Brain 内部架构契约约束。Brain 拥有一只 Elfie 的
 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、
-心智整理和 Skills。
+心智整理和受信任的 Agent Skills。
 
 - 十系统是概念所有者，不等于十个进程、数据库或必须预建的目录；只有出现真实状态、
   契约或行为时才建立对应包，禁止建立空架构目录。
@@ -31,7 +31,8 @@
   Bootstrap 注入的同版本 bundled-only Constitution；第二、第三段只来自 Selfhood 的
   确定性投影。动态协议和当前状态必须跟在四段之后。
 - Reasoning 不得把大五原始数值、任意 Memory/用户/模型自然语言或原始 Selfhood 字典直接
-  拼进固定头。所有动态 Skill/Tool 指令进入 Brain 拥有的 `TURN_PROTOCOL`；下游
+  拼进固定头。Skill 的目录式指令和 Tool 的原生定义都只能经 Brain 拥有的
+  `TURN_PROTOCOL`/类型化请求进入模型；下游
   Model/Provider Adapter 与通用 Prompt Injector 不得新增 system 指令或改变消息顺序/
   内容。Prompt 规则不能替代能力、Scope、提交和回执的确定性门禁。
 - 每只 Elfie 的 Selfhood 文档是第一阶段唯一持久 authority；通用 Brain continuity
@@ -48,13 +49,16 @@
 - Brain 只依赖自身定义的强类型 `FoodPort`、`ModelPort`、`ToolPort`、记忆 Port 及
   Elfie 内部语义 Port；不得导入 Provider SDK、工具实现、App、Nest 或具体
   Infrastructure。
-- Skills 的目标位置是 `elfie/brain/reasoning/skills/`，只负责目录、策略和语义工具授权；不得
-  包装 Runtime、执行工具或接收任意工作区路径。
-- Brain 授权是工具调用的必要但非充分条件；`ToolPort` Adapter 仍必须执行全局可用性与
+- `elfie/brain/reasoning/skill_port.py` 只定义受信任 Skill 的元数据、文档和按需加载边界；
+  随源码发布的标准 Skill 文件位于 `config/brain/skills/<name>/SKILL.md`，不得从 Brain
+  写入、热安装或执行 Skill 附带脚本。
+- Skill 是流程说明，不是 Tool，也不授予 Tool 权限。Tool 调用必须经过 Brain 的
+  `allowed_tools` 和 `ToolPort`；Adapter 仍必须执行全局可用性与
   逐次技术安全校验，可以拒绝但不能扩大 Brain 已授权能力。语义请求只传资源标识，不传
   任意文件系统 Root。
-- 随源码发布的不可变 Skill 与内存策略不建立持久化 Port；可变 Skill 安装或持久状态
-  在单独契约获批前保持禁用，Brain 不得先写文件制造事实源。
+- 随源码发布的不可变 Skill 由 bundled `config/`/`resources/config/` 提供，按需加载且
+  不建立用户持久化 Port；可变 Skill 安装、Skill 脚本和持久状态在单独契约获批前保持禁用，
+  Brain 不得先写文件制造事实源。
 - `ElfieCognitiveRuntime` 或后继协调器只能是聚合内部实现，不得成为 App Runtime、
   composition root 或公开产品入口。
 - 新边界使用命名不可变模型，禁止新增 `Any`、裸 `dict`、SDK 对象或协议帧；已退役的

@@ -4,7 +4,7 @@
 > Confirmed: 2026-08-31<br>
 > Scope: detailed expansion of system 8, `Reasoning Core`, in the
 > [Brain ten-system architecture](./elfie-brain-ten-system-architecture.md)<br>
-> Normative boundary: [Brain contract 1.7](../../../contracts/brain.md)<br>
+> Normative boundary: [Brain contract 1.8](../../../contracts/brain.md)<br>
 > Implementation status: P0 owner chat is implemented and protected by focused tests;
 > later Skill/Tool stages remain outside P0.
 

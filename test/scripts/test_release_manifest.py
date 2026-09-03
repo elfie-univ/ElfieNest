@@ -87,6 +87,9 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
         "config/models/provider-catalog.yaml": b"version: 2\n",
         "config/models/model-catalog.yaml": b"version: 1\n",
         "config/tools/defaults.yaml": b"version: 1\ntools: {}\n",
+        "config/brain/skills/research/SKILL.md": (
+            b"---\nname: research\ndescription: test\n---\n\nInstructions.\n"
+        ),
         "config/brain/energy.yaml": b"version: 1\nlimits: {}\n",
         "config/brain/selfhood.yaml": b"version: 1\nbig_five: {}\n",
         "config/brain/reasoning-constitution.yaml": (

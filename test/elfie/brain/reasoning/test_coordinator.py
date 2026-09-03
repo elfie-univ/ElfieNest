@@ -1129,7 +1129,7 @@ def test_internal_turn_uses_long_reasoning_only_when_energy_allows_it() -> None:
     try:
         request = runtime.calls[0]
         assert request.reasoning_mode == "long"
-        assert request.allowed_tools == ("web_search",)
+        assert request.allowed_tools == ()
         assert coordinator._inflight is not None
         budget = coordinator._inflight.task.reasoning_budget
         assert budget.max_model_calls == 3

@@ -13,13 +13,34 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationResult,
     StructuredOutputMode,
 )
-from elfie.brain.reasoning.tool_port import ToolPort
+from elfie.brain.reasoning.skill_port import SKILL_LOADER_NAME, SkillMetadata
+from elfie.brain.reasoning.tool_port import ToolDefinition, ToolPort
 from elfie.message_types import TurnId
 from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
     StructuredMessage,
     StructuredModelExecutionRequest,
     StructuredModelExecutionResult,
+)
+
+_SKILL_LOADER_DEFINITION = ToolDefinition(
+    name=SKILL_LOADER_NAME,
+    title="Load Agent Skill",
+    description="Load the procedural instructions for one advertised Agent Skill.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 64},
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+    output_schema={
+        "type": "object",
+        "properties": {"instructions": {"type": "string"}},
+        "required": ["instructions"],
+        "additionalProperties": False,
+    },
 )
 
 
@@ -131,6 +152,11 @@ class SerializedModelExecutionAdapter:
             selected_mode=StructuredGenerationMode(selected_mode.value),
             reasoning_mode=request.reasoning_mode,
             allowed_tools=request.allowed_tools,
+            tool_definitions=self._allowed_tool_definitions(
+                request.allowed_tools,
+                request.available_skills,
+            ),
+            available_skills=request.available_skills,
             provider=capabilities.provider,
             model_key=capabilities.model_key,
             food_key=selection.food_id,
@@ -159,7 +185,30 @@ class SerializedModelExecutionAdapter:
             prompt_tokens=result.prompt_tokens,
             completion_tokens=result.completion_tokens,
             latency_ms=result.latency_ms,
+            tool_calls=result.tool_calls,
+            skill_calls=result.skill_calls,
         )
+
+    def _allowed_tool_definitions(
+        self,
+        allowed_tools: tuple[str, ...],
+        available_skills: tuple[SkillMetadata, ...] = (),
+    ) -> tuple[ToolDefinition, ...]:
+        tool_port = self.tool_port
+        if tool_port is None:
+            definitions: tuple[ToolDefinition, ...] = ()
+        else:
+            loader = getattr(tool_port, "available_tool_definitions", None)
+            if loader is None:
+                definitions = ()
+            else:
+                allowed = set(allowed_tools)
+                definitions = tuple(
+                    definition for definition in loader() if definition.name in allowed
+                )
+        if available_skills:
+            return (*definitions, _SKILL_LOADER_DEFINITION)
+        return definitions
 
     def abandon(self, request: ModelGenerationRequest) -> None:
         """Retire the request's lease without waiting for provider return."""

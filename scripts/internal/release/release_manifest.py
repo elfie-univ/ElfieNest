@@ -29,6 +29,7 @@ REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
     "config/models/provider-catalog.yaml",
     "config/models/model-catalog.yaml",
     "config/tools/defaults.yaml",
+    "config/brain/skills/research/SKILL.md",
     "config/brain/energy.yaml",
     "config/brain/selfhood.yaml",
     "config/brain/reasoning-constitution.yaml",

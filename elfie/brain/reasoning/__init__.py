@@ -9,6 +9,7 @@ from .run import (
     ReasoningRunResult,
     ReasoningStatus,
 )
+from .skill_port import SkillCatalog, SkillDocument, SkillMetadata
 
 __all__ = (
     "CognitiveStep",
@@ -18,4 +19,7 @@ __all__ = (
     "ReasoningRun",
     "ReasoningRunResult",
     "ReasoningStatus",
+    "SkillCatalog",
+    "SkillDocument",
+    "SkillMetadata",
 )

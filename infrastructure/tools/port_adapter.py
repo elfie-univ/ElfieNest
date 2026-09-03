@@ -8,7 +8,12 @@ from typing import Mapping, Optional, Protocol, Tuple, cast
 
 from pydantic import JsonValue
 
-from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import (
+    ToolDefinition,
+    ToolKey,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.message_types import ErrorInfo
 
 from .execution.executor import (
@@ -22,13 +27,14 @@ from .execution.executor import ToolResult as TechnicalToolResult
 from .execution.observation import ToolObservationPort
 from .execution.permissions import PermissionManager as ConcretePermissionManager
 from .local_file.local_files import LocalFileAccessPlugin
+from .registry import ToolRegistry
 from .web_search.search import WebSearchPlugin
 
 WorkspaceResolver = Callable[[Optional[str]], Optional[Path]]
 ToolConfigLoader = Callable[
     [Optional[Mapping[str, JsonValue]]], Mapping[str, Mapping[str, JsonValue]]
 ]
-_TOOL_KEYS: Tuple[ToolKey, ...] = ("web_search", "local_file")
+_TOOL_REGISTRY = ToolRegistry()
 
 
 class ModelExecutionPolicySource(Protocol):
@@ -39,6 +45,9 @@ class DisabledToolPort:
     """Safe no-op view used by isolated tests and explicit offline runtimes."""
 
     def available_tool_keys(self) -> Tuple[ToolKey, ...]:
+        return ()
+
+    def available_tool_definitions(self) -> Tuple[ToolDefinition, ...]:
         return ()
 
     def execute(self, request: ToolRequest) -> ToolResult:
@@ -112,9 +121,18 @@ class ToolPortAdapter:
             if config.get("enabled") is True
         }
         return tuple(
-            key
-            for key in _TOOL_KEYS
-            if key in enabled and key in self._allowed_tool_keys
+            definition.name
+            for definition in _TOOL_REGISTRY.list_definitions()
+            if definition.name in enabled and definition.name in self._allowed_tool_keys
+        )
+
+    def available_tool_definitions(self) -> Tuple[ToolDefinition, ...]:
+        """Return definitions filtered by the same config and scope policy."""
+        available = set(self.available_tool_keys())
+        return tuple(
+            definition
+            for definition in _TOOL_REGISTRY.list_definitions()
+            if definition.name in available
         )
 
     def execute(self, request: ToolRequest) -> ToolResult:
@@ -122,12 +140,12 @@ class ToolPortAdapter:
             return self._failure(
                 request,
                 "tool_denied",
-                "该工具未被此 Elfie 的 Skill 或全局策略授权。",
+                "该工具未被此 Elfie 或全局策略授权。",
             )
 
         file_access = self._file_access_for(request.scope_id)
         context = ToolExecutionContext(
-            allowed_skills=(request.tool_key,),
+            allowed_tool_keys=(request.tool_key,),
             search_plugin=self._search_plugin,
             permission_manager=self._permission_manager,
             observation_port=self._observation_port,
@@ -137,14 +155,7 @@ class ToolPortAdapter:
                 getattr(self._config, "runtime_policy", {})
             ),
         )
-        technical = self._technical_request(request)
-        result = self._executor(context).execute(technical)
-        if result is None:
-            return self._failure(
-                request,
-                "tool_request_invalid",
-                "工具请求未被技术 Adapter 接受。",
-            )
+        result = self._executor(context).execute(request)
         return self._translate(request, result)
 
     def _executor(self, context: ToolExecutionContext) -> ToolExecutor:
@@ -165,16 +176,6 @@ class ToolPortAdapter:
                 max_items=_int_setting(config.get("max_items"), 200),
             ),
         )
-
-    @staticmethod
-    def _technical_request(request: ToolRequest) -> str:
-        if request.operation == "search":
-            assert request.query is not None
-            return f"[SEARCH]{request.query}[/SEARCH]"
-        if request.operation == "read":
-            assert request.resource_id is not None
-            return f"[READ_FILE]{request.resource_id}[/READ_FILE]"
-        return f"[LIST_FILES]{request.resource_id or '.'}[/LIST_FILES]"
 
     @staticmethod
     def _translate(request: ToolRequest, result: TechnicalToolResult) -> ToolResult:

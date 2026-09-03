@@ -12,6 +12,7 @@ from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.reasoning.model_header import ReasoningConstitution
+from elfie.brain.reasoning.skill_port import SkillCatalog
 from elfie.factory import ElfieAssembly
 from elfie.profile import ProfileStorePort
 
@@ -37,6 +38,7 @@ class ElfieFactoryAdapter:
         emotion_expression_config: Mapping[str, object] | None = None,
         emotion_dynamics_config: Mapping[str, object] | None = None,
         reasoning_constitution: ReasoningConstitution | None = None,
+        skill_catalog: SkillCatalog | None = None,
     ) -> None:
         self._factory = factory
         self._body_factory = body_factory
@@ -49,6 +51,7 @@ class ElfieFactoryAdapter:
         self._emotion_expression_config = emotion_expression_config
         self._emotion_dynamics_config = emotion_dynamics_config
         self._reasoning_constitution = reasoning_constitution
+        self._skill_catalog = skill_catalog
 
     def restore(self, elfie_id: str, workspace: str) -> Elfie:
         try:
@@ -81,6 +84,7 @@ class ElfieFactoryAdapter:
                         else self._journal_store_factory(workspace)
                     ),
                     body=self._body_factory(elfie_id, workspace),
+                    skill_catalog=self._skill_catalog,
                 )
             )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as error:

@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.models.inference.llm_api import API_DISPATCH, call_llm_api
+from elfie.brain.reasoning.tool_port import ToolRequest
+from infrastructure.models.inference.llm_api import (
+    API_DISPATCH,
+    call_llm_api,
+    call_llm_api_result,
+)
 from infrastructure.models.model_execution_observations import (
     FallbackObservation,
     ModelCallObservation,
@@ -231,19 +236,99 @@ def test_call_llm_api_records_failed_model_call(monkeypatch: pytest.MonkeyPatch)
     assert events[-1].metadata["error_type"] == "RuntimeError"
 
 
+def test_call_llm_api_result_preserves_native_calls_and_redacts_trace(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    dispatch_requests: list[dict[str, object]] = []
+
+    def fake_dispatch(
+        api_base: str,
+        api_key: str,
+        model_name: str,
+        messages: list[dict[str, object]],
+        temperature: float,
+        max_tokens: int,
+        provider: str,
+        *,
+        request_options: dict[str, object] | None = None,
+        response_capture: dict[str, object] | None = None,
+        return_metadata: bool = False,
+    ):
+        del api_base, api_key, model_name, messages, temperature, max_tokens, provider
+        dispatch_requests.append(dict(request_options or {}))
+        if response_capture is not None:
+            response_capture["provider_marker"] = "captured"
+        metadata = {
+            "tool_called": True,
+            "tool_calls": [
+                {
+                    "call_id": "call-1",
+                    "name": "local_file",
+                    "arguments": {
+                        "operation": "read",
+                        "resource_id": "notes.txt",
+                    },
+                }
+            ],
+        }
+        result = ("", {"prompt_tokens": 2}, metadata)
+        return result if return_metadata else result[:2]
+
+    monkeypatch.setitem(API_DISPATCH, "chat_completions", fake_dispatch)
+    config = model_execution_config()
+    config.providers["observed_native"] = {
+        "api_base": "https://api.observed.test",
+        "api_key": "",
+        "api_mode": "chat_completions",
+    }
+    trace: dict[str, object] = {}
+
+    result = call_llm_api_result(
+        config,
+        "observed_native",
+        "observed-model",
+        [{"role": "user", "content": "read the file"}],
+        0.0,
+        128,
+        request_options={
+            "tool_definitions": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "local_file",
+                        "description": "Read a file",
+                        "parameters": {"type": "object"},
+                    },
+                }
+            ],
+            "api_key": "super-secret",
+        },
+        response_capture=trace,
+    )
+
+    assert result.tool_calls[0].tool_key == "local_file"
+    assert dispatch_requests[0]["tools"]
+    assert trace["request"]["options"]["api_key"] == "[redacted]"
+    assert trace["response"]["metadata"]["tool_called"] is True
+    assert trace["response"]["metadata"]["tool_calls"][0]["name"] == "local_file"
+    assert "super-secret" not in str(trace)
+
+
 def test_tool_executor_records_tool_observation():
     observer = get_model_execution_observer()
     observer.reset()
     executor = ToolExecutor(
         ToolExecutionContext(
-            allowed_skills=("web_search",),
+            allowed_tool_keys=("web_search",),
             search_plugin=FakeSearchPlugin(),
             permission_manager=FakePermissionManager(),
             observation_port=observer,
         )
     )
 
-    result = executor.execute("[SEARCH]ElfieNest[/SEARCH]")
+    result = executor.execute(
+        ToolRequest(tool_key="web_search", operation="search", query="ElfieNest")
+    )
 
     events = observer.snapshot()
     observer.reset()

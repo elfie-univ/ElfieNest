@@ -1,8 +1,8 @@
 # 系统架构契约
 
-**契约版本：** 1.10
+**契约版本：** 1.11
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-02
+**修订日期：** 2026-09-03
 **适用范围：** 全仓目标架构
 **宏观架构基线：** v1（已冻结）
 
@@ -144,8 +144,10 @@ Elfie 保留 Profile、认知、情绪、记忆语义、Skills、通信语义、
 
 Infrastructure 持久化实现 `FoodPort`，模型 Adapter 实现 `ModelPort`，工具 Adapter
 实现 `ToolPort`；Bootstrap 把它们直接注入 Elfie。Elfie 不 import App 或
-Infrastructure，也不自行执行 SQL。记忆算法、语义模型角色选择、Skill 声明与
-allow-list、身体命令和感知模型仍属于 Elfie。
+Infrastructure，也不自行执行 SQL。记忆算法、语义模型角色选择、Skill 文档加载与 Tool
+allow-list、身体命令和感知模型仍属于 Elfie。Skill 加载边界由
+`elfie/brain/reasoning/skill_port.py` 拥有，可执行 Tool 定义由 Infrastructure Tool
+注册表拥有。
 
 ### Nest
 
@@ -189,7 +191,7 @@ App Feature 可以为产品持久化、文件、时钟、Scheduler、Secret、�
 | Provider 连接管理和凭据引用 | App Configuration Feature | Infrastructure 通过 App 自有 Port 执行持久化与 Secret Adapter | 已授权 App 管理用例；Infrastructure 只接收限定技术输入 |
 | 有效 Food/模型健康总览 | App Configuration Food Feature | App Food 策略投影生效套餐及经 Port 提供的持久证据 | Lifecycle 与获授权管理/能力投影 |
 | Endpoint 模型观测、技术验证和模型调用 | Infrastructure 模型能力 | `infrastructure/models/` 与持久化/报告 Adapter | App 管理投影和 Elfie `ModelPort` 调用 |
-| 单次认知步骤的工具选择 | `elfie/` Skills 与认知策略 | `infrastructure/tools/` 执行获批准的受限请求 | Elfie 消费强类型结果；App 配置全局可用性 |
+| 单次认知步骤的工具选择 | `elfie/` Reasoning Core Tool policy | `infrastructure/tools/` 执行获批准的受限请求 | Elfie 消费强类型结果；App 配置全局可用性 |
 | 房屋几何、坐标、碰撞、导航和已发生物理事件 | `godot_project/` authority | Godot authority 经 `infrastructure/godot/` 协议 Adapter | Nest 接收世界事实；actor body 接收自己的回执 |
 | 设备注册、授权和 Elfie/body 关联 | App 设备 Feature | Infrastructure 通过 App 自有 Port 持久化 | 已授权 App 用例和 Orchestration |
 | 设备凭据材料 | Infrastructure Secret 能力 | Secret 存储和 `infrastructure/devices/` Adapter | App 只保留引用；获授权设备 Adapter 获得限定访问 |
@@ -299,8 +301,9 @@ Orchestration 时，Port 归 App，而且只能持久化由领域 Facade 接受�
 Infrastructure 拥有连接、SQL、Schema、事务、路径、序列化、原子写和技术 Record。
 数据库 Row、Connection、任意字典和用户路径不得穿过领域边界。
 
-Elfie Skills 描述某只精灵可以请求什么，保留在 Elfie；App Feature 拥有管理员可见的
-全局启用和配置。搜索、文件、代码或设备执行实现属于 `infrastructure/tools/`，并继续
+Elfie Reasoning 通过只读 Catalog 从内置 `config/brain/skills/<name>/SKILL.md` 加载获批的
+流程 Skill。这些文档不是可执行 Tool，也不授予 Tool 权限；Brain 的 Reasoning Core 保留
+强类型加载边界和 Tool policy。App Feature 拥有管理员可见的全局启用和配置。搜索、文件、代码或设备执行实现属于 `infrastructure/tools/`，并继续
 受工具安全和有界结果契约约束。
 
 已注册的应用级声明式默认值，包括当前 Brain、物种和 Nest 文档，统一位于根

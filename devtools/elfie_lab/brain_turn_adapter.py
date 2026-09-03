@@ -27,7 +27,12 @@ from elfie.brain.reasoning.model_port import (
     ModelPort,
 )
 from elfie.brain.reasoning.run import ReasoningRunResult
-from elfie.brain.reasoning.tool_port import ToolKey, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import (
+    ToolDefinition,
+    ToolKey,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.communication import (
     CommunicationEnvelope,
@@ -100,6 +105,13 @@ class SelectedLabToolPort:
         if tool_port is None:
             return ()
         return tuple(tool_port.available_tool_keys())
+
+    def available_tool_definitions(self) -> tuple[ToolDefinition, ...]:
+        tool_port = getattr(self._runtime.current(), "tool_port", None)
+        if tool_port is None:
+            return ()
+        loader = getattr(tool_port, "available_tool_definitions", None)
+        return tuple(loader()) if loader is not None else ()
 
     def execute(self, request: ToolRequest) -> ToolResult:
         tool_port = getattr(self._runtime.current(), "tool_port", None)

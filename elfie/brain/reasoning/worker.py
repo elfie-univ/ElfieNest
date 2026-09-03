@@ -26,6 +26,7 @@ from elfie.brain.reasoning.run import (
     ReasoningRunResult,
 )
 from elfie.brain.reasoning.settlement import TurnStateCandidate
+from elfie.brain.reasoning.skill_port import SkillCatalog
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.message_types import ElfieId
 
@@ -130,6 +131,10 @@ class ReasoningTaskView(Protocol):
     ) -> Callable[[tuple[CurrentRunObservation, ...]], ModelGenerationRequest] | None:
         """Recompile each cognitive step through the same Context Engine."""
 
+    @property
+    def skill_catalog(self) -> SkillCatalog | None:
+        """Return the trusted bundled Skill catalog for this Run."""
+
 
 @dataclass(frozen=True)
 class ReasoningTask:
@@ -152,6 +157,7 @@ class ReasoningTask:
     context_request_builder: (
         Callable[[tuple[CurrentRunObservation, ...]], ModelGenerationRequest] | None
     ) = None
+    skill_catalog: SkillCatalog | None = None
 
 
 @dataclass(frozen=True)

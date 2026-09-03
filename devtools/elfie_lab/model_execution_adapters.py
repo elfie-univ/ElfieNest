@@ -34,9 +34,7 @@ from infrastructure.models.model_execution_observations import (
 from infrastructure.models.model_execution_ports import ModelExecutionAgentPorts
 from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
-from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
-from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
 from infrastructure.tools.port_adapter import ToolPortAdapter
 from infrastructure.tools.web_search.search import WebSearchPlugin
@@ -425,7 +423,7 @@ class FoodModelExecutionAgent:
             food_key=self.food_key,
             energy=energy,
             task_complexity=task_complexity,
-            allowed_skills=[],
+            allowed_tools=[],
         )
         self.last_result = result
         self.selected_model = str(result.actual_model or result.model_key)
@@ -519,12 +517,6 @@ def _model_execution_agent_ports(
         ),
         file_access_factory=build_file_access,
         model_evidence_source=model_environment.model_evidence,
-        tool_loop_factory=lambda tool_port, allowed, scope: PortToolLoop(
-            tool_port,
-            allowed_tool_keys=allowed,
-            scope_id=scope,
-        ),
-        prompt_injector=inject_skills_system_prompt,
         model_execution_config_loader=model_environment.load_model_execution_config,
     )
 

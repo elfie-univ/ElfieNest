@@ -1,6 +1,6 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.7
+**Contract version:** 1.8
 **Adopted:** 2026-08-12
 **Revised:** 2026-09-03
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
@@ -14,7 +14,9 @@
 > tests. Version 1.5 froze the one-time Genesis and final-owner isolation rules;
 > version 1.6 additionally freezes the three source domains, embodied terminal
 > outcomes and dynamic capability routing accepted by ADR-0033. Version 1.7 records
-> the stable links to the accepted Brain design hierarchy. Remaining
+> the stable links to the accepted Brain design hierarchy. Version 1.8 separates
+> standard procedural Skill documents from executable Tool definitions and adds
+> the read-only bundled Skill load boundary. Remaining
 > implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
@@ -455,12 +457,12 @@ must not commit.
 
 ## Cognitive tools and external peripherals
 
-Brain Skills authorize semantic cognitive capabilities. `ToolPort` executes
-only tools made available by the injected, Elfie-scoped runtime, such as bounded
-search, retrieval, command execution, simple code and file work inside the
-Elfie's authorized cognitive workspace. The runtime sandbox, command allowlist,
-network policy, workspace root and quota are deterministic and require no
-per-operation human approval inside that envelope.
+Brain owns the typed Skill catalog boundary and may load a first-party procedural
+`SKILL.md` for the current Run. A Skill is not an executable Tool and does not
+grant Tool permission. `ToolPort` executes only injected, Elfie-scoped Tools,
+such as bounded search and file work inside the authorized cognitive workspace.
+The runtime sandbox, command allowlist, network policy, workspace root and quota
+are deterministic and require no per-operation human approval inside that envelope.
 
 Digital-message channels, Body control and device state are not Tools. They are
 external peripherals reached only after a settled decision through

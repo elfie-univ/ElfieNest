@@ -24,6 +24,7 @@ from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.food_port import MainFoodSelection
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
+from elfie.brain.reasoning.skill_port import SkillCatalog, SkillDocument, SkillMetadata
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.communication import (
     CommunicationChannel,
@@ -89,6 +90,9 @@ __all__ = [
     "MessageDirection",
     "MessageMeta",
     "ModelPort",
+    "SkillCatalog",
+    "SkillDocument",
+    "SkillMetadata",
     "ReasoningConstitution",
     "ToolPort",
     "TactileImpact",

@@ -1,6 +1,6 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.4
+**Contract version:** 2.5
 **Adopted:** 2026-08-11
 **Revised:** 2026-09-03
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
@@ -78,21 +78,24 @@ coordination, not an App Runtime, Infrastructure Adapter or public product API.
 | Module | Owns | Must not own |
 | --- | --- | --- |
 | `elfie/profile/` | Immutable external objective identity, stable age/birth and personal-origin anchors, final virtual appearance and immutable appearance defaults | World knowledge/Canon, generator or model provenance, source-package references, seeds, user answers, arrival/training history, personality, memory, relationships, permissions, runtime limits, current capabilities/state, YAML/file persistence, user paths, App adoption or account rules |
-| `elfie/brain/` | Event Workspace, Orientation, Selfhood, Emotion, Energy, Motivation, Memory, Reasoning Core, Persistent Activity, Cognitive Consolidation and Skills | Provider selection/configuration, SDK requests, concrete tool execution, device/channel transport or product workflow |
+| `elfie/brain/` | Event Workspace, Orientation, Selfhood, Emotion, Energy, Motivation, Memory, Reasoning Core, Persistent Activity, Cognitive Consolidation and trusted Agent Skills | Provider selection/configuration, SDK requests, concrete tool execution, device/channel transport or product workflow |
 | `elfie/brain/memory/` | Memory nodes, relations, encoding, retrieval, consolidation and the semantic storage Port | SQLite connections, schema, paths or persistence records |
-| `elfie/brain/reasoning/skills/` | Skill declarations, the per-Elfie catalog, policy and authorization of semantic tool requests | Runtime proxies, platform tools, workspace paths or tool execution |
+| `elfie/brain/reasoning/skill_port.py` | Typed Skill metadata/document contracts and the per-Run read-only load boundary | Skill source files, Runtime proxies, platform tools, workspace paths or tool execution |
 | `elfie/nervous_system/` | Body-event normalization, filtering, reflexes, perception delivery and translation of validated body intents | Device transport, Godot protocol, geometry or body registration policy |
 | `elfie/body/` | Body identity, capabilities, anatomy, commands, sensor events, receipts, candidate registry, switching and the single active binding | Concurrent virtual/physical authority, Godot/WebSocket/device transport, credentials, process ownership or device product authorization |
 | `elfie/communication/` | Canonical envelopes, admission and delivery semantics, policy, inbox/outbox, Hub and channel routing | Product conversation authority/history, account membership, platform SDKs, credentials or network transport |
 | `elfie/genesis/` | Creation-time semantic compilation, deterministic generation rules, validation and the ephemeral initialization bundle | Daily cognition, permanent duplicate state, technical Adapter construction, persistence implementation or lifecycle authority |
 
-Skills are part of Brain because they influence cognition and authorize which
-semantic tool requests one Elfie may make. A Skill names a semantic `tool_key`
-or capability; it never wraps a Runtime object or executes the tool itself.
-Bundled Skill declarations and per-Elfie in-memory policy require no persistence
-Port. Mutable Skill installation, mutation or durable per-Elfie Skill state is
-outside this contract; introducing it requires a separate approved contract
-decision and cannot begin by writing files from Brain.
+Skills are part of Brain because their procedural instructions influence cognition.
+A Skill is a standard directory containing `SKILL.md` with `name` and `description`
+frontmatter plus instructions; it is not a Tool definition and does not grant Tool
+permission. Bundled sources live under `config/brain/skills/<name>/SKILL.md` and are
+advertised as metadata before a native `load_skill` control operation loads one
+document for the current Run. Shared executable Tool definitions and authorization
+remain separate in the typed `ToolPort`/Infrastructure registry path.
+Bundled Skills are read-only and first-party in this phase; user installation,
+mutation, scripts and durable per-Elfie Skill state are outside this contract and
+require a separate approved decision.
 
 The Brain systems above are conceptual owners rather than a deployment model.
 They do not imply ten processes, databases, workers or pre-created packages. A
@@ -179,7 +182,7 @@ models or become a Service Locator.
 | --- | --- | --- |
 | `FoodPort` | Brain | Read the current effective, already-authorized Food projection with named semantic roles, exact opaque model references and the single-fallback/emergency shape defined by the behavior contract |
 | `ModelPort` | Brain | Perform Provider-neutral model generation with typed deadlines, cancellation and result metadata |
-| `ToolPort` | Brain (Skills authorizes) | Enforce the technical safety scope and execute one Brain-authorized semantic tool request, or return a typed denial/bounded result |
+| `ToolPort` | Brain | Enforce the technical safety scope and execute one Brain-authorized semantic Tool request, or return a typed denial/bounded result |
 | `MemoryStorePort` | Brain/Memory | Store and query typed memory nodes, edges and semantic search results |
 | `ProfileStorePort` | Profile | Load and save a validated stable Profile without revealing YAML or paths |
 | `BodyPort` | Body (consumed by NervousSystem and aggregate routing) | Expose one replaceable body's capabilities, commands, events, receipts and snapshot |
@@ -205,11 +208,11 @@ Emergency behavior defined by the model/Food/tool behavior contract; it does
 not invent an arbitrary fallback list. `ModelPort` interprets opaque technical
 model references and performs generation.
 
-Brain Skill authorization is necessary but not sufficient for tool execution.
-The `ToolPort` Adapter intersects the request with global availability and the
-invocation's technical safety scope, may return a typed denial, and can never
-broaden the capability authorized by Brain. App configures availability but
-does not proxy the call.
+Skill instructions do not authorize Tool execution. Brain supplies an explicit
+`allowed_tools` set for a deliberate Run; the `ToolPort` Adapter intersects that
+request with global availability and the invocation's technical safety scope, may
+return a typed denial, and can never broaden the capability authorized by Brain.
+App configures availability but does not proxy the call.
 
 The normal path is direct:
 

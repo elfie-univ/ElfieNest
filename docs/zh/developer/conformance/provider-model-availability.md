@@ -1,6 +1,6 @@
 # Provider/模型可用性一致性
 
-> 本文是规范性[模型、Food 与工具行为契约](../contracts/model-food-tool-behavior) 1.8 的
+> 本文是规范性[模型、Food 与工具行为契约](../contracts/model-food-tool-behavior) 1.9 的
 > 开放迁移台账，只记录当前实现事实和剩余删除门，不削弱已经确认的可用性设计。
 
 真实 Provider/浏览器证据已在下方记录。原生主机发布证据由服务生命周期一致性台账单独跟踪。

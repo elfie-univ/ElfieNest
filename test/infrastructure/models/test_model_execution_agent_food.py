@@ -72,6 +72,17 @@ class _WebSearchToolPort:
     def available_tool_keys(self) -> tuple[str, ...]:
         return ("web_search",)
 
+    def available_tool_definitions(self):
+        from elfie.brain.reasoning.tool_port import ToolDefinition
+
+        return (
+            ToolDefinition(
+                name="web_search",
+                description="search",
+                input_schema={"type": "object"},
+            ),
+        )
+
     def execute(self, request):
         raise AssertionError(f"tool should not execute in this prompt test: {request}")
 
@@ -499,7 +510,7 @@ def test_normal_and_structured_requests_share_the_safe_tool_intersection(
     assert len(captured_messages) == 2
     for messages in captured_messages:
         rendered = "\n".join(str(message["content"]) for message in messages)
-        assert "[SEARCH]" in rendered
+        assert "[SEARCH]" not in rendered
         assert "[CODE]" not in rendered
         assert "[READ_FILE]" not in rendered
 
@@ -509,14 +520,13 @@ def test_brain_owned_structured_prompt_is_not_augmented_by_provider_injectors(
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     agent = _agent(monkeypatch, MainFoodSelection("food_main"))
-    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "ok")
-    injected: list[tuple[list[dict[str, object]], list[str]]] = []
+    captured: list[tuple[list[dict[str, object]], dict[str, object]]] = []
 
-    def prompt_injector(messages, tools):
-        injected.append((messages, tools))
-        return messages
+    def caller(*args):
+        captured.append((args[2], args[5]))
+        return "ok"
 
-    agent._ports.prompt_injector = prompt_injector  # noqa: SLF001 - boundary seam
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
     system_prompt = "[APPLICATION_FRAME]\nframe\n\n[IDENTITY_CORE]\nidentity"
     result = agent.generate_structured(
         StructuredModelExecutionRequest(
@@ -532,4 +542,9 @@ def test_brain_owned_structured_prompt_is_not_augmented_by_provider_injectors(
     )
 
     assert result.text == "ok"
-    assert injected == []
+    assert captured == [
+        (
+            [{"role": "system", "content": system_prompt}],
+            {},
+        )
+    ]

@@ -17,9 +17,9 @@ class _FakeModelExecution:
         *,
         energy: int,
         task_complexity: int,
-        allowed_skills: list[str],
+        allowed_tools: list[str],
     ) -> None:
-        self.warmup_calls.append((prompt, energy, task_complexity, allowed_skills))
+        self.warmup_calls.append((prompt, energy, task_complexity, allowed_tools))
 
 
 def test_model_execution_receives_existing_food_and_warmup_dependencies(

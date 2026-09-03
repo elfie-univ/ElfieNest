@@ -55,7 +55,8 @@ from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.run import ReasoningRunResult
 from elfie.brain.reasoning.settlement import TurnSettlement
-from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.skill_port import SkillCatalog
+from elfie.brain.reasoning.tool_policy import ToolPolicy
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningWorker
@@ -91,7 +92,8 @@ class BrainRuntime:
         model_port: ModelPort,
         embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.MOCK,
         tool_port: ToolPort | None = None,
-        skills: SkillManager,
+        tool_policy: ToolPolicy,
+        skill_catalog: SkillCatalog | None = None,
         body_executor: IntentExecutor,
         message_executor: IntentExecutor,
         internal_executor: IntentExecutor,
@@ -163,7 +165,8 @@ class BrainRuntime:
             settlement=settlement,
             initial_timestamp=clock().timestamp(),
             embodied_input_mode=embodied_input_mode,
-            allowed_tools=skills.allowed_tool_keys(),
+            allowed_tools=tool_policy.allowed_tool_keys(),
+            skill_catalog=skill_catalog,
             motivation_blocked=self._motivation_blocked,
             consolidation_blocked=self._consolidation_blocked,
             journal=self._journal,

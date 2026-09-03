@@ -77,7 +77,7 @@ def test_brain_model_adapter_keeps_memory_on_primary_model_boundary():
         semantic_role="memory_consolidation",
         energy=50.0,
         task_complexity=2,
-        allowed_skills=[],
+        allowed_tools=[],
     )
 
     assert result.startswith("{")

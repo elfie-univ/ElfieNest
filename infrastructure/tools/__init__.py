@@ -10,22 +10,20 @@ from .execution.config import (
     load_tool_configs,
 )
 from .execution.executor import ToolExecutionContext, ToolExecutor, ToolResult
-from .execution.loop import PortToolLoop
 from .execution.observation import (
     PermissionDecisionObservation,
     ToolCallObservation,
     ToolObservationPort,
 )
 from .execution.permissions import PermissionDeniedError, PermissionManager
-from .execution.skills_prompt import inject_skills_system_prompt
 from .port_adapter import DisabledToolPort, ToolPortAdapter
+from .registry import BUILTIN_TOOL_DEFINITIONS, ToolRegistrationError, ToolRegistry
 
 __all__ = (
     "DirectCapabilityValidationAdapter",
     "PermissionDecisionObservation",
     "PermissionDeniedError",
     "PermissionManager",
-    "PortToolLoop",
     "DisabledToolPort",
     "ToolPortAdapter",
     "SAFE_TOOL_KEYS",
@@ -38,6 +36,8 @@ __all__ = (
     "ToolResult",
     "effective_tool_keys",
     "enabled_tool_keys",
-    "inject_skills_system_prompt",
+    "BUILTIN_TOOL_DEFINITIONS",
+    "ToolRegistrationError",
+    "ToolRegistry",
     "load_tool_configs",
 )

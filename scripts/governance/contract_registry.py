@@ -107,7 +107,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="system-architecture",
-        version="1.10",
+        version="1.11",
         english_path="docs/developer/contracts/system.md",
         chinese_path="docs/zh/developer/contracts/system.md",
         decision_paths=(
@@ -257,7 +257,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="2.4",
+        version="2.5",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
@@ -294,7 +294,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.7",
+        version="1.8",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
@@ -383,7 +383,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="model-food-tool-behavior",
-        version="1.8",
+        version="1.9",
         english_path="docs/developer/contracts/model-food-tool-behavior.md",
         chinese_path="docs/zh/developer/contracts/model-food-tool-behavior.md",
         decision_paths=(

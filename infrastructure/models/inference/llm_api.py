@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable, Mapping, cast
 
+from elfie.brain.reasoning.skill_port import SKILL_LOADER_NAME, SkillLoadCall
+from elfie.brain.reasoning.tool_port import ToolCall
 from infrastructure.models.inference.token_usage import get_token_tracker
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_observations import (
@@ -31,6 +33,20 @@ from infrastructure.models.providers.request_profiles import (
     get_request_profile,
 )
 
+_TRACE_TEXT_LIMIT = 8_000
+_TRACE_ITEM_LIMIT = 32
+_SENSITIVE_TRACE_KEYS = frozenset(
+    {
+        "api_key",
+        "authorization",
+        "access_token",
+        "refresh_token",
+        "password",
+        "secret",
+        "credential",
+    }
+)
+
 
 @dataclass(frozen=True)
 class LLMCallResult:
@@ -39,6 +55,8 @@ class LLMCallResult:
     text: str
     usage: Mapping[str, Any]
     metadata: Mapping[str, Any]
+    tool_calls: tuple[ToolCall, ...] = ()
+    skill_calls: tuple[SkillLoadCall, ...] = ()
 
 
 def call_llm_api_result(
@@ -77,6 +95,11 @@ def call_llm_api_result(
             request_options,
             request_profile,
         )
+        if response_capture is not None:
+            response_capture["request"] = {
+                "messages": _trace_value(effective_messages),
+                "options": _trace_value(effective_request_options or {}),
+            }
         dispatch_fn = cast(
             Callable[..., Any],
             API_DISPATCH.get(request_profile.api_mode, call_openai_compatible_api),
@@ -215,6 +238,12 @@ def call_llm_api_result(
         )
         raise
 
+    if response_capture is not None:
+        response_capture["response"] = {
+            "text": _trace_value(response_text),
+            "usage": _trace_value(usage),
+            "metadata": _trace_value(metadata),
+        }
     finished_at = datetime.now(timezone.utc).isoformat()
     get_model_execution_observer().record_model_call(
         ModelCallObservation(
@@ -251,7 +280,14 @@ def call_llm_api_result(
         )
     )
     get_token_tracker().record(provider, usage)
-    return LLMCallResult(response_text, usage, metadata)
+    tool_calls, skill_calls = _coerce_calls(metadata.get("tool_calls"))
+    return LLMCallResult(
+        response_text,
+        usage,
+        metadata,
+        tool_calls,
+        skill_calls,
+    )
 
 
 def call_llm_api(
@@ -320,6 +356,89 @@ def _unpack_dispatch_result(
     usage = result[1] if isinstance(result[1], dict) else {}
     metadata = result[2] if len(result) == 3 and isinstance(result[2], Mapping) else {}
     return text, usage, metadata
+
+
+def _coerce_calls(
+    raw_calls: Any,
+) -> tuple[tuple[ToolCall, ...], tuple[SkillLoadCall, ...]]:
+    """Validate normalized Provider calls before they cross into Brain."""
+    if raw_calls is None:
+        return (), ()
+    if not isinstance(raw_calls, (list, tuple)):
+        raise TypeError("Provider tool_calls must be a list")
+    calls: list[ToolCall] = []
+    skill_calls: list[SkillLoadCall] = []
+    for raw_call in raw_calls:
+        if not isinstance(raw_call, Mapping):
+            raise TypeError("Provider tool call must be an object")
+        call_id = raw_call.get("call_id")
+        tool_key = raw_call.get("name") or raw_call.get("tool_key")
+        arguments = raw_call.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    "Provider tool arguments are not valid JSON"
+                ) from error
+        if not isinstance(arguments, Mapping):
+            raise TypeError("Provider tool arguments must be a JSON object")
+        normalized_call_id = str(call_id or "tool_call")
+        normalized_tool_key = str(tool_key or "")
+        normalized_arguments = dict(arguments)
+        if normalized_tool_key == SKILL_LOADER_NAME:
+            skill_name = normalized_arguments.get("name")
+            if not isinstance(skill_name, str):
+                raise TypeError("Skill loader requires a string name")
+            skill_calls.append(
+                SkillLoadCall(
+                    call_id=normalized_call_id,
+                    skill_name=skill_name,
+                    arguments=normalized_arguments,
+                )
+            )
+        else:
+            calls.append(
+                ToolCall(
+                    call_id=normalized_call_id,
+                    tool_key=normalized_tool_key,
+                    arguments=normalized_arguments,
+                )
+            )
+    return tuple(calls), tuple(skill_calls)
+
+
+def _trace_value(value: Any, *, depth: int = 0) -> Any:
+    """Return a bounded, secret-free value suitable for a local execution trace."""
+    if depth >= 5:
+        return "[trace depth truncated]"
+    if isinstance(value, Mapping):
+        traced: dict[str, Any] = {}
+        for index, (raw_key, raw_value) in enumerate(value.items()):
+            if index >= _TRACE_ITEM_LIMIT:
+                traced["[items_truncated]"] = True
+                break
+            key = str(raw_key)
+            normalized_key = key.lower().replace("-", "_")
+            if normalized_key in _SENSITIVE_TRACE_KEYS:
+                traced[key] = "[redacted]"
+            else:
+                traced[key] = _trace_value(raw_value, depth=depth + 1)
+        return traced
+    if isinstance(value, (list, tuple)):
+        items = [
+            _trace_value(item, depth=depth + 1) for item in value[:_TRACE_ITEM_LIMIT]
+        ]
+        if len(value) > _TRACE_ITEM_LIMIT:
+            items.append("[items_truncated]")
+        return items
+    if isinstance(value, str):
+        if len(value) <= _TRACE_TEXT_LIMIT:
+            return value
+        return f"{value[:_TRACE_TEXT_LIMIT]}...[text_truncated]"
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)
 
 
 def _invoke_dispatch(

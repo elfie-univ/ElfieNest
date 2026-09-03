@@ -12,7 +12,8 @@ from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
-from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.skill_port import SkillCatalog
+from elfie.brain.reasoning.tool_policy import ToolPolicy
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain_wiring import DEFAULT_EMBODIED_INPUT_MODE
 from elfie.communication import CommunicationHub
@@ -35,7 +36,8 @@ class ElfieAssembly:
     bodies: tuple[BodyPort, ...] = ()
     current_body_id: str | None = None
     communication: CommunicationHub | None = None
-    skills: SkillManager | None = None
+    tool_policy: ToolPolicy | None = None
+    skill_catalog: SkillCatalog | None = None
     model_port: ModelPort | None = None
     tool_port: ToolPort | None = None
     activity_store: ActivityStorePort | None = None
@@ -67,7 +69,8 @@ class ElfieFactory:
             emotion_dynamics_config=assembly.emotion_dynamics_config,
             body=assembly.body,
             communication=assembly.communication,
-            skills=assembly.skills,
+            tool_policy=assembly.tool_policy,
+            skill_catalog=assembly.skill_catalog,
             model_port=assembly.model_port,
             tool_port=assembly.tool_port,
             activity_store=assembly.activity_store,

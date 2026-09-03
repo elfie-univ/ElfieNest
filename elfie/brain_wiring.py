@@ -31,7 +31,8 @@ from elfie.brain.reasoning.internal_execution import NoOpExecutor
 from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
-from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.skill_port import SkillCatalog
+from elfie.brain.reasoning.tool_policy import ToolPolicy
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.selfhood.system import SelfhoodSystem
@@ -159,7 +160,7 @@ def assemble_brain_runtime(
     constitution: ReasoningConstitution,
     nervous_system: NervousSystem,
     communication: CommunicationHub,
-    skills: SkillManager,
+    tool_policy: ToolPolicy,
     current_body: Callable[[], BodyPort | None],
     current_body_generation: Callable[[], int | None] | None = None,
     clock: Callable[[], datetime],
@@ -169,6 +170,7 @@ def assemble_brain_runtime(
     world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
     | None = None,
     tool_port: ToolPort | None = None,
+    skill_catalog: SkillCatalog | None = None,
     activity_store: ActivityStorePort | None = None,
     journal_store: BrainJournalPort | None = None,
     restore_clock: Callable[[datetime], None] | None = None,
@@ -233,7 +235,8 @@ def assemble_brain_runtime(
         model_port=model_port,
         embodied_input_mode=embodied_input_mode,
         tool_port=tool_port,
-        skills=skills,
+        tool_policy=tool_policy,
+        skill_catalog=skill_catalog,
         body_executor=NervousSystemIntentExecutor(
             nervous_system=nervous_system,
             current_body=current_body,

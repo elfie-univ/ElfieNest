@@ -117,7 +117,7 @@ def build_model_execution_services(
             "hello",
             energy=100,
             task_complexity=1,
-            allowed_skills=[],
+            allowed_tools=[],
         )
 
     return ModelExecutionServices(

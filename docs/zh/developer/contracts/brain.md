@@ -1,6 +1,6 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.7
+**契约版本：** 1.8
 **采用日期：** 2026-08-12
 **修订日期：** 2026-09-03
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
@@ -11,7 +11,8 @@
 > [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
 > Workspace P0 边界由永久聚焦测试守护。版本 1.5 冻结了一次性 Genesis 与最终所有者隔离
 > 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由；版本 1.7
-> 记录已接受 Brain 设计层级的稳定链接。尚未
+> 记录已接受 Brain 设计层级的稳定链接；版本 1.8 分离标准流程 Skill 文档与可执行 Tool 定义，
+> 并增加只读内置 Skill 加载边界。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
@@ -334,10 +335,11 @@ stop/cancel；迟到的终态按幂等规则对账，不能重新打开动作。
 
 ## 认知工具与外设
 
-Brain Skills 授权语义认知能力。`ToolPort` 只执行由注入且限定 Elfie 作用域的 Runtime
-提供的工具，例如有界搜索、检索、命令执行、简单代码，以及当前 Elfie 获授权认知工作区
-内的文件操作。Runtime 通过进程沙箱、命令允许列表、网络策略、工作区 Root 和配额进行
-确定性约束；在该 Envelope 内不需要逐操作人工批准。
+Brain 拥有强类型 Skill Catalog 边界，可以为当前 Run 加载官方内置的流程 `SKILL.md`。
+Skill 不是可执行 Tool，也不授予 Tool 权限。`ToolPort` 只执行由注入且限定 Elfie 作用域的
+Runtime 提供的 Tool，例如有界搜索和当前 Elfie 获授权认知工作区内的文件操作。Runtime
+通过进程沙箱、命令允许列表、网络策略、工作区 Root 和配额进行确定性约束；在该 Envelope
+内不需要逐操作人工批准。
 
 数字通信渠道、身体控制和设备状态不是 Tool。它们是最终决定结算后才能经 Communication
 或 NervousSystem 访问的外设。Tool 不能暴露隐藏的消息、设备或身体线路，其文本声明永远

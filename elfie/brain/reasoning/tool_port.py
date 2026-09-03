@@ -1,15 +1,16 @@
-"""Typed semantic tool boundary owned by Brain.
+"""Typed semantic Tool boundary owned by Brain.
 
-Brain decides which semantic capabilities a Skill may request.  The injected
-``ToolPort`` performs the bounded, technically scoped execution; it never
-accepts a filesystem root, SDK object, or provider-specific payload.
+Tool definitions describe atomic capabilities and their JSON Schemas.  The
+injected ``ToolPort`` performs bounded execution; it never accepts a
+filesystem root, SDK object, or provider-specific payload.  Agent Skills are
+procedural documents and are intentionally not represented here.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional, Protocol, Tuple
+from typing import Annotated, Literal, Mapping, Optional, Protocol, Tuple
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, JsonValue, StringConstraints, model_validator
 
 from elfie.message_types import ElfieId, ErrorInfo, FrozenContractModel
 
@@ -17,8 +18,32 @@ _NonBlankText = Annotated[
     str,
     StringConstraints(strict=True, min_length=1, max_length=8192, pattern=r".*\S.*"),
 ]
-ToolKey = Literal["web_search", "local_file"]
+ToolKey = Annotated[
+    str,
+    StringConstraints(
+        strict=True, min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$"
+    ),
+]
 ToolOperation = Literal["search", "read", "list"]
+
+
+class ToolDefinition(FrozenContractModel):
+    """Provider-neutral description of one executable Tool."""
+
+    name: ToolKey
+    title: Optional[_NonBlankText] = None
+    description: _NonBlankText
+    input_schema: Mapping[str, JsonValue]
+    output_schema: Optional[Mapping[str, JsonValue]] = None
+    side_effect: Literal["none", "external"] = "none"
+
+
+class ToolCall(FrozenContractModel):
+    """One native model Tool call after provider normalization."""
+
+    call_id: _NonBlankText
+    tool_key: ToolKey
+    arguments: Mapping[str, JsonValue] = Field(default_factory=dict)
 
 
 class ToolRequest(FrozenContractModel):
@@ -74,6 +99,10 @@ class ToolPort(Protocol):
         """Return globally enabled keys for this scoped Elfie view."""
         ...
 
+    def available_tool_definitions(self) -> Tuple[ToolDefinition, ...]:
+        """Return model-facing definitions for the same scoped Tool view."""
+        ...
+
     def execute(self, request: ToolRequest) -> ToolResult:
         """Execute one bounded request or return a typed denial/failure."""
         ...
@@ -81,6 +110,8 @@ class ToolPort(Protocol):
 
 __all__ = (
     "ToolKey",
+    "ToolDefinition",
+    "ToolCall",
     "ToolOperation",
     "ToolPort",
     "ToolRequest",

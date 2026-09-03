@@ -31,7 +31,8 @@ from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
 from elfie.brain.reasoning.run import ReasoningRunResult
-from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.skill_port import SkillCatalog
+from elfie.brain.reasoning.tool_policy import ToolPolicy
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.runtime import BrainRuntime
@@ -69,7 +70,8 @@ class _ElfieFacadeState:
     _body_registry: BodyRegistry
     _body_binding: BodyBinding
     _communication: CommunicationHub
-    _skills: SkillManager
+    _tool_policy: ToolPolicy
+    _skill_catalog: SkillCatalog | None
     _brain_runtime: BrainRuntime | None
     _reasoning_constitution: ReasoningConstitution | None
     _embodied_input_mode: EmbodiedInputMode
@@ -220,7 +222,8 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             constitution=self._reasoning_constitution,
             nervous_system=self._nervous_system,
             communication=self._communication,
-            skills=self._skills,
+            tool_policy=self._tool_policy,
+            skill_catalog=self._skill_catalog,
             current_body=lambda: self.current_body,
             current_body_generation=lambda: self.current_body_generation,
             world_capabilities=world_capabilities,

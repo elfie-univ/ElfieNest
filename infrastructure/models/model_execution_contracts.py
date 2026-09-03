@@ -6,6 +6,9 @@ from typing import Annotated, Literal, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
 
+from elfie.brain.reasoning.skill_port import SkillLoadCall, SkillMetadata
+from elfie.brain.reasoning.tool_port import ToolCall, ToolDefinition
+
 _NonBlankText = Annotated[
     str,
     StringConstraints(strict=True, min_length=1, pattern=r".*\S.*"),
@@ -88,6 +91,8 @@ class StructuredModelExecutionRequest(_FrozenModelExecutionContract):
     selected_mode: StructuredGenerationMode
     reasoning_mode: Literal["fast", "long"] = "fast"
     allowed_tools: Tuple[_NonBlankText, ...]
+    tool_definitions: Tuple[ToolDefinition, ...] = ()
+    available_skills: Tuple[SkillMetadata, ...] = ()
     provider: Optional[_NonBlankText] = None
     model_key: Optional[_NonBlankText] = None
     food_key: Optional[_NonBlankText] = None
@@ -132,6 +137,8 @@ class StructuredModelExecutionResult(_FrozenModelExecutionContract):
     prompt_tokens: Optional[Annotated[int, Field(strict=True, ge=0)]] = None
     completion_tokens: Optional[Annotated[int, Field(strict=True, ge=0)]] = None
     latency_ms: Optional[Annotated[float, Field(strict=True, ge=0.0)]] = None
+    tool_calls: Tuple[ToolCall, ...] = ()
+    skill_calls: Tuple[SkillLoadCall, ...] = ()
 
 
 __all__ = (
@@ -142,4 +149,8 @@ __all__ = (
     "StructuredModelExecutionCapabilities",
     "StructuredModelExecutionRequest",
     "StructuredModelExecutionResult",
+    "SkillLoadCall",
+    "SkillMetadata",
+    "ToolCall",
+    "ToolDefinition",
 )

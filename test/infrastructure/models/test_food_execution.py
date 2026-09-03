@@ -3,8 +3,6 @@ import pytest
 from elfie.brain.reasoning.food_port import FoodAssignment, FoodPackage
 from infrastructure.models.food_execution import FoodExecutionError, FoodExecutor
 from infrastructure.tools import DisabledToolPort
-from infrastructure.tools.execution.loop import PortToolLoop
-from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 from test.support.model_execution import model_execution_config
 
 
@@ -27,10 +25,6 @@ def test_executor_uses_role_then_one_fallback(monkeypatch, tmp_path):
         config=config,
         tool_port=DisabledToolPort(),
         model_caller=caller,
-        tool_loop_factory=lambda port, allowed, scope: PortToolLoop(
-            port, allowed_tool_keys=allowed, scope_id=scope
-        ),
-        prompt_injector=inject_skills_system_prompt,
     )
     result = executor.execute(
         FoodPackage(
@@ -66,10 +60,6 @@ def test_executor_can_fail_fast_without_package_fallback(monkeypatch, tmp_path):
         config=config,
         tool_port=DisabledToolPort(),
         model_caller=caller,
-        tool_loop_factory=lambda port, allowed, scope: PortToolLoop(
-            port, allowed_tool_keys=allowed, scope_id=scope
-        ),
-        prompt_injector=inject_skills_system_prompt,
     )
 
     with pytest.raises(FoodExecutionError):

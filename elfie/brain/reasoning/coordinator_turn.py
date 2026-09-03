@@ -44,6 +44,7 @@ from elfie.brain.reasoning.run import (
     ReasoningBudget,
     ReasoningDepth,
 )
+from elfie.brain.reasoning.skill_port import EmptySkillCatalog, SkillCatalog
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
     ExecutionPayload,
@@ -94,6 +95,7 @@ class ReasoningRunController:
         context_source: BrainContextSource,
         hard_timeout_seconds: float,
         allowed_tools: Tuple[str, ...] = (),
+        skill_catalog: SkillCatalog | None = None,
         constitution: ReasoningConstitution,
     ) -> None:
         self._elfie_id = elfie_id
@@ -101,6 +103,7 @@ class ReasoningRunController:
         self._context_source = context_source
         self._hard_timeout = hard_timeout_seconds
         self._allowed_tools = allowed_tools
+        self._skill_catalog = skill_catalog or EmptySkillCatalog()
         self._header = ModelHeaderAssembler(constitution)
         self._context_builder = ContextAssembler()
         self._compiler = ModelContextCompiler()
@@ -221,6 +224,11 @@ class ReasoningRunController:
             reasoning_depth,
             homeostasis,
         )
+        available_skills = (
+            self._skill_catalog.available_skills()
+            if reasoning_depth is ReasoningDepth.DELIBERATE
+            else ()
+        )
         structured_owner_reply = (
             reasoning_mode == "fast"
             and self._contains_owner_message(frame)
@@ -272,6 +280,7 @@ class ReasoningRunController:
                 appraisal_scopes=appraisal_scopes,
                 header=self._header,
                 allowed_tools=effective_tools,
+                available_skills=available_skills,
                 memory_recall_status=memory_turn.session.baseline_result.status,
                 memory_recall_reason=memory_turn.session.baseline_result.reason,
                 recall_memory_allowed=(
@@ -309,6 +318,7 @@ class ReasoningRunController:
                 reasoning_mode=reasoning_mode,
                 response_mode=response_mode,
                 allowed_tools=effective_tools,
+                available_skills=available_skills,
                 max_tokens=self._model_output_budget(
                     homeostasis,
                     reasoning_mode,
@@ -333,6 +343,7 @@ class ReasoningRunController:
             memory_baseline_reason=memory_turn.session.baseline_result.reason,
             appraisal_scopes=appraisal_scopes,
             context_request_builder=build_context_request,
+            skill_catalog=self._skill_catalog,
         )
 
     def observe_conversation(
@@ -476,7 +487,7 @@ class ReasoningRunController:
         recall: RecallBundle | None = None,
         conversation: ConversationContext | None = None,
     ) -> ReasoningDepth:
-        """Select depth from host evidence, never from message vocabulary.
+        """Select depth using host evidence, never based on message vocabulary.
 
         The depth gate is a budget admission decision.  It uses typed signals
         already present at the host boundary: internal work, high salience or
@@ -631,6 +642,7 @@ class ReasoningRunController:
         appraisal_scopes: tuple[TrustedAppraisalScope, ...] = (),
         header: ModelHeaderAssembler,
         allowed_tools: tuple[str, ...] = (),
+        available_skills=(),
         memory_recall_status: str = "skipped",
         memory_recall_reason: str | None = None,
         recall_memory_allowed: bool = False,
@@ -740,12 +752,27 @@ class ReasoningRunController:
         tool_protocol = ""
         if allowed_tools:
             tool_protocol = (
-                "Brain semantic tools are bounded and internal to cognition. "
-                "If evidence is needed, emit exactly one marker: "
-                "[SEARCH]query[/SEARCH], [READ_FILE]relative_path[/READ_FILE], or "
-                "[LIST_FILES]relative_path[/LIST_FILES]. After the observation, "
-                "return a DecisionPlan JSON object only. Never emit message or body "
-                "tool calls."
+                "Brain semantic Tools are bounded and internal to cognition. "
+                "When a supplied Tool is needed, request it through the native Tool "
+                "interface and wait for the host Observation. Never encode a Tool "
+                "request in prose, JSON response text, XML, or marker syntax. After "
+                "the Observation, return the DecisionPlan JSON object only. Never "
+                "use a Tool for communication or body control."
+            )
+        skill_protocol = ""
+        if available_skills:
+            skill_protocol = (
+                "Bundled Agent Skills are procedural documents, not executable Tools. "
+                "The advertised metadata is not the full procedure. If a procedure "
+                "is needed, request the native load_skill control operation with one "
+                "advertised name, wait for its Skill observation, and then follow the "
+                "loaded instructions. Never invent a Skill name or encode a Skill load "
+                "in prose. Available Skills:\n"
+                + json.dumps(
+                    [item.model_dump(mode="json") for item in available_skills],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
             )
         turn_protocol = "\n\n".join(
             item
@@ -757,6 +784,7 @@ class ReasoningRunController:
                 "In memory data, use only explicit relations and evidence; preserve direction "
                 "and conditions, and disclose unresolved conflicts instead of guessing.",
                 tool_protocol,
+                skill_protocol,
             )
             if item
         )
