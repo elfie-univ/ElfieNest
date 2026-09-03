@@ -2,7 +2,7 @@
 
 > State: open quality and correction-coverage debt<br>
 > Baseline: 2026-08-30, branch candidate `1cc4962d`<br>
-> Target: [Elfie Emotion system design](../designs/elfie-emotion-system)
+> Target: [Elfie Emotion system design](../designs/elfie/brain/elfie-emotion-system)
 
 This temporary register records known gaps against the accepted Emotion design.
 It does not weaken the six-channel contract or treat low false-positive rates as

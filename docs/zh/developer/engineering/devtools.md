@@ -49,7 +49,7 @@ Elfie Lab 首次启动直接读取隔离 Runtime `nest.db` 中的粮食目录。
 Brain Eval 的显式产物动作会为捕获创建一次性 Runtime 状态，且只把可再生成产物写入
 `build/brain-eval/<run-id>/`。它会拒绝生产 `ELFIE_HOME` 和该构建树之外的输出路径。
 设计原理和批量操作分别见
-[Elfie Brain 评价与进化系统](../designs/elfie-brain-evaluation-system)与
+[Elfie Brain 评价与进化系统](../designs/elfie/brain/elfie-brain-evaluation-system)与
 [Brain 评价工作流](./brain-evaluation)。
 
 本地验收可同时隔离两类数据：

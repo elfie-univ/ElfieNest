@@ -1,7 +1,7 @@
 # Documentation structure contract
 
-**Contract version:** 1.1<br>
-**Adopted:** 2026-08-12<br>
+**Contract version:** 1.2<br>
+**Adopted:** 2026-09-03<br>
 **Enforced scope:** Public documentation information architecture
 
 This contract defines the stable public documentation sections, the meaning of
@@ -44,8 +44,10 @@ docs/
 `docs/.vitepress/`, `docs/public/` and `docs/scripts/` are site/repository
 implementation directories, not reader-facing content sections.
 `docs/.internal/` is private, excluded from the site and must not be linked from
-public pages. An optional section directory is created only when it contains an
-approved page; empty placeholder directories are not retained.
+public pages. It contains only the flat `elfaria/`, `product/` and `drafts/`
+directories; their detailed rules live in `docs/.internal/AGENTS.md`.
+An optional section directory is created only when it contains an approved page;
+empty placeholder directories are not retained.
 
 The former `getting-started/` section is forbidden. End-user installation,
 configuration, operation and troubleshooting belong to `user-guide/`.
@@ -67,7 +69,41 @@ Only `developer/index.md` may be a Markdown page directly in the Developer root.
 
 User-visible capabilities and operation instructions belong to `user-guide/`,
 not to a duplicate Developer capability catalog. Drafts, meeting notes, Agent
-plans, execution logs and unreviewed future designs remain private.
+plans and execution logs remain private. Private code designs are not a second
+authority tree: accepted technical designs belong in public `designs/`, normative
+rules in `contracts/`, current facts in `architecture/`, and evidence in
+Conformance, CI or task artifacts.
+
+## Public design hierarchy
+
+The whole-system design is a separate parent design. This change does not relocate
+it or assign it a new public path. `developer/designs/elfie/elfie-top-level-module-design.md`
+is only the top-level design of the Elfie module; it owns Elfie's internal module
+hierarchy and is not the whole-system design. The logical first-level owners are
+`app`, `infrastructure`, `elfie` and `nest`.
+Physical directories are lazy: create one only when an owner has multiple design
+documents, and create a subdirectory only when a submodule has multiple documents.
+Do not create a `system/` wrapper, empty module directories or per-directory
+`index.md` files. `designs/index.md` is a catalog only.
+
+The current grouped design documents are under `designs/elfie/brain/`; current
+App documents are under `designs/app/`. The current Nest/Godot design is a
+singleton at `designs/nest-godot-virtual-world-functional-architecture.md`, so
+no `nest/` directory is created yet. `Selfhood` is Brain system 3. Skill and
+Tool are Reasoning Core capabilities, not an additional Brain system. The
+normative system rule remains `developer/contracts/system.md`; the verified
+present-state map remains `developer/architecture/index.md`.
+
+Every design document carries explicit parent/child, contract, current-architecture,
+conformance and domain-source references. A local change reads the whole-system
+design, the owning module, the nearest submodule and then the target design before
+following its contracts and current conformance. The detailed enforcement rule is
+`docs/developer/designs/AGENTS.md`.
+
+Product and Elfaria are domain sources, not implementation designs. Genesis owns
+the compilation rules that turn those sources into Elfie owner state. Public pages
+must not link directly into `.internal`; source traceability uses stable identifiers
+and sections.
 
 ## Design, contract and conformance history
 
@@ -108,8 +144,9 @@ document classes and cannot invent a second ownership model.
 ## Structural change procedure
 
 Ordinary page edits and new pages inside an existing category do not change this
-contract. A change to the top-level sections, Developer categories, category
-meaning, language-mirror rule or document lifecycle requires all of:
+contract. A change to the top-level sections, Developer categories, design
+hierarchy, private-source boundary, category meaning, language-mirror rule or
+document lifecycle requires all of:
 
 1. a new accepted bilingual ADR;
 2. synchronized version updates to this English and Chinese contract;
@@ -123,8 +160,8 @@ This is a governance change and must not be mixed with production-source changes
 ## Enforcement
 
 The documentation-structure architecture test checks the public sections,
-Developer root and category layout, English/Chinese Markdown mirrors, forbidden
-legacy paths and required navigation paths. VitePress build verification checks
-that the resulting public site can be rendered. Human review remains responsible
-for semantic translation quality and whether content belongs in the selected
-class.
+Developer root and category layout, English/Chinese Markdown mirrors, the lazy
+design hierarchy, forbidden legacy paths and required navigation paths. VitePress
+build verification checks that the resulting public site can be rendered. Human
+review remains responsible for semantic translation quality and whether content
+belongs in the selected class.

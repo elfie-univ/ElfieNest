@@ -1,7 +1,7 @@
 # 文档结构契约
 
-**契约版本：** 1.1<br>
-**采纳日期：** 2026-08-12<br>
+**契约版本：** 1.2<br>
+**采纳日期：** 2026-09-03<br>
 **强制范围：** 公开文档信息架构
 
 本契约定义稳定的公开文档分区、各类 Developer 文档的含义，以及修改这些结构时必须
@@ -39,8 +39,9 @@ docs/
 ```
 
 `docs/.vitepress/`、`docs/public/` 和 `docs/scripts/` 是站点或仓库实现目录，不是面向读者的
-内容分区。`docs/.internal/` 是私有目录，不参与站点构建，也不得被公开页面链接。可选内容
-分区只在已经存在获批页面时创建，不保留空占位目录。
+内容分区。`docs/.internal/` 是私有目录，不参与站点构建，也不得被公开页面链接；其中只
+保留扁平的 `elfaria/`、`product/` 和 `drafts/` 三个目录，具体规则见
+`docs/.internal/AGENTS.md`。可选内容分区只在已经存在获批页面时创建，不保留空占位目录。
 
 旧 `getting-started/` 分区禁止恢复。面向最终用户的安装、配置、运行和故障排查统一
 属于 `user-guide/`。
@@ -61,7 +62,31 @@ Developer 分类直接位于 `developer/` 下。禁止增加 `current/`、`evolu
 | `engineering/` | 开发、质量、调试、工具、安全和发布的解释与工作指引 | 与当前工具链保持一致 |
 
 用户可见能力和操作方法属于 `user-guide/`，不在 Developer 中复制一套能力清单。草稿、
-会议记录、Agent 计划、执行日志和未经审阅的未来设计继续留在私有区域。
+会议记录、Agent 计划和执行日志继续留在私有区域。私有代码设计不形成第二套权威目录：
+已采纳的技术设计进入公开 `designs/`，规范进入 `contracts/`，当前事实进入
+`architecture/`，证据进入 Conformance、CI 或任务产物。
+
+## 公开 Design 的层级
+
+全局系统设计是独立的上级设计。本次整理不移动它，也不为它指定新的公开路径。
+`developer/designs/elfie/elfie-top-level-module-design.md` 只是 Elfie 模块的顶级设计，
+负责 Elfie 内部的模块层级，不是全局系统设计。逻辑一级所有者为 `app`、`infrastructure`、
+`elfie` 和 `nest`。物理目录按需创建：只有某个所有者拥有多篇设计时才建立目录，
+只有某个子模块拥有多篇文档时才继续建立子目录。不要增加 `system/` 包装层、空模块目录
+或每个目录的 `index.md`。`designs/index.md` 只是目录页。
+
+当前成组的设计文档位于 `designs/elfie/brain/`，当前 App 文档位于 `designs/app/`。
+当前 Nest/Godot 设计是位于 `designs/nest-godot-virtual-world-functional-architecture.md`
+的单篇文档，因此暂不创建 `nest/` 目录。`Selfhood` 是 Brain 第 3 个系统；Skill 和 Tool
+是 Reasoning Core 的能力，不是额外的 Brain 系统。规范性系统规则仍在 `developer/contracts/system.md`，
+已验证的当前实现地图仍在 `developer/architecture/index.md`。
+
+每篇设计文档都要明确声明上级/下级、契约、当前架构、一致性和领域资料来源。修改局部
+设计时，先读全局设计、所属模块、最近的子模块，再读目标设计，最后跟进其契约和当前台账。
+具体执行规则见 `docs/developer/designs/AGENTS.md`。
+
+Product 与 Elfaria 是领域资料源，不是实现设计。Genesis 负责把这些资料编译为 Elfie 各
+owner 的状态。公开页面不得直接链接 `.internal`，需要使用稳定资料标识和章节追溯来源。
 
 ## Design、Contract 与 Conformance 的历史
 
@@ -93,8 +118,8 @@ VitePress 的两种语言使用同一读者模型：
 
 ## 结构变更流程
 
-现有分类内的普通页面修改和新增页面不改变本契约。修改顶级分区、Developer 分类、分类
-含义、语言镜像规则或文档生命周期时，必须同时满足：
+现有分类内的普通页面修改和新增页面不改变本契约。修改顶级分区、Developer 分类、Design
+层级、私有资料边界、分类含义、语言镜像规则或文档生命周期时，必须同时满足：
 
 1. 新建并接受一份双语 ADR；
 2. 同步升级本契约的中英文版本；
@@ -107,6 +132,6 @@ VitePress 的两种语言使用同一读者模型：
 
 ## 强制执行
 
-文档结构架构测试检查公开分区、Developer 根目录和分类布局、中英文 Markdown 镜像、
-禁止恢复的旧路径以及必要导航路径。VitePress 构建验证最终公开站点能够正常渲染。
+文档结构架构测试检查公开分区、Developer 根目录和分类布局、中英文 Markdown 镜像、Design
+懒层级、禁止恢复的旧路径以及必要导航路径。VitePress 构建验证最终公开站点能够正常渲染。
 人工审查继续负责翻译语义质量，以及一篇内容是否真正属于所选分类。

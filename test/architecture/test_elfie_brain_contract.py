@@ -120,9 +120,9 @@ def test_brain_contract_freezes_the_emotion_owner_and_review_boundary() -> None:
     ):
         assert token in chinese
 
-    assert "../designs/elfie-emotion-system" in english
+    assert "../designs/elfie/brain/elfie-emotion-system" in english
     assert "../conformance/elfie-emotion" in english
-    assert "../designs/elfie-emotion-system" in chinese
+    assert "../designs/elfie/brain/elfie-emotion-system" in chinese
     assert "../conformance/elfie-emotion" in chinese
     assert "EMO-001" in _read("docs/developer/conformance/elfie-emotion.md")
     assert "EMO-002" in _read("docs/zh/developer/conformance/elfie-emotion.md")
@@ -186,9 +186,9 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
     assert "| SHD-002 | P0 | closed (v0.2 structural) |" in _read(
         "docs/developer/conformance/elfie-selfhood.md"
     )
-    assert "../designs/elfie-selfhood-and-fixed-model-header" in english_raw
+    assert "../designs/elfie/brain/elfie-selfhood-and-fixed-model-header" in english_raw
     assert "../conformance/elfie-selfhood" in english_raw
-    assert "../designs/elfie-selfhood-and-fixed-model-header" in chinese_raw
+    assert "../designs/elfie/brain/elfie-selfhood-and-fixed-model-header" in chinese_raw
     assert "../conformance/elfie-selfhood" in chinese_raw
     for gap_id in range(1, 8):
         marker = f"SHD-{gap_id:03d}"
@@ -227,21 +227,21 @@ def test_brain_contract_freezes_reasoning_context_workspace_ownership() -> None:
 
     current_boundary_docs = (
         "docs/developer/contracts/brain.md",
-        "docs/developer/designs/elfie-brain-ten-system-architecture.md",
-        "docs/developer/designs/elfie-memory-architecture.md",
+        "docs/developer/designs/elfie/brain/elfie-brain-ten-system-architecture.md",
+        "docs/developer/designs/elfie/brain/elfie-memory-architecture.md",
     )
     assert all(
         "working memory" not in _read(path).lower() for path in current_boundary_docs
     )
     chinese_boundary_docs = (
         "docs/zh/developer/contracts/brain.md",
-        "docs/zh/developer/designs/elfie-brain-ten-system-architecture.md",
-        "docs/zh/developer/designs/elfie-memory-architecture.md",
+        "docs/zh/developer/designs/elfie/brain/elfie-brain-ten-system-architecture.md",
+        "docs/zh/developer/designs/elfie/brain/elfie-memory-architecture.md",
     )
     assert all("工作记忆" not in _read(path) for path in chinese_boundary_docs)
 
-    assert "../designs/elfie-reasoning-core" in english_raw
-    assert "../designs/elfie-reasoning-core" in chinese_raw
+    assert "../designs/elfie/brain/elfie-reasoning-core" in english_raw
+    assert "../designs/elfie/brain/elfie-reasoning-core" in chinese_raw
 
 
 def test_closed_brain_conformance_registers_do_not_return() -> None:

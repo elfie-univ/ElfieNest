@@ -20,7 +20,7 @@ development entrypoints.
 ## Decision
 
 - Adopt the normative [Service lifecycle contract](../contracts/service-lifecycle)
-  and its reviewed [state-machine design](../designs/service-lifecycle-state-machine).
+  and its reviewed [state-machine design](../designs/app/service-lifecycle-state-machine).
 - `app/orchestration/lifecycle` is the sole writer of an atomic,
   generation-scoped snapshot. Backend has exactly `OFFLINE`, `CORE_READY` and
   `WORLD_READY` stable tiers; transition phases and failures are separate.

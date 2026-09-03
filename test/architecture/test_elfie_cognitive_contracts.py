@@ -334,7 +334,7 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
 
 def test_current_genesis_design_uses_memory_owned_retention_and_severs_inputs() -> None:
     design = (
-        PROJECT_ROOT / "docs/.internal/genesis-core-kernel-design-v0.2.md"
+        PROJECT_ROOT / "docs/.internal/drafts/genesis-core-kernel-design-v0.2.md"
     ).read_text(encoding="utf-8")
 
     assert "`retention_profile=genesis`" in design

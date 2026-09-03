@@ -127,7 +127,7 @@ authority semantics.
 These rows are closed independently. Local implementation or unit tests may
 move a row to `implemented; not tested (external)`, but only the named native
 evidence closes it. The target coverage and closure order are defined by the
-[native release validation design](../designs/native-release-validation.md).
+[native release validation design](../designs/app/native-release-validation.md).
 
 Before any NAT row becomes `closed`, its row or attached evidence must record
 `target`, `inventory`, `references`, `verification` and `residuals`, including

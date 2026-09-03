@@ -124,13 +124,45 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "Designs overview", link: "/developer/designs/" },
-                    { text: "Elfie top-level module design", link: "/developer/designs/elfie-top-level-module-design" },
-                    { text: "Elfie Brain ten-system architecture", link: "/developer/designs/elfie-brain-ten-system-architecture" },
-                    { text: "Elfie Selfhood and fixed model header", link: "/developer/designs/elfie-selfhood-and-fixed-model-header" },
-                    { text: "Elfie Emotion system", link: "/developer/designs/elfie-emotion-system" },
-                    { text: "Elfie Brain evaluation system", link: "/developer/designs/elfie-brain-evaluation-system" },
-                    { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" },
-                    { text: "Native release validation", link: "/developer/designs/native-release-validation" }
+                    {
+                      text: "App",
+                      collapsed: true,
+                      items: [
+                        { text: "Service lifecycle state machine", link: "/developer/designs/app/service-lifecycle-state-machine" },
+                        { text: "Native release validation", link: "/developer/designs/app/native-release-validation" }
+                      ]
+                    },
+                    {
+                      text: "Infrastructure",
+                      collapsed: true,
+                      items: [
+                        { text: "Provider and endpoint-model availability", link: "/developer/designs/provider-model-availability" }
+                      ]
+                    },
+                    {
+                      text: "Elfie",
+                      collapsed: true,
+                      items: [
+                        {
+                          text: "Brain",
+                          collapsed: true,
+                          items: [
+                            { text: "Ten-system architecture", link: "/developer/designs/elfie/brain/elfie-brain-ten-system-architecture" },
+                            { text: "Selfhood and fixed model header", link: "/developer/designs/elfie/brain/elfie-selfhood-and-fixed-model-header" },
+                            { text: "Emotion system", link: "/developer/designs/elfie/brain/elfie-emotion-system" },
+                            { text: "Memory architecture", link: "/developer/designs/elfie/brain/elfie-memory-architecture" },
+                            { text: "Reasoning Core", link: "/developer/designs/elfie/brain/elfie-reasoning-core" },
+                            { text: "Brain evaluation system", link: "/developer/designs/elfie/brain/elfie-brain-evaluation-system" }
+                          ]
+                        },
+                        { text: "Elfie top-level module design", link: "/developer/designs/elfie/elfie-top-level-module-design" },
+                        { text: "Embodiment — virtual appearance", link: "/developer/designs/elfie/virtual-appearance-generation" }
+                      ]
+                    },
+                    {
+                      text: "Nest and Godot virtual living world",
+                      link: "/developer/designs/nest-godot-virtual-world-functional-architecture"
+                    }
                   ]
                 },
                 {
@@ -271,13 +303,45 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { text: "设计文档总览", link: "/zh/developer/designs/" },
-                    { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie-top-level-module-design" },
-                    { text: "Elfie 大脑十系统架构", link: "/zh/developer/designs/elfie-brain-ten-system-architecture" },
-                    { text: "Elfie Selfhood 与固定模型头部", link: "/zh/developer/designs/elfie-selfhood-and-fixed-model-header" },
-                    { text: "Elfie 情绪系统", link: "/zh/developer/designs/elfie-emotion-system" },
-                    { text: "Elfie Brain 评价与进化系统", link: "/zh/developer/designs/elfie-brain-evaluation-system" },
-                    { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" },
-                    { text: "原生发布验证", link: "/zh/developer/designs/native-release-validation" }
+                    {
+                      text: "App",
+                      collapsed: true,
+                      items: [
+                        { text: "服务生命周期状态机", link: "/zh/developer/designs/app/service-lifecycle-state-machine" },
+                        { text: "原生发布验证", link: "/zh/developer/designs/app/native-release-validation" }
+                      ]
+                    },
+                    {
+                      text: "Infrastructure",
+                      collapsed: true,
+                      items: [
+                        { text: "Provider 与 Endpoint 模型可用性", link: "/zh/developer/designs/provider-model-availability" }
+                      ]
+                    },
+                    {
+                      text: "Elfie",
+                      collapsed: true,
+                      items: [
+                        {
+                          text: "Brain",
+                          collapsed: true,
+                          items: [
+                            { text: "十系统架构", link: "/zh/developer/designs/elfie/brain/elfie-brain-ten-system-architecture" },
+                            { text: "Selfhood 与固定模型头部", link: "/zh/developer/designs/elfie/brain/elfie-selfhood-and-fixed-model-header" },
+                            { text: "情绪系统", link: "/zh/developer/designs/elfie/brain/elfie-emotion-system" },
+                            { text: "Memory 架构", link: "/zh/developer/designs/elfie/brain/elfie-memory-architecture" },
+                            { text: "Reasoning Core", link: "/zh/developer/designs/elfie/brain/elfie-reasoning-core" },
+                            { text: "Brain 评价与进化系统", link: "/zh/developer/designs/elfie/brain/elfie-brain-evaluation-system" }
+                          ]
+                        },
+                        { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie/elfie-top-level-module-design" },
+                        { text: "具身 — 虚拟外貌生成", link: "/zh/developer/designs/elfie/virtual-appearance-generation" }
+                      ]
+                    },
+                    {
+                      text: "Nest 与 Godot 虚拟生活世界",
+                      link: "/zh/developer/designs/nest-godot-virtual-world-functional-architecture"
+                    }
                   ]
                 },
                 {

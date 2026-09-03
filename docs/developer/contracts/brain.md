@@ -57,7 +57,7 @@ owners. They are not additional peer mental systems.
 
 ## Emotion state and appraisal
 
-The detailed [Elfie Emotion system design](../designs/elfie-emotion-system) is
+The detailed [Elfie Emotion system design](../designs/elfie/brain/elfie-emotion-system) is
 the accepted interpretation of this section. Its current quality gaps remain in
 the [Emotion conformance register](../conformance/elfie-emotion).
 
@@ -105,7 +105,7 @@ the [Emotion conformance register](../conformance/elfie-emotion).
 ## Selfhood and the fixed online model header
 
 The detailed
-[Selfhood and fixed model-header design](../designs/elfie-selfhood-and-fixed-model-header)
+[Selfhood and fixed model-header design](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header)
 is the accepted interpretation of this section. Current implementation gaps
 remain in the
 [Selfhood conformance register](../conformance/elfie-selfhood).
@@ -293,7 +293,7 @@ reject or backpressure result rather than silent loss.
 ### Context and reasoning
 
 The detailed
-[Reasoning Core single-Turn Agent design](../designs/elfie-reasoning-core) is
+[Reasoning Core single-Turn Agent design](../designs/elfie/brain/elfie-reasoning-core) is
 the accepted interpretation of this section. Its completed P0 owner-chat
 boundary is protected by focused architecture, context, memory, runtime,
 receipt and restart tests.

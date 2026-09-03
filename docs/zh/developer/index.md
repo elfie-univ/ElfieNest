@@ -15,18 +15,20 @@ Developer 文档按“先理解、再修改、最后交付”的顺序组织。�
 ## 设计与治理
 
 - [设计文档](./designs/)：已经确认的跨版本目标、系统边界和未来实现方向。
-- [Elfie 顶级模块设计](./designs/elfie-top-level-module-design)：一只完整 Elfie 的目标
+- [Elfie 顶级模块设计](./designs/elfie/elfie-top-level-module-design)：一只完整 Elfie 的目标
   一级所有权。
-- [Elfie 大脑十系统架构](./designs/elfie-brain-ten-system-architecture)：Brain 的概念系统、
+- [Nest 与 Godot 虚拟生活世界](./designs/nest-godot-virtual-world-functional-architecture)：
+  Nest/Godot 的最终功能边界、语义—物理闭环和事件路由。
+- [Elfie 大脑十系统架构](./designs/elfie/brain/elfie-brain-ten-system-architecture)：Brain 的概念系统、
   运行关系和渐进实现顺序。
-- [Elfie Reasoning Core](./designs/elfie-reasoning-core)：Reasoning 自有 Context Workspace
+- [Elfie Reasoning Core](./designs/elfie/brain/elfie-reasoning-core)：Reasoning 自有 Context Workspace
   与有界单 Turn Agent 循环。
-- [Elfie Selfhood 与固定模型头部](./designs/elfie-selfhood-and-fixed-model-header)：
+- [Elfie Selfhood 与固定模型头部](./designs/elfie/brain/elfie-selfhood-and-fixed-model-header)：
   Selfhood 两层 authority 与在线模型严格四段固定前缀。
-- [Elfie Brain 评价与进化系统](./designs/elfie-brain-evaluation-system)：以证据为先的
+- [Elfie Brain 评价与进化系统](./designs/elfie/brain/elfie-brain-evaluation-system)：以证据为先的
   Q6/P0 评价、受约束晋级和长期进化闭环。
-- [Elfie Memory 架构](./designs/elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
-- [服务生命周期状态机设计](./designs/service-lifecycle-state-machine)：服务稳定层级、入口、
+- [Elfie Memory 架构](./designs/elfie/brain/elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
+- [服务生命周期状态机设计](./designs/app/service-lifecycle-state-machine)：服务稳定层级、入口、
   进程所有权和收敛。
 - [Provider 与 Endpoint 模型可用性](./designs/provider-model-availability)：精选模型加载、
   在用核心范围和节省资源的健康证据。

@@ -61,7 +61,7 @@ is rejected.
 Brain Eval creates disposable Runtime state for capture and writes only regenerable
 artifacts under `build/brain-eval/<run-id>/`. It rejects production `ELFIE_HOME` and output
 paths outside that build tree. Its design and exact batch workflow are documented in
-[Elfie Brain evaluation and evolution system](../designs/elfie-brain-evaluation-system)
+[Elfie Brain evaluation and evolution system](../designs/elfie/brain/elfie-brain-evaluation-system)
 and [Brain evaluation workflow](./brain-evaluation).
 
 Local acceptance can isolate both kinds of data at once:

@@ -98,8 +98,8 @@ def test_service_lifecycle_governance_artifacts_remain_linked() -> None:
     required = {
         "docs/developer/decisions/0021-authoritative-service-lifecycle.md",
         "docs/zh/developer/decisions/0021-authoritative-service-lifecycle.md",
-        "docs/developer/designs/service-lifecycle-state-machine.md",
-        "docs/zh/developer/designs/service-lifecycle-state-machine.md",
+        "docs/developer/designs/app/service-lifecycle-state-machine.md",
+        "docs/zh/developer/designs/app/service-lifecycle-state-machine.md",
         "docs/developer/conformance/service-lifecycle.md",
         "docs/zh/developer/conformance/service-lifecycle.md",
     }

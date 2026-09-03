@@ -21,19 +21,21 @@ source of truth.
 
 - [Designs](./designs/): accepted cross-version intent, system boundaries and
   future implementation direction.
-- [Elfie top-level module design](./designs/elfie-top-level-module-design): the
+- [Elfie top-level module design](./designs/elfie/elfie-top-level-module-design): the
   target first-class ownership of one complete Elfie.
-- [Elfie Brain ten-system architecture](./designs/elfie-brain-ten-system-architecture):
+- [Nest and Godot virtual living world](./designs/nest-godot-virtual-world-functional-architecture):
+  the final Nest/Godot functional boundaries, semantic-physical loops and event routing.
+- [Elfie Brain ten-system architecture](./designs/elfie/brain/elfie-brain-ten-system-architecture):
   Brain's conceptual systems, runtime relationships and incremental implementation order.
-- [Elfie Reasoning Core](./designs/elfie-reasoning-core): the Reasoning-owned
+- [Elfie Reasoning Core](./designs/elfie/brain/elfie-reasoning-core): the Reasoning-owned
   Context Workspace and bounded single-Turn Agent loop.
-- [Elfie Selfhood and fixed model header](./designs/elfie-selfhood-and-fixed-model-header):
+- [Elfie Selfhood and fixed model header](./designs/elfie/brain/elfie-selfhood-and-fixed-model-header):
   the two-layer Selfhood authority and the exact four-block online model prefix.
-- [Elfie Brain evaluation and evolution system](./designs/elfie-brain-evaluation-system):
+- [Elfie Brain evaluation and evolution system](./designs/elfie/brain/elfie-brain-evaluation-system):
   evidence-first Q6/P0 evaluation, constrained promotion and long-term evolution.
-- [Elfie Memory architecture](./designs/elfie-memory-architecture): episodic memory, the personal
+- [Elfie Memory architecture](./designs/elfie/brain/elfie-memory-architecture): episodic memory, the personal
   knowledge graph and hybrid graph/text retrieval.
-- [Service lifecycle state-machine design](./designs/service-lifecycle-state-machine):
+- [Service lifecycle state-machine design](./designs/app/service-lifecycle-state-machine):
   stable service tiers, entrypoints, process ownership and convergence.
 - [Provider and endpoint-model availability](./designs/provider-model-availability):
   curated loading, serving-core scope and cost-aware health evidence.

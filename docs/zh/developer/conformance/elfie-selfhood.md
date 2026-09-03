@@ -2,7 +2,7 @@
 
 > 状态：v0.2 结构所有权已落地；支持模型行为与既有 workspace 迁移仍开放<br>
 > 基线：2026-08-30，`91c26643`<br>
-> 目标：[Elfie Selfhood 与固定模型头部设计](../designs/elfie-selfhood-and-fixed-model-header.md)<br>
+> 目标：[Elfie Selfhood 与固定模型头部设计](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header.md)<br>
 > 契约：[Elfie 2.3](../contracts/elfie.md) 与 [Brain 1.5](../contracts/brain.md)
 
 这份临时台账记录第一阶段 Selfhood/固定头部实现切片之后仍然存在的源码与验收差距。

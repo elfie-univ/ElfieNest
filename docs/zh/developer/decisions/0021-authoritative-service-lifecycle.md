@@ -16,7 +16,7 @@ PID 文件、端口或 UI 状态也可能冒充权威 Runtime 状态。
 
 ## 决策
 
-- 采用规范性的[服务生命周期契约](../contracts/service-lifecycle)及已审阅的[状态机设计](../designs/service-lifecycle-state-machine)。
+- 采用规范性的[服务生命周期契约](../contracts/service-lifecycle)及已审阅的[状态机设计](../designs/app/service-lifecycle-state-machine)。
 - `app/orchestration/lifecycle` 是原子、按 generation 管理快照的唯一写入者。Backend
   只有 `OFFLINE`、`CORE_READY`、`WORLD_READY` 三个稳定层级，过渡阶段和失败独立表达。
 - 模型健康是独立的持久证据投影。常用粮、保底粮和非活跃模型具有不同的聚合影响；启动

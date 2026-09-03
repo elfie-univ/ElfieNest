@@ -8,7 +8,7 @@
 > **规范性目标。** 本契约固定 Desktop、CLI、Doctor、安装器和状态页面共享的服务状态
 > authority 与不变量。原因和说明分别见
 > [ADR-0021](../decisions/0021-authoritative-service-lifecycle)与已审阅的
-> [状态机设计](../designs/service-lifecycle-state-machine)；当前差距只记录在
+> [状态机设计](../designs/app/service-lifecycle-state-machine)；当前差距只记录在
 > [一致性台账](../conformance/service-lifecycle)中。
 
 ## Authority、身份与快照

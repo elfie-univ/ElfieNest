@@ -9,7 +9,7 @@
 > invariants shared by Desktop, CLI, Doctor, installers and status surfaces.
 > Rationale and explanatory detail belong to
 > [ADR-0021](../decisions/0021-authoritative-service-lifecycle) and the reviewed
-> [state-machine design](../designs/service-lifecycle-state-machine). Current
+> [state-machine design](../designs/app/service-lifecycle-state-machine). Current
 > gaps belong only in [Conformance](../conformance/service-lifecycle).
 
 ## Authority, identity and snapshot
