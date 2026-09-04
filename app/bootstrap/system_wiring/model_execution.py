@@ -19,7 +19,6 @@ from infrastructure.models.model_execution_ports import (
     ModelExecutionFileAccessPort,
     ModelExecutionObserverPort,
     ModelExecutionPermissionPort,
-    ModelExecutionToolLoopPort,
 )
 from infrastructure.persistence.configuration.bundled_defaults import load_tool_defaults
 from infrastructure.persistence.configuration.secrets import resolve_secret
@@ -29,9 +28,7 @@ from infrastructure.persistence.model_execution_config import (
 )
 from infrastructure.persistence.report_storage import ReportStorageAdapter
 from infrastructure.tools.execution.config import effective_tool_keys, load_tool_configs
-from infrastructure.tools.execution.loop import PortToolLoop
 from infrastructure.tools.execution.permissions import PermissionManager
-from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
 from infrastructure.tools.local_file.local_files import LocalFileAccessPlugin
 from infrastructure.tools.port_adapter import ToolPortAdapter
 from infrastructure.tools.web_search.search import WebSearchPlugin
@@ -84,12 +81,6 @@ def build_model_execution_agent_ports(
         effective_tool_keys=allowed_tool_keys,
         file_access_factory=build_file_access,
         model_evidence_source=model_evidence_source,
-        tool_loop_factory=lambda tool_port, allowed, scope: PortToolLoop(
-            tool_port,
-            allowed_tool_keys=allowed,
-            scope_id=scope,
-        ),
-        prompt_injector=inject_skills_system_prompt,
         model_execution_config_loader=load_model_execution_config,
     )
 
@@ -99,10 +90,6 @@ class AgentValidationComposition:
     """Concrete tool composition supplied to model validation probes."""
 
     tool_port_factory: Callable[[ModelExecutionConfig, Path, str], ToolPort]
-    tool_loop_factory: Callable[
-        [ToolPort, tuple[str, ...], str], ModelExecutionToolLoopPort
-    ]
-    prompt_injector: Callable[[list[dict[str, str]], list[str]], list[dict[str, str]]]
 
 
 def build_agent_validation_composition(
@@ -127,23 +114,8 @@ def build_agent_validation_composition(
             allowed_tool_keys=(tool_key,),
         )
 
-    def tool_loop_factory(
-        tool_port: ToolPort, allowed: tuple[str, ...], scope: str
-    ) -> ModelExecutionToolLoopPort:
-        from infrastructure.tools.execution.loop import PortToolLoop
-
-        return PortToolLoop(
-            tool_port,
-            allowed_tool_keys=allowed,
-            scope_id=scope,
-        )
-
-    from infrastructure.tools.execution.skills_prompt import inject_skills_system_prompt
-
     return AgentValidationComposition(
         tool_port_factory=tool_port_factory,
-        tool_loop_factory=tool_loop_factory,
-        prompt_injector=inject_skills_system_prompt,
     )
 
 

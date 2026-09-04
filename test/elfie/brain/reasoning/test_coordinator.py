@@ -106,11 +106,13 @@ def _social(
     *,
     source_kind: str = "human",
     text: str | None = None,
+    salience: float = 0.5,
+    priority: Priority = Priority.NORMAL,
 ) -> PerceptionEvent:
     at = NOW + timedelta(milliseconds=milliseconds)
     actor = ActorRef(actor_id=ActorId("owner-1"), source_kind=source_kind)
     return PerceptionEvent(
-        meta=_meta(f"social-{index}", at),
+        meta=_meta(f"social-{index}", at, priority=priority),
         payload=SocialPayload(
             type="social",
             channel_id="chat",
@@ -118,7 +120,7 @@ def _social(
             sender=actor,
             content=text or f"message {index}",
         ),
-        salience=0.5,
+        salience=salience,
     )
 
 
@@ -969,7 +971,7 @@ def test_explicit_task_uses_structured_activity_route_without_tools(
         coordinator.join()
 
 
-def test_complex_owner_chat_uses_bounded_deliberation_without_tool_protocol() -> None:
+def test_owner_keywords_do_not_select_deliberate_budget() -> None:
     workspace = EventWorkspace(ELFIE_ID)
     runtime = BlockingPlanRuntime()
     sink = RecordingPlanSink()
@@ -996,15 +998,61 @@ def test_complex_owner_chat_uses_bounded_deliberation_without_tool_protocol() ->
     try:
         request = runtime.calls[0]
         assert request.response_mode is ModelResponseMode.DIRECT_REPLY
-        assert request.reasoning_mode == "long"
+        assert request.reasoning_mode == "fast"
         assert request.allowed_tools == ()
         assert "[SEARCH]" not in request.system_prompt
         assert "PERSISTENT_ACTIVITY_ROUTING" not in request.system_prompt
         assert coordinator._inflight is not None
         task = coordinator._inflight.task
-        assert task.reasoning_depth.value == "deliberate"
-        assert task.reasoning_budget.max_model_calls == 2
+        assert task.reasoning_depth.value == "direct"
+        assert task.reasoning_budget.max_model_calls == 1
         assert task.reasoning_budget.max_tool_calls == 0
+    finally:
+        runtime.release.set()
+        coordinator.stop()
+        coordinator.join()
+
+
+def test_high_salience_owner_message_selects_deliberate_budget_without_keywords() -> (
+    None
+):
+    workspace = EventWorkspace(ELFIE_ID)
+    runtime = BlockingPlanRuntime()
+    sink = RecordingPlanSink()
+    coordinator, _emotion, _energy = _coordinator(
+        workspace,
+        runtime,
+        sink,
+        allowed_tools=("web_search",),
+    )
+    coordinator.start()
+    workspace.publish(
+        _social(
+            1,
+            0,
+            source_kind="owner",
+            text="帮我看看这个",
+            salience=0.95,
+        )
+    )
+    coordinator.notify_perception()
+    coordinator.post_clock(BrainClockPulse(timestamp=NOW.timestamp() + 0.5))
+    assert runtime.started.wait(1), coordinator.outcomes()
+    coordinator.synchronize()
+
+    try:
+        request = runtime.calls[0]
+        assert request.response_mode is ModelResponseMode.DIRECT_REPLY
+        assert request.reasoning_mode == "long"
+        assert request.allowed_tools == ()
+        assert coordinator._inflight is not None
+        task = coordinator._inflight.task
+        assert task.reasoning_depth.value == "deliberate"
+        assert task.reasoning_budget.max_model_calls == 3
+        assert task.reasoning_budget.max_planned_model_calls == 8
+        assert task.reasoning_budget.max_steps is None
+        assert task.reasoning_budget.max_tool_calls == 0
+        assert task.reasoning_budget.deadline_seconds is None
     finally:
         runtime.release.set()
         coordinator.stop()
@@ -1094,10 +1142,14 @@ def test_internal_turn_uses_long_reasoning_only_when_energy_allows_it() -> None:
     try:
         request = runtime.calls[0]
         assert request.reasoning_mode == "long"
-        assert request.allowed_tools == ("web_search",)
+        assert request.allowed_tools == ()
         assert coordinator._inflight is not None
-        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 4
+        budget = coordinator._inflight.task.reasoning_budget
+        assert budget.max_model_calls == 3
+        assert budget.max_planned_model_calls == 8
+        assert budget.max_steps is None
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 2
+        assert budget.deadline_seconds is None
     finally:
         runtime.release.set()
         coordinator.stop()

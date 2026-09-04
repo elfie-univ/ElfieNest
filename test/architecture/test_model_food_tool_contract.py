@@ -32,8 +32,8 @@ def test_model_food_tool_contract_defers_target_ownership_to_system() -> None:
         not path.exists()
         for path in (*LEGACY_CONTRACT_PATHS, *RETIRED_CONFORMANCE_PATHS)
     )
-    assert "**Contract version:** 1.8" in english
-    assert "**契约版本：** 1.8" in chinese
+    assert "**Contract version:** 1.9" in english
+    assert "**契约版本：** 1.9" in chinese
     assert "does not define a target Runtime module" in english
     assert "不定义目标 Runtime 模块" in chinese
     assert "infrastructure/ai_runtime" not in english
@@ -103,7 +103,7 @@ def test_behavior_contract_keeps_fallback_and_tool_scope_narrow() -> None:
     assert "一个可选的 `fallback` 模型" in chinese
     assert "semantic resource identifiers, not an arbitrary filesystem root" in english
     assert "语义资源标识，不携带任意文件系统根目录" in chinese
-    assert "requires a separate approved contract" in english
+    assert "separate approved contract" in english
     assert "必须先有单独获批的" in chinese
 
 
@@ -206,12 +206,15 @@ def test_provider_catalogs_do_not_encode_runtime_model_selection_groups() -> Non
 
 
 def test_phase_one_tool_advertising_is_limited_to_safe_tools() -> None:
-    prompt_source = _source("infrastructure/tools/execution/skills_prompt.py")
+    registry_source = _source("infrastructure/tools/registry.py")
     for forbidden in ("[CODE]", "[SKILL_CREATE]", "[SKILL_MODIFY]"):
-        assert forbidden not in prompt_source
+        assert forbidden not in registry_source
         assert forbidden not in _source("infrastructure/models/inference/llm_api.py")
-    assert "[SEARCH]" in prompt_source
-    assert "[READ_FILE]" in prompt_source
+    assert 'name="web_search"' in registry_source
+    assert 'name="local_file"' in registry_source
+    assert not (
+        PROJECT_ROOT / "infrastructure/tools/execution/skills_prompt.py"
+    ).exists()
     config_source = _source("infrastructure/tools/execution/config.py")
     assert '"web_search"' in config_source
     assert '"local_file"' in config_source

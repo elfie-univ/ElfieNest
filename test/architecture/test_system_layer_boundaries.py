@@ -102,8 +102,8 @@ def test_system_contract_decision_and_agents_exist_in_both_languages() -> None:
         "godot_project/AGENTS.md",
     }
 
-    assert "**Contract version:** 1.10" in english_contract
-    assert "**契约版本：** 1.10" in chinese_contract
+    assert "**Contract version:** 1.11" in english_contract
+    assert "**契约版本：** 1.11" in chinese_contract
     assert "**Contract version:** 1.2" in english_nest_contract
     assert "**契约版本：** 1.2" in chinese_nest_contract
     assert "**Macro architecture baseline:** v1 (frozen)" in english_contract

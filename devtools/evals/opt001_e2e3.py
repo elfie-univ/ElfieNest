@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from elfie.brain.memory.memory_records import RecallRequest
-from elfie.genesis import GenesisCompileInput, GenesisCompiler
+from elfie.genesis import GenesisCompileInput, GenesisCompiler, GenesisError
+from elfie.genesis.selection import derive_seed
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -23,6 +24,7 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 ROOT = Path(__file__).resolve().parents[2]
 PUBLISHED_STAGES = ("youth", "young_adult", "mature", "elder")
 SEEDS = (11, 23, 47)
+_MAX_COMPILATION_ATTEMPTS = 8
 
 
 def _published_species() -> tuple[str, ...]:
@@ -46,28 +48,38 @@ def _compilation(
     if definition.genesis is None:
         raise RuntimeError(f"物种 {species_id} 缺少 Genesis 配置")
     age_years = definition.genesis.stage_ranges[stage][0]
-    return compiler.compile(
-        GenesisCompileInput(
-            elfie_id=elfie_id,
-            owner_reference="opt001-owner",
-            display_name=f"E2E3-{species_id}-{stage}-{seed}",
-            species_id=species_id,
-            gender="female",
-            life_stage=stage,
-            age_years_at_adoption=age_years,
-            appearance_seed=seed,
-            height="standard",
-            build="standard",
-            face="soft",
-            signature="warm",
-            personality_style="好奇探索",
-            original_name=f"origin-{species_id}-{seed}",
-            adoption_anchor_at="2001-01-01T00:00:00+00:00",
-            reservation_id=f"opt001:{elfie_id}",
-            idempotency_key=f"opt001-submit:{elfie_id}",
-            arrival_base_id="elfie_nest",
-        )
-    )
+    last_error: GenesisError | None = None
+    for attempt in range(_MAX_COMPILATION_ATTEMPTS):
+        master_seed = seed if attempt == 0 else derive_seed(seed, 1, attempt, 0)
+        try:
+            return compiler.compile(
+                GenesisCompileInput(
+                    elfie_id=elfie_id,
+                    owner_reference="opt001-owner",
+                    display_name=f"E2E3-{species_id}-{stage}-{seed}",
+                    species_id=species_id,
+                    gender="female",
+                    life_stage=stage,
+                    age_years_at_adoption=age_years,
+                    appearance_seed=master_seed,
+                    height="standard",
+                    build="standard",
+                    face="soft",
+                    signature="warm",
+                    personality_style="好奇探索",
+                    original_name=f"origin-{species_id}-{seed}",
+                    adoption_anchor_at="2001-01-01T00:00:00+00:00",
+                    reservation_id=f"opt001:{elfie_id}",
+                    idempotency_key=f"opt001-submit:{elfie_id}",
+                    arrival_base_id="elfie_nest",
+                )
+            )
+        except GenesisError as error:
+            last_error = error
+    raise RuntimeError(
+        f"OPT-001 Genesis 编译在 {_MAX_COMPILATION_ATTEMPTS} 次确定性尝试后仍失败: "
+        f"{species_id}/{stage}/{seed}"
+    ) from last_error
 
 
 def _query_variants(fact: Any) -> Iterable[str]:
@@ -105,6 +117,16 @@ def _query_cases_for_species(
     return cases
 
 
+def _query_cases_for_bundle(
+    facts: Iterable[Any], bundle: Any, species_id: str, limit: int = 96
+) -> list[tuple[Any, str]]:
+    """Build E2 cases only from facts published into this resident's Memory."""
+    seeded_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
+    return _query_cases_for_species(
+        (fact for fact in facts if fact.fact_id in seeded_ids), species_id, limit
+    )
+
+
 def _contains_fact(bundle: Any, fact_id: str) -> bool:
     needle = f":{''.join(char if char.isalnum() or char in '-_' else '-' for char in fact_id)}"
     return any(needle in node.node_id for node in bundle.focus_nodes) or any(
@@ -138,11 +160,6 @@ def run(output: Path) -> dict[str, Any]:
     ) as raw_root:
         root = Path(raw_root)
         for species_index, species_id in enumerate(species_ids):
-            query_cases = _query_cases_for_species(world.knowledge, species_id)
-            if len(query_cases) < 96:
-                raise RuntimeError(
-                    f"物种 {species_id} 的 E2 题目不足 96 条：{len(query_cases)}"
-                )
             for stage_index, stage in enumerate(PUBLISHED_STAGES):
                 for seed in SEEDS:
                     e3_total += 1
@@ -151,6 +168,14 @@ def run(output: Path) -> dict[str, Any]:
                     compilation = _compilation(
                         compiler, catalog, elfie_id, species_id, seed, stage
                     )
+                    query_cases = _query_cases_for_bundle(
+                        world.knowledge, compilation.bundle, species_id
+                    )
+                    if len(query_cases) < 96:
+                        raise RuntimeError(
+                            f"物种 {species_id}/{stage}/{seed} 的 E2 题目不足 96 条："
+                            f"{len(query_cases)}"
+                        )
                     adapter.stage(compilation)
                     workspace = Path(adapter.publish(elfie_id))
                     memory_path = workspace / "memory" / "knowledge.sqlite"

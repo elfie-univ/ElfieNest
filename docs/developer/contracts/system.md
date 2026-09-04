@@ -1,8 +1,8 @@
 # System architecture contract
 
-**Contract version:** 1.10
+**Contract version:** 1.11
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-02
+**Revised:** 2026-09-03
 **Scope:** repository-wide target architecture
 **Macro architecture baseline:** v1 (frozen)
 
@@ -177,8 +177,10 @@ Infrastructure persistence implements `FoodPort`; Infrastructure model
 Adapters implement `ModelPort`; Infrastructure tool Adapters implement
 `ToolPort`. Bootstrap injects those implementations directly into Elfie. Elfie
 does not import App or Infrastructure and does not execute SQL itself. Memory
-algorithms, semantic model-role choice, Skill declarations and allow-lists,
-body commands and perception models remain in Elfie.
+algorithms, semantic model-role choice, Skill document loading and Tool
+allow-lists, body commands and perception models remain in Elfie. Skill loading
+is owned by `elfie/brain/reasoning/skill_port.py`; executable Tool definitions
+live in the Infrastructure Tool registry.
 
 ### Nest
 
@@ -231,7 +233,7 @@ runtime fact has one semantic authority, one write path and explicit readers:
 | Provider-connection administration and credential references | App configuration Features | Infrastructure persistence and secret Adapters through App-owned Ports | Authorized App management use-cases; Infrastructure receives only scoped technical inputs |
 | Effective Food/model-health aggregate | App configuration Food Feature | App Food policy projects active packages and persisted evidence supplied through Ports | Lifecycle and authorized management/capability projections |
 | Endpoint-model observations, technical validation and model calls | Infrastructure model capability | `infrastructure/models/` plus persistence/report Adapters | App management projections and Elfie `ModelPort` calls |
-| Tool choice for one cognition step | `elfie/` Skills and cognition policy | `infrastructure/tools/` executes an approved bounded request | Elfie consumes the typed result; App configures global availability |
+| Tool choice for one cognition step | `elfie/` Reasoning Core Tool policy | `infrastructure/tools/` executes an approved bounded request | Elfie consumes the typed result; App configures global availability |
 | House geometry, coordinates, collision, navigation and rendered physical events | `godot_project/` authority | Godot authority through `infrastructure/godot/` protocol Adapters | Nest receives world facts; an actor body receives its own receipts |
 | Device enrollment, grants and Elfie/body association | App device Features | Infrastructure persistence through App-owned Ports | Authorized App use-cases and Orchestration |
 | Device credential material | Infrastructure secret capability | Secret storage and `infrastructure/devices/` Adapters | App retains references only; the granted device Adapter receives scoped access |
@@ -370,8 +372,11 @@ produced by the domain Facade. Infrastructure owns connections, SQL, schemas,
 transactions, paths, serialization, atomic writes and technical records. No
 database row, connection, raw dictionary or user path crosses a domain boundary.
 
-Elfie Skills describe what a particular Elfie may request and remain in Elfie.
-App Features own administrator-facing global enablement and configuration.
+Elfie Reasoning loads approved procedural Skills from bundled
+`config/brain/skills/<name>/SKILL.md` through a read-only catalog. These documents
+are not executable Tools and do not grant Tool permission; Brain owns the typed
+load boundary and Tool policy. App Features own administrator-facing global
+enablement and configuration.
 Search, file, code or device execution implementations belong to
 `infrastructure/tools/` and remain subject to tool safety and bounded-result
 contracts.

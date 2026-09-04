@@ -8,6 +8,8 @@ from typing import Annotated, Literal, Mapping, Optional, Protocol, Tuple
 from pydantic import AliasChoices, Field, JsonValue, StringConstraints, model_validator
 from pydantic_core import PydanticCustomError
 
+from elfie.brain.reasoning.skill_port import SkillLoadCall, SkillMetadata
+from elfie.brain.reasoning.tool_port import ToolCall, ToolDefinition
 from elfie.brain.workspace.contracts import (
     ExternalExecutionDomain,
     InteractionScope,
@@ -89,6 +91,8 @@ class ModelGenerationRequest(FrozenContractModel):
     reasoning_mode: Literal["fast", "long"] = "fast"
     response_mode: ModelResponseMode = ModelResponseMode.DECISION_PLAN
     allowed_tools: Tuple[_NonBlankText, ...] = ()
+    tool_definitions: Tuple[ToolDefinition, ...] = ()
+    available_skills: Tuple[SkillMetadata, ...] = ()
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
 
@@ -118,6 +122,8 @@ class ModelGenerationResult(FrozenContractModel):
     prompt_tokens: Optional[Annotated[int, Field(strict=True, ge=0)]] = None
     completion_tokens: Optional[Annotated[int, Field(strict=True, ge=0)]] = None
     latency_ms: Optional[Annotated[float, Field(strict=True, ge=0.0)]] = None
+    tool_calls: Tuple[ToolCall, ...] = ()
+    skill_calls: Tuple[SkillLoadCall, ...] = ()
 
     @property
     def token_count(self) -> Optional[int]:
@@ -149,6 +155,10 @@ __all__ = (
     "ModelGenerationCapabilities",
     "ModelGenerationRequest",
     "ModelGenerationResult",
+    "SkillLoadCall",
+    "SkillMetadata",
+    "ToolCall",
+    "ToolDefinition",
     "ModelResponseMode",
     "StructuredOutputMode",
 )

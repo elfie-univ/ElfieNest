@@ -12,7 +12,12 @@ from elfie.brain.reasoning.food_port import (
     MainFoodSelection,
     NoAvailableFoodError,
 )
-from infrastructure.models.model_execution_agent import ModelExecutionAgent
+from elfie.brain.reasoning.tool_port import ToolCall
+from infrastructure.models.inference.llm_api import LLMCallResult
+from infrastructure.models.model_execution_agent import (
+    _FINAL_STRUCTURED_CALL_NAME,
+    ModelExecutionAgent,
+)
 from infrastructure.models.model_execution_contracts import (
     ModelExecutionRequest,
     StructuredGenerationMode,
@@ -71,6 +76,17 @@ class _InMemoryFoodPort:
 class _WebSearchToolPort:
     def available_tool_keys(self) -> tuple[str, ...]:
         return ("web_search",)
+
+    def available_tool_definitions(self):
+        from elfie.brain.reasoning.tool_port import ToolDefinition
+
+        return (
+            ToolDefinition(
+                name="web_search",
+                description="search",
+                input_schema={"type": "object"},
+            ),
+        )
 
     def execute(self, request):
         raise AssertionError(f"tool should not execute in this prompt test: {request}")
@@ -499,7 +515,7 @@ def test_normal_and_structured_requests_share_the_safe_tool_intersection(
     assert len(captured_messages) == 2
     for messages in captured_messages:
         rendered = "\n".join(str(message["content"]) for message in messages)
-        assert "[SEARCH]" in rendered
+        assert "[SEARCH]" not in rendered
         assert "[CODE]" not in rendered
         assert "[READ_FILE]" not in rendered
 
@@ -509,14 +525,13 @@ def test_brain_owned_structured_prompt_is_not_augmented_by_provider_injectors(
 ) -> None:
     monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
     agent = _agent(monkeypatch, MainFoodSelection("food_main"))
-    monkeypatch.setattr(agent, "_call_food_llm_api", lambda *_args: "ok")
-    injected: list[tuple[list[dict[str, object]], list[str]]] = []
+    captured: list[tuple[list[dict[str, object]], dict[str, object]]] = []
 
-    def prompt_injector(messages, tools):
-        injected.append((messages, tools))
-        return messages
+    def caller(*args):
+        captured.append((args[2], args[5]))
+        return "ok"
 
-    agent._ports.prompt_injector = prompt_injector  # noqa: SLF001 - boundary seam
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
     system_prompt = "[APPLICATION_FRAME]\nframe\n\n[IDENTITY_CORE]\nidentity"
     result = agent.generate_structured(
         StructuredModelExecutionRequest(
@@ -532,4 +547,113 @@ def test_brain_owned_structured_prompt_is_not_augmented_by_provider_injectors(
     )
 
     assert result.text == "ok"
-    assert injected == []
+    assert captured == [
+        (
+            [{"role": "system", "content": system_prompt}],
+            {},
+        )
+    ]
+
+
+@pytest.mark.parametrize("schema_name", ("DecisionPlan", "CognitiveAction"))
+def test_tool_call_mode_uses_a_private_lowercase_final_output_name(
+    schema_name: str,
+) -> None:
+    request = StructuredModelExecutionRequest(
+        prompt="{}",
+        messages=(),
+        response_schema_name=schema_name,
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.TOOL_CALL,
+        allowed_tools=(),
+    )
+
+    options = ModelExecutionAgent._structured_request_options(
+        request, StructuredGenerationMode.TOOL_CALL
+    )
+
+    definitions = options["tool_definitions"]
+    assert definitions[-1]["function"]["name"] == _FINAL_STRUCTURED_CALL_NAME
+    assert definitions[-1]["function"]["name"] != schema_name
+    assert definitions[-1]["function"]["name"].islower()
+
+
+def test_structured_runtime_prefers_final_call_arguments_over_reasoning_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+    captured_options: list[dict[str, object]] = []
+
+    def caller(*args):
+        captured_options.append(args[5])
+        return LLMCallResult(
+            text="visible provider reasoning that is not the final JSON",
+            usage={},
+            metadata={},
+            tool_calls=(
+                ToolCall(
+                    call_id="final-output",
+                    tool_key=_FINAL_STRUCTURED_CALL_NAME,
+                    arguments={"ok": True},
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+    result = agent.generate_structured(
+        StructuredModelExecutionRequest(
+            prompt="structured",
+            messages=(),
+            response_schema_name="DecisionPlan",
+            response_schema={"type": "object", "required": ["ok"]},
+            selected_mode=StructuredGenerationMode.TOOL_CALL,
+            allowed_tools=(),
+            food_key="food_main",
+            allow_fallback=False,
+        )
+    )
+
+    assert result.text == '{"ok":true}'
+    assert result.tool_calls == ()
+    assert [
+        definition["function"]["name"]
+        for definition in captured_options[0]["tool_definitions"]
+    ] == [_FINAL_STRUCTURED_CALL_NAME]
+
+
+def test_structured_runtime_rejects_multiple_final_output_calls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    agent = _agent(monkeypatch, MainFoodSelection("food_main"))
+
+    def caller(*args):
+        del args
+        final_call = ToolCall(
+            call_id="final-output",
+            tool_key=_FINAL_STRUCTURED_CALL_NAME,
+            arguments={"ok": True},
+        )
+        return LLMCallResult(
+            text="",
+            usage={},
+            metadata={},
+            tool_calls=(final_call, final_call),
+        )
+
+    monkeypatch.setattr(agent, "_call_food_llm_api", caller)
+
+    with pytest.raises(NoAvailableFoodError, match="multiple final structured calls"):
+        agent.generate_structured(
+            StructuredModelExecutionRequest(
+                prompt="structured",
+                messages=(),
+                response_schema_name="DecisionPlan",
+                response_schema={"type": "object"},
+                selected_mode=StructuredGenerationMode.TOOL_CALL,
+                allowed_tools=(),
+                food_key="food_main",
+                allow_fallback=False,
+            )
+        )

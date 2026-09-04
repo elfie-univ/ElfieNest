@@ -51,6 +51,7 @@ from infrastructure.persistence.layout.data_home import get_elfie_config_dir
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
+from infrastructure.skills import BundledSkillCatalog
 from nest.public import NestConfig
 
 if TYPE_CHECKING:
@@ -222,6 +223,7 @@ def restore_registered_elfies(
                     journal_store=SQLiteBrainJournalAdapter(
                         config_dir / "brain" / "journal.sqlite"
                     ),
+                    skill_catalog=BundledSkillCatalog(),
                     body=NativeBody(
                         body_id=row.elfie_id,
                         transport=GodotTransport(

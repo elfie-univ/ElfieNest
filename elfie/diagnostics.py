@@ -61,8 +61,8 @@ class ElfieDiagnostics:
         return self._elfie._body_binding
 
     @property
-    def skills(self):
-        return self._elfie._skills
+    def tool_policy(self):
+        return self._elfie._tool_policy
 
 
 __all__ = ("ElfieDiagnostics",)

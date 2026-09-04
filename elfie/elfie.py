@@ -17,7 +17,8 @@ from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
-from elfie.brain.reasoning.skills import SkillManager
+from elfie.brain.reasoning.skill_port import SkillCatalog
+from elfie.brain.reasoning.tool_policy import ToolPolicy
 from elfie.brain.reasoning.tool_port import ToolPort
 from elfie.brain.runtime import BrainRuntime
 from elfie.brain.selfhood.contracts import SelfhoodState
@@ -46,7 +47,8 @@ class Elfie(ElfieFacadeOperations):
         emotion_dynamics_config: Mapping[str, object] | None = None,
         body: BodyPort | None = None,
         communication: CommunicationHub | None = None,
-        skills: SkillManager | None = None,
+        tool_policy: ToolPolicy | None = None,
+        skill_catalog: SkillCatalog | None = None,
         model_port: ModelPort | None = None,
         tool_port: ToolPort | None = None,
         activity_store: ActivityStorePort | None = None,
@@ -108,7 +110,8 @@ class Elfie(ElfieFacadeOperations):
         )
         self._communication = communication or CommunicationHub(str(workspace_id))
         self._communication.bind_identity(str(workspace_id))
-        self._skills = skills or SkillManager()
+        self._tool_policy = tool_policy or ToolPolicy()
+        self._skill_catalog = skill_catalog
         self._brain_runtime: BrainRuntime | None = None
         self._reasoning_constitution = reasoning_constitution
         self._embodied_input_mode = EmbodiedInputMode(embodied_input_mode)

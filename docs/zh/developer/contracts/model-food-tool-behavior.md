@@ -1,7 +1,7 @@
 # 模型、Food 与工具行为契约
 
-**契约版本：** 1.8
-**修订日期：** 2026-08-15
+**契约版本：** 1.9
+**修订日期：** 2026-09-03
 
 > **行为权威。** 本文定义已退役 `ai_runtime/` 根目录完成职责拆解后的 Provider、
 > 模型、Food 与工具行为。本文不定义目标 Runtime 模块；当前 Provider/模型可用性缺口
@@ -482,7 +482,8 @@ Digest 或 `latest` 实际目标变化会使匹配证据失效。
 
 ```mermaid
 flowchart LR
-  SK["精灵 Skills"] --> AL["请求允许工具"]
+  SK["内置 SKILL.md 元数据"] --> SL["原生 load_skill 控制操作"]
+  SL --> SO["已加载流程指令"]
   GC["全局 tools.yaml"] --> IX["授权交集"]
   IR["已实现的安全工具注册表"] --> IX
   AL --> IX
@@ -502,12 +503,13 @@ flowchart LR
 终端执行、文件写入、代码执行、任务计划、子 Agent 和技能修改，在隔离与审批契约
 完成前保持停用。停用工具不能提供给模型。
 
-一期只有一个全局工具配置页面，不提供按精灵开关。实际可用工具是“全局启用工具、
-精灵内部 Skill 请求、已实现的安全工具注册表、逐次调用的安全权限决策”四者交集。
-Skill 源码所有权目标是 `elfie/brain/reasoning/skills/`；随源码发布的声明和内存策略不需要可写
-Store。可变 Skill 安装或单只 Elfie 持久 Skill 状态保持禁用，并且必须先有单独获批的
-契约才能获得任何事实源。共享工具实现位于 `infrastructure/tools/`；工具绝不写入
-Food 配置。
+一期只有一个全局工具配置页面，不提供按精灵开关。实际可用 Tool 是“全局启用 Tool、
+Brain 为 deliberate Run 提供的显式 `allowed_tools`、已实现的安全 Tool 注册表、逐次调用
+的安全权限决策”四者交集。Skill 指令独立于 Tool 授权，只能通过原生 `load_skill` 控制
+操作按需加载。官方内置源使用 `config/brain/skills/<name>/SKILL.md`（发布时 staging 到
+`resources/config/...`）；它们只读、只允许官方来源，不是用户可写事实源。可变 Skill 安装、
+脚本或单只 Elfie 持久 Skill 状态保持禁用，并且必须先有单独获批的契约。共享可执行 Tool
+实现位于 `infrastructure/tools/`；Tool 绝不写入 Food 配置。
 
 Bootstrap 构造或派生一个已经限定到当前 Elfie 获授权工作区能力的 Tool Adapter View。
 `ToolPort` 请求只携带语义资源标识，不携带任意文件系统根目录；Adapter 在注入作用域内

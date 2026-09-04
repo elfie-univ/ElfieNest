@@ -272,8 +272,8 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     english_normalized = " ".join(english_contract.split())
     chinese_normalized = " ".join(chinese_contract.split())
 
-    assert "**Contract version:** 2.4" in english_contract
-    assert "**契约版本：** 2.4" in chinese_contract
+    assert "**Contract version:** 2.5" in english_contract
+    assert "**契约版本：** 2.5" in chinese_contract
 
     for owner in (
         "Event Workspace",

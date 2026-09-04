@@ -60,6 +60,7 @@ from infrastructure.platform import (
     ElfieFactoryAdapter,
     SettingsAdoptionPolicyAdapter,
 )
+from infrastructure.skills import BundledSkillCatalog
 from nest.public import NestConfig
 
 
@@ -169,6 +170,7 @@ def build_adoption_services(
                 reasoning_constitution=ReasoningConstitution.from_mapping(
                     load_reasoning_constitution()
                 ),
+                skill_catalog=BundledSkillCatalog(),
             ),
             nest_session,
             build_genesis_compiler,

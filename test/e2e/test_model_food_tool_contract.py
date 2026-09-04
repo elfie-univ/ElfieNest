@@ -14,6 +14,8 @@ from elfie.brain.reasoning.food_port import (
     FOOD_EMERGENCY_ID,
     NoAvailableFoodError,
 )
+from elfie.brain.reasoning.tool_port import ToolCall
+from infrastructure.models.inference.llm_api import LLMCallResult
 from infrastructure.models.model_execution_agent import ModelExecutionAgent
 from infrastructure.models.model_execution_contracts import (
     StructuredGenerationMode,
@@ -225,18 +227,36 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     calls: list[str] = []
     structured_probe = {"pending": False}
 
-    def fake_model_call(provider, model, messages, *_args, **_kwargs):
+    def fake_model_call(
+        provider, model, messages, _temperature, _max_tokens, options, *_args, **_kwargs
+    ):
         calls.append(model)
         if model == "reason":
             raise RuntimeError("reasoning unavailable")
         if model == "main" and structured_probe["pending"]:
-            if "【本地文件内容】" not in messages[-1]["content"]:
-                return "[READ_FILE]note.txt[/READ_FILE]"
             structured_probe["pending"] = False
-            return "ok:structured"
-        if model == "tool" and "【本地文件" not in messages[-1]["content"]:
-            return "[READ_FILE]note.txt[/READ_FILE]"
-        return f"ok:{model}"
+            return LLMCallResult("ok:structured", {}, {})
+        if (
+            model == "tool"
+            and options.get("tool_definitions")
+            and not any(message.get("role") == "tool" for message in messages)
+        ):
+            return LLMCallResult(
+                "",
+                {},
+                {},
+                tool_calls=(
+                    ToolCall(
+                        call_id="tool-call-1",
+                        tool_key="local_file",
+                        arguments={
+                            "operation": "read",
+                            "resource_id": "note.txt",
+                        },
+                    ),
+                ),
+            )
+        return LLMCallResult(f"ok:{model}", {}, {})
 
     monkeypatch.setattr(agent, "_call_food_llm_api", fake_model_call)
     primary = agent.run_with_food(prompt="hello", food_key=FOOD_COMMON_ID)
@@ -255,7 +275,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
         food_key=FOOD_COMMON_ID,
         elfie_id="00000001",
         semantic_role="tool",
-        allowed_skills=["local_file"],
+        allowed_tools=["local_file"],
     )
     assert primary.actual_model == refs["main"]
     assert reasoning.actual_model == refs["backup"]
@@ -312,7 +332,7 @@ def test_clean_home_provider_food_elfie_tool_and_emergency_contract(
     reports = ReportRepository()
     kinds = {item.subject_kind for item in reports.current()}
     assert {"model", "food", "fallback", "tool"} <= kinds
-    tool_observation = reports.latest("tool", "local_file_read")
+    tool_observation = reports.latest("tool", "local_file")
     assert tool_observation is not None
     assert tool_observation.details["truncated"] is True
     assert tool_observation.details["retained_bytes"] <= 16000

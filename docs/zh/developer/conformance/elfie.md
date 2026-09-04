@@ -1,15 +1,15 @@
 # Elfie 内部架构一致性
 
 > [Elfie 内部架构契约](../contracts/elfie)的开放迁移台账。它记录已关闭切片与当前精确缺口，不降低
-> 目标。ELF-001 至 ELF-009 记录 Ports/Adapters 迁移；ELF-010 之后记录当前 2.4 契约采用的生命系统工作。
+> 目标。ELF-001 至 ELF-009 记录 Ports/Adapters 迁移；ELF-010 之后记录当前 2.5 契约采用的生命系统工作。
 
 ## 一致性收口
 
 | ID | 严重度 | 状态 | 当前偏差 | 关闭条件 | 证据 |
 | --- | --- | --- | --- | --- | --- |
 | ELF-001 | P1 | closed | App 编排与接口生产调用方只使用受控的 `elfie.public`/`nest.public` 表面，深层领域导入已由机器门禁保护。 | `Elfie`/`ElfieFactory` 成为唯一生产聚合入口，只暴露批准的类型化能力，并删除和拦截深层调用方导入。 | target=ELF-001 Facade；inventory=Elfie 生产调用方；references=深层导入扫描；verification=Factory 与架构测试；residuals=none |
-| ELF-002 | P0 | closed | Skills 已由 Brain 在 `elfie/brain/reasoning/skills/` 拥有；旧根包及其 Runtime 代理已删除。 | Brain 声明、内存策略和语义工具 key 授权有聚焦测试；已废弃的 Skill 包不再包含 Runtime Adapter、Store、路径或工具执行实现。 | target=ELF-002 Skill 所有权；inventory=elfie/brain/reasoning/skills；references=旧包扫描；verification=Skill 策略测试；residuals=none |
-| ELF-003 | P0 | closed | Brain 已分别暴露强类型 `FoodPort`、`ModelPort`、`ToolPort`；Runtime 模型执行通过 Bootstrap 注入限定作用域的 Tool Adapter。 | `ToolRequest`/`ToolResult` 是封闭不可变契约，Adapter 保留全局与每只精灵的安全否决，结构化与普通路径都使用注入 Port，历史宽 Runtime 桥已移除。 | target=ELF-003 认知 Port；inventory=Brain Port 与 Bootstrap Adapter；references=工具边界扫描；verification=模型/工具契约测试；residuals=none |
+| ELF-002 | P0 | closed | Brain 在 `elfie/brain/reasoning/skill_port.py` 拥有强类型 Skill 边界；官方流程源以 `config/brain/skills/<name>/SKILL.md` 内置，原伪 Skill 包已删除。 | 元数据先公开，再通过只读原生 `load_skill` 操作加载；frontmatter/名称/正文校验、目录隔离和不执行脚本有聚焦测试。Skill 不是 Tool 定义，也不授予 Tool 权限。 | target=ELF-002 Skill 所有权；inventory=skill_port.py 与 config/brain/skills；references=旧包和标记协议扫描；verification=Bundled Catalog 与 Reasoning 测试；residuals=none |
+| ELF-003 | P0 | closed | Brain 已分别暴露强类型 `FoodPort`、`ModelPort`、`ToolPort`；可执行 Tool 定义显式位于 Infrastructure 注册表，Bootstrap 向模型 Adapter 注入限定作用域的原生 Tool 视图。 | `ToolDefinition`/`ToolCall`/`ToolRequest`/`ToolResult` 是强类型契约，Adapter 保留全局与每只 Elfie 的安全否决，普通和结构化路径使用原生 Provider 往返，历史标记循环已移除。 | target=ELF-003 认知 Port；inventory=Brain Port、Tool 注册表与 Bootstrap Adapter；references=工具边界扫描；verification=模型/工具/验证契约测试；residuals=none |
 | ELF-004 | P0 | closed | `elfie/brain/memory/` 已移除 SQLite/Schema/Record 映射；语义算法依赖 `MemoryStorePort` 与类型化 Memory 记录。 | Brain Memory 测试使用类型化内存 SQLite Adapter，持久化测试位于 Infrastructure，系统技术 import 精确基线清零，最终知识库重新打开行为仍有覆盖。 | target=ELF-004 Memory 所有权；inventory=elfie/brain/memory 与 Infrastructure 持久化；references=技术 import 基线；verification=类型化 Memory 重开测试；residuals=none |
 | ELF-005 | P0 | closed | Profile 加载和路径解析由 Infrastructure/Bootstrap 拥有；`assemble_profile` 与 `ElfieFactory` 只接收类型化档案/依赖。 | `ProfileStorePort` 仍是领域边界，打包默认值来自资源，Elfie 初始化和 Factory API 不再接收存储路径或具体 Profile Repository。 | target=ELF-005 Profile 边界；inventory=Profile Store 与 Bootstrap；references=路径/import 扫描；verification=Profile round-trip 测试；residuals=none |
 | ELF-006 | P0 | closed | 身体语义、Registry 和 Binding 留在 Elfie，Godot/设备/产品托管实现位于领域外；Elfie 仅保留确定性、无 I/O 的 Headless 测试身体。旧解剖与步态分支已删除。 | 多身体身份/绑定与类型化事件/回执测试通过；Body 实现不导入传输、凭据、进程所有权或 Nest 世界事实；旧分支和引用扫描为空。 | target=ELF-006 Body authority；inventory=elfie/body 与身体 Adapter；references=身体依赖扫描；verification=身体切换测试、旧路径扫描；residuals=none |
@@ -22,7 +22,7 @@
 | ELF-013 | P1 | closed | `elfie/genesis/` 现在拥有经过校验的一次性创建 Bundle、初始化 Manifest、有界人生补全计划和幂等记忆提交器。领养流程把 Profile、Brain Selfhood/Energy seed 与 Genesis 记忆各写入最终所有者一次；普通 `Elfie` 运行期只接收类型化 seed。 | Genesis 创建临时 Bundle 并在最终所有者提交后退出。 | target=Genesis 一次性创建条款；inventory=elfie/genesis、initialization、领养 workspace 与 Brain seed Adapter；references=Bundle 校验、Manifest 重复保护和最终所有者持久化；verification=Genesis、领养、持久化和 Lab 套件通过；residuals=none |
 | ELF-014 | P0 | closed | Brain 现在拥有 Persistent Activity 语义 Port 和输出边界；Lab 为每只 Elfie 注入独立 SQLite Adapter。已校验 Draft 幂等提交，等待任务通过类型化 Activity 状态事件唤醒，Communication/Embodied 子结果结算 Activity 进度，重启后不重复投递。 | Activity、持久化和 Lab 聚焦测试覆盖跨回合状态、唤醒、Scope 校验、回执终态、重启恢复和无重复投递。 | target=ELF-014 Activity 所有权；inventory=Brain Activity 与 Lab Adapter；references=回执结算；verification=Activity/持久化/重启测试；residuals=当前来源域迁移由 ELF-018 跟踪 |
 | ELF-015 | P1 | closed | 首个有界恢复 Motivation 驱力和有界 Cognitive Consolidation 切片现在都有 Brain 所有者与 Lab 证据。整理工作仅处理睡眠窗口中的 Episodic 记忆，不能产生外部副作用；更多主动驱力与成长仍是独立范围。 | Motivation 以冷却/满足状态控制候选；Cognitive Consolidation 以 Checkpoint 候选和固定经历预算形成 Activity 候选，并且只有整理回执完成后才提交 Memory。Brain/Lab 聚焦测试与 Web build 通过；夜间路径不创建消息、身体动作或 Activity。 | target=ELF-015 有界自主工作；inventory=Motivation 与 Consolidation；references=Activity-only 输出 guard；verification=Brain/Lab 与 Web 测试；residuals=当前来源域迁移由 ELF-018 跟踪 |
-| ELF-016 | P0 | closed | Brain 已拥有单个 Turn 内有界的 `ReasoningRun`：模型、认知 Tool、真实 Observation、验证和完成/失败收束均在 Brain 内部完成，外部行动仍只能由结算后的决定进入既有边界。 | 26 项聚焦 Brain/Lab 测试通过；真实 Elfie Lab 展示 Tool→Observation，虚假外部执行声明不产生外部回执，模型不可用进入明确 `failed/no_op`，紧急事件形成独立新 Turn。纯文本 Provider 的 `owner_message_fallback` 被记录为降级而非成功事实。 | target=ELF-016 有界推理；inventory=Brain reasoning 与 Tool/Observation loop；references=外部决定 guard；verification=Reasoning/Lab 测试；residuals=none |
+| ELF-016 | P0 | closed | Brain 已拥有单个 Turn 内有界的 `ReasoningRun`：原生 Model/Skill/Tool 调用、真实 Observation、验证和完成/失败收束均在 Brain 内部完成，外部行动仍只能由结算后的决定进入既有边界。 | 聚焦 Brain/Lab 测试展示原生 Tool→Observation 和流程 Skill 加载，标记文本不再是执行协议，虚假外部执行声明不产生外部回执，模型不可用进入明确 `failed/no_op`，紧急事件形成独立新 Turn。纯文本 Provider 输出保持惰性/降级。 | target=ELF-016 有界推理；inventory=Brain reasoning 与原生 Model/Skill/Tool Observation loop；references=外部决定 guard；verification=Reasoning/Lab/原生验证测试；residuals=none |
 | ELF-017 | P0 | closed | Orientation 与 Selfhood 已成为独立 authority；Energy、Memory、Orientation、Selfhood、Motivation 与 Cognitive Consolidation 进入统一连续状态 Checkpoint；短时 Emotion 明确只存在于进程内，并在睡眠或重启时回到人格基线。自我定位从当前 Body generation、会话、地点与 Activity 生成候选，并在 Turn Settlement 中提交。 | 聚焦状态、结算和跨模块恢复测试覆盖明确所有者、来源/版本规则、长期 owner 恢复、Emotion 进程内重启、陈旧 Checkpoint 拒绝，以及单轮消息不能改写人格/规范。 | target=ELF-017 连续生命状态；inventory=Brain 状态 owner 与 continuity；references=checkpoint/settlement guard 与 ADR-0030；verification=状态与跨模块恢复测试；residuals=none |
 | ELF-018 | P0 | open | 三个 Brain 域和动态能力目录链路已经实现；真实 Godot 房间已经在第一阶段 Brain-owned Mock 模式下证明移动、Body 终态回传、定向听觉、语义视觉、触觉和具身位置。 | 保持恰好 `Communication`/`Embodied`/`Activity`；`ACCEPTED`/`STARTED` 只留在账本；通过 EventWorkspace 发布一个具身终态和兼容身体事实；单独补齐模型驱动控制证据。听觉/视觉/触觉/位置场景已经有证据。 | target=ADR-0033 与 Brain/Elfie/System/Nest-Godot 1.7/2.4/1.10/1.2 契约；inventory=Brain workspace/决定类型、Body/NervousSystem、Godot Adapter/Transport/Gateway 与执行计划；references=动态能力目录、域化回执、Brain-owned Mock 控制器和真实房间 E2E harness；verification=相关 Python 回归 825/825、架构套件 229/229；真实 Godot 房间 E2E `build/e2e/brain-godot-live` 有场景清单、`world_ready`、实际移动、`speech_reach`、`visual_observation`、定向 Body 输入和动作终态；另有 compile/lint；residuals=外部物理身体、第二版异步提交/回执流以及模型驱动具身控制仍未闭合 |
 
@@ -34,10 +34,10 @@
 依赖方向和 Brain 所有的 ToolPort 面；Memory Fake 测试、Infrastructure 持久化测试以及
 模型/工具端到端路径为已关闭切片提供证据。
 
-早期 Ports/Adapters 与生命系统条目继续保留既有证据；2.4 契约在 ELF-010、ELF-013 中
+早期 Ports/Adapters 与生命系统条目继续保留既有证据；2.5 契约在 ELF-010、ELF-013 中
 的 Profile/Genesis 所有权缺口已在当前 v0.2 结构实现中关闭。真实 workspace 政策和外部
 模型/具身验收仍是独立门禁；具身控制缺口见 ELF-018。本台账不是第二个运行时 authority，
-也不授权新增兼容字段。2.4 契约复用这些边界和既有 Baseline，不创建第二套历史债务 Baseline。
+也不授权新增兼容字段。2.5 契约复用这些边界和既有 Baseline，不创建第二套历史债务 Baseline。
 
 ## 已完成的 Ports/Adapters 顺序
 

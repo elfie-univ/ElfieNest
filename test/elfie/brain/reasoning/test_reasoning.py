@@ -31,7 +31,18 @@ from elfie.brain.reasoning.run import (
     ReasoningRun,
     ReasoningStatus,
 )
-from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
+from elfie.brain.reasoning.skill_port import (
+    SkillDocument,
+    SkillLoadCall,
+    SkillMetadata,
+)
+from elfie.brain.reasoning.tool_port import (
+    ToolCall,
+    ToolDefinition,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
     ActivityScope,
@@ -130,6 +141,7 @@ def _task(
     *,
     allowed_tools: tuple[str, ...] = (),
     tool_scope_id: ElfieId | None = None,
+    reasoning_depth: ReasoningDepth = ReasoningDepth.DIRECT,
 ) -> ReasoningTask:
     request = ModelGenerationRequest(
         turn_id=TurnId("turn-1"),
@@ -152,6 +164,7 @@ def _task(
     return ReasoningTask(
         request=request,
         tool_scope_id=tool_scope_id,
+        reasoning_depth=reasoning_depth,
         seed=DecisionDecodeSeed(
             turn_id=TurnId("turn-1"),
             frame_id=EventId("frame-1"),
@@ -219,7 +232,7 @@ class SearchRuntime:
             provider="fake",
             model_key="fake/schema",
             supports_json_schema=True,
-            supports_tool_calling=False,
+            supports_tool_calling=True,
             supports_json_mode=True,
             supports_plain_text=True,
             max_output_tokens=512,
@@ -230,16 +243,23 @@ class SearchRuntime:
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
         self.calls.append(request)
-        text = (
-            "[SEARCH]elfie nesting[/SEARCH]"
-            if len(self.calls) == 1
-            else _plan_json(str(request.turn_id))
+        tool_calls = (
+            (
+                ToolCall(
+                    call_id="search-1",
+                    tool_key="web_search",
+                    arguments={"query": "elfie nesting"},
+                ),
+            )
+            if len(self.calls) == 1 and request.allowed_tools
+            else ()
         )
         return ModelGenerationResult(
-            text=text,
+            text="" if tool_calls else _plan_json(str(request.turn_id)),
             selected_mode=StructuredOutputMode.JSON_TEXT,
             provider="fake",
             model_key="fake/schema",
+            tool_calls=tool_calls,
         )
 
 
@@ -264,6 +284,19 @@ class SearchTools:
 
     def available_tool_keys(self) -> tuple[str, ...]:
         return ("web_search",)
+
+    def available_tool_definitions(self) -> tuple[ToolDefinition, ...]:
+        return (
+            ToolDefinition(
+                name="web_search",
+                description="Search the public web.",
+                input_schema={
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            ),
+        )
 
     def execute(self, request: ToolRequest) -> ToolResult:
         self.requests.append(request)
@@ -324,6 +357,77 @@ def test_no_tool_task_does_not_expose_reasoning_step_tool_schema() -> None:
     assert '"tool_key"' not in runtime.calls[0].system_prompt
 
 
+def test_deliberate_run_loads_a_procedural_skill_without_turning_it_into_a_tool() -> (
+    None
+):
+    class SkillRuntime(SearchRuntime):
+        def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
+            self.calls.append(request)
+            skill_calls = (
+                (
+                    SkillLoadCall(
+                        call_id="skill-load-1",
+                        skill_name="research",
+                    ),
+                )
+                if len(self.calls) == 1
+                else ()
+            )
+            return ModelGenerationResult(
+                text="" if skill_calls else _plan_json(str(request.turn_id)),
+                selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                provider="fake",
+                model_key="fake/schema",
+                skill_calls=skill_calls,
+            )
+
+    class Catalog:
+        def available_skills(self) -> tuple[SkillMetadata, ...]:
+            return (
+                SkillMetadata(
+                    name="research",
+                    description="Verify bounded external facts.",
+                ),
+            )
+
+        def load(self, name: str) -> SkillDocument | None:
+            if name != "research":
+                return None
+            return SkillDocument(
+                name="research",
+                description="Verify bounded external facts.",
+                instructions="Use the evidence procedure before answering.",
+            )
+
+    base = _task(reasoning_depth=ReasoningDepth.DELIBERATE)
+    task = replace(
+        base,
+        request=base.request.model_copy(
+            update={
+                "available_skills": (
+                    SkillMetadata(
+                        name="research",
+                        description="Verify bounded external facts.",
+                    ),
+                )
+            }
+        ),
+        skill_catalog=Catalog(),
+    )
+    runtime = SkillRuntime()
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.skill_calls == 1
+    assert result.tool_calls == 0
+    assert any(step.kind is CognitiveStepKind.SKILL for step in result.steps)
+    assert "Use the evidence procedure" in runtime.calls[1].user_prompt
+
+
 def test_direct_cognitive_action_finishes_in_one_model_call_without_tools() -> None:
     runtime = SequenceCognitiveRuntime(
         {"type": "answer", "content": "我们可以从最小聊天闭环开始。"}
@@ -343,6 +447,23 @@ def test_direct_cognitive_action_finishes_in_one_model_call_without_tools() -> N
     assert result.decode.plan.intents[0].content == "我们可以从最小聊天闭环开始。"
     assert runtime.calls[0].response_schema.name == "CognitiveAction"
     assert runtime.calls[0].allowed_tools == ()
+    assert result.plan is None
+
+
+def test_deliberate_first_pass_finishes_without_creating_a_plan() -> None:
+    runtime = SequenceCognitiveRuntime(
+        {"type": "answer", "content": "这一轮可以直接回答。"}
+    )
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=2, max_tool_calls=0),
+    ).run(_owner_cognitive_task(depth=ReasoningDepth.DELIBERATE))
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 1
+    assert result.plan is None
 
 
 def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> None:
@@ -429,6 +550,7 @@ def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> No
     assert observed[1][0].revision == 7
     assert "主人喜欢蓝色" in runtime.calls[1].user_prompt
     assert result.decode.plan.memory_uses[0].target_id == "memory-node-1"
+    assert result.plan is None
 
 
 def test_deliberate_completion_judge_revises_a_fabricated_external_success() -> None:
@@ -461,6 +583,10 @@ def test_deliberate_completion_judge_revises_a_fabricated_external_success() -> 
         for step in result.steps
     )
     assert "do not claim external completion" in runtime.calls[1].user_prompt
+    assert result.plan is not None
+    assert result.plan.trigger == "revision_required"
+    assert result.plan.steps == ("verify_draft", "correct_draft")
+    assert "trigger=revision_required" in runtime.calls[1].user_prompt
 
 
 def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> None:
@@ -481,22 +607,115 @@ def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> Non
         "reason": "模型仍想继续",
     }
     runtime = SequenceCognitiveRuntime(recall_action, recall_action)
+    task = _owner_cognitive_task(
+        depth=ReasoningDepth.DELIBERATE,
+        memory_session=EmptyMemorySession(),
+        memory_revision=3,
+    )
+    observed: list[tuple] = []
+
+    def rebuild(observations):
+        observed.append(observations)
+        rendered = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={"user_prompt": f"CURRENT_RUN_OBSERVATIONS:\n{rendered}"}
+        )
+
+    task = replace(task, context_request_builder=rebuild)
     result = ReasoningRun(
         model_port=runtime,
         decoder=DecisionPlanDecoder(),
         budget=ReasoningBudget(max_steps=5, max_model_calls=2, max_tool_calls=0),
-    ).run(
-        _owner_cognitive_task(
-            depth=ReasoningDepth.DELIBERATE,
-            memory_session=EmptyMemorySession(),
-            memory_revision=3,
-        )
-    )
+    ).run(task)
 
     assert result.status is ReasoningStatus.BUDGET_EXHAUSTED
     assert result.failure_reason == "model_call_budget_exhausted"
     assert result.model_calls == 2
     assert result.tool_calls == 0
+    assert result.plan is not None
+    assert result.plan.trigger == "additional_observation"
+    assert result.plan.steps == (
+        "recall_evidence",
+        "form_reply",
+    )
+    assert len(observed) == 3
+    assert any(
+        item.kind == "short_plan" and "trigger=additional_observation" in item.content
+        for item in observed[2]
+    )
+
+
+def test_deliberate_plan_expands_budget_before_finalizing_after_recall_cap() -> None:
+    class LimitedMemorySession:
+        pinned_revision = 3
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def recall(self, query: str) -> MemoryRecallResult:
+            self.calls += 1
+            if self.calls == 1:
+                return MemoryRecallResult(
+                    status="recalled",
+                    query=query,
+                    pinned_revision=self.pinned_revision,
+                    bundle=RecallBundle(recall_revision=self.pinned_revision),
+                )
+            return MemoryRecallResult(
+                status="budget_exhausted",
+                query=query,
+                pinned_revision=self.pinned_revision,
+                reason="on_demand_recall_budget_exhausted",
+            )
+
+    recall_action = {
+        "type": "recall_memory",
+        "query": "再找一条历史",
+        "reason": "需要补充证据",
+    }
+    runtime = SequenceCognitiveRuntime(
+        recall_action,
+        recall_action,
+        {"type": "answer", "content": "根据目前找到的证据，我不会猜测缺失部分。"},
+    )
+    session = LimitedMemorySession()
+    task = _owner_cognitive_task(
+        depth=ReasoningDepth.DELIBERATE,
+        memory_session=session,
+        memory_revision=3,
+    )
+
+    def rebuild(observations):
+        rendered = "\n".join(item.content for item in observations)
+        return task.request.model_copy(
+            update={"user_prompt": f"CURRENT_RUN_OBSERVATIONS:\n{rendered}"}
+        )
+
+    task = replace(task, context_request_builder=rebuild)
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(
+            max_steps=None,
+            max_model_calls=2,
+            max_planned_model_calls=8,
+            max_tool_calls=0,
+        ),
+    ).run(task)
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 3
+    assert session.calls == 2
+    assert result.plan is not None
+    assert "RecallMemory is exhausted for this Turn" in runtime.calls[2].user_prompt
+    assert [step.kind for step in result.steps] == [
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.OBSERVATION,
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.OBSERVATION,
+        CognitiveStepKind.MODEL,
+        CognitiveStepKind.VERIFY,
+    ]
 
 
 class StaticActivityPreflight:
@@ -527,13 +746,18 @@ def test_reasoning_run_completes_tool_observation_loop_without_external_action()
         decoder=DecisionPlanDecoder(),
         tool_port=tools,
         budget=ReasoningBudget(max_steps=8, max_model_calls=3, max_tool_calls=1),
-    ).run(_task(allowed_tools=("web_search",)))
+    ).run(
+        _task(
+            allowed_tools=("web_search",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.COMPLETED
     assert result.decode.plan.intents[0].type == "noop"
     assert len(runtime.calls) == 2
     assert len(tools.requests) == 1
-    assert runtime.calls[0].allowed_tools == ()
+    assert runtime.calls[0].allowed_tools == ("web_search",)
     assert [step.kind for step in result.steps] == [
         CognitiveStepKind.MODEL,
         CognitiveStepKind.TOOL,
@@ -771,22 +995,23 @@ def test_reasoning_run_accepts_structured_tool_step_for_json_model_runtimes() ->
     class StructuredSearchRuntime(SearchRuntime):
         def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
             self.calls.append(request)
-            text = (
-                json.dumps(
-                    {
-                        "tool_key": "web_search",
-                        "operation": "search",
-                        "value": "elfie nesting",
-                    }
+            tool_calls = (
+                (
+                    ToolCall(
+                        call_id="structured-search-1",
+                        tool_key="web_search",
+                        arguments={"query": "elfie nesting"},
+                    ),
                 )
                 if len(self.calls) == 1
-                else _plan_json(str(request.turn_id))
+                else ()
             )
             return ModelGenerationResult(
-                text=text,
+                text="" if tool_calls else _plan_json(str(request.turn_id)),
                 selected_mode=StructuredOutputMode.JSON_SCHEMA,
                 provider="fake",
                 model_key="fake/schema",
+                tool_calls=tool_calls,
             )
 
     runtime = StructuredSearchRuntime()
@@ -794,7 +1019,12 @@ def test_reasoning_run_accepts_structured_tool_step_for_json_model_runtimes() ->
         model_port=runtime,
         decoder=DecisionPlanDecoder(),
         tool_port=SearchTools(),
-    ).run(_task(allowed_tools=("web_search",)))
+    ).run(
+        _task(
+            allowed_tools=("web_search",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.COMPLETED
     assert result.tool_calls == 1
@@ -805,16 +1035,26 @@ def test_reasoning_run_scopes_local_file_tool_to_the_owning_elfie() -> None:
     class FileRuntime(SearchRuntime):
         def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
             self.calls.append(request)
-            text = (
-                "[READ_FILE]notes.txt[/READ_FILE]"
+            tool_calls = (
+                (
+                    ToolCall(
+                        call_id="local-file-1",
+                        tool_key="local_file",
+                        arguments={
+                            "operation": "read",
+                            "resource_id": "notes.txt",
+                        },
+                    ),
+                )
                 if len(self.calls) == 1
-                else _plan_json(str(request.turn_id))
+                else ()
             )
             return ModelGenerationResult(
-                text=text,
+                text="" if tool_calls else _plan_json(str(request.turn_id)),
                 selected_mode=StructuredOutputMode.JSON_SCHEMA,
                 provider="fake",
                 model_key="fake/schema",
+                tool_calls=tool_calls,
             )
 
     class FileTools(SearchTools):
@@ -830,6 +1070,7 @@ def test_reasoning_run_scopes_local_file_tool_to_the_owning_elfie() -> None:
         _task(
             allowed_tools=("local_file",),
             tool_scope_id=ElfieId("elfie-1"),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
         )
     )
 
@@ -845,7 +1086,12 @@ def test_reasoning_run_rejects_unauthorized_tool_and_returns_safe_noop() -> None
         decoder=DecisionPlanDecoder(),
         tool_port=SearchTools(),
         budget=ReasoningBudget(max_steps=4, max_model_calls=2, max_tool_calls=1),
-    ).run(_task())
+    ).run(
+        _task(
+            allowed_tools=("local_file",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.TOOL_REJECTED
     assert result.decode.plan.intents[0].type == "noop"
@@ -874,7 +1120,12 @@ def test_reasoning_run_does_not_treat_external_claims_as_tool_receipts() -> None
         model_port=ExternalClaimRuntime(),
         decoder=DecisionPlanDecoder(),
         tool_port=tools,
-    ).run(_task(allowed_tools=("web_search",)))
+    ).run(
+        _task(
+            allowed_tools=("web_search",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.COMPLETED
     assert tools.requests == []
@@ -887,7 +1138,12 @@ def test_reasoning_run_stops_at_budget_and_marks_failure() -> None:
         decoder=DecisionPlanDecoder(),
         tool_port=SearchTools(),
         budget=ReasoningBudget(max_steps=8, max_model_calls=1, max_tool_calls=1),
-    ).run(_task(allowed_tools=("web_search",)))
+    ).run(
+        _task(
+            allowed_tools=("web_search",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.BUDGET_EXHAUSTED
     assert result.decode.plan.intents[0].type == "noop"
@@ -1002,7 +1258,12 @@ def test_reasoning_run_rejects_failed_tool_as_non_success() -> None:
         decoder=DecisionPlanDecoder(),
         tool_port=FailedTools(),
         budget=ReasoningBudget(max_steps=8, max_model_calls=3, max_tool_calls=1),
-    ).run(_task(allowed_tools=("web_search",)))
+    ).run(
+        _task(
+            allowed_tools=("web_search",),
+            reasoning_depth=ReasoningDepth.DELIBERATE,
+        )
+    )
 
     assert result.status is ReasoningStatus.TOOL_FAILED
     assert result.decode.plan.intents[0].type == "noop"

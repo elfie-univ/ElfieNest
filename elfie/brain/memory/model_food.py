@@ -106,7 +106,7 @@ class MemoryModelPort(Protocol):
         semantic_role: str,
         energy: float,
         task_complexity: int,
-        allowed_skills: list[str] | None,
+        allowed_tools: list[str] | None,
     ) -> str: ...
 
 
@@ -142,9 +142,9 @@ class ModelPortMemoryAdapter:
         semantic_role: str,
         energy: float,
         task_complexity: int,
-        allowed_skills: list[str] | None,
+        allowed_tools: list[str] | None,
     ) -> str:
-        del food_key, scene, energy, task_complexity, allowed_skills
+        del food_key, scene, energy, task_complexity, allowed_tools
         captured_at = self._clock()
         request_id = uuid4().hex
         request = ModelGenerationRequest(
@@ -194,7 +194,7 @@ def ask_memory_model(
         semantic_role=semantic_role,
         energy=50.0,
         task_complexity=complexity,
-        allowed_skills=[],
+        allowed_tools=[],
     )
 
 

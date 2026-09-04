@@ -1,7 +1,7 @@
 # Model, Food and tool behavior contract
 
-**Contract version:** 1.8
-**Revised:** 2026-08-15
+**Contract version:** 1.9
+**Revised:** 2026-09-03
 
 > **Behavior authority.** This document defines the accepted Provider, model,
 > Food and tool behavior after the retired `ai_runtime/` root was decomposed.
@@ -608,7 +608,8 @@ shows **Install**; the Provider shows **Install Ollama**, while model rows show
 
 ```mermaid
 flowchart LR
-  SK["Elfie skills"] --> AL["Requested allowed tools"]
+  SK["Bundled SKILL.md metadata"] --> SL["Native load_skill control op"]
+  SL --> SO["Loaded procedural instructions"]
   GC["Global tools.yaml"] --> IX["Authorization intersection"]
   IR["Implemented safe-tool registry"] --> IX
   AL --> IX
@@ -630,14 +631,16 @@ skill mutation remain disabled until their isolation and approval contracts are
 implemented. Disabled tools are not advertised to a model.
 
 There is one global tool configuration surface in phase one and no per-Elfie
-switch UI. The effective tool set is the intersection of globally enabled
-tools, the Elfie's internal skill request, the implemented safe-tool registry
-and a per-invocation safety permission decision. Skill source ownership targets
-`elfie/brain/reasoning/skills/`; bundled declarations and in-memory policy require no
-writable store. Mutable Skill installation or durable per-Elfie Skill state is
-disabled and requires a separate approved contract before it gains any fact
-source. Shared tool implementations live in `infrastructure/tools/`. Tools never
-live in Food configuration.
+switch UI. The effective Tool set is the intersection of globally enabled Tools,
+Brain's explicit `allowed_tools` request for a deliberate Run, the implemented
+safe-Tool registry and the per-invocation safety permission decision. Skill
+instructions are independent: they do not grant Tool permission and are loaded
+only through the native `load_skill` control operation. Official bundled sources
+use `config/brain/skills/<name>/SKILL.md` (staged as `resources/config/...`);
+they are read-only, first-party and not a writable user fact source. Mutable Skill
+installation, scripts or durable per-Elfie Skill state is disabled and requires a
+separate approved contract. Shared executable Tool implementations live in
+`infrastructure/tools/`. Tools never live in Food configuration.
 
 Bootstrap constructs or derives a Tool Adapter view already scoped to the
 current Elfie's authorized workspace capability. A `ToolPort` request carries
@@ -691,7 +694,6 @@ ${ELFIE_HOME:-~/.elfienest}/
 │   │   ├── daily/
 │   │   ├── people/
 │   │   └── concepts/
-│   └── skills/                       # reserved; not a phase-one fact source
 ├── runtime/
 │   ├── runtime.json
 │   └── locks/

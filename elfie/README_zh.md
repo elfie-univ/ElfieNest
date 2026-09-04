@@ -43,7 +43,7 @@ elfie/
 ├── nervous_system/      # 感知规范化、过滤、反射和物理输出
 ├── body/                # BodyPort/能力/事件契约与 Headless 测试身体
 ├── communication/       # 不经过 NervousSystem 的数字消息通道
-└── brain/reasoning/skills/ # ReasoningRun 内使用的语义 Skill 目录
+└── brain/reasoning/       # Reasoning Port、策略与有界 Skill 加载
 ```
 
 ## 入口
@@ -110,6 +110,6 @@ uv run --no-sync pytest -q \
 - `test/elfie/`：单精灵门面、工厂、身份和跨子模块组合；
 - `test/elfie/brain/`：感知、上下文、决策、情绪、能量和记忆；
 - `test/elfie/body/`、`test/elfie/nervous_system/`：身体与物理边界；
-- `test/elfie/communication/`、`test/elfie/brain/reasoning/skills/`：消息与技能；
+- `test/elfie/communication/`、`test/elfie/brain/reasoning/`：消息与思考中枢；
 - `test/architecture/test_elfie_cognitive_contracts.py`：认知入口、依赖方向、
   Pydantic 契约和磁盘 Schema 禁令。

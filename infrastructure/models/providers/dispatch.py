@@ -95,9 +95,11 @@ def call_ollama_api(
                 }
             message = res_data["message"]
             content = message.get("content", "")
+            tool_calls = _normalize_tool_calls(message.get("tool_calls"))
             metadata = {
-                "tool_called": bool(message.get("tool_calls")),
+                "tool_called": bool(tool_calls),
                 "reasoning_observed": bool(message.get("thinking")),
+                "tool_calls": tool_calls,
             }
             if response_capture is not None:
                 _capture_message(response_capture, message)
@@ -158,12 +160,14 @@ def call_openai_compatible_api(
             )
             usage = res_data.get("usage", {})
             message = res_data["choices"][0]["message"]
+            tool_calls = _normalize_tool_calls(message.get("tool_calls"))
             if response_capture is not None:
                 _capture_message(response_capture, message)
             content = message.get("content")
             metadata = {
-                "tool_called": bool(message.get("tool_calls")),
+                "tool_called": bool(tool_calls),
                 "reasoning_observed": bool(message.get("reasoning_content")),
+                "tool_calls": tool_calls,
             }
             if not isinstance(content, str) or not content.strip():
                 reasoning_content = message.get("reasoning_content")
@@ -237,7 +241,7 @@ def call_anthropic_api(
             usage = res_data.get("usage", {})
             blocks = res_data.get("content", [])
             text_parts: list[str] = []
-            tool_use_count = 0
+            tool_calls: list[dict[str, Any]] = []
             reasoning_present = False
             if isinstance(blocks, list):
                 for block in blocks:
@@ -246,18 +250,22 @@ def call_anthropic_api(
                     if isinstance(block.get("text"), str):
                         text_parts.append(block["text"])
                     if block.get("type") == "tool_use":
-                        tool_use_count += 1
+                        normalized = _normalize_tool_call(block, len(tool_calls))
+                        if normalized is not None:
+                            tool_calls.append(normalized)
                     if block.get("type") in {"thinking", "redacted_thinking"}:
                         reasoning_present = True
             text = "".join(text_parts)
             metadata = {
-                "tool_called": tool_use_count > 0,
+                "tool_called": bool(tool_calls),
                 "reasoning_observed": reasoning_present,
+                "tool_calls": tool_calls,
             }
             if response_capture is not None:
                 response_capture.update(
                     {
-                        "tool_call_count": tool_use_count,
+                        "tool_call_count": len(tool_calls),
+                        "tool_calls": tool_calls,
                         "reasoning_present": reasoning_present,
                     }
                 )
@@ -572,8 +580,9 @@ def _responses_usage(payload: Mapping[str, Any]) -> dict[str, Any]:
 def _capture_message(capture: dict[str, Any], message: Any) -> None:
     if not isinstance(message, Mapping):
         return
-    tool_calls = message.get("tool_calls")
-    capture["tool_call_count"] = len(tool_calls) if isinstance(tool_calls, list) else 0
+    tool_calls = _normalize_tool_calls(message.get("tool_calls"))
+    capture["tool_call_count"] = len(tool_calls)
+    capture["tool_calls"] = tool_calls
     capture["reasoning_present"] = bool(
         message.get("reasoning_content")
         or message.get("reasoning")
@@ -589,15 +598,52 @@ def _capture_responses_output(
     output = payload.get("output")
     if not isinstance(output, list):
         return
-    tool_calls = sum(
-        1
-        for item in output
-        if isinstance(item, Mapping) and item.get("type") == "function_call"
-    )
-    capture["tool_call_count"] = tool_calls
+    normalized_calls: list[dict[str, Any]] = []
+    for item in output:
+        if not isinstance(item, Mapping) or item.get("type") != "function_call":
+            continue
+        normalized = _normalize_tool_call(item, len(normalized_calls))
+        if normalized is not None:
+            normalized_calls.append(normalized)
+    capture["tool_call_count"] = len(normalized_calls)
+    capture["tool_calls"] = normalized_calls
     capture["reasoning_present"] = any(
         isinstance(item, Mapping) and item.get("type") == "reasoning" for item in output
     )
+
+
+def _normalize_tool_calls(raw_calls: Any) -> list[dict[str, Any]]:
+    """Normalize OpenAI/Ollama tool-call shapes without interpreting arguments."""
+    if not isinstance(raw_calls, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for index, raw_call in enumerate(raw_calls):
+        call = _normalize_tool_call(raw_call, index)
+        if call is not None:
+            normalized.append(call)
+    return normalized
+
+
+def _normalize_tool_call(raw_call: Any, index: int) -> dict[str, Any] | None:
+    if not isinstance(raw_call, Mapping):
+        return None
+    function = raw_call.get("function")
+    if isinstance(function, Mapping):
+        name = function.get("name")
+        arguments = function.get("arguments", {})
+    else:
+        name = raw_call.get("name")
+        arguments = raw_call.get("arguments", raw_call.get("input", {}))
+    if not isinstance(name, str) or not name.strip():
+        return None
+    call_id = raw_call.get("id") or raw_call.get("call_id")
+    if not isinstance(call_id, str) or not call_id.strip():
+        call_id = f"tool_call_{index + 1}"
+    return {
+        "call_id": call_id,
+        "name": name,
+        "arguments": arguments,
+    }
 
 
 def _token_expired(expires_at: str | None) -> bool:

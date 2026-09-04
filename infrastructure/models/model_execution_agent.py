@@ -18,7 +18,14 @@ from elfie.brain.reasoning.food_port import (
     is_food_executable,
     resolve_main_food,
 )
-from elfie.brain.reasoning.tool_port import ToolKey, ToolPort, ToolRequest, ToolResult
+from elfie.brain.reasoning.skill_port import SkillLoadCall
+from elfie.brain.reasoning.tool_port import (
+    ToolDefinition,
+    ToolKey,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.message_types import ErrorInfo
 from infrastructure.models.capabilities import resolve_model_capability_profile
 from infrastructure.models.food_execution import (
@@ -26,7 +33,11 @@ from infrastructure.models.food_execution import (
     FoodExecutionResult,
     FoodExecutor,
 )
-from infrastructure.models.inference.llm_api import call_llm_api
+from infrastructure.models.inference.llm_api import (
+    LLMCallResult,
+    call_llm_api,
+    call_llm_api_result,
+)
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
 from infrastructure.models.model_execution_config import ModelExecutionConfig
 from infrastructure.models.model_execution_contracts import (
@@ -50,12 +61,18 @@ from infrastructure.models.model_reference import parse_model_reference
 logger = logging.getLogger("infrastructure.models.model_execution_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
 _ADOPTION_MODEL_TIMEOUT_SECONDS = 20.0
+# Provider-only function name for structured output in tool-call mode.  It is
+# deliberately separate from the public schema name and semantic Tool keys.
+_FINAL_STRUCTURED_CALL_NAME = "brain_final_output"
 
 
 class _UnavailableToolPort:
     """Semantic no-op used when an isolated model execution has no tool scope."""
 
     def available_tool_keys(self) -> tuple[ToolKey, ...]:
+        return ()
+
+    def available_tool_definitions(self) -> tuple[ToolDefinition, ...]:
         return ()
 
     def execute(self, request: ToolRequest) -> ToolResult:
@@ -119,12 +136,12 @@ class ModelExecutionAgent:
         prompt: str,
         energy: float = 100.0,
         task_complexity: int = 1,
-        allowed_skills: List[str] = None,
+        allowed_tools: List[str] | None = None,
     ) -> str:
         """兼容文本接口；内部只转换成粮食请求，不再直接选择模型。"""
         tools = (
-            tuple(allowed_skills)
-            if allowed_skills is not None
+            tuple(allowed_tools)
+            if allowed_tools is not None
             else ("web_search", "local_file")
         )
         return self.run_with_food(
@@ -132,7 +149,7 @@ class ModelExecutionAgent:
             food_key=None,
             energy=energy,
             task_complexity=task_complexity,
-            allowed_skills=list(tools),
+            allowed_tools=list(tools),
         ).text
 
     def ask_with_food(
@@ -143,7 +160,7 @@ class ModelExecutionAgent:
         scene: str = "chat",
         energy: float = 100.0,
         task_complexity: int = 1,
-        allowed_skills: List[str] | None = None,
+        allowed_tools: List[str] | None = None,
         semantic_role: str = "primary",
         images: List[str] | None = None,
         audio: str | None = None,
@@ -156,7 +173,7 @@ class ModelExecutionAgent:
             scene=scene,
             energy=energy,
             task_complexity=task_complexity,
-            allowed_skills=allowed_skills,
+            allowed_tools=allowed_tools,
             semantic_role=semantic_role,
             images=images,
             audio=audio,
@@ -171,7 +188,7 @@ class ModelExecutionAgent:
         scene: str = "chat",
         energy: float = 100.0,
         task_complexity: int = 1,
-        allowed_skills: List[str] | None = None,
+        allowed_tools: List[str] | None = None,
         semantic_role: str = "primary",
         images: List[str] | None = None,
         audio: str | None = None,
@@ -180,7 +197,7 @@ class ModelExecutionAgent:
         self._reload_config_if_changed()
         configured_tools = self._ports.effective_tool_keys(
             self.config.runtime_policy,
-            tuple(allowed_skills or ()),
+            tuple(allowed_tools or ()),
         )
         available_tools = set(self.tool_port.available_tool_keys())
         tools = tuple(tool for tool in configured_tools if tool in available_tools)
@@ -228,6 +245,7 @@ class ModelExecutionAgent:
             "openai_api",
             "openai_chatgpt",
         }
+        supports_tools = self._supports_native_tool_calling(assignment.model, provider)
         api_mode = str(provider_config.get("api_mode") or "")
         is_ollama = (
             provider == "ollama"
@@ -238,7 +256,7 @@ class ModelExecutionAgent:
             provider=provider,
             model_key=assignment.model,
             supports_json_schema=native,
-            supports_tool_calling=native,
+            supports_tool_calling=supports_tools,
             supports_json_mode=native or is_ollama or api_mode == "chat_completions",
             supports_plain_text=True,
             max_output_tokens=4096,
@@ -255,12 +273,15 @@ class ModelExecutionAgent:
             "openai_api",
             "openai_chatgpt",
         }
+        supports_tools = self._supports_native_tool_calling(
+            package.primary.model, provider
+        )
         api_mode = str(provider_config.get("api_mode") or "")
         return StructuredModelExecutionCapabilities(
             provider=provider,
             model_key=package.primary.model,
             supports_json_schema=native,
-            supports_tool_calling=native,
+            supports_tool_calling=supports_tools,
             supports_json_mode=native or api_mode == "chat_completions",
             supports_plain_text=True,
             max_output_tokens=4096,
@@ -304,7 +325,6 @@ class ModelExecutionAgent:
                 allowed_tools=(),
                 allow_fallback=False,
                 scope_id=request.scope_id,
-                inject_tool_prompt=not request.brain_owned_system_prompt,
             )
         except Exception as error:
             raise NoAvailableFoodError(
@@ -316,6 +336,8 @@ class ModelExecutionAgent:
             provider=provider,
             model_key=execution.model,
             latency_ms=(perf_counter() - started) * 1000.0,
+            tool_calls=execution.tool_calls,
+            skill_calls=execution.skill_calls,
         )
 
     def generate_structured(
@@ -354,23 +376,14 @@ class ModelExecutionAgent:
                 continue
             provider = self._provider_for_model(assignment.model)
             started = perf_counter()
-            executor = self._food_executor(
-                provider_options=self._structured_request_options(
-                    request, selected_mode
-                ),
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-                thinking=request.reasoning_mode == "long",
-            )
             try:
-                execution = executor.execute(
-                    package,
-                    self._structured_messages(request, selected_mode, messages),
-                    semantic_role="primary",
-                    allowed_tools=tuple(request.allowed_tools),
-                    allow_fallback=request.allow_fallback,
-                    scope_id=request.scope_id,
-                    inject_tool_prompt=not request.brain_owned_system_prompt,
+                execution = self._execute_structured_assignment(
+                    assignment=assignment,
+                    request=request,
+                    selected_mode=selected_mode,
+                    messages=self._structured_messages(
+                        request, selected_mode, messages
+                    ),
                 )
             except Exception as exc:
                 failures.append(f"{attempt_food}: {exc}")
@@ -381,6 +394,8 @@ class ModelExecutionAgent:
                 provider=provider,
                 model_key=execution.model,
                 latency_ms=(perf_counter() - started) * 1000.0,
+                tool_calls=execution.tool_calls,
+                skill_calls=execution.skill_calls,
             )
         raise NoAvailableFoodError("no_available_food: " + " | ".join(failures))
 
@@ -427,6 +442,17 @@ class ModelExecutionAgent:
         if selected_mode is StructuredGenerationMode.PLAIN_TEXT:
             return {}
         options: Dict[str, Any] = {}
+        tool_definitions = [
+            {
+                "type": "function",
+                "function": {
+                    "name": definition.name,
+                    "description": definition.description,
+                    "parameters": dict(definition.input_schema),
+                },
+            }
+            for definition in request.tool_definitions
+        ]
         if request.reasoning_mode == "fast" and request.model_key:
             profile = resolve_model_capability_profile(request.model_key)
             if profile and profile.canonical_name.startswith("GLM-"):
@@ -442,25 +468,23 @@ class ModelExecutionAgent:
                     "strict": True,
                 },
             }
+            if tool_definitions:
+                options["tool_definitions"] = tool_definitions
+                options["tool_choice"] = "auto"
             return options
         if selected_mode is StructuredGenerationMode.TOOL_CALL:
-            options.update(
+            tool_definitions.append(
                 {
-                    "tools": [
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": request.response_schema_name,
-                                "parameters": dict(request.response_schema),
-                            },
-                        }
-                    ],
-                    "tool_choice": {
-                        "type": "function",
-                        "function": {"name": request.response_schema_name},
+                    "type": "function",
+                    "function": {
+                        "name": _FINAL_STRUCTURED_CALL_NAME,
+                        "description": "Return the final structured response.",
+                        "parameters": dict(request.response_schema),
                     },
-                },
+                }
             )
+            options["tool_definitions"] = tool_definitions
+            options["tool_choice"] = "auto"
             return options
         # Ollama's JSON_TEXT mode still needs an explicit JSON constraint;
         # without it small local models commonly echo the prompt or markdown.
@@ -468,6 +492,129 @@ class ModelExecutionAgent:
         if provider == "ollama" or provider.startswith("ollama_"):
             options["format"] = "json"
         return options
+
+    def _execute_structured_assignment(
+        self,
+        *,
+        assignment: Any,
+        request: StructuredModelExecutionRequest,
+        selected_mode: StructuredGenerationMode,
+        messages: list[dict[str, Any]],
+    ) -> FoodExecutionResult:
+        """Call one Provider once and preserve native Tool calls for Brain."""
+        reference = parse_model_reference(assignment.model)
+        provider = reference.connection_id
+        options = self._structured_request_options(request, selected_mode)
+        with self._model_call_scope(
+            provider,
+            reference.model_id,
+            food_id=request.food_key or "structured",
+            semantic_role="primary",
+            route_stage="primary",
+            scope_id=request.scope_id,
+        ):
+            call_args = (
+                provider,
+                reference.model_id,
+                messages,
+                request.temperature,
+                request.max_tokens,
+                options,
+                request.reasoning_mode == "long",
+            )
+            raw = (
+                self._call_food_llm_api(*call_args)
+                if request.timeout_seconds is None
+                else self._call_food_llm_api(
+                    *call_args,
+                    timeout_seconds=request.timeout_seconds,
+                )
+            )
+        result = raw if isinstance(raw, LLMCallResult) else LLMCallResult(raw, {}, {})
+        tool_calls = tuple(
+            call
+            for call in result.tool_calls
+            if call.tool_key != _FINAL_STRUCTURED_CALL_NAME
+        )
+        final_calls = tuple(
+            call
+            for call in result.tool_calls
+            if call.tool_key == _FINAL_STRUCTURED_CALL_NAME
+        )
+        if len(final_calls) > 1:
+            raise ValueError("provider returned multiple final structured calls")
+        skill_calls: tuple[SkillLoadCall, ...] = result.skill_calls
+        text = (
+            json.dumps(
+                dict(final_calls[0].arguments),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            if final_calls
+            else result.text
+        )
+        return FoodExecutionResult(
+            text=text,
+            model=assignment.model,
+            execution_stage="primary",
+            technical_fallback_used=False,
+            tool_calls=tool_calls,
+            skill_calls=skill_calls,
+        )
+
+    def _supports_native_tool_calling(self, model_key: str, provider: str) -> bool:
+        """Require an endpoint declaration or verified evidence before exposure."""
+        provider_config = self.config.providers.get(provider, {})
+        if provider_config.get("supports_tools") is True:
+            return True
+        model_id = self._model_name(model_key)
+        raw_models = provider_config.get("models", ())
+        if isinstance(raw_models, list):
+            for raw_model in raw_models:
+                if not isinstance(raw_model, dict):
+                    continue
+                if str(raw_model.get("id") or raw_model.get("model_id")) != model_id:
+                    continue
+                if raw_model.get("supports_tools") is True:
+                    return True
+        ports = getattr(self, "_ports", None)
+        evidence_source = getattr(ports, "model_evidence_source", None)
+        evidence = evidence_source().get(model_key) if evidence_source else None
+        return bool(
+            evidence
+            and evidence.fresh
+            and (
+                evidence.tool_test_passed
+                or evidence.capability_states.get("tools") == "supported"
+            )
+        )
+
+    @staticmethod
+    def _model_call_scope(
+        provider: str,
+        model: str,
+        *,
+        food_id: str,
+        semantic_role: str,
+        route_stage: str,
+        scope_id: str | None,
+    ):
+        from infrastructure.models.model_execution_observations import (
+            ModelCallContext,
+            scoped_model_call_context,
+        )
+
+        return scoped_model_call_context(
+            ModelCallContext(
+                connection_id=provider,
+                endpoint_model_id=model,
+                food_id=food_id,
+                semantic_role=semantic_role,
+                route_stage=route_stage,
+                workload_kind="production",
+                scope_id=scope_id,
+            )
+        )
 
     def _think_with_food(self, request: ModelExecutionRequest) -> ModelExecutionResult:
         catalog = self._load_food_catalog()
@@ -493,8 +640,6 @@ class ModelExecutionAgent:
             config=self.config,
             tool_port=self.tool_port,
             model_caller=self._call_food_llm_api,
-            tool_loop_factory=self._ports.tool_loop_factory,
-            prompt_injector=self._ports.prompt_injector,
         )
         fallback_used = False
         failed_attempts: tuple[dict[str, str], ...] = ()
@@ -702,7 +847,7 @@ class ModelExecutionAgent:
             _temperature: float,
             _max_tokens: int,
             options: dict[str, Any],
-        ) -> str:
+        ) -> LLMCallResult:
             call_args = (
                 provider,
                 model,
@@ -720,8 +865,6 @@ class ModelExecutionAgent:
             config=self.config,
             tool_port=self.tool_port,
             model_caller=caller,
-            tool_loop_factory=self._ports.tool_loop_factory,
-            prompt_injector=self._ports.prompt_injector,
         )
 
     def _load_food_catalog(self) -> FoodCatalog:
@@ -767,8 +910,9 @@ class ModelExecutionAgent:
         request_options: Dict[str, Any],
         thinking: bool = False,
         timeout_seconds: float | None = None,
-    ) -> str:
-        return call_llm_api(
+    ) -> LLMCallResult:
+        """Execute one provider request and retain any native Tool calls."""
+        return call_llm_api_result(
             self.config,
             provider,
             model_name,

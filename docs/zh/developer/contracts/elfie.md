@@ -1,6 +1,6 @@
 # Elfie 内部架构契约
 
-**契约版本：** 2.4
+**契约版本：** 2.5
 **采用日期：** 2026-08-11
 **修订日期：** 2026-09-03
 **适用范围：** `elfie/`，以及 Infrastructure 为单只 Elfie 限定作用域的 Port View
@@ -67,19 +67,20 @@ Runtime、Infrastructure Adapter 或公开产品 API。
 | 模块 | 拥有 | 不得拥有 |
 | --- | --- | --- |
 | `elfie/profile/` | 不可变外部客观身份、稳定年龄/出生与个人出身锚点、最终虚拟外貌和不可变外貌默认资源 | 世界知识/Canon、生成器或模型来源、资料包引用、Seed、用户答案、抵达/培训历史、人格、记忆、关系、权限、运行限制、当前能力/状态、YAML/文件持久化、用户路径、App 领养或账户规则 |
-| `elfie/brain/` | 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、心智整理和 Skills | Provider 选择/配置、SDK 请求、具体工具执行、设备/渠道传输或产品工作流 |
+| `elfie/brain/` | 事件工作区、自我定位、自我认知、情绪、能量、动机、记忆、思考中枢、跨回合活动、心智整理和受信任的 Agent Skills | Provider 选择/配置、SDK 请求、具体工具执行、设备/渠道传输或产品工作流 |
 | `elfie/brain/memory/` | 记忆节点、关系、编码、检索、巩固和语义存储 Port | SQLite 连接、Schema、路径或持久化 Record |
-| `elfie/brain/reasoning/skills/` | Skill 声明、单只精灵的目录、策略和语义工具请求授权 | Runtime 代理、平台工具、工作区路径或工具执行 |
+| `elfie/brain/reasoning/skill_port.py` | 强类型 Skill 元数据/文档契约，以及单次 Run 的只读加载边界 | Skill 源文件、Runtime 代理、平台工具、工作区路径或工具执行 |
 | `elfie/nervous_system/` | 身体事件规范化、过滤、反射、感知投递和已校验身体意图转换 | 设备传输、Godot 协议、几何或身体注册策略 |
 | `elfie/body/` | 身体身份、能力、解剖、命令、传感事件、回执、候选 Registry、切换和唯一当前 Binding | 虚拟/实体并发 authority、Godot/WebSocket/设备传输、凭据、进程所有权或设备产品授权 |
 | `elfie/communication/` | 标准 Envelope、准入与投递语义、策略、Inbox/Outbox、Hub 和渠道路由 | 产品会话 authority/历史、账户成员、平台 SDK、凭据或网络传输 |
 | `elfie/genesis/` | 创建期语义编译、确定性生成规则、校验和临时初始化 Bundle | 日常认知、永久重复状态、技术 Adapter 构造、持久化实现或生命周期 authority |
 
-Skills 属于 Brain，因为它们影响认知并授权某只 Elfie 可以提出哪些语义工具请求。
-Skill 只命名语义 `tool_key` 或能力，不包装 Runtime 对象，也不自行执行工具。
-随源码发布的 Skill 声明和单只 Elfie 的内存策略不需要持久化 Port。可变 Skill 安装、
-修改或单只 Elfie 持久 Skill 状态不在本契约范围内；引入它们必须先有单独获批的契约
-决策，不能从 Brain 直接写文件开始。
+Skills 属于 Brain，因为它们的流程说明会影响认知。Skill 是标准目录中的 `SKILL.md`，
+包含 `name`、`description` frontmatter 和正文指令；它不是 Tool 定义，也不授予 Tool
+权限。随包源文件位于 `config/brain/skills/<name>/SKILL.md`，先只提供元数据，再通过
+原生 `load_skill` 控制操作按需加载当前 Run 的一份文档。可执行 Tool 定义和授权仍由
+强类型 `ToolPort`/Infrastructure 注册表独立负责。当前阶段 Skill 只允许官方内置只读源；
+用户安装、修改、脚本和单只 Elfie 持久 Skill 状态须另有获批决策。
 
 上述 Brain 系统是概念所有者，不是部署模型。它们不等于十个进程、数据库、Worker 或
 必须预建的包。只有实现提供真实状态、契约或行为时，系统才获得目录；禁止为了架构图
@@ -144,7 +145,7 @@ Port 定义在使用它的语义所有者旁边。可以用一个精简的 `elfi
 | --- | --- | --- |
 | `FoodPort` | Brain | 读取当前 Elfie 已授权的有效 Food 投影，保留行为契约规定的命名语义角色、精确不透明模型引用及单 Fallback/Emergency 形状 |
 | `ModelPort` | Brain | 使用强类型 deadline、取消和结果元数据完成 Provider 无关的模型生成 |
-| `ToolPort` | Brain（Skills 负责授权） | 强制技术安全作用域，执行一个已经由 Brain 授权的语义工具请求，或返回类型化拒绝/有界结果 |
+| `ToolPort` | Brain | 强制技术安全作用域，执行一个已经由 Brain 授权的语义 Tool 请求，或返回类型化拒绝/有界结果 |
 | `MemoryStorePort` | Brain/Memory | 保存和查询类型化记忆节点、边及语义搜索结果 |
 | `ProfileStorePort` | Profile | 加载和保存已校验稳定 Profile，不暴露 YAML 或路径 |
 | `BodyPort` | Body（由 NervousSystem 与聚合路由使用） | 暴露一具可替换身体的能力、命令、事件、回执和快照 |
@@ -164,9 +165,9 @@ Brain 选择语义模型角色，并决定是否允许模型提出的工具调�
 Food 与工具行为契约规定的精确命名角色、一个可选 Fallback 和 Emergency 行为，不得
 发明任意 Fallback 列表；`ModelPort` 解释不透明技术模型引用并完成生成。
 
-Brain Skill 授权是工具执行的必要但非充分条件。`ToolPort` Adapter 还要把请求与全局
-可用性及本次调用的技术安全作用域求交，可以返回类型化拒绝，且永远不能扩大 Brain
-授权的能力。App 配置可用性，但不代理调用。
+Skill 指令本身不授予 Tool 执行权限。Brain 为 deliberate Run 提供显式 `allowed_tools`；
+`ToolPort` Adapter 还要把请求与全局可用性及本次调用的技术安全作用域求交，可以返回类型化
+拒绝，且永远不能扩大 Brain 授权的能力。App 配置可用性，但不代理调用。
 
 普通链路直接完成：
 

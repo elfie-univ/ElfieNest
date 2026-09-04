@@ -50,7 +50,7 @@ elfie/
 ├── nervous_system/      # perception normalization, filtering, reflexes and physical output
 ├── body/                # BodyPort/capability/event contracts and Headless test body
 ├── communication/       # digital message channel bypassing the NervousSystem
-└── brain/reasoning/skills/ # semantic Skill catalog used inside a ReasoningRun
+└── brain/reasoning/       # Reasoning ports, policy and bounded Skill loading
 ```
 
 ## Entry points
@@ -128,6 +128,6 @@ For the full environment setup and quality gate see
   memory;
 - `test/elfie/body/`, `test/elfie/nervous_system/`: body and physical
   boundaries;
-- `test/elfie/communication/`, `test/elfie/brain/reasoning/skills/`: messages and Skills;
+- `test/elfie/communication/`, `test/elfie/brain/reasoning/`: messages and Reasoning;
 - `test/architecture/test_elfie_cognitive_contracts.py`: cognitive entry
   points, dependency direction, Pydantic contracts and the on-disk Schema ban.

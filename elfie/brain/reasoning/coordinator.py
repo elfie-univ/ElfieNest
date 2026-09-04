@@ -65,6 +65,7 @@ from elfie.brain.reasoning.run import (
     ReasoningStatus,
 )
 from elfie.brain.reasoning.settlement import TurnSettlementPort
+from elfie.brain.reasoning.skill_port import SkillCatalog
 from elfie.brain.reasoning.turn_outcome import TerminalStatus, TurnOutcome
 from elfie.brain.reasoning.worker import ReasoningExecutionPort, ReasoningTurnResult
 from elfie.brain.workspace.contracts import (
@@ -106,6 +107,7 @@ class BrainCoordinator:
         hard_timeout_seconds: float = 45.0,
         trigger_policy: Optional[TurnTriggerPolicy] = None,
         allowed_tools: Tuple[str, ...] = (),
+        skill_catalog: SkillCatalog | None = None,
         motivation_blocked: Optional[Callable[[], bool]] = None,
         consolidation_blocked: Optional[Callable[[], bool]] = None,
         journal: BrainJournal | None = None,
@@ -144,6 +146,7 @@ class BrainCoordinator:
             context_source=context_source,
             hard_timeout_seconds=hard_timeout_seconds,
             allowed_tools=allowed_tools,
+            skill_catalog=skill_catalog,
             constitution=constitution,
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)

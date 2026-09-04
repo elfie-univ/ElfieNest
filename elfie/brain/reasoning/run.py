@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, unique
 from threading import Event
 from time import monotonic
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Tuple
 
 from pydantic import Field, JsonValue
 
@@ -55,11 +54,40 @@ from elfie.brain.reasoning.reply_safety import (
     TRUSTED_OWNER_FAILURE_REPLY,
     sanitize_direct_owner_reply,
 )
-from elfie.brain.reasoning.tool_port import ToolPort, ToolRequest, ToolResult
+from elfie.brain.reasoning.skill_port import (
+    SKILL_LOADER_NAME,
+    SkillLoadCall,
+)
+from elfie.brain.reasoning.tool_port import (
+    ToolCall,
+    ToolOperation,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
 if TYPE_CHECKING:
     from elfie.brain.reasoning.worker import ReasoningTaskView
+
+
+_TOOL_OPERATIONS: dict[str, ToolOperation] = {
+    "search": "search",
+    "read": "read",
+    "list": "list",
+}
+
+
+def _json_int(value: JsonValue, default: int) -> int:
+    if isinstance(value, (str, int, float)):
+        return int(value)
+    return default
+
+
+def _tool_operation(value: JsonValue, default: ToolOperation) -> ToolOperation:
+    if isinstance(value, str):
+        return _TOOL_OPERATIONS.get(value, default)
+    return default
 
 
 @unique
@@ -89,16 +117,43 @@ class CognitiveStepKind(str, Enum):
     """Publicly visible stages within one model turn."""
 
     MODEL = "model"
+    SKILL = "skill"
     TOOL = "tool"
     OBSERVATION = "observation"
     VERIFY = "verify"
 
 
-class ReasoningBudget(FrozenContractModel):
-    """Hard local bounds; no provider may extend them."""
+ReasoningPlanStepKind = Literal[
+    "recall_evidence",
+    "verify_draft",
+    "correct_draft",
+    "form_reply",
+]
 
-    max_steps: int = Field(default=12, ge=1)
+
+class ReasoningPlan(FrozenContractModel):
+    """A lazily-created 1--3 step plan that exists only inside one Run."""
+
+    trigger: Literal["additional_observation", "revision_required"]
+    steps: Tuple[ReasoningPlanStepKind, ...] = Field(min_length=1, max_length=3)
+
+
+class ReasoningBudget(FrozenContractModel):
+    """Per-Run admission bounds with a host-owned plan expansion."""
+
+    # ``max_steps`` is an optional last-resort loop fuse.  Model calls and
+    # tool calls are the real budgets; ordinary Runs derive their termination
+    # from those counters plus the deadline instead of competing with another
+    # fixed step number.
+    max_steps: Optional[int] = Field(default=None, ge=1)
+    # Before a host-owned ReasoningPlan exists, this is the active model-call
+    # limit.  It remains a hard limit for callers that do not opt into plan
+    # expansion, preserving the existing explicit-budget contract.
     max_model_calls: int = Field(default=4, ge=1)
+    # Once Brain creates a valid short plan, the Run may expand up to this
+    # second ceiling.  It never resets calls already spent and never applies
+    # to DIRECT because DIRECT never creates a plan.
+    max_planned_model_calls: Optional[int] = Field(default=None, ge=1)
     max_tool_calls: int = Field(default=2, ge=0)
     deadline_seconds: Optional[float] = Field(default=None, ge=0.0)
 
@@ -133,14 +188,9 @@ class ReasoningRunResult(FrozenContractModel):
     model_calls: int
     tool_calls: int
     failure_reason: Optional[str]
+    skill_calls: int = 0
     decode: DecisionDecodeResult
-
-
-@dataclass(frozen=True)
-class _ToolMarker:
-    key: str
-    operation: str
-    value: str
+    plan: Optional[ReasoningPlan] = None
 
 
 class _ReasoningStop(RuntimeError):
@@ -150,13 +200,9 @@ class _ReasoningStop(RuntimeError):
         super().__init__(reason)
 
 
-_TOOL_MARKER = re.compile(
-    r"\[(?P<kind>SEARCH|READ_FILE|LIST_FILES)\]\s*"
-    r"(?P<value>.*?)\s*\[/\s*(?P=kind)\]",
-    flags=re.IGNORECASE | re.DOTALL,
-)
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
+_SHORT_PLAN_OBSERVATION_KIND = "short_plan"
 _HONEST_EXTERNAL_BOUNDARY_REPLY = (
     "我目前没有执行或确认任何外部操作；如果你愿意，我可以先就现有信息继续聊。"
 )
@@ -167,16 +213,6 @@ _UNSUPPORTED_EXTERNAL_COMPLETION = re.compile(
     r"read\s+the\s+file|wrote\s+the\s+file|completed\s+the\s+task)\b",
     flags=re.IGNORECASE | re.DOTALL,
 )
-_TOOL_STEP_SCHEMA: dict[str, JsonValue] = {
-    "type": "object",
-    "required": ["tool_key", "operation", "value"],
-    "properties": {
-        "tool_key": {"type": "string", "enum": ["web_search", "local_file"]},
-        "operation": {"type": "string", "enum": ["search", "read", "list"]},
-        "value": {"type": "string", "minLength": 1},
-    },
-    "additionalProperties": False,
-}
 
 
 def _with_brain_owned_schema_protocol(
@@ -209,6 +245,44 @@ def _with_brain_owned_schema_protocol(
         protocol, state = system_prompt.split(state_marker, 1)
         return f"{protocol}\n\n{instruction}{state_marker}{state}"
     return f"{system_prompt}\n\n{instruction}"
+
+
+def _new_recall_plan() -> ReasoningPlan:
+    """Describe the second dependent evidence step without reading content."""
+    return ReasoningPlan(
+        trigger="additional_observation",
+        steps=("recall_evidence", "form_reply"),
+    )
+
+
+def _new_revision_plan() -> ReasoningPlan:
+    """Describe one host-requested correction without exposing hidden thoughts."""
+    return ReasoningPlan(
+        trigger="revision_required",
+        steps=("verify_draft", "correct_draft"),
+    )
+
+
+def _replace_plan_observation(
+    observations: List[CurrentRunObservation],
+    plan: ReasoningPlan,
+) -> None:
+    """Expose only the current plan state to the next Context Engine pass."""
+    observations[:] = [
+        observation
+        for observation in observations
+        if observation.kind != _SHORT_PLAN_OBSERVATION_KIND
+    ]
+    rendered_steps = "; ".join(
+        f"{ordinal}:{kind}" for ordinal, kind in enumerate(plan.steps, start=1)
+    )
+    observations.append(
+        CurrentRunObservation(
+            kind=_SHORT_PLAN_OBSERVATION_KIND,
+            status="active",
+            content=f"trigger={plan.trigger}; steps={rendered_steps}",
+        )
+    )
 
 
 class ReasoningRun:
@@ -244,9 +318,12 @@ class ReasoningRun:
         steps: List[CognitiveStep] = []
         model_calls = 0
         tool_calls = 0
+        skill_calls = 0
         capabilities: Optional[ModelGenerationCapabilities] = None
         last_generation: Optional[ModelGenerationResult] = None
         run_observations: List[CurrentRunObservation] = []
+        reasoning_plan: Optional[ReasoningPlan] = None
+        active_model_limit = self._budget.max_model_calls
         memory_reference_ids = list(getattr(task, "memory_reference_ids", ()))
         started_at = monotonic()
         turn_deadline_seconds = max(
@@ -259,6 +336,17 @@ class ReasoningRun:
             else turn_deadline_seconds
         )
 
+        def activate_plan_budget() -> None:
+            """Expand only after Brain has created a host-owned plan."""
+            nonlocal active_model_limit
+            planned_limit = self._budget.max_planned_model_calls
+            if planned_limit is not None:
+                active_model_limit = max(active_model_limit, planned_limit)
+
+        def step_limit_reached() -> bool:
+            limit = self._budget.max_steps
+            return limit is not None and len(steps) >= limit
+
         def guard(
             *, next_kind: CognitiveStepKind, model: bool = False, tool: bool = False
         ) -> None:
@@ -266,7 +354,7 @@ class ReasoningRun:
                 raise _ReasoningStop(ReasoningStatus.CANCELLED, "cancelled")
             if monotonic() - started_at >= deadline_seconds:
                 raise _ReasoningStop(ReasoningStatus.TIMED_OUT, "deadline_exceeded")
-            if model and model_calls >= self._budget.max_model_calls:
+            if model and model_calls >= active_model_limit:
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "model_call_budget_exhausted",
@@ -276,7 +364,7 @@ class ReasoningRun:
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "tool_call_budget_exhausted",
                 )
-            if len(steps) >= self._budget.max_steps:
+            if step_limit_reached():
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED, "step_budget_exhausted"
                 )
@@ -291,7 +379,7 @@ class ReasoningRun:
             operation: str | None = None,
             ok: bool | None = None,
         ) -> None:
-            if len(steps) >= self._budget.max_steps:
+            if step_limit_reached():
                 raise _ReasoningStop(
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "step_budget_exhausted",
@@ -331,6 +419,10 @@ class ReasoningRun:
                     current_prompt,
                     final_schema=final_schema,
                     capabilities=capabilities,
+                    allow_deliberate_tools=(
+                        getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                        is ReasoningDepth.DELIBERATE
+                    ),
                 )
 
             current_request = rebuild_request()
@@ -345,6 +437,125 @@ class ReasoningRun:
                     "returned",
                     self._model_summary(generation.text),
                 )
+                if generation.skill_calls or generation.tool_calls:
+                    generated_observations: list[str] = []
+                    for skill_call in generation.skill_calls:
+                        skill_calls += 1
+                        skill = self._load_skill(current_request, task, skill_call)
+                        if skill is None:
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_REJECTED,
+                                "skill_not_available",
+                            )
+                        skill_content = skill.instructions[:_MAX_OBSERVATION_CHARS]
+                        add_step(
+                            CognitiveStepKind.SKILL,
+                            "loaded",
+                            f"{skill.name} ({skill_call.call_id})",
+                            tool_key=SKILL_LOADER_NAME,
+                            operation="load",
+                            ok=True,
+                        )
+                        run_observations.append(
+                            CurrentRunObservation(
+                                kind="skill",
+                                status="loaded",
+                                content=(
+                                    f"name={skill.name}; description={skill.description}; "
+                                    f"instructions={skill_content}"
+                                ),
+                                source_ids=(f"skill:{skill.name}",),
+                            )
+                        )
+                        generated_observations.append(
+                            self._skill_observation_prompt(
+                                current_prompt,
+                                skill.name,
+                                skill.instructions,
+                            )
+                        )
+                    for tool_call in generation.tool_calls:
+                        guard(next_kind=CognitiveStepKind.TOOL, tool=True)
+                        try:
+                            request = self._tool_request_from_call(task, tool_call)
+                        except Exception as error:  # noqa: BLE001 - typed boundary
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_REJECTED,
+                                "tool_request_invalid",
+                            ) from error
+                        self._authorize_tool(current_request, request)
+                        if self._tool_port is None:
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_REJECTED,
+                                "tool_port_unavailable",
+                            )
+                        available = tuple(
+                            str(key) for key in self._tool_port.available_tool_keys()
+                        )
+                        if request.tool_key not in available:
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_REJECTED,
+                                "tool_not_available",
+                            )
+                        tool_calls += 1
+                        add_step(
+                            CognitiveStepKind.TOOL,
+                            "requested",
+                            f"{tool_call.tool_key} ({tool_call.call_id})",
+                            tool_key=tool_call.tool_key,
+                            operation=request.operation,
+                        )
+                        try:
+                            tool_result = self._tool_port.execute(request)
+                        except Exception as error:  # noqa: BLE001 - ToolPort boundary
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_FAILED,
+                                f"tool_execution_error:{type(error).__name__}",
+                            ) from error
+                        summary = self._observation_summary(tool_result)
+                        if not tool_result.ok:
+                            add_step(
+                                CognitiveStepKind.OBSERVATION,
+                                "failed",
+                                summary,
+                                tool_key=tool_result.tool_key,
+                                operation=request.operation,
+                                ok=False,
+                            )
+                            raise _ReasoningStop(
+                                ReasoningStatus.TOOL_FAILED,
+                                "tool_result_failed",
+                            )
+                        add_step(
+                            CognitiveStepKind.OBSERVATION,
+                            "received",
+                            summary,
+                            tool_key=tool_result.tool_key,
+                            operation=request.operation,
+                            ok=True,
+                        )
+                        run_observations.append(
+                            CurrentRunObservation(
+                                kind="tool",
+                                status="received",
+                                content=summary,
+                                source_ids=(f"{request.tool_key}:{request.operation}",),
+                            )
+                        )
+                        generated_observations.append(
+                            self._observation_prompt(
+                                current_prompt,
+                                request,
+                                tool_result,
+                            )
+                        )
+                    current_request = rebuild_request(
+                        final_schema=True,
+                        legacy_prompt=generated_observations[-1]
+                        if generated_observations
+                        else None,
+                    )
+                    continue
                 if current_request.response_mode is ModelResponseMode.DIRECT_REPLY:
                     action_decode = self._decoder.decode_cognitive_action(
                         generation=generation,
@@ -365,7 +576,7 @@ class ReasoningRun:
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is ReasoningDepth.DELIBERATE
-                            and model_calls < self._budget.max_model_calls
+                            and model_calls < active_model_limit
                         ):
                             run_observations.append(
                                 CurrentRunObservation(
@@ -393,6 +604,19 @@ class ReasoningRun:
                             raise _ReasoningStop(
                                 ReasoningStatus.SAFE_NOOP,
                                 "recall_memory_not_allowed_in_direct",
+                            )
+                        if reasoning_plan is None and any(
+                            observation.kind in {"memory", "revision"}
+                            for observation in run_observations
+                        ):
+                            # One Recall followed by an answer stays plan-free.
+                            # A second dependent Recall is the first reliable
+                            # signal that this Turn has become multi-step.
+                            reasoning_plan = _new_recall_plan()
+                            activate_plan_budget()
+                            _replace_plan_observation(
+                                run_observations,
+                                reasoning_plan,
                             )
                         memory_session = getattr(task, "memory_session", None)
                         if memory_session is None:
@@ -424,6 +648,13 @@ class ReasoningRun:
                             f"result={recall_content or 'no additional memory evidence'}; "
                             f"detail={recall_reason or 'none'}"
                         )
+                        if recall_status == "budget_exhausted":
+                            observation_content += (
+                                "; RecallMemory is exhausted for this Turn; "
+                                "do not request RecallMemory again; return a final "
+                                "AnswerDraft or ClarificationDraft using only the "
+                                "supplied evidence"
+                            )
                         add_step(
                             CognitiveStepKind.OBSERVATION,
                             f"memory_{recall_status}",
@@ -464,7 +695,20 @@ class ReasoningRun:
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is ReasoningDepth.DELIBERATE
-                            and model_calls < self._budget.max_model_calls
+                        ):
+                            # The Verifier is a host-owned signal.  It is the
+                            # only point at which a correction plan is needed;
+                            # accepted first-pass drafts never create one.
+                            reasoning_plan = _new_revision_plan()
+                            activate_plan_budget()
+                            _replace_plan_observation(
+                                run_observations,
+                                reasoning_plan,
+                            )
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is ReasoningDepth.DELIBERATE
+                            and model_calls < active_model_limit
                         ):
                             run_observations.append(
                                 CurrentRunObservation(
@@ -510,91 +754,11 @@ class ReasoningRun:
                         steps=tuple(steps),
                         model_calls=model_calls,
                         tool_calls=tool_calls,
+                        skill_calls=skill_calls,
                         failure_reason=None,
                         decode=decode,
+                        plan=reasoning_plan,
                     )
-
-                marker = (
-                    None
-                    if self._is_fast_owner_reply(current_request)
-                    else self._marker(generation.text)
-                )
-                if marker is not None:
-                    guard(next_kind=CognitiveStepKind.TOOL, tool=True)
-                    try:
-                        request = self._tool_request(task, marker)
-                    except Exception as error:  # noqa: BLE001 - typed request boundary
-                        raise _ReasoningStop(
-                            ReasoningStatus.TOOL_REJECTED,
-                            "tool_request_invalid",
-                        ) from error
-                    self._authorize_tool(task.request, request)
-                    if self._tool_port is None:
-                        raise _ReasoningStop(
-                            ReasoningStatus.TOOL_REJECTED,
-                            "tool_port_unavailable",
-                        )
-                    available = tuple(
-                        str(key) for key in self._tool_port.available_tool_keys()
-                    )
-                    if request.tool_key not in available:
-                        raise _ReasoningStop(
-                            ReasoningStatus.TOOL_REJECTED,
-                            "tool_not_available",
-                        )
-                    tool_calls += 1
-                    add_step(
-                        CognitiveStepKind.TOOL,
-                        "requested",
-                        f"{request.tool_key}:{request.operation}",
-                        tool_key=request.tool_key,
-                        operation=request.operation,
-                    )
-                    try:
-                        tool_result = self._tool_port.execute(request)
-                    except Exception as error:  # noqa: BLE001 - ToolPort boundary
-                        raise _ReasoningStop(
-                            ReasoningStatus.TOOL_FAILED,
-                            f"tool_execution_error:{type(error).__name__}",
-                        ) from error
-                    if not tool_result.ok:
-                        add_step(
-                            CognitiveStepKind.OBSERVATION,
-                            "failed",
-                            self._observation_summary(tool_result),
-                            tool_key=tool_result.tool_key,
-                            operation=request.operation,
-                            ok=False,
-                        )
-                        raise _ReasoningStop(
-                            ReasoningStatus.TOOL_FAILED,
-                            "tool_result_failed",
-                        )
-                    add_step(
-                        CognitiveStepKind.OBSERVATION,
-                        "received",
-                        self._observation_summary(tool_result),
-                        tool_key=tool_result.tool_key,
-                        operation=request.operation,
-                        ok=True,
-                    )
-                    run_observations.append(
-                        CurrentRunObservation(
-                            kind="tool",
-                            status="received",
-                            content=self._observation_summary(tool_result),
-                            source_ids=(f"{request.tool_key}:{request.operation}",),
-                        )
-                    )
-                    current_request = rebuild_request(
-                        final_schema=True,
-                        legacy_prompt=self._observation_prompt(
-                            current_prompt,
-                            request,
-                            tool_result,
-                        ),
-                    )
-                    continue
 
                 def repair(raw_text: str, errors: tuple[str, ...]) -> str:
                     nonlocal model_calls, last_generation
@@ -680,6 +844,7 @@ class ReasoningRun:
                         steps=tuple(steps),
                         model_calls=model_calls,
                         tool_calls=tool_calls,
+                        skill_calls=skill_calls,
                         failure_reason=decode.report.fallback_reason,
                         decode=decode,
                     )
@@ -695,6 +860,7 @@ class ReasoningRun:
                     steps=tuple(steps),
                     model_calls=model_calls,
                     tool_calls=tool_calls,
+                    skill_calls=skill_calls,
                     failure_reason=None,
                     decode=decode,
                 )
@@ -706,8 +872,10 @@ class ReasoningRun:
                 steps=steps,
                 model_calls=model_calls,
                 tool_calls=tool_calls,
+                skill_calls=skill_calls,
                 capabilities=capabilities,
                 generation=last_generation,
+                reasoning_plan=reasoning_plan,
             )
         except Exception as error:  # noqa: BLE001 - model boundary
             return self._failure(
@@ -717,8 +885,10 @@ class ReasoningRun:
                 steps=steps,
                 model_calls=model_calls,
                 tool_calls=tool_calls,
+                skill_calls=skill_calls,
                 capabilities=capabilities,
                 generation=last_generation,
+                reasoning_plan=reasoning_plan,
             )
 
     def _request(
@@ -728,19 +898,24 @@ class ReasoningRun:
         *,
         final_schema: bool = False,
         capabilities: ModelGenerationCapabilities | None = None,
+        allow_deliberate_tools: bool = False,
     ) -> ModelGenerationRequest:
+        del final_schema
         direct_reply = self._is_fast_owner_reply(base)
         response_schema = base.response_schema
-        if not final_schema and not direct_reply and base.allowed_tools:
-            response_schema = JsonSchemaDocument(
-                name="ReasoningStep",
-                document={
-                    "anyOf": [
-                        dict(base.response_schema.document),
-                        _TOOL_STEP_SCHEMA,
-                    ]
-                },
-            )
+        native_tools = (
+            allow_deliberate_tools
+            and capabilities is not None
+            and capabilities.supports_tool_calling
+        )
+        allowed_tools = (
+            base.allowed_tools
+            if (not direct_reply and self._tool_port is not None and native_tools)
+            else ()
+        )
+        available_skills = (
+            base.available_skills if not direct_reply and native_tools else ()
+        )
         return base.model_copy(
             update={
                 "system_prompt": _with_brain_owned_schema_protocol(
@@ -750,11 +925,8 @@ class ReasoningRun:
                 ),
                 "user_prompt": user_prompt,
                 "response_schema": response_schema,
-                # Tool execution is owned by this loop; do not activate a
-                # second provider/runtime-side tool loop for the same Turn.
-                "allowed_tools": ()
-                if self._tool_port is not None
-                else base.allowed_tools,
+                "allowed_tools": allowed_tools,
+                "available_skills": available_skills,
             }
         )
 
@@ -806,50 +978,38 @@ class ReasoningRun:
         return None
 
     @staticmethod
-    def _marker(text: str) -> _ToolMarker | None:
-        match = _TOOL_MARKER.search(text)
-        if match is not None:
-            kind = match.group("kind").upper()
-            value = match.group("value").strip()
-            if kind == "SEARCH":
-                return _ToolMarker("web_search", "search", value)
-            if kind == "READ_FILE":
-                return _ToolMarker("local_file", "read", value)
-            return _ToolMarker("local_file", "list", value)
-        try:
-            parsed = json.loads(text)
-        except (TypeError, ValueError):
-            return None
-        if not isinstance(parsed, dict):
-            return None
-        key = parsed.get("tool_key")
-        operation = parsed.get("operation")
-        value = parsed.get("value")
-        if (
-            not isinstance(key, str)
-            or not isinstance(operation, str)
-            or not isinstance(value, str)
-        ):
-            return None
-        if key == "web_search" and operation == "search":
-            return _ToolMarker(key, operation, value)
-        if key == "local_file" and operation in {"read", "list"}:
-            return _ToolMarker(key, operation, value)
-        return None
+    def _tool_request_from_call(task: ReasoningTaskView, call: ToolCall) -> ToolRequest:
+        arguments = dict(call.arguments)
+        if call.tool_key == "web_search":
+            return ToolRequest(
+                tool_key=call.tool_key,
+                operation="search",
+                query=str(arguments.get("query") or ""),
+                max_results=_json_int(arguments.get("max_results", 3), 3),
+            )
+        if call.tool_key != "local_file":
+            raise ValueError(f"unknown semantic Tool: {call.tool_key}")
+        return ToolRequest(
+            scope_id=getattr(task, "tool_scope_id", None),
+            tool_key="local_file",
+            operation=_tool_operation(arguments.get("operation"), "read"),
+            resource_id=str(arguments.get("resource_id") or ""),
+        )
 
     @staticmethod
-    def _tool_request(task: ReasoningTaskView, marker: _ToolMarker) -> ToolRequest:
-        if marker.key == "web_search":
-            return ToolRequest(
-                tool_key="web_search", operation="search", query=marker.value
-            )
-        scope_id = getattr(task, "tool_scope_id", None)
-        return ToolRequest(
-            scope_id=scope_id,
-            tool_key="local_file",
-            operation=marker.operation,  # type: ignore[arg-type]
-            resource_id=marker.value,
-        )
+    def _load_skill(
+        request: ModelGenerationRequest,
+        task: ReasoningTaskView,
+        call: SkillLoadCall,
+    ):
+        """Load one advertised Skill through the injected read-only catalog."""
+        advertised = {item.name for item in request.available_skills}
+        if call.skill_name not in advertised:
+            return None
+        catalog = getattr(task, "skill_catalog", None)
+        if catalog is None:
+            return None
+        return catalog.load(call.skill_name)
 
     @staticmethod
     def _authorize_tool(request: ModelGenerationRequest, tool: ToolRequest) -> None:
@@ -879,6 +1039,20 @@ class ReasoningRun:
             f"[Observation from {request.tool_key}:{request.operation}]\n"
             f"{result.content[:_MAX_OBSERVATION_CHARS]}\n"
             "Use this evidence and return a DecisionPlan JSON object only."
+        )
+
+    @staticmethod
+    def _skill_observation_prompt(
+        original_prompt: str,
+        skill_name: str,
+        instructions: str,
+    ) -> str:
+        """Make a loaded procedural Skill visible on the next model request."""
+        return (
+            f"{original_prompt}\n\n"
+            f"[Loaded Skill: {skill_name}]\n"
+            f"{instructions[:_MAX_OBSERVATION_CHARS]}\n"
+            "Follow these instructions and return a DecisionPlan JSON object only."
         )
 
     def _preflight_activities(
@@ -945,8 +1119,10 @@ class ReasoningRun:
         steps: List[CognitiveStep],
         model_calls: int,
         tool_calls: int,
+        skill_calls: int,
         capabilities: Optional[ModelGenerationCapabilities],
         generation: Optional[ModelGenerationResult],
+        reasoning_plan: Optional[ReasoningPlan],
     ) -> ReasoningRunResult:
         decode = self._safe_noop(
             task,
@@ -954,7 +1130,7 @@ class ReasoningRun:
             capabilities=capabilities,
             generation=generation,
         )
-        if len(steps) < self._budget.max_steps:
+        if self._budget.max_steps is None or len(steps) < self._budget.max_steps:
             steps.append(
                 CognitiveStep(
                     ordinal=len(steps) + 1,
@@ -972,8 +1148,10 @@ class ReasoningRun:
             steps=tuple(steps),
             model_calls=model_calls,
             tool_calls=tool_calls,
+            skill_calls=skill_calls,
             failure_reason=reason,
             decode=decode,
+            plan=reasoning_plan,
         )
 
     @staticmethod
@@ -1058,6 +1236,7 @@ __all__ = (
     "CurrentRunObservation",
     "ReasoningBudget",
     "ReasoningDepth",
+    "ReasoningPlan",
     "ReasoningRun",
     "ReasoningRunResult",
     "ReasoningStatus",

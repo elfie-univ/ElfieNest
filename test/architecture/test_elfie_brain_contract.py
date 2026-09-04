@@ -140,8 +140,8 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
         "OPERATING_CONTRACT",
     )
 
-    assert "**Contract version:** 1.8" in english_raw
-    assert "**契约版本：** 1.8" in chinese_raw
+    assert "**Contract version:** 1.9" in english_raw
+    assert "**契约版本：** 1.9" in chinese_raw
 
     assert [english_raw.index(label) for label in block_labels] == sorted(
         english_raw.index(label) for label in block_labels
@@ -202,8 +202,8 @@ def test_brain_contract_freezes_reasoning_context_workspace_ownership() -> None:
     english = " ".join(english_raw.split())
     chinese = " ".join(chinese_raw.split())
 
-    assert "**Contract version:** 1.8" in english_raw
-    assert "**契约版本：** 1.8" in chinese_raw
+    assert "**Contract version:** 1.9" in english_raw
+    assert "**契约版本：** 1.9" in chinese_raw
     for token in (
         "Event Workspace and Reasoning Context Workspace are distinct",
         "Memory owns no transient conversation tail",

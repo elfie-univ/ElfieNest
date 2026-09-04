@@ -77,10 +77,10 @@ class _FailingProposalModel:
         semantic_role: str,
         energy: float,
         task_complexity: int,
-        allowed_skills: list[str] | None,
+        allowed_tools: list[str] | None,
     ) -> str:
         del prompt, food_key, elfie_id, scene, semantic_role, energy, task_complexity
-        del allowed_skills
+        del allowed_tools
         raise TimeoutError("provider unavailable")
 
 
@@ -102,7 +102,7 @@ class _NoopProposalModel:
         semantic_role: str,
         energy: float,
         task_complexity: int,
-        allowed_skills: list[str] | None,
+        allowed_tools: list[str] | None,
     ) -> str:
         del (
             prompt,
@@ -112,7 +112,7 @@ class _NoopProposalModel:
             semantic_role,
             energy,
             task_complexity,
-            allowed_skills,
+            allowed_tools,
         )
         return '{"nodes":[],"mentions":[],"assertions":[]}'
 

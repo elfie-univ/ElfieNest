@@ -9,6 +9,7 @@ from typing import Callable, Protocol
 
 from pydantic import JsonValue
 
+from elfie.brain.reasoning.tool_port import ToolRequest
 from infrastructure.tools.execution.config import SAFE_TOOL_KEYS
 from infrastructure.tools.execution.observation import (
     ToolCallObservation,
@@ -47,7 +48,7 @@ class ToolResult:
 
 @dataclass(frozen=True)
 class ToolExecutionContext:
-    allowed_skills: tuple[str, ...]
+    allowed_tool_keys: tuple[str, ...]
     search_plugin: SearchPlugin
     permission_manager: PermissionManager
     observation_port: ToolObservationPort
@@ -66,35 +67,49 @@ class ToolExecutor:
         self._tool_calls = 0
         self._retained_result_bytes = 0
 
-    def execute(self, response_text: str) -> ToolResult | None:
-        if self._can_use("local_file") and _has_tag(response_text, "READ_FILE"):
+    def execute(self, request: ToolRequest) -> ToolResult:
+        """Execute one validated semantic request without text markers."""
+        if not self._can_use(request.tool_key):
             return self._record_tool_result(
-                self._execute_with_guard(
-                    "local_file", lambda: self._execute_read_file(response_text)
+                ToolResult(
+                    tool_name=request.tool_key,
+                    ok=False,
+                    content="工具未被当前作用域授权或启用。",
+                    metadata={"error_type": "tool_denied"},
                 )
             )
-
-        if self._can_use("local_file") and _has_tag(response_text, "LIST_FILES"):
-            return self._record_tool_result(
-                self._execute_with_guard(
-                    "local_file", lambda: self._execute_list_files(response_text)
-                )
+        return self._record_tool_result(
+            self._execute_with_guard(
+                request.tool_key,
+                lambda: self._execute_request(request),
             )
+        )
 
-        if self._can_use("web_search") and _has_tag(response_text, "SEARCH"):
-            return self._record_tool_result(
-                self._execute_with_guard(
-                    "web_search", lambda: self._execute_search(response_text)
-                )
-            )
+    def _execute_request(self, request: ToolRequest) -> ToolResult:
+        if request.tool_key == "web_search":
+            return self._execute_search(request)
+        if request.tool_key == "local_file" and request.operation == "read":
+            return self._execute_read_file(request)
+        if request.tool_key == "local_file" and request.operation == "list":
+            return self._execute_list_files(request)
+        return ToolResult(
+            tool_name=request.tool_key,
+            ok=False,
+            content="工具操作不受支持。",
+            metadata={"error_type": "operation_unsupported"},
+        )
 
-        return None
-
-    def _execute_read_file(self, response_text: str) -> ToolResult:
-        path = _extract_tag(response_text, "READ_FILE")
+    def _execute_read_file(self, request: ToolRequest) -> ToolResult:
+        path = request.resource_id
+        assert path is not None
         plugin = self.context.file_access_plugin
         if plugin is None:
-            return ToolResult("local_file_read", False, "本地文件工具未配置")
+            return ToolResult(
+                request.tool_key,
+                False,
+                "本地文件工具未配置",
+                {"error_type": "tool_unavailable"},
+            )
         self.context.permission_manager.verify_action(
             "READ",
             file_path="runtime_workspace",
@@ -109,12 +124,9 @@ class ToolExecutor:
         )
         source_truncated = bool(getattr(plugin, "last_read_truncated", False))
         return ToolResult(
-            tool_name="local_file_read",
+            tool_name=request.tool_key,
             ok=True,
-            content=(
-                f"【本地文件内容】\n{bounded}\n"
-                "请根据文件内容生成最终回答，去掉 [READ_FILE] 标签。"
-            ),
+            content=f"【本地文件内容】\n{bounded}",
             metadata={
                 "truncated": source_truncated or envelope_truncated,
                 "bytes": source_bytes,
@@ -122,11 +134,16 @@ class ToolExecutor:
             },
         )
 
-    def _execute_list_files(self, response_text: str) -> ToolResult:
-        path = _extract_tag(response_text, "LIST_FILES") or "."
+    def _execute_list_files(self, request: ToolRequest) -> ToolResult:
+        path = request.resource_id or "."
         plugin = self.context.file_access_plugin
         if plugin is None:
-            return ToolResult("local_file_list", False, "本地文件工具未配置")
+            return ToolResult(
+                request.tool_key,
+                False,
+                "本地文件工具未配置",
+                {"error_type": "tool_unavailable"},
+            )
         self.context.permission_manager.verify_action(
             "READ",
             file_path="runtime_workspace",
@@ -138,13 +155,9 @@ class ToolExecutor:
         source_items = int(getattr(plugin, "last_list_items", len(files)))
         source_truncated = bool(getattr(plugin, "last_list_truncated", False))
         return ToolResult(
-            tool_name="local_file_list",
+            tool_name=request.tool_key,
             ok=True,
-            content=(
-                "【本地目录文件】\n"
-                + payload
-                + "\n请根据文件清单生成最终回答，去掉 [LIST_FILES] 标签。"
-            ),
+            content="【本地目录文件】\n" + payload,
             metadata={
                 "truncated": source_truncated or envelope_truncated,
                 "items": source_items,
@@ -152,15 +165,16 @@ class ToolExecutor:
             },
         )
 
-    def _can_use(self, skill_name: str) -> bool:
+    def _can_use(self, tool_key: str) -> bool:
         return (
-            skill_name in SAFE_TOOL_KEYS
-            and skill_name in self.context.allowed_skills
-            and skill_name in self.context.runtime_enabled_tools
+            tool_key in SAFE_TOOL_KEYS
+            and tool_key in self.context.allowed_tool_keys
+            and tool_key in self.context.runtime_enabled_tools
         )
 
-    def _execute_search(self, response_text: str) -> ToolResult:
-        query = _extract_tag(response_text, "SEARCH")
+    def _execute_search(self, request: ToolRequest) -> ToolResult:
+        query = request.query
+        assert query is not None
         self.context.permission_manager.verify_action(
             "WEB_SEARCH",
             file_path="search_query",
@@ -171,11 +185,7 @@ class ToolExecutor:
         return ToolResult(
             tool_name="web_search",
             ok=True,
-            content=(
-                "【联网搜索反馈】\n"
-                "结合以下最新网络检索事实数据，修正并生成最终回答，去掉 [SEARCH] 标签：\n"
-                f"{bounded}"
-            ),
+            content="【联网搜索反馈】\n" + bounded,
             metadata={
                 "truncated": truncated,
                 "bytes": len(search_result.encode("utf-8")),
@@ -259,14 +269,6 @@ class ToolExecutor:
             )
         )
         return result
-
-
-def _has_tag(text: str, tag_name: str) -> bool:
-    return f"[{tag_name}]" in text and f"[/{tag_name}]" in text
-
-
-def _extract_tag(text: str, tag_name: str) -> str:
-    return text.split(f"[{tag_name}]")[1].split(f"[/{tag_name}]")[0].strip()
 
 
 def _bounded(content: str, max_bytes: int) -> tuple[str, bool]:

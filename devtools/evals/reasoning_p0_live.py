@@ -378,6 +378,14 @@ def _run_turn(
             "failure_reason": (
                 reasoning.failure_reason if reasoning is not None else None
             ),
+            "plan": (
+                {
+                    "trigger": reasoning.plan.trigger,
+                    "steps": list(reasoning.plan.steps),
+                }
+                if reasoning is not None and reasoning.plan is not None
+                else None
+            ),
             "steps": [
                 {
                     "ordinal": step.ordinal,
@@ -434,6 +442,8 @@ def _evaluate(
     direct, deliberate = turns
     requests = [request for turn in turns for request in turn["requests"]]
     results = [result for turn in turns for result in turn["provider_results"]]
+    deliberate_calls = deliberate["reasoning"]["model_calls"]
+    deliberate_plan = deliberate["reasoning"].get("plan")
     final_request = deliberate["requests"][-1] if deliberate["requests"] else {}
     system_markers = final_request.get("system_markers", {})
     user_markers = final_request.get("user_markers", {})
@@ -444,8 +454,14 @@ def _evaluate(
         "direct_one_model_call": direct["reasoning"]["model_calls"] == 1,
         "direct_zero_tools": direct["reasoning"]["tool_calls"] == 0,
         "deliberate_bounded_model_calls": (
-            isinstance(deliberate["reasoning"]["model_calls"], int)
-            and 1 <= deliberate["reasoning"]["model_calls"] <= 2
+            isinstance(deliberate_calls, int) and 1 <= deliberate_calls <= 8
+        ),
+        "deliberate_staged_model_call_budget": (
+            isinstance(deliberate_calls, int)
+            and (
+                (deliberate_plan is None and deliberate_calls <= 3)
+                or (deliberate_plan is not None and deliberate_calls <= 8)
+            )
         ),
         "deliberate_zero_tools": deliberate["reasoning"]["tool_calls"] == 0,
         "all_turns_completed": all(

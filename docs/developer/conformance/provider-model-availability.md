@@ -1,6 +1,6 @@
 # Provider/model availability conformance
 
-> Open migration register for version 1.8 of the normative
+> Open migration register for version 1.9 of the normative
 > [Model, Food and tool behavior contract](../contracts/model-food-tool-behavior).
 > It records current implementation facts and remaining deletion gates; it
 > does not weaken the accepted availability design.
