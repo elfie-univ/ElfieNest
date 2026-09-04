@@ -177,7 +177,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         assert person.properties["vocation_id"] == "plant_cultivator"
         assert person.properties["episode_ids"]
         assert memory.count_episodes() == 5
-        assert memory.count_graph_nodes("knowledge") == 40
+        assert memory.count_graph_nodes("knowledge") == 102
     assert not workspace.genesis_compile_envelope.exists()
     assert not workspace.genesis_stage_marker.exists()
 

@@ -1,7 +1,7 @@
 # Brain evaluation workflow
 
 This page explains how to operate the implemented Elfie Brain evaluation kernel. See
-[Elfie Brain evaluation and evolution system](../designs/elfie-brain-evaluation-system)
+[Elfie Brain evaluation and evolution system](../designs/elfie/brain/elfie-brain-evaluation-system)
 for the product rationale, Q6/P0 definitions, and why the final indicator is not an
 average score.
 

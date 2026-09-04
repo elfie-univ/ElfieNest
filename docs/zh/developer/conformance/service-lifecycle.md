@@ -105,7 +105,7 @@ authority 语义未定。
 ### 原生发布验收队列
 
 以下各行独立关闭。本地实现或单元测试只能把状态推进到“已实现；外部未测试”，只有指定
-原生证据才能关闭。目标覆盖与收口顺序由[原生发布验证设计](../designs/native-release-validation.md)
+原生证据才能关闭。目标覆盖与收口顺序由[原生发布验证设计](../designs/app/native-release-validation.md)
 定义。
 
 任何 NAT 行改为“已关闭”前，该行或所附证据必须记录 `target`、`inventory`、`references`、

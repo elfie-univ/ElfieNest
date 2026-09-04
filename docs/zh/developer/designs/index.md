@@ -1,30 +1,33 @@
 # 设计文档
 
-设计文档保存已经确认的跨版本目标与未来架构背后的思考。它可以同时覆盖已经完成和
-尚未完成的版本，但不表示当前源码已经符合设计。规范性约束仍以[架构契约](../contracts/)
-为准，当前实现差距仍由[一致性台账](../conformance/)跟踪。
+设计文档保存已经确认的跨版本目标。它不表示当前源码已经符合设计；规范性规则仍以
+[架构契约](../contracts/)为准，当前差距仍由[一致性台账](../conformance/)跟踪。
 
-- [Elfie 顶级模块设计](./elfie-top-level-module-design)：一只完整 Elfie 的目标顶级所有权。
-- [Elfie 具身控制链路设计](./elfie-embodied-control-chain)：从 Brain 到身体的语义指令链路、
-  Godot/物理设备两条路径，以及 BodyPort、Adapter、Transport、Gateway 的边界。
-- [Elfie Godot 虚拟身体端到端执行计划](./elfie-godot-vertical-slice-plan)：基于冻结链路打通
-  虚拟身体的动作、回执、听觉、语义视觉、触觉和下一轮 Brain 反馈。
-- [Elfie 大脑十系统架构](./elfie-brain-ten-system-architecture)：Brain 的概念系统、边界、
-  运行回路和渐进实现顺序。
-- [Elfie Reasoning Core](./elfie-reasoning-core)：Reasoning 自有 Context Workspace、
-  Context/Memory 边界、有界单 Turn Agent 循环、压缩、完成判断和 P0 无工具主人聊天范围。
-- [Elfie Selfhood 与固定模型头部](./elfie-selfhood-and-fixed-model-header)：在线 Reasoning
-  四段前缀、两层 Selfhood 状态、初始化、投影、持久化与未来 Memory-only 更新边界。
-- [Elfie 情绪系统](./elfie-emotion-system)：六通道正负动态、稳定/快速/复核 Turn
-  生命周期、人格投影与模态边界。
-- [Elfie Brain 评价与进化系统](./elfie-brain-evaluation-system)：面向一只完整、连续生活
-  Elfie 的 Quality Constitution、Q6/P0 证据协议、统计决策和安全持续改进闭环。
-- [Elfie Memory 架构](./elfie-memory-architecture)：经历记忆、个人知识图谱与图谱/文本混合检索。
-- [ElfieNest 服务生命周期状态机设计](./service-lifecycle-state-machine)：服务稳定态、
-  入口行为、进程所有权与故障收敛。
-- [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用核心
-  范围、低成本证据与统一健康投影。
-- [虚拟外貌生成最终设计](./virtual-appearance-generation)：一只 Elfie 的几何输入、四层皮肤、
-  语义区域、颜色体系和视觉验收门。
-- [原生发布验证与安装版核心用户旅程](./native-release-validation)：六层测试体系、确定性 CI
-  模型边界、四 target 覆盖、成本控制和分阶段收口计划。
+全局系统设计是独立的上级设计。本次整理不移动也不替代它。特别是，[Elfie 顶级模块设计](./elfie/elfie-top-level-module-design)
+只描述 Elfie 模块本身，不是全局系统设计。物理目录按需创建：只有某个所有者拥有多篇文档时
+才建立目录。本页只是目录页，不是另一篇上级设计。
+
+- App 设计：
+  - [服务生命周期状态机设计](./app/service-lifecycle-state-machine)：服务状态、入口、进程所有权和故障收敛。
+  - [原生发布验证与安装版核心用户旅程](./app/native-release-validation)：安装包、生命周期和安装版产品验收。
+- Infrastructure 单篇设计：
+  - [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用范围、证据与健康投影。
+- Elfie 设计：
+  - [Elfie 顶级模块设计](./elfie/elfie-top-level-module-design)：一只完整 Elfie 的模块所有权、
+    生命系统和边界。
+  - Brain 父级与系统：
+    - [Brain 十系统架构](./elfie/brain/elfie-brain-ten-system-architecture)：十个概念系统、边界、运行回路和实现顺序。
+    - [Reasoning Core](./elfie/brain/elfie-reasoning-core)：有界单 Turn 认知循环。
+    - [Selfhood 与固定模型头部](./elfie/brain/elfie-selfhood-and-fixed-model-header)：Selfhood authority 与在线模型固定前缀。
+    - [Emotion 情绪系统](./elfie/brain/elfie-emotion-system)：情绪状态、动态和边界。
+    - [Memory 架构](./elfie/brain/elfie-memory-architecture)：持久经历、知识和召回。
+    - [Brain 评价与进化系统](./elfie/brain/elfie-brain-evaluation-system)：证据优先的评价和受约束改进。
+  - Embodiment 设计：
+    - [具身控制链路设计](./elfie/embodiment/elfie-embodied-control-chain)：Brain 到身体的语义指令链路、
+      Godot/物理设备两条执行路径及其边界。
+    - [Godot 虚拟身体端到端执行计划](./elfie/embodiment/elfie-godot-vertical-slice-plan)：动作、感知和
+      下一轮 Brain 反馈的渐进打通计划。
+    - [虚拟外貌生成最终设计](./elfie/embodiment/virtual-appearance-generation)：不可变外貌生成与视觉验收边界。
+- Nest 单篇设计：
+  - [Nest 与 Godot 虚拟生活世界](./nest-godot-virtual-world-functional-architecture)：
+    Nest/Godot 的最终功能边界、语义—物理闭环和事件路由。

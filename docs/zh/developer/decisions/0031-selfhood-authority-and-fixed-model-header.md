@@ -22,7 +22,7 @@ authority、哪些内容稳定、每个在线思考请求必须保存哪一个�
 
 ## 决策
 
-接受 [Selfhood 与固定模型头部设计](../designs/elfie-selfhood-and-fixed-model-header.md)，
+接受 [Selfhood 与固定模型头部设计](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header.md)，
 并把 Elfie 契约升级到 2.2、Brain 契约升级到 1.3。
 
 1. 在线 Elfie `ReasoningRun` 内的每个模型请求，必须以严格有序的四段 system 头部开始：

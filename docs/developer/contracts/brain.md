@@ -1,6 +1,6 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.6
+**Contract version:** 1.7
 **Adopted:** 2026-08-12
 **Revised:** 2026-09-03
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
@@ -13,7 +13,8 @@
 > Reasoning Context Workspace P0 boundary is protected by permanent focused
 > tests. Version 1.5 froze the one-time Genesis and final-owner isolation rules;
 > version 1.6 additionally freezes the three source domains, embodied terminal
-> outcomes and dynamic capability routing accepted by ADR-0033. Remaining
+> outcomes and dynamic capability routing accepted by ADR-0033. Version 1.7 records
+> the stable links to the accepted Brain design hierarchy. Remaining
 > implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
@@ -58,7 +59,7 @@ owners. They are not additional peer mental systems.
 
 ## Emotion state and appraisal
 
-The detailed [Elfie Emotion system design](../designs/elfie-emotion-system) is
+The detailed [Elfie Emotion system design](../designs/elfie/brain/elfie-emotion-system) is
 the accepted interpretation of this section. Its current quality gaps remain in
 the [Emotion conformance register](../conformance/elfie-emotion).
 
@@ -106,7 +107,7 @@ the [Emotion conformance register](../conformance/elfie-emotion).
 ## Selfhood and the fixed online model header
 
 The detailed
-[Selfhood and fixed model-header design](../designs/elfie-selfhood-and-fixed-model-header)
+[Selfhood and fixed model-header design](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header)
 is the accepted interpretation of this section. Current implementation gaps
 remain in the
 [Selfhood conformance register](../conformance/elfie-selfhood).
@@ -305,7 +306,7 @@ reject or backpressure result rather than silent loss.
 ### Context and reasoning
 
 The detailed
-[Reasoning Core single-Turn Agent design](../designs/elfie-reasoning-core) is
+[Reasoning Core single-Turn Agent design](../designs/elfie/brain/elfie-reasoning-core) is
 the accepted interpretation of this section. Its completed P0 owner-chat
 boundary is protected by focused architecture, context, memory, runtime,
 receipt and restart tests.

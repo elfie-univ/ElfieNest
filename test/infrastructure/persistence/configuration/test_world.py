@@ -59,7 +59,8 @@ def test_genesis_source_package_publishes_resident_weather_facts() -> None:
     seasons = package.fact("nature.seasons")
     water_cycle = package.fact("nature.water_cycle")
 
-    assert "伊洛拉" in light_cycle.statement
+    assert "Solara" in light_cycle.statement
+    assert "伊洛拉" not in light_cycle.statement
     assert "196 个本地日" in light_cycle.statement
     assert light_cycle.level == "common"
     assert light_cycle.status == "active"
@@ -68,11 +69,31 @@ def test_genesis_source_package_publishes_resident_weather_facts() -> None:
     assert seasons.level == "common"
     assert seasons.status == "active"
     assert "降雨" in water_cycle.statement
+    assert "可以出现气象雾" in seasons.statement
+    assert "不会出现霜、雪" in seasons.statement
+    assert "其他地区" in seasons.statement
+    assert "蒸发" not in water_cycle.statement
+    assert "凝结" not in water_cycle.statement
     assert water_cycle.level == "common"
     assert water_cycle.status == "active"
     assert all(
         "Canon" not in fact.statement for fact in (light_cycle, seasons, water_cycle)
     )
+
+
+def test_genesis_source_package_source_refs_resolve_to_fact_ids() -> None:
+    package = load_genesis_source_package()
+    fact_ids = {fact.fact_id for fact in package.knowledge}
+
+    source_ids = {
+        fact.source_ref.split("#", maxsplit=1)[1] for fact in package.knowledge
+    }
+
+    assert all(
+        fact.source_ref.startswith("canon:elfaria-world.v0.1#")
+        for fact in package.knowledge
+    )
+    assert source_ids == fact_ids
 
 
 def test_genesis_source_package_publishes_complete_generation_catalogs() -> None:

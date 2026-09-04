@@ -1,15 +1,15 @@
 # Service lifecycle contract
 
-**Contract version:** 1.3
+**Contract version:** 1.4
 **Adopted:** 2026-08-15
-**Revised:** 2026-08-19
+**Revised:** 2026-09-03
 **Scope:** installed and source Runtime lifecycle, readiness and process ownership
 
 > **Normative target.** This contract fixes the service-state authority and the
 > invariants shared by Desktop, CLI, Doctor, installers and status surfaces.
 > Rationale and explanatory detail belong to
 > [ADR-0021](../decisions/0021-authoritative-service-lifecycle) and the reviewed
-> [state-machine design](../designs/service-lifecycle-state-machine). Current
+> [state-machine design](../designs/app/service-lifecycle-state-machine). Current
 > gaps belong only in [Conformance](../conformance/service-lifecycle).
 
 ## Authority, identity and snapshot

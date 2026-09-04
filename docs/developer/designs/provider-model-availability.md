@@ -10,6 +10,11 @@
 > current gaps are tracked in the
 > [Provider/model availability conformance register](../conformance/provider-model-availability.md)
 
+> Design relations: **Owner:** Infrastructure; **Parent:** whole-system design (separate parent; not relocated in this task);
+> **Children:** none; **Normative contracts:** [Model, Food and tool behavior contract](../contracts/model-food-tool-behavior.md);
+> **Current architecture:** [Runtime & data](../architecture/runtime.md); **Conformance:**
+> [Provider/model availability conformance](../conformance/provider-model-availability.md); **Domain sources:** Product configuration goals.
+
 ## 1. Goal and boundaries
 
 This design defines how ElfieNest configures a local or remote Provider, loads a

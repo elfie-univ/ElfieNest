@@ -57,16 +57,19 @@ def test_low_data_projection_preserves_existing_payload_shape(tmp_path) -> None:
         "world_model",
         "world_understanding",
     }
-    # A newly created Lab Elfie already has the required Genesis memory seed;
-    # low-data here means no user-added records, not an empty memory store.
+    # Elfie Lab creation now performs the one-time Genesis hand-off.  The
+    # projection keeps the same public payload shape while exposing those
+    # initial experiences and world knowledge instead of an empty memory.
     assert projection["topics"]
-    assert projection["important_events"]
-    assert isinstance(projection["relations"]["nodes"], list)
-    assert isinstance(projection["relations"]["links"], list)
-    assert isinstance(projection["knowledge"]["nodes"], list)
-    assert isinstance(projection["knowledge"]["links"], list)
-    assert any(node["id"] == "self" for node in projection["relations"]["nodes"])
-    assert len(projection["world_model"]["rings"]) == 5
+    assert len(projection["important_events"]) == 5
+    assert all(
+        set(event)
+        == {"id", "content", "timestamp", "emotion", "importance", "people", "changed"}
+        for event in projection["important_events"]
+    )
+    assert projection["relations"]["nodes"]
+    assert projection["knowledge"]["nodes"]
+    assert all(not ring["nodes"] for ring in projection["world_model"]["rings"])
 
 
 def test_projection_caps_collections_and_is_deterministic(projection_subject) -> None:

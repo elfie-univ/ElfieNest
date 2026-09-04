@@ -35,7 +35,7 @@ The model receives the stable pre-fast Emotion projection and host-trusted
 candidate scopes, not the provisional fast stock. Structured slow appraisal is
 recomputed from the same pre-fast anchor. Exact dynamics and the current
 quality gaps are specified by the
-[Emotion design](../designs/elfie-emotion-system) and
+[Emotion design](../designs/elfie/brain/elfie-emotion-system) and
 [conformance register](../conformance/elfie-emotion).
 
 Audio/image affect detection is deferred. Existing typed media transport is

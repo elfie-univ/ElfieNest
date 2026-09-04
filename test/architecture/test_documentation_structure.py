@@ -24,6 +24,7 @@ ROOT_TECHNICAL_DIRECTORIES = {
     "scripts",
     "zh",
 }
+INTERNAL_TOP_LEVEL_DIRECTORIES = {"elfaria", "product", "drafts"}
 
 
 def _directory_names(root: Path) -> Set[str]:
@@ -67,6 +68,92 @@ def test_public_markdown_pages_have_language_mirrors() -> None:
     assert _public_markdown_pages(DOCS_ROOT) == _public_markdown_pages(DOCS_ROOT / "zh")
 
 
+def test_internal_documents_have_only_the_three_flat_roots() -> None:
+    internal_root = DOCS_ROOT / ".internal"
+
+    assert _directory_names(internal_root) == INTERNAL_TOP_LEVEL_DIRECTORIES
+    assert (internal_root / "AGENTS.md").is_file()
+
+    for directory_name in INTERNAL_TOP_LEVEL_DIRECTORIES:
+        directory = internal_root / directory_name
+        assert directory.is_dir()
+        assert all(path.parent == directory for path in directory.rglob("*.md")), (
+            directory
+        )
+
+
+def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
+    expected_brain_docs = {
+        "elfie-brain-evaluation-system.md",
+        "elfie-brain-ten-system-architecture.md",
+        "elfie-emotion-system.md",
+        "elfie-memory-architecture.md",
+        "elfie-reasoning-core.md",
+        "elfie-selfhood-and-fixed-model-header.md",
+    }
+
+    for language_root, relation_heading in (
+        (DOCS_ROOT, "Design relations:"),
+        (DOCS_ROOT / "zh", "设计关系："),
+    ):
+        design_root = language_root / "developer" / "designs"
+        assert {path.name for path in design_root.iterdir() if path.is_dir()} == {
+            "app",
+            "elfie",
+        }
+        assert {path.name for path in design_root.glob("*.md")} == {
+            "AGENTS.md",
+            "index.md",
+            "nest-godot-virtual-world-functional-architecture.md",
+            "provider-model-availability.md",
+        }
+        assert {path.name for path in (design_root / "app").glob("*.md")} == {
+            "native-release-validation.md",
+            "service-lifecycle-state-machine.md",
+        }
+        assert {path.name for path in (design_root / "elfie").glob("*.md")} == {
+            "elfie-top-level-module-design.md",
+        }
+        assert {
+            path.name for path in (design_root / "elfie" / "embodiment").glob("*.md")
+        } == {
+            "elfie-embodied-control-chain.md",
+            "elfie-godot-vertical-slice-plan.md",
+            "virtual-appearance-generation.md",
+        }
+        assert {
+            path.name for path in (design_root / "elfie" / "brain").glob("*.md")
+        } == expected_brain_docs
+        assert {
+            path.relative_to(design_root).as_posix()
+            for path in design_root.rglob("index.md")
+        } == {"index.md"}
+
+        forbidden_empty_branches = (
+            "system",
+            "infrastructure",
+            "nest",
+            "elfie/communication",
+            "elfie/genesis",
+        )
+        assert all(
+            not (design_root / branch).exists() for branch in forbidden_empty_branches
+        )
+
+        design_docs = (
+            design_root / "provider-model-availability.md",
+            design_root / "nest-godot-virtual-world-functional-architecture.md",
+            design_root / "app" / "native-release-validation.md",
+            design_root / "app" / "service-lifecycle-state-machine.md",
+            design_root / "elfie" / "elfie-top-level-module-design.md",
+            *(design_root / "elfie" / "embodiment").glob("*.md"),
+            *(design_root / "elfie" / "brain").glob("*.md"),
+        )
+        assert all(
+            relation_heading in path.read_text(encoding="utf-8") for path in design_docs
+        )
+
+
 def test_public_content_directories_are_not_empty() -> None:
     for language_root in (DOCS_ROOT, DOCS_ROOT / "zh"):
         for section in PUBLIC_SECTIONS:
@@ -85,11 +172,27 @@ def test_vitepress_navigation_uses_the_protected_paths() -> None:
         'link: "/developer/conformance/elfie"',
         'link: "/developer/decisions/"',
         'link: "/developer/engineering/quality-governance"',
+        'link: "/developer/designs/elfie/brain/elfie-memory-architecture"',
+        'link: "/developer/designs/elfie/brain/elfie-reasoning-core"',
+        'link: "/developer/designs/app/service-lifecycle-state-machine"',
+        'link: "/developer/designs/nest-godot-virtual-world-functional-architecture"',
+        'link: "/developer/designs/elfie/elfie-top-level-module-design"',
+        'link: "/developer/designs/elfie/embodiment/elfie-embodied-control-chain"',
+        'link: "/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan"',
+        'link: "/developer/designs/elfie/embodiment/virtual-appearance-generation"',
         'link: "/zh/developer/architecture/"',
         'link: "/zh/developer/contracts/"',
         'link: "/zh/developer/conformance/elfie"',
         'link: "/zh/developer/decisions/"',
         'link: "/zh/developer/engineering/quality-governance"',
+        'link: "/zh/developer/designs/elfie/brain/elfie-memory-architecture"',
+        'link: "/zh/developer/designs/elfie/brain/elfie-reasoning-core"',
+        'link: "/zh/developer/designs/app/service-lifecycle-state-machine"',
+        'link: "/zh/developer/designs/nest-godot-virtual-world-functional-architecture"',
+        'link: "/zh/developer/designs/elfie/elfie-top-level-module-design"',
+        'link: "/zh/developer/designs/elfie/embodiment/elfie-embodied-control-chain"',
+        'link: "/zh/developer/designs/elfie/embodiment/elfie-godot-vertical-slice-plan"',
+        'link: "/zh/developer/designs/elfie/embodiment/virtual-appearance-generation"',
     }
 
     assert all(path in config for path in required_paths)

@@ -28,7 +28,7 @@ is stable, and which exact prefix every online reasoning request must preserve.
 ## Decision
 
 Adopt the
-[Selfhood and fixed model-header design](../designs/elfie-selfhood-and-fixed-model-header.md)
+[Selfhood and fixed model-header design](../designs/elfie/brain/elfie-selfhood-and-fixed-model-header.md)
 and revise the Elfie contract to 2.2 and the Brain contract to 1.3.
 
 1. Every model request inside an online Elfie `ReasoningRun` begins with exactly

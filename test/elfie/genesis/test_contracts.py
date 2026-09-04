@@ -62,7 +62,7 @@ def test_genesis_bundle_validates_bounded_creation_outputs() -> None:
     bundle = _bundle()
 
     assert bundle.validate() is None
-    assert len(bundle.knowledge_seeds) == 40
+    assert len(bundle.knowledge_seeds) == 102
     assert len(bundle.episode_seeds) == 5
     assert len(bundle.relationship_seeds) == 13
     assert bundle.manifest.output_ids

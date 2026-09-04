@@ -107,8 +107,8 @@ has actually changed, and explain why in the PR.
 - `app/orchestration/`: cross-module flows that compose real `Elfie`, `Nest`
   and injected capabilities.
 - `app/features/`: product use-cases; `app/interfaces/`: API, Web, CLI;
-  `app/infrastructure/`: persistence, filesystem, audio and device
-  capabilities.
+  concrete adapters for persistence, filesystem, audio and devices belong under
+  the root `infrastructure/` package.
 - `infrastructure/`: model, tool, persistence, Godot, device, communication and
   platform adapters.
 - `app/interfaces/desktop/`: visible Electron windows, platform adaptation and

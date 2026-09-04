@@ -17,7 +17,7 @@ Reasoning 的完整上下文，当前源码也已经把有界对话历史放在 
 
 ## 决策
 
-接受 [Reasoning Core 单 Turn Agent 详细设计](../designs/elfie-reasoning-core.md)，并把
+接受 [Reasoning Core 单 Turn Agent 详细设计](../designs/elfie/brain/elfie-reasoning-core.md)，并把
 Brain 契约升级到 1.4。
 
 1. `Event Workspace` 继续作为第 1 系统并保留 `workspace/`；它只拥有事件 Lane、准入和
