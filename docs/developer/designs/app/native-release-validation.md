@@ -101,7 +101,7 @@ loose call counter alone. Its minimum scenarios are:
 | Request | Deterministic response | Acceptance assertion |
 | --- | --- | --- |
 | Provider inventory/probe | Protocol-correct model inventory, text probe and structured-capability responses for one qualified model. | The connection, exact endpoint model, Common Food and Emergency Food become executable through persisted projections. |
-| Adoption candidate reply | A structured reply contains an accepted candidate ID and the current candidate fields (`species_id`, life stage, Earth-year age, gender, appearance, personality and message). | At least one invited candidate completes the deterministic reply and admission path. |
+| Adoption candidate reply | A structured reply contains an accepted candidate ID and the current candidate fields (`species_id`, life stage, Earth-year age, gender, appearance, personality and message); an accepted reply also carries a deterministic temporary identity reveal (original name, suggested name and personal story). | At least one invited candidate completes the deterministic reply and admission path. |
 | Owner chat | A non-empty first-person Elfie complete response. | The request crosses WebSocket, App, NestSession, Brain and the production model adapter without silently enabling Provider streaming. |
 | Unexpected schema, tool or endpoint | Explicit test-server failure. | New model behavior cannot silently receive a generic success response. |
 

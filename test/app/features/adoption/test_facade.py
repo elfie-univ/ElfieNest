@@ -11,12 +11,14 @@ from app.features.adoption import (
     AdoptionPolicyRecord,
     AdoptionQuotaRecord,
     AdoptionService,
+    AdoptionUnavailable,
     CandidateAppearance,
     CreateCandidateSetCommand,
     GetAdoptionOptionsQuery,
     ReplyToCandidatesCommand,
     StaticSpeciesRuntimeReadiness,
 )
+from elfie.genesis import CandidateReveal
 
 
 class Policy:
@@ -41,6 +43,25 @@ class Persistence:
 
     def get_nest_capacity(self) -> AdoptionNestCapacityRecord:
         return AdoptionNestCapacityRecord(used=self.nest_used, maximum=self.nest_limit)
+
+
+class CandidateRevealAdapter:
+    def reveal(self, candidate) -> CandidateReveal:
+        assert candidate.species_id == "fox"
+        return CandidateReveal(
+            "Veya", "Sora", "我喜欢先观察周围，再和熟悉的人慢慢靠近。"
+        )
+
+
+class FlakyCandidateRevealAdapter(CandidateRevealAdapter):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def reveal(self, candidate) -> CandidateReveal:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("temporary reveal failure")
+        return super().reveal(candidate)
 
 
 def principal() -> AccountPrincipal:
@@ -122,9 +143,11 @@ def test_adoption_uses_the_validated_runtime_species_intersection() -> None:
         service.create_candidate_set(principal(), candidate_command(species_id="dog"))
 
 
-def test_reply_is_structural_and_acceptance_can_be_committed() -> None:
+def test_reply_restores_identity_reveal_and_acceptance_can_be_committed() -> None:
     persistence = Persistence()
-    service = AdoptionService(Policy(), persistence)
+    service = AdoptionService(
+        Policy(), persistence, candidate_reveal=CandidateRevealAdapter()
+    )
     candidate_set = service.create_candidate_set(principal(), candidate_command())
     selected_ids = tuple(item.candidate_id for item in candidate_set.candidates[:2])
 
@@ -139,8 +162,10 @@ def test_reply_is_structural_and_acceptance_can_be_committed() -> None:
 
     assert len(replies.replies) == 2
     assert all(reply.message for reply in replies.replies)
-    assert not any(hasattr(reply, "reveal") for reply in replies.replies)
     accepted = next(reply for reply in replies.replies if reply.status == "accepted")
+    assert accepted.reveal == CandidateReveal(
+        "Veya", "Sora", "我喜欢先观察周围，再和熟悉的人慢慢靠近。"
+    )
     reservation = service.prepare_accepted(
         principal(),
         AcceptAdoptionCommand(
@@ -169,6 +194,23 @@ def test_successful_reply_retry_is_idempotent() -> None:
     second = service.reply_to_candidates(principal(), command)
 
     assert second == first
+
+
+def test_reveal_failure_does_not_leave_the_adoption_session_stuck() -> None:
+    reveal = FlakyCandidateRevealAdapter()
+    service = AdoptionService(Policy(), Persistence(), candidate_reveal=reveal)
+    candidate_set = service.create_candidate_set(principal(), candidate_command())
+    command = ReplyToCandidatesCommand(
+        candidate_set_id=candidate_set.candidate_set_id,
+        candidate_ids=(candidate_set.candidates[0].candidate_id,),
+    )
+
+    with pytest.raises(AdoptionUnavailable):
+        service.reply_to_candidates(principal(), command)
+
+    retry = service.reply_to_candidates(principal(), command)
+
+    assert retry.replies[0].reveal is not None
 
 
 def test_candidate_session_is_owner_scoped_and_supports_three_batches() -> None:

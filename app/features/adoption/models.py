@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from elfie.genesis import CandidateReveal
 from elfie.public import GenesisCandidate
 
 SpeciesId = str
@@ -146,6 +147,7 @@ class CandidateReplyResult:
     candidate: CandidateResult
     status: CandidateReplyStatus
     message: str
+    reveal: CandidateReveal | None = None
 
 
 @dataclass(frozen=True)
@@ -206,6 +208,7 @@ __all__ = (
     "CandidateRepliesResult",
     "CandidateReplyResult",
     "CandidateReplyStatus",
+    "CandidateReveal",
     "CandidateResult",
     "CandidateSetResult",
     "CreateCandidateSetCommand",

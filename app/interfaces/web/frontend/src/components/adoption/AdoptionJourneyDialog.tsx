@@ -162,7 +162,11 @@ function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
           ? mapped.runtimeAppearance
           : previous.runtimeAppearance,
       }
-  return { ...candidate, status: reply.status, message: reply.message }
+  return { ...candidate, status: reply.status, message: reply.message, reveal: reply.reveal === null ? null : {
+    originalName: reply.reveal.original_name,
+    suggestedName: reply.reveal.suggested_name,
+    personalStory: reply.reveal.personal_story,
+  } }
 }
 
 function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl">, kind: "headshot" | "fullBody" = "headshot"): string {
@@ -877,7 +881,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen frameRef={portraitFrameRef} loadCandidates={loadCandidates} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
-          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
+          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} nameMode={state.nameMode} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
         </div>
 
@@ -1387,7 +1391,7 @@ function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): b
   if (state.screen === "replies") return state.finalCandidateId === null
   if (state.screen === "naming") {
     const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
-    return candidate === undefined || !state.customName.trim()
+    return candidate === undefined || !selectedName(state)
   }
   return false
 }

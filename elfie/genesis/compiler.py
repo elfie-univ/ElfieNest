@@ -33,6 +33,7 @@ from elfie.profile import (
 
 from .appearance import generate_appearance
 from .contracts import (
+    CandidateReveal,
     EpisodeSeed,
     GenesisAppearanceIntent,
     GenesisBatch,
@@ -92,6 +93,31 @@ class GenesisCompileInput:
     invitation_accepted: bool = True
     full_body_image_url: str = ""
     headshot_image_url: str = ""
+
+
+class GenesisCandidateReveal:
+    """Build the temporary identity shown after a candidate accepts."""
+
+    def __init__(self, source: GenesisSourcePackage) -> None:
+        self._source = source
+
+    def reveal(self, candidate: GenesisCandidate) -> CandidateReveal:
+        names = _generated_names_for_seed(
+            self._source,
+            seed=candidate.seed,
+            species_id=candidate.species_id,
+            count=2,
+        )
+        labels = candidate.personality.candidate.labels[:2]
+        traits = "、".join(labels) if labels else "有自己的节奏"
+        return CandidateReveal(
+            original_name=names[0],
+            suggested_name=names[1] if len(names) > 1 else f"{names[0]}-2",
+            personal_story=(
+                f"你好，我是一个{traits}的精灵。我喜欢先观察周围，再和熟悉的人慢慢靠近。"
+                "很高兴这次能和你见面。"
+            ),
+        )
 
 
 @dataclass(frozen=True)
@@ -1289,18 +1315,12 @@ class GenesisCompiler:
     def _generated_names_for_species(
         self, request: GenesisCompileInput, species_id: str, count: int
     ) -> tuple[str, ...]:
-        pool = self._source.name_rules.pool(species_id) or ("Nemi",)
-        offset = self._domain_seed(
-            request.appearance_seed, f"names:{species_id}"
-        ) % len(pool)
-        rotated = tuple(pool[offset:] + pool[:offset])
-        result: list[str] = []
-        for index in range(max(count, 1)):
-            base = rotated[index % len(rotated)]
-            value = base if index < len(pool) else f"{base}-{index + 1}"
-            if value not in result:
-                result.append(value)
-        return tuple(result)
+        return _generated_names_for_seed(
+            self._source,
+            seed=request.appearance_seed,
+            species_id=species_id,
+            count=count,
+        )
 
     def _domain_seed(self, seed: int, label: str) -> int:
         policy = self._source.generation_policy
@@ -1332,6 +1352,31 @@ def _domain_seed(
         f"{seed}:{label}:{policy_version}".encode(), digest_size=8
     ).digest()
     return int.from_bytes(digest, "big")
+
+
+def _generated_names_for_seed(
+    source: GenesisSourcePackage,
+    *,
+    seed: int,
+    species_id: str,
+    count: int,
+) -> tuple[str, ...]:
+    pool = source.name_rules.pool(species_id) or ("Nemi",)
+    policy = source.generation_policy
+    offset = _domain_seed(
+        seed,
+        f"names:{species_id}",
+        algorithm=policy.seed_algorithm,
+        policy_version=policy.policy_version,
+    ) % len(pool)
+    rotated = tuple(pool[offset:] + pool[:offset])
+    result: list[str] = []
+    for index in range(max(count, 1)):
+        base = rotated[index % len(rotated)]
+        value = base if index < len(pool) else f"{base}-{index + 1}"
+        if value not in result:
+            result.append(value)
+    return tuple(result)
 
 
 def _weighted_choice(values, rng: random.Random):
@@ -1657,6 +1702,7 @@ def _energy_limits(seed: int, height: str, build: str) -> dict[str, object]:
 
 __all__ = (
     "GenesisCompilation",
+    "GenesisCandidateReveal",
     "GenesisCompileInput",
     "GenesisCompiler",
     "KnowledgeDecisionTrace",

@@ -79,6 +79,11 @@ function reply(index: number) {
     ...candidate(index),
     status: "accepted" as const,
     message: "我读完你的同行意向了，愿意继续认识你。",
+    reveal: {
+      original_name: `原名${index}`,
+      suggested_name: `建议名${index}`,
+      personal_story: `我是原名${index}，喜欢先观察周围，再和熟悉的人慢慢靠近。`,
+    },
   }
 }
 
@@ -343,16 +348,18 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
-    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 候选者 2" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 原名1" })).toBeInTheDocument()
     expect(screen.getByText("确认后 TA 才会正式加入 Nest")).toBeInTheDocument()
     expect(api.commitAdoption).not.toHaveBeenCalled()
     expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-1"], "", "csrf")
-    expect(screen.queryByText("TA 的自我介绍")).not.toBeInTheDocument()
+    expect(screen.getByText("我是原名1，喜欢先观察周围，再和熟悉的人慢慢靠近。")).toBeInTheDocument()
     expect(screen.getByText("3 岁 · 女性")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "返回" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
 
     const nameInput = screen.getByRole("textbox", { name: "给 TA 一个称呼" })
+    expect(nameInput).toHaveValue("原名1")
+    expect(screen.getByRole("button", { name: "确认领养并聊天" })).toBeEnabled()
     await user.clear(nameInput)
     await user.type(nameInput, "洛洛")
     expect(screen.getByRole("heading", { name: "TA 已回应，确认迎接 洛洛" })).toBeInTheDocument()

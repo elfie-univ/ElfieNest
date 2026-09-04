@@ -73,6 +73,11 @@ const AdoptionCandidateSetSchema = z.object({
 const AdoptionReplySchema = AdoptionCandidateSchema.extend({
   status: z.union([z.literal("accepted"), z.literal("unsure")]),
   message: z.string(),
+  reveal: z.object({
+    original_name: z.string(),
+    suggested_name: z.string(),
+    personal_story: z.string(),
+  }).strict().nullable(),
 })
 
 const AdoptionRepliesSchema = z.object({
