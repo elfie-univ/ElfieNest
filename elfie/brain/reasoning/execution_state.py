@@ -10,12 +10,9 @@ from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
-    ExpressionIntent,
     MessageIntent,
-    MotionIntent,
     NoOpIntent,
     PersistentActivityRequest,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_ports import IntentExecutor
 from elfie.brain.reasoning.execution_types import ExecutionBatch, ExecutorKind
@@ -71,10 +68,7 @@ def executor_kind(intent: DecisionIntent) -> ExecutorKind:
     raise TypeError(type(intent).__name__)
 
 
-@executor_kind.register(SpeechIntent)
 @executor_kind.register(CapabilityIntent)
-@executor_kind.register(MotionIntent)
-@executor_kind.register(ExpressionIntent)
 def _body_kind(_intent: DecisionIntent) -> ExecutorKind:
     return ExecutorKind.BODY
 

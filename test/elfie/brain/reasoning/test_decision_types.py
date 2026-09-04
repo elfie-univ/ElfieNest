@@ -14,13 +14,10 @@ from elfie.brain.reasoning.decision_types import (
     DecisionIntent,
     DecisionPlan,
     EmotionFeedback,
-    ExpressionIntent,
     MessageIntent,
     ModelAffectiveAppraisal,
-    MotionIntent,
     NoOpIntent,
     SemanticEmotionEffect,
-    SpeechIntent,
 )
 from elfie.message_types import EventId, IntentId, PlanId, TurnId
 
@@ -57,7 +54,7 @@ def _plan(intents: tuple[DecisionIntent, ...]) -> DecisionPlan:
 
 
 def test_plan_preserves_many_ordered_intents_when_round_tripped() -> None:
-    # Given: five messages followed by physical speech, motion, and expression.
+    # Given: five messages followed by three dynamically addressed body capabilities.
     messages = tuple(
         _message(
             index,
@@ -66,34 +63,38 @@ def test_plan_preserves_many_ordered_intents_when_round_tripped() -> None:
         for index in range(1, 6)
     )
     intents: tuple[DecisionIntent, ...] = messages + (
-        SpeechIntent(
-            type="speech",
+        CapabilityIntent(
+            type="capability",
             intent_id=IntentId("speech-1"),
             cause_event_ids=(EventId("body-event"),),
             dependency_ids=(),
             deadline=PLAN_DEADLINE,
             cancel_policy=CancelPolicy.IF_NOT_STARTED,
-            text="hello room",
+            category="body",
+            capability_id="speak",
+            arguments={"text": "hello room"},
         ),
-        MotionIntent(
-            type="motion",
+        CapabilityIntent(
+            type="capability",
             intent_id=IntentId("motion-1"),
             cause_event_ids=(EventId("body-event"),),
             dependency_ids=(IntentId("speech-1"),),
             deadline=PLAN_DEADLINE,
             cancel_policy=CancelPolicy.ALWAYS,
-            motion="walk",
-            target="door",
+            category="body",
+            capability_id="move.forward",
+            arguments={"distance": 1.0},
         ),
-        ExpressionIntent(
-            type="expression",
+        CapabilityIntent(
+            type="capability",
             intent_id=IntentId("expression-1"),
             cause_event_ids=(EventId("social-event"),),
             dependency_ids=(),
             deadline=PLAN_DEADLINE,
             cancel_policy=CancelPolicy.IF_NOT_STARTED,
-            expression="happy",
-            intensity=0.8,
+            category="body",
+            capability_id="expression",
+            arguments={"kind": "happy", "intensity": 0.8},
         ),
     )
     plan = _plan(intents)
@@ -109,9 +110,9 @@ def test_plan_preserves_many_ordered_intents_when_round_tripped() -> None:
         "message",
         "message",
         "message",
-        "speech",
-        "motion",
-        "expression",
+        "capability",
+        "capability",
+        "capability",
     )
     assert restored.intents[4].dependency_ids == (IntentId("message-4"),)
 
@@ -125,8 +126,8 @@ def test_capability_intent_round_trips_dynamic_body_capability_and_arguments() -
         deadline=PLAN_DEADLINE,
         cancel_policy=CancelPolicy.ALWAYS,
         category="body",
-        capability_id="body.move_to_anchor",
-        arguments={"anchor_id": "home", "announce": True},
+        capability_id="move.forward",
+        arguments={"distance": 0.5},
     )
 
     restored = TypeAdapter(DecisionIntent).validate_json(
@@ -135,8 +136,8 @@ def test_capability_intent_round_trips_dynamic_body_capability_and_arguments() -
 
     assert restored == intent
     assert isinstance(restored, CapabilityIntent)
-    assert restored.capability_id == "body.move_to_anchor"
-    assert restored.arguments["anchor_id"] == "home"
+    assert restored.capability_id == "move.forward"
+    assert restored.arguments["distance"] == 0.5
 
 
 @pytest.mark.parametrize(

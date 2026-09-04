@@ -142,6 +142,7 @@ func _start_authority_runtime() -> void:
 		true,
 		MOCK_WANDER_ENABLED,
 	)
+	_world_controller.set_actor_provider(_actor_controller.actor_instances)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
 	_environment_controller = ENVIRONMENT_RUNTIME_CONTROLLER.new()
 	add_child(_environment_controller)
@@ -203,9 +204,9 @@ func _handle_runtime_command(message: Dictionary) -> void:
 					String(message.get("message_id", "")),
 				)
 		"request_speech_reach":
-			_actor_controller.resolve_speech_reach(payload as Dictionary)
+			_world_controller.resolve_speech_reach(payload as Dictionary)
 		"request_visual_observation":
-			_actor_controller.resolve_visual_observation(payload as Dictionary)
+			_world_controller.resolve_visual_observation(payload as Dictionary)
 		"apply_environment":
 			_environment_controller.apply_environment(payload as Dictionary)
 		"execute_intent":

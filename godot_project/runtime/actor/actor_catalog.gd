@@ -71,6 +71,17 @@ static func snapshot(
 					if not actor_instance.active_command_id.is_empty()
 					else null
 			),
+			"position": [
+				actor_instance.global_position.x,
+				actor_instance.global_position.y,
+				actor_instance.global_position.z,
+			],
+			"heading_degrees": actor_instance.rotation_degrees.y,
+			"velocity": [
+				actor_instance.velocity.x,
+				actor_instance.velocity.y,
+				actor_instance.velocity.z,
+			],
 		})
 	return {
 		"world_revision": nest.world_revision,

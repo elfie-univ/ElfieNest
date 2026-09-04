@@ -12,20 +12,16 @@ from elfie.body.contracts import (
     CommandStatus,
     EmergencyStopCommand,
 )
-from elfie.body.native.anatomy.base import SomaticAnatomy, VoiceProfile
 from elfie.body.port import BodyPort
 from elfie.brain.workspace.contracts import IngestReceipt
 from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ActorId, ActorRef, ElfieId, EventId
 from elfie.nervous_system.actuators import (
-    MotionActuator,
     MutterActuator,
     SpeechActuator,
 )
 from elfie.nervous_system.perception_bridge import BodyPerceptionBridge
 from elfie.nervous_system.perception_normalizer import BodyPerceptionNormalizer
-from elfie.nervous_system.physical_limits import PhysicalLimitsReflex
-from elfie.nervous_system.reflex import SomaticReflexArc
 from elfie.nervous_system.signal_filter import SensoryDamSignalFilter
 
 
@@ -34,11 +30,10 @@ class PerceptionBridgeNotConfiguredError(RuntimeError):
 
 
 class NervousSystem:
-    """统一大脑与身体之间的感知、反射、校验和动作传递入口。"""
+    """统一大脑与身体之间的感知、过滤和类型化命令传递入口。"""
 
     def __init__(
         self,
-        capabilities_config: Optional[Dict[str, Any]] = None,
         *,
         perception_sink: Optional[PerceptionSink] = None,
         elfie_id: Optional[ElfieId] = None,
@@ -47,12 +42,9 @@ class NervousSystem:
         logical_clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
         self.speech_actuator = SpeechActuator()
-        self.motion_actuator = MotionActuator()
         self.mutter_actuator = MutterActuator()
 
         self.signal_filter = SensoryDamSignalFilter()
-        self.physical_limits = PhysicalLimitsReflex(capabilities_config)
-        self.reflex = SomaticReflexArc()
         self._perception_bridge: Optional[BodyPerceptionBridge] = None
         self._perception_notifier: Optional[Callable[[], None]] = None
         # External Bodies report wall-clock occurrence times, while Brain uses
@@ -211,43 +203,9 @@ class NervousSystem:
         """过滤重复或无价值的感知信号。"""
         return self.signal_filter.filter_noise(raw_sensor_data)
 
-    def process_reflex(
-        self,
-        anatomy: SomaticAnatomy,
-        tactile_sensor: Dict[str, Any],
-        emotion_system: Any,
-    ) -> Tuple[Dict[str, float], Dict[str, Any]]:
-        """处理可绕过认知层的即时身体反射。"""
-        return self.reflex.process_sensory_impact(
-            anatomy=anatomy,
-            tactile_sensor=tactile_sensor,
-            emotion=emotion_system,
-        )
-
-    def validate_action(
-        self, action_name: str, anatomy: SomaticAnatomy
-    ) -> Dict[str, Any]:
-        """根据当前身体形态校验动作是否能够执行。"""
-        return self.physical_limits.intercept_and_validate(action_name, anatomy)
-
-    def speak(self, text: str, voice_profile: Optional[VoiceProfile] = None) -> str:
+    def speak(self, text: str) -> str:
         """把说话意图交给文本发言执行器。"""
         return self.speech_actuator.speak(text)
-
-    def drive(
-        self,
-        anatomy: SomaticAnatomy,
-        action: str,
-        speed: float = 1.0,
-        elapsed_time: float = 0.0,
-    ) -> Dict[str, float]:
-        """把高阶动作意图转换为当前身体的关节驱动。"""
-        return self.motion_actuator.translate_and_drive(
-            anatomy=anatomy,
-            action_intent=action,
-            speed=speed,
-            elapsed_time=elapsed_time,
-        )
 
     def mutter(self, status: str) -> str:
         """把内部状态转换为精灵的碎碎念。"""

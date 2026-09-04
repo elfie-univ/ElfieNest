@@ -32,6 +32,7 @@ _Sequence = Annotated[int, Field(strict=True, ge=0)]
 _Count = Annotated[int, Field(strict=True, ge=1)]
 _Salience = Annotated[float, Field(strict=True, ge=0.0, le=1.0)]
 _StateScalar: TypeAlias = Union[bool, int, float, str]
+_Generation = Annotated[int, Field(strict=True, ge=1)]
 
 
 @unique
@@ -61,8 +62,8 @@ class ExecutionStatus(str, Enum):
 
 
 @unique
-class InternalSignal(str, Enum):
-    """Coordinator-owned signals that may enter the perceptual workspace."""
+class ActivitySignal(str, Enum):
+    """Coordinator-owned Activity signals that may enter the workspace."""
 
     CLOCK = "clock"
     AUTONOMOUS_DEADLINE = "autonomous_deadline"
@@ -106,7 +107,7 @@ class SourceDomain(str, Enum):
 
     COMMUNICATION = "communication"
     EMBODIED = "embodied"
-    INTERNAL = "internal"
+    ACTIVITY = "activity"
 
 
 @unique
@@ -133,16 +134,16 @@ class EmbodiedScope(FrozenContractModel):
     body_generation: _Revision = 1
 
 
-class InternalScope(FrozenContractModel):
-    """One receipt, failure, or internal-trigger causal chain."""
+class ActivityScope(FrozenContractModel):
+    """One Brain-owned cross-Turn Activity causal chain."""
 
-    kind: Literal["internal"] = "internal"
+    kind: Literal["activity"] = "activity"
     cause_id: _NonBlankText
     response_scope: Optional[ResponseScope] = None
 
 
 InteractionScope: TypeAlias = Annotated[
-    Union[CommunicationScope, EmbodiedScope, InternalScope],
+    Union[CommunicationScope, EmbodiedScope, ActivityScope],
     Field(discriminator="kind"),
 ]
 
@@ -233,22 +234,69 @@ class ExecutionPayload(FrozenContractModel):
     plan_id: PlanId
     turn_id: TurnId
     intent_id: IntentId
-    executor: Literal["body", "communication", "internal", "activity"]
+    executor: Literal["body", "communication", "activity"]
     status: ExecutionStatus
     error: Optional[ErrorInfo] = None
+    body_id: Optional[_NonBlankText] = None
+    body_generation: Optional[_Generation] = None
+    channel_id: Optional[_NonBlankText] = None
+    conversation_id: Optional[_NonBlankText] = None
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> ExecutionPayload:
+        """Keep each receipt in the external domain that produced it."""
+        if self.executor == "body":
+            valid = (
+                self.body_id is not None
+                and self.body_generation is not None
+                and self.channel_id is None
+                and self.conversation_id is None
+            )
+        elif self.executor == "communication":
+            valid = (
+                self.channel_id is not None
+                and self.conversation_id is not None
+                and self.body_id is None
+                and self.body_generation is None
+            )
+        else:
+            valid = (
+                self.body_id is None
+                and self.body_generation is None
+                and self.channel_id is None
+                and self.conversation_id is None
+            )
+        if not valid:
+            raise PydanticCustomError(
+                "execution_scope",
+                "execution receipt target does not match its executor",
+            )
+        failed = self.status in {
+            ExecutionStatus.REJECTED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.INTERRUPTED,
+            ExecutionStatus.TIMED_OUT,
+            ExecutionStatus.CANCELLED,
+        }
+        if failed != (self.error is not None):
+            raise PydanticCustomError(
+                "execution_receipt_error",
+                "failure statuses require error and success statuses forbid it",
+            )
+        return self
 
 
-class InternalPayload(FrozenContractModel):
-    """A coordinator-owned internal signal represented as inert data."""
+class ActivityPayload(FrozenContractModel):
+    """A coordinator-owned Activity signal represented as inert data."""
 
-    type: Literal["internal"]
-    signal: InternalSignal
+    type: Literal["activity"]
+    signal: ActivitySignal
     detail: _NonBlankText
     response_scope: Optional[ResponseScope] = None
 
 
 PerceptionPayload: TypeAlias = Annotated[
-    Union[PhysicalPayload, SocialPayload, ExecutionPayload, InternalPayload],
+    Union[PhysicalPayload, SocialPayload, ExecutionPayload, ActivityPayload],
     Field(discriminator="type"),
 ]
 
@@ -473,13 +521,13 @@ class TurnFrame(FrozenContractModel):
             interaction = self.interaction_scope
             allowed = (
                 interaction.response_scope
-                if isinstance(interaction, InternalScope)
+                if isinstance(interaction, ActivityScope)
                 else None
             )
             if self.response_scope != (allowed or ResponseScope(external_domain=None)):
                 raise PydanticCustomError(
-                    "internal_response_scope",
-                    "internal response scope exceeds the trigger's allowed scope",
+                    "activity_response_scope",
+                    "activity response scope exceeds the trigger's allowed scope",
                 )
         return self
 
@@ -512,9 +560,21 @@ def scope_key(write: PerceptionWrite) -> Tuple[str, ...]:
             str(payload.body_generation),
         )
     if isinstance(payload, ExecutionPayload):
-        return (SourceDomain.INTERNAL.value, f"execution:{payload.turn_id}")
+        if payload.executor == "body":
+            return (
+                SourceDomain.EMBODIED.value,
+                str(payload.body_id),
+                str(payload.body_generation),
+            )
+        if payload.executor == "communication":
+            return (
+                SourceDomain.COMMUNICATION.value,
+                str(payload.channel_id),
+                str(payload.conversation_id),
+            )
+        return (SourceDomain.ACTIVITY.value, f"execution:{payload.turn_id}")
     cause = write.meta.causation_id or write.meta.event_id
-    if isinstance(payload, InternalPayload) and payload.response_scope is not None:
+    if isinstance(payload, ActivityPayload) and payload.response_scope is not None:
         scope = payload.response_scope
         if scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
             target = f"communication:{scope.channel_id}:{scope.conversation_id}"
@@ -522,8 +582,8 @@ def scope_key(write: PerceptionWrite) -> Tuple[str, ...]:
             target = f"nervous_system:{scope.body_id}:{scope.body_generation}"
         else:
             target = "none"
-        return (SourceDomain.INTERNAL.value, str(cause), target)
-    return (SourceDomain.INTERNAL.value, str(cause))
+        return (SourceDomain.ACTIVITY.value, str(cause), target)
+    return (SourceDomain.ACTIVITY.value, str(cause))
 
 
 def interaction_scope_for(write: PerceptionWrite) -> InteractionScope:
@@ -539,9 +599,9 @@ def interaction_scope_for(write: PerceptionWrite) -> InteractionScope:
         )
     payload = write.payload if isinstance(write, PerceptionEvent) else None
     response_scope = (
-        payload.response_scope if isinstance(payload, InternalPayload) else None
+        payload.response_scope if isinstance(payload, ActivityPayload) else None
     )
-    return InternalScope(cause_id=key[1], response_scope=response_scope)
+    return ActivityScope(cause_id=key[1], response_scope=response_scope)
 
 
 def interaction_scope_key(scope: InteractionScope) -> Tuple[str, ...]:
@@ -560,7 +620,7 @@ def interaction_scope_key(scope: InteractionScope) -> Tuple[str, ...]:
         )
     response_scope = scope.response_scope
     if response_scope is None:
-        return (SourceDomain.INTERNAL.value, scope.cause_id)
+        return (SourceDomain.ACTIVITY.value, scope.cause_id)
     if response_scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
         target = f"communication:{response_scope.channel_id}:{response_scope.conversation_id}"
     elif response_scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
@@ -569,7 +629,7 @@ def interaction_scope_key(scope: InteractionScope) -> Tuple[str, ...]:
         )
     else:
         target = "none"
-    return (SourceDomain.INTERNAL.value, scope.cause_id, target)
+    return (SourceDomain.ACTIVITY.value, scope.cause_id, target)
 
 
 def domain_for_scope(scope: InteractionScope) -> SourceDomain:
@@ -604,9 +664,9 @@ __all__ = (
     "ExecutionStatus",
     "IngestDisposition",
     "IngestReceipt",
-    "InternalPayload",
-    "InternalScope",
-    "InternalSignal",
+    "ActivityPayload",
+    "ActivityScope",
+    "ActivitySignal",
     "PerceptionEvent",
     "PerceptionJournalEvent",
     "PerceptionMediaSample",

@@ -84,7 +84,7 @@ class ScenarioScale(str, Enum):
 class SourceDomain(str, Enum):
     COMMUNICATION = "communication"
     EMBODIED = "embodied"
-    INTERNAL = "internal"
+    ACTIVITY = "activity"
 
 
 @unique

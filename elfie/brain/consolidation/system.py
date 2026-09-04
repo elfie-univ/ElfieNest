@@ -2,7 +2,7 @@
 
 Cognitive Consolidation is deliberately a scheduler-facing Brain subsystem, not a
 second memory implementation.  It may propose one bounded consolidation
-candidate; only the resulting internal Turn receipt may commit the memory
+candidate; only the resulting Activity Turn receipt may commit the memory
 change.  The subsystem never sends a message, touches a Body, or creates an
 Activity itself.
 """
@@ -20,8 +20,8 @@ from typing_extensions import Annotated
 
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.workspace.contracts import (
-    InternalPayload,
-    InternalSignal,
+    ActivityPayload,
+    ActivitySignal,
     PerceptionEvent,
 )
 from elfie.message_types import (
@@ -47,7 +47,7 @@ CognitiveConsolidationStatus = Literal[
 
 
 class CognitiveConsolidationCandidate(FrozenContractModel):
-    """One bounded memory-consolidation request admitted as an Internal Turn."""
+    """One bounded memory-consolidation request admitted as an Activity Turn."""
 
     candidate_id: EventId
     mode: Literal["consolidation"] = "consolidation"
@@ -198,7 +198,7 @@ class CognitiveConsolidationSystem:
         now: UTCDateTime,
         success: bool,
     ) -> bool:
-        """Commit only after the Internal Turn receipt; never call on evaluation."""
+        """Commit only after the Activity Turn receipt; never call on evaluation."""
         with self._lock:
             self._ensure_time(now)
             candidate = self._pending_candidate
@@ -367,9 +367,9 @@ def consolidation_candidate_to_perception(
             correlation_id=CorrelationId(str(candidate.candidate_id)),
             priority=Priority.LOW,
         ),
-        payload=InternalPayload(
-            type="internal",
-            signal=InternalSignal.COGNITIVE_CONSOLIDATION,
+        payload=ActivityPayload(
+            type="activity",
+            signal=ActivitySignal.COGNITIVE_CONSOLIDATION,
             detail=json.dumps(candidate.model_dump(mode="json"), ensure_ascii=False),
         ),
         salience=0.25,

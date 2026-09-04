@@ -130,6 +130,9 @@ class ResidentMirror:
     posture: str
     active_command_id: str | None = None
     mock_motion: RuntimeMockMotion | None = None
+    position: tuple[float, float, float] | None = None
+    heading_degrees: float | None = None
+    velocity: tuple[float, float, float] | None = None
 
 
 @dataclass(frozen=True)

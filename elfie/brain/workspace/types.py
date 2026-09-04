@@ -9,8 +9,8 @@ from uuid import uuid4
 from pydantic import Field
 
 from elfie.brain.workspace.contracts import (
-    InternalPayload,
-    InternalSignal,
+    ActivityPayload,
+    ActivitySignal,
     ProcessingFailureEvent,
     TurnFrame,
 )
@@ -132,9 +132,9 @@ def build_processing_failure(
             causation_id=failed_frame_id,
             priority=Priority.HIGH,
         ),
-        payload=InternalPayload(
-            type="internal",
-            signal=InternalSignal.PROCESSING_FAILURE,
+        payload=ActivityPayload(
+            type="activity",
+            signal=ActivitySignal.PROCESSING_FAILURE,
             detail=reason,
         ),
         salience=1.0,

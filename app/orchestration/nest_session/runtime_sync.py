@@ -338,6 +338,9 @@ def _nest_mirror(
         current_zone_id=mirror.current_zone_id,
         posture=mirror.posture,
         active_command_id=mirror.active_command_id,
+        position=mirror.position,
+        heading_degrees=mirror.heading_degrees,
+        velocity=mirror.velocity,
         mock_motion=(
             NestRuntimeMockMotion(
                 waypoint=mirror.mock_motion.waypoint,

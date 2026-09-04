@@ -82,12 +82,63 @@ class EffectiveCapabilityProjection:
         if body is not None:
             capabilities = body.capabilities
             body_generation = self._current_body_generation() or 1
+            all_body_actions = body.list_actions(model_visible=False)
+            all_body_inputs = body.list_inputs(model_visible=False)
+            # A legacy wildcard/raw adapter has no authoritative catalog.  Do
+            # not turn its synthesized ``*`` entry into a fake dynamic catalog;
+            # validation will use the raw wildcard fallback for that adapter.
+            body_actions = (
+                body.list_actions(model_visible=True)
+                if capabilities.action_catalog
+                else ()
+            )
+            body_inputs = (
+                body.list_inputs(model_visible=True)
+                if capabilities.input_catalog
+                else ()
+            )
+            action_catalog = tuple(
+                CapabilityDescriptor(
+                    capability_id=descriptor.capability_id,
+                    category="body",
+                    description=descriptor.description,
+                    argument_schema=descriptor.argument_schema,
+                    return_schema=descriptor.return_schema,
+                    registration_source=descriptor.registration_source,
+                )
+                for descriptor in body_actions
+            )
+            input_catalog = tuple(
+                CapabilityDescriptor(
+                    capability_id=descriptor.capability_id,
+                    category="body",
+                    description=descriptor.description,
+                    argument_schema=descriptor.argument_schema,
+                    return_schema=descriptor.return_schema,
+                    registration_source=descriptor.registration_source,
+                )
+                for descriptor in body_inputs
+            )
             current_body = BodyCapabilityDescriptor(
                 body_id=body.body_id,
                 body_generation=body_generation,
                 capability_revision=capabilities.revision,
-                sensors=tuple(sorted(capabilities.sensors)),
-                actions=tuple(sorted(capabilities.actions)),
+                sensors=tuple(
+                    sorted(
+                        {descriptor.capability_id for descriptor in all_body_inputs}
+                        if capabilities.input_catalog
+                        else capabilities.sensors
+                    )
+                ),
+                actions=tuple(
+                    sorted(
+                        {descriptor.capability_id for descriptor in all_body_actions}
+                        if capabilities.action_catalog
+                        else capabilities.actions
+                    )
+                ),
+                input_catalog=input_catalog,
+                action_catalog=action_catalog,
             )
             signature.extend(
                 (
@@ -96,6 +147,14 @@ class EffectiveCapabilityProjection:
                     f"body-revision:{capabilities.revision}",
                     f"body-connected:{body.snapshot_body(now=captured_at).connected}",
                 )
+            )
+            signature.extend(
+                "body-input-contract:" + descriptor.model_dump_json()
+                for descriptor in input_catalog
+            )
+            signature.extend(
+                "body-action-contract:" + descriptor.model_dump_json()
+                for descriptor in action_catalog
             )
         channels = tuple(
             ConnectedChannelDescriptor(
@@ -111,20 +170,24 @@ class EffectiveCapabilityProjection:
             if channel.is_connected
         )
         world_capabilities = tuple(sorted(set(self._world_capabilities())))
+        world_catalog = tuple(
+            descriptor
+            for descriptor in self._world_capability_catalog()
+            if descriptor.category == "world"
+            and descriptor.capability_id in world_capabilities
+        )
+        all_catalog = (
+            tuple(current_body.action_catalog) if current_body is not None else ()
+        ) + world_catalog
         capability_catalog = tuple(
             sorted(
-                (
-                    descriptor
-                    for descriptor in self._world_capability_catalog()
-                    if descriptor.category == "world"
-                    and descriptor.capability_id in world_capabilities
-                ),
+                {item.capability_id: item for item in all_catalog}.values(),
                 key=lambda descriptor: descriptor.capability_id,
             )
         )
         signature.extend(f"world-capability:{item}" for item in world_capabilities)
         signature.extend(
-            "world-capability-contract:" + descriptor.model_dump_json()
+            "capability-contract:" + descriptor.model_dump_json()
             for descriptor in capability_catalog
         )
         for channel in channels:

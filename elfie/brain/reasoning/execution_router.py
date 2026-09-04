@@ -31,7 +31,14 @@ from elfie.brain.reasoning.execution_types import (
     ExecutionReceipt,
     ExecutorKind,
 )
-from elfie.brain.workspace.contracts import EmbodiedScope, ExecutionStatus
+from elfie.brain.workspace.contracts import (
+    ActivityScope,
+    CommunicationScope,
+    EmbodiedScope,
+    ExecutionStatus,
+    ExternalExecutionDomain,
+    InteractionScope,
+)
 from elfie.brain.workspace.ports import PerceptionSink
 from elfie.message_types import ElfieId, ErrorInfo, EventId, TurnId, UTCDateTime
 
@@ -171,7 +178,14 @@ class OutputRouter:
             self._trim_completed_locked()
             for intent in plan.intents:
                 kind, _executor = self._executors.for_intent(intent)
-                self._emit(plan, intent, kind, ExecutionStatus.ACCEPTED, None)
+                self._emit(
+                    plan,
+                    intent,
+                    kind,
+                    ExecutionStatus.ACCEPTED,
+                    None,
+                    interaction_scope=decision.interaction_scope,
+                )
             self._queue.put_nowait(runtime)
         return batch
 
@@ -315,7 +329,35 @@ class OutputRouter:
         kind: ExecutorKind,
         status: ExecutionStatus,
         error: Optional[ErrorInfo],
+        *,
+        interaction_scope: InteractionScope | None = None,
     ) -> None:
+        publish_to_workspace = (
+            not isinstance(intent, NoOpIntent)
+            and status not in {ExecutionStatus.ACCEPTED, ExecutionStatus.STARTED}
+            # The Activity request receipt is durable scheduler bookkeeping;
+            # the ActivityStateEvent is the sole workspace trigger for the
+            # future Activity Turn.
+            and kind is not ExecutorKind.ACTIVITY
+            and not (
+                kind is ExecutorKind.BODY
+                and bool(
+                    getattr(
+                        self._body_executor,
+                        "publishes_embodied_outcome",
+                        False,
+                    )
+                )
+            )
+        )
+        # An Activity receipt describes the durable Activity executor itself;
+        # it must not inherit the trigger Turn's CommunicationScope or
+        # EmbodiedScope.  The trigger scope belongs to the Activity record
+        # and is already carried by its durable execution envelope.
+        if publish_to_workspace and interaction_scope is None:
+            with self._lock:
+                decision = self._decisions.get(str(plan.plan_id))
+            interaction_scope = _receipt_interaction_scope(decision, kind)
         receipt = self._publisher.emit(
             plan=plan,
             intent=intent,
@@ -326,19 +368,8 @@ class OutputRouter:
             # frame. Re-publishing its own receipts would create an endless
             # receipt-only cognition loop. The receipt remains available to
             # journaling and settlement below.
-            publish_to_workspace=(
-                not isinstance(intent, NoOpIntent)
-                and not (
-                    kind is ExecutorKind.BODY
-                    and bool(
-                        getattr(
-                            self._body_executor,
-                            "publishes_embodied_outcome",
-                            False,
-                        )
-                    )
-                )
-            ),
+            publish_to_workspace=publish_to_workspace,
+            interaction_scope=interaction_scope,
         )
         if self._journal is not None:
             self._journal.record_receipt(receipt)
@@ -392,6 +423,38 @@ def _body_target(
         decision.interaction_scope.body_id,
         decision.interaction_scope.body_generation,
     )
+
+
+def _receipt_interaction_scope(
+    decision: TurnDecision | None,
+    kind: ExecutorKind,
+) -> InteractionScope | None:
+    """Project a Turn scope onto the executor that produced the receipt."""
+    if decision is None:
+        return None
+    scope = decision.interaction_scope
+    if kind is ExecutorKind.ACTIVITY:
+        return scope if isinstance(scope, ActivityScope) else None
+    if isinstance(scope, (CommunicationScope, EmbodiedScope)):
+        return scope
+    if not isinstance(scope, ActivityScope) or scope.response_scope is None:
+        return None
+    response_scope = scope.response_scope
+    if response_scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
+        if response_scope.channel_id is None or response_scope.conversation_id is None:
+            return None
+        return CommunicationScope(
+            channel_id=response_scope.channel_id,
+            conversation_id=response_scope.conversation_id,
+        )
+    if response_scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
+        if response_scope.body_id is None or response_scope.body_generation is None:
+            return None
+        return EmbodiedScope(
+            body_id=response_scope.body_id,
+            body_generation=response_scope.body_generation,
+        )
+    return None
 
 
 __all__ = ("OutputRouter",)

@@ -32,6 +32,9 @@ class OrientationSnapshot(FrozenContractModel):
     body_generation: Optional[_Revision] = None
     location: Optional[_NonBlankText] = None
     location_source: Literal["runtime", "observation", "unknown"] = "unknown"
+    position: Optional[Tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[Tuple[float, float, float]] = None
     active_channel_id: Optional[_NonBlankText] = None
     active_conversation_id: Optional[_NonBlankText] = None
     nearby_actors: Tuple[ActorRef, ...] = ()
@@ -50,6 +53,9 @@ class OrientationSnapshot(FrozenContractModel):
             unknown_fields=(
                 "body",
                 "location",
+                "position",
+                "heading",
+                "velocity",
                 "nearby_actors",
                 "activity",
                 "affordances",

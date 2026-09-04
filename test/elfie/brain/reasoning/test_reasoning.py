@@ -45,9 +45,9 @@ from elfie.brain.reasoning.tool_port import (
 )
 from elfie.brain.reasoning.worker import ReasoningTask
 from elfie.brain.workspace.contracts import (
+    ActivityScope,
     CommunicationScope,
     ExternalExecutionDomain,
-    InternalScope,
     ResponseScope,
     SourceDomain,
 )
@@ -151,8 +151,8 @@ def _task(
         created_at=NOW,
         deadline=DEADLINE,
         cause_event_ids=(EventId("event-1"),),
-        source_domain=SourceDomain.INTERNAL,
-        interaction_scope=InternalScope(cause_id="event-1"),
+        source_domain=SourceDomain.ACTIVITY,
+        interaction_scope=ActivityScope(cause_id="event-1"),
         response_scope=ResponseScope(external_domain=None),
         system_prompt="Return a safe DecisionPlan.",
         user_prompt="event data",

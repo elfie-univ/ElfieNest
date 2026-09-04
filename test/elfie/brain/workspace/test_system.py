@@ -7,8 +7,8 @@ import pytest
 
 from elfie.brain.journal import InMemoryBrainJournal
 from elfie.brain.workspace.contracts import (
+    ActivitySignal,
     IngestDisposition,
-    InternalSignal,
     PerceptionEvent,
     PerceptionMediaSample,
     PerceptionStateUpdate,
@@ -314,7 +314,7 @@ def test_third_release_emits_one_reliable_failure_event_without_recursion() -> N
     assert len(failure_frame.events) == 1
     assert isinstance(failure_frame.events[0], ProcessingFailureEvent)
     assert failure_frame.events[0].failed_frame_id == original.frame_id
-    assert failure_frame.events[0].payload.signal is InternalSignal.PROCESSING_FAILURE
+    assert failure_frame.events[0].payload.signal is ActivitySignal.PROCESSING_FAILURE
     assert len(workspace.dead_letters()) == 1
     restored = TurnFrame.model_validate_json(failure_frame.model_dump_json())
     assert isinstance(restored.events[0], ProcessingFailureEvent)

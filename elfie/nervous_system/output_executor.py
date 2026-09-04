@@ -24,9 +24,6 @@ from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
-    ExpressionIntent,
-    MotionIntent,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_types import IntentExecutionResult
 from elfie.message_types import (
@@ -204,62 +201,6 @@ def _identity(
 
 
 @_build_command.register
-def _speech_command(
-    intent: SpeechIntent,
-    plan: DecisionPlan,
-    body_id: BodyId,
-    body_generation: int,
-    capability_revision: int,
-    issued_at: UTCDateTime,
-) -> SpeechCommand:
-    return SpeechCommand(
-        command_type="speech",
-        text=intent.text,
-        **_identity(
-            plan, intent, body_id, body_generation, capability_revision, issued_at
-        ),
-    )
-
-
-@_build_command.register
-def _motion_command(
-    intent: MotionIntent,
-    plan: DecisionPlan,
-    body_id: BodyId,
-    body_generation: int,
-    capability_revision: int,
-    issued_at: UTCDateTime,
-) -> MotionCommand:
-    return MotionCommand(
-        command_type="motion",
-        kind=intent.motion,
-        target=intent.target,
-        **_identity(
-            plan, intent, body_id, body_generation, capability_revision, issued_at
-        ),
-    )
-
-
-@_build_command.register
-def _expression_command(
-    intent: ExpressionIntent,
-    plan: DecisionPlan,
-    body_id: BodyId,
-    body_generation: int,
-    capability_revision: int,
-    issued_at: UTCDateTime,
-) -> ExpressionCommand:
-    return ExpressionCommand(
-        command_type="expression",
-        kind=intent.expression,
-        intensity=intent.intensity,
-        **_identity(
-            plan, intent, body_id, body_generation, capability_revision, issued_at
-        ),
-    )
-
-
-@_build_command.register
 def _capability_command(
     intent: CapabilityIntent,
     plan: DecisionPlan,
@@ -272,7 +213,7 @@ def _capability_command(
     capability_id = intent.capability_id
     arguments = intent.arguments
     if intent.category == "world":
-        if capability_id == "world.go_to":
+        if capability_id == "move.to":
             return MotionCommand(
                 command_type="motion",
                 kind="move_to_anchor",
@@ -286,7 +227,7 @@ def _capability_command(
                     issued_at,
                 ),
             )
-        if capability_id == "world.observe":
+        if capability_id == "observe":
             return ObservationCommand(
                 command_type="observation",
                 observation_id=_argument_text(
@@ -304,9 +245,21 @@ def _capability_command(
                     issued_at,
                 ),
             )
-        raise ValueError(f"unsupported world capability: {capability_id}")
+        return CapabilityCommand(
+            command_type="capability",
+            capability_id=capability_id,
+            arguments=dict(arguments),
+            **_identity(
+                plan,
+                intent,
+                body_id,
+                body_generation,
+                capability_revision,
+                issued_at,
+            ),
+        )
 
-    if capability_id in {"body.speak", "speech.say"}:
+    if capability_id in {"speak", "body.speak", "speech.say"}:
         return SpeechCommand(
             command_type="speech",
             text=_argument_text(arguments, "text"),
@@ -333,7 +286,11 @@ def _capability_command(
                 issued_at,
             ),
         )
-    if capability_id in {"body.emergency_stop", "system.emergency_stop"}:
+    if capability_id in {
+        "emergency_stop",
+        "body.emergency_stop",
+        "system.emergency_stop",
+    }:
         return EmergencyStopCommand(
             command_type="emergency_stop",
             reason=_argument_text(arguments, "reason", "brain_request"),
@@ -346,7 +303,7 @@ def _capability_command(
                 issued_at,
             ),
         )
-    if capability_id == "body.expression":
+    if capability_id == "expression":
         return ExpressionCommand(
             command_type="expression",
             kind=_argument_text(arguments, "kind"),

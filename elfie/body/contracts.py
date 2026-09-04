@@ -74,6 +74,9 @@ class ProprioceptionSample(FrozenContractModel):
     zone_id: Optional[_NonBlankText] = None
     active_command_id: Optional[_NonBlankText] = None
     arrived: bool = False
+    position: Optional[Tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[Tuple[float, float, float]] = None
 
 
 class ActionOutcomePayload(FrozenContractModel):
@@ -179,6 +182,21 @@ SensorPayload: TypeAlias = Annotated[
     ],
     Field(discriminator="kind"),
 ]
+
+
+def sensor_capability_for_payload(payload: SensorPayload) -> str | None:
+    """Map a fact kind to the canonical Body input capability."""
+    if isinstance(payload, (UtteranceFinal, HeardUtterancePayload)):
+        return "hearing"
+    if isinstance(payload, (VisionSample, VisionChange, SemanticVisualScenePayload)):
+        return "vision"
+    if isinstance(payload, TactileImpact):
+        return "touch"
+    if isinstance(payload, ProprioceptionSample):
+        return "proprioception"
+    if isinstance(payload, EnvironmentSample):
+        return "environment"
+    return None
 
 
 class BodySensorEvent(FrozenContractModel):
@@ -377,6 +395,7 @@ __all__ = (
     "SemanticVisualEntityPayload",
     "SemanticVisualScenePayload",
     "SensorPayload",
+    "sensor_capability_for_payload",
     "SpeechCommand",
     "TactileImpact",
     "UtteranceFinal",

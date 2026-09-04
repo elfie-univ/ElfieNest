@@ -49,7 +49,7 @@ def scenario_catalog() -> tuple[ScenarioFamily, ...]:
         _family(
             "p0-response-scope",
             "Single-domain response scope",
-            "Communication, embodied and internal turns cannot cross their admitted output domain.",
+            "Communication, embodied and Activity turns cannot cross their admitted output domain.",
             Suite.FAST_GATE,
             Scale.TURN,
             gates=("P0_RESPONSE_SCOPE",),

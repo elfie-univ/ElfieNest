@@ -64,9 +64,5 @@ class ElfieDiagnostics:
     def tool_policy(self):
         return self._elfie._tool_policy
 
-    @property
-    def anatomy(self):
-        return self._elfie._anatomy
-
 
 __all__ = ("ElfieDiagnostics",)

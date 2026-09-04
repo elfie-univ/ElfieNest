@@ -4,8 +4,6 @@ from datetime import datetime, timedelta, timezone
 
 from elfie import Elfie
 from elfie.body import BodyId, CommandStatus, HeadlessBody, MotionCommand
-from elfie.body.native.anatomy.biped import BipedAnatomy
-from elfie.brain.emotion import EmotionSystem
 from elfie.brain.workspace.contracts import PerceptionEvent, PhysicalPayload
 from elfie.brain.workspace.system import EventWorkspace
 from elfie.diagnostics import ElfieDiagnostics
@@ -22,11 +20,8 @@ def test_nervous_system_owns_processing_components() -> None:
     nervous_system = NervousSystem()
 
     assert nervous_system.speech_actuator is not None
-    assert nervous_system.motion_actuator is not None
     assert nervous_system.mutter_actuator is not None
     assert nervous_system.signal_filter is not None
-    assert nervous_system.physical_limits is not None
-    assert nervous_system.reflex is not None
 
 
 def test_elfie_owns_one_canonical_nervous_system() -> None:
@@ -38,11 +33,8 @@ def test_elfie_owns_one_canonical_nervous_system() -> None:
     )
 
     assert ElfieDiagnostics(elfie).nervous_system.speech_actuator is not None
-    assert ElfieDiagnostics(elfie).nervous_system.motion_actuator is not None
     assert ElfieDiagnostics(elfie).nervous_system.mutter_actuator is not None
     assert ElfieDiagnostics(elfie).nervous_system.signal_filter is not None
-    assert ElfieDiagnostics(elfie).nervous_system.physical_limits is not None
-    assert ElfieDiagnostics(elfie).nervous_system.reflex is not None
 
 
 def test_nervous_system_filters_signals_through_existing_filter() -> None:
@@ -170,43 +162,8 @@ def test_nervous_system_notifies_brain_after_direct_action_feedback() -> None:
     assert notifications == [None]
 
 
-def test_nervous_system_processes_reflex_through_existing_reflex_arc() -> None:
+def test_nervous_system_keeps_text_actuators() -> None:
     nervous_system = NervousSystem()
-    anatomy = BipedAnatomy()
-    emotion = EmotionSystem()
 
-    joints, event = nervous_system.process_reflex(
-        anatomy,
-        {"impact_force": 20.0, "impact_direction": "front"},
-        emotion,
-    )
-
-    assert event["triggered"] is True
-    assert event["type"] == "shock_avoidance"
-    assert joints["neck_pitch"] == 0.5
-
-
-def test_nervous_system_validates_and_executes_existing_actions() -> None:
-    nervous_system = NervousSystem()
-    anatomy = BipedAnatomy()
-
-    assert nervous_system.validate_action("idle", anatomy)["allowed"] is True
-    assert nervous_system.validate_action("jump", anatomy)["allowed"] is False
-    assert nervous_system.speak("你好", anatomy.voice_profile) == "你好"
+    assert nervous_system.speak("你好") == "你好"
     assert nervous_system.mutter("sleeping")
-
-    joints = nervous_system.drive(anatomy, "nod_head", elapsed_time=1.0)
-    assert joints["neck_pitch"] == 0.4
-    assert joints["head_yaw"] == 0.0
-
-
-def test_validate_action_remains_the_physical_safety_gate() -> None:
-    # Given: a biped body and an action that its morphology cannot perform.
-    nervous_system = NervousSystem()
-    anatomy = BipedAnatomy()
-
-    # When: the output path asks the NervousSystem safety gate for permission.
-    result = nervous_system.validate_action("wag_tail", anatomy)
-
-    # Then: the action is rejected before any body execution can occur.
-    assert result["allowed"] is False

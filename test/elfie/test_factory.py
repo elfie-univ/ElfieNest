@@ -144,7 +144,6 @@ def test_elfie_facade_does_not_expose_mutable_subsystem_owners() -> None:
             "body_registry",
             "body_binding",
             "skills",
-            "anatomy",
         )
     )
 

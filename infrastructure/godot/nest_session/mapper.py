@@ -88,6 +88,9 @@ class _SnapshotActor(BaseModel):
     posture: str
     active_command_id: Optional[str]
     mock_motion: Optional[_SnapshotMockMotion] = None
+    position: Optional[tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[tuple[float, float, float]] = None
 
 
 class _WorldSnapshot(BaseModel):
@@ -200,6 +203,9 @@ def parse_world_snapshot(
                 current_zone_id=actor.zone_id,
                 posture=actor.posture,
                 active_command_id=actor.active_command_id,
+                position=actor.position,
+                heading_degrees=actor.heading_degrees,
+                velocity=actor.velocity,
                 mock_motion=(
                     RuntimeMockMotion(
                         waypoint=actor.mock_motion.waypoint,

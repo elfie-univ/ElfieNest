@@ -15,7 +15,6 @@ from elfie.body.contracts import (
 )
 from elfie.body.port import BodyPort
 from elfie.brain.workspace.contracts import (
-    ExecutionPayload,
     ExecutionStatus,
     PerceptionEvent,
     PerceptionStateUpdate,
@@ -31,7 +30,6 @@ from elfie.message_types import (
     EventId,
     IntentId,
     MessageMeta,
-    PlanId,
     Priority,
     TraceId,
     TurnId,
@@ -109,9 +107,17 @@ class BodyReflexController:
         if body is None or command is None:
             return base_writes
         receipts = body.execute(command, now=event.received_at)
-        return base_writes + tuple(
-            self._receipt_event(event, receipt) for receipt in receipts
+        terminal = next(
+            (
+                receipt
+                for receipt in reversed(receipts)
+                if receipt.status not in {CommandStatus.ACCEPTED, CommandStatus.STARTED}
+            ),
+            None,
         )
+        if terminal is None:
+            return base_writes
+        return base_writes + (self._receipt_event(event, terminal),)
 
     def _build_command(
         self,
@@ -186,15 +192,20 @@ class BodyReflexController:
                 causation_id=cause.event_id,
                 priority=Priority.CRITICAL,
             ),
-            payload=ExecutionPayload(
-                type="execution",
-                receipt_id=receipt.receipt_id,
-                plan_id=PlanId(f"reflex-plan:{cause.event_id}"),
-                turn_id=receipt.turn_id,
-                intent_id=receipt.intent_id,
-                executor="body",
-                status=_STATUS_MAP[receipt.status],
-                error=receipt.error,
+            payload=PhysicalPayload(
+                type="physical",
+                body_id=str(cause.body_id),
+                body_generation=receipt.body_generation,
+                modality=PhysicalModality.PROPRIOCEPTION,
+                content=(
+                    f"action={receipt.command_id}; intent={receipt.intent_id}; "
+                    f"status={_STATUS_MAP[receipt.status].value}"
+                    + (
+                        f"; reason={receipt.error.message}"
+                        if receipt.error is not None
+                        else ""
+                    )
+                ),
             ),
             salience=1.0,
         )

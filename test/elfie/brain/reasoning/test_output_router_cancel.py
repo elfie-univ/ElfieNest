@@ -4,8 +4,7 @@ from datetime import timedelta
 from threading import Event
 
 from elfie.brain.reasoning.decision_types import (
-    MotionIntent,
-    SpeechIntent,
+    CapabilityIntent,
 )
 from elfie.brain.reasoning.execution_router import OutputRouter
 from elfie.brain.reasoning.execution_types import IntentExecutionResult
@@ -76,10 +75,18 @@ def test_failed_dependency_cancels_downstream_without_calling_executor() -> None
     )
     router = _router(body, RecordingExecutor())
     router.start()
-    speech = SpeechIntent(type="speech", text="hello", **_base("speech"))
-    motion = MotionIntent(
-        type="motion",
-        motion="walk",
+    speech = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="speak",
+        arguments={"text": "hello"},
+        **_base("speech"),
+    )
+    motion = CapabilityIntent(
+        type="capability",
+        category="body",
+        capability_id="move.forward",
+        arguments={"distance": 1.0},
         **{
             **_base("motion"),
             "dependency_ids": (IntentId("speech"),),

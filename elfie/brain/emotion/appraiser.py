@@ -16,9 +16,9 @@ from elfie.brain.emotion.detector.text_detector import TextEmotionDetector
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
     ExecutionPayload,
     ExecutionStatus,
-    InternalPayload,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
@@ -69,7 +69,7 @@ class EmotionAppraiser:
             return self._appraise_social(event, payload, trusted_scopes)
         if isinstance(payload, ExecutionPayload):
             return self._appraise_execution(event, payload)
-        if isinstance(payload, InternalPayload):
+        if isinstance(payload, ActivityPayload):
             return None
         return None
 

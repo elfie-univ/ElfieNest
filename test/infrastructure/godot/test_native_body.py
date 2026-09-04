@@ -128,6 +128,33 @@ def test_native_body_implements_typed_body_port() -> None:
     assert gateway.sent == []
 
 
+def test_native_body_exposes_only_registered_public_catalog_entries() -> None:
+    body, _gateway = make_body()
+
+    assert [item.capability_id for item in body.list_actions()] == [
+        "move.forward",
+        "move.turn",
+        "speak",
+        "expression",
+        "emergency_stop",
+    ]
+    assert all(
+        item.registration_source == "godot.native_body"
+        and item.return_schema["properties"]["status"]["type"] == "string"
+        for item in body.list_actions()
+    )
+    assert [item.capability_id for item in body.list_inputs()] == [
+        "hearing",
+        "vision",
+        "touch",
+        "proprioception",
+    ]
+    assert all(
+        item.registration_source == "godot.native_body" for item in body.list_inputs()
+    )
+    assert "gesture.wave" not in body.capabilities.actions
+
+
 def test_native_body_does_not_consume_legacy_gateway_callbacks() -> None:
     body, gateway = make_body()
     body.connect()

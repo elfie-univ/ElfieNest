@@ -90,6 +90,9 @@ export const memoryCognitionSchema = z.object({
 const intentSchema = z.object({
   intent_id: z.string().optional(),
   type: z.string().optional(),
+  category: z.string().optional(),
+  capability_id: z.string().optional(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
   motion: z.string().optional(),
   expression: z.string().optional(),
   intensity: z.number().optional(),
@@ -117,7 +120,6 @@ export const turnSchema = z.object({
     expression_intents: z.array(intentSchema).default([]),
     speech_intents: z.array(intentSchema).default([]),
     message_intents: z.array(intentSchema).default([]),
-    internal_intents: z.array(intentSchema).default([]),
     activity_intents: z.array(activityIntentSchema).default([]),
     noop_intents: z.array(intentSchema).default([]),
   }).passthrough(),

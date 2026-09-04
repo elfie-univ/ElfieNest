@@ -180,7 +180,7 @@ def _source_scope_id(
     elif domain is SourceDomain.EMBODIED:
         value = interaction_scope.get("body_id")
     else:
-        value = interaction_scope.get("trigger_id")
+        value = interaction_scope.get("cause_id") or interaction_scope.get("trigger_id")
     return str(value) if value is not None else None
 
 

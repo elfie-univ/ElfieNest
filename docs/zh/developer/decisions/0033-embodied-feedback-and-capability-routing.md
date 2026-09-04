@@ -30,7 +30,7 @@ Body 的捷径。审查还确认，固定 `DecisionIntent` 联合类型无法承
    本体感知、触觉、姿态、位置或到达事实合并。回执没有独立 Brain 触发规则，收到一条事件
    不等于触发一次模型 Turn。
 7. Brain 通过有限的通用类型化调用计划选择一个或多个已注册能力：大类、动态 `capability_id`、
-   类型化参数、call/cause 身份、截止时间和当前主体。`go_to`、`turn`、`speak` 等具体动词属于能力目录，
+   类型化参数、call/cause 身份、截止时间和当前主体。`move.to`、`move.turn`、`speak` 等具体动词属于能力目录，
    不能写死在 `DecisionIntent` 联合类型中；下层根据注册来源和当前 BodyBinding 选路，兼容动作可以有序执行或并发执行。
 8. 第一版允许隔离执行 Worker 等待终态，但 Gateway 接收器与传感入口必须保持工作。完全
    非阻塞的 Body 提交和异步回执流延后到第二版。

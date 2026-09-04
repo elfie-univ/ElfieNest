@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.8
+**Contract version:** 1.9
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-03
+**Revised:** 2026-09-04
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -14,9 +14,11 @@
 > tests. Version 1.5 froze the one-time Genesis and final-owner isolation rules;
 > version 1.6 additionally freezes the three source domains, embodied terminal
 > outcomes and dynamic capability routing accepted by ADR-0033. Version 1.7 records
-> the stable links to the accepted Brain design hierarchy. Version 1.8 separates
-> standard procedural Skill documents from executable Tool definitions and adds
-> the read-only bundled Skill load boundary. Remaining
+> the stable links to the accepted Brain design hierarchy. Version 1.8 records
+> the dynamic embodied capability namespace and receipt-scope validation used by
+> the current implementation; version 1.9 separates standard procedural Skill
+> documents from executable Tool definitions and adds the read-only bundled Skill
+> load boundary. Remaining
 > implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
@@ -386,7 +388,7 @@ An embodied decision invokes one or more capabilities from the read-only catalog
 exposed by the current Body and other authorized owners. The finite structured
 plan contains calls with the broad category, dynamic `capability_id`, typed
 arguments, call/cause IDs, deadline and current subject. Concrete names such as
-`go_to`, `turn` or `speak` are catalog entries, not a fixed Brain decision
+`move.to`, `move.turn` or `speak` are catalog entries, not a fixed Brain decision
 union. Calls may be ordered or run concurrently within the same external
 domain. Each call is checked by NervousSystem and routed through the current
 BodyBinding; Brain does not select an Adapter, Transport or Gateway.

@@ -18,7 +18,7 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.workspace.contracts import (
-    InternalScope,
+    ActivityScope,
     ResponseScope,
     SourceDomain,
     TriggerReason,
@@ -37,8 +37,8 @@ def _frame() -> TurnFrame:
         captured_at=NOW,
         cutoff_seq=9,
         trigger_reason=TriggerReason.SALIENCE,
-        source_domain=SourceDomain.INTERNAL,
-        interaction_scope=InternalScope(cause_id="manual-test"),
+        source_domain=SourceDomain.ACTIVITY,
+        interaction_scope=ActivityScope(cause_id="manual-test"),
         response_scope=ResponseScope(external_domain=None),
     )
 

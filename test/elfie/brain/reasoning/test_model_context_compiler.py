@@ -203,10 +203,10 @@ def test_decision_prompt_exposes_registered_capability_argument_contracts() -> N
         update={
             "capabilities": _context().capabilities.model_copy(
                 update={
-                    "world_capabilities": ("world.go_to",),
+                    "world_capabilities": ("move.to",),
                     "capability_catalog": (
                         CapabilityDescriptor(
-                            capability_id="world.go_to",
+                            capability_id="move.to",
                             category="world",
                             description="Move to a semantic anchor.",
                             argument_schema={
@@ -233,7 +233,7 @@ def test_decision_prompt_exposes_registered_capability_argument_contracts() -> N
         ),
     )
 
-    assert '"world_contracts"' in user_prompt
+    assert '"capabilities"' in user_prompt
     assert '"anchor_id"' in user_prompt
 
 

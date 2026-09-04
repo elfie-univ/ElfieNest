@@ -145,6 +145,21 @@ class ConversationContextCheckpoint(FrozenContractModel):
     pending_closed_episode_payloads: Tuple[str, ...] = ()
 
 
+class CapabilityDescriptor(FrozenContractModel):
+    """One model-visible capability with its typed argument contract.
+
+    This is a read-only projection. The authoritative registration lives in the
+    current Body Adapter or Nest owner.
+    """
+
+    capability_id: _NonBlankText
+    category: Literal["body", "world"]
+    description: Optional[_NonBlankText] = None
+    argument_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+    return_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+    registration_source: _NonBlankText = "projection"
+
+
 class BodyCapabilityDescriptor(FrozenContractModel):
     """Capabilities of the single body currently bound to the Elfie."""
 
@@ -153,15 +168,18 @@ class BodyCapabilityDescriptor(FrozenContractModel):
     capability_revision: _Revision
     sensors: Tuple[_NonBlankText, ...]
     actions: Tuple[_NonBlankText, ...]
+    input_catalog: Tuple[CapabilityDescriptor, ...] = ()
+    action_catalog: Tuple[CapabilityDescriptor, ...] = ()
 
-
-class CapabilityDescriptor(FrozenContractModel):
-    """One model-visible capability with its typed argument contract."""
-
-    capability_id: _NonBlankText
-    category: Literal["body", "world"]
-    description: Optional[_NonBlankText] = None
-    argument_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
+    def find_action(self, capability_id: str) -> CapabilityDescriptor | None:
+        return next(
+            (
+                item
+                for item in self.action_catalog
+                if item.capability_id == capability_id
+            ),
+            None,
+        )
 
 
 class ConnectedChannelDescriptor(FrozenContractModel):
@@ -200,6 +218,17 @@ class EffectiveCapabilities(FrozenContractModel):
                 "capability catalog IDs must be unique",
             )
         return self
+
+    def find_capability(self, capability_id: str) -> CapabilityDescriptor | None:
+        """Look up one capability in the single Brain-visible projection."""
+        return next(
+            (
+                item
+                for item in self.capability_catalog
+                if item.capability_id == capability_id
+            ),
+            None,
+        )
 
 
 class BrainContext(FrozenContractModel):

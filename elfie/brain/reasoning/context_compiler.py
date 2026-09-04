@@ -22,8 +22,8 @@ from elfie.brain.reasoning.memory_compiler import (
 from elfie.brain.reasoning.run import CurrentRunObservation
 from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
     ExecutionPayload,
-    InternalPayload,
     PerceptionJournalEvent,
     PerceptionMediaSample,
     PerceptionStateUpdate,
@@ -350,8 +350,8 @@ class ModelContextCompiler:
             content = (
                 f"{payload.executor} {payload.status.value} intent {payload.intent_id}"
             )
-        elif isinstance(payload, InternalPayload):
-            label = f"internal:{payload.signal.value}"
+        elif isinstance(payload, ActivityPayload):
+            label = f"activity:{payload.signal.value}"
             channel_id = None
             content = payload.detail
         else:

@@ -27,7 +27,6 @@ from elfie.brain.workspace.system import EventWorkspace
 from elfie.brain_wiring import DEFAULT_EMBODIED_INPUT_MODE
 from elfie.communication import CommunicationHub
 from elfie.facade_operations import ElfieFacadeOperations
-from elfie.initialization import assemble_anatomy
 from elfie.message_types import ElfieId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import ElfieProfile
@@ -102,9 +101,6 @@ class Elfie(ElfieFacadeOperations):
             body_port=body,
             logical_clock=lambda: self.cognitive_datetime,
         )
-        self._anatomy_type, self._anatomy = assemble_anatomy(
-            self._profile,
-        )
         self._body_registry = BodyRegistry()
         self._body_binding = BodyBinding(self._body_registry)
         self._body_binding.attach(body)
@@ -137,11 +133,6 @@ class Elfie(ElfieFacadeOperations):
     @property
     def species_id(self) -> str:
         return self._profile.identity.species_id
-
-    @property
-    def anatomy_type(self) -> str:
-        """Return the stable morphology label without exposing mutable anatomy."""
-        return self._anatomy_type
 
     @property
     def current_body(self) -> BodyPort | None:

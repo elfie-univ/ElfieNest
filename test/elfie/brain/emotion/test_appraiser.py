@@ -18,10 +18,10 @@ from elfie.brain.emotion.contracts import (
 from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
+    ActivitySignal,
     ExecutionPayload,
     ExecutionStatus,
-    InternalPayload,
-    InternalSignal,
     PerceptionEvent,
     PhysicalModality,
     PhysicalPayload,
@@ -31,6 +31,7 @@ from elfie.message_types import (
     ActorId,
     ActorRef,
     ElfieId,
+    ErrorInfo,
     EventId,
     IntentId,
     MessageMeta,
@@ -177,8 +178,20 @@ def test_execution_receipt_emits_outcome_effects(status, expected) -> None:
             plan_id=PlanId("plan-1"),
             turn_id=TurnId("turn-1"),
             intent_id=IntentId("intent-1"),
-            executor="internal",
+            executor="activity",
             status=status,
+            error=(
+                ErrorInfo(code="test_failure", message="test failure")
+                if status
+                in {
+                    ExecutionStatus.REJECTED,
+                    ExecutionStatus.FAILED,
+                    ExecutionStatus.INTERRUPTED,
+                    ExecutionStatus.TIMED_OUT,
+                    ExecutionStatus.CANCELLED,
+                }
+                else None
+            ),
         ),
         event_id="execution-1",
     )
@@ -193,7 +206,7 @@ def test_execution_receipt_emits_outcome_effects(status, expected) -> None:
 def test_clock_and_malformed_contracts_stay_out_of_appraisal() -> None:
     pulse = BrainClockPulse(timestamp=5.0)
     clock_event = _event(
-        InternalPayload(type="internal", signal=InternalSignal.CLOCK, detail="tick")
+        ActivityPayload(type="activity", signal=ActivitySignal.CLOCK, detail="tick")
     )
 
     assert not isinstance(pulse, PerceptionEvent)

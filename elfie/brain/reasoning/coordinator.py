@@ -431,7 +431,7 @@ class BrainCoordinator:
             if self._workspace.metrics().critical_event_count == 0:
                 self._maybe_start_turn_for_domains(
                     now,
-                    (SourceDomain.COMMUNICATION, SourceDomain.INTERNAL),
+                    (SourceDomain.COMMUNICATION, SourceDomain.ACTIVITY),
                 )
                 return
         self._maybe_start_turn_for_domains(now, None)
@@ -553,8 +553,21 @@ class BrainCoordinator:
         ):
             return True
         if (
-            str(frame.source_domain) == "SourceDomain.INTERNAL"
-            or getattr(frame.source_domain, "value", None) == "internal"
+            str(frame.source_domain) == "SourceDomain.ACTIVITY"
+            or getattr(frame.source_domain, "value", None) == "activity"
+        ):
+            return True
+        if any(
+            isinstance(event.payload, ExecutionPayload)
+            and event.payload.status
+            in {
+                ExecutionStatus.REJECTED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.INTERRUPTED,
+                ExecutionStatus.TIMED_OUT,
+                ExecutionStatus.CANCELLED,
+            }
+            for event in frame.events
         ):
             return True
         return any(
@@ -573,16 +586,11 @@ class BrainCoordinator:
 
         Receipts are still appraised, settled, journaled, and committed by the
         existing completion/output chain.  Only an errored receipt is allowed
-        to re-enter model reasoning, so salient failures and explicit internal
-        Activity signals retain their existing model-backed behavior.
+        to re-enter model reasoning, so salient failures and explicit Activity
+        signals retain their existing model-backed behavior.
         """
 
-        if (
-            frame.source_domain is not SourceDomain.INTERNAL
-            or not frame.events
-            or frame.state_updates
-            or frame.media_samples
-        ):
+        if not frame.events or frame.state_updates or frame.media_samples:
             return False
         return all(
             isinstance(event.payload, ExecutionPayload)

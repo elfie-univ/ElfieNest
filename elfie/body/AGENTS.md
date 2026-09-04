@@ -1,6 +1,6 @@
 # Elfie Body 执行规则
 
-本目录拥有身体领域语义：`BodyId`、能力、解剖、命令、传感事件、回执、Registry 和
+本目录拥有身体领域语义：`BodyId`、能力、命令、传感事件、回执、Registry 和
 Binding。`BodyPort` 是多具可替换身体共同实现的出站边界。
 
 - 一只 Elfie 可以注册多个已授权身体候选；每个实例有稳定身份、能力修订和独立技术
@@ -11,8 +11,8 @@ Binding。`BodyPort` 是多具可替换身体共同实现的出站边界。
 - 命令、事件和回执必须保留身体身份与类型化语义；禁止把 Godot 帧、设备包、Socket、
   蓝牙/LAN 协议或凭据加入公共模型。
 - Godot、实体设备、网络传输、进程控制及产品 Headless 托管属于 Infrastructure
-  Adapter。`native/`、`external/`、`headless/` 下只能保留确定性无 I/O 的领域参考或
-  测试 Fake；不得按目录名引入具体 I/O、产品托管或兼容路径。
+  Adapter。`elfie/body/` 不放具体平台、设备或传输实现；Headless 仅作为确定性无 I/O
+  的领域测试替身保留。
 - Registry/Binding 只管理 Elfie 内身体语义；设备发现、授权、关联和跨 authority 工作流
   属于 App Feature/Orchestration。
 - Registry 只接收 App 已经发现、授权和关联的限定作用域 Body View；连接或健康状态不

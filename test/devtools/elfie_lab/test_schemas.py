@@ -11,10 +11,9 @@ def test_calculate_state_diff_only_keeps_changed_fields():
     }
 
 
-def test_legacy_lab_spec_migrates_anatomy_to_default_species():
+def test_legacy_lab_spec_defaults_unknown_species_to_fox():
     spec = ElfieSpec.from_dict(
-        {"elfie_id": "elfie_legacy", "name": "旧精灵", "anatomy_type": "quadruped"}
+        {"elfie_id": "elfie_legacy", "name": "旧精灵", "species_id": "unknown"}
     )
 
     assert spec.species_id == "fox"
-    assert "anatomy_type" not in spec.to_dict()

@@ -13,3 +13,10 @@ def test_distinct_message_ids_allow_repeated_text():
 
     assert signal_filter.filter_noise(first) is True
     assert signal_filter.filter_noise(second) is True
+
+
+def test_unchanged_temperature_is_filtered():
+    signal_filter = SensoryDamSignalFilter()
+
+    assert signal_filter.filter_noise({"temperature": 24.0}) is True
+    assert signal_filter.filter_noise({"temperature": 24.0}) is False

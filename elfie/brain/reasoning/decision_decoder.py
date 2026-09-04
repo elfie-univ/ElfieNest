@@ -14,6 +14,7 @@ from elfie.brain.reasoning.decision_trust import bind_plan_to_seed
 from elfie.brain.reasoning.decision_types import (
     AnswerDraft,
     CancelPolicy,
+    CapabilityIntent,
     ClarificationDraft,
     CognitiveAction,
     DecisionIntent,
@@ -23,7 +24,6 @@ from elfie.brain.reasoning.decision_types import (
     NoOpDraft,
     NoOpIntent,
     RecallMemory,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.model_port import (
     ModelGenerationCapabilities,
@@ -444,14 +444,16 @@ class DecisionPlanDecoder:
             )
             fallback_reason = reason or "owner_message_fallback"
         elif meaningful:
-            intent = SpeechIntent(
-                type="speech",
+            intent = CapabilityIntent(
+                type="capability",
                 intent_id=intent_id,
                 cause_event_ids=seed.cause_event_ids,
                 dependency_ids=(),
                 deadline=seed.deadline,
                 cancel_policy=CancelPolicy.ALWAYS,
-                text=text,
+                category="body",
+                capability_id="speak",
+                arguments={"text": text},
             )
             fallback_reason = reason or "plain_text_model"
         else:
