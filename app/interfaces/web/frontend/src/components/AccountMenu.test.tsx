@@ -78,7 +78,7 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("combobox", { name: "默认登录页" })).toHaveTextContent("聊天页")
   }, 10_000)
 
-  it("renders display-first identity information with only the local avatar upload control", () => {
+  it("renders display-first identity information without an avatar upload control", () => {
     renderLocalized("zh-CN", true)
 
     expect(screen.getByText("阿尔法")).toBeInTheDocument()
@@ -88,8 +88,26 @@ describe("AccountMenu", () => {
     expect(screen.getByText("出生日期：")).toBeInTheDocument()
     expect(screen.getByLabelText("男")).toBeInTheDocument()
     expect(screen.queryByText("个人设置")).not.toBeInTheDocument()
-    expect(screen.getAllByLabelText("上传本地头像")).toHaveLength(2)
+    expect(screen.queryByLabelText("上传本地头像")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("显示名称")).not.toBeInTheDocument()
+  })
+
+  it("only enables avatar selection after entering identity edit mode", async () => {
+    const user = userEvent.setup()
+    renderLocalized("zh-CN", true)
+
+    expect(screen.queryByRole("button", { name: "上传本地头像" })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "编辑显示名称" }))
+
+    const avatarButton = screen.getByRole("button", { name: "上传本地头像" })
+    const fileInput = document.querySelector<HTMLInputElement>(".account-menu__avatar-input")
+    if (!fileInput) throw new TypeError("Expected the avatar file input in edit mode")
+    const inputClick = vi.spyOn(fileInput, "click")
+
+    await user.click(avatarButton)
+
+    expect(inputClick).toHaveBeenCalledOnce()
   })
 
   it("keeps the compact account trigger focused on the display name", () => {
