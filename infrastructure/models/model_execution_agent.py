@@ -229,6 +229,7 @@ class ModelExecutionAgent:
         food_unavailable: bool = False,
     ) -> StructuredModelExecutionCapabilities:
         """Describe the primary role of the selected food package."""
+        self._reload_config_if_changed()
         catalog = self._load_food_catalog()
         selected_food = self._select_food_key(
             catalog,
