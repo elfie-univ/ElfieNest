@@ -16,6 +16,7 @@ from pydantic import JsonValue
 from elfie.brain.reasoning.tool_port import (
     ToolCall,
     ToolDefinition,
+    ToolOperation,
     ToolPort,
     ToolRequest,
 )
@@ -115,8 +116,9 @@ class ModelAgentValidationRunner:
                 messages: list[dict[str, JsonValue]] = [
                     {"role": "user", "content": _tool_probe_prompt(tool_name)}
                 ]
-                request_options = {
-                    "tool_definitions": [_provider_definition(definition)],
+                tool_definitions: list[JsonValue] = [_provider_definition(definition)]
+                request_options: dict[str, JsonValue] = {
+                    "tool_definitions": tool_definitions,
                     "tool_choice": "auto",
                 }
                 first = self.model_caller(
@@ -289,14 +291,33 @@ def _tool_request(call: ToolCall, tool_name: str) -> ToolRequest:
             tool_key=tool_name,
             operation="search",
             query=str(arguments.get("query") or ""),
-            max_results=int(arguments.get("max_results", 3)),
+            max_results=_json_int(arguments.get("max_results", 3), 3),
         )
     return ToolRequest(
         scope_id=ElfieId("validation"),
         tool_key=tool_name,
-        operation=str(arguments.get("operation") or "read"),
+        operation=_tool_operation(arguments.get("operation"), "read"),
         resource_id=str(arguments.get("resource_id") or ""),
     )
+
+
+_TOOL_OPERATIONS: dict[str, ToolOperation] = {
+    "search": "search",
+    "read": "read",
+    "list": "list",
+}
+
+
+def _json_int(value: JsonValue, default: int) -> int:
+    if isinstance(value, (str, int, float)):
+        return int(value)
+    return default
+
+
+def _tool_operation(value: JsonValue, default: ToolOperation) -> ToolOperation:
+    if isinstance(value, str):
+        return _TOOL_OPERATIONS.get(value, default)
+    return default
 
 
 def _append_tool_exchange(
@@ -306,38 +327,36 @@ def _append_tool_exchange(
     api_mode: str,
 ) -> None:
     if api_mode == "anthropic_messages":
+        assistant_content: list[JsonValue] = []
+        if response.text:
+            assistant_content.append({"type": "text", "text": response.text})
+        assistant_content.extend(
+            {
+                "type": "tool_use",
+                "id": call.call_id,
+                "name": call.tool_key,
+                "input": dict(call.arguments),
+            }
+            for call, _content in executed_tools
+        )
+        tool_results: list[JsonValue] = [
+            {
+                "type": "tool_result",
+                "tool_use_id": call.call_id,
+                "content": content,
+            }
+            for call, content in executed_tools
+        ]
         messages.append(
             {
                 "role": "assistant",
-                "content": [
-                    *(
-                        [{"type": "text", "text": response.text}]
-                        if response.text
-                        else []
-                    ),
-                    *[
-                        {
-                            "type": "tool_use",
-                            "id": call.call_id,
-                            "name": call.tool_key,
-                            "input": dict(call.arguments),
-                        }
-                        for call, _content in executed_tools
-                    ],
-                ],
+                "content": assistant_content,
             }
         )
         messages.append(
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": call.call_id,
-                        "content": content,
-                    }
-                    for call, content in executed_tools
-                ],
+                "content": tool_results,
             }
         )
         return

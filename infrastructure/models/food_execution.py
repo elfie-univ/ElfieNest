@@ -6,12 +6,19 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from pydantic import JsonValue
+
 from elfie.brain.reasoning.food_port import (
     FoodAssignment,
     FoodPackage,
 )
 from elfie.brain.reasoning.skill_port import SkillLoadCall
-from elfie.brain.reasoning.tool_port import ToolCall, ToolPort, ToolRequest
+from elfie.brain.reasoning.tool_port import (
+    ToolCall,
+    ToolOperation,
+    ToolPort,
+    ToolRequest,
+)
 from elfie.message_types import ElfieId
 from infrastructure.models.inference.llm_api import LLMCallResult
 from infrastructure.models.inference.multimodal import assemble_multimodal_payload
@@ -24,6 +31,24 @@ from infrastructure.models.model_reference import (
     ModelReferenceError,
     parse_model_reference,
 )
+
+_TOOL_OPERATIONS: dict[str, ToolOperation] = {
+    "search": "search",
+    "read": "read",
+    "list": "list",
+}
+
+
+def _json_int(value: JsonValue, default: int) -> int:
+    if isinstance(value, (str, int, float)):
+        return int(value)
+    return default
+
+
+def _tool_operation(value: JsonValue, default: ToolOperation) -> ToolOperation:
+    if isinstance(value, str):
+        return _TOOL_OPERATIONS.get(value, default)
+    return default
 
 
 @dataclass(frozen=True)
@@ -249,12 +274,12 @@ class FoodExecutor:
                 tool_key=call.tool_key,
                 operation="search",
                 query=str(arguments.get("query") or ""),
-                max_results=int(arguments.get("max_results", 3)),
+                max_results=_json_int(arguments.get("max_results", 3), 3),
             )
         return ToolRequest(
             scope_id=ElfieId(scope_id) if scope_id is not None else None,
             tool_key=call.tool_key,
-            operation=str(arguments.get("operation") or "read"),
+            operation=_tool_operation(arguments.get("operation"), "read"),
             resource_id=str(arguments.get("resource_id") or ""),
         )
 

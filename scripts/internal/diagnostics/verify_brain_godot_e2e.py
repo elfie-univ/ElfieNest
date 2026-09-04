@@ -315,10 +315,6 @@ def _make_elfie(body: Any) -> Elfie:
             "display_name": "E2E Synthetic Elfie",
             "species_id": "fox",
             "species_name": "小狐狸",
-            "home_world_id": "elfaria",
-            "home_world_name": "Elfaria",
-            "home_region_id": "mistyville",
-            "home_region_name": "Mistyville",
             "resident_role": "resident",
         },
         "adaptive_self": {

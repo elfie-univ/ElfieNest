@@ -16,7 +16,7 @@ from threading import Event
 from time import monotonic
 from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Tuple
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.activity.system import ActivityPreflightStatus
@@ -58,11 +58,36 @@ from elfie.brain.reasoning.skill_port import (
     SKILL_LOADER_NAME,
     SkillLoadCall,
 )
-from elfie.brain.reasoning.tool_port import ToolCall, ToolPort, ToolRequest, ToolResult
+from elfie.brain.reasoning.tool_port import (
+    ToolCall,
+    ToolOperation,
+    ToolPort,
+    ToolRequest,
+    ToolResult,
+)
 from elfie.message_types import FrozenContractModel, IntentId, PlanId
 
 if TYPE_CHECKING:
     from elfie.brain.reasoning.worker import ReasoningTaskView
+
+
+_TOOL_OPERATIONS: dict[str, ToolOperation] = {
+    "search": "search",
+    "read": "read",
+    "list": "list",
+}
+
+
+def _json_int(value: JsonValue, default: int) -> int:
+    if isinstance(value, (str, int, float)):
+        return int(value)
+    return default
+
+
+def _tool_operation(value: JsonValue, default: ToolOperation) -> ToolOperation:
+    if isinstance(value, str):
+        return _TOOL_OPERATIONS.get(value, default)
+    return default
 
 
 @unique
@@ -414,9 +439,9 @@ class ReasoningRun:
                 )
                 if generation.skill_calls or generation.tool_calls:
                     generated_observations: list[str] = []
-                    for call in generation.skill_calls:
+                    for skill_call in generation.skill_calls:
                         skill_calls += 1
-                        skill = self._load_skill(current_request, task, call)
+                        skill = self._load_skill(current_request, task, skill_call)
                         if skill is None:
                             raise _ReasoningStop(
                                 ReasoningStatus.TOOL_REJECTED,
@@ -426,7 +451,7 @@ class ReasoningRun:
                         add_step(
                             CognitiveStepKind.SKILL,
                             "loaded",
-                            f"{skill.name} ({call.call_id})",
+                            f"{skill.name} ({skill_call.call_id})",
                             tool_key=SKILL_LOADER_NAME,
                             operation="load",
                             ok=True,
@@ -449,10 +474,10 @@ class ReasoningRun:
                                 skill.instructions,
                             )
                         )
-                    for call in generation.tool_calls:
+                    for tool_call in generation.tool_calls:
                         guard(next_kind=CognitiveStepKind.TOOL, tool=True)
                         try:
-                            request = self._tool_request_from_call(task, call)
+                            request = self._tool_request_from_call(task, tool_call)
                         except Exception as error:  # noqa: BLE001 - typed boundary
                             raise _ReasoningStop(
                                 ReasoningStatus.TOOL_REJECTED,
@@ -476,8 +501,8 @@ class ReasoningRun:
                         add_step(
                             CognitiveStepKind.TOOL,
                             "requested",
-                            f"{call.tool_key} ({call.call_id})",
-                            tool_key=call.tool_key,
+                            f"{tool_call.tool_key} ({tool_call.call_id})",
+                            tool_key=tool_call.tool_key,
                             operation=request.operation,
                         )
                         try:
@@ -960,14 +985,14 @@ class ReasoningRun:
                 tool_key=call.tool_key,
                 operation="search",
                 query=str(arguments.get("query") or ""),
-                max_results=int(arguments.get("max_results", 3)),
+                max_results=_json_int(arguments.get("max_results", 3), 3),
             )
         if call.tool_key != "local_file":
             raise ValueError(f"unknown semantic Tool: {call.tool_key}")
         return ToolRequest(
             scope_id=getattr(task, "tool_scope_id", None),
             tool_key="local_file",
-            operation=str(arguments.get("operation") or "read"),
+            operation=_tool_operation(arguments.get("operation"), "read"),
             resource_id=str(arguments.get("resource_id") or ""),
         )
 

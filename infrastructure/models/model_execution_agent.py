@@ -61,6 +61,9 @@ from infrastructure.models.model_reference import parse_model_reference
 logger = logging.getLogger("infrastructure.models.model_execution_agent")
 MainFoodLoader = Callable[[str], MainFoodSelection]
 _ADOPTION_MODEL_TIMEOUT_SECONDS = 20.0
+# Provider-only function name for structured output in tool-call mode.  It is
+# deliberately separate from the public schema name and semantic Tool keys.
+_FINAL_STRUCTURED_CALL_NAME = "brain_final_output"
 
 
 class _UnavailableToolPort:
@@ -474,8 +477,8 @@ class ModelExecutionAgent:
                 {
                     "type": "function",
                     "function": {
-                        "name": request.response_schema_name,
-                        "description": "Return the final structured DecisionPlan.",
+                        "name": _FINAL_STRUCTURED_CALL_NAME,
+                        "description": "Return the final structured response.",
                         "parameters": dict(request.response_schema),
                     },
                 }
@@ -531,21 +534,25 @@ class ModelExecutionAgent:
         tool_calls = tuple(
             call
             for call in result.tool_calls
-            if call.tool_key != request.response_schema_name
+            if call.tool_key != _FINAL_STRUCTURED_CALL_NAME
         )
         final_calls = tuple(
             call
             for call in result.tool_calls
-            if call.tool_key == request.response_schema_name
+            if call.tool_key == _FINAL_STRUCTURED_CALL_NAME
         )
+        if len(final_calls) > 1:
+            raise ValueError("provider returned multiple final structured calls")
         skill_calls: tuple[SkillLoadCall, ...] = result.skill_calls
-        text = result.text
-        if not text and final_calls:
-            text = json.dumps(
+        text = (
+            json.dumps(
                 dict(final_calls[0].arguments),
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
+            if final_calls
+            else result.text
+        )
         return FoodExecutionResult(
             text=text,
             model=assignment.model,

@@ -55,7 +55,10 @@ class BundledSkillCatalog(SkillCatalog):
         directory = self._root / name
         if not directory.is_dir() or directory.is_symlink():
             return None
-        return self._read(directory, include_instructions=True)
+        document = self._read(directory, include_instructions=True)
+        if not isinstance(document, SkillDocument):
+            raise SkillCatalogError(f"Skill instructions were not loaded: {directory}")
+        return document
 
     def _read(
         self,
