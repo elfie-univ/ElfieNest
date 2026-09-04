@@ -158,6 +158,8 @@ class ExecutionReceiptPublisher:
                 interaction_scope, ActivityScope
             ):
                 raise ValueError("activity receipt requires an activity scope")
+        elif receipt.executor is ExecutorKind.INTERNAL:
+            raise ValueError("internal executor receipts cannot enter the workspace")
         source = ActorRef(
             actor_id=ActorId(f"{self._elfie_id}:output-router"),
             source_kind="internal",

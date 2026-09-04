@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional, Tuple
+from typing import Iterable, Literal, Optional, Tuple, cast
 
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_types import EffectiveCapabilities
@@ -257,12 +257,20 @@ def _pose_fact(
             source_ids.append(update.meta.event_id)
 
     position = (
-        (float(positions[0]), float(positions[1]), float(positions[2]))
+        (
+            cast(float, positions[0]),
+            cast(float, positions[1]),
+            cast(float, positions[2]),
+        )
         if all(value is not None for value in positions)
         else None
     )
     velocity = (
-        (float(velocities[0]), float(velocities[1]), float(velocities[2]))
+        (
+            cast(float, velocities[0]),
+            cast(float, velocities[1]),
+            cast(float, velocities[2]),
+        )
         if all(value is not None for value in velocities)
         else None
     )

@@ -441,14 +441,18 @@ def _receipt_interaction_scope(
         return None
     response_scope = scope.response_scope
     if response_scope.external_domain is ExternalExecutionDomain.COMMUNICATION:
+        if response_scope.channel_id is None or response_scope.conversation_id is None:
+            return None
         return CommunicationScope(
             channel_id=response_scope.channel_id,
             conversation_id=response_scope.conversation_id,
         )
     if response_scope.external_domain is ExternalExecutionDomain.NERVOUS_SYSTEM:
+        if response_scope.body_id is None or response_scope.body_generation is None:
+            return None
         return EmbodiedScope(
             body_id=response_scope.body_id,
-            body_generation=response_scope.body_generation or 1,
+            body_generation=response_scope.body_generation,
         )
     return None
 

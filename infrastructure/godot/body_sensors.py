@@ -35,11 +35,19 @@ class NativeSensors:
         force_newtons = (
             float(force_value) if isinstance(force_value, (int, float)) else None
         )
+        body_generation_value = payload.get("body_generation")
+        body_generation = (
+            body_generation_value
+            if isinstance(body_generation_value, int)
+            and not isinstance(body_generation_value, bool)
+            and body_generation_value >= 1
+            else 1
+        )
         sensor_event = BodySensorEvent(
             event_id=EventId(event.message_id),
             cause_id=EventId(event.cause_id) if event.cause_id is not None else None,
             body_id=BodyId(self.body_id),
-            body_generation=int(payload.get("body_generation", 1)),
+            body_generation=body_generation,
             source=ActorRef(
                 actor_id=ActorId(source_semantic_id),
                 source_kind="elfie" if contact_kind == "actor" else "world",

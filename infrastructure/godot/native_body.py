@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable, List, Mapping, Optional, Tuple
+from typing import Iterable, List, Mapping, Optional, Tuple, cast
+
+from pydantic import JsonValue
 
 from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.command_execution import (
@@ -36,26 +38,29 @@ from elfie.message_types import ErrorInfo, EventId
 from infrastructure.godot.body_sensors import NativeSensors
 from infrastructure.godot.body_transport import GodotTransport, RuntimeIntentPayload
 
-_ACTION_OUTCOME_SCHEMA = {
-    "type": "object",
-    "required": ["kind", "command_id", "intent_id", "status"],
-    "properties": {
-        "kind": {"const": "action_outcome"},
-        "command_id": {"type": "string"},
-        "intent_id": {"type": "string"},
-        "status": {
-            "type": "string",
-            "enum": [
-                "completed",
-                "rejected",
-                "failed",
-                "interrupted",
-                "timed_out",
-            ],
+_ACTION_OUTCOME_SCHEMA = cast(
+    Mapping[str, JsonValue],
+    {
+        "type": "object",
+        "required": ["kind", "command_id", "intent_id", "status"],
+        "properties": {
+            "kind": {"const": "action_outcome"},
+            "command_id": {"type": "string"},
+            "intent_id": {"type": "string"},
+            "status": {
+                "type": "string",
+                "enum": [
+                    "completed",
+                    "rejected",
+                    "failed",
+                    "interrupted",
+                    "timed_out",
+                ],
+            },
+            "reason": {"type": "string"},
         },
-        "reason": {"type": "string"},
     },
-}
+)
 
 
 class NativeBody:
@@ -164,7 +169,7 @@ class NativeBody:
                 BodyCapabilityDescriptor(
                     capability_id=name,
                     description=description,
-                    return_schema=return_schema,
+                    return_schema=cast(Mapping[str, JsonValue], return_schema),
                     registration_source="godot.native_body",
                 )
                 for name, description, return_schema in (
@@ -425,7 +430,7 @@ class NativeBody:
             return receipts
         elif isinstance(command, CapabilityCommand):
             try:
-                payload = self._capability_payload(command)
+                capability_payload = self._capability_payload(command)
             except ValueError as error:
                 receipt = rejected(
                     command,
@@ -435,7 +440,7 @@ class NativeBody:
                 )
                 self._last_receipt = receipt
                 return (receipt,)
-            if payload is None:
+            if capability_payload is None:
                 receipt = rejected(
                     command,
                     "unsupported_capability",
@@ -444,6 +449,7 @@ class NativeBody:
                 )
                 self._last_receipt = receipt
                 return (receipt,)
+            payload = capability_payload
         timeout_seconds = max((command.deadline - now).total_seconds(), 0.0)
         payload["deadline_seconds"] = timeout_seconds
         result = self.transport.execute_intent(
@@ -563,7 +569,10 @@ class NativeBody:
             if not isinstance(kind, str) or not kind.strip():
                 raise ValueError("expression requires non-blank kind")
             intensity = arguments.get("intensity")
-            payload = {**base, "intent": "emotion_expression", "expression": kind}
+            payload = cast(
+                RuntimeIntentPayload,
+                {**base, "intent": "emotion_expression", "expression": kind},
+            )
             if isinstance(intensity, (int, float)) and not isinstance(intensity, bool):
                 payload["intensity"] = float(intensity)
             return payload
