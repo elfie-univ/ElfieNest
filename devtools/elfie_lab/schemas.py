@@ -47,8 +47,7 @@ class ElfieSpec:
     def from_dict(cls, data: Dict[str, Any]) -> "ElfieSpec":
         species_id = str(data.get("species_id", ""))
         if species_id not in {"dog", "fox"}:
-            # 旧 Lab 只保存身体形态，没有物种。迁移时用狐狸母版兜底，
-            # 不再把 biped/quadruped 暴露为个体类别。
+            # 旧或未知 Lab 记录使用狐狸母版兜底，不把身体实现类型暴露为个体类别。
             species_id = "fox"
         raw_age = data.get("age_years")
         age_years = float(raw_age) if isinstance(raw_age, (int, float)) else None

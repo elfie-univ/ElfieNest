@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Tuple
+from typing import Iterable, List, Mapping, Tuple
 
-from elfie.body.capabilities import BodyCapabilities
+from elfie.body.capabilities import BodyCapabilities, BodyCapabilityDescriptor
 from elfie.body.command_execution import (
     WireValue,
     lifecycle_receipts,
@@ -71,10 +71,39 @@ class ExternalBody:
             capabilities=self.capabilities,
         )
 
+    def list_actions(
+        self, *, model_visible: bool = False
+    ) -> Tuple[BodyCapabilityDescriptor, ...]:
+        return self.capabilities.list_actions(model_visible=model_visible)
+
+    def list_inputs(
+        self, *, model_visible: bool = False
+    ) -> Tuple[BodyCapabilityDescriptor, ...]:
+        return self.capabilities.list_inputs(model_visible=model_visible)
+
+    def register_action(self, descriptor: BodyCapabilityDescriptor) -> BodyCapabilities:
+        self.capabilities = self.capabilities.register_action(descriptor)
+        return self.capabilities
+
+    def unregister_action(self, capability_id: str) -> BodyCapabilities:
+        self.capabilities = self.capabilities.unregister_action(capability_id)
+        return self.capabilities
+
+    def register_input(self, descriptor: BodyCapabilityDescriptor) -> BodyCapabilities:
+        self.capabilities = self.capabilities.register_input(descriptor)
+        return self.capabilities
+
+    def unregister_input(self, capability_id: str) -> BodyCapabilities:
+        self.capabilities = self.capabilities.unregister_input(capability_id)
+        return self.capabilities
+
     def read_sensor_events(self) -> List[BodySensorEvent]:
         if not self.connected:
             return []
         return self.sensors.read_sensor_events()
+
+    def ingest_sensor_events(self, events: Iterable[BodySensorEvent]) -> None:
+        self.sensors.ingest(events)
 
     def execute(
         self,

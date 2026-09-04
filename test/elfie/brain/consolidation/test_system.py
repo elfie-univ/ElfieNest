@@ -4,7 +4,7 @@ from elfie.brain.consolidation.system import (
     CognitiveConsolidationSystem,
     consolidation_candidate_to_perception,
 )
-from elfie.brain.workspace.contracts import InternalPayload, InternalSignal
+from elfie.brain.workspace.contracts import ActivityPayload, ActivitySignal
 
 
 def test_consolidation_only_proposes_while_sleeping_and_settles_after_receipt():
@@ -34,8 +34,8 @@ def test_consolidation_only_proposes_while_sleeping_and_settles_after_receipt():
     assert candidate is not None
     assert calls == []
     perception = consolidation_candidate_to_perception(candidate, elfie_id="elfie-test")
-    assert isinstance(perception.payload, InternalPayload)
-    assert perception.payload.signal is InternalSignal.COGNITIVE_CONSOLIDATION
+    assert isinstance(perception.payload, ActivityPayload)
+    assert perception.payload.signal is ActivitySignal.COGNITIVE_CONSOLIDATION
 
     assert system.settle(
         candidate.candidate_id, now=now + timedelta(seconds=2), success=True

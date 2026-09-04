@@ -178,6 +178,8 @@ def build_execution_event(
             executor="communication",
             status=_EXECUTION_STATUS[receipt.status],
             error=receipt.error,
+            channel_id=envelope.channel_id,
+            conversation_id=envelope.conversation_id,
         ),
     )
 

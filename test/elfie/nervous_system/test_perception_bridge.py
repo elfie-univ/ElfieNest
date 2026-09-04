@@ -19,7 +19,6 @@ from elfie.body.contracts import (
     VisionSample,
 )
 from elfie.brain.workspace.contracts import (
-    ExecutionPayload,
     IngestDisposition,
     PerceptionEvent,
     PhysicalModality,
@@ -288,18 +287,11 @@ def test_dangerous_touch_executes_reflex_before_cortical_publish() -> None:
         if isinstance(event, PerceptionEvent)
         and isinstance(event.payload, PhysicalPayload)
     ]
-    execution = [
-        event
-        for frame in frames
-        for event in frame.events
-        if isinstance(event, PerceptionEvent)
-        and isinstance(event.payload, ExecutionPayload)
-    ]
     assert physical[0].meta.event_id == EventId("impact-danger")
     assert physical[0].meta.source.actor_id == ActorId("owner-near")
     assert "reflex emergency_stop" in physical[1].payload.content
-    assert len(execution) == 3
-    assert execution[-1].payload.status.value == "completed"
+    assert "status=completed" in physical[2].payload.content
+    assert "intent=reflex-intent:impact-danger" in physical[2].payload.content
     assert [update.value for frame in frames for update in frame.state_updates] == [1]
 
 

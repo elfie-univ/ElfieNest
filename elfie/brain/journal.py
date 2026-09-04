@@ -22,9 +22,9 @@ from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.turn_outcome import TurnOutcome
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
+    ActivitySignal,
     ExecutionStatus,
-    InternalPayload,
-    InternalSignal,
     PerceptionEvent,
     TurnFrame,
     WorkspacePersistentState,
@@ -413,9 +413,9 @@ def reconciliation_fact_to_perception(
             correlation_id=CorrelationId(str(fact.plan_id or fact.turn_id)),
             priority=Priority.HIGH,
         ),
-        payload=InternalPayload(
-            type="internal",
-            signal=InternalSignal.PROCESSING_FAILURE,
+        payload=ActivityPayload(
+            type="activity",
+            signal=ActivitySignal.PROCESSING_FAILURE,
             detail=payload_json,
         ),
         salience=0.9,

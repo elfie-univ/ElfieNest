@@ -67,7 +67,7 @@ def make_external_body() -> tuple[ExternalBody, FakeExternalTransport]:
         body_id="robot-1",
         display_name="桌面机器人",
         capabilities=BodyCapabilities(
-            sensors=frozenset({"utterance_final", "vision_sample"}),
+            sensors=frozenset({"hearing", "vision"}),
             actions=frozenset({"speech.say", "system.emergency_stop"}),
         ),
         transport=transport,

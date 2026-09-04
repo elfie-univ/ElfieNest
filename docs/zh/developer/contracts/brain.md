@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.7
+**契约版本：** 1.8
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-03
+**修订日期：** 2026-09-04
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -11,7 +11,8 @@
 > [Selfhood 一致性台账](../conformance/elfie-selfhood)中；已完成的 Reasoning Context
 > Workspace P0 边界由永久聚焦测试守护。版本 1.5 冻结了一次性 Genesis 与最终所有者隔离
 > 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由；版本 1.7
-> 记录已接受 Brain 设计层级的稳定链接。尚未
+> 记录已接受 Brain 设计层级的稳定链接；版本 1.8 记录当前实现采用的动态具身能力命名空间
+> 和回执作用域校验。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
@@ -282,7 +283,7 @@ Memory-owned 整理 proposal，不能成为普通 Turn 输出。结算把每个�
 
 具身决定从当前 Body 和其他已授权所有者提供的只读能力目录中选择一个或多个能力，形成有限计划。
 每个结构化调用包含大类、动态 `capability_id`、类型化参数、call/cause 身份、截止时间和当前主体。
-`go_to`、`turn`、`speak` 等具体名称是能力目录条目，不是 Brain 固定的决定联合类型。同一外部域内的
+`move.to`、`move.turn`、`speak` 等具体名称是能力目录条目，不是 Brain 固定的决定联合类型。同一外部域内的
 调用可以有序执行或并发执行。调用由 NervousSystem 校验并通过当前 BodyBinding 路由；Brain 不选择
 Adapter、Transport 或 Gateway。
 

@@ -21,7 +21,7 @@ from elfie.brain.reasoning.model_port import (
     ModelResponseMode,
 )
 from elfie.brain.workspace.contracts import (
-    InternalScope,
+    ActivityScope,
     ResponseScope,
     SourceDomain,
 )
@@ -155,8 +155,8 @@ class ModelPortMemoryAdapter:
             created_at=captured_at,
             deadline=captured_at + timedelta(seconds=self._timeout_seconds),
             cause_event_ids=(EventId(f"memory-cause-{request_id}"),),
-            source_domain=SourceDomain.INTERNAL,
-            interaction_scope=InternalScope(
+            source_domain=SourceDomain.ACTIVITY,
+            interaction_scope=ActivityScope(
                 cause_id=f"memory:{semantic_role or 'maintenance'}"
             ),
             response_scope=ResponseScope(external_domain=None),

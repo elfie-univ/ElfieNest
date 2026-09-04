@@ -23,6 +23,9 @@ class RuntimeIntentPayload(TypedDict, total=False):
     expression: str
     observation_id: str
     max_results: int
+    distance: float
+    angle_degrees: float
+    intensity: float
     deadline_seconds: float
     speech_profile: str
     emotion: str

@@ -54,14 +54,15 @@ class EmbodiedMotionRuntime:
             "cause_event_ids": list(request.cause_event_ids),
             "intents": [
                 {
-                    "type": "motion",
+                    "type": "capability",
                     "intent_id": f"motion-{request.turn_id}",
                     "cause_event_ids": list(request.cause_event_ids),
                     "dependency_ids": [],
                     "deadline": request.deadline.isoformat(),
                     "cancel_policy": "if_not_started",
-                    "motion": "walk",
-                    "target": "room-center",
+                    "category": "body",
+                    "capability_id": "move.forward",
+                    "arguments": {"distance": 1.0},
                 }
             ],
         }

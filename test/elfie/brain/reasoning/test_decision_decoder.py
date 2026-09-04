@@ -53,9 +53,10 @@ def _seed() -> DecisionDecodeSeed:
 
 def _plan_json(*, text: str = "hello", extra_intents: str = "") -> str:
     intents = (
-        f'{{"type":"speech","intent_id":"speech-1","cause_event_ids":["event-1"],'
+        f'{{"type":"capability","intent_id":"speech-1","cause_event_ids":["event-1"],'
         f'"dependency_ids":[],"deadline":"{DEADLINE.isoformat()}",'
-        f'"cancel_policy":"if_not_started","text":{json.dumps(text)}}}'
+        f'"cancel_policy":"if_not_started","category":"body",'
+        f'"capability_id":"speak","arguments":{{"text":{json.dumps(text)}}}}}'
         f"{extra_intents}"
     )
     return (
@@ -96,10 +97,11 @@ def _decode(
 def test_native_schema_json_decodes_full_decision_plan() -> None:
     # Given: a capable model returns a strict schema-shaped plan.
     extra_intents = (
-        f',{{"type":"motion","intent_id":"motion-1",'
+        f',{{"type":"capability","intent_id":"motion-1",'
         f'"cause_event_ids":["event-1"],"dependency_ids":["speech-1"],'
         f'"deadline":"{DEADLINE.isoformat()}","cancel_policy":"always",'
-        f'"motion":"walk","target":"door"}}'
+        f'"category":"body","capability_id":"move.forward",'
+        f'"arguments":{{"distance":1.0}}}}'
         f',{{"type":"message","intent_id":"message-1",'
         f'"cause_event_ids":["event-1"],"dependency_ids":[],'
         f'"deadline":"{DEADLINE.isoformat()}",'
@@ -120,8 +122,8 @@ def test_native_schema_json_decodes_full_decision_plan() -> None:
 
     # Then: the full validated plan survives with one runtime call and no repair.
     assert tuple(intent.type for intent in plan.intents) == (
-        "speech",
-        "motion",
+        "capability",
+        "capability",
         "message",
         "message",
     )
@@ -251,7 +253,7 @@ def test_json_mode_valid_text_decodes_without_repair() -> None:
     )
 
     # Then: no fallback or repair is used.
-    assert plan.intents[0].type == "speech"
+    assert plan.intents[0].type == "capability"
     assert report.selected_mode is DecisionDecodeMode.JSON_TEXT
     assert report.repair_count == 0
     assert report.fallback_reason is None
@@ -349,8 +351,8 @@ def test_json_mode_uses_at_most_one_successful_repair() -> None:
 
     # Then: exactly one repair is attempted and the repaired plan is strict.
     assert len(calls) == 1
-    assert plan.intents[0].type == "speech"
-    assert plan.intents[0].text == "repaired hello"
+    assert plan.intents[0].type == "capability"
+    assert plan.intents[0].arguments["text"] == "repaired hello"
     assert report.repair_count == 1
     assert (
         report.to_turn_outcome(
@@ -452,8 +454,8 @@ def test_known_legacy_decision_plan_wrapper_extracts_reply_without_repair() -> N
     # Then: only the effective reply is emitted and no second model call occurs.
     assert len(calls) == 0
     assert len(plan.intents) == 1
-    assert plan.intents[0].type == "speech"
-    assert plan.intents[0].text == "喵~ 主人好呀！小柚在这里陪着你哦~ 🐱✨"
+    assert plan.intents[0].type == "capability"
+    assert plan.intents[0].arguments["text"] == "喵~ 主人好呀！小柚在这里陪着你哦~ 🐱✨"
     assert report.repair_count == 0
 
 
@@ -495,7 +497,7 @@ def test_plain_only_never_guesses_motion_or_message_from_json_like_text() -> Non
 
     # Then: only safe speech is emitted; no JSON actions are interpreted.
     assert len(plan.intents) == 1
-    assert plan.intents[0].type == "speech"
+    assert plan.intents[0].type == "capability"
     assert report.selected_mode is DecisionDecodeMode.PLAIN_TEXT
     assert report.repair_count == 0
 

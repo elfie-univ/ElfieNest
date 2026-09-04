@@ -17,10 +17,7 @@ from elfie.brain.reasoning.decision_types import (
     CapabilityIntent,
     DecisionIntent,
     DecisionPlan,
-    ExpressionIntent,
     MessageIntent,
-    MotionIntent,
-    SpeechIntent,
     TurnDecision,
 )
 from elfie.brain.reasoning.execution_router import OutputRouter
@@ -111,7 +108,7 @@ class BlockingBodyExecutor(RecordingExecutor):
 def _capabilities(
     *,
     revision: int = 7,
-    body_actions: tuple[str, ...] = ("speech.say", "walk", "expression.happy"),
+    body_actions: tuple[str, ...] = ("speak", "move.forward", "expression"),
     world_capabilities: tuple[str, ...] = (),
 ) -> EffectiveCapabilities:
     return EffectiveCapabilities(
@@ -218,10 +215,26 @@ def test_embodied_plan_executes_physical_targets_concurrently() -> None:
     )
     router.start()
     physical: tuple[DecisionIntent, ...] = (
-        SpeechIntent(type="speech", text="hello", **_base("speech")),
-        MotionIntent(type="motion", motion="walk", **_base("motion")),
-        ExpressionIntent(
-            type="expression", expression="happy", intensity=0.8, **_base("expression")
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="speak",
+            arguments={"text": "hello"},
+            **_base("speech"),
+        ),
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="move.forward",
+            arguments={"distance": 1.0},
+            **_base("motion"),
+        ),
+        CapabilityIntent(
+            type="capability",
+            category="body",
+            capability_id="expression",
+            arguments={"kind": "happy", "intensity": 0.8},
+            **_base("expression"),
         ),
     )
 
@@ -238,7 +251,9 @@ def test_embodied_plan_executes_physical_targets_concurrently() -> None:
     assert len(receipts) == 9
     assert {receipt.turn_id for receipt in receipts} == {TurnId("turn-router")}
     assert {receipt.plan_id for receipt in receipts} == {PlanId("plan-router")}
-    assert workspace.metrics().reliable_event_count == 9
+    # ACCEPTED/STARTED stay in the action ledger; only terminal outcomes enter
+    # the Brain workspace.
+    assert workspace.metrics().reliable_event_count == 3
     for intent_id in batch.intent_ids:
         assert [
             receipt.status for receipt in receipts if receipt.intent_id == intent_id
@@ -288,8 +303,8 @@ def test_registered_world_capability_is_routed_without_hardcoded_intent_vocabula
         elfie_id=ELFIE_ID,
         capabilities=StaticCapabilities(
             _capabilities(
-                body_actions=("speech.say", "move_to_anchor"),
-                world_capabilities=("world.go_to",),
+                body_actions=("speak", "move_to_anchor"),
+                world_capabilities=("move.to",),
             )
         ),
         perception_sink=EventWorkspace(ELFIE_ID),
@@ -302,7 +317,7 @@ def test_registered_world_capability_is_routed_without_hardcoded_intent_vocabula
     intent = CapabilityIntent(
         type="capability",
         category="world",
-        capability_id="world.go_to",
+        capability_id="move.to",
         arguments={"anchor_id": "activity-01/activity"},
         **_base("world-go-to"),
     )

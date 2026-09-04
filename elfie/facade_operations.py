@@ -273,11 +273,14 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         generation = self.current_body_generation
         events = []
         if body is not None:
+            body.ingest_sensor_events(
+                event.model_copy(update={"body_generation": generation or 1})
+                for event in additional_events
+            )
             events = [
                 event.model_copy(update={"body_generation": generation or 1})
                 for event in body.read_sensor_events()
             ]
-        events.extend(additional_events)
         previous_urgent_revision = self._nervous_system.urgent_revision
         receipts = self._nervous_system.receive_body_events(events)
         retries = self._nervous_system.retry_pending()

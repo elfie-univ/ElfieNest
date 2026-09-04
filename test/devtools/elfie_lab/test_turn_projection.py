@@ -3,10 +3,8 @@ from datetime import datetime, timedelta, timezone
 from devtools.elfie_lab.turn_projection import project_decision
 from elfie.brain.reasoning.decision_types import (
     CancelPolicy,
+    CapabilityIntent,
     DecisionPlan,
-    ExpressionIntent,
-    MotionIntent,
-    SpeechIntent,
 )
 from elfie.brain.reasoning.execution_types import ExecutionReceipt, ExecutorKind
 from elfie.brain.workspace.contracts import ExecutionStatus
@@ -33,20 +31,28 @@ def test_projects_typed_intents_and_correlates_latest_receipt_status():
         deadline=deadline,
         cause_event_ids=(cause_id,),
         intents=(
-            SpeechIntent(
-                type="speech", intent_id=IntentId("speech-1"), text="你好", **base
-            ),
-            MotionIntent(
-                type="motion",
-                intent_id=IntentId("motion-1"),
-                motion="nod_head",
+            CapabilityIntent(
+                type="capability",
+                intent_id=IntentId("speech-1"),
+                category="body",
+                capability_id="speak",
+                arguments={"text": "你好"},
                 **base,
             ),
-            ExpressionIntent(
-                type="expression",
+            CapabilityIntent(
+                type="capability",
+                intent_id=IntentId("motion-1"),
+                category="body",
+                capability_id="move.turn",
+                arguments={"angle_degrees": 15.0},
+                **base,
+            ),
+            CapabilityIntent(
+                type="capability",
                 intent_id=IntentId("expression-1"),
-                expression="happy",
-                intensity=0.8,
+                category="body",
+                capability_id="expression",
+                arguments={"kind": "happy", "intensity": 0.8},
                 **base,
             ),
         ),
@@ -64,10 +70,11 @@ def test_projects_typed_intents_and_correlates_latest_receipt_status():
     assert projection["motion_intents"] == [
         {
             "intent_id": "motion-1",
-            "motion": "nod_head",
+            "motion": "move.turn",
             "target": None,
             "status": "completed",
             "receipts": ["accepted", "completed"],
+            "capability_id": "move.turn",
         }
     ]
     assert projection["expression_intents"][0]["expression"] == "happy"

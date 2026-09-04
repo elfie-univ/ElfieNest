@@ -12,8 +12,8 @@ from typing_extensions import Annotated
 
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.workspace.contracts import (
-    InternalPayload,
-    InternalSignal,
+    ActivityPayload,
+    ActivitySignal,
     PerceptionEvent,
 )
 from elfie.message_types import (
@@ -38,7 +38,7 @@ MotivationStatus = Literal["ready", "blocked", "cooldown", "satisfied"]
 
 
 class RecoveryDriveCandidate(FrozenContractModel):
-    """A bounded candidate that must re-enter Brain as an Internal Turn."""
+    """A bounded candidate that must re-enter Brain as an Activity Turn."""
 
     candidate_id: EventId
     drive_id: Literal["recovery"] = "recovery"
@@ -150,7 +150,7 @@ class MotivationSystem:
         now: UTCDateTime,
         success: bool,
     ) -> bool:
-        """Record one bounded Internal Turn outcome for the last candidate."""
+        """Record one bounded Activity Turn outcome for the last candidate."""
         if candidate_id != self._last_trigger_id:
             return False
         if now < self._last_updated_at:
@@ -259,9 +259,9 @@ def recovery_candidate_to_perception(
             correlation_id=CorrelationId(str(candidate.candidate_id)),
             priority=Priority.LOW,
         ),
-        payload=InternalPayload(
-            type="internal",
-            signal=InternalSignal.MOTIVATION,
+        payload=ActivityPayload(
+            type="activity",
+            signal=ActivitySignal.MOTIVATION,
             detail=json.dumps(candidate.model_dump(mode="json"), ensure_ascii=False),
         ),
         salience=0.35,

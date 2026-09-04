@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from elfie.brain.workspace.contracts import (
     ExecutionStatus,
     IngestReceipt,
+    SourceDomain,
     TriggerReason,
 )
 from elfie.brain.workspace.system import EventWorkspace
@@ -140,6 +141,7 @@ def test_outbound_terminal_receipts_preserve_full_correlation() -> None:
     )
 
     # Then: normalized execution events retain plan, intent, message, and external IDs.
+    assert frame.source_domain is SourceDomain.COMMUNICATION
     assert tuple(event.payload.status for event in frame.events) == (
         ExecutionStatus.COMPLETED,
         ExecutionStatus.FAILED,

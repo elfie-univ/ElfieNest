@@ -120,7 +120,14 @@ func execute_intent(command: Dictionary) -> void:
 		return
 	if _mock_wander != null:
 		_mock_wander.cancel_for_real_intent(actor_id)
-	if String(command.get("intent", "")) != "move_to_anchor":
+	var intent := String(command.get("intent", ""))
+	if intent == "move_forward":
+		_execute_move_forward(command, actor_instance)
+		return
+	if intent == "turn":
+		_execute_turn(command, actor_instance)
+		return
+	if intent != "move_to_anchor":
 		_execute_non_movement_intent(command, actor_instance)
 		return
 	var anchor_id := String(command.get("anchor_id", ""))
@@ -307,6 +314,42 @@ func _execute_non_movement_intent(
 		_emit_terminal(command_id, actor_id, "completed", "")
 		return
 	_emit_terminal(command_id, actor_id, "failed", "unsupported_intent")
+
+
+func _execute_move_forward(command: Dictionary, actor_instance: ElfieActor) -> void:
+	var command_id := String(command["command_id"])
+	var actor_id := String(command["actor_id"])
+	var distance := float(command.get("distance", 0.0))
+	var deadline_seconds := float(command.get("deadline_seconds", 0.0))
+	if distance <= 0.0:
+		_emit_terminal(command_id, actor_id, "failed", "invalid_distance")
+		return
+	if deadline_seconds <= 0.0:
+		_emit_terminal(command_id, actor_id, "failed", "invalid_deadline")
+		return
+	# ElfieActor models use +Z as the visual forward direction.
+	var forward := actor_instance.global_transform.basis.z.normalized()
+	var target_position := actor_instance.global_position + forward * distance
+	if not actor_instance.move_to(command_id, target_position, deadline_seconds):
+		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
+		return
+	_emit_command_event("intent_started", command_id, actor_id)
+
+
+func _execute_turn(command: Dictionary, actor_instance: ElfieActor) -> void:
+	var command_id := String(command["command_id"])
+	var actor_id := String(command["actor_id"])
+	var angle_degrees := float(command.get("angle_degrees", 0.0))
+	var deadline_seconds := float(command.get("deadline_seconds", 0.0))
+	if deadline_seconds <= 0.0:
+		_emit_terminal(command_id, actor_id, "failed", "invalid_deadline")
+		return
+	if not actor_instance.active_command_id.is_empty():
+		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
+		return
+	_emit_command_event("intent_started", command_id, actor_id)
+	actor_instance.rotate_y(deg_to_rad(angle_degrees))
+	_emit_terminal(command_id, actor_id, "completed", "")
 
 
 func _emit_command_event(

@@ -54,6 +54,7 @@ from elfie.message_types import (
     ActorId,
     ActorRef,
     ElfieId,
+    ErrorInfo,
     EventId,
     IntentId,
     MessageMeta,
@@ -154,6 +155,14 @@ def _receipt(
     error=None,
 ) -> PerceptionEvent:
     at = NOW + timedelta(milliseconds=index)
+    if error is None and status in {
+        ExecutionStatus.REJECTED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.INTERRUPTED,
+        ExecutionStatus.TIMED_OUT,
+        ExecutionStatus.CANCELLED,
+    }:
+        error = ErrorInfo(code="test_failure", message="test failure")
     return PerceptionEvent(
         meta=MessageMeta(
             event_id=EventId(f"receipt-{index}"),
@@ -176,6 +185,8 @@ def _receipt(
             executor="communication",
             status=status,
             error=error,
+            channel_id="chat",
+            conversation_id="conversation-1",
         ),
         salience=0.8 if error is not None else 0.4,
     )
@@ -253,10 +264,10 @@ class MockEmbodiedContextSource(EmptyContextSource):
                 sensors=("proprioception",),
                 actions=("move_to_anchor",),
             ),
-            world_capabilities=("world.go_to",),
+            world_capabilities=("move.to",),
             capability_catalog=(
                 CapabilityDescriptor(
-                    capability_id="world.go_to",
+                    capability_id="move.to",
                     category="world",
                     argument_schema={
                         "type": "object",
@@ -345,13 +356,15 @@ class BlockingPlanRuntime:
             "cause_event_ids": list(request.cause_event_ids),
             "intents": [
                 {
-                    "type": "speech",
+                    "type": "capability",
                     "intent_id": intent_id,
                     "cause_event_ids": list(request.cause_event_ids),
                     "dependency_ids": [],
                     "deadline": request.deadline.isoformat(),
                     "cancel_policy": "if_not_started",
-                    "text": "hello",
+                    "category": "body",
+                    "capability_id": "speak",
+                    "arguments": {"text": "hello"},
                 }
             ],
         }
@@ -423,7 +436,7 @@ def test_mock_mode_routes_embodied_wander_without_model_inference() -> None:
         assert sink.accepted.wait(1), coordinator.outcomes()
         assert runtime.calls == []
         assert len(sink.plans) == 1
-        assert sink.plans[0].plan.intents[0].capability_id == "world.go_to"
+        assert sink.plans[0].plan.intents[0].capability_id == "move.to"
     finally:
         coordinator.stop()
         coordinator.join()

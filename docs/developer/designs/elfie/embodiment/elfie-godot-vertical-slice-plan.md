@@ -105,7 +105,7 @@ Acceptance: a ready state has matching `runtime_id`, Runtime generation, world r
   Godot owns pathfinding, collision, stepping and animation.
 - The world resolution is not a second body route: the resulting movement command is validated by NervousSystem and
   executed through Body / BodyPort before it reaches Godot.
-- Add direct `body.move_forward/turn` to the same catalog and BodyPort later, without a second motion path.
+- Keep direct `move.forward/turn` in the same catalog and BodyPort, without a second motion path.
 - Keep the current GodotTransport terminal wait inside the isolated output worker for v1. Preserve
   `intent_accepted`, `intent_started` and `intent_terminal` causal identity while normalizing them into Body
   receipts. Keep all lifecycle transitions in the action ledger, but send one coalesced terminal Embodied outcome
@@ -157,14 +157,14 @@ World owner.
 
 | Capability | Owner | First-version use |
 | --- | --- | --- |
-| `world.go_to(anchor_id)` | Nest World | semantic destinations such as bed, chair and activity point; Godot pathfinds |
-| `body.emergency_stop(reason)` | Direct Body | immediately stop the current action |
-| `body.speak(text)` | Direct Body + Nest interaction | play speech action and compute who hears it |
-| `body.expression(kind)` | Direct Body | play a registered expression/action and return terminal state |
-| `world.observe()` | Nest World | return semantic objects in the current view |
+| `move.to(anchor_id)` | Nest World | semantic destinations such as bed, chair and activity point; Godot pathfinds |
+| `emergency_stop(reason)` | Direct Body | immediately stop the current action |
+| `speak(text)` | Direct Body + Nest interaction | play speech action and compute who hears it |
+| `expression(kind)` | Direct Body | play a registered expression/action and return terminal state |
+| `observe()` | Nest World | return semantic objects in the current view |
 | Body tactile/proprioception | Direct Body | collision, touch, posture and action-state feedback |
 
-`move_forward(distance)` and `turn(angle)` remain frozen Direct Body capabilities. If `go_to` is used first to prove
+`move_forward(distance)` and `turn(angle)` remain frozen Direct Body capabilities. If `move.to` is used first to prove
 path movement, they still reuse the same catalog, BodyPort, receipts and EventWorkspace rather than creating a new path.
 
 ## 6. Explicitly deferred

@@ -83,6 +83,9 @@ class RuntimeResidentMirror(_StrictSemanticModel):
     posture: str = "standing"
     active_command_id: Optional[str] = None
     mock_motion: Optional[RuntimeMockMotion] = None
+    position: Optional[tuple[float, float, float]] = None
+    heading_degrees: Optional[float] = None
+    velocity: Optional[tuple[float, float, float]] = None
     runtime_id: str
     runtime_generation: int = Field(ge=1)
     world_revision: WorldRevision = Field(ge=1)

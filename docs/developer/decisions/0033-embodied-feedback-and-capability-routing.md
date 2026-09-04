@@ -41,7 +41,7 @@ capabilities registered by different virtual and physical bodies.
 7. Brain selects one or more registered capabilities through a finite generic
    typed invocation plan: broad category, dynamic `capability_id`, typed
    arguments, call/cause identity, deadline, and current subject. Concrete verbs
-   such as `go_to`, `turn`, and `speak` are catalog entries, not a fixed
+   such as `move.to`, `turn`, and `speak` are catalog entries, not a fixed
    `DecisionIntent` union. Lower layers choose the registered route and current
    body binding; compatible actions may be ordered or run concurrently.
 8. Version 1 may wait for terminal completion inside an isolated execution
@@ -62,9 +62,10 @@ capabilities registered by different virtual and physical bodies.
 - `BodyPort` remains thin but necessary as the stable body semantic boundary.
   `NativeBody` and `ExternalBody` are Infrastructure implementations, while
   Transport and Gateway remain target-specific Infrastructure components.
-- The current source still contains `Internal` source naming, fixed decision
-  variants, and synchronous execution details. Those are implementation gaps;
-  this ADR does not claim that they have been migrated.
+- The current implementation now uses the three-domain names and generic
+  catalog calls. Version 1 intentionally keeps terminal waiting inside an
+  isolated output worker; a fully non-blocking receipt stream remains a
+  version 2 evolution.
 
 ## Rejected alternatives
 

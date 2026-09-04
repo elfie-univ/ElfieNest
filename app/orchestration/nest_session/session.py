@@ -811,7 +811,7 @@ class NestSession:
         )
         return (
             CapabilityDescriptor(
-                capability_id="world.go_to",
+                capability_id="move.to",
                 category="world",
                 description="Move the current Elfie to a semantic Nest anchor.",
                 argument_schema={
@@ -826,9 +826,30 @@ class NestSession:
                     },
                     "additionalProperties": False,
                 },
+                return_schema={
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "command_id",
+                        "intent_id",
+                        "resolved_anchor_id",
+                        "status",
+                    ],
+                    "properties": {
+                        "kind": {"const": "semantic_action_result"},
+                        "command_id": {"type": "string"},
+                        "intent_id": {"type": "string"},
+                        "resolved_anchor_id": {"type": "string"},
+                        "status": {
+                            "type": "string",
+                            "enum": ["completed", "failed", "cancelled", "timed_out"],
+                        },
+                    },
+                },
+                registration_source="nest.world",
             ),
             CapabilityDescriptor(
-                capability_id="world.observe",
+                capability_id="observe",
                 category="world",
                 description="Return semantic objects visible to the current Elfie.",
                 argument_schema={
@@ -844,6 +865,24 @@ class NestSession:
                     },
                     "additionalProperties": False,
                 },
+                return_schema={
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "observation_id",
+                        "observer_id",
+                        "zone_id",
+                        "entities",
+                    ],
+                    "properties": {
+                        "kind": {"const": "semantic_visual_scene"},
+                        "observation_id": {"type": "string"},
+                        "observer_id": {"type": "string"},
+                        "zone_id": {"type": "string"},
+                        "entities": {"type": "array"},
+                    },
+                },
+                registration_source="nest.world",
             ),
         )
 

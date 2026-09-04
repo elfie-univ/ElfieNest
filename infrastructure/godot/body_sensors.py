@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timezone
 from threading import RLock
-from typing import List
+from typing import Iterable, List
 
 from elfie.body.contracts import BodyId, BodySensorEvent, TactileImpact
 from elfie.message_types import ActorId, ActorRef, EventId
@@ -35,10 +35,19 @@ class NativeSensors:
         force_newtons = (
             float(force_value) if isinstance(force_value, (int, float)) else None
         )
+        body_generation_value = payload.get("body_generation")
+        body_generation = (
+            body_generation_value
+            if isinstance(body_generation_value, int)
+            and not isinstance(body_generation_value, bool)
+            and body_generation_value >= 1
+            else 1
+        )
         sensor_event = BodySensorEvent(
             event_id=EventId(event.message_id),
             cause_id=EventId(event.cause_id) if event.cause_id is not None else None,
             body_id=BodyId(self.body_id),
+            body_generation=body_generation,
             source=ActorRef(
                 actor_id=ActorId(source_semantic_id),
                 source_kind="elfie" if contact_kind == "actor" else "world",
@@ -63,6 +72,11 @@ class NativeSensors:
             events = list(self._events)
             self._events.clear()
             return events
+
+    def ingest(self, events: Iterable[BodySensorEvent]) -> None:
+        """Accept Nest-owned semantic facts at the Body input boundary."""
+        with self._lock:
+            self._events.extend(events)
 
     @property
     def pending_count(self) -> int:

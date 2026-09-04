@@ -7,6 +7,7 @@ import elfie.body.port as body_port_module
 import elfie.body.types as body_types
 from elfie.body import (
     BodyCapabilities,
+    BodyCapabilityDescriptor,
     BodyCommand,
     BodyDescriptor,
     BodyId,
@@ -73,8 +74,33 @@ class MinimalBody:
             capabilities=self.capabilities,
         )
 
+    def list_actions(self, *, model_visible: bool = False):
+        return self.capabilities.list_actions(model_visible=model_visible)
+
+    def list_inputs(self, *, model_visible: bool = False):
+        return self.capabilities.list_inputs(model_visible=model_visible)
+
+    def register_action(self, descriptor: BodyCapabilityDescriptor) -> BodyCapabilities:
+        self.capabilities = self.capabilities.register_action(descriptor)
+        return self.capabilities
+
+    def unregister_action(self, capability_id: str) -> BodyCapabilities:
+        self.capabilities = self.capabilities.unregister_action(capability_id)
+        return self.capabilities
+
+    def register_input(self, descriptor: BodyCapabilityDescriptor) -> BodyCapabilities:
+        self.capabilities = self.capabilities.register_input(descriptor)
+        return self.capabilities
+
+    def unregister_input(self, capability_id: str) -> BodyCapabilities:
+        self.capabilities = self.capabilities.unregister_input(capability_id)
+        return self.capabilities
+
     def read_sensor_events(self) -> list[BodySensorEvent]:
         return []
+
+    def ingest_sensor_events(self, events) -> None:
+        del events
 
     def execute(
         self,
@@ -112,3 +138,32 @@ def test_body_port_exposes_one_receive_and_one_control_entry() -> None:
     assert body.execute(command, now=NOW)[0].status is CommandStatus.COMPLETED
     assert not hasattr(body, "sensors")
     assert not hasattr(body, "actuators")
+
+
+def test_body_capability_catalog_is_registered_and_mutated_at_body_boundary() -> None:
+    body = HeadlessBody(body_id="body-1", capabilities=BodyCapabilities())
+    action = BodyCapabilityDescriptor(
+        capability_id="move.forward",
+        description="向前移动",
+        argument_schema={"type": "object"},
+    )
+    sensor = BodyCapabilityDescriptor(capability_id="proprioception")
+
+    assert body.list_actions() == ()
+    assert body.list_inputs() == ()
+
+    action_snapshot = body.register_action(action)
+    body.register_input(sensor)
+
+    assert body.capabilities.action_catalog == (action,)
+    assert action_snapshot.action_catalog == (action,)
+    assert body.list_actions() == (action,)
+    assert body.capabilities.supports_action("move.forward")
+    assert body.list_inputs() == (sensor,)
+    assert body.capabilities.supports_sensor("proprioception")
+    assert body.capabilities.revision == 3
+
+    body.unregister_action("move.forward")
+    body.unregister_input("proprioception")
+    assert body.list_actions() == ()
+    assert body.list_inputs() == ()

@@ -94,7 +94,7 @@ Runtime 可以产生 `accepted`、`started` 和终态回执，但它们属于一
 
 - 第一条移动验收使用能力目录中的移动能力：World 语义目标由 Nest 解析，Godot 负责路径、碰撞、步进和动画。
 - World 解析不是第二条身体链路：生成的移动指令必须经 NervousSystem 校验并通过 Body / BodyPort，之后才能到达 Godot。
-- 直接 `body.move_forward/turn` 的能力目录和转换随后接入同一 BodyPort，不另建运动链。
+- 直接 `move.forward/turn` 已接入同一能力目录和 BodyPort，不另建运动链。
 - 第一版保留当前 GodotTransport 在独立输出 Worker 内的终态等待；`intent_accepted`、`intent_started`、
   `intent_terminal` 都保留原始因果 ID，经 Body 回执归一化。完整生命周期进入动作状态表，但每个命令只向
   EventWorkspace 送一个合并后的 Embodied 终态结果，不增加动作专属 Brain 触发器。第二版再改成本地提交
@@ -143,15 +143,15 @@ World owner 实际注册的能力。
 
 | 能力 | 归属 | 第一版用途 |
 | --- | --- | --- |
-| `world.go_to(anchor_id)` | Nest World | 去床、椅子、活动点等语义目标；Godot 做路径规划 |
-| `body.emergency_stop(reason)` | Direct Body | 立即停止当前动作 |
-| `body.speak(text)` | Direct Body + Nest interaction | 播放说话动作并计算谁听见 |
-| `body.expression(kind)` | Direct Body | 播放已注册表情/动作并返回终态 |
-| `world.observe()` | Nest World | 获取当前视野内的语义对象列表 |
+| `move.to(anchor_id)` | Nest World | 去床、椅子、活动点等语义目标；Godot 做路径规划 |
+| `emergency_stop(reason)` | Direct Body | 立即停止当前动作 |
+| `speak(text)` | Direct Body + Nest interaction | 播放说话动作并计算谁听见 |
+| `expression(kind)` | Direct Body | 播放已注册表情/动作并返回终态 |
+| `observe()` | Nest World | 获取当前视野内的语义对象列表 |
 | Body tactile/proprioception | Direct Body | 碰撞、触摸、姿态和动作状态反馈 |
 
 `move_forward(distance)`、`turn(angle)` 是冻结架构中的 Direct Body 能力；若当前 Godot
-切片先用 `go_to` 证明路径移动，它们仍复用同一目录、BodyPort、回执和 EventWorkspace，
+切片先用 `move.to` 证明路径移动，它们仍复用同一目录、BodyPort、回执和 EventWorkspace，
 不另起实现路径。
 
 ## 6. 明确暂缓

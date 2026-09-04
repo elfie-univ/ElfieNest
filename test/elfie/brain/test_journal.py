@@ -15,10 +15,10 @@ from elfie.brain.reasoning.decision_types import (
     TurnDecision,
 )
 from elfie.brain.workspace.contracts import (
+    ActivityPayload,
+    ActivitySignal,
     CommunicationScope,
     ExternalExecutionDomain,
-    InternalPayload,
-    InternalSignal,
     PerceptionEvent,
     ResponseScope,
     SocialPayload,
@@ -149,7 +149,7 @@ def test_reconciliation_fact_reenters_as_inert_internal_failure() -> None:
         occurred_at=NOW,
     )
 
-    assert isinstance(event.payload, InternalPayload)
-    assert event.payload.signal is InternalSignal.PROCESSING_FAILURE
+    assert isinstance(event.payload, ActivityPayload)
+    assert event.payload.signal is ActivitySignal.PROCESSING_FAILURE
     assert event.payload.response_scope is None
     assert "turn-1" in event.payload.detail

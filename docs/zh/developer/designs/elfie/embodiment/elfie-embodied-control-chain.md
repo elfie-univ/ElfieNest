@@ -123,7 +123,7 @@ Godot World authority
 | 调用 | 通道 | 语义权威 | 物理执行者 |
 | --- | --- | --- | --- |
 | `move_forward(distance)`、`turn(angle)` | Direct Body | 当前身体能力 | Godot Actor 或 Device Agent |
-| `move_to(anchor_id)`、`go_home` | World | Nest 解析目标、含义和权限 | 虚拟世界由 Godot 路径规划；物理世界由设备控制器/外部规划器执行 |
+| `move.to(anchor_id)`、`go_home` | World | Nest 解析目标、含义和权限 | 虚拟世界由 Godot 路径规划；物理世界由设备控制器/外部规划器执行 |
 | `open_door`、`turn_on_light` | World | Nest 拥有的环境意图 | Godot World 或对应环境控制器 |
 
 ### 外部身体是远程运行时
@@ -188,7 +188,7 @@ Brain 有两条不同的输出电路：
   组合根可以汇总成 Brain 可枚举的只读目录，但不能合并执行路径。
 - Brain 通过模型的 **function-calling / 结构化输出** 产出有限个通用精确调用。每个调用包含
   `call_id + category + capability_id + typed arguments + subject=self`；同一个已结算的 `DecisionPlan`
-  内，调用可以有序执行或并发执行。`DecisionIntent` 不枚举 `go_to`、`turn`、`speak` 等具体动词；
+  内，调用可以有序执行或并发执行。`DecisionIntent` 不枚举 `move.to`、`turn`、`speak` 等具体动词；
   它们都是随身体/设备变化的目录条目。Brain 不填写 Godot、设备、Transport 或具体 Body ID，下层按目录和
   当前 `BodyBinding` 选路由。
 - 分路发生在**能力注册/分发层**，不在 `Body` 里面把身体劈成两半：身体能力走
@@ -200,8 +200,8 @@ Brain 有两条不同的输出电路：
   “被阻挡”是类型化失败原因，不另造状态。
 
 下面只是能力目录条目示例，不是 `DecisionIntent` 的固定联合类型：
-`body.move_forward(distance)`、`body.turn(angle)`、`body.speak(text)`、
-`body.expression(kind)`、`body.emergency_stop(reason)`、`world.go_to(anchor_id)`。
+`move.forward(distance)`、`move.turn(angle_degrees)`、`speak(text)`、
+`expression(kind)`、`emergency_stop(reason)`、`move.to(anchor_id)`。
 
 > 这种调用形态**不代表身体能力走 ToolPort**。`ToolPort` 是认知工具线路（web search、
 > 有界工作区文件）；身体/设备能力是具身线路（神经系统/身体）。两者的**调用形态**一致——
@@ -415,7 +415,7 @@ NervousSystem、Gateway 或 Brain。终态回执语义和身份现在确定；�
 | 能力调用是精确的 MCP 式方法调用 | 通过 |
 | 每具身体/设备的能力目录可枚举 | 通过 |
 | 物理配对与虚拟身体绑定已分开 | 通过 |
-| `move_to`/`go_home` 的世界权威与身体相对运动已分开 | 通过 |
+| `move.to`/`go_home` 的世界权威与身体相对运动已分开 | 通过 |
 | 外出/回巢是大脑决定加外部 ready 门 | 通过 |
 | 没有强加与 Nest 平行的真实世界语义权威 | 通过 |
 | 精灵不控制环境对象 | 通过 |

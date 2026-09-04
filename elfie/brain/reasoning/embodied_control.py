@@ -59,8 +59,8 @@ class EmbodiedMockController:
 
     This controller is deliberately owned by the Brain coordinator.  It never
     calls a Body, Gateway, or Godot object directly; every movement is a normal
-    governed ``world.go_to`` decision whose terminal Body feedback re-enters
-    the same Workspace lane.
+    governed ``move.to`` decision whose terminal Body feedback re-enters the
+    same Workspace lane.
     """
 
     _MOCK_TICK_CONTENT = "mock_wander_tick"
@@ -195,7 +195,7 @@ class EmbodiedMockController:
                     deadline=deadline,
                     cancel_policy=CancelPolicy.IF_NOT_STARTED,
                     category="world",
-                    capability_id="world.go_to",
+                    capability_id="move.to",
                     arguments={"anchor_id": target},
                 ),
             ),
@@ -269,13 +269,17 @@ class EmbodiedMockController:
         body = capabilities.current_body
         if body is None or not self._supports_move(body.actions):
             return None
-        if "world.go_to" not in capabilities.world_capabilities:
+        target_capability_id = (
+            "move.to" if "move.to" in capabilities.world_capabilities else None
+        )
+        if target_capability_id is None:
             return None
         descriptor = next(
             (
                 item
                 for item in capabilities.capability_catalog
-                if item.category == "world" and item.capability_id == "world.go_to"
+                if item.category == "world"
+                and item.capability_id == target_capability_id
             ),
             None,
         )
@@ -295,13 +299,27 @@ class EmbodiedMockController:
         )
         if not targets:
             return None
-        choices = tuple(value for value in targets if value != self._last_target)
-        return self._rng.choice(choices or targets)
+        # The Nest catalog also contains door/portal markers.  They are valid
+        # semantic references, but are not guaranteed to be navigable landing
+        # points in every Godot room.  The autonomous wander policy stays in
+        # room activity points; explicit model ``move.to`` calls can still use
+        # any catalogued target and receive the real Runtime result.
+        wander_targets = (
+            tuple(
+                value
+                for value in targets
+                if value.endswith("/activity") or "/chair-" in value
+            )
+            or targets
+        )
+        choices = tuple(value for value in wander_targets if value != self._last_target)
+        return self._rng.choice(choices or wander_targets)
 
     @staticmethod
     def _supports_move(actions: tuple[str, ...]) -> bool:
         return "*" in actions or any(
-            action in actions for action in ("move_to_anchor", "body.move_to_anchor")
+            action in actions
+            for action in ("move_to_anchor", "body.move_to_anchor", "move.forward")
         )
 
     @staticmethod

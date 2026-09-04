@@ -294,7 +294,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.7",
+        version="1.8",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
