@@ -1,6 +1,7 @@
 import type {
   AdoptionAction,
   CandidateReply,
+  NameMode,
 } from "./adoption-model"
 import { Button } from "../ui/button"
 
@@ -11,29 +12,39 @@ function candidateAgeLabel(t: JourneyT, ageYears: number): string {
   return t("adoption.journey.shortlist.ageYears", { count: ageYears })
 }
 
+function trimTrailingPeriods(value: string): string {
+  return value.replace(/[。.]+$/u, "")
+}
+
 type ArrivalWelcomeScreenProps = {
   readonly candidate: CandidateReply
   readonly candidateImageUrl: CandidateImageUrl
   readonly candidateLabel: string
   readonly customName: string
+  readonly nameMode: NameMode
   readonly dispatch: React.Dispatch<AdoptionAction>
   readonly onFinish: () => void
   readonly pending: boolean
   readonly t: JourneyT
 }
 
-export function ArrivalWelcomeScreen({ candidate, candidateImageUrl, candidateLabel, customName, dispatch, onFinish, pending, t }: ArrivalWelcomeScreenProps) {
-  const displayName = customName.trim() || candidateLabel
+export function ArrivalWelcomeScreen({ candidate, candidateImageUrl, candidateLabel, customName, nameMode, dispatch, onFinish, pending, t }: ArrivalWelcomeScreenProps) {
+  const originalName = candidate.reveal?.originalName ?? candidateLabel
+  const displayName = nameMode === "custom" && customName.trim() ? customName.trim() : originalName
+  const introduction = trimTrailingPeriods(candidate.reveal?.personalStory ?? t("adoption.journey.arrival.introFallback"))
 
   return <section className="adoption-arrival adoption-arrival--welcome">
     <div className="adoption-arrival__person">
-      <div className="adoption-arrival__portal"><img alt={t("adoption.journey.naming.portraitAlt", { name: candidateLabel })} src={candidateImageUrl(candidate)} /></div>
+      <div className="adoption-arrival__portal"><img alt={t("adoption.journey.naming.portraitAlt", { name: originalName })} src={candidateImageUrl(candidate)} /></div>
       <div className="adoption-arrival__person-info">
-        <strong>{candidateLabel}</strong>
+        <strong>{originalName}</strong>
         <span>{candidateAgeLabel(t, candidate.ageYears)} · {t(`adoption.journey.genders.${candidate.gender}`)}</span>
         <div className="adoption-tag-list adoption-arrival__tags">
           {candidate.personalityTags.slice(0, 3).map((value, index) => <span className="adoption-tag" key={`${index}-${value}`}>{value}</span>)}
         </div>
+        <blockquote className="adoption-arrival__introduction">
+          <p>{introduction}</p>
+        </blockquote>
       </div>
     </div>
     <div className="adoption-arrival__copy">
@@ -45,8 +56,8 @@ export function ArrivalWelcomeScreen({ candidate, candidateImageUrl, candidateLa
           aria-label={t("adoption.journey.arrival.nameInput")}
           maxLength={20}
           onChange={(event) => dispatch({ type: "custom-name", value: event.target.value })}
-          placeholder={t("adoption.journey.arrival.namePlaceholder")}
-          value={customName}
+          placeholder={originalName}
+          value={nameMode === "custom" ? customName : originalName}
         />
       </label>
       <div className="adoption-arrival__actions">

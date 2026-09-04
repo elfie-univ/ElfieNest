@@ -88,26 +88,36 @@ describe("adoption journey model", () => {
     expect(replies.screen).toBe("naming")
   })
 
-  it("resolves the final Earth name from the selected mode", () => {
-    const state = adoptionReducer({
+  it("uses the original name by default and lets the user override it", () => {
+    const reply = {
+      candidateId: "candidate-1",
+      speciesId: "fox",
+      lifeStage: "young_adult" as const,
+      ageYears: 3,
+      gender: "male" as const,
+      fullBodyImageUrl: "",
+      headshotImageUrl: "",
+      runtimeAppearance: {},
+      appearanceTags: [],
+      personalityTags: [],
+      status: "accepted" as const,
+      message: "",
+      reveal: {
+        originalName: "Veya",
+        suggestedName: "Sora",
+        personalStory: "我喜欢先观察周围，再和熟悉的人慢慢靠近。",
+      },
+    }
+    const original = {
       ...INITIAL_ADOPTION_STATE,
-      replies: [{
-        candidateId: "candidate-1",
-        speciesId: "fox",
-        lifeStage: "young_adult",
-        ageYears: 3,
-        gender: "male",
-        fullBodyImageUrl: "",
-        headshotImageUrl: "",
-        runtimeAppearance: {},
-        appearanceTags: [],
-        personalityTags: [],
-        status: "accepted",
-        message: "",
-      }],
+      replies: [reply],
       finalCandidateId: "candidate-1",
-    }, { type: "custom-name", value: "Roro" })
+    }
+    expect(original.nameMode).toBe("original")
+    expect(selectedName(original)).toBe("Veya")
 
-    expect(selectedName(state)).toBe("Roro")
+    const custom = adoptionReducer(original, { type: "custom-name", value: "Roro" })
+
+    expect(selectedName(custom)).toBe("Roro")
   })
 })

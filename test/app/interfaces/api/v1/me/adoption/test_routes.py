@@ -16,7 +16,7 @@ from app.interfaces.api.v1.me.adoption.dependencies import (
 from app.interfaces.api.v1.me.adoption.routes import router
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie import ElfieFactory
-from elfie.genesis import GenesisCompiler
+from elfie.genesis import GenesisCandidateReveal, GenesisCompiler
 from infrastructure.persistence.adoption import SQLiteAdoptionAdapter
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -53,8 +53,12 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
         )
         connection.commit()
     catalog = load_and_configure_species_catalog()
+    source = load_genesis_source_package()
     adoption = AdoptionService(
-        Policy(), SQLiteAdoptionAdapter(db_path), catalog=catalog
+        Policy(),
+        SQLiteAdoptionAdapter(db_path),
+        candidate_reveal=GenesisCandidateReveal(source),
+        catalog=catalog,
     )
     admission = ResidentAdmissionService(
         adoption,
@@ -68,7 +72,7 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
             ),
         ),
         None,
-        GenesisCompiler(load_genesis_source_package(), catalog=catalog),
+        GenesisCompiler(source, catalog=catalog),
         admission_store=SQLiteAdoptionAdapter(db_path),
     )
     app = FastAPI()
@@ -149,6 +153,8 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     )
     assert replies.status_code == 200
     assert replies.json()["replies"][0]["status"] == "accepted"
+    assert replies.json()["replies"][0]["reveal"]["original_name"]
+    assert replies.json()["replies"][0]["reveal"]["personal_story"]
 
     committed = client.post(
         "/api/v1/me/adoption",

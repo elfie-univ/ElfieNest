@@ -66,7 +66,16 @@ describe("versioned current-member Adoption client", () => {
       .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: Array(5).fill(candidate) })
       .mockResolvedValueOnce({
         candidate_set_id: "set-1",
-        replies: [{ ...candidate, status: "accepted", message: "yes" }],
+        replies: [{
+          ...candidate,
+          status: "accepted",
+          message: "yes",
+          reveal: {
+            original_name: "Veya",
+            suggested_name: "Sora",
+            personal_story: "我喜欢先观察周围，再和熟悉的人慢慢靠近。",
+          },
+        }],
       })
       .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "fox" })
 

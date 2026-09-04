@@ -12,6 +12,7 @@ from app.features.adoption import (
     CandidateRepliesResult,
     CandidateReplyResult,
     CandidateResult,
+    CandidateReveal,
     CandidateSetResult,
 )
 from app.orchestration.resident_admission import ResidentAdmissionResult
@@ -240,9 +241,22 @@ class CandidateSetResponse(BaseModel):
         )
 
 
+class CandidateRevealResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    original_name: str
+    suggested_name: str
+    personal_story: str
+
+    @classmethod
+    def from_result(cls, result: CandidateReveal) -> CandidateRevealResponse:
+        return cls(**result.__dict__)
+
+
 class CandidateReplyResponse(AdoptionCandidateResponse):
     status: Literal["accepted", "unsure"]
     message: str
+    reveal: Optional[CandidateRevealResponse] = None
 
     @classmethod
     def from_reply(cls, result: CandidateReplyResult) -> CandidateReplyResponse:
@@ -250,6 +264,11 @@ class CandidateReplyResponse(AdoptionCandidateResponse):
             **result.candidate.__dict__,
             status=result.status,
             message=result.message,
+            reveal=(
+                None
+                if result.reveal is None
+                else CandidateRevealResponse.from_result(result.reveal)
+            ),
         )
 
 
@@ -325,6 +344,7 @@ __all__ = (
     "CandidateRepliesRequest",
     "CandidateRepliesResponse",
     "CandidateReplyResponse",
+    "CandidateRevealResponse",
     "CandidateSetRequest",
     "CandidateSetResponse",
 )
