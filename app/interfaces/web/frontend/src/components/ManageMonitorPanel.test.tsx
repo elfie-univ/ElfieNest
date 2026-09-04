@@ -292,6 +292,7 @@ describe("ManageMonitorPanel persistent runtime status", () => {
     renderPanel()
 
     const foodRegion = await screen.findByRole("region", { name: "Food" })
+    await screen.findByText("Emergency")
     expect(withinFood(foodRegion, "Emergency")).toHaveTextContent("Fallback")
     expect(screen.getByText("AI service").closest("article")).toHaveTextContent("Needs attention")
   })
