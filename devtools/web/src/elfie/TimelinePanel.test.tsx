@@ -81,6 +81,10 @@ describe("Elfie Lab composer", () => {
   });
 
   it("labels timeline turns with both their source and modality", () => {
-    expect(renderTimelineWithTurn()).toContain("现场 · 视觉");
+    const markup = renderTimelineWithTurn();
+    expect(markup).toContain("现场 · 视觉");
+    expect(markup).toContain("本轮耗时 · 12 ms");
+    expect(markup).not.toContain("感知");
+    expect(markup).not.toContain("决策");
   });
 });

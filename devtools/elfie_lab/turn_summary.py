@@ -11,6 +11,7 @@ def model_call_summary(call: Dict[str, Any]) -> Dict[str, Any]:
     """Keep only model-call fields exposed by the Lab API."""
     allowed = {
         "food_key",
+        "call_index",
         "provider",
         "model",
         "energy",

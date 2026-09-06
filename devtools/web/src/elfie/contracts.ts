@@ -110,7 +110,7 @@ const activityIntentSchema = intentSchema.extend({
 const resultSchema = z.object({ success: z.boolean().optional(), message: z.string().optional() }).passthrough();
 
 export const turnSchema = z.object({
-  turn_id: z.string(), timestamp: z.string(), stimulus_bundle: z.object({ source_domain: z.enum(["communication", "embodied"]).default("communication"), message: z.string().default("") }).passthrough(),
+  turn_id: z.string(), timestamp: z.string(), stimulus_bundle: z.object({ source_domain: z.enum(["communication", "embodied", "activity"]).default("communication"), message: z.string().default("") }).passthrough(),
   result: resultSchema,
   decision: z.object({
     spoken_texts: z.array(z.string()).default([]),

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   creationAgeError,
   createSubmissionGate,
-  detailCloseAction,
   detailTitle,
   formatSignedDelta,
   selectReadyFoodAfterLoad,
@@ -23,17 +22,14 @@ describe("Elfie Lab view model", () => {
     expect(detailTitle("output", "摘要")).toBe("决策与执行");
   });
 
-  it("returns from history to live state, then allows the live panel to close", () => {
-    expect(detailCloseAction(true, true)).toBe("show-live");
-    expect(detailCloseAction(false, true)).toBe("close");
-    expect(detailCloseAction(false, false)).toBe("close");
-  });
-
   it("rejects non-positive and non-numeric adoption ages before sending", () => {
-    expect(creationAgeError("0")).toBe("年龄必须大于 0");
-    expect(creationAgeError("-1")).toBe("年龄必须大于 0");
-    expect(creationAgeError("not-a-number")).toBe("年龄必须大于 0");
-    expect(creationAgeError("2.5")).toBeNull();
+    expect(creationAgeError("0")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("-1")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("not-a-number")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("2.5")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("23")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("15", "fox")).toBeNull();
+    expect(creationAgeError("16", "fox")).toBe("年龄必须是 1 到 15 岁之间的整数");
   });
 
   it("ignores a second creation submission until the first one finishes", () => {

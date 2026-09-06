@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const sharedStyles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const sidebarSource = readFileSync(new URL("./ElfieSidebar.tsx", import.meta.url), "utf8");
 const timelineSource = readFileSync(new URL("./TimelinePanel.tsx", import.meta.url), "utf8");
+const legacyStyles = readFileSync(new URL("./legacy.css", import.meta.url), "utf8");
 const parityStyles = readFileSync(new URL("./parity.css", import.meta.url), "utf8");
 const antdStyles = readFileSync(new URL("../ui/devtools-antd.css", import.meta.url), "utf8");
 
@@ -33,5 +34,8 @@ describe("Elfie Lab interaction styles", () => {
     expect(antdStyles).not.toContain(".bubble.ant-btn > span { display: block; }");
     expect(antdStyles).toContain(".tool-button.ant-btn { width: 34px; min-width: 34px; height: 34px; padding: 0; border: 1px solid var(--border-default); border-radius: 8px");
     expect(timelineSource).not.toMatch(/className=(?:\{|\")tool-button.*shape=\"circle\"/);
+    expect(timelineSource).toContain('className="turn-duration"');
+    expect(timelineSource).not.toContain('className="process-line"');
+    expect(legacyStyles).toContain("--panel-right: clamp(400px, 24vw, 480px);");
   });
 });
