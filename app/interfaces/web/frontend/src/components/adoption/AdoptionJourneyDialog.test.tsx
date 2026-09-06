@@ -219,7 +219,7 @@ describe("AdoptionJourneyDialog", () => {
     renderJourney({ onOpenChange })
 
     const dialog = await screen.findByRole("alertdialog")
-    expect(dialog).toHaveTextContent("星际穿越尚未开启")
+    expect(dialog).toHaveTextContent("领养服务暂不可用")
     expect(dialog).toHaveTextContent("请联系管理员")
     expect(screen.getByRole("button", { name: "知道了" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "重新检查" })).not.toBeInTheDocument()
@@ -352,7 +352,7 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.getByText("确认后 TA 才会正式加入 Nest")).toBeInTheDocument()
     expect(api.commitAdoption).not.toHaveBeenCalled()
     expect(api.adoptionReplies).toHaveBeenCalledWith("set-1", ["candidate-1"], "", "csrf")
-    expect(screen.getByText("我是原名1，喜欢先观察周围，再和熟悉的人慢慢靠近。")).toBeInTheDocument()
+    expect(screen.getByText("我是原名1，喜欢先观察周围，再和熟悉的人慢慢靠近")).toBeInTheDocument()
     expect(screen.getByText("3 岁 · 女性")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "返回" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /拒绝|写信|回信/ })).not.toBeInTheDocument()
@@ -419,7 +419,7 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: "候选者 3" }))
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
-    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 候选者 3" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "TA 已回应，确认迎接 原名2" })).toBeInTheDocument()
     expect(onRefreshCsrfToken).toHaveBeenCalledTimes(1)
     expect(api.adoptionReplies).toHaveBeenNthCalledWith(1, "set-1", ["candidate-2"], "", "csrf")
     expect(api.adoptionReplies).toHaveBeenNthCalledWith(2, "set-1", ["candidate-2"], "", "fresh-csrf")
