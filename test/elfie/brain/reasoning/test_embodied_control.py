@@ -25,7 +25,8 @@ from elfie.message_types import (
     TraceId,
 )
 
-NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
+_LOCAL_TZ = datetime.now().astimezone().tzinfo
+NOW = datetime(2026, 7, 21, 8, 0, tzinfo=_LOCAL_TZ).astimezone(timezone.utc)
 ELFIE_ID = ElfieId("elfie-embodied-mock")
 
 
