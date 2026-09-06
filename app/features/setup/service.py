@@ -21,6 +21,7 @@ from .models import (
     SaveSetupNestDraftCommand,
     SaveSetupOfflineDraftCommand,
     SaveSetupOwnerDraftCommand,
+    SaveSetupRemoteDraftCommand,
     SetupDraftResult,
     SetupInstallResult,
     SetupModelOptionResult,
@@ -66,10 +67,17 @@ class SetupService:
             install = self._state.read_installation()
             draft = self._state.read_draft()
             owner_exists = self._owners.has_owner()
-            observation = self._safe_ollama_observation()
         except SetupPortError as error:
             raise SetupUnavailable("Setup state unavailable") from error
-        return self._status(install, draft, owner_exists, observation)
+        # The current Setup flow no longer configures local Ollama.  Keep the
+        # legacy inspection endpoint available for compatibility, but do not
+        # probe the local service on every status refresh.
+        return self._status(
+            install,
+            draft,
+            owner_exists,
+            StoredOllamaObservation(state="absent", endpoint=None, version=None),
+        )
 
     def list_models(
         self, query: ListSetupModelsQuery
@@ -163,6 +171,29 @@ class SetupService:
             raise SetupUnavailable("Setup draft unavailable") from error
         return self.get_status(GetSetupStatusQuery())
 
+    def save_remote_draft(
+        self, principal: SetupPrincipal, command: SaveSetupRemoteDraftCommand
+    ) -> SetupStatusResult:
+        """Persist only the remote Food decision for the Setup workflow."""
+        self._require_editable_local_setup(principal)
+        connection_id = (
+            command.connection_id.strip() if command.connection_id is not None else None
+        )
+        if command.configured and not connection_id:
+            raise SetupValidationError("准备粮食时必须保存远程订阅")
+        if not command.configured:
+            connection_id = None
+        try:
+            self._state.save_remote_draft(
+                configured=command.configured,
+                connection_id=connection_id,
+            )
+        except ValueError as error:
+            raise SetupValidationError(str(error)) from error
+        except SetupPortError as error:
+            raise SetupUnavailable("Setup draft unavailable") from error
+        return self.get_status(GetSetupStatusQuery())
+
     def _require_open_local_setup(self, principal: SetupPrincipal) -> None:
         if not principal.local or principal.kind not in {"setup", "owner"}:
             raise SetupForbidden("首次设置仅允许本机 Setup principal")
@@ -207,12 +238,6 @@ class SetupService:
             return
         raise SetupForbidden("Ollama 检测仅允许本机 Setup 或 Owner")
 
-    def _safe_ollama_observation(self) -> StoredOllamaObservation:
-        try:
-            return self._ollama.inspect()
-        except SetupPortError:
-            return StoredOllamaObservation(state="absent", endpoint=None, version=None)
-
     @staticmethod
     def _status(
         install: StoredSetupInstallation,
@@ -223,29 +248,23 @@ class SetupService:
         complete = install.status == "completed"
         owner_configured = draft.owner_configured or owner_exists
         current_step = (
-            4
-            if draft.locked_at
-            else (
-                1
-                if not owner_configured
-                else 2
-                if not draft.offline_configured
-                else 3
-                if not draft.nest_configured
-                else 4
-            )
+            3
+            if draft.locked_at or complete
+            else 1
+            if not owner_configured
+            else 2
+            if not draft.remote_decided
+            else 3
         )
         configured = (
             owner_configured,
-            draft.offline_configured,
-            draft.nest_configured,
+            draft.remote_decided,
             complete,
         )
         names = (
-            "创建 Owner 账号",
-            "配置本地离线保障（可选）",
-            "设置精灵巢床位",
-            "确认并安装",
+            "创建账号",
+            "准备粮食",
+            "准备完成",
         )
         steps = tuple(
             SetupStepResult(
@@ -257,18 +276,17 @@ class SetupService:
                 if index == current_step
                 else "pending",
                 retry_action="retry_install"
-                if index == 4 and install.task_status in {"failed", "cancelled"}
+                if index == 3 and install.task_status in {"failed", "cancelled"}
                 else None,
             )
             for index, value in enumerate(configured, start=1)
         )
         phase = {
-            1: "owner",
-            2: "ollama",
-            3: "model",
-            4: "emergency_food",
-            5: "nest",
-        }.get(install.install_step or 5, "nest")
+            2: "model_validation",
+            3: "common_food",
+            4: "nest",
+            5: "runtime",
+        }.get(install.install_step or 2, "model_validation")
         return SetupStatusResult(
             need_setup=not complete,
             complete=complete,
@@ -288,6 +306,9 @@ class SetupService:
                 offline_configured=draft.offline_configured,
                 nest_configured=draft.nest_configured,
                 locked_at=draft.locked_at,
+                remote_configured=draft.remote_configured,
+                remote_skipped=draft.remote_skipped,
+                remote_connection_id=draft.remote_connection_id,
             ),
             install=SetupInstallResult(
                 phase=phase,  # type: ignore[arg-type]

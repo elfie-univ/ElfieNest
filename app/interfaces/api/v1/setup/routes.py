@@ -15,6 +15,7 @@ from app.features.setup import (
     SaveSetupNestDraftCommand,
     SaveSetupOfflineDraftCommand,
     SaveSetupOwnerDraftCommand,
+    SaveSetupRemoteDraftCommand,
     SetupConflict,
     SetupForbidden,
     SetupPrincipal,
@@ -46,6 +47,7 @@ from .models import (
     SetupOfflineDraftRequest,
     SetupOllamaResponse,
     SetupOwnerDraftRequest,
+    SetupRemoteDraftRequest,
     SetupStatusResponse,
 )
 from .validation import SetupAPIRoute
@@ -109,6 +111,7 @@ def save_owner(
     request: Request,
     principal: PrincipalDependency,
     service: SetupDependency,
+    workflow: InstallationDependency,
 ) -> Union[SetupStatusResponse, JSONResponse]:
     try:
         result = service.save_owner_draft(
@@ -124,7 +127,24 @@ def save_owner(
         SetupValidationError,
     ) as error:
         return _error(error)
-    return _status_response_for_request(request, result)
+    try:
+        session_token, session_ttl = workflow.ensure_owner_session(principal)
+    except (
+        SetupInstallationConflict,
+        SetupInstallationForbidden,
+        SetupInstallationInvalid,
+        SetupInstallationUnavailable,
+    ) as error:
+        return _error(error)
+    response = _status_response_for_request(request, result)
+    response.set_cookie(
+        "session_token",
+        session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=session_ttl,
+    )
+    return response
 
 
 @router.put("/draft/offline", response_model=SetupStatusResponse)
@@ -159,6 +179,28 @@ def save_nest(
     try:
         result = service.save_nest_draft(
             principal, SaveSetupNestDraftCommand(body.bed_count)
+        )
+    except (
+        SetupConflict,
+        SetupForbidden,
+        SetupUnavailable,
+        SetupValidationError,
+    ) as error:
+        return _error(error)
+    return _status_response_for_request(request, result)
+
+
+@router.put("/draft/remote", response_model=SetupStatusResponse)
+def save_remote(
+    body: SetupRemoteDraftRequest,
+    request: Request,
+    principal: PrincipalDependency,
+    service: SetupDependency,
+) -> Union[SetupStatusResponse, JSONResponse]:
+    try:
+        result = service.save_remote_draft(
+            principal,
+            SaveSetupRemoteDraftCommand(body.configured, body.connection_id),
         )
     except (
         SetupConflict,

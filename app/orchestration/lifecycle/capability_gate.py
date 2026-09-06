@@ -98,7 +98,9 @@ DEFAULT_CAPABILITY_REQUIREMENTS = CapabilityRequirementRegistry(
         "repair": CapabilityRequirement("repair"),
         "world": CapabilityRequirement("world", RuntimeTarget.WORLD),
         "chat": CapabilityRequirement("chat", model="common"),
-        "adoption": CapabilityRequirement("adoption", RuntimeTarget.WORLD, model="all"),
+        "adoption": CapabilityRequirement(
+            "adoption", RuntimeTarget.WORLD, model="common"
+        ),
     }
 )
 

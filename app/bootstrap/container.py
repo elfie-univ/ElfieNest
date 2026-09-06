@@ -358,10 +358,18 @@ def build_application_container(
         if nest_session is not None
         else UnavailableNestManagementCommands()
     )
+    food = build_food_service(
+        db_path,
+        provider_catalog=provider_catalog,
+        evidence=provider_evidence,
+    )
     setup = build_setup_services(
         db_path,
         accounts=accounts,
         nest=nest_commands,
+        nest_session=nest_session,
+        providers_service=providers,
+        food_service=food,
         provider_state=provider_models,
         food_evidence=provider_evidence,
         catalog=provider_catalog,
@@ -394,11 +402,7 @@ def build_application_container(
         providers=providers,
         availability=availability,
         core_validation_worker=core_validation_worker,
-        food=build_food_service(
-            db_path,
-            provider_catalog=provider_catalog,
-            evidence=provider_evidence,
-        ),
+        food=food,
         provider_scheduler=provider_scheduler,
         capabilities=CapabilitiesService(
             capability_config,
