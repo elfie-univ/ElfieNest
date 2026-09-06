@@ -52,6 +52,19 @@ def redact_text(value: str) -> str:
     return result
 
 
+def _redact_payload(value: Any) -> Any:
+    """Redact textual leaves before a provider record enters the Lab trace."""
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, list):
+        return [_redact_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _redact_payload(item) for key, item in value.items()}
+    return value
+
+
 class MockModelExecutionAgent:
     """可离线、可预期的开发者模式。"""
 
@@ -67,8 +80,20 @@ class MockModelExecutionAgent:
     config = MockConfig()
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
-        match = re.search(r"【主人发送的信息】:\s*(.+?)\n\n", prompt, re.DOTALL)
-        message = match.group(1).strip() if match else "这件事"
+        match = re.search(
+            r"(?:^|\n)CURRENT_MESSAGE:\s*\n(?P<message>.*?)(?:\n\n|$)",
+            prompt,
+            re.DOTALL,
+        )
+        if match is None:
+            match = re.search(r"【主人发送的信息】:\s*(.+?)\n\n", prompt, re.DOTALL)
+        message = (
+            match.group("message").strip()
+            if match and "message" in match.groupdict()
+            else match.group(1).strip()
+            if match
+            else "这件事"
+        )
         if len(message) > 28:
             message = message[:28] + "…"
         return f"我有好好听到你说\u201c{message}\u201d哒。"
@@ -131,66 +156,82 @@ class TracingModelExecutionAgent:
         )
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
-        if self.food_key != "mock":
-            started = time.perf_counter()
-            call: Dict[str, Any] = {
-                "food_key": self.food_key,
-                "energy": 100.0,
-                "task_complexity": 2,
-            }
-            try:
-                result = self.inner.generate(request)
-                call.update(
-                    {
-                        "provider": result.provider,
-                        "model": result.model_key,
-                        "food_used": self.food_key,
-                        "execution_stage": "primary",
-                        "degraded": False,
-                    }
-                )
-                return result
-            except Exception as exc:
-                call.update(
-                    {
-                        "provider": self._provider_name(),
-                        "model": self._model_name(2),
-                        "error": type(exc).__name__,
-                    }
-                )
-                raise
-            finally:
-                call["duration_ms"] = round(
-                    (time.perf_counter() - started) * 1000,
-                    2,
-                )
-                self.calls.append(call)
-        if (
-            self.food_key == "mock"
-            and request.response_schema is not None
-            and request.response_schema.name == "MemoryProjection"
-        ):
-            # The offline agent has no semantic extractor. Return an empty,
-            # source-safe projection so the event node and Episode evidence can
-            # still be committed through the same typed maintenance contract.
-            text = _mock_memory_projection_json()
-        else:
-            speech = self.ask(request.user_prompt, energy=100.0, task_complexity=2)
-            text = (
-                _mock_cognitive_action_json(speech)
-                if request.response_mode is ModelResponseMode.DIRECT_REPLY
-                else _mock_decision_json(request, speech)
-            )
-        return ModelGenerationResult(
-            text=text,
-            selected_mode=(
-                StructuredOutputMode.JSON_SCHEMA
-                if self.food_key == "mock"
-                else StructuredOutputMode.JSON_TEXT
+        started = time.perf_counter()
+        call_index = len(self.calls) + 1
+        call: Dict[str, Any] = {
+            "call_index": call_index,
+            "food_key": self.food_key,
+            "request": _redact_payload(request.model_dump(mode="json")),
+            "capabilities": _redact_payload(
+                self.capabilities().model_dump(mode="json")
             ),
-            provider=self._provider_name(),
-            model_key=self._model_name(2),
-        )
+            "effective_parameters": {
+                "provider": self._provider_name(),
+                "model": self._model_name(2),
+                "reasoning_mode": request.reasoning_mode,
+                "response_mode": request.response_mode.value,
+                "response_schema": request.response_schema.name,
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "allowed_tools": list(request.allowed_tools),
+                "tool_definition_count": len(request.tool_definitions),
+                "skill_count": len(request.available_skills),
+            },
+        }
+        try:
+            if self.food_key != "mock":
+                result = self.inner.generate(request)
+            elif (
+                request.response_schema is not None
+                and request.response_schema.name == "MemoryProjection"
+            ):
+                # The offline agent has no semantic extractor. Return an empty,
+                # source-safe projection through the same typed maintenance path.
+                result = ModelGenerationResult(
+                    text=_mock_memory_projection_json(),
+                    selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                    provider=self._provider_name(),
+                    model_key=self._model_name(2),
+                )
+            else:
+                speech = self.inner.ask(
+                    request.user_prompt, energy=100.0, task_complexity=2
+                )
+                text = (
+                    _mock_cognitive_action_json(speech)
+                    if request.response_mode is ModelResponseMode.DIRECT_REPLY
+                    else _mock_decision_json(request, speech)
+                )
+                result = ModelGenerationResult(
+                    text=text,
+                    selected_mode=StructuredOutputMode.JSON_SCHEMA,
+                    provider=self._provider_name(),
+                    model_key=self._model_name(2),
+                )
+            call.update(
+                {
+                    "provider": result.provider,
+                    "model": result.model_key,
+                    "food_used": self.food_key,
+                    "execution_stage": "primary",
+                    "degraded": False,
+                    "result": _redact_payload(result.model_dump(mode="json")),
+                    "response": redact_text(result.text),
+                }
+            )
+            return result
+        except Exception as exc:
+            call.update(
+                {
+                    "provider": self._provider_name(),
+                    "model": self._model_name(2),
+                    "error": type(exc).__name__,
+                }
+            )
+            raise
+        finally:
+            call["duration_ms"] = round((time.perf_counter() - started) * 1000, 2)
+            self.calls.append(call)
 
     def abandon(self, request: ModelGenerationRequest) -> None:
         """Detach the Lab request; the temporary adapter owns no call gate."""

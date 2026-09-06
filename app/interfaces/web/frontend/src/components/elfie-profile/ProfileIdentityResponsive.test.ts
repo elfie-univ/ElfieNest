@@ -20,6 +20,7 @@ describe("profile identity responsive rules", () => {
     )?.[0] ?? ""
     expect(genderRule).not.toContain("border: 2px")
     expect(genderRule).not.toContain("border-radius: 50%")
+    expect(genderRule).toContain("font-size: 22px !important;")
     expect(profileStyles).toContain(".profile-dossier__gender--male { color: #2f70a8;")
     expect(profileStyles).toContain(".profile-dossier__gender--female { color: #bd5d7b;")
   })

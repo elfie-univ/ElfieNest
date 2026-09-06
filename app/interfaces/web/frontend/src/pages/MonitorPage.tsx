@@ -6,7 +6,7 @@ import { MobileAccessDialog } from "../components/MobileAccessDialog"
 import { MonitorRail } from "../components/MonitorRail"
 import { ObservationMonitor } from "../components/ObservationMonitor"
 import { useSession } from "../stores/session"
-import { isManagerRole } from "../api/roles"
+import { canAccessMonitor } from "../api/roles"
 
 type MonitorPageProps = {
   readonly roomId?: string
@@ -19,7 +19,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
   const [immersive, setImmersive] = useState(false)
   const [roomLoadFailed, setRoomLoadFailed] = useState(false)
   const [showMobileAccess, setShowMobileAccess] = useState(false)
-  const authorized = user !== null && isManagerRole(user.role)
+  const authorized = user !== null && canAccessMonitor(user.role)
   useEffect(() => {
     if (loading || !authorized) return undefined
     let active = true
@@ -39,7 +39,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
     return (): void => { active = false }
   }, [authorized, loading, roomId])
   if (loading) return <main className="page"><p className="empty">{t("session.verifying")}</p></main>
-  if (user === null || !isManagerRole(user.role)) { window.location.assign(user === null ? "/login?next=/monitor" : "/chat"); return <main /> }
+  if (user === null || !canAccessMonitor(user.role)) { window.location.assign(user === null ? "/login?next=/monitor" : "/chat"); return <main /> }
   return <main className={immersive ? "monitor-page monitor-page--immersive" : "monitor-page"}>
     {!immersive ? <MonitorRail onMobileAccess={() => setShowMobileAccess(true)} onToggleImmersive={() => setImmersive(true)} onUpdated={refresh} user={user} /> : null}
     {bedCount === null

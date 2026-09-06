@@ -55,6 +55,36 @@ class SetupInstallationPortError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class SetupModelValidationResult:
+    """Persisted Provider evidence projected for the Setup progress view."""
+
+    total: int
+    passed: int
+
+
+class SetupRemotePreparationPort(Protocol):
+    """Run the full remote preparation work after Setup is locked."""
+
+    def validate_models(
+        self,
+        owner: CreatedSetupOwner,
+        connection_id: str,
+    ) -> SetupModelValidationResult: ...
+
+    def prepare_common_food(
+        self,
+        owner: CreatedSetupOwner,
+        connection_id: str,
+    ) -> None: ...
+
+
+class SetupRuntimeReadinessPort(Protocol):
+    """Wait for the already-managed Nest Runtime to become usable."""
+
+    def ensure_ready(self, cancelled: Callable[[], bool]) -> None: ...
+
+
 class SetupInstallationStatePort(Protocol):
     def read_installation(self) -> StoredSetupInstallation: ...
     def read_draft(self) -> StoredSetupDraft: ...
@@ -69,8 +99,14 @@ class SetupInstallationStatePort(Protocol):
 
 
 class SetupAccountPort(Protocol):
+    def find_owner(self) -> CreatedSetupOwner | None: ...
+
     def create_first_owner(self, draft: StoredSetupDraft) -> CreatedSetupOwner: ...
     def issue_session(self, user_id: int) -> tuple[str, int]: ...
+
+    def set_default_landing_page(
+        self, user_id: int, page: Literal["chat", "manage"]
+    ) -> None: ...
 
 
 class SetupOllamaInstallPort(Protocol):
@@ -122,6 +158,7 @@ __all__ = (
     "SetupInstallationPortError",
     "SetupInstallationRunnerPort",
     "SetupInstallationStatePort",
+    "SetupModelValidationResult",
     "SetupNestPort",
     "SetupOllamaBinding",
     "SetupOllamaProbe",
@@ -129,4 +166,6 @@ __all__ = (
     "SetupOllamaTaskLease",
     "SetupOllamaTaskLeaseFactory",
     "SetupProviderPort",
+    "SetupRemotePreparationPort",
+    "SetupRuntimeReadinessPort",
 )

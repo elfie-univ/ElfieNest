@@ -13,7 +13,7 @@ import {
   type AdoptionReply,
 } from "../../api/me/adoption"
 import { ApiError } from "../../api/http"
-import { describeApiError, resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
+import { resolveLocalizedError, type LocalizedErrorState } from "../../i18n/errors"
 import { currentLocale } from "../../i18n/format"
 import { ConfirmDialog } from "../ConfirmDialog"
 import { Button } from "../ui/button"
@@ -70,6 +70,8 @@ import {
 
 type AdoptionJourneyDialogProps = {
   readonly accountId: string
+  /** Stable account creation marker prevents numeric IDs reused after data reset from restoring another account's draft. */
+  readonly accountCreatedAt?: string | undefined
   readonly csrfToken: string
   readonly open: boolean
   readonly onAdopted: (elfieId: string) => Promise<void>
@@ -92,6 +94,7 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
 const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
 const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating"]
 const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
+const COMMIT_RETRY_DELAYS_MILLISECONDS = [800, 1800] as const
 const INVITATION_TIMEOUT_MILLISECONDS = 30_000
 const WAIT_STATUS_SECOND_PHASE_MILLISECONDS = 4_000
 const WAIT_STATUS_FINAL_PHASE_MILLISECONDS = 10_000
@@ -162,7 +165,11 @@ function asReply(reply: AdoptionReply, previous?: Candidate): CandidateReply {
           ? mapped.runtimeAppearance
           : previous.runtimeAppearance,
       }
-  return { ...candidate, status: reply.status, message: reply.message }
+  return { ...candidate, status: reply.status, message: reply.message, reveal: reply.reveal === null ? null : {
+    originalName: reply.reveal.original_name,
+    suggestedName: reply.reveal.suggested_name,
+    personalStory: reply.reveal.personal_story,
+  } }
 }
 
 function candidateImageUrl(candidate: Pick<Candidate, "headshotImageUrl" | "fullBodyImageUrl">, kind: "headshot" | "fullBody" = "headshot"): string {
@@ -185,6 +192,18 @@ function isInvitationChannelFailure(reason: unknown): boolean {
 
 function isRetryableInvitationFailure(reason: unknown): boolean {
   return reason instanceof ApiError && reason.status >= 500
+}
+
+function isRetryableCommitFailure(reason: unknown): boolean {
+  return reason instanceof ApiError && reason.status >= 500
+}
+
+function isPersistentAdoptionServiceFailure(reason: unknown): boolean {
+  return reason instanceof ApiError && (
+    reason.code === "adoption_unavailable"
+    || reason.code === "elfie_runtime_unavailable"
+    || reason.code === "CAPABILITY_GATE_UNAVAILABLE"
+  )
 }
 
 function waitMilliseconds(milliseconds: number): Promise<void> {
@@ -341,7 +360,8 @@ function AdoptionEntryBlockDialog({
   </AlertDialog>
 }
 
-export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, onOpenChange, onRefreshCsrfToken }: AdoptionJourneyDialogProps) {
+export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, open, onAdopted, onOpenChange, onRefreshCsrfToken }: AdoptionJourneyDialogProps) {
+  const draftAccountKey = `${accountId}:${accountCreatedAt ?? "legacy"}`
   const { i18n, t } = useTranslation("chat")
   const locale = currentLocale(i18n)
   const [state, dispatch] = useReducer(adoptionReducer, INITIAL_ADOPTION_STATE)
@@ -395,7 +415,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   const handleExpiredSession = useCallback((draft: AdoptionDraftState["draft"]): void => {
     const canRegenerate = intentComplete(draft)
     sessionExpiresAtRef.current = canRegenerate ? adoptionSessionExpiryFromNow() : null
-    void clearAdoptionDraft(accountId)
+    void clearAdoptionDraft(draftAccountKey)
     setGenerationRequest(canRegenerate ? candidateSetInput(draft, 1) : null)
     setSendingInvitations(false)
     setCommitting(false)
@@ -411,7 +431,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     }
     dispatch({ type: "reset", screen: "basic" })
     dispatch({ type: "error", message: t("adoption.journey.errors.expired") })
-  }, [accountId, t])
+  }, [accountId, draftAccountKey, t])
 
   useEffect(() => {
     if (!open) {
@@ -436,7 +456,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
     retryingInvitationRef.current = false
     void (async () => {
       try {
-        const loaded = await loadAdoptionDraft(accountId)
+        const loaded = await loadAdoptionDraft(draftAccountKey)
         if (!active) return
         sessionExpiresAtRef.current = loaded.sessionExpiresAt
         if (loaded.expired) {
@@ -492,19 +512,23 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
               handleExpiredSession(saved.draft)
               return
             }
-            setApiError(describeApiError(reason, "manage.load"))
+            setApiError(isPersistentAdoptionServiceFailure(reason)
+              ? t("adoption.journey.errors.serviceUnavailable")
+              : t("adoption.journey.errors.load"))
           }
         }
       } catch (reason: unknown) {
         if (!active) return
-        setApiError(describeApiError(reason, "manage.load"))
+        setApiError(isPersistentAdoptionServiceFailure(reason)
+          ? t("adoption.journey.errors.serviceUnavailable")
+          : t("adoption.journey.errors.load"))
         setEntryBlock("unavailable")
       } finally {
         if (active) setLoadingInfo(false)
       }
     })()
     return () => { active = false }
-  }, [accountId, handleExpiredSession, loadCandidates, open])
+  }, [accountId, draftAccountKey, handleExpiredSession, loadCandidates, open])
 
   useEffect(() => {
     if (!open) return
@@ -513,8 +537,8 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       handleExpiredSession(state.draft)
       return
     }
-    void saveAdoptionDraft(accountId, state, sessionExpiresAtRef.current)
-  }, [accountId, handleExpiredSession, open, state])
+    void saveAdoptionDraft(draftAccountKey, state, sessionExpiresAtRef.current)
+  }, [draftAccountKey, handleExpiredSession, open, state])
 
   useEffect(() => {
     if (!open) return undefined
@@ -540,7 +564,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
   }
 
   const confirmDiscard = (): void => {
-    void clearAdoptionDraft(accountId)
+    void clearAdoptionDraft(draftAccountKey)
     sessionExpiresAtRef.current = null
     dispatch({ type: "reset", screen: "basic" })
     setClosePrompt(false)
@@ -638,7 +662,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         return
       }
       dispatch({ type: "screen", screen: "shortlist" })
-      setApiError(describeApiError(reason, "manage.save"))
+      setApiError(t("adoption.journey.errors.replies"))
     } finally {
       setSendingInvitations(false)
     }
@@ -665,11 +689,26 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
       const headshotImageUrl = finalCandidate?.fullBodyImageUrl
         ? await createFinalHeadshotDataUrl(finalCandidate.fullBodyImageUrl)
         : finalCandidate?.headshotImageUrl ?? ""
-      const result = await withCsrfRetry((token) => commitAdoption(candidateSetId, finalCandidateId, name, token, {
+      const commitOptions = {
         ...(finalCandidate?.fullBodyImageUrl ? { fullBodyImageUrl: finalCandidate.fullBodyImageUrl } : {}),
         ...(headshotImageUrl ? { headshotImageUrl } : {}),
-      }))
-      await clearAdoptionDraft(accountId)
+      }
+      let result: Awaited<ReturnType<typeof commitAdoption>> | null = null
+      let commitAttempts = 0
+      while (true) {
+        try {
+          result = await withCsrfRetry((token) => commitAdoption(candidateSetId, finalCandidateId, name, token, commitOptions))
+          break
+        } catch (reason: unknown) {
+          if (!isRetryableCommitFailure(reason) || commitAttempts >= COMMIT_RETRY_DELAYS_MILLISECONDS.length) throw reason
+          const delay = COMMIT_RETRY_DELAYS_MILLISECONDS[commitAttempts]
+          if (delay === undefined) throw reason
+          commitAttempts += 1
+          await waitMilliseconds(delay)
+        }
+      }
+      if (result === null) throw new Error("Adoption commit did not return a result")
+      await clearAdoptionDraft(draftAccountKey)
       await onAdopted(result.elfie_id)
       onOpenChange(false)
     } catch (reason: unknown) {
@@ -688,7 +727,9 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
         return
       }
       dispatch({ type: "screen", screen: "naming" })
-      setApiError(describeApiError(reason, "manage.save"))
+      setApiError(isPersistentAdoptionServiceFailure(reason)
+        ? t("adoption.journey.errors.serviceUnavailable")
+        : t("adoption.journey.errors.commit"))
     } finally {
       setCommitting(false)
     }
@@ -877,7 +918,7 @@ export function AdoptionJourneyDialog({ accountId, csrfToken, open, onAdopted, o
           {journeyReady && state.screen === "generating" && generationRequest !== null ? <GeneratingScreen frameRef={portraitFrameRef} loadCandidates={loadCandidates} onError={onGenerationError} onReady={onGenerationReady} request={generationRequest} runtimeActive={portraitRuntimeEnabled && portraitRuntimeRequested} runtimeGeneration={portraitRuntimeGeneration} t={t} /> : null}
           {journeyReady && state.screen === "shortlist" ? <ShortlistScreen candidates={state.candidates} candidateBatch={state.candidateBatch} dispatch={dispatch} onRegenerate={() => { void generateCandidates() }} selectedIds={state.selectedCandidateIds} t={t} /> : null}
           {journeyReady && state.screen === "inviting" ? <SendingScreen candidates={state.candidates.filter((candidate) => state.selectedCandidateIds.includes(candidate.candidateId))} t={t} /> : null}
-          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
+          {journeyReady && state.screen === "naming" && selectedCandidate ? <ArrivalWelcomeScreen candidate={selectedCandidate} candidateImageUrl={candidateImageUrl} candidateLabel={candidateLabel(selectedCandidate.candidateId)} customName={state.customName} nameMode={state.nameMode} onFinish={() => { void finishAdoption() }} pending={committing} dispatch={dispatch} t={t} /> : null}
           {journeyReady && state.screen === "committing" ? <ProgressScreen title={t("adoption.journey.committing.title", { name: selectedName(state) })} /> : null}
         </div>
 
@@ -1387,7 +1428,7 @@ function isNextDisabled(state: AdoptionDraftState, info: AdoptionInfo | null): b
   if (state.screen === "replies") return state.finalCandidateId === null
   if (state.screen === "naming") {
     const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
-    return candidate === undefined || !state.customName.trim()
+    return candidate === undefined || !selectedName(state)
   }
   return false
 }

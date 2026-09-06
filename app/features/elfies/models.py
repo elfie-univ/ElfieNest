@@ -82,6 +82,7 @@ class ElfieProfileResult:
     birth_date: str | None
     summary: str | None
     adopted_at: str
+    owner_display_name: str | None
     profile_status: Literal["ready", "empty", "unavailable"]
     big_five: BigFiveResult | None
     personality_tags: tuple[str, ...]

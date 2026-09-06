@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from elfie.genesis import CandidateReveal
 from elfie.public import GenesisCandidate
 
 from .models import AdoptionSpeciesImage, AdoptionSpeciesImages, SpeciesImageKind
@@ -55,6 +56,12 @@ class CandidatePortraitPort(Protocol):
     def render(self, candidate: GenesisCandidate) -> tuple[str, str]: ...
 
 
+class CandidateRevealPort(Protocol):
+    """Provide the temporary identity shown after an accepted reply."""
+
+    def reveal(self, candidate: GenesisCandidate) -> CandidateReveal: ...
+
+
 class SpeciesPresentationPort(Protocol):
     """Read presentation assets from the bundled species packages."""
 
@@ -89,6 +96,7 @@ class StaticSpeciesRuntimeReadiness:
 __all__ = (
     "AdoptionPersistencePort",
     "CandidatePortraitPort",
+    "CandidateRevealPort",
     "AdoptionPolicyPort",
     "AdoptionPortCapacityReached",
     "AdoptionPortNestCapacityReached",

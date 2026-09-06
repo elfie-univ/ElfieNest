@@ -113,6 +113,22 @@ def test_model_catalog_is_a_collection_resource(tmp_path: Path) -> None:
     ]
 
 
+def test_remote_food_decision_is_written_to_setup_draft(tmp_path: Path) -> None:
+    with _client(tmp_path) as client:
+        client.cookies.set("setup_token", "local-token")
+        response = client.put(
+            "/api/v1/setup/draft/remote",
+            json={"configured": False, "connection_id": None},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["draft"]["remote_configured"] is False
+    assert response.json()["draft"]["remote_skipped"] is True
+    assert response.json()["draft"]["remote_connection_id"] is None
+    assert response.json()["draft"]["bed_count"] == 12
+    assert response.json()["current_step"] == 1
+
+
 def test_unknown_draft_fields_use_the_standard_error_envelope(tmp_path: Path) -> None:
     with _client(tmp_path) as client:
         client.cookies.set("setup_token", "local-token")

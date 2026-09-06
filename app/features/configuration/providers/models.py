@@ -121,6 +121,7 @@ class CreateProviderConnectionCommand:
     models: tuple[ProviderModelInput, ...] = ()
     verify: bool = False
     refresh_models: bool = True
+    defer_validation: bool = False
 
 
 @dataclass(frozen=True)
@@ -147,6 +148,7 @@ class UpdateProviderConnectionCommand:
     models: tuple[ProviderModelInput, ...] | None = None
     verify: bool = False
     refresh_models: bool = False
+    defer_validation: bool = False
 
 
 @dataclass(frozen=True)

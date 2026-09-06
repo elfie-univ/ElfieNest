@@ -1,6 +1,7 @@
 """One-time Elfie creation contracts."""
 
 from .compiler import (
+    GenesisCandidateReveal,
     GenesisCompilation,
     GenesisCompileInput,
     GenesisCompiler,
@@ -14,6 +15,7 @@ from .contracts import (
     BIG_FIVE_TRAITS,
     CANDIDATE_ROLES,
     BigFiveProfile,
+    CandidateReveal,
     CandidateSignature,
     EpisodeSeed,
     GenesisAppearanceIntent,
@@ -56,6 +58,7 @@ __all__ = (
     "BIG_FIVE_TRAITS",
     "CANDIDATE_ROLES",
     "BigFiveProfile",
+    "CandidateReveal",
     "CandidateSignature",
     "GenesisAppearanceIntent",
     "GenesisBatch",
@@ -69,6 +72,7 @@ __all__ = (
     "GenesisCommitReceipt",
     "GenesisMemoryCommitter",
     "GenesisCompilation",
+    "GenesisCandidateReveal",
     "GenesisCompileInput",
     "GenesisCompiler",
     "GenesisStatus",

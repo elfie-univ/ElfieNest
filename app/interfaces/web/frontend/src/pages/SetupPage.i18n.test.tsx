@@ -1,81 +1,180 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "../api/http"
-import * as client from "../api/setup"
+import type { ProviderConnection, ProviderModel, ProviderProduct } from "../api/owner-providers"
+import * as providerClient from "../api/owner-providers"
+import type { ClientUser } from "../api/session"
+import * as sessionClient from "../api/session"
+import * as setupClient from "../api/setup"
+import type { SetupStatus } from "../api/setup"
 import { createI18n } from "../i18n/config"
 import { initializeLocale, type SupportedLocale } from "../i18n/locale"
 import { SetupPage } from "./SetupPage"
-import type { SetupStatus } from "../api/setup"
 
-function statusFor(
-  currentStep: number,
-  overrides: Partial<SetupStatus> = {},
-): SetupStatus {
-  const draft = {
+const verification = {
+  status: "passed" as const,
+  checked_at: "2026-09-04T00:00:00Z",
+  latency_ms: 20,
+  error: null,
+}
+
+function providerModel(id: string): ProviderModel {
+  return {
+    id,
+    display_name: id,
+    canonical_model_id: null,
+    source: "manual",
+    context_window_tokens: null,
+    max_output_tokens: null,
+    supports_tools: null,
+    supports_vision: null,
+    supports_reasoning: null,
+    hidden: false,
+    retired: false,
+    available: true,
+    verification,
+  }
+}
+
+function providerProduct(
+  brandId: string,
+  name: string,
+  catalogId = `${brandId}_api`,
+): ProviderProduct {
+  return {
+    catalog_id: catalogId,
+    name,
+    brand: { brand_id: brandId, name, logo_asset: "" },
+    connection_method: "api_key",
+    oauth_available: false,
+    usage_scope: "remote",
+    discovery_strategy: "remote",
+    api_mode: "openai_responses",
+    api_key_url: null,
+  }
+}
+
+const apiProduct = providerProduct("openai", "OpenAI API", "openai_api")
+const oauthProduct: ProviderProduct = {
+  ...apiProduct,
+  catalog_id: "chatgpt_oauth",
+  name: "ChatGPT subscription",
+  connection_method: "oauth",
+  oauth_available: true,
+  discovery_strategy: "oauth",
+}
+
+function providerConnection(models: readonly ProviderModel[] = [providerModel("gpt-4o-mini")]): ProviderConnection {
+  return {
+    connection_id: "connection-openai",
+    catalog_id: apiProduct.catalog_id,
+    alias: apiProduct.name,
+    api_base: "https://api.openai.com/v1",
+    api_mode: apiProduct.api_mode,
+    auth_type: "bearer",
+    has_api_key: true,
+    has_credential: true,
+    enabled: true,
+    archived: false,
+    usage_scope: apiProduct.usage_scope,
+    verification,
+    models: [...models],
+    model_counts: {
+      total: models.length,
+      enabled: models.length,
+      in_use: models.length,
+      available: models.length,
+      degraded: 0,
+      pending: 0,
+      unavailable: 0,
+    },
+    model_refresh: null,
+  }
+}
+
+const ownerUser: ClientUser = {
+  user_id: 1,
+  account_id: "owner",
+  display_name: "Owner",
+  role: "owner",
+  theme_key: "warm-paper",
+  csrf_token: "session-csrf",
+}
+
+function statusFor(currentStep: 1 | 2 | 3, overrides: Partial<SetupStatus> = {}): SetupStatus {
+  const baseDraft: SetupStatus["draft"] = {
     owner_account_id: currentStep > 1 ? "owner" : null,
     display_name: currentStep > 1 ? "Owner" : null,
     password_configured: currentStep > 1,
-    use_local_ollama: currentStep > 2 ? true : null,
-    ollama_installed: currentStep > 1,
-    model_id: currentStep > 2 ? "qwen2.5:0.5b" : null,
-    bed_count: currentStep > 3 ? 8 : null,
+    use_local_ollama: currentStep > 2 ? false : null,
+    ollama_installed: false,
+    model_id: null,
+    bed_count: 12,
     owner_configured: currentStep > 1,
     offline_configured: currentStep > 2,
-    nest_configured: currentStep > 3,
+    nest_configured: currentStep > 2,
     locked_at: null,
-  } as const
+    remote_configured: currentStep > 2,
+    remote_skipped: false,
+    remote_connection_id: currentStep > 2 ? "connection-openai" : null,
+  }
+  const draft = { ...baseDraft, ...(overrides.draft ?? {}) }
+  const complete = overrides.complete ?? false
+  const install = overrides.install ?? {
+    phase: "model_validation" as const,
+    action_key: "idle",
+    state: "idle" as const,
+    progress: 0,
+    error_key: null,
+  }
+  const configured = [
+    draft.owner_configured,
+    draft.remote_configured || draft.remote_skipped || draft.offline_configured,
+    complete,
+  ]
+  const steps = configured.map((value, index) => ({
+    name: ["创建账号", "配置大模型订阅", "完成"][index] ?? "",
+    number: index + 1,
+    status: value ? "completed" as const : index + 1 === currentStep ? "current" as const : "pending" as const,
+    retry_action: index === 2 && install.state !== "idle" && install.state !== "completed" ? "retry_install" : null,
+  }))
   return {
-    complete: false,
-    current_step: currentStep,
-    need_setup: true,
-    locked: false,
-    csrf_token: "setup-csrf",
-    draft,
-    install: {
-      phase: "owner",
-      action_key: "idle",
-      state: "idle",
-      progress: 0,
-      error_key: null,
-    },
-    last_error: null,
-    steps: [
-      { name: "Owner", number: 1, status: currentStep > 1 ? "completed" : currentStep === 1 ? "current" : "pending", retry_action: null },
-      { name: "Offline", number: 2, status: currentStep > 2 ? "completed" : currentStep === 2 ? "current" : "pending", retry_action: null },
-      { name: "Nest", number: 3, status: currentStep > 3 ? "completed" : currentStep === 3 ? "current" : "pending", retry_action: null },
-      { name: "Review", number: 4, status: currentStep === 4 ? "current" : "pending", retry_action: null },
-    ],
     ...overrides,
+    need_setup: overrides.need_setup ?? !complete,
+    complete,
+    current_step: overrides.current_step ?? currentStep,
+    locked: overrides.locked ?? false,
+    csrf_token: overrides.csrf_token ?? "setup-csrf",
+    draft,
+    steps,
+    last_error: overrides.last_error ?? null,
+    install,
   }
 }
 
 function renderSetup(
-  locale: SupportedLocale,
   status: SetupStatus,
-  ollama: client.SetupOllamaObservation = {
-    endpoint: "http://127.0.0.1:11434",
-    platform: "darwin",
-    state: "stopped",
-    version: null,
-  },
-  setupStatuses: readonly SetupStatus[] = [],
+  {
+    locale = "en-US",
+    products = [apiProduct, oauthProduct],
+    connections = [],
+  }: {
+    readonly locale?: SupportedLocale
+    readonly products?: readonly ProviderProduct[]
+    readonly connections?: readonly ProviderConnection[]
+  } = {},
 ): void {
-  const setupStatus = vi.spyOn(client, "setupStatus")
-  if (setupStatuses.length > 0) {
-    setupStatus.mockReset()
-    for (const setupResponse of setupStatuses) setupStatus.mockResolvedValueOnce(setupResponse)
-  } else {
-    setupStatus.mockResolvedValue(status)
-  }
-  vi.spyOn(client, "setupInspectOllama").mockResolvedValue(ollama)
-  vi.spyOn(client, "setupModelCatalog").mockResolvedValue([
-    { model_id: "qwen2.5:0.5b", label: "qwen2.5:0.5b（推荐）", approx_download_mb: 398, recommended: true },
-    { model_id: "qwen3.5:0.8b", label: "qwen3.5:0.8b", approx_download_mb: 1024, recommended: false },
-    { model_id: "gemma3:270m", label: "gemma3:270m", approx_download_mb: 292, recommended: false },
-  ])
+  vi.spyOn(setupClient, "setupStatus").mockResolvedValue(status)
+  vi.spyOn(sessionClient, "currentUser").mockResolvedValue(ownerUser)
+  vi.spyOn(providerClient, "ownerProviderCatalog").mockResolvedValue(products)
+  vi.spyOn(providerClient, "ownerProviderConnections").mockResolvedValue(connections)
+  vi.spyOn(providerClient, "ensureProviderModelAvailability").mockResolvedValue({
+    status: "available",
+    reason_code: null,
+  })
   const instance = createI18n()
   initializeLocale(instance, {
     browserLanguages: [locale],
@@ -99,394 +198,422 @@ describe("localized setup wizard", () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  it("renders the English welcome page before the configuration steps", async () => {
-    renderSetup("en-US", statusFor(1))
-    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for your Elfie from Elfaria" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-art")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-house-drawing")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-radar")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-radar").querySelector(".setup-welcome__radar-body-path")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-radar-rings")).toBeInTheDocument()
-    const signal = screen.getByTestId("setup-welcome-signal")
-    expect(signal.querySelectorAll("circle")).toHaveLength(3)
-    expect(signal.querySelector("circle")).toHaveAttribute("cx", "208.4")
-    expect(signal.querySelector("circle")).toHaveAttribute("cy", "37.4")
-    expect(signal.querySelector("circle")).toHaveAttribute("r", "8.1")
-    expect(screen.getByTestId("setup-welcome-radar-rings").querySelector("circle")).toHaveAttribute("r", "5.4")
-    const groundRipples = screen.getByTestId("setup-welcome-ground-ripples")
-    expect(groundRipples).toBeInTheDocument()
-    expect(groundRipples.querySelector("ellipse")).toHaveAttribute("cx", "137.8")
-    expect(groundRipples.querySelector("ellipse")).toHaveAttribute("cy", "220.5")
-    const beam = screen.getByTestId("setup-welcome-beam")
-    expect(beam).toBeInTheDocument()
-    expect(beam.querySelector("path")).toHaveAttribute("d", expect.stringContaining("137.8 220.5"))
-    expect(screen.getByTestId("setup-welcome-fox")).toHaveAttribute("src", expect.stringContaining("elfienest-fox-transparent.png"))
-    expect(screen.getByTestId("setup-welcome-fox-eye-glint")).toBeInTheDocument()
-    expect(screen.getByTestId("setup-welcome-final-logo")).toHaveAttribute("src", expect.stringContaining("elfienest-logo-mark-transparent.png"))
-    const title = screen.getByRole("heading", { level: 1 })
-    expect(title).toHaveAttribute("aria-label", "Build a home on Earth for your Elfie from Elfaria")
-    expect(title.querySelectorAll(".setup-welcome__title-char")).toHaveLength("Build a home on Earth for your Elfie from Elfaria".length)
-    expect(screen.queryByText("Create Owner account")).not.toBeInTheDocument()
-  })
-
-  it("finishes the welcome copy at seven seconds with no locale-dependent action gap", async () => {
-    renderSetup("en-US", statusFor(1))
-
-    const title = await screen.findByRole("heading", { level: 1 })
-    const characters = title.querySelectorAll(".setup-welcome__title-char")
-    const action = screen.getByRole("button", { name: "Begin" }) as HTMLButtonElement
-
-    expect((characters[0] as HTMLElement).style.animationDelay).toBe("6s")
-    expect((characters[characters.length - 1] as HTMLElement).style.animationDelay).toBe("6.72s")
-    expect(action.style.animationDelay).toBe("7s")
-  })
-
-  it("keeps the owner form hidden while the initial setup status is loading", async () => {
-    let resolveStatus: (status: SetupStatus) => void = () => undefined
-    vi.spyOn(client, "setupStatus").mockReturnValue(new Promise((resolve) => {
-      resolveStatus = resolve
-    }))
-    vi.spyOn(client, "setupModelCatalog").mockResolvedValue([])
-    const instance = createI18n()
-    initializeLocale(instance, {
-      browserLanguages: ["en-US"],
-      documentElement: document.documentElement,
-      storage: localStorage,
-    })
-    render(
-      <I18nextProvider i18n={instance}>
-        <SetupPage />
-      </I18nextProvider>,
-    )
-
-    expect(screen.getByTestId("setup-welcome-art")).toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "Owner account" })).not.toBeInTheDocument()
-
-    resolveStatus(statusFor(1))
-    await waitFor(() => expect(screen.getByRole("button", { name: "Begin" })).toBeEnabled())
-    expect(screen.queryByRole("textbox", { name: "Owner account" })).not.toBeInTheDocument()
-  })
-
-  it("keeps the supplied house geometry in its native SVG coordinates", async () => {
-    renderSetup("en-US", statusFor(1))
-
-    const drawing = await screen.findByTestId("setup-welcome-house-drawing")
-    const svg = drawing.closest("svg")
-    const fill = screen.getByTestId("setup-welcome-house-fill")
-    const roofPath = screen.getByTestId("setup-welcome-house-roof-path")
-    const bodyPath = screen.getByTestId("setup-welcome-house-body-path")
-    const chimneyBlock = screen.getByTestId("setup-welcome-house-chimney-block")
-    const chimneyWipe = screen.getByTestId("setup-welcome-house-chimney-wipe")
-    const finalFill = screen.getByTestId("setup-welcome-house-final-fill")
-
-    expect(svg).toHaveAttribute("viewBox", "0 0 270.93332 270.93332")
-    expect(svg).toHaveAttribute("data-house-source", "elfienest-house.svg")
-    expect(drawing.querySelectorAll(".setup-welcome__house-path")).toHaveLength(2)
-    expect(drawing.querySelectorAll(".setup-welcome__house-phase-block")).toHaveLength(3)
-    expect(roofPath).toHaveAttribute(
-      "d",
-      expect.stringMatching(/^M 247\.74802 119\.80303 L 136\.08694 27\.333702 L 24\.425861 122\.12931 L 52\.341131 98\.285013$/),
-    )
-    expect(bodyPath).toHaveAttribute(
-      "d",
-      expect.stringMatching(/^M 52\.341131 98\.285013 L 53\.504266 237\.27979 L 220\.99589 236\.69822 L 224\.4853 100\.02972 L 201\.80414 80\.837968$/),
-    )
-    expect(roofPath).toHaveAttribute("pathLength", "1")
-    expect(bodyPath).toHaveAttribute("pathLength", "1")
-    expect(chimneyBlock).toHaveAttribute("d", expect.stringContaining("192.67816 51.229431"))
-    expect(chimneyWipe.tagName.toLowerCase()).toBe("rect")
-    expect(finalFill).toHaveAttribute("d", fill.getAttribute("d"))
-    expect(finalFill).not.toHaveAttribute("mask")
-    expect(fill).not.toHaveAttribute("transform")
-  })
-
-  it("reveals exactly four English configuration steps after the welcome action", async () => {
+  it("opens with the welcome animation and then enters the three-step setup flow", async () => {
     const user = userEvent.setup()
-    renderSetup("en-US", statusFor(1))
-    await user.click(await screen.findByRole("button", { name: "Begin" }))
+    renderSetup(statusFor(1))
 
-    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first")
-    for (const label of ["Create Owner account", "Local offline support (optional)", "Nest beds", "Review and install"]) {
-      expect(screen.getByText(label)).toBeInTheDocument()
-    }
-    expect(screen.queryByTestId("setup-welcome-art")).not.toBeInTheDocument()
-    expect(screen.queryByText("Model and food")).not.toBeInTheDocument()
-    expect(screen.queryByText("Create the single Owner account. You can change its password in this step.", { exact: true })).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Begin" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Begin" }))
+    expect(await screen.findByRole("heading", { level: 1, name: "Create the Owner account" })).toBeInTheDocument()
+    expect(screen.getAllByRole("listitem")).toHaveLength(3)
+    for (const label of ["Create account", "Configure model subscription", "Finish"]) expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Begin" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Ollama|Review|Bed count|Local offline/i)).not.toBeInTheDocument()
   })
 
-  it("keeps the welcome page in the detected English locale before setup starts", async () => {
-    renderSetup("en-US", statusFor(1))
-
-    const language = await screen.findByRole("combobox", { name: "Language" })
-    expect(language).toHaveTextContent("English")
-    expect(await screen.findByRole("heading", { level: 1, name: "Build a home on Earth for your Elfie from Elfaria" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Begin" })).toBeInTheDocument()
-  })
-
-  it("renders the requested Chinese welcome copy when Chinese is detected", async () => {
-    renderSetup("zh-CN", statusFor(1))
-
-    expect(await screen.findByRole("heading", { level: 1, name: "为来自 Elfaria 的精灵在地球上建一个家" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "开始" })).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "语言" })).toHaveTextContent("简体中文")
-  })
-
-  it("uses the full transparent logo as the setup rail brand", async () => {
+  it("writes the Owner draft and establishes the Owner session before step two", async () => {
     const user = userEvent.setup()
-    renderSetup("en-US", statusFor(1))
-    await user.click(await screen.findByRole("button", { name: "Begin" }))
+    const save = vi.spyOn(setupClient, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
+    renderSetup(statusFor(1))
 
-    const logo = await screen.findByRole("img", { name: "ELFIE NEST" })
-    expect(logo).toHaveAttribute(
-      "src",
-      expect.stringContaining("elfienest-full-logo-transparent.png"),
-    )
-    expect(screen.queryByText("ELFIE NEST")).not.toBeInTheDocument()
-  })
-
-  it("saves the Owner draft through the draft-based setup API", async () => {
-    const user = userEvent.setup()
-    const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
-    renderSetup("en-US", statusFor(1))
     await user.click(await screen.findByRole("button", { name: "Begin" }))
     await user.type(await screen.findByRole("textbox", { name: "Owner account" }), "owner")
     await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owner")
-    await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "secret-pass")
-    await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "secret-pass")
+    await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "owner-secret")
+    await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "owner-secret")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
-    await waitFor(() => expect(save).toHaveBeenCalledWith("owner", "Owner", "secret-pass", "secret-pass", "setup-csrf"))
+
+    await waitFor(() => expect(save).toHaveBeenCalledWith("owner", "Owner", "owner-secret", "owner-secret", "setup-csrf"))
+    expect(sessionClient.currentUser).toHaveBeenCalled()
+    expect(providerClient.ownerProviderCatalog).toHaveBeenCalled()
+    expect(await screen.findByRole("heading", { level: 1, name: "Configure model subscription" })).toBeInTheDocument()
+  }, 10_000)
+
+  it("uses only API-key products and follows the subscription Provider order with Custom last", async () => {
+    const products = [
+      providerProduct("custom", "Custom", "custom_openai"),
+      providerProduct("xai", "xAI"),
+      providerProduct("deepseek", "DeepSeek"),
+      providerProduct("openai", "OpenAI"),
+      providerProduct("anthropic", "Anthropic"),
+      providerProduct("mistral", "Mistral AI"),
+      providerProduct("google", "Google"),
+      providerProduct("alibaba", "Alibaba Cloud"),
+      providerProduct("zhipu", "Zhipu AI (GLM)"),
+      providerProduct("moonshot", "Kimi (Moonshot AI)"),
+      providerProduct("minimax", "MiniMax"),
+      providerProduct("volcengine", "火山引擎"),
+      providerProduct("openrouter", "OpenRouter"),
+      providerProduct("siliconflow", "SiliconFlow"),
+      providerProduct("groq", "Groq"),
+      oauthProduct,
+    ]
+    const user = userEvent.setup()
+    renderSetup(statusFor(2), { products })
+
+    const provider = await screen.findByRole("combobox", { name: "Provider" })
+    await user.click(provider)
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Google",
+      "OpenAI",
+      "Anthropic",
+      "DeepSeek",
+      "Alibaba Cloud",
+      "Zhipu AI (GLM)",
+      "Kimi (Moonshot AI)",
+      "MiniMax",
+      "火山引擎",
+      "xAI",
+      "OpenRouter",
+      "SiliconFlow",
+      "Groq",
+      "Custom interface",
+    ])
+    expect(screen.queryByText("Mistral AI")).not.toBeInTheDocument()
+    expect(screen.queryByText("ChatGPT subscription")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("option", { name: "Custom interface" }))
+    const connectionMethod = await screen.findByRole("combobox", { name: "Connection method" })
+    await user.click(connectionMethod)
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["OpenAI interface", "Anthropic interface"])
   })
 
-  it("uses shared controls and disables the model selector when local Ollama is unchecked", async () => {
+  it("discovers models automatically after the API key is entered", async () => {
     const user = userEvent.setup()
-    const save = vi.spyOn(client, "setupSaveOfflineDraft").mockResolvedValue(statusFor(3))
-    renderSetup("en-US", statusFor(2))
-    const model = await screen.findByRole("combobox", { name: "Local model" })
-    expect(model).toHaveAttribute("data-slot", "select-trigger")
-    expect(model).toHaveTextContent("qwen2.5:0.5b（推荐）")
-    await user.click(model)
-    expect(screen.getByRole("option", { name: "qwen2.5:0.5b（推荐）" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "qwen3.5:0.8b" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "gemma3:270m" })).toBeInTheDocument()
-    await user.keyboard("{Escape}")
-    const checkbox = screen.getByRole("checkbox", { name: /Use local Ollama/ })
-    expect(checkbox).toHaveAttribute("data-slot", "checkbox")
-    await user.click(checkbox)
-    expect(model).toBeDisabled()
-    await user.click(screen.getByRole("button", { name: "Save and continue" }))
+    const created = providerConnection([providerModel("gpt-4o-mini"), providerModel("gpt-4.1-mini")])
+    const create = vi.spyOn(providerClient, "createProviderConnection").mockResolvedValue(created)
+    renderSetup(statusFor(2))
+
+    const key = await screen.findByRole("textbox", { name: "API Key" })
+    await user.type(key, "sk-test-key")
+    await user.tab()
+
+    await waitFor(() => expect(create).toHaveBeenCalledWith({
+      catalog_id: "openai_api",
+      api_key: "sk-test-key",
+      models: [],
+      refresh_models: true,
+      defer_validation: true,
+    }, "session-csrf", { timeout: 2_000 }))
+    expect(await screen.findByRole("textbox", { name: "Models" })).toHaveValue("gpt-4o-mini, gpt-4.1-mini")
+  })
+
+  it("shows a saved API key as a mask without the old leave-blank hint", async () => {
+    renderSetup(statusFor(2), { connections: [providerConnection()] })
+
+    const key = await screen.findByRole("textbox", { name: "API Key" })
+    expect(key).toHaveValue("••••••••••••")
+    expect(key).toHaveAttribute("type", "text")
+    expect(key).toHaveAttribute("autocomplete", "off")
+    expect(key).toHaveAttribute("name", "api-key")
+    expect(key).toHaveAttribute("data-form-type", "other")
+    expect(screen.queryByText("The API key is already saved; leave blank to continue.")).not.toBeInTheDocument()
+  })
+
+  it("shows a two-second discovery failure and allows manual model entry", async () => {
+    const user = userEvent.setup()
+    const created = providerConnection([providerModel("manual-model")])
+    const create = vi.spyOn(providerClient, "createProviderConnection")
+      .mockRejectedValueOnce(new ApiError(504, "model discovery timed out"))
+      .mockResolvedValue(created)
+    const setupSave = vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(statusFor(3))
+    const install = vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, {
+      locked: true,
+      install: { phase: "model_validation", action_key: "model.validation.start", state: "running", progress: 20, error_key: null },
+    }))
+    renderSetup(statusFor(2))
+
+    const key = await screen.findByRole("textbox", { name: "API Key" })
+    await user.type(key, "sk-test-key")
+    await user.tab()
+    expect(await screen.findByText("Model fetch failed. Enter model IDs manually.")).toBeInTheDocument()
+
+    const models = screen.getByRole("textbox", { name: "Models" })
+    await user.type(models, "manual-model")
+    await user.click(screen.getByRole("button", { name: "Validate and continue" }))
+
+    await waitFor(() => expect(create).toHaveBeenLastCalledWith({
+      catalog_id: "openai_api",
+      api_key: "sk-test-key",
+      models: [{ id: "manual-model" }],
+      refresh_models: false,
+      defer_validation: true,
+    }, "session-csrf"))
+    await waitFor(() => expect(setupSave).toHaveBeenCalledWith(true, "connection-openai", "setup-csrf"))
+    expect(install).toHaveBeenCalledWith("setup-csrf")
+  }, 10_000)
+
+  it("accepts comma or newline separated model IDs and trims duplicate spacing", async () => {
+    const user = userEvent.setup()
+    renderSetup(statusFor(2), { connections: [providerConnection()] })
+
+    const models = await screen.findByRole("textbox", { name: "Models" })
+    await user.clear(models)
+    await user.type(models, " gpt-a,  gpt-b\n gpt-a ")
+    await user.tab()
+
+    expect(models).toHaveValue("gpt-a, gpt-b")
+  })
+
+  it("saves the discovered models and performs one Step 2 smoke check", async () => {
+    const user = userEvent.setup()
+    const created = providerConnection([providerModel("gpt-5.4"), providerModel("gpt-4o-mini")])
+    vi.spyOn(providerClient, "createProviderConnection").mockResolvedValue(created)
+    const update = vi.spyOn(providerClient, "updateProviderConnection").mockResolvedValue(created)
+    const setupSave = vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(statusFor(3))
+    vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, {
+      locked: true,
+      install: { phase: "model_validation", action_key: "model.validation.start", state: "running", progress: 20, error_key: null },
+    }))
+    renderSetup(statusFor(2))
+
+    const key = await screen.findByRole("textbox", { name: "API Key" })
+    await user.type(key, "sk-test-key")
+    await user.tab()
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Models" })).toHaveValue("gpt-5.4, gpt-4o-mini"))
+    await user.click(screen.getByRole("button", { name: "Validate and continue" }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith("connection-openai", {
+      api_key: "sk-test-key",
+      models: [{ id: "gpt-5.4" }, { id: "gpt-4o-mini" }],
+      refresh_models: false,
+      defer_validation: true,
+    }, "session-csrf"))
+    await waitFor(() => expect(providerClient.ensureProviderModelAvailability).toHaveBeenCalledWith(
+      "connection-openai",
+      "gpt-4o-mini",
+      "session-csrf",
+      { timeout: 25_000 },
+    ))
+    await waitFor(() => expect(setupSave).toHaveBeenCalledWith(true, "connection-openai", "setup-csrf"))
+  })
+
+  it("runs one lightweight model check before entering step three", async () => {
+    const user = userEvent.setup()
+    const existing = providerConnection()
+    const updated = providerConnection([providerModel("gpt-4o-mini"), providerModel("gpt-4.1-mini")])
+    const update = vi.spyOn(providerClient, "updateProviderConnection").mockResolvedValue(updated)
+    const setupSave = vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(statusFor(3))
+    const install = vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, {
+      locked: true,
+      install: { phase: "model_validation", action_key: "model.validation.start", state: "running", progress: 20, error_key: null },
+    }))
+    renderSetup(statusFor(2), { connections: [existing] })
+
+    const models = await screen.findByRole("textbox", { name: "Models" })
+    await user.clear(models)
+    await user.type(models, "gpt-4o-mini, gpt-4.1-mini")
+    await user.click(screen.getByRole("button", { name: "Validate and continue" }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith("connection-openai", {
+      models: [{ id: "gpt-4o-mini" }, { id: "gpt-4.1-mini" }],
+      refresh_models: false,
+      defer_validation: true,
+    }, "session-csrf"))
+    await waitFor(() => expect(providerClient.ensureProviderModelAvailability).toHaveBeenCalledWith(
+      "connection-openai",
+      "gpt-4o-mini",
+      "session-csrf",
+      { timeout: 25_000 },
+    ))
+    await waitFor(() => expect(setupSave).toHaveBeenCalledWith(true, "connection-openai", "setup-csrf"))
+    expect(install).toHaveBeenCalledWith("setup-csrf")
+  })
+
+  it("keeps the Step 2 action label unchanged while the check is running", async () => {
+    const user = userEvent.setup()
+    const existing = providerConnection()
+    const updated = providerConnection()
+    let resolveAvailability: ((value: { status: "available"; reason_code: null }) => void) | undefined
+    const availability = new Promise<{ status: "available"; reason_code: null }>((resolve) => {
+      resolveAvailability = resolve
+    })
+    vi.spyOn(providerClient, "updateProviderConnection").mockResolvedValue(updated)
+    vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(statusFor(3))
+    vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, { locked: true }))
+    renderSetup(statusFor(2), { connections: [existing] })
+    vi.mocked(providerClient.ensureProviderModelAvailability).mockResolvedValue(
+      availability as unknown as Awaited<ReturnType<typeof providerClient.ensureProviderModelAvailability>>,
+    )
+
+    const action = await screen.findByRole("button", { name: "Validate and continue" })
+    await user.click(action)
+
+    expect(screen.getByRole("button", { name: "Validate and continue" })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: /Saving|Validating/ })).not.toBeInTheDocument()
+    resolveAvailability?.({ status: "available", reason_code: null })
+  })
+
+  it("keeps step two open when the lightweight model check fails", async () => {
+    const user = userEvent.setup()
+    const existing = providerConnection()
+    const updated = providerConnection([providerModel("gpt-4o-mini")])
+    vi.spyOn(providerClient, "updateProviderConnection").mockResolvedValue(updated)
+    const setupSave = vi.spyOn(setupClient, "setupSaveRemoteDraft")
+    renderSetup(statusFor(2), { connections: [existing] })
+    vi.mocked(providerClient.ensureProviderModelAvailability).mockResolvedValue({
+      status: "unavailable",
+      reason_code: "invalid_credential",
+    })
+
+    await user.click(await screen.findByRole("button", { name: "Validate and continue" }))
+
+    await waitFor(() => expect(providerClient.ensureProviderModelAvailability).toHaveBeenCalled())
+    expect(setupSave).not.toHaveBeenCalled()
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The subscription or model validation failed. Check the API key and model IDs.",
+    )
+    expect(screen.getByRole("heading", { level: 1, name: "Configure model subscription" })).toBeInTheDocument()
+  })
+
+  it("keeps a failed subscription save on step two for correction", async () => {
+    const user = userEvent.setup()
+    const existing = providerConnection()
+    const update = vi.spyOn(providerClient, "updateProviderConnection").mockRejectedValue(new ApiError(422, "API Key 无效或已过期"))
+    const save = vi.spyOn(setupClient, "setupSaveRemoteDraft")
+    renderSetup(statusFor(2), { connections: [existing] })
+
+    await user.click(await screen.findByRole("button", { name: "Validate and continue" }))
+
+    await waitFor(() => expect(update).toHaveBeenCalled())
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save setup.")
+    expect(save).not.toHaveBeenCalled()
+    expect(screen.getByRole("textbox", { name: "Models" })).toBeInTheDocument()
+  })
+
+  it("persists Skip and starts the third-step preparation without pretending Food is ready", async () => {
+    const user = userEvent.setup()
+    const skippedDraft = { ...statusFor(3).draft, remote_configured: false, remote_skipped: true, remote_connection_id: null }
+    const save = vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(statusFor(3, { draft: skippedDraft }))
+    const install = vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, {
+      locked: true,
+      draft: skippedDraft,
+      install: { phase: "model_validation", action_key: "model.validation.skipped", state: "running", progress: 20, error_key: null },
+    }))
+    renderSetup(statusFor(2))
+
+    await user.click(await screen.findByRole("button", { name: "Set up later" }))
+
     await waitFor(() => expect(save).toHaveBeenCalledWith(false, null, "setup-csrf"))
+    expect(install).toHaveBeenCalledWith("setup-csrf")
   })
 
-  it("saves enabled local Ollama with the selected model for final installation", async () => {
+  it("shows a retry when starting the persisted third step fails", async () => {
     const user = userEvent.setup()
-    const save = vi.spyOn(client, "setupSaveOfflineDraft").mockResolvedValue(statusFor(3))
-    renderSetup("en-US", statusFor(2))
+    const skippedDraft = { ...statusFor(3).draft, remote_configured: false, remote_skipped: true, remote_connection_id: null }
+    const saved = statusFor(3, { draft: skippedDraft })
+    vi.spyOn(setupClient, "setupSaveRemoteDraft").mockResolvedValue(saved)
+    const install = vi.spyOn(setupClient, "setupInstall").mockRejectedValue(new ApiError(503, "安装任务不可用"))
+    renderSetup(statusFor(2))
+    const setupStatus = vi.mocked(setupClient.setupStatus)
+    await screen.findByRole("heading", { level: 1, name: "Configure model subscription" })
+    setupStatus.mockReset().mockResolvedValue(saved)
 
-    await screen.findByRole("combobox", { name: "Local model" })
-    await user.click(screen.getByRole("button", { name: "Save and continue" }))
-
-    expect(save).toHaveBeenCalledWith(true, "qwen2.5:0.5b", "setup-csrf")
+    await user.click(await screen.findByRole("button", { name: "Set up later" }))
+    await waitFor(() => expect(install).toHaveBeenCalledWith("setup-csrf"))
+    expect(await screen.findByRole("heading", { level: 1, name: "Preparation failed" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Go to Manage" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })
 
-  it("refreshes an expired Setup CSRF lease before replaying a rejected draft write", async () => {
+  it("shows persisted third-step progress and sends a configured setup to adoption", async () => {
+    const redirects = { assign: vi.fn() }
+    vi.stubGlobal("location", { assign: redirects.assign })
+    renderSetup(statusFor(3, {
+      complete: true,
+      locked: true,
+      install: { phase: "runtime", action_key: "runtime.ready.complete", state: "completed", progress: 100, error_key: null },
+    }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Preparation complete" })).toBeInTheDocument()
+    expect(screen.getByRole("progressbar", { name: "Finishing setup" })).toHaveAttribute("aria-valuenow", "100")
+    expect(screen.getByText("[100%] Preparation complete")).toBeInTheDocument()
+    expect(screen.queryByRole("list", { name: "Preparation progress" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Step 3 of 3")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Review|Bed count|confirmation|Ollama/i)).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole("button", { name: "Start adoption" }))
+    expect(redirects.assign).toHaveBeenCalledWith("/")
+  })
+
+  it("routes a completed skipped setup to Manage and keeps a running setup actionless", async () => {
+    const redirects = { assign: vi.fn() }
+    vi.stubGlobal("location", { assign: redirects.assign })
+    const skippedDraft = { ...statusFor(3).draft, remote_configured: false, remote_skipped: true, remote_connection_id: null }
+    renderSetup(statusFor(3, {
+      complete: true,
+      locked: true,
+      draft: skippedDraft,
+      install: { phase: "runtime", action_key: "runtime.ready.complete", state: "completed", progress: 100, error_key: null },
+    }))
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Go to Manage" }))
+    expect(redirects.assign).toHaveBeenCalledWith("/")
+
+    cleanup()
+    vi.unstubAllGlobals()
+    renderSetup(statusFor(3, {
+      locked: true,
+      install: { phase: "runtime", action_key: "runtime.ready.start", state: "running", progress: 90, error_key: null },
+    }))
+    expect(await screen.findByRole("heading", { level: 1, name: "Preparing the nest" })).toBeInTheDocument()
+    expect(screen.getByRole("progressbar", { name: "Finishing setup" })).toHaveAttribute("aria-valuenow", "90")
+    expect(screen.getByText("[90%] Waiting for the nest Runtime…")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Start adoption" })).not.toBeInTheDocument()
+  })
+
+  it("shows a third-step failure with Manage and Retry but no back navigation", async () => {
+    const retry = vi.spyOn(setupClient, "setupInstall").mockResolvedValue(statusFor(3, { locked: true }))
+    renderSetup(statusFor(3, {
+      locked: true,
+      last_error: "没有可用的远程模型",
+      install: { phase: "model_validation", action_key: "model.validation.start", state: "failed", progress: 20, error_key: "setup.install.failed" },
+    }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Preparation failed" })).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("没有可用的远程模型")
+    expect(screen.getByRole("button", { name: "Go to Manage" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Prepare Food/ })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(retry).toHaveBeenCalledWith("setup-csrf"))
+  })
+
+  it("keeps the Owner fields as compact horizontal rows", async () => {
     const user = userEvent.setup()
-    const initial = statusFor(2)
-    const refreshed = statusFor(2, { csrf_token: "fresh-setup-csrf" })
-    const save = vi.spyOn(client, "setupSaveOfflineDraft")
-      .mockRejectedValueOnce(new ApiError(403, "缺少 Setup CSRF token", [], "csrf_rejected"))
-      .mockResolvedValue(statusFor(3, { csrf_token: "fresh-setup-csrf" }))
-    renderSetup("en-US", initial, undefined, [initial, initial, refreshed])
-
-    await screen.findByRole("combobox", { name: "Local model" })
-    await user.click(screen.getByRole("button", { name: "Save and continue" }))
-
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
-    expect(save.mock.calls[0]?.[2]).toBe("setup-csrf")
-    expect(save.mock.calls[1]?.[2]).toBe("fresh-setup-csrf")
-  })
-
-  it("shows reusable and pending Ollama states with distinct status styles", async () => {
-    renderSetup("en-US", statusFor(2))
-    const installedStatus = await screen.findByText("Installed · reusable")
-    expect(installedStatus).toHaveClass("setup-hint--status", "setup-hint--installed")
-
-    renderSetup(
-      "en-US",
-      statusFor(2, {
-        draft: { ...statusFor(2).draft, ollama_installed: false },
-      }),
-      { endpoint: null, platform: "darwin", state: "absent", version: null },
-    )
-    const pendingStatus = await screen.findByText("Not installed · handled during setup")
-    expect(pendingStatus).toHaveClass("setup-hint--status", "setup-hint--missing")
-  })
-
-  it("guides Linux installation in a terminal and rechecks before continuing", async () => {
-    const user = userEvent.setup()
-    renderSetup(
-      "en-US",
-      statusFor(2, {
-        draft: { ...statusFor(2).draft, ollama_installed: false },
-      }),
-      { endpoint: null, platform: "linux", state: "absent", version: null },
-    )
-
-    expect(await screen.findByText("Install Ollama in a terminal first")).toBeInTheDocument()
-    expect(screen.getByText("curl -fsSL https://ollama.com/install.sh | sh")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Save and continue" })).toBeDisabled()
-
-    vi.mocked(client.setupInspectOllama).mockResolvedValue({
-      endpoint: "http://127.0.0.1:11434",
-      platform: "linux",
-      state: "healthy",
-      version: "0.12.0",
-    })
-    await user.click(screen.getByRole("button", { name: "I've installed Ollama — check again" }))
-
-    await waitFor(() => {
-      expect(screen.getByText("Installed · reusable")).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled()
-    })
-  })
-
-  it("renders exactly four review rows and keeps Ollama status inside its row", async () => {
-    renderSetup("en-US", statusFor(4))
-    const rows = await screen.findAllByTestId("setup-review-row")
-    expect(rows).toHaveLength(4)
-    expect(rows[1]).toHaveTextContent("Local Ollama")
-    expect(rows[1]).toHaveTextContent("Installed")
-    expect(screen.queryByText(/emergency food|修复|repair/i)).not.toBeInTheDocument()
-  })
-
-  it("allows returning to a saved step before final confirmation", async () => {
-    const user = userEvent.setup()
-    renderSetup("en-US", statusFor(4))
-
-    // When: a saved step is selected from the setup rail.
-    const ownerStep = await screen.findByRole("button", { name: /Create Owner account/ })
-    await user.click(ownerStep)
-
-    // Then: the wizard returns to that step without changing the saved flow.
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Create the Owner first")
-    expect(ownerStep).toHaveAttribute("aria-current", "step")
-    expect(ownerStep.closest("li")).toHaveClass("setup-step--current")
-  })
-
-  it("uses compact horizontal rows for the Owner form", async () => {
-    const user = userEvent.setup()
-    renderSetup("en-US", statusFor(1))
+    renderSetup(statusFor(1))
     await user.click(await screen.findByRole("button", { name: "Begin" }))
-
-    // Then: the four Owner fields share the compact form layout contract.
-    expect((await screen.findByRole("textbox", { name: "Owner account" })).closest("form")).toHaveClass("setup-form--owner")
+    const form = await screen.findByRole("textbox", { name: "Owner account" })
+    expect(form.closest("form")).toHaveClass("setup-form--owner")
     for (const label of ["Owner account", "Display name", "Password", "Confirm password"]) {
       const field = screen.getByRole("group", { name: label })
-      const input = within(field).getByLabelText(label)
-      expect(input).toHaveAttribute("data-slot", "input")
-      expect(input.closest('[data-field-row="true"]')).toBeInTheDocument()
+      expect(within(field).getByLabelText(label).closest('[data-field-row="true"]')).toBeInTheDocument()
     }
   })
 
-  it("uses a compact bed-count row and rejects values outside 4 to 32", async () => {
+  it("retries an expired Setup CSRF lease for a real owner draft write", async () => {
     const user = userEvent.setup()
-    renderSetup("en-US", statusFor(3))
-    const bedCount = await screen.findByRole("textbox", { name: "Bed count" })
-
-    // When: the user enters a count above the supported range.
-    await user.clear(bedCount)
-    await user.type(bedCount, "45")
-
-    // Then: the field explains the range and saving is unavailable.
-    expect(bedCount.closest("section")).toHaveClass("setup-form--bed-count")
-    expect(bedCount).toHaveAttribute("data-slot", "input")
-    expect(bedCount.closest('[data-field-row="true"]')).toBeInTheDocument()
-    expect(bedCount).toHaveAttribute("aria-invalid", "true")
-    expect(screen.getByText("Use 4 to 32 beds.")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Save bed settings" })).toBeDisabled()
-  })
-
-  it("removes the large explanatory callout from offline support", async () => {
-    renderSetup("en-US", statusFor(2))
-    const model = await screen.findByRole("combobox", { name: "Local model" })
-    expect(model).toBeInTheDocument()
-    expect(model.closest("section")).toHaveClass("setup-form--offline")
-    expect(screen.getByRole("checkbox", { name: /Use local Ollama/ }).closest(".setup-check--row")).toHaveClass("setup-check--row")
-    expect(screen.queryByText(/This step only saves local offline support configuration/)).not.toBeInTheDocument()
-  })
-
-  it("keeps configured passwords masked and sends a newly entered replacement", async () => {
-    const user = userEvent.setup()
-    const save = vi.spyOn(client, "setupSaveOwnerDraft").mockResolvedValue(statusFor(2))
-    renderSetup("en-US", statusFor(4))
-    await user.click(await screen.findByRole("button", { name: /Create Owner account/ }))
-
-    const password = within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password")
-    const confirmation = within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password")
-    expect(password).toHaveValue("")
-    expect(confirmation).toHaveValue("")
-    expect(password).toHaveAttribute("placeholder", "••••••••")
-    expect(confirmation).toHaveAttribute("placeholder", "••••••••")
-
-    await user.type(password, "new-secret")
-    await user.type(confirmation, "new-secret")
+    const initial = statusFor(1)
+    const refreshed = statusFor(1, { csrf_token: "fresh-setup-csrf" })
+    const save = vi.spyOn(setupClient, "setupSaveOwnerDraft")
+      .mockRejectedValueOnce(new ApiError(403, "缺少 Setup CSRF token", [], "csrf_rejected"))
+      .mockResolvedValue(statusFor(2))
+    renderSetup(initial)
+    const setupStatus = vi.mocked(setupClient.setupStatus)
+    setupStatus.mockReset().mockResolvedValueOnce(initial).mockResolvedValueOnce(refreshed).mockResolvedValue(initial)
+    await user.click(await screen.findByRole("button", { name: "Begin" }))
+    await user.type(await screen.findByRole("textbox", { name: "Owner account" }), "owner")
+    await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owner")
+    await user.type(within(screen.getByRole("group", { name: "Password" })).getByLabelText("Password"), "owner-secret")
+    await user.type(within(screen.getByRole("group", { name: "Confirm password" })).getByLabelText("Confirm password"), "owner-secret")
     await user.click(screen.getByRole("button", { name: "Save and continue" }))
 
-    await waitFor(() => expect(save).toHaveBeenCalledWith("owner", "Owner", "new-secret", "new-secret", "setup-csrf"))
-  })
-
-  it("removes the large explanatory callout from nest beds", async () => {
-    renderSetup("en-US", statusFor(3))
-    expect(await screen.findByRole("textbox", { name: "Bed count" })).toBeInTheDocument()
-    expect(screen.queryByText(/The Nest keeps 4 to 32 beds/)).not.toBeInTheDocument()
-  })
-
-  it("shows the disabled-Ollama model summary as not configured", async () => {
-    const status = statusFor(4, {
-      draft: {
-        ...statusFor(4).draft,
-        use_local_ollama: false,
-        model_id: null,
-      },
-    })
-    renderSetup("en-US", status)
-    const rows = await screen.findAllByTestId("setup-review-row")
-    expect(rows[2]).toHaveTextContent("Not configured")
-    expect(rows[2]).toHaveTextContent("local Ollama is disabled")
-  })
-
-  it("locks the page after confirmation and exposes cancellation", async () => {
-    const user = userEvent.setup()
-    const running = statusFor(4, {
-      locked: true,
-      install: { phase: "ollama", action_key: "ollama.start", state: "running", progress: 30, error_key: null },
-    })
-    const install = vi.spyOn(client, "setupInstall").mockResolvedValue(running)
-    const cancel = vi.spyOn(client, "setupCancel").mockResolvedValue(statusFor(4, {
-      install: { phase: "ollama", action_key: "cancelled", state: "cancelled", progress: 30, error_key: "setup.install.cancelled" },
-    }))
-    renderSetup("en-US", statusFor(4))
-    await user.click(await screen.findByRole("button", { name: "Confirm configuration and start installation" }))
-    expect(install).toHaveBeenCalledWith("setup-csrf")
-    expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuenow", "30")
-    await user.click(screen.getByRole("button", { name: "Cancel installation" }))
-    expect(cancel).toHaveBeenCalledWith("setup-csrf")
-    expect(await screen.findByText("Installation cancelled. You can adjust the remaining settings and try again.")).toBeInTheDocument()
-  })
-
-  it("shows persisted failure detail after unlocking safe configuration fields", async () => {
-    const failed = statusFor(4, {
-      install: { phase: "model", action_key: "model.download", state: "failed", progress: 50, error_key: "setup.install.failed" },
-      last_error: "The model download timed out.",
-    })
-    renderSetup("en-US", failed)
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("The model download timed out.")
-    const rows = await screen.findAllByTestId("setup-review-row")
-    expect(rows).toHaveLength(4)
-    expect(within(rows[0]!).queryByRole("button", { name: "Modify" })).not.toBeInTheDocument()
-    expect(within(rows[1]!).getByRole("button", { name: "Modify" })).toBeInTheDocument()
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(save.mock.calls[0]?.[4]).toBe("setup-csrf")
+    expect(save.mock.calls[1]?.[4]).toBe("fresh-setup-csrf")
   })
 })

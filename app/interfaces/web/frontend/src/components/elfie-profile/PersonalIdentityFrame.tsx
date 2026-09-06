@@ -27,7 +27,7 @@ export function PersonalIdentityFrame({
   const { i18n, t } = useTranslation("chat")
   const profile = projection.publicProfile
   const species = speciesLabel(profile.speciesId, speciesDefinition, i18n.resolvedLanguage ?? i18n.language)
-  const gender = normalizedGender(profile.gender, t)
+  const gender = normalizedGender(profile.gender ?? "male", t)
   const biography = profile.biography.trim()
   const showBiography = biography.toLowerCase() !== "genesis"
   const personalityLabels = {
@@ -69,7 +69,7 @@ export function PersonalIdentityFrame({
               </span>
             )}
             <span aria-label={species} className="profile-dossier__species">
-              {speciesIcon()}
+              {species}
             </span>
           </div>
         </div>
@@ -100,11 +100,11 @@ function IdentityMetadata({ projection, t }: {
   const ageLabel = projection.kind === "adopter" ? projection.adoption.ageLabel : projection.ageLabel
   return (
     <dl className="profile-dossier__metadata">
-      <div><dt>{t("profile.identity.age")}</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
-      <div><dt>{t("profile.identity.owner")}</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
+      <div><dt><span>{t("profile.identity.age")}</span>：</dt><dd>{localizedAge(ageLabel, t)}</dd></div>
+      <div><dt><span>{t("profile.identity.owner")}</span>：</dt><dd>{projection.kind === "adopter" ? <strong>{t("profile.identity.me")}</strong> : projection.ownerDisplayName}</dd></div>
       {projection.kind === "adopter" ? <>
-        <div><dt>{t("profile.identity.adoptedAt")}</dt><dd>{displayFallback(formatDateOnly(projection.adoption.adoptedAt), t)}</dd></div>
-        <div><dt>{t("profile.identity.id")}</dt><dd>{projection.publicProfile.elfieId}</dd></div>
+        <div><dt><span>{t("profile.identity.adoptedAt")}</span>：</dt><dd>{displayFallback(formatDateOnly(projection.adoption.adoptedAt), t)}</dd></div>
+        <div><dt><span>{t("profile.identity.id")}</span>：</dt><dd>{projection.publicProfile.elfieId}</dd></div>
       </> : null}
     </dl>
   )
@@ -134,10 +134,6 @@ function speciesLabel(
     return language.startsWith("zh") ? definition.display_name_zh : definition.display_name
   }
   return speciesId
-}
-
-function speciesIcon(): string {
-  return "✦"
 }
 
 function formatDateOnly(value: string | undefined): string {

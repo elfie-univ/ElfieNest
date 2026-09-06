@@ -13,7 +13,7 @@ class CreateElfieRequest(BaseModel):
     age_years: float = Field(gt=0.0, le=100.0)
     description: str = Field(min_length=1, max_length=240)
     appearance_description: str = Field(min_length=1, max_length=1000)
-    personality_description: str = Field(min_length=1, max_length=1000)
+    personality_description: str = Field(default="", max_length=1000)
 
 
 class BigFiveUpdateRequest(BaseModel):

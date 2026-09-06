@@ -584,6 +584,15 @@ class GenesisError(ValueError):
 
 
 @dataclass(frozen=True)
+class CandidateReveal:
+    """Temporary identity details disclosed after a candidate accepts contact."""
+
+    original_name: str
+    suggested_name: str
+    personal_story: str
+
+
+@dataclass(frozen=True)
 class GenesisAppearanceIntent:
     stature: str
     build: str
@@ -641,6 +650,7 @@ class GenesisBatch:
 __all__ = (
     "BIG_FIVE_TRAITS",
     "CANDIDATE_ROLES",
+    "CandidateReveal",
     "CandidateSignature",
     "GenesisBundle",
     "GenesisAppearanceIntent",

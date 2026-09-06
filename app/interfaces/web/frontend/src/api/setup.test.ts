@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { SetupStatus } from "./setup"
-import { setupStatus } from "./setup"
+import { setupSaveRemoteDraft, setupStatus } from "./setup"
 
 const { requestJsonMock } = vi.hoisted(() => ({ requestJsonMock: vi.fn() }))
 
@@ -29,16 +29,18 @@ function status(): SetupStatus {
       offline_configured: false,
       nest_configured: false,
       locked_at: null,
+      remote_configured: false,
+      remote_skipped: false,
+      remote_connection_id: null,
     },
     steps: [
-      { number: 1, name: "Owner", status: "current", retry_action: null },
-      { number: 2, name: "Offline", status: "pending", retry_action: null },
-      { number: 3, name: "Nest", status: "pending", retry_action: null },
-      { number: 4, name: "Install", status: "pending", retry_action: null },
+      { number: 1, name: "创建账号", status: "current", retry_action: null },
+      { number: 2, name: "准备粮食", status: "pending", retry_action: null },
+      { number: 3, name: "准备完成", status: "pending", retry_action: null },
     ],
     last_error: null,
     install: {
-      phase: "owner",
+      phase: "model_validation",
       action_key: "idle",
       state: "idle",
       progress: 0,
@@ -59,6 +61,20 @@ describe("setup API client", () => {
     expect(requestJsonMock).toHaveBeenCalledWith(
       "/api/v1/setup/status",
       { cache: "no-store" },
+    )
+  })
+
+  it("writes the remote setup decision to the draft endpoint", async () => {
+    requestJsonMock.mockResolvedValue(status())
+
+    await setupSaveRemoteDraft(true, "connection-openai", "setup-csrf")
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      "/api/v1/setup/draft/remote",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ configured: true, connection_id: "connection-openai" }),
+      }),
     )
   })
 })

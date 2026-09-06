@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import datetime, timezone
 from typing import Callable, Literal, Protocol, TypedDict, Union
@@ -44,6 +45,8 @@ from .ports import (
     ResidentSessionPort,
     ResidentWorkspacePort,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class _GenesisCompilerPort(Protocol):
@@ -247,6 +250,12 @@ class ResidentAdmissionService:
             TypeError,
             ValueError,
         ) as error:
+            logger.exception(
+                "resident admission failed: admission_id=%s state=%s error_type=%s",
+                current.admission_id,
+                current.state,
+                type(error).__name__,
+            )
             latest = self._latest(current)
             if latest.state in {"reserved", "compiling", "staged"}:
                 self._terminate_precommit(latest, error_code="genesis_failure")

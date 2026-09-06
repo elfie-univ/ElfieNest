@@ -87,7 +87,7 @@ CI 应当在临时 loopback 端口启动仓库拥有的**脚本化协议模型�
 | 请求 | 确定性回复 | 验收断言 |
 | --- | --- | --- |
 | Provider inventory/probe | 为一个合格模型返回符合协议的模型清单、文本探测与结构化能力结果。 | Connection、准确 Endpoint 模型、Common Food 与 Emergency Food 通过持久化投影变成可执行状态。 |
-| 领养候选回复 | 结构化回复包含已接受的候选 ID，以及当前候选字段（物种、生命阶段、地球年年龄、性别、外貌、性格和消息）。 | 至少一位受邀候选走完确定性回复与 admission。 |
+| 领养候选回复 | 结构化回复包含已接受的候选 ID，以及当前候选字段（物种、生命阶段、地球年年龄、性别、外貌、性格和消息）；接受的候选还携带确定性的临时身份展示（原名、建议名和自我介绍）。 | 至少一位受邀候选走完确定性回复与 admission。 |
 | Owner chat | 一条非空、第一人称 Elfie 完整回复。 | 请求穿过 WebSocket、App、NestSession、Brain 和生产模型 Adapter，且不会静默启用 Provider streaming。 |
 | 未知 Schema、工具或 Endpoint | 测试服务明确失败。 | 新增模型行为不能静默得到通用成功回复。 |
 

@@ -26,7 +26,7 @@ export type BuildChoice = "slim" | "standard" | "round" | "any"
 export type FaceChoice = "soft" | "balanced" | "defined" | "any"
 export type SignatureChoice = "warm" | "marked" | "ears" | "any"
 export type AppearancePriority = "stature" | "build" | "face" | "signature"
-export type NameMode = "custom"
+export type NameMode = "original" | "custom"
 
 export type CompanionAnswer =
   | "approach"
@@ -74,6 +74,11 @@ export type Candidate = {
 export type CandidateReply = Candidate & {
   readonly status: "accepted" | "unsure"
   readonly message: string
+  readonly reveal: {
+    readonly originalName: string
+    readonly suggestedName: string
+    readonly personalStory: string
+  } | null
 }
 
 export type AdoptionDraftState = {
@@ -118,7 +123,7 @@ export const INITIAL_ADOPTION_STATE: AdoptionDraftState = {
   selectedCandidateIds: [],
   replies: [],
   finalCandidateId: null,
-  nameMode: "custom",
+  nameMode: "original",
   customName: "",
   candidateSetId: null,
   adoptionSessionId: null,
@@ -234,5 +239,6 @@ export function intentComplete(draft: AdoptionDraft): boolean {
 export function selectedName(state: AdoptionDraftState): string {
   const candidate = state.replies.find((item) => item.candidateId === state.finalCandidateId)
   if (candidate === undefined) return ""
-  return state.customName.trim()
+  const originalName = candidate.reveal?.originalName ?? ""
+  return state.nameMode === "custom" ? state.customName.trim() || originalName : originalName
 }

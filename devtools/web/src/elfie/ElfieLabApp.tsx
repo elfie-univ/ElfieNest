@@ -16,7 +16,6 @@ import {
   type PreviewRequest,
 } from "./previewProtocol";
 import {
-  detailCloseAction,
   selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
   type DetailFocus,
@@ -52,7 +51,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTurn, setSelectedTurn] = useState<ElfieTurn | null>(null);
-  const [detailOpen, setDetailOpen] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [detailTab, setDetailTab] = useState("摘要");
   const [detailFocus, setDetailFocus] = useState<DetailFocus>("output");
   const [previewStatus, setPreviewStatus] = useState("加载中");
@@ -215,9 +214,9 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   }, []);
   useEffect(() => { if (session !== null) configure(session); }, [session]);
 
-  async function create(creation: Creation): Promise<boolean> {
+  async function create(creation: Creation): Promise<boolean | string> {
     try {
-      const created = await requestJson("elfies", sessionSchema, { method: "post", json: { ...creation, age_years: Number(creation.age_years) } });
+      const created = await requestJson("elfies", sessionSchema, { method: "post", json: { ...creation, age_years: Number(creation.age_years) }, timeout: 60_000 });
       setSession(created);
       setCreateOpen(false);
       pendingElfieSelection.current?.(created.elfie_id);
@@ -227,7 +226,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
       return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "创建失败");
-      return false;
+      return error instanceof Error ? error.message : "创建失败";
     }
   }
   async function requestDelete(id: string): Promise<void> { if (sessionRef.current?.elfie_id === id) { setDeleteTarget(sessionRef.current); return; } try { setDeleteTarget(await requestJson(`elfies/${encodeURIComponent(id)}`, sessionSchema)); } catch (error) { setNotice(error instanceof Error ? error.message : "无法读取待删除精灵"); } }
@@ -244,12 +243,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   }
   function playIntent(turn: ElfieTurn, intent: PreviewIntent): void { if (!intent.intent_id) return; setSelectedTurn(turn); setDetailFocus("output"); setDetailTab("摘要"); setDetailOpen(true); preview("preview_intent", { intent }, true, { turnId: turn.turn_id, intentId: intent.intent_id }); }
   function closeDetail(): void {
-    if (detailCloseAction(selectedTurn !== null, sessionRef.current !== null) === "show-live") {
-      setSelectedTurn(null);
-      setDetailTab("摘要");
-      setDetailOpen(true);
-      return;
-    }
+    setSelectedTurn(null);
     setDetailOpen(false);
   }
 

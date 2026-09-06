@@ -35,6 +35,13 @@ class SetupStatePort(Protocol):
 
     def save_nest_draft(self, *, bed_count: int) -> StoredSetupDraft: ...
 
+    def save_remote_draft(
+        self,
+        *,
+        configured: bool,
+        connection_id: Optional[str],
+    ) -> StoredSetupDraft: ...
+
 
 class SetupOwnerStatusPort(Protocol):
     def has_owner(self) -> bool: ...

@@ -40,6 +40,7 @@ from .ports import (
     AdoptionPolicyPort,
     AdoptionPortError,
     CandidatePortraitPort,
+    CandidateRevealPort,
     SpeciesPresentationPort,
     SpeciesRuntimeReadinessPort,
     StaticSpeciesRuntimeReadiness,
@@ -63,6 +64,7 @@ class AdoptionService:
         persistence: AdoptionPersistencePort,
         candidates: CandidateRegistry | None = None,
         portraits: CandidatePortraitPort | None = None,
+        candidate_reveal: CandidateRevealPort | None = None,
         catalog: SpeciesCatalog | None = None,
         species_presentation: SpeciesPresentationPort | None = None,
         species_runtime: SpeciesRuntimeReadinessPort | None = None,
@@ -80,6 +82,7 @@ class AdoptionService:
         )
         self._candidates = candidates or CandidateRegistry(
             portraits=portraits,
+            candidate_reveal=candidate_reveal,
             catalog=self._catalog,
         )
 

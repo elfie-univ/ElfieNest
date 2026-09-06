@@ -51,6 +51,12 @@ class SetupNestDraftRequest(BaseModel):
     bed_count: int = Field(strict=True)
 
 
+class SetupRemoteDraftRequest(BaseModel):
+    model_config = _STRICT
+    configured: bool
+    connection_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+
 class SetupInstallationRequest(BaseModel):
     model_config = _STRICT
     confirmed: Literal[True]
@@ -66,7 +72,7 @@ class SetupStepResponse(BaseModel):
 
 class SetupInstallResponse(BaseModel):
     model_config = _STRICT
-    phase: Literal["owner", "ollama", "model", "emergency_food", "nest"]
+    phase: Literal["model_validation", "common_food", "nest", "runtime"]
     action_key: str
     state: Literal["idle", "running", "failed", "completed", "cancelled"]
     progress: int
@@ -86,6 +92,9 @@ class SetupDraftResponse(BaseModel):
     offline_configured: bool
     nest_configured: bool
     locked_at: Optional[str]
+    remote_configured: bool
+    remote_skipped: bool
+    remote_connection_id: Optional[str]
 
 
 class SetupStatusResponse(BaseModel):

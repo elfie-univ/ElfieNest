@@ -125,13 +125,13 @@ describe("MonitorPage", () => {
     expect(document.querySelector("[data-slot='observation-monitor']")).toBeNull()
   })
 
-  it("redirects an ordinary client-side navigation to chat", () => {
+  it("renders the read-only monitor for an ordinary signed-in user", async () => {
     setSession(member)
 
     renderMonitor()
 
-    expect(redirects.assign).toHaveBeenCalledWith("/chat")
-    expect(document.querySelector("[data-slot='observation-monitor']")).toBeNull()
+    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
+    expect(redirects.assign).not.toHaveBeenCalled()
   })
 
   it("shows the localized session status in English without changing authorization redirects", () => {

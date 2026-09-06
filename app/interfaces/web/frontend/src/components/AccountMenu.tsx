@@ -198,8 +198,10 @@ export function AccountMenuPanel({ onClose, onLoggedOut, onUpdated, user }: Acco
 
   return <section aria-label={t("panel.label")} className="account-menu__panel" ref={panelRef}>
     <section className="account-menu__identity">
-      <input accept="image/png,image/jpeg,image/webp" aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-input" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadIdentityAvatar(file); event.target.value = "" }} ref={fileInput} type="file" />
-      <button aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-button" data-slot="button" data-variant="ghost" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
+      {editingIdentity ? <>
+        <input accept="image/png,image/jpeg,image/webp" aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-input" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadIdentityAvatar(file); event.target.value = "" }} ref={fileInput} type="file" />
+        <button aria-label={t("identity.uploadAvatar")} className="account-menu__avatar-button" data-slot="button" data-variant="ghost" disabled={saving !== null} onClick={() => fileInput.current?.click()} type="button"><Avatar imageUrl={user.avatar_url} name={displayName} /></button>
+      </> : <Avatar imageUrl={user.avatar_url} name={displayName} />}
       <div className="account-menu__identity-content">
         {editingIdentity ? <div className="account-menu__identity-edit">
           <div className="account-menu__identity-name-row">
@@ -217,7 +219,7 @@ export function AccountMenuPanel({ onClose, onLoggedOut, onUpdated, user }: Acco
           {user.birth_date ? <p><span className="account-menu__identity-label">{t("identity.birthDate")}</span>{user.birth_date}</p> : null}
         </div>}
       </div>
-      {editingIdentity ? null : <Button aria-label={t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => setEditingIdentity(true)} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>}
+      {editingIdentity ? null : <Button aria-label={t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => { setAccountIdInput(user.account_id); setBirthDateInput(user.birth_date ?? ""); setDisplayNameInput(user.display_name ?? ""); setGenderInput(gender); setEditingIdentity(true) }} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>}
     </section>
     <AccountSettingRow active={expanded === "password"} icon="lock-keyhole" label={t("sections.password")} onToggle={() => toggle("password")} summary={sectionSummary("password")}>
       <form className="account-menu__form" onSubmit={(event) => { void savePassword(event) }}>

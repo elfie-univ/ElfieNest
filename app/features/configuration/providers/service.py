@@ -896,7 +896,8 @@ class ProvidersService:
                 catalog_id=connection.catalog_id,
                 model_count=len(connection.models),
             )
-            await self._probe_reachability(connection)
+            if not command.defer_validation:
+                await self._probe_reachability(connection)
             refresh = None
             if command.refresh_models:
                 refresh = await self._refresh(connection)
@@ -916,7 +917,7 @@ class ProvidersService:
                     force_full=False,
                     reason=verification.error or verification.reason,
                 )
-            if not command.verify:
+            if not command.verify and not command.defer_validation:
                 await self._probe_representative(connection)
             result = self._connection_result(
                 connection,
@@ -1013,9 +1014,12 @@ class ProvidersService:
                 catalog_id=updated.catalog_id,
                 model_count=len(updated.models),
             )
-            if command.verify or bool(
-                set(command.fields)
-                & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+            if not command.defer_validation and (
+                command.verify
+                or bool(
+                    set(command.fields)
+                    & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+                )
             ):
                 await self._probe_reachability(updated)
             refresh = None
@@ -1037,9 +1041,13 @@ class ProvidersService:
                     force_full=False,
                     reason=verification.error or verification.reason,
                 )
-            if not command.verify and bool(
-                set(command.fields)
-                & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+            if (
+                not command.verify
+                and not command.defer_validation
+                and bool(
+                    set(command.fields)
+                    & {"api_base", "api_mode", "auth_type", "api_key", "models"}
+                )
             ):
                 await self._probe_representative(updated)
             result = self._connection_result(

@@ -182,6 +182,16 @@ describe("ChatPage profile integration", () => {
     expect(window.location.search).toBe("?view=profile&elfie=00000001")
   })
 
+  it("does not show a chat-load error while viewing another Elfie's profile", async () => {
+    chatApi.messages.mockRejectedValue(new Error("history unavailable"))
+    window.history.replaceState({}, "", "/chat?view=profile&elfie=00000001")
+
+    renderChatPage()
+
+    expect(await screen.findByRole("heading", { level: 1, name: "小羽" })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("精灵不存在")).not.toBeInTheDocument())
+  })
+
   it("threads the real API adopter identity into the profile projection", async () => {
     const realElfie = { ...elfie, elfie_id: "34567890", name: "Mochi" }
     window.history.replaceState({}, "", "/chat?view=profile&elfie=34567890")

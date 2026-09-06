@@ -204,6 +204,7 @@ class ElfiesService:
             birth_date=record.birth_date,
             summary=record.summary,
             adopted_at=record.adopted_at,
+            owner_display_name=record.owner_display_name,
             profile_status=source.status,
             big_five=big_five,
             personality_tags=_personality_tags(record.summary, big_five),

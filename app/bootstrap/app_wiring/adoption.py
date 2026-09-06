@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
 
@@ -16,8 +17,12 @@ from app.orchestration.nest_session import NestSession
 from app.orchestration.resident_admission import ResidentAdmissionService
 from elfie.public import (
     BodyPort,
+    CandidateReveal,
     ElfieFactory,
+    GenesisCandidate,
+    GenesisCandidateReveal,
     GenesisCompiler,
+    GenesisSourcePackage,
     ReasoningConstitution,
 )
 from infrastructure.godot import GodotGateway, GodotTransport, NativeBody
@@ -118,10 +123,27 @@ def build_adoption_services(
         db_path,
         nest_config=nest_config or load_nest_config(),
     )
+
+    @lru_cache(maxsize=1)
+    def load_source() -> GenesisSourcePackage:
+        """Keep the published source lazy and shared by both Genesis paths."""
+
+        return load_genesis_source_package()
+
+    class LazyCandidateReveal:
+        def __init__(self) -> None:
+            self._adapter: GenesisCandidateReveal | None = None
+
+        def reveal(self, candidate: GenesisCandidate) -> CandidateReveal:
+            if self._adapter is None:
+                self._adapter = GenesisCandidateReveal(load_source())
+            return self._adapter.reveal(candidate)
+
     adoption = AdoptionService(
         SettingsAdoptionPolicyAdapter(settings),
         adoption_persistence,
         portraits=portraits,
+        candidate_reveal=LazyCandidateReveal(),
         catalog=catalog,
         species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
         species_runtime=species_runtime,
@@ -136,7 +158,7 @@ def build_adoption_services(
         """
 
         return GenesisCompiler(
-            load_genesis_source_package(),
+            load_source(),
             catalog=catalog,
         )
 

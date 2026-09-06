@@ -1,138 +1,78 @@
 import type { TFunction } from "i18next"
 
-import type { SetupModelOption, SetupStatus } from "../api/setup"
+import type { SetupStatus } from "../api/setup"
 
 type SetupTranslation = TFunction<"setup">
-type SetupStepNumber = 1 | 2 | 3 | 4
+type SetupPhase = "model_validation" | "common_food" | "nest" | "runtime"
 
-type SetupReviewProps = {
-  readonly accountId: string
-  readonly bedCount: number
-  readonly csrfToken: string
-  readonly isInstalling: boolean
-  readonly ownerEditable: boolean
-  readonly model: SetupModelOption | undefined
-  readonly modelId: string
-  readonly ollamaStatus: string
-  readonly saving: boolean
-  readonly t: SetupTranslation
-  readonly useLocalOllama: boolean
-  readonly onConfirmInstall: () => void
-  readonly onStepChange: (step: SetupStepNumber) => void
-}
-
-export function SetupReview({
-  accountId,
-  bedCount,
-  csrfToken,
-  isInstalling,
-  ownerEditable,
-  model,
-  modelId,
-  ollamaStatus,
-  saving,
-  t,
-  useLocalOllama,
-  onConfirmInstall,
-  onStepChange,
-}: SetupReviewProps) {
-  return <section className="setup-form setup-review">
-    <div className="setup-review-row" data-testid="setup-review-row">
-      <div><strong>{t("review.owner")}</strong><span>{accountId || t("review.notConfigured")}</span></div>
-      {!isInstalling && ownerEditable && <button className="button button--quiet" onClick={() => onStepChange(1)} type="button">{t("review.modify")}</button>}
-    </div>
-    <div className="setup-review-row" data-testid="setup-review-row">
-      <div><strong>{t("review.ollama")}</strong><span>{useLocalOllama ? t("review.enabled") : t("review.disabled")} · {ollamaStatus}</span></div>
-      {!isInstalling && <button className="button button--quiet" onClick={() => onStepChange(2)} type="button">{t("review.modify")}</button>}
-    </div>
-    <div className="setup-review-row" data-testid="setup-review-row">
-      <div><strong>{t("review.model")}</strong><span>{useLocalOllama ? (model?.model_id ?? modelId) : t("review.modelDisabled")}</span></div>
-      {!isInstalling && <button className="button button--quiet" onClick={() => onStepChange(2)} type="button">{t("review.modify")}</button>}
-    </div>
-    <div className="setup-review-row" data-testid="setup-review-row">
-      <div><strong>{t("review.beds")}</strong><span>{bedCount}</span></div>
-      {!isInstalling && <button className="button button--quiet" onClick={() => onStepChange(3)} type="button">{t("review.modify")}</button>}
-    </div>
-    {!isInstalling && <div className="setup-actions"><button className="button" disabled={saving || !csrfToken} onClick={onConfirmInstall} type="button">{t("review.confirm")}</button></div>}
-  </section>
-}
-
-type SetupInstallProps = {
-  readonly draft: SetupStatus["draft"] | undefined
+type SetupCompletionProps = {
+  readonly completed: boolean
+  readonly foodConfigured: boolean
   readonly install: SetupStatus["install"] | undefined
-  readonly model: SetupModelOption | undefined
-  readonly modelId: string
-  readonly saving: boolean
   readonly lastError: string | null
+  readonly requestFailed: boolean
+  readonly saving: boolean
   readonly t: SetupTranslation
-  readonly onConfirmInstall: () => void
-  readonly onCancelInstall: () => void
-  readonly onEnterManage: () => void
+  readonly onEnter: () => void
+  readonly onRetry: () => void
 }
 
-export function SetupInstall({
-  draft,
+function validationProgress(actionKey: string): { readonly passed: number; readonly total: number } | null {
+  const match = /^model\.validation\.complete:(\d+):(\d+)$/.exec(actionKey)
+  if (match === null) return null
+  return { passed: Number(match[1]), total: Number(match[2]) }
+}
+
+function currentAction(
+  phase: SetupPhase,
+  actionKey: string,
+  t: SetupTranslation,
+): string {
+  const progress = validationProgress(actionKey)
+  if (progress !== null) return t("completion.validationProgress", progress)
+  if (actionKey === "model.validation.start") return t("completion.validationRunning")
+  if (actionKey === "model.validation.skipped") return t("completion.phaseSkipped")
+  if (actionKey === "food.common.start") return t("completion.foodRunning")
+  if (actionKey === "food.common.complete") return t("completion.foodDone")
+  if (actionKey === "food.common.skipped") return t("completion.phaseSkipped")
+  if (actionKey === "nest.initialize") return t("completion.nestRunning")
+  if (actionKey === "account.default_landing.start") return t("completion.defaultLandingRunning")
+  if (actionKey === "account.default_landing.complete") return t("completion.defaultLandingDone")
+  if (actionKey === "runtime.ready.start") return t("completion.runtimeRunning")
+  if (actionKey === "runtime.ready.complete") return t("completion.runtimeDone")
+  return t(`completion.phase.${phase}`)
+}
+
+export function SetupCompletion({
+  completed,
+  foodConfigured,
   install,
-  model,
-  modelId,
-  saving,
   lastError,
+  requestFailed,
+  saving,
   t,
-  onConfirmInstall,
-  onCancelInstall,
-  onEnterManage,
-}: SetupInstallProps) {
-  const phase = install?.phase ?? "owner"
-  const action = install?.action_key ?? "idle"
-  const actionKeys = {
-    "ollama.check": "install.actions.ollama.check",
-    "ollama.install": "install.actions.ollama.install",
-    "ollama.manual": "install.actions.ollama.manual",
-    "ollama.repair": "install.actions.ollama.repair",
-    "ollama.reuse": "install.actions.ollama.reuse",
-    "ollama.start": "install.actions.ollama.start",
-    "ollama.skipped": "install.actions.ollama.skipped",
-    "model.check": "install.actions.model.check",
-    "model.download": "install.actions.model.download",
-    "model.reuse": "install.actions.model.reuse",
-    "model.skipped": "install.actions.model.skipped",
-    "food.check": "install.actions.food.check",
-    "food.emergency": "install.actions.food.emergency",
-    "food.skipped": "install.actions.food.skipped",
-    "nest.configure": "install.actions.nest.configure",
-    "nest.apply": "install.actions.nest.configure",
-    "owner.create": "install.actions.owner.create",
-  } as const
-  const phaseActionKeys = {
-    owner: "install.actions.owner.create",
-    ollama: "install.actions.ollama.check",
-    model: "install.actions.model.check",
-    emergency_food: "install.actions.food.check",
-    nest: "install.actions.nest.configure",
-  } as const
-  const actionKey = Object.prototype.hasOwnProperty.call(actionKeys, action)
-    ? actionKeys[action as keyof typeof actionKeys]
-    : phaseActionKeys[phase] ?? "install.actions.preparing"
-  const selectedModel = model?.model_id ?? draft?.model_id ?? modelId
-  const actionText = action.startsWith("model.")
-    ? t(actionKey, { model: selectedModel })
-    : t(actionKey)
-  const statusText = install?.state === "failed"
-    ? t("install.failed")
-    : install?.state === "cancelled"
-      ? t("install.cancelled")
-    : install?.state === "completed"
-      ? t("install.completed")
-      : actionText
-  const progressValue = install?.progress ?? 0
+  onEnter,
+  onRetry,
+}: SetupCompletionProps) {
+  const state = install?.state ?? "idle"
+  const failed = !completed && (requestFailed || state === "failed" || state === "cancelled")
+  const progress = Math.max(0, Math.min(100, install?.progress ?? 0))
+  const activePhase = (install?.phase ?? "model_validation") as SetupPhase
+  const action = currentAction(activePhase, install?.action_key ?? "", t)
+  const statusText = completed ? t("completion.title") : failed ? t("completion.failed") : action
+
   return <section className="setup-form setup-install">
-    <div aria-valuemax={100} aria-valuemin={0} aria-valuenow={progressValue} className="setup-progress" role="progressbar">
-      <span className="setup-progress__bar" style={{ width: `${progressValue}%` }} />
+    <div aria-label={t("completion.progressLabel")} aria-valuemax={100} aria-valuemin={0} aria-valuenow={progress} className="setup-progress" role="progressbar">
+      <span className="setup-progress__bar" style={{ width: `${progress}%` }} />
     </div>
-    <p aria-live="polite" className="setup-task">[{progressValue}%] {statusText}</p>
-    {install?.state === "failed" && lastError && <p className="setup-install-error" role="alert">{lastError}</p>}
-    {install?.state === "running" && <div className="setup-actions"><button className="button button--quiet" disabled={saving} onClick={onCancelInstall} type="button">{t("install.cancel")}</button></div>}
-    {install?.state === "failed" && <div className="setup-actions"><button className="button" disabled={saving} onClick={onConfirmInstall} type="button">{t("install.retry")}</button></div>}
-    {install?.state === "completed" && <div className="setup-actions"><button className="button" onClick={onEnterManage} type="button">{t("install.enter")}</button></div>}
+    <p aria-live="polite" className="setup-task">[{progress}%] {statusText}</p>
+    {failed && lastError ? <p className="setup-install-error" role="alert">{lastError}</p> : null}
+    {failed ? <div className="setup-actions">
+      <button className="button" disabled={saving} onClick={onRetry} type="button">{t("completion.retry")}</button>
+      <button className="button button--quiet" disabled={saving} onClick={onEnter} type="button">{t("completion.manage")}</button>
+    </div> : null}
+    {completed ? <div className="setup-actions setup-install__complete-actions">
+      <button className="button" onClick={onEnter} type="button">{t(foodConfigured ? "completion.adopt" : "completion.manage")}</button>
+    </div> : null}
   </section>
 }

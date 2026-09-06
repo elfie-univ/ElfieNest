@@ -501,6 +501,29 @@ def test_create_uses_catalog_defaults_and_exposes_only_credential_presence() -> 
     assert technology.reachability_calls == [result.connection_id]
 
 
+def test_deferred_setup_save_skips_implicit_provider_probes() -> None:
+    service, port, _ = _service()
+
+    result = asyncio.run(
+        service.create_connection(
+            _principal(),
+            CreateProviderConnectionCommand(
+                catalog_id="openai_api",
+                api_key="test-secret",
+                models=(ProviderModelInput("gpt-test"),),
+                refresh_models=False,
+                defer_validation=True,
+            ),
+        )
+    )
+
+    technology = service._technology
+    assert isinstance(technology, FakeTechnology)
+    assert result.connection_id in port.items
+    assert technology.reachability_calls == []
+    assert technology.probed_model_references == []
+
+
 def test_manual_verification_records_zero_generation_reachability() -> None:
     service, port, _ = _service()
     port.items["openai_api_0001"] = StoredProviderConnection(

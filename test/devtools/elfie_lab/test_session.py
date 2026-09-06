@@ -46,10 +46,21 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
 
     assert turn["result"]["success"] is True
     assert turn["result"]["speech"]
+    assert "今天心情怎么样？" in turn["result"]["speech"]
     assert turn["stimulus_bundle"]["source_domain"] == "communication"
     assert turn["decision"]["message_texts"] == [turn["result"]["speech"]]
     assert turn["decision"]["motion_intents"] == []
     assert "response" not in turn["model_call"]
+    assert "request" not in turn["model_call"]
+    assert "capabilities" not in turn["model_call"]
+    assert "effective_parameters" not in turn["model_call"]
+    assert turn["trace"]["stages"]["model_calls"]
+    assert len(turn["trace"]["stages"]["model_calls"]) == 1
+    captured_call = turn["trace"]["stages"]["model_calls"][0]
+    assert captured_call["response"]
+    assert captured_call["request"]["user_prompt"].endswith("今天心情怎么样？")
+    assert captured_call["capabilities"]["provider"] == "mock"
+    assert captured_call["effective_parameters"]["max_tokens"] == 1536
     assert turn["model_call"]["model"] == "elfie-mock"
     stages = turn["trace"]["stages"]
     assert stages["typed_input"]["source"] == "developer_tool"
@@ -63,6 +74,66 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         "verify",
     ]
     assert stages["output_receipts"][-1]["status"] == "completed"
+    observability = stages["observability"]
+    assert observability["source"] == "production_turn_record"
+    assert [node["number"] for node in observability["chain"]] == [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+    ]
+    assert [node["id"] for node in observability["chain"]] == [
+        "event_admission",
+        "context_workspace",
+        "setup",
+        "reasoning_run",
+        "turn_decision",
+        "governance_delivery",
+        "settlement",
+    ]
+    setup = observability["chain"][2]
+    assert [owner["id"] for owner in setup["owner_snapshots"]] == [
+        "orientation",
+        "selfhood",
+        "emotion",
+        "energy",
+        "motivation",
+    ]
+    reasoning_run = observability["chain"][3]
+    assert [iteration["number"] for iteration in reasoning_run["iterations"]] == ["4.1"]
+    model_call = reasoning_run["iterations"][0]["model_call"]
+    context_build = reasoning_run["iterations"][0]["context_build"]
+    assert (
+        context_build["output"]["context_revision"]
+        == captured_call["request"]["context_revision"]
+    )
+    assert context_build["output"]["prompt_sections"]
+    assert "user_prompt" not in context_build["output"]
+    assert context_build["raw"]["user_prompt"]
+    assert model_call["input"]["system_prompt"]
+    assert model_call["input"]["user_prompt"].endswith("今天心情怎么样？")
+    assert model_call["effective_parameters"]["reasoning_mode"]
+    assert model_call["output"]["response"]
+    assert model_call["output"]["parsed_result"]["type"] == "answer"
+    assert model_call["output"]["parsed_result"]["content"]
+    assert (
+        observability["chain"][1]["raw"]["source"]
+        == "ModelGenerationRequest.user_prompt"
+    )
+    assert setup["baseline_memory"]["evidence_basis"] == "model_request.RELEVANT_MEMORY"
+    assert all("used_by" not in owner for owner in setup["owner_snapshots"])
+    assert all(
+        owner["evidence_basis"] == "state_before" for owner in setup["owner_snapshots"]
+    )
+    assert reasoning_run["iterations"][0]["guard"]["status"] == "skipped"
+    assert (
+        "separate Guard record"
+        in reasoning_run["iterations"][0]["guard"]["skip_reason"]
+    )
+    assert observability["chain"][6]["output"]["duration_ms"] == turn["duration_ms"]
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
         == turn["turn_id"]

@@ -30,12 +30,18 @@ class StoredSetupDraft:
     offline_configured: bool
     nest_configured: bool
     locked_at: Optional[str]
+    remote_configured: bool = False
+    remote_skipped: bool = False
+    remote_connection_id: Optional[str] = None
+
+    @property
+    def remote_decided(self) -> bool:
+        """Whether the user completed or explicitly skipped remote Food setup."""
+        return self.remote_configured or self.remote_skipped
 
     @property
     def complete(self) -> bool:
-        return (
-            self.owner_configured and self.offline_configured and self.nest_configured
-        )
+        return self.owner_configured and self.remote_decided
 
 
 @dataclass(frozen=True)

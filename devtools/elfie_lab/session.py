@@ -21,6 +21,7 @@ from devtools.elfie_lab.schemas import (
 from devtools.elfie_lab.session_projection import build_profile, build_snapshot
 from devtools.elfie_lab.session_state import apply_state_injection, model_skip_reason
 from devtools.elfie_lab.storage import ElfieLabStorage
+from devtools.elfie_lab.trace_projection import build_observability_trace
 from devtools.elfie_lab.turn_projection import project_decision
 from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
@@ -202,6 +203,9 @@ class ElfieLabSession:
                             if reasoning is not None
                             else None
                         ),
+                        "model_calls": [
+                            dict(call) for call in getattr(model_execution, "calls", [])
+                        ],
                     },
                     "warnings": [],
                 }
@@ -225,6 +229,25 @@ class ElfieLabSession:
                     **trace.get("stages", {}),
                 }
             state_after = self.snapshot()
+            try:
+                trace.setdefault("stages", {})["observability"] = (
+                    build_observability_trace(
+                        turn_id=turn_id,
+                        stimulus=asdict(stimulus),
+                        state_before=state_before,
+                        state_after=state_after,
+                        state_diff=calculate_state_diff(state_before, state_after),
+                        raw_stages=trace.get("stages", {}),
+                        result=result,
+                        decision=decision,
+                        duration_ms=duration_ms,
+                        warnings=trace.get("warnings", []),
+                    )
+                )
+            except Exception as projection_error:  # pragma: no cover - safety boundary
+                trace.setdefault("warnings", []).append(
+                    f"observability_projection:{type(projection_error).__name__}"
+                )
             model_call = model_call_summary(
                 model_execution.calls[-1]
                 if model_execution is not None and model_execution.calls

@@ -31,7 +31,7 @@ def test_create_app_installs_the_bundled_species_catalog(
     ) == frozenset({"dog", "fox"})
 
 
-def test_create_elfie_requires_complete_profile_and_derives_life_stage(
+def test_create_elfie_requires_core_profile_and_allows_optional_personality(
     tmp_path, client_for
 ):
     # Given
@@ -49,11 +49,17 @@ def test_create_elfie_requires_complete_profile_and_derives_life_stage(
             "species_id",
             "age_years",
             "description",
-            "personality_description",
             "appearance_description",
         )
     }
-    created = client.post("/api/elfies", json=payload)
+    created = client.post(
+        "/api/elfies",
+        json={
+            key: value
+            for key, value in payload.items()
+            if key != "personality_description"
+        },
+    )
 
     # Then
     assert all(response.status_code == 422 for response in responses.values())
@@ -150,7 +156,7 @@ def test_app_create_elfie_and_chat(tmp_path, client_for):
     assert len(restored.json()["turns"]) == 1
 
 
-def test_create_elfie_derives_personality_and_preserves_appearance_text(
+def test_create_elfie_uses_random_personality_and_preserves_appearance_text(
     tmp_path, client_for
 ):
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
@@ -168,10 +174,14 @@ def test_create_elfie_derives_personality_and_preserves_appearance_text(
     profile = response.json()["profile"]
     assert profile["appearance_description"] == "银白色毛发，耳尖是灰色"
     assert profile["personality_description"] == "温柔、乖巧，也很爱探索"
-    assert 0.7 <= profile["big_five"]["agreeableness"] <= 0.95
-    assert profile["personality_derivation"]["preset"] == "Genesis"
-    assert profile["personality_derivation"]["provenance"] == "genesis"
-    assert profile["personality_derivation"]["overridden_traits"] == []
+    assert set(profile["big_five"]) == {
+        "openness",
+        "conscientiousness",
+        "extraversion",
+        "agreeableness",
+        "neuroticism",
+    }
+    assert all(0.2 <= value <= 0.8 for value in profile["big_five"].values())
 
 
 def test_app_lifespan_stops_registered_elfie_sessions(tmp_path):

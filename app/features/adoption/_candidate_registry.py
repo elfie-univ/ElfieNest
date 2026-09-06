@@ -40,7 +40,7 @@ from .models import (
     LifeStage,
     SpeciesId,
 )
-from .ports import CandidatePortraitPort
+from .ports import CandidatePortraitPort, CandidateRevealPort
 
 _CANDIDATE_TTL_SECONDS = 5 * 60 * 60
 _MAX_CANDIDATE_BATCHES = 3
@@ -98,9 +98,9 @@ class CandidateSessionSnapshot:
 class CandidateRegistry:
     """Own the bounded candidate workspace used by the current API slice.
 
-    The registry deliberately keeps Genesis output structural.  Acceptance is a
-    deterministic interaction decision; names, stories and other semantic facts
-    are compiled later by Genesis from the accepted candidate and source package.
+    Candidate creation stays structural.  After acceptance, the registry may
+    attach a short identity projection for the welcome screen; the durable
+    resident is still compiled later by Genesis.
     """
 
     def __init__(
@@ -108,11 +108,13 @@ class CandidateRegistry:
         *,
         genesis: GenesisEngine | None = None,
         portraits: CandidatePortraitPort | None = None,
+        candidate_reveal: CandidateRevealPort | None = None,
         catalog: SpeciesCatalog | None = None,
     ) -> None:
         self._catalog = catalog
         self._genesis = genesis or GenesisEngine(catalog=catalog)
         self._portraits = portraits
+        self._candidate_reveal = candidate_reveal
         self._candidate_sets: dict[str, CandidateSetSnapshot] = {}
         self._sessions: dict[str, CandidateSessionSnapshot] = {}
         self._active_sessions_by_owner: dict[int, str] = {}
@@ -309,6 +311,19 @@ class CandidateRegistry:
             status: CandidateReplyStatus = (
                 "accepted" if candidate_id in accepted_ids else "unsure"
             )
+            reveal = None
+            if status == "accepted" and self._candidate_reveal is not None:
+                try:
+                    reveal = self._candidate_reveal.reveal(candidate.genesis)
+                except (OSError, RuntimeError, ValueError) as error:
+                    self._restore_reply_phase(
+                        snapshot.adoption_session_id,
+                        owner_user_id,
+                        in_flight_version,
+                    )
+                    raise AdoptionUnavailable(
+                        "候选身份暂时不可用，请稍后重试"
+                    ) from error
             replies.append(
                 CandidateReplyResult(
                     candidate=candidate.public,
@@ -318,6 +333,7 @@ class CandidateRegistry:
                         if status == "accepted"
                         else "我还想再想一想，但很高兴收到你的信。"
                     ),
+                    reveal=reveal,
                 )
             )
         with self._registry_lock:
@@ -346,6 +362,22 @@ class CandidateRegistry:
                 candidate_set_id=candidate_set_id,
                 replies=tuple(replies),
             )
+
+    def _restore_reply_phase(
+        self,
+        adoption_session_id: str,
+        owner_user_id: int,
+        in_flight_version: int,
+    ) -> None:
+        with self._registry_lock:
+            current = self._sessions.get(adoption_session_id)
+            if current is not None and current.owner_user_id == owner_user_id:
+                if current.version == in_flight_version:
+                    self._sessions[adoption_session_id] = replace(
+                        current,
+                        phase="candidates_ready",
+                        version=current.version + 1,
+                    )
 
     def accepted(
         self,

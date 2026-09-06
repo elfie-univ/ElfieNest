@@ -5,7 +5,7 @@ import { csrfHeaders, requestJson } from "./http"
 const SetupStatusSchema = z.object({
   need_setup: z.boolean(),
   complete: z.boolean(),
-  current_step: z.number().int().min(1).max(4),
+  current_step: z.number().int().min(1).max(3),
   locked: z.boolean(),
   csrf_token: z.string().nullable(),
   draft: z.object({
@@ -13,14 +13,15 @@ const SetupStatusSchema = z.object({
     password_configured: z.boolean(), use_local_ollama: z.boolean().nullable(),
     ollama_installed: z.boolean(), model_id: z.string().nullable(), bed_count: z.number().int().nullable(),
     owner_configured: z.boolean(), offline_configured: z.boolean(), nest_configured: z.boolean(), locked_at: z.string().nullable(),
+    remote_configured: z.boolean(), remote_skipped: z.boolean(), remote_connection_id: z.string().nullable(),
   }),
   steps: z.array(z.object({
-    number: z.number().int().min(1).max(4), name: z.string(),
+    number: z.number().int().min(1).max(3), name: z.string(),
     status: z.enum(["pending", "current", "completed"]), retry_action: z.string().nullable(),
   })),
   last_error: z.string().nullable(),
   install: z.object({
-    phase: z.enum(["owner", "ollama", "model", "emergency_food", "nest"]),
+    phase: z.enum(["model_validation", "common_food", "nest", "runtime"]),
     action_key: z.string(), state: z.enum(["idle", "running", "failed", "completed", "cancelled"]),
     progress: z.number().int().min(0).max(100), error_key: z.string().nullable(),
   }),
@@ -64,6 +65,11 @@ export async function setupSaveOfflineDraft(useLocalOllama: boolean, modelId: st
 export async function setupSaveNestDraft(bedCount: number, csrfToken: string): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/v1/setup/draft/nest", {
     method: "PUT", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ bed_count: bedCount }),
+  }))
+}
+export async function setupSaveRemoteDraft(configured: boolean, connectionId: string | null, csrfToken: string): Promise<SetupStatus> {
+  return SetupStatusSchema.parse(await requestJson("/api/v1/setup/draft/remote", {
+    method: "PUT", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ configured, connection_id: connectionId }),
   }))
 }
 export async function setupInstall(csrfToken: string): Promise<SetupStatus> {

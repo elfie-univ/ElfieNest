@@ -12,6 +12,7 @@ from infrastructure.models.model_execution_contracts import (
     StructuredModelExecutionRequest,
 )
 from test.support.model_execution import model_execution_config
+from test.support.model_execution_agent import model_execution_agent_ports
 
 
 def test_runtime_never_selects_arbitrary_custom_food(monkeypatch):
@@ -96,6 +97,7 @@ def test_ollama_connection_advertises_json_mode_for_decision_decoding(
     monkeypatch,
 ) -> None:
     agent = object.__new__(ModelExecutionAgent)
+    agent._live_reload = False
     agent.config = model_execution_config(
         providers={"ollama_0001": {"api_mode": "ollama"}}
     )
@@ -118,10 +120,57 @@ def test_ollama_connection_advertises_json_mode_for_decision_decoding(
     assert capabilities.supports_tool_calling is False
 
 
+def test_structured_capabilities_reloads_config_before_resolving_food(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("ELFIE_HOME", str(tmp_path))
+    config_path = tmp_path / "provider-config.yaml"
+    loaded: list[object] = []
+    refreshed = model_execution_config(
+        providers={"new_0001": {"api_mode": "chat_completions"}}
+    )
+    ports = model_execution_agent_ports()
+    ports.config_paths = lambda: (config_path,)
+
+    def load_refreshed_config():
+        loaded.append(refreshed)
+        return refreshed
+
+    ports.model_execution_config_loader = load_refreshed_config
+    agent = ModelExecutionAgent(
+        model_execution_config(
+            providers={"old_0001": {"api_mode": "chat_completions"}}
+        ),
+        ports=ports,
+        live_reload=True,
+    )
+    agent._load_food_catalog = lambda: FoodCatalog(
+        global_default_food_id="qa_food",
+        packages={
+            "qa_food": FoodPackage(
+                key="qa_food",
+                display_name="QA",
+                primary=FoodAssignment("new_0001/model"),
+            )
+        },
+    )
+    monkeypatch.setattr(agent, "_package_usable", lambda package: True)
+
+    config_path.write_text("updated", encoding="utf-8")
+
+    capabilities = agent.structured_capabilities()
+
+    assert loaded == [refreshed]
+    assert agent.config is refreshed
+    assert capabilities.provider == "new_0001"
+
+
 def test_openai_compatible_connection_advertises_prompt_constrained_json_mode(
     monkeypatch,
 ) -> None:
     agent = object.__new__(ModelExecutionAgent)
+    agent._live_reload = False
     agent.config = model_execution_config(
         providers={"custom_0001": {"api_mode": "chat_completions"}}
     )
