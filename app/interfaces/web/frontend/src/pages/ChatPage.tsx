@@ -102,6 +102,7 @@ export function ChatPage() {
   const [elfieFilter, setElfieFilter] = useState<ElfieListFilter>("all")
   const reconcileTimerRef = useRef<number | null>(null)
   const reconcileGenerationRef = useRef(0)
+  const dataLoadGenerationRef = useRef(0)
   const historyLoadGenerationRef = useRef(0)
   const optimisticMessageSequenceRef = useRef(0)
 
@@ -150,12 +151,27 @@ export function ChatPage() {
 
   useEffect(() => {
     if (user === null) return
-    void Promise.all([elfies(), conversations()])
+    const generation = dataLoadGenerationRef.current + 1
+    dataLoadGenerationRef.current = generation
+    const load = async (): Promise<readonly [Awaited<ReturnType<typeof elfies>>, Awaited<ReturnType<typeof conversations>>]> => {
+      let lastError: unknown
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await Promise.all([elfies(), conversations()])
+        } catch (reason: unknown) {
+          lastError = reason
+          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 300))
+        }
+      }
+      throw lastError
+    }
+    void load()
       .then(([visibleElfies, rows]) => {
+        if (dataLoadGenerationRef.current !== generation) return
         setData(createOwnedChatData(visibleElfies, rows, user.account_id))
-        setFailure(null)
       })
       .catch((reason: unknown) => {
+        if (dataLoadGenerationRef.current !== generation) return
         setData(null)
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
@@ -173,6 +189,7 @@ export function ChatPage() {
 
   useEffect(() => {
     if (data === null || selectedId === null) return
+    setFailure(null)
     if (!data.elfies.some((entry) => entry.elfie_id === selectedId)) correct({ view: "elfies" })
   }, [correct, data, selectedId])
 
@@ -180,7 +197,7 @@ export function ChatPage() {
     const generation = historyLoadGenerationRef.current + 1
     historyLoadGenerationRef.current = generation
     setHistory([])
-    if (selectedId === null) {
+    if (activePane !== "chats" || selectedId === null) {
       return
     }
     void messages(selectedId)
@@ -193,13 +210,14 @@ export function ChatPage() {
         if (historyLoadGenerationRef.current !== generation) return
         setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
       })
-  }, [selectedId])
+  }, [activePane, selectedId])
 
   useEffect(() => {
     setSelectedProfile(null)
     setSelectedFoodPolicy(null)
     setSelectedTelegramAccount(null)
     setSelectedDiscordAccount(null)
+    setFailure(null)
     setTelegramAccountLoading(false)
     setTelegramAccountError(null)
     setDiscordAccountLoading(false)
@@ -227,9 +245,7 @@ export function ChatPage() {
         setTelegramAccountLoading(false)
         setDiscordAccountLoading(false)
       })
-      .catch((reason: unknown) => {
-        setFailure({ detail: reason instanceof ApiError ? reason.message : null, operation: "chat.load" })
-      })
+      .catch(() => undefined)
   }, [selectedId, viewState.view])
 
   useEffect(() => {

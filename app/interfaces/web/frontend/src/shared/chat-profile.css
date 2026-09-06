@@ -143,9 +143,10 @@
 }
 .profile-dossier__portrait img { width: 100%; height: 100%; object-fit: cover; }
 .profile-dossier__identity-copy { grid-area: identity; min-width: 0; padding-top: 2px; container-type: inline-size; }
-.profile-dossier__name-row { display: flex; min-width: 0; align-items: baseline; gap: 10px 14px; }
+.profile-dossier__name-row { display: flex; min-width: 0; align-items: flex-start; gap: 10px 14px; }
 .profile-dossier__name-row h1 { position: relative; }
 .profile-dossier__identity h1 {
+  width: fit-content;
   margin: 0;
   color: var(--text);
   font-size: clamp(34px, 4vw, 52px);
@@ -170,9 +171,7 @@
   line-height: 1;
 }
 .profile-dossier__attributes .profile-dossier__gender {
-  position: absolute;
-  top: -0.15em;
-  right: -0.8em;
+  position: static;
   display: inline !important;
   width: auto;
   height: auto;
