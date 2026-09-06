@@ -462,7 +462,7 @@ export function ChatPage() {
           <Button aria-label={t("navigation.me")} className={mobileSection === "me" ? "mobile-tabbar__item mobile-tabbar__item--active" : "mobile-tabbar__item"} onClick={() => openMobileSection("me")} type="button" variant="ghost"><AccountIdentityAvatar user={user} /><span>{t("navigation.me")}</span></Button>
         </nav>
       </section>
-      <AdoptionJourneyDialog accountId={user.account_id} csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} onOpenChange={setShowAdoption} onRefreshCsrfToken={refreshCsrfToken} open={showAdoption} />
+      <AdoptionJourneyDialog accountCreatedAt={user.created_at} accountId={user.account_id} csrfToken={user.csrf_token ?? ""} onAdopted={adoptionCompleted} onOpenChange={setShowAdoption} onRefreshCsrfToken={refreshCsrfToken} open={showAdoption} />
       {showMobileAccess ? <MobileAccessDialog onClose={() => setShowMobileAccess(false)} targetPath="/chat" /> : null}
     </main>
   )
