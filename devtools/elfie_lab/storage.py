@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import secrets
 import shutil
 import sqlite3
 import tempfile
@@ -76,7 +77,7 @@ class ElfieLabStorage:
         description: str = "用于本地调试的单精灵",
         *,
         appearance_description: str = "默认测试外貌",
-        personality_description: str = "平衡、稳定",
+        personality_description: str = "",
         elfie_id: Optional[str] = None,
         big_five_overrides: Optional[Dict[str, float]] = None,
     ) -> ElfieSpec:
@@ -96,7 +97,6 @@ class ElfieLabStorage:
             raise ValueError("精灵年龄必须是 1 到 100 岁之间的整数")
         required_text = {
             "用途描述": description,
-            "性格描述": personality_description,
             "外貌描述": appearance_description,
         }
         for label, value in required_text.items():
@@ -109,6 +109,16 @@ class ElfieLabStorage:
         if self.profile_path(selected_elfie_id).exists():
             raise ValueError(f"测试精灵已经存在: {selected_elfie_id}")
         normalized_age = float(age_years)
+        random_big_five = big_five_overrides or {
+            trait: round(secrets.SystemRandom().uniform(0.2, 0.8), 4)
+            for trait in (
+                "openness",
+                "conscientiousness",
+                "extraversion",
+                "agreeableness",
+                "neuroticism",
+            )
+        }
         spec = ElfieSpec(
             elfie_id=selected_elfie_id,
             name=clean_name,
@@ -119,7 +129,7 @@ class ElfieLabStorage:
             appearance_description=appearance_description.strip(),
             personality_description=personality_description.strip(),
         )
-        self._save_character_profile(spec, big_five_overrides)
+        self._save_character_profile(spec, random_big_five)
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         return spec
 

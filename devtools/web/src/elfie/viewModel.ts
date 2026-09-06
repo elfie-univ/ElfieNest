@@ -11,9 +11,10 @@ export function formatSignedDelta(before: number, after: number): string {
   return `${delta > 0 ? "+" : ""}${rounded(delta)}`;
 }
 
-export function creationAgeError(ageYears: string): string | null {
+export function creationAgeError(ageYears: string, speciesId = "dog"): string | null {
   const age = Number(ageYears);
-  return Number.isFinite(age) && age > 0 ? null : "年龄必须大于 0";
+  const max = speciesId === "fox" ? 15 : 20;
+  return Number.isInteger(age) && age >= 1 && age <= max ? null : `年龄必须是 1 到 ${max} 岁之间的整数`;
 }
 
 export function createSubmissionGate(): {
@@ -58,11 +59,4 @@ export function detailTitle(focus: DetailFocus, tab: string): string {
   if (tab === "链路" || focus === "chain") return "完整处理链路";
   if (focus === "input") return "输入与感知";
   return "决策与执行";
-}
-
-export function detailCloseAction(
-  hasSelectedTurn: boolean,
-  hasSession: boolean,
-): "show-live" | "close" {
-  return hasSelectedTurn && hasSession ? "show-live" : "close";
 }

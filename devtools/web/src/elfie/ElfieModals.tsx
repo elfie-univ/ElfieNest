@@ -26,7 +26,7 @@ type Props = Readonly<{
   readonly onElfieManagementCreate: () => void;
   readonly onElfieManagementSelect: (id: string) => void;
   readonly onElfieManagementDelete: (id: string) => void;
-  readonly onCreate: (creation: Creation) => Promise<boolean>;
+  readonly onCreate: (creation: Creation) => Promise<boolean | string>;
   readonly onConfigurationClose: () => void;
   readonly onConfigureFood: (configuration: FoodConfiguration) => Promise<string>;
   readonly onDeleteFood: (foodId: string) => Promise<void>;
@@ -57,9 +57,9 @@ const traits: readonly [keyof BigFive, string][] = [
 const initialCreation: Creation = {
   name: "",
   species_id: "dog",
-  age_years: "",
-  description: "",
-  appearance_description: "",
+  age_years: "2",
+  description: "用于本地调试的单精灵",
+  appearance_description: "默认测试外貌",
   personality_description: "",
 };
 
@@ -286,7 +286,7 @@ export function ElfieModals(props: Props): React.JSX.Element {
   async function submitCreation(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!creationGate.current.enter()) return;
-    const validationError = creationAgeError(creation.age_years);
+    const validationError = creationAgeError(creation.age_years, creation.species_id);
     if (validationError !== null) {
       creationGate.current.leave();
       setCreateError(validationError);
@@ -296,7 +296,7 @@ export function ElfieModals(props: Props): React.JSX.Element {
     setCreateError("");
     try {
       const created = await props.onCreate(creation);
-      if (!created) setCreateError("创建失败，请查看页面提示后重试");
+      if (created !== true) setCreateError(typeof created === "string" ? created : "创建失败");
     } finally {
       creationGate.current.leave();
       setCreating(false);
@@ -520,10 +520,7 @@ export function ElfieModals(props: Props): React.JSX.Element {
       <form aria-label="新建测试精灵" className="lab-form" onSubmit={(event) => { void submitCreation(event); }}>
         <label>精灵物种<Select onChange={(value) => setCreationValue("species_id", value)} options={[{ label: "小狗", value: "dog" }, { label: "狐狸", value: "fox" }]} value={creation.species_id} /></label>
         <label>精灵名称<Input autoComplete="off" maxLength={60} onChange={(event) => setCreationValue("name", event.target.value)} placeholder="给它起一个名字" required value={creation.name} /></label>
-        <label>年龄（岁）<Input max="100" min="0.1" onChange={(event) => setCreationValue("age_years", event.target.value)} placeholder="例如：2" required step="0.1" type="number" value={creation.age_years} /></label>
-        <label>用途与角色<Input.TextArea maxLength={240} onChange={(event) => setCreationValue("description", event.target.value)} placeholder="例如：陪伴我验证日常对话、记忆和动作" required rows={2} value={creation.description} /></label>
-        <label>性格描述<Input.TextArea maxLength={1000} onChange={(event) => setCreationValue("personality_description", event.target.value)} placeholder="例如：温柔、安静，但对新事物很好奇" required rows={3} value={creation.personality_description} /></label>
-        <label>外貌描述<Input.TextArea maxLength={1000} onChange={(event) => setCreationValue("appearance_description", event.target.value)} placeholder="例如：银白色毛发，耳尖是灰色" required rows={3} value={creation.appearance_description} /></label>
+        <label>用途描述<Input.TextArea maxLength={240} onChange={(event) => setCreationValue("description", event.target.value)} placeholder="例如：验证普通聊天" required rows={2} value={creation.description} /></label>
         {createError ? <Alert message={createError} showIcon type="error" /> : null}
         <div className="modal-actions"><Button disabled={creating} onClick={props.onCreateClose}>取消</Button><Button htmlType="submit" loading={creating} type="primary">创建并切换</Button></div>
       </form>

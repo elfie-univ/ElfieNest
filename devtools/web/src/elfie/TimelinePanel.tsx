@@ -65,6 +65,11 @@ function turnSourceLabel(turn: ElfieTurn): string {
   return `${source} · ${modality}`;
 }
 
+function turnDurationLabel(durationMs: unknown): string | null {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
+  return durationMs < 1000 ? `${Math.round(durationMs)} ms` : `${(durationMs / 1000).toFixed(2)} s`;
+}
+
 function avatar(url: string, name: string, epoch: number, developer = false): React.JSX.Element {
   const source = url ? `${url}${url.includes("?") ? "&" : "?"}v=${epoch}` : "";
   return <span aria-hidden="true" className={developer ? "message-avatar developer-avatar" : "message-avatar"}>{source ? <img alt="" src={source} /> : developer ? <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" /></svg> : <b>{name.slice(0, 1) || "艾"}</b>}</span>;
@@ -87,7 +92,8 @@ function TurnList({ session, onPreviewIntent, onSelect, epoch }: Readonly<{ read
   if (!session.turns.length) return <section className="timeline-placeholder"><div className="signal-mark"><i /><i /><i /></div><h3>等待第一次刺激</h3><p>发送一句话，或打开实验刺激构造边界状态。</p></section>;
   return <>{session.turns.map((turn, index) => {
     const intents = actionIntents(turn).filter((intent) => (intent.type === "motion" || intent.type === "expression") && Boolean(intent.intent_id));
-    return <article className="turn" key={turn.turn_id}><div className="turn-meta">TURN {String(index + 1).padStart(2, "0")} · {new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</div><div className="bubble-row user">{avatar("", "", epoch, true)}<Button className="bubble" onClick={() => onSelect(turn, "input")} type="text"><span className="bubble-label"><span>开发者刺激</span><span className="channel">{turnSourceLabel(turn)}</span></span><p>{turn.stimulus_bundle.message || "非文字刺激"}</p>{turn.used_state_injection ? <span className="bubble-tag warning">状态注入</span> : null}</Button></div><Button className="process-line" onClick={() => onSelect(turn, "chain")} type="text">感知 <i /> 决策 <i /> {turn.duration_ms ?? 0}ms</Button><div className="bubble-row elfie">{avatar(session.profile.portrait_url, session.profile.name, epoch)}<div><Button className={turn.result.success === false ? "bubble error" : "bubble"} onClick={() => onSelect(turn, "output")} type="text"><span className="bubble-label">{session.profile.name}</span><p>{turnText(turn)}</p>{tags(turn).map((tag) => <span className="bubble-tag" key={tag}>{tag}</span>)}</Button>{intents.length ? <div className="turn-actions" aria-label="动作回放">{intents.map((intent) => <Button className="turn-action" key={intent.intent_id} onClick={() => onPreviewIntent(turn, intent)} size="small" type="default">{intentLabel(intent)}</Button>)}</div> : null}</div></div></article>;
+    const duration = turnDurationLabel(turn.duration_ms);
+    return <article className="turn" key={turn.turn_id}><div className="turn-meta">TURN {String(index + 1).padStart(2, "0")} · {new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</div><div className="bubble-row user">{avatar("", "", epoch, true)}<Button className="bubble" onClick={() => onSelect(turn, "input")} type="text"><span className="bubble-label"><span>开发者刺激</span><span className="channel">{turnSourceLabel(turn)}</span></span><p>{turn.stimulus_bundle.message || "非文字刺激"}</p>{turn.used_state_injection ? <span className="bubble-tag warning">状态注入</span> : null}</Button></div><div className="bubble-row elfie">{avatar(session.profile.portrait_url, session.profile.name, epoch)}<div><Button className={turn.result.success === false ? "bubble error" : "bubble"} onClick={() => onSelect(turn, "output")} type="text"><span className="bubble-label">{session.profile.name}</span><p>{turnText(turn)}</p>{tags(turn).map((tag) => <span className="bubble-tag" key={tag}>{tag}</span>)}</Button>{duration ? <small className="turn-duration">本轮耗时 · {duration}</small> : null}{intents.length ? <div className="turn-actions" aria-label="动作回放">{intents.map((intent) => <Button className="turn-action" key={intent.intent_id} onClick={() => onPreviewIntent(turn, intent)} size="small" type="default">{intentLabel(intent)}</Button>)}</div> : null}</div></div></article>;
   })}</>;
 }
 
