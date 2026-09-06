@@ -219,7 +219,7 @@ export function AccountMenuPanel({ onClose, onLoggedOut, onUpdated, user }: Acco
           {user.birth_date ? <p><span className="account-menu__identity-label">{t("identity.birthDate")}</span>{user.birth_date}</p> : null}
         </div>}
       </div>
-      {editingIdentity ? null : <Button aria-label={t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => setEditingIdentity(true)} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>}
+      {editingIdentity ? null : <Button aria-label={t("identity.editDisplayName")} className="account-menu__edit" disabled={saving !== null} onClick={() => { setAccountIdInput(user.account_id); setBirthDateInput(user.birth_date ?? ""); setDisplayNameInput(user.display_name ?? ""); setGenderInput(gender); setEditingIdentity(true) }} size="icon" type="button" variant="ghost"><Icon name="pencil" size={16} /></Button>}
     </section>
     <AccountSettingRow active={expanded === "password"} icon="lock-keyhole" label={t("sections.password")} onToggle={() => toggle("password")} summary={sectionSummary("password")}>
       <form className="account-menu__form" onSubmit={(event) => { void savePassword(event) }}>

@@ -69,7 +69,7 @@ export function PersonalIdentityFrame({
               </span>
             )}
             <span aria-label={species} className="profile-dossier__species">
-              {speciesIcon()}
+              {species}
             </span>
           </div>
         </div>
@@ -134,10 +134,6 @@ function speciesLabel(
     return language.startsWith("zh") ? definition.display_name_zh : definition.display_name
   }
   return speciesId
-}
-
-function speciesIcon(): string {
-  return "✦"
 }
 
 function formatDateOnly(value: string | undefined): string {

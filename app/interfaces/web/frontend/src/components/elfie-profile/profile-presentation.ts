@@ -73,7 +73,9 @@ function presentApiProfile(
   return {
     ageLabel: ageLabel(profile.birth_date),
     kind: "visitor",
-    ownerDisplayName: adopterAccountId ?? "未登记",
+    // The public projection may intentionally omit the account identifier, but
+    // every persisted Elfie is adopted. Never present that redaction as missing ownership.
+    ownerDisplayName: profile.owner_display_name ?? adopterAccountId ?? "已登记",
     publicProfile,
   }
 }

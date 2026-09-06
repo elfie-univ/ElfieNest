@@ -50,6 +50,7 @@ class ElfieProfileResponse(_StrictModel):
     birth_date: Optional[str]
     summary: Optional[str]
     adopted_at: str
+    owner_display_name: Optional[str]
     profile_status: Literal["ready", "empty", "unavailable"]
     big_five: Optional[BigFiveResponse]
     personality_tags: tuple[str, ...]

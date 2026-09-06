@@ -45,6 +45,7 @@ export const ElfieProfileSchema = z.object({
   birth_date: z.string().nullable(),
   summary: z.string().nullable(),
   adopted_at: z.string(),
+  owner_display_name: z.string().nullable().optional(),
   profile_status: z.enum(["ready", "empty", "unavailable"]),
   big_five: BigFiveSchema.nullable(),
   personality_tags: z.array(z.string()),
