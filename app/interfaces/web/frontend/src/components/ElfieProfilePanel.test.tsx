@@ -171,10 +171,10 @@ describe("ElfieProfilePanel", () => {
     expect(identity).not.toHaveTextContent("你的精灵")
     expect(identity).not.toHaveTextContent("关于我")
     expect([...metadata.children].map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
-      "年龄1 个月",
-      "主人我",
-      "领养日期2026-06-30",
-      "ID12345678",
+      "年龄：1 个月",
+      "主人：我",
+      "领养日期：2026-06-30",
+      "ID：12345678",
     ])
     expect(biography.querySelector("span")?.textContent).toBe("简介：")
     expect(biography.querySelector("p")?.textContent).toBe(HAPPY_EXPERIENCE.publicProfile.biography)
