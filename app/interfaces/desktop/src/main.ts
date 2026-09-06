@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import {
-  APPLICATION_MENU,
+  applicationMenuTemplate,
   backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
@@ -511,7 +511,6 @@ async function startDesktop(): Promise<void> {
 }
 
 function startDesktopUiRole(): void {
-  Menu.setApplicationMenu(APPLICATION_MENU);
   const configuredAppData = process.env["ELFIENEST_DESKTOP_APP_DATA"]?.trim();
   const controllerHome = controllerHomeForAppData(
     configuredAppData === undefined || configuredAppData === ""
@@ -573,6 +572,10 @@ function startDesktopUiRole(): void {
     .whenReady()
     .then(() => {
       const locale = normalizeApplicationMenuLocale(app.getLocale());
+      const menuTemplate = applicationMenuTemplate(process.platform, locale);
+      Menu.setApplicationMenu(
+        menuTemplate === null ? null : Menu.buildFromTemplate(menuTemplate),
+      );
       createBackgroundTray(locale);
       if (!controllerOnly) {
         showManagementWindow();
