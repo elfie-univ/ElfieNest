@@ -585,7 +585,7 @@ function StepList({
   readonly completion?: boolean;
 }>): React.JSX.Element | null {
   if (!steps.length) return null;
-  return <section className="trace-step-section">{title ? <h4>{title}</h4> : null}<div className="trace-step-list">{steps.map((value, index) => {
+  const list = <div className="trace-step-list">{steps.map((value, index) => {
     const step = record(value);
     const id = `${idPrefix}-${String(step.ordinal ?? index)}`;
     const itemTitle = completion ? "Completion Judge" : step.operation === "memory_recall" ? "Memory Recall" : String(step.operation ?? step.kind ?? `Step ${index + 1}`);
@@ -602,7 +602,8 @@ function StepList({
     >
       <StepBody completion={completion} step={step} />
     </TraceDisclosure>;
-  })}</div></section>;
+  })}</div>;
+  return title ? <section className="trace-step-section"><h4>{title}</h4>{list}</section> : list;
 }
 
 function ObservationStage({
