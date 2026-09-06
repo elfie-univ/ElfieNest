@@ -575,7 +575,7 @@ function StepList({
   onToggle,
   completion = false,
 }: Readonly<{
-  readonly title: string;
+  readonly title?: string;
   readonly steps: readonly unknown[];
   readonly numberStart: number;
   readonly numberPrefix: string;
@@ -585,7 +585,7 @@ function StepList({
   readonly completion?: boolean;
 }>): React.JSX.Element | null {
   if (!steps.length) return null;
-  return <section className="trace-step-section"><h4>{title}</h4><div className="trace-step-list">{steps.map((value, index) => {
+  return <section className="trace-step-section">{title ? <h4>{title}</h4> : null}<div className="trace-step-list">{steps.map((value, index) => {
     const step = record(value);
     const id = `${idPrefix}-${String(step.ordinal ?? index)}`;
     const itemTitle = completion ? "Completion Judge" : step.operation === "memory_recall" ? "Memory Recall" : String(step.operation ?? step.kind ?? `Step ${index + 1}`);
@@ -714,7 +714,6 @@ function ReasoningNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
           onToggle={toggle}
           openChildren={openChildren}
           steps={completion}
-          title="Completion Judge"
         />
         {hasContent(guard) ? <TraceDisclosure
           id={`${iterationId}-guard`}
