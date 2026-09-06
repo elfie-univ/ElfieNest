@@ -55,7 +55,7 @@ def post_login_landing_path(
     safe_next = safe_next_path(raw_next)
     if user.role in {"owner", "admin"} and safe_next == "/manage":
         return "/manage"
-    if user.role in {"owner", "admin"} and safe_next == "/monitor":
+    if safe_next == "/monitor":
         return "/monitor"
     if user.role == "user" and safe_next == "/chat":
         return "/chat"
@@ -202,6 +202,6 @@ async def monitor_page(request: Request) -> Response:
     user = _current_page_user(request)
     if user is None:
         return _login_redirect("/monitor")
-    if user.role not in {"owner", "admin"}:
+    if user.role not in {"owner", "admin", "user"}:
         return RedirectResponse("/chat", status_code=303)
     return _serve_generated_page(request)

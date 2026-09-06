@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import { useTranslation } from "react-i18next"
 
 import type { ClientUser } from "../api/client"
+import { isManagerRole } from "../api/roles"
 import { AppRail } from "./AppRail"
 import { Icon } from "./Icon"
 
@@ -19,7 +20,7 @@ export function MonitorRail({ onMobileAccess, onToggleImmersive, onUpdated, user
   return <AppRail
     ariaLabel={tMonitor("navigation.railLabel")}
     links={[
-      { href: "/manage", icon: "house", label: tChat("navigation.manage") },
+      ...(isManagerRole(user.role) ? [{ href: "/manage", icon: "house" as const, label: tChat("navigation.manage") }] : []),
       { href: "/chat", icon: "messages-square", label: tManage("sidebar.openChat") },
     ]}
     mobileAccessLabel={tMonitor("navigation.mobileAccess")}

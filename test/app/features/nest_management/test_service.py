@@ -7,7 +7,6 @@ from app.features.nest_management import (
     AssignNestHomeCommand,
     NestBedRecord,
     NestConfigurationInvalid,
-    NestManagementForbidden,
     NestManagementService,
     NestSnapshotRecord,
     UpdateNestBedCountCommand,
@@ -73,12 +72,13 @@ def test_manager_reads_strict_semantic_nest_projection() -> None:
     assert rooms[0].beds[0].occupant_id == "00000001"
 
 
-def test_member_cannot_manage_nest() -> None:
+def test_member_can_read_monitor_nest_projection() -> None:
     persistence = FakeNestManagementPort()
     service = NestManagementService(persistence, persistence)
 
-    with pytest.raises(NestManagementForbidden):
-        service.get_rooms(_principal("user"))
+    rooms = service.get_rooms(_principal("user"))
+
+    assert len(rooms) == 1
 
 
 def test_bed_count_uses_public_nest_range() -> None:

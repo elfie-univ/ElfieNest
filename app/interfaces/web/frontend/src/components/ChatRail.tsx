@@ -17,12 +17,10 @@ type ChatRailProps = {
 
 export function ChatRail({ activePane, onMobileAccess, onOpenSection, onUpdated, user }: ChatRailProps) {
   const { t } = useTranslation("chat")
-  const links: readonly AppRailLink[] = isManagerRole(user.role)
-    ? [
-      { href: "/manage", icon: "house", label: t("navigation.manage") },
-      { href: "/monitor", icon: "cctv", label: t("navigation.monitor") },
-    ]
-    : []
+  const links: readonly AppRailLink[] = [
+    ...(isManagerRole(user.role) ? [{ href: "/manage", icon: "house" as const, label: t("navigation.manage") }] : []),
+    { href: "/monitor", icon: "cctv", label: t("navigation.monitor") },
+  ]
   return <AppRail ariaLabel={t("navigation.railLabel")} links={links} mobileAccessLabel={t("navigation.mobileAccess")} onMobileAccess={onMobileAccess} onUpdated={onUpdated} user={user}>
       <nav className="rail-nav">
         <Button aria-label={t("navigation.chats")} className={activePane === "chats" ? "rail-button rail-button--active" : "rail-button"} data-tooltip={t("navigation.chats")} onClick={() => onOpenSection("chats")} size="icon" type="button" variant="ghost"><Icon name="messages-square" /></Button>

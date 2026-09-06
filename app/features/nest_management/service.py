@@ -43,7 +43,9 @@ class NestManagementService:
         self._commands = commands
 
     def get_rooms(self, principal: AccountPrincipal) -> tuple[NestRoom, ...]:
-        self._require_manager(principal)
+        # The monitor is a read-only projection available to every signed-in user.
+        if principal.role not in {"owner", "admin", "user"}:
+            raise NestManagementForbidden("Nest monitor requires a signed-in user")
         try:
             snapshot = self._query.load_snapshot()
         except NestPortError as error:

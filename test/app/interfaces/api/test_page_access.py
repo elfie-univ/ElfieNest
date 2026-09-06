@@ -208,7 +208,7 @@ def test_owner_and_user_receive_server_side_landing_routes(
     user_manage = client.get("/manage", follow_redirects=False)
     user_monitor = client.get("/monitor", follow_redirects=False)
 
-    # Then: the Owner defaults to manage; a user cannot enter Owner pages.
+    # Then: the Owner defaults to manage; a user can enter the read-only monitor.
     assert owner_root.headers["location"] == "/manage"
     assert owner_manage.status_code == 200
     assert owner_monitor.status_code == 200
@@ -223,7 +223,8 @@ def test_owner_and_user_receive_server_side_landing_routes(
     client.cookies.clear()
     assert user_root.headers["location"] == "/chat"
     assert user_manage.headers["location"] == "/chat"
-    assert user_monitor.headers["location"] == "/chat"
+    assert user_monitor.status_code == 200
+    assert "no-store" in user_monitor.headers["cache-control"]
     assert admin_root.headers["location"] == "/manage"
     assert admin_manage.status_code == 200
     assert admin_monitor.status_code == 200

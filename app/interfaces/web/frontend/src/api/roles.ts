@@ -29,6 +29,10 @@ export function isManagerRole(role: AccountRole): role is "owner" | "admin" {
   return role === "owner" || role === "admin"
 }
 
+export function canAccessMonitor(role: AccountRole): boolean {
+  return role === "owner" || role === "admin" || role === "user"
+}
+
 export function canManageRole(actorRole: AccountRole, targetRole: AccountRole): boolean {
   return ROLE_RANK[actorRole] > ROLE_RANK[targetRole]
 }
