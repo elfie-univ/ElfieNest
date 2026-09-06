@@ -13,6 +13,7 @@ const observability = {
       id: "event_admission",
       title: "Event admission",
       status: "completed",
+      duration_ms: 18,
       input: { source_domain: "communication", message: "你好，今天怎么样？" },
       output: { turn_id: "turn-1", frame_id: "frame-1", status: "completed" },
       raw: { typed_input: { source: "communication" } },
@@ -191,6 +192,8 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(stagePositions).toEqual([...stagePositions].sort((left, right) => left - right));
     expect(markup).toContain("4.1");
     expect(markup).toContain("4.2");
+    expect(markup).toContain("耗时 18 ms");
+    expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
     expect(markup).not.toContain("4.1.2");
     expect(markup).not.toContain("4.2.2");

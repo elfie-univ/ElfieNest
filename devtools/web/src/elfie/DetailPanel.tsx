@@ -329,12 +329,24 @@ function defaultNodeId(focus: DetailFocus, initialTab: string): string {
 
 function nodeMeta(node: TraceNode): string {
   const id = String(node.id ?? "");
-  if (id === "reasoning_run") return `${list(node.iterations).length} 个迭代`;
-  if (id === "setup") return `${list(node.owner_snapshots).length} 个快照`;
-  if (id === "governance_delivery") return `${list(record(node.output).receipts).length} 个回执`;
-  if (id === "settlement") return formatDuration(node.duration_ms ?? record(node.output).duration_ms);
   const output = record(node.output);
-  return typeof output.context_revision === "number" ? `revision ${output.context_revision}` : "";
+  const detail = id === "reasoning_run"
+    ? `${list(node.iterations).length} 个迭代`
+    : id === "setup"
+      ? `${list(node.owner_snapshots).length} 个快照`
+      : id === "governance_delivery"
+        ? `${list(output.receipts).length} 个回执`
+        : typeof output.context_revision === "number"
+          ? `revision ${output.context_revision}`
+          : "";
+  const duration = formatDuration(
+    node.duration_ms
+      ?? record(node.timing).duration_ms
+      ?? output.duration_ms,
+  );
+  return [detail, duration === "未记录" ? "" : `耗时 ${duration}`]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function ownerOutput(moduleId: string, value: unknown): JsonRecord {
@@ -871,7 +883,7 @@ function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: T
       <button aria-expanded={open} className="trace-node-trigger" onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
-        <span className="trace-node-aside"><Status value={node.status} /><span aria-hidden="true" className="trace-node-chevron">{open ? "⌃" : "⌄"}</span></span>
+        <span className="trace-node-aside"><Status value={node.status} /></span>
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>
     </div>

@@ -262,7 +262,6 @@
 .trace-node-title strong { min-width: 0; overflow: hidden; color: var(--text-primary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .trace-node-title small { flex: 0 0 auto; color: var(--text-tertiary); font-family: "SF Mono", Menlo, monospace; font-size: 8px; }
 .trace-node-aside { display: flex; align-items: center; gap: 5px; }
-.trace-node-chevron { color: var(--text-tertiary); font-size: 13px; line-height: 1; }
 .trace-node-body { display: grid; gap: 12px; min-width: 0; padding: 12px 10px 14px; border-top: 1px solid var(--border-subtle); background: #fcfefd; }
 .trace-status { display: inline-flex; align-items: center; gap: 3px; min-height: 19px; padding: 2px 6px; border: 1px solid transparent; border-radius: 99px; color: var(--text-tertiary); font-size: 9px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .trace-status-completed, .trace-status-recorded, .trace-status-returned, .trace-status-accepted { border-color: #b7d9c5; color: #217a5c; background: #eaf7ef; }
