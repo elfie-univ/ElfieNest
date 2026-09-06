@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from app.features.accounts import (
     AccountConflict,
     AccountNotFound,
@@ -75,7 +77,9 @@ class SetupAccountsAdapter:
         except AccountsUnavailable as error:
             raise SetupInstallationPortError("unable to issue Owner session") from error
 
-    def set_default_landing_page(self, user_id: int, page: str) -> None:
+    def set_default_landing_page(
+        self, user_id: int, page: Literal["chat", "manage"]
+    ) -> None:
         try:
             owner = self.find_owner()
             if owner is None or owner.user_id != user_id:

@@ -37,11 +37,14 @@ from elfie.communication import (
 )
 from elfie.factory import ElfieAssembly
 from elfie.genesis import (
+    CandidateReveal,
     GenesisCandidate,
+    GenesisCandidateReveal,
     GenesisCompilation,
     GenesisCompileEnvelope,
     GenesisCompileInput,
     GenesisCompiler,
+    GenesisSourcePackage,
 )
 from elfie.initialization import assemble_profile
 from elfie.message_types import (
@@ -79,11 +82,14 @@ __all__ = [
     "ElfieAssembly",
     "ElfieId",
     "ElfieProfile",
+    "CandidateReveal",
     "GenesisCandidate",
     "GenesisCompilation",
     "GenesisCompileEnvelope",
     "GenesisCompileInput",
+    "GenesisCandidateReveal",
     "GenesisCompiler",
+    "GenesisSourcePackage",
     "EventId",
     "InboundDisposition",
     "MainFoodSelection",

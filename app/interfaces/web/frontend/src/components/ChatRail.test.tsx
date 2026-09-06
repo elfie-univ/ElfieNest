@@ -51,14 +51,14 @@ describe("ChatRail", () => {
     expect(monitorLink.querySelector("svg")).toHaveClass("lucide-cctv")
   })
 
-  it("hides management and monitor links for an ordinary user", () => {
+  it("hides management but keeps the read-only monitor link for an ordinary user", () => {
     // Given: an authenticated ordinary user.
     renderRail(member)
 
     // When: the chat rail is rendered.
-    // Then: neither Owner-only destination is present.
+    // Then: management stays restricted while the read-only monitor remains available.
     expect(screen.queryByRole("link", { name: "进入管理" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "进入监控" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "进入监控" })).toHaveAttribute("href", "/monitor")
   })
 
   it("shows management and monitor links for an Admin", () => {

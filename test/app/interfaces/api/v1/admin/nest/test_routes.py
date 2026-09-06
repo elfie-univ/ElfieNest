@@ -172,13 +172,13 @@ def test_versioned_admin_nest_maps_conflict_to_error_envelope(tmp_path) -> None:
     }
 
 
-def test_versioned_admin_nest_authorizes_in_feature(tmp_path) -> None:
+def test_versioned_admin_nest_allows_signed_in_users_to_read_monitor(tmp_path) -> None:
     client, _, _ = _client(tmp_path, role="user")
 
     response = client.get("/api/v1/admin/nest/rooms")
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "nest_management_forbidden"
+    assert response.status_code == 200
+    assert response.json()["items"][0]["id"] == "local-nest"
 
 
 def test_versioned_admin_bed_count_survives_ticks_and_restart(tmp_path) -> None:
