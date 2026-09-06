@@ -420,6 +420,19 @@ class InstalledProductJourney:
             phase="setup",
             code="setup_nest_failed",
         )
+        # The current Setup contract requires an explicit remote-food choice.
+        # The release journey uses the deterministic local model path, so it
+        # must persist the user's explicit decision to skip remote setup before
+        # confirming installation.
+        _expect(
+            session.put_json(
+                "/api/v1/setup/draft/remote",
+                {"configured": False, "connection_id": None},
+            ),
+            200,
+            phase="setup",
+            code="setup_remote_failed",
+        )
         installation = session.post_json(
             "/api/v1/setup/installation",
             {"confirmed": True},

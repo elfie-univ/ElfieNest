@@ -321,6 +321,12 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         method == "POST" and path.endswith("/capability-probes")
         for method, path, _ in session.calls
     )
+    assert any(
+        method == "PUT"
+        and path == "/api/v1/setup/draft/remote"
+        and body == {"configured": False, "connection_id": None}
+        for method, path, body in session.calls
+    )
     create_call = next(
         body
         for method, path, body in session.calls
