@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "application_version": "0.1.0-beta.2",
+  "application_version": "0.1.0-beta.3",
   "target": "darwin-arm64",
   "components": {
     "python_core": {
-      "version": "0.1.0-beta.2",
+      "version": "0.1.0-beta.3",
       "entry": "python-core/ElfieNestCore"
     },
     "godot_web_runtime": {

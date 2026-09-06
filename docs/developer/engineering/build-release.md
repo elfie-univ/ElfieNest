@@ -35,10 +35,10 @@ Before releasing you must confirm:
 4. The user has completed visual acceptance of the pages;
 5. The maintainer then decides when to commit, push and deploy.
 
-## 0.1.0-beta.2 internal-test desktop installer
+## 0.1.0-beta.3 internal-test desktop installer
 
 We currently build only internal-test installers: the version is pinned to
-`0.1.0-beta.2`, with no auto-update configured and no model weights, Ollama engine or
+`0.1.0-beta.3`, with no auto-update configured and no model weights, Ollama engine or
 models packaged. Ollama is an optional public dependency selected during Setup;
 an installer never creates a private sidecar.
 
@@ -96,7 +96,7 @@ Xvfb and additionally verifies the packaged freedesktop entry. Before any costly
 native build, a small preflight binds the project version, existing release tag
 and exact `GITHUB_SHA`; a manual publish is rejected unless its tag already
 exists at that exact source commit. Pushing a matching tag, for example
-`v0.1.0-beta.2`, runs the same matrix, validates the native installer contents,
+`v0.1.0-beta.3`, runs the same matrix, validates the native installer contents,
 and publishes the four user-downloadable installers plus `SHA256SUMS` to GitHub
 Releases. The typed install-smoke JSON remains in the Actions build artifact
 for CI evidence; the publish job independently aggregates all four summaries with
@@ -109,8 +109,8 @@ the workflow source SHA.
 For the current version, the normal publication command is:
 
 ```bash
-git tag -a v0.1.0-beta.2 -m "ElfieNest 0.1.0-beta.2"
-git push origin v0.1.0-beta.2
+git tag -a v0.1.0-beta.3 -m "ElfieNest 0.1.0-beta.3"
+git push origin v0.1.0-beta.3
 ```
 
 The workflow validates the installed resource layout for each package; it does
