@@ -276,10 +276,12 @@ async def complete_oauth_login(
 )
 async def create_connection(
     body: ProviderConnectionCreateRequest,
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: ProvidersService = ProvidersDependency,
 ) -> RouteResult:
     try:
+        _require_setup_only_deferred_validation(request, body.defer_validation)
         result = await service.create_connection(
             principal,
             CreateProviderConnectionCommand(
@@ -292,6 +294,7 @@ async def create_connection(
                 models=tuple(_model_input(item) for item in body.models),
                 verify=body.verify,
                 refresh_models=body.refresh_models,
+                defer_validation=body.defer_validation,
             ),
         )
     except _PROVIDER_ERRORS as error:
@@ -306,6 +309,7 @@ async def create_connection(
 async def update_connection(
     connection_id: str,
     body: ProviderConnectionPatchRequest,
+    request: Request,
     principal: AccountPrincipal = CurrentPrincipal,
     service: ProvidersService = ProvidersDependency,
 ) -> RouteResult:
@@ -315,6 +319,7 @@ async def update_connection(
         & {"alias", "api_base", "api_key", "api_mode", "auth_type", "models"},
     )
     try:
+        _require_setup_only_deferred_validation(request, body.defer_validation)
         result = await service.update_connection(
             principal,
             UpdateProviderConnectionCommand(
@@ -332,6 +337,7 @@ async def update_connection(
                 ),
                 verify=body.verify,
                 refresh_models=body.refresh_models,
+                defer_validation=body.defer_validation,
             ),
         )
     except _PROVIDER_ERRORS as error:
@@ -844,6 +850,13 @@ _PROVIDER_ERRORS = (
 def _require_manager_for_probe(principal: AccountPrincipal) -> None:
     if not is_manager(principal.role):
         raise HTTPException(status_code=403, detail="Provider 可用性查询需要管理员权限")
+
+
+def _require_setup_only_deferred_validation(
+    request: Request, defer_validation: bool
+) -> None:
+    if defer_validation and not request.cookies.get("setup_token"):
+        raise ProvidersValidationError("defer_validation 仅允许 Setup 流程使用")
 
 
 def _error_response(error: Exception) -> JSONResponse:

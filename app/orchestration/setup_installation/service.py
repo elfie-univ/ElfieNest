@@ -1,4 +1,4 @@
-"""Resumable five-phase first-install workflow."""
+"""Resumable first-run preparation workflow."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 from typing import Callable, Final
 
 from app.features.nest_management import NestPortError
+from app.features.setup import SetupPrincipal, StoredSetupDraft
 
 from .errors import (
     SetupInstallationConflict,
@@ -21,15 +22,12 @@ from .models import (
 )
 from .ports import (
     SetupAccountPort,
-    SetupFoodPort,
     SetupInstallationPortError,
     SetupInstallationRunnerPort,
     SetupInstallationStatePort,
     SetupNestPort,
-    SetupOllamaInstallPort,
-    SetupOllamaTaskLease,
-    SetupOllamaTaskLeaseFactory,
-    SetupProviderPort,
+    SetupRemotePreparationPort,
+    SetupRuntimeReadinessPort,
 )
 
 logger = logging.getLogger("app.orchestration.setup_installation")
@@ -47,24 +45,59 @@ class SetupInstallationService:
         key: str,
         state: SetupInstallationStatePort,
         accounts: SetupAccountPort,
-        ollama: SetupOllamaInstallPort,
-        providers: SetupProviderPort,
-        food: SetupFoodPort,
+        preparation: SetupRemotePreparationPort,
         nest: SetupNestPort,
+        runtime: SetupRuntimeReadinessPort,
         runner: SetupInstallationRunnerPort,
-        ollama_task_lease_factory: SetupOllamaTaskLeaseFactory | None = None,
         timeout_seconds: float = SETUP_INSTALLATION_TIMEOUT_SECONDS,
     ) -> None:
         self._key = key
         self._state = state
         self._accounts = accounts
-        self._ollama = ollama
-        self._providers = providers
-        self._food = food
+        self._preparation = preparation
         self._nest = nest
+        self._runtime = runtime
         self._runner = runner
-        self._ollama_task_lease_factory = ollama_task_lease_factory
         self._timeout_seconds = timeout_seconds
+
+    def ensure_owner_session(self, principal: SetupPrincipal) -> tuple[str, int]:
+        """Create the first Owner as soon as step one is saved.
+
+        Setup keeps its short-lived local token until the installation is
+        started, while the regular session lets the next step use the existing
+        Provider and Food administration features.  The persisted owner id
+        makes retries idempotent.
+        """
+        if not principal.local or principal.kind not in {"setup", "owner"}:
+            raise SetupInstallationForbidden(
+                "创建首个 Owner 仅允许本机 Setup 或 Owner principal"
+            )
+        try:
+            draft = self._state.read_draft()
+            if not draft.owner_configured or draft.password_hash is None:
+                raise SetupInstallationInvalid("Setup Owner 草稿不完整")
+            installation = self._state.read_installation()
+            owner_user_id = installation.owner_user_id
+            if owner_user_id is None:
+                owner = self._accounts.find_owner()
+                if owner is not None:
+                    if owner.account_id != draft.owner_account_id:
+                        raise SetupInstallationConflict(
+                            "系统已有不同的 Owner，无法继续当前 Setup"
+                        )
+                else:
+                    owner = self._accounts.create_first_owner(draft)
+                owner_user_id = owner.user_id
+                self._state.mark_owner_completed(owner_user_id)
+            return self._accounts.issue_session(owner_user_id)
+        except (
+            SetupInstallationConflict,
+            SetupInstallationForbidden,
+            SetupInstallationInvalid,
+        ):
+            raise
+        except SetupInstallationPortError as error:
+            raise SetupInstallationUnavailable("Owner session unavailable") from error
 
     def confirm(
         self, command: ConfirmSetupInstallationCommand
@@ -82,12 +115,22 @@ class SetupInstallationService:
             draft = self._state.read_draft()
             if not draft.complete or draft.password_hash is None:
                 raise SetupInstallationInvalid("Setup 配置尚未完成")
+            previous = self._state.read_installation()
             if draft.locked_at is None:
                 draft = self._state.lock_draft()
-            owner = self._accounts.create_first_owner(draft)
-            self._state.mark_owner_completed(owner.user_id)
-            session_token, ttl = self._accounts.issue_session(owner.user_id)
-            previous = self._state.read_installation()
+            owner_user_id = previous.owner_user_id
+            if owner_user_id is None:
+                owner = self._accounts.find_owner()
+                if owner is not None:
+                    if owner.account_id != draft.owner_account_id:
+                        raise SetupInstallationConflict(
+                            "系统已有不同的 Owner，无法继续当前 Setup"
+                        )
+                else:
+                    owner = self._accounts.create_first_owner(draft)
+                owner_user_id = owner.user_id
+                self._state.mark_owner_completed(owner_user_id)
+            session_token, ttl = self._accounts.issue_session(owner_user_id)
             installation = self._state.begin_or_resume()
             if installation.task_status != "completed":
                 started = self._runner.start(
@@ -171,82 +214,99 @@ class SetupInstallationService:
         if current.task_status == "completed":
             return
         phase = current.install_step or 2
-        model_reference = None
-        task_lease: SetupOllamaTaskLease | None = None
-        try:
-            if phase <= 2:
-                if draft.use_local_ollama:
-                    task_lease = self._ollama.ensure_installation(
-                        self._reporter(2, cancelled)
-                    )
-                else:
-                    self._reporter(2, cancelled)("ollama.skipped")
-                self._checkpoint(cancelled)
-                self._state.complete_phase(2)
-                phase = 3
-            if draft.use_local_ollama and task_lease is None:
-                if self._ollama_task_lease_factory is not None:
-                    task_lease = self._ollama_task_lease_factory()
-                    if task_lease is None:
-                        raise SetupInstallationUnavailable(
-                            "无法取得 Ollama Setup 任务租约"
-                        )
-            if phase <= 3:
-                if draft.use_local_ollama:
-                    if draft.model_id is None:
-                        raise SetupInstallationInvalid("Setup 模型草稿缺失")
-                    model_reference = self._ollama.ensure_model(
-                        draft.model_id, self._reporter(3, cancelled)
-                    )
-                else:
-                    self._reporter(3, cancelled)("model.skipped")
-                self._checkpoint(cancelled)
-                self._state.complete_phase(3)
-                phase = 4
-            if phase <= 4:
-                if draft.use_local_ollama:
-                    if draft.model_id is None:
-                        raise SetupInstallationInvalid("Setup 模型草稿缺失")
-                    model_reference = (
-                        model_reference
-                        or self._providers.configured_model_reference(draft.model_id)
-                    )
-                    if model_reference is None:
-                        raise SetupInstallationInvalid("Setup 模型连接记录缺失")
-                    self._reporter(4, cancelled)("food.emergency")
-                    self._food.ensure_emergency_food(model_reference)
-                else:
-                    self._reporter(4, cancelled)("food.skipped")
-                self._checkpoint(cancelled)
-                self._state.complete_phase(4)
-                phase = 5
-            if phase <= 5:
-                if draft.bed_count is None:
-                    raise SetupInstallationInvalid("Setup 床位草稿缺失")
-                self._reporter(5, cancelled)("nest.apply")
-                try:
-                    self._nest.initialize_bed_count(draft.bed_count)
-                except NestPortError as error:
-                    raise SetupInstallationPortError(
-                        "unable to apply Nest bed count"
-                    ) from error
-                self._checkpoint(cancelled)
-                self._state.complete_phase(5)
-        finally:
-            if task_lease is not None:
-                try:
-                    task_lease.release()
-                except Exception:  # noqa: BLE001 - cleanup is best effort at worker boundary
-                    logger.exception("Setup Ollama task lease release failed")
+        owner = self._owner_for_installation(current.owner_user_id, draft)
+
+        if phase <= 2:
+            if draft.remote_configured:
+                connection_id = draft.remote_connection_id
+                if connection_id is None:
+                    raise SetupInstallationInvalid("远程订阅连接记录缺失")
+                self._reporter(2, cancelled)("model.validation.start")
+                validation = self._preparation.validate_models(owner, connection_id)
+                if validation.total <= 0 or validation.passed <= 0:
+                    raise SetupInstallationInvalid("没有可用的远程模型")
+                self._reporter(2, cancelled, progress=35)(
+                    f"model.validation.complete:{validation.passed}:{validation.total}"
+                )
+            else:
+                self._reporter(2, cancelled)("model.validation.skipped")
+            self._checkpoint(cancelled)
+            self._state.complete_phase(2)
+            phase = 3
+
+        if phase <= 3:
+            if draft.remote_configured:
+                connection_id = draft.remote_connection_id
+                if connection_id is None:
+                    raise SetupInstallationInvalid("远程订阅连接记录缺失")
+                self._reporter(3, cancelled)("food.common.start")
+                self._preparation.prepare_common_food(owner, connection_id)
+                self._reporter(3, cancelled)("food.common.complete")
+            else:
+                self._reporter(3, cancelled)("food.common.skipped")
+            self._checkpoint(cancelled)
+            self._state.complete_phase(3)
+            phase = 4
+
+        if phase <= 4:
+            self._reporter(4, cancelled)("nest.initialize")
+            try:
+                # The first-run Nest default is a persistence/runtime fact,
+                # not a Setup form field.
+                self._nest.initialize_bed_count(12)
+            except NestPortError as error:
+                raise SetupInstallationPortError(
+                    "unable to initialize Nest configuration"
+                ) from error
+            self._reporter(4, cancelled, progress=80)("account.default_landing.start")
+            self._accounts.set_default_landing_page(
+                owner.user_id,
+                "chat" if draft.remote_configured else "manage",
+            )
+            self._reporter(4, cancelled, progress=80)(
+                "account.default_landing.complete"
+            )
+            self._checkpoint(cancelled)
+            self._state.complete_phase(4)
+            phase = 5
+
+        if phase <= 5:
+            self._reporter(5, cancelled)("runtime.ready.start")
+            self._runtime.ensure_ready(cancelled)
+            self._reporter(5, cancelled)("runtime.ready.complete")
+            self._checkpoint(cancelled)
+            self._state.complete_phase(5)
+
+    def _owner_for_installation(
+        self,
+        owner_user_id: int | None,
+        draft: StoredSetupDraft,
+    ):
+        if owner_user_id is None:
+            raise SetupInstallationInvalid("Setup Owner 记录缺失")
+        owner = self._accounts.find_owner()
+        if owner is None or owner.user_id != owner_user_id:
+            raise SetupInstallationInvalid("Setup Owner 无法读取")
+        if getattr(draft, "owner_account_id", None) != owner.account_id:
+            raise SetupInstallationConflict("Setup Owner 与当前草稿不一致")
+        return owner
 
     def _reporter(
-        self, phase: int, cancelled: Callable[[], bool]
+        self,
+        phase: int,
+        cancelled: Callable[[], bool],
+        *,
+        progress: int | None = None,
     ) -> Callable[[str], None]:
-        progress = {2: 30, 3: 50, 4: 70, 5: 90}[phase]
+        phase_progress = {2: 20, 3: 45, 4: 70, 5: 90}[phase]
 
         def report(action_key: str) -> None:
             self._checkpoint(cancelled)
-            self._state.report(phase=phase, action_key=action_key, progress=progress)
+            self._state.report(
+                phase=phase,
+                action_key=action_key,
+                progress=phase_progress if progress is None else progress,
+            )
 
         return report
 

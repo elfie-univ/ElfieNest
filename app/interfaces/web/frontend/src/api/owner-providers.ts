@@ -80,6 +80,11 @@ const ProviderCapabilityProbeSchema = z.object({
   results: z.array(CapabilityProbeResultSchema),
 })
 
+const ProviderModelAvailabilitySchema = z.object({
+  status: z.enum(["available", "degraded", "unavailable", "unknown"]),
+  reason_code: z.string().nullable(),
+})
+
 const ProviderObsoleteModelSchema = z.object({
   model: ProviderModelSchema,
   eligible: z.boolean(),
@@ -246,11 +251,15 @@ export type ProviderConnectionDraft = {
   readonly models?: readonly ProviderModelDraft[]
   readonly refresh_models?: boolean
   readonly verify?: boolean
+  readonly defer_validation?: boolean
 }
 export type ProviderConnectionUpdate = Omit<ProviderConnectionDraft, "catalog_id">
 export type BenchmarkCombination = {
   readonly connection_id: string
   readonly model_id: string
+}
+type ProviderRequestOptions = {
+  readonly timeout?: number | false
 }
 
 export async function ownerProviderCatalog(): Promise<readonly ProviderProduct[]> {
@@ -259,9 +268,11 @@ export async function ownerProviderCatalog(): Promise<readonly ProviderProduct[]
   ).items
 }
 
-export async function ownerProviderConnections(): Promise<readonly ProviderConnection[]> {
+export async function ownerProviderConnections(
+  options?: ProviderRequestOptions,
+): Promise<readonly ProviderConnection[]> {
   return z.object({ items: z.array(ProviderConnectionSchema) }).parse(
-    await ownerRead("/api/v1/admin/model-providers/connections", { timeout: false }),
+    await ownerRead("/api/v1/admin/model-providers/connections", options ?? { timeout: false }),
   ).items
 }
 
@@ -294,12 +305,14 @@ export async function completeProviderOAuthLogin(
 export async function createProviderConnection(
   draft: ProviderConnectionDraft,
   csrfToken: string,
+  options?: ProviderRequestOptions,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
     "/api/v1/admin/model-providers/connections",
     "POST",
     csrfToken,
     draft,
+    options,
   ))
 }
 
@@ -307,12 +320,14 @@ export async function updateProviderConnection(
   connectionId: string,
   draft: ProviderConnectionUpdate,
   csrfToken: string,
+  options?: ProviderRequestOptions,
 ): Promise<ProviderConnection> {
   return ProviderConnectionSchema.parse(await ownerWrite(
     `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}`,
     "PATCH",
     csrfToken,
     draft,
+    options,
   ))
 }
 
@@ -339,6 +354,25 @@ export async function verifyProviderConnection(
     csrfToken,
     undefined,
     { timeout: false },
+  ))
+}
+
+export async function ensureProviderModelAvailability(
+  connectionId: string,
+  modelId: string,
+  csrfToken: string,
+  options?: ProviderRequestOptions,
+): Promise<z.infer<typeof ProviderModelAvailabilitySchema>> {
+  const query = new URLSearchParams({
+    reference: `${connectionId}/${modelId}`,
+    max_age_seconds: "0",
+  })
+  return ProviderModelAvailabilitySchema.parse(await ownerWrite(
+    `/api/v1/admin/model-providers/availability/ensure?${query.toString()}`,
+    "POST",
+    csrfToken,
+    undefined,
+    options ?? { timeout: false },
   ))
 }
 
@@ -369,13 +403,14 @@ export async function validateAllProviderModels(
 export async function refreshProviderModels(
   connectionId: string,
   csrfToken: string,
+  options?: ProviderRequestOptions,
 ): Promise<z.infer<typeof ModelRefreshSchema>> {
   return ModelRefreshSchema.parse(await ownerWrite(
     `/api/v1/admin/model-providers/connections/${encodeURIComponent(connectionId)}/models/refresh`,
     "POST",
     csrfToken,
     undefined,
-    { timeout: false },
+    options ?? { timeout: false },
   ))
 }
 

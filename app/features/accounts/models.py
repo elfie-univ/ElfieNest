@@ -15,7 +15,9 @@ class AccountPrincipal:
     user_id: int
     account_id: str
     role: AccountRole
-    default_landing_page: str
+    # Configuration-only principals do not need to carry a routing decision.
+    # Real sessions still populate this from the users table.
+    default_landing_page: str = "manage"
 
 
 @dataclass(frozen=True)

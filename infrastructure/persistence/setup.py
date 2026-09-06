@@ -92,6 +92,21 @@ class SQLiteSetupAdapter:
 
         return self._update_draft(update)
 
+    def save_remote_draft(
+        self,
+        *,
+        configured: bool,
+        connection_id: Optional[str],
+    ) -> StoredSetupDraft:
+        def update(values: dict[str, object]) -> None:
+            values["use_local_ollama"] = False
+            values["model_id"] = None
+            values["remote_configured"] = configured
+            values["remote_skipped"] = not configured
+            values["remote_connection_id"] = connection_id if configured else None
+
+        return self._update_draft(update)
+
     def lock_draft(self) -> StoredSetupDraft:
         def update(values: dict[str, object]) -> None:
             draft = _draft_from_mapping(values)
@@ -363,11 +378,14 @@ def _default_draft_mapping() -> dict[str, object]:
         "password_hash": None,
         "use_local_ollama": None,
         "model_id": None,
-        "bed_count": None,
+        "bed_count": 12,
         "owner_configured": False,
         "offline_configured": False,
         "nest_configured": False,
         "locked_at": None,
+        "remote_configured": False,
+        "remote_skipped": False,
+        "remote_connection_id": None,
     }
 
 
@@ -389,11 +407,14 @@ def _draft_from_mapping(value: Mapping[str, object]) -> StoredSetupDraft:
         password_hash=_text(value.get("password_hash")),
         use_local_ollama=_boolean(value.get("use_local_ollama")),
         model_id=_text(value.get("model_id")),
-        bed_count=_integer(value.get("bed_count")),
+        bed_count=_integer(value.get("bed_count")) or 12,
         owner_configured=value.get("owner_configured") is True,
         offline_configured=value.get("offline_configured") is True,
         nest_configured=value.get("nest_configured") is True,
         locked_at=_text(value.get("locked_at")),
+        remote_configured=value.get("remote_configured") is True,
+        remote_skipped=value.get("remote_skipped") is True,
+        remote_connection_id=_text(value.get("remote_connection_id")),
     )
 
 

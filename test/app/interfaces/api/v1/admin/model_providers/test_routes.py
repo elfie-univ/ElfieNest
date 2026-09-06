@@ -370,6 +370,39 @@ def test_create_keeps_full_verification_opt_in(tmp_path, monkeypatch) -> None:
     verification.assert_not_awaited()
 
 
+def test_deferred_validation_is_limited_to_setup_sessions(
+    tmp_path, monkeypatch
+) -> None:
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/admin/model-providers/connections",
+        json={
+            "catalog_id": "openai_api",
+            "api_key": "test-secret",
+            "models": [],
+            "refresh_models": False,
+            "defer_validation": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_model_provider"
+
+    client.cookies.set("setup_token", "setup-token")
+    allowed = client.post(
+        "/api/v1/admin/model-providers/connections",
+        json={
+            "catalog_id": "openai_api",
+            "api_key": "test-secret",
+            "models": [],
+            "refresh_models": False,
+            "defer_validation": True,
+        },
+    )
+    assert allowed.status_code == 201, allowed.text
+
+
 def test_create_defaults_to_loading_model_inventory(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     with patch.object(

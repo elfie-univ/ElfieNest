@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   changeProviderConnectionLifecycle,
   completeProviderOAuthLogin,
+  ensureProviderModelAvailability,
   ownerModelMatrix,
   ownerProviderCatalog,
   ownerProviderConnections,
@@ -61,6 +62,29 @@ describe("versioned model Provider client", () => {
     expect(ownerRead).toHaveBeenCalledWith(
       "/api/v1/admin/model-providers/connections",
       { timeout: false },
+    )
+  })
+
+  it("probes one exact model through the existing availability boundary", async () => {
+    vi.mocked(ownerWrite).mockResolvedValue({
+      status: "available",
+      reason_code: null,
+    })
+
+    const result = await ensureProviderModelAvailability(
+      "connection-openai",
+      "gpt-4o-mini",
+      "csrf",
+      { timeout: 25_000 },
+    )
+
+    expect(result.status).toBe("available")
+    expect(ownerWrite).toHaveBeenCalledWith(
+      "/api/v1/admin/model-providers/availability/ensure?reference=connection-openai%2Fgpt-4o-mini&max_age_seconds=0",
+      "POST",
+      "csrf",
+      undefined,
+      { timeout: 25_000 },
     )
   })
 

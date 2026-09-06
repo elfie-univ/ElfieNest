@@ -183,6 +183,19 @@
 .setup-linux-install p { margin-top: 5px; color: var(--text-muted); font-size: 13px; line-height: 1.55; }
 .setup-linux-install code { display: block; overflow-x: auto; margin: 10px 0; border-radius: 8px; padding: 9px 10px; background: var(--surface); color: var(--active-ink); font-size: 12px; white-space: nowrap; }
 .setup-form--offline .setup-actions { margin-left: calc(var(--setup-label-column) + var(--setup-label-gap)); padding-top: 2px; }
+.setup-form--remote { --setup-label-column: 112px; --setup-label-gap: 16px; gap: 18px; }
+.setup-form--remote > .manage-field { grid-template-columns: var(--setup-label-column) minmax(0, 1fr); align-items: center; gap: 0 var(--setup-label-gap); font-size: 15px; }
+.setup-form--remote > .manage-field .manage-field__label { color: var(--text-muted); font-size: inherit; }
+.setup-form--remote > .manage-field .manage-field__control-column { grid-column: 2; }
+.setup-form--remote > .manage-field [data-slot="select-trigger"] { width: 100%; min-height: 42px; }
+.setup-form--remote > .manage-field [data-slot="textarea"] { min-height: 116px; padding: 12px 13px; border-radius: 12px; font-size: 15px; line-height: 1.55; }
+.setup-form--remote .manage-field__hint { font-size: 13px; font-weight: 400; }
+.setup-form--remote .setup-hint { margin: -5px 0 0 calc(var(--setup-label-column) + var(--setup-label-gap)); border: 0; padding: 0; background: transparent; font-size: 13px; line-height: 1.5; }
+.setup-form--remote .setup-hint--installed { color: var(--success-text); }
+.setup-form--remote .setup-hint--missing { color: var(--warning-text); }
+.setup-form--remote .setup-hint--operation { color: var(--active-ink); background: var(--accent-soft); }
+.setup-form--remote .setup-hint--verification { margin-top: -8px; }
+.setup-form--remote .setup-actions { margin-left: calc(var(--setup-label-column) + var(--setup-label-gap)); padding-top: 2px; }
 .setup-field { display: grid; gap: 7px; color: var(--text-muted); font-size: 13px; font-weight: 700; }
 .setup-field select { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; color: var(--text); background: var(--field-bg); font: inherit; font-weight: 400; }
 .setup-field select:disabled { cursor: not-allowed; opacity: .55; }
@@ -192,6 +205,7 @@
 .setup-model-status { margin: -8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.55; }
 .setup-task { display: block; padding: 0; border: 0; color: var(--active-ink); background: transparent; font-weight: 700; }
 .setup-install-error { margin: 0; color: var(--danger-text, #b42318); line-height: 1.55; overflow-wrap: anywhere; }
+.setup-install__complete-actions { justify-content: center; }
 .setup-check { display: flex !important; align-items: flex-start; gap: 9px !important; color: var(--text-muted) !important; font-weight: 400 !important; line-height: 1.55; }
 .setup-check input { margin: 3px 0 0; accent-color: var(--accent); }
 .setup-review { gap: 0; }
@@ -209,7 +223,7 @@
   .setup-page { grid-template-columns: 1fr; }
   .setup-rail { min-height: auto; padding: 18px; border-right: 0; border-bottom: 1px solid var(--line); }
   .setup-rail__intro { display: none; }
-  .setup-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 17px; }
+  .setup-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 17px; }
   .setup-step { display: block; min-height: auto; padding: 0; background: transparent; box-shadow: none; text-align: center; }
   .setup-step__button { display: block; min-height: auto; text-align: center; }
   .setup-step__button > span:last-child { display: none; }
@@ -224,6 +238,9 @@
   .setup-form--offline .setup-field--row .manage-field { grid-template-columns: 1fr; gap: 7px; }
   .setup-form--offline .setup-field--row .manage-field__control-column { grid-column: 1; }
   .setup-form--offline .setup-hint, .setup-form--offline .setup-model-status, .setup-form--offline .setup-actions, .setup-linux-install { margin-left: 0; }
+  .setup-form--remote > .manage-field { grid-template-columns: 1fr; gap: 7px; }
+  .setup-form--remote > .manage-field .manage-field__control-column { grid-column: 1; }
+  .setup-form--remote .setup-hint, .setup-form--remote .setup-actions { margin-left: 0; }
   .setup-main { display: block; padding: 20px; }
   .setup-locale-control { top: 32px; right: 32px; }
   .setup-card__header { padding-top: 76px; }

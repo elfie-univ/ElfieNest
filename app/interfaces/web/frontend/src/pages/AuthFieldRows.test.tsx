@@ -20,16 +20,19 @@ const freshSetupStatus: SetupStatus = {
     display_name: null,
     password_configured: false,
     use_local_ollama: null,
-    ollama_installed: true,
+    ollama_installed: false,
     model_id: null,
     bed_count: null,
     owner_configured: false,
     offline_configured: false,
     nest_configured: false,
     locked_at: null,
+    remote_configured: false,
+    remote_skipped: false,
+    remote_connection_id: null,
   },
   install: {
-    phase: "owner",
+    phase: "model_validation",
     action_key: "idle",
     state: "idle",
     progress: 0,
@@ -37,10 +40,9 @@ const freshSetupStatus: SetupStatus = {
   },
   last_error: null,
   steps: [
-    { name: "Owner", number: 1, status: "current", retry_action: null },
-    { name: "Offline", number: 2, status: "pending", retry_action: null },
-    { name: "Nest", number: 3, status: "pending", retry_action: null },
-    { name: "Review", number: 4, status: "pending", retry_action: null },
+    { name: "创建账号", number: 1, status: "current", retry_action: null },
+    { name: "配置大模型订阅", number: 2, status: "pending", retry_action: null },
+    { name: "完成", number: 3, status: "pending", retry_action: null },
   ],
 }
 
@@ -68,7 +70,7 @@ describe("auth and adoption field rows", () => {
 
     await user.click(await screen.findByRole("button", { name: "开始" }))
 
-    expect((await screen.findAllByLabelText("超级管理员账号")).some((node) => node.tagName === "INPUT")).toBe(true)
+    expect((await screen.findAllByLabelText("管理员账号")).some((node) => node.tagName === "INPUT")).toBe(true)
     expect(screen.getAllByLabelText("密码").some((node) => node.tagName === "INPUT")).toBe(true)
   })
 

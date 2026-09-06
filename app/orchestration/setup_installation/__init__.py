@@ -21,6 +21,7 @@ from .ports import (
     SetupInstallationPortError,
     SetupInstallationRunnerPort,
     SetupInstallationStatePort,
+    SetupModelValidationResult,
     SetupNestPort,
     SetupOllamaBinding,
     SetupOllamaInstallPort,
@@ -28,6 +29,8 @@ from .ports import (
     SetupOllamaTaskLease,
     SetupOllamaTaskLeaseFactory,
     SetupProviderPort,
+    SetupRemotePreparationPort,
+    SetupRuntimeReadinessPort,
 )
 from .service import SetupInstallationService
 
@@ -48,6 +51,7 @@ __all__ = (
     "SetupInstallationRunnerPort",
     "SetupInstallationService",
     "SetupInstallationStatePort",
+    "SetupModelValidationResult",
     "SetupInstallationUnavailable",
     "SetupNestPort",
     "SetupOllamaBinding",
@@ -56,4 +60,6 @@ __all__ = (
     "SetupOllamaTaskLease",
     "SetupOllamaTaskLeaseFactory",
     "SetupProviderPort",
+    "SetupRemotePreparationPort",
+    "SetupRuntimeReadinessPort",
 )

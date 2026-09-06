@@ -48,6 +48,12 @@ class SaveSetupNestDraftCommand:
 
 
 @dataclass(frozen=True)
+class SaveSetupRemoteDraftCommand:
+    configured: bool
+    connection_id: Optional[str]
+
+
+@dataclass(frozen=True)
 class SetupModelOptionResult:
     model_id: str
     label: str
@@ -68,6 +74,9 @@ class SetupDraftResult:
     offline_configured: bool
     nest_configured: bool
     locked_at: Optional[str]
+    remote_configured: bool
+    remote_skipped: bool
+    remote_connection_id: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -80,7 +89,7 @@ class SetupStepResult:
 
 @dataclass(frozen=True)
 class SetupInstallResult:
-    phase: Literal["owner", "ollama", "model", "emergency_food", "nest"]
+    phase: Literal["model_validation", "common_food", "nest", "runtime"]
     action_key: str
     state: SetupTaskState
     progress: int

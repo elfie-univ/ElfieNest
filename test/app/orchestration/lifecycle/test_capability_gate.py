@@ -97,26 +97,30 @@ def test_chat_is_rejected_without_a_common_route() -> None:
     assert error.value.code == "MODEL_ROUTE_UNAVAILABLE"
 
 
-def test_adoption_requires_world_and_fully_ready_models() -> None:
-    with pytest.raises(CapabilityDeniedError) as error:
-        DEFAULT_CAPABILITY_REQUIREMENTS.issue(
-            "adoption",
-            _projection(tier=BackendTier.WORLD_READY, model=ModelOverallState.DEGRADED),
-        )
+def test_adoption_requires_world_and_common_model_route() -> None:
+    permit = DEFAULT_CAPABILITY_REQUIREMENTS.issue(
+        "adoption",
+        _projection(
+            tier=BackendTier.WORLD_READY,
+            model=ModelOverallState.DEGRADED,
+            common=ModelOverallState.READY,
+            emergency=ModelOverallState.UNAVAILABLE,
+        ),
+    )
 
-    assert error.value.code == "MODEL_SERVICE_NOT_READY"
+    assert permit.operation == "adoption"
 
 
-def test_adoption_matrix_rejects_missing_emergency_reserve() -> None:
+def test_adoption_is_rejected_without_a_common_route() -> None:
     with pytest.raises(CapabilityDeniedError) as error:
         DEFAULT_CAPABILITY_REQUIREMENTS.issue(
             "adoption",
             _projection(
                 tier=BackendTier.WORLD_READY,
                 model=ModelOverallState.DEGRADED,
-                common=ModelOverallState.READY,
+                common=ModelOverallState.UNAVAILABLE,
                 emergency=ModelOverallState.UNAVAILABLE,
             ),
         )
 
-    assert error.value.code == "MODEL_SERVICE_NOT_READY"
+    assert error.value.code == "MODEL_ROUTE_UNAVAILABLE"

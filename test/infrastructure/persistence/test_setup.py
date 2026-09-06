@@ -21,6 +21,32 @@ def test_setup_reads_are_read_only_when_the_installation_row_is_absent(
     assert before == after == 0
     assert installation.status == "not_started"
     assert draft.owner_configured is False
+    assert draft.bed_count == 12
+
+
+def test_remote_food_decision_is_durable_without_writing_the_nest_default(
+    tmp_path: Path,
+) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    adapter = SQLiteSetupAdapter(db_path)
+
+    adapter.save_owner_draft(
+        account_id="owner",
+        display_name="Owner",
+        password_hash="hash",
+    )
+    saved = adapter.save_remote_draft(
+        configured=True,
+        connection_id="connection-openai",
+    )
+    reloaded = SQLiteSetupAdapter(db_path).read_draft()
+
+    assert saved.remote_configured is True
+    assert saved.remote_skipped is False
+    assert saved.remote_connection_id == "connection-openai"
+    assert saved.bed_count == 12
+    assert saved.nest_configured is False
+    assert reloaded == saved
 
 
 def test_first_draft_write_creates_the_single_setup_row(tmp_path: Path) -> None:
@@ -95,6 +121,6 @@ def _complete_and_lock_draft(adapter: SQLiteSetupAdapter) -> None:
         display_name=None,
         password_hash="hash",
     )
-    adapter.save_offline_draft(use_local_ollama=False, model_id=None)
+    adapter.save_remote_draft(configured=False, connection_id=None)
     adapter.save_nest_draft(bed_count=8)
     adapter.lock_draft()

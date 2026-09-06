@@ -121,11 +121,12 @@ class ProviderConnectionCreateRequest(BaseModel):
         default_factory=list,
         max_length=200,
     )
-    # A new connection must load its endpoint inventory by default.  Full
-    # model verification remains an explicit/cost-bearing action; save still
-    # performs the one tiny representative probe in the service layer.
+    # A new connection must load its endpoint inventory by default. Full model
+    # verification remains an explicit/cost-bearing action. Setup defers all
+    # validation to its third preparation step.
     verify: bool = False
     refresh_models: bool = True
+    defer_validation: bool = False
 
     @field_validator("catalog_id", "alias", "api_base")
     @classmethod
@@ -152,6 +153,7 @@ class ProviderConnectionPatchRequest(BaseModel):
     )
     verify: bool = False
     refresh_models: bool = False
+    defer_validation: bool = False
 
     @field_validator("alias", "api_base")
     @classmethod

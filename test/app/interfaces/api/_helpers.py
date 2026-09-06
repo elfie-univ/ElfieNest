@@ -193,7 +193,7 @@ def adopt_test_elfie(
 def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
     """Complete Setup through the canonical installation phases."""
     repository = SQLiteSetupAdapter(db_path)
-    repository.save_offline_draft(use_local_ollama=False, model_id=None)
+    repository.save_remote_draft(configured=False, connection_id=None)
     repository.save_nest_draft(bed_count=bed_count)
     repository.begin_or_resume()
     for phase in range(2, 6):
