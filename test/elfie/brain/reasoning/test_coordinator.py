@@ -67,7 +67,8 @@ from infrastructure.persistence.configuration.bundled_defaults import (
     load_reasoning_constitution,
 )
 
-NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
+_LOCAL_TZ = datetime.now().astimezone().tzinfo
+NOW = datetime(2026, 7, 21, 8, 0, tzinfo=_LOCAL_TZ).astimezone(timezone.utc)
 ELFIE_ID = ElfieId("elfie-coordinator")
 
 

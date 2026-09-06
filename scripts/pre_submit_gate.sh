@@ -3,6 +3,11 @@
 
 set -Eeuo pipefail
 
+# Governance scanners import candidate modules before the architecture bundle.
+# Keep that read-only preflight from creating ignored __pycache__ directories
+# inside the candidate tree that the structural tests are about to inspect.
+export PYTHONDONTWRITEBYTECODE=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
@@ -216,6 +221,52 @@ prepare_candidate_tree() {
         commit --quiet -m "temporary pre-submit candidate"
 }
 
+cleanup_generated_bytecode_tree() {
+    local root="$1"
+
+    # Governance scanners and pytest may materialize bytecode parents through
+    # isolated import paths.  Remove only generated caches and the empty
+    # parents they leave; never remove a directory that contains source files.
+    find "$root" -type d -name "__pycache__" -prune -exec rm -rf -- {} +
+    for path in \
+        "$root/scripts/architecture" \
+        "$root/nest/engine" \
+        "$root/nest/interaction" \
+        "$root/nest/rules" \
+        "$root/nest/space" \
+        "$root/nest/state"; do
+        [[ -d "$path" ]] || continue
+        if find "$path" -type f ! -name "*.pyc" -print -quit | grep -q .; then
+            continue
+        fi
+        find "$path" -type f -name "*.pyc" -delete
+        find "$path" -type d -empty -delete
+    done
+}
+
+cleanup_generated_godot_metadata() {
+    local root="$1"
+    local file
+    local relative
+
+    [[ -d "$root/godot_project" ]] || return 0
+    while IFS= read -r -d '' file; do
+        relative="${file#"$root/"}"
+        # Godot creates ignored .uid metadata while loading scripts.  Keep
+        # tracked metadata intact and remove only untracked generated files.
+        if git -C "$root" ls-files --error-unmatch -- "$relative" \
+            >/dev/null 2>&1; then
+            continue
+        fi
+        rm -f -- "$file"
+    done < <(find "$root/godot_project" -type f -name "*.uid" -print0)
+}
+
+cleanup_candidate_generated_bytecode() {
+    cleanup_generated_bytecode_tree "$CANDIDATE_ROOT"
+    cleanup_generated_godot_metadata "$CANDIDATE_ROOT"
+}
+
 run_candidate_architecture_gate() {
     local ratchet_root
     local scanner_root
@@ -356,6 +407,12 @@ run_step "installing Developer Tools frontend dependencies" \
     run_in_dir "$PROJECT_ROOT/devtools/web" "$PNPM_BIN" install --frozen-lockfile
 run_step "running the exact environment capability preflight" \
     "$UV_BIN" run --no-sync python "$PROJECT_ROOT/scripts/quality/checks/environment.py"
+cleanup_candidate_generated_bytecode
+# The bundle runner is rooted at the checkout (its module path is resolved
+# from the script location), so clean the same generated-only residue there
+# before it inspects repository structure.
+cleanup_generated_bytecode_tree "$PROJECT_ROOT"
+cleanup_generated_godot_metadata "$PROJECT_ROOT"
 BUNDLE_ARGS=(
     --all --base-sha "$BASE_SHA" --cache-root "$VALIDATION_CACHE_ROOT"
 )

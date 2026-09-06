@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
+
 from app.features.configuration.food import StoredFoodPackage
 from infrastructure.persistence.food import SQLiteFoodAdapter
 from infrastructure.persistence.nest_db.store import init_db
@@ -65,6 +67,16 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
     code_branches = client.get("/api/evaluations/code-branches")
     assert code_branches.status_code == 200, code_branches.text
     current_ref = code_branches.json()["current_ref"]
+    other_ref = next(
+        (
+            item["name"]
+            for item in code_branches.json()["items"]
+            if item["name"] != current_ref
+        ),
+        None,
+    )
+    if other_ref is None:
+        pytest.skip("代码分支对比至少需要两个可解析的不同引用")
 
     response = client.post(
         "/api/evaluations/batches/paired",
@@ -75,7 +87,7 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
             "food_key_b": "mock",
             "judge_subscription_id": "mock",
             "code_ref_a": current_ref,
-            "code_ref_b": "main",
+            "code_ref_b": other_ref,
             "title": "代码分支验证",
         },
     )
@@ -83,7 +95,7 @@ def test_code_pair_runs_named_branches_with_shared_fixture(
     batch = _wait_for_batch(client, response.json()["batch"]["batch_id"])
 
     assert batch["batch"]["status"] in {"completed", "partial_failed"}
-    assert [item["source_ref"] for item in batch["reports"]] == [current_ref, "main"]
+    assert [item["source_ref"] for item in batch["reports"]] == [current_ref, other_ref]
     assert batch["batch"]["fixture_sha256"] == batch["reports"][0]["fixture_sha256"]
 
 
