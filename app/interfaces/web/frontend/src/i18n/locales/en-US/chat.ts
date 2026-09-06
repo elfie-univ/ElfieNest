@@ -67,7 +67,7 @@ export const chat = {
       intentConfirm: { title: "", description: "", cancel: "", confirm: "" },
       finalConfirm: { title: "", description: "", cancel: "", confirm: "" },
       validation: { species: "Choose a species first.", completeIntent: "Complete the matching details first.", chooseCandidate: "Choose one candidate.", chooseReply: "Choose one candidate.", name: "Enter a name between 1 and 20 characters." },
-      errors: { generate: "Candidates are not ready yet. Please try again later.", replies: "They could not arrive yet. Please try again.", commit: "The welcome could not be completed. Try again.", expired: "This adoption session has ended. Please start again." },
+      errors: { load: "Adoption cannot start right now. Please try again later.", serviceUnavailable: "Adoption service is unavailable. Please contact the administrator.", generate: "Candidates are not ready yet. Please try again later.", replies: "They could not arrive yet. Please try again.", commit: "That did not finish, but your choice is saved. Please try again.", expired: "This adoption session has ended. Please start again." },
       recovery: { candidatesRegenerated: "The service restarted or these candidates expired. We generated a fresh set; please choose again." },
       closePrompt: { title: "Leave this intent for now?", description: "Your answers will stay on this device so you can continue next time.", continue: "Keep filling it in", discard: "Discard this intent" },
     },

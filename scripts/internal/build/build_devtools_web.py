@@ -49,7 +49,19 @@ def ensure_bundle(*, pnpm_command: str | None = None) -> Path:
             "pnpm was not found, cannot build the Developer Tools frontend"
         )
     install = [pnpm, "install", "--frozen-lockfile"]
-    dependencies_ready = (WEB_SOURCE / "node_modules" / ".bin" / "tsc").is_file()
+    # A TypeScript binary alone does not prove that the application dependencies
+    # are usable.  pnpm can leave a partial node_modules tree after an interrupted
+    # install, which previously let the build reach tsc and fail with a wall of
+    # misleading "cannot find module" errors.  Check the packages imported by
+    # the frontend entry points before deciding to skip the install.
+    dependencies_ready = all(
+        path.is_file()
+        for path in (
+            WEB_SOURCE / "node_modules" / ".bin" / "tsc",
+            WEB_SOURCE / "node_modules" / "antd" / "package.json",
+            WEB_SOURCE / "node_modules" / "@ant-design" / "icons" / "package.json",
+        )
+    )
     if not dependencies_ready:
         subprocess.run(install, cwd=WEB_SOURCE, check=True)
     subprocess.run([pnpm, "run", "build"], cwd=WEB_SOURCE, check=True)
