@@ -22,6 +22,22 @@
 | `./developer.sh brain-eval` | `/elfie/evaluations` | 同上 | 批量评测与报告 |
 | `./developer.sh nest-lab` | `/nest/experiment` | 同上（Godot WS 为内部 `9002`） | 精灵巢与 Godot Runtime 实验 |
 
+`./developer.sh brain-trace` 是不启动网页的后端采集工具。`list` 列出隔离 Lab 数据根中的
+精灵和已保存粮食；`collect` 在同一条真实 Brain 链路上执行消息序列，并将模型调用、记忆
+召回、Context、Reasoning、Decision、Receipt、Settlement、状态差异和持久化证据写入
+`build/brain-trace/<run-id>/`。模型和记忆可以分别选择 `real` 或 `mock`：真实记忆总是在
+精灵快照副本上运行，模拟记忆使用真实 Memory 算法和 typed fixture。该工具只采集数据，
+不做分析、评分或诊断，也不修改源精灵。
+
+```bash
+./developer.sh brain-trace list --data-dir /tmp/elfienest-devtools
+./developer.sh brain-trace collect \
+  --data-dir /tmp/elfienest-devtools \
+  --elfie-id <elfie-id> \
+  --memory real --model mock \
+  --messages-file messages.jsonl
+```
+
 正式 App 使用 HTTP `8000`、Godot WebSocket `8765` 和管理 WebSocket `8766`，与 Lab
 默认端口完全分离。三个命令都会复用同一个 HTTP 服务；启动器会先正常终止**当前工作区的
 默认 Developer Tools 实例**，等待端口释放后再启动并打开对应页面；

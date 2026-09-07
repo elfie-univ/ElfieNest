@@ -429,7 +429,16 @@ class ReasoningRun:
 
             while True:
                 guard(next_kind=CognitiveStepKind.MODEL, model=True)
-                generation = self._model_port.generate(current_request)
+                remaining_seconds = deadline_seconds - (monotonic() - started_at)
+                generation_request = current_request.model_copy(
+                    update={
+                        "timeout_seconds": max(
+                            0.001,
+                            remaining_seconds,
+                        )
+                    }
+                )
+                generation = self._model_port.generate(generation_request)
                 last_generation = generation
                 model_calls += 1
                 add_step(
@@ -781,7 +790,17 @@ class ReasoningRun:
                         final_schema=True,
                         legacy_prompt=repair_prompt,
                     )
-                    repaired = self._model_port.generate(repaired_request)
+                    remaining_seconds = deadline_seconds - (monotonic() - started_at)
+                    repaired = self._model_port.generate(
+                        repaired_request.model_copy(
+                            update={
+                                "timeout_seconds": max(
+                                    0.001,
+                                    remaining_seconds,
+                                )
+                            }
+                        )
+                    )
                     last_generation = repaired
                     model_calls += 1
                     add_step(

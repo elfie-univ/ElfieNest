@@ -25,6 +25,23 @@ HTTP service; the command only selects the initial page:
 | `./developer.sh brain-eval` | `/elfie/evaluations` | same | Batch evaluation and reports |
 | `./developer.sh nest-lab` | `/nest/experiment` | same (internal Godot WS `9002`) | Nest and Godot Runtime experiments |
 
+`./developer.sh brain-trace` is a backend-only collector and never starts a web page. `list`
+shows Elfies and saved Foods in an isolated Lab data root. `collect` runs a message sequence through
+the same production Brain chain and writes model calls, Memory recall, Context, Reasoning, Decision,
+Receipt, Settlement, state diffs and persistence evidence to `build/brain-trace/<run-id>/`. Model and
+Memory edges are independently selectable as `real` or `mock`: real Memory always runs on an Elfie
+snapshot clone, while mock Memory uses the real Memory algorithms with a typed fixture. The collector
+only records data; it does not analyze, score or diagnose the run and never mutates the source Elfie.
+
+```bash
+./developer.sh brain-trace list --data-dir /tmp/elfienest-devtools
+./developer.sh brain-trace collect \
+  --data-dir /tmp/elfienest-devtools \
+  --elfie-id <elfie-id> \
+  --memory real --model mock \
+  --messages-file messages.jsonl
+```
+
 The real App uses HTTP `8000`, Godot WebSocket `8765` and management WebSocket
 `8766`, fully separated from the Lab default port. All three commands launch
 the same HTTP service. The launcher first gracefully stops **the current

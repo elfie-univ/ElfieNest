@@ -185,6 +185,15 @@ def test_adapter_propagates_brain_reasoning_mode_to_runtime():
     assert runtime.requests[0].reasoning_mode == "long"
 
 
+def test_adapter_propagates_remaining_provider_timeout_to_runtime():
+    runtime = FakeStructuredModelExecution(_schema_capabilities())
+    adapter = SerializedModelExecutionAdapter(runtime)
+
+    adapter.generate(_request().model_copy(update={"timeout_seconds": 4.5}))
+
+    assert runtime.requests[0].timeout_seconds == 4.5
+
+
 def test_adapter_keeps_structured_mode_for_fast_owner_communication():
     runtime = FakeStructuredModelExecution(_schema_capabilities())
     adapter = SerializedModelExecutionAdapter(runtime)

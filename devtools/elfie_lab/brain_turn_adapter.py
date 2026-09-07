@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from threading import Lock
 from time import monotonic
+from typing import Any, Callable
 
 from devtools.elfie_lab.schemas import StimulusBundle
 from elfie import Elfie
@@ -154,13 +155,24 @@ class LabCommunicationChannel:
 class BrainTurnAdapter:
     """Submit one explicit input lane, then wait on the production Brain lifecycle."""
 
-    def __init__(self, elfie: Elfie) -> None:
+    def __init__(
+        self,
+        elfie: Elfie,
+        *,
+        memory_observer: Callable[[dict[str, Any]], None] | None = None,
+        context_observer: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self._elfie = elfie
         self._runtime = SelectedLabModelExecution()
         self._tools = SelectedLabToolPort(self._runtime)
         self.channel = LabCommunicationChannel()
         self._elfie.register_communication_channel(self.channel, connect=True)
-        self._elfie.configure_cognition(self._runtime, tool_port=self._tools)
+        self._elfie.configure_cognition(
+            self._runtime,
+            tool_port=self._tools,
+            memory_observer=memory_observer,
+            context_observer=context_observer,
+        )
         self._elfie.start()
 
     def run(

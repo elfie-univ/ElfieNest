@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Tuple, cast
+from time import perf_counter
+from typing import Any, Callable, Literal, Tuple, cast
 from uuid import uuid4
 
 from elfie.brain.activity.context import ActivityContext
@@ -97,6 +98,7 @@ class ReasoningRunController:
         allowed_tools: Tuple[str, ...] = (),
         skill_catalog: SkillCatalog | None = None,
         constitution: ReasoningConstitution,
+        context_observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._elfie_id = elfie_id
         self._homeostasis = homeostasis
@@ -107,6 +109,7 @@ class ReasoningRunController:
         self._header = ModelHeaderAssembler(constitution)
         self._context_builder = ContextAssembler()
         self._compiler = ModelContextCompiler()
+        self._context_observer = context_observer
 
     def build_task(
         self,
@@ -267,6 +270,7 @@ class ReasoningRunController:
             observations: tuple[CurrentRunObservation, ...],
         ) -> ModelGenerationRequest:
             """Rebuild every cognitive step through the one Context Engine."""
+            compile_started = perf_counter()
             compiled = self._compiler.compile(
                 context,
                 budget=token_budget,
@@ -291,7 +295,7 @@ class ReasoningRunController:
                     response_mode is ModelResponseMode.DECISION_PLAN
                 ),
             )
-            return ModelGenerationRequest(
+            request = ModelGenerationRequest(
                 turn_id=seed.turn_id,
                 frame_id=seed.frame_id,
                 context_revision=seed.context_revision,
@@ -325,6 +329,26 @@ class ReasoningRunController:
                     structured_owner_reply=structured_owner_reply,
                 ),
             )
+            observer = self._context_observer
+            if observer is not None:
+                try:
+                    observer(
+                        {
+                            "stage": "compiled_context",
+                            "turn_id": str(seed.turn_id),
+                            "frame_id": str(seed.frame_id),
+                            "observations": observations,
+                            "compiled": compiled,
+                            "request": request,
+                            "duration_ms": round(
+                                (perf_counter() - compile_started) * 1000,
+                                2,
+                            ),
+                        }
+                    )
+                except Exception:  # noqa: BLE001 - diagnostics cannot affect Brain
+                    pass
+            return request
 
         request = build_context_request(())
         return ReasoningTask(
@@ -683,6 +707,19 @@ class ReasoningRunController:
                 "- target_kind must be node, assertion, or episode; copy target_id "
                 "exactly from the matching NODE/FACT/EPISODE id. Never prepend "
                 "fact:, node:, or assertion:."
+            )
+            response_policy += (
+                "\nOWNER_CHAT_STYLE:\n"
+                "- Answer the current owner message directly in one or two short, "
+                "natural sentences. Acknowledge an explicit feeling or situation "
+                "before adding advice.\n"
+                "- For a greeting or a simple feeling/status update, finish with the "
+                "acknowledgment or support; do not append a question. Ask only when "
+                "a missing fact is required to answer or act.\n"
+                "- Do not prepend automatic confirmations such as '好的' or '好的呢'. Use no "
+                "speech marker by default. If the prior Elfie reply contains any of "
+                "哒/喵/呢/啦/呀, use no speech marker in this reply; otherwise use at "
+                "most one only when it adds real nuance."
             )
         elif structured_owner_reply:
             response_policy = (

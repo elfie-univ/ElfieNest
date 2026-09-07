@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from threading import Lock
-from typing import Callable, Mapping
+from typing import Any, Callable, Mapping
 
 from elfie.body.port import BodyPort
 from elfie.brain.activity.context import ActivityContextReader
@@ -237,6 +237,8 @@ def assemble_brain_runtime(
     activity_store: ActivityStorePort | None = None,
     journal_store: BrainJournalPort | None = None,
     restore_clock: Callable[[datetime], None] | None = None,
+    memory_observer: Callable[[dict[str, Any]], None] | None = None,
+    context_observer: Callable[[dict[str, Any]], None] | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
@@ -272,7 +274,7 @@ def assemble_brain_runtime(
         }
 
     context = BrainContextProvider(
-        memory=ReasoningMemoryBridge(memory),
+        memory=ReasoningMemoryBridge(memory, observer=memory_observer),
         conversations=ReasoningContextWorkspace(),
         activities=ActivityContextReader(resolved_activity_store),
         capability_reader=capabilities.current,
@@ -316,6 +318,7 @@ def assemble_brain_runtime(
         activity_store=resolved_activity_store,
         journal_store=journal_store,
         restore_clock=restore_clock,
+        context_observer=context_observer,
     )
     nervous_system.bind_perception_notifier(brain_runtime.notify_perception)
     return brain_runtime

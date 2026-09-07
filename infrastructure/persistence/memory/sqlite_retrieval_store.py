@@ -7,7 +7,7 @@ import re
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import replace
-from typing import Iterable, cast
+from typing import Iterable, Mapping, cast
 
 from elfie.brain.memory.memory_records import (
     OccurrencePrecision,
@@ -24,6 +24,22 @@ from elfie.brain.memory.score_policy import MemoryScorePolicy
 
 from .sqlite_mixin_base import SQLiteMemoryMixinBase
 from .sqlite_utils import normalize_text, normalized_tokens, utc_now
+
+_MIN_LEXICAL_RELEVANCE = 0.10
+_RELATIVE_LEXICAL_RELEVANCE = 0.60
+_LEXICAL_QUESTION_TERMS = frozenset(
+    {
+        "什么",
+        "一个",
+        "问题",
+        "记得",
+        "之前",
+        "以前",
+        "说过",
+        "偏好",
+        "好吗",
+    }
+)
 
 
 class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
@@ -42,9 +58,13 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         """Deterministic lexical search over Episode text and graph labels."""
         if top_k < 1 or not query.strip():
             return []
-        terms = list(dict.fromkeys(normalized_tokens(query)))
+        terms = _lexical_search_terms(query)
         if not terms:
             return []
+        term_weights = {
+            term: (0.10 if term in _LEXICAL_QUESTION_TERMS else 1.0) for term in terms
+        }
+        total_term_weight = sum(term_weights.values())
         like_patterns = _lexical_like_patterns(query, terms)
         # The text tables are rebuildable projections, not a second semantic
         # authority.  Bound the prefilter before the deterministic scorer so
@@ -166,10 +186,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             normalized = _lexical_normalize(text)
             if not normalized:
                 continue
-            hits = sum(1 for term in terms if term in normalized)
-            if hits == 0:
+            hit_weight = sum(term_weights[term] for term in terms if term in normalized)
+            if hit_weight == 0:
                 continue
-            score = 0.65 * (hits / max(1, len(terms)))
+            score = 0.65 * (hit_weight / max(0.1, total_term_weight))
             if query_normalized in normalized:
                 score += 0.15
             # Exact aliases are stronger evidence than an incidental mention
@@ -188,7 +208,22 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             if kind == "knowledge":
                 score += 0.05
             scored[identifier] = max(scored.get(identifier, 0.0), score)
-        return sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:top_k]
+        # A long natural-language question often contains only one
+        # incidental question word in a candidate (for example ``什么`` or
+        # ``一个``).  Apply both an absolute floor and a relative-to-best
+        # floor before lexical hits become graph seeds.  Exact aliases remain
+        # explicit identity evidence and bypass the floor.
+        best_score = max(scored.values(), default=0.0)
+        score_floor = max(
+            _MIN_LEXICAL_RELEVANCE,
+            best_score * _RELATIVE_LEXICAL_RELEVANCE,
+        )
+        filtered = {
+            identifier: score
+            for identifier, score in scored.items()
+            if identifier in exact_alias_ids or score >= score_floor
+        }
+        return sorted(filtered.items(), key=lambda item: (-item[1], item[0]))[:top_k]
 
     def recall(self, request: RecallRequest) -> RecallBundle:
         request = _bounded_request(request)
@@ -251,6 +286,31 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 episode_scores[node_id] = score
         if episode_scores and _has_episode_filters(request):
             episode_scores = self._filter_episode_window(episode_scores, request)
+
+        # An Episode can be the only lexical anchor even when its graph
+        # mentions were not materialized (for example after a restart).  Use
+        # the source evidence links to recover the subject node, then let the
+        # existing graph owner return the complete current/superseded claim
+        # set.  This keeps corrections and their two sources together without
+        # reintroducing every weak lexical candidate as a seed.
+        for subject_id in self._assertion_subjects_for_episodes(
+            episode_scores,
+            privacy_scope=request.privacy_scope,
+        ):
+            resolved = self.resolve_graph_node_id(subject_id)
+            if resolved is None:
+                continue
+            node = self.get_graph_node(
+                resolved,
+                privacy_scope=request.privacy_scope,
+                now=now,
+            )
+            if (
+                node is not None
+                and _recall_eligible(node)
+                and (not allowed_types or node.node_type in allowed_types)
+            ):
+                seed_ids.append(resolved)
 
         # An exact/rare term may first hit an Episode. Mentions promote its
         # resolved nodes into the graph seed set without inventing entities.
@@ -529,6 +589,40 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 : request.node_limit
             ]
         )
+
+    def _assertion_subjects_for_episodes(
+        self,
+        episode_scores: Mapping[str, float],
+        *,
+        privacy_scope: str | None,
+    ) -> tuple[str, ...]:
+        """Return visible graph subjects linked to recalled Episode sources."""
+        del privacy_scope  # source rows already carry the request scope
+        episode_ids = tuple(episode_scores)
+        if not episode_ids:
+            return ()
+        placeholders = ",".join("?" for _ in episode_ids)
+        params: list[object] = list(episode_ids)
+        scope = ""
+        if getattr(self, "elfie_id", None) is not None:
+            scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+            params.append(str(self.elfie_id))
+        with self._lock:
+            rows = self.conn.execute(
+                f"""SELECT DISTINCT a.subject_node_id
+                       FROM assertion_evidence AS ae
+                       JOIN assertions AS a ON a.assertion_id=ae.assertion_id
+                       JOIN evidence AS e ON e.evidence_id=ae.evidence_id
+                       JOIN nodes AS n ON n.node_id=a.subject_node_id
+                      WHERE e.source_type='episode'
+                        AND e.source_id IN ({placeholders})
+                        AND a.lifecycle IN ('active', 'superseded')
+                        AND n.status IN ('active', 'candidate', 'unresolved')
+                        AND n.merged_into IS NULL"""
+                + scope,
+                params,
+            ).fetchall()
+        return tuple(str(row[0]) for row in rows if row[0])
 
     def _filter_episode_window(
         self, scores: dict[str, float], request: RecallRequest
@@ -849,6 +943,23 @@ def _lexical_normalize(value: str) -> str:
     """Normalize searchable text without weakening semantic identity rules."""
     cleaned = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", "", value.casefold())
     return " ".join(cleaned.split())
+
+
+def _lexical_search_terms(query: str) -> list[str]:
+    """Prefer multi-character terms for Chinese questions.
+
+    ``normalized_tokens`` intentionally emits individual CJK characters so a
+    one-character name remains searchable.  Counting those characters in a
+    long question makes common words dominate Recall, though: a record that
+    contains only ``什么`` can outrank a record containing the requested
+    subject.  Keep the single-character fallback for genuinely short queries,
+    but use the more discriminating terms whenever the query has them.
+    """
+    terms = list(dict.fromkeys(normalized_tokens(query)))
+    meaningful = [
+        term for term in terms if not (len(term) == 1 and "\u4e00" <= term <= "\u9fff")
+    ]
+    return meaningful or terms
 
 
 def _recall_eligible(node: RecallNode) -> bool:

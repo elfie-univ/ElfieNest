@@ -1184,6 +1184,26 @@ def test_reasoning_run_honors_local_deadline_before_model_call() -> None:
     assert runtime.calls == []
 
 
+def test_reasoning_run_passes_remaining_deadline_to_model_port() -> None:
+    runtime = SearchRuntime()
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(
+            max_steps=4,
+            max_model_calls=1,
+            max_tool_calls=0,
+            deadline_seconds=2.0,
+        ),
+    ).run(_task())
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert runtime.calls
+    assert runtime.calls[0].timeout_seconds is not None
+    assert 0.0 < runtime.calls[0].timeout_seconds <= 2.0
+
+
 def test_reasoning_run_exposes_model_unavailable_as_failure() -> None:
     class UnavailableRuntime(SearchRuntime):
         def capabilities(self) -> ModelGenerationCapabilities:

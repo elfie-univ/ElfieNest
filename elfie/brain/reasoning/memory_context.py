@@ -6,7 +6,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from threading import RLock
-from typing import Literal, Protocol, Tuple
+from typing import Any, Callable, Literal, Protocol, Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
@@ -120,33 +120,58 @@ class ReasoningMemorySession:
         """Perform at most one unique on-demand Recall for P0."""
         normalized = self._normalize(query)
         if not normalized:
-            return MemoryRecallResult(
+            result = MemoryRecallResult(
                 status="unavailable",
                 query=query,
                 pinned_revision=self._pinned_revision,
                 reason="blank_recall_query",
             )
+            self._bridge._notify(
+                {
+                    "stage": "recall_result",
+                    "frame_id": str(self._frame_id),
+                    "result": result,
+                }
+            )
+            return result
         with self._lock:
             previous = self._results.get(normalized)
             if previous is not None:
-                return MemoryRecallResult(
+                result = MemoryRecallResult(
                     status="duplicate",
                     query=query,
                     pinned_revision=self._pinned_revision,
                     bundle=previous.bundle,
                     reason="query_already_recalled_in_run",
                 )
+                self._bridge._notify(
+                    {
+                        "stage": "recall_result",
+                        "frame_id": str(self._frame_id),
+                        "result": result,
+                    }
+                )
+                return result
             if self._on_demand_recalls >= self._max_on_demand_recalls:
-                return MemoryRecallResult(
+                result = MemoryRecallResult(
                     status="budget_exhausted",
                     query=query,
                     pinned_revision=self._pinned_revision,
                     reason="on_demand_recall_budget_exhausted",
                 )
+                self._bridge._notify(
+                    {
+                        "stage": "recall_result",
+                        "frame_id": str(self._frame_id),
+                        "result": result,
+                    }
+                )
+                return result
             self._on_demand_recalls += 1
         result = self._bridge._recall_at_revision(  # noqa: SLF001 - owned session
             query,
             pinned_revision=self._pinned_revision,
+            frame_id=self._frame_id,
         )
         with self._lock:
             self._results[normalized] = result
@@ -162,8 +187,13 @@ class ReasoningMemorySession:
 class ReasoningMemoryBridge:
     """Translate a Turn into pinned Recall without owning persistent facts."""
 
-    def __init__(self, memory: MemorySystem) -> None:
+    def __init__(
+        self,
+        memory: MemorySystem,
+        observer: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self._memory = memory
+        self._observer = observer
         self._memory_lock = RLock()
         self._bundle_lock = RLock()
         self._bundles: OrderedDict[str, RecallBundle] = OrderedDict()
@@ -191,6 +221,15 @@ class ReasoningMemoryBridge:
             state = MemoryStateSnapshot.unknown().model_copy(
                 update={"captured_at": captured_at}
             )
+        self._notify(
+            {
+                "stage": "turn_opened",
+                "frame_id": str(frame.frame_id),
+                "query": query,
+                "pinned_revision": pinned_revision,
+                "state": state,
+            }
+        )
         session = ReasoningMemorySession(
             self,
             frame_id=frame.frame_id,
@@ -200,6 +239,7 @@ class ReasoningMemoryBridge:
             baseline = self._recall_at_revision(
                 query,
                 pinned_revision=pinned_revision,
+                frame_id=frame.frame_id,
             )
         else:
             baseline = MemoryRecallResult(
@@ -208,6 +248,13 @@ class ReasoningMemoryBridge:
                 pinned_revision=pinned_revision,
                 bundle=RecallBundle(recall_revision=pinned_revision),
                 reason="baseline_recall_not_relevant",
+            )
+            self._notify(
+                {
+                    "stage": "recall_result",
+                    "frame_id": str(frame.frame_id),
+                    "result": baseline,
+                }
             )
         session.set_baseline(baseline)
         bundle = baseline.bundle or RecallBundle(recall_revision=pinned_revision)
@@ -233,40 +280,91 @@ class ReasoningMemoryBridge:
         query: str,
         *,
         pinned_revision: int,
+        frame_id: EventId | None = None,
     ) -> MemoryRecallResult:
+        self._notify(
+            {
+                "stage": "recall_started",
+                "frame_id": str(frame_id) if frame_id is not None else None,
+                "query": query,
+                "pinned_revision": pinned_revision,
+                "request": self._request(query),
+            }
+        )
         try:
             with self._memory_lock:
                 if self._memory.revision != pinned_revision:
-                    return MemoryRecallResult(
+                    result = MemoryRecallResult(
                         status="stale",
                         query=query,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_before_recall",
                     )
+                    self._notify(
+                        {
+                            "stage": "recall_result",
+                            "frame_id": str(frame_id) if frame_id is not None else None,
+                            "result": result,
+                        }
+                    )
+                    return result
                 bundle = self._memory.recall(self._request(query))
                 if (
                     bundle.recall_revision != pinned_revision
                     or self._memory.revision != pinned_revision
                 ):
-                    return MemoryRecallResult(
+                    result = MemoryRecallResult(
                         status="stale",
                         query=query,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_during_recall",
                     )
+                    self._notify(
+                        {
+                            "stage": "recall_result",
+                            "frame_id": str(frame_id) if frame_id is not None else None,
+                            "result": result,
+                        }
+                    )
+                    return result
         except Exception as error:  # noqa: BLE001 - typed degradation boundary
-            return MemoryRecallResult(
+            result = MemoryRecallResult(
                 status="unavailable",
                 query=query,
                 pinned_revision=pinned_revision,
                 reason=f"memory_unavailable:{type(error).__name__}",
             )
-        return MemoryRecallResult(
+            self._notify(
+                {
+                    "stage": "recall_result",
+                    "frame_id": str(frame_id) if frame_id is not None else None,
+                    "result": result,
+                }
+            )
+            return result
+        result = MemoryRecallResult(
             status="recalled",
             query=query,
             pinned_revision=pinned_revision,
             bundle=bundle,
         )
+        self._notify(
+            {
+                "stage": "recall_result",
+                "frame_id": str(frame_id) if frame_id is not None else None,
+                "result": result,
+            }
+        )
+        return result
+
+    def _notify(self, event: dict[str, Any]) -> None:
+        observer = self._observer
+        if observer is None:
+            return
+        try:
+            observer(event)
+        except Exception:  # noqa: BLE001 - diagnostics must never change Brain
+            return
 
     @staticmethod
     def _request(query: str) -> RecallRequest:

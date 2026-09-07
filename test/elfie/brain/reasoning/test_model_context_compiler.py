@@ -282,6 +282,10 @@ def test_compile_preserves_recall_bundle_in_the_model_memory_block() -> None:
     assert "elfie emotion: primary=happiness" in system_prompt
     assert "CONTEXT_ONLY:\nowner: are you awake?" in user_prompt
     assert "CURRENT_MESSAGE:\nplease answer from the sofa" in user_prompt
+    assert "Answer the current owner message directly" in system_prompt
+    assert "Use no speech marker by default" in system_prompt
+    assert "For a greeting or a simple feeling/status update" in system_prompt
+    assert "If the prior Elfie reply contains any of" in system_prompt
 
 
 def test_prompt_injection_text_is_compiled_as_inert_event_data() -> None:

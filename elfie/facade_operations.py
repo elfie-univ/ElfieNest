@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from threading import Lock
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
@@ -193,6 +193,8 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
         | None = None,
         embodied_input_mode: EmbodiedInputMode | None = None,
+        memory_observer: Callable[[dict[str, Any]], None] | None = None,
+        context_observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
@@ -239,6 +241,8 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             activity_store=self._activity_store,
             journal_store=self._journal_store,
             restore_clock=self._restore_cognitive_clock,
+            memory_observer=memory_observer,
+            context_observer=context_observer,
         )
 
     def _restore_cognitive_clock(self, captured_at: datetime) -> None:

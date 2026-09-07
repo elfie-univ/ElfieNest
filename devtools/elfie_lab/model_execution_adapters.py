@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Mapping
 
 from devtools.elfie_lab.model_execution_foods import (
     ElfieLabModelEnvironment,
@@ -42,7 +42,23 @@ from infrastructure.tools.web_search.search import WebSearchPlugin
 _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._-]{12,}", re.IGNORECASE),
+    re.compile(r"AIza[A-Za-z0-9_-]{20,}"),
 )
+
+_SECRET_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "password",
+    "secret",
+    "token",
+    "access_token",
+    "refresh_token",
+    "credential",
+    "private_key",
+    "client_secret",
+}
+_NORMALIZED_SECRET_KEYS = {re.sub(r"[^a-z0-9]", "", item) for item in _SECRET_KEYS}
 
 
 def redact_text(value: str) -> str:
@@ -52,17 +68,33 @@ def redact_text(value: str) -> str:
     return result
 
 
-def _redact_payload(value: Any) -> Any:
-    """Redact textual leaves before a provider record enters the Lab trace."""
+def redact_value(value: Any, *, key: str | None = None) -> Any:
+    """Recursively redact credentials while retaining typed trace values."""
+    normalized_key = re.sub(r"[^a-z0-9]", "", key.casefold()) if key is not None else ""
+    if normalized_key in _NORMALIZED_SECRET_KEYS:
+        return "<redacted>"
     if isinstance(value, str):
         return redact_text(value)
-    if isinstance(value, list):
-        return [_redact_payload(item) for item in value]
-    if isinstance(value, tuple):
-        return [_redact_payload(item) for item in value]
-    if isinstance(value, dict):
-        return {str(key): _redact_payload(item) for key, item in value.items()}
+    if isinstance(value, Mapping):
+        return {
+            str(item_key): redact_value(item_value, key=str(item_key))
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [redact_value(item) for item in value]
+    if hasattr(value, "model_dump"):
+        try:
+            return redact_value(value.model_dump(mode="json"))
+        except TypeError:
+            return redact_value(value.model_dump())
+    if hasattr(value, "__dict__") and not isinstance(value, type):
+        return redact_value(vars(value))
     return value
+
+
+def _redact_payload(value: Any) -> Any:
+    """Backward-compatible name for the trace redaction helper."""
+    return redact_value(value)
 
 
 class MockModelExecutionAgent:
@@ -107,17 +139,22 @@ class TracingModelExecutionAgent:
         self.food_key = food_key
         self.config = inner.config
         self.calls: List[Dict[str, Any]] = []
+        self._call_sequence = 0
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
         started = time.perf_counter()
-        call: Dict[str, Any] = {
-            "food_key": self.food_key,
-            "prompt": redact_text(prompt),
-            "energy": energy,
-            "task_complexity": task_complexity,
-            "provider": self._provider_name(),
-            "model": self._model_name(task_complexity),
-        }
+        call: Dict[str, Any] = self._new_call("ask")
+        call.update(
+            {
+                "call_index": call["sequence"],
+                "food_key": self.food_key,
+                "prompt": redact_text(prompt),
+                "energy": energy,
+                "task_complexity": task_complexity,
+                "provider": self._provider_name(),
+                "model": self._model_name(task_complexity),
+            }
+        )
         try:
             response = self.inner.ask(prompt, energy, task_complexity)
             call["provider"] = self._provider_name()
@@ -157,27 +194,31 @@ class TracingModelExecutionAgent:
 
     def generate(self, request: ModelGenerationRequest) -> ModelGenerationResult:
         started = time.perf_counter()
-        call_index = len(self.calls) + 1
-        call: Dict[str, Any] = {
-            "call_index": call_index,
-            "food_key": self.food_key,
-            "request": _redact_payload(request.model_dump(mode="json")),
-            "capabilities": _redact_payload(
-                self.capabilities().model_dump(mode="json")
-            ),
-            "effective_parameters": {
-                "provider": self._provider_name(),
-                "model": self._model_name(2),
-                "reasoning_mode": request.reasoning_mode,
-                "response_mode": request.response_mode.value,
-                "response_schema": request.response_schema.name,
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "allowed_tools": list(request.allowed_tools),
-                "tool_definition_count": len(request.tool_definitions),
-                "skill_count": len(request.available_skills),
-            },
-        }
+        call: Dict[str, Any] = self._new_call("generate")
+        call.update(
+            {
+                "call_index": call["sequence"],
+                "food_key": self.food_key,
+                "request": redact_value(request),
+                "system_prompt": redact_text(request.system_prompt),
+                "user_prompt": redact_text(request.user_prompt),
+                "capabilities": _redact_payload(
+                    self.capabilities().model_dump(mode="json")
+                ),
+                "effective_parameters": {
+                    "provider": self._provider_name(),
+                    "model": self._model_name(2),
+                    "reasoning_mode": request.reasoning_mode,
+                    "response_mode": request.response_mode.value,
+                    "response_schema": request.response_schema.name,
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                    "allowed_tools": list(request.allowed_tools),
+                    "tool_definition_count": len(request.tool_definitions),
+                    "skill_count": len(request.available_skills),
+                },
+            }
+        )
         try:
             if self.food_key != "mock":
                 result = self.inner.generate(request)
@@ -213,10 +254,13 @@ class TracingModelExecutionAgent:
                     "provider": result.provider,
                     "model": result.model_key,
                     "food_used": self.food_key,
-                    "execution_stage": "primary",
+                    "execution_stage": (
+                        "mock" if self.food_key == "mock" else "primary"
+                    ),
                     "degraded": False,
                     "result": _redact_payload(result.model_dump(mode="json")),
                     "response": redact_text(result.text),
+                    "response_text": redact_text(result.text),
                 }
             )
             return result
@@ -226,12 +270,22 @@ class TracingModelExecutionAgent:
                     "provider": self._provider_name(),
                     "model": self._model_name(2),
                     "error": type(exc).__name__,
+                    "error_message": redact_text(str(exc)),
                 }
             )
             raise
         finally:
             call["duration_ms"] = round((time.perf_counter() - started) * 1000, 2)
             self.calls.append(call)
+
+    def _new_call(self, kind: str) -> Dict[str, Any]:
+        self._call_sequence += 1
+        return {
+            "call_id": f"{self.food_key}:{self._call_sequence}",
+            "sequence": self._call_sequence,
+            "kind": kind,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     def abandon(self, request: ModelGenerationRequest) -> None:
         """Detach the Lab request; the temporary adapter owns no call gate."""

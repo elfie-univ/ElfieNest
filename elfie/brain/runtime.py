@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from elfie.brain.activity.preflight import ActivityPreflightService
 from elfie.brain.activity.system import (
@@ -97,6 +97,7 @@ class BrainRuntime:
         activity_store: ActivityStorePort | None = None,
         journal_store: BrainJournalPort | None = None,
         restore_clock: Callable[[UTCDateTime], None] | None = None,
+        context_observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._clock = clock
         self._elfie_id = elfie_id
@@ -169,6 +170,7 @@ class BrainRuntime:
             journal=self._journal,
             on_outcome=self._persist_after_outcome,
             on_state_change=self._save_continuity,
+            context_observer=context_observer,
         )
         self._started = False
         self._workspace = workspace

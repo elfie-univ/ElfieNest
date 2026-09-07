@@ -454,12 +454,19 @@ class ModelExecutionAgent:
             }
             for definition in request.tool_definitions
         ]
-        if request.reasoning_mode == "fast" and request.model_key:
+        if request.model_key:
             profile = resolve_model_capability_profile(request.model_key)
-            if profile and profile.canonical_name.startswith("GLM-"):
-                # GLM-5 enables thinking by default. Structured fast paths need
-                # the final JSON payload rather than its visible reasoning trace.
+            provider = request.provider or ""
+            if request.reasoning_mode == "fast" and (
+                (profile and profile.canonical_name.startswith("GLM-"))
+                or provider.startswith("volcengine")
+            ):
+                # GLM and Volcengine deep-thinking endpoints enable thinking by
+                # default.  Structured fast paths need the final JSON payload
+                # rather than a hidden reasoning trace.
                 options["thinking"] = {"type": "disabled"}
+            elif request.reasoning_mode == "long" and provider.startswith("volcengine"):
+                options["thinking"] = {"type": "enabled"}
         if selected_mode is StructuredGenerationMode.JSON_SCHEMA:
             options["response_format"] = {
                 "type": "json_schema",

@@ -26,6 +26,7 @@ from devtools.elfie_lab.turn_projection import project_decision
 from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
@@ -61,6 +62,10 @@ class ElfieLabSession:
         spec: ElfieSpec,
         storage: ElfieLabStorage,
         model_execution_config_dir: str | None = None,
+        memory_store: MemoryStorePort | None = None,
+        memory_store_factory: Callable[[], MemoryStorePort] | None = None,
+        memory_observer: Callable[[dict[str, Any]], None] | None = None,
+        context_observer: Callable[[dict[str, Any]], None] | None = None,
     ):
         self.spec = spec
         self.storage = storage
@@ -75,6 +80,17 @@ class ElfieLabSession:
         )
         self.body = HeadlessBody(body_id=f"{spec.elfie_id}:headless")
         self.body.connect()
+        if memory_store_factory is not None:
+            self._memory_store_factory = memory_store_factory
+        elif memory_store is not None:
+            self._memory_store_factory = lambda: memory_store
+        else:
+            self._memory_store_factory = lambda: SQLiteMemoryStoreAdapter(
+                storage.memory_path(spec.elfie_id)
+            )
+        self._memory_observer = memory_observer
+        self._context_observer = context_observer
+        self.last_model_execution: Any | None = None
         workspace = storage.elfie_dir(spec.elfie_id)
         profile_store = YamlProfileStoreAdapter(workspace / "profile")
         self.elfie = ElfieFactory().restore(
@@ -87,9 +103,7 @@ class ElfieLabSession:
                 reasoning_constitution=ReasoningConstitution.from_mapping(
                     load_reasoning_constitution()
                 ),
-                memory_store=SQLiteMemoryStoreAdapter(
-                    storage.memory_path(spec.elfie_id)
-                ),
+                memory_store=self._memory_store_factory(),
                 activity_store=SQLiteActivityStoreAdapter(
                     storage.activity_path(spec.elfie_id)
                 ),
@@ -100,7 +114,11 @@ class ElfieLabSession:
                 embodied_input_mode=EmbodiedInputMode.BRAIN,
             ),
         )
-        self._turn_adapter = BrainTurnAdapter(self.elfie)
+        self._turn_adapter = BrainTurnAdapter(
+            self.elfie,
+            memory_observer=self._memory_observer,
+            context_observer=self._context_observer,
+        )
         self._lock = threading.Lock()
         self._closed = False
 
@@ -155,6 +173,7 @@ class ElfieLabSession:
             )
             state_before = self.snapshot()
             model_execution = None
+            self.last_model_execution = None
             started = time.perf_counter()
             result: Dict[str, Any] = {}
             error: Optional[str] = None
@@ -168,6 +187,7 @@ class ElfieLabSession:
                         else None
                     ),
                 )
+                self.last_model_execution = model_execution
                 outcome, turn_decision, receipts, reasoning = self._turn_adapter.run(
                     stimulus,
                     turn_id,
@@ -303,9 +323,7 @@ class ElfieLabSession:
                     reasoning_constitution=ReasoningConstitution.from_mapping(
                         load_reasoning_constitution()
                     ),
-                    memory_store=SQLiteMemoryStoreAdapter(
-                        self.storage.memory_path(self.spec.elfie_id)
-                    ),
+                    memory_store=self._memory_store_factory(),
                     activity_store=SQLiteActivityStoreAdapter(
                         self.storage.activity_path(self.spec.elfie_id)
                     ),
@@ -316,7 +334,11 @@ class ElfieLabSession:
                     embodied_input_mode=EmbodiedInputMode.BRAIN,
                 ),
             )
-            self._turn_adapter = BrainTurnAdapter(self.elfie)
+            self._turn_adapter = BrainTurnAdapter(
+                self.elfie,
+                memory_observer=self._memory_observer,
+                context_observer=self._context_observer,
+            )
             self._closed = False
             self.storage.save_session(self.get_payload())
             return self.get_payload()
