@@ -1,0 +1,1 @@
+"""Brain trace collector tests."""
