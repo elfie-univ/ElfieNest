@@ -44,6 +44,14 @@ def test_lab_session_forwards_single_observation_sink(tmp_path):
         "recall_result",
         "compiled_context",
         "model_call",
+        "orientation_snapshot",
+        "frame_claim",
+        "emotion_candidate",
+        "drive_evaluated",
+        "decision_routed",
+        "candidate_scored",
+        "budget_settled",
+        "selection_summary",
     }
     assert "compiled_context" in kinds
     assert all(isinstance(event, BrainObservation) for event in events)

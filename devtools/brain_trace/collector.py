@@ -64,14 +64,16 @@ class BrainTraceValidationError(ValueError):
     """Raised for an invalid collector mode, source or artifact request."""
 
 
-def _jsonable(value: Any) -> Any:
+def _jsonable(value: Any, seen: Optional[set[int]] = None) -> Any:
     """Convert typed Brain values to JSON without using repr as a fact source."""
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
+    if seen is None:
+        seen = set()
     if isinstance(value, (datetime, date, datetime_time)):
         return value.isoformat()
     if isinstance(value, Enum):
-        return _jsonable(value.value)
+        return _jsonable(value.value, seen)
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, bytes):
@@ -82,18 +84,32 @@ def _jsonable(value: Any) -> Any:
         }
     if hasattr(value, "model_dump"):
         try:
-            return _jsonable(value.model_dump(mode="json"))
+            return _jsonable(value.model_dump(mode="json"), seen)
         except TypeError:
-            return _jsonable(value.model_dump())
+            return _jsonable(value.model_dump(), seen)
     if is_dataclass(value):
-        return _jsonable(asdict(cast(Any, value)))
+        return _jsonable(asdict(cast(Any, value)), seen)
     if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in value.items()}
+        return _jsonable_container(value, seen)
     if isinstance(value, (list, tuple, set, frozenset)):
-        return [_jsonable(item) for item in value]
+        return _jsonable_container(value, seen)
     if hasattr(value, "__dict__"):
-        return _jsonable(vars(value))
+        return _jsonable(vars(value), seen)
     return str(value)
+
+
+def _jsonable_container(value: Any, seen: set[int]) -> Any:
+    """Expand a visited container while guarding against reference cycles."""
+    container_id = id(value)
+    if container_id in seen:
+        return "<cyclic-ref>"
+    seen.add(container_id)
+    try:
+        if isinstance(value, Mapping):
+            return {str(key): _jsonable(item, seen) for key, item in value.items()}
+        return [_jsonable(item, seen) for item in value]
+    finally:
+        seen.discard(container_id)
 
 
 def _safe_value(value: Any) -> Any:
@@ -318,6 +334,9 @@ class TracingMemoryStore:
             return attribute
 
         def invoke(*args: Any, **kwargs: Any) -> Any:
+            if name.startswith("bind_"):
+                # Wiring methods are not memory semantics; call through unrecorded.
+                return attribute(*args, **kwargs)
             started = time.perf_counter()
             payload: Dict[str, Any] = {
                 "method": name,
