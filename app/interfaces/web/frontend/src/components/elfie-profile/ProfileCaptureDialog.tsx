@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { InlineBanner } from "@/components/InlineBanner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -321,9 +322,9 @@ export function ProfileCaptureDialog({
             {imageInfo === null && <p className="profile-capture__loading-overlay" role="status">{t("profile.captureDialog.loading")}</p>}
           </div>
         )}
-        {downloadError.length > 0 && <p className="profile-capture__error" role="alert">{downloadError}</p>}
-        {captureError.length > 0 && <p className="profile-capture__error" role="alert">{captureError}</p>}
-        {cropError.length > 0 && <p className="profile-capture__error" role="alert">{cropError}</p>}
+        {downloadError.length > 0 && <InlineBanner role="alert" tone="error">{downloadError}</InlineBanner>}
+        {captureError.length > 0 && <InlineBanner role="alert" tone="error">{captureError}</InlineBanner>}
+        {cropError.length > 0 && <InlineBanner role="alert" tone="error">{cropError}</InlineBanner>}
         <DialogFooter className="profile-capture__actions">
           <div className="profile-capture__aspect-control">
             {aspectIcon(aspect)}

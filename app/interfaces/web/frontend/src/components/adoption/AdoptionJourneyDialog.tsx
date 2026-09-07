@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "../ui/dialog"
 import { Icon } from "../Icon"
+import { InlineBanner } from "../InlineBanner"
 import elfariaArrivalImage from "../../assets/adoption/elfaria-arrival-square.png"
 import {
   INITIAL_ADOPTION_STATE,
@@ -57,6 +58,11 @@ import {
   loadAdoptionDraft,
   saveAdoptionDraft,
 } from "./adoption-storage"
+import {
+  beginAdoptionTimingPhase,
+  logAdoptionTimingSummary,
+  markAdoptionTiming,
+} from "./adoption-timing"
 import { ArrivalWelcomeScreen } from "./AdoptionReplyScreens"
 import {
   calculateVisibleFrameBounds,
@@ -92,7 +98,7 @@ const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [
   ["lively", "steady", "space", "any"],
 ]
 const PORTRAIT_RUNTIME_IDLE_MILLISECONDS = 5 * 60 * 1000
-const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating"]
+const PORTRAIT_RUNTIME_SCREENS: readonly AdoptionScreen[] = ["basic", "appearance", "companionship", "generating", "shortlist"]
 const INVITATION_RETRY_DELAYS_MILLISECONDS = [400, 1000] as const
 const COMMIT_RETRY_DELAYS_MILLISECONDS = [800, 1800] as const
 const INVITATION_TIMEOUT_MILLISECONDS = 30_000
@@ -391,6 +397,11 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
     csrfTokenRef.current = csrfToken
   }, [csrfToken])
 
+  const handlePortraitFrameRef = useCallback((node: HTMLIFrameElement | null): void => {
+    portraitFrameRef.current = node
+    if (node !== null) markAdoptionTiming("portraitFrameMounted")
+  }, [])
+
   const withCsrfRetry = useCallback(async <Result,>(request: (token: string) => Promise<Result>): Promise<Result> => {
     try {
       return await request(csrfTokenRef.current)
@@ -600,11 +611,12 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
 
   const generateCandidates = (): void => {
     if (!intentComplete(state.draft)) {
-      dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent") })
+      dispatch({ type: "error", message: t("adoption.journey.validation.completeIntent"), scope: "field" })
       return
     }
     const batch = state.candidateBatch + 1
     if (batch > MAX_CANDIDATE_BATCHES) return
+    markAdoptionTiming("generationClick")
     const request = candidateSetInput(state.draft, batch, state.adoptionSessionId)
     if (state.adoptionSessionId === null) sessionExpiresAtRef.current = adoptionSessionExpiryFromNow()
     setApiError(null)
@@ -617,7 +629,7 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
   const sendInvitations = async (): Promise<void> => {
     const selectedCandidateId = state.selectedCandidateIds[0]
     if (state.candidateSetId === null || selectedCandidateId === undefined) {
-      dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
+      dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate"), scope: "field" })
       return
     }
     if (sendingInvitations) return
@@ -672,12 +684,12 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
     const candidateSetId = state.candidateSetId
     const finalCandidateId = state.finalCandidateId
     if (candidateSetId === null || finalCandidateId === null) {
-      dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
+      dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate"), scope: "field" })
       return
     }
     const name = selectedName(state)
     if (!name || name.length > 20) {
-      dispatch({ type: "error", message: t("adoption.journey.validation.name") })
+      dispatch({ type: "error", message: t("adoption.journey.validation.name"), scope: "field" })
       return
     }
     if (committing) return
@@ -739,7 +751,7 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
     switch (state.screen) {
       case "welcome": goToBasic(); return
       case "basic":
-        if (state.draft.speciesId === null) dispatch({ type: "error", message: t("adoption.journey.validation.species") })
+        if (state.draft.speciesId === null) dispatch({ type: "error", message: t("adoption.journey.validation.species"), scope: "field" })
         else void generateCandidates()
         return
       case "appearance": dispatch({ type: "screen", screen: "companionship" }); return
@@ -751,7 +763,7 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
         return
       case "shortlist": void sendInvitations(); return
       case "replies":
-        if (state.finalCandidateId === null) dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate") })
+        if (state.finalCandidateId === null) dispatch({ type: "error", message: t("adoption.journey.validation.chooseCandidate"), scope: "field" })
         else dispatch({ type: "screen", screen: "naming" })
         return
       case "naming": void finishAdoption(); return
@@ -907,9 +919,13 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
         ) : null}
 
         <div aria-live="polite" className="adoption-dialog__body">
-          {journeyReady && state.error ? <p className="adoption-inline-error" role="alert">{state.error}</p> : null}
-          {journeyReady && errorMessage ? <p className="adoption-inline-error" role="alert">{errorMessage}</p> : null}
-          {journeyReady && state.screen === "shortlist" && candidateRecoveryNotice ? <p className="adoption-inline-notice" role="status">{t("adoption.journey.recovery.candidatesRegenerated")}</p> : null}
+          {journeyReady && state.error ? (
+            state.errorScope === "field"
+              ? <p className="adoption-inline-error" role="alert">{state.error}</p>
+              : <InlineBanner role="alert" tone="error">{state.error}</InlineBanner>
+          ) : null}
+          {journeyReady && errorMessage ? <InlineBanner role="alert" tone="error">{errorMessage}</InlineBanner> : null}
+          {journeyReady && state.screen === "shortlist" && candidateRecoveryNotice ? <InlineBanner role="status" tone="notice">{t("adoption.journey.recovery.candidatesRegenerated")}</InlineBanner> : null}
           {entryChecking ? <AdoptionEntryCheck t={t} /> : null}
           {journeyReady && state.screen === "welcome" ? <WelcomeScreen t={t} onStart={goToBasic} /> : null}
           {journeyReady && state.screen === "basic" ? <BasicScreen allowedSpecies={allowedSpecies} canAdopt={info?.quota.can_adopt ?? true} draft={state.draft} dispatch={dispatch} locale={locale} speciesName={(id) => speciesName(id, info?.species.find((species) => species.species_id === id), locale)} stageName={(value) => stageName(t, value)} t={t} /> : null}
@@ -927,7 +943,7 @@ export function AdoptionJourneyDialog({ accountId, accountCreatedAt, csrfToken, 
           className="adoption-portrait-renderer"
           key={portraitRuntimeGeneration}
           onError={() => { if (state.screen === "generating") onGenerationError(new ProfileGodotPreviewError("preview_load_failed")) }}
-          ref={portraitFrameRef}
+          ref={handlePortraitFrameRef}
           src="/runtime/godot/elfienest.html?mode=elfie_lab"
           title=""
         /> : null}
@@ -1017,7 +1033,7 @@ function BasicScreen({
     </div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.lifeStageLabel")}</legend><div className="adoption-option-row">{LIFE_STAGES.map((stage) => <ChoiceButton key={stage} onClick={() => dispatch({ type: "set-basic", field: "lifeStage", value: stage })} selected={draft.lifeStage === stage}>{stageName(stage)}</ChoiceButton>)}</div></fieldset>
     <fieldset className="adoption-fieldset"><legend>{t("adoption.journey.basic.genderLabel")}</legend><div className="adoption-option-row">{GENDERS.map((gender) => <ChoiceButton key={gender} onClick={() => dispatch({ type: "set-basic", field: "gender", value: gender })} selected={draft.gender === gender}>{t(`adoption.journey.genders.${gender}`)}</ChoiceButton>)}</div></fieldset>
-    {!canAdopt ? <p className="adoption-quota-warning">{t("adoption.journey.quota.exhausted")}</p> : null}
+    {!canAdopt ? <InlineBanner role="status" tone="notice">{t("adoption.journey.quota.exhausted")}</InlineBanner> : null}
   </section>
 }
 
@@ -1104,15 +1120,18 @@ function GeneratingScreen({ frameRef, loadCandidates, onError, onReady, request,
   const candidateRequestRef = useRef<CandidateRequestLease | null>(null)
   const renderedCandidatesRef = useRef(new Map<string, Candidate>())
   const [candidateLoad, setCandidateLoad] = useState<CandidateLoad | null>(null)
+  const [completedPreviews, setCompletedPreviews] = useState<readonly Candidate[]>([])
 
   useEffect(() => {
     let active = true
     let lease = candidateRequestRef.current
     if (lease === null || lease.request !== request || lease.loadCandidates !== loadCandidates) {
-      lease = { loadCandidates, promise: loadCandidates(request), request }
+      const apiSpan = beginAdoptionTimingPhase("api")
+      lease = { loadCandidates, promise: loadCandidates(request).finally(() => apiSpan.end()), request }
       candidateRequestRef.current = lease
       renderedCandidatesRef.current.clear()
       setCandidateLoad(null)
+      setCompletedPreviews([])
     }
     const currentLease = lease
     void currentLease.promise
@@ -1165,41 +1184,66 @@ function GeneratingScreen({ frameRef, loadCandidates, onError, onReady, request,
 
     const run = async (): Promise<void> => {
       try {
+        const readySpan = beginAdoptionTimingPhase("engineReady")
         await waitWithTimeout(ready, 20_000, "preview_timeout")
+        readySpan.end()
+        markAdoptionTiming("engineReady")
         if (!active) return
-        for (const candidate of activeLoad.candidates) {
+        const loopSpan = beginAdoptionTimingPhase("renderLoop")
+        for (const [candidateIndex, candidate] of activeLoad.candidates.entries()) {
           if (!active || bridge === null) return
           if (renderedCandidatesRef.current.has(candidate.candidateId)) continue
+          const phase = `candidate${candidateIndex + 1}`
+          const candidateSpan = beginAdoptionTimingPhase(phase)
+          const configureSpan = beginAdoptionTimingPhase(`${phase}.configure`)
           await sendAndWait(bridge, waitForAction, "configure", {
             appearance: candidate.runtimeAppearance,
             elfie_id: `candidate-${candidate.candidateId}`,
             spec_revision: portraitRevision(candidate.candidateId),
             species_id: candidate.speciesId,
           })
+          configureSpan.end()
+          const provisionalSpan = beginAdoptionTimingPhase(`${phase}.captureProvisional`)
           const provisional = await captureAndWait(bridge, waitForAction)
+          provisionalSpan.end()
+          const measureSpan = beginAdoptionTimingPhase(`${phase}.measure`)
           try {
             const metrics = await measureVisibleFrame(provisional.blob)
+            measureSpan.end()
             if (metrics !== null) {
+              const frameSpan = beginAdoptionTimingPhase(`${phase}.frame`)
               await sendAndWait(bridge, waitForAction, "frame", toGodotVisibleFrameMetrics(metrics))
+              frameSpan.end()
             }
           } finally {
             if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(provisional.previewUrl)
           }
+          const finalCaptureSpan = beginAdoptionTimingPhase(`${phase}.captureFinal`)
           const fullBody = await captureAndWait(bridge, waitForAction)
+          finalCaptureSpan.end()
           let fullBodyImageUrl = ""
           try {
+            const dataUrlSpan = beginAdoptionTimingPhase(`${phase}.dataUrl`)
             fullBodyImageUrl = await captureDataUrl(fullBody)
+            dataUrlSpan.end()
           } finally {
             URL.revokeObjectURL(fullBody.previewUrl)
           }
           if (!active) return
           renderedCandidatesRef.current.set(candidate.candidateId, { ...candidate, fullBodyImageUrl, headshotImageUrl: "" })
+          setCompletedPreviews([...renderedCandidatesRef.current.values()])
+          candidateSpan.end()
         }
+        loopSpan.end()
         const rendered = activeLoad.candidates.map((candidate) => renderedCandidatesRef.current.get(candidate.candidateId))
         if (rendered.some((candidate) => candidate === undefined)) {
           throw new ProfileGodotPreviewError("candidate_portrait_unavailable")
         }
-        if (active) onReady(activeLoad.result, rendered as readonly Candidate[])
+        if (active) {
+          markAdoptionTiming("generationReady")
+          logAdoptionTimingSummary("candidateSet")
+          onReady(activeLoad.result, rendered as readonly Candidate[])
+        }
       } catch (reason: unknown) {
         if (active) onError(reason)
       }
@@ -1217,6 +1261,18 @@ function GeneratingScreen({ frameRef, loadCandidates, onError, onReady, request,
   return <section className="adoption-progress-screen">
     <h2>{title}</h2>
     <div aria-label={title} className="adoption-signal adoption-progress-signal" role="progressbar"><span /></div>
+    {completedPreviews.length > 0 ? (
+      <ul aria-label={t("adoption.journey.generating.previews")} className="adoption-progress-previews">
+        {completedPreviews.map((candidate, index) => (
+          <li className="adoption-progress-previews__item" key={candidate.candidateId}>
+            <img alt="" src={candidate.fullBodyImageUrl} />
+          </li>
+        ))}
+        {Array.from({ length: Math.max(0, (activeLoad?.candidates.length ?? 0) - completedPreviews.length) }).map((_, index) => (
+          <li aria-hidden="true" className="adoption-progress-previews__item adoption-progress-previews__item--pending" key={`pending-${index}`}><span>{t("adoption.journey.generating.pending")}</span></li>
+        ))}
+      </ul>
+    ) : null}
     <TimedWaitStatus t={t} translationPrefix="adoption.journey.generating" />
   </section>
 }

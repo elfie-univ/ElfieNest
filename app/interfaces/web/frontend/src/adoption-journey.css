@@ -74,8 +74,7 @@
 .adoption-species-choice strong { font-size: 15px; line-height: 1.35; }
 .adoption-species-choice small, .adoption-candidate-card small, .adoption-candidate-card__copy > span, .adoption-invite-card small { color: var(--text-muted); line-height: 1.5; }
 .adoption-option-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.adoption-quota-warning, .adoption-inline-error { margin: 14px 0 0; color: var(--error-text); line-height: 1.55; }
-.adoption-inline-notice { margin: 14px 0 0; color: var(--text-muted); line-height: 1.55; }
+.adoption-inline-error { margin: 14px 0 0; color: var(--error-text); line-height: 1.55; }
 
 .adoption-appearance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 26px; }
 .adoption-appearance-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -138,6 +137,11 @@
 .adoption-signal { position: relative; height: 2px; margin: 52px 12% 40px; overflow: hidden; background: var(--border); }
 .adoption-signal span { position: absolute; top: 50%; left: 0; width: 32%; height: 6px; transform: translate3d(0, -50%, 0); border-radius: 999px; background: var(--accent); will-change: transform; animation: adoption-signal 1.9s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
 .adoption-progress-signal { width: min(720px, 100%); margin: 16px 0 0; }
+.adoption-progress-previews { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; width: min(420px, 100%); margin: 4px auto 0; }
+.adoption-progress-previews__item { position: relative; aspect-ratio: 4 / 5; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: var(--surface-field); }
+.adoption-progress-previews__item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.adoption-progress-previews__item--pending::after { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-muted); content: ""; }
+.adoption-progress-previews__item--pending span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-muted); }
 .adoption-sending-screen { display: grid; min-height: 360px; place-items: center; align-content: center; gap: 12px; text-align: center; }
 .adoption-invite-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .adoption-invite-card { display: grid; align-content: start; justify-items: stretch; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-field); text-align: left; }
