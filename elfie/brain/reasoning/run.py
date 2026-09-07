@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum, unique
 from threading import Event
 from time import monotonic
@@ -20,7 +20,13 @@ from pydantic import Field, JsonValue
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.activity.system import ActivityPreflightStatus
-from elfie.brain.observation import BrainObservationSink
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationError,
+    ObservationStatus,
+)
+from elfie.brain.reasoning.agent_loop_observations import ModelCallObservation
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeMode,
     DecisionDecodeReport,
@@ -305,9 +311,13 @@ class ReasoningRun:
         self._tool_port = tool_port
         self._activity_preflight = activity_preflight
         self._budget = budget or ReasoningBudget()
-        # Reserved: reasoning-loop emits come in later plan todos; bridge and
-        # context-engine emits live in their owning components today.
+        # Agent-loop model calls observe through this sink when one is wired;
+        # bridge and context-engine emits live in their owning components.
         self._observation_sink = observation_sink
+        # Monotonic per-Run sequence for reasoning.agent_loop observations.
+        # One ReasoningRun serves one run() call on the worker thread, so an
+        # unsynchronized counter is sufficient.
+        self._observation_sequence = 0
         # The Brain's domain clock is intentionally not used for wall-clock
         # provider latency; the Coordinator owns the semantic Turn deadline.
         # This local budget is optional and uses a monotonic clock when set.
@@ -443,7 +453,11 @@ class ReasoningRun:
                         )
                     }
                 )
-                generation = self._model_port.generate(generation_request)
+                generation = self._observed_generate(
+                    generation_request,
+                    iteration_index=model_calls + 1,
+                    capabilities=capabilities,
+                )
                 last_generation = generation
                 model_calls += 1
                 add_step(
@@ -796,7 +810,7 @@ class ReasoningRun:
                         legacy_prompt=repair_prompt,
                     )
                     remaining_seconds = deadline_seconds - (monotonic() - started_at)
-                    repaired = self._model_port.generate(
+                    repaired = self._observed_generate(
                         repaired_request.model_copy(
                             update={
                                 "timeout_seconds": max(
@@ -804,7 +818,9 @@ class ReasoningRun:
                                     remaining_seconds,
                                 )
                             }
-                        )
+                        ),
+                        iteration_index=model_calls + 1,
+                        capabilities=capabilities,
                     )
                     last_generation = repaired
                     model_calls += 1
@@ -914,6 +930,122 @@ class ReasoningRun:
                 generation=last_generation,
                 reasoning_plan=reasoning_plan,
             )
+
+    def _observed_generate(
+        self,
+        request: ModelGenerationRequest,
+        *,
+        iteration_index: int,
+        capabilities: Optional[ModelGenerationCapabilities],
+    ) -> ModelGenerationResult:
+        """Run one Brain-side model call wrapped by a model_call observation.
+
+        Observation wraps and never alters the call: with no sink wired this
+        is a plain ``generate`` with zero observation cost; with a sink, a
+        provider exception emits one failed record and then propagates
+        unchanged so the Run settles exactly as before.
+        """
+        sink = self._observation_sink
+        if sink is None:
+            return self._model_port.generate(request)
+        started = monotonic()
+        try:
+            generation = self._model_port.generate(request)
+        except Exception as error:  # noqa: BLE001 - re-raised unchanged below
+            self._emit_model_call(
+                sink,
+                request=request,
+                iteration_index=iteration_index,
+                duration_ms=(monotonic() - started) * 1000.0,
+                capabilities=capabilities,
+                generation=None,
+                error=error,
+            )
+            raise
+        self._emit_model_call(
+            sink,
+            request=request,
+            iteration_index=iteration_index,
+            duration_ms=(monotonic() - started) * 1000.0,
+            capabilities=capabilities,
+            generation=generation,
+            error=None,
+        )
+        return generation
+
+    def _emit_model_call(
+        self,
+        sink: BrainObservationSink,
+        *,
+        request: ModelGenerationRequest,
+        iteration_index: int,
+        duration_ms: float,
+        capabilities: Optional[ModelGenerationCapabilities],
+        generation: Optional[ModelGenerationResult],
+        error: Optional[Exception],
+    ) -> None:
+        """Construct and emit one model_call observation; the sink never raises."""
+        self._observation_sequence += 1
+        if error is not None:
+            status = ObservationStatus.failed
+            # Provider exception text is untrusted at this boundary, so the
+            # sanitized message derives from the exception class name only.
+            observation_error: Optional[ObservationError] = ObservationError(
+                type=type(error).__name__,
+                message=f"model_generate_failed:{type(error).__name__}",
+            )
+            response_text: Optional[str] = None
+            selected_mode: Optional[str] = None
+            provider = capabilities.provider if capabilities is not None else None
+            model_key = capabilities.model_key if capabilities is not None else None
+            prompt_tokens = None
+            completion_tokens = None
+            provider_latency_ms = None
+        else:
+            status = ObservationStatus.completed
+            observation_error = None
+            assert generation is not None  # only failures carry an error
+            response_text = generation.text
+            selected_mode = generation.selected_mode.value
+            provider = generation.provider
+            model_key = generation.model_key
+            prompt_tokens = generation.prompt_tokens
+            completion_tokens = generation.completion_tokens
+            provider_latency_ms = generation.latency_ms
+        sink.emit(
+            BrainObservation[ModelCallObservation](
+                boundary="reasoning.agent_loop",
+                kind="model_call",
+                sequence=self._observation_sequence,
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(request.turn_id),
+                frame_id=str(request.frame_id),
+                cause_event_ids=tuple(str(item) for item in request.cause_event_ids),
+                duration_ms=duration_ms,
+                status=status,
+                error=observation_error,
+                payload=ModelCallObservation(
+                    iteration_index=iteration_index,
+                    system_prompt=request.system_prompt,
+                    user_prompt=request.user_prompt,
+                    reasoning_mode=request.reasoning_mode,
+                    response_mode=request.response_mode.value,
+                    response_schema_name=request.response_schema.name,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    context_revision=request.context_revision,
+                    capability_revision=request.capability_revision,
+                    response_text=response_text,
+                    selected_mode=selected_mode,
+                    provider=provider,
+                    model_key=model_key,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    provider_latency_ms=provider_latency_ms,
+                    duration_ms=duration_ms,
+                ),
+            )
+        )
 
     def _request(
         self,
