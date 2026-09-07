@@ -199,7 +199,9 @@ func _capture_browser_canvas() -> String:
 	# WebGL canvas synchronously here can therefore return the previous camera
 	# frame (for example, the full-body frame after selecting "portrait"). Ask
 	# the browser to read the canvas after two animation frames, then retrieve
-	# that completed PNG from the next few Godot frames.
+	# that completed image from the next few Godot frames.
+	var portrait_width := 512
+	var portrait_height := 768
 	JavaScriptBridge.eval(
 		"(() => {"
 		+ " window.__elfieLabCaptureData = '';"
@@ -209,7 +211,16 @@ func _capture_browser_canvas() -> String:
 		+ " try {"
 		+ " const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');"
 		+ " if (gl && typeof gl.finish === 'function') gl.finish();"
-		+ " window.__elfieLabCaptureData = canvas.toDataURL('image/png');"
+		+ " const target = document.createElement('canvas');"
+		+ (" target.width = %d;" % portrait_width)
+		+ (" target.height = %d;" % portrait_height)
+		+ " const context = target.getContext('2d');"
+		+ " if (context) {"
+		+ " context.imageSmoothingEnabled = true;"
+		+ " context.imageSmoothingQuality = 'high';"
+		+ " context.drawImage(canvas, 0, 0, target.width, target.height);"
+		+ " window.__elfieLabCaptureData = target.toDataURL('image/jpeg', 0.9);"
+		+ " }"
 		+ " }"
 		+ " catch (_) { window.__elfieLabCaptureData = ''; }"
 		+ " };"
@@ -218,7 +229,7 @@ func _capture_browser_canvas() -> String:
 		+ " else setTimeout(capture, 0);"
 		+ "})()"
 	)
-	for _frame_index in range(6):
+	for _frame_index in range(3):
 		await get_tree().process_frame
 	var raw_data_url: Variant = JavaScriptBridge.eval(
 		"window.__elfieLabCaptureData || ''"
@@ -226,7 +237,7 @@ func _capture_browser_canvas() -> String:
 	if not raw_data_url is String:
 		return ""
 	var data_url := String(raw_data_url)
-	return data_url if data_url.begins_with("data:image/png;base64,") else ""
+	return data_url if data_url.begins_with("data:image/jpeg;base64,") else ""
 
 
 func _post_lab_message(event_name: String, payload: Dictionary) -> void:

@@ -97,8 +97,11 @@ export type AdoptionDraftState = {
   readonly invitationMessageEnabled: boolean
   readonly invitationMessage: string
   readonly error: string | null
+  readonly errorScope?: "field" | "flow"
   readonly dirty: boolean
 }
+
+export type AdoptionErrorScope = NonNullable<AdoptionDraftState["errorScope"]>
 
 export const MAX_CANDIDATE_BATCHES = 3 as const
 
@@ -149,7 +152,7 @@ export type AdoptionAction =
   | { readonly type: "invitation-message"; readonly value: string }
   | { readonly type: "select-final"; readonly candidateId: string }
   | { readonly type: "custom-name"; readonly value: string }
-  | { readonly type: "error"; readonly message: string }
+  | { readonly type: "error"; readonly message: string; readonly scope?: AdoptionErrorScope }
   | { readonly type: "clear-error" }
   | { readonly type: "reset"; readonly screen?: AdoptionScreen }
 
@@ -222,7 +225,7 @@ export function adoptionReducer(state: AdoptionDraftState, action: AdoptionActio
     case "custom-name":
       return { ...state, customName: action.value, nameMode: "custom", error: null }
     case "error":
-      return { ...state, screen: state.screen === "generating" || state.screen === "committing" ? "basic" : state.screen, error: action.message }
+      return { ...state, screen: state.screen === "generating" || state.screen === "committing" ? "basic" : state.screen, error: action.message, errorScope: action.scope ?? "flow" }
     case "clear-error":
       return { ...state, error: null }
     case "reset":
