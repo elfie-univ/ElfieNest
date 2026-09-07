@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from time import perf_counter
-from typing import Any, Callable, Literal, Tuple, cast
+from typing import Literal, Tuple, cast
 from uuid import uuid4
 
 from elfie.brain.activity.context import ActivityContext
@@ -16,6 +17,11 @@ from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_builder import ContextAssembler
 from elfie.brain.reasoning.context_compiler import (
@@ -39,6 +45,7 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelResponseMode,
 )
+from elfie.brain.reasoning.observation_payloads import CompiledContextObservation
 from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     CurrentRunObservation,
@@ -98,7 +105,7 @@ class ReasoningRunController:
         allowed_tools: Tuple[str, ...] = (),
         skill_catalog: SkillCatalog | None = None,
         constitution: ReasoningConstitution,
-        context_observer: Callable[[dict[str, Any]], None] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._elfie_id = elfie_id
         self._homeostasis = homeostasis
@@ -109,7 +116,9 @@ class ReasoningRunController:
         self._header = ModelHeaderAssembler(constitution)
         self._context_builder = ContextAssembler()
         self._compiler = ModelContextCompiler()
-        self._context_observer = context_observer
+        self._sink = observation_sink
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
 
     def build_task(
         self,
@@ -329,25 +338,41 @@ class ReasoningRunController:
                     structured_owner_reply=structured_owner_reply,
                 ),
             )
-            observer = self._context_observer
-            if observer is not None:
-                try:
-                    observer(
-                        {
-                            "stage": "compiled_context",
-                            "turn_id": str(seed.turn_id),
-                            "frame_id": str(seed.frame_id),
-                            "observations": observations,
-                            "compiled": compiled,
-                            "request": request,
-                            "duration_ms": round(
-                                (perf_counter() - compile_started) * 1000,
-                                2,
-                            ),
-                        }
+            sink = self._sink
+            if sink is not None:
+                sink.emit(
+                    BrainObservation[CompiledContextObservation](
+                        boundary="reasoning.context_engine",
+                        kind="compiled_context",
+                        sequence=self._next_sequence(),
+                        captured_at=datetime.now(timezone.utc),
+                        turn_id=str(seed.turn_id),
+                        frame_id=str(seed.frame_id),
+                        cause_event_ids=tuple(
+                            str(item) for item in seed.cause_event_ids
+                        ),
+                        duration_ms=round(
+                            (perf_counter() - compile_started) * 1000,
+                            2,
+                        ),
+                        status=ObservationStatus.completed,
+                        payload=CompiledContextObservation(
+                            turn_id=str(seed.turn_id),
+                            frame_id=str(seed.frame_id),
+                            context_revision=seed.context_revision,
+                            capability_revision=seed.capability_revision,
+                            max_tokens=token_budget.max_tokens,
+                            reasoning_mode=request.reasoning_mode,
+                            response_mode=request.response_mode.value,
+                            event_count=len(compiled.events),
+                            conversation_count=len(compiled.conversation),
+                            summary_count=len(compiled.summaries),
+                            run_observation_count=len(observations),
+                            memory_chars=len(compiled.memory.content),
+                            truncated=compiled.truncated,
+                        ),
                     )
-                except Exception:  # noqa: BLE001 - diagnostics cannot affect Brain
-                    pass
+                )
             return request
 
         request = build_context_request(())
@@ -368,7 +393,13 @@ class ReasoningRunController:
             appraisal_scopes=appraisal_scopes,
             context_request_builder=build_context_request,
             skill_catalog=self._skill_catalog,
+            observation_sink=self._sink,
         )
+
+    def _next_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
 
     def observe_conversation(
         self,

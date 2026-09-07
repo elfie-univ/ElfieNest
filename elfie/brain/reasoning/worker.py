@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Callable, Deque, Dict, NamedTuple, Optional, P
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.emotion.contracts import TrustedAppraisalScope
 from elfie.brain.energy.contracts import CognitiveBudgetReservation
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeResult,
     DecisionDecodeSeed,
@@ -158,6 +159,7 @@ class ReasoningTask:
         Callable[[tuple[CurrentRunObservation, ...]], ModelGenerationRequest] | None
     ) = None
     skill_catalog: SkillCatalog | None = None
+    observation_sink: BrainObservationSink | None = None
 
 
 @dataclass(frozen=True)
@@ -210,6 +212,7 @@ class ReasoningWorker:
         tool_port: ToolPort | None = None,
         activity_preflight: ActivityPreflightPort | None = None,
         reasoning_budget: ReasoningBudget | None = None,
+        observation_sink: BrainObservationSink | None = None,
         max_active_calls: int = 2,
         max_queued_tasks: int = 16,
     ) -> None:
@@ -218,6 +221,7 @@ class ReasoningWorker:
         self._tool_port = tool_port
         self._activity_preflight = activity_preflight
         self._reasoning_budget = reasoning_budget
+        self._observation_sink = observation_sink
         self._max_active_calls = max_active_calls
         self._max_queued_tasks = max_queued_tasks
         self._queued: Deque[_QueuedTask] = deque()
@@ -374,6 +378,7 @@ class ReasoningWorker:
             tool_port=self._tool_port,
             activity_preflight=self._activity_preflight,
             budget=getattr(task, "reasoning_budget", None) or self._reasoning_budget,
+            observation_sink=self._observation_sink,
         ).run(task, cancellation=cancellation)
         return ReasoningTurnResult(
             decode=reasoning.decode,

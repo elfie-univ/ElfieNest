@@ -8,6 +8,7 @@ from enum import Enum, unique
 from typing import Literal
 
 from elfie.brain.memory.memory_records import MemoryUseProposal
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.coordinator_outcomes import reasoning_failure_outcome
 from elfie.brain.reasoning.coordinator_ports import TurnDecisionSink
 from elfie.brain.reasoning.coordinator_runtime import TurnOutcomeBuffer
@@ -44,12 +45,14 @@ class CoordinatorCompletionHandler:
         outcomes: TurnOutcomeBuffer,
         settlement: TurnSettlementPort,
         context_source=None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._workspace = workspace
         self._plan_sink = plan_sink
         self._outcomes = outcomes
         self._settlement = settlement
         self._context_source = context_source
+        self._observation_sink = observation_sink
 
     def complete(
         self,

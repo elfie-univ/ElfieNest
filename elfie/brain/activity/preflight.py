@@ -13,6 +13,7 @@ from elfie.brain.activity.system import (
     ActivityStepKind,
     ActivityStorePort,
 )
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import ErrorInfo, UTCDateTime
 
@@ -49,12 +50,15 @@ class ActivityPreflightService:
         capabilities: Callable[[], object],
         available_budget: Callable[[], float],
         target_resolver: Optional[TargetResolver] = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._capabilities = capabilities
         self._available_budget = available_budget
         self._target_resolver = target_resolver
+        # Reserved: activity-preflight emits arrive in a later plan todo.
+        self._observation_sink = observation_sink
         self._issued: dict[str, ActivityPreflightResult] = {}
         self._lock = RLock()
 

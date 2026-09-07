@@ -9,7 +9,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from random import Random
 from threading import Event
-from typing import Any, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
 from elfie.brain.consolidation.system import consolidation_candidate_to_perception
@@ -24,6 +24,7 @@ from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournal
 from elfie.brain.motivation.system import recovery_candidate_to_perception
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.coordinator_completion import (
     CompletionDisposition,
     CoordinatorCompletionHandler,
@@ -114,7 +115,7 @@ class BrainCoordinator:
         on_outcome: Callable[[TurnOutcome], None] | None = None,
         on_state_change: Callable[[], None] | None = None,
         reasoning_retention: int = 256,
-        context_observer: Callable[[dict[str, Any]], None] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         if reasoning_retention <= 0:
             raise ValueError("reasoning_retention must be positive")
@@ -149,7 +150,7 @@ class BrainCoordinator:
             allowed_tools=allowed_tools,
             skill_catalog=skill_catalog,
             constitution=constitution,
-            context_observer=context_observer,
+            observation_sink=observation_sink,
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None
@@ -166,6 +167,7 @@ class BrainCoordinator:
             outcomes=self._outcomes,
             settlement=settlement,
             context_source=context_source,
+            observation_sink=observation_sink,
         )
         self._embodied_mock = (
             EmbodiedMockController(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Any, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from elfie.brain.activity.preflight import ActivityPreflightService
 from elfie.brain.activity.system import (
@@ -31,6 +31,7 @@ from elfie.brain.journal import (
     reconciliation_fact_to_perception,
 )
 from elfie.brain.memory import MemorySystem
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.coordinator import BrainCoordinator
@@ -97,7 +98,7 @@ class BrainRuntime:
         activity_store: ActivityStorePort | None = None,
         journal_store: BrainJournalPort | None = None,
         restore_clock: Callable[[UTCDateTime], None] | None = None,
-        context_observer: Callable[[dict[str, Any]], None] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._clock = clock
         self._elfie_id = elfie_id
@@ -118,6 +119,7 @@ class BrainRuntime:
             capabilities=context.current,
             available_budget=homeostasis.activity_budget_available,
             target_resolver=context.can_reach_actor,
+            observation_sink=observation_sink,
         )
         activity_executor = PersistentActivityRequestExecutor(
             activity_preflight,
@@ -144,6 +146,7 @@ class BrainRuntime:
             decoder=DecisionPlanDecoder(),
             tool_port=tool_port,
             activity_preflight=activity_preflight,
+            observation_sink=observation_sink,
         )
         settlement = TurnSettlement(
             memory,
@@ -170,7 +173,7 @@ class BrainRuntime:
             journal=self._journal,
             on_outcome=self._persist_after_outcome,
             on_state_change=self._save_continuity,
-            context_observer=context_observer,
+            observation_sink=observation_sink,
         )
         self._started = False
         self._workspace = workspace

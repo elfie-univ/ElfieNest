@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from threading import Lock
-from typing import Any, Callable, Iterable
+from typing import Callable, Iterable
 
 from elfie.body import BodyBinding, BodyRegistry
 from elfie.body.contracts import BodySensorEvent
@@ -23,6 +23,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.decision_types import TurnDecision
@@ -193,8 +194,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
         | None = None,
         embodied_input_mode: EmbodiedInputMode | None = None,
-        memory_observer: Callable[[dict[str, Any]], None] | None = None,
-        context_observer: Callable[[dict[str, Any]], None] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
@@ -241,8 +241,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             activity_store=self._activity_store,
             journal_store=self._journal_store,
             restore_clock=self._restore_cognitive_clock,
-            memory_observer=memory_observer,
-            context_observer=context_observer,
+            observation_sink=observation_sink,
         )
 
     def _restore_cognitive_clock(self, captured_at: datetime) -> None:

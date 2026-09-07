@@ -25,6 +25,7 @@ from elfie.brain.motivation.system import (
     MotivationSystem,
     RecoveryDriveCandidate,
 )
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_types import (
@@ -72,6 +73,7 @@ class BrainContextProvider:
         selfhood: SelfhoodSystem,
         motivation: MotivationSystem,
         consolidation: CognitiveConsolidationSystem,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._memory = memory
         self._conversations = conversations
@@ -82,6 +84,8 @@ class BrainContextProvider:
         self._selfhood = selfhood
         self._motivation = motivation
         self._consolidation = consolidation
+        # Reserved: context-source emits arrive in a later plan todo.
+        self._observation_sink = observation_sink
         self._memory_lock = Lock()
         self._state_lock = Lock()
 

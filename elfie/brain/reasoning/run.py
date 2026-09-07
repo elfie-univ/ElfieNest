@@ -20,6 +20,7 @@ from pydantic import Field, JsonValue
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.activity.system import ActivityPreflightStatus
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeMode,
     DecisionDecodeReport,
@@ -296,6 +297,7 @@ class ReasoningRun:
         tool_port: ToolPort | None = None,
         activity_preflight: ActivityPreflightPort | None = None,
         budget: ReasoningBudget | None = None,
+        observation_sink: BrainObservationSink | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._model_port = model_port
@@ -303,6 +305,9 @@ class ReasoningRun:
         self._tool_port = tool_port
         self._activity_preflight = activity_preflight
         self._budget = budget or ReasoningBudget()
+        # Reserved: reasoning-loop emits come in later plan todos; bridge and
+        # context-engine emits live in their owning components today.
+        self._observation_sink = observation_sink
         # The Brain's domain clock is intentionally not used for wall-clock
         # provider latency; the Coordinator owns the semantic Turn deadline.
         # This local budget is optional and uses a monotonic clock when set.
