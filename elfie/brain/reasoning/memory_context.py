@@ -27,8 +27,11 @@ from elfie.brain.observation import (
     ObservationStatus,
 )
 from elfie.brain.reasoning.observation_payloads import (
+    MemoryRecallBundleObservation,
+    MemoryRecallRequestObservation,
     MemoryRecallResultObservation,
     MemoryRecallStarted,
+    MemoryStateObservation,
     MemoryTurnOpened,
 )
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
@@ -296,7 +299,7 @@ class ReasoningMemoryBridge:
             frame_id=frame_id,
             query=query,
             pinned_revision=pinned_revision,
-            mode=request.mode,
+            request=request,
         )
         try:
             with self._memory_lock:
@@ -372,10 +375,12 @@ class ReasoningMemoryBridge:
                     frame_id=frame_id,
                     query=query,
                     pinned_revision=pinned_revision,
-                    memory_revision=state.revision,
-                    memory_episodic_count=state.episodic_count,
-                    memory_total_count=state.total_count,
-                    state_freshness=state.snapshot_freshness,
+                    state=MemoryStateObservation(
+                        revision=state.revision,
+                        episodic_count=state.episodic_count,
+                        total_count=state.total_count,
+                        snapshot_freshness=state.snapshot_freshness,
+                    ),
                 ),
             )
         )
@@ -386,7 +391,7 @@ class ReasoningMemoryBridge:
         frame_id: EventId | None,
         query: str,
         pinned_revision: int,
-        mode: str,
+        request: RecallRequest,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -406,7 +411,15 @@ class ReasoningMemoryBridge:
                     frame_id=rendered_frame_id,
                     query=query,
                     pinned_revision=pinned_revision,
-                    mode=mode,
+                    request=MemoryRecallRequestObservation(
+                        mode=request.mode,
+                        seed_limit=request.seed_limit,
+                        node_limit=request.node_limit,
+                        assertion_limit=request.assertion_limit,
+                        episode_limit=request.episode_limit,
+                        evidence_limit=request.evidence_limit,
+                        character_limit=request.character_limit,
+                    ),
                 ),
             )
         )
@@ -438,18 +451,27 @@ class ReasoningMemoryBridge:
                     status=result.status,
                     pinned_revision=result.pinned_revision,
                     reason=result.reason,
-                    recall_revision=(
-                        bundle.recall_revision if bundle is not None else None
+                    bundle=(
+                        MemoryRecallBundleObservation(
+                            recall_revision=bundle.recall_revision,
+                            focus_node_ids=tuple(
+                                item.node_id for item in bundle.focus_nodes
+                            ),
+                            assertion_ids=tuple(
+                                item.assertion_id for item in bundle.assertions
+                            ),
+                            episode_ids=tuple(
+                                item.episode_id for item in bundle.episodes
+                            ),
+                            evidence_ids=tuple(
+                                item.evidence_id for item in bundle.evidence
+                            ),
+                            path_count=len(bundle.paths),
+                            conflict_count=len(bundle.conflicts),
+                        )
+                        if bundle is not None
+                        else None
                     ),
-                    focus_node_count=(
-                        len(bundle.focus_nodes) if bundle is not None else 0
-                    ),
-                    assertion_count=(
-                        len(bundle.assertions) if bundle is not None else 0
-                    ),
-                    episode_count=len(bundle.episodes) if bundle is not None else 0,
-                    evidence_count=len(bundle.evidence) if bundle is not None else 0,
-                    conflict_count=len(bundle.conflicts) if bundle is not None else 0,
                 ),
             )
         )

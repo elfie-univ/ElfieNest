@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
+from typing import List, Tuple
 from unittest.mock import patch
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
@@ -15,7 +17,13 @@ from elfie.brain.memory.memory_records import (
     NodeInput,
 )
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.reasoning.memory_context import ReasoningMemoryBridge
+from elfie.brain.reasoning.observation_payloads import (
+    MemoryRecallResultObservation,
+    MemoryRecallStarted,
+    MemoryTurnOpened,
+)
 from elfie.brain.workspace.contracts import (
     CommunicationScope,
     ExternalExecutionDomain,
@@ -30,6 +38,60 @@ from elfie.message_types import ActorRef, ElfieId, EventId, MessageMeta, TraceId
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=timezone.utc)
+
+
+class _CollectorSink:
+    """Thread-safe in-memory ``BrainObservationSink`` for assertions."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._events: List[BrainObservation] = []
+
+    def emit(self, event: BrainObservation) -> None:
+        with self._lock:
+            self._events.append(event)
+
+    def snapshot(self) -> Tuple[BrainObservation, ...]:
+        with self._lock:
+            return tuple(self._events)
+
+
+def _seeded_memory() -> MemorySystem:
+    store = SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1")
+    store.upsert_node_record(
+        NodeInput(
+            node_id="genesis:knowledge:elfie-1:0",
+            node_type="knowledge",
+            canonical_label="我来自 Elfaria。",
+            description="我来自 Elfaria。",
+            properties={
+                "genesis_kind": "knowledge_fact",
+                "recall_eligible": True,
+                "source": "genesis:self_model",
+                "source_event_ids": ["genesis:fact:elfie-1:0"],
+                "certainty": "high",
+            },
+            confidence=1.0,
+            importance=1.0,
+        )
+    )
+    store.record_sourced_assertion(
+        AssertionInput(
+            "genesis:knowledge:elfie-1:0",
+            "references",
+            object_literal="genesis:self-model",
+            evidence_ids=("genesis:evidence:elfie-1:0",),
+            confidence=1.0,
+            importance=1.0,
+        ),
+        EvidenceInput(
+            "genesis:evidence:elfie-1:0",
+            "seed",
+            "genesis:fact:elfie-1:0",
+            excerpt="我来自 Elfaria。",
+        ),
+    )
+    return MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
 
 
 def _owner_frame(text: str, *, index: int = 1) -> TurnFrame:
@@ -73,78 +135,8 @@ def _owner_frame(text: str, *, index: int = 1) -> TurnFrame:
 
 
 def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
-    store = SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1")
-    store.upsert_node_record(
-        NodeInput(
-            node_id="genesis:knowledge:elfie-1:0",
-            node_type="knowledge",
-            canonical_label="我来自 Elfaria。",
-            description="我来自 Elfaria。",
-            properties={
-                "genesis_kind": "knowledge_fact",
-                "recall_eligible": True,
-                "source": "genesis:self_model",
-                "source_event_ids": ["genesis:fact:elfie-1:0"],
-                "certainty": "high",
-            },
-            confidence=1.0,
-            importance=1.0,
-        )
-    )
-    store.record_sourced_assertion(
-        AssertionInput(
-            "genesis:knowledge:elfie-1:0",
-            "references",
-            object_literal="genesis:self-model",
-            evidence_ids=("genesis:evidence:elfie-1:0",),
-            confidence=1.0,
-            importance=1.0,
-        ),
-        EvidenceInput(
-            "genesis:evidence:elfie-1:0",
-            "seed",
-            "genesis:fact:elfie-1:0",
-            excerpt="我来自 Elfaria。",
-        ),
-    )
-    memory = MemorySystem(store, elfie_id="elfie-1", initial_at=NOW)
-    owner = ActorRef(actor_id="owner-1", source_kind="owner")
-    frame = TurnFrame(
-        frame_id=EventId("frame-1"),
-        elfie_id=ElfieId("elfie-1"),
-        revision=1,
-        captured_at=NOW,
-        cutoff_seq=1,
-        trigger_reason=TriggerReason.CONVERSATION_QUIET,
-        source_domain=SourceDomain.COMMUNICATION,
-        interaction_scope=CommunicationScope(
-            channel_id="godot-owner", conversation_id="owner:1"
-        ),
-        response_scope=ResponseScope(
-            external_domain=ExternalExecutionDomain.COMMUNICATION,
-            channel_id="godot-owner",
-            conversation_id="owner:1",
-        ),
-        events=(
-            PerceptionEvent(
-                meta=MessageMeta(
-                    event_id=EventId("owner-event-1"),
-                    elfie_id=ElfieId("elfie-1"),
-                    source=owner,
-                    occurred_at=NOW,
-                    received_at=NOW,
-                    trace_id=TraceId("trace-1"),
-                ),
-                payload=SocialPayload(
-                    type="social",
-                    channel_id="godot-owner",
-                    conversation_id="owner:1",
-                    sender=owner,
-                    content="你来自哪里？",
-                ),
-            ),
-        ),
-    )
+    memory = _seeded_memory()
+    frame = _owner_frame("你来自哪里？")
 
     turn = ReasoningMemoryBridge(memory).open_turn(
         frame,
@@ -391,3 +383,96 @@ def test_restart_recall_keeps_the_corrected_fact_and_both_sources(
         }
     finally:
         reopened.close()
+
+
+def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
+    memory = _seeded_memory()
+    sink = _CollectorSink()
+    bridge = ReasoningMemoryBridge(memory, observation_sink=sink)
+    state = memory.snapshot(NOW)
+
+    turn = bridge.open_turn(
+        _owner_frame("你来自哪里？"),
+        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
+        NOW,
+    )
+    events = sink.snapshot()
+
+    assert [event.kind for event in events] == [
+        "turn_opened",
+        "recall_started",
+        "recall_result",
+    ]
+    assert all(event.boundary == "reasoning.memory_bridge" for event in events)
+    assert all(event.status == ObservationStatus.completed for event in events)
+    assert all(event.frame_id == "frame-1" for event in events)
+
+    opened = events[0]
+    assert isinstance(opened.payload, MemoryTurnOpened)
+    assert opened.payload.query == "你来自哪里？"
+    assert opened.payload.pinned_revision == memory.revision
+    assert opened.payload.state.revision == state.revision
+    assert opened.payload.state.episodic_count == state.episodic_count
+    assert opened.payload.state.total_count == state.total_count
+    assert opened.payload.state.snapshot_freshness == "current"
+
+    started = events[1]
+    assert isinstance(started.payload, MemoryRecallStarted)
+    assert started.payload.query == "你来自哪里？"
+    assert started.payload.pinned_revision == memory.revision
+    assert started.payload.request.mode == "basic_local"
+    assert started.payload.request.seed_limit == 8
+    assert started.payload.request.node_limit == 32
+    assert started.payload.request.assertion_limit == 48
+    assert started.payload.request.episode_limit == 8
+    assert started.payload.request.evidence_limit == 16
+    assert started.payload.request.character_limit == 6000
+
+    result = events[2]
+    assert isinstance(result.payload, MemoryRecallResultObservation)
+    assert result.payload.query == "你来自哪里？"
+    assert result.payload.status == "recalled"
+    assert result.payload.pinned_revision == memory.revision
+    assert result.payload.reason is None
+    bundle = result.payload.bundle
+    assert bundle is not None
+    assert bundle.recall_revision == memory.revision
+    assert bundle.focus_node_ids == ("genesis:knowledge:elfie-1:0",)
+    recalled = turn.context.recall
+    assert bundle.assertion_ids == tuple(
+        item.assertion_id for item in recalled.assertions
+    )
+    assert bundle.episode_ids == ()
+    assert bundle.evidence_ids == ("genesis:evidence:elfie-1:0",)
+    assert bundle.path_count == len(recalled.paths)
+    assert bundle.conflict_count == len(recalled.conflicts)
+
+
+def test_smalltalk_turn_emits_skipped_recall_result_with_reason() -> None:
+    memory = MemorySystem(
+        SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1"),
+        elfie_id="elfie-1",
+        initial_at=NOW,
+    )
+    sink = _CollectorSink()
+    bridge = ReasoningMemoryBridge(memory, observation_sink=sink)
+
+    bridge.open_turn(
+        _owner_frame("你好呀"),
+        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
+        NOW,
+    )
+    events = sink.snapshot()
+
+    assert [event.kind for event in events] == ["turn_opened", "recall_result"]
+    result = events[1]
+    assert result.status == ObservationStatus.skipped
+    assert isinstance(result.payload, MemoryRecallResultObservation)
+    assert result.payload.status == "skipped"
+    assert result.payload.query == "你好呀"
+    assert result.payload.pinned_revision == memory.revision
+    assert result.payload.reason == "baseline_recall_not_relevant"
+    assert result.payload.bundle is not None
+    assert result.payload.bundle.recall_revision == memory.revision
+    assert result.payload.bundle.focus_node_ids == ()
+    assert result.payload.bundle.assertion_ids == ()
