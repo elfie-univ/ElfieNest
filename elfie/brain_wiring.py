@@ -241,6 +241,10 @@ def assemble_brain_runtime(
     observation_sink: BrainObservationSink | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
+    if observation_sink is not None:
+        # MemorySystem arrives pre-built; the sink only exists by the time
+        # cognition is configured, so attach it here exactly once.
+        memory.bind_observation_sink(observation_sink)
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
     capabilities = EffectiveCapabilityProjection(
         current_body=current_body,

@@ -7,10 +7,11 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from threading import RLock
+from threading import Lock, RLock
 from types import TracebackType
 from typing import Final, Iterator
 
+from elfie.brain.observation import BrainObservationSink
 from infrastructure.persistence.memory.schema import (
     INDEX_SQL,
     KNOWLEDGE_TABLES,
@@ -79,13 +80,21 @@ class SQLiteMemoryStoreAdapter(
 ):
     """Own a connection initialized with the target episodic/graph schema."""
 
-    def __init__(self, db_path: str | Path, elfie_id: str | None = None) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        elfie_id: str | None = None,
+        observation_sink: BrainObservationSink | None = None,
+    ) -> None:
         self._db_path = self._parse_path(db_path)
         if elfie_id is not None and not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
         self.elfie_id = elfie_id
         self._transaction_depth = 0
         self._active_genesis_submission_id: str | None = None
+        self._observation_sink = observation_sink
+        self._recall_observation_sequence = 0
+        self._recall_observation_lock = Lock()
         try:
             self.conn = connect_app_sqlite(self._db_path, check_same_thread=False)
         except UnsafeSQLitePathError as error:
@@ -98,9 +107,19 @@ class SQLiteMemoryStoreAdapter(
             raise
 
     @classmethod
-    def in_memory(cls, elfie_id: str | None = None) -> SQLiteMemoryStoreAdapter:
+    def in_memory(
+        cls,
+        elfie_id: str | None = None,
+        observation_sink: BrainObservationSink | None = None,
+    ) -> SQLiteMemoryStoreAdapter:
         """Create an isolated in-memory store for tests and explicit tooling."""
-        return cls(":memory:", elfie_id=elfie_id)
+        return cls(":memory:", elfie_id=elfie_id, observation_sink=observation_sink)
+
+    def bind_observation_sink(self, sink: BrainObservationSink | None) -> None:
+        """Attach the recall-selection observation sink exactly once."""
+        if sink is None or self._observation_sink is not None:
+            return
+        self._observation_sink = sink
 
     def bind_elfie_identity(self, elfie_id: str) -> None:
         """Bind an adapter to its owning Elfie namespace.
