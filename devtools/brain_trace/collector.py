@@ -49,6 +49,7 @@ from elfie.brain.memory.memory_records import (
     NodeInput,
     SourceReference,
 )
+from elfie.brain.observation import BrainObservation
 from elfie.brain.state_lifecycle import StateCheckpoint
 from elfie.diagnostics import ElfieDiagnostics
 from infrastructure.models.model_execution_observations import (
@@ -198,13 +199,31 @@ def _reset_mock_memory_checkpoint(
         journal.close()
 
 
+# Temporary W3 shim: map observation boundaries onto the recorder's legacy
+# internal event kinds so the existing artifact pipeline stays intact.  W4
+# converges the collector onto native envelopes and removes this mapping.
+_RECORD_KIND_BY_BOUNDARY = {
+    "reasoning.memory_bridge": "memory_bridge",
+    "reasoning.context_engine": "context",
+}
+
+
 class TraceRecorder:
-    """Thread-safe sink for typed Memory and Context observer callbacks."""
+    """Thread-safe ``BrainObservationSink`` for the trace collector.
+
+    Incoming ``BrainObservation`` envelopes are converted into the recorder's
+    legacy dict event shape at the ``emit`` boundary (temporary W3 shim);
+    the dict pipeline and this conversion are removed when W4 converges the
+    collector onto native envelopes.  ``emit`` never raises and all shared
+    state is guarded by one lock because the Brain emits from the cognitive
+    worker and coordinator threads concurrently.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._sequence = 0
         self._events: List[Dict[str, Any]] = []
+        self._envelopes: List[BrainObservation] = []
         self._local = threading.local()
         self._frame_to_turn: Dict[str, str] = {}
 
@@ -224,27 +243,52 @@ class TraceRecorder:
             "frame_id": getattr(self._local, "frame_id", None),
         }
 
-    def __call__(self, event: Dict[str, Any]) -> None:
-        """Receive the optional Memory bridge callback without affecting Brain."""
-        frame_id = event.get("frame_id")
-        if frame_id:
-            self._local.frame_id = str(frame_id)
-            mapped = self._frame_to_turn.get(str(frame_id))
-            if mapped:
-                self._local.turn_id = mapped
-        self.record("memory_bridge", event)
+    def emit(self, event: BrainObservation) -> None:
+        """Record one observation without ever affecting Brain behavior."""
+        try:
+            self._record_observation(event)
+        except Exception:  # noqa: BLE001 - sink contract absorbs own failures
+            pass
 
-    def context(self, event: Dict[str, Any]) -> None:
-        frame_id = event.get("frame_id")
-        turn_id = event.get("turn_id")
-        if frame_id:
-            self._local.frame_id = str(frame_id)
-        if turn_id:
-            self._local.turn_id = str(turn_id)
-        if frame_id and turn_id:
-            with self._lock:
-                self._frame_to_turn[str(frame_id)] = str(turn_id)
-        self.record("context", event)
+    def snapshot(self) -> Tuple[BrainObservation, ...]:
+        """Return the recorded observation envelopes in emit order."""
+        with self._lock:
+            return tuple(self._envelopes)
+
+    def _record_observation(self, event: BrainObservation) -> None:
+        frame_id = event.frame_id
+        turn_id = event.turn_id
+        with self._lock:
+            self._envelopes.append(event)
+            if frame_id:
+                self._local.frame_id = str(frame_id)
+            if turn_id:
+                self._local.turn_id = str(turn_id)
+                if frame_id:
+                    self._frame_to_turn[str(frame_id)] = str(turn_id)
+            elif frame_id:
+                mapped = self._frame_to_turn.get(str(frame_id))
+                if mapped:
+                    self._local.turn_id = mapped
+            self.record(
+                _RECORD_KIND_BY_BOUNDARY.get(event.boundary, event.boundary),
+                self._observation_payload(event),
+            )
+
+    @staticmethod
+    def _observation_payload(event: BrainObservation) -> Dict[str, Any]:
+        """Flatten one envelope into the legacy payload dict for artifacts."""
+        return {
+            "boundary": event.boundary,
+            "kind": event.kind,
+            "turn_id": event.turn_id,
+            "frame_id": event.frame_id,
+            "cause_event_ids": tuple(event.cause_event_ids),
+            "duration_ms": event.duration_ms,
+            "status": event.status.value,
+            "error": event.error.model_dump() if event.error is not None else None,
+            "payload": event.payload.model_dump(),
+        }
 
     def record(self, kind: str, payload: Any) -> None:
         with self._lock:
@@ -768,8 +812,7 @@ def collect_brain_trace(
             runtime_storage,
             model_execution_config_dir=str(config_dir),
             memory_store=memory_store,
-            memory_observer=recorder,
-            context_observer=recorder.context,
+            observation_sink=recorder,
         )
         model_observer = get_model_execution_observer()
         for index, stimulus in enumerate(messages):

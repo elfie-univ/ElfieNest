@@ -9,8 +9,10 @@ from devtools.brain_trace import (
 )
 from devtools.elfie_lab.model_execution_adapters import redact_value
 from devtools.elfie_lab.schemas import StimulusBundle
+from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.turn_summary import model_call_summary
+from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
 def _read_jsonl(path):
@@ -131,6 +133,25 @@ def test_source_listing_contains_elfie_without_model_secrets(tmp_path):
 
     assert payload["elfies"][0]["elfie_id"] == spec.elfie_id
     assert "api_key" not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_collect_run_session_seam_works_without_observation_sink(tmp_path):
+    storage = ElfieLabStorage(str(tmp_path / "lab"))
+    spec = storage.create_elfie("无观测采集")
+    memory_store = SQLiteMemoryStoreAdapter.in_memory(elfie_id=spec.elfie_id)
+    session = ElfieLabSession(
+        storage.get_elfie(spec.elfie_id),
+        storage,
+        memory_store=memory_store,
+        observation_sink=None,
+    )
+    try:
+        turn = session.run_turn(StimulusBundle(message="你好"), "mock")
+    finally:
+        session.close()
+        memory_store.close()
+
+    assert turn["result"]["success"] is True
 
 
 def test_trace_redaction_handles_nested_credentials():

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from threading import Lock
 from time import monotonic
-from typing import Any, Callable
 
 from devtools.elfie_lab.schemas import StimulusBundle
 from elfie import Elfie
@@ -19,6 +18,7 @@ from elfie.body import (
     VisionSample,
 )
 from elfie.brain.journal import BrainJournalKind
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_port import (
@@ -159,8 +159,7 @@ class BrainTurnAdapter:
         self,
         elfie: Elfie,
         *,
-        memory_observer: Callable[[dict[str, Any]], None] | None = None,
-        context_observer: Callable[[dict[str, Any]], None] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._elfie = elfie
         self._runtime = SelectedLabModelExecution()
@@ -170,8 +169,7 @@ class BrainTurnAdapter:
         self._elfie.configure_cognition(
             self._runtime,
             tool_port=self._tools,
-            memory_observer=memory_observer,
-            context_observer=context_observer,
+            observation_sink=observation_sink,
         )
         self._elfie.start()
 
