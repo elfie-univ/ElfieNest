@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Callable, Mapping, Optional, Tuple
 
@@ -25,7 +26,11 @@ from elfie.brain.motivation.system import (
     MotivationSystem,
     RecoveryDriveCandidate,
 )
-from elfie.brain.observation import BrainObservationSink
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_types import (
@@ -35,6 +40,10 @@ from elfie.brain.reasoning.context_types import (
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.conversation_context import ReasoningContextWorkspace
+from elfie.brain.reasoning.coordinator_observations import (
+    MotivationDriveEvaluatedObservation,
+    OrientationSnapshotObservation,
+)
 from elfie.brain.reasoning.memory_context import (
     ReasoningMemoryBridge,
     ReasoningMemoryTurn,
@@ -84,10 +93,83 @@ class BrainContextProvider:
         self._selfhood = selfhood
         self._motivation = motivation
         self._consolidation = consolidation
-        # Reserved: context-source emits arrive in a later plan todo.
         self._observation_sink = observation_sink
         self._memory_lock = Lock()
         self._state_lock = Lock()
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
+
+    def _next_observation_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    def _emit_drive_evaluated(
+        self,
+        sink: BrainObservationSink,
+        *,
+        energy: float,
+        fatigue: float,
+        sleeping: bool,
+        blocked: bool,
+        candidate: Optional[RecoveryDriveCandidate],
+        drive: MotivationSnapshot,
+    ) -> None:
+        if candidate is None:
+            if blocked:
+                skip_reason = "drive_blocked"
+            elif drive.recovery_status == "cooldown":
+                skip_reason = "cooldown"
+            elif drive.recovery_status == "satisfied":
+                skip_reason = "satisfied"
+            elif sleeping:
+                skip_reason = "sleeping"
+            else:
+                skip_reason = "no_pressure"
+        else:
+            skip_reason = None
+        sink.emit(
+            BrainObservation[MotivationDriveEvaluatedObservation](
+                boundary="motivation",
+                kind="drive_evaluated",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id="",
+                cause_event_ids=(
+                    tuple(str(item) for item in candidate.cause_event_ids)
+                    if candidate is not None
+                    else ()
+                ),
+                status=ObservationStatus.completed,
+                payload=MotivationDriveEvaluatedObservation(
+                    energy=energy,
+                    fatigue=fatigue,
+                    sleeping=sleeping,
+                    blocked=blocked,
+                    pressure=drive.recovery_pressure,
+                    status=drive.recovery_status,
+                    skip_reason=skip_reason,
+                    candidate_id=(
+                        str(candidate.candidate_id) if candidate is not None else None
+                    ),
+                    goal=candidate.goal if candidate is not None else None,
+                    candidate_pressure=(
+                        candidate.pressure if candidate is not None else None
+                    ),
+                    candidate_reason=(
+                        candidate.reason if candidate is not None else None
+                    ),
+                    cooldown_until=drive.cooldown_until,
+                    satisfaction_until=drive.satisfaction_until,
+                    last_trigger_id=(
+                        str(drive.last_trigger_id)
+                        if drive.last_trigger_id is not None
+                        else None
+                    ),
+                ),
+            )
+        )
 
     def conversation(
         self,
@@ -303,12 +385,55 @@ class BrainContextProvider:
             ),
             None,
         )
-        return self._orientation.candidate(
+        candidate = self._orientation.candidate(
             frame=frame,
             capabilities=capabilities,
             turn_id=turn_id,
             captured_at=captured_at,
             activity_id=(str(active_activity) if active_activity is not None else None),
+        )
+        self._emit_orientation_snapshot(frame, turn_id, candidate)
+        return candidate
+
+    def _emit_orientation_snapshot(
+        self,
+        frame: TurnFrame,
+        turn_id: TurnId,
+        candidate: StateCandidate[OrientationSnapshot],
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        snapshot = candidate.value
+        sink.emit(
+            BrainObservation[OrientationSnapshotObservation](
+                boundary="orientation",
+                kind="orientation_snapshot",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in snapshot.source_event_ids),
+                status=ObservationStatus.completed,
+                payload=OrientationSnapshotObservation(
+                    revision=snapshot.revision,
+                    body_id=snapshot.body_id,
+                    body_generation=snapshot.body_generation,
+                    location=snapshot.location,
+                    location_source=snapshot.location_source,
+                    position=snapshot.position,
+                    heading_degrees=snapshot.heading_degrees,
+                    active_channel_id=snapshot.active_channel_id,
+                    active_conversation_id=snapshot.active_conversation_id,
+                    nearby_actor_ids=tuple(
+                        str(actor.actor_id) for actor in snapshot.nearby_actors
+                    ),
+                    activity_id=snapshot.activity_id,
+                    affordance_count=len(snapshot.affordances),
+                    unknown_field_count=len(snapshot.unknown_fields),
+                    freshness=snapshot.freshness,
+                ),
+            )
         )
 
     def commit_orientation_candidate(
@@ -354,13 +479,27 @@ class BrainContextProvider:
         blocked: bool,
     ) -> Optional[RecoveryDriveCandidate]:
         with self._state_lock:
-            return self._motivation.evaluate(
+            candidate = self._motivation.evaluate(
                 energy=energy,
                 fatigue=fatigue,
                 sleeping=sleeping,
                 now=now,
                 blocked=blocked,
             )
+            sink = self._observation_sink
+            if sink is None:
+                return candidate
+            drive = self._motivation.snapshot(now)
+        self._emit_drive_evaluated(
+            sink,
+            energy=energy,
+            fatigue=fatigue,
+            sleeping=sleeping,
+            blocked=blocked,
+            candidate=candidate,
+            drive=drive,
+        )
+        return candidate
 
     def settle_motivation(
         self,

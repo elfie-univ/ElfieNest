@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from threading import RLock
 from typing import Callable, Optional, Protocol, Tuple
 
+from elfie.brain.activity.observation_payloads import (
+    ActivityPreflightVerdictObservation,
+)
 from elfie.brain.activity.system import (
     ActivityDraft,
     ActivityPreflightResult,
@@ -13,7 +17,11 @@ from elfie.brain.activity.system import (
     ActivityStepKind,
     ActivityStorePort,
 )
-from elfie.brain.observation import BrainObservationSink
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
 from elfie.brain.workspace.contracts import ExternalExecutionDomain
 from elfie.message_types import ErrorInfo, UTCDateTime
 
@@ -57,13 +65,55 @@ class ActivityPreflightService:
         self._capabilities = capabilities
         self._available_budget = available_budget
         self._target_resolver = target_resolver
-        # Reserved: activity-preflight emits arrive in a later plan todo.
         self._observation_sink = observation_sink
         self._issued: dict[str, ActivityPreflightResult] = {}
         self._lock = RLock()
+        self._emit_lock = RLock()
+        self._emit_sequence = 0
+
+    def _next_observation_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    def _emit_verdict(
+        self,
+        draft: ActivityDraft,
+        result: ActivityPreflightResult,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[ActivityPreflightVerdictObservation](
+                boundary="activity",
+                kind="preflight_verdict",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id="",
+                cause_event_ids=tuple(str(item) for item in draft.cause_event_ids),
+                status=ObservationStatus.completed,
+                payload=ActivityPreflightVerdictObservation(
+                    activity_id=str(draft.activity_id),
+                    status=result.status.value,
+                    reason_codes=tuple(error.code for error in result.reasons),
+                    evidence_issued=(
+                        result.status is ActivityPreflightStatus.VALIDATED
+                    ),
+                    step_count=len(draft.steps),
+                    estimated_budget=draft.estimated_budget,
+                ),
+            )
+        )
 
     def preflight(self, draft: ActivityDraft) -> ActivityPreflightResult:
         """Validate all facts needed before the originating Turn can settle."""
+        result = self._validate_draft(draft)
+        self._emit_verdict(draft, result)
+        return result
+
+    def _validate_draft(self, draft: ActivityDraft) -> ActivityPreflightResult:
         now = self._clock()
         stored = self._store.preflight(draft, now=now)
         if stored.status is not ActivityPreflightStatus.VALIDATED:

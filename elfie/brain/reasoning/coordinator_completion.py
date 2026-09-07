@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from datetime import datetime, timezone
 from enum import Enum, unique
+from threading import Lock
 from typing import Literal
 
 from elfie.brain.memory.memory_records import MemoryUseProposal
-from elfie.brain.observation import BrainObservationSink
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
+from elfie.brain.reasoning.coordinator_observations import DecisionRoutedObservation
 from elfie.brain.reasoning.coordinator_outcomes import reasoning_failure_outcome
 from elfie.brain.reasoning.coordinator_ports import TurnDecisionSink
 from elfie.brain.reasoning.coordinator_runtime import TurnOutcomeBuffer
@@ -53,6 +60,50 @@ class CoordinatorCompletionHandler:
         self._settlement = settlement
         self._context_source = context_source
         self._observation_sink = observation_sink
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
+
+    def _next_observation_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    def _emit_decision_routed(
+        self,
+        frame,
+        decision,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        plan = decision.plan
+        sink.emit(
+            BrainObservation[DecisionRoutedObservation](
+                boundary="decision_boundary",
+                kind="decision_routed",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(plan.turn_id),
+                frame_id=str(plan.frame_id),
+                cause_event_ids=tuple(str(item) for item in plan.cause_event_ids),
+                status=ObservationStatus.completed,
+                payload=DecisionRoutedObservation(
+                    plan_id=str(plan.plan_id),
+                    intent_types=tuple(intent.type for intent in plan.intents),
+                    interaction_scope_kind=decision.interaction_scope.kind,
+                    source_domain=decision.source_domain.value,
+                    response_domain=(
+                        decision.response_scope.external_domain.value
+                        if decision.response_scope.external_domain is not None
+                        else None
+                    ),
+                    response_channel_id=decision.response_scope.channel_id,
+                    response_conversation_id=decision.response_scope.conversation_id,
+                    memory_eligible=decision.memory_eligible,
+                    routed=None,
+                ),
+            )
+        )
 
     def complete(
         self,
@@ -112,6 +163,7 @@ class CoordinatorCompletionHandler:
             result.decode.plan,
             memory_eligible=memory_eligible,
         )
+        self._emit_decision_routed(inflight.frame, decision)
         if result.reasoning.status not in {
             ReasoningStatus.COMPLETED,
             ReasoningStatus.SAFE_NOOP,
