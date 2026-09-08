@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 
 from pydantic import Field
 
-from elfie.message_types import FrozenContractModel
+from elfie.message_types import FrozenContractModel, UTCDateTime
 
 
 class MemoryStateObservation(FrozenContractModel):
@@ -129,6 +129,23 @@ class MemoryRecallResultObservation(FrozenContractModel):
     bundle: Optional[MemoryRecallBundleObservation] = None
 
 
+class CompiledConversationObservation(FrozenContractModel):
+    """One prior conversation row carried by a compiled context (§B4).
+
+    Maps ``CompiledConversation`` verbatim: event identity, actor identity
+    (``actor_id`` plus the optional ``display_name`` already held by the
+    ``ActorRef``), occurrence time and the budget-fitted content are raw
+    values the Context Engine holds at the emit point, so consumers can
+    display the real multi-turn history without ever parsing prompt text.
+    """
+
+    event_id: str
+    actor_id: str
+    display_name: Optional[str] = None
+    occurred_at: UTCDateTime
+    content: str
+
+
 class CompiledContextObservation(FrozenContractModel):
     """One Context Engine compile for a model request (§B4, sample B4).
 
@@ -139,6 +156,10 @@ class CompiledContextObservation(FrozenContractModel):
     the Memory Bridge pin, and ``truncated`` records whether the token
     budget trimmed content. Per-section trim reasons are not yet available
     from the compiler, so only the aggregate flag is recorded.
+
+    ``conversation`` carries the exact ``CompiledConversation`` rows the
+    compile kept (same rows ``conversation_count`` counts), so the
+    multi-turn history stays observable as raw content.
 
     ``turn_id``/``frame_id`` deliberately duplicate the envelope fields:
     the payload stays self-describing for boundary-owned export of the
@@ -162,10 +183,12 @@ class CompiledContextObservation(FrozenContractModel):
     memory_chars: int = Field(default=0, ge=0)
     memory_estimated_tokens: int = Field(default=0, ge=0)
     truncated: bool = False
+    conversation: Tuple[CompiledConversationObservation, ...] = ()
 
 
 __all__ = (
     "CompiledContextObservation",
+    "CompiledConversationObservation",
     "MemoryRecallBundleObservation",
     "MemoryRecallRequestObservation",
     "MemoryRecallResultObservation",

@@ -13,6 +13,7 @@ from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.reasoning.context_types import (
     ConversationContext,
+    ConversationMessage,
     EffectiveCapabilities,
 )
 from elfie.brain.reasoning.coordinator_turn import ReasoningRunController
@@ -126,6 +127,30 @@ class _ObservingContextSource:
         )
 
 
+class _TalkingContextSource(_ObservingContextSource):
+    """Same minimal source with one prior-turn conversation row."""
+
+    def conversation(self, frame, captured_at):
+        del frame, captured_at
+        return ConversationContext(
+            revision=1,
+            captured_at=NOW,
+            conversation_id="owner:1",
+            messages=(
+                ConversationMessage(
+                    event_id=EventId("prior-event-1"),
+                    sender=ActorRef(
+                        actor_id="owner-1",
+                        source_kind="owner",
+                        display_name="主人",
+                    ),
+                    occurred_at=NOW,
+                    content="我们昨天聊到了蓝色小屋。",
+                ),
+            ),
+        )
+
+
 def _owner_frame() -> TurnFrame:
     owner = ActorRef(actor_id="owner-1", source_kind="owner")
     return TurnFrame(
@@ -166,7 +191,10 @@ def _owner_frame() -> TurnFrame:
     )
 
 
-def _controller(sink: _CollectorSink) -> ReasoningRunController:
+def _controller(
+    sink: _CollectorSink,
+    source: _ObservingContextSource | None = None,
+) -> ReasoningRunController:
     initial = NOW.timestamp()
     energy = EnergySystem(
         {"limits": {"energy": {"initial_value": 100.0}}},
@@ -175,7 +203,7 @@ def _controller(sink: _CollectorSink) -> ReasoningRunController:
     return ReasoningRunController(
         elfie_id=ELFIE_ID,
         homeostasis=energy,
-        context_source=_ObservingContextSource(),
+        context_source=source or _ObservingContextSource(),
         hard_timeout_seconds=12.0,
         constitution=ReasoningConstitution.from_mapping(load_reasoning_constitution()),
         observation_sink=sink,
@@ -225,11 +253,37 @@ def test_one_turn_emits_a_typed_compiled_context_observation() -> None:
     assert payload.state_update_count == 0
     assert payload.media_sample_count == 0
     assert payload.conversation_count == 0
+    assert payload.conversation == ()
     assert payload.summary_count == 0
     assert payload.run_observation_count == 0
     assert payload.memory_chars == 0
     assert payload.memory_estimated_tokens == 0
     assert payload.truncated is False
+
+
+def test_compiled_context_payload_carries_the_real_conversation_rows() -> None:
+    sink = _CollectorSink()
+    controller = _controller(sink, source=_TalkingContextSource())
+
+    controller.build_task(
+        _owner_frame(),
+        TurnId("turn-obs-3"),
+        NOW.timestamp(),
+        emotion=EmotionSnapshot.inactive(captured_at=NOW, revision=1),
+        appraisal_scopes=(),
+    )
+
+    compiled_events = _compiled_context_events(sink)
+    assert len(compiled_events) == 1
+    payload = compiled_events[0].payload
+    assert isinstance(payload, CompiledContextObservation)
+    assert payload.conversation_count == len(payload.conversation) == 1
+    row = payload.conversation[0]
+    assert row.event_id == "prior-event-1"
+    assert row.actor_id == "owner-1"
+    assert row.display_name == "主人"
+    assert row.occurred_at == NOW
+    assert row.content == "我们昨天聊到了蓝色小屋。"
 
 
 def test_rebuild_with_a_run_observation_recompiles_and_records_it() -> None:

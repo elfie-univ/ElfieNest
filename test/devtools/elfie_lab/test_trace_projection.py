@@ -17,6 +17,7 @@ from elfie.brain.reasoning.coordinator_observations import (
 )
 from elfie.brain.reasoning.observation_payloads import (
     CompiledContextObservation,
+    CompiledConversationObservation,
     MemoryRecallBundleObservation,
     MemoryRecallResultObservation,
     MemoryStateObservation,
@@ -215,10 +216,94 @@ def test_context_view_comes_from_compiled_context_observations():
     }
     assert context_stage["raw"]["compiled_events"][0]["kind"] == "compiled_context"
     assert context_stage["raw"]["user_prompt"] == "PROMPT"
+    assert context_stage["output"]["conversation"] == []
+    assert context_stage["output"]["current_observations"] is None
+    assert context_stage["output"]["current_run_observations"] is None
     iteration = trace["chain"][3]["iterations"][0]
     compiled_output = iteration["context_build"]["output"]["compiled"]
     assert compiled_output["run_observation_count"] == 2
     assert "user_prompt" not in iteration["context_build"]["output"]
+    build_output = iteration["context_build"]["output"]
+    assert build_output["conversation"] == []
+    assert build_output["prompt_sections"] == [
+        "events",
+        "conversation",
+        "context_summaries",
+        "run_observations",
+        "memory",
+    ]
+
+
+def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
+    occurred_at = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc)
+    compiled = CompiledContextObservation(
+        turn_id="turn-1",
+        frame_id="frame-1",
+        context_revision=7,
+        capability_revision=3,
+        max_tokens=1536,
+        reasoning_mode="long",
+        response_mode="structured",
+        conversation_count=2,
+        run_observation_count=1,
+        conversation=(
+            CompiledConversationObservation(
+                event_id="prior-event-1",
+                actor_id="owner-1",
+                display_name="主人",
+                occurred_at=occurred_at,
+                content="我们昨天聊到了蓝色小屋。",
+            ),
+            CompiledConversationObservation(
+                event_id="prior-event-2",
+                actor_id="elfie-1",
+                occurred_at=occurred_at,
+                content="对呀，我还想再去看看。",
+            ),
+        ),
+    )
+    trace = build_observability_trace(
+        turn_id="turn-1",
+        stimulus={"source_domain": "communication", "message": "今天再去吗？"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "reasoning": {"status": "completed", "model_calls": 1, "steps": []}
+        },
+        result={},
+        decision={},
+        duration_ms=12,
+        observations=[
+            _model_call_observation(context_revision=7, user_prompt="PROMPT"),
+            _observation(
+                boundary="reasoning.context_engine",
+                kind="compiled_context",
+                turn_id="turn-1",
+                payload=compiled,
+            ),
+        ],
+    )
+
+    context_stage = trace["chain"][1]
+    expected_rows = [
+        {
+            "speaker": "主人",
+            "content": "我们昨天聊到了蓝色小屋。",
+            "occurred_at": occurred_at.isoformat(),
+        },
+        {
+            "speaker": "elfie-1",
+            "content": "对呀，我还想再去看看。",
+            "occurred_at": occurred_at.isoformat(),
+        },
+    ]
+    assert context_stage["output"]["conversation"] == expected_rows
+    assert context_stage["output"]["current_observations"] is None
+    assert context_stage["output"]["current_run_observations"] is None
+    build_output = trace["chain"][3]["iterations"][0]["context_build"]["output"]
+    assert build_output["conversation"] == expected_rows
+    assert build_output["prompt_sections"] == ["conversation", "run_observations"]
 
 
 def test_skipped_recall_projects_an_explicit_no_hit_without_error():

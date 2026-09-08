@@ -11,6 +11,7 @@ no prompt text is ever parsed back into structure here.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from elfie.brain.observation import BrainObservation
@@ -462,6 +463,56 @@ def _compiled_summary(payload: Any) -> Dict[str, Any]:
     }
 
 
+def _compiled_conversation_rows(payload: Any) -> List[Dict[str, Any]]:
+    """Project the compiled conversation rows carried by the payload.
+
+    Rows come from the ``compiled_context`` envelope payload's raw
+    ``conversation`` tuples — the exact prior-turn rows the Context Engine
+    kept — never from parsing prompt text.  ``display_name`` falls back to
+    ``actor_id`` only as the read-side speaker label.
+    """
+    rows: List[Dict[str, Any]] = []
+    for row in getattr(payload, "conversation", ()) or ():
+        display_name = getattr(row, "display_name", None)
+        rows.append(
+            {
+                "speaker": display_name or getattr(row, "actor_id", ""),
+                "content": row.content,
+                "occurred_at": _iso_utc(row.occurred_at),
+            }
+        )
+    return rows
+
+
+def _compiled_sections(payload: Any) -> List[str]:
+    """List the compiled sections that actually carry data.
+
+    Derived only from the payload's raw counts and conversation rows; the
+    conversation section counts a row even when a pre-rows payload only
+    carries ``conversation_count``.
+    """
+    sections: List[str] = []
+    if payload.event_count:
+        sections.append("events")
+    if payload.state_update_count:
+        sections.append("state_updates")
+    if payload.media_sample_count:
+        sections.append("media_samples")
+    if getattr(payload, "conversation", ()) or payload.conversation_count:
+        sections.append("conversation")
+    if payload.summary_count:
+        sections.append("context_summaries")
+    if payload.run_observation_count:
+        sections.append("run_observations")
+    if payload.memory_chars:
+        sections.append("memory")
+    return sections
+
+
+def _iso_utc(value: Any) -> Any:
+    return value.isoformat() if isinstance(value, datetime) else value
+
+
 def _compile_for_revision(
     compiles: Sequence[BrainObservation],
     context_revision: Any,
@@ -524,6 +575,11 @@ def _context_workspace_stage(
     }
     if first_compile is not None:
         output["compiled"] = _compiled_summary(first_compile)
+        output["conversation"] = _compiled_conversation_rows(first_compile)
+        # Run-observation content exists only as payload counts: these keys
+        # stay null rather than being reconstructed from prompt text (P1).
+        output["current_observations"] = None
+        output["current_run_observations"] = None
     return {
         "number": "2",
         "id": "context_workspace",
@@ -665,6 +721,19 @@ def _reasoning_stage(
             compiles,
             payload.get("context_revision"),
         )
+        context_output: Dict[str, Any] = {
+            "context_revision": payload.get("context_revision"),
+            "compiled": (
+                _compiled_summary(compile_payload)
+                if compile_payload is not None
+                else None
+            ),
+        }
+        if compile_payload is not None:
+            context_output["conversation"] = _compiled_conversation_rows(
+                compile_payload
+            )
+            context_output["prompt_sections"] = _compiled_sections(compile_payload)
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
             observations=observations,
@@ -691,14 +760,7 @@ def _reasoning_stage(
                     "input": {
                         "context_revision": payload.get("context_revision"),
                     },
-                    "output": {
-                        "context_revision": payload.get("context_revision"),
-                        "compiled": (
-                            _compiled_summary(compile_payload)
-                            if compile_payload is not None
-                            else None
-                        ),
-                    },
+                    "output": context_output,
                     "raw": {
                         "context_revision": payload.get("context_revision"),
                         "system_prompt": payload.get("system_prompt"),

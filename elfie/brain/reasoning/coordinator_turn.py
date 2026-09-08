@@ -48,7 +48,10 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelResponseMode,
 )
-from elfie.brain.reasoning.observation_payloads import CompiledContextObservation
+from elfie.brain.reasoning.observation_payloads import (
+    CompiledContextObservation,
+    CompiledConversationObservation,
+)
 from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     CurrentRunObservation,
@@ -499,6 +502,16 @@ class ReasoningRunController:
                             memory_chars=len(compiled.memory.content),
                             memory_estimated_tokens=(compiled.memory.estimated_tokens),
                             truncated=compiled.truncated,
+                            conversation=tuple(
+                                CompiledConversationObservation(
+                                    event_id=str(row.event_id),
+                                    actor_id=str(row.actor.actor_id),
+                                    display_name=row.actor.display_name,
+                                    occurred_at=row.occurred_at,
+                                    content=row.content,
+                                )
+                                for row in compiled.conversation
+                            ),
                         ),
                     )
                 )
