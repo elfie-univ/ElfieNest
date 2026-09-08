@@ -110,7 +110,9 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         context_build["output"]["context_revision"]
         == captured_call["request"]["context_revision"]
     )
-    assert context_build["output"]["prompt_sections"]
+    compiled = context_build["output"]["compiled"]
+    assert compiled is not None
+    assert compiled["context_revision"] == captured_call["request"]["context_revision"]
     assert "user_prompt" not in context_build["output"]
     assert context_build["raw"]["user_prompt"]
     assert model_call["input"]["system_prompt"]
@@ -123,7 +125,11 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         observability["chain"][1]["raw"]["source"]
         == "ModelGenerationRequest.user_prompt"
     )
-    assert setup["baseline_memory"]["evidence_basis"] == "model_request.RELEVANT_MEMORY"
+    assert setup["baseline_memory"]["evidence_basis"] == (
+        "brain_observations.reasoning.memory_bridge"
+    )
+    assert setup["baseline_memory"]["status"] == "skipped"
+    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_relevant"
     assert all("used_by" not in owner for owner in setup["owner_snapshots"])
     assert all(
         owner["evidence_basis"] == "state_before" for owner in setup["owner_snapshots"]

@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.brain_turn_adapter import BrainTurnAdapter
 from devtools.elfie_lab.model_execution_adapters import create_model_execution
+from devtools.elfie_lab.observation_capture import CapturingObservationSink
 from devtools.elfie_lab.schemas import (
     ElfieSpec,
     StimulusBundle,
@@ -89,6 +90,9 @@ class ElfieLabSession:
                 storage.memory_path(spec.elfie_id)
             )
         self._observation_sink = observation_sink
+        # The Brain must see exactly one sink: forward to the caller's sink
+        # when present, and record envelopes for the run's trace projection.
+        self._capture_sink = CapturingObservationSink(observation_sink)
         self.last_model_execution: Any | None = None
         workspace = storage.elfie_dir(spec.elfie_id)
         profile_store = YamlProfileStoreAdapter(workspace / "profile")
@@ -115,7 +119,7 @@ class ElfieLabSession:
         )
         self._turn_adapter = BrainTurnAdapter(
             self.elfie,
-            observation_sink=self._observation_sink,
+            observation_sink=self._capture_sink,
         )
         self._lock = threading.Lock()
         self._closed = False
@@ -163,6 +167,7 @@ class ElfieLabSession:
         with self._lock:
             self._ensure_open()
             turn_id = new_id("turn")
+            self._capture_sink.clear()
             trace: Dict[str, Any] = {}
             pre_injection = self.snapshot()
             injection_changes = apply_state_injection(
@@ -260,6 +265,7 @@ class ElfieLabSession:
                         decision=decision,
                         duration_ms=duration_ms,
                         warnings=trace.get("warnings", []),
+                        observations=self._capture_sink.snapshot(),
                     )
                 )
             except Exception as projection_error:  # pragma: no cover - safety boundary
@@ -334,7 +340,7 @@ class ElfieLabSession:
             )
             self._turn_adapter = BrainTurnAdapter(
                 self.elfie,
-                observation_sink=self._observation_sink,
+                observation_sink=self._capture_sink,
             )
             self._closed = False
             self.storage.save_session(self.get_payload())

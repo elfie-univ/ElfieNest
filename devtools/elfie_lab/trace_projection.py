@@ -2,14 +2,22 @@
 
 This module is deliberately a read-only projection.  The Brain remains the
 owner of execution facts; the Lab only groups the records that already exist
-on a ``TurnRecord`` so that one Turn can be inspected as one causal chain.
+on a ``TurnRecord`` plus the raw ``BrainObservation`` envelopes the session
+captured during the turn, so one Turn can be inspected as one causal chain.
+Memory and context views are rebuilt exclusively from those typed events —
+no prompt text is ever parsed back into structure here.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+
+from elfie.brain.observation import BrainObservation
+
+_MEMORY_BRIDGE_BOUNDARY = "reasoning.memory_bridge"
+_CONTEXT_ENGINE_BOUNDARY = "reasoning.context_engine"
+_MEMORY_ENCODE_BOUNDARY = "memory.encode"
 
 
 def build_observability_trace(
@@ -24,6 +32,7 @@ def build_observability_trace(
     decision: Mapping[str, Any],
     duration_ms: float,
     warnings: Iterable[Any] = (),
+    observations: Sequence[BrainObservation] = (),
 ) -> Dict[str, Any]:
     """Return the seven top-level stages of one real production Turn.
 
@@ -41,14 +50,9 @@ def build_observability_trace(
     typed_input = _mapping(stages.get("typed_input"))
     receipts = list(_sequence(stages.get("output_receipts")))
     first_request = _mapping(calls[0].get("request")) if calls else {}
-    baseline_memory = _memory_status(first_request.get("user_prompt"))
-    memory_observations = _memory_observations(reasoning.get("steps"))
-    relevant_memory = _prompt_section(
-        first_request.get("user_prompt"),
-        "RELEVANT_MEMORY",
-    )
-    memory_points = _memory_evidence_points(relevant_memory)
-    selected_memory = _sequence(_mapping(decision).get("memory_uses"))
+    frame_id = cognitive_turn.get("frame_id")
+    memory = _memory_view(observations, frame_id=frame_id)
+    compiles = _turn_compiles(observations, frame_id=frame_id)
 
     setup = _setup_stage(
         turn_id=turn_id,
@@ -56,12 +60,12 @@ def build_observability_trace(
         state_before=state_before,
         request=first_request,
         capabilities=_mapping(calls[0].get("capabilities")) if calls else {},
-        relevant_memory=relevant_memory,
-        memory_points=memory_points,
+        baseline_memory=memory["baseline_memory"],
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
         calls=calls,
+        compiles=compiles,
     )
 
     return {
@@ -80,6 +84,7 @@ def build_observability_trace(
                 turn_id=turn_id,
                 stimulus=stimulus,
                 request=first_request,
+                compiles=compiles,
             ),
             setup,
             reasoning_stage,
@@ -104,22 +109,196 @@ def build_observability_trace(
                 warnings=warnings,
             ),
         ],
-        "memory": {
-            "status": baseline_memory.get("status", "unavailable"),
-            "query": baseline_memory.get("query", ""),
-            "revision": baseline_memory.get("revision"),
-            "reason": baseline_memory.get("reason"),
-            "returned_evidence": relevant_memory,
-            "returned_points": memory_points,
-            "selected": selected_memory,
-            "on_demand": memory_observations,
-            "raw": {
-                "baseline": baseline_memory,
-                "relevant_memory": relevant_memory,
-                "on_demand": memory_observations,
-            },
+        "memory": memory["block"],
+    }
+
+
+def _memory_view(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Dict[str, Any]:
+    """Rebuild the memory view from raw ``BrainObservation`` envelopes.
+
+    The first ``recall_result`` of the turn's frame is the baseline recall;
+    every later result is an on-demand recall.  Only raw values carried by
+    the envelopes are shown: the observation stream records recalled
+    material as typed IDs and counts, not as text, so ``returned_evidence``
+    stays empty and the evidence points carry record IDs.
+    """
+
+    bridge = [
+        event for event in observations if event.boundary == _MEMORY_BRIDGE_BOUNDARY
+    ]
+    if frame_id:
+        scoped = [event for event in bridge if event.frame_id == frame_id]
+        if scoped:
+            bridge = scoped
+    turn_opened = next(
+        (event for event in bridge if event.kind == "turn_opened"),
+        None,
+    )
+    recall_results = [event for event in bridge if event.kind == "recall_result"]
+    baseline_event = recall_results[0] if recall_results else None
+    on_demand_events = recall_results[1:]
+    opened = turn_opened.payload if turn_opened is not None else None
+    baseline = baseline_event.payload if baseline_event is not None else None
+
+    status = "unavailable"
+    query = ""
+    revision: Any = None
+    reason: Optional[str] = None
+    points: List[Dict[str, Any]] = []
+    if baseline is not None:
+        bundle = baseline.bundle
+        status = baseline.status
+        query = opened.query if opened is not None else baseline.query
+        revision = (
+            bundle.recall_revision if bundle is not None else baseline.pinned_revision
+        )
+        reason = baseline.reason
+        points = _bundle_points(bundle)
+    elif opened is not None:
+        query = opened.query
+        revision = opened.pinned_revision
+
+    block = {
+        "status": status,
+        "query": query,
+        "revision": revision,
+        "reason": reason,
+        "returned_evidence": "",
+        "returned_points": points,
+        "selected": _selected_memory(observations),
+        "on_demand": [_on_demand_entry(event) for event in on_demand_events],
+        "raw": {
+            "source": "brain_observations",
+            "turn_opened": _event_dump(turn_opened),
+            "baseline": _event_dump(baseline_event),
+            "on_demand": [_event_dump(event) for event in on_demand_events],
         },
     }
+    baseline_memory = {
+        "status": status,
+        "query": query,
+        "revision": revision,
+        "reason": reason,
+        "returned_evidence": "",
+        "returned_points": points,
+        "evidence_basis": "brain_observations.reasoning.memory_bridge",
+    }
+    return {"block": block, "baseline_memory": baseline_memory}
+
+
+def _bundle_points(bundle: Any) -> List[Dict[str, Any]]:
+    """Render the recall bundle's typed IDs as honest evidence points."""
+    if bundle is None:
+        return []
+    points: List[Dict[str, Any]] = []
+    for point_id in bundle.focus_node_ids:
+        points.append({"kind": "focus_node", "id": point_id, "evidence": point_id})
+    for point_id in bundle.assertion_ids:
+        points.append({"kind": "assertion", "id": point_id, "evidence": point_id})
+    for point_id in bundle.episode_ids:
+        points.append({"kind": "episode", "id": point_id, "evidence": point_id})
+    for point_id in bundle.evidence_ids:
+        points.append({"kind": "evidence", "id": point_id, "evidence": point_id})
+    return points
+
+
+def _selected_memory(
+    observations: Sequence[BrainObservation],
+) -> List[Dict[str, Any]]:
+    """Project the ``memory.encode`` use-proposal events (selected memory)."""
+    selected: List[Dict[str, Any]] = []
+    for event in observations:
+        if (
+            event.boundary != _MEMORY_ENCODE_BOUNDARY
+            or event.kind != "use_proposal_recorded"
+        ):
+            continue
+        payload = event.payload
+        selected.append(
+            {
+                "proposal_id": payload.proposal_id,
+                "target_kind": payload.target_kind,
+                "target_ids": list(payload.target_ids),
+                "recall_revision": payload.recall_revision,
+                "accepted": payload.accepted,
+                "reason": payload.reason,
+            }
+        )
+    return selected
+
+
+def _on_demand_entry(event: BrainObservation) -> Dict[str, Any]:
+    payload = event.payload
+    bundle = payload.bundle
+    return {
+        "status": payload.status,
+        "query": payload.query,
+        "reason": payload.reason,
+        "revision": (
+            bundle.recall_revision if bundle is not None else payload.pinned_revision
+        ),
+        "returned_evidence": "",
+        "returned_points": _bundle_points(bundle),
+        "raw": _event_dump(event),
+    }
+
+
+def _event_dump(event: Optional[BrainObservation]) -> Optional[Dict[str, Any]]:
+    if event is None:
+        return None
+    return event.model_dump(mode="json")
+
+
+def _turn_compiles(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> List[BrainObservation]:
+    compiles = [
+        event
+        for event in observations
+        if event.boundary == _CONTEXT_ENGINE_BOUNDARY
+        and event.kind == "compiled_context"
+    ]
+    if frame_id:
+        scoped = [event for event in compiles if event.frame_id == frame_id]
+        if scoped:
+            compiles = scoped
+    return compiles
+
+
+def _compiled_summary(payload: Any) -> Dict[str, Any]:
+    return {
+        "context_revision": payload.context_revision,
+        "capability_revision": payload.capability_revision,
+        "memory_recall_revision": payload.memory_recall_revision,
+        "max_tokens": payload.max_tokens,
+        "reasoning_mode": payload.reasoning_mode,
+        "response_mode": payload.response_mode,
+        "event_count": payload.event_count,
+        "state_update_count": payload.state_update_count,
+        "media_sample_count": payload.media_sample_count,
+        "conversation_count": payload.conversation_count,
+        "summary_count": payload.summary_count,
+        "run_observation_count": payload.run_observation_count,
+        "memory_chars": payload.memory_chars,
+        "memory_estimated_tokens": payload.memory_estimated_tokens,
+        "truncated": payload.truncated,
+    }
+
+
+def _compile_for_revision(
+    compiles: Sequence[BrainObservation],
+    context_revision: Any,
+) -> Optional[Any]:
+    for event in compiles:
+        if event.payload.context_revision == context_revision:
+            return event.payload
+    return None
 
 
 def _event_admission_stage(
@@ -162,45 +341,30 @@ def _context_workspace_stage(
     turn_id: str,
     stimulus: Mapping[str, Any],
     request: Mapping[str, Any],
+    compiles: Sequence[BrainObservation],
 ) -> Dict[str, Any]:
-    user_prompt = request.get("user_prompt")
-    context_only = _prompt_section(user_prompt, "CONTEXT_ONLY")
-    current_observations = _prompt_section(user_prompt, "CURRENT_OBSERVATIONS")
-    current_run_observations = _prompt_section(
-        user_prompt,
-        "CURRENT_RUN_OBSERVATIONS",
-    )
-    sections = [
-        name
-        for name, value in (
-            ("CONTEXT_ONLY", context_only),
-            ("CURRENT_OBSERVATIONS", current_observations),
-            ("CURRENT_RUN_OBSERVATIONS", current_run_observations),
-        )
-        if value
-    ]
-    has_request = bool(request)
+    first_compile = compiles[0].payload if compiles else None
+    output: Dict[str, Any] = {
+        "context_revision": request.get("context_revision"),
+        "frame_id": request.get("frame_id"),
+    }
+    if first_compile is not None:
+        output["compiled"] = _compiled_summary(first_compile)
     return {
         "number": "2",
         "id": "context_workspace",
         "title": "Context Workspace",
-        "status": "completed" if has_request else "unavailable",
+        "status": "completed" if request or compiles else "unavailable",
         "input": {
             "turn_id": turn_id,
             "message": stimulus.get("message", ""),
         },
-        "output": {
-            "context_revision": request.get("context_revision"),
-            "frame_id": request.get("frame_id"),
-            "prompt_sections": sections,
-            "conversation": context_only,
-            "current_observations": current_observations,
-            "current_run_observations": current_run_observations,
-        },
+        "output": output,
         "raw": {
             "source": "ModelGenerationRequest.user_prompt",
             "context_revision": request.get("context_revision"),
-            "user_prompt": user_prompt,
+            "user_prompt": request.get("user_prompt"),
+            "compiled_events": [_event_dump(event) for event in compiles],
         },
     }
 
@@ -212,8 +376,7 @@ def _setup_stage(
     state_before: Mapping[str, Any],
     request: Mapping[str, Any],
     capabilities: Mapping[str, Any],
-    relevant_memory: str,
-    memory_points: Sequence[Mapping[str, Any]],
+    baseline_memory: Mapping[str, Any],
 ) -> Dict[str, Any]:
     response_schema = _mapping(request.get("response_schema"))
     setup_output = {
@@ -232,10 +395,6 @@ def _setup_stage(
         "skill_count": len(_sequence(request.get("available_skills"))),
         "capabilities": capabilities,
     }
-    baseline_memory = _memory_status(request.get("user_prompt"))
-    baseline_memory["returned_evidence"] = relevant_memory
-    baseline_memory["returned_points"] = list(memory_points)
-    baseline_memory["evidence_basis"] = "model_request.RELEVANT_MEMORY"
     return {
         "number": "3",
         "id": "setup",
@@ -310,6 +469,7 @@ def _reasoning_stage(
     *,
     reasoning: Mapping[str, Any],
     calls: Sequence[Mapping[str, Any]],
+    compiles: Sequence[BrainObservation],
 ) -> Dict[str, Any]:
     steps = [_mapping(step) for step in _sequence(reasoning.get("steps"))]
     groups = _iteration_groups(steps)
@@ -333,6 +493,10 @@ def _reasoning_stage(
         ]
         iteration_number = f"4.{index + 1}"
         model_call_number = f"{iteration_number}.2"
+        compile_payload = _compile_for_revision(
+            compiles,
+            request.get("context_revision"),
+        )
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
             observations=observations,
@@ -350,24 +514,22 @@ def _reasoning_stage(
                 "input": {
                     "context_revision": request.get("context_revision"),
                     "frame_id": request.get("frame_id"),
-                    "observations_before_call": _prompt_section(
-                        request.get("user_prompt"),
-                        "CURRENT_RUN_OBSERVATIONS",
-                    ),
                 },
                 "context_build": {
                     "number": f"{iteration_number}.1",
-                    "status": "completed" if request else "unavailable",
+                    "status": (
+                        "completed" if request or compile_payload else "unavailable"
+                    ),
                     "input": {
                         "context_revision": request.get("context_revision"),
-                        "run_observations": _prompt_section(
-                            request.get("user_prompt"),
-                            "CURRENT_RUN_OBSERVATIONS",
-                        ),
                     },
                     "output": {
                         "context_revision": request.get("context_revision"),
-                        "prompt_sections": _request_prompt_sections(request),
+                        "compiled": (
+                            _compiled_summary(compile_payload)
+                            if compile_payload is not None
+                            else None
+                        ),
                     },
                     "raw": {
                         "context_revision": request.get("context_revision"),
@@ -387,9 +549,7 @@ def _reasoning_stage(
                     model_step=model_step,
                     parsed_result=_parsed_model_result(model_step),
                 ),
-                "observations": [
-                    _observation_projection(step) for step in observations
-                ],
+                "observations": [dict(step) for step in observations],
                 "observation_stage": observation_stage,
                 "completion": completions,
                 "guard": _guard_projection(
@@ -735,161 +895,6 @@ def _iteration_groups(steps: Sequence[Mapping[str, Any]]) -> List[List[Dict[str,
     if current:
         groups.append(current)
     return groups
-
-
-def _memory_observations(value: Any) -> List[Dict[str, Any]]:
-    observations: List[Dict[str, Any]] = []
-    for raw_step in _sequence(value):
-        step = _mapping(raw_step)
-        if step.get("operation") != "memory_recall":
-            continue
-        summary = str(step.get("summary", ""))
-        match = re.match(
-            r"query=(.*?); reason=(.*?); result=(.*?); detail=(.*)$",
-            summary,
-            flags=re.DOTALL,
-        )
-        observations.append(
-            {
-                "status": step.get("status"),
-                "query": match.group(1) if match else None,
-                "reason": match.group(2) if match else None,
-                "returned_evidence": match.group(3) if match else summary,
-                "detail": match.group(4) if match else None,
-                "raw": step,
-            }
-        )
-    return observations
-
-
-def _observation_projection(step: Mapping[str, Any]) -> Dict[str, Any]:
-    """Add parsed fields to a memory observation while retaining its raw step."""
-    if step.get("operation") != "memory_recall":
-        return dict(step)
-    parsed = _memory_observation_from_step(step)
-    return {**dict(step), **parsed}
-
-
-def _memory_observation_from_step(step: Mapping[str, Any]) -> Dict[str, Any]:
-    summary = str(step.get("summary", ""))
-    match = re.match(
-        r"query=(.*?); reason=(.*?); result=(.*?); detail=(.*)$",
-        summary,
-        flags=re.DOTALL,
-    )
-    return {
-        "query": match.group(1) if match else None,
-        "reason": match.group(2) if match else None,
-        "returned_evidence": match.group(3) if match else summary,
-        "detail": match.group(4) if match else None,
-    }
-
-
-def _memory_evidence_points(value: Any) -> List[Dict[str, Any]]:
-    """Extract readable evidence points while retaining the full block as Raw."""
-    if not isinstance(value, str) or not value.strip():
-        return []
-    points: List[Dict[str, Any]] = []
-    for match in re.finditer(
-        r"<(FACT|NODE|EPISODE)\b[^>]*>(.*?)</\1>",
-        value,
-        flags=re.DOTALL,
-    ):
-        kind, body = match.groups()
-        status = _memory_line(body, "状态")
-        points.append(
-            {
-                "kind": kind.lower(),
-                "claim": _memory_line(body, "事实") or _memory_line(body, "内容"),
-                "relation": _memory_line(body, "关系"),
-                "evidence": _memory_evidence_line(body),
-                "status": status.split("；", 1)[0] if status else None,
-                "confidence": _memory_confidence(body),
-            }
-        )
-    return points
-
-
-def _memory_line(body: str, label: str) -> Optional[str]:
-    match = re.search(rf"^{re.escape(label)}：(.+)$", body, flags=re.MULTILINE)
-    return match.group(1).strip() if match else None
-
-
-def _memory_evidence_line(body: str) -> Optional[str]:
-    match = re.search(r"^证据原文[^：]*：(.+)$", body, flags=re.MULTILINE)
-    return match.group(1).strip() if match else None
-
-
-def _memory_confidence(body: str) -> Optional[float]:
-    match = re.search(r"置信度：([0-9]+(?:\.[0-9]+)?)", body)
-    return float(match.group(1)) if match else None
-
-
-def _memory_status(value: Any) -> Dict[str, Any]:
-    prompt = value if isinstance(value, str) else ""
-    match = re.search(
-        r"MEMORY_RECALL_STATUS:\n"
-        r"status=(?P<status>[^;\n]+);\s*"
-        r"revision=(?P<revision>[^;\n]+);\s*"
-        r"reason=(?P<reason>[^\n]+)",
-        prompt,
-    )
-    if match is None:
-        return {"status": "unavailable", "query": "", "revision": None, "reason": None}
-    raw_revision = match.group("revision").strip()
-    try:
-        revision: Any = int(raw_revision)
-    except ValueError:
-        revision = raw_revision
-    return {
-        "status": match.group("status").strip(),
-        "query": _prompt_section(prompt, "CURRENT_MESSAGE"),
-        "revision": revision,
-        "reason": match.group("reason").strip(),
-    }
-
-
-def _prompt_section(value: Any, name: str) -> str:
-    prompt = value if isinstance(value, str) else ""
-    marker = f"{name}:\n"
-    start = prompt.find(marker)
-    if start < 0:
-        return ""
-    content_start = start + len(marker)
-    end = len(prompt)
-    for candidate in (
-        "TRUSTED_EXECUTION_CONTEXT",
-        "MEMORY_RECALL_STATUS",
-        "RELEVANT_MEMORY",
-        "CONTEXT_SUMMARIES",
-        "ACTIVE_ACTIVITIES",
-        "CURRENT_OBSERVATIONS",
-        "CONTEXT_ONLY",
-        "CURRENT_RUN_OBSERVATIONS",
-        "CURRENT_MESSAGE",
-    ):
-        if candidate == name:
-            continue
-        candidate_start = prompt.find(f"\n\n{candidate}:\n", content_start)
-        if candidate_start >= 0:
-            end = min(end, candidate_start)
-    return prompt[content_start:end].strip()
-
-
-def _request_prompt_sections(request: Mapping[str, Any]) -> List[str]:
-    user_prompt = request.get("user_prompt")
-    names = (
-        "TRUSTED_EXECUTION_CONTEXT",
-        "MEMORY_RECALL_STATUS",
-        "RELEVANT_MEMORY",
-        "CONTEXT_SUMMARIES",
-        "ACTIVE_ACTIVITIES",
-        "CURRENT_OBSERVATIONS",
-        "CONTEXT_ONLY",
-        "CURRENT_RUN_OBSERVATIONS",
-        "CURRENT_MESSAGE",
-    )
-    return [name for name in names if _prompt_section(user_prompt, name)]
 
 
 def _mapping(value: Any) -> Dict[str, Any]:
