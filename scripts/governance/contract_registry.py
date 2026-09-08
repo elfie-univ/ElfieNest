@@ -294,7 +294,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-brain-internal-architecture",
-        version="1.9",
+        version="1.10",
         english_path="docs/developer/contracts/brain.md",
         chinese_path="docs/zh/developer/contracts/brain.md",
         decision_paths=(
@@ -310,13 +310,18 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/developer/decisions/0037-brain-observation-surface.md",
+            "docs/zh/developer/decisions/0037-brain-observation-surface.md",
         ),
         agent_paths=(
             "elfie/brain/AGENTS.md",
             "elfie/brain/memory/AGENTS.md",
         ),
         scanner_paths=(),
-        test_paths=("test/architecture/test_elfie_brain_contract.py",),
+        test_paths=(
+            "test/architecture/test_elfie_brain_contract.py",
+            "test/architecture/test_elfie_brain_observation_surface.py",
+        ),
         conformance_paths=(
             "docs/developer/conformance/elfie-emotion.md",
             "docs/zh/developer/conformance/elfie-emotion.md",

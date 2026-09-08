@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.9
+**Contract version:** 1.10
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-04
+**Revised:** 2026-09-08
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -18,7 +18,10 @@
 > the dynamic embodied capability namespace and receipt-scope validation used by
 > the current implementation; version 1.9 separates standard procedural Skill
 > documents from executable Tool definitions and adds the read-only bundled Skill
-> load boundary. Remaining
+> load boundary. Version 1.10 records the unified typed observation surface: one
+> Brain-owned `BrainObservationSink` Port injected by assembly, the shared
+> `BrainObservation` envelope with boundary-owned named payload modules, and the
+> guard-before-construct zero-cost rule. Remaining
 > implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
@@ -498,6 +501,23 @@ Nest, concrete Infrastructure,
 Provider SDKs, platform payloads, device transports, filesystem roots or
 database records. AI Runtime implementations remain outside Brain; Brain owns
 when and why they are called inside a Run.
+
+Every observable Brain boundary emits one immutable `BrainObservation` envelope
+through a single Brain-owned `BrainObservationSink` Port, defined together with
+the shared `NoOpSink` in `elfie/brain/observation.py`. Assembly injects at most
+one optional sink through `Elfie.configure_cognition(observation_sink=...)`;
+Brain defines no second observer callback. Each boundary group owns named
+frozen payload modules (`reasoning/observation_payloads.py`,
+`reasoning/agent_loop_observations.py`, `reasoning/run_controller_observations.py`,
+`reasoning/coordinator_observations.py`, `activity/observation_payloads.py`,
+`memory/observation_payloads.py`); payloads are strongly typed models, never
+`Any` or raw dicts. Emit sites guard before constructing an envelope, so a
+production path without a sink allocates nothing. The observation modules stay
+domain-pure — they import no Infrastructure, App, Nest or devtools — and
+Developer Tools consume observations by implementing the sink. The surface
+keeps no on-disk JSON Schema; the Pydantic models remain the single contract
+source. The Infrastructure model execution observer stays a separate
+capability-plane fact source.
 
 The canonical package names are `workspace/`, `orientation/`,
 `selfhood/`, `emotion/`, `energy/`, `motivation/`, `memory/`, `reasoning/`,

@@ -140,8 +140,8 @@ def test_brain_contract_freezes_selfhood_and_the_four_block_model_header() -> No
         "OPERATING_CONTRACT",
     )
 
-    assert "**Contract version:** 1.9" in english_raw
-    assert "**契约版本：** 1.9" in chinese_raw
+    assert "**Contract version:** 1.10" in english_raw
+    assert "**契约版本：** 1.10" in chinese_raw
 
     assert [english_raw.index(label) for label in block_labels] == sorted(
         english_raw.index(label) for label in block_labels
@@ -202,8 +202,8 @@ def test_brain_contract_freezes_reasoning_context_workspace_ownership() -> None:
     english = " ".join(english_raw.split())
     chinese = " ".join(chinese_raw.split())
 
-    assert "**Contract version:** 1.9" in english_raw
-    assert "**契约版本：** 1.9" in chinese_raw
+    assert "**Contract version:** 1.10" in english_raw
+    assert "**契约版本：** 1.10" in chinese_raw
     for token in (
         "Event Workspace and Reasoning Context Workspace are distinct",
         "Memory owns no transient conversation tail",
@@ -242,6 +242,44 @@ def test_brain_contract_freezes_reasoning_context_workspace_ownership() -> None:
 
     assert "../designs/elfie/brain/elfie-reasoning-core" in english_raw
     assert "../designs/elfie/brain/elfie-reasoning-core" in chinese_raw
+
+
+def test_brain_contract_freezes_the_unified_observation_surface() -> None:
+    english = _normalized("docs/developer/contracts/brain.md")
+    chinese = _normalized("docs/zh/developer/contracts/brain.md")
+
+    assert "**Contract version:** 1.10" in _read("docs/developer/contracts/brain.md")
+    assert "**契约版本：** 1.10" in _read("docs/zh/developer/contracts/brain.md")
+
+    for token in (
+        "`BrainObservationSink` Port",
+        "`BrainObservation` envelope",
+        "`NoOpSink`",
+        "`elfie/brain/observation.py`",
+        "`Elfie.configure_cognition(observation_sink=...)`",
+        "`reasoning/observation_payloads.py`",
+        "`reasoning/agent_loop_observations.py`",
+        "`reasoning/run_controller_observations.py`",
+        "`reasoning/coordinator_observations.py`",
+        "`activity/observation_payloads.py`",
+        "`memory/observation_payloads.py`",
+        "never `Any` or raw dicts",
+        "guard before constructing an envelope",
+        "keeps no on-disk JSON Schema",
+    ):
+        assert token in english, token
+    for token in (
+        "`BrainObservationSink` Port",
+        "`BrainObservation` 封套",
+        "`NoOpSink`",
+        "`elfie/brain/observation.py`",
+        "`Elfie.configure_cognition(observation_sink=...)`",
+        "`memory/observation_payloads.py`",
+        "禁止 `Any` 或裸 dict",
+        "先守卫再构造封套",
+        "不维护磁盘 JSON Schema",
+    ):
+        assert token in chinese, token
 
 
 def test_closed_brain_conformance_registers_do_not_return() -> None:

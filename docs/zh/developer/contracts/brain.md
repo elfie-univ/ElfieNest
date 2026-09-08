@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.9
+**契约版本：** 1.10
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-04
+**修订日期：** 2026-09-08
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -13,7 +13,9 @@
 > 规则；版本 1.6 进一步冻结 ADR-0033 接受的三个来源域、具身终态和动态能力路由；版本 1.7
 > 记录已接受 Brain 设计层级的稳定链接；版本 1.8 记录当前实现采用的动态具身能力命名空间
 > 和回执作用域校验；版本 1.9 分离标准流程 Skill 文档与可执行 Tool 定义，并增加只读内置
-> Skill 加载边界。尚未
+> Skill 加载边界。版本 1.10 记录统一强类型的观测表面：一个由装配注入、Brain 自有的
+> `BrainObservationSink` Port、带边界自有命名 payload 模块的共享 `BrainObservation`
+> 封套，以及先守卫再构造的零成本规则。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
@@ -365,6 +367,19 @@ Brain 只依赖自身定义的强类型使用方 Port 和 Elfie 语义契约；�
 Profile、Canon、Genesis 资料包或领养输入。Brain 不导入 App、Nest、具体
 Infrastructure、Provider SDK、平台 Payload、设备传输、文件系统 Root 或数据库 Record。
 AI Runtime 实现留在 Brain 外部；Brain 拥有在 Run 中何时以及为什么调用它们。
+
+每个可观测的 Brain 边界都通过唯一由 Brain 拥有的 `BrainObservationSink` Port 发出一个
+不可变 `BrainObservation` 封套；该 Port 与共享的 `NoOpSink` 一起定义在
+`elfie/brain/observation.py`。装配通过 `Elfie.configure_cognition(observation_sink=...)`
+最多注入一个可选 sink；Brain 不定义第二套观察回调。每个边界组拥有自己的命名 frozen
+payload 模块（`reasoning/observation_payloads.py`、
+`reasoning/agent_loop_observations.py`、`reasoning/run_controller_observations.py`、
+`reasoning/coordinator_observations.py`、`activity/observation_payloads.py`、
+`memory/observation_payloads.py`）；payload 必须是强类型模型，禁止 `Any` 或裸 dict。
+发射点先守卫再构造封套，因此未接入 sink 的生产路径零分配。观测模块保持领域纯净——
+不导入 Infrastructure、App、Nest 或 devtools——开发者工具通过实现 sink 消费观测。
+该表面不维护磁盘 JSON Schema；Pydantic 模型仍是唯一契约事实源。Infrastructure 的模型
+执行观测仍是独立的能力面事实来源。
 
 规范包名是 `workspace/`、`orientation/`、`selfhood/`、`emotion/`、`energy/`、
 `motivation/`、`memory/`、`reasoning/`、`activity/` 和 `consolidation/`。每个包必须拥有
