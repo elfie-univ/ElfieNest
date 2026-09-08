@@ -24,7 +24,10 @@ from devtools.elfie_lab.session_state import apply_state_injection, model_skip_r
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.trace_projection import build_observability_trace
 from devtools.elfie_lab.turn_projection import project_decision
-from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
+from devtools.elfie_lab.turn_summary import (
+    model_call_summary_from_observations,
+    stimulus_modalities,
+)
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
 from elfie.brain.memory.memory_store import MemoryStorePort
@@ -91,9 +94,9 @@ class ElfieLabSession:
             )
         self._observation_sink = observation_sink
         # The Brain must see exactly one sink: forward to the caller's sink
-        # when present, and record envelopes for the run's trace projection.
+        # when present, and record envelopes for the run's trace projection
+        # and the model-call summary.
         self._capture_sink = CapturingObservationSink(observation_sink)
-        self.last_model_execution: Any | None = None
         workspace = storage.elfie_dir(spec.elfie_id)
         profile_store = YamlProfileStoreAdapter(workspace / "profile")
         self.elfie = ElfieFactory().restore(
@@ -176,7 +179,6 @@ class ElfieLabSession:
             )
             state_before = self.snapshot()
             model_execution = None
-            self.last_model_execution = None
             started = time.perf_counter()
             result: Dict[str, Any] = {}
             error: Optional[str] = None
@@ -190,7 +192,6 @@ class ElfieLabSession:
                         else None
                     ),
                 )
-                self.last_model_execution = model_execution
                 outcome, turn_decision, receipts, reasoning = self._turn_adapter.run(
                     stimulus,
                     turn_id,
@@ -226,9 +227,6 @@ class ElfieLabSession:
                             if reasoning is not None
                             else None
                         ),
-                        "model_calls": [
-                            dict(call) for call in getattr(model_execution, "calls", [])
-                        ],
                     },
                     "warnings": [],
                 }
@@ -272,14 +270,10 @@ class ElfieLabSession:
                 trace.setdefault("warnings", []).append(
                     f"observability_projection:{type(projection_error).__name__}"
                 )
-            model_call = model_call_summary(
-                model_execution.calls[-1]
-                if model_execution is not None and model_execution.calls
-                else {
-                    "food_key": food_key,
-                    "skipped": True,
-                    "reason": error or model_skip_reason(trace),
-                }
+            model_call = model_call_summary_from_observations(
+                self._capture_sink.snapshot(),
+                food_key=food_key,
+                fallback_reason=error or model_skip_reason(trace),
             )
             record = TurnRecord(
                 turn_id=turn_id,

@@ -749,6 +749,23 @@ def _journal_snapshot(session: ElfieLabSession) -> Tuple[Any, ...]:
         return ({"error": type(error).__name__, "message": str(error)},)
 
 
+def _turn_model_call_events(
+    events: Iterable[Mapping[str, Any]],
+) -> Tuple[Dict[str, Any], ...]:
+    """Return the serialized ``model_call`` envelopes of one turn window.
+
+    The Brain's ``reasoning.agent_loop`` / ``model_call`` observations are the
+    single semantic record of every ModelPort call, so the manifest model
+    identity and the per-turn ``model_calls`` view source from them.
+    """
+    return tuple(
+        cast(Dict[str, Any], event)
+        for event in events
+        if event.get("boundary") == "reasoning.agent_loop"
+        and event.get("kind") == "model_call"
+    )
+
+
 def _model_execution_events_since(
     before: Tuple[Any, ...],
 ) -> Tuple[Dict[str, Any], ...]:
@@ -992,8 +1009,6 @@ def collect_brain_trace(
                 brain_turn_id = str(
                     turn.get("result", {}).get("turn_id") or submitted_turn_id
                 )
-                model_execution = session.last_model_execution
-                calls = list(getattr(model_execution, "calls", ()))
                 model_execution_events = _model_execution_events_since(
                     model_events_before
                 )
@@ -1002,18 +1017,20 @@ def collect_brain_trace(
                         "model_execution",
                         {"turn_id": brain_turn_id, "event": model_event},
                     )
-                if calls:
-                    first_call = calls[0]
-                    manifest["model"].update(
-                        {
-                            "provider": first_call.get("provider"),
-                            "model": first_call.get("model"),
-                        }
-                    )
                 after_journal = _journal_snapshot(session)
                 after_memory = _memory_snapshot(session)
                 event_values = recorder.events
                 record_values = recorder.records
+                model_calls = _turn_model_call_events(event_values[before_event_count:])
+                if model_calls:
+                    first_call = model_calls[0].get("payload")
+                    if isinstance(first_call, Mapping):
+                        manifest["model"].update(
+                            {
+                                "provider": first_call.get("provider"),
+                                "model": first_call.get("model_key"),
+                            }
+                        )
                 turn_payload = {
                     "schema_version": "brain-trace.turn.v1",
                     "input_index": index,
@@ -1030,7 +1047,7 @@ def collect_brain_trace(
                         event_values[before_event_count:],
                         record_values[before_record_count:],
                         turn_id=brain_turn_id,
-                        model_call_count=len(calls),
+                        model_call_count=len(model_calls),
                     ),
                     "memory_recall_summary": _memory_recall_summary(
                         event_values[before_event_count:]
@@ -1042,7 +1059,7 @@ def collect_brain_trace(
                         and str(event.get("turn_id", "")) == brain_turn_id
                     ],
                     "model_execution_events": model_execution_events,
-                    "model_calls": calls,
+                    "model_calls": list(model_calls),
                     "journal_delta": after_journal[len(before_journal) :],
                     "persistence": _persistence_evidence(session),
                     "duration_ms": round((time.perf_counter() - started) * 1000, 2),
@@ -1089,7 +1106,7 @@ def collect_brain_trace(
                 writer.append("records", record_values[record_cursor:])
                 event_cursor = len(event_values)
                 record_cursor = len(record_values)
-                model_execution = session.last_model_execution
+                model_calls = _turn_model_call_events(event_values[before_event_count:])
                 writer.append(
                     "turns",
                     {
@@ -1108,14 +1125,14 @@ def collect_brain_trace(
                             event_values[before_event_count:],
                             record_values[before_record_count:],
                             turn_id="",
-                            model_call_count=len(getattr(model_execution, "calls", ())),
+                            model_call_count=len(model_calls),
                         ),
                         "memory_recall_summary": _memory_recall_summary(
                             event_values[before_event_count:]
                         ),
                         "context_events": [],
                         "model_execution_events": model_execution_events,
-                        "model_calls": list(getattr(model_execution, "calls", ())),
+                        "model_calls": list(model_calls),
                         "journal_delta": _journal_snapshot(session)[
                             len(before_journal) :
                         ],

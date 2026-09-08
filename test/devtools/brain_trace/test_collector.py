@@ -11,7 +11,6 @@ from devtools.elfie_lab.model_execution_adapters import redact_value
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
-from devtools.elfie_lab.turn_summary import model_call_summary
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 
@@ -107,6 +106,16 @@ def test_collects_full_mock_chain_without_changing_lab_summary(tmp_path):
     )
     assert all("model_execution_events" in turn for turn in turns)
     assert all(turn["model_calls"] for turn in turns)
+    # The manifest model identity sources from the Brain's model_call
+    # envelopes, so mock turns still carry the served provider/model.
+    assert manifest["model"]["provider"] == "mock"
+    assert manifest["model"]["model"] == "elfie-mock"
+    assert all(
+        call["payload"]["provider"] == "mock"
+        and call["payload"]["model_key"] == "elfie-mock"
+        for turn in turns
+        for call in turn["model_calls"]
+    )
     assert all(turn["memory_events"]["events"] for turn in turns)
     assert all(turn["memory_events"]["collector_records"] for turn in turns)
     assert all("analysis" not in turn for turn in turns)
@@ -137,9 +146,6 @@ def test_collects_full_mock_chain_without_changing_lab_summary(tmp_path):
         for recall in summary["recalls"]
     )
     assert _workspace_bytes(storage.elfie_dir(spec.elfie_id)) == source_before
-
-    # The public Lab projection remains intentionally redacted and compact.
-    assert "response" not in model_call_summary(turns[0]["model_calls"][0])
 
 
 def test_mock_memory_fixture_is_seeded_through_typed_store(tmp_path):

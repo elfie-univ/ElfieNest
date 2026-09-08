@@ -18,6 +18,7 @@ from elfie.brain.observation import BrainObservation
 _MEMORY_BRIDGE_BOUNDARY = "reasoning.memory_bridge"
 _CONTEXT_ENGINE_BOUNDARY = "reasoning.context_engine"
 _MEMORY_ENCODE_BOUNDARY = "memory.encode"
+_AGENT_LOOP_BOUNDARY = "reasoning.agent_loop"
 
 
 def build_observability_trace(
@@ -43,28 +44,27 @@ def build_observability_trace(
     """
 
     stages = _mapping(raw_stages)
-    calls = [_mapping(item) for item in _sequence(stages.get("model_calls"))]
     reasoning = _mapping(stages.get("reasoning"))
     boundary = _mapping(stages.get("turn_boundary"))
     cognitive_turn = _mapping(stages.get("cognitive_turn"))
     typed_input = _mapping(stages.get("typed_input"))
     receipts = list(_sequence(stages.get("output_receipts")))
-    first_request = _mapping(calls[0].get("request")) if calls else {}
     frame_id = cognitive_turn.get("frame_id")
     memory = _memory_view(observations, frame_id=frame_id)
     compiles = _turn_compiles(observations, frame_id=frame_id)
+    model_calls = _turn_model_calls(observations, frame_id=frame_id)
+    first_request = _model_request_view(model_calls[0]) if model_calls else {}
 
     setup = _setup_stage(
         turn_id=turn_id,
         stimulus=stimulus,
         state_before=state_before,
         request=first_request,
-        capabilities=_mapping(calls[0].get("capabilities")) if calls else {},
         baseline_memory=memory["baseline_memory"],
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
-        calls=calls,
+        calls=model_calls,
         compiles=compiles,
     )
 
@@ -91,7 +91,7 @@ def build_observability_trace(
             _decision_stage(
                 decision=decision,
                 reasoning=reasoning,
-                calls=calls,
+                calls=model_calls,
             ),
             _governance_stage(
                 decision=decision,
@@ -271,6 +271,47 @@ def _turn_compiles(
     return compiles
 
 
+def _turn_model_calls(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> List[Dict[str, Any]]:
+    """Dump the turn's ``model_call`` envelopes in emit order.
+
+    Model I/O evidence comes from the Brain's ``reasoning.agent_loop`` /
+    ``model_call`` observations — the single semantic record of every
+    ModelPort call.  When the turn frame is known, envelopes of other frames
+    are dropped so a concurrent autonomous turn cannot leak into this view.
+    """
+    events = [
+        event
+        for event in observations
+        if event.boundary == _AGENT_LOOP_BOUNDARY and event.kind == "model_call"
+    ]
+    if frame_id:
+        scoped = [event for event in events if str(event.frame_id) == str(frame_id)]
+        if scoped:
+            events = scoped
+    return [_event_dump(event) for event in events]
+
+
+def _model_request_view(event_dump: Mapping[str, Any]) -> Dict[str, Any]:
+    """Project one model_call envelope into the request view the chain shows."""
+    payload = _mapping(event_dump.get("payload"))
+    return {
+        "frame_id": event_dump.get("frame_id"),
+        "system_prompt": payload.get("system_prompt"),
+        "user_prompt": payload.get("user_prompt"),
+        "context_revision": payload.get("context_revision"),
+        "capability_revision": payload.get("capability_revision"),
+        "reasoning_mode": payload.get("reasoning_mode"),
+        "response_mode": payload.get("response_mode"),
+        "response_schema_name": payload.get("response_schema_name"),
+        "temperature": payload.get("temperature"),
+        "max_tokens": payload.get("max_tokens"),
+    }
+
+
 def _compiled_summary(payload: Any) -> Dict[str, Any]:
     return {
         "context_revision": payload.context_revision,
@@ -361,7 +402,7 @@ def _context_workspace_stage(
         },
         "output": output,
         "raw": {
-            "source": "ModelGenerationRequest.user_prompt",
+            "source": "brain_observations.reasoning.agent_loop.model_call",
             "context_revision": request.get("context_revision"),
             "user_prompt": request.get("user_prompt"),
             "compiled_events": [_event_dump(event) for event in compiles],
@@ -375,25 +416,18 @@ def _setup_stage(
     stimulus: Mapping[str, Any],
     state_before: Mapping[str, Any],
     request: Mapping[str, Any],
-    capabilities: Mapping[str, Any],
     baseline_memory: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    response_schema = _mapping(request.get("response_schema"))
     setup_output = {
         "turn_id": turn_id,
         "source_domain": request.get("source_domain") or stimulus.get("source_domain"),
         "context_revision": request.get("context_revision"),
         "capability_revision": request.get("capability_revision"),
-        "deadline": request.get("deadline"),
         "reasoning_mode": request.get("reasoning_mode"),
         "response_mode": request.get("response_mode"),
-        "response_schema": response_schema.get("name"),
+        "response_schema": request.get("response_schema_name"),
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
-        "allowed_tools": list(_sequence(request.get("allowed_tools"))),
-        "tool_definition_count": len(_sequence(request.get("tool_definitions"))),
-        "skill_count": len(_sequence(request.get("available_skills"))),
-        "capabilities": capabilities,
     }
     return {
         "number": "3",
@@ -405,10 +439,7 @@ def _setup_stage(
             "source_domain": stimulus.get("source_domain"),
         },
         "output": setup_output,
-        "owner_snapshots": _owner_snapshots(
-            state_before,
-            captured_at=request.get("created_at"),
-        ),
+        "owner_snapshots": _owner_snapshots(state_before),
         "baseline_memory": baseline_memory,
         "raw": {
             "state_before": dict(state_before),
@@ -477,7 +508,7 @@ def _reasoning_stage(
     iteration_count = max(len(calls), len(groups))
     for index in range(iteration_count):
         call = calls[index] if index < len(calls) else {}
-        request = _mapping(call.get("request"))
+        payload = _mapping(call.get("payload"))
         group = groups[index] if index < len(groups) else []
         model_step = next(
             (step for step in group if str(step.get("kind", "")).lower() == "model"),
@@ -495,7 +526,7 @@ def _reasoning_stage(
         model_call_number = f"{iteration_number}.2"
         compile_payload = _compile_for_revision(
             compiles,
-            request.get("context_revision"),
+            payload.get("context_revision"),
         )
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
@@ -506,25 +537,25 @@ def _reasoning_stage(
                 "number": iteration_number,
                 "status": (
                     "failed"
-                    if call.get("error")
+                    if call and str(call.get("status")) == "failed"
                     else "completed"
                     if call
                     else "unavailable"
                 ),
                 "input": {
-                    "context_revision": request.get("context_revision"),
-                    "frame_id": request.get("frame_id"),
+                    "context_revision": payload.get("context_revision"),
+                    "frame_id": call.get("frame_id"),
                 },
                 "context_build": {
                     "number": f"{iteration_number}.1",
                     "status": (
-                        "completed" if request or compile_payload else "unavailable"
+                        "completed" if payload or compile_payload else "unavailable"
                     ),
                     "input": {
-                        "context_revision": request.get("context_revision"),
+                        "context_revision": payload.get("context_revision"),
                     },
                     "output": {
-                        "context_revision": request.get("context_revision"),
+                        "context_revision": payload.get("context_revision"),
                         "compiled": (
                             _compiled_summary(compile_payload)
                             if compile_payload is not None
@@ -532,9 +563,9 @@ def _reasoning_stage(
                         ),
                     },
                     "raw": {
-                        "context_revision": request.get("context_revision"),
-                        "system_prompt": request.get("system_prompt"),
-                        "user_prompt": request.get("user_prompt"),
+                        "context_revision": payload.get("context_revision"),
+                        "system_prompt": payload.get("system_prompt"),
+                        "user_prompt": payload.get("user_prompt"),
                     },
                 },
                 "model_call": _model_call_projection(
@@ -615,38 +646,45 @@ def _model_call_projection(
     model_step: Mapping[str, Any],
     parsed_result: Any,
 ) -> Dict[str, Any]:
-    request = _mapping(call.get("request"))
-    response = call.get("response")
-    result = call.get("result")
+    """Project one Brain ``model_call`` observation envelope."""
+    payload = _mapping(call.get("payload"))
+    failed = bool(call) and str(call.get("status")) == "failed"
+    response_text = payload.get("response_text")
+    provider = payload.get("provider")
+    model = payload.get("model_key")
     projection: Dict[str, Any] = {
         "number": number,
-        "status": (
-            "failed" if call.get("error") else "completed" if call else "unavailable"
-        ),
+        "status": "failed" if failed else "completed",
         "input": {
-            "system_prompt": request.get("system_prompt"),
-            "user_prompt": request.get("user_prompt"),
+            "system_prompt": payload.get("system_prompt"),
+            "user_prompt": payload.get("user_prompt"),
         },
         "output": {
-            "response": response,
+            "response": response_text,
             "parsed_result": parsed_result,
-            "provider": call.get("provider"),
-            "model": call.get("model"),
-            "selected_mode": _mapping(result).get("selected_mode")
-            if isinstance(result, Mapping)
-            else None,
+            "provider": provider,
+            "model": model,
+            "selected_mode": payload.get("selected_mode"),
         },
-        "effective_parameters": call.get("effective_parameters"),
-        "capabilities": call.get("capabilities"),
+        "effective_parameters": {
+            "provider": provider,
+            "model": model,
+            "reasoning_mode": payload.get("reasoning_mode"),
+            "response_mode": payload.get("response_mode"),
+            "response_schema": payload.get("response_schema_name"),
+            "temperature": payload.get("temperature"),
+            "max_tokens": payload.get("max_tokens"),
+            "context_revision": payload.get("context_revision"),
+            "capability_revision": payload.get("capability_revision"),
+        },
         "duration_ms": call.get("duration_ms"),
-        "response": response,
-        "result": result,
+        "response": response_text,
         "reasoning_step": model_step,
         "raw": dict(call),
     }
-    provider_raw = call.get("provider_raw")
-    if provider_raw not in (None, "", {}, []):
-        projection["provider_raw"] = provider_raw
+    error = call.get("error")
+    if error:
+        projection["error"] = error
     return projection
 
 

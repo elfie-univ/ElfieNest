@@ -4,6 +4,7 @@ from typing import Any
 from devtools.elfie_lab.trace_projection import build_observability_trace
 from elfie.brain.memory.observation_payloads import MemoryUseProposalRecorded
 from elfie.brain.observation import BrainObservation, ObservationStatus
+from elfie.brain.reasoning.agent_loop_observations import ModelCallObservation
 from elfie.brain.reasoning.observation_payloads import (
     CompiledContextObservation,
     MemoryRecallBundleObservation,
@@ -80,14 +81,14 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
         state_before={"energy": 90},
         state_after={},
         state_diff={},
-        raw_stages={
-            "model_calls": [{"request": {"context_revision": 7}}],
-            "reasoning": {},
-        },
+        raw_stages={"reasoning": {}},
         result={},
         decision={},
         duration_ms=12,
-        observations=observations,
+        observations=[
+            _model_call_observation(context_revision=7),
+            *observations,
+        ],
     )
 
     memory = trace["memory"]
@@ -163,15 +164,13 @@ def test_context_view_comes_from_compiled_context_observations():
         state_after={},
         state_diff={},
         raw_stages={
-            "model_calls": [
-                {"request": {"context_revision": 7, "user_prompt": "PROMPT"}}
-            ],
-            "reasoning": {"status": "completed", "model_calls": 1, "steps": []},
+            "reasoning": {"status": "completed", "model_calls": 1, "steps": []}
         },
         result={},
         decision={},
         duration_ms=12,
         observations=[
+            _model_call_observation(context_revision=7, user_prompt="PROMPT"),
             _observation(
                 boundary="reasoning.context_engine",
                 kind="compiled_context",
@@ -243,7 +242,7 @@ def test_skipped_recall_projects_an_explicit_no_hit_without_error():
         state_before={},
         state_after={},
         state_diff={},
-        raw_stages={"model_calls": [], "reasoning": {}},
+        raw_stages={"reasoning": {}},
         result={},
         decision={},
         duration_ms=1,
@@ -268,7 +267,7 @@ def test_turn_without_observations_keeps_an_explicit_unavailable_memory_view():
         state_before={},
         state_after={},
         state_diff={},
-        raw_stages={"model_calls": [], "reasoning": {}},
+        raw_stages={"reasoning": {}},
         result={},
         decision={},
         duration_ms=1,
@@ -346,7 +345,6 @@ def test_bridge_events_from_other_frames_do_not_leak_into_the_turn_view():
         state_after={},
         state_diff={},
         raw_stages={
-            "model_calls": [],
             "reasoning": {},
             "cognitive_turn": {"frame_id": "frame-1"},
         },
@@ -371,39 +369,6 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
         state_after={"energy": 89},
         state_diff={"energy": {"before": 90, "after": 89}},
         raw_stages={
-            "model_calls": [
-                {
-                    "call_index": 1,
-                    "provider": "mock",
-                    "model": "elfie-mock",
-                    "effective_parameters": {
-                        "reasoning_mode": "long",
-                        "temperature": 0.2,
-                        "max_tokens": 1536,
-                    },
-                    "capabilities": {
-                        "supports_json_schema": True,
-                        "supports_tool_calling": False,
-                    },
-                    "request": {
-                        "context_revision": 10,
-                        "system_prompt": "SYSTEM",
-                        "user_prompt": "CURRENT_MESSAGE\n你记得吗？",
-                    },
-                    "response": '{"type":"recall_memory"}',
-                    "result": {"selected_mode": "json_schema"},
-                },
-                {
-                    "call_index": 2,
-                    "request": {
-                        "context_revision": 11,
-                        "system_prompt": "SYSTEM",
-                        "user_prompt": "CURRENT_MESSAGE\n记忆证据：窗边聊天。",
-                    },
-                    "response": '{"type":"answer","content":"记得"}',
-                    "result": {"selected_mode": "json_schema"},
-                },
-            ],
             "reasoning": {
                 "status": "completed",
                 "model_calls": 2,
@@ -441,6 +406,20 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
         result={"success": True, "message": "记得"},
         decision={"message_texts": ["记得"]},
         duration_ms=120,
+        observations=[
+            _model_call_observation(
+                context_revision=10,
+                user_prompt="CURRENT_MESSAGE\n你记得吗？",
+                response='{"type":"recall_memory"}',
+                iteration_index=1,
+            ),
+            _model_call_observation(
+                context_revision=11,
+                user_prompt="CURRENT_MESSAGE\n记忆证据：窗边聊天。",
+                response='{"type":"answer","content":"记得"}',
+                iteration_index=2,
+            ),
+        ],
     )
 
     reasoning = trace["chain"][3]
@@ -449,12 +428,13 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
         "4.2",
     ]
     first, second = reasoning["iterations"]
-    assert first["model_call"]["raw"]["call_index"] == 1
+    assert first["model_call"]["raw"]["payload"]["iteration_index"] == 1
     assert first["model_call"]["effective_parameters"]["reasoning_mode"] == "long"
-    assert first["model_call"]["capabilities"]["supports_json_schema"] is True
+    assert first["model_call"]["output"]["provider"] == "mock"
+    assert first["model_call"]["output"]["model"] == "elfie-mock"
     assert first["model_call"]["input"]["user_prompt"] == "CURRENT_MESSAGE\n你记得吗？"
     assert first["model_call"]["output"]["response"] == '{"type":"recall_memory"}'
-    assert second["model_call"]["raw"]["call_index"] == 2
+    assert second["model_call"]["raw"]["payload"]["iteration_index"] == 2
     assert first["observations"][0]["operation"] == "memory_recall"
     assert first["observations"][0]["summary"] == "memory recall completed"
     assert first["observation_stage"]["number"] == "4.1.4"
@@ -471,8 +451,13 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
     assert second["guard"]["output"] == {}
     assert "separate Guard record" in first["guard"]["skip_reason"]
     assert "separate Guard record" in second["guard"]["skip_reason"]
-    assert trace["chain"][1]["raw"]["source"] == "ModelGenerationRequest.user_prompt"
+    assert (
+        trace["chain"][1]["raw"]["source"]
+        == "brain_observations.reasoning.agent_loop.model_call"
+    )
     assert all("used_by" not in owner for owner in trace["chain"][2]["owner_snapshots"])
+    # Capabilities are not part of the model_call observation surface.
+    assert "capabilities" not in first["model_call"]
     assert "provider_raw" not in first["model_call"]
 
 
@@ -484,14 +469,6 @@ def test_reasoning_projection_does_not_create_a_phantom_iteration_for_prefix_obs
         state_after={},
         state_diff={},
         raw_stages={
-            "model_calls": [
-                {
-                    "call_index": 1,
-                    "request": {"context_revision": 1, "user_prompt": "你好"},
-                    "response": '{"type":"answer"}',
-                    "result": {},
-                }
-            ],
             "reasoning": {
                 "status": "completed",
                 "model_calls": 1,
@@ -510,6 +487,13 @@ def test_reasoning_projection_does_not_create_a_phantom_iteration_for_prefix_obs
         result={},
         decision={},
         duration_ms=1,
+        observations=[
+            _model_call_observation(
+                context_revision=1,
+                user_prompt="你好",
+                response='{"type":"answer"}',
+            )
+        ],
     )
 
     iterations = trace["chain"][3]["iterations"]
@@ -532,7 +516,6 @@ def test_activity_proposal_stays_in_decision_and_delivery_without_becoming_a_cha
         state_diff={"energy": {"before": 80, "after": 79}},
         raw_stages={
             "reasoning": {"status": "completed", "model_calls": 1},
-            "model_calls": [],
         },
         result={"success": True, "message": "好的"},
         decision={"activity_intents": [activity]},
@@ -562,7 +545,6 @@ def test_failed_reasoning_remains_explicit_in_the_production_chain():
                 "failure_reason": "model_unavailable",
                 "model_calls": 0,
             },
-            "model_calls": [],
         },
         result={"success": False, "error": "model unavailable"},
         decision={},
@@ -602,3 +584,34 @@ def _bridge_observation(
     *, kind: str, payload: Any, frame_id: str = "frame-1"
 ) -> BrainObservation:
     return _observation(kind=kind, payload=payload, frame_id=frame_id)
+
+
+def _model_call_observation(
+    *,
+    context_revision: int,
+    user_prompt: str = "CURRENT_MESSAGE\n你好",
+    response: str = '{"type":"answer","content":"好的"}',
+    iteration_index: int = 1,
+    system_prompt: str = "SYSTEM",
+) -> BrainObservation:
+    return _observation(
+        boundary="reasoning.agent_loop",
+        kind="model_call",
+        payload=ModelCallObservation(
+            iteration_index=iteration_index,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            reasoning_mode="long",
+            response_mode="structured",
+            response_schema_name="DecisionPlan",
+            temperature=0.2,
+            max_tokens=1536,
+            context_revision=context_revision,
+            capability_revision=1,
+            response_text=response,
+            selected_mode="json_schema",
+            provider="mock",
+            model_key="elfie-mock",
+            duration_ms=5.0,
+        ),
+    )
