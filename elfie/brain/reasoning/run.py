@@ -26,7 +26,14 @@ from elfie.brain.observation import (
     ObservationError,
     ObservationStatus,
 )
-from elfie.brain.reasoning.agent_loop_observations import ModelCallObservation
+from elfie.brain.reasoning.agent_loop_observations import (
+    AgentLoopActionObservation,
+    AgentLoopGuardObservation,
+    AgentLoopGuardStopObservation,
+    AgentLoopJudgeObservation,
+    AgentLoopObservationRecorded,
+    ModelCallObservation,
+)
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeMode,
     DecisionDecodeReport,
@@ -41,6 +48,7 @@ from elfie.brain.reasoning.decision_types import (
     DecisionIntent,
     DecisionPlan,
     MessageIntent,
+    NoOpDraft,
     NoOpIntent,
     PersistentActivityRequest,
     RecallMemory,
@@ -209,6 +217,7 @@ class _ReasoningStop(RuntimeError):
 
 _MAX_OBSERVATION_CHARS = 2400
 _MAX_MODEL_SUMMARY_CHARS = 240
+_MAX_ERROR_CHARS = 240
 _SHORT_PLAN_OBSERVATION_KIND = "short_plan"
 _HONEST_EXTERNAL_BOUNDARY_REPLY = (
     "我目前没有执行或确认任何外部操作；如果你愿意，我可以先就现有信息继续聊。"
@@ -318,6 +327,9 @@ class ReasoningRun:
         # One ReasoningRun serves one run() call on the worker thread, so an
         # unsynchronized counter is sufficient.
         self._observation_sequence = 0
+        # Decision records keep their own counter: merging it into the
+        # model_call sequence would shift the committed model_call numbering.
+        self._decision_sequence = 0
         # The Brain's domain clock is intentionally not used for wall-clock
         # provider latency; the Coordinator owns the semantic Turn deadline.
         # This local budget is optional and uses a monotonic clock when set.
@@ -362,27 +374,68 @@ class ReasoningRun:
             limit = self._budget.max_steps
             return limit is not None and len(steps) >= limit
 
+        def record_observation(
+            *,
+            kind: str,
+            status: str,
+            content: str,
+            source_ids: Tuple[str, ...] = (),
+            revision: Optional[int] = None,
+        ) -> None:
+            """Append one Run observation and record the append event."""
+            observation = CurrentRunObservation(
+                kind=kind,
+                status=status,
+                content=content,
+                source_ids=source_ids,
+                revision=revision,
+            )
+            run_observations.append(observation)
+            self._emit_observation_recorded(
+                task=task,
+                observation=observation,
+                iteration_index=model_calls + 1,
+            )
+
         def guard(
             *, next_kind: CognitiveStepKind, model: bool = False, tool: bool = False
         ) -> None:
+            fired: Optional[Tuple[str, ReasoningStatus, str]] = None
             if cancellation is not None and cancellation.is_set():
-                raise _ReasoningStop(ReasoningStatus.CANCELLED, "cancelled")
-            if monotonic() - started_at >= deadline_seconds:
-                raise _ReasoningStop(ReasoningStatus.TIMED_OUT, "deadline_exceeded")
-            if model and model_calls >= active_model_limit:
-                raise _ReasoningStop(
+                fired = ("cancellation", ReasoningStatus.CANCELLED, "cancelled")
+            elif monotonic() - started_at >= deadline_seconds:
+                fired = ("deadline", ReasoningStatus.TIMED_OUT, "deadline_exceeded")
+            elif model and model_calls >= active_model_limit:
+                fired = (
+                    "model_budget",
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "model_call_budget_exhausted",
                 )
-            if tool and tool_calls >= self._budget.max_tool_calls:
-                raise _ReasoningStop(
+            elif tool and tool_calls >= self._budget.max_tool_calls:
+                fired = (
+                    "tool_budget",
                     ReasoningStatus.BUDGET_EXHAUSTED,
                     "tool_call_budget_exhausted",
                 )
-            if step_limit_reached():
-                raise _ReasoningStop(
-                    ReasoningStatus.BUDGET_EXHAUSTED, "step_budget_exhausted"
+            elif step_limit_reached():
+                fired = (
+                    "steps",
+                    ReasoningStatus.BUDGET_EXHAUSTED,
+                    "step_budget_exhausted",
                 )
+            self._emit_guard(
+                task=task,
+                fired=fired,
+                iteration_index=model_calls + 1,
+                model_calls_used=model_calls,
+                active_model_limit=active_model_limit,
+                tool_calls_used=tool_calls,
+                started_at=started_at,
+                deadline_seconds=deadline_seconds,
+                cancelled=cancellation is not None and cancellation.is_set(),
+            )
+            if fired is not None:
+                raise _ReasoningStop(fired[1], fired[2])
             del next_kind
 
         def add_step(
@@ -484,16 +537,14 @@ class ReasoningRun:
                             operation="load",
                             ok=True,
                         )
-                        run_observations.append(
-                            CurrentRunObservation(
-                                kind="skill",
-                                status="loaded",
-                                content=(
-                                    f"name={skill.name}; description={skill.description}; "
-                                    f"instructions={skill_content}"
-                                ),
-                                source_ids=(f"skill:{skill.name}",),
-                            )
+                        record_observation(
+                            kind="skill",
+                            status="loaded",
+                            content=(
+                                f"name={skill.name}; description={skill.description}; "
+                                f"instructions={skill_content}"
+                            ),
+                            source_ids=(f"skill:{skill.name}",),
                         )
                         generated_observations.append(
                             self._skill_observation_prompt(
@@ -562,13 +613,11 @@ class ReasoningRun:
                             operation=request.operation,
                             ok=True,
                         )
-                        run_observations.append(
-                            CurrentRunObservation(
-                                kind="tool",
-                                status="received",
-                                content=summary,
-                                source_ids=(f"{request.tool_key}:{request.operation}",),
-                            )
+                        record_observation(
+                            kind="tool",
+                            status="received",
+                            content=summary,
+                            source_ids=(f"{request.tool_key}:{request.operation}",),
                         )
                         generated_observations.append(
                             self._observation_prompt(
@@ -601,21 +650,25 @@ class ReasoningRun:
                             "; ".join(errors),
                             ok=False,
                         )
+                        self._emit_action_decoded(
+                            task=task,
+                            action=None,
+                            iteration_index=model_calls,
+                            validation_errors=tuple(errors),
+                        )
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is ReasoningDepth.DELIBERATE
                             and model_calls < active_model_limit
                         ):
-                            run_observations.append(
-                                CurrentRunObservation(
-                                    kind="repair",
-                                    status="invalid_cognitive_action",
-                                    content=(
-                                        f"errors={'; '.join(errors)}; "
-                                        f"raw={generation.text[:_MAX_OBSERVATION_CHARS]}; "
-                                        "Return one valid CognitiveAction only."
-                                    ),
-                                )
+                            record_observation(
+                                kind="repair",
+                                status="invalid_cognitive_action",
+                                content=(
+                                    f"errors={'; '.join(errors)}; "
+                                    f"raw={generation.text[:_MAX_OBSERVATION_CHARS]}; "
+                                    "Return one valid CognitiveAction only."
+                                ),
                             )
                             current_request = rebuild_request(final_schema=True)
                             continue
@@ -624,11 +677,35 @@ class ReasoningRun:
                             "cognitive_action_validation_failed",
                         )
 
+                    self._emit_action_decoded(
+                        task=task,
+                        action=action,
+                        iteration_index=model_calls,
+                        validation_errors=(),
+                    )
+
                     if isinstance(action, RecallMemory):
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
                             is not ReasoningDepth.DELIBERATE
                         ):
+                            self._emit_guard(
+                                task=task,
+                                fired=(
+                                    "depth",
+                                    ReasoningStatus.SAFE_NOOP,
+                                    "recall_memory_not_allowed_in_direct",
+                                ),
+                                iteration_index=model_calls,
+                                model_calls_used=model_calls,
+                                active_model_limit=active_model_limit,
+                                tool_calls_used=tool_calls,
+                                started_at=started_at,
+                                deadline_seconds=deadline_seconds,
+                                cancelled=(
+                                    cancellation is not None and cancellation.is_set()
+                                ),
+                            )
                             raise _ReasoningStop(
                                 ReasoningStatus.SAFE_NOOP,
                                 "recall_memory_not_allowed_in_direct",
@@ -690,23 +767,19 @@ class ReasoningRun:
                             operation="memory_recall",
                             ok=recall_status in {"recalled", "duplicate", "skipped"},
                         )
-                        run_observations.append(
-                            CurrentRunObservation(
-                                kind=(
-                                    "revision" if recall_status == "stale" else "memory"
-                                ),
-                                status=recall_status,
-                                content=observation_content,
-                                source_ids=tuple(
-                                    f"{kind}:{record_id}"
-                                    for kind, record_id in recall_memory_reference_ids(
-                                        recall_bundle
-                                    )
+                        record_observation(
+                            kind=("revision" if recall_status == "stale" else "memory"),
+                            status=recall_status,
+                            content=observation_content,
+                            source_ids=tuple(
+                                f"{kind}:{record_id}"
+                                for kind, record_id in recall_memory_reference_ids(
+                                    recall_bundle
                                 )
-                                if recall_bundle is not None
-                                else (),
-                                revision=recall_revision,
                             )
+                            if recall_bundle is not None
+                            else (),
+                            revision=recall_revision,
                         )
                         current_request = rebuild_request(final_schema=True)
                         continue
@@ -738,15 +811,23 @@ class ReasoningRun:
                             is ReasoningDepth.DELIBERATE
                             and model_calls < active_model_limit
                         ):
-                            run_observations.append(
-                                CurrentRunObservation(
-                                    kind="judge",
-                                    status="revision_required",
-                                    content=(
-                                        f"{judge_reason}. Revise honestly using only "
-                                        "supplied evidence; do not claim external completion."
-                                    ),
-                                )
+                            record_observation(
+                                kind="judge",
+                                status="revision_required",
+                                content=(
+                                    f"{judge_reason}. Revise honestly using only "
+                                    "supplied evidence; do not claim external completion."
+                                ),
+                            )
+                            self._emit_judge(
+                                task=task,
+                                iteration_index=model_calls,
+                                action=action,
+                                verdict="revision_required",
+                                judge_reason=judge_reason,
+                                revision_requested=True,
+                                external_claim_replaced=False,
+                                current_nest_sanitized=False,
                             )
                             current_request = rebuild_request(final_schema=True)
                             continue
@@ -777,6 +858,16 @@ class ReasoningRun:
                         "accepted",
                         verification_summary,
                     )
+                    self._emit_judge(
+                        task=task,
+                        iteration_index=model_calls,
+                        action=action,
+                        verdict="accepted",
+                        judge_reason=judge_reason,
+                        revision_requested=False,
+                        external_claim_replaced=judge_sanitized,
+                        current_nest_sanitized=current_nest_sanitized,
+                    )
                     return ReasoningRunResult(
                         status=ReasoningStatus.COMPLETED,
                         steps=tuple(steps),
@@ -795,15 +886,13 @@ class ReasoningRun:
                         "Repair the following invalid DecisionPlan JSON. Return JSON only.\n"
                         f"Errors: {'; '.join(errors)}\nRaw output:\n{raw_text}"
                     )
-                    run_observations.append(
-                        CurrentRunObservation(
-                            kind="repair",
-                            status="invalid_output",
-                            content=(
-                                f"errors={'; '.join(errors)}; "
-                                f"raw={raw_text[:_MAX_OBSERVATION_CHARS]}"
-                            ),
-                        )
+                    record_observation(
+                        kind="repair",
+                        status="invalid_output",
+                        content=(
+                            f"errors={'; '.join(errors)}; "
+                            f"raw={raw_text[:_MAX_OBSERVATION_CHARS]}"
+                        ),
                     )
                     repaired_request = rebuild_request(
                         final_schema=True,
@@ -856,12 +945,10 @@ class ReasoningRun:
                         "DecisionPlan or a scoped clarification message; do not defer "
                         "clarification to the future Activity."
                     )
-                    run_observations.append(
-                        CurrentRunObservation(
-                            kind="activity",
-                            status="needs_clarification",
-                            content=preflight_observation,
-                        )
+                    record_observation(
+                        kind="activity",
+                        status="needs_clarification",
+                        content=preflight_observation,
                     )
                     current_request = rebuild_request(
                         final_schema=True,
@@ -905,6 +992,15 @@ class ReasoningRun:
                     decode=decode,
                 )
         except _ReasoningStop as stopped:
+            self._emit_guard_stop(
+                task=task,
+                status=stopped.status,
+                reason=stopped.reason,
+                model_calls=model_calls,
+                tool_calls=tool_calls,
+                skill_calls=skill_calls,
+                step_count=len(steps),
+            )
             return self._failure(
                 task=task,
                 status=stopped.status,
@@ -1043,6 +1139,252 @@ class ReasoningRun:
                     completion_tokens=completion_tokens,
                     provider_latency_ms=provider_latency_ms,
                     duration_ms=duration_ms,
+                ),
+            )
+        )
+
+    def _next_decision_sequence(self) -> int:
+        self._decision_sequence += 1
+        return self._decision_sequence
+
+    @staticmethod
+    def _envelope_causal_ids(task: ReasoningTaskView) -> Tuple[str, ...]:
+        return tuple(str(item) for item in task.request.cause_event_ids)
+
+    def _emit_action_decoded(
+        self,
+        *,
+        task: ReasoningTaskView,
+        action: Optional[CognitiveAction],
+        iteration_index: int,
+        validation_errors: Tuple[str, ...],
+    ) -> None:
+        """Record one decoded Cognitive Action (§B5-2); unwired = no-op."""
+        sink = self._observation_sink
+        if sink is None:
+            return
+        if action is None:
+            status = ObservationStatus.failed
+            observation_error: Optional[ObservationError] = ObservationError(
+                type="cognitive_action_decode_failed",
+                message="; ".join(validation_errors)[:_MAX_ERROR_CHARS],
+            )
+            action_type = None
+            query = None
+            recall_reason = None
+            content = None
+            missing_facts: Tuple[str, ...] = ()
+            noop_reason = None
+            memory_use_count = 0
+        else:
+            status = ObservationStatus.completed
+            observation_error = None
+            action_type = type(action).__name__
+            query = None
+            recall_reason = None
+            content = None
+            missing_facts = ()
+            noop_reason = None
+            if isinstance(action, RecallMemory):
+                query = action.query
+                recall_reason = action.reason
+            elif isinstance(action, NoOpDraft):
+                noop_reason = action.reason
+            else:
+                content = action.content
+                if isinstance(action, ClarificationDraft):
+                    missing_facts = tuple(action.missing_facts)
+            memory_use_count = len(getattr(action, "memory_uses", ()) or ())
+        sink.emit(
+            BrainObservation[AgentLoopActionObservation](
+                boundary="reasoning.agent_loop",
+                kind="action_decoded",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                status=status,
+                error=observation_error,
+                payload=AgentLoopActionObservation(
+                    iteration_index=iteration_index,
+                    action_type=action_type,
+                    query=query,
+                    recall_reason=recall_reason,
+                    content=content,
+                    missing_facts=missing_facts,
+                    noop_reason=noop_reason,
+                    memory_use_count=memory_use_count,
+                    validation_errors=validation_errors,
+                ),
+            )
+        )
+
+    def _emit_observation_recorded(
+        self,
+        *,
+        task: ReasoningTaskView,
+        observation: CurrentRunObservation,
+        iteration_index: int,
+    ) -> None:
+        """Record one Run observation append (§B5-3); unwired = no-op."""
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[AgentLoopObservationRecorded](
+                boundary="reasoning.agent_loop",
+                kind="observation",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                status=ObservationStatus.completed,
+                payload=AgentLoopObservationRecorded(
+                    iteration_index=iteration_index,
+                    observation_kind=observation.kind,
+                    observation_status=observation.status,
+                    content=observation.content,
+                    source_ids=observation.source_ids,
+                    revision=observation.revision,
+                ),
+            )
+        )
+
+    def _emit_guard(
+        self,
+        *,
+        task: ReasoningTaskView,
+        fired: Optional[Tuple[str, ReasoningStatus, str]],
+        iteration_index: int,
+        model_calls_used: int,
+        active_model_limit: int,
+        tool_calls_used: int,
+        started_at: float,
+        deadline_seconds: Optional[float],
+        cancelled: bool,
+    ) -> None:
+        """Record one Guard verdict (§B5-4); unwired = no-op."""
+        sink = self._observation_sink
+        if sink is None:
+            return
+        if fired is None:
+            guard_name = "none"
+            may_continue = True
+            stop_reason = None
+        else:
+            guard_name = fired[0]
+            may_continue = False
+            stop_reason = fired[2]
+        deadline_remaining_ms: Optional[float] = None
+        if deadline_seconds is not None:
+            deadline_remaining_ms = max(
+                0.0, (deadline_seconds - (monotonic() - started_at)) * 1000.0
+            )
+        depth = getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+        sink.emit(
+            BrainObservation[AgentLoopGuardObservation](
+                boundary="reasoning.agent_loop",
+                kind="guard",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                status=ObservationStatus.completed,
+                payload=AgentLoopGuardObservation(
+                    iteration_index=iteration_index,
+                    guard=guard_name,
+                    may_continue=may_continue,
+                    outcome="stopped" if fired is not None else "continued",
+                    depth=depth.value,
+                    model_calls_used=model_calls_used,
+                    max_model_calls=active_model_limit,
+                    model_calls_remaining=max(0, active_model_limit - model_calls_used),
+                    tool_calls_used=tool_calls_used,
+                    max_tool_calls=self._budget.max_tool_calls,
+                    deadline_remaining_ms=deadline_remaining_ms,
+                    cancelled=cancelled,
+                    stop_reason=stop_reason,
+                ),
+            )
+        )
+
+    def _emit_guard_stop(
+        self,
+        *,
+        task: ReasoningTaskView,
+        status: ReasoningStatus,
+        reason: str,
+        model_calls: int,
+        tool_calls: int,
+        skill_calls: int,
+        step_count: int,
+    ) -> None:
+        """Record one guard-driven terminal stop (§B5-4); unwired = no-op."""
+        sink = self._observation_sink
+        if sink is None:
+            return
+        depth = getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+        sink.emit(
+            BrainObservation[AgentLoopGuardStopObservation](
+                boundary="reasoning.agent_loop",
+                kind="guard_stop",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                status=ObservationStatus.completed,
+                payload=AgentLoopGuardStopObservation(
+                    status=status.value,
+                    reason=reason,
+                    model_calls=model_calls,
+                    tool_calls=tool_calls,
+                    skill_calls=skill_calls,
+                    step_count=step_count,
+                    depth=depth.value,
+                ),
+            )
+        )
+
+    def _emit_judge(
+        self,
+        *,
+        task: ReasoningTaskView,
+        iteration_index: int,
+        action: CognitiveAction,
+        verdict: Literal["accepted", "revision_required"],
+        judge_reason: Optional[str],
+        revision_requested: bool,
+        external_claim_replaced: bool,
+        current_nest_sanitized: bool,
+    ) -> None:
+        """Record one Completion Judge verdict (§B6); unwired = no-op."""
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[AgentLoopJudgeObservation](
+                boundary="reasoning.completion",
+                kind="judge",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                status=ObservationStatus.completed,
+                payload=AgentLoopJudgeObservation(
+                    iteration_index=iteration_index,
+                    action_type=type(action).__name__,
+                    verdict=verdict,
+                    content=getattr(action, "content", ""),
+                    judge_reason=judge_reason,
+                    revision_requested=revision_requested,
+                    external_claim_replaced=external_claim_replaced,
+                    current_nest_sanitized=current_nest_sanitized,
+                    memory_use_count=len(getattr(action, "memory_uses", ()) or ()),
                 ),
             )
         )
