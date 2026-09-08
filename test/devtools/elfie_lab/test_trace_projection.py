@@ -1,16 +1,30 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from devtools.elfie_lab.trace_projection import build_observability_trace
+from elfie.brain.activity.observation_payloads import (
+    ActivityPreflightVerdictObservation,
+)
 from elfie.brain.memory.observation_payloads import MemoryUseProposalRecorded
 from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.reasoning.agent_loop_observations import ModelCallObservation
+from elfie.brain.reasoning.coordinator_observations import (
+    CognitiveBudgetReleasedObservation,
+    CognitiveBudgetSettledObservation,
+    DecisionRoutedObservation,
+    EnergyBudgetStateObservation,
+    WorkspaceFrameAdmissionObservation,
+)
 from elfie.brain.reasoning.observation_payloads import (
     CompiledContextObservation,
     MemoryRecallBundleObservation,
     MemoryRecallResultObservation,
     MemoryStateObservation,
     MemoryTurnOpened,
+)
+from elfie.brain.reasoning.run_controller_observations import (
+    CognitiveBudgetReservedObservation,
+    ConversationAppendedObservation,
 )
 
 
@@ -556,6 +570,204 @@ def test_failed_reasoning_remains_explicit_in_the_production_chain():
     assert trace["chain"][4]["status"] == "unavailable"
 
 
+def test_chain_stages_carry_the_sum_of_their_member_event_durations():
+    budget = EnergyBudgetStateObservation(
+        energy=90.0,
+        fatigue=0.0,
+        cognitive_mode="normal",
+        long_reasoning_allowed=True,
+        available_cognitive_budget=12.0,
+        reserved_cognitive_budget=12.0,
+    )
+    observations = [
+        _observation(
+            boundary="workspace",
+            kind="frame_claim",
+            payload=WorkspaceFrameAdmissionObservation(
+                trigger_reason="perception_write",
+                cutoff_seq=1,
+                admitted=True,
+            ),
+            duration_ms=2.0,
+        ),
+        _observation(
+            boundary="reasoning.context_workspace",
+            kind="conversation_appended",
+            payload=ConversationAppendedObservation(),
+            duration_ms=3.0,
+        ),
+        _bridge_observation(
+            kind="turn_opened",
+            payload=MemoryTurnOpened(
+                frame_id="frame-1",
+                query="你还记得吗？",
+                pinned_revision=42,
+                state=MemoryStateObservation(
+                    revision=42,
+                    episodic_count=0,
+                    total_count=0,
+                    snapshot_freshness="fresh",
+                ),
+            ),
+            duration_ms=1.5,
+        ),
+        _bridge_observation(
+            kind="recall_result",
+            payload=MemoryRecallResultObservation(
+                frame_id="frame-1",
+                query="你还记得吗？",
+                status="recalled",
+                pinned_revision=42,
+                bundle=MemoryRecallBundleObservation(recall_revision=42),
+            ),
+            duration_ms=4.0,
+        ),
+        _observation(
+            boundary="memory.encode",
+            kind="use_proposal_recorded",
+            frame_id="",
+            payload=MemoryUseProposalRecorded(
+                proposal_id="prop-1",
+                target_kind="assertion",
+                target_ids=("assertion:memory-1",),
+                recall_revision=42,
+                accepted=True,
+            ),
+            duration_ms=0.5,
+        ),
+        _model_call_observation(context_revision=7, duration_ms=30.0),
+        # A member event without a measured duration contributes zero.
+        _model_call_observation(
+            context_revision=8,
+            iteration_index=2,
+            duration_ms=None,
+        ),
+        _observation(
+            boundary="energy",
+            kind="budget_reserve",
+            payload=CognitiveBudgetReservedObservation(
+                mode="long",
+                source="communication",
+                granted=12.0,
+                owner_revision=1,
+                responsive=True,
+                budget=budget,
+            ),
+            duration_ms=5.0,
+        ),
+        _observation(
+            boundary="decision_boundary",
+            kind="decision_routed",
+            payload=DecisionRoutedObservation(
+                plan_id="plan-1",
+                interaction_scope_kind="conversation",
+                source_domain="communication",
+            ),
+            duration_ms=2.5,
+        ),
+        _observation(
+            boundary="activity",
+            kind="preflight_verdict",
+            payload=ActivityPreflightVerdictObservation(
+                activity_id="walk-1",
+                status="allowed",
+            ),
+            duration_ms=4.0,
+        ),
+        _observation(
+            boundary="energy",
+            kind="budget_settled",
+            payload=CognitiveBudgetSettledObservation(
+                stage="turn",
+                consumed=10.0,
+                charged=10.0,
+                budget=budget,
+            ),
+            duration_ms=3.0,
+        ),
+        _observation(
+            boundary="energy",
+            kind="budget_released",
+            payload=CognitiveBudgetReleasedObservation(
+                stage="turn",
+                released=False,
+                budget=budget,
+            ),
+            duration_ms=2.0,
+        ),
+    ]
+
+    trace = build_observability_trace(
+        turn_id="turn-durations",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={"energy": 90},
+        state_after={"energy": 80},
+        state_diff={"energy": {"before": 90, "after": 80}},
+        raw_stages={"reasoning": {"status": "completed", "model_calls": 2}},
+        result={"success": True},
+        decision={"message_texts": ["你好"]},
+        duration_ms=999.0,
+        observations=observations,
+    )
+
+    node_durations = {node["id"]: node["duration_ms"] for node in trace["chain"]}
+    assert node_durations == {
+        "event_admission": 2.0,
+        "context_workspace": 3.0,
+        "setup": 6.0,
+        "reasoning_run": 35.0,
+        "turn_decision": 2.5,
+        "governance_delivery": 4.0,
+        "settlement": 5.0,
+    }
+
+    settlement = trace["chain"][6]
+    assert settlement["output"]["duration_ms"] == 999.0
+    assert trace["duration_ms"] == 999.0
+    assert settlement["duration_ms"] == 5.0
+    assert settlement["duration_ms"] != trace["duration_ms"]
+
+
+def test_stage_without_member_events_reports_duration_null():
+    trace = build_observability_trace(
+        turn_id="turn-durations",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=40.0,
+        observations=[_model_call_observation(context_revision=7, duration_ms=30.0)],
+    )
+
+    node_durations = {node["id"]: node["duration_ms"] for node in trace["chain"]}
+    assert node_durations == {
+        "event_admission": None,
+        "context_workspace": None,
+        "setup": None,
+        "reasoning_run": 30.0,
+        "turn_decision": None,
+        "governance_delivery": None,
+        "settlement": None,
+    }
+
+    empty = build_observability_trace(
+        turn_id="turn-empty",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=1.0,
+    )
+
+    assert all(node["duration_ms"] is None for node in empty["chain"])
+
+
 _SEQUENCE = {"value": 0}
 
 
@@ -566,6 +778,7 @@ def _observation(
     boundary: str = "reasoning.memory_bridge",
     frame_id: str = "frame-1",
     turn_id: str = "",
+    duration_ms: Optional[float] = None,
 ) -> BrainObservation:
     _SEQUENCE["value"] += 1
     return BrainObservation(
@@ -575,15 +788,25 @@ def _observation(
         captured_at=datetime.now(timezone.utc),
         turn_id=turn_id,
         frame_id=frame_id,
+        duration_ms=duration_ms,
         status=ObservationStatus.completed,
         payload=payload,
     )
 
 
 def _bridge_observation(
-    *, kind: str, payload: Any, frame_id: str = "frame-1"
+    *,
+    kind: str,
+    payload: Any,
+    frame_id: str = "frame-1",
+    duration_ms: Optional[float] = None,
 ) -> BrainObservation:
-    return _observation(kind=kind, payload=payload, frame_id=frame_id)
+    return _observation(
+        kind=kind,
+        payload=payload,
+        frame_id=frame_id,
+        duration_ms=duration_ms,
+    )
 
 
 def _model_call_observation(
@@ -593,10 +816,12 @@ def _model_call_observation(
     response: str = '{"type":"answer","content":"好的"}',
     iteration_index: int = 1,
     system_prompt: str = "SYSTEM",
+    duration_ms: Optional[float] = None,
 ) -> BrainObservation:
     return _observation(
         boundary="reasoning.agent_loop",
         kind="model_call",
+        duration_ms=duration_ms,
         payload=ModelCallObservation(
             iteration_index=iteration_index,
             system_prompt=system_prompt,

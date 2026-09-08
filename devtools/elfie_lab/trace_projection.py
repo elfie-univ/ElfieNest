@@ -11,7 +11,7 @@ no prompt text is ever parsed back into structure here.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from elfie.brain.observation import BrainObservation
 
@@ -19,6 +19,125 @@ _MEMORY_BRIDGE_BOUNDARY = "reasoning.memory_bridge"
 _CONTEXT_ENGINE_BOUNDARY = "reasoning.context_engine"
 _MEMORY_ENCODE_BOUNDARY = "memory.encode"
 _AGENT_LOOP_BOUNDARY = "reasoning.agent_loop"
+
+# ---------------------------------------------------------------------------
+# Per-stage duration membership
+#
+# Every chain node reports ``duration_ms`` as the SUM of the real measured
+# ``duration_ms`` values the Brain already recorded on the observation
+# envelopes belonging to that stage.  Membership is derived from the data
+# each stage function renders (emit order alone would misattribute events
+# that a later stage renders), not re-measured or inferred:
+#
+#   Stage (id)             boundary                      kinds
+#   ---------------------  ----------------------------  -------------------
+#   1 event_admission      workspace                     frame_claim
+#   2 context_workspace    reasoning.context_workspace   conversation_appended
+#   3 setup                reasoning.memory_bridge       turn_opened,
+#                                                        recall_started,
+#                                                        recall_result
+#   3 setup                memory.encode                 use_proposal_recorded
+#                                                        (rendered as the
+#                                                        memory view's
+#                                                        "selected" block,
+#                                                        surfaced in setup's
+#                                                        baseline_memory)
+#   4 reasoning_run        reasoning.run_controller      mode_selected,
+#                                                        budget_frozen
+#   4 reasoning_run        reasoning.context_engine      context_trimmed,
+#                                                        compiled_context
+#   4 reasoning_run        reasoning.agent_loop          model_call,
+#                                                        action_decoded,
+#                                                        observation, guard,
+#                                                        guard_stop, run_failed
+#   4 reasoning_run        reasoning.completion          judge
+#   4 reasoning_run        selfhood                      projection_snapshot
+#   4 reasoning_run        orientation                   orientation_snapshot
+#   4 reasoning_run        emotion                       appraisal_input,
+#                                                        emotion_candidate
+#   4 reasoning_run        motivation                    drive_evaluated
+#   4 reasoning_run        energy                        budget_reserve
+#   5 turn_decision        decision_boundary             decision_routed
+#   6 governance_delivery  activity                      preflight_verdict
+#   7 settlement           energy                        budget_settled,
+#                                                        budget_released
+#   7 settlement           memory.encode                 encode_candidate,
+#                                                        encode_commit,
+#                                                        reinforcement_applied
+#
+# ``memory.encode`` genuinely spans two stages and is split by kind: the
+# use-proposal events render in the memory view (setup's baseline memory),
+# while encode/commit/reinforcement records are settlement-time persistence
+# facts.  A stage with no member events reports ``duration_ms: None``; a
+# member event without a measured duration contributes zero.  The whole-turn
+# ``duration_ms`` stays only on the trace root and the settlement node's
+# ``output.duration_ms``; per-stage values never overwrite it.
+# ---------------------------------------------------------------------------
+_STAGE_EVENT_MEMBERS: Dict[str, Tuple[Tuple[str, Tuple[str, ...]], ...]] = {
+    "event_admission": (("workspace", ("frame_claim",)),),
+    "context_workspace": (("reasoning.context_workspace", ("conversation_appended",)),),
+    "setup": (
+        (
+            _MEMORY_BRIDGE_BOUNDARY,
+            ("turn_opened", "recall_started", "recall_result"),
+        ),
+        (_MEMORY_ENCODE_BOUNDARY, ("use_proposal_recorded",)),
+    ),
+    "reasoning_run": (
+        ("reasoning.run_controller", ("mode_selected", "budget_frozen")),
+        (_CONTEXT_ENGINE_BOUNDARY, ("context_trimmed", "compiled_context")),
+        (
+            _AGENT_LOOP_BOUNDARY,
+            (
+                "model_call",
+                "action_decoded",
+                "observation",
+                "guard",
+                "guard_stop",
+                "run_failed",
+            ),
+        ),
+        ("reasoning.completion", ("judge",)),
+        ("selfhood", ("projection_snapshot",)),
+        ("orientation", ("orientation_snapshot",)),
+        ("emotion", ("appraisal_input", "emotion_candidate")),
+        ("motivation", ("drive_evaluated",)),
+        ("energy", ("budget_reserve",)),
+    ),
+    "turn_decision": (("decision_boundary", ("decision_routed",)),),
+    "governance_delivery": (("activity", ("preflight_verdict",)),),
+    "settlement": (
+        ("energy", ("budget_settled", "budget_released")),
+        (
+            _MEMORY_ENCODE_BOUNDARY,
+            ("encode_candidate", "encode_commit", "reinforcement_applied"),
+        ),
+    ),
+}
+
+
+def _stage_duration(
+    observations: Sequence[BrainObservation],
+    boundaries_and_kinds: Sequence[Tuple[str, Tuple[str, ...]]],
+) -> Optional[float]:
+    """Sum the measured ``duration_ms`` of one stage's member envelopes.
+
+    Read-only over the envelopes the Brain already recorded: no duration
+    is re-measured or inferred.  A member event without a measured
+    duration contributes zero, and a stage with no member events at all
+    reports ``None`` so the frontend renders the honest "未记录".
+    """
+    member_durations = [
+        event.duration_ms
+        for event in observations
+        if any(
+            event.boundary == boundary and event.kind in kinds
+            for boundary, kinds in boundaries_and_kinds
+        )
+    ]
+    if not member_durations:
+        return None
+    return float(sum(value for value in member_durations if value is not None))
 
 
 def build_observability_trace(
@@ -54,6 +173,10 @@ def build_observability_trace(
     compiles = _turn_compiles(observations, frame_id=frame_id)
     model_calls = _turn_model_calls(observations, frame_id=frame_id)
     first_request = _model_request_view(model_calls[0]) if model_calls else {}
+    stage_durations = {
+        stage_id: _stage_duration(observations, members)
+        for stage_id, members in _STAGE_EVENT_MEMBERS.items()
+    }
 
     setup = _setup_stage(
         turn_id=turn_id,
@@ -61,11 +184,13 @@ def build_observability_trace(
         state_before=state_before,
         request=first_request,
         baseline_memory=memory["baseline_memory"],
+        duration_ms=stage_durations["setup"],
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
         calls=model_calls,
         compiles=compiles,
+        duration_ms=stage_durations["reasoning_run"],
     )
 
     return {
@@ -79,12 +204,14 @@ def build_observability_trace(
                 typed_input=typed_input,
                 boundary=boundary,
                 cognitive_turn=cognitive_turn,
+                duration_ms=stage_durations["event_admission"],
             ),
             _context_workspace_stage(
                 turn_id=turn_id,
                 stimulus=stimulus,
                 request=first_request,
                 compiles=compiles,
+                duration_ms=stage_durations["context_workspace"],
             ),
             setup,
             reasoning_stage,
@@ -92,11 +219,13 @@ def build_observability_trace(
                 decision=decision,
                 reasoning=reasoning,
                 calls=model_calls,
+                duration_ms=stage_durations["turn_decision"],
             ),
             _governance_stage(
                 decision=decision,
                 result=result,
                 receipts=receipts,
+                duration_ms=stage_durations["governance_delivery"],
             ),
             _settlement_stage(
                 turn_id=turn_id,
@@ -106,6 +235,7 @@ def build_observability_trace(
                 state_diff=state_diff,
                 cognitive_turn=cognitive_turn,
                 duration_ms=duration_ms,
+                stage_duration_ms=stage_durations["settlement"],
                 warnings=warnings,
             ),
         ],
@@ -349,6 +479,7 @@ def _event_admission_stage(
     typed_input: Mapping[str, Any],
     boundary: Mapping[str, Any],
     cognitive_turn: Mapping[str, Any],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     source_domain = stimulus.get("source_domain") or typed_input.get("source_domain")
     return {
@@ -356,6 +487,7 @@ def _event_admission_stage(
         "id": "event_admission",
         "title": "Event admission",
         "status": "completed" if stimulus or typed_input else "unavailable",
+        "duration_ms": duration_ms,
         "input": {
             "source_domain": source_domain,
             "message": stimulus.get("message", ""),
@@ -383,6 +515,7 @@ def _context_workspace_stage(
     stimulus: Mapping[str, Any],
     request: Mapping[str, Any],
     compiles: Sequence[BrainObservation],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     first_compile = compiles[0].payload if compiles else None
     output: Dict[str, Any] = {
@@ -396,6 +529,7 @@ def _context_workspace_stage(
         "id": "context_workspace",
         "title": "Context Workspace",
         "status": "completed" if request or compiles else "unavailable",
+        "duration_ms": duration_ms,
         "input": {
             "turn_id": turn_id,
             "message": stimulus.get("message", ""),
@@ -417,6 +551,7 @@ def _setup_stage(
     state_before: Mapping[str, Any],
     request: Mapping[str, Any],
     baseline_memory: Mapping[str, Any],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     setup_output = {
         "turn_id": turn_id,
@@ -434,6 +569,7 @@ def _setup_stage(
         "id": "setup",
         "title": "Setup",
         "status": "completed" if state_before or request else "unavailable",
+        "duration_ms": duration_ms,
         "input": {
             "turn_id": turn_id,
             "source_domain": stimulus.get("source_domain"),
@@ -501,6 +637,7 @@ def _reasoning_stage(
     reasoning: Mapping[str, Any],
     calls: Sequence[Mapping[str, Any]],
     compiles: Sequence[BrainObservation],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     steps = [_mapping(step) for step in _sequence(reasoning.get("steps"))]
     groups = _iteration_groups(steps)
@@ -625,6 +762,7 @@ def _reasoning_stage(
         "id": "reasoning_run",
         "title": "ReasoningRun",
         "status": reasoning.get("status", "unavailable"),
+        "duration_ms": duration_ms,
         "iterations": iterations,
         "output": {
             "status": reasoning.get("status"),
@@ -774,6 +912,7 @@ def _decision_stage(
     decision: Mapping[str, Any],
     reasoning: Mapping[str, Any],
     calls: Sequence[Mapping[str, Any]],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     output: Dict[str, Any] = {
         "plan_id": decision.get("plan_id"),
@@ -792,6 +931,7 @@ def _decision_stage(
         "id": "turn_decision",
         "title": "TurnDecision",
         "status": "completed" if decision else "unavailable",
+        "duration_ms": duration_ms,
         "input": {
             "reasoning_status": reasoning.get("status"),
             "model_calls": reasoning.get("model_calls", len(calls)),
@@ -809,6 +949,7 @@ def _governance_stage(
     decision: Mapping[str, Any],
     result: Mapping[str, Any],
     receipts: Sequence[Any],
+    duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     activity_intents = list(_sequence(decision.get("activity_intents")))
     activity_request = _activity_request_projection(activity_intents)
@@ -839,6 +980,7 @@ def _governance_stage(
         "id": "governance_delivery",
         "title": "Governance and delivery",
         "status": "completed" if result or receipts else "unavailable",
+        "duration_ms": duration_ms,
         "input": {
             "message_intents": list(_sequence(decision.get("message_intents"))),
             "speech_intents": list(_sequence(decision.get("speech_intents"))),
@@ -888,6 +1030,7 @@ def _settlement_stage(
     state_diff: Mapping[str, Any],
     cognitive_turn: Mapping[str, Any],
     duration_ms: float,
+    stage_duration_ms: Optional[float],
     warnings: Iterable[Any],
 ) -> Dict[str, Any]:
     warning_list = list(warnings)
@@ -896,6 +1039,7 @@ def _settlement_stage(
         "id": "settlement",
         "title": "Settlement",
         "status": "completed" if state_after or cognitive_turn else "unavailable",
+        "duration_ms": stage_duration_ms,
         "input": {
             "turn_id": turn_id,
             "result": dict(result),
