@@ -79,7 +79,21 @@ function Status({ value }: Readonly<{ readonly value: unknown }>): React.JSX.Ele
 
 function formatDuration(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "未记录";
-  return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(2)} s`;
+  return value < 1000 ? `${value < 1 ? value.toFixed(2) : Math.round(value)} ms` : `${(value / 1000).toFixed(2)} s`;
+}
+
+// Guard legacy receipts persisted before the lab's clock was anchored away
+// from the UNIX epoch; their 1970-era timestamps render as "未记录".
+const epochishYearCutoff = 1971;
+
+function isEpochishTimestamp(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const year = /^(\d{4})-/.exec(value)?.[1];
+  return year !== undefined && Number.parseInt(year, 10) <= epochishYearCutoff;
+}
+
+function occurredAtValue(value: unknown): unknown {
+  return isEpochishTimestamp(value) ? "未记录" : value;
 }
 
 function fieldLabel(key: string): string {
@@ -259,7 +273,7 @@ function ReceiptEvidence({ receipts }: Readonly<{ readonly receipts: readonly un
   if (!receipts.length) return null;
   return <section className="trace-evidence"><h4>执行回执</h4><div className="trace-receipt-list">{receipts.map((value, index) => {
     const receipt = record(value);
-    return <article className="trace-receipt" key={`${String(receipt.status ?? "receipt")}-${index}`}><header><strong>{String(receipt.executor ?? "执行器")}</strong><Status value={receipt.status} /></header><Fields values={{ occurred_at: receipt.occurred_at, error: receipt.error }} /></article>;
+    return <article className="trace-receipt" key={`${String(receipt.status ?? "receipt")}-${index}`}><header><strong>{String(receipt.executor ?? "执行器")}</strong><Status value={receipt.status} /></header><Fields values={{ occurred_at: occurredAtValue(receipt.occurred_at), error: receipt.error }} /></article>;
   })}</div></section>;
 }
 

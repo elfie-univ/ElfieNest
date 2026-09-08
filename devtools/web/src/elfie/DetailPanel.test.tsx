@@ -23,6 +23,7 @@ const observability = {
       id: "context_workspace",
       title: "Context Workspace",
       status: "completed",
+      duration_ms: 0.27,
       input: { turn_id: "turn-1", message: "你好，今天怎么样？" },
       output: { context_revision: 4, prompt_sections: ["CONTEXT_ONLY", "CURRENT_OBSERVATIONS"] },
       raw: { source: "ModelGenerationRequest.user_prompt", user_prompt: "CONTEXT_ONLY\n今天怎么样？" },
@@ -193,6 +194,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("4.1");
     expect(markup).toContain("4.2");
     expect(markup).toContain("耗时 18 ms");
+    expect(markup).toContain("耗时 0.27 ms");
     expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
     expect(markup).not.toContain("4.1.2");
