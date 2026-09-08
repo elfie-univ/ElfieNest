@@ -2,8 +2,13 @@
 
 The collector deliberately owns no Brain semantics.  It selects an isolated
 Elfie snapshot, injects either the real or deterministic edge implementations,
-and records typed owner boundaries while the existing Brain runtime executes.
-Analysis and evaluation stay outside this package.
+and consumes the Brain's native ``BrainObservation`` envelope stream through a
+single ``TraceRecorder`` sink while the existing Brain runtime executes.  The
+artifact separates the Brain observation stream (``events.jsonl`` — named
+envelope events) from collector-diagnostic records (``collector_records.jsonl``
+— memory-store method layer, fixture seeding, model-execution deltas and
+collector errors), so Brain observations never masquerade as collector records
+and vice versa.  Analysis and evaluation stay outside this package.
 """
 
 from __future__ import annotations
@@ -215,24 +220,29 @@ def _reset_mock_memory_checkpoint(
         journal.close()
 
 
-# Temporary W3 shim: map observation boundaries onto the recorder's legacy
-# internal event kinds so the existing artifact pipeline stays intact.  W4
-# converges the collector onto native envelopes and removes this mapping.
-_RECORD_KIND_BY_BOUNDARY = {
-    "reasoning.memory_bridge": "memory_bridge",
-    "reasoning.context_engine": "context",
-}
-
-
 class TraceRecorder:
-    """Thread-safe ``BrainObservationSink`` for the trace collector.
+    """Thread-safe native ``BrainObservationSink`` for the trace collector.
 
-    Incoming ``BrainObservation`` envelopes are converted into the recorder's
-    legacy dict event shape at the ``emit`` boundary (temporary W3 shim);
-    the dict pipeline and this conversion are removed when W4 converges the
-    collector onto native envelopes.  ``emit`` never raises and all shared
-    state is guarded by one lock because the Brain emits from the cognitive
-    worker and coordinator threads concurrently.
+    The recorder owns two separate artifact streams:
+
+    - ``events``: the named ``BrainObservation`` envelopes emitted by the
+      Brain.  Each entry is the plain ``model_dump`` of one envelope
+      (schema_version, boundary, kind, sequence, captured_at, turn_id,
+      frame_id, cause_event_ids, duration_ms, status, error, payload)
+      serialized once at emit time through the shared
+      ``_jsonable``/``_safe_value`` redaction pipeline.  No boundary-kind
+      mapping and no flattening happens on this stream.
+    - ``records``: collector-diagnostic records the collector itself
+      produces (memory-store method layer, memory fixture seeding, model
+      execution observer deltas, collector errors).  They are operational
+      facts about the collection run, not Brain observations, so they never
+      enter ``events`` and never masquerade as envelope events.
+
+    ``emit`` never raises and all shared state is guarded by one lock
+    because the Brain emits from the cognitive worker and coordinator
+    threads concurrently.  The thread-local turn/frame context is still
+    tracked from emitted envelopes so collector records can carry the
+    attribution scope observed at their capture time.
     """
 
     def __init__(self) -> None:
@@ -240,6 +250,7 @@ class TraceRecorder:
         self._sequence = 0
         self._events: List[Dict[str, Any]] = []
         self._envelopes: List[BrainObservation] = []
+        self._records: List[Dict[str, Any]] = []
         self._local = threading.local()
         self._frame_to_turn: Dict[str, str] = {}
 
@@ -252,6 +263,16 @@ class TraceRecorder:
     def events(self) -> Tuple[Dict[str, Any], ...]:
         with self._lock:
             return tuple(self._events)
+
+    @property
+    def record_count(self) -> int:
+        with self._lock:
+            return len(self._records)
+
+    @property
+    def records(self) -> Tuple[Dict[str, Any], ...]:
+        with self._lock:
+            return tuple(self._records)
 
     def current_scope(self) -> Dict[str, Optional[str]]:
         return {
@@ -272,45 +293,35 @@ class TraceRecorder:
             return tuple(self._envelopes)
 
     def _record_observation(self, event: BrainObservation) -> None:
-        frame_id = event.frame_id
-        turn_id = event.turn_id
+        turn_id = str(event.turn_id) if event.turn_id else ""
+        frame_id = str(event.frame_id) if event.frame_id else ""
+        try:
+            serialized: Optional[Dict[str, Any]] = _safe_value(
+                event.model_dump(mode="json")
+            )
+        except Exception:  # noqa: BLE001 - keep the envelope even if redaction fails
+            serialized = None
         with self._lock:
             self._envelopes.append(event)
             if frame_id:
-                self._local.frame_id = str(frame_id)
+                self._local.frame_id = frame_id
             if turn_id:
-                self._local.turn_id = str(turn_id)
+                self._local.turn_id = turn_id
                 if frame_id:
-                    self._frame_to_turn[str(frame_id)] = str(turn_id)
+                    self._frame_to_turn[frame_id] = turn_id
             elif frame_id:
-                mapped = self._frame_to_turn.get(str(frame_id))
+                mapped = self._frame_to_turn.get(frame_id)
                 if mapped:
                     self._local.turn_id = mapped
-            self.record(
-                _RECORD_KIND_BY_BOUNDARY.get(event.boundary, event.boundary),
-                self._observation_payload(event),
-            )
-
-    @staticmethod
-    def _observation_payload(event: BrainObservation) -> Dict[str, Any]:
-        """Flatten one envelope into the legacy payload dict for artifacts."""
-        return {
-            "boundary": event.boundary,
-            "kind": event.kind,
-            "turn_id": event.turn_id,
-            "frame_id": event.frame_id,
-            "cause_event_ids": tuple(event.cause_event_ids),
-            "duration_ms": event.duration_ms,
-            "status": event.status.value,
-            "error": event.error.model_dump() if event.error is not None else None,
-            "payload": event.payload.model_dump(),
-        }
+            if serialized is not None:
+                self._events.append(serialized)
 
     def record(self, kind: str, payload: Any) -> None:
+        """Append one collector-diagnostic record (never a Brain event)."""
         with self._lock:
             self._sequence += 1
             scope = self.current_scope()
-            self._events.append(
+            self._records.append(
                 {
                     "sequence": self._sequence,
                     "captured_at": utc_now(),
@@ -531,8 +542,11 @@ class _ArtifactWriter:
         self.root = artifact_dir
         self.root.mkdir(mode=0o700, parents=True, exist_ok=False)
         self._manifest = self.root / "manifest.json"
-        self._events = self.root / "events.jsonl"
-        self._turns = self.root / "turns.jsonl"
+        self._streams = {
+            "events": self.root / "events.jsonl",
+            "records": self.root / "collector_records.jsonl",
+            "turns": self.root / "turns.jsonl",
+        }
 
     def write_manifest(self, manifest: Mapping[str, Any]) -> None:
         temporary = self.root / ".manifest.tmp"
@@ -543,13 +557,9 @@ class _ArtifactWriter:
         os.replace(temporary, self._manifest)
 
     def append(self, name: str, value: Any) -> None:
-        path = self._events if name == "events" else self._turns
+        path = self._streams[name]
         with path.open("a", encoding="utf-8") as handle:
-            values = (
-                value
-                if name == "events" and isinstance(value, (list, tuple))
-                else (value,)
-            )
+            values = value if isinstance(value, (list, tuple)) else (value,)
             for item in values:
                 handle.write(json.dumps(_safe_value(item), ensure_ascii=False) + "\n")
             handle.flush()
@@ -558,37 +568,170 @@ class _ArtifactWriter:
 
 def _turn_events(
     events: Iterable[Mapping[str, Any]],
+    records: Iterable[Mapping[str, Any]],
     *,
     turn_id: str,
     model_call_count: int,
 ) -> Dict[str, Any]:
+    """Build the per-turn event view from the native observation stream.
+
+    Matching rule for Brain observation envelopes (the collector runs turns
+    strictly sequentially, so the events emitted during one turn's execution
+    window belong to that turn's attempt):
+
+    - an envelope whose ``turn_id`` equals the turn's Brain turn id is
+      attributed directly — the workspace, emotion, energy, orientation,
+      decision boundary, agent-loop and context-engine boundaries carry the
+      turn id on the envelope;
+    - an envelope with an empty ``turn_id`` carries no turn context at its
+      emit site (memory-bridge events are frame-scoped only, and the
+      storage-layer recall-selection and memory-encode boundaries carry
+      neither id), so it is attributed to the turn whose execution window
+      contains it;
+    - an envelope carrying a different non-empty ``turn_id`` is owned by
+      another turn (for example a late Activity event) and is excluded;
+    - a failed attempt has no settled turn id, so the caller passes
+      ``turn_id=""`` and only envelopes without a turn id match.
+
+    ``frame_ids`` collects every frame id observed on attributed envelopes,
+    giving the frame-level view that the frame-scoped memory-bridge events
+    correlate with.
+
+    Collector-diagnostic records use window attribution instead: every
+    record captured during the turn's execution window is part of the view,
+    because memory-store calls and model-execution observations are recorded
+    synchronously inside or immediately after ``run_turn`` and turns never
+    overlap.  ``scope`` stays on each record for later analysis.
+    """
     selected: List[Mapping[str, Any]] = []
     frame_ids: set[str] = set()
     for event in events:
-        payload = event.get("payload")
-        if not isinstance(payload, Mapping):
+        event_turn = str(event.get("turn_id", ""))
+        if event_turn and event_turn != turn_id:
             continue
-        if str(payload.get("turn_id", "")) == turn_id:
-            selected.append(event)
-            if payload.get("frame_id"):
-                frame_ids.add(str(payload["frame_id"]))
-    for event in events:
-        payload = event.get("payload")
-        scope = event.get("scope")
-        if not isinstance(payload, Mapping):
-            continue
-        if str(payload.get("frame_id", "")) in frame_ids:
-            if event not in selected:
-                selected.append(event)
-            continue
-        if isinstance(scope, Mapping) and str(scope.get("frame_id", "")) in frame_ids:
-            if event not in selected:
-                selected.append(event)
+        selected.append(event)
+        if event.get("frame_id"):
+            frame_ids.add(str(event["frame_id"]))
     return {
         "turn_id": turn_id,
         "frame_ids": sorted(frame_ids),
         "events": selected,
+        "collector_records": list(records),
         "model_call_count": model_call_count,
+    }
+
+
+def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Summarize one turn's memory recall from named envelope payloads.
+
+    Derived only from the recorded ``MemoryTurnOpened`` /
+    ``MemoryRecallStarted`` / ``MemoryRecallResultObservation`` payloads
+    (memory bridge) and the ``RecallCandidateScored`` /
+    ``RecallSelectionSummary`` payloads (storage recall-selection layer).
+    No prompt parsing and no inferred data: every value is copied verbatim
+    from an emitted observation.
+    """
+    turn_opened: Optional[Dict[str, Any]] = None
+    recalls: List[Dict[str, Any]] = []
+    scored_count = 0
+    selection_summaries: List[Dict[str, Any]] = []
+    for event in events:
+        boundary = str(event.get("boundary", ""))
+        kind = str(event.get("kind", ""))
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        if boundary == "reasoning.memory_bridge" and kind == "turn_opened":
+            if turn_opened is None:
+                state = payload.get("state")
+                turn_opened = {
+                    "frame_id": str(payload.get("frame_id") or ""),
+                    "query": str(payload.get("query") or ""),
+                    "pinned_revision": payload.get("pinned_revision", 0),
+                    "state_revision": (
+                        state.get("revision") if isinstance(state, Mapping) else None
+                    ),
+                    "snapshot_freshness": (
+                        state.get("snapshot_freshness")
+                        if isinstance(state, Mapping)
+                        else None
+                    ),
+                }
+        elif boundary == "reasoning.memory_bridge" and kind == "recall_started":
+            request = payload.get("request")
+            recalls.append(
+                {
+                    "frame_id": str(payload.get("frame_id") or ""),
+                    "query": str(payload.get("query") or ""),
+                    "mode": (
+                        request.get("mode") if isinstance(request, Mapping) else None
+                    ),
+                    "pinned_revision": payload.get("pinned_revision", 0),
+                    "result": None,
+                }
+            )
+        elif boundary == "reasoning.memory_bridge" and kind == "recall_result":
+            bundle = payload.get("bundle")
+            result: Dict[str, Any] = {
+                "status": str(payload.get("status") or ""),
+                "reason": payload.get("reason"),
+                "query": str(payload.get("query") or ""),
+                "pinned_revision": payload.get("pinned_revision", 0),
+                "bundle": (
+                    {
+                        "recall_revision": bundle.get("recall_revision", 0),
+                        "focus_node_ids": list(bundle.get("focus_node_ids", ())),
+                        "assertion_ids": list(bundle.get("assertion_ids", ())),
+                        "episode_ids": list(bundle.get("episode_ids", ())),
+                        "evidence_ids": list(bundle.get("evidence_ids", ())),
+                        "path_count": bundle.get("path_count", 0),
+                        "conflict_count": bundle.get("conflict_count", 0),
+                    }
+                    if isinstance(bundle, Mapping)
+                    else None
+                ),
+            }
+            matched = next(
+                (
+                    recall
+                    for recall in reversed(recalls)
+                    if recall["frame_id"] == str(payload.get("frame_id") or "")
+                    and recall["query"] == str(payload.get("query") or "")
+                    and recall["result"] is None
+                ),
+                None,
+            )
+            if matched is not None:
+                matched["result"] = result
+            else:
+                recalls.append(
+                    {
+                        "frame_id": str(payload.get("frame_id") or ""),
+                        "query": str(payload.get("query") or ""),
+                        "mode": None,
+                        "pinned_revision": payload.get("pinned_revision", 0),
+                        "result": result,
+                    }
+                )
+        elif boundary == "memory.recall.selection" and kind == "candidate_scored":
+            scored_count += 1
+        elif boundary == "memory.recall.selection" and kind == "selection_summary":
+            selection_summaries.append(
+                {
+                    "candidates_seen": payload.get("candidates_seen", 0),
+                    "kept": payload.get("kept", 0),
+                    "truncated": payload.get("truncated", False),
+                    "character_budget_used": payload.get("character_budget_used", 0),
+                    "character_budget_limit": payload.get("character_budget_limit", 0),
+                }
+            )
+    return {
+        "turn_opened": turn_opened,
+        "recalls": recalls,
+        "selection": {
+            "candidate_scored_count": scored_count,
+            "summaries": selection_summaries,
+        },
     }
 
 
@@ -780,6 +923,7 @@ def collect_brain_trace(
     failed_turns = 0
     completed_turns = 0
     event_cursor = 0
+    record_cursor = 0
     fatal_error: Optional[str] = None
     try:
         source_storage.export_elfie_snapshot(spec.elfie_id, runtime_root)
@@ -836,6 +980,7 @@ def collect_brain_trace(
         model_observer = get_model_execution_observer()
         for index, stimulus in enumerate(messages):
             before_event_count = recorder.event_count
+            before_record_count = recorder.record_count
             before_journal = _journal_snapshot(session)
             before_memory = _memory_snapshot(session)
             model_events_before = model_observer.snapshot()
@@ -868,6 +1013,7 @@ def collect_brain_trace(
                 after_journal = _journal_snapshot(session)
                 after_memory = _memory_snapshot(session)
                 event_values = recorder.events
+                record_values = recorder.records
                 turn_payload = {
                     "schema_version": "brain-trace.turn.v1",
                     "input_index": index,
@@ -882,15 +1028,18 @@ def collect_brain_trace(
                     "memory_after": after_memory,
                     "memory_events": _turn_events(
                         event_values[before_event_count:],
+                        record_values[before_record_count:],
                         turn_id=brain_turn_id,
                         model_call_count=len(calls),
+                    ),
+                    "memory_recall_summary": _memory_recall_summary(
+                        event_values[before_event_count:]
                     ),
                     "context_events": [
                         event
                         for event in event_values[before_event_count:]
-                        if event.get("kind") == "context"
-                        and str(event.get("payload", {}).get("turn_id", ""))
-                        == brain_turn_id
+                        if event.get("boundary") == "reasoning.context_engine"
+                        and str(event.get("turn_id", "")) == brain_turn_id
                     ],
                     "model_execution_events": model_execution_events,
                     "model_calls": calls,
@@ -907,7 +1056,9 @@ def collect_brain_trace(
                     else "failed",
                 }
                 writer.append("events", event_values[event_cursor:])
+                writer.append("records", record_values[record_cursor:])
                 event_cursor = len(event_values)
+                record_cursor = len(record_values)
                 writer.append("turns", turn_payload)
                 if turn_payload["status"] == "completed":
                     completed_turns += 1
@@ -933,8 +1084,11 @@ def collect_brain_trace(
                     },
                 )
                 event_values = recorder.events
+                record_values = recorder.records
                 writer.append("events", event_values[event_cursor:])
+                writer.append("records", record_values[record_cursor:])
                 event_cursor = len(event_values)
+                record_cursor = len(record_values)
                 model_execution = session.last_model_execution
                 writer.append(
                     "turns",
@@ -951,9 +1105,13 @@ def collect_brain_trace(
                         "memory_before": before_memory,
                         "memory_after": _memory_snapshot(session),
                         "memory_events": _turn_events(
-                            recorder.events[before_event_count:],
+                            event_values[before_event_count:],
+                            record_values[before_record_count:],
                             turn_id="",
                             model_call_count=len(getattr(model_execution, "calls", ())),
+                        ),
+                        "memory_recall_summary": _memory_recall_summary(
+                            event_values[before_event_count:]
                         ),
                         "context_events": [],
                         "model_execution_events": model_execution_events,
@@ -991,6 +1149,10 @@ def collect_brain_trace(
         )
         event_values = recorder.events
         writer.append("events", event_values[event_cursor:])
+        event_cursor = len(event_values)
+        record_values = recorder.records
+        writer.append("records", record_values[record_cursor:])
+        record_cursor = len(record_values)
     finally:
         if session is not None:
             try:
@@ -1008,11 +1170,16 @@ def collect_brain_trace(
         if len(event_values) > event_cursor:
             writer.append("events", event_values[event_cursor:])
             event_cursor = len(event_values)
+        record_values = recorder.records
+        if len(record_values) > record_cursor:
+            writer.append("records", record_values[record_cursor:])
+            record_cursor = len(record_values)
         if runtime_root.exists():
             manifest["provenance"]["runtime_snapshot_sha256"] = _tree_digest(
                 runtime_root
             )
         manifest["event_count"] = event_cursor
+        manifest["collector_record_count"] = record_cursor
         manifest["turn_count"] = completed_turns + failed_turns
         manifest["artifact_files"] = {
             name: {
@@ -1023,7 +1190,7 @@ def collect_brain_trace(
                 if (writer.root / name).is_file()
                 else 0,
             }
-            for name in ("events.jsonl", "turns.jsonl")
+            for name in ("events.jsonl", "collector_records.jsonl", "turns.jsonl")
         }
         manifest["finished_at"] = utc_now()
         manifest["status"] = (
