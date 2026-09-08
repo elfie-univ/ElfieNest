@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from dataclasses import replace
 from datetime import datetime, timezone
 from threading import Lock
+from time import perf_counter
 from typing import Iterable, Mapping, cast
 
 from elfie.brain.memory.memory_records import (
@@ -92,6 +93,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 turn_id="",
                 frame_id="",
                 cause_event_ids=(),
+                duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=RecallCandidateScored(
                     query_terms=query_terms,
@@ -113,6 +115,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         truncated: bool,
         character_budget_used: int,
         character_budget_limit: int,
+        request: RecallRequest,
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
@@ -126,6 +130,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 turn_id="",
                 frame_id="",
                 cause_event_ids=(),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=RecallSelectionSummary(
                     candidates_seen=candidates_seen,
@@ -133,6 +138,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     truncated=truncated,
                     character_budget_used=character_budget_used,
                     character_budget_limit=character_budget_limit,
+                    assertion_limit=request.assertion_limit,
+                    episode_limit=request.episode_limit,
+                    node_limit=request.node_limit,
+                    seed_limit=request.seed_limit,
                 ),
             )
         )
@@ -348,6 +357,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
 
     def recall(self, request: RecallRequest) -> RecallBundle:
         request = _bounded_request(request)
+        sink = self._observation_sink
+        recall_started = perf_counter() if sink is not None else 0.0
         # Freeze one read boundary for every derived freshness value in this
         # bundle.  A long graph walk must not observe a moving clock.
         now = utc_now()
@@ -665,7 +676,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             ),
         )
         bounded = _bound_bundle(bundle, request.character_limit)
-        if self._observation_sink is not None:
+        if sink is not None:
             self._emit_recall_selection_summary(
                 candidates_seen=len(lexical_candidates) + len(request.seed_node_ids),
                 kept=(
@@ -679,6 +690,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     len(item.excerpt) for item in bounded.episodes
                 ),
                 character_budget_limit=request.character_limit,
+                request=request,
+                duration_ms=round((perf_counter() - recall_started) * 1000.0, 2),
             )
         return bounded
 

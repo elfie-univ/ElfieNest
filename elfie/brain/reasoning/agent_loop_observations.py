@@ -25,7 +25,7 @@ from typing import Literal, Optional, Tuple
 
 from pydantic import Field
 
-from elfie.message_types import FrozenContractModel
+from elfie.message_types import FrozenContractModel, UTCDateTime
 
 
 class ModelCallObservation(FrozenContractModel):
@@ -38,6 +38,10 @@ class ModelCallObservation(FrozenContractModel):
     identity on failure.  ``duration_ms`` is the boundary-measured wall-clock
     duration of the ``generate`` call; ``provider_latency_ms`` is the
     provider-reported latency when the result supplies one.
+    ``allowed_tools``/``tool_definition_count``/``skill_count`` mirror the
+    frozen capability sets the request carried, and ``deadline``/
+    ``created_at`` are the Turn-level bounds copied verbatim from the
+    request the Brain actually sent.
     """
 
     iteration_index: int = Field(ge=1)
@@ -51,6 +55,11 @@ class ModelCallObservation(FrozenContractModel):
     max_tokens: int = Field(ge=1)
     context_revision: int = Field(ge=0)
     capability_revision: int = Field(ge=0)
+    allowed_tools: Tuple[str, ...] = ()
+    tool_definition_count: int = Field(default=0, ge=0)
+    skill_count: int = Field(default=0, ge=0)
+    deadline: Optional[UTCDateTime] = None
+    created_at: Optional[UTCDateTime] = None
     # Response side (None when the model call failed).
     response_text: Optional[str] = None
     selected_mode: Optional[str] = None
@@ -107,7 +116,10 @@ class AgentLoopGuardObservation(FrozenContractModel):
     ``guard`` names the single check that produced the verdict — the first
     failed check when stopping, ``"none"`` when the Run may continue.
     ``max_model_calls`` is the active limit, which a host-owned plan may
-    have expanded from the frozen budget value.
+    have expanded from the frozen budget value.  The envelope ``status``
+    stays ``completed`` under the unified status rule: the guard ran and
+    produced its verdict; the stop polarity is carried here by
+    ``may_continue``/``outcome``/``stop_reason``.
     """
 
     iteration_index: int = Field(ge=1)
@@ -138,11 +150,36 @@ class AgentLoopGuardStopObservation(FrozenContractModel):
 
     Emitted once per ``_ReasoningStop`` in the Run's failure closure with
     the same reason the Run records; non-guard failures (provider
-    exceptions) settle through the failed ``model_call`` record instead.
+    exceptions) settle through the failed ``model_call`` record instead,
+    and any other non-stop exception through ``AgentLoopRunFailedObservation``.
+    The envelope ``status`` stays ``completed`` under the unified status
+    rule: the guard ran to its normal end; ``status``/``reason`` here
+    carry the stop polarity.
     """
 
     status: str
     reason: str
+    model_calls: int = Field(ge=0)
+    tool_calls: int = Field(ge=0)
+    skill_calls: int = Field(ge=0)
+    step_count: int = Field(ge=0)
+    depth: Literal["direct", "deliberate"]
+
+
+class AgentLoopRunFailedObservation(FrozenContractModel):
+    """One non-guard agent-loop failure closure (§B5 failure visibility).
+
+    Emitted exactly once by the Run's generic ``except Exception``
+    boundary before the safe-failure result is built, so a Run that dies
+    outside the guard/model-call records (decoder plumbing, context
+    rebuild, recall session) still leaves one terminal record on the
+    agent-loop boundary.  ``error_type`` is the sanitized exception class
+    name; the exception text is never transported.
+    """
+
+    turn_id: str
+    frame_id: str
+    error_type: str
     model_calls: int = Field(ge=0)
     tool_calls: int = Field(ge=0)
     skill_calls: int = Field(ge=0)
@@ -180,5 +217,6 @@ __all__ = (
     "AgentLoopGuardStopObservation",
     "AgentLoopJudgeObservation",
     "AgentLoopObservationRecorded",
+    "AgentLoopRunFailedObservation",
     "ModelCallObservation",
 )

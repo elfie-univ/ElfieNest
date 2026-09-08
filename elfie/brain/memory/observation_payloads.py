@@ -50,10 +50,14 @@ class RecallSelectionSummary(FrozenContractModel):
 
     ``candidates_seen`` counts the candidates that entered the selection
     stage: the lexical survivors returned by the search pass plus the
-    request's explicit seed IDs. Candidates dropped inside the lexical pass
-    before carrying a score (no search-term hit at all) are not part of this
-    count. ``character_budget_used`` sums the final bounded episode excerpt
-    lengths and ``character_budget_limit`` is the request's budget.
+    request's explicit seed IDs. Boundary of the count: candidates the
+    lexical prefilter dropped before carrying a score — rows with no
+    search-term hit at all — are NOT individually recorded and are not
+    part of this count; only scored candidates surface as
+    ``candidate_scored`` events. ``character_budget_used`` sums the final
+    bounded episode excerpt lengths and ``character_budget_limit`` is the
+    request's budget. The ``*_limit`` fields mirror the per-kind request
+    caps the in-hand ``RecallRequest`` carried.
     """
 
     candidates_seen: int = Field(ge=0)
@@ -61,6 +65,10 @@ class RecallSelectionSummary(FrozenContractModel):
     truncated: bool = False
     character_budget_used: int = Field(default=0, ge=0)
     character_budget_limit: int = Field(ge=0)
+    assertion_limit: int = Field(default=0, ge=0)
+    episode_limit: int = Field(default=0, ge=0)
+    node_limit: int = Field(default=0, ge=0)
+    seed_limit: int = Field(default=0, ge=0)
 
 
 class MemoryEncodeCandidate(FrozenContractModel):

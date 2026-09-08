@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 
+import pytest
+
 from elfie.brain.activity.observation_payloads import (
     ActivityPreflightVerdictObservation,
 )
@@ -46,6 +48,7 @@ def _service(
     *,
     target_resolved: bool = True,
     budget: float = 10.0,
+    store: InMemoryActivityStore | None = None,
 ) -> ActivityPreflightService:
     capabilities = EffectiveCapabilities(
         revision=0,
@@ -62,7 +65,7 @@ def _service(
         ),
     )
     return ActivityPreflightService(
-        store=InMemoryActivityStore(),
+        store=store or InMemoryActivityStore(),
         clock=lambda: NOW,
         capabilities=lambda: capabilities,
         available_budget=lambda: budget,
@@ -87,6 +90,8 @@ def test_validated_preflight_emits_the_verdict_with_issued_evidence() -> None:
     result = service.preflight(draft)
 
     assert result.status.value == "validated"
+    events = sink.of("activity", "preflight_verdict")
+    assert events[0].duration_ms is not None
     payload = _single_verdict(sink)
     assert payload.activity_id == "activity-1"
     assert payload.status == "validated"
@@ -120,3 +125,48 @@ def test_exhausted_budget_emits_the_rejected_verdict() -> None:
     assert payload.status == "rejected"
     assert payload.reason_codes == ("activity_budget_unavailable",)
     assert payload.evidence_issued is False
+
+
+class _ExplodingStore(InMemoryActivityStore):
+    def preflight(self, draft, now):
+        raise OSError("store offline")
+
+
+def test_preflight_crash_emits_failed_verdict_then_reraises() -> None:
+    sink = CollectorSink()
+    service = _service(sink, store=_ExplodingStore())
+
+    with pytest.raises(OSError):
+        service.preflight(_draft())
+
+    events = sink.of("activity", "preflight_verdict")
+    assert len(events) == 1
+    event = events[0]
+    assert event.status.value == "failed"
+    assert event.error is not None
+    assert event.error.type == "OSError"
+    assert event.error.message == "preflight_validation_failed:OSError"
+    assert event.duration_ms is not None
+    payload = event.payload
+    assert isinstance(payload, ActivityPreflightVerdictObservation)
+    assert payload.status == "failed"
+    assert payload.reason_codes == ()
+
+
+def test_preflight_verdict_carries_the_request_turn_context() -> None:
+    sink = CollectorSink()
+    service = _service(sink)
+
+    service.preflight(
+        _draft(wake_at=NOW + timedelta(minutes=30)),
+        turn_id="turn-preflight",
+        frame_id="frame-preflight",
+    )
+
+    events = sink.of("activity", "preflight_verdict")
+    assert len(events) == 1
+    assert events[0].turn_id == "turn-preflight"
+    assert events[0].frame_id == "frame-preflight"
+    assert events[0].cause_event_ids
+    assert events[0].duration_ms is not None
+    assert events[0].status.value == "completed"

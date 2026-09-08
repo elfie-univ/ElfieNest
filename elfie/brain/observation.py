@@ -60,12 +60,36 @@ class BrainObservation(FrozenContractModel, Generic[TPayload]):
     use ``BrainObservation[MemoryTurnOpened](...)`` to pin the payload
     type. Causal chaining fields (``turn_id``, ``frame_id``,
     ``cause_event_ids``) link records without building dependency edges.
+
+    Unified envelope semantics (conformance contract; every emit site
+    follows these two rules):
+
+    - ``captured_at`` is always the wall-clock capture moment taken at
+      the emit point (``datetime.now(timezone.utc)``). It is never the
+      brain clock or the event/turn time, so cross-boundary ordering by
+      ``captured_at`` compares one single clock.
+    - ``status`` describes the OUTCOME of the observed operation itself;
+      the decision polarity lives in the payload:
+
+      * ``completed`` — the operation ran to its normal end. Negative
+        verdicts and decision polarity (REJECTED, NEEDS_CLARIFICATION,
+        "not relevant" recall gates, duplicate/stale encode receipts,
+        guard stops) are payload fields and do NOT demote the envelope.
+      * ``skipped`` — the operation was preempted BEFORE its main
+        effect: duplicate short-circuits, budget preemption, and
+        no-perception claims.
+      * ``failed`` — the operation raised; ``error`` carries the
+        sanitized failure.
+      * ``degraded`` — the operation ran but with stale or reduced
+        inputs (memory revision drift, storage unavailable, feedback
+        reconcile failure).
     """
 
     schema_version: int = 1
     boundary: str
     kind: str
     sequence: int
+    # Wall-clock capture moment at the emit point (unified rule above).
     # Lax per-field override: emit sites may pass an ISO-8601 UTC string
     # for ergonomic construction; it is normalized to an aware UTC
     # datetime, and non-UTC input is still rejected by UTCDateTime.
@@ -74,6 +98,8 @@ class BrainObservation(FrozenContractModel, Generic[TPayload]):
     frame_id: str
     cause_event_ids: Tuple[str, ...] = ()
     duration_ms: Optional[float] = None
+    # Outcome of the observed operation (unified rule in the class
+    # docstring): completed/skipped/failed/degraded.
     status: ObservationStatus
     error: Optional[ObservationError] = None
     payload: TPayload

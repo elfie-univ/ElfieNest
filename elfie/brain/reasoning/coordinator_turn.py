@@ -150,7 +150,8 @@ class ReasoningRunController:
             item.meta.event_id
             for item in frame.events + frame.state_updates + frame.media_samples
         )
-        self._homeostasis.snapshot(timestamp)
+        sink = self._sink
+        reserve_started = perf_counter() if sink is not None else 0.0
         energy_reservation = (
             self._homeostasis.reserve_cognitive_budget(
                 turn_id,
@@ -159,6 +160,11 @@ class ReasoningRunController:
             if requires_model
             else None
         )
+        reserve_duration_ms = (
+            round((perf_counter() - reserve_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         homeostasis = self._homeostasis.snapshot(timestamp)
         self._emit_budget_reserve(
             turn_id=turn_id,
@@ -166,14 +172,22 @@ class ReasoningRunController:
             cause_ids=cause_ids,
             reservation=energy_reservation,
             homeostasis=homeostasis,
+            duration_ms=reserve_duration_ms,
         )
         if conversation is None:
+            append_started = perf_counter() if sink is not None else 0.0
             conversation = self._context_source.conversation(frame, captured_at)
+            append_duration_ms = (
+                round((perf_counter() - append_started) * 1000.0, 2)
+                if sink is not None
+                else 0.0
+            )
             self._emit_conversation_appended(
                 turn_id=turn_id,
                 frame=frame,
                 cause_ids=cause_ids,
                 conversation=conversation,
+                duration_ms=append_duration_ms,
             )
         memory_turn = self._context_source.memory_turn(frame, emotion, captured_at)
         memory = memory_turn.context
@@ -220,12 +234,19 @@ class ReasoningRunController:
         selfhood_reader = getattr(self._context_source, "selfhood", None)
         if selfhood_reader is None:
             raise RuntimeError("Selfhood projection is unavailable")
+        projection_started = perf_counter() if sink is not None else 0.0
         selfhood = selfhood_reader(captured_at)
+        projection_duration_ms = (
+            round((perf_counter() - projection_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         self._emit_selfhood_projection(
             turn_id=turn_id,
             frame=frame,
             cause_ids=cause_ids,
             selfhood=selfhood,
+            duration_ms=projection_duration_ms,
         )
         motivation_reader = getattr(self._context_source, "motivation", None)
         motivation = (
@@ -258,6 +279,7 @@ class ReasoningRunController:
             captured_at=captured_at,
             constitution_version=self._header.version,
         )
+        mode_started = perf_counter() if sink is not None else 0.0
         response_mode = self._response_mode(frame)
         reasoning_depth, depth_basis = self._reasoning_depth(
             frame,
@@ -283,6 +305,11 @@ class ReasoningRunController:
             in (ModelResponseMode.DIRECT_REPLY, ModelResponseMode.DECISION_PLAN)
         )
         fast_owner_reply = response_mode is ModelResponseMode.DIRECT_REPLY
+        mode_duration_ms = (
+            round((perf_counter() - mode_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         self._emit_mode_selected(
             turn_id=turn_id,
             frame=frame,
@@ -296,12 +323,19 @@ class ReasoningRunController:
             fast_owner_reply=fast_owner_reply,
             effective_tools=effective_tools,
             skill_count=len(available_skills),
+            duration_ms=mode_duration_ms,
         )
+        budget_started = perf_counter() if sink is not None else 0.0
         reasoning_budget = self._reasoning_budget(
             homeostasis,
             reasoning_depth,
             effective_tools=effective_tools,
             structured_owner_reply=structured_owner_reply,
+        )
+        budget_duration_ms = (
+            round((perf_counter() - budget_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
         )
         reply_channel_id, reply_conversation_id = self._owner_reply_target(frame)
         deadline = captured_at + timedelta(seconds=self._hard_timeout)
@@ -327,6 +361,7 @@ class ReasoningRunController:
             deadline=deadline,
             token_budget=token_budget,
             homeostasis=homeostasis,
+            duration_ms=budget_duration_ms,
         )
 
         def build_context_request(
@@ -405,6 +440,10 @@ class ReasoningRunController:
                         frame_id=str(seed.frame_id),
                         cause_event_ids=tuple(
                             str(item) for item in seed.cause_event_ids
+                        ),
+                        duration_ms=round(
+                            (perf_counter() - compile_started) * 1000.0,
+                            2,
                         ),
                         status=ObservationStatus.completed,
                         payload=ContextTrimObservation(
@@ -495,14 +534,25 @@ class ReasoningRunController:
         self,
         frame: TurnFrame,
         captured_at: datetime,
+        *,
+        turn_id: TurnId | None = None,
+        cause_event_ids: Tuple[EventId, ...] = (),
     ) -> ConversationContext:
         """Append admitted input before Memory revision pinning and Recall."""
+        sink = self._sink
+        append_started = perf_counter() if sink is not None else 0.0
         conversation = self._context_source.conversation(frame, captured_at)
+        append_duration_ms = (
+            round((perf_counter() - append_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         self._emit_conversation_appended(
-            turn_id=None,
+            turn_id=turn_id,
             frame=frame,
-            cause_ids=(),
+            cause_ids=cause_event_ids,
             conversation=conversation,
+            duration_ms=append_duration_ms,
         )
         return conversation
 
@@ -514,6 +564,7 @@ class ReasoningRunController:
         cause_ids: Tuple[EventId, ...],
         reservation: CognitiveBudgetReservation | None,
         homeostasis: EnergySnapshot,
+        duration_ms: float,
     ) -> None:
         """Record one cognitive-budget reservation (§A5); unwired = no-op."""
         sink = self._sink
@@ -528,6 +579,7 @@ class ReasoningRunController:
                 turn_id=str(turn_id),
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=CognitiveBudgetReservedObservation(
                     mode=reservation.mode,
@@ -558,6 +610,7 @@ class ReasoningRunController:
         frame: TurnFrame,
         cause_ids: Tuple[EventId, ...],
         selfhood: SelfhoodPromptProjection,
+        duration_ms: float,
     ) -> None:
         """Record the frozen Selfhood projection read for this Turn (§A3)."""
         sink = self._sink
@@ -572,6 +625,7 @@ class ReasoningRunController:
                 turn_id=str(turn_id),
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=SelfhoodProjectionObservation(
                     revision=selfhood.revision,
@@ -597,6 +651,7 @@ class ReasoningRunController:
         fast_owner_reply: bool,
         effective_tools: Tuple[str, ...],
         skill_count: int,
+        duration_ms: float,
     ) -> None:
         """Record the DIRECT/DELIBERATE admission decision (§B1)."""
         sink = self._sink
@@ -611,6 +666,7 @@ class ReasoningRunController:
                 turn_id=str(turn_id),
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=ReasoningModeSelectedObservation(
                     depth=depth.value,
@@ -636,6 +692,7 @@ class ReasoningRunController:
         deadline: datetime,
         token_budget: ModelTokenBudget,
         homeostasis: EnergySnapshot,
+        duration_ms: float,
     ) -> None:
         """Record the frozen per-Run admission envelope (§B1)."""
         sink = self._sink
@@ -650,6 +707,7 @@ class ReasoningRunController:
                 turn_id=str(turn_id),
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=ReasoningBudgetFrozenObservation(
                     max_steps=budget.max_steps,
@@ -673,6 +731,7 @@ class ReasoningRunController:
         frame: TurnFrame,
         cause_ids: Tuple[EventId, ...],
         conversation: ConversationContext,
+        duration_ms: float,
     ) -> None:
         """Record the workspace state observed after one append pass (§B2)."""
         sink = self._sink
@@ -695,6 +754,7 @@ class ReasoningRunController:
                 turn_id=str(turn_id) if turn_id is not None else "",
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=ConversationAppendedObservation(
                     channel_id=channel_id,

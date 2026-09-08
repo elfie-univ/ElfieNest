@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from threading import RLock
+from time import perf_counter
 from typing import Callable, Optional, Protocol, Tuple
 
 from elfie.brain.activity.observation_payloads import (
@@ -20,6 +21,7 @@ from elfie.brain.activity.system import (
 from elfie.brain.observation import (
     BrainObservation,
     BrainObservationSink,
+    ObservationError,
     ObservationStatus,
 )
 from elfie.brain.workspace.contracts import ExternalExecutionDomain
@@ -29,8 +31,19 @@ from elfie.message_types import ErrorInfo, UTCDateTime
 class ActivityPreflightPort(Protocol):
     """Reasoning-owned read-only capability for validating one draft."""
 
-    def preflight(self, draft: ActivityDraft) -> ActivityPreflightResult:
-        """Return validation evidence without persistence or external effects."""
+    def preflight(
+        self,
+        draft: ActivityDraft,
+        *,
+        turn_id: str = "",
+        frame_id: str = "",
+    ) -> ActivityPreflightResult:
+        """Return validation evidence without persistence or external effects.
+
+        ``turn_id``/``frame_id`` are the originating Run's causal context;
+        implementations only place them on the emitted preflight verdict
+        envelope and never interpret them.
+        """
 
 
 TargetResolver = Callable[[str, str, str], bool]
@@ -80,37 +93,83 @@ class ActivityPreflightService:
         self,
         draft: ActivityDraft,
         result: ActivityPreflightResult,
+        *,
+        turn_id: str = "",
+        frame_id: str = "",
+        status: ObservationStatus = ObservationStatus.completed,
+        error: Optional[ObservationError] = None,
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
             return
+        payload_status = result.status.value if result is not None else "failed"
+        reason_codes = (
+            tuple(err.code for err in result.reasons) if result is not None else ()
+        )
+        evidence_issued = (
+            result is not None and result.status is ActivityPreflightStatus.VALIDATED
+        )
         sink.emit(
             BrainObservation[ActivityPreflightVerdictObservation](
                 boundary="activity",
                 kind="preflight_verdict",
                 sequence=self._next_observation_sequence(),
                 captured_at=datetime.now(timezone.utc),
-                turn_id="",
-                frame_id="",
+                turn_id=turn_id,
+                frame_id=frame_id,
                 cause_event_ids=tuple(str(item) for item in draft.cause_event_ids),
-                status=ObservationStatus.completed,
+                duration_ms=duration_ms,
+                status=status,
+                error=error,
                 payload=ActivityPreflightVerdictObservation(
                     activity_id=str(draft.activity_id),
-                    status=result.status.value,
-                    reason_codes=tuple(error.code for error in result.reasons),
-                    evidence_issued=(
-                        result.status is ActivityPreflightStatus.VALIDATED
-                    ),
+                    status=payload_status,
+                    reason_codes=reason_codes,
+                    evidence_issued=evidence_issued,
                     step_count=len(draft.steps),
                     estimated_budget=draft.estimated_budget,
                 ),
             )
         )
 
-    def preflight(self, draft: ActivityDraft) -> ActivityPreflightResult:
+    def preflight(
+        self,
+        draft: ActivityDraft,
+        *,
+        turn_id: str = "",
+        frame_id: str = "",
+    ) -> ActivityPreflightResult:
         """Validate all facts needed before the originating Turn can settle."""
-        result = self._validate_draft(draft)
-        self._emit_verdict(draft, result)
+        sink = self._observation_sink
+        started = perf_counter() if sink is not None else 0.0
+        try:
+            result = self._validate_draft(draft)
+        except Exception as error:  # noqa: BLE001 - failure visibility, re-raised
+            if sink is not None:
+                self._emit_verdict(
+                    draft,
+                    None,
+                    turn_id=turn_id,
+                    frame_id=frame_id,
+                    status=ObservationStatus.failed,
+                    error=ObservationError(
+                        type=type(error).__name__,
+                        message=f"preflight_validation_failed:{type(error).__name__}",
+                    ),
+                    duration_ms=round((perf_counter() - started) * 1000.0, 2),
+                )
+            raise
+        duration_ms = (
+            round((perf_counter() - started) * 1000.0, 2) if sink is not None else 0.0
+        )
+        self._emit_verdict(
+            draft,
+            result,
+            turn_id=turn_id,
+            frame_id=frame_id,
+            duration_ms=duration_ms,
+        )
         return result
 
     def _validate_draft(self, draft: ActivityDraft) -> ActivityPreflightResult:

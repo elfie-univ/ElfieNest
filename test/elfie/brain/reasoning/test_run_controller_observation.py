@@ -19,6 +19,7 @@ from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopGuardStopObservation,
     AgentLoopJudgeObservation,
     AgentLoopObservationRecorded,
+    AgentLoopRunFailedObservation,
 )
 from elfie.brain.reasoning.context_types import (
     ConversationContext,
@@ -318,6 +319,23 @@ def test_direct_turn_emits_reserve_mode_budget_and_trim_events() -> None:
     assert trim_payload.history_truncated_count == 0
 
     assert len(sink.of("reasoning.context_engine", "compiled_context")) == 1
+    reserve_event = sink.of("energy", "budget_reserve")[0]
+    assert reserve_event.duration_ms is not None
+    assert (
+        sink.of("reasoning.run_controller", "mode_selected")[0].duration_ms is not None
+    )
+    assert (
+        sink.of("reasoning.run_controller", "budget_frozen")[0].duration_ms is not None
+    )
+    assert (
+        sink.of("reasoning.context_engine", "context_trimmed")[0].duration_ms
+        is not None
+    )
+    assert (
+        sink.of("reasoning.context_engine", "compiled_context")[0].duration_ms
+        is not None
+    )
+    assert sink.of("selfhood", "projection_snapshot")[0].duration_ms is not None
     sequences = [event.sequence for event in sink.snapshot()]
     assert sequences == sorted(sequences)
 
@@ -380,10 +398,15 @@ def test_observe_conversation_records_partition_key_and_summary_coverage() -> No
         controller.observe_conversation(
             _frame(frame_id=f"frame-conv-{index}", content=f"第 {index} 句"),
             NOW,
+            turn_id=TurnId("turn-conv"),
+            cause_event_ids=(EventId(f"frame-conv-{index}-event"),),
         )
 
     appends = sink.of("reasoning.context_workspace", "conversation_appended")
     assert len(appends) == 4
+    assert appends[0].turn_id == "turn-conv"
+    assert appends[0].cause_event_ids == ("frame-conv-0-event",)
+    assert appends[0].duration_ms is not None
     first = appends[0].payload
     assert isinstance(first, ConversationAppendedObservation)
     assert first.channel_id == "godot-owner"
@@ -438,6 +461,7 @@ def test_agent_loop_decision_payloads_are_the_declared_frozen_models() -> None:
         AgentLoopGuardStopObservation,
         AgentLoopJudgeObservation,
         AgentLoopObservationRecorded,
+        AgentLoopRunFailedObservation,
     )
     for payload_type in declared:
         assert payload_type.model_config.get("frozen") is True

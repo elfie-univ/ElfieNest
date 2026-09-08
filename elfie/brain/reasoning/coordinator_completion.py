@@ -7,6 +7,7 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from enum import Enum, unique
 from threading import Lock
+from time import perf_counter
 from typing import Literal
 
 from elfie.brain.memory.memory_records import MemoryUseProposal
@@ -72,6 +73,8 @@ class CoordinatorCompletionHandler:
         self,
         frame,
         decision,
+        *,
+        duration_ms: float,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
@@ -86,6 +89,7 @@ class CoordinatorCompletionHandler:
                 turn_id=str(plan.turn_id),
                 frame_id=str(plan.frame_id),
                 cause_event_ids=tuple(str(item) for item in plan.cause_event_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=DecisionRoutedObservation(
                     plan_id=str(plan.plan_id),
@@ -158,12 +162,22 @@ class CoordinatorCompletionHandler:
         # a truthful host notice, but that notice must not pollute the topic
         # Episode used by future Memory Recall.
         memory_eligible = result.reasoning.status is ReasoningStatus.COMPLETED
+        routed_started = perf_counter() if self._observation_sink is not None else 0.0
         decision = govern_decision(
             inflight.frame,
             result.decode.plan,
             memory_eligible=memory_eligible,
         )
-        self._emit_decision_routed(inflight.frame, decision)
+        routed_duration_ms = (
+            round((perf_counter() - routed_started) * 1000.0, 2)
+            if self._observation_sink is not None
+            else 0.0
+        )
+        self._emit_decision_routed(
+            inflight.frame,
+            decision,
+            duration_ms=routed_duration_ms,
+        )
         if result.reasoning.status not in {
             ReasoningStatus.COMPLETED,
             ReasoningStatus.SAFE_NOOP,

@@ -85,7 +85,10 @@ def test_commit_episode_candidate_emits_candidate_then_commit_receipt() -> None:
         "encode_candidate",
         "encode_commit",
     ]
-    candidate_payload = committed[0].payload
+    candidate_event = committed[0]
+    assert candidate_event.cause_event_ids == ("owner-1", "reply-1")
+    assert candidate_event.duration_ms is not None
+    candidate_payload = candidate_event.payload
     assert isinstance(candidate_payload, MemoryEncodeCandidate)
     assert candidate_payload.candidate_id == "memory-interaction:receipt-1"
     assert candidate_payload.base_revision == 0
@@ -94,7 +97,11 @@ def test_commit_episode_candidate_emits_candidate_then_commit_receipt() -> None:
     assert candidate_payload.intensity == 0.0
     assert candidate_payload.content_chars == len("主人问候我，我完成了回复。")
 
-    commit_payload = committed[1].payload
+    commit_event = committed[1]
+    assert commit_event.status.value == "completed"
+    assert commit_event.cause_event_ids == ("owner-1", "reply-1")
+    assert commit_event.duration_ms is not None
+    commit_payload = commit_event.payload
     assert isinstance(commit_payload, MemoryEncodeCommit)
     assert commit_payload.status == "committed"
     assert commit_payload.reason is None
@@ -131,6 +138,17 @@ def test_duplicate_and_stale_candidates_emit_rejected_receipts() -> None:
     assert stale_payload.status == "stale"
     assert stale_payload.reason == "base_revision_mismatch"
     assert stale_payload.episode_id is None
+
+    # Unified envelope status rule: duplicate/stale preempted the commit
+    # before its main effect, so the envelope records skipped.
+    commit_events = [
+        event for event in _encode_events(sink) if event.kind == "encode_commit"
+    ]
+    assert commit_events[0].status.value == "completed"
+    assert commit_events[1].status.value == "skipped"
+    assert commit_events[2].status.value == "skipped"
+    assert all(event.duration_ms is not None for event in commit_events)
+    assert commit_events[1].cause_event_ids == ("owner-1", "reply-1")
 
 
 def test_use_proposal_and_reinforcement_emit_outcome_events() -> None:

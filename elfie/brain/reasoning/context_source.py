@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from threading import Lock
+from time import perf_counter
 from typing import Callable, Mapping, Optional, Tuple
 
 from elfie.brain.activity.context import ActivityContext, ActivityContextReader
@@ -114,6 +115,7 @@ class BrainContextProvider:
         blocked: bool,
         candidate: Optional[RecoveryDriveCandidate],
         drive: MotivationSnapshot,
+        duration_ms: float,
     ) -> None:
         if candidate is None:
             if blocked:
@@ -141,6 +143,7 @@ class BrainContextProvider:
                     if candidate is not None
                     else ()
                 ),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=MotivationDriveEvaluatedObservation(
                     energy=energy,
@@ -377,6 +380,8 @@ class BrainContextProvider:
         capabilities: EffectiveCapabilities,
     ) -> StateCandidate[OrientationSnapshot]:
         """Propose this Turn's orientation without mutating its owner."""
+        sink = self._observation_sink
+        build_started = perf_counter() if sink is not None else 0.0
         active_activity = next(
             (
                 item.activity_id
@@ -392,7 +397,17 @@ class BrainContextProvider:
             captured_at=captured_at,
             activity_id=(str(active_activity) if active_activity is not None else None),
         )
-        self._emit_orientation_snapshot(frame, turn_id, candidate)
+        build_duration_ms = (
+            round((perf_counter() - build_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
+        self._emit_orientation_snapshot(
+            frame,
+            turn_id,
+            candidate,
+            duration_ms=build_duration_ms,
+        )
         return candidate
 
     def _emit_orientation_snapshot(
@@ -400,6 +415,8 @@ class BrainContextProvider:
         frame: TurnFrame,
         turn_id: TurnId,
         candidate: StateCandidate[OrientationSnapshot],
+        *,
+        duration_ms: float,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
@@ -414,6 +431,7 @@ class BrainContextProvider:
                 turn_id=str(turn_id),
                 frame_id=str(frame.frame_id),
                 cause_event_ids=tuple(str(item) for item in snapshot.source_event_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=OrientationSnapshotObservation(
                     revision=snapshot.revision,
@@ -478,6 +496,8 @@ class BrainContextProvider:
         now: UTCDateTime,
         blocked: bool,
     ) -> Optional[RecoveryDriveCandidate]:
+        sink = self._observation_sink
+        evaluate_started = perf_counter() if sink is not None else 0.0
         with self._state_lock:
             candidate = self._motivation.evaluate(
                 energy=energy,
@@ -486,10 +506,14 @@ class BrainContextProvider:
                 now=now,
                 blocked=blocked,
             )
-            sink = self._observation_sink
             if sink is None:
                 return candidate
             drive = self._motivation.snapshot(now)
+        evaluate_duration_ms = (
+            round((perf_counter() - evaluate_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         self._emit_drive_evaluated(
             sink,
             energy=energy,
@@ -498,6 +522,7 @@ class BrainContextProvider:
             blocked=blocked,
             candidate=candidate,
             drive=drive,
+            duration_ms=evaluate_duration_ms,
         )
         return candidate
 

@@ -7,6 +7,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import RLock
+from time import perf_counter
 from typing import Literal, Protocol, Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
@@ -46,12 +47,18 @@ MemoryRecallStatus = Literal[
     "budget_exhausted",
 ]
 
-_RECALL_COMPLETED_STATUSES = frozenset({"recalled"})
-_RECALL_SKIPPED_STATUSES = frozenset({"skipped", "duplicate", "budget_exhausted"})
+_RECALL_COMPLETED_STATUSES = frozenset({"recalled", "skipped"})
+_RECALL_SKIPPED_STATUSES = frozenset({"duplicate", "budget_exhausted"})
 
 
 def _recall_observation_status(status: str) -> ObservationStatus:
-    """Map one Memory recall status onto the envelope lifecycle state."""
+    """Map one Memory recall status onto the envelope lifecycle state.
+
+    Unified envelope rule: a gate-refused baseline ("not relevant" /
+    "not requested") is a completed gate decision whose polarity lives in
+    the payload, while a duplicate short-circuit or exhausted on-demand
+    budget preempted the recall before its main effect (skipped).
+    """
     if status in _RECALL_COMPLETED_STATUSES:
         return ObservationStatus.completed
     if status in _RECALL_SKIPPED_STATUSES:
@@ -156,6 +163,7 @@ class ReasoningMemorySession:
             self._bridge._emit_recall_result(
                 frame_id=self._frame_id,
                 result=result,
+                duration_ms=0.0,
             )
             return result
         with self._lock:
@@ -171,6 +179,7 @@ class ReasoningMemorySession:
                 self._bridge._emit_recall_result(
                     frame_id=self._frame_id,
                     result=result,
+                    duration_ms=0.0,
                 )
                 return result
             if self._on_demand_recalls >= self._max_on_demand_recalls:
@@ -183,6 +192,7 @@ class ReasoningMemorySession:
                 self._bridge._emit_recall_result(
                     frame_id=self._frame_id,
                     result=result,
+                    duration_ms=0.0,
                 )
                 return result
             self._on_demand_recalls += 1
@@ -232,6 +242,8 @@ class ReasoningMemoryBridge:
             for event in frame.events
             if isinstance(event.payload, SocialPayload)
         ).strip()
+        sink = self._sink
+        pin_started = perf_counter() if sink is not None else 0.0
         try:
             with self._memory_lock:
                 pinned_revision = self._memory.revision
@@ -241,12 +253,17 @@ class ReasoningMemoryBridge:
             state = MemoryStateSnapshot.unknown().model_copy(
                 update={"captured_at": captured_at}
             )
+        pin_duration_ms = (
+            round((perf_counter() - pin_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
         self._emit_turn_opened(
             frame=frame,
             query=query,
             pinned_revision=pinned_revision,
             state=state,
-            captured_at=captured_at,
+            duration_ms=pin_duration_ms,
         )
         session = ReasoningMemorySession(
             self,
@@ -267,7 +284,11 @@ class ReasoningMemoryBridge:
                 bundle=RecallBundle(recall_revision=pinned_revision),
                 reason="baseline_recall_not_relevant",
             )
-            self._emit_recall_result(frame_id=frame.frame_id, result=baseline)
+            self._emit_recall_result(
+                frame_id=frame.frame_id,
+                result=baseline,
+                duration_ms=0.0,
+            )
         session.set_baseline(baseline)
         bundle = baseline.bundle or RecallBundle(recall_revision=pinned_revision)
         self._remember_bundle(frame.frame_id, bundle)
@@ -301,6 +322,17 @@ class ReasoningMemoryBridge:
             pinned_revision=pinned_revision,
             request=request,
         )
+        sink = self._sink
+        recall_started = perf_counter() if sink is not None else 0.0
+
+        def recall_elapsed_ms() -> float:
+            """Zero-cost when unwired: perf_counter only runs with a sink."""
+            return (
+                round((perf_counter() - recall_started) * 1000.0, 2)
+                if sink is not None
+                else 0.0
+            )
+
         try:
             with self._memory_lock:
                 if self._memory.revision != pinned_revision:
@@ -310,7 +342,11 @@ class ReasoningMemoryBridge:
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_before_recall",
                     )
-                    self._emit_recall_result(frame_id=frame_id, result=result)
+                    self._emit_recall_result(
+                        frame_id=frame_id,
+                        result=result,
+                        duration_ms=recall_elapsed_ms(),
+                    )
                     return result
                 bundle = self._memory.recall(request)
                 if (
@@ -323,7 +359,11 @@ class ReasoningMemoryBridge:
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_during_recall",
                     )
-                    self._emit_recall_result(frame_id=frame_id, result=result)
+                    self._emit_recall_result(
+                        frame_id=frame_id,
+                        result=result,
+                        duration_ms=recall_elapsed_ms(),
+                    )
                     return result
         except Exception as error:  # noqa: BLE001 - typed degradation boundary
             result = MemoryRecallResult(
@@ -332,7 +372,11 @@ class ReasoningMemoryBridge:
                 pinned_revision=pinned_revision,
                 reason=f"memory_unavailable:{type(error).__name__}",
             )
-            self._emit_recall_result(frame_id=frame_id, result=result)
+            self._emit_recall_result(
+                frame_id=frame_id,
+                result=result,
+                duration_ms=recall_elapsed_ms(),
+            )
             return result
         result = MemoryRecallResult(
             status="recalled",
@@ -340,7 +384,11 @@ class ReasoningMemoryBridge:
             pinned_revision=pinned_revision,
             bundle=bundle,
         )
-        self._emit_recall_result(frame_id=frame_id, result=result)
+        self._emit_recall_result(
+            frame_id=frame_id,
+            result=result,
+            duration_ms=recall_elapsed_ms(),
+        )
         return result
 
     def _next_sequence(self) -> int:
@@ -355,7 +403,7 @@ class ReasoningMemoryBridge:
         query: str,
         pinned_revision: int,
         state: MemoryStateSnapshot,
-        captured_at: UTCDateTime,
+        duration_ms: float,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -366,10 +414,11 @@ class ReasoningMemoryBridge:
                 boundary="reasoning.memory_bridge",
                 kind="turn_opened",
                 sequence=self._next_sequence(),
-                captured_at=captured_at,
+                captured_at=datetime.now(timezone.utc),
                 turn_id="",
                 frame_id=frame_id,
-                cause_event_ids=(),
+                cause_event_ids=tuple(str(item.meta.event_id) for item in frame.events),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=MemoryTurnOpened(
                     frame_id=frame_id,
@@ -406,6 +455,7 @@ class ReasoningMemoryBridge:
                 turn_id="",
                 frame_id=rendered_frame_id or "",
                 cause_event_ids=(),
+                duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=MemoryRecallStarted(
                     frame_id=rendered_frame_id,
@@ -429,6 +479,7 @@ class ReasoningMemoryBridge:
         *,
         frame_id: EventId | None,
         result: MemoryRecallResult,
+        duration_ms: float,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -444,6 +495,7 @@ class ReasoningMemoryBridge:
                 turn_id="",
                 frame_id=rendered_frame_id or "",
                 cause_event_ids=(),
+                duration_ms=duration_ms,
                 status=_recall_observation_status(result.status),
                 payload=MemoryRecallResultObservation(
                     frame_id=rendered_frame_id,

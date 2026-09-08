@@ -409,6 +409,9 @@ def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
 
     opened = events[0]
     assert isinstance(opened.payload, MemoryTurnOpened)
+    assert opened.cause_event_ids == ("owner-event-1",)
+    assert opened.duration_ms is not None
+    assert opened.captured_at.tzinfo is timezone.utc
     assert opened.payload.query == "你来自哪里？"
     assert opened.payload.pinned_revision == memory.revision
     assert opened.payload.state.revision == state.revision
@@ -448,7 +451,7 @@ def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
     assert bundle.conflict_count == len(recalled.conflicts)
 
 
-def test_smalltalk_turn_emits_skipped_recall_result_with_reason() -> None:
+def test_smalltalk_turn_emits_completed_envelope_with_skipped_payload() -> None:
     memory = MemorySystem(
         SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1"),
         elfie_id="elfie-1",
@@ -466,7 +469,10 @@ def test_smalltalk_turn_emits_skipped_recall_result_with_reason() -> None:
 
     assert [event.kind for event in events] == ["turn_opened", "recall_result"]
     result = events[1]
-    assert result.status == ObservationStatus.skipped
+    # Unified envelope status rule: the gate decision ran to its normal end
+    # (completed); the "not relevant" polarity lives in the payload.
+    assert result.status == ObservationStatus.completed
+    assert result.duration_ms is not None
     assert isinstance(result.payload, MemoryRecallResultObservation)
     assert result.payload.status == "skipped"
     assert result.payload.query == "你好呀"

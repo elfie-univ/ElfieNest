@@ -138,6 +138,11 @@ def test_completed_model_call_emits_agent_loop_observation() -> None:
     assert payload.prompt_tokens == 21
     assert payload.completion_tokens == 7
     assert payload.provider_latency_ms == 1.5
+    assert payload.allowed_tools == ()
+    assert payload.tool_definition_count == 0
+    assert payload.skill_count == 0
+    assert payload.deadline is not None
+    assert payload.created_at is not None
 
 
 def test_repair_generation_emits_its_own_model_call_observation() -> None:

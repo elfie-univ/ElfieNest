@@ -32,6 +32,7 @@ from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopGuardStopObservation,
     AgentLoopJudgeObservation,
     AgentLoopObservationRecorded,
+    AgentLoopRunFailedObservation,
     ModelCallObservation,
 )
 from elfie.brain.reasoning.decision_decoder import (
@@ -383,6 +384,7 @@ class ReasoningRun:
             revision: Optional[int] = None,
         ) -> None:
             """Append one Run observation and record the append event."""
+            append_started = monotonic() if self._observation_sink is not None else 0.0
             observation = CurrentRunObservation(
                 kind=kind,
                 status=status,
@@ -391,10 +393,16 @@ class ReasoningRun:
                 revision=revision,
             )
             run_observations.append(observation)
+            append_duration_ms = (
+                round((monotonic() - append_started) * 1000.0, 2)
+                if self._observation_sink is not None
+                else 0.0
+            )
             self._emit_observation_recorded(
                 task=task,
                 observation=observation,
                 iteration_index=model_calls + 1,
+                duration_ms=append_duration_ms,
             )
 
         def guard(
@@ -634,6 +642,19 @@ class ReasoningRun:
                     )
                     continue
                 if current_request.response_mode is ModelResponseMode.DIRECT_REPLY:
+                    decode_started = (
+                        monotonic() if self._observation_sink is not None else 0.0
+                    )
+
+                    def decode_elapsed_ms(
+                        started: float = decode_started,
+                    ) -> float:
+                        return (
+                            round((monotonic() - started) * 1000.0, 2)
+                            if self._observation_sink is not None
+                            else 0.0
+                        )
+
                     action_decode = self._decoder.decode_cognitive_action(
                         generation=generation,
                         capabilities=capabilities,
@@ -655,6 +676,7 @@ class ReasoningRun:
                             action=None,
                             iteration_index=model_calls,
                             validation_errors=tuple(errors),
+                            duration_ms=decode_elapsed_ms(),
                         )
                         if (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
@@ -682,6 +704,7 @@ class ReasoningRun:
                         action=action,
                         iteration_index=model_calls,
                         validation_errors=(),
+                        duration_ms=decode_elapsed_ms(),
                     )
 
                     if isinstance(action, RecallMemory):
@@ -784,6 +807,19 @@ class ReasoningRun:
                         current_request = rebuild_request(final_schema=True)
                         continue
 
+                    judge_started = (
+                        monotonic() if self._observation_sink is not None else 0.0
+                    )
+
+                    def judge_elapsed_ms(
+                        started: float = judge_started,
+                    ) -> float:
+                        return (
+                            round((monotonic() - started) * 1000.0, 2)
+                            if self._observation_sink is not None
+                            else 0.0
+                        )
+
                     judge_reason = self._completion_revision_reason(action)
                     judge_sanitized = False
                     if judge_reason is not None:
@@ -828,6 +864,7 @@ class ReasoningRun:
                                 revision_requested=True,
                                 external_claim_replaced=False,
                                 current_nest_sanitized=False,
+                                duration_ms=judge_elapsed_ms(),
                             )
                             current_request = rebuild_request(final_schema=True)
                             continue
@@ -867,6 +904,7 @@ class ReasoningRun:
                         revision_requested=False,
                         external_claim_replaced=judge_sanitized,
                         current_nest_sanitized=current_nest_sanitized,
+                        duration_ms=judge_elapsed_ms(),
                     )
                     return ReasoningRunResult(
                         status=ReasoningStatus.COMPLETED,
@@ -928,7 +966,10 @@ class ReasoningRun:
                     allowed_memory_references=tuple(memory_reference_ids),
                 )
                 decode, reply_was_sanitized = self._sanitize_direct_reply(task, decode)
-                plan, preflight_observation = self._preflight_activities(decode.plan)
+                plan, preflight_observation = self._preflight_activities(
+                    task,
+                    decode.plan,
+                )
                 if preflight_observation is not None:
                     add_step(
                         CognitiveStepKind.OBSERVATION,
@@ -1014,6 +1055,14 @@ class ReasoningRun:
                 reasoning_plan=reasoning_plan,
             )
         except Exception as error:  # noqa: BLE001 - model boundary
+            self._emit_run_failed(
+                task=task,
+                error=error,
+                model_calls=model_calls,
+                tool_calls=tool_calls,
+                skill_calls=skill_calls,
+                step_count=len(steps),
+            )
             return self._failure(
                 task=task,
                 status=ReasoningStatus.FAILED,
@@ -1131,6 +1180,11 @@ class ReasoningRun:
                     max_tokens=request.max_tokens,
                     context_revision=request.context_revision,
                     capability_revision=request.capability_revision,
+                    allowed_tools=tuple(str(item) for item in request.allowed_tools),
+                    tool_definition_count=len(request.allowed_tools),
+                    skill_count=len(request.available_skills),
+                    deadline=request.deadline,
+                    created_at=request.created_at,
                     response_text=response_text,
                     selected_mode=selected_mode,
                     provider=provider,
@@ -1158,6 +1212,7 @@ class ReasoningRun:
         action: Optional[CognitiveAction],
         iteration_index: int,
         validation_errors: Tuple[str, ...],
+        duration_ms: float,
     ) -> None:
         """Record one decoded Cognitive Action (§B5-2); unwired = no-op."""
         sink = self._observation_sink
@@ -1204,6 +1259,7 @@ class ReasoningRun:
                 turn_id=str(task.request.turn_id),
                 frame_id=str(task.request.frame_id),
                 cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=duration_ms,
                 status=status,
                 error=observation_error,
                 payload=AgentLoopActionObservation(
@@ -1226,6 +1282,7 @@ class ReasoningRun:
         task: ReasoningTaskView,
         observation: CurrentRunObservation,
         iteration_index: int,
+        duration_ms: float,
     ) -> None:
         """Record one Run observation append (§B5-3); unwired = no-op."""
         sink = self._observation_sink
@@ -1240,6 +1297,7 @@ class ReasoningRun:
                 turn_id=str(task.request.turn_id),
                 frame_id=str(task.request.frame_id),
                 cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=AgentLoopObservationRecorded(
                     iteration_index=iteration_index,
@@ -1292,6 +1350,7 @@ class ReasoningRun:
                 turn_id=str(task.request.turn_id),
                 frame_id=str(task.request.frame_id),
                 cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=AgentLoopGuardObservation(
                     iteration_index=iteration_index,
@@ -1336,10 +1395,61 @@ class ReasoningRun:
                 turn_id=str(task.request.turn_id),
                 frame_id=str(task.request.frame_id),
                 cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=AgentLoopGuardStopObservation(
                     status=status.value,
                     reason=reason,
+                    model_calls=model_calls,
+                    tool_calls=tool_calls,
+                    skill_calls=skill_calls,
+                    step_count=step_count,
+                    depth=depth.value,
+                ),
+            )
+        )
+
+    def _emit_run_failed(
+        self,
+        *,
+        task: ReasoningTaskView,
+        error: Exception,
+        model_calls: int,
+        tool_calls: int,
+        skill_calls: int,
+        step_count: int,
+    ) -> None:
+        """Record the non-guard failure closure of one Run (§B5 G-M10).
+
+        Emitted exactly once by the generic ``except Exception`` boundary
+        before the safe-failure result is returned unchanged.  The
+        exception class name is the only untrusted-derived content; the
+        exception text never enters the observation.  Envelope ``status``
+        is ``failed`` with a sanitized ``ObservationError``.
+        """
+        sink = self._observation_sink
+        if sink is None:
+            return
+        depth = getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+        sink.emit(
+            BrainObservation[AgentLoopRunFailedObservation](
+                boundary="reasoning.agent_loop",
+                kind="run_failed",
+                sequence=self._next_decision_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+                cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=0.0,
+                status=ObservationStatus.failed,
+                error=ObservationError(
+                    type=type(error).__name__,
+                    message=f"agent_loop_failed:{type(error).__name__}",
+                ),
+                payload=AgentLoopRunFailedObservation(
+                    turn_id=str(task.request.turn_id),
+                    frame_id=str(task.request.frame_id),
+                    error_type=type(error).__name__,
                     model_calls=model_calls,
                     tool_calls=tool_calls,
                     skill_calls=skill_calls,
@@ -1360,6 +1470,7 @@ class ReasoningRun:
         revision_requested: bool,
         external_claim_replaced: bool,
         current_nest_sanitized: bool,
+        duration_ms: float,
     ) -> None:
         """Record one Completion Judge verdict (§B6); unwired = no-op."""
         sink = self._observation_sink
@@ -1374,6 +1485,7 @@ class ReasoningRun:
                 turn_id=str(task.request.turn_id),
                 frame_id=str(task.request.frame_id),
                 cause_event_ids=self._envelope_causal_ids(task),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=AgentLoopJudgeObservation(
                     iteration_index=iteration_index,
@@ -1555,6 +1667,7 @@ class ReasoningRun:
 
     def _preflight_activities(
         self,
+        task: ReasoningTaskView,
         plan: DecisionPlan,
     ) -> tuple[DecisionPlan, str | None]:
         """Validate Activity drafts before the ReasoningRun may settle."""
@@ -1582,7 +1695,11 @@ class ReasoningRun:
         validated: dict[str, object] = {}
         failures: list[dict[str, object]] = []
         for request in requests:
-            result = self._activity_preflight.preflight(request.draft)
+            result = self._activity_preflight.preflight(
+                request.draft,
+                turn_id=str(task.request.turn_id),
+                frame_id=str(task.request.frame_id),
+            )
             if result.status is ActivityPreflightStatus.VALIDATED:
                 validated[str(request.draft.activity_id)] = result
                 continue

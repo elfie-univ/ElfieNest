@@ -41,6 +41,12 @@ class MemoryTurnOpened(FrozenContractModel):
     ``query`` is the compiled baseline-recall intent (possibly empty) and
     ``state`` summarizes the pinned ``MemoryStateSnapshot`` that the Run
     will read from.
+
+    ``frame_id`` deliberately duplicates the envelope ``frame_id``: the
+    payload stays self-describing for boundary-owned export (a consumer
+    can project payloads alone), and the bridge's context-less emitters
+    leave envelope ``turn_id`` empty (bridge precedent), so the payload
+    anchors its own frame identity.
     """
 
     frame_id: str
@@ -67,7 +73,13 @@ class MemoryRecallRequestObservation(FrozenContractModel):
 
 
 class MemoryRecallStarted(FrozenContractModel):
-    """One baseline or on-demand recall intent entered the bridge (§B3/§C)."""
+    """One baseline or on-demand recall intent entered the bridge (§B3/§C).
+
+    ``frame_id`` deliberately duplicates the envelope ``frame_id``: the
+    payload stays self-describing for boundary-owned export, and the
+    bridge's context-less emitters leave envelope ``turn_id`` empty
+    (bridge precedent), so the payload anchors its own frame identity.
+    """
 
     frame_id: Optional[str] = None
     query: str
@@ -98,6 +110,15 @@ class MemoryRecallResultObservation(FrozenContractModel):
     ``status`` mirrors ``MemoryRecallStatus``; ``bundle`` is ``None`` only
     when the bridge produced no bundle at all (e.g. an exhausted on-demand
     budget) — a skipped baseline still carries its empty pinned bundle.
+    Under the unified envelope status rule, a gate-refused baseline
+    (``status="skipped"`` here) is an envelope ``completed`` decision;
+    duplicate/budget-exhausted preemptions map to envelope ``skipped``
+    and stale/unavailable recalls to envelope ``degraded``.
+
+    ``frame_id`` deliberately duplicates the envelope ``frame_id``: the
+    payload stays self-describing for boundary-owned export, and the
+    bridge's context-less emitters leave envelope ``turn_id`` empty
+    (bridge precedent), so the payload anchors its own frame identity.
     """
 
     frame_id: Optional[str] = None
@@ -118,6 +139,10 @@ class CompiledContextObservation(FrozenContractModel):
     the Memory Bridge pin, and ``truncated`` records whether the token
     budget trimmed content. Per-section trim reasons are not yet available
     from the compiler, so only the aggregate flag is recorded.
+
+    ``turn_id``/``frame_id`` deliberately duplicate the envelope fields:
+    the payload stays self-describing for boundary-owned export of the
+    exact request identity this compile produced.
     """
 
     turn_id: str

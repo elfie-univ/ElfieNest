@@ -7,6 +7,7 @@ from threading import Lock
 from elfie.brain.emotion.appraiser import BrainClockPulse
 from elfie.brain.observation import BrainObservation
 from elfie.brain.reasoning.coordinator_observations import (
+    EventSalienceObservation,
     WorkspaceFrameAdmissionObservation,
 )
 from elfie.brain.workspace.system import EventWorkspace
@@ -76,6 +77,11 @@ def test_quiet_conversation_claims_one_admitted_communication_frame() -> None:
         assert payload.cutoff_seq >= 1
         assert payload.event_count == 1
         assert payload.max_event_salience == 0.5
+        assert len(payload.event_saliences) == 1
+        assert isinstance(payload.event_saliences[0], EventSalienceObservation)
+        assert payload.event_saliences[0].salience == 0.5
+        assert payload.event_saliences[0].event_id
+        assert event.duration_ms is not None
     finally:
         runtime.release.set()
         coordinator.stop()

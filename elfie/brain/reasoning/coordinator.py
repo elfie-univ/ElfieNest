@@ -9,6 +9,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from random import Random
 from threading import Event, Lock
+from time import perf_counter
 from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
@@ -44,6 +45,7 @@ from elfie.brain.reasoning.coordinator_observations import (
     EmotionDimensionChangeObservation,
     EmotionEffectObservation,
     EnergyBudgetStateObservation,
+    EventSalienceObservation,
     WorkspaceFrameAdmissionObservation,
 )
 from elfie.brain.reasoning.coordinator_outcomes import (
@@ -363,6 +365,7 @@ class BrainCoordinator:
         event_id: str,
         stimulus: EmotionStimulusEvent,
         guidance: AffectiveAppraisal | None,
+        duration_ms: float,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -376,6 +379,7 @@ class BrainCoordinator:
                 turn_id=turn_id,
                 frame_id=frame_id,
                 cause_event_ids=(event_id,),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=EmotionAppraisalInputObservation(
                     event_id=event_id,
@@ -413,6 +417,7 @@ class BrainCoordinator:
         stage: str,
         anchor: EmotionTurnSnapshot,
         candidate: EmotionTurnSnapshot,
+        duration_ms: float,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -435,6 +440,7 @@ class BrainCoordinator:
                 turn_id=turn_id,
                 frame_id=frame_id,
                 cause_event_ids=tuple(str(item) for item in candidate.source_event_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=EmotionCandidateObservation(
                     stage=stage,
@@ -470,6 +476,7 @@ class BrainCoordinator:
                 turn_id=turn_id,
                 frame_id=frame_id,
                 cause_event_ids=(),
+                duration_ms=0.0,
                 status=ObservationStatus.degraded,
                 error=ObservationError(
                     type=type(error).__name__,
@@ -501,6 +508,8 @@ class BrainCoordinator:
         stage: str,
         consumed: float,
         charged: float,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -513,7 +522,8 @@ class BrainCoordinator:
                 captured_at=datetime.now(timezone.utc),
                 turn_id=str(turn_id),
                 frame_id=str(frame_id),
-                cause_event_ids=(),
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=CognitiveBudgetSettledObservation(
                     stage=stage,
@@ -531,6 +541,8 @@ class BrainCoordinator:
         frame_id: EventId,
         stage: str,
         released: bool,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -543,7 +555,8 @@ class BrainCoordinator:
                 captured_at=datetime.now(timezone.utc),
                 turn_id=str(turn_id),
                 frame_id=str(frame_id),
-                cause_event_ids=(),
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=CognitiveBudgetReleasedObservation(
                     stage=stage,
@@ -559,6 +572,7 @@ class BrainCoordinator:
         turn_id: TurnId,
         decision: TurnTriggerDecision,
         frame=None,
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -586,6 +600,13 @@ class BrainCoordinator:
                     (event.salience for event in frame.events),
                     default=0.0,
                 ),
+                event_saliences=tuple(
+                    EventSalienceObservation(
+                        event_id=str(event.meta.event_id),
+                        salience=event.salience,
+                    )
+                    for event in frame.events
+                ),
                 admitted=True,
             )
             frame_id = str(frame.frame_id)
@@ -599,6 +620,7 @@ class BrainCoordinator:
                 turn_id=str(turn_id),
                 frame_id=frame_id,
                 cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
                 status=(
                     ObservationStatus.completed
                     if frame is not None
@@ -608,12 +630,49 @@ class BrainCoordinator:
             )
         )
 
+    def _emit_frame_claim_failed(
+        self,
+        *,
+        turn_id: TurnId,
+        decision: TurnTriggerDecision,
+        error: FrameLifecycleError,
+        duration_ms: float,
+    ) -> None:
+        """Record one claim error that is not the no-perception skip (§A1)."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[WorkspaceFrameAdmissionObservation](
+                boundary="workspace",
+                kind="frame_claim",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id="",
+                cause_event_ids=(),
+                duration_ms=duration_ms,
+                status=ObservationStatus.failed,
+                error=ObservationError(
+                    type=type(error).__name__,
+                    message=f"frame_claim_failed:{error.reason}",
+                ),
+                payload=WorkspaceFrameAdmissionObservation(
+                    trigger_reason=decision.reason.value if decision.reason else "",
+                    cutoff_seq=decision.cutoff_seq or 0,
+                    admitted=False,
+                    detail=error.reason,
+                ),
+            )
+        )
+
     def _emit_decision_routed(
         self,
         *,
         frame,
         decision,
         routed: bool | None,
+        duration_ms: float,
     ) -> None:
         sink = self._sink
         if sink is None:
@@ -628,6 +687,7 @@ class BrainCoordinator:
                 turn_id=str(plan.turn_id),
                 frame_id=str(plan.frame_id),
                 cause_event_ids=tuple(str(item) for item in plan.cause_event_ids),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=DecisionRoutedObservation(
                     plan_id=str(plan.plan_id),
@@ -710,9 +770,15 @@ class BrainCoordinator:
         stimuli: list[EmotionStimulusEvent] = []
         scopes_by_id = {scope.scope_id: scope for scope in indirect_scopes}
         for event in frame.events:
+            appraise_started = perf_counter() if self._sink is not None else 0.0
             stimulus = self._appraiser.appraise(
                 event,
                 trusted_scopes=indirect_scopes,
+            )
+            appraise_duration_ms = (
+                round((perf_counter() - appraise_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
             )
             if stimulus is None:
                 continue
@@ -735,12 +801,19 @@ class BrainCoordinator:
                 event_id=str(event.meta.event_id),
                 stimulus=stimulus,
                 guidance=guidance,
+                duration_ms=appraise_duration_ms,
             )
             stimuli.append(stimulus)
+        candidate_started = perf_counter() if self._sink is not None else 0.0
         fast_candidate = self._emotion.candidate_from(
             anchor,
             tuple(stimuli),
             timestamp=self._timestamp,
+        )
+        candidate_duration_ms = (
+            round((perf_counter() - candidate_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
         )
         self._emit_emotion_candidate(
             turn_id=turn_id,
@@ -748,6 +821,7 @@ class BrainCoordinator:
             stage="fast",
             anchor=anchor,
             candidate=fast_candidate,
+            duration_ms=candidate_duration_ms,
         )
         return (
             FrameAffectTxn(
@@ -810,6 +884,15 @@ class BrainCoordinator:
         if decision.reason is None or decision.cutoff_seq is None:
             return
         turn_id = TurnId(f"turn_{uuid4().hex}")
+        claim_started = perf_counter() if self._sink is not None else 0.0
+
+        def claim_elapsed_ms() -> float:
+            return (
+                round((perf_counter() - claim_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+
         frame = None
         for source_domain in source_domains or (None,):
             try:
@@ -823,13 +906,28 @@ class BrainCoordinator:
                 break
             except FrameLifecycleError as error:
                 if error.reason != "no perception writes are available":
+                    self._emit_frame_claim_failed(
+                        turn_id=turn_id,
+                        decision=decision,
+                        error=error,
+                        duration_ms=claim_elapsed_ms(),
+                    )
                     raise
         if frame is None:
-            self._emit_frame_admission(turn_id=turn_id, decision=decision)
+            self._emit_frame_admission(
+                turn_id=turn_id,
+                decision=decision,
+                duration_ms=0.0,
+            )
             self._motivation_due = False
             self._consolidation_due = False
             return
-        self._emit_frame_admission(turn_id=turn_id, decision=decision, frame=frame)
+        self._emit_frame_admission(
+            turn_id=turn_id,
+            decision=decision,
+            frame=frame,
+            duration_ms=claim_elapsed_ms(),
+        )
         try:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
@@ -838,7 +936,15 @@ class BrainCoordinator:
                 frame,
                 turn_id=str(turn_id),
             )
-            conversation = self._turn_factory.observe_conversation(frame, now)
+            conversation = self._turn_factory.observe_conversation(
+                frame,
+                now,
+                turn_id=turn_id,
+                cause_event_ids=tuple(
+                    item.meta.event_id
+                    for item in frame.events + frame.state_updates + frame.media_samples
+                ),
+            )
             self._flush_pending_handoffs()
             task = self._turn_factory.build_task(
                 frame,
@@ -861,12 +967,22 @@ class BrainCoordinator:
                     )
                 self._affect_txn = affect_txn
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
+            release_started = perf_counter() if self._sink is not None else 0.0
             budget_released = self._homeostasis.release_cognitive_budget(turn_id)
+            release_duration_ms = (
+                round((perf_counter() - release_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
             self._emit_budget_released(
                 turn_id=turn_id,
                 frame_id=frame.frame_id,
                 stage="admission_failed",
                 released=budget_released,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in frame.events
+                ),
+                duration_ms=release_duration_ms,
             )
             released = self._workspace.release(
                 frame.frame_id,
@@ -1016,9 +1132,15 @@ class BrainCoordinator:
         try:
             result = control.future.result()
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
+            settle_started = perf_counter() if self._sink is not None else 0.0
             charged = self._homeostasis.settle_cognitive_budget(
                 control.turn_id,
                 consumed=0.25,
+            )
+            settle_duration_ms = (
+                round((perf_counter() - settle_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
             )
             self._emit_budget_settled(
                 turn_id=control.turn_id,
@@ -1026,6 +1148,10 @@ class BrainCoordinator:
                 stage="worker_failed",
                 consumed=0.25,
                 charged=charged,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in inflight.frame.events
+                ),
+                duration_ms=settle_duration_ms,
             )
         else:
             self._remember_reasoning(control.turn_id, result.reasoning)
@@ -1035,9 +1161,15 @@ class BrainCoordinator:
                 + (0.1 * len(result.reasoning.steps))
             )
             requested_charge = max(0.25, consumed)
+            settle_started = perf_counter() if self._sink is not None else 0.0
             charged = self._homeostasis.settle_cognitive_budget(
                 control.turn_id,
                 consumed=requested_charge,
+            )
+            settle_duration_ms = (
+                round((perf_counter() - settle_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
             )
             self._emit_budget_settled(
                 turn_id=control.turn_id,
@@ -1045,6 +1177,10 @@ class BrainCoordinator:
                 stage="worker_done",
                 consumed=requested_charge,
                 charged=charged,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in inflight.frame.events
+                ),
+                duration_ms=settle_duration_ms,
             )
             slow_candidate = self._slow_emotion_candidate(inflight, result)
         disposition = self._completion.complete(inflight, control)
@@ -1127,10 +1263,16 @@ class BrainCoordinator:
                         cause_key=f"turn:{inflight.task.seed.turn_id}",
                     ),
                 )
+            slow_started = perf_counter() if self._sink is not None else 0.0
             candidate = self._emotion.candidate_from(
                 txn.anchor,
                 stimuli,
                 timestamp=self._timestamp,
+            )
+            slow_duration_ms = (
+                round((perf_counter() - slow_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
             )
             self._emit_emotion_candidate(
                 turn_id=str(inflight.task.seed.turn_id),
@@ -1138,6 +1280,7 @@ class BrainCoordinator:
                 stage="slow",
                 anchor=txn.anchor,
                 candidate=candidate,
+                duration_ms=slow_duration_ms,
             )
             return candidate
         except Exception as error:  # noqa: BLE001 - preserve completed turn
@@ -1205,9 +1348,15 @@ class BrainCoordinator:
         inflight.terminal_reason = reason
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, reason)
         self._worker.abandon(inflight.future)
+        settle_started = perf_counter() if self._sink is not None else 0.0
         charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
         )
         self._emit_budget_settled(
             turn_id=inflight.task.seed.turn_id,
@@ -1215,6 +1364,10 @@ class BrainCoordinator:
             stage="stale",
             consumed=0.5,
             charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         try:
             self._settlement.settle(inflight.task.state_candidates)
@@ -1254,9 +1407,15 @@ class BrainCoordinator:
 
     def _timeout_turn(self, inflight: InFlightTurn) -> None:
         self._worker.abandon(inflight.future)
+        settle_started = perf_counter() if self._sink is not None else 0.0
         charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
         )
         self._emit_budget_settled(
             turn_id=inflight.task.seed.turn_id,
@@ -1264,6 +1423,10 @@ class BrainCoordinator:
             stage="timeout",
             consumed=0.5,
             charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         try:
             self._settlement.settle(inflight.task.state_candidates)
@@ -1288,12 +1451,19 @@ class BrainCoordinator:
             inflight.task.seed,
             "reasoning_hard_timeout",
         )
+        routed_started = perf_counter() if self._sink is not None else 0.0
         decision = govern_decision(inflight.frame, plan)
         accepted = self._plan_sink.accept(decision)
+        routed_duration_ms = (
+            round((perf_counter() - routed_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
         self._emit_decision_routed(
             frame=inflight.frame,
             decision=decision,
             routed=accepted,
+            duration_ms=routed_duration_ms,
         )
         if accepted:
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
@@ -1335,9 +1505,15 @@ class BrainCoordinator:
         if inflight is None:
             return
         self._worker.abandon(inflight.future)
+        settle_started = perf_counter() if self._sink is not None else 0.0
         charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
         )
         self._emit_budget_settled(
             turn_id=inflight.task.seed.turn_id,
@@ -1345,6 +1521,10 @@ class BrainCoordinator:
             stage="coordinator_stop",
             consumed=0.5,
             charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         if inflight.terminal_status is not None:
             self._inflight = None

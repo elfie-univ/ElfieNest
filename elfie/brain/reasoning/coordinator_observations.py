@@ -155,12 +155,22 @@ class MotivationDriveEvaluatedObservation(FrozenContractModel):
     last_trigger_id: Optional[str] = None
 
 
+class EventSalienceObservation(FrozenContractModel):
+    """One admitted frame event's identity and raw salience (§A1)."""
+
+    event_id: str
+    salience: float = Field(ge=0.0, le=1.0)
+
+
 class WorkspaceFrameAdmissionObservation(FrozenContractModel):
     """One frame-claim attempt inside the Event Workspace (§A1).
 
     ``admitted`` is ``False`` only when the claim found no perception
     writes available (``detail="no_perception"``); the trigger decision
     reason and cutoff sequence record why the claim was attempted.
+    ``event_saliences`` itemizes the per-event salience of every event
+    the claim admitted; ``max_event_salience`` stays as the aggregate
+    the depth gate reads.
     """
 
     source_domain: Optional[str] = None
@@ -168,6 +178,7 @@ class WorkspaceFrameAdmissionObservation(FrozenContractModel):
     cutoff_seq: int = Field(ge=0)
     event_count: int = Field(default=0, ge=0)
     max_event_salience: float = Field(default=0.0, ge=0.0)
+    event_saliences: Tuple[EventSalienceObservation, ...] = ()
     admitted: bool
     detail: Optional[str] = None
 
@@ -226,6 +237,7 @@ __all__ = (
     "EmotionDimensionChangeObservation",
     "EmotionEffectObservation",
     "EnergyBudgetStateObservation",
+    "EventSalienceObservation",
     "MotivationDriveEvaluatedObservation",
     "OrientationSnapshotObservation",
     "WorkspaceFrameAdmissionObservation",

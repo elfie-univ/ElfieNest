@@ -16,6 +16,7 @@ from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopGuardStopObservation,
     AgentLoopJudgeObservation,
     AgentLoopObservationRecorded,
+    AgentLoopRunFailedObservation,
     ModelCallObservation,
 )
 from elfie.brain.reasoning.decision_decoder import DecisionPlanDecoder
@@ -166,6 +167,16 @@ def test_deliberate_recall_loop_records_action_observation_guard_judge() -> None
         if event.kind in {"action_decoded", "observation", "guard", "judge"}
     ]
     assert decision_sequences == sorted(decision_sequences)
+
+    # Every agent-loop record now carries a measured (or instant-mark)
+    # duration under G-M1.
+    agent_loop_events = [
+        event for event in sink.snapshot() if event.boundary == "reasoning.agent_loop"
+    ]
+    assert agent_loop_events
+    assert all(event.duration_ms is not None for event in agent_loop_events)
+    judge_event = sink.of("reasoning.completion", "judge")[0]
+    assert judge_event.duration_ms is not None
 
 
 def test_budget_exhausted_guard_stops_and_records_the_outcome() -> None:
@@ -379,6 +390,49 @@ def test_cancellation_guard_stops_before_any_model_call() -> None:
     assert stops[0].payload.status == "cancelled"
 
 
+class _ExplodingDecoder(DecisionPlanDecoder):
+    def decode_cognitive_action(self, *args, **kwargs):
+        raise RuntimeError("decoder plumbing exploded")
+
+
+def test_generic_loop_exception_emits_run_failed_and_settles_unchanged() -> None:
+    sink = _CollectorSink()
+    runtime = SequenceCognitiveRuntime({"type": "answer", "content": "未被解码"})
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=_ExplodingDecoder(),
+        budget=ReasoningBudget(max_steps=3, max_model_calls=1, max_tool_calls=0),
+        observation_sink=sink,
+    ).run(_owner_cognitive_task())
+
+    # The failure result is returned unchanged after the failed record.
+    assert result.status is ReasoningStatus.FAILED
+    assert result.failure_reason == "model_unavailable:RuntimeError"
+
+    failures = sink.of("reasoning.agent_loop", "run_failed")
+    assert len(failures) == 1
+    event = failures[0]
+    assert event.status is ObservationStatus.failed
+    assert event.error is not None
+    assert event.error.type == "RuntimeError"
+    assert event.error.message == "agent_loop_failed:RuntimeError"
+    assert "exploded" not in event.error.message
+    assert event.turn_id == "turn-1"
+    assert event.frame_id == "frame-1"
+    assert event.cause_event_ids == ("event-1",)
+    assert event.duration_ms is not None
+    payload = event.payload
+    assert isinstance(payload, AgentLoopRunFailedObservation)
+    assert payload.turn_id == "turn-1"
+    assert payload.frame_id == "frame-1"
+    assert payload.error_type == "RuntimeError"
+    assert payload.model_calls == 1
+    assert payload.tool_calls == 0
+    assert payload.step_count >= 0
+    assert payload.depth == "direct"
+
+
 def test_decision_records_are_never_constructed_without_a_sink(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -392,6 +446,7 @@ def test_decision_records_are_never_constructed_without_a_sink(
         AgentLoopGuardStopObservation,
         AgentLoopJudgeObservation,
         AgentLoopObservationRecorded,
+        AgentLoopRunFailedObservation,
     ):
         monkeypatch.setattr(payload_type, "__init__", _forbid_construction)
 

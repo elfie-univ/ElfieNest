@@ -94,12 +94,12 @@ def test_recall_selection_summary_reports_budget_and_truncation() -> None:
 
     store.recall(RecallRequest(text="主人以前喜欢什么？"))
 
-    summaries = [
-        event.payload
-        for event in _selection_events(sink)
-        if event.kind == "selection_summary"
+    summary_events = [
+        event for event in _selection_events(sink) if event.kind == "selection_summary"
     ]
-    assert len(summaries) == 1
+    assert len(summary_events) == 1
+    assert summary_events[0].duration_ms is not None
+    summaries = [event.payload for event in summary_events]
     summary = summaries[0]
     assert isinstance(summary, RecallSelectionSummary)
     assert summary.kept >= 1
@@ -107,6 +107,10 @@ def test_recall_selection_summary_reports_budget_and_truncation() -> None:
     assert summary.truncated is False
     assert summary.character_budget_limit == RecallRequest().character_limit
     assert summary.character_budget_used > 0
+    assert summary.assertion_limit == RecallRequest().assertion_limit
+    assert summary.episode_limit == RecallRequest().episode_limit
+    assert summary.node_limit == RecallRequest().node_limit
+    assert summary.seed_limit == RecallRequest().seed_limit
 
 
 def test_recall_selection_envelopes_are_sequence_ordered_and_causal_free() -> None:
@@ -126,6 +130,7 @@ def test_recall_selection_envelopes_are_sequence_ordered_and_causal_free() -> No
         assert event.frame_id == ""
         assert event.turn_id == ""
         assert event.captured_at.tzinfo is timezone.utc
+        assert event.duration_ms is not None
 
 
 def test_blank_recall_emits_no_selection_events() -> None:

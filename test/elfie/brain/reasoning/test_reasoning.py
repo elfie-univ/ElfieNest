@@ -723,7 +723,8 @@ class StaticActivityPreflight:
         self.status = status
         self.calls = 0
 
-    def preflight(self, draft) -> ActivityPreflightResult:
+    def preflight(self, draft, *, turn_id: str = "", frame_id: str = ""):
+        del turn_id, frame_id
         self.calls += 1
         reasons = ()
         if self.status is not ActivityPreflightStatus.VALIDATED:

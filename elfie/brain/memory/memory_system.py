@@ -7,7 +7,8 @@ from collections import deque
 from dataclasses import replace
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Callable, Dict, cast
+from time import perf_counter
+from typing import Any, Callable, Dict, Tuple, cast
 from uuid import uuid4
 
 from elfie.brain.memory.contracts import (
@@ -154,7 +155,16 @@ class MemorySystem:
             self._encode_observation_sequence += 1
             return self._encode_observation_sequence
 
-    def _emit_encode_candidate(self, candidate: EpisodicMemoryCandidate) -> None:
+    def _elapsed_ms(self, started: float) -> float:
+        if self._observation_sink is None:
+            return 0.0
+        return round((perf_counter() - started) * 1000.0, 2)
+
+    def _emit_encode_candidate(
+        self,
+        candidate: EpisodicMemoryCandidate,
+        duration_ms: float = 0.0,
+    ) -> None:
         sink = self._observation_sink
         if sink is None:
             return
@@ -168,7 +178,10 @@ class MemorySystem:
                 # carry the provenance link instead.
                 turn_id="",
                 frame_id="",
-                cause_event_ids=(),
+                cause_event_ids=tuple(
+                    str(value) for value in candidate.source_event_ids
+                ),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=MemoryEncodeCandidate(
                     candidate_id=str(candidate.candidate_id),
@@ -189,10 +202,20 @@ class MemorySystem:
         receipt: StateCommitReceipt,
         episode_id: str | None,
         revision_before: int,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
             return
+        # Unified envelope status rule: duplicate/stale receipts preempted
+        # the commit before its main effect (skipped); the polarity is in
+        # the payload.
+        commit_status = (
+            ObservationStatus.skipped
+            if receipt.status in (StateCommitStatus.DUPLICATE, StateCommitStatus.STALE)
+            else ObservationStatus.completed
+        )
         sink.emit(
             BrainObservation[MemoryEncodeCommit](
                 boundary=_MEMORY_ENCODE_BOUNDARY,
@@ -201,8 +224,9 @@ class MemorySystem:
                 captured_at=datetime.now(timezone.utc),
                 turn_id="",
                 frame_id="",
-                cause_event_ids=(),
-                status=ObservationStatus.completed,
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
+                status=commit_status,
                 payload=MemoryEncodeCommit(
                     candidate_id=str(receipt.candidate_id),
                     episode_id=episode_id,
@@ -220,6 +244,7 @@ class MemorySystem:
         proposal: MemoryUseProposal,
         accepted: bool,
         reason: str | None,
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
@@ -233,6 +258,7 @@ class MemorySystem:
                 turn_id="",
                 frame_id="",
                 cause_event_ids=(),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=MemoryUseProposalRecorded(
                     proposal_id=proposal.proposal_id,
@@ -253,6 +279,7 @@ class MemorySystem:
         reason: str | None,
         revision_before: int,
         revision_after: int,
+        duration_ms: float = 0.0,
     ) -> None:
         sink = self._observation_sink
         if sink is None:
@@ -265,7 +292,8 @@ class MemorySystem:
                 captured_at=datetime.now(timezone.utc),
                 turn_id="",
                 frame_id="",
-                cause_event_ids=(),
+                cause_event_ids=(str(receipt.event_id),),
+                duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=MemoryReinforcementApplied(
                     event_id=receipt.event_id,
@@ -382,17 +410,22 @@ class MemorySystem:
         cannot be treated as a reinforcement receipt until an independent
         authoritative outcome is supplied.
         """
+        started = perf_counter() if self._observation_sink is not None else 0.0
         try:
             accepted = self._submit_memory_use_proposal(proposal, bundle)
         except ValueError as error:
             self._emit_use_proposal_recorded(
-                proposal=proposal, accepted=False, reason=str(error)
+                proposal=proposal,
+                accepted=False,
+                reason=str(error),
+                duration_ms=self._elapsed_ms(started),
             )
             raise
         self._emit_use_proposal_recorded(
             proposal=proposal,
             accepted=accepted,
             reason=None if accepted else "proposal_already_submitted",
+            duration_ms=self._elapsed_ms(started),
         )
         return accepted
 
@@ -431,6 +464,7 @@ class MemorySystem:
     ) -> bool:
         """Settle one authoritative outcome into the storage-owned policy."""
         revision_before = self.revision
+        started = perf_counter() if self._observation_sink is not None else 0.0
         try:
             accepted = self._consume_reinforcement_receipt(receipt)
         except ValueError as error:
@@ -440,6 +474,7 @@ class MemorySystem:
                 reason=str(error),
                 revision_before=revision_before,
                 revision_after=self.revision,
+                duration_ms=self._elapsed_ms(started),
             )
             raise
         self._emit_reinforcement_applied(
@@ -448,6 +483,7 @@ class MemorySystem:
             reason=None if accepted else "storage_rejected_receipt",
             revision_before=revision_before,
             revision_after=self.revision,
+            duration_ms=self._elapsed_ms(started),
         )
         return accepted
 
@@ -508,7 +544,16 @@ class MemorySystem:
         """Validate and commit one explicit Turn candidate exactly once."""
         with self._episode_candidate_lock:
             revision_before = self.revision
-            self._emit_encode_candidate(candidate)
+            encode_started = (
+                perf_counter() if self._observation_sink is not None else 0.0
+            )
+            candidate_cause_ids = tuple(
+                str(value) for value in candidate.source_event_ids
+            )
+            self._emit_encode_candidate(
+                candidate,
+                duration_ms=self._elapsed_ms(encode_started),
+            )
             if candidate.candidate_id in self._committed_episode_candidate_ids:
                 receipt = StateCommitReceipt(
                     candidate_id=candidate.candidate_id,
@@ -520,6 +565,7 @@ class MemorySystem:
                     receipt=receipt,
                     episode_id=None,
                     revision_before=revision_before,
+                    cause_event_ids=candidate_cause_ids,
                 )
                 return receipt
             if candidate.base_revision != self.revision:
@@ -533,10 +579,13 @@ class MemorySystem:
                     receipt=receipt,
                     episode_id=None,
                     revision_before=revision_before,
+                    cause_event_ids=candidate_cause_ids,
                 )
                 return receipt
             return self._commit_source_first_candidate(
-                candidate, revision_before=revision_before
+                candidate,
+                revision_before=revision_before,
+                cause_event_ids=candidate_cause_ids,
             )
 
     def _commit_source_first_candidate(
@@ -544,6 +593,7 @@ class MemorySystem:
         candidate: EpisodicMemoryCandidate,
         *,
         revision_before: int,
+        cause_event_ids: Tuple[str, ...] = (),
     ) -> StateCommitReceipt:
         intensity = (
             candidate.intensity / 100.0
@@ -569,7 +619,9 @@ class MemorySystem:
                 ],
             },
         )
+        commit_started = perf_counter() if self._observation_sink is not None else 0.0
         receipt = self.storage.record_episode(episode)
+        commit_duration_ms = self._elapsed_ms(commit_started)
         status = (
             StateCommitStatus.COMMITTED
             if receipt.status == "committed"
@@ -597,6 +649,8 @@ class MemorySystem:
             receipt=commit_receipt,
             episode_id=episode.episode_id,
             revision_before=revision_before,
+            cause_event_ids=cause_event_ids,
+            duration_ms=commit_duration_ms,
         )
         return commit_receipt
 
