@@ -271,6 +271,23 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             timestamp = self._elapsed_time
         self._require_brain_runtime().post_clock(timestamp)
 
+    def set_clock_base(self, base: datetime) -> None:
+        """Anchor the logical clock at an absolute base without a clock pulse.
+
+        The facade clock and the homeostasis/emotion baselines move to ``base``
+        together, so no physiological or affective time passes for the
+        re-anchor itself. Nothing is posted to the Brain runtime: no clock
+        pulse, turn or outcome is produced. The clock only moves forward.
+        """
+        target = base.timestamp()
+        with self._clock_lock:
+            delta = target - self._elapsed_time
+            if delta < 0:
+                raise InvalidClockDeltaError(delta)
+            self._elapsed_time = target
+            self._energy.last_updated_at = target
+            self._emotion.last_updated_at = target
+
     def pump_body_events(
         self,
         additional_events: Iterable[BodySensorEvent] = (),

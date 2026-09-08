@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -99,6 +100,9 @@ class ElfieLabSession:
         self._capture_sink = CapturingObservationSink(observation_sink)
         workspace = storage.elfie_dir(spec.elfie_id)
         profile_store = YamlProfileStoreAdapter(workspace / "profile")
+        self._journal_store = SQLiteBrainJournalAdapter(
+            storage.journal_path(spec.elfie_id)
+        )
         self.elfie = ElfieFactory().restore(
             ElfieAssembly(
                 profile=profile_store.load(),
@@ -113,13 +117,12 @@ class ElfieLabSession:
                 activity_store=SQLiteActivityStoreAdapter(
                     storage.activity_path(spec.elfie_id)
                 ),
-                journal_store=SQLiteBrainJournalAdapter(
-                    storage.journal_path(spec.elfie_id)
-                ),
+                journal_store=self._journal_store,
                 body=self.body,
                 embodied_input_mode=EmbodiedInputMode.BRAIN,
             ),
         )
+        self._anchor_cognitive_clock()
         self._turn_adapter = BrainTurnAdapter(
             self.elfie,
             observation_sink=self._capture_sink,
@@ -311,6 +314,9 @@ class ElfieLabSession:
             self.body.connect()
             workspace = self.storage.elfie_dir(self.spec.elfie_id)
             profile_store = YamlProfileStoreAdapter(workspace / "profile")
+            self._journal_store = SQLiteBrainJournalAdapter(
+                self.storage.journal_path(self.spec.elfie_id)
+            )
             self.elfie = ElfieFactory().restore(
                 ElfieAssembly(
                     profile=profile_store.load(),
@@ -325,13 +331,12 @@ class ElfieLabSession:
                     activity_store=SQLiteActivityStoreAdapter(
                         self.storage.activity_path(self.spec.elfie_id)
                     ),
-                    journal_store=SQLiteBrainJournalAdapter(
-                        self.storage.journal_path(self.spec.elfie_id)
-                    ),
+                    journal_store=self._journal_store,
                     body=self.body,
                     embodied_input_mode=EmbodiedInputMode.BRAIN,
                 ),
             )
+            self._anchor_cognitive_clock()
             self._turn_adapter = BrainTurnAdapter(
                 self.elfie,
                 observation_sink=self._capture_sink,
@@ -377,6 +382,24 @@ class ElfieLabSession:
             return replacement
         finally:
             self._lock.release()
+
+    def _anchor_cognitive_clock(self) -> None:
+        """Anchor the restored Elfie's logical clock away from the UNIX epoch.
+
+        A restored Elfie starts its logical clock at 0.0, which renders every
+        receipt ``occurred_at`` and owner snapshot ``captured_at`` as 1970
+        dates. Continue from the persisted continuity checkpoint when one
+        exists — its captured time is exactly where the Brain's homeostasis
+        baseline resumes — and anchor a fresh Elfie at the current wall clock
+        instead. This only re-bases the clock; it never runs a turn.
+        """
+        checkpoint = self._journal_store.load_checkpoint()
+        base = (
+            checkpoint.captured_at
+            if checkpoint is not None
+            else datetime.now(timezone.utc)
+        )
+        self.elfie.set_clock_base(base)
 
     def _close_locked(self) -> None:
         if self._closed:

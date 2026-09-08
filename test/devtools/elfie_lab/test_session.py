@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 import devtools.elfie_lab.session as session_module
@@ -257,7 +259,11 @@ def test_consolidation_consolidates_memory_without_external_actions(
             ClosedEpisode(
                 episode_id=f"lab-offline-{index}",
                 idempotency_key=f"lab-offline-{index}",
-                occurred_from=session.elfie.cognitive_datetime.isoformat(),
+                # Wall-clock anchored lab clock: the lifecycle sentinel needs
+                # a genuinely aged memory, not the 1970 freshness accident.
+                occurred_from=(
+                    (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+                ),
                 content_text=content,
                 emotion="happy",
                 emotion_intensity=importance,
