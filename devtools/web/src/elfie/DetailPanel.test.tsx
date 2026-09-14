@@ -212,9 +212,9 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("Memory skipped");
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("revision 4");
-    expect(markup).toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
-    expect(markup).toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
-    expect(markup).not.toContain("data-tip=");
+    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="结算：提交状态候选与记忆写回，落持久化证据"');
+    expect(markup).not.toContain("title=");
     expect(markup).not.toContain('title=""');
     expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
@@ -247,7 +247,7 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("Memory skipped");
-    expect(markup).toContain('title="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
+    expect(markup).toContain('data-tip="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
   });
 
   it("keeps the production reasoning tree collapsed below the selected Run", () => {
@@ -394,15 +394,15 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("body_generation");
   });
 
-  it("restores native title tooltips on stage and sub-step triggers", () => {
+  it("renders instant data-tip CSS tooltips on stage and sub-step triggers", () => {
     const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1"]);
 
-    expect(markup).toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
-    expect(markup).toContain('title="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
-    expect(markup).toContain('title="模型调用：发送上下文，取回模型响应"');
-    expect(markup).toContain('title="行动解析：把响应解析为类型化行动"');
-    expect(markup).toContain('title="守卫判断：检查剩余预算与时间，决定是否继续"');
-    expect(markup).not.toContain("data-tip=");
+    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
+    expect(markup).toContain('data-tip="模型调用：发送上下文，取回模型响应"');
+    expect(markup).toContain('data-tip="行动解析：把响应解析为类型化行动"');
+    expect(markup).toContain('data-tip="守卫判断：检查剩余预算与时间，决定是否继续"');
+    expect(markup).not.toContain("title=");
     expect(markup).not.toContain('title=""');
   });
 

@@ -42,8 +42,9 @@ const statusLabels: Readonly<Record<string, string>> = {
   stopped: "停止",
 };
 
-// Native title attributes on the trace triggers are the tooltip mechanism: the browser
-// positions the tooltip next to the cursor; detail-modal.css renders no CSS tooltip.
+// Stage descriptions ride on data-tip attributes of the trace triggers: detail-modal.css
+// renders an instant CSS tooltip anchored just below each trigger (no native title delay,
+// no double popup).
 const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   event_admission: "事件接入：外部输入去重排序，圈定本轮处理范围",
   context_workspace: "上下文工作区：追加本轮消息，维护对话历史与主题摘要",
@@ -472,7 +473,7 @@ function TraceDisclosure({
   const visibleMeta = statusOf(status) === "skipped" ? undefined : meta;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
-      <button aria-expanded={open} className="trace-disclosure-trigger" onClick={() => onToggle(id)} title={tooltip} type="button">
+      <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
@@ -1303,7 +1304,7 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{ re
   };
   return <article className={`trace-node${open ? " is-open" : ""}`}>
     <div className="trace-node-header">
-      <button aria-expanded={open} className="trace-node-trigger" onClick={onToggle} title={stageTip} type="button">
+      <button aria-expanded={open} className="trace-node-trigger" data-tip={stageTip} onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>

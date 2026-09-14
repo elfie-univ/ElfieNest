@@ -253,7 +253,7 @@
 .trace-node { min-width: 0; overflow: visible; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-elevated); }
 .trace-node.is-open { border-color: #acd2bf; box-shadow: 0 5px 15px rgba(42, 91, 68, .07); }
 .trace-node-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; min-width: 0; }
-.trace-node-trigger { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 10px 9px; border: 0; border-radius: 9px 9px 0 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
+.trace-node-trigger { position: relative; z-index: 1; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 10px 9px; border: 0; border-radius: 9px 9px 0 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
 .trace-node-trigger:hover { background: var(--interactive-hover); }
 .trace-node-mode { align-self: center; margin: 0 7px 0 0; padding: 4px 7px; border: 1px solid var(--border-subtle); border-radius: 7px; color: var(--accent-primary); background: var(--surface-inset); cursor: pointer; font-size: 9px; font-weight: 750; white-space: nowrap; }
 .trace-node-mode:hover, .trace-node-mode[aria-pressed="true"] { border-color: #acd2bf; background: #eaf7ef; }
@@ -299,8 +299,10 @@
 .trace-disclosure { min-width: 0; overflow: visible; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-inset); }
 .trace-disclosure.is-open { border-color: #acd2bf; background: #fcfefd; }
 .trace-disclosure-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; min-width: 0; }
-.trace-disclosure-trigger { display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-width: 0; padding: 9px 8px; border: 0; border-radius: 8px 8px 0 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
+.trace-disclosure-trigger { position: relative; z-index: 1; display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-width: 0; padding: 9px 8px; border: 0; border-radius: 8px 8px 0 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
 .trace-disclosure-trigger:hover { background: var(--interactive-hover); }
+.trace-node-trigger[data-tip]::after, .trace-disclosure-trigger[data-tip]::after { position: absolute; top: calc(100% + 6px); left: 0; z-index: 1000; max-width: 340px; padding: 6px 9px; border-radius: 6px; color: #fff; background: rgba(34, 47, 40, .92); box-shadow: 0 8px 22px rgba(42, 68, 54, .28); content: attr(data-tip); font-size: 10px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; opacity: 0; transition: opacity 120ms ease 0ms; }
+.trace-node-trigger[data-tip]:hover::after, .trace-node-trigger[data-tip]:focus-visible::after, .trace-disclosure-trigger[data-tip]:hover::after, .trace-disclosure-trigger[data-tip]:focus-visible::after { opacity: 1; }
 .trace-disclosure-chevron { color: var(--text-tertiary); font-size: 14px; line-height: 1; }
 .trace-disclosure-number { color: var(--accent-primary); font-family: "SF Mono", Menlo, monospace; font-size: 9px; font-weight: 750; white-space: nowrap; }
 .trace-disclosure-title { display: flex; align-items: baseline; min-width: 0; gap: 7px; }
