@@ -20,6 +20,15 @@ _MEMORY_BRIDGE_BOUNDARY = "reasoning.memory_bridge"
 _CONTEXT_ENGINE_BOUNDARY = "reasoning.context_engine"
 _MEMORY_ENCODE_BOUNDARY = "memory.encode"
 _AGENT_LOOP_BOUNDARY = "reasoning.agent_loop"
+# Agent-loop envelope kinds whose payloads carry a stable ``iteration_index``;
+# ``guard_stop`` / ``run_failed`` are run-level terminal records without one.
+_AGENT_LOOP_ITERATION_KINDS = (
+    "model_call",
+    "action_decoded",
+    "observation",
+    "guard",
+    "judge",
+)
 
 # ---------------------------------------------------------------------------
 # Per-stage duration membership
@@ -189,7 +198,7 @@ def build_observability_trace(
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
-        calls=model_calls,
+        loop_events=_turn_agent_loop_events(observations, frame_id=frame_id),
         compiles=compiles,
         duration_ms=stage_durations["reasoning_run"],
     )
@@ -426,6 +435,51 @@ def _turn_model_calls(
     return [_event_dump(event) for event in events]
 
 
+def _turn_agent_loop_events(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> List[Dict[str, Any]]:
+    """Dump the per-iteration agent-loop envelopes in emit order.
+
+    Covers exactly ``_AGENT_LOOP_ITERATION_KINDS`` — the envelopes whose
+    payloads carry ``iteration_index``.  Run-level terminal records
+    (``guard_stop``, ``run_failed``) have no key and stay out of the buckets.
+    """
+    events = [
+        event
+        for event in observations
+        if event.boundary == _AGENT_LOOP_BOUNDARY
+        and event.kind in _AGENT_LOOP_ITERATION_KINDS
+    ]
+    if frame_id:
+        scoped = [event for event in events if str(event.frame_id) == str(frame_id)]
+        if scoped:
+            events = scoped
+    return [_event_dump(event) for event in events]
+
+
+def _iteration_buckets(
+    events: Sequence[Mapping[str, Any]],
+) -> Dict[int, Dict[str, List[Dict[str, Any]]]]:
+    """Group agent-loop envelopes by their own ``payload.iteration_index``.
+
+    Envelopes arrive in sequence (emit) order, so each bucket list keeps the
+    emit order inside one iteration.  Envelopes without a usable integer key
+    cannot join a bucket and are ignored.
+    """
+    buckets: Dict[int, Dict[str, List[Dict[str, Any]]]] = {}
+    for event in events:
+        payload = _mapping(event.get("payload"))
+        raw_index = payload.get("iteration_index")
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            continue
+        kind = str(event.get("kind", ""))
+        bucket = buckets.setdefault(raw_index, {})
+        bucket.setdefault(kind, []).append(dict(event))
+    return buckets
+
+
 def _model_request_view(event_dump: Mapping[str, Any]) -> Dict[str, Any]:
     """Project one model_call envelope into the request view the chain shows."""
     payload = _mapping(event_dump.get("payload"))
@@ -574,7 +628,8 @@ def _context_workspace_stage(
         "frame_id": request.get("frame_id"),
     }
     if first_compile is not None:
-        output["compiled"] = _compiled_summary(first_compile)
+        # No "compiled" summary here: per-call compiles render in the
+        # ReasoningRun iterations' context_build, keyed by context_revision.
         output["conversation"] = _compiled_conversation_rows(first_compile)
         # Run-observation content exists only as payload counts: these keys
         # stay null rather than being reconstructed from prompt text (P1).
@@ -691,31 +746,53 @@ def _owner_snapshots(
 def _reasoning_stage(
     *,
     reasoning: Mapping[str, Any],
-    calls: Sequence[Mapping[str, Any]],
+    loop_events: Sequence[Mapping[str, Any]],
     compiles: Sequence[BrainObservation],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     steps = [_mapping(step) for step in _sequence(reasoning.get("steps"))]
     groups = _iteration_groups(steps)
+    buckets = _iteration_buckets(loop_events)
+    # Iterations key on the model_call envelopes' own ``iteration_index``; the
+    # other agent-loop envelopes join the key they were emitted with.  The
+    # legacy ``steps`` array carries no keys, so it stays an ordered fallback
+    # aligned by position for fields the envelopes do not carry.
+    iteration_keys = sorted(
+        key for key, bucket in buckets.items() if bucket.get("model_call")
+    )
     iterations: List[Dict[str, Any]] = []
-    iteration_count = max(len(calls), len(groups))
-    for index in range(iteration_count):
-        call = calls[index] if index < len(calls) else {}
+    iteration_count = max(len(iteration_keys), len(groups))
+    for position in range(iteration_count):
+        key = iteration_keys[position] if position < len(iteration_keys) else None
+        bucket = buckets.get(key, {}) if key is not None else {}
+        call_events = bucket.get("model_call", [])
+        call = dict(call_events[0]) if call_events else {}
         payload = _mapping(call.get("payload"))
-        group = groups[index] if index < len(groups) else []
+        group = groups[position] if position < len(groups) else []
         model_step = next(
             (step for step in group if str(step.get("kind", "")).lower() == "model"),
             {},
         )
-        observations = [
+        steps_observations = [
             step
             for step in group
             if str(step.get("kind", "")).lower() not in {"model", "verify"}
         ]
+        typed_observations = [
+            _observation_record_entry(event) for event in bucket.get("observation", ())
+        ]
+        observations = steps_observations or typed_observations
         completions = [
             step for step in group if str(step.get("kind", "")).lower() == "verify"
         ]
-        iteration_number = f"4.{index + 1}"
+        judge_events = bucket.get("judge", [])
+        if judge_events:
+            completions = [_judge_entry(event) for event in judge_events]
+        action_event = next(iter(bucket.get("action_decoded", [])), None)
+        action_payload = _mapping(action_event.get("payload")) if action_event else {}
+        typed_result = _typed_action_result(action_payload)
+        steps_result = _parsed_model_result(model_step)
+        iteration_number = f"4.{position + 1}"
         model_call_number = f"{iteration_number}.2"
         compile_payload = _compile_for_revision(
             compiles,
@@ -738,6 +815,11 @@ def _reasoning_stage(
             number=f"{iteration_number}.4",
             observations=observations,
         )
+        # The ModelCall card keeps the wire-format parse the session chain pins;
+        # the Cognitive Action card prefers the keyed envelope decode.
+        model_call_parsed = steps_result if steps_result is not None else typed_result
+        action_parsed = typed_result if typed_result is not None else steps_result
+        guard_number = f"{iteration_number}.{5 + len(completions)}"
         iterations.append(
             {
                 "number": iteration_number,
@@ -771,24 +853,26 @@ def _reasoning_stage(
                     call,
                     number=model_call_number,
                     model_step=model_step,
-                    parsed_result=_parsed_model_result(model_step),
+                    parsed_result=model_call_parsed,
                 ),
                 "action": _action_projection(
                     number=f"{iteration_number}.3",
                     model_call_number=model_call_number,
+                    parsed_result=action_parsed,
                     model_step=model_step,
-                    parsed_result=_parsed_model_result(model_step),
+                    action_event=action_event,
                 ),
                 "observations": [dict(step) for step in observations],
                 "observation_stage": observation_stage,
                 "completion": completions,
                 "guard": _guard_projection(
-                    number=(f"{iteration_number}.{5 + len(completions)}"),
+                    number=guard_number,
                 ),
                 "raw": {
                     "steps": group,
                     "model_call": dict(call) if call else None,
                     "source": "production_turn_record",
+                    "iteration_index": key,
                 },
             }
         )
@@ -892,19 +976,79 @@ def _action_projection(
     *,
     number: str,
     model_call_number: str,
-    model_step: Mapping[str, Any],
     parsed_result: Any,
+    model_step: Mapping[str, Any],
+    action_event: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Expose the host-parsed action without inventing a second source record."""
+    if action_event is not None:
+        raw: Dict[str, Any] = {
+            "source": "brain_observations.reasoning.agent_loop.action_decoded",
+            "action_decoded": dict(action_event),
+        }
+    else:
+        raw = {"source": "model_step.summary", "model_step": dict(model_step)}
     return {
         "number": number,
         "status": "recorded" if parsed_result is not None else "unavailable",
         "input": {"model_call": model_call_number},
         "output": parsed_result,
-        "raw": {
-            "source": "model_step.summary",
-            "model_step": dict(model_step),
-        },
+        "raw": raw,
+    }
+
+
+def _typed_action_result(payload: Mapping[str, Any]) -> Any:
+    """Project the keyed ``action_decoded`` payload into the parsed-action view.
+
+    ``action_type`` maps to the ``type`` key the chain view already renders; a
+    decode that produced neither an action nor validation errors renders as
+    unavailable rather than as an empty action.
+    """
+    if not payload:
+        return None
+    if payload.get("action_type") is None and not payload.get("validation_errors"):
+        return None
+    result: Dict[str, Any] = {"type": payload.get("action_type")}
+    for key in ("query", "recall_reason", "content", "noop_reason"):
+        if payload.get(key) is not None:
+            result[key] = payload.get(key)
+    if payload.get("missing_facts"):
+        result["missing_facts"] = list(payload["missing_facts"])
+    if payload.get("validation_errors"):
+        result["validation_errors"] = list(payload["validation_errors"])
+    return result
+
+
+def _observation_record_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
+    """Render one keyed ``observation`` envelope as a Run-observation row.
+
+    Only used when the legacy steps array has no row for this iteration: the
+    steps rows carry display fields (operation, query, returned evidence)
+    the envelope payload does not have.
+    """
+    payload = _mapping(event.get("payload"))
+    return {
+        "kind": payload.get("observation_kind"),
+        "status": payload.get("observation_status"),
+        "summary": payload.get("content"),
+        "source_ids": list(payload.get("source_ids") or ()),
+        "revision": payload.get("revision"),
+        "iteration_index": payload.get("iteration_index"),
+    }
+
+
+def _judge_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
+    """Render one keyed ``judge`` envelope as a completion row."""
+    payload = _mapping(event.get("payload"))
+    verdict = payload.get("verdict")
+    return {
+        "kind": "judge",
+        "status": verdict,
+        "summary": payload.get("judge_reason") or verdict,
+        "verdict": verdict,
+        "action_type": payload.get("action_type"),
+        "revision_requested": payload.get("revision_requested"),
+        "iteration_index": payload.get("iteration_index"),
     }
 
 

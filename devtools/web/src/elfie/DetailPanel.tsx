@@ -38,6 +38,26 @@ const statusLabels: Readonly<Record<string, string>> = {
   stopped: "停止",
 };
 
+// Native `title` tooltips only — deliberate: no tooltip component, no extra CSS.
+const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  event_admission: "事件接入：外部输入去重排序，圈定本轮处理范围",
+  context_workspace: "上下文工作区：追加本轮消息，维护对话历史与主题摘要",
+  setup: "运行准备：冻结外部状态与记忆版本，确定推理模式与预算",
+  reasoning_run: "推理执行：循环“编译→调用→行动→观察→守卫→判定”，产出最终决策",
+  turn_decision: "回合决策：把接受的草稿固化为唯一的类型化决策",
+  governance_delivery: "治理与交付：治理检查后交付到目标通道，产出回执",
+  settlement: "结算：提交状态候选与记忆写回，落持久化证据",
+};
+
+const SUB_STEP_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  context_build: "上下文编译：按预算重新编译模型上下文，裁剪低相关材料",
+  model_call: "模型调用：发送上下文，取回模型响应",
+  action: "行动解析：把响应解析为类型化行动",
+  observation: "观察记录：把行动结果结构化为下一轮观察",
+  guard: "守卫判断：检查剩余预算与时间，决定是否继续",
+  judge: "完成判定：判定回复是否合格，接受或要求修订",
+};
+
 function record(value: unknown): JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value))
@@ -287,6 +307,7 @@ function TraceDisclosure({
   onToggle,
   status,
   raw,
+  tooltip,
 }: Readonly<{
   readonly children: ReactNode;
   readonly id: string;
@@ -297,13 +318,14 @@ function TraceDisclosure({
   readonly onToggle: (id: string) => void;
   readonly status: unknown;
   readonly raw?: unknown;
+  readonly tooltip?: string | undefined;
 }>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
   const hasRaw = hasContent(raw);
   const visibleMeta = statusOf(status) === "skipped" ? undefined : meta;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
-      <button aria-expanded={open} className="trace-disclosure-trigger" onClick={() => onToggle(id)} type="button">
+      <button aria-expanded={open} className="trace-disclosure-trigger" onClick={() => onToggle(id)} title={tooltip} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
@@ -341,24 +363,54 @@ function defaultNodeId(focus: DetailFocus, initialTab: string): string {
   return "reasoning_run";
 }
 
-function nodeMeta(node: TraceNode): string {
+// Stage header meta rule: duration by default; reasoning_run keeps "N 个迭代";
+// anomalies add one short reason. Counts/revision summaries are gone by design.
+const stageAnomalyLabels: Readonly<Record<string, string>> = {
+  failed: "失败",
+  degraded: "降级",
+  skipped: "跳过",
+};
+
+function stageAnomaly(node: TraceNode): string {
   const id = String(node.id ?? "");
   const output = record(node.output);
-  const detail = id === "reasoning_run"
+  if (id === "setup") {
+    const baselineStatus = statusOf(record(node.baseline_memory).status);
+    if (baselineStatus === "skipped") return "Memory skipped";
+    if (baselineStatus === "degraded") return "Memory degraded";
+  }
+  if (id === "event_admission") {
+    const admission = String(output.status ?? "");
+    if (admission === "deferred") return "admission deferred";
+    if (admission === "rejected") return "admission rejected";
+  }
+  if (id === "governance_delivery") {
+    if (record(output.result).success === false) return "交付失败";
+    if (statusOf(record(node.delivery).status) === "failed") return "交付失败";
+  }
+  if (id === "settlement") {
+    const warningCount = list(output.warnings).length;
+    if (warningCount > 0) return `warning ${warningCount}`;
+  }
+  const status = statusOf(node.status);
+  if (status === "failed" || status === "degraded" || status === "skipped") {
+    const reason = [output.failure_reason, output.error_code].find(hasContent);
+    return reason ? String(reason) : stageAnomalyLabels[status] ?? status;
+  }
+  return "";
+}
+
+function nodeMeta(node: TraceNode): string {
+  const detail = String(node.id ?? "") === "reasoning_run"
     ? `${list(node.iterations).length} 个迭代`
-    : id === "setup"
-      ? `${list(node.owner_snapshots).length} 个快照`
-      : id === "governance_delivery"
-        ? `${list(output.receipts).length} 个回执`
-        : typeof output.context_revision === "number"
-          ? `revision ${output.context_revision}`
-          : "";
+    : "";
+  const anomaly = stageAnomaly(node);
   const duration = formatDuration(
     node.duration_ms
       ?? record(node.timing).duration_ms
-      ?? output.duration_ms,
+      ?? record(node.output).duration_ms,
   );
-  return [detail, duration === "未记录" ? "" : `耗时 ${duration}`]
+  return [detail, anomaly, duration === "未记录" ? "" : `耗时 ${duration}`]
     .filter(Boolean)
     .join(" · ");
 }
@@ -535,6 +587,7 @@ function ModelCall({
     open={open}
     raw={call.raw ?? call}
     status={call.status}
+    tooltip={SUB_STEP_DESCRIPTIONS.model_call}
   >
     <ModelCallBody call={call} />
   </TraceDisclosure>;
@@ -560,6 +613,7 @@ function ContextBuild({
     open={open}
     raw={build.raw ?? build}
     status={build.status}
+    tooltip={SUB_STEP_DESCRIPTIONS.context_build}
   >
     <Evidence title="输入" value={build.input} />
     <Evidence title="输出" value={build.output} />
@@ -625,6 +679,7 @@ function StepList({
       open={openChildren.has(id)}
       raw={step}
       status={step.status}
+      tooltip={completion ? SUB_STEP_DESCRIPTIONS.judge : SUB_STEP_DESCRIPTIONS[String(step.operation ?? step.kind ?? "")]}
     >
       <StepBody completion={completion} step={step} />
     </TraceDisclosure>;
@@ -656,6 +711,7 @@ function ObservationStage({
     open={open}
     raw={stage.raw ?? stage}
     status={stage.status}
+    tooltip={SUB_STEP_DESCRIPTIONS.observation}
   >
     {status === "skipped" || !observations.length ? <SkipDetails node={stage} fallbackReason="no observation record in this iteration" fallbackEvidence="ReasoningRun.steps" /> : <StepList
       idPrefix={`${id}-record`}
@@ -722,6 +778,7 @@ function ReasoningNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
           open={openChildren.has(`${iterationId}-action`)}
           raw={action.raw ?? action}
           status={action.status}
+          tooltip={SUB_STEP_DESCRIPTIONS.action}
         >
           <ActionBody action={action} />
         </TraceDisclosure> : null}
@@ -751,6 +808,7 @@ function ReasoningNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
           open={openChildren.has(`${iterationId}-guard`)}
           raw={guard.raw ?? guard}
           status={guard.status}
+          tooltip={SUB_STEP_DESCRIPTIONS.guard}
         >
           {statusOf(guard.status) === "skipped" ? <SkipDetails node={guard} fallbackReason="separate Guard record is not persisted" fallbackEvidence="ReasoningRun.status + ordered steps" /> : <GuardBody guard={guard} />}
         </TraceDisclosure> : null}
@@ -894,7 +952,7 @@ function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: T
   };
   return <article className={`trace-node${open ? " is-open" : ""}`}>
     <div className="trace-node-header">
-      <button aria-expanded={open} className="trace-node-trigger" onClick={onToggle} type="button">
+      <button aria-expanded={open} className="trace-node-trigger" onClick={onToggle} title={STAGE_DESCRIPTIONS[String(node.id ?? "")] ?? ""} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>

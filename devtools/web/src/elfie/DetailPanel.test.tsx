@@ -176,6 +176,17 @@ function renderInspector(
   />);
 }
 
+type FixtureNode = Record<string, unknown>;
+
+function withChainNodes(
+  overrides: Readonly<Record<number, (node: FixtureNode) => FixtureNode>>,
+): ElfieTurn {
+  const chain = observability.chain.map((node: FixtureNode, index: number) =>
+    overrides[index] ? overrides[index](node) : node,
+  );
+  return { ...turn, trace: { stages: { observability: { ...observability, chain } } } } as unknown as ElfieTurn;
+}
+
 describe("Elfie Lab Turn Inspector", () => {
   it("does not render a right panel without a selected Turn", () => {
     expect(renderInspector("链路", null)).toBe("");
@@ -195,6 +206,12 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("4.2");
     expect(markup).toContain("耗时 18 ms");
     expect(markup).toContain("耗时 0.27 ms");
+    expect(markup).toContain("2 个迭代");
+    expect(markup).toContain("Memory skipped");
+    expect(markup).not.toContain("个快照");
+    expect(markup).not.toContain("revision 4");
+    expect(markup).toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
     expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
     expect(markup).not.toContain("4.1.2");
@@ -206,6 +223,27 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("对下一步影响");
     expect(markup).not.toContain("本轮处理链路");
     expect(markup).not.toContain("detail-tabs");
+  });
+
+  it("shows short anomaly reasons in collapsed stage metas", () => {
+    const markup = renderInspector("链路", withChainNodes({
+      5: (node) => ({ ...node, output: { ...(node.output as FixtureNode), result: { success: false, error: "delivery rejected" } } }),
+      6: (node) => ({ ...node, output: { ...(node.output as FixtureNode), warnings: ["memory_write_degraded", "state_recomputed"] } }),
+    }));
+
+    expect(markup).toContain("交付失败");
+    expect(markup).toContain("warning 2");
+    expect(markup).not.toContain("个快照");
+  });
+
+  it("keeps a normal setup stage meta free of counts and reasons", () => {
+    const markup = renderInspector("链路", withChainNodes({
+      2: (node) => ({ ...node, baseline_memory: { ...(node.baseline_memory as FixtureNode), status: "recalled" } }),
+    }));
+
+    expect(markup).not.toContain("个快照");
+    expect(markup).not.toContain("Memory skipped");
+    expect(markup).toContain('title="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
   });
 
   it("keeps the production reasoning tree collapsed below the selected Run", () => {

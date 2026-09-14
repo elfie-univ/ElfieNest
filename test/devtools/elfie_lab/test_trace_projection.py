@@ -7,7 +7,12 @@ from elfie.brain.activity.observation_payloads import (
 )
 from elfie.brain.memory.observation_payloads import MemoryUseProposalRecorded
 from elfie.brain.observation import BrainObservation, ObservationStatus
-from elfie.brain.reasoning.agent_loop_observations import ModelCallObservation
+from elfie.brain.reasoning.agent_loop_observations import (
+    AgentLoopActionObservation,
+    AgentLoopJudgeObservation,
+    AgentLoopObservationRecorded,
+    ModelCallObservation,
+)
 from elfie.brain.reasoning.coordinator_observations import (
     CognitiveBudgetReleasedObservation,
     CognitiveBudgetSettledObservation,
@@ -197,23 +202,7 @@ def test_context_view_comes_from_compiled_context_observations():
 
     context_stage = trace["chain"][1]
     assert context_stage["status"] == "completed"
-    assert context_stage["output"]["compiled"] == {
-        "context_revision": 7,
-        "capability_revision": 3,
-        "memory_recall_revision": 42,
-        "max_tokens": 1536,
-        "reasoning_mode": "long",
-        "response_mode": "structured",
-        "event_count": 3,
-        "state_update_count": 0,
-        "media_sample_count": 0,
-        "conversation_count": 4,
-        "summary_count": 1,
-        "run_observation_count": 2,
-        "memory_chars": 512,
-        "memory_estimated_tokens": 128,
-        "truncated": False,
-    }
+    assert "compiled" not in context_stage["output"]
     assert context_stage["raw"]["compiled_events"][0]["kind"] == "compiled_context"
     assert context_stage["raw"]["user_prompt"] == "PROMPT"
     assert context_stage["output"]["conversation"] == []
@@ -600,6 +589,112 @@ def test_reasoning_projection_does_not_create_a_phantom_iteration_for_prefix_obs
     assert iterations[0]["observations"][0]["summary"] == "baseline"
 
 
+def test_reasoning_iterations_associate_envelopes_by_iteration_index_not_array_position():
+    trace = build_observability_trace(
+        turn_id="turn-retry",
+        stimulus={"source_domain": "communication", "message": "你记得吗？"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "reasoning": {
+                "status": "completed",
+                "model_calls": 2,
+                "steps": [
+                    # Deliberately out of sync with the envelopes: this stale
+                    # summary would array-pair with the first model_call even
+                    # though it describes a different action.
+                    {
+                        "ordinal": 1,
+                        "kind": "model",
+                        "status": "returned",
+                        "summary": '{"type":"answer","content":"stale"}',
+                    },
+                    {
+                        "ordinal": 2,
+                        "kind": "verify",
+                        "status": "accepted",
+                        "summary": "CognitiveAction accepted",
+                    },
+                ],
+            },
+        },
+        result={"success": True, "message": "记得"},
+        decision={"message_texts": ["记得"]},
+        duration_ms=30,
+        observations=[
+            _model_call_observation(
+                context_revision=7,
+                response='{"type":"recall_memory","query":"近况"}',
+                iteration_index=1,
+            ),
+            _agent_loop_observation(
+                kind="action_decoded",
+                payload=AgentLoopActionObservation(
+                    iteration_index=1,
+                    action_type="recall_memory",
+                    query="近况",
+                ),
+            ),
+            # The second model_call carries its own stable key 3 (an index
+            # gap), so pairing must not shift it onto the second array slot.
+            _model_call_observation(
+                context_revision=9,
+                response='{"type":"answer","content":"记得"}',
+                iteration_index=3,
+            ),
+            _agent_loop_observation(
+                kind="action_decoded",
+                payload=AgentLoopActionObservation(
+                    iteration_index=3,
+                    action_type="answer",
+                    content="记得",
+                ),
+            ),
+            _agent_loop_observation(
+                kind="judge",
+                payload=AgentLoopJudgeObservation(
+                    iteration_index=3,
+                    action_type="answer",
+                    verdict="accepted",
+                    content="记得",
+                ),
+            ),
+            # Keyed to an iteration without a model_call: it must not create
+            # a phantom third iteration.
+            _agent_loop_observation(
+                kind="observation",
+                payload=AgentLoopObservationRecorded(
+                    iteration_index=2,
+                    observation_kind="memory",
+                    observation_status="recalled",
+                    content="memory recall completed",
+                ),
+            ),
+        ],
+    )
+
+    reasoning = trace["chain"][3]
+    assert [iteration["number"] for iteration in reasoning["iterations"]] == [
+        "4.1",
+        "4.2",
+    ]
+    first, second = reasoning["iterations"]
+    assert first["model_call"]["raw"]["payload"]["iteration_index"] == 1
+    assert first["action"]["output"]["type"] == "recall_memory"
+    assert first["action"]["output"]["query"] == "近况"
+    assert first["action"]["raw"]["source"] == (
+        "brain_observations.reasoning.agent_loop.action_decoded"
+    )
+    assert first["raw"]["iteration_index"] == 1
+    assert second["model_call"]["raw"]["payload"]["iteration_index"] == 3
+    assert second["action"]["output"]["type"] == "answer"
+    assert second["action"]["output"]["content"] == "记得"
+    assert second["completion"][0]["status"] == "accepted"
+    assert second["completion"][0]["verdict"] == "accepted"
+    assert second["raw"]["iteration_index"] == 3
+
+
 def test_activity_proposal_stays_in_decision_and_delivery_without_becoming_a_chat_turn():
     activity = {
         "intent_id": "activity-1",
@@ -924,4 +1019,12 @@ def _model_call_observation(
             model_key="elfie-mock",
             duration_ms=5.0,
         ),
+    )
+
+
+def _agent_loop_observation(*, kind: str, payload: Any) -> BrainObservation:
+    return _observation(
+        boundary="reasoning.agent_loop",
+        kind=kind,
+        payload=payload,
     )
