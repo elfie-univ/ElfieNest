@@ -301,8 +301,12 @@
 .trace-disclosure-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; min-width: 0; }
 .trace-disclosure-trigger { position: relative; display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; min-width: 0; padding: 9px 8px; border: 0; border-radius: 8px 8px 0 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
 .trace-disclosure-trigger:hover { background: var(--interactive-hover); }
-.trace-node-trigger[data-tip]::after, .trace-disclosure-trigger[data-tip]::after { position: absolute; top: calc(100% + 6px); left: 0; z-index: 1000; max-width: 340px; padding: 6px 9px; border-radius: 6px; color: #fff; background: rgba(34, 47, 40, .92); box-shadow: 0 8px 22px rgba(42, 68, 54, .28); content: attr(data-tip); font-size: 10px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; opacity: 0; transition: opacity 120ms ease 0ms; }
-.trace-node-trigger[data-tip]:hover::after, .trace-node-trigger[data-tip]:focus-visible::after, .trace-disclosure-trigger[data-tip]:focus-visible::after, .trace-disclosure-trigger[data-tip]:hover::after { opacity: 1; }
+.trace-node-trigger[data-tip]::after, .trace-disclosure-trigger[data-tip]::after { position: absolute; top: calc(100% + 6px); left: 0; z-index: 1000; max-width: 340px; padding: 6px 9px; border-radius: 6px; color: #fff; background: rgba(34, 47, 40, .92); box-shadow: 0 8px 22px rgba(42, 68, 54, .28); content: attr(data-tip); font-size: 10px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; opacity: 0; transition: opacity 100ms ease 0ms; }
+/* Hover state: opacity transitions use this transition spec (hover state's
+   own transition). Delay 400ms filters accidental hover; 180ms fade-in feels
+   smooth. On un-hover the base rule's transition takes over (no delay, 100ms
+   fade-out). */
+.trace-node-trigger[data-tip]:hover::after, .trace-node-trigger[data-tip]:focus-visible::after, .trace-disclosure-trigger[data-tip]:focus-visible::after, .trace-disclosure-trigger[data-tip]:hover::after { opacity: 1; transition: opacity 180ms ease 400ms; }
 /* Lift the hovered trigger above sibling cards so its ::after tooltip wins the
    painting order. The base z-index stays auto so non-hovered triggers do not
    steal stacking context from card body content. */
