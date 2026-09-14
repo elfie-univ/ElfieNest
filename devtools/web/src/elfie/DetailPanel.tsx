@@ -18,6 +18,10 @@ type Props = Readonly<{
   readonly focus: DetailFocus;
   readonly previewResult: PreviewResult | null;
   readonly onClose: () => void;
+  // Test seam: stage node ids opened on mount so static-render tests can
+  // assert nested views without DOM interaction. Interactive clicks keep the
+  // single-open accordion behavior.
+  readonly defaultOpenDetails?: readonly string[] | undefined;
 }>;
 
 type JsonRecord = Record<string, unknown>;
@@ -177,7 +181,7 @@ function fieldLabel(key: string): string {
     relation: "关系",
     evidence: "证据",
     confidence: "置信度",
-    detail: "记忆处理结果",
+    detail: "详情",
     model_key: "模型标识",
     supports_json_schema: "JSON Schema",
     supports_tool_calling: "工具调用",
@@ -212,6 +216,76 @@ function fieldLabel(key: string): string {
     query: "检索查询",
     occurred_at: "发生时间",
     error: "错误",
+    depth: "推理深度",
+    depth_basis: "深度依据",
+    max_steps: "最大步数",
+    max_model_calls: "最大模型调用",
+    max_tool_calls: "最大工具调用",
+    deadline_seconds: "预算截止（秒）",
+    absolute_deadline: "绝对截止",
+    max_context_tokens: "上下文 Token 预算",
+    message_count: "追加消息数",
+    active_topic_message_count: "活跃话题消息数",
+    channel_id: "频道",
+    conversation_id: "会话",
+    summary_id: "摘要 ID",
+    unresolved_count: "未回填来源数",
+    admitted: "已准入",
+    trigger_reason: "触发原因",
+    cutoff_seq: "截断序号",
+    event_count: "事件数",
+    max_event_salience: "最高显著性",
+    saliences: "事件显著性",
+    routed: "路由结果",
+    interaction_scope_kind: "交互范围类型",
+    response_domain: "响应域",
+    response_channel_id: "响应频道",
+    response_conversation_id: "响应会话",
+    memory_eligible: "可入记忆",
+    prompt_tokens: "输入 Token",
+    completion_tokens: "输出 Token",
+    provider_latency_ms: "Provider 延迟",
+    reserved: "预留 Token",
+    memory_budget: "记忆预算",
+    content_budget: "内容预算",
+    event_budget: "事件预算",
+    observation_budget: "观察预算",
+    truncated: "发生裁剪",
+    memory_truncated: "记忆被裁剪",
+    event_truncated_count: "裁剪事件数",
+    history_truncated_count: "裁剪历史行数",
+    run_observation_truncated_count: "裁剪观察数",
+    memory_query: "记忆查询",
+    memory_status: "记忆状态",
+    returned_count: "返回记忆点",
+    candidates: "编码候选",
+    commits: "编码提交",
+    reinforcements: "记忆强化",
+    candidate_id: "候选 ID",
+    base_revision: "基线版本",
+    source_event_ids: "来源事件",
+    intensity: "强度",
+    content_chars: "内容字符数",
+    episode_id: "Episode",
+    revision_before: "变更前版本",
+    revision_after: "变更后版本",
+    target_kind: "目标类型",
+    target_id: "目标 ID",
+    outcome_kind: "结果类型",
+    event_id: "事件 ID",
+    stage: "阶段",
+    dimensions: "情绪维度",
+    changed_dimensions: "变化维度",
+    name: "名称",
+    before: "变更前",
+    after: "变更后",
+    consumed: "消耗",
+    charged: "实扣",
+    released: "已释放",
+    energy_state: "能量状态",
+    identity_core_text: "身份核心投影",
+    adaptive_self_text: "自适应自我投影",
+    emotion: "情绪",
   };
   return labels[key] ?? key;
 }
@@ -229,6 +303,14 @@ function Fields({ values, omit = [] }: Readonly<{ readonly values: JsonRecord; r
   const entries = Object.entries(values).filter(([key, value]) => !excluded.has(key) && hasContent(value));
   if (!entries.length) return <p className="trace-muted">未采集</p>;
   return <dl className="trace-fields">{entries.map(([key, value]) => <div className="trace-field" key={key}><dt>{fieldLabel(key)}</dt><dd><FieldValue value={value} /></dd></div>)}</dl>;
+}
+
+function BlockList({ items, omit = [] }: Readonly<{ readonly items: readonly unknown[]; readonly omit?: readonly string[] }>): React.JSX.Element | null {
+  if (!items.length) return null;
+  return <div className="trace-memory-list">{items.map((value, index) => {
+    const point = record(value);
+    return <article className="trace-memory-point" key={`${String(point.summary_id ?? point.candidate_id ?? point.event_id ?? point.target_id ?? "item")}-${index}`}><Fields values={point} omit={omit} /></article>;
+  })}</div>;
 }
 
 function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonly title: string; readonly value: unknown; readonly emptyLabel?: string }>): React.JSX.Element {
@@ -343,6 +425,76 @@ function TraceIO({ node, omitOutput = [] }: Readonly<{ readonly node: TraceNode;
   return <>
     <Evidence title="输入" value={node.input} />
     <Evidence title="输出" value={output} />
+  </>;
+}
+
+function AdmissionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+  const admission = record(node.admission);
+  const admissionId = `${String(node.id ?? "event_admission")}-admission`;
+  const toggle = (id: string): void => {
+    setOpenChildren((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  return <>
+    <TraceIO node={node} />
+    {hasContent(admission) ? <TraceDisclosure
+      id={admissionId}
+      title="准入明细"
+      onToggle={toggle}
+      open={openChildren.has(admissionId)}
+      raw={node.admission}
+      status="recorded"
+    >
+      <Fields values={admission} />
+    </TraceDisclosure> : null}
+  </>;
+}
+
+function WorkspaceNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+  const output = record(node.output);
+  const appended = record(node.appended);
+  const appendedSummary = Object.fromEntries((["message_count", "active_topic_message_count", "channel_id", "conversation_id"] as const)
+    .map((key) => [key, appended[key]] as const)
+    .filter(([, value]) => hasContent(value)));
+  const conversationId = `${String(node.id ?? "context_workspace")}-conversation`;
+  const summariesId = `${String(node.id ?? "context_workspace")}-summaries`;
+  const toggle = (id: string): void => {
+    setOpenChildren((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  return <>
+    <TraceIO node={node} omitOutput={["conversation"]} />
+    {hasContent(appendedSummary) ? <Evidence title="本轮追加" value={appendedSummary} /> : null}
+    {hasContent(output.conversation) ? <TraceDisclosure
+      id={conversationId}
+      title="对话历史明细"
+      onToggle={toggle}
+      open={openChildren.has(conversationId)}
+      raw={output.conversation}
+      status="recorded"
+    >
+      <Evidence title="对话上下文" value={output.conversation} />
+    </TraceDisclosure> : null}
+    {list(appended.summaries).length ? <TraceDisclosure
+      id={summariesId}
+      title="摘要覆盖"
+      onToggle={toggle}
+      open={openChildren.has(summariesId)}
+      raw={appended.summaries}
+      status="recorded"
+    >
+      <BlockList items={list(appended.summaries)} />
+    </TraceDisclosure> : null}
   </>;
 }
 
@@ -483,6 +635,26 @@ function SetupNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.
   };
   return <>
     <Fields values={output} omit={["turn_id", "capabilities", "allowed_tools", "temperature", "max_tokens", "tool_definition_count", "skill_count"]} />
+    {hasContent(record(node.budget)) ? <TraceDisclosure
+      id="setup-budget"
+      title="预算与边界"
+      onToggle={toggle}
+      open={openChildren.has("setup-budget")}
+      raw={node.budget}
+      status="recorded"
+    >
+      <Fields values={record(node.budget)} />
+    </TraceDisclosure> : null}
+    {hasContent(record(node.selfhood_projection)) ? <TraceDisclosure
+      id="setup-selfhood-projection"
+      title="Selfhood 投影"
+      onToggle={toggle}
+      open={openChildren.has("setup-selfhood-projection")}
+      raw={node.selfhood_projection}
+      status="recorded"
+    >
+      <Fields values={record(node.selfhood_projection)} />
+    </TraceDisclosure> : null}
     {owners.length ? <section className="trace-owner-section"><h4>模块快照</h4><div className="trace-owner-list">{owners.map((owner, index) => {
       const id = `setup-${String(owner.id ?? index)}`;
       return <OwnerSnapshot key={id} id={id} number={`3.${index + 1}`} onToggle={toggle} open={openChildren.has(id)} owner={owner} />;
@@ -549,6 +721,7 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
   return <article className="trace-model-call">
     <header className="trace-subcard-heading"><strong>{String(call.number ?? "")}{call.number ? " · " : ""}Model Call</strong><Status value={call.status} /><span>{formatDuration(call.duration_ms)}</span></header>
     <section className="trace-evidence"><h4>有效参数</h4><Fields values={{ ...effective, provider: effective.provider ?? output.provider, model: effective.model ?? output.model }} /></section>
+    <Evidence title="用量" value={{ prompt_tokens: call.prompt_tokens, completion_tokens: call.completion_tokens, provider_latency_ms: call.provider_latency_ms }} />
     {hasContent(capabilities) ? <section className="trace-evidence"><h4>模型能力</h4><Fields values={capabilities} /></section> : null}
     <Evidence title="模型输入（完整消息）" value={modelInput(call)} />
     <Evidence title="模型原始输出" value={call.response ?? output.response} />
@@ -604,11 +777,15 @@ function ContextBuild({
   readonly onToggle: (id: string) => void;
   readonly open: boolean;
 }>): React.JSX.Element {
+  const [trimOpen, setTrimOpen] = useState(false);
+  const output = record(build.output);
+  const trimmedOutput = Object.fromEntries(Object.entries(output).filter(([key]) => key !== "trim"));
+  const trimId = `${id}-trim`;
   return <TraceDisclosure
     id={id}
     number={String(build.number ?? "")}
     title="Context Build"
-    meta={String(record(build.output).context_revision ?? "") || undefined}
+    meta={String(output.context_revision ?? "") || undefined}
     onToggle={onToggle}
     open={open}
     raw={build.raw ?? build}
@@ -616,7 +793,17 @@ function ContextBuild({
     tooltip={SUB_STEP_DESCRIPTIONS.context_build}
   >
     <Evidence title="输入" value={build.input} />
-    <Evidence title="输出" value={build.output} />
+    <Evidence title="输出" value={trimmedOutput} />
+    {hasContent(output.trim) ? <TraceDisclosure
+      id={trimId}
+      title="裁剪明细"
+      onToggle={() => setTrimOpen((current) => !current)}
+      open={trimOpen}
+      raw={output.trim}
+      status="recorded"
+    >
+      <Fields values={record(output.trim)} />
+    </TraceDisclosure> : null}
   </TraceDisclosure>;
 }
 
@@ -852,6 +1039,7 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
   const deliveryOutput = record(delivery.output);
   const activityRequest = record(delivery.activity_request);
   const deliveryId = `${String(node.id ?? "governance")}-delivery`;
+  const routingId = `${String(node.id ?? "governance")}-routing`;
   const toggle = (id: string): void => {
     setOpenChildren((current) => {
       const next = new Set(current);
@@ -869,6 +1057,16 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
   return <>
     <Evidence title="实际结果" value={resultSummary} />
     <ReceiptEvidence receipts={receipts} />
+    {hasContent(record(node.routing)) ? <TraceDisclosure
+      id={routingId}
+      title="路由明细"
+      onToggle={toggle}
+      open={openChildren.has(routingId)}
+      raw={node.routing}
+      status="recorded"
+    >
+      <Fields values={record(node.routing)} />
+    </TraceDisclosure> : null}
     {list(output.activity_proposals).length ? <Evidence title="Activity 提案" value={output.activity_proposals} /> : null}
     {hasContent(delivery) ? <TraceDisclosure
       id={deliveryId}
@@ -902,8 +1100,34 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
   </>;
 }
 
+function WritebackBody({ writeback }: Readonly<{ readonly writeback: TraceNode }>): React.JSX.Element {
+  const candidates = list(writeback.candidates);
+  const commits = list(writeback.commits);
+  const reinforcements = list(writeback.reinforcements);
+  return <>
+    {candidates.length ? <section className="trace-evidence"><h4>编码候选</h4><BlockList items={candidates} /></section> : null}
+    {commits.length ? <section className="trace-evidence"><h4>编码提交</h4><BlockList items={commits} /></section> : null}
+    {reinforcements.length ? <section className="trace-evidence"><h4>记忆强化</h4><BlockList items={reinforcements} /></section> : null}
+  </>;
+}
+
 function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string): void => {
+    setOpenChildren((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   const output = record(node.output);
+  const writeback = record(node.memory_writeback);
+  const emotionChanges = record(node.emotion_changes);
+  const energySettlement = record(node.energy_settlement);
+  const writebackId = `${String(node.id ?? "settlement")}-memory-writeback`;
+  const emotionId = `${String(node.id ?? "settlement")}-emotion-changes`;
+  const energyId = `${String(node.id ?? "settlement")}-energy-settlement`;
   const state = record(output.state_after);
   const stateDiff = readableSettlementValue(output.state_diff);
   const cognitiveTurn = record(output.cognitive_turn);
@@ -925,17 +1149,50 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
     <Evidence title="处理后状态" value={stateCore} />
     <Evidence title="状态变化" value={stateDiff} />
     {hasContent(cognitiveSummary) ? <Evidence title="认知回合" value={cognitiveSummary} /> : null}
+    {hasContent(writeback) ? <TraceDisclosure
+      id={writebackId}
+      title="记忆写回"
+      onToggle={toggle}
+      open={openChildren.has(writebackId)}
+      raw={node.memory_writeback}
+      status="recorded"
+    >
+      <WritebackBody writeback={writeback} />
+    </TraceDisclosure> : null}
+    {hasContent(emotionChanges) ? <TraceDisclosure
+      id={emotionId}
+      title="情绪变化"
+      onToggle={toggle}
+      open={openChildren.has(emotionId)}
+      raw={node.emotion_changes}
+      status="recorded"
+    >
+      <Fields values={{ stage: emotionChanges.stage, changed_dimensions: emotionChanges.changed_dimensions }} />
+      <BlockList items={list(emotionChanges.dimensions)} />
+    </TraceDisclosure> : null}
+    {hasContent(energySettlement) ? <TraceDisclosure
+      id={energyId}
+      title="能量结算"
+      onToggle={toggle}
+      open={openChildren.has(energyId)}
+      raw={node.energy_settlement}
+      status="recorded"
+    >
+      <Fields values={energySettlement} />
+    </TraceDisclosure> : null}
   </>;
 }
 
 function NodeBody({ node, preview }: Readonly<{ readonly node: TraceNode; readonly preview: PreviewResult | null }>): React.JSX.Element {
   const id = String(node.id ?? "");
+  if (id === "event_admission") return <AdmissionNode node={node} />;
+  if (id === "context_workspace") return <WorkspaceNode node={node} />;
   if (id === "setup") return <SetupNode node={node} />;
   if (id === "reasoning_run") return <ReasoningNode node={node} />;
   if (id === "turn_decision") return <DecisionNode node={node} />;
   if (id === "governance_delivery") return <GovernanceNode node={node} preview={preview} />;
   if (id === "settlement") return <SettlementNode node={node} />;
-  return <><TraceIO node={node} omitOutput={id === "context_workspace" ? ["conversation"] : []} />{id === "context_workspace" && hasContent(record(node.output).conversation) ? <Evidence title="对话上下文" value={record(node.output).conversation} /> : null}</>;
+  return <TraceIO node={node} />;
 }
 
 function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
@@ -963,7 +1220,7 @@ function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: T
   </article>;
 }
 
-function TurnInspector({ session, turn, preview, openNode, onToggle }: Readonly<{ readonly session: ElfieSession | null; readonly turn: ElfieTurn; readonly preview: PreviewResult | null; readonly openNode: string; readonly onToggle: (id: string) => void }>): React.JSX.Element {
+function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly<{ readonly session: ElfieSession | null; readonly turn: ElfieTurn; readonly preview: PreviewResult | null; readonly openNodes: ReadonlySet<string>; readonly onToggle: (id: string) => void }>): React.JSX.Element {
   const nodes = projectedNodes(turn);
   const index = session?.turns.findIndex((item) => item.turn_id === turn.turn_id) ?? -1;
   const stimulus = record(turn.stimulus_bundle);
@@ -981,16 +1238,30 @@ function TurnInspector({ session, turn, preview, openNode, onToggle }: Readonly<
       <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "Activity" : "消息"}</span><code>{turn.turn_id}</code></div>
     </section>
     <dl className="trace-stat-row"><div><dt>耗时</dt><dd>{formatDuration(turn.duration_ms)}</dd></div><div><dt>迭代</dt><dd>{iterations}</dd></div><div><dt>模型调用</dt><dd>{calls}</dd></div><div><dt>记录来源</dt><dd>{projected.source === "production_turn_record" ? "生产链路" : "未采集"}</dd></div></dl>
-    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} node={node} onToggle={() => onToggle(String(node.id))} open={openNode === String(node.id)} preview={preview} />)}</section>
+    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
   </>;
 }
 
-export function DetailPanel({ session, selectedTurn, open, initialTab, focus, previewResult, onClose }: Props): React.JSX.Element {
-  const [openNode, setOpenNode] = useState(() => defaultNodeId(focus, initialTab));
-  useEffect(() => { setOpenNode(defaultNodeId(focus, initialTab)); }, [focus, initialTab, selectedTurn?.turn_id]);
+export function DetailPanel({ session, selectedTurn, open, initialTab, focus, previewResult, onClose, defaultOpenDetails }: Props): React.JSX.Element {
+  const [openNode, setOpenNode] = useState<ReadonlySet<string>>(() => new Set(defaultOpenDetails ?? [defaultNodeId(focus, initialTab)]));
+  useEffect(() => { setOpenNode(new Set(defaultOpenDetails ?? [defaultNodeId(focus, initialTab)])); }, [defaultOpenDetails, focus, initialTab, selectedTurn?.turn_id]);
   if (selectedTurn === null) return <></>;
   return <aside aria-hidden={!open} className={open ? "detail-panel" : "detail-panel is-closed"}>
     <div className="detail-heading"><div><h2>Turn 检查器</h2></div><Button aria-label="收起回合详情" onClick={onClose} shape="circle" type="text">×</Button></div>
-    <div className="detail-content inspector-content"><TurnInspector onToggle={(id) => setOpenNode((current) => current === id ? "" : id)} openNode={openNode} preview={previewResult} session={session} turn={selectedTurn} /></div>
+    <div className="detail-content inspector-content"><TurnInspector
+      onToggle={(id) => setOpenNode((current) => {
+        const next = new Set(current);
+        if (next.has(id)) next.delete(id);
+        else {
+          next.clear();
+          next.add(id);
+        }
+        return next;
+      })}
+      openNodes={openNode}
+      preview={previewResult}
+      session={session}
+      turn={selectedTurn}
+    /></div>
   </aside>;
 }

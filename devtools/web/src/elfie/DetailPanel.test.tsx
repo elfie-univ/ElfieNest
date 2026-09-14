@@ -164,8 +164,10 @@ function renderInspector(
   initialTab = "链路",
   selectedTurn: ElfieTurn | null = turn,
   focus: DetailFocus = "chain",
+  defaultOpenDetails?: readonly string[],
 ): string {
   return renderToStaticMarkup(<DetailPanel
+    defaultOpenDetails={defaultOpenDetails}
     focus={focus}
     initialTab={initialTab}
     onClose={() => undefined}
@@ -293,5 +295,72 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("Event admission");
     expect(markup).not.toContain("Context Workspace");
     expect(markup).toContain("未采集");
+  });
+
+  it("wires projected layer-2 blocks into collapsed stage details", () => {
+    const enriched = withChainNodes({
+      0: (node) => ({ ...node, admission: {
+        admitted: true,
+        trigger_reason: "greeting salience above defer threshold",
+        cutoff_seq: 42,
+        event_count: 3,
+      } }),
+      1: (node) => ({ ...node,
+        appended: {
+          message_count: 2,
+          active_topic_message_count: 1,
+          channel_id: "channel-dawn",
+          conversation_id: "conversation-dawn",
+          summaries: [{ summary_id: "summary-1", content: "主人正在筹备周末的纪录片之夜。", unresolved_count: 0 }],
+        },
+        output: {
+          ...(node.output as FixtureNode),
+          conversation: [{ role: "elfie", content: "上次的纪录片终于上线了。" }, { role: "owner", content: "记得一起看。" }],
+        },
+      }),
+      2: (node) => ({ ...node,
+        budget: { depth_basis: "quiet hours default depth", max_steps: 6, max_model_calls: 8, deadline_seconds: 30 },
+        selfhood_projection: { identity_core_text: "艾菲，巢内晨间的狐狸", adaptive_self_text: "温和、好奇、偏好短句回应" },
+      }),
+      5: (node) => ({ ...node, routing: { routed: "reply_via_message", response_channel_id: "channel-dusk", memory_eligible: true } }),
+      6: (node) => ({ ...node,
+        memory_writeback: {
+          candidates: [{ candidate_id: "cand-1", content: "主人分享了纪录片上线的好消息。", confidence: 0.8 }],
+          commits: [{ event_id: "evt-9", status: "committed", content: "共同看纪录片的约定被记住了。", base_revision: 12, revision_after: 13 }],
+          reinforcements: [{ target_kind: "episode", target_id: "episode-3", outcome_kind: "reinforced" }],
+        },
+        emotion_changes: {
+          stage: "settlement",
+          changed_dimensions: ["happiness"],
+          dimensions: [{ name: "happiness", before: 0.6, after: 0.72 }],
+        },
+        energy_settlement: { consumed: 1.2, charged: 0.4, released: 0.2, energy_state: { energy: 87 } },
+      }),
+    });
+    const openedStages = ["event_admission", "context_workspace", "setup", "governance_delivery", "settlement"];
+    const markup = renderInspector("链路", enriched, "chain", openedStages);
+
+    for (const title of ["准入明细", "本轮追加", "对话历史明细", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "预算与边界", "Selfhood 投影"]) {
+      expect(markup).toContain(title);
+    }
+    for (const collapsedValue of [
+      "greeting salience above defer threshold",
+      "committed",
+      "上次的纪录片终于上线了。",
+      "记得一起看。",
+      "主人正在筹备周末的纪录片之夜。",
+      "reply_via_message",
+      "quiet hours default depth",
+      "温和、好奇、偏好短句回应",
+    ]) {
+      expect(markup).not.toContain(collapsedValue);
+    }
+    expect(markup).toContain("channel-dawn");
+    expect(markup).toContain("conversation-dawn");
+
+    const plain = renderInspector("链路", turn, "chain", openedStages);
+    for (const title of ["准入明细", "本轮追加", "对话历史明细", "摘要覆盖", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "预算与边界", "Selfhood 投影"]) {
+      expect(plain).not.toContain(title);
+    }
   });
 });
