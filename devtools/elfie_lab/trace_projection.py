@@ -20,6 +20,13 @@ _MEMORY_BRIDGE_BOUNDARY = "reasoning.memory_bridge"
 _CONTEXT_ENGINE_BOUNDARY = "reasoning.context_engine"
 _MEMORY_ENCODE_BOUNDARY = "memory.encode"
 _AGENT_LOOP_BOUNDARY = "reasoning.agent_loop"
+_WORKSPACE_BOUNDARY = "workspace"
+_CONTEXT_WORKSPACE_BOUNDARY = "reasoning.context_workspace"
+_RUN_CONTROLLER_BOUNDARY = "reasoning.run_controller"
+_SELFHOOD_BOUNDARY = "selfhood"
+_EMOTION_BOUNDARY = "emotion"
+_ENERGY_BOUNDARY = "energy"
+_DECISION_BOUNDARY = "decision_boundary"
 # Agent-loop envelope kinds whose payloads carry a stable ``iteration_index``;
 # ``guard_stop`` / ``run_failed`` are run-level terminal records without one.
 _AGENT_LOOP_ITERATION_KINDS = (
@@ -150,6 +157,369 @@ def _stage_duration(
     return float(sum(value for value in member_durations if value is not None))
 
 
+def _scoped_events(
+    observations: Sequence[BrainObservation],
+    *,
+    boundary: str,
+    kinds: Tuple[str, ...],
+    frame_id: Any,
+) -> List[BrainObservation]:
+    """Collect one boundary's envelopes, keeping the turn's frame when known.
+
+    Mirrors the existing helpers' scoping rule: when the turn frame is
+    known and at least one envelope matches it, envelopes of other frames
+    are dropped so a concurrent autonomous turn cannot leak into this view;
+    otherwise the unscoped emit order is kept.
+    """
+    events = [
+        event
+        for event in observations
+        if event.boundary == boundary and event.kind in kinds
+    ]
+    if frame_id:
+        scoped = [event for event in events if str(event.frame_id) == str(frame_id)]
+        if scoped:
+            events = scoped
+    return events
+
+
+def _turn_context_trims(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> List[BrainObservation]:
+    """Dump the turn's ``context_trimmed`` envelopes in emit order.
+
+    Uses the same frame scoping as :func:`_turn_compiles` so the positional
+    trim↔compile pairing below stays aligned with the compiles list.
+    """
+    return _scoped_events(
+        observations,
+        boundary=_CONTEXT_ENGINE_BOUNDARY,
+        kinds=("context_trimmed",),
+        frame_id=frame_id,
+    )
+
+
+def _admission_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``workspace``/``frame_claim`` payload (Gap 1).
+
+    Only raw payload values: the salience tuples stay per-event rows and a
+    missing claim reports ``None`` — never invented.
+    """
+    events = _scoped_events(
+        observations,
+        boundary=_WORKSPACE_BOUNDARY,
+        kinds=("frame_claim",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[0].payload
+    return {
+        "admitted": payload.admitted,
+        "trigger_reason": payload.trigger_reason,
+        "cutoff_seq": payload.cutoff_seq,
+        "event_count": payload.event_count,
+        "max_event_salience": payload.max_event_salience,
+        "saliences": [
+            {"event_id": item.event_id, "salience": item.salience}
+            for item in payload.event_saliences
+        ],
+        "detail": payload.detail,
+    }
+
+
+def _appended_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``conversation_appended`` payload (Gap 2)."""
+    events = _scoped_events(
+        observations,
+        boundary=_CONTEXT_WORKSPACE_BOUNDARY,
+        kinds=("conversation_appended",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[0].payload
+    return {
+        "message_count": payload.message_count,
+        "active_topic_message_count": payload.active_topic_message_count,
+        "channel_id": payload.channel_id,
+        "conversation_id": payload.conversation_id,
+        "summaries": [
+            {
+                "summary_id": item.summary_id,
+                "version": item.version,
+                "unresolved_count": item.unresolved_count,
+            }
+            for item in payload.summaries
+        ],
+    }
+
+
+def _mode_selection_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``mode_selected`` payload fields setup renders (Gap 3)."""
+    events = _scoped_events(
+        observations,
+        boundary=_RUN_CONTROLLER_BOUNDARY,
+        kinds=("mode_selected",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[0].payload
+    return {
+        "depth": payload.depth,
+        "depth_basis": payload.depth_basis,
+        "reasoning_mode": payload.reasoning_mode,
+        "response_mode": payload.response_mode,
+    }
+
+
+def _budget_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``budget_frozen`` payload into setup's budget block (Gap 3)."""
+    events = _scoped_events(
+        observations,
+        boundary=_RUN_CONTROLLER_BOUNDARY,
+        kinds=("budget_frozen",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[0].payload
+    return {
+        "max_steps": payload.max_steps,
+        "max_model_calls": payload.max_model_calls,
+        "max_tool_calls": payload.max_tool_calls,
+        "deadline_seconds": payload.deadline_seconds,
+        "absolute_deadline": _iso_utc(payload.absolute_deadline),
+        "max_context_tokens": payload.max_context_tokens,
+        "cognitive_mode": payload.cognitive_mode,
+    }
+
+
+def _selfhood_projection_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``projection_snapshot`` payload the setup view expands.
+
+    The confirmed field list renders the selfhood projection text in the
+    setup card's expanded section; the projection is the raw payload the
+    ``selfhood`` boundary already recorded.
+    """
+    events = _scoped_events(
+        observations,
+        boundary=_SELFHOOD_BOUNDARY,
+        kinds=("projection_snapshot",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[-1].payload
+    return {
+        "revision": payload.revision,
+        "projected_at": _iso_utc(payload.projected_at),
+        "identity_core_text": payload.identity_core_text,
+        "adaptive_self_text": payload.adaptive_self_text,
+    }
+
+
+def _trim_view(payload: Any) -> Dict[str, Any]:
+    """Project one ``context_trimmed`` payload (Gap 4)."""
+    return {
+        "max_tokens": payload.max_tokens,
+        "reserved": payload.reserved,
+        "memory_budget": payload.memory_budget,
+        "content_budget": payload.content_budget,
+        "event_budget": payload.event_budget,
+        "observation_budget": payload.observation_budget,
+        "truncated": payload.truncated,
+        "memory_truncated": payload.memory_truncated,
+        "event_truncated_count": payload.event_truncated_count,
+        "history_truncated_count": payload.history_truncated_count,
+        "run_observation_truncated_count": payload.run_observation_truncated_count,
+    }
+
+
+def _routing_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``decision_routed`` payload into governance's routing block."""
+    events = _scoped_events(
+        observations,
+        boundary=_DECISION_BOUNDARY,
+        kinds=("decision_routed",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[0].payload
+    return {
+        "routed": payload.routed,
+        "interaction_scope_kind": payload.interaction_scope_kind,
+        "response_domain": payload.response_domain,
+        "response_channel_id": payload.response_channel_id,
+        "response_conversation_id": payload.response_conversation_id,
+        "memory_eligible": payload.memory_eligible,
+    }
+
+
+def _memory_writeback_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the settlement-time ``memory.encode`` payloads (Gap 7)."""
+    events = _scoped_events(
+        observations,
+        boundary=_MEMORY_ENCODE_BOUNDARY,
+        kinds=("encode_candidate", "encode_commit", "reinforcement_applied"),
+        frame_id=frame_id,
+    )
+    candidates: List[Dict[str, Any]] = []
+    commits: List[Dict[str, Any]] = []
+    reinforcements: List[Dict[str, Any]] = []
+    for event in events:
+        payload = event.payload
+        if event.kind == "encode_candidate":
+            candidates.append(
+                {
+                    "candidate_id": payload.candidate_id,
+                    "base_revision": payload.base_revision,
+                    "source_event_ids": list(payload.source_event_ids),
+                    "emotion": payload.emotion,
+                    "intensity": payload.intensity,
+                    "content_chars": payload.content_chars,
+                }
+            )
+        elif event.kind == "encode_commit":
+            commits.append(
+                {
+                    "candidate_id": payload.candidate_id,
+                    "episode_id": payload.episode_id,
+                    "status": payload.status,
+                    "reason": payload.reason,
+                    "revision_before": payload.revision_before,
+                    "revision_after": payload.revision_after,
+                }
+            )
+        else:
+            reinforcements.append(
+                {
+                    "event_id": payload.event_id,
+                    "target_kind": payload.target_kind,
+                    "target_id": payload.target_id,
+                    "outcome_kind": payload.outcome_kind,
+                    "accepted": payload.accepted,
+                    "reason": payload.reason,
+                    "revision_before": payload.revision_before,
+                    "revision_after": payload.revision_after,
+                }
+            )
+    if not candidates and not commits and not reinforcements:
+        return None
+    return {
+        "candidates": candidates,
+        "commits": commits,
+        "reinforcements": reinforcements,
+    }
+
+
+def _emotion_changes_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the final ``emotion_candidate`` payload (Gap 7).
+
+    A turn computes at most a fast and a slow candidate; the last one in
+    emit order is the candidate the turn settled with.
+    """
+    events = _scoped_events(
+        observations,
+        boundary=_EMOTION_BOUNDARY,
+        kinds=("emotion_candidate",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[-1].payload
+    return {
+        "stage": payload.stage,
+        "revision": payload.revision,
+        "dimensions": [
+            {"name": item.name, "before": item.before, "after": item.after}
+            for item in payload.dimensions
+        ],
+        "changed_dimensions": list(payload.changed_dimensions),
+    }
+
+
+def _energy_state_view(budget: Any) -> Dict[str, Any]:
+    """Project one Energy budget snapshot into raw scalar fields."""
+    return {
+        "energy": budget.energy,
+        "fatigue": budget.fatigue,
+        "cognitive_mode": budget.cognitive_mode,
+        "long_reasoning_allowed": budget.long_reasoning_allowed,
+        "available_cognitive_budget": budget.available_cognitive_budget,
+        "reserved_cognitive_budget": budget.reserved_cognitive_budget,
+    }
+
+
+def _energy_settlement_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the ``budget_settled``/``budget_released`` payloads (Gap 7)."""
+    settled = _scoped_events(
+        observations,
+        boundary=_ENERGY_BOUNDARY,
+        kinds=("budget_settled",),
+        frame_id=frame_id,
+    )
+    released = _scoped_events(
+        observations,
+        boundary=_ENERGY_BOUNDARY,
+        kinds=("budget_released",),
+        frame_id=frame_id,
+    )
+    if not settled and not released:
+        return None
+    budget = None
+    if settled:
+        budget = settled[-1].payload.budget
+    elif released:
+        budget = released[-1].payload.budget
+    return {
+        "consumed": settled[-1].payload.consumed if settled else None,
+        "charged": settled[-1].payload.charged if settled else None,
+        "released": released[-1].payload.released if released else None,
+        "energy_state": _energy_state_view(budget) if budget is not None else None,
+    }
+
+
 def build_observability_trace(
     *,
     turn_id: str,
@@ -181,6 +551,7 @@ def build_observability_trace(
     frame_id = cognitive_turn.get("frame_id")
     memory = _memory_view(observations, frame_id=frame_id)
     compiles = _turn_compiles(observations, frame_id=frame_id)
+    trims = _turn_context_trims(observations, frame_id=frame_id)
     model_calls = _turn_model_calls(observations, frame_id=frame_id)
     first_request = _model_request_view(model_calls[0]) if model_calls else {}
     stage_durations = {
@@ -194,12 +565,16 @@ def build_observability_trace(
         state_before=state_before,
         request=first_request,
         baseline_memory=memory["baseline_memory"],
+        mode_selection=_mode_selection_block(observations, frame_id=frame_id),
+        budget=_budget_block(observations, frame_id=frame_id),
+        selfhood_projection=_selfhood_projection_block(observations, frame_id=frame_id),
         duration_ms=stage_durations["setup"],
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
         loop_events=_turn_agent_loop_events(observations, frame_id=frame_id),
         compiles=compiles,
+        trims=trims,
         duration_ms=stage_durations["reasoning_run"],
     )
 
@@ -214,6 +589,7 @@ def build_observability_trace(
                 typed_input=typed_input,
                 boundary=boundary,
                 cognitive_turn=cognitive_turn,
+                admission=_admission_block(observations, frame_id=frame_id),
                 duration_ms=stage_durations["event_admission"],
             ),
             _context_workspace_stage(
@@ -221,6 +597,7 @@ def build_observability_trace(
                 stimulus=stimulus,
                 request=first_request,
                 compiles=compiles,
+                appended=_appended_block(observations, frame_id=frame_id),
                 duration_ms=stage_durations["context_workspace"],
             ),
             setup,
@@ -235,6 +612,7 @@ def build_observability_trace(
                 decision=decision,
                 result=result,
                 receipts=receipts,
+                routing=_routing_block(observations, frame_id=frame_id),
                 duration_ms=stage_durations["governance_delivery"],
             ),
             _settlement_stage(
@@ -244,6 +622,13 @@ def build_observability_trace(
                 state_after=state_after,
                 state_diff=state_diff,
                 cognitive_turn=cognitive_turn,
+                memory_writeback=_memory_writeback_block(
+                    observations, frame_id=frame_id
+                ),
+                emotion_changes=_emotion_changes_block(observations, frame_id=frame_id),
+                energy_settlement=_energy_settlement_block(
+                    observations, frame_id=frame_id
+                ),
                 duration_ms=duration_ms,
                 stage_duration_ms=stage_durations["settlement"],
                 warnings=warnings,
@@ -567,13 +952,13 @@ def _iso_utc(value: Any) -> Any:
     return value.isoformat() if isinstance(value, datetime) else value
 
 
-def _compile_for_revision(
+def _compile_index_for_revision(
     compiles: Sequence[BrainObservation],
     context_revision: Any,
-) -> Optional[Any]:
-    for event in compiles:
+) -> Optional[int]:
+    for index, event in enumerate(compiles):
         if event.payload.context_revision == context_revision:
-            return event.payload
+            return index
     return None
 
 
@@ -584,6 +969,7 @@ def _event_admission_stage(
     typed_input: Mapping[str, Any],
     boundary: Mapping[str, Any],
     cognitive_turn: Mapping[str, Any],
+    admission: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     source_domain = stimulus.get("source_domain") or typed_input.get("source_domain")
@@ -606,6 +992,7 @@ def _event_admission_stage(
             "response_scope": boundary.get("response_scope"),
             "status": cognitive_turn.get("status"),
         },
+        "admission": dict(admission) if admission is not None else None,
         "raw": {
             "typed_input": typed_input,
             "turn_boundary": boundary,
@@ -620,6 +1007,7 @@ def _context_workspace_stage(
     stimulus: Mapping[str, Any],
     request: Mapping[str, Any],
     compiles: Sequence[BrainObservation],
+    appended: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     first_compile = compiles[0].payload if compiles else None
@@ -646,6 +1034,7 @@ def _context_workspace_stage(
             "message": stimulus.get("message", ""),
         },
         "output": output,
+        "appended": dict(appended) if appended is not None else None,
         "raw": {
             "source": "brain_observations.reasoning.agent_loop.model_call",
             "context_revision": request.get("context_revision"),
@@ -662,18 +1051,27 @@ def _setup_stage(
     state_before: Mapping[str, Any],
     request: Mapping[str, Any],
     baseline_memory: Mapping[str, Any],
+    mode_selection: Optional[Mapping[str, Any]],
+    budget: Optional[Mapping[str, Any]],
+    selfhood_projection: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
+    mode = mode_selection or {}
     setup_output = {
         "turn_id": turn_id,
         "source_domain": request.get("source_domain") or stimulus.get("source_domain"),
         "context_revision": request.get("context_revision"),
         "capability_revision": request.get("capability_revision"),
-        "reasoning_mode": request.get("reasoning_mode"),
-        "response_mode": request.get("response_mode"),
+        # The Run Controller's typed mode decision is the closer record of
+        # what this Run actually chose; the first-request fields only serve
+        # as the fallback when the observation stream has no such envelope.
+        "reasoning_mode": mode.get("reasoning_mode") or request.get("reasoning_mode"),
+        "response_mode": mode.get("response_mode") or request.get("response_mode"),
         "response_schema": request.get("response_schema_name"),
         "temperature": request.get("temperature"),
         "max_tokens": request.get("max_tokens"),
+        "depth": mode.get("depth"),
+        "depth_basis": mode.get("depth_basis"),
     }
     return {
         "number": "3",
@@ -686,6 +1084,10 @@ def _setup_stage(
             "source_domain": stimulus.get("source_domain"),
         },
         "output": setup_output,
+        "budget": dict(budget) if budget is not None else None,
+        "selfhood_projection": (
+            dict(selfhood_projection) if selfhood_projection is not None else None
+        ),
         "owner_snapshots": _owner_snapshots(state_before),
         "baseline_memory": baseline_memory,
         "raw": {
@@ -748,6 +1150,7 @@ def _reasoning_stage(
     reasoning: Mapping[str, Any],
     loop_events: Sequence[Mapping[str, Any]],
     compiles: Sequence[BrainObservation],
+    trims: Sequence[BrainObservation],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     steps = [_mapping(step) for step in _sequence(reasoning.get("steps"))]
@@ -794,9 +1197,17 @@ def _reasoning_stage(
         steps_result = _parsed_model_result(model_step)
         iteration_number = f"4.{position + 1}"
         model_call_number = f"{iteration_number}.2"
-        compile_payload = _compile_for_revision(
+        # Trim events carry no iteration key, so each trim pairs with the
+        # compile at the same emit-order position (1:1 per compile).  When
+        # the counts diverge the pairing never guesses: a compile without a
+        # positional trim renders none, and leftover trims stay at the
+        # stage-level raw below.
+        compile_index = _compile_index_for_revision(
             compiles,
             payload.get("context_revision"),
+        )
+        compile_payload = (
+            compiles[compile_index].payload if compile_index is not None else None
         )
         context_output: Dict[str, Any] = {
             "context_revision": payload.get("context_revision"),
@@ -811,6 +1222,8 @@ def _reasoning_stage(
                 compile_payload
             )
             context_output["prompt_sections"] = _compiled_sections(compile_payload)
+        if compile_index is not None and compile_index < len(trims):
+            context_output["trim"] = _trim_view(trims[compile_index].payload)
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
             observations=observations,
@@ -903,6 +1316,12 @@ def _reasoning_stage(
         )
 
     report = _mapping(_mapping(reasoning.get("decode")).get("report"))
+    reasoning_raw = dict(reasoning)
+    leftover_trims = trims[len(compiles) :]
+    if leftover_trims:
+        reasoning_raw["context_trims_unpaired"] = [
+            _trim_view(event.payload) for event in leftover_trims
+        ]
     return {
         "number": "4",
         "id": "reasoning_run",
@@ -919,7 +1338,7 @@ def _reasoning_stage(
             "selected_mode": report.get("selected_mode"),
             "fallback_reason": report.get("fallback_reason"),
         },
-        "raw": dict(reasoning),
+        "raw": reasoning_raw,
     }
 
 
@@ -962,6 +1381,9 @@ def _model_call_projection(
             "capability_revision": payload.get("capability_revision"),
         },
         "duration_ms": call.get("duration_ms"),
+        "prompt_tokens": payload.get("prompt_tokens"),
+        "completion_tokens": payload.get("completion_tokens"),
+        "provider_latency_ms": payload.get("provider_latency_ms"),
         "response": response_text,
         "reasoning_step": model_step,
         "raw": dict(call),
@@ -1155,6 +1577,7 @@ def _governance_stage(
     decision: Mapping[str, Any],
     result: Mapping[str, Any],
     receipts: Sequence[Any],
+    routing: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     activity_intents = list(_sequence(decision.get("activity_intents")))
@@ -1198,6 +1621,7 @@ def _governance_stage(
             "receipts": list(receipts),
             "activity_proposals": activity_intents,
         },
+        "routing": dict(routing) if routing is not None else None,
         "raw": {
             "result": dict(result),
             "receipts": list(receipts),
@@ -1235,6 +1659,9 @@ def _settlement_stage(
     state_after: Mapping[str, Any],
     state_diff: Mapping[str, Any],
     cognitive_turn: Mapping[str, Any],
+    memory_writeback: Optional[Mapping[str, Any]],
+    emotion_changes: Optional[Mapping[str, Any]],
+    energy_settlement: Optional[Mapping[str, Any]],
     duration_ms: float,
     stage_duration_ms: Optional[float],
     warnings: Iterable[Any],
@@ -1259,6 +1686,15 @@ def _settlement_stage(
             "warnings": warning_list,
             "cognitive_turn": dict(cognitive_turn),
         },
+        "memory_writeback": (
+            dict(memory_writeback) if memory_writeback is not None else None
+        ),
+        "emotion_changes": (
+            dict(emotion_changes) if emotion_changes is not None else None
+        ),
+        "energy_settlement": (
+            dict(energy_settlement) if energy_settlement is not None else None
+        ),
         "raw": {
             "state_after": dict(state_after),
             "state_diff": dict(state_diff),

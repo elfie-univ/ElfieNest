@@ -5,7 +5,12 @@ from devtools.elfie_lab.trace_projection import build_observability_trace
 from elfie.brain.activity.observation_payloads import (
     ActivityPreflightVerdictObservation,
 )
-from elfie.brain.memory.observation_payloads import MemoryUseProposalRecorded
+from elfie.brain.memory.observation_payloads import (
+    MemoryEncodeCandidate,
+    MemoryEncodeCommit,
+    MemoryReinforcementApplied,
+    MemoryUseProposalRecorded,
+)
 from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopActionObservation,
@@ -17,7 +22,10 @@ from elfie.brain.reasoning.coordinator_observations import (
     CognitiveBudgetReleasedObservation,
     CognitiveBudgetSettledObservation,
     DecisionRoutedObservation,
+    EmotionCandidateObservation,
+    EmotionDimensionChangeObservation,
     EnergyBudgetStateObservation,
+    EventSalienceObservation,
     WorkspaceFrameAdmissionObservation,
 )
 from elfie.brain.reasoning.observation_payloads import (
@@ -30,7 +38,12 @@ from elfie.brain.reasoning.observation_payloads import (
 )
 from elfie.brain.reasoning.run_controller_observations import (
     CognitiveBudgetReservedObservation,
+    ContextTrimObservation,
     ConversationAppendedObservation,
+    ConversationSummaryCoverageObservation,
+    ReasoningBudgetFrozenObservation,
+    ReasoningModeSelectedObservation,
+    SelfhoodProjectionObservation,
 )
 
 
@@ -948,6 +961,557 @@ def test_stage_without_member_events_reports_duration_null():
     assert all(node["duration_ms"] is None for node in empty["chain"])
 
 
+def test_event_admission_projects_the_frame_claim_block():
+    trace = build_observability_trace(
+        turn_id="turn-admission",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=10,
+        observations=[
+            _observation(
+                boundary="workspace",
+                kind="frame_claim",
+                payload=WorkspaceFrameAdmissionObservation(
+                    source_domain="communication",
+                    trigger_reason="perception_write",
+                    cutoff_seq=5,
+                    event_count=2,
+                    max_event_salience=0.8,
+                    event_saliences=(
+                        EventSalienceObservation(event_id="event-1", salience=0.8),
+                        EventSalienceObservation(event_id="event-2", salience=0.4),
+                    ),
+                    admitted=True,
+                ),
+            ),
+        ],
+    )
+
+    assert trace["chain"][0]["admission"] == {
+        "admitted": True,
+        "trigger_reason": "perception_write",
+        "cutoff_seq": 5,
+        "event_count": 2,
+        "max_event_salience": 0.8,
+        "saliences": [
+            {"event_id": "event-1", "salience": 0.8},
+            {"event_id": "event-2", "salience": 0.4},
+        ],
+        "detail": None,
+    }
+
+
+def test_context_workspace_projects_the_appended_block():
+    trace = build_observability_trace(
+        turn_id="turn-appended",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=10,
+        observations=[
+            _observation(
+                boundary="reasoning.context_workspace",
+                kind="conversation_appended",
+                payload=ConversationAppendedObservation(
+                    channel_id="channel-1",
+                    conversation_id="conv-1",
+                    input_event_ids=("event-1", "event-2"),
+                    message_count=2,
+                    active_topic_message_count=6,
+                    summaries=(
+                        ConversationSummaryCoverageObservation(
+                            summary_id="summary-1",
+                            version=3,
+                            source_event_ids=("event-1",),
+                            unresolved_count=1,
+                        ),
+                    ),
+                ),
+            ),
+        ],
+    )
+
+    assert trace["chain"][1]["appended"] == {
+        "message_count": 2,
+        "active_topic_message_count": 6,
+        "channel_id": "channel-1",
+        "conversation_id": "conv-1",
+        "summaries": [
+            {"summary_id": "summary-1", "version": 3, "unresolved_count": 1},
+        ],
+    }
+
+
+def test_setup_prefers_mode_and_budget_observations_over_request_fields():
+    absolute_deadline = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc)
+
+    def _trace(observations):
+        return build_observability_trace(
+            turn_id="turn-budget",
+            stimulus={"source_domain": "communication", "message": "你好"},
+            state_before={},
+            state_after={},
+            state_diff={},
+            raw_stages={"reasoning": {"status": "completed", "model_calls": 1}},
+            result={},
+            decision={},
+            duration_ms=50,
+            observations=observations,
+        )
+
+    trace = _trace(
+        [
+            _observation(
+                boundary="reasoning.run_controller",
+                kind="mode_selected",
+                payload=ReasoningModeSelectedObservation(
+                    depth="deliberate",
+                    depth_basis="long_response_requested",
+                    reasoning_mode="long",
+                    response_mode="structured",
+                    requires_model=True,
+                    structured_owner_reply=False,
+                    fast_owner_reply=False,
+                    effective_tools=("recall_memory",),
+                    skill_count=2,
+                ),
+            ),
+            _observation(
+                boundary="reasoning.run_controller",
+                kind="budget_frozen",
+                payload=ReasoningBudgetFrozenObservation(
+                    max_steps=8,
+                    max_model_calls=4,
+                    max_tool_calls=2,
+                    deadline_seconds=20.0,
+                    hard_deadline_seconds=30.0,
+                    absolute_deadline=absolute_deadline,
+                    max_context_tokens=4096,
+                    cognitive_mode="normal",
+                    long_reasoning_allowed=True,
+                ),
+            ),
+            _model_call_observation(context_revision=7, reasoning_mode="fast"),
+        ]
+    )
+
+    setup = trace["chain"][2]
+    assert setup["output"]["reasoning_mode"] == "long"
+    assert setup["output"]["depth"] == "deliberate"
+    assert setup["output"]["depth_basis"] == "long_response_requested"
+    assert setup["budget"] == {
+        "max_steps": 8,
+        "max_model_calls": 4,
+        "max_tool_calls": 2,
+        "deadline_seconds": 20.0,
+        "absolute_deadline": absolute_deadline.isoformat(),
+        "max_context_tokens": 4096,
+        "cognitive_mode": "normal",
+    }
+
+    fallback = _trace(
+        [_model_call_observation(context_revision=7, reasoning_mode="fast")]
+    )
+    fallback_setup = fallback["chain"][2]
+    assert fallback_setup["output"]["reasoning_mode"] == "fast"
+    assert fallback_setup["output"]["depth"] is None
+    assert fallback_setup["output"]["depth_basis"] is None
+    assert fallback_setup["budget"] is None
+
+
+def test_setup_projects_the_selfhood_projection_snapshot():
+    projected_at = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc)
+    trace = build_observability_trace(
+        turn_id="turn-selfhood",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=10,
+        observations=[
+            _observation(
+                boundary="selfhood",
+                kind="projection_snapshot",
+                payload=SelfhoodProjectionObservation(
+                    revision=3,
+                    projected_at=projected_at,
+                    identity_core_text="IDENTITY_CORE",
+                    adaptive_self_text="ADAPTIVE_SELF",
+                ),
+            ),
+        ],
+    )
+
+    assert trace["chain"][2]["selfhood_projection"] == {
+        "revision": 3,
+        "projected_at": projected_at.isoformat(),
+        "identity_core_text": "IDENTITY_CORE",
+        "adaptive_self_text": "ADAPTIVE_SELF",
+    }
+
+
+def test_context_trim_pairs_with_compiles_positionally_and_leftovers_stay_in_raw():
+    def _compile(context_revision: int) -> CompiledContextObservation:
+        return CompiledContextObservation(
+            turn_id="turn-trim",
+            frame_id="frame-1",
+            context_revision=context_revision,
+            capability_revision=1,
+            max_tokens=1536,
+            reasoning_mode="long",
+            response_mode="structured",
+        )
+
+    def _trim(
+        *,
+        truncated: bool,
+        event_truncated_count: int,
+    ) -> ContextTrimObservation:
+        return ContextTrimObservation(
+            max_tokens=1536,
+            reserved=256,
+            memory_budget=512,
+            content_budget=1024,
+            event_budget=128,
+            observation_budget=64,
+            truncated=truncated,
+            memory_truncated=False,
+            event_truncated_count=event_truncated_count,
+        )
+
+    def _trace(trims):
+        return build_observability_trace(
+            turn_id="turn-trim",
+            stimulus={"source_domain": "communication", "message": "你好"},
+            state_before={},
+            state_after={},
+            state_diff={},
+            raw_stages={"reasoning": {"status": "completed", "model_calls": 2}},
+            result={},
+            decision={},
+            duration_ms=30,
+            observations=[
+                *[
+                    _observation(
+                        boundary="reasoning.context_engine",
+                        kind="context_trimmed",
+                        payload=trim,
+                    )
+                    for trim in trims
+                ],
+                _observation(
+                    boundary="reasoning.context_engine",
+                    kind="compiled_context",
+                    payload=_compile(7),
+                ),
+                _observation(
+                    boundary="reasoning.context_engine",
+                    kind="compiled_context",
+                    payload=_compile(9),
+                ),
+                _model_call_observation(context_revision=7, iteration_index=1),
+                _model_call_observation(context_revision=9, iteration_index=2),
+            ],
+        )
+
+    trace = _trace(
+        [
+            _trim(truncated=False, event_truncated_count=0),
+            _trim(truncated=True, event_truncated_count=2),
+            _trim(truncated=True, event_truncated_count=5),
+        ]
+    )
+    iterations = trace["chain"][3]["iterations"]
+    assert iterations[0]["context_build"]["output"]["trim"]["truncated"] is False
+    assert (
+        iterations[0]["context_build"]["output"]["trim"]["event_truncated_count"] == 0
+    )
+    assert iterations[1]["context_build"]["output"]["trim"]["truncated"] is True
+    assert (
+        iterations[1]["context_build"]["output"]["trim"]["event_truncated_count"] == 2
+    )
+    assert trace["chain"][3]["raw"]["context_trims_unpaired"] == [
+        {
+            "max_tokens": 1536,
+            "reserved": 256,
+            "memory_budget": 512,
+            "content_budget": 1024,
+            "event_budget": 128,
+            "observation_budget": 64,
+            "truncated": True,
+            "memory_truncated": False,
+            "event_truncated_count": 5,
+            "history_truncated_count": 0,
+            "run_observation_truncated_count": 0,
+        }
+    ]
+
+    short = _trace([_trim(truncated=False, event_truncated_count=0)])
+    short_iterations = short["chain"][3]["iterations"]
+    assert "trim" in short_iterations[0]["context_build"]["output"]
+    assert "trim" not in short_iterations[1]["context_build"]["output"]
+    assert "context_trims_unpaired" not in short["chain"][3]["raw"]
+
+
+def test_model_call_projection_surfaces_token_usage_and_provider_latency():
+    def _trace(**kwargs):
+        return build_observability_trace(
+            turn_id="turn-tokens",
+            stimulus={"source_domain": "communication", "message": "你好"},
+            state_before={},
+            state_after={},
+            state_diff={},
+            raw_stages={"reasoning": {"status": "completed", "model_calls": 1}},
+            result={},
+            decision={},
+            duration_ms=30,
+            observations=[_model_call_observation(context_revision=7, **kwargs)],
+        )
+
+    measured = _trace(
+        prompt_tokens=120,
+        completion_tokens=45,
+        provider_latency_ms=321.5,
+    )["chain"][3]["iterations"][0]["model_call"]
+    assert measured["prompt_tokens"] == 120
+    assert measured["completion_tokens"] == 45
+    assert measured["provider_latency_ms"] == 321.5
+
+    bare = _trace()["chain"][3]["iterations"][0]["model_call"]
+    assert bare["prompt_tokens"] is None
+    assert bare["completion_tokens"] is None
+    assert bare["provider_latency_ms"] is None
+
+
+def test_governance_projects_the_decision_routing_block():
+    trace = build_observability_trace(
+        turn_id="turn-routing",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed"}},
+        result={"success": True},
+        decision={"message_texts": ["你好"]},
+        duration_ms=30,
+        observations=[
+            _observation(
+                boundary="decision_boundary",
+                kind="decision_routed",
+                payload=DecisionRoutedObservation(
+                    plan_id="plan-1",
+                    intent_types=("speak", "message"),
+                    interaction_scope_kind="conversation",
+                    source_domain="communication",
+                    response_domain="communication",
+                    response_channel_id="channel-1",
+                    response_conversation_id="conv-1",
+                    memory_eligible=False,
+                    routed=True,
+                ),
+            ),
+        ],
+    )
+
+    assert trace["chain"][5]["routing"] == {
+        "routed": True,
+        "interaction_scope_kind": "conversation",
+        "response_domain": "communication",
+        "response_channel_id": "channel-1",
+        "response_conversation_id": "conv-1",
+        "memory_eligible": False,
+    }
+
+
+def test_settlement_projects_memory_writeback_emotion_and_energy_blocks():
+    budget = EnergyBudgetStateObservation(
+        energy=90.0,
+        fatigue=0.0,
+        cognitive_mode="normal",
+        long_reasoning_allowed=True,
+        available_cognitive_budget=12.0,
+        reserved_cognitive_budget=12.0,
+    )
+    trace = build_observability_trace(
+        turn_id="turn-settle",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed"}},
+        result={"success": True},
+        decision={},
+        duration_ms=60,
+        observations=[
+            _observation(
+                boundary="memory.encode",
+                kind="encode_candidate",
+                payload=MemoryEncodeCandidate(
+                    candidate_id="cand-1",
+                    base_revision=4,
+                    source_event_ids=("event-1",),
+                    emotion="happiness",
+                    intensity=60.0,
+                    content_chars=120,
+                ),
+            ),
+            _observation(
+                boundary="memory.encode",
+                kind="encode_commit",
+                payload=MemoryEncodeCommit(
+                    candidate_id="cand-1",
+                    episode_id="episode-9",
+                    status="committed",
+                    revision_before=4,
+                    revision_after=5,
+                ),
+            ),
+            _observation(
+                boundary="memory.encode",
+                kind="reinforcement_applied",
+                payload=MemoryReinforcementApplied(
+                    event_id="event-1",
+                    target_kind="assertion",
+                    target_id="assertion:1",
+                    outcome_kind="answer_accepted",
+                    accepted=True,
+                    revision_before=5,
+                    revision_after=6,
+                ),
+            ),
+            _observation(
+                boundary="emotion",
+                kind="emotion_candidate",
+                payload=EmotionCandidateObservation(
+                    stage="slow",
+                    revision=7,
+                    dimensions=(
+                        EmotionDimensionChangeObservation(
+                            name="happiness",
+                            before=0.5,
+                            after=0.7,
+                        ),
+                    ),
+                    changed_dimensions=("happiness",),
+                ),
+            ),
+            _observation(
+                boundary="energy",
+                kind="budget_settled",
+                payload=CognitiveBudgetSettledObservation(
+                    stage="turn",
+                    consumed=10.0,
+                    charged=8.0,
+                    budget=budget,
+                ),
+            ),
+            _observation(
+                boundary="energy",
+                kind="budget_released",
+                payload=CognitiveBudgetReleasedObservation(
+                    stage="turn",
+                    released=False,
+                    budget=budget,
+                ),
+            ),
+        ],
+    )
+
+    settlement = trace["chain"][6]
+    assert settlement["memory_writeback"] == {
+        "candidates": [
+            {
+                "candidate_id": "cand-1",
+                "base_revision": 4,
+                "source_event_ids": ["event-1"],
+                "emotion": "happiness",
+                "intensity": 60.0,
+                "content_chars": 120,
+            }
+        ],
+        "commits": [
+            {
+                "candidate_id": "cand-1",
+                "episode_id": "episode-9",
+                "status": "committed",
+                "reason": None,
+                "revision_before": 4,
+                "revision_after": 5,
+            }
+        ],
+        "reinforcements": [
+            {
+                "event_id": "event-1",
+                "target_kind": "assertion",
+                "target_id": "assertion:1",
+                "outcome_kind": "answer_accepted",
+                "accepted": True,
+                "reason": None,
+                "revision_before": 5,
+                "revision_after": 6,
+            }
+        ],
+    }
+    assert settlement["emotion_changes"] == {
+        "stage": "slow",
+        "revision": 7,
+        "dimensions": [{"name": "happiness", "before": 0.5, "after": 0.7}],
+        "changed_dimensions": ["happiness"],
+    }
+    assert settlement["energy_settlement"] == {
+        "consumed": 10.0,
+        "charged": 8.0,
+        "released": False,
+        "energy_state": {
+            "energy": 90.0,
+            "fatigue": 0.0,
+            "cognitive_mode": "normal",
+            "long_reasoning_allowed": True,
+            "available_cognitive_budget": 12.0,
+            "reserved_cognitive_budget": 12.0,
+        },
+    }
+
+
+def test_new_blocks_report_none_without_their_observations():
+    trace = build_observability_trace(
+        turn_id="turn-none",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed", "model_calls": 1}},
+        result={},
+        decision={},
+        duration_ms=10,
+        observations=[_model_call_observation(context_revision=7)],
+    )
+
+    chain = trace["chain"]
+    assert chain[0]["admission"] is None
+    assert chain[1]["appended"] is None
+    assert chain[2]["budget"] is None
+    assert chain[2]["selfhood_projection"] is None
+    assert chain[3]["raw"].get("context_trims_unpaired") is None
+    assert "trim" not in chain[3]["iterations"][0]["context_build"]["output"]
+    assert chain[5]["routing"] is None
+    assert chain[6]["memory_writeback"] is None
+    assert chain[6]["emotion_changes"] is None
+    assert chain[6]["energy_settlement"] is None
+
+
 _SEQUENCE = {"value": 0}
 
 
@@ -997,6 +1561,10 @@ def _model_call_observation(
     iteration_index: int = 1,
     system_prompt: str = "SYSTEM",
     duration_ms: Optional[float] = None,
+    reasoning_mode: str = "long",
+    prompt_tokens: Optional[int] = None,
+    completion_tokens: Optional[int] = None,
+    provider_latency_ms: Optional[float] = None,
 ) -> BrainObservation:
     return _observation(
         boundary="reasoning.agent_loop",
@@ -1006,7 +1574,7 @@ def _model_call_observation(
             iteration_index=iteration_index,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            reasoning_mode="long",
+            reasoning_mode=reasoning_mode,
             response_mode="structured",
             response_schema_name="DecisionPlan",
             temperature=0.2,
@@ -1017,6 +1585,9 @@ def _model_call_observation(
             selected_mode="json_schema",
             provider="mock",
             model_key="elfie-mock",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_latency_ms=provider_latency_ms,
             duration_ms=5.0,
         ),
     )
