@@ -30,6 +30,7 @@ type Props = Readonly<{
   readonly onSelectTurn: (turn: ElfieTurn, focus: string) => void;
   readonly onPreviewIntent: (turn: ElfieTurn, intent: PreviewIntent) => void;
   readonly onUpload: (file: File) => Promise<UploadedMedia>;
+  readonly pending: { readonly message: string } | null;
   readonly portraitEpoch: number;
   readonly onOpenEvaluation?: () => void;
 }>;
@@ -88,13 +89,24 @@ function tags(turn: ElfieTurn): readonly string[] {
   return rows;
 }
 
-function TurnList({ session, onPreviewIntent, onSelect, epoch }: Readonly<{ readonly session: ElfieSession; readonly onPreviewIntent: Props["onPreviewIntent"]; readonly onSelect: Props["onSelectTurn"]; readonly epoch: number }>): React.JSX.Element {
-  if (!session.turns.length) return <section className="timeline-placeholder"><div className="signal-mark"><i /><i /><i /></div><h3>等待第一次刺激</h3><p>发送一句话，或打开实验刺激构造边界状态。</p></section>;
+function TurnList({ pending, session, onPreviewIntent, onSelect, epoch }: Readonly<{ readonly pending: Props["pending"]; readonly session: ElfieSession; readonly onPreviewIntent: Props["onPreviewIntent"]; readonly onSelect: Props["onSelectTurn"]; readonly epoch: number }>): React.JSX.Element {
+  if (!session.turns.length && pending === null) return <section className="timeline-placeholder"><div className="signal-mark"><i /><i /><i /></div><h3>等待第一次刺激</h3><p>发送一句话，或打开实验刺激构造边界状态。</p></section>;
   return <>{session.turns.map((turn, index) => {
     const intents = actionIntents(turn).filter((intent) => (intent.type === "motion" || intent.type === "expression") && Boolean(intent.intent_id));
     const duration = turnDurationLabel(turn.duration_ms);
     return <article className="turn" key={turn.turn_id}><div className="turn-meta">TURN {String(index + 1).padStart(2, "0")} · {new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</div><div className="bubble-row user">{avatar("", "", epoch, true)}<Button className="bubble" onClick={() => onSelect(turn, "input")} type="text"><span className="bubble-label"><span>开发者刺激</span><span className="channel">{turnSourceLabel(turn)}</span></span><p>{turn.stimulus_bundle.message || "非文字刺激"}</p>{turn.used_state_injection ? <span className="bubble-tag warning">状态注入</span> : null}</Button></div><div className="bubble-row elfie">{avatar(session.profile.portrait_url, session.profile.name, epoch)}<div><Button className={turn.result.success === false ? "bubble error" : "bubble"} onClick={() => onSelect(turn, "output")} type="text"><span className="bubble-label">{session.profile.name}</span><p>{turnText(turn)}</p>{tags(turn).map((tag) => <span className="bubble-tag" key={tag}>{tag}</span>)}</Button>{duration ? <small className="turn-duration">本轮耗时 · {duration}</small> : null}{intents.length ? <div className="turn-actions" aria-label="动作回放">{intents.map((intent) => <Button className="turn-action" key={intent.intent_id} onClick={() => onPreviewIntent(turn, intent)} size="small" type="default">{intentLabel(intent)}</Button>)}</div> : null}</div></div></article>;
-  })}</>;
+  })}{pending !== null ? (
+    <article className="turn" aria-busy="true">
+      <div className="bubble-row user">
+        {avatar("", "", epoch, true)}
+        <span className="bubble"><span className="bubble-label"><span>开发者刺激</span></span><p>{pending.message || "非文字刺激"}</p></span>
+      </div>
+      <div className="bubble-row elfie">
+        {avatar(session.profile.portrait_url, session.profile.name, epoch)}
+        <div><span className="bubble"><span className="bubble-label">{session.profile.name}</span><p className="trace-muted">思考中…</p></span></div>
+      </div>
+    </article>
+  ) : null}</>;
 }
 
 export function TimelinePanel(props: Props): React.JSX.Element {
@@ -189,7 +201,7 @@ export function TimelinePanel(props: Props): React.JSX.Element {
     <div className="timeline">
       {props.session === null
         ? <section className="timeline-placeholder"><h3>等待测试精灵</h3><p>在左侧创建一只独立测试精灵。</p></section>
-        : <TurnList epoch={props.portraitEpoch} onPreviewIntent={props.onPreviewIntent} onSelect={props.onSelectTurn} session={props.session} />}
+        : <TurnList epoch={props.portraitEpoch} onPreviewIntent={props.onPreviewIntent} onSelect={props.onSelectTurn} pending={props.pending} session={props.session} />}
     </div>
     <form className="composer" onSubmit={(event) => { void submit(event); }}>
       {drawer ? <div className="stimulus-drawer">
