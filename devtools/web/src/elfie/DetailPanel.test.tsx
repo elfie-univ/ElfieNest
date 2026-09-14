@@ -214,6 +214,9 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("revision 4");
     expect(markup).toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
     expect(markup).toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
+    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="结算：提交状态候选与记忆写回，落持久化证据"');
+    expect(markup).not.toContain('data-tip=""');
     expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
     expect(markup).not.toContain("4.1.2");
@@ -362,5 +365,52 @@ describe("Elfie Lab Turn Inspector", () => {
     for (const title of ["准入明细", "本轮追加", "对话历史明细", "摘要覆盖", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "预算与边界", "Selfhood 投影"]) {
       expect(plain).not.toContain(title);
     }
+  });
+
+  it("opens event_admission with readable modalities and flattened scope rows", () => {
+    const enriched = withChainNodes({
+      0: (node) => ({ ...node, output: {
+        ...(node.output as FixtureNode),
+        modalities: ["text"],
+        interaction_scope: { kind: "channel", channel_id: "channel-dawn", conversation_id: "conversation-dawn", body_id: null, body_generation: null },
+        response_scope: { external_domain: "nest", channel_id: null, conversation_id: null },
+      } }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["event_admission"]);
+
+    expect(markup).toContain("文字");
+    expect(markup).toContain("交互范围");
+    expect(markup).toContain("响应范围");
+    expect(markup).toContain("类型");
+    expect(markup).toContain("外部域");
+    expect(markup).toContain("频道");
+    expect(markup).toContain("会话");
+    expect(markup).toContain("channel-dawn");
+    expect(markup).toContain("conversation-dawn");
+    expect(markup).not.toContain('"interaction_scope"');
+    expect(markup).not.toContain('"response_scope"');
+    expect(markup).not.toContain('"kind"');
+    expect(markup).not.toContain('"external_domain"');
+    expect(markup).not.toContain("body_id");
+    expect(markup).not.toContain("body_generation");
+  });
+
+  it("renders settlement state changes as readable before → after rows", () => {
+    const enriched = withChainNodes({
+      6: (node) => ({ ...node, output: { ...(node.output as FixtureNode), state_diff: {
+        energy: { before: 94.9, after: 94.91 },
+        cognitive_consolidation: { revision: { before: 3, after: 4 } },
+        orientation: { freshness: { before: "unknown", after: "current" } },
+      } } }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["settlement"]);
+
+    expect(markup).toContain("94.9 → 94.91");
+    expect(markup).toContain("认知整理 版本");
+    expect(markup).toContain("3 → 4");
+    expect(markup).toContain("定位 新鲜度");
+    expect(markup).toContain("unknown → current");
+    expect(markup).not.toContain('"before"');
+    expect(markup).not.toContain('"after"');
   });
 });

@@ -42,7 +42,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   stopped: "停止",
 };
 
-// Native `title` tooltips only — deliberate: no tooltip component, no extra CSS.
+// data-tip feeds the ::after hover tooltip in detail-modal.css; title stays as a11y fallback.
 const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   event_admission: "事件接入：外部输入去重排序，圈定本轮处理范围",
   context_workspace: "上下文工作区：追加本轮消息，维护对话历史与主题摘要",
@@ -286,21 +286,49 @@ function fieldLabel(key: string): string {
     identity_core_text: "身份核心投影",
     adaptive_self_text: "自适应自我投影",
     emotion: "情绪",
+    kind: "类型",
+    external_domain: "外部域",
+    available_cognitive_budget: "可用认知配额",
+    cognitive_consolidation: "认知整理",
+    motivation: "动机",
+    orientation: "定位",
+    affordances: "可用交互",
+    body_generation: "身体世代",
   };
   return labels[key] ?? key;
 }
 
+const modalityLabels: Readonly<Record<string, string>> = { text: "文字", audio: "音频", image: "图像" };
+
+function modalitiesText(value: unknown): unknown {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return value;
+  return value.map((item) => modalityLabels[item] ?? item).join("、");
+}
+
+function isPrimitive(value: unknown): boolean {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function primitiveJoin(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length === 0 || !value.every(isPrimitive)) return null;
+  return value.map((item) => String(item)).join("、");
+}
+
 function FieldValue({ value }: Readonly<{ readonly value: unknown }>): React.JSX.Element {
   if (!hasContent(value)) return <span className="trace-muted">未记录</span>;
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (isPrimitive(value)) {
     return <span className="trace-value-text">{String(value)}</span>;
   }
+  const joined = primitiveJoin(value);
+  if (joined !== null) return <span className="trace-value-text">{joined}</span>;
   return <pre className="trace-code trace-code-inline">{pretty(value)}</pre>;
 }
 
 function Fields({ values, omit = [] }: Readonly<{ readonly values: JsonRecord; readonly omit?: readonly string[] }>): React.JSX.Element {
   const excluded = new Set(omit);
-  const entries = Object.entries(values).filter(([key, value]) => !excluded.has(key) && hasContent(value));
+  const entries = Object.entries(values)
+    .filter(([key, value]) => !excluded.has(key) && hasContent(value))
+    .map(([key, value]) => [key, key === "modalities" ? modalitiesText(value) : value] as const);
   if (!entries.length) return <p className="trace-muted">未采集</p>;
   return <dl className="trace-fields">{entries.map(([key, value]) => <div className="trace-field" key={key}><dt>{fieldLabel(key)}</dt><dd><FieldValue value={value} /></dd></div>)}</dl>;
 }
@@ -319,18 +347,37 @@ function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonl
   return <section className="trace-evidence"><h4>{title}</h4>{hasContent(value) ? objectValue !== null ? <Fields values={objectValue} /> : textList ? <div className="trace-text-list">{value.map((item, index) => <p key={`${String(item)}-${index}`}>{item}</p>)}</div> : <pre className="trace-code">{pretty(value)}</pre> : <p className="trace-muted">{emptyLabel}</p>}</section>;
 }
 
-function readableSettlementValue(value: unknown, key = ""): unknown {
-  if (Array.isArray(value)) {
-    const items = value.map((item) => readableSettlementValue(item)).filter(hasContent);
-    return items.length ? items : undefined;
+function flattenScope(scope: unknown): JsonRecord {
+  const source = record(scope);
+  const flat: JsonRecord = {};
+  if (hasContent(source.kind)) flat.kind = source.kind;
+  else if (hasContent(source.external_domain)) flat.external_domain = source.external_domain;
+  if (hasContent(source.channel_id)) flat.channel_id = source.channel_id;
+  if (hasContent(source.conversation_id)) flat.conversation_id = source.conversation_id;
+  return flat;
+}
+
+function readableDiffValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "未记录";
+  if (isPrimitive(value)) return String(value);
+  return JSON.stringify(value) ?? String(value);
+}
+
+function diffLeafText(value: unknown): string {
+  const source = record(value);
+  return `${readableDiffValue(source.before)} → ${readableDiffValue(source.after)}`;
+}
+
+function readableStateDiff(value: unknown, path = ""): JsonRecord {
+  const source = record(value);
+  if (source.before !== undefined || source.after !== undefined) {
+    return { [path || "状态"]: diffLeafText(source) };
   }
-  if (typeof value !== "object" || value === null) return value;
-  const hiddenKeys = new Set(["body_snapshot", "captured_at", "elapsed_time", "journal", "profile_anchor", "source_event_ids", "unknown_fields"]);
-  const entries = Object.entries(record(value))
-    .filter(([childKey]) => !hiddenKeys.has(childKey) && !childKey.endsWith("_id") && !childKey.endsWith("_ids"))
-    .map(([childKey, childValue]) => [childKey, readableSettlementValue(childValue, childKey)] as const)
-    .filter(([, childValue]) => hasContent(childValue));
-  return entries.length || key === "" ? Object.fromEntries(entries) : undefined;
+  const rows: JsonRecord = {};
+  for (const [key, child] of Object.entries(source)) {
+    Object.assign(rows, readableStateDiff(child, path ? `${path} ${fieldLabel(key)}` : fieldLabel(key)));
+  }
+  return rows;
 }
 
 function MemoryEvidence({ points, fallback }: Readonly<{ readonly points: readonly unknown[]; readonly fallback: unknown }>): React.JSX.Element {
@@ -407,7 +454,7 @@ function TraceDisclosure({
   const visibleMeta = statusOf(status) === "skipped" ? undefined : meta;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
-      <button aria-expanded={open} className="trace-disclosure-trigger" onClick={() => onToggle(id)} title={tooltip} type="button">
+      <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} title={tooltip} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
@@ -428,9 +475,23 @@ function TraceIO({ node, omitOutput = [] }: Readonly<{ readonly node: TraceNode;
   </>;
 }
 
+function ConversationList({ rows }: Readonly<{ readonly rows: readonly unknown[] }>): React.JSX.Element {
+  return <div className="trace-text-list">{rows.map((value, index) => {
+    if (typeof value === "string") return <p key={`line-${index}`}>{value}</p>;
+    const row = record(value);
+    const speaker = typeof row.role === "string" && row.role ? row.role : "未知";
+    const content = [row.content, row.text, row.message].find(hasContent);
+    const at = occurredAtValue(row.occurred_at);
+    return <p key={`${speaker}-${index}`}><strong>{speaker}：</strong>{hasContent(content) ? String(content) : <span className="trace-muted">未记录</span>}{typeof at === "string" && at !== "未记录" ? <span className="trace-muted"> · {at}</span> : null}</p>;
+  })}</div>;
+}
+
 function AdmissionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
   const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
   const admission = record(node.admission);
+  const output = record(node.output);
+  const interactionRows = flattenScope(output.interaction_scope);
+  const responseRows = flattenScope(output.response_scope);
   const admissionId = `${String(node.id ?? "event_admission")}-admission`;
   const toggle = (id: string): void => {
     setOpenChildren((current) => {
@@ -441,7 +502,9 @@ function AdmissionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
     });
   };
   return <>
-    <TraceIO node={node} />
+    <TraceIO node={node} omitOutput={["interaction_scope", "response_scope"]} />
+    {hasContent(interactionRows) ? <Evidence title="交互范围" value={interactionRows} /> : null}
+    {hasContent(responseRows) ? <Evidence title="响应范围" value={responseRows} /> : null}
     {hasContent(admission) ? <TraceDisclosure
       id={admissionId}
       title="准入明细"
@@ -450,7 +513,8 @@ function AdmissionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
       raw={node.admission}
       status="recorded"
     >
-      <Fields values={admission} />
+      <Fields values={admission} omit={["saliences"]} />
+      {list(admission.saliences).length ? <section className="trace-evidence"><h4>事件显著性</h4><BlockList items={list(admission.saliences)} /></section> : null}
     </TraceDisclosure> : null}
   </>;
 }
@@ -483,7 +547,7 @@ function WorkspaceNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
       raw={output.conversation}
       status="recorded"
     >
-      <Evidence title="对话上下文" value={output.conversation} />
+      {Array.isArray(output.conversation) ? <ConversationList rows={output.conversation} /> : <Evidence title="对话上下文" value={output.conversation} />}
     </TraceDisclosure> : null}
     {list(appended.summaries).length ? <TraceDisclosure
       id={summariesId}
@@ -1129,11 +1193,22 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   const emotionId = `${String(node.id ?? "settlement")}-emotion-changes`;
   const energyId = `${String(node.id ?? "settlement")}-energy-settlement`;
   const state = record(output.state_after);
-  const stateDiff = readableSettlementValue(output.state_diff);
+  const stateDiffRows = readableStateDiff(output.state_diff);
   const cognitiveTurn = record(output.cognitive_turn);
   const cognitiveSummary = Object.fromEntries(["status", "model_mode", "error_code", "fallback_reason", "stale_reason", "timeout_reason"]
     .map((key) => [key, cognitiveTurn[key]] as const)
     .filter(([, value]) => hasContent(value)));
+  const emotionRows: JsonRecord = {};
+  for (const item of list(emotionChanges.dimensions)) {
+    const point = record(item);
+    const name = String(point.name ?? point.dimension ?? "");
+    if (!name || (!hasContent(point.before) && !hasContent(point.after))) continue;
+    emotionRows[name] = diffLeafText(point);
+  }
+  const energyRows: JsonRecord = {
+    ...Object.fromEntries(Object.entries(energySettlement).filter(([key]) => key !== "energy_state")),
+    ...record(energySettlement.energy_state),
+  };
   const stateCore = {
     energy: state.energy,
     fatigue: state.fatigue,
@@ -1147,7 +1222,7 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   return <>
     <Evidence title="警告" value={output.warnings} emptyLabel="无" />
     <Evidence title="处理后状态" value={stateCore} />
-    <Evidence title="状态变化" value={stateDiff} />
+    <Evidence title="状态变化" value={stateDiffRows} />
     {hasContent(cognitiveSummary) ? <Evidence title="认知回合" value={cognitiveSummary} /> : null}
     {hasContent(writeback) ? <TraceDisclosure
       id={writebackId}
@@ -1168,7 +1243,7 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
       status="recorded"
     >
       <Fields values={{ stage: emotionChanges.stage, changed_dimensions: emotionChanges.changed_dimensions }} />
-      <BlockList items={list(emotionChanges.dimensions)} />
+      {Object.keys(emotionRows).length ? <section className="trace-evidence"><h4>维度变化</h4><Fields values={emotionRows} /></section> : null}
     </TraceDisclosure> : null}
     {hasContent(energySettlement) ? <TraceDisclosure
       id={energyId}
@@ -1178,7 +1253,7 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
       raw={node.energy_settlement}
       status="recorded"
     >
-      <Fields values={energySettlement} />
+      <Fields values={energyRows} />
     </TraceDisclosure> : null}
   </>;
 }
@@ -1203,13 +1278,14 @@ function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.El
 
 function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: TraceNode; readonly open: boolean; readonly onToggle: () => void; readonly preview: PreviewResult | null }>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
+  const stageTip = STAGE_DESCRIPTIONS[String(node.id ?? "")];
   const toggleRaw = () => {
     if (!open) onToggle();
     setRawMode((current) => !current);
   };
   return <article className={`trace-node${open ? " is-open" : ""}`}>
     <div className="trace-node-header">
-      <button aria-expanded={open} className="trace-node-trigger" onClick={onToggle} title={STAGE_DESCRIPTIONS[String(node.id ?? "")] ?? ""} type="button">
+      <button aria-expanded={open} className="trace-node-trigger" data-tip={stageTip} onClick={onToggle} title={stageTip} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>
