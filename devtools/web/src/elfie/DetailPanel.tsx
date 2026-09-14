@@ -817,10 +817,15 @@ function modelCallMeta(call: TraceNode): string | undefined {
   const effective = record(call.effective_parameters);
   const output = record(call.output);
   const provider = effective.provider ?? output.provider;
-  const model = effective.model ?? output.model;
+  const fullModel = String(effective.model ?? output.model ?? "");
   const duration = formatDuration(call.duration_ms);
-  const identity = provider && model ? `${String(provider)}/${String(model)}` : "";
-  return [identity, duration === "未记录" ? "" : duration].filter(Boolean).join(" · ") || undefined;
+  // Show only the short model label (last path segment) in the trigger meta;
+  // the full provider/model identity is in the expanded body's 有效参数
+  // section. The trigger title "Model Call" must stay fully visible, so meta
+  // is kept compact.
+  const shortModel = fullModel.includes("/") ? fullModel.split("/").pop() ?? fullModel : fullModel;
+  const modelPart = shortModel || (provider ? String(provider) : "");
+  return [modelPart, duration === "未记录" ? "" : duration].filter(Boolean).join(" · ") || undefined;
 }
 
 function ModelCall({
