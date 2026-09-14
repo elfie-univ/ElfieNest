@@ -212,8 +212,8 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("Memory skipped");
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("revision 4");
-    expect(markup).toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
-    expect(markup).toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
+    expect(markup).not.toContain('title="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).not.toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
     expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
     expect(markup).toContain('data-tip="结算：提交状态候选与记忆写回，落持久化证据"');
     expect(markup).not.toContain('data-tip=""');
@@ -248,7 +248,7 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("Memory skipped");
-    expect(markup).toContain('title="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
+    expect(markup).not.toContain('title="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
   });
 
   it("keeps the production reasoning tree collapsed below the selected Run", () => {
@@ -393,6 +393,45 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain('"external_domain"');
     expect(markup).not.toContain("body_id");
     expect(markup).not.toContain("body_generation");
+  });
+
+  it("keeps stage and sub-step tooltips on data-tip without any native title attribute", () => {
+    const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1"]);
+
+    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
+    expect(markup).toContain('data-tip="模型调用：发送上下文，取回模型响应"');
+    expect(markup).toContain('data-tip="行动解析：把响应解析为类型化行动"');
+    expect(markup).toContain('data-tip="守卫判断：检查剩余预算与时间，决定是否继续"');
+    expect(markup).not.toContain('title="事件接入');
+    expect(markup).not.toContain('title="结算：');
+    expect(markup).not.toContain('title="运行准备：');
+    expect(markup).not.toContain('title="上下文编译');
+    expect(markup).not.toContain('title="模型调用');
+    expect(markup).not.toContain('title="行动解析');
+    expect(markup).not.toContain('title="守卫判断');
+  });
+
+  it("drops 1970 captured_at and unknown_fields state-diff rows and truncates long id arrays", () => {
+    const longIds = Array.from({ length: 12 }, (_, index) =>
+      `${index % 2 === 0 ? "execution_receipt_" : "turn_"}${index.toString(16).padStart(6, "0")}abcdef`);
+    const enriched = withChainNodes({
+      6: (node) => ({ ...node, output: { ...(node.output as FixtureNode), state_diff: {
+        energy: { before: 88, after: 87 },
+        captured_at: { before: "1970-01-01T00:00:00.000Z", after: "1970-01-01T00:00:00.001Z" },
+        unknown_fields: { before: [], after: ["stale_field"] },
+        source_event_ids: { before: [], after: longIds },
+      } } }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["settlement"]);
+
+    expect(markup).toContain("88 → 87");
+    expect(markup).not.toContain("1970");
+    expect(markup).not.toContain("unknown_fields");
+    expect(markup).not.toContain("stale_field");
+    expect(markup).toContain("(12 项)");
+    expect(markup).toContain("execution_rece…");
+    expect(markup).not.toContain(longIds[0]);
   });
 
   it("renders settlement state changes as readable before → after rows", () => {

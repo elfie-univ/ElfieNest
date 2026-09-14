@@ -42,7 +42,8 @@ const statusLabels: Readonly<Record<string, string>> = {
   stopped: "停止",
 };
 
-// data-tip feeds the ::after hover tooltip in detail-modal.css; title stays as a11y fallback.
+// data-tip feeds the ::after hover tooltip in detail-modal.css; native title is omitted
+// so the browser tooltip never fires alongside the CSS one.
 const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   event_admission: "事件接入：外部输入去重排序，圈定本轮处理范围",
   context_workspace: "上下文工作区：追加本轮消息，维护对话历史与主题摘要",
@@ -294,6 +295,8 @@ function fieldLabel(key: string): string {
     orientation: "定位",
     affordances: "可用交互",
     body_generation: "身体世代",
+    body_snapshot: "身体快照",
+    journal: "日志",
   };
   return labels[key] ?? key;
 }
@@ -357,9 +360,23 @@ function flattenScope(scope: unknown): JsonRecord {
   return flat;
 }
 
+const compactIdLength = 14;
+const noisyDiffKeys: ReadonlySet<string> = new Set(["captured_at", "unknown_fields"]);
+
+function compactId(item: string): string {
+  return item.length > compactIdLength ? `${item.slice(0, compactIdLength)}…` : item;
+}
+
+function compactStringArray(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length <= 3 || !value.every((item) => typeof item === "string")) return null;
+  return `${value.slice(0, 2).map(compactId).join("、")}… (${value.length} 项)`;
+}
+
 function readableDiffValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "未记录";
   if (isPrimitive(value)) return String(value);
+  const compacted = compactStringArray(value);
+  if (compacted !== null) return compacted;
   return JSON.stringify(value) ?? String(value);
 }
 
@@ -375,6 +392,7 @@ function readableStateDiff(value: unknown, path = ""): JsonRecord {
   }
   const rows: JsonRecord = {};
   for (const [key, child] of Object.entries(source)) {
+    if (noisyDiffKeys.has(key)) continue;
     Object.assign(rows, readableStateDiff(child, path ? `${path} ${fieldLabel(key)}` : fieldLabel(key)));
   }
   return rows;
@@ -454,7 +472,7 @@ function TraceDisclosure({
   const visibleMeta = statusOf(status) === "skipped" ? undefined : meta;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
-      <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} title={tooltip} type="button">
+      <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
@@ -976,8 +994,8 @@ function ObservationStage({
   </TraceDisclosure>;
 }
 
-function ReasoningNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNode; readonly mountOpenIds?: ReadonlySet<string> | undefined }>): React.JSX.Element {
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set(mountOpenIds ?? []));
   const iterations = list(node.iterations).map(record);
   const toggle = (id: string): void => {
     setOpenChildren((current) => {
@@ -1258,12 +1276,12 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   </>;
 }
 
-function NodeBody({ node, preview }: Readonly<{ readonly node: TraceNode; readonly preview: PreviewResult | null }>): React.JSX.Element {
+function NodeBody({ node, preview, mountOpenIds }: Readonly<{ readonly node: TraceNode; readonly preview: PreviewResult | null; readonly mountOpenIds?: ReadonlySet<string> | undefined }>): React.JSX.Element {
   const id = String(node.id ?? "");
   if (id === "event_admission") return <AdmissionNode node={node} />;
   if (id === "context_workspace") return <WorkspaceNode node={node} />;
   if (id === "setup") return <SetupNode node={node} />;
-  if (id === "reasoning_run") return <ReasoningNode node={node} />;
+  if (id === "reasoning_run") return <ReasoningNode node={node} mountOpenIds={mountOpenIds} />;
   if (id === "turn_decision") return <DecisionNode node={node} />;
   if (id === "governance_delivery") return <GovernanceNode node={node} preview={preview} />;
   if (id === "settlement") return <SettlementNode node={node} />;
@@ -1276,7 +1294,7 @@ function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.El
     : <div className="trace-unavailable"><span>原始记录</span><Status value="unavailable" /></div>;
 }
 
-function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: TraceNode; readonly open: boolean; readonly onToggle: () => void; readonly preview: PreviewResult | null }>): React.JSX.Element {
+function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{ readonly node: TraceNode; readonly open: boolean; readonly onToggle: () => void; readonly preview: PreviewResult | null; readonly mountOpenIds?: ReadonlySet<string> | undefined }>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
   const stageTip = STAGE_DESCRIPTIONS[String(node.id ?? "")];
   const toggleRaw = () => {
@@ -1285,14 +1303,14 @@ function NodeCard({ node, open, onToggle, preview }: Readonly<{ readonly node: T
   };
   return <article className={`trace-node${open ? " is-open" : ""}`}>
     <div className="trace-node-header">
-      <button aria-expanded={open} className="trace-node-trigger" data-tip={stageTip} onClick={onToggle} title={stageTip} type="button">
+      <button aria-expanded={open} className="trace-node-trigger" data-tip={stageTip} onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>
     </div>
-    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody node={node} preview={preview} />}</div> : null}
+    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody mountOpenIds={mountOpenIds} node={node} preview={preview} />}</div> : null}
   </article>;
 }
 
@@ -1314,7 +1332,7 @@ function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly
       <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "Activity" : "消息"}</span><code>{turn.turn_id}</code></div>
     </section>
     <dl className="trace-stat-row"><div><dt>耗时</dt><dd>{formatDuration(turn.duration_ms)}</dd></div><div><dt>迭代</dt><dd>{iterations}</dd></div><div><dt>模型调用</dt><dd>{calls}</dd></div><div><dt>记录来源</dt><dd>{projected.source === "production_turn_record" ? "生产链路" : "未采集"}</dd></div></dl>
-    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
+    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
   </>;
 }
 
