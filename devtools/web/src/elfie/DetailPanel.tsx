@@ -902,6 +902,21 @@ function ActionBody({ action }: Readonly<{ readonly action: TraceNode }>): React
   </>;
 }
 
+const COGNITIVE_ACTION_LABELS: Readonly<Record<string, string>> = {
+  recall_memory: "回忆记忆",
+  answer: "回答草稿",
+  clarification: "澄清草稿",
+  noop: "无操作草稿",
+};
+
+function cognitiveActionMeta(action: TraceNode): string | undefined {
+  const output = record(action.output);
+  const type = typeof output.type === "string" ? output.type : "";
+  if (!type) return "Host 解析";
+  const label = COGNITIVE_ACTION_LABELS[type] ?? type;
+  return `${label} · Host 解析`;
+}
+
 function GuardBody({ guard }: Readonly<{ readonly guard: TraceNode }>): React.JSX.Element {
   return <>
     <Evidence title="输入" value={guard.input} />
@@ -1048,7 +1063,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
           id={`${iterationId}-action`}
           number={`${String(iteration.number)}.3`}
           title="Cognitive Action"
-          meta="Host 解析"
+          meta={cognitiveActionMeta(record(action))}
           onToggle={toggle}
           open={openChildren.has(`${iterationId}-action`)}
           raw={action.raw ?? action}
