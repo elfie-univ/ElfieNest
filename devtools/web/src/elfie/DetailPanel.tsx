@@ -18,9 +18,9 @@ type Props = Readonly<{
   readonly focus: DetailFocus;
   readonly previewResult: PreviewResult | null;
   readonly onClose: () => void;
-  // Test seam: stage node ids opened on mount so static-render tests can
-  // assert nested views without DOM interaction. Interactive clicks keep the
-  // single-open accordion behavior.
+  // Test seam: stage and known nested detail ids opened on mount so
+  // static-render tests can assert nested views without DOM interaction.
+  // Interactive clicks keep the single-open stage accordion behavior.
   readonly defaultOpenDetails?: readonly string[] | undefined;
 }>;
 
@@ -46,8 +46,8 @@ const statusLabels: Readonly<Record<string, string>> = {
 // renders an instant CSS tooltip anchored just below each trigger (no native title delay,
 // no double popup).
 const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  event_admission: "事件接入：外部输入去重排序，圈定本轮处理范围",
-  context_workspace: "上下文工作区：追加本轮消息，维护对话历史与主题摘要",
+  event_admission: "本轮输入：确认输入通道与处理内容",
+  context_workspace: "上下文工作区：查看分区内的历史、摘要与待处理状态",
   setup: "运行准备：冻结外部状态与记忆版本，确定推理模式与预算",
   reasoning_run: "推理执行：循环“编译→调用→行动→观察→守卫→判定”，产出最终决策",
   turn_decision: "回合决策：把接受的草稿固化为唯一的类型化决策",
@@ -144,6 +144,7 @@ function fieldLabel(key: string): string {
     captured_at: "读取时点",
     reasoning_mode: "推理强度",
     response_mode: "响应模式",
+    processing_mode: "处理方式",
     response_schema: "响应结构",
     temperature: "Temperature",
     max_tokens: "Max tokens",
@@ -193,8 +194,15 @@ function fieldLabel(key: string): string {
     revision: "版本",
     freshness: "新鲜度",
     location: "位置",
+    location_source: "位置来源",
+    position: "坐标",
+    heading_degrees: "朝向",
+    body_id: "身体",
     primary_emotion: "主情绪",
+    secondary_emotion: "次情绪",
     emotions: "情绪值",
+    active_emotions: "活跃情绪",
+    trends: "情绪趋势",
     energy: "能量",
     normal_budget_available: "普通认知配额",
     emergency_reserve_available: "紧急储备",
@@ -202,10 +210,20 @@ function fieldLabel(key: string): string {
     energy_revision: "能量版本",
     fatigue: "疲劳",
     is_sleeping: "睡眠中",
+    sleeping: "睡眠中",
     cognitive_mode: "认知模式",
     emotion_revision: "情绪版本",
     recovery_status: "恢复状态",
     recovery_pressure: "恢复压力",
+    cooldown_until: "冷却截止",
+    satisfaction_until: "满足截止",
+    last_trigger_id: "最近触发",
+    constitution_version: "人格规则版本",
+    context_captured_at: "冻结时点",
+    requires_model: "需要模型",
+    structured_owner_reply: "结构化回复",
+    fast_owner_reply: "快速回复",
+    long_reasoning_allowed: "允许深入推理",
     identity_core: "身份核心",
     interaction_tendencies: "互动倾向",
     coping_tendencies: "应对倾向",
@@ -222,12 +240,17 @@ function fieldLabel(key: string): string {
     depth_basis: "深度依据",
     max_steps: "最大步数",
     max_model_calls: "最大模型调用",
+    max_planned_model_calls: "计划模型调用上限",
     max_tool_calls: "最大工具调用",
     deadline_seconds: "预算截止（秒）",
+    hard_deadline_seconds: "硬截止（秒）",
     absolute_deadline: "绝对截止",
     max_context_tokens: "上下文 Token 预算",
     message_count: "追加消息数",
+    retained_message_count: "保留消息数",
+    topic_message_count: "活动状态消息数",
     active_topic_message_count: "活跃话题消息数",
+    summary_count: "压缩摘要数",
     channel_id: "频道",
     conversation_id: "会话",
     summary_id: "摘要 ID",
@@ -266,6 +289,7 @@ function fieldLabel(key: string): string {
     candidate_id: "候选 ID",
     base_revision: "基线版本",
     source_event_ids: "来源事件",
+    unresolved_items: "未解决事项",
     intensity: "强度",
     content_chars: "内容字符数",
     episode_id: "Episode",
@@ -285,6 +309,23 @@ function fieldLabel(key: string): string {
     charged: "实扣",
     released: "已释放",
     energy_state: "能量状态",
+    state: "状态",
+    participants: "参与者",
+    started_at: "开始时间",
+    last_activity_at: "最近活动",
+    pending_close: "待关闭",
+    thread_count: "上下文分区数",
+    pending_reply_count: "待结算回复数",
+    pending_memory_count: "待写入 Memory 数",
+    prepared_at: "准备时间",
+    occurred_from: "起始时间",
+    occurred_to: "结束时间",
+    event_kind: "事件类型",
+    content_text: "完整内容",
+    summary_text: "精简摘要",
+    stimulus: "触发输入",
+    sensory: "感知记录",
+    metadata: "附加信息",
     identity_core_text: "身份核心投影",
     adaptive_self_text: "自适应自我投影",
     emotion: "情绪",
@@ -302,7 +343,22 @@ function fieldLabel(key: string): string {
   return labels[key] ?? key;
 }
 
-const modalityLabels: Readonly<Record<string, string>> = { text: "文字", audio: "音频", image: "图像" };
+const modalityLabels: Readonly<Record<string, string>> = {
+  text: "文字",
+  audio: "音频",
+  image: "图像",
+  attachment: "附件",
+  hearing: "听觉",
+  vision: "视觉",
+  environment: "环境",
+  touch: "触碰",
+};
+
+const sourceDomainLabels: Readonly<Record<string, string>> = {
+  communication: "消息",
+  embodied: "现场",
+  activity: "Activity",
+};
 
 function modalitiesText(value: unknown): unknown {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return value;
@@ -351,16 +407,6 @@ function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonl
   return <section className="trace-evidence"><h4>{title}</h4>{hasContent(value) ? objectValue !== null ? <Fields values={objectValue} /> : textList ? <div className="trace-text-list">{value.map((item, index) => <p key={`${String(item)}-${index}`}>{item}</p>)}</div> : <pre className="trace-code">{pretty(value)}</pre> : <p className="trace-muted">{emptyLabel}</p>}</section>;
 }
 
-function flattenScope(scope: unknown): JsonRecord {
-  const source = record(scope);
-  const flat: JsonRecord = {};
-  if (hasContent(source.kind)) flat.kind = source.kind;
-  else if (hasContent(source.external_domain)) flat.external_domain = source.external_domain;
-  if (hasContent(source.channel_id)) flat.channel_id = source.channel_id;
-  if (hasContent(source.conversation_id)) flat.conversation_id = source.conversation_id;
-  return flat;
-}
-
 const compactIdLength = 14;
 const noisyDiffKeys: ReadonlySet<string> = new Set(["captured_at", "unknown_fields"]);
 
@@ -400,8 +446,8 @@ function readableStateDiff(value: unknown, path = ""): JsonRecord {
 }
 
 function MemoryEvidence({ points, fallback }: Readonly<{ readonly points: readonly unknown[]; readonly fallback: unknown }>): React.JSX.Element {
-  if (!points.length) return <Evidence title="模型收到的记忆证据" value={fallback} />;
-  return <section className="trace-evidence"><h4>模型收到的记忆证据</h4><div className="trace-memory-list">{points.map((value, index) => {
+  if (!points.length) return <Evidence title="记忆引用（仅 ID）" value={fallback} />;
+  return <section className="trace-evidence"><h4>记忆引用（仅 ID）</h4><div className="trace-memory-list">{points.map((value, index) => {
     const point = record(value);
     return <article className="trace-memory-point" key={`${String(point.kind ?? "point")}-${index}`}>
       {hasContent(point.claim) ? <p><strong>事实</strong>{String(point.claim)}</p> : null}
@@ -456,6 +502,8 @@ function TraceDisclosure({
   status,
   raw,
   tooltip,
+  showStatus = true,
+  showRaw = true,
 }: Readonly<{
   readonly children: ReactNode;
   readonly id: string;
@@ -467,17 +515,19 @@ function TraceDisclosure({
   readonly status: unknown;
   readonly raw?: unknown;
   readonly tooltip?: string | undefined;
+  readonly showStatus?: boolean;
+  readonly showRaw?: boolean;
 }>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
-  const hasRaw = hasContent(raw);
-  const visibleMeta = statusOf(status) === "skipped" ? undefined : meta;
+  const hasRaw = showRaw && hasContent(raw);
+  const visibleMeta = showStatus && statusOf(status) !== "skipped" ? meta : undefined;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
       <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
-        <Status value={status} />
+        {showStatus ? <Status value={status} /> : null}
       </button>
       {hasRaw ? <button aria-pressed={rawMode} className="trace-disclosure-mode" onClick={(event) => { event.stopPropagation(); if (!open) onToggle(id); setRawMode((current) => !current); }} type="button">{rawMode ? "摘要" : "原始记录"}</button> : null}
     </div>
@@ -494,59 +544,315 @@ function TraceIO({ node, omitOutput = [] }: Readonly<{ readonly node: TraceNode;
   </>;
 }
 
-function ConversationList({ rows }: Readonly<{ readonly rows: readonly unknown[] }>): React.JSX.Element {
-  return <div className="trace-text-list">{rows.map((value, index) => {
-    if (typeof value === "string") return <p key={`line-${index}`}>{value}</p>;
+function ConversationList({ rows, elfieName }: Readonly<{ readonly rows: readonly unknown[]; readonly elfieName?: string | undefined }>): React.JSX.Element {
+  return <dl aria-label="历史交互" className="trace-fields">{rows.map((value, index) => {
+    if (typeof value === "string") {
+      return <div className="trace-field" key={`line-${index}`}><dt>记录</dt><dd><span className="trace-value-text">{value}</span></dd></div>;
+    }
     const row = record(value);
-    const speaker = typeof row.role === "string" && row.role ? row.role : "未知";
+    const speaker = conversationSpeaker(row, elfieName);
     const content = [row.content, row.text, row.message].find(hasContent);
     const at = occurredAtValue(row.occurred_at);
-    return <p key={`${speaker}-${index}`}><strong>{speaker}：</strong>{hasContent(content) ? String(content) : <span className="trace-muted">未记录</span>}{typeof at === "string" && at !== "未记录" ? <span className="trace-muted"> · {at}</span> : null}</p>;
-  })}</div>;
+    return <div className="trace-field" key={`${speaker}-${index}`}><dt>{speaker}</dt><dd>{hasContent(content) ? <span className="trace-value-text">{String(content)}</span> : <span className="trace-muted">未记录</span>}{typeof at === "string" && at !== "未记录" ? <span className="trace-muted"> · {at}</span> : null}</dd></div>;
+  })}</dl>;
+}
+
+const conversationSpeakerLabels: Readonly<Record<string, string>> = {
+  owner: "开发者",
+  elfie: "elfie",
+  developer_tool: "开发者输入",
+  human: "开发者",
+  system: "系统",
+  activity: "Activity",
+  microphone: "麦克风",
+  vision: "视觉输入",
+  touch: "触觉输入",
+  environment: "环境输入",
+  body: "身体输入",
+  internal: "内部事件",
+};
+
+const genericSpeakerNames: ReadonlySet<string> = new Set([
+  "主人",
+  "其他参与者",
+  "人类参与者",
+  "Elfie",
+  "精灵",
+  "小精灵",
+  "未命名精灵",
+  "调试输入",
+  "开发者输入",
+]);
+
+function looksLikeOpaqueSpeaker(value: string): boolean {
+  return /^(?:turn|frame|event|intent|channel|conversation|elfie)[_:-]/i.test(value)
+    || /^\d{6,}$/.test(value);
+}
+
+function legacySpeakerKind(value: string): string | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "主人" || /(?:^|[-_:])owner$/.test(normalized)) return "owner";
+  if (normalized === "精灵" || normalized === "小精灵" || /^elfie(?:[-_:]|$)/.test(normalized)) return "elfie";
+  return undefined;
+}
+
+function usableSpeakerName(value: unknown): value is string {
+  return typeof value === "string"
+    && value.trim().length > 0
+    && !looksLikeOpaqueSpeaker(value.trim())
+    && !genericSpeakerNames.has(value.trim());
+}
+
+function conversationSpeaker(row: JsonRecord, elfieName?: string): string {
+  const named = [row.display_name, row.speaker]
+    .find((candidate): candidate is string => usableSpeakerName(candidate));
+  if (named) return named.trim();
+
+  const kind = [row.speaker_kind, row.source_kind, row.role]
+    .find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0);
+  const normalizedKind = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  const legacyKind = [row.display_name, row.speaker]
+    .find((candidate): candidate is string => typeof candidate === "string" && legacySpeakerKind(candidate) !== undefined);
+  const resolvedKind = normalizedKind || (legacyKind ? legacySpeakerKind(legacyKind) ?? "" : "");
+  if (resolvedKind === "elfie") return elfieName?.trim() || conversationSpeakerLabels.elfie || "elfie";
+  if (resolvedKind === "owner" || resolvedKind === "human") return conversationSpeakerLabels.owner || "开发者";
+  if (resolvedKind && conversationSpeakerLabels[resolvedKind]) return conversationSpeakerLabels[resolvedKind];
+  // The Lab conversation projection has only the developer and the current
+  // Elfie.  Older rows can lose their source kind, so keep them attached to
+  // the current Elfie instead of exposing an abstract participant label.
+  return elfieName?.trim() || "elfie";
+}
+
+function admissionValue(input: JsonRecord, modality: string): unknown {
+  const projectedValues = record(input.modality_values);
+  if (hasContent(projectedValues[modality])) return projectedValues[modality];
+
+  const message = typeof input.message === "string" ? input.message.trim() : "";
+  if ((modality === "text" || modality === "hearing") && message) return message;
+
+  if (modality === "attachment") {
+    const attachments = list(input.message_attachments).map(record);
+    const filenames = attachments
+      .map((item) => item.filename)
+      .filter((value): value is string => typeof value === "string" && value !== "");
+    if (filenames.length) return filenames.join("、");
+    if (attachments.length) return `${attachments.length} 个附件`;
+  }
+
+  if (modality === "vision" && hasContent(input.vision_media)) return "已提供视觉输入";
+  if (modality === "environment" && hasContent(input.temperature)) return `温度 ${String(input.temperature)}°C`;
+  if (modality === "touch" && (hasContent(input.impact_force) || hasContent(input.gentle_stroke))) return "已提供触觉输入";
+  return undefined;
+}
+
+function admissionModalities(input: JsonRecord, sourceDomain: string): readonly string[] {
+  const names = list(input.modalities).filter((item): item is string => typeof item === "string");
+  const projectedNames = Object.keys(record(input.modality_values));
+  const inferred = names.length ? names : projectedNames;
+  if (inferred.length) return Array.from(new Set(inferred));
+
+  const message = typeof input.message === "string" ? input.message.trim() : "";
+  if (message) return [sourceDomain === "embodied" ? "hearing" : "text"];
+  return [];
 }
 
 function AdmissionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
-  const admission = record(node.admission);
-  const output = record(node.output);
-  const interactionRows = flattenScope(output.interaction_scope);
-  const responseRows = flattenScope(output.response_scope);
-  const admissionId = `${String(node.id ?? "event_admission")}-admission`;
-  const toggle = (id: string): void => {
-    setOpenChildren((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  return <>
-    <TraceIO node={node} omitOutput={["interaction_scope", "response_scope"]} />
-    {hasContent(interactionRows) ? <Evidence title="交互范围" value={interactionRows} /> : null}
-    {hasContent(responseRows) ? <Evidence title="响应范围" value={responseRows} /> : null}
-    {hasContent(admission) ? <TraceDisclosure
-      id={admissionId}
-      title="准入明细"
-      onToggle={toggle}
-      open={openChildren.has(admissionId)}
-      raw={node.admission}
-      status="recorded"
-    >
-      <Fields values={admission} omit={["saliences"]} />
-      {list(admission.saliences).length ? <section className="trace-evidence"><h4>事件显著性</h4><BlockList items={list(admission.saliences)} /></section> : null}
-    </TraceDisclosure> : null}
-  </>;
+  const input = record(node.input);
+  const sourceDomain = typeof input.source_domain === "string" ? input.source_domain : "";
+  const sourceLabel = sourceDomainLabels[sourceDomain] ?? sourceDomain;
+  const rows = admissionModalities(input, sourceDomain)
+    .map((modality) => ({
+      modality,
+      label: modalityLabels[modality] ?? modality,
+      value: admissionValue(input, modality),
+    }))
+    .filter(({ value }) => hasContent(value));
+  return <dl aria-label="本轮输入" className="trace-fields">
+    <div className="trace-field"><dt>输入通道</dt><dd><FieldValue value={sourceLabel || undefined} /></dd></div>
+    {rows.map(({ modality, label, value }) => <div className="trace-field" key={modality}><dt>{label}</dt><dd><FieldValue value={value} /></dd></div>)}
+  </dl>;
 }
 
-function WorkspaceNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+function workspaceRecords(value: unknown): readonly JsonRecord[] {
+  return list(value).map(record);
+}
+
+function workspaceCurrentThread(
+  threads: readonly JsonRecord[],
+  appended: JsonRecord,
+): JsonRecord | null {
+  const match = threads.find((thread) => (
+    hasContent(appended.channel_id)
+    && hasContent(appended.conversation_id)
+    && String(thread.channel_id) === String(appended.channel_id)
+    && String(thread.conversation_id) === String(appended.conversation_id)
+  ));
+  return match ?? null;
+}
+
+function workspacePartitionRows(
+  threads: readonly JsonRecord[],
+  appended: JsonRecord,
+): readonly JsonRecord[] {
+  return threads.map((thread) => {
+    const current = (
+      hasContent(appended.channel_id)
+      && hasContent(appended.conversation_id)
+      && String(thread.channel_id) === String(appended.channel_id)
+      && String(thread.conversation_id) === String(appended.conversation_id)
+    );
+    return {
+      channel_id: thread.channel_id,
+      conversation_id: thread.conversation_id,
+      state: current ? "当前分区" : "已保留",
+      retained_message_count: workspaceRecords(thread.messages).length,
+      summary_count: workspaceRecords(thread.summaries).length,
+    };
+  });
+}
+
+function workspaceHistoryRows(
+  workspace: JsonRecord,
+  output: JsonRecord,
+  appended: JsonRecord,
+): readonly unknown[] {
+  const threads = workspaceRecords(workspace.threads);
+  const current = workspaceCurrentThread(threads, appended);
+  if (current) {
+    return workspaceRecords(current.messages).filter((row) => row.is_current !== true);
+  }
+  return list(output.conversation).filter((value) => record(value).is_current !== true);
+}
+
+function workspaceSummaryRows(
+  workspace: JsonRecord,
+  appended: JsonRecord,
+): readonly JsonRecord[] {
+  const threads = workspaceRecords(workspace.threads);
+  const current = workspaceCurrentThread(threads, appended);
+  if (current) return workspaceRecords(current.summaries);
+  return workspaceRecords(appended.summaries).filter((summary) => (
+    hasContent(summary.content)
+    || hasContent(summary.unresolved_items)
+    || hasContent(summary.occurred_from)
+    || hasContent(summary.occurred_to)
+  ));
+}
+
+function workspaceStateRows(
+  workspace: JsonRecord,
+  appended: JsonRecord,
+): readonly JsonRecord[] {
+  const threads = workspaceRecords(workspace.threads);
+  const current = workspaceCurrentThread(threads, appended);
+  if (!current) return [];
+  const active = record(current.active_state);
+  return [
+    ...(hasContent(active) ? [active] : []),
+    ...workspaceRecords(current.pending_states),
+  ];
+}
+
+function WorkspaceSummaryList({ items }: Readonly<{ readonly items: readonly unknown[] }>): React.JSX.Element | null {
+  if (!items.length) return null;
+  return <div className="trace-memory-list">{items.map((value, index) => {
+    const summary = record(value);
+    return <article className="trace-memory-point" key={`${String(summary.summary_id ?? "summary")}-${index}`}>
+      <Fields values={{
+        occurred_from: summary.occurred_from,
+        occurred_to: summary.occurred_to,
+        content: summary.content,
+        unresolved_items: summary.unresolved_items,
+      }} />
+    </article>;
+  })}</div>;
+}
+
+function WorkspaceStateList({ items }: Readonly<{ readonly items: readonly unknown[] }>): React.JSX.Element | null {
+  if (!items.length) return null;
+  return <div className="trace-memory-list">{items.map((value, index) => {
+    const state = record(value);
+    return <article className="trace-memory-point" key={`workspace-state-${index}`}>
+      <Fields values={{
+        state: state.state,
+        participants: state.participants,
+        started_at: state.started_at,
+        last_activity_at: state.last_activity_at,
+        topic_message_count: state.message_count,
+        summary_count: state.summary_count,
+      }} />
+    </article>;
+  })}</div>;
+}
+
+function WorkspacePendingReplyList({ items }: Readonly<{ readonly items: readonly unknown[] }>): React.JSX.Element | null {
+  if (!items.length) return null;
+  return <div className="trace-memory-list">{items.map((value, index) => {
+    const reply = record(value);
+    return <article className="trace-memory-point" key={`pending-reply-${index}`}>
+      <Fields values={{
+        status: reply.status,
+        channel_id: reply.channel_id,
+        conversation_id: reply.conversation_id,
+        content: reply.content,
+        prepared_at: reply.prepared_at,
+        memory_eligible: reply.memory_eligible,
+      }} />
+    </article>;
+  })}</div>;
+}
+
+function WorkspacePendingMemoryList({ items }: Readonly<{ readonly items: readonly unknown[] }>): React.JSX.Element | null {
+  if (!items.length) return null;
+  return <div className="trace-memory-list">{items.map((value, index) => {
+    const episode = record(value);
+    return <article className="trace-memory-point" key={`pending-memory-${index}`}>
+      <Fields values={{
+        status: episode.status,
+        event_kind: episode.event_kind,
+        occurred_from: episode.occurred_from,
+        occurred_to: episode.occurred_to,
+        content_text: episode.content_text,
+        summary_text: episode.summary_text,
+        stimulus: episode.stimulus,
+        sensory: episode.sensory,
+        metadata: episode.metadata,
+      }} />
+    </article>;
+  })}</div>;
+}
+
+function WorkspaceNode({ node, elfieName, mountOpenIds }: Readonly<{
+  readonly node: TraceNode;
+  readonly elfieName?: string | undefined;
+  readonly mountOpenIds?: ReadonlySet<string> | undefined;
+}>): React.JSX.Element {
+  const baseId = String(node.id ?? "context_workspace");
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set(
+    Array.from(mountOpenIds ?? []).filter((id) => id.startsWith(`${baseId}-`)),
+  ));
   const output = record(node.output);
   const appended = record(node.appended);
-  const appendedSummary = Object.fromEntries((["message_count", "active_topic_message_count", "channel_id", "conversation_id"] as const)
-    .map((key) => [key, appended[key]] as const)
-    .filter(([, value]) => hasContent(value)));
-  const conversationId = `${String(node.id ?? "context_workspace")}-conversation`;
-  const summariesId = `${String(node.id ?? "context_workspace")}-summaries`;
+  const stageRaw = record(node.raw);
+  const workspace = record(output.workspace);
+  const threads = workspaceRecords(workspace.threads);
+  const partitions = threads.length
+    ? workspacePartitionRows(threads, appended)
+    : hasContent(appended.channel_id) || hasContent(appended.conversation_id)
+      ? [{
+        channel_id: appended.channel_id,
+        conversation_id: appended.conversation_id,
+        state: "当前分区",
+        retained_message_count: undefined,
+        summary_count: undefined,
+      }]
+      : [];
+  const history = workspaceHistoryRows(workspace, output, appended);
+  const summaries = workspaceSummaryRows(workspace, appended);
+  const states = workspaceStateRows(workspace, appended);
+  const pendingReplies = workspaceRecords(workspace.pending_replies);
+  const pendingMemory = workspaceRecords(workspace.pending_memory);
+  const checkpoint = record(workspace.checkpoint);
   const toggle = (id: string): void => {
     setOpenChildren((current) => {
       const next = new Set(current);
@@ -555,29 +861,58 @@ function WorkspaceNode({ node }: Readonly<{ readonly node: TraceNode }>): React.
       return next;
     });
   };
+  const details = [
+    {
+      id: `${baseId}-summaries`,
+      title: "压缩摘要",
+      raw: summaries,
+      content: summaries.length ? <WorkspaceSummaryList items={summaries} /> : null,
+      visible: summaries.length > 0,
+    },
+    {
+      id: `${baseId}-state`,
+      title: "工作区活动状态",
+      raw: states,
+      content: states.length ? <WorkspaceStateList items={states} /> : null,
+      visible: states.length > 0,
+    },
+    {
+      id: `${baseId}-pending-replies`,
+      title: "待结算回复",
+      raw: pendingReplies,
+      content: pendingReplies.length ? <WorkspacePendingReplyList items={pendingReplies} /> : null,
+      visible: pendingReplies.length > 0,
+    },
+    {
+      id: `${baseId}-pending-memory`,
+      title: "待写入 Memory",
+      raw: pendingMemory,
+      content: pendingMemory.length ? <WorkspacePendingMemoryList items={pendingMemory} /> : null,
+      visible: pendingMemory.length > 0,
+    },
+    {
+      id: `${baseId}-checkpoint`,
+      title: "恢复检查点",
+      raw: stageRaw.workspace_checkpoint ?? workspace,
+      content: hasContent(checkpoint) ? <Fields values={checkpoint} /> : null,
+      visible: hasContent(checkpoint),
+    },
+  ];
+  const visibleDetails = details.filter((detail) => detail.visible);
   return <>
-    <TraceIO node={node} omitOutput={["conversation"]} />
-    {hasContent(appendedSummary) ? <Evidence title="本轮追加" value={appendedSummary} /> : null}
-    {hasContent(output.conversation) ? <TraceDisclosure
-      id={conversationId}
-      title="对话历史明细"
+    {partitions.length ? <section className="trace-evidence"><h4>上下文分区</h4><BlockList items={partitions} /></section> : null}
+    {history.length ? <section className="trace-evidence"><h4>历史交互</h4><ConversationList elfieName={elfieName} rows={history} /></section> : null}
+    {visibleDetails.length ? <div className="trace-workspace-sections">{visibleDetails.map((detail) => <TraceDisclosure
+      id={detail.id}
+      key={detail.id}
+      title={detail.title}
       onToggle={toggle}
-      open={openChildren.has(conversationId)}
-      raw={output.conversation}
+      open={openChildren.has(detail.id)}
+      raw={detail.raw}
       status="recorded"
     >
-      {Array.isArray(output.conversation) ? <ConversationList rows={output.conversation} /> : <Evidence title="对话上下文" value={output.conversation} />}
-    </TraceDisclosure> : null}
-    {list(appended.summaries).length ? <TraceDisclosure
-      id={summariesId}
-      title="摘要覆盖"
-      onToggle={toggle}
-      open={openChildren.has(summariesId)}
-      raw={appended.summaries}
-      status="recorded"
-    >
-      <BlockList items={list(appended.summaries)} />
-    </TraceDisclosure> : null}
+      {detail.content}
+    </TraceDisclosure>)}</div> : null}
   </>;
 }
 
@@ -611,7 +946,6 @@ function stageAnomaly(node: TraceNode): string {
   const output = record(node.output);
   if (id === "setup") {
     const baselineStatus = statusOf(record(node.baseline_memory).status);
-    if (baselineStatus === "skipped") return "Memory skipped";
     if (baselineStatus === "degraded") return "Memory degraded";
   }
   if (id === "event_admission") {
@@ -640,11 +974,17 @@ function nodeMeta(node: TraceNode): string {
     ? `${list(node.iterations).length} 个迭代`
     : "";
   const anomaly = stageAnomaly(node);
-  const duration = formatDuration(
-    node.duration_ms
-      ?? record(node.timing).duration_ms
-      ?? record(node.output).duration_ms,
-  );
+  // Setup's previous duration mixed memory/selection work with snapshots
+  // taken before the immutable BrainContext existed.  Until the stage gets a
+  // dedicated measured boundary, do not present that partial number as the
+  // freeze cost.
+  const duration = String(node.id ?? "") === "setup"
+    ? "未记录"
+    : formatDuration(
+      node.duration_ms
+        ?? record(node.timing).duration_ms
+        ?? record(node.output).duration_ms,
+    );
   return [detail, anomaly, duration === "未记录" ? "" : `耗时 ${duration}`]
     .filter(Boolean)
     .join(" · ");
@@ -653,61 +993,117 @@ function nodeMeta(node: TraceNode): string {
 function ownerOutput(moduleId: string, value: unknown): JsonRecord {
   const source = record(value);
   if (moduleId === "orientation") return {
-    revision: source.revision,
-    freshness: source.freshness,
     location: source.location,
+    location_source: source.location_source,
     body_id: source.body_id,
-    active_channel_id: source.active_channel_id,
-    active_conversation_id: source.active_conversation_id,
+    body_generation: source.body_generation,
+    position: source.position,
+    heading_degrees: source.heading_degrees,
     activity_id: source.activity_id,
     affordances: source.affordances,
+    freshness: source.freshness,
   };
   if (moduleId === "selfhood") {
-    const identity = record(source.identity_core);
-    const adaptive = record(source.adaptive_self);
+    // The Lab's default view is the model-facing projection.  Legacy
+    // identity_core/adaptive_self payloads stay available only through the
+    // explicit raw record so the UI never presents internal state as final text.
     return {
-      revision: source.revision,
-      identity_core: {
-        display_name: identity.display_name,
-        species_name: identity.species_name,
-        resident_role: identity.resident_role,
-      },
-      interaction_tendencies: adaptive.interaction_tendency_ids,
-      coping_tendencies: adaptive.coping_tendency_ids,
-      expression_tendencies: adaptive.expression_tendency_ids,
-      values: adaptive.value_ids,
-      speech_markers: adaptive.speech_marker_ids,
+      identity_core_text: source.identity_core_text,
+      adaptive_self_text: source.adaptive_self_text,
     };
   }
-  if (moduleId === "emotion") return {
-    primary_emotion: source.primary_emotion,
-    emotions: source.emotions,
-    emotion_revision: source.emotion_revision,
-  };
+  if (moduleId === "emotion") {
+    const values = list(source.values);
+    const emotions = values.length && values.every((item) => {
+      const point = record(item);
+      return hasContent(point.name) && point.intensity !== undefined;
+    })
+      ? Object.fromEntries(values.map((item) => {
+        const point = record(item);
+        return [String(point.name), point.intensity];
+      }))
+      : source.emotions;
+    const active = list(source.active);
+    const activeEmotions = active.length && active.every((item) => hasContent(record(item).name))
+      ? active.map((item) => record(item).name)
+      : source.active_emotions;
+    const trends = list(source.trends);
+    const trendValues = trends.length && trends.every((item) => Array.isArray(item) && item.length >= 2)
+      ? Object.fromEntries(trends.map((item) => {
+        const pair = Array.isArray(item) ? item : [];
+        return [String(pair[0]), pair[1]];
+      }))
+      : source.trends;
+    return {
+      primary_emotion: source.primary_emotion ?? source.primary,
+      secondary_emotion: source.secondary_emotion ?? source.secondary,
+      emotions,
+      active_emotions: activeEmotions,
+      trends: trendValues,
+      freshness: source.freshness,
+    };
+  }
   if (moduleId === "energy") return {
     energy: source.energy,
     fatigue: source.fatigue,
-    is_sleeping: source.is_sleeping,
+    is_sleeping: source.is_sleeping ?? source.sleeping,
     cognitive_mode: source.cognitive_mode,
+    long_reasoning_allowed: source.long_reasoning_allowed,
+    available_cognitive_budget: source.available_cognitive_budget,
     normal_budget_available: source.normal_budget_available,
     emergency_reserve_available: source.emergency_reserve_available,
     reserved_cognitive_budget: source.reserved_cognitive_budget,
-    energy_revision: source.energy_revision,
   };
   if (moduleId === "motivation") return {
-    revision: source.revision,
     recovery_pressure: source.recovery_pressure,
     recovery_status: source.recovery_status,
-    last_trigger_id: source.last_trigger_id,
+    cooldown_until: source.cooldown_until,
+    satisfaction_until: source.satisfaction_until,
   };
   return source;
 }
 
-function SetupNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
+function setupProcessingMode(output: JsonRecord): string | undefined {
+  const responseMode = String(output.response_mode ?? "");
+  const reasoningMode = String(output.reasoning_mode ?? "");
+  const responseLabel: Readonly<Record<string, string>> = {
+    direct_reply: "直接回复",
+    decision_plan: "决策计划",
+  };
+  const reasoningLabel: Readonly<Record<string, string>> = {
+    fast: "快速处理",
+    long: "深入处理",
+  };
+  const labels = [responseLabel[responseMode] ?? responseMode, reasoningLabel[reasoningMode] ?? reasoningMode]
+    .filter(Boolean);
+  return labels.length ? labels.join(" · ") : undefined;
+}
+
+function SetupNode({ node, mountOpenIds }: Readonly<{
+  readonly node: TraceNode;
+  readonly mountOpenIds?: ReadonlySet<string> | undefined;
+}>): React.JSX.Element {
+  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set(
+    Array.from(mountOpenIds ?? []).filter((id) => id.startsWith("setup-")),
+  ));
   const output = record(node.output);
   const owners = list(node.owner_snapshots).map(record);
+  const selfhoodProjection = record(node.selfhood_projection);
+  const budget = record(node.budget);
   const baseline = record(node.baseline_memory);
+  const baselineStatus = statusOf(baseline.status);
+  const baselineReason = String(baseline.reason ?? baseline.skip_reason ?? "");
+  const normalMemorySkip = baselineStatus === "skipped" && baselineReason === "baseline_recall_not_relevant";
+  const overview: JsonRecord = {
+    processing_mode: setupProcessingMode(output),
+    cognitive_mode: budget.cognitive_mode,
+    max_steps: budget.max_steps,
+    max_model_calls: budget.max_model_calls,
+    max_planned_model_calls: budget.max_planned_model_calls,
+    max_tool_calls: budget.max_tool_calls,
+    deadline_seconds: budget.deadline_seconds ?? budget.hard_deadline_seconds,
+    max_context_tokens: budget.max_context_tokens,
+  };
   const toggle = (id: string): void => {
     setOpenChildren((current) => {
       const next = new Set(current);
@@ -717,45 +1113,36 @@ function SetupNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.
     });
   };
   return <>
-    <Fields values={output} omit={["turn_id", "capabilities", "allowed_tools", "temperature", "max_tokens", "tool_definition_count", "skill_count"]} />
-    {hasContent(record(node.budget)) ? <TraceDisclosure
-      id="setup-budget"
-      title="预算与边界"
-      onToggle={toggle}
-      open={openChildren.has("setup-budget")}
-      raw={node.budget}
-      status="recorded"
-    >
-      <Fields values={record(node.budget)} />
-    </TraceDisclosure> : null}
-    {hasContent(record(node.selfhood_projection)) ? <TraceDisclosure
-      id="setup-selfhood-projection"
-      title="Selfhood 投影"
-      onToggle={toggle}
-      open={openChildren.has("setup-selfhood-projection")}
-      raw={node.selfhood_projection}
-      status="recorded"
-    >
-      <Fields values={record(node.selfhood_projection)} />
-    </TraceDisclosure> : null}
-    {owners.length ? <section className="trace-owner-section"><h4>模块快照</h4><div className="trace-owner-list">{owners.map((owner, index) => {
+    <Fields values={overview} />
+    {owners.length ? <section className="trace-owner-section"><h4>进入推理时冻结状态</h4><div className="trace-owner-list">{owners.map((owner, index) => {
       const id = `setup-${String(owner.id ?? index)}`;
-      return <OwnerSnapshot key={id} id={id} number={`3.${index + 1}`} onToggle={toggle} open={openChildren.has(id)} owner={owner} />;
+      return <OwnerSnapshot
+        key={id}
+        id={id}
+        onToggle={toggle}
+        open={openChildren.has(id)}
+        owner={owner}
+        projection={String(owner.id ?? "") === "selfhood" ? selfhoodProjection : undefined}
+      />;
     })}</div></section> : null}
-    {hasContent(baseline) ? <TraceDisclosure
+    {hasContent(baseline) && !normalMemorySkip ? <TraceDisclosure
       id="setup-baseline-memory"
-      number="3.6"
-      title="Baseline Memory Recall"
-      meta={statusOf(baseline.status) === "skipped" ? undefined : String(baseline.status ?? "")}
+      title="基础记忆"
       onToggle={toggle}
       open={openChildren.has("setup-baseline-memory")}
-      raw={baseline.raw ?? baseline}
+      raw={undefined}
       status={baseline.status}
+      showStatus={false}
+      showRaw={false}
     >
-      {statusOf(baseline.status) === "skipped" ? <SkipDetails node={baseline} fallbackEvidence="MEMORY_RECALL_STATUS" /> : <>
-        <Fields values={baseline} omit={["returned_evidence", "returned_points", "raw", "evidence_basis"]} />
-        <MemoryEvidence points={list(baseline.returned_points)} fallback={baseline.returned_evidence} />
-      </>}
+      <Fields values={{
+        status: baselineStatus === "recalled" ? undefined : baseline.status,
+        query: baseline.query,
+        revision: baseline.revision,
+        returned_count: list(baseline.returned_points).length,
+        reason: baselineReason,
+      }} />
+      <MemoryEvidence points={list(baseline.returned_points)} fallback={baseline.returned_evidence} />
     </TraceDisclosure> : null}
   </>;
 }
@@ -766,25 +1153,29 @@ function OwnerSnapshot({
   onToggle,
   open,
   owner,
+  projection,
 }: Readonly<{
   readonly id: string;
-  readonly number: string;
+  readonly number?: string;
   readonly onToggle: (id: string) => void;
   readonly open: boolean;
   readonly owner: TraceNode;
+  readonly projection?: JsonRecord | undefined;
 }>): React.JSX.Element {
-  const output = ownerOutput(String(owner.id ?? ""), owner.output);
+  const outputSource = projection !== undefined && hasContent(projection) ? projection : owner.output;
+  const output = ownerOutput(String(owner.id ?? ""), outputSource);
   return <TraceDisclosure
     id={id}
-    number={number}
+    {...(number !== undefined ? { number } : {})}
     title={String(owner.title ?? owner.id ?? "模块")}
     onToggle={onToggle}
     open={open}
     raw={owner.raw}
     status={owner.status}
+    showStatus={false}
+    showRaw={false}
   >
-    <Evidence title="快照来源" value={owner.input} />
-    <Evidence title="冻结快照" value={output} />
+    <Fields values={output} />
   </TraceDisclosure>;
 }
 
@@ -1297,11 +1688,16 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   </>;
 }
 
-function NodeBody({ node, preview, mountOpenIds }: Readonly<{ readonly node: TraceNode; readonly preview: PreviewResult | null; readonly mountOpenIds?: ReadonlySet<string> | undefined }>): React.JSX.Element {
+function NodeBody({ node, preview, mountOpenIds, elfieName }: Readonly<{
+  readonly node: TraceNode;
+  readonly preview: PreviewResult | null;
+  readonly mountOpenIds?: ReadonlySet<string> | undefined;
+  readonly elfieName?: string | undefined;
+}>): React.JSX.Element {
   const id = String(node.id ?? "");
   if (id === "event_admission") return <AdmissionNode node={node} />;
-  if (id === "context_workspace") return <WorkspaceNode node={node} />;
-  if (id === "setup") return <SetupNode node={node} />;
+  if (id === "context_workspace") return <WorkspaceNode elfieName={elfieName} mountOpenIds={mountOpenIds} node={node} />;
+  if (id === "setup") return <SetupNode mountOpenIds={mountOpenIds} node={node} />;
   if (id === "reasoning_run") return <ReasoningNode node={node} mountOpenIds={mountOpenIds} />;
   if (id === "turn_decision") return <DecisionNode node={node} />;
   if (id === "governance_delivery") return <GovernanceNode node={node} preview={preview} />;
@@ -1315,7 +1711,14 @@ function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.El
     : <div className="trace-unavailable"><span>原始记录</span><Status value="unavailable" /></div>;
 }
 
-function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{ readonly node: TraceNode; readonly open: boolean; readonly onToggle: () => void; readonly preview: PreviewResult | null; readonly mountOpenIds?: ReadonlySet<string> | undefined }>): React.JSX.Element {
+function NodeCard({ node, open, onToggle, preview, mountOpenIds, elfieName }: Readonly<{
+  readonly node: TraceNode;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly preview: PreviewResult | null;
+  readonly mountOpenIds?: ReadonlySet<string> | undefined;
+  readonly elfieName?: string | undefined;
+}>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
   const stageTip = STAGE_DESCRIPTIONS[String(node.id ?? "")];
   const toggleRaw = () => {
@@ -1331,7 +1734,7 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{ re
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>
     </div>
-    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody mountOpenIds={mountOpenIds} node={node} preview={preview} />}</div> : null}
+    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody elfieName={elfieName} mountOpenIds={mountOpenIds} node={node} preview={preview} />}</div> : null}
   </article>;
 }
 
@@ -1353,7 +1756,7 @@ function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly
       <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "Activity" : "消息"}</span><code>{turn.turn_id}</code></div>
     </section>
     <dl className="trace-stat-row"><div><dt>耗时</dt><dd>{formatDuration(turn.duration_ms)}</dd></div><div><dt>迭代</dt><dd>{iterations}</dd></div><div><dt>模型调用</dt><dd>{calls}</dd></div><div><dt>记录来源</dt><dd>{projected.source === "production_turn_record" ? "生产链路" : "未采集"}</dd></div></dl>
-    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
+    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard elfieName={session?.profile.name} key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
   </>;
 }
 

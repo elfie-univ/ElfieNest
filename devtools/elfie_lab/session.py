@@ -253,6 +253,20 @@ class ElfieLabSession:
                     **trace.get("stages", {}),
                 }
             state_after = self.snapshot()
+            workspace_checkpoint = None
+            try:
+                # Context Workspace already owns this persisted checkpoint;
+                # Lab only reads it so the inspector can project the complete
+                # retained state without creating a second store.
+                workspace_checkpoint = (
+                    self.elfie.continuity_checkpoint().conversation.model_dump(
+                        mode="json"
+                    )
+                )
+            except Exception as checkpoint_error:  # pragma: no cover - safety boundary
+                trace.setdefault("warnings", []).append(
+                    f"context_workspace_checkpoint:{type(checkpoint_error).__name__}"
+                )
             try:
                 trace.setdefault("stages", {})["observability"] = (
                     build_observability_trace(
@@ -267,6 +281,7 @@ class ElfieLabSession:
                         duration_ms=duration_ms,
                         warnings=trace.get("warnings", []),
                         observations=self._capture_sink.snapshot(),
+                        workspace_checkpoint=workspace_checkpoint,
                     )
                 )
             except Exception as projection_error:  # pragma: no cover - safety boundary

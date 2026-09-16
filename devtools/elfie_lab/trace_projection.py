@@ -254,6 +254,10 @@ def _appended_block(
         "active_topic_message_count": payload.active_topic_message_count,
         "channel_id": payload.channel_id,
         "conversation_id": payload.conversation_id,
+        # Keep the causal input identity available to the read-side
+        # projection so the current message can stay in Event Workspace
+        # instead of being duplicated in Context Workspace.
+        "input_event_ids": list(payload.input_event_ids),
         "summaries": [
             {
                 "summary_id": item.summary_id,
@@ -263,6 +267,30 @@ def _appended_block(
             for item in payload.summaries
         ],
     }
+
+
+def _context_current_event_ids(
+    appended: Optional[Mapping[str, Any]],
+    decision: Mapping[str, Any],
+) -> List[str]:
+    """Identify this turn's input and derived reply event identities.
+
+    The Context Workspace owns reply event ids as ``elfie-reply:<intent_id>``
+    when a message intent is prepared.  Reusing that existing deterministic
+    identity lets the UI hide the whole current interaction from the history
+    disclosure while keeping the checkpoint itself complete.
+    """
+    ids = [
+        str(item)
+        for item in _sequence(
+            appended.get("input_event_ids") if appended is not None else ()
+        )
+    ]
+    for value in _sequence(decision.get("message_intents")):
+        intent_id = _mapping(value).get("intent_id")
+        if intent_id:
+            ids.append(f"elfie-reply:{intent_id}")
+    return ids
 
 
 def _mode_selection_block(
@@ -285,6 +313,11 @@ def _mode_selection_block(
         "depth_basis": payload.depth_basis,
         "reasoning_mode": payload.reasoning_mode,
         "response_mode": payload.response_mode,
+        "requires_model": payload.requires_model,
+        "structured_owner_reply": payload.structured_owner_reply,
+        "fast_owner_reply": payload.fast_owner_reply,
+        "effective_tools": list(payload.effective_tools),
+        "skill_count": payload.skill_count,
     }
 
 
@@ -306,11 +339,14 @@ def _budget_block(
     return {
         "max_steps": payload.max_steps,
         "max_model_calls": payload.max_model_calls,
+        "max_planned_model_calls": payload.max_planned_model_calls,
         "max_tool_calls": payload.max_tool_calls,
         "deadline_seconds": payload.deadline_seconds,
+        "hard_deadline_seconds": payload.hard_deadline_seconds,
         "absolute_deadline": _iso_utc(payload.absolute_deadline),
         "max_context_tokens": payload.max_context_tokens,
         "cognitive_mode": payload.cognitive_mode,
+        "long_reasoning_allowed": payload.long_reasoning_allowed,
     }
 
 
@@ -339,6 +375,38 @@ def _selfhood_projection_block(
         "projected_at": _iso_utc(payload.projected_at),
         "identity_core_text": payload.identity_core_text,
         "adaptive_self_text": payload.adaptive_self_text,
+    }
+
+
+def _context_frozen_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the exact owner snapshots sealed into ``BrainContext``.
+
+    Setup must read this event rather than ``state_before``: the latter is a
+    Lab fixture used for injection/diff and can be older than the snapshots
+    actually assembled for the reasoning request.
+    """
+    events = _scoped_events(
+        observations,
+        boundary=_RUN_CONTROLLER_BOUNDARY,
+        kinds=("context_frozen",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[-1].payload
+    return {
+        "context_revision": payload.context_revision,
+        "constitution_version": payload.constitution_version,
+        "context_captured_at": _iso_utc(payload.context_captured_at),
+        "emotion": payload.emotion.model_dump(mode="json"),
+        "homeostasis": payload.homeostasis.model_dump(mode="json"),
+        "motivation": payload.motivation.model_dump(mode="json"),
+        "orientation": payload.orientation.model_dump(mode="json"),
+        "selfhood": payload.selfhood.model_dump(mode="json"),
     }
 
 
@@ -533,6 +601,7 @@ def build_observability_trace(
     duration_ms: float,
     warnings: Iterable[Any] = (),
     observations: Sequence[BrainObservation] = (),
+    workspace_checkpoint: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Return the seven top-level stages of one real production Turn.
 
@@ -559,6 +628,10 @@ def build_observability_trace(
         for stage_id, members in _STAGE_EVENT_MEMBERS.items()
     }
 
+    appended = _appended_block(observations, frame_id=frame_id)
+    current_event_ids = _context_current_event_ids(appended, decision)
+    context_frozen = _context_frozen_block(observations, frame_id=frame_id)
+
     setup = _setup_stage(
         turn_id=turn_id,
         stimulus=stimulus,
@@ -568,6 +641,7 @@ def build_observability_trace(
         mode_selection=_mode_selection_block(observations, frame_id=frame_id),
         budget=_budget_block(observations, frame_id=frame_id),
         selfhood_projection=_selfhood_projection_block(observations, frame_id=frame_id),
+        context_frozen=context_frozen,
         duration_ms=stage_durations["setup"],
     )
     reasoning_stage = _reasoning_stage(
@@ -597,7 +671,9 @@ def build_observability_trace(
                 stimulus=stimulus,
                 request=first_request,
                 compiles=compiles,
-                appended=_appended_block(observations, frame_id=frame_id),
+                appended=appended,
+                current_event_ids=current_event_ids,
+                workspace_checkpoint=workspace_checkpoint,
                 duration_ms=stage_durations["context_workspace"],
             ),
             setup,
@@ -902,22 +978,279 @@ def _compiled_summary(payload: Any) -> Dict[str, Any]:
     }
 
 
-def _compiled_conversation_rows(payload: Any) -> List[Dict[str, Any]]:
+def _workspace_message_view(
+    value: Any,
+    *,
+    current_event_ids: Sequence[Any] = (),
+) -> Dict[str, Any]:
+    """Project one persisted conversation message with a readable speaker.
+
+    ``ConversationMessage.sender`` is an ``ActorRef`` in the Brain contract;
+    the Lab derives a short read-side label from the source category and
+    optional display name.  Actor identity remains available as secondary
+    provenance, but is never the primary history label.  The event id remains
+    in the projection for provenance, while the UI can use ``is_current`` to
+    keep the current input in Event Workspace only.
+    """
+    message = _mapping(value)
+    sender = _mapping(message.get("sender"))
+    event_id = message.get("event_id")
+    current_ids = {str(item) for item in current_event_ids}
+    source_kind = sender.get("source_kind") or message.get("source_kind")
+    display_name = sender.get("display_name") or message.get("display_name")
+    actor_id = sender.get("actor_id") or message.get("actor_id")
+    return {
+        "event_id": event_id,
+        "speaker": _speaker_label(
+            source_kind=source_kind,
+            display_name=display_name,
+            actor_id=actor_id,
+        ),
+        "speaker_kind": source_kind,
+        "actor_id": actor_id,
+        "display_name": display_name,
+        "content": message.get("content"),
+        "occurred_at": _iso_utc(message.get("occurred_at")),
+        "is_current": (event_id is not None and str(event_id) in current_ids),
+    }
+
+
+def _workspace_summary_view(value: Any) -> Dict[str, Any]:
+    """Project one source-linked Context Workspace compression summary."""
+    summary = _mapping(value)
+    return {
+        "summary_id": summary.get("summary_id"),
+        "version": summary.get("version"),
+        "source_event_ids": list(_sequence(summary.get("source_event_ids"))),
+        "occurred_from": _iso_utc(summary.get("occurred_from")),
+        "occurred_to": _iso_utc(summary.get("occurred_to")),
+        "content": summary.get("content"),
+        "unresolved_items": list(_sequence(summary.get("unresolved_items"))),
+    }
+
+
+def _workspace_topic_view(
+    value: Any,
+    *,
+    current_event_ids: Sequence[Any] = (),
+) -> Optional[Dict[str, Any]]:
+    """Project actual topic state as lifecycle metadata, not a fake title."""
+    topic = _mapping(value)
+    if not topic:
+        return None
+    messages = [
+        _workspace_message_view(item, current_event_ids=current_event_ids)
+        for item in _sequence(topic.get("messages"))
+    ]
+    summaries = [
+        _workspace_summary_view(item) for item in _sequence(topic.get("summaries"))
+    ]
+    close_after = topic.get("close_after_event_id")
+    return {
+        "state": "待关闭" if close_after else "活跃",
+        "participants": list(_sequence(topic.get("participants"))),
+        "started_at": _iso_utc(topic.get("started_at")),
+        "last_activity_at": _iso_utc(topic.get("last_activity_at")),
+        "pending_close": bool(close_after),
+        "message_count": len(messages),
+        "summary_count": len(summaries),
+        "messages": messages,
+        "summaries": summaries,
+    }
+
+
+def _workspace_pending_reply_view(value: Any) -> Dict[str, Any]:
+    """Project a reply that is persisted until a delivery receipt settles it."""
+    reply = _mapping(value)
+    return {
+        "status": "待回执",
+        "channel_id": reply.get("channel_id"),
+        "conversation_id": reply.get("conversation_id"),
+        "content": reply.get("content"),
+        "prepared_at": _iso_utc(reply.get("prepared_at")),
+        "memory_eligible": reply.get("memory_eligible"),
+        "cause_event_ids": list(_sequence(reply.get("cause_event_ids"))),
+        "intent_id": reply.get("intent_id"),
+        "reply_event_id": reply.get("reply_event_id"),
+    }
+
+
+def _workspace_pending_episode_view(value: Any) -> Dict[str, Any]:
+    """Project a pending ClosedEpisode payload without parsing prompt text."""
+    episode = _mapping(value)
+    if not episode and isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            parsed = {}
+        episode = _mapping(parsed)
+    return {
+        "status": "待写入 Memory",
+        "event_kind": episode.get("event_kind"),
+        "occurred_from": episode.get("occurred_from"),
+        "occurred_to": episode.get("occurred_to"),
+        "content_text": episode.get("content_text"),
+        "summary_text": episode.get("summary_text"),
+        "stimulus": episode.get("stimulus"),
+        "sensory": list(_sequence(episode.get("sensory"))),
+        "metadata": _mapping(episode.get("metadata")),
+        "source_event_ids": list(_sequence(episode.get("source_event_ids"))),
+        "episode_id": episode.get("episode_id"),
+    }
+
+
+def _workspace_checkpoint_projection(
+    checkpoint: Any,
+    *,
+    current_event_ids: Sequence[Any] = (),
+) -> Optional[Dict[str, Any]]:
+    """Map the real conversation checkpoint into displayable workspace state.
+
+    This is intentionally a read-side projection over the persisted
+    ``ConversationContextCheckpoint``.  It carries every bounded message and
+    summary, plus active/pending lifecycle state and deferred handoffs.  The
+    exact checkpoint is retained under the stage's ``raw`` record.
+    """
+    if checkpoint is None:
+        return None
+    if not isinstance(checkpoint, Mapping):
+        model_dump = getattr(checkpoint, "model_dump", None)
+        if callable(model_dump):
+            checkpoint = model_dump(mode="json")
+    source = _mapping(checkpoint)
+    if not source and checkpoint not in ({}, None):
+        return None
+
+    threads: List[Dict[str, Any]] = []
+    for value in _sequence(source.get("threads")):
+        thread = _mapping(value)
+        messages = [
+            _workspace_message_view(item, current_event_ids=current_event_ids)
+            for item in _sequence(thread.get("messages"))
+        ]
+        summaries = [
+            _workspace_summary_view(item) for item in _sequence(thread.get("summaries"))
+        ]
+        active_state = _workspace_topic_view(
+            thread.get("active_topic"),
+            current_event_ids=current_event_ids,
+        )
+        pending_states = [
+            state
+            for state in (
+                _workspace_topic_view(
+                    item,
+                    current_event_ids=current_event_ids,
+                )
+                for item in _sequence(thread.get("pending_topics"))
+            )
+            if state is not None
+        ]
+        threads.append(
+            {
+                "channel_id": thread.get("channel_id"),
+                "conversation_id": thread.get("conversation_id"),
+                "messages": messages,
+                "summaries": summaries,
+                "active_state": active_state,
+                "pending_states": pending_states,
+            }
+        )
+
+    pending_replies = [
+        _workspace_pending_reply_view(item)
+        for item in _sequence(source.get("pending_replies"))
+    ]
+    pending_memory = [
+        _workspace_pending_episode_view(item)
+        for item in _sequence(source.get("pending_closed_episode_payloads"))
+    ]
+    return {
+        "threads": threads,
+        "pending_replies": pending_replies,
+        "pending_memory": pending_memory,
+        "checkpoint": {
+            "status": "已保存",
+            "thread_count": len(threads),
+            "pending_reply_count": len(pending_replies),
+            "pending_memory_count": len(pending_memory),
+        },
+    }
+
+
+def _speaker_label(
+    *,
+    source_kind: Any = None,
+    display_name: Any = None,
+    actor_id: Any = None,
+) -> str:
+    """Return a semantic history label without exposing opaque actor IDs.
+
+    ``display_name`` is the strongest existing human-readable fact.  When it
+    is absent, the stable ``ActorRef.source_kind`` category supplies a small
+    Lab-facing label.  Unknown/legacy actors intentionally collapse to a
+    generic label rather than leaking an implementation identifier into the
+    primary history table; the raw record still retains ``actor_id``.
+    """
+    if isinstance(display_name, str) and display_name.strip():
+        return display_name.strip()
+
+    kind = source_kind.strip().lower() if isinstance(source_kind, str) else ""
+    labels = {
+        "owner": "主人",
+        "elfie": "Elfie",
+        "developer_tool": "调试输入",
+        "human": "人类参与者",
+        "system": "系统",
+        "activity": "Activity",
+        "microphone": "麦克风",
+        "vision": "视觉输入",
+        "touch": "触觉输入",
+        "environment": "环境输入",
+        "body": "身体输入",
+        "internal": "内部事件",
+    }
+    if kind in labels:
+        return labels[kind]
+    if kind or actor_id:
+        return "其他参与者"
+    return ""
+
+
+def _compiled_conversation_rows(
+    payload: Any,
+    *,
+    current_event_ids: Sequence[Any] = (),
+) -> List[Dict[str, Any]]:
     """Project the compiled conversation rows carried by the payload.
 
     Rows come from the ``compiled_context`` envelope payload's raw
     ``conversation`` tuples — the exact prior-turn rows the Context Engine
-    kept — never from parsing prompt text.  ``display_name`` falls back to
-    ``actor_id`` only as the read-side speaker label.
+    kept — never from parsing prompt text.  The read-side speaker label uses
+    the same semantic source-category mapping as checkpoint messages; raw
+    actor identity remains secondary provenance.
     """
     rows: List[Dict[str, Any]] = []
     for row in getattr(payload, "conversation", ()) or ():
         display_name = getattr(row, "display_name", None)
+        source_kind = getattr(row, "source_kind", None)
+        actor_id = getattr(row, "actor_id", None)
+        event_id = getattr(row, "event_id", None)
+        current_ids = {str(item) for item in current_event_ids}
         rows.append(
             {
-                "speaker": display_name or getattr(row, "actor_id", ""),
+                "event_id": event_id,
+                "speaker": _speaker_label(
+                    source_kind=source_kind,
+                    display_name=display_name,
+                    actor_id=actor_id,
+                ),
+                "speaker_kind": source_kind,
+                "actor_id": actor_id,
+                "display_name": display_name,
                 "content": row.content,
                 "occurred_at": _iso_utc(row.occurred_at),
+                "is_current": (event_id is not None and str(event_id) in current_ids),
             }
         )
     return rows
@@ -952,6 +1285,92 @@ def _iso_utc(value: Any) -> Any:
     return value.isoformat() if isinstance(value, datetime) else value
 
 
+def _number_text(value: Any) -> Optional[str]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return f"{value:g}"
+
+
+def _admission_modality_values(
+    stimulus: Mapping[str, Any],
+    *,
+    source_domain: Any,
+    modalities: Sequence[Any],
+) -> Dict[str, str]:
+    """Project user-readable values for the input modalities in this Turn.
+
+    The first stage is a Lab-facing input summary, so it keeps the submitted
+    value (message, media type, touch and temperature) without exposing the
+    internal frame IDs or trigger metrics that remain available in ``raw``.
+    """
+    domain = str(source_domain or "")
+    names = {str(item) for item in modalities if isinstance(item, str)}
+    message = stimulus.get("message")
+    message_text = message.strip() if isinstance(message, str) else ""
+    values: Dict[str, str] = {}
+
+    if domain == "communication":
+        if message_text or "text" in names:
+            values["text"] = message_text
+        attachments = [
+            _mapping(item) for item in _sequence(stimulus.get("message_attachments"))
+        ]
+        if attachments or "attachment" in names:
+            filenames = [
+                str(item["filename"]) for item in attachments if item.get("filename")
+            ]
+            values["attachment"] = (
+                "、".join(filenames) if filenames else f"{len(attachments)} 个附件"
+            )
+        return values
+
+    if message_text or "hearing" in names:
+        values["hearing"] = message_text
+
+    media = _mapping(stimulus.get("vision_media"))
+    if media or "vision" in names:
+        mime_type = media.get("mime_type")
+        values["vision"] = (
+            f"已提供视觉输入（{mime_type}）" if mime_type else "已提供视觉输入"
+        )
+
+    if "environment" in names:
+        temperature = _number_text(stimulus.get("temperature"))
+        values["environment"] = (
+            f"温度 {temperature}°C" if temperature is not None else "已提供环境输入"
+        )
+
+    impact = _number_text(stimulus.get("impact_force"))
+    stroke = _number_text(stimulus.get("gentle_stroke"))
+    if "touch" in names or (impact not in (None, "0") or stroke not in (None, "0")):
+        location = stimulus.get("impact_direction")
+        location_text = (
+            str(location)
+            if isinstance(location, str) and location and location != "none"
+            else ""
+        )
+        force = max(
+            value
+            for value in (
+                float(impact) if impact is not None else 0.0,
+                float(stroke) if stroke is not None else 0.0,
+            )
+        )
+        force_text = _number_text(force)
+        values["touch"] = (
+            " · ".join(
+                item
+                for item in (
+                    location_text,
+                    f"力度 {force_text}" if force_text is not None else None,
+                )
+                if item
+            )
+            or "已提供触觉输入"
+        )
+    return values
+
+
 def _compile_index_for_revision(
     compiles: Sequence[BrainObservation],
     context_revision: Any,
@@ -973,6 +1392,7 @@ def _event_admission_stage(
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     source_domain = stimulus.get("source_domain") or typed_input.get("source_domain")
+    modalities = list(_sequence(typed_input.get("modalities")))
     return {
         "number": "1",
         "id": "event_admission",
@@ -982,7 +1402,12 @@ def _event_admission_stage(
         "input": {
             "source_domain": source_domain,
             "message": stimulus.get("message", ""),
-            "modalities": list(_sequence(typed_input.get("modalities"))),
+            "modalities": modalities,
+            "modality_values": _admission_modality_values(
+                stimulus,
+                source_domain=source_domain,
+                modalities=modalities,
+            ),
         },
         "output": {
             "turn_id": cognitive_turn.get("turn_id") or turn_id,
@@ -1008,6 +1433,8 @@ def _context_workspace_stage(
     request: Mapping[str, Any],
     compiles: Sequence[BrainObservation],
     appended: Optional[Mapping[str, Any]],
+    current_event_ids: Sequence[Any],
+    workspace_checkpoint: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     first_compile = compiles[0].payload if compiles else None
@@ -1018,16 +1445,34 @@ def _context_workspace_stage(
     if first_compile is not None:
         # No "compiled" summary here: per-call compiles render in the
         # ReasoningRun iterations' context_build, keyed by context_revision.
-        output["conversation"] = _compiled_conversation_rows(first_compile)
+        output["conversation"] = _compiled_conversation_rows(
+            first_compile,
+            current_event_ids=current_event_ids,
+        )
         # Run-observation content exists only as payload counts: these keys
         # stay null rather than being reconstructed from prompt text (P1).
         output["current_observations"] = None
         output["current_run_observations"] = None
+    workspace = _workspace_checkpoint_projection(
+        workspace_checkpoint,
+        current_event_ids=current_event_ids,
+    )
+    if workspace is not None:
+        output["workspace"] = workspace
     return {
         "number": "2",
         "id": "context_workspace",
         "title": "Context Workspace",
-        "status": "completed" if request or compiles else "unavailable",
+        "status": (
+            "completed"
+            if (
+                request
+                or compiles
+                or appended is not None
+                or workspace_checkpoint is not None
+            )
+            else "unavailable"
+        ),
         "duration_ms": duration_ms,
         "input": {
             "turn_id": turn_id,
@@ -1040,6 +1485,14 @@ def _context_workspace_stage(
             "context_revision": request.get("context_revision"),
             "user_prompt": request.get("user_prompt"),
             "compiled_events": [_event_dump(event) for event in compiles],
+            "workspace_checkpoint": (
+                dict(workspace_checkpoint) if workspace_checkpoint is not None else None
+            ),
+            "workspace_checkpoint_source": (
+                "brain_continuity_checkpoint"
+                if workspace_checkpoint is not None
+                else None
+            ),
         },
     }
 
@@ -1054,6 +1507,7 @@ def _setup_stage(
     mode_selection: Optional[Mapping[str, Any]],
     budget: Optional[Mapping[str, Any]],
     selfhood_projection: Optional[Mapping[str, Any]],
+    context_frozen: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     mode = mode_selection or {}
@@ -1072,12 +1526,19 @@ def _setup_stage(
         "max_tokens": request.get("max_tokens"),
         "depth": mode.get("depth"),
         "depth_basis": mode.get("depth_basis"),
+        "requires_model": mode.get("requires_model"),
+        "structured_owner_reply": mode.get("structured_owner_reply"),
+        "fast_owner_reply": mode.get("fast_owner_reply"),
+        "effective_tools": mode.get("effective_tools"),
+        "skill_count": mode.get("skill_count"),
     }
     return {
         "number": "3",
         "id": "setup",
         "title": "Setup",
-        "status": "completed" if state_before or request else "unavailable",
+        "status": "completed"
+        if state_before or request or context_frozen
+        else "unavailable",
         "duration_ms": duration_ms,
         "input": {
             "turn_id": turn_id,
@@ -1088,42 +1549,31 @@ def _setup_stage(
         "selfhood_projection": (
             dict(selfhood_projection) if selfhood_projection is not None else None
         ),
-        "owner_snapshots": _owner_snapshots(state_before),
+        "frozen_state": (dict(context_frozen) if context_frozen is not None else None),
+        "owner_snapshots": _owner_snapshots(context_frozen),
         "baseline_memory": baseline_memory,
         "raw": {
             "state_before": dict(state_before),
             "request": dict(request),
+            "context_frozen": (
+                dict(context_frozen) if context_frozen is not None else None
+            ),
         },
     }
 
 
 def _owner_snapshots(
-    state: Mapping[str, Any],
-    *,
-    captured_at: Any = None,
+    frozen_state: Optional[Mapping[str, Any]],
 ) -> List[Dict[str, Any]]:
-    emotion = {
-        "emotions": state.get("emotions"),
-        "primary_emotion": state.get("primary_emotion"),
-        "emotion_revision": state.get("emotion_revision"),
-    }
-    energy_keys = (
-        "energy",
-        "fatigue",
-        "is_sleeping",
-        "cognitive_mode",
-        "normal_budget_available",
-        "emergency_reserve_available",
-        "reserved_cognitive_budget",
-        "energy_revision",
-    )
-    energy = {key: state.get(key) for key in energy_keys if key in state}
+    if frozen_state is None:
+        return []
+    captured_at = frozen_state.get("context_captured_at")
     values = (
-        ("orientation", "Orientation", state.get("orientation")),
-        ("selfhood", "Selfhood", state.get("selfhood")),
-        ("emotion", "Emotion", emotion),
-        ("energy", "Energy", energy),
-        ("motivation", "Motivation", state.get("motivation")),
+        ("orientation", "Orientation", frozen_state.get("orientation")),
+        ("selfhood", "Selfhood", frozen_state.get("selfhood")),
+        ("emotion", "Emotion", frozen_state.get("emotion")),
+        ("energy", "Energy", frozen_state.get("homeostasis")),
+        ("motivation", "Motivation", frozen_state.get("motivation")),
     )
     snapshots: List[Dict[str, Any]] = []
     for module_id, title, value in values:
@@ -1134,12 +1584,13 @@ def _owner_snapshots(
                 "title": title,
                 "status": "recorded" if present else "unavailable",
                 "input": {
-                    "source_record": "state_before",
+                    "source_record": "reasoning.run_controller.context_frozen",
                     "captured_at": captured_at,
+                    "context_revision": frozen_state.get("context_revision"),
                 },
                 "output": value,
                 "raw": value,
-                "evidence_basis": "state_before",
+                "evidence_basis": "reasoning.run_controller.context_frozen",
             }
         )
     return snapshots

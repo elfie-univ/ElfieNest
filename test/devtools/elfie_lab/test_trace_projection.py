@@ -5,13 +5,17 @@ from devtools.elfie_lab.trace_projection import build_observability_trace
 from elfie.brain.activity.observation_payloads import (
     ActivityPreflightVerdictObservation,
 )
+from elfie.brain.emotion.contracts import EmotionSnapshot
+from elfie.brain.energy.contracts import EnergySnapshot
 from elfie.brain.memory.observation_payloads import (
     MemoryEncodeCandidate,
     MemoryEncodeCommit,
     MemoryReinforcementApplied,
     MemoryUseProposalRecorded,
 )
+from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.observation import BrainObservation, ObservationStatus
+from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopActionObservation,
     AgentLoopJudgeObservation,
@@ -42,9 +46,11 @@ from elfie.brain.reasoning.run_controller_observations import (
     ConversationAppendedObservation,
     ConversationSummaryCoverageObservation,
     ReasoningBudgetFrozenObservation,
+    ReasoningContextFrozenObservation,
     ReasoningModeSelectedObservation,
     SelfhoodProjectionObservation,
 )
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 
 
 def test_memory_projection_is_rebuilt_from_raw_observation_events():
@@ -253,12 +259,14 @@ def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
                 event_id="prior-event-1",
                 actor_id="owner-1",
                 display_name="主人",
+                source_kind="owner",
                 occurred_at=occurred_at,
                 content="我们昨天聊到了蓝色小屋。",
             ),
             CompiledConversationObservation(
                 event_id="prior-event-2",
                 actor_id="elfie-1",
+                source_kind="elfie",
                 occurred_at=occurred_at,
                 content="对呀，我还想再去看看。",
             ),
@@ -290,14 +298,24 @@ def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
     context_stage = trace["chain"][1]
     expected_rows = [
         {
+            "event_id": "prior-event-1",
             "speaker": "主人",
+            "speaker_kind": "owner",
+            "actor_id": "owner-1",
+            "display_name": "主人",
             "content": "我们昨天聊到了蓝色小屋。",
             "occurred_at": occurred_at.isoformat(),
+            "is_current": False,
         },
         {
-            "speaker": "elfie-1",
+            "event_id": "prior-event-2",
+            "speaker": "Elfie",
+            "speaker_kind": "elfie",
+            "actor_id": "elfie-1",
+            "display_name": None,
             "content": "对呀，我还想再去看看。",
             "occurred_at": occurred_at.isoformat(),
+            "is_current": False,
         },
     ]
     assert context_stage["output"]["conversation"] == expected_rows
@@ -1004,6 +1022,42 @@ def test_event_admission_projects_the_frame_claim_block():
         ],
         "detail": None,
     }
+    assert trace["chain"][0]["input"]["modality_values"] == {"text": "你好"}
+
+
+def test_event_admission_projects_each_embodied_input_value():
+    trace = build_observability_trace(
+        turn_id="turn-embodied-admission",
+        stimulus={
+            "source_domain": "embodied",
+            "message": "外面有一头大象。",
+            "vision_media": {"mime_type": "image/png"},
+            "temperature": 24.0,
+            "impact_force": 3.0,
+            "impact_direction": "背部",
+            "gentle_stroke": 0.0,
+        },
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "typed_input": {
+                "source_domain": "embodied",
+                "modalities": ["hearing", "vision", "environment", "touch"],
+            },
+            "reasoning": {},
+        },
+        result={},
+        decision={},
+        duration_ms=10,
+    )
+
+    assert trace["chain"][0]["input"]["modality_values"] == {
+        "hearing": "外面有一头大象。",
+        "vision": "已提供视觉输入（image/png）",
+        "environment": "温度 24°C",
+        "touch": "背部 · 力度 3",
+    }
 
 
 def test_context_workspace_projects_the_appended_block():
@@ -1045,10 +1099,135 @@ def test_context_workspace_projects_the_appended_block():
         "active_topic_message_count": 6,
         "channel_id": "channel-1",
         "conversation_id": "conv-1",
+        "input_event_ids": ["event-1", "event-2"],
         "summaries": [
             {"summary_id": "summary-1", "version": 3, "unresolved_count": 1},
         ],
     }
+
+
+def test_context_workspace_projects_the_persisted_checkpoint_without_current_input_duplication():
+    checkpoint = {
+        "threads": [
+            {
+                "channel_id": "channel-1",
+                "conversation_id": "conv-1",
+                "messages": [
+                    {
+                        "event_id": "prior-event",
+                        "sender": {
+                            "actor_id": "owner-1",
+                            "display_name": "主人",
+                            "source_kind": "human",
+                        },
+                        "occurred_at": "2026-09-07T10:00:00+00:00",
+                        "content": "上一轮内容",
+                    },
+                    {
+                        "event_id": "current-event",
+                        "sender": {
+                            "actor_id": "owner-1",
+                            "display_name": "主人",
+                            "source_kind": "human",
+                        },
+                        "occurred_at": "2026-09-07T10:01:00+00:00",
+                        "content": "本轮内容",
+                    },
+                    {
+                        "event_id": "elfie-reply:intent-current",
+                        "sender": {
+                            "actor_id": "elfie-1",
+                            "source_kind": "elfie",
+                        },
+                        "occurred_at": "2026-09-07T10:02:00+00:00",
+                        "content": "本轮回复",
+                    },
+                ],
+                "summaries": [
+                    {
+                        "summary_id": "summary-1",
+                        "version": 2,
+                        "source_event_ids": ["old-event"],
+                        "occurred_from": "2026-09-06T10:00:00+00:00",
+                        "occurred_to": "2026-09-06T10:30:00+00:00",
+                        "content": "之前的压缩摘要",
+                        "unresolved_items": ["待确认事项"],
+                    }
+                ],
+                "active_topic": {
+                    "thread_id": "topic:prior-event",
+                    "lineage_id": "topic:prior-event",
+                    "messages": [],
+                    "summaries": [],
+                    "started_at": "2026-09-06T10:00:00+00:00",
+                    "last_activity_at": "2026-09-07T10:00:00+00:00",
+                    "close_after_event_id": None,
+                    "participants": ["owner-1", "elfie-1"],
+                },
+                "pending_topics": [],
+            }
+        ],
+        "pending_replies": [
+            {
+                "intent_id": "intent-1",
+                "channel_id": "channel-1",
+                "conversation_id": "conv-1",
+                "reply_event_id": "reply-1",
+                "content": "等待发送的回复",
+                "cause_event_ids": ["prior-event"],
+                "prepared_at": "2026-09-07T10:02:00+00:00",
+                "memory_eligible": True,
+            }
+        ],
+        "pending_closed_episode_payloads": [
+            '{"episode_id":"episode-1","event_kind":"interaction","occurred_from":"2026-09-07T09:00:00+00:00","content_text":"待写入经历","summary_text":"待写入摘要","source_event_ids":["prior-event"]}'
+        ],
+    }
+    trace = build_observability_trace(
+        turn_id="turn-checkpoint",
+        stimulus={"source_domain": "communication", "message": "本轮内容"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={"message_intents": [{"intent_id": "intent-current"}]},
+        duration_ms=10,
+        workspace_checkpoint=checkpoint,
+        observations=[
+            _observation(
+                boundary="reasoning.context_workspace",
+                kind="conversation_appended",
+                payload=ConversationAppendedObservation(
+                    channel_id="channel-1",
+                    conversation_id="conv-1",
+                    input_event_ids=("current-event",),
+                    message_count=2,
+                ),
+            )
+        ],
+    )
+
+    stage = trace["chain"][1]
+    workspace = stage["output"]["workspace"]
+    assert workspace["threads"][0]["messages"][0]["content"] == "上一轮内容"
+    assert workspace["threads"][0]["messages"][0]["speaker"] == "主人"
+    assert workspace["threads"][0]["messages"][2]["speaker"] == "Elfie"
+    assert workspace["threads"][0]["messages"][0]["is_current"] is False
+    assert workspace["threads"][0]["messages"][1]["is_current"] is True
+    assert workspace["threads"][0]["messages"][2]["is_current"] is True
+    assert workspace["threads"][0]["summaries"][0]["content"] == "之前的压缩摘要"
+    assert workspace["threads"][0]["active_state"]["state"] == "活跃"
+    assert workspace["pending_replies"][0]["content"] == "等待发送的回复"
+    assert workspace["pending_memory"][0]["content_text"] == "待写入经历"
+    assert workspace["checkpoint"] == {
+        "status": "已保存",
+        "thread_count": 1,
+        "pending_reply_count": 1,
+        "pending_memory_count": 1,
+    }
+    assert stage["raw"]["workspace_checkpoint"] == checkpoint
+    assert stage["raw"]["workspace_checkpoint_source"] == "brain_continuity_checkpoint"
 
 
 def test_setup_prefers_mode_and_budget_observations_over_request_fields():
@@ -1111,11 +1290,14 @@ def test_setup_prefers_mode_and_budget_observations_over_request_fields():
     assert setup["budget"] == {
         "max_steps": 8,
         "max_model_calls": 4,
+        "max_planned_model_calls": None,
         "max_tool_calls": 2,
         "deadline_seconds": 20.0,
+        "hard_deadline_seconds": 30.0,
         "absolute_deadline": absolute_deadline.isoformat(),
         "max_context_tokens": 4096,
         "cognitive_mode": "normal",
+        "long_reasoning_allowed": True,
     }
 
     fallback = _trace(
@@ -1160,6 +1342,76 @@ def test_setup_projects_the_selfhood_projection_snapshot():
         "identity_core_text": "IDENTITY_CORE",
         "adaptive_self_text": "ADAPTIVE_SELF",
     }
+
+
+def test_setup_owner_snapshots_come_from_context_freeze_not_state_before():
+    captured_at = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc)
+    frozen = ReasoningContextFrozenObservation(
+        context_revision=7,
+        constitution_version=2,
+        context_captured_at=captured_at,
+        emotion=EmotionSnapshot.inactive(captured_at=captured_at, revision=11),
+        homeostasis=EnergySnapshot(
+            revision=12,
+            captured_at=captured_at,
+            energy=42.0,
+            fatigue=18.0,
+            sleeping=False,
+            cognitive_mode="degraded",
+            long_reasoning_allowed=False,
+            available_cognitive_budget=8.0,
+            normal_budget_available=4.0,
+            emergency_reserve_available=20.0,
+            reserved_cognitive_budget=3.0,
+        ),
+        motivation=MotivationSnapshot(
+            revision=13,
+            captured_at=captured_at,
+            recovery_pressure=0.4,
+            recovery_status="ready",
+        ),
+        orientation=OrientationSnapshot(
+            revision=14,
+            captured_at=captured_at,
+            location="巢内",
+            location_source="runtime",
+        ),
+        selfhood=SelfhoodPromptProjection(
+            revision=15,
+            captured_at=captured_at,
+            identity_core_text="我是艾菲。",
+            adaptive_self_text="我会先观察。",
+        ),
+    )
+    trace = build_observability_trace(
+        turn_id="turn-frozen",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={"energy": 99.0, "orientation": {"location": "旧位置"}},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {}},
+        result={},
+        decision={},
+        duration_ms=10,
+        observations=[
+            _observation(
+                boundary="reasoning.run_controller",
+                kind="context_frozen",
+                payload=frozen,
+            )
+        ],
+    )
+
+    setup = trace["chain"][2]
+    assert setup["frozen_state"]["context_revision"] == 7
+    assert setup["owner_snapshots"][0]["output"]["location"] == "巢内"
+    assert setup["owner_snapshots"][3]["output"]["energy"] == 42.0
+    assert setup["owner_snapshots"][1]["output"]["identity_core_text"] == "我是艾菲。"
+    assert all(
+        owner["evidence_basis"] == "reasoning.run_controller.context_frozen"
+        for owner in setup["owner_snapshots"]
+    )
+    assert setup["raw"]["state_before"]["energy"] == 99.0
 
 
 def test_context_trim_pairs_with_compiles_positionally_and_leftovers_stay_in_raw():

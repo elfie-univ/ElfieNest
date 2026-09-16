@@ -158,7 +158,11 @@ const turn = {
   trace: { stages: { observability } },
 } as unknown as ElfieTurn;
 
-const session = { turns: [turn], current_state: turn.state_after } as unknown as ElfieSession;
+const session = {
+  profile: { name: "艾菲" },
+  turns: [turn],
+  current_state: turn.state_after,
+} as unknown as ElfieSession;
 
 function renderInspector(
   initialTab = "链路",
@@ -209,10 +213,10 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("耗时 18 ms");
     expect(markup).toContain("耗时 0.27 ms");
     expect(markup).toContain("2 个迭代");
-    expect(markup).toContain("Memory skipped");
+    expect(markup).not.toContain("Memory skipped");
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("revision 4");
-    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="本轮输入：确认输入通道与处理内容"');
     expect(markup).toContain('data-tip="结算：提交状态候选与记忆写回，落持久化证据"');
     expect(markup).not.toContain("title=");
     expect(markup).not.toContain('title=""');
@@ -272,14 +276,35 @@ describe("Elfie Lab Turn Inspector", () => {
   it("shows the five setup owner snapshots without returning to raw JSON by default", () => {
     const markup = renderInspector("快照");
 
-    expect(markup).toContain("模块快照");
+    expect(markup).toContain("进入推理时冻结状态");
     for (const label of ["Orientation", "Selfhood", "Emotion", "Energy", "Motivation"]) {
       expect(markup).toContain(label);
     }
     expect(markup).toContain("trace-disclosure-trigger");
     expect(markup).not.toContain("模块输入");
     expect(markup).not.toContain("模块输出");
-    expect(markup).not.toContain("模块视图");
+    expect(markup).not.toContain("快照来源");
+    expect(markup).not.toContain("冻结快照");
+  });
+
+  it("shows the model-facing Selfhood projection instead of its internal state", () => {
+    const enriched = withChainNodes({
+      2: (node) => ({
+        ...node,
+        selfhood_projection: {
+          identity_core_text: "我是艾菲，是 ElfieNest 的居民。",
+          adaptive_self_text: "我会先观察，再清楚地表达。",
+        },
+      }),
+    });
+    const markup = renderInspector("快照", enriched, "chain", ["setup", "setup-selfhood"]);
+
+    expect(markup).toContain("身份核心投影");
+    expect(markup).toContain("我是艾菲，是 ElfieNest 的居民。");
+    expect(markup).toContain("自适应自我投影");
+    expect(markup).toContain("我会先观察，再清楚地表达。");
+    expect(markup).not.toContain("开放性");
+    expect(markup).not.toContain("interaction_tendency_ids");
   });
 
   it("labels the trace as production provenance instead of claiming a real model", () => {
@@ -299,7 +324,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("未采集");
   });
 
-  it("wires projected layer-2 blocks into collapsed stage details", () => {
+  it("wires projected layer-2 blocks into stage details", () => {
     const enriched = withChainNodes({
       0: (node) => ({ ...node, admission: {
         admitted: true,
@@ -342,14 +367,12 @@ describe("Elfie Lab Turn Inspector", () => {
     const openedStages = ["event_admission", "context_workspace", "setup", "governance_delivery", "settlement"];
     const markup = renderInspector("链路", enriched, "chain", openedStages);
 
-    for (const title of ["准入明细", "本轮追加", "对话历史明细", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "预算与边界", "Selfhood 投影"]) {
+    for (const title of ["输入通道", "文字", "上下文分区", "历史交互", "压缩摘要", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "处理方式", "最大步数", "进入推理时冻结状态"]) {
       expect(markup).toContain(title);
     }
     for (const collapsedValue of [
       "greeting salience above defer threshold",
       "committed",
-      "上次的纪录片终于上线了。",
-      "记得一起看。",
       "主人正在筹备周末的纪录片之夜。",
       "reply_via_message",
       "quiet hours default depth",
@@ -357,47 +380,236 @@ describe("Elfie Lab Turn Inspector", () => {
     ]) {
       expect(markup).not.toContain(collapsedValue);
     }
+    expect(markup).toContain("上次的纪录片终于上线了。");
+    expect(markup).toContain("记得一起看。");
+    expect(markup).toContain('aria-label="历史交互"');
+    expect(markup).not.toContain('trace-disclosure-title"><strong>历史交互');
     expect(markup).toContain("channel-dawn");
     expect(markup).toContain("conversation-dawn");
 
-    const plain = renderInspector("链路", turn, "chain", openedStages);
-    for (const title of ["准入明细", "本轮追加", "对话历史明细", "摘要覆盖", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "预算与边界", "Selfhood 投影"]) {
+    const plain = renderInspector("链路", turn, "chain", ["event_admission", "context_workspace", "governance_delivery", "settlement"]);
+    for (const title of ["上下文分区", "历史交互", "压缩摘要", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "处理方式", "进入推理时冻结状态"]) {
       expect(plain).not.toContain(title);
     }
   });
 
-  it("opens event_admission with readable modalities and flattened scope rows", () => {
+  it("projects populated Context Workspace records and keeps history inline", () => {
     const enriched = withChainNodes({
-      0: (node) => ({ ...node, output: {
+      1: (node) => ({ ...node,
+        appended: {
+          channel_id: "channel-dawn",
+          conversation_id: "conversation-dawn",
+        },
+        output: {
+          ...(node.output as FixtureNode),
+          workspace: {
+            threads: [{
+              channel_id: "channel-dawn",
+              conversation_id: "conversation-dawn",
+              messages: [
+                { event_id: "event-prior", speaker: "主人", content: "上一轮历史", is_current: false },
+                { event_id: "event-current", speaker: "主人", content: "当前消息正文", is_current: true },
+                { event_id: "elfie-reply:intent-current", speaker: "艾菲", content: "当前回复正文", is_current: true },
+              ],
+              summaries: [{
+                summary_id: "summary-1",
+                occurred_from: "2026-09-06T10:00:00+00:00",
+                occurred_to: "2026-09-06T10:30:00+00:00",
+                content: "压缩过往",
+                unresolved_items: ["待确认"],
+              }],
+              active_state: {
+                state: "活跃",
+                participants: ["owner-1", "elfie-1"],
+                started_at: "2026-09-06T10:00:00+00:00",
+                last_activity_at: "2026-09-07T10:00:00+00:00",
+                pending_close: false,
+                message_count: 1,
+                summary_count: 1,
+              },
+              pending_states: [{ state: "待关闭", pending_close: true }],
+            }],
+            pending_replies: [{
+              status: "待回执",
+              channel_id: "channel-dawn",
+              conversation_id: "conversation-dawn",
+              content: "待发送回复",
+              prepared_at: "2026-09-07T10:02:00+00:00",
+              memory_eligible: true,
+            }],
+            pending_memory: [{
+              status: "待写入 Memory",
+              event_kind: "interaction",
+              occurred_from: "2026-09-07T09:00:00+00:00",
+              occurred_to: "2026-09-07T09:01:00+00:00",
+              content_text: "待记忆经历",
+              summary_text: "精简经历",
+              stimulus: "触发输入",
+              sensory: ["听觉"],
+              metadata: { source: "lab" },
+            }],
+            checkpoint: {
+              status: "已保存",
+              thread_count: 1,
+              pending_reply_count: 1,
+              pending_memory_count: 1,
+            },
+          },
+        },
+      }),
+    });
+    const openedDetails = [
+      "context_workspace",
+      "context_workspace-summaries",
+      "context_workspace-state",
+      "context_workspace-pending-replies",
+      "context_workspace-pending-memory",
+      "context_workspace-checkpoint",
+    ];
+    const markup = renderInspector("链路", enriched, "chain", openedDetails);
+
+    for (const title of ["上下文分区", "历史交互", "压缩摘要", "工作区活动状态", "待结算回复", "待写入 Memory", "恢复检查点"]) {
+      expect(markup).toContain(title);
+    }
+    expect(markup).not.toContain("工作区组成");
+    expect(markup).toContain("上一轮历史");
+    expect(markup).toContain("开发者");
+    expect(markup).not.toContain("未命名来源");
+    expect(markup).toContain("压缩过往");
+    expect(markup).toContain("待确认");
+    expect(markup).toContain("活跃");
+    expect(markup).toContain("待发送回复");
+    expect(markup).toContain("待记忆经历");
+    expect(markup).toContain("精简经历");
+    expect(markup).toContain("已保存");
+    expect(markup).toContain('aria-label="历史交互"');
+    expect(markup).not.toContain("当前消息正文");
+    expect(markup).not.toContain("当前回复正文");
+    expect(markup).not.toContain('trace-disclosure-title"><strong>历史交互');
+  });
+
+  it("replaces opaque history actor IDs with semantic speaker labels", () => {
+    const enriched = withChainNodes({
+      1: (node) => ({ ...node,
+        appended: { channel_id: "channel-dawn", conversation_id: "conversation-dawn" },
+        output: {
+          ...(node.output as FixtureNode),
+          workspace: {
+            threads: [{
+              channel_id: "channel-dawn",
+              conversation_id: "conversation-dawn",
+              messages: [
+                { event_id: "event-owner", speaker: "elfie-lab-owner", actor_id: "elfie-lab-owner", content: "开发者消息" },
+                { event_id: "event-elfie", speaker: "54137848", actor_id: "54137848", content: "精灵回复" },
+              ],
+            }],
+            pending_replies: [],
+            pending_memory: [],
+            checkpoint: { status: "已保存", thread_count: 1, pending_reply_count: 0, pending_memory_count: 0 },
+          },
+        },
+      }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["context_workspace"]);
+
+    expect(markup).toContain("开发者");
+    expect(markup).toContain("艾菲");
+    expect(markup).not.toContain("主人");
+    expect(markup).not.toContain("Elfie");
+    expect(markup).not.toContain("未命名来源");
+    expect(markup).not.toContain("elfie-lab-owner");
+    expect(markup).not.toContain("54137848");
+  });
+
+  it("prefers an explicit display name over the source category", () => {
+    const enriched = withChainNodes({
+      1: (node) => ({ ...node,
+        appended: { channel_id: "channel-dawn", conversation_id: "conversation-dawn" },
+        output: {
+          ...(node.output as FixtureNode),
+          workspace: {
+            threads: [{
+              channel_id: "channel-dawn",
+              conversation_id: "conversation-dawn",
+              messages: [
+                { event_id: "event-owner-named", speaker_kind: "owner", display_name: "林然", content: "你好" },
+                { event_id: "event-elfie-named", speaker_kind: "elfie", display_name: "小艾", content: "你好，我在" },
+              ],
+            }],
+          },
+        },
+      }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["context_workspace"]);
+
+    expect(markup).toContain("林然");
+    expect(markup).toContain("小艾");
+    expect(markup).not.toContain("主人");
+    expect(markup).not.toContain("未命名来源");
+  });
+
+  it("keeps event_admission focused on the selected input channel and value", () => {
+    const enriched = withChainNodes({
+      0: (node) => ({ ...node,
+        input: {
+          ...(node.input as FixtureNode),
+          modalities: ["text"],
+        },
+        output: {
         ...(node.output as FixtureNode),
-        modalities: ["text"],
         interaction_scope: { kind: "channel", channel_id: "channel-dawn", conversation_id: "conversation-dawn", body_id: null, body_generation: null },
         response_scope: { external_domain: "nest", channel_id: null, conversation_id: null },
       } }),
     });
     const markup = renderInspector("链路", enriched, "chain", ["event_admission"]);
 
+    expect(markup).toContain("输入通道");
     expect(markup).toContain("文字");
-    expect(markup).toContain("交互范围");
-    expect(markup).toContain("响应范围");
-    expect(markup).toContain("类型");
-    expect(markup).toContain("外部域");
-    expect(markup).toContain("频道");
-    expect(markup).toContain("会话");
-    expect(markup).toContain("channel-dawn");
-    expect(markup).toContain("conversation-dawn");
-    expect(markup).not.toContain('"interaction_scope"');
-    expect(markup).not.toContain('"response_scope"');
-    expect(markup).not.toContain('"kind"');
-    expect(markup).not.toContain('"external_domain"');
-    expect(markup).not.toContain("body_id");
-    expect(markup).not.toContain("body_generation");
+    expect(markup).toContain("消息");
+    expect(markup).toContain("你好，今天怎么样？");
+    expect(markup.match(/class="trace-field"/g)).toHaveLength(2);
+    expect(markup).not.toContain("本轮处理");
+    expect(markup).not.toContain("输入形式");
+    expect(markup).not.toContain("交互范围");
+    expect(markup).not.toContain("响应范围");
+    expect(markup).not.toContain("channel-dawn");
+    expect(markup).not.toContain("conversation-dawn");
+    expect(markup).not.toContain("准入明细");
+    expect(markup).not.toContain("事件显著性");
+  });
+
+  it("renders a compact non-text embodied input without exposing queue mechanics", () => {
+    const embodied = withChainNodes({
+      0: (node) => ({ ...node,
+        input: {
+          source_domain: "embodied",
+          message: "外面有一头大象。",
+          modalities: ["hearing", "vision", "environment", "touch"],
+          modality_values: {
+            hearing: "外面有一头大象。",
+            vision: "已提供视觉输入（image/png）",
+            environment: "温度 24°C",
+            touch: "背部 · 力度 3",
+          },
+        },
+      }),
+    });
+    const markup = renderInspector("链路", embodied, "chain", ["event_admission"]);
+
+    expect(markup).toContain("现场");
+    for (const row of ["听觉", "视觉", "环境", "触碰", "外面有一头大象。", "温度 24°C", "背部 · 力度 3"]) {
+      expect(markup).toContain(row);
+    }
+    expect(markup.match(/class="trace-field"/g)).toHaveLength(5);
+    expect(markup).not.toContain("本轮处理");
+    expect(markup).not.toContain("截断序号");
+    expect(markup).not.toContain("显著性");
   });
 
   it("renders instant data-tip CSS tooltips on stage and sub-step triggers", () => {
     const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1"]);
 
-    expect(markup).toContain('data-tip="事件接入：外部输入去重排序，圈定本轮处理范围"');
+    expect(markup).toContain('data-tip="本轮输入：确认输入通道与处理内容"');
     expect(markup).toContain('data-tip="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
     expect(markup).toContain('data-tip="模型调用：发送上下文，取回模型响应"');
     expect(markup).toContain('data-tip="行动解析：把响应解析为类型化行动"');

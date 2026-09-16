@@ -38,6 +38,7 @@ from elfie.brain.reasoning.run_controller_observations import (
     ContextTrimObservation,
     ConversationAppendedObservation,
     ReasoningBudgetFrozenObservation,
+    ReasoningContextFrozenObservation,
     ReasoningModeSelectedObservation,
     SelfhoodProjectionObservation,
 )
@@ -340,6 +341,32 @@ def test_direct_turn_emits_reserve_mode_budget_and_trim_events() -> None:
     assert sequences == sorted(sequences)
 
 
+def test_context_frozen_event_captures_the_immutable_reasoning_input() -> None:
+    sink = _CollectorSink()
+    controller = _controller(sink)
+
+    _build(controller, _frame(frame_id="frame-frozen", content="冻结检查"))
+
+    events = sink.of("reasoning.run_controller", "context_frozen")
+    assert len(events) == 1
+    event = events[0]
+    payload = event.payload
+    assert isinstance(payload, ReasoningContextFrozenObservation)
+    assert event.frame_id == "frame-frozen"
+    assert event.status is ObservationStatus.completed
+    assert event.duration_ms is None
+    assert payload.context_revision == 1
+    assert payload.constitution_version >= 1
+    assert payload.emotion.revision == 1
+    assert payload.homeostasis.reserved_cognitive_budget > 0.0
+    assert payload.orientation.freshness == "unknown"
+    assert payload.selfhood == SELFHOOD
+    assert (
+        event.sequence
+        < sink.of("reasoning.run_controller", "mode_selected")[0].sequence
+    )
+
+
 def test_deliberate_turn_emits_the_deliberate_mode_decision() -> None:
     sink = _CollectorSink()
     controller = _controller(sink)
@@ -442,6 +469,7 @@ def test_controller_emits_nothing_and_constructs_nothing_without_sink(
         ReasoningBudgetFrozenObservation,
         ReasoningModeSelectedObservation,
         SelfhoodProjectionObservation,
+        ReasoningContextFrozenObservation,
         CompiledContextObservation,
     ):
         monkeypatch.setattr(payload_type, "__init__", _forbid_construction)

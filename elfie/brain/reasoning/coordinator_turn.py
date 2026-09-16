@@ -28,7 +28,7 @@ from elfie.brain.reasoning.context_compiler import (
     ModelContextCompiler,
     ModelTokenBudget,
 )
-from elfie.brain.reasoning.context_types import ConversationContext
+from elfie.brain.reasoning.context_types import BrainContext, ConversationContext
 from elfie.brain.reasoning.coordinator_observations import (
     EnergyBudgetStateObservation,
 )
@@ -64,6 +64,7 @@ from elfie.brain.reasoning.run_controller_observations import (
     ConversationAppendedObservation,
     ConversationSummaryCoverageObservation,
     ReasoningBudgetFrozenObservation,
+    ReasoningContextFrozenObservation,
     ReasoningModeSelectedObservation,
     SelfhoodProjectionObservation,
 )
@@ -281,6 +282,15 @@ class ReasoningRunController:
             consolidation=consolidation,
             captured_at=captured_at,
             constitution_version=self._header.version,
+        )
+        # This is the exact read point for Setup: every owner value below is
+        # the immutable snapshot that the Context Engine will use.  Keep it
+        # separate from the Lab's mutable ``state_before`` fixture.
+        self._emit_context_frozen(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            context=context,
         )
         mode_started = perf_counter() if sink is not None else 0.0
         response_mode = self._response_mode(frame)
@@ -507,6 +517,7 @@ class ReasoningRunController:
                                     event_id=str(row.event_id),
                                     actor_id=str(row.actor.actor_id),
                                     display_name=row.actor.display_name,
+                                    source_kind=row.actor.source_kind,
                                     occurred_at=row.occurred_at,
                                     content=row.content,
                                 )
@@ -645,6 +656,42 @@ class ReasoningRunController:
                     projected_at=selfhood.captured_at,
                     identity_core_text=selfhood.identity_core_text,
                     adaptive_self_text=selfhood.adaptive_self_text,
+                ),
+            )
+        )
+
+    def _emit_context_frozen(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        context: BrainContext,
+    ) -> None:
+        """Record the immutable owner state read at reasoning entry."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[ReasoningContextFrozenObservation](
+                boundary="reasoning.run_controller",
+                kind="context_frozen",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=None,
+                status=ObservationStatus.completed,
+                payload=ReasoningContextFrozenObservation(
+                    context_revision=context.revision,
+                    constitution_version=context.constitution_version,
+                    context_captured_at=context.captured_at,
+                    emotion=context.emotion,
+                    homeostasis=context.homeostasis,
+                    motivation=context.motivation,
+                    orientation=context.orientation,
+                    selfhood=context.selfhood,
                 ),
             )
         )

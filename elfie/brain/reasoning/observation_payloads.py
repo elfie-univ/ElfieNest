@@ -133,15 +133,16 @@ class CompiledConversationObservation(FrozenContractModel):
     """One prior conversation row carried by a compiled context (§B4).
 
     Maps ``CompiledConversation`` verbatim: event identity, actor identity
-    (``actor_id`` plus the optional ``display_name`` already held by the
-    ``ActorRef``), occurrence time and the budget-fitted content are raw
-    values the Context Engine holds at the emit point, so consumers can
-    display the real multi-turn history without ever parsing prompt text.
+    (``actor_id``, ``source_kind`` and the optional ``display_name`` already
+    held by the ``ActorRef``), occurrence time and the budget-fitted content
+    are raw values the Context Engine holds at the emit point, so consumers
+    can display the real multi-turn history without ever parsing prompt text.
     """
 
     event_id: str
     actor_id: str
     display_name: Optional[str] = None
+    source_kind: Optional[str] = None
     occurred_at: UTCDateTime
     content: str
 

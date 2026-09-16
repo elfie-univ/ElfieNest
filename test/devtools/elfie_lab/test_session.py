@@ -134,6 +134,11 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         observability["chain"][1]["raw"]["source"]
         == "brain_observations.reasoning.agent_loop.model_call"
     )
+    workspace = observability["chain"][1]["output"]["workspace"]
+    assert workspace["checkpoint"]["status"] == "已保存"
+    assert workspace["threads"][0]["channel_id"] == "elfie-lab"
+    assert workspace["threads"][0]["conversation_id"] == "developer-conversation"
+    assert all(message["is_current"] for message in workspace["threads"][0]["messages"])
     assert setup["baseline_memory"]["evidence_basis"] == (
         "brain_observations.reasoning.memory_bridge"
     )
@@ -141,7 +146,8 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     assert setup["baseline_memory"]["reason"] == "baseline_recall_not_relevant"
     assert all("used_by" not in owner for owner in setup["owner_snapshots"])
     assert all(
-        owner["evidence_basis"] == "state_before" for owner in setup["owner_snapshots"]
+        owner["evidence_basis"] == "reasoning.run_controller.context_frozen"
+        for owner in setup["owner_snapshots"]
     )
     assert reasoning_run["iterations"][0]["guard"]["status"] == "skipped"
     assert (

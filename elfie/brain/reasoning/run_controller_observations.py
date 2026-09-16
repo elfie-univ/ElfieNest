@@ -4,15 +4,17 @@ Each emitting boundary owns one named payload carried inside a
 ``BrainObservation`` envelope: the ReasoningRunController mode decision and
 reasoning-budget freeze (§B1), the deferred Energy cognitive-budget reserve
 emit at the ``reserve_cognitive_budget`` call site (§A5), the frozen Selfhood
-projection snapshot read during context assembly (§A3), the Context Engine
-budget trim decision recorded beside ``compiled_context`` (§B4), and the
+projection snapshot read during context assembly (§A3), the immutable owner
+snapshots sealed after ``BrainContext`` assembly, the Context Engine budget
+trim decision recorded beside ``compiled_context`` (§B4), and the
 ReasoningContextWorkspace append observation taken at the controller's
-``observe_conversation`` point (§B2).  Every field is a raw value the
+``observe_conversation`` point (§B2). Every field is a raw value the
 emitting code already holds at the emit point (P1 raw capture, no inferred
 data).
 
-This module stays domain-pure: it imports only ``elfie.message_types``
-primitives and never ``infrastructure``, ``app`` or ``devtools``.
+This module stays domain-pure: it imports typed owner contracts plus
+``elfie.message_types`` primitives and never ``infrastructure``, ``app`` or
+``devtools``.
 """
 
 from __future__ import annotations
@@ -21,9 +23,14 @@ from typing import Literal, Optional, Tuple
 
 from pydantic import Field
 
+from elfie.brain.emotion.contracts import EmotionSnapshot
+from elfie.brain.energy.contracts import EnergySnapshot
+from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.coordinator_observations import (
     EnergyBudgetStateObservation,
 )
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.message_types import FrozenContractModel, UTCDateTime
 
 
@@ -99,6 +106,26 @@ class SelfhoodProjectionObservation(FrozenContractModel):
     adaptive_self_text: str
 
 
+class ReasoningContextFrozenObservation(FrozenContractModel):
+    """The owner snapshots sealed when the immutable BrainContext was built.
+
+    This is the read point for Setup's frozen state.  It deliberately carries
+    the five owner contracts that the model sees at reasoning entry, rather
+    than re-reading mutable state later or projecting the Lab's ``state_before``
+    fixture.  Conversation, memory and capabilities remain in their own
+    stage projections so this record does not duplicate those authorities.
+    """
+
+    context_revision: int = Field(ge=0)
+    constitution_version: int = Field(ge=0)
+    context_captured_at: UTCDateTime
+    emotion: EmotionSnapshot
+    homeostasis: EnergySnapshot
+    motivation: MotivationSnapshot
+    orientation: OrientationSnapshot
+    selfhood: SelfhoodPromptProjection
+
+
 class ContextTrimObservation(FrozenContractModel):
     """One Context Engine budget split with its cut counters (§B4).
 
@@ -159,5 +186,6 @@ __all__ = (
     "ConversationSummaryCoverageObservation",
     "ReasoningBudgetFrozenObservation",
     "ReasoningModeSelectedObservation",
+    "ReasoningContextFrozenObservation",
     "SelfhoodProjectionObservation",
 )
