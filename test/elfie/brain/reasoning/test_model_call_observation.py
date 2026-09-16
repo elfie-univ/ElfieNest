@@ -131,8 +131,10 @@ def test_completed_model_call_emits_agent_loop_observation() -> None:
     assert payload.reasoning_mode == "fast"
     assert payload.response_mode == "decision_plan"
     assert payload.response_schema_name == "DecisionPlan"
+    assert payload.response_schema == {"type": "object"}
     assert payload.temperature == 0.2
     assert payload.max_tokens == 512
+    assert payload.timeout_seconds is not None and payload.timeout_seconds > 0
     assert payload.context_revision == 1
     assert payload.capability_revision == 1
     assert payload.prompt_tokens == 21
@@ -141,6 +143,8 @@ def test_completed_model_call_emits_agent_loop_observation() -> None:
     assert payload.allowed_tools == ()
     assert payload.tool_definition_count == 0
     assert payload.skill_count == 0
+    assert payload.tool_definitions == ()
+    assert payload.available_skills == ()
     assert payload.deadline is not None
     assert payload.created_at is not None
 

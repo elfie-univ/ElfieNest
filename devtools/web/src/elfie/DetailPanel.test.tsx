@@ -265,6 +265,80 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("模型原始输出");
   });
 
+  it("shows the compiled prompt pair and complete model-call evidence without opaque metadata", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [
+            {
+              ...firstIteration,
+              context_build: {
+                number: "4.1.1",
+                status: "compiled",
+                output: {
+                  system_prompt: "COMPILED SYSTEM",
+                  user_prompt: "COMPILED USER",
+                },
+                raw: { context_revision: 4, frame_id: "frame-1" },
+              },
+              model_call: {
+                ...firstIteration.model_call as FixtureNode,
+                status: "returned",
+                effective_parameters: {
+                  provider: "mock",
+                  model: "elfie-mock",
+                  reasoning_mode: "long",
+                  response_mode: "direct_reply",
+                  response_schema: "CognitiveAction",
+                  response_schema_definition: { type: "object", properties: { type: { type: "string" } } },
+                  temperature: 0.2,
+                  max_tokens: 1536,
+                  timeout_seconds: 11.5,
+                  allowed_tools: [],
+                  tool_definition_count: 0,
+                  skill_count: 0,
+                  context_revision: 4,
+                  frame_id: "frame-1",
+                },
+                input: { system_prompt: "MODEL SYSTEM", user_prompt: "MODEL USER" },
+                output: { response: "MODEL RAW RESPONSE" },
+                response: "MODEL RAW RESPONSE",
+              },
+            },
+            iterations[1],
+          ],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", [
+      "reasoning_run",
+      "reasoning-4.1",
+      "reasoning-4.1-context",
+      "reasoning-4.1-model",
+    ]);
+
+    expect(markup).toContain("编译结果（完整消息）");
+    expect(markup).toContain("COMPILED SYSTEM");
+    expect(markup).toContain("COMPILED USER");
+    expect(markup).toContain("有效参数");
+    for (const label of ["推理模式", "响应结构", "采样温度", "最大输出 Token", "单次请求超时（秒）", "工具定义", "技能数量"]) {
+      expect(markup).toContain(label);
+    }
+    expect(markup).toContain("无");
+    expect(markup).toContain("模型输入（完整消息）");
+    expect(markup).toContain("MODEL SYSTEM");
+    expect(markup).toContain("模型原始输出");
+    expect(markup).toContain("MODEL RAW RESPONSE");
+    expect(markup).not.toContain("已记录");
+    expect(markup).not.toContain("context v4");
+    expect(markup).not.toContain("frame-1");
+    expect(markup.match(/<strong>Model Call<\/strong>/g)).toHaveLength(1);
+  });
+
   it("keeps delivery as a child of governance", () => {
     const markup = renderInspector("链路", turn, "output");
 
@@ -384,8 +458,8 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("记得一起看。");
     expect(markup).toContain('aria-label="历史交互"');
     expect(markup).not.toContain('trace-disclosure-title"><strong>历史交互');
-    expect(markup).toContain("channel-dawn");
-    expect(markup).toContain("conversation-dawn");
+    expect(markup).not.toContain("channel-dawn");
+    expect(markup).not.toContain("conversation-dawn");
 
     const plain = renderInspector("链路", turn, "chain", ["event_admission", "context_workspace", "governance_delivery", "settlement"]);
     for (const title of ["上下文分区", "历史交互", "压缩摘要", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "处理方式", "进入推理时冻结状态"]) {
@@ -513,7 +587,7 @@ describe("Elfie Lab Turn Inspector", () => {
     const markup = renderInspector("链路", enriched, "chain", ["context_workspace"]);
 
     expect(markup).toContain("开发者");
-    expect(markup).toContain("艾菲");
+    expect(markup).toContain("elfie");
     expect(markup).not.toContain("主人");
     expect(markup).not.toContain("Elfie");
     expect(markup).not.toContain("未命名来源");
@@ -613,7 +687,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain('data-tip="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
     expect(markup).toContain('data-tip="模型调用：发送上下文，取回模型响应"');
     expect(markup).toContain('data-tip="行动解析：把响应解析为类型化行动"');
-    expect(markup).toContain('data-tip="守卫判断：检查剩余预算与时间，决定是否继续"');
+    expect(markup).not.toContain('data-tip="守卫判断：检查剩余预算与时间，决定是否继续"');
     expect(markup).not.toContain("title=");
     expect(markup).not.toContain('title=""');
   });

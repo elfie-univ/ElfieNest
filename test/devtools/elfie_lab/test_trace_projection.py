@@ -188,6 +188,8 @@ def test_context_view_comes_from_compiled_context_observations():
         max_tokens=1536,
         reasoning_mode="long",
         response_mode="structured",
+        system_prompt="COMPILED SYSTEM",
+        user_prompt="COMPILED USER",
         event_count=3,
         conversation_count=4,
         summary_count=1,
@@ -230,16 +232,11 @@ def test_context_view_comes_from_compiled_context_observations():
     iteration = trace["chain"][3]["iterations"][0]
     compiled_output = iteration["context_build"]["output"]["compiled"]
     assert compiled_output["run_observation_count"] == 2
-    assert "user_prompt" not in iteration["context_build"]["output"]
+    assert iteration["context_build"]["output"]["system_prompt"] == "COMPILED SYSTEM"
+    assert iteration["context_build"]["output"]["user_prompt"] == "COMPILED USER"
     build_output = iteration["context_build"]["output"]
-    assert build_output["conversation"] == []
-    assert build_output["prompt_sections"] == [
-        "events",
-        "conversation",
-        "context_summaries",
-        "run_observations",
-        "memory",
-    ]
+    assert "conversation" not in build_output
+    assert "prompt_sections" not in build_output
 
 
 def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
@@ -299,7 +296,7 @@ def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
     expected_rows = [
         {
             "event_id": "prior-event-1",
-            "speaker": "主人",
+            "speaker": "开发者",
             "speaker_kind": "owner",
             "actor_id": "owner-1",
             "display_name": "主人",
@@ -309,7 +306,7 @@ def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
         },
         {
             "event_id": "prior-event-2",
-            "speaker": "Elfie",
+            "speaker": "elfie",
             "speaker_kind": "elfie",
             "actor_id": "elfie-1",
             "display_name": None,
@@ -322,8 +319,8 @@ def test_context_workspace_conversation_is_rebuilt_from_envelope_rows():
     assert context_stage["output"]["current_observations"] is None
     assert context_stage["output"]["current_run_observations"] is None
     build_output = trace["chain"][3]["iterations"][0]["context_build"]["output"]
-    assert build_output["conversation"] == expected_rows
-    assert build_output["prompt_sections"] == ["conversation", "run_observations"]
+    assert "conversation" not in build_output
+    assert "prompt_sections" not in build_output
 
 
 def test_skipped_recall_projects_an_explicit_no_hit_without_error():
@@ -557,26 +554,18 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
     assert first["observations"][0]["operation"] == "memory_recall"
     assert first["observations"][0]["summary"] == "memory recall completed"
     assert first["observation_stage"]["number"] == "4.1.4"
-    assert first["observation_stage"]["status"] == "recorded"
-    assert second["observation_stage"]["number"] == "4.2.4"
-    assert second["observation_stage"]["status"] == "skipped"
+    assert first["observation_stage"]["status"] == "observed"
+    assert second["observation_stage"] is None
     assert first["action"]["output"]["type"] == "recall_memory"
     assert second["action"]["output"]["type"] == "answer"
-    assert first["guard"]["number"] == "4.1.5"
-    assert second["guard"]["number"] == "4.2.6"
-    assert first["guard"]["status"] == "skipped"
-    assert second["guard"]["status"] == "skipped"
-    assert first["guard"]["output"] == {}
-    assert second["guard"]["output"] == {}
-    assert "separate Guard record" in first["guard"]["skip_reason"]
-    assert "separate Guard record" in second["guard"]["skip_reason"]
+    assert first["guard"] is None
+    assert second["guard"] is None
     assert (
         trace["chain"][1]["raw"]["source"]
         == "brain_observations.reasoning.agent_loop.model_call"
     )
     assert all("used_by" not in owner for owner in trace["chain"][2]["owner_snapshots"])
-    # Capabilities are not part of the model_call observation surface.
-    assert "capabilities" not in first["model_call"]
+    assert first["model_call"]["capabilities"] is None
     assert "provider_raw" not in first["model_call"]
 
 
@@ -754,7 +743,7 @@ def test_activity_proposal_stays_in_decision_and_delivery_without_becoming_a_cha
     assert governance["delivery"]["input"]["activity_intents"] == [activity]
     assert governance["delivery"]["number"] == "6.1"
     assert governance["delivery"]["title"] == "Delivery / Activity request"
-    assert governance["delivery"]["activity_request"]["status"] == "recorded"
+    assert governance["delivery"]["activity_request"]["status"] == "completed"
 
 
 def test_failed_reasoning_remains_explicit_in_the_production_chain():
@@ -1211,8 +1200,8 @@ def test_context_workspace_projects_the_persisted_checkpoint_without_current_inp
     stage = trace["chain"][1]
     workspace = stage["output"]["workspace"]
     assert workspace["threads"][0]["messages"][0]["content"] == "上一轮内容"
-    assert workspace["threads"][0]["messages"][0]["speaker"] == "主人"
-    assert workspace["threads"][0]["messages"][2]["speaker"] == "Elfie"
+    assert workspace["threads"][0]["messages"][0]["speaker"] == "开发者"
+    assert workspace["threads"][0]["messages"][2]["speaker"] == "elfie"
     assert workspace["threads"][0]["messages"][0]["is_current"] is False
     assert workspace["threads"][0]["messages"][1]["is_current"] is True
     assert workspace["threads"][0]["messages"][2]["is_current"] is True
@@ -1757,7 +1746,7 @@ def test_new_blocks_report_none_without_their_observations():
     assert chain[2]["budget"] is None
     assert chain[2]["selfhood_projection"] is None
     assert chain[3]["raw"].get("context_trims_unpaired") is None
-    assert "trim" not in chain[3]["iterations"][0]["context_build"]["output"]
+    assert chain[3]["iterations"][0]["context_build"] is None
     assert chain[5]["routing"] is None
     assert chain[6]["memory_writeback"] is None
     assert chain[6]["emotion_changes"] is None

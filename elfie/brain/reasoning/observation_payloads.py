@@ -160,7 +160,9 @@ class CompiledContextObservation(FrozenContractModel):
 
     ``conversation`` carries the exact ``CompiledConversation`` rows the
     compile kept (same rows ``conversation_count`` counts), so the
-    multi-turn history stays observable as raw content.
+    multi-turn history stays observable as raw content.  ``system_prompt``
+    and ``user_prompt`` are the exact final messages emitted by this compile;
+    they are not reconstructed from a later ModelPort call.
 
     ``turn_id``/``frame_id`` deliberately duplicate the envelope fields:
     the payload stays self-describing for boundary-owned export of the
@@ -175,6 +177,11 @@ class CompiledContextObservation(FrozenContractModel):
     max_tokens: int = Field(ge=0)
     reasoning_mode: str
     response_mode: str
+    # Exact prompt pair produced at this compile boundary.  The Context
+    # Engine owns this value; the projection must not reconstruct it from a
+    # later model-call record because a repair/revision call may differ.
+    system_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None
     event_count: int = Field(default=0, ge=0)
     state_update_count: int = Field(default=0, ge=0)
     media_sample_count: int = Field(default=0, ge=0)

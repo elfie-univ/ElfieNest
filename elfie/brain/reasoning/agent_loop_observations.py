@@ -21,10 +21,12 @@ primitives and never ``infrastructure``, ``app`` or ``devtools``.
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Tuple
+from typing import Literal, Mapping, Optional, Tuple
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
+from elfie.brain.reasoning.skill_port import SkillMetadata
+from elfie.brain.reasoning.tool_port import ToolDefinition
 from elfie.message_types import FrozenContractModel, UTCDateTime
 
 
@@ -39,9 +41,10 @@ class ModelCallObservation(FrozenContractModel):
     duration of the ``generate`` call; ``provider_latency_ms`` is the
     provider-reported latency when the result supplies one.
     ``allowed_tools``/``tool_definition_count``/``skill_count`` mirror the
-    frozen capability sets the request carried, and ``deadline``/
-    ``created_at`` are the Turn-level bounds copied verbatim from the
-    request the Brain actually sent.
+    frozen capability sets the request carried, and the full response schema,
+    tool definitions, available skills and transport timeout are copied from
+    the request the Brain actually sent.  ``deadline``/``created_at`` are the
+    Turn-level bounds copied verbatim from that request as well.
     """
 
     iteration_index: int = Field(ge=1)
@@ -51,13 +54,17 @@ class ModelCallObservation(FrozenContractModel):
     reasoning_mode: str
     response_mode: str
     response_schema_name: str
+    response_schema: Mapping[str, JsonValue] = Field(default_factory=dict)
     temperature: float = Field(ge=0.0, le=2.0)
     max_tokens: int = Field(ge=1)
+    timeout_seconds: Optional[float] = Field(default=None, gt=0.0)
     context_revision: int = Field(ge=0)
     capability_revision: int = Field(ge=0)
     allowed_tools: Tuple[str, ...] = ()
     tool_definition_count: int = Field(default=0, ge=0)
     skill_count: int = Field(default=0, ge=0)
+    tool_definitions: Tuple[ToolDefinition, ...] = ()
+    available_skills: Tuple[SkillMetadata, ...] = ()
     deadline: Optional[UTCDateTime] = None
     created_at: Optional[UTCDateTime] = None
     # Response side (None when the model call failed).

@@ -249,6 +249,8 @@ def test_one_turn_emits_a_typed_compiled_context_observation() -> None:
     assert payload.max_tokens == 1024
     assert payload.reasoning_mode == task.request.reasoning_mode
     assert payload.response_mode == task.request.response_mode.value
+    assert payload.system_prompt == task.request.system_prompt
+    assert payload.user_prompt == task.request.user_prompt
     assert payload.event_count == 1
     assert payload.state_update_count == 0
     assert payload.media_sample_count == 0

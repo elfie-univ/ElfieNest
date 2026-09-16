@@ -503,6 +503,8 @@ class ReasoningRunController:
                             max_tokens=token_budget.max_tokens,
                             reasoning_mode=request.reasoning_mode,
                             response_mode=request.response_mode.value,
+                            system_prompt=system_prompt,
+                            user_prompt=user_prompt,
                             event_count=len(compiled.events),
                             state_update_count=len(compiled.state_updates),
                             media_sample_count=len(compiled.media_samples),

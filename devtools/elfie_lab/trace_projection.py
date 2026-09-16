@@ -953,8 +953,13 @@ def _model_request_view(event_dump: Mapping[str, Any]) -> Dict[str, Any]:
         "reasoning_mode": payload.get("reasoning_mode"),
         "response_mode": payload.get("response_mode"),
         "response_schema_name": payload.get("response_schema_name"),
+        "response_schema": payload.get("response_schema"),
         "temperature": payload.get("temperature"),
         "max_tokens": payload.get("max_tokens"),
+        "timeout_seconds": payload.get("timeout_seconds"),
+        "allowed_tools": payload.get("allowed_tools"),
+        "tool_definition_count": payload.get("tool_definition_count"),
+        "skill_count": payload.get("skill_count"),
     }
 
 
@@ -1186,21 +1191,27 @@ def _speaker_label(
 ) -> str:
     """Return a semantic history label without exposing opaque actor IDs.
 
-    ``display_name`` is the strongest existing human-readable fact.  When it
-    is absent, the stable ``ActorRef.source_kind`` category supplies a small
-    Lab-facing label.  Unknown/legacy actors intentionally collapse to a
-    generic label rather than leaking an implementation identifier into the
-    primary history table; the raw record still retains ``actor_id``.
+    ``display_name`` is the strongest existing human-readable fact unless it
+    is one of the old generic labels.  When it is absent, the stable
+    ``ActorRef.source_kind`` category supplies the two Lab-facing labels
+    ``开发者`` and ``elfie``.  Unknown/legacy actors collapse to ``elfie`` in
+    this two-party Lab view rather than leaking an implementation identifier;
+    the raw record still retains ``actor_id``.
     """
     if isinstance(display_name, str) and display_name.strip():
-        return display_name.strip()
+        normalized_display = display_name.strip()
+        if normalized_display in {"主人", "人类参与者", "开发者输入", "调试输入"}:
+            return "开发者"
+        if normalized_display in {"Elfie", "精灵", "小精灵", "未命名精灵"}:
+            return "elfie"
+        return normalized_display
 
     kind = source_kind.strip().lower() if isinstance(source_kind, str) else ""
     labels = {
-        "owner": "主人",
-        "elfie": "Elfie",
-        "developer_tool": "调试输入",
-        "human": "人类参与者",
+        "owner": "开发者",
+        "elfie": "elfie",
+        "developer_tool": "开发者",
+        "human": "开发者",
         "system": "系统",
         "activity": "Activity",
         "microphone": "麦克风",
@@ -1212,9 +1223,12 @@ def _speaker_label(
     }
     if kind in labels:
         return labels[kind]
+    # The Lab currently has only the developer and the current Elfie in this
+    # projection.  If an older row lost its source kind, keep it readable and
+    # attach it to Elfie rather than exposing an abstract participant label.
     if kind or actor_id:
-        return "其他参与者"
-    return ""
+        return "elfie"
+    return "elfie"
 
 
 def _compiled_conversation_rows(
@@ -1612,7 +1626,9 @@ def _reasoning_stage(
     # legacy ``steps`` array carries no keys, so it stays an ordered fallback
     # aligned by position for fields the envelopes do not carry.
     iteration_keys = sorted(
-        key for key, bucket in buckets.items() if bucket.get("model_call")
+        key
+        for key, bucket in buckets.items()
+        if bucket.get("model_call") or bucket.get("guard")
     )
     iterations: List[Dict[str, Any]] = []
     iteration_count = max(len(iteration_keys), len(groups))
@@ -1660,21 +1676,16 @@ def _reasoning_stage(
         compile_payload = (
             compiles[compile_index].payload if compile_index is not None else None
         )
-        context_output: Dict[str, Any] = {
-            "context_revision": payload.get("context_revision"),
-            "compiled": (
-                _compiled_summary(compile_payload)
-                if compile_payload is not None
-                else None
-            ),
-        }
+        context_output: Dict[str, Any] = {}
         if compile_payload is not None:
-            context_output["conversation"] = _compiled_conversation_rows(
-                compile_payload
-            )
-            context_output["prompt_sections"] = _compiled_sections(compile_payload)
+            context_output["compiled"] = _compiled_summary(compile_payload)
+            if compile_payload.system_prompt is not None:
+                context_output["system_prompt"] = compile_payload.system_prompt
+            if compile_payload.user_prompt is not None:
+                context_output["user_prompt"] = compile_payload.user_prompt
         if compile_index is not None and compile_index < len(trims):
-            context_output["trim"] = _trim_view(trims[compile_index].payload)
+            trim_view = _trim_view(trims[compile_index].payload)
+            context_output["trim"] = trim_view
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
             observations=observations,
@@ -1684,6 +1695,10 @@ def _reasoning_stage(
         model_call_parsed = steps_result if steps_result is not None else typed_result
         action_parsed = typed_result if typed_result is not None else steps_result
         guard_number = f"{iteration_number}.{5 + len(completions)}"
+        guard_event = (bucket.get("guard") or [None])[-1]
+        guard_outcome = (
+            _mapping(guard_event.get("payload")).get("outcome") if guard_event else None
+        )
         iterations.append(
             {
                 "number": iteration_number,
@@ -1692,44 +1707,65 @@ def _reasoning_stage(
                     if call and str(call.get("status")) == "failed"
                     else "completed"
                     if call
+                    else guard_outcome
+                    if guard_outcome in {"continued", "stopped"}
                     else "unavailable"
                 ),
-                "input": {
-                    "context_revision": payload.get("context_revision"),
-                    "frame_id": call.get("frame_id"),
-                },
+                "input": {},
                 "context_build": {
                     "number": f"{iteration_number}.1",
                     "status": (
-                        "completed" if payload or compile_payload else "unavailable"
+                        "compiled"
+                        if compile_payload is not None
+                        and (
+                            compile_payload.system_prompt is not None
+                            or compile_payload.user_prompt is not None
+                        )
+                        else "unavailable"
                     ),
-                    "input": {
-                        "context_revision": payload.get("context_revision"),
-                    },
+                    "input": {},
                     "output": context_output,
                     "raw": {
-                        "context_revision": payload.get("context_revision"),
-                        "system_prompt": payload.get("system_prompt"),
-                        "user_prompt": payload.get("user_prompt"),
+                        "compile_event": (
+                            _event_dump(compiles[compile_index])
+                            if compile_index is not None
+                            else None
+                        ),
+                        "trim_event": (
+                            _event_dump(trims[compile_index])
+                            if compile_index is not None and compile_index < len(trims)
+                            else None
+                        ),
                     },
-                },
-                "model_call": _model_call_projection(
-                    call,
-                    number=model_call_number,
-                    model_step=model_step,
-                    parsed_result=model_call_parsed,
+                }
+                if compile_payload is not None
+                else None,
+                "model_call": (
+                    _model_call_projection(
+                        call,
+                        number=model_call_number,
+                        model_step=model_step,
+                        parsed_result=model_call_parsed,
+                    )
+                    if call
+                    else None
                 ),
-                "action": _action_projection(
-                    number=f"{iteration_number}.3",
-                    model_call_number=model_call_number,
-                    parsed_result=action_parsed,
-                    model_step=model_step,
-                    action_event=action_event,
+                "action": (
+                    _action_projection(
+                        number=f"{iteration_number}.3",
+                        model_call_number=model_call_number,
+                        parsed_result=action_parsed,
+                        model_step=model_step,
+                        action_event=action_event,
+                    )
+                    if action_event is not None or model_step
+                    else None
                 ),
                 "observations": [dict(step) for step in observations],
                 "observation_stage": observation_stage,
                 "completion": completions,
                 "guard": _guard_projection(
+                    event=guard_event,
                     number=guard_number,
                 ),
                 "raw": {
@@ -1806,9 +1842,17 @@ def _model_call_projection(
     response_text = payload.get("response_text")
     provider = payload.get("provider")
     model = payload.get("model_key")
+    capability_view = {
+        key: value
+        for key, value in (
+            ("tool_definitions", payload.get("tool_definitions")),
+            ("available_skills", payload.get("available_skills")),
+        )
+        if value
+    }
     projection: Dict[str, Any] = {
         "number": number,
-        "status": "failed" if failed else "completed",
+        "status": "failed" if failed else "returned",
         "input": {
             "system_prompt": payload.get("system_prompt"),
             "user_prompt": payload.get("user_prompt"),
@@ -1826,11 +1870,15 @@ def _model_call_projection(
             "reasoning_mode": payload.get("reasoning_mode"),
             "response_mode": payload.get("response_mode"),
             "response_schema": payload.get("response_schema_name"),
+            "response_schema_definition": payload.get("response_schema"),
             "temperature": payload.get("temperature"),
             "max_tokens": payload.get("max_tokens"),
-            "context_revision": payload.get("context_revision"),
-            "capability_revision": payload.get("capability_revision"),
+            "timeout_seconds": payload.get("timeout_seconds"),
+            "allowed_tools": payload.get("allowed_tools"),
+            "tool_definition_count": payload.get("tool_definition_count"),
+            "skill_count": payload.get("skill_count"),
         },
+        "capabilities": capability_view or None,
         "duration_ms": call.get("duration_ms"),
         "prompt_tokens": payload.get("prompt_tokens"),
         "completion_tokens": payload.get("completion_tokens"),
@@ -1863,7 +1911,7 @@ def _action_projection(
         raw = {"source": "model_step.summary", "model_step": dict(model_step)}
     return {
         "number": number,
-        "status": "recorded" if parsed_result is not None else "unavailable",
+        "status": "parsed" if parsed_result is not None else "unavailable",
         "input": {"model_call": model_call_number},
         "output": parsed_result,
         "raw": raw,
@@ -1907,6 +1955,7 @@ def _observation_record_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
         "source_ids": list(payload.get("source_ids") or ()),
         "revision": payload.get("revision"),
         "iteration_index": payload.get("iteration_index"),
+        "raw": dict(event),
     }
 
 
@@ -1920,8 +1969,14 @@ def _judge_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
         "summary": payload.get("judge_reason") or verdict,
         "verdict": verdict,
         "action_type": payload.get("action_type"),
+        "content": payload.get("content"),
+        "judge_reason": payload.get("judge_reason"),
         "revision_requested": payload.get("revision_requested"),
+        "external_claim_replaced": payload.get("external_claim_replaced"),
+        "current_nest_sanitized": payload.get("current_nest_sanitized"),
+        "memory_use_count": payload.get("memory_use_count"),
         "iteration_index": payload.get("iteration_index"),
+        "raw": dict(event),
     }
 
 
@@ -1929,22 +1984,18 @@ def _observation_stage(
     *,
     number: str,
     observations: Sequence[Mapping[str, Any]],
-) -> Dict[str, Any]:
-    """Keep the fixed Observations slot visible, including when it is empty."""
+) -> Optional[Dict[str, Any]]:
+    """Project an Observations slot only when a real record exists."""
     recorded = [dict(observation) for observation in observations]
-    has_observations = bool(recorded)
+    if not recorded:
+        return None
     return {
         "number": number,
         "id": "observations",
         "title": "Observations",
-        "status": "recorded" if has_observations else "skipped",
+        "status": "observed",
         "input": {"step_count": len(recorded)},
-        "output": {"records": recorded} if has_observations else {},
-        "skip_reason": (
-            None
-            if has_observations
-            else "no observation/tool/skill record in this iteration"
-        ),
+        "output": {"records": recorded},
         "evidence_basis": "ReasoningRun.steps",
         "raw": {
             "source": "production_turn_record",
@@ -1955,21 +2006,38 @@ def _observation_stage(
 
 def _guard_projection(
     *,
+    event: Optional[Mapping[str, Any]],
     number: str,
-) -> Dict[str, Any]:
-    """Keep the fixed Guard slot honest when no Guard event was persisted."""
+) -> Optional[Dict[str, Any]]:
+    """Project the real Guard verdict; never synthesize an empty Guard row."""
+    if event is None:
+        return None
+    payload = _mapping(event.get("payload"))
+    outcome = str(payload.get("outcome") or "")
+    status = outcome if outcome in {"continued", "stopped"} else "completed"
+    decision = (
+        "继续" if outcome == "continued" else "停止" if outcome == "stopped" else None
+    )
     return {
         "number": number,
-        "status": "skipped",
-        "input": {},
-        "output": {},
-        "skip_reason": "separate Guard record is not persisted",
-        "evidence_basis": "ReasoningRun.status + ordered steps",
-        "raw": {
-            "source": "production_turn_record",
-            "available": False,
-            "reason": "separate Guard record is not persisted",
+        "status": status,
+        "input": {
+            "depth": payload.get("depth"),
+            "model_calls_used": payload.get("model_calls_used"),
+            "tool_calls_used": payload.get("tool_calls_used"),
         },
+        "output": {
+            "decision": decision,
+            "outcome": payload.get("outcome"),
+            "guard": payload.get("guard"),
+            "stop_reason": payload.get("stop_reason"),
+            "model_calls_remaining": payload.get("model_calls_remaining"),
+            "max_model_calls": payload.get("max_model_calls"),
+            "max_tool_calls": payload.get("max_tool_calls"),
+            "deadline_remaining_ms": payload.get("deadline_remaining_ms"),
+            "cancelled": payload.get("cancelled"),
+        },
+        "raw": dict(event),
     }
 
 
@@ -2090,7 +2158,7 @@ def _activity_request_projection(
     return {
         "id": "activity_request",
         "title": "Activity request",
-        "status": "recorded" if recorded else "skipped",
+        "status": "completed" if recorded else "skipped",
         "input": {"activity_intents": requests},
         "output": {"activity_proposals": requests},
         "skip_reason": None if recorded else "no activity request in TurnDecision",
