@@ -338,6 +338,40 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup.match(/<strong>模型调用<\/strong>/g)).toHaveLength(1);
   });
 
+  it("shows token usage only when reported and keeps elapsed time in the model-call header", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [{
+            ...firstIteration,
+            model_call: {
+              ...firstIteration.model_call as FixtureNode,
+              prompt_tokens: 120,
+              completion_tokens: 45,
+              provider_latency_ms: 321.5,
+            },
+          }],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-model"]);
+
+    expect(markup).toContain("Token 用量");
+    expect(markup).toContain("输入 Token");
+    expect(markup).toContain("输出 Token");
+    expect(markup).toContain("总 Token");
+    expect(markup).toContain(">165<");
+    expect(markup).not.toContain("Provider 延迟");
+    expect(markup).not.toContain(">321.5<");
+
+    const withoutUsage = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-model"]);
+    expect(withoutUsage).not.toContain("Token 用量");
+  });
+
   it("keeps the ReasoningRun overview non-duplicative and hides empty iteration input", () => {
     const enriched = withChainNodes({
       3: (node) => {

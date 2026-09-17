@@ -304,7 +304,8 @@ function fieldLabel(key: string): string {
     memory_eligible: "可入记忆",
     prompt_tokens: "输入 Token",
     completion_tokens: "输出 Token",
-    provider_latency_ms: "Provider 延迟",
+    total_tokens: "总 Token",
+    provider_latency_ms: "模型层耗时",
     reserved: "预留 Token",
     memory_budget: "记忆预算",
     content_budget: "内容预算",
@@ -1300,12 +1301,23 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
   const availableSkills = capabilities.available_skills;
   const output = record(call.output);
   const parsed = output.parsed_result;
+  const promptTokens = call.prompt_tokens;
+  const completionTokens = call.completion_tokens;
+  const tokenUsage = hasContent(promptTokens) || hasContent(completionTokens)
+    ? {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: typeof promptTokens === "number" && typeof completionTokens === "number"
+        ? promptTokens + completionTokens
+        : undefined,
+    }
+    : null;
   return <>
     <section className="trace-evidence"><h4>有效参数</h4><Fields values={modelCallParameters(call)} /></section>
     {hasContent(responseSchema) ? <Evidence title="响应结构定义" value={responseSchema} /> : null}
     {hasContent(toolDefinitions) ? <Evidence title="工具定义" value={toolDefinitions} /> : null}
     {hasContent(availableSkills) ? <Evidence title="技能清单" value={availableSkills} /> : null}
-    <Evidence title="用量" value={{ prompt_tokens: call.prompt_tokens, completion_tokens: call.completion_tokens, provider_latency_ms: call.provider_latency_ms }} />
+    {tokenUsage ? <Evidence title="Token 用量" value={tokenUsage} /> : null}
     <Evidence title="模型输入（完整消息）" value={modelInput(call)} />
     <Evidence title="模型原始输出" value={call.response ?? output.response} />
     {hasContent(parsed) ? <Evidence title="模型结果（Host 解析）" value={parsed} /> : <div className="trace-unavailable"><span>模型结果（Host 解析）</span><Status value="unavailable" /></div>}
