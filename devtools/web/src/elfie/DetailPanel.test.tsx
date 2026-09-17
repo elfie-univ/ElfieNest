@@ -108,8 +108,8 @@ const observability = {
     {
       number: "5",
       id: "turn_decision",
-      title: "TurnDecision",
-      status: "completed",
+      title: "回合决策",
+      status: "formed",
       input: { reasoning_status: "completed", model_calls: 2 },
       output: { plan_id: "plan-1", message_texts: ["我很好，谢谢关心。"], message_intents: [{ intent_id: "message-1", status: "accepted" }] },
       raw: {},
@@ -117,27 +117,17 @@ const observability = {
     {
       number: "6",
       id: "governance_delivery",
-      title: "Governance and delivery",
+      title: "治理与交付",
       status: "completed",
       input: { message_intents: [{ intent_id: "message-1" }] },
       output: { result: { success: true, message: "我很好，谢谢关心。" }, receipts: [{ receipt_id: "receipt-1", status: "completed" }], activity_proposals: [] },
-      delivery: {
-        number: "6.1",
-        id: "delivery",
-        title: "Delivery / Activity request",
-        status: "completed",
-        input: { message_intents: [{ intent_id: "message-1" }] },
-        output: { result: { success: true, message: "我很好，谢谢关心。" }, receipts: [{ receipt_id: "receipt-1", status: "completed" }] },
-        activity_request: { title: "Activity request", status: "skipped", skip_reason: "no activity request in TurnDecision", evidence_basis: "TurnDecision.activity_intents", raw: {} },
-        raw: { receipt_id: "receipt-1" },
-      },
       raw: {},
     },
     {
       number: "7",
       id: "settlement",
-      title: "Settlement",
-      status: "completed",
+      title: "结算",
+      status: "settled",
       input: { turn_id: "turn-1", receipt_count: 1 },
       output: { recorded_turn_id: "turn-1", duration_ms: 240, state_after: { energy: 87, fatigue: 0.11, primary_emotion: "happiness" }, state_diff: { energy: { before: 88, after: 87 } }, warnings: [], cognitive_turn: { status: "completed" } },
       raw: {},
@@ -202,10 +192,10 @@ describe("Elfie Lab Turn Inspector", () => {
     const markup = renderInspector();
 
     expect(markup).toContain("Turn 处理链路");
-    for (const label of ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "TurnDecision", "Governance and delivery", "Settlement"]) {
+    for (const label of ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "回合决策", "治理与交付", "结算"]) {
       expect(markup).toContain(label);
     }
-    const stagePositions = ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "TurnDecision", "Governance and delivery", "Settlement"]
+    const stagePositions = ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "回合决策", "治理与交付", "结算"]
       .map((label) => markup.indexOf(label));
     expect(stagePositions).toEqual([...stagePositions].sort((left, right) => left - right));
     expect(markup).toContain("4.1");
@@ -559,12 +549,25 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("Observations");
   });
 
-  it("keeps delivery as a child of governance", () => {
+  it("keeps governance and delivery as one flat stage", () => {
     const markup = renderInspector("链路", turn, "output");
 
-    expect(markup).toContain("Governance and delivery");
-    expect(markup).toContain("6.1");
-    expect(markup).toContain("Delivery / Activity request");
+    expect(markup).toContain("治理与交付");
+    expect(markup).toContain("交付摘要");
+    expect(markup).toContain("执行回执");
+    expect(markup).not.toContain("6.1");
+    expect(markup).not.toContain("Delivery / Activity request");
+    expect(markup).not.toContain("Activity 请求");
+  });
+
+  it("shows the formed decision content without exposing plan or intent IDs", () => {
+    const markup = renderInspector("链路", turn, "chain", ["turn_decision"]);
+
+    expect(markup).toContain("决策输出");
+    expect(markup).toContain("我很好，谢谢关心。");
+    expect(markup).not.toContain("未提供可读内容");
+    expect(markup).not.toContain("plan-1");
+    expect(markup).not.toContain("message-1");
   });
 
   it("shows the five setup owner snapshots without returning to raw JSON by default", () => {
@@ -651,7 +654,7 @@ describe("Elfie Lab Turn Inspector", () => {
         budget: { depth_basis: "quiet hours default depth", max_steps: 6, max_model_calls: 8, deadline_seconds: 30 },
         selfhood_projection: { identity_core_text: "艾菲，巢内晨间的狐狸", adaptive_self_text: "温和、好奇、偏好短句回应" },
       }),
-      5: (node) => ({ ...node, routing: { routed: "reply_via_message", response_channel_id: "channel-dusk", memory_eligible: true } }),
+      5: (node) => ({ ...node, routing: { routed: "reply_via_message", interaction_scope_kind: "conversation", response_domain: "communication", response_channel_id: "channel-dusk", memory_eligible: true } }),
       6: (node) => ({ ...node,
         memory_writeback: {
           candidates: [{ candidate_id: "cand-1", content: "主人分享了纪录片上线的好消息。", confidence: 0.8 }],
@@ -669,14 +672,12 @@ describe("Elfie Lab Turn Inspector", () => {
     const openedStages = ["event_admission", "context_workspace", "setup", "governance_delivery", "settlement"];
     const markup = renderInspector("链路", enriched, "chain", openedStages);
 
-    for (const title of ["输入通道", "文字", "上下文分区", "历史交互", "压缩摘要", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "处理方式", "最大步数", "进入推理时冻结状态"]) {
+    for (const title of ["输入通道", "文字", "上下文分区", "历史交互", "压缩摘要", "路由", "<strong>记忆写回</strong>", "情绪候选", "认知预算结算", "处理方式", "最大步数", "进入推理时冻结状态"]) {
       expect(markup).toContain(title);
     }
     for (const collapsedValue of [
       "greeting salience above defer threshold",
-      "committed",
       "主人正在筹备周末的纪录片之夜。",
-      "reply_via_message",
       "quiet hours default depth",
       "温和、好奇、偏好短句回应",
     ]) {
@@ -690,7 +691,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("conversation-dawn");
 
     const plain = renderInspector("链路", turn, "chain", ["event_admission", "context_workspace", "governance_delivery", "settlement"]);
-    for (const title of ["上下文分区", "历史交互", "压缩摘要", "路由明细", "<strong>记忆写回</strong>", "情绪变化", "能量结算", "处理方式", "进入推理时冻结状态"]) {
+    for (const title of ["上下文分区", "历史交互", "压缩摘要", "路由", "<strong>记忆写回</strong>", "情绪候选", "认知预算结算", "处理方式", "进入推理时冻结状态"]) {
       expect(plain).not.toContain(title);
     }
   });
@@ -920,7 +921,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("data-tip=");
   });
 
-  it("drops 1970 captured_at and unknown_fields state-diff rows and truncates long id arrays", () => {
+  it("drops timestamps, unknown fields, and opaque id arrays from state-diff rows", () => {
     const longIds = Array.from({ length: 12 }, (_, index) =>
       `${index % 2 === 0 ? "execution_receipt_" : "turn_"}${index.toString(16).padStart(6, "0")}abcdef`);
     const enriched = withChainNodes({
@@ -929,6 +930,11 @@ describe("Elfie Lab Turn Inspector", () => {
         captured_at: { before: "1970-01-01T00:00:00.000Z", after: "1970-01-01T00:00:00.001Z" },
         unknown_fields: { before: [], after: ["stale_field"] },
         source_event_ids: { before: [], after: longIds },
+        orientation: {
+          active_channel_id: { before: "old-channel", after: "elfie-lab" },
+          current_turn_id: { before: "old-turn", after: "new-turn" },
+          body_id: { before: "old-body", after: "54137848:headless" },
+        },
       } } }),
     });
     const markup = renderInspector("链路", enriched, "chain", ["settlement"]);
@@ -937,9 +943,11 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("1970");
     expect(markup).not.toContain("unknown_fields");
     expect(markup).not.toContain("stale_field");
-    expect(markup).toContain("(12 项)");
-    expect(markup).toContain("execution_rece…");
+    expect(markup).not.toContain("(12 项)");
+    expect(markup).not.toContain("execution_rece…");
     expect(markup).not.toContain(longIds[0]);
+    expect(markup).not.toContain("old-channel");
+    expect(markup).not.toContain("new-turn");
   });
 
   it("renders settlement state changes as readable before → after rows", () => {

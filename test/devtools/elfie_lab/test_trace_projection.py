@@ -990,16 +990,30 @@ def test_activity_proposal_stays_in_decision_and_delivery_without_becoming_a_cha
         result={"success": True, "message": "好的"},
         decision={"activity_intents": [activity]},
         duration_ms=80,
+        observations=[
+            _observation(
+                boundary="activity",
+                kind="preflight_verdict",
+                payload=ActivityPreflightVerdictObservation(
+                    activity_id="walk-1",
+                    status="validated",
+                    reason_codes=(),
+                    evidence_issued=True,
+                    step_count=1,
+                    estimated_budget=2.0,
+                ),
+            ),
+        ],
     )
 
     decision = trace["chain"][4]
     governance = trace["chain"][5]
     assert decision["output"]["activity_intents"] == [activity]
     assert governance["output"]["activity_proposals"] == [activity]
-    assert governance["delivery"]["input"]["activity_intents"] == [activity]
-    assert governance["delivery"]["number"] == "6.1"
-    assert governance["delivery"]["title"] == "Delivery / Activity request"
-    assert governance["delivery"]["activity_request"]["status"] == "completed"
+    assert governance["activity_request"]["requests"] == [activity]
+    assert governance["activity_request"]["status"] == "preflight_validated"
+    assert governance["activity_request"]["preflight"]["evidence_issued"] is True
+    assert "delivery" not in governance
 
 
 def test_failed_reasoning_remains_explicit_in_the_production_chain():
@@ -1816,6 +1830,21 @@ def test_governance_projects_the_decision_routing_block():
                     response_channel_id="channel-1",
                     response_conversation_id="conv-1",
                     memory_eligible=False,
+                    routed=None,
+                ),
+            ),
+            _observation(
+                boundary="decision_boundary",
+                kind="decision_routed",
+                payload=DecisionRoutedObservation(
+                    plan_id="plan-1",
+                    intent_types=("speak", "message"),
+                    interaction_scope_kind="conversation",
+                    source_domain="communication",
+                    response_domain="communication",
+                    response_channel_id="channel-1",
+                    response_conversation_id="conv-1",
+                    memory_eligible=False,
                     routed=True,
                 ),
             ),
@@ -1928,6 +1957,7 @@ def test_settlement_projects_memory_writeback_emotion_and_energy_blocks():
 
     settlement = trace["chain"][6]
     assert settlement["memory_writeback"] == {
+        "status": "committed",
         "candidates": [
             {
                 "candidate_id": "cand-1",
@@ -1962,12 +1992,14 @@ def test_settlement_projects_memory_writeback_emotion_and_energy_blocks():
         ],
     }
     assert settlement["emotion_changes"] == {
+        "status": "candidate",
         "stage": "slow",
         "revision": 7,
         "dimensions": [{"name": "happiness", "before": 0.5, "after": 0.7}],
         "changed_dimensions": ["happiness"],
     }
     assert settlement["energy_settlement"] == {
+        "status": "settled",
         "consumed": 10.0,
         "charged": 8.0,
         "released": False,
@@ -2007,6 +2039,37 @@ def test_new_blocks_report_none_without_their_observations():
     assert chain[6]["memory_writeback"] is None
     assert chain[6]["emotion_changes"] is None
     assert chain[6]["energy_settlement"] is None
+
+
+def test_settlement_marks_rejected_memory_commit_as_failed():
+    trace = build_observability_trace(
+        turn_id="turn-memory-rejected",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed"}},
+        result={"success": True},
+        decision={},
+        duration_ms=20,
+        observations=[
+            _observation(
+                boundary="memory.encode",
+                kind="encode_commit",
+                payload=MemoryEncodeCommit(
+                    candidate_id="candidate-1",
+                    episode_id=None,
+                    status="rejected",
+                    reason="duplicate",
+                    revision_before=2,
+                    revision_after=2,
+                ),
+            )
+        ],
+    )
+
+    assert trace["chain"][6]["status"] == "settled"
+    assert trace["chain"][6]["memory_writeback"]["status"] == "failed"
 
 
 _SEQUENCE = {"value": 0}

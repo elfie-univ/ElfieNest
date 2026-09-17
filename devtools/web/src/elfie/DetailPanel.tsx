@@ -29,6 +29,13 @@ type TraceNode = JsonRecord;
 type TraceStatus = string;
 
 const statusLabels: Readonly<Record<string, string>> = {
+  formed: "已形成",
+  routed: "已路由",
+  waiting_receipt: "待回执",
+  settled: "已结算",
+  partially_settled: "部分完成",
+  candidate: "候选待提交",
+  preflight_validated: "预检通过",
   completed: "已完成",
   recorded: "已完成",
   compiled: "已编译",
@@ -37,6 +44,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   returned: "已返回",
   requested: "已请求",
   accepted: "已接受",
+  started: "已开始",
   revision_required: "要求修订",
   fallback: "终止回退",
   safe_noop: "安全无操作",
@@ -123,7 +131,7 @@ function statusLabel(value: unknown): string {
 
 function Status({ value }: Readonly<{ readonly value: unknown }>): React.JSX.Element {
   const status = statusOf(value);
-  const glyph = status === "failed" || status === "revision_required" ? "!" : status === "unavailable" ? "?" : status === "skipped" ? "–" : "✓";
+  const glyph = status === "failed" || status === "revision_required" ? "!" : status === "unavailable" ? "?" : status === "skipped" ? "–" : status === "waiting_receipt" || status === "pending" || status === "candidate" ? "·" : "✓";
   return <span className={`trace-status trace-status-${status}`}><span aria-hidden="true">{glyph}</span>{statusLabel(status)}</span>;
 }
 
@@ -165,6 +173,13 @@ function fieldLabel(key: string): string {
     interaction_scope: "交互范围",
     response_scope: "响应范围",
     status: "状态",
+    success: "执行成功",
+    speech: "实际回复",
+    result_status: "交付状态",
+    target_domain: "目标域",
+    preflight_status: "预检结果",
+    step_count: "步骤数",
+    goal: "目标",
     model_mode: "模型模式",
     error_code: "错误码",
     timeout_reason: "超时原因",
@@ -239,6 +254,8 @@ function fieldLabel(key: string): string {
     text: "文本",
     action: "动作",
     content: "内容",
+    activity: "活动",
+    kind: "类型",
     claim: "事实",
     relation: "关系",
     evidence: "证据",
@@ -359,6 +376,10 @@ function fieldLabel(key: string): string {
     target_kind: "目标类型",
     target_id: "目标 ID",
     outcome_kind: "结果类型",
+    reason_codes: "原因",
+    evidence_issued: "预检证据",
+    estimated_budget: "预计预算",
+    wake_at: "唤醒时间",
     event_id: "事件 ID",
     stage: "阶段",
     dimensions: "情绪维度",
@@ -390,7 +411,6 @@ function fieldLabel(key: string): string {
     identity_core_text: "身份核心投影",
     adaptive_self_text: "自适应自我投影",
     emotion: "情绪",
-    kind: "类型",
     external_domain: "外部域",
     available_cognitive_budget: "可用认知配额",
     cognitive_consolidation: "认知整理",
@@ -400,6 +420,9 @@ function fieldLabel(key: string): string {
     body_generation: "身体世代",
     body_snapshot: "身体快照",
     journal: "日志",
+    entry_count: "日志条目数",
+    elapsed_time: "累计时间",
+    available_interactions: "可用交互",
   };
   return labels[key] ?? key;
 }
@@ -431,6 +454,15 @@ const actionTypeLabels: Readonly<Record<string, string>> = {
   clarification: "澄清",
   recall_memory: "记忆召回",
   noop: "无操作",
+};
+
+const capabilityLabels: Readonly<Record<string, string>> = {
+  "body.move_to_anchor": "移动",
+  "body.speak": "说话",
+  "expression": "表达",
+  "move.to": "移动",
+  "move_to_anchor": "移动",
+  "speech.say": "说话",
 };
 
 const observationKindLabels: Readonly<Record<string, string>> = {
@@ -512,6 +544,100 @@ function primitiveJoin(value: unknown): string | null {
   return value.map((item) => String(item)).join("、");
 }
 
+const booleanFieldKeys: ReadonlySet<string> = new Set([
+  "accepted",
+  "cancelled",
+  "evidence_issued",
+  "long_reasoning_allowed",
+  "memory_eligible",
+  "released",
+  "routed",
+  "success",
+]);
+
+const domainFieldKeys: ReadonlySet<string> = new Set([
+  "external_domain",
+  "response_domain",
+  "source_domain",
+  "target_domain",
+]);
+
+const reasonFieldKeys: ReadonlySet<string> = new Set([
+  "error",
+  "failure_reason",
+  "fallback_reason",
+  "judge_reason",
+  "reason",
+  "skip_reason",
+  "stale_reason",
+  "stop_reason",
+  "terminal_reason",
+  "timeout_reason",
+]);
+
+const domainLabels: Readonly<Record<string, string>> = {
+  communication: "消息",
+  embodied: "现场",
+  nervous_system: "具身",
+  activity: "Activity",
+};
+
+const scopeKindLabels: Readonly<Record<string, string>> = {
+  conversation: "会话",
+  channel: "频道",
+  body: "身体",
+  communication: "消息",
+  embodied: "现场",
+  activity: "Activity",
+};
+
+const routeLabels: Readonly<Record<string, string>> = {
+  reply_via_message: "消息回复",
+  reply_via_speech: "语音回复",
+  reply_via_activity: "Activity 请求",
+  no_reply: "不回复",
+};
+
+const executorLabels: Readonly<Record<string, string>> = {
+  body: "身体通道",
+  communication: "消息通道",
+  activity: "Activity",
+  internal: "内部处理",
+};
+
+function displayFieldValue(key: string, value: unknown): unknown {
+  if (key === "error" && typeof value === "object" && value !== null) {
+    const error = record(value);
+    if (hasContent(error.code) || hasContent(error.message)) {
+      return [error.code, error.message].filter(hasContent).join("：");
+    }
+  }
+  if (reasonFieldKeys.has(key) && typeof value === "string") {
+    return readableReason(value);
+  }
+  if ((key === "status" || key.endsWith("_status")) && typeof value === "string") {
+    return statusLabel(value);
+  }
+  if (key === "routed" && typeof value === "boolean") {
+    return value ? "已路由" : "未路由";
+  }
+  if (booleanFieldKeys.has(key) && typeof value === "boolean") {
+    return value ? "是" : "否";
+  }
+  if (domainFieldKeys.has(key) && typeof value === "string") {
+    return domainLabels[value] ?? value;
+  }
+  if (key === "routed" && typeof value === "string") {
+    return routeLabels[value] ?? value;
+  }
+  if (key === "interaction_scope_kind" && typeof value === "string") {
+    return scopeKindLabels[value] ?? value;
+  }
+  if (key === "modalities") return modalitiesText(value);
+  if (key === "reason_codes") return Array.isArray(value) ? value.map(readableReason) : readableReason(value);
+  return value;
+}
+
 function FieldValue({ value }: Readonly<{ readonly value: unknown }>): React.JSX.Element {
   if (!hasContent(value)) return <span className="trace-muted">未记录</span>;
   if (isPrimitive(value)) {
@@ -548,6 +674,13 @@ const INTERNAL_FIELD_KEYS: ReadonlySet<string> = new Set([
   "episode_id",
   "target_id",
   "scope_id",
+  "response_channel_id",
+  "response_conversation_id",
+  "active_channel_id",
+  "active_conversation_id",
+  "current_turn_id",
+  "body_id",
+  "active_body_id",
   "revision",
   "context_revision",
   "capability_revision",
@@ -576,7 +709,7 @@ function Fields({ values, omit = [] }: Readonly<{ readonly values: JsonRecord; r
   const excluded = new Set(omit);
   const entries = Object.entries(values)
     .filter(([key, value]) => !excluded.has(key) && !INTERNAL_FIELD_KEYS.has(key) && hasContent(value))
-    .map(([key, value]) => [key, key === "modalities" ? modalitiesText(value) : value] as const);
+    .map(([key, value]) => [key, displayFieldValue(key, value)] as const);
   if (!entries.length) return <p className="trace-muted">未采集</p>;
   return <dl className="trace-fields">{entries.map(([key, value]) => <div className="trace-field" key={key}><dt>{fieldLabel(key)}</dt><dd><FieldValue value={value} /></dd></div>)}</dl>;
 }
@@ -606,6 +739,45 @@ function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonl
 
 const compactIdLength = 14;
 const noisyDiffKeys: ReadonlySet<string> = new Set(["captured_at", "unknown_fields"]);
+const stateDiffInternalKeys: ReadonlySet<string> = new Set([
+  "id",
+  "turn_id",
+  "frame_id",
+  "event_id",
+  "plan_id",
+  "intent_id",
+  "call_id",
+  "trace_id",
+  "channel_id",
+  "conversation_id",
+  "actor_id",
+  "source_ids",
+  "source_event_ids",
+  "input_event_ids",
+  "cause_event_ids",
+  "reply_event_id",
+  "target_id",
+  "scope_id",
+  "response_channel_id",
+  "response_conversation_id",
+  "active_channel_id",
+  "active_conversation_id",
+  "current_turn_id",
+  "body_id",
+  "active_body_id",
+  "candidate_id",
+  "episode_id",
+  "recorded_turn_id",
+  "created_at",
+  "prepared_at",
+  "started_at",
+  "last_activity_at",
+  "occurred_at",
+  "occurred_from",
+  "occurred_to",
+  "deadline",
+  "absolute_deadline",
+]);
 
 function compactId(item: string): string {
   return item.length > compactIdLength ? `${item.slice(0, compactIdLength)}…` : item;
@@ -636,7 +808,7 @@ function readableStateDiff(value: unknown, path = ""): JsonRecord {
   }
   const rows: JsonRecord = {};
   for (const [key, child] of Object.entries(source)) {
-    if (noisyDiffKeys.has(key)) continue;
+    if (noisyDiffKeys.has(key) || stateDiffInternalKeys.has(key)) continue;
     Object.assign(rows, readableStateDiff(child, path ? `${path} ${fieldLabel(key)}` : fieldLabel(key)));
   }
   return rows;
@@ -670,13 +842,83 @@ function SkipDetails({
   return <Fields values={{ skip_reason: reason, evidence_basis: evidence }} />;
 }
 
-function IntentEvidence({ groups }: Readonly<{ readonly groups: Readonly<Record<string, readonly unknown[]>> }>): React.JSX.Element | null {
-  const entries = Object.entries(groups).filter(([, values]) => values.length > 0);
-  if (!entries.length) return null;
-  return <section className="trace-evidence"><h4>意图</h4><div className="trace-intent-list">{entries.flatMap(([title, values]) => values.map((value, index) => {
+function decisionIntentText(intent: JsonRecord): unknown {
+  if (hasContent(intent.content)) return intent.content;
+  if (hasContent(intent.text)) return intent.text;
+  if (hasContent(intent.message)) return intent.message;
+  if (hasContent(intent.speech)) return intent.speech;
+  if (hasContent(intent.action)) return intent.action;
+  if (hasContent(intent.goal)) return intent.goal;
+  if (hasContent(intent.reason)) return intent.reason;
+  if (hasContent(intent.motion)) {
+    return hasContent(intent.target)
+      ? `${String(intent.motion)} → ${String(intent.target)}`
+      : intent.motion;
+  }
+  if (hasContent(intent.expression)) {
+    return hasContent(intent.intensity)
+      ? `${String(intent.expression)} · 强度 ${String(intent.intensity)}`
+      : intent.expression;
+  }
+  if (hasContent(intent.capability_id)) {
+    const capability = capabilityLabels[String(intent.capability_id)] ?? intent.capability_id;
+    const argumentsValue = record(intent.arguments);
+    const argumentText = argumentsValue.text ?? argumentsValue.content;
+    if (hasContent(argumentText)) return `${String(capability)}：${String(argumentText)}`;
+    const target = argumentsValue.anchor_id ?? argumentsValue.target;
+    if (hasContent(target)) return `${String(capability)} → ${String(target)}`;
+    return capability;
+  }
+  return null;
+}
+
+function DecisionEvidence({ output }: Readonly<{ readonly output: JsonRecord }>): React.JSX.Element | null {
+  const canonicalIds = new Set<string>();
+  const canonicalGroups: Array<[string, readonly unknown[]]> = [];
+  const addGroup = (title: string, values: readonly unknown[], filter?: (value: JsonRecord) => boolean): void => {
+    const filtered = values.filter((value) => {
+      const item = record(value);
+      if (filter && !filter(item)) return false;
+      const id = String(item.intent_id ?? "");
+      if (id && canonicalIds.has(id)) return false;
+      if (id) canonicalIds.add(id);
+      return true;
+    });
+    if (filtered.length) canonicalGroups.push([title, filtered]);
+  };
+  addGroup("语音", list(output.speech_intents));
+  addGroup("消息", list(output.message_intents));
+  addGroup("动作", list(output.motion_intents));
+  addGroup("表情", list(output.expression_intents));
+  addGroup("能力", list(output.action_intents), (item) => {
+    const type = String(item.type ?? "");
+    return type !== "motion" && type !== "expression";
+  });
+  addGroup("Activity 请求", list(output.activity_intents));
+  addGroup("无操作", list(output.noop_intents));
+
+  const fallbackTexts: Array<[string, readonly unknown[]]> = [
+    ["语音", list(output.speech_texts)],
+    ["消息", list(output.message_texts)],
+  ];
+  for (const [title, values] of fallbackTexts) {
+    if (!values.length) continue;
+    const index = canonicalGroups.findIndex(([groupTitle]) => groupTitle === title);
+    if (index < 0) {
+      canonicalGroups.push([title, values]);
+      continue;
+    }
+    const group = canonicalGroups[index];
+    if (!group) continue;
+    const [, groupValues] = group;
+    const represented = groupValues.some((value) => hasContent(decisionIntentText(record(value))));
+    if (!represented) canonicalGroups[index] = [title, values];
+  }
+  if (!canonicalGroups.length) return null;
+  return <section className="trace-evidence"><h4>决策输出</h4><div className="trace-intent-list">{canonicalGroups.flatMap(([title, values]) => values.map((value, index) => {
     const intent = record(value);
-    const text = intent.content ?? intent.text ?? intent.message ?? intent.action ?? intent.motion ?? intent.expression;
-    return <article className="trace-intent" key={`${title}-${index}`}><header><strong>{title}</strong><Status value={intent.status ?? "completed"} /></header>{hasContent(text) ? <p>{String(text)}</p> : <p className="trace-muted">未提供可读内容</p>}</article>;
+    const text = decisionIntentText(intent) ?? (typeof value === "string" ? value : null);
+    return <article className="trace-intent" key={`${title}-${String(intent.intent_id ?? index)}`}><header><strong>{title}</strong></header>{hasContent(text) ? <p>{String(text)}</p> : <p className="trace-muted">未提供可读内容</p>}</article>;
   }))}</div></section>;
 }
 
@@ -684,7 +926,9 @@ function ReceiptEvidence({ receipts }: Readonly<{ readonly receipts: readonly un
   if (!receipts.length) return null;
   return <section className="trace-evidence"><h4>执行回执</h4><div className="trace-receipt-list">{receipts.map((value, index) => {
     const receipt = record(value);
-    return <article className="trace-receipt" key={`${String(receipt.status ?? "receipt")}-${index}`}><header><strong>{String(receipt.executor ?? "执行器")}</strong><Status value={receipt.status} /></header><Fields values={{ occurred_at: occurredAtValue(receipt.occurred_at), error: receipt.error }} /></article>;
+    const executor = hasContent(receipt.executor) ? String(receipt.executor) : "未提供执行器";
+    const details = { occurred_at: occurredAtValue(receipt.occurred_at), error: receipt.error };
+    return <article className="trace-receipt" key={`${String(receipt.status ?? "receipt")}-${index}`}><header><strong>{executorLabels[executor] ?? executor}</strong><Status value={receipt.status} /></header>{hasVisibleFields(details) ? <Fields values={details} /> : null}</article>;
   })}</div></section>;
 }
 
@@ -1130,6 +1374,17 @@ const stageAnomalyLabels: Readonly<Record<string, string>> = {
   skipped: "跳过",
 };
 
+const stageTitleLabels: Readonly<Record<string, string>> = {
+  turn_decision: "回合决策",
+  governance_delivery: "治理与交付",
+  settlement: "结算",
+};
+
+function stageTitle(node: TraceNode): string {
+  const id = String(node.id ?? "");
+  return stageTitleLabels[id] ?? String(node.title ?? node.id ?? "未命名阶段");
+}
+
 function stageAnomaly(node: TraceNode): string {
   const id = String(node.id ?? "");
   const output = record(node.output);
@@ -1144,7 +1399,7 @@ function stageAnomaly(node: TraceNode): string {
   }
   if (id === "governance_delivery") {
     if (record(output.result).success === false) return "交付失败";
-    if (statusOf(record(node.delivery).status) === "failed") return "交付失败";
+    if (statusOf(node.status) === "failed") return "交付失败";
   }
   if (id === "settlement") {
     const warningCount = list(output.warnings).length;
@@ -1889,96 +2144,59 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
 
 function DecisionNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
   const output = record(node.output);
-  const textOutput = [...list(output.speech_texts), ...list(output.message_texts)];
-  const intentOutput = {
-    speech_intents: list(output.speech_intents),
-    message_intents: list(output.message_intents),
-    motion_intents: list(output.motion_intents),
-    expression_intents: list(output.expression_intents),
-    action_intents: list(output.action_intents),
-    activity_intents: list(output.activity_intents),
-    noop_intents: list(output.noop_intents),
-  };
-  return <>
-    {textOutput.length ? <Evidence title="输出文本" value={textOutput} /> : null}
-    <IntentEvidence groups={{
-      "语音": intentOutput.speech_intents,
-      "消息": intentOutput.message_intents,
-      "动作": [...intentOutput.motion_intents, ...intentOutput.action_intents],
-      "表情": intentOutput.expression_intents,
-      "Activity": intentOutput.activity_intents,
-      "No-op": intentOutput.noop_intents,
-    }} />
-  </>;
+  return <DecisionEvidence output={output} />;
 }
 
 function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; readonly preview: PreviewResult | null }>): React.JSX.Element {
-  const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set());
   const output = record(node.output);
   const result = record(output.result);
   const receipts = list(output.receipts);
-  const delivery = record(node.delivery);
-  const deliveryOutput = record(delivery.output);
-  const activityRequest = record(delivery.activity_request);
-  const deliveryId = `${String(node.id ?? "governance")}-delivery`;
-  const routingId = `${String(node.id ?? "governance")}-routing`;
-  const toggle = (id: string): void => {
-    setOpenChildren((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const routing = record(node.routing);
+  const activityRequest = record(node.activity_request);
+  const activityRequests = list(activityRequest.requests).map(record);
+  const preflight = record(activityRequest.preflight);
+  const preflightVerdicts = list(preflight.verdicts).map(record);
+  const actualReply = result.speech ?? result.message;
   const resultSummary = {
-    success: result.success,
-    speech: result.speech,
-    message: result.message,
+    target_domain: routing.response_domain ?? routing.interaction_scope_kind,
+    routed: routing.routed,
+    result_status: result.success === true
+      ? "completed"
+      : result.success === false
+        ? "failed"
+        : node.status,
+    speech: actualReply,
+    message: result.message !== actualReply ? result.message : undefined,
     error: result.error,
+    receipt_count: receipts.length,
+    memory_eligible: routing.memory_eligible,
   };
   return <>
-    <Evidence title="实际结果" value={resultSummary} />
+    <Evidence title="交付摘要" value={resultSummary} />
     <ReceiptEvidence receipts={receipts} />
-    {hasContent(record(node.routing)) ? <TraceDisclosure
-      id={routingId}
-      title="路由明细"
-      onToggle={toggle}
-      open={openChildren.has(routingId)}
-      raw={node.routing}
-      status="recorded"
-      showStatus={false}
-    >
-      <Fields values={record(node.routing)} />
-    </TraceDisclosure> : null}
-    {list(output.activity_proposals).length ? <Evidence title="Activity 提案" value={output.activity_proposals} /> : null}
-    {hasContent(delivery) ? <TraceDisclosure
-      id={deliveryId}
-      number={String(delivery.number ?? "6.1")}
-      title={String(delivery.title ?? "Delivery / Activity request")}
-      meta={`${list(deliveryOutput.receipts).length} 个回执`}
-      onToggle={toggle}
-      open={openChildren.has(deliveryId)}
-      raw={delivery.raw ?? delivery}
-      status={delivery.status}
-    >
-      <Evidence title="交付输入" value={delivery.input} />
-      <Evidence title="交付结果" value={deliveryOutput.result} />
-      <ReceiptEvidence receipts={list(deliveryOutput.receipts)} />
-      {list(deliveryOutput.activity_proposals).length ? <Evidence title="Activity 提案" value={deliveryOutput.activity_proposals} /> : null}
-      {hasContent(activityRequest) ? <TraceDisclosure
-        id={`${deliveryId}-activity-request`}
-        title={String(activityRequest.title ?? "Activity request")}
-        onToggle={toggle}
-        open={openChildren.has(`${deliveryId}-activity-request`)}
-        raw={activityRequest.raw ?? activityRequest}
-        status={activityRequest.status}
-      >
-        {statusOf(activityRequest.status) === "skipped" ? <SkipDetails node={activityRequest} fallbackReason="no activity request in TurnDecision" fallbackEvidence="TurnDecision.activity_intents" /> : <>
-          <Evidence title="输入" value={activityRequest.input} />
-          <Evidence title="输出" value={activityRequest.output} />
-        </>}
-      </TraceDisclosure> : null}
-    </TraceDisclosure> : null}
+    {hasVisibleFields(routing, ["routed", "memory_eligible"]) ? <section className="trace-evidence"><h4>路由</h4><Fields values={routing} omit={["routed", "memory_eligible"]} /></section> : null}
+    {hasContent(activityRequest) ? <section className="trace-evidence"><h4>Activity 请求</h4>
+      <div className="trace-memory-list">
+        {(activityRequests.length ? activityRequests : [{}]).map((request, index) => {
+          const requestPreflight = preflightVerdicts.find((verdict) => (
+            hasContent(request.activity_id)
+            && String(verdict.activity_id) === String(request.activity_id)
+          )) ?? preflight;
+          return <Fields key={`activity-request-${index}`} values={{
+            activity: request.type === "activity" ? "Activity" : request.type,
+            content: request.content,
+            goal: request.goal,
+            state: request.state,
+            step_count: request.step_count,
+            wake_at: request.wake_at,
+            preflight_status: statusLabel(requestPreflight.status ?? activityRequest.status),
+            reason_codes: requestPreflight.reason_codes,
+            evidence_issued: requestPreflight.evidence_issued,
+            estimated_budget: requestPreflight.estimated_budget,
+          }} />;
+        })}
+      </div>
+    </section> : null}
     {preview !== null ? <div className="trace-preview"><strong>动作回放</strong><span>{preview.status === "completed" ? "已完成" : "不支持"}</span><p>{preview.reason}</p></div> : null}
   </>;
 }
@@ -1992,6 +2210,14 @@ function WritebackBody({ writeback }: Readonly<{ readonly writeback: TraceNode }
     {commits.length ? <section className="trace-evidence"><h4>编码提交</h4><BlockList items={commits} /></section> : null}
     {reinforcements.length ? <section className="trace-evidence"><h4>记忆强化</h4><BlockList items={reinforcements} /></section> : null}
   </>;
+}
+
+function writebackStatus(writeback: JsonRecord): string {
+  if (hasContent(writeback.status)) return String(writeback.status);
+  const commits = list(writeback.commits).map(record);
+  if (commits.length && commits.every((item) => ["committed", "duplicate"].includes(String(item.status)))) return "committed";
+  if (commits.some((item) => ["rejected", "stale", "failed"].includes(String(item.status)))) return "failed";
+  return "candidate";
 }
 
 function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
@@ -2025,7 +2251,9 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
     emotionRows[name] = diffLeafText(point);
   }
   const energyRows: JsonRecord = {
-    ...Object.fromEntries(Object.entries(energySettlement).filter(([key]) => key !== "energy_state")),
+    consumed: energySettlement.consumed,
+    charged: energySettlement.charged,
+    released: energySettlement.released,
     ...record(energySettlement.energy_state),
   };
   const stateCore = {
@@ -2038,42 +2266,42 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
     emergency_reserve_available: state.emergency_reserve_available,
     reserved_cognitive_budget: state.reserved_cognitive_budget,
   };
+  const hasStateDiff = Object.keys(stateDiffRows).length > 0;
+  const cognitiveStatus = statusOf(cognitiveTurn.status);
+  const cognitiveException = cognitiveStatus !== "unavailable" && cognitiveStatus !== "completed";
+  const memoryStatus = writebackStatus(writeback);
   return <>
-    <Evidence title="警告" value={output.warnings} emptyLabel="无" />
-    <Evidence title="处理后状态" value={stateCore} />
-    <Evidence title="状态变化" value={stateDiffRows} />
-    {hasContent(cognitiveSummary) ? <Evidence title="认知回合" value={cognitiveSummary} /> : null}
+    {list(output.warnings).length ? <Evidence title="警告" value={output.warnings} /> : null}
+    {hasStateDiff ? <Evidence title="本轮状态变化" value={stateDiffRows} /> : <Evidence title="结算后关键状态" value={stateCore} />}
+    {cognitiveException ? <Evidence title="认知回合异常" value={cognitiveSummary} /> : null}
     {hasContent(writeback) ? <TraceDisclosure
       id={writebackId}
       title="记忆写回"
       onToggle={toggle}
       open={openChildren.has(writebackId)}
       raw={node.memory_writeback}
-      status="recorded"
-      showStatus={false}
+      status={memoryStatus}
     >
       <WritebackBody writeback={writeback} />
     </TraceDisclosure> : null}
     {hasContent(emotionChanges) ? <TraceDisclosure
       id={emotionId}
-      title="情绪变化"
+      title="情绪候选"
       onToggle={toggle}
       open={openChildren.has(emotionId)}
       raw={node.emotion_changes}
-      status="recorded"
-      showStatus={false}
+      status={emotionChanges.status ?? "candidate"}
     >
       <Fields values={{ stage: emotionChanges.stage, changed_dimensions: emotionChanges.changed_dimensions }} />
       {Object.keys(emotionRows).length ? <section className="trace-evidence"><h4>维度变化</h4><Fields values={emotionRows} /></section> : null}
     </TraceDisclosure> : null}
     {hasContent(energySettlement) ? <TraceDisclosure
       id={energyId}
-      title="能量结算"
+      title="认知预算结算"
       onToggle={toggle}
       open={openChildren.has(energyId)}
       raw={node.energy_settlement}
-      status="recorded"
-      showStatus={false}
+      status={energySettlement.status ?? "settled"}
     >
       <Fields values={energyRows} />
     </TraceDisclosure> : null}
@@ -2119,7 +2347,7 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
     <div className="trace-node-header">
       <button aria-expanded={open} className="trace-node-trigger" title={stageTip} onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
-        <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
+        <span className="trace-node-title"><strong>{stageTitle(node)}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>

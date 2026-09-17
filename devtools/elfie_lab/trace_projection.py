@@ -467,7 +467,19 @@ def _routing_block(
     )
     if not events:
         return None
-    payload = events[0].payload
+    # The completion boundary may emit a provisional ``routed=None`` record
+    # before the execution router reports its boolean result.  Prefer the
+    # latest record that actually carries the routing outcome while keeping
+    # the final event's scopes and eligibility fields together.
+    event = next(
+        (
+            candidate
+            for candidate in reversed(events)
+            if candidate.payload.routed is not None
+        ),
+        events[-1],
+    )
+    payload = event.payload
     return {
         "routed": payload.routed,
         "interaction_scope_kind": payload.interaction_scope_kind,
@@ -475,6 +487,47 @@ def _routing_block(
         "response_channel_id": payload.response_channel_id,
         "response_conversation_id": payload.response_conversation_id,
         "memory_eligible": payload.memory_eligible,
+    }
+
+
+def _activity_preflight_block(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> Optional[Dict[str, Any]]:
+    """Project the last Activity preflight verdict for this turn.
+
+    A proposal is not an accepted Activity.  Keep the host-issued verdict
+    separate so the UI can distinguish a draft, a validated request and a
+    rejected/clarified request without inferring it from the proposal alone.
+    """
+    events = _scoped_events(
+        observations,
+        boundary="activity",
+        kinds=("preflight_verdict",),
+        frame_id=frame_id,
+    )
+    if not events:
+        return None
+    payload = events[-1].payload
+    verdicts = [
+        {
+            "activity_id": event.payload.activity_id,
+            "status": event.payload.status,
+            "reason_codes": list(event.payload.reason_codes),
+            "evidence_issued": event.payload.evidence_issued,
+            "step_count": event.payload.step_count,
+            "estimated_budget": event.payload.estimated_budget,
+        }
+        for event in events
+    ]
+    return {
+        "verdicts": verdicts,
+        "status": payload.status,
+        "reason_codes": list(payload.reason_codes),
+        "evidence_issued": payload.evidence_issued,
+        "step_count": payload.step_count,
+        "estimated_budget": payload.estimated_budget,
     }
 
 
@@ -533,10 +586,25 @@ def _memory_writeback_block(
     if not candidates and not commits and not reinforcements:
         return None
     return {
+        "status": _memory_writeback_status(commits),
         "candidates": candidates,
         "commits": commits,
         "reinforcements": reinforcements,
     }
+
+
+def _memory_writeback_status(commits: Sequence[Mapping[str, Any]]) -> str:
+    """Classify persistence from commit receipts without inferring a write."""
+    statuses = [str(item.get("status") or "") for item in commits]
+    if statuses and all(status in {"committed", "duplicate"} for status in statuses):
+        return "committed"
+    if any(status in {"rejected", "stale", "failed"} for status in statuses):
+        return (
+            "partially_settled"
+            if any(status in {"committed", "duplicate"} for status in statuses)
+            else "failed"
+        )
+    return "candidate"
 
 
 def _emotion_changes_block(
@@ -728,6 +796,9 @@ def build_observability_trace(
                 result=result,
                 receipts=receipts,
                 routing=_routing_block(observations, frame_id=frame_id),
+                activity_preflight=_activity_preflight_block(
+                    observations, frame_id=frame_id
+                ),
                 duration_ms=stage_durations["governance_delivery"],
             ),
             _settlement_stage(
@@ -2281,8 +2352,8 @@ def _decision_stage(
     return {
         "number": "5",
         "id": "turn_decision",
-        "title": "TurnDecision",
-        "status": "completed" if decision else "unavailable",
+        "title": "回合决策",
+        "status": "formed" if decision.get("plan_id") else "unavailable",
         "duration_ms": duration_ms,
         "input": {
             "reasoning_status": reasoning.get("status"),
@@ -2302,37 +2373,44 @@ def _governance_stage(
     result: Mapping[str, Any],
     receipts: Sequence[Any],
     routing: Optional[Mapping[str, Any]],
+    activity_preflight: Optional[Mapping[str, Any]],
     duration_ms: Optional[float],
 ) -> Dict[str, Any]:
     activity_intents = list(_sequence(decision.get("activity_intents")))
-    activity_request = _activity_request_projection(activity_intents)
-    delivery = {
-        "number": "6.1",
-        "id": "delivery",
-        "title": "Delivery / Activity request",
-        "status": "completed" if result or receipts else "unavailable",
-        "input": {
-            "message_intents": list(_sequence(decision.get("message_intents"))),
-            "speech_intents": list(_sequence(decision.get("speech_intents"))),
-            "action_intents": list(_sequence(decision.get("action_intents"))),
-            "activity_intents": activity_intents,
-        },
-        "output": {
-            "result": dict(result),
-            "receipts": list(receipts),
-            "activity_proposals": activity_intents,
-        },
-        "activity_request": activity_request,
-        "raw": {
-            "result": dict(result),
-            "receipts": list(receipts),
-        },
+    activity_request = _activity_request_projection(
+        activity_intents, activity_preflight
+    )
+    receipt_statuses = [
+        str(_mapping(receipt).get("status"))
+        for receipt in receipts
+        if _mapping(receipt).get("status") is not None
+    ]
+    failure_statuses = {
+        "rejected",
+        "failed",
+        "interrupted",
+        "timed_out",
+        "cancelled",
     }
+    if result.get("success") is False or any(
+        status in failure_statuses for status in receipt_statuses
+    ):
+        status = "failed"
+    elif receipt_statuses and all(status == "completed" for status in receipt_statuses):
+        status = "completed"
+    elif receipt_statuses:
+        status = "waiting_receipt"
+    elif result.get("success") is True:
+        status = "completed"
+    elif decision.get("plan_id"):
+        status = "routed"
+    else:
+        status = "unavailable"
     return {
         "number": "6",
         "id": "governance_delivery",
-        "title": "Governance and delivery",
-        "status": "completed" if result or receipts else "unavailable",
+        "title": "治理与交付",
+        "status": status,
         "duration_ms": duration_ms,
         "input": {
             "message_intents": list(_sequence(decision.get("message_intents"))),
@@ -2346,31 +2424,41 @@ def _governance_stage(
             "activity_proposals": activity_intents,
         },
         "routing": dict(routing) if routing is not None else None,
+        "activity_request": activity_request,
         "raw": {
             "result": dict(result),
             "receipts": list(receipts),
+            "routing": dict(routing) if routing is not None else None,
+            "activity_request": activity_request,
         },
-        "delivery": delivery,
     }
 
 
 def _activity_request_projection(
     activity_intents: Sequence[Any],
-) -> Dict[str, Any]:
-    """Expose the optional Activity branch without hiding ordinary delivery."""
+    activity_preflight: Optional[Mapping[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Expose Activity only when requested and keep its host verdict separate."""
     requests = list(activity_intents)
-    recorded = bool(requests)
+    if not requests:
+        return None
+    preflight = dict(activity_preflight) if activity_preflight is not None else None
+    preflight_status = _mapping(preflight).get("status")
+    status = {
+        "validated": "preflight_validated",
+        "rejected": "rejected",
+        "needs_clarification": "needs_clarification",
+    }.get(str(preflight_status), "candidate")
     return {
         "id": "activity_request",
-        "title": "Activity request",
-        "status": "completed" if recorded else "skipped",
-        "input": {"activity_intents": requests},
-        "output": {"activity_proposals": requests},
-        "skip_reason": None if recorded else "no activity request in TurnDecision",
-        "evidence_basis": "TurnDecision.activity_intents",
+        "title": "Activity 请求",
+        "status": status,
+        "requests": requests,
+        "preflight": preflight,
         "raw": {
             "source": "TurnDecision.activity_intents",
             "activity_intents": requests,
+            "preflight": preflight,
         },
     }
 
@@ -2391,11 +2479,24 @@ def _settlement_stage(
     warnings: Iterable[Any],
 ) -> Dict[str, Any]:
     warning_list = list(warnings)
+    cognitive_status = str(cognitive_turn.get("status") or "")
+    if cognitive_status in {"failed", "timed_out", "stale", "cancelled"}:
+        status = "failed"
+    elif (
+        state_after
+        or cognitive_status
+        or memory_writeback
+        or emotion_changes
+        or energy_settlement
+    ):
+        status = "settled"
+    else:
+        status = "unavailable"
     return {
         "number": "7",
         "id": "settlement",
-        "title": "Settlement",
-        "status": "completed" if state_after or cognitive_turn else "unavailable",
+        "title": "结算",
+        "status": status,
         "duration_ms": stage_duration_ms,
         "input": {
             "turn_id": turn_id,
@@ -2411,19 +2512,45 @@ def _settlement_stage(
             "cognitive_turn": dict(cognitive_turn),
         },
         "memory_writeback": (
-            dict(memory_writeback) if memory_writeback is not None else None
+            {
+                **dict(memory_writeback),
+                "status": str(
+                    memory_writeback.get("status")
+                    or _memory_writeback_status(
+                        [
+                            _mapping(item)
+                            for item in _sequence(memory_writeback.get("commits"))
+                        ]
+                    )
+                ),
+            }
+            if memory_writeback is not None
+            else None
         ),
         "emotion_changes": (
-            dict(emotion_changes) if emotion_changes is not None else None
+            {**dict(emotion_changes), "status": "candidate"}
+            if emotion_changes is not None
+            else None
         ),
         "energy_settlement": (
-            dict(energy_settlement) if energy_settlement is not None else None
+            {**dict(energy_settlement), "status": "settled"}
+            if energy_settlement is not None
+            else None
         ),
         "raw": {
             "state_after": dict(state_after),
             "state_diff": dict(state_diff),
             "cognitive_turn": dict(cognitive_turn),
             "warnings": warning_list,
+            "memory_writeback": (
+                dict(memory_writeback) if memory_writeback is not None else None
+            ),
+            "emotion_changes": (
+                dict(emotion_changes) if emotion_changes is not None else None
+            ),
+            "energy_settlement": (
+                dict(energy_settlement) if energy_settlement is not None else None
+            ),
         },
     }
 
