@@ -49,10 +49,26 @@ export function selectReadyFoodAfterLoad(
     readonly key: string;
     readonly ready_for_attempt: boolean;
   }>[],
+  preferredKey = "",
 ): string {
   const current = foods.find((item) => item.key === currentKey);
   if (current?.ready_for_attempt) return current.key;
+  const preferred = foods.find((item) => item.key === preferredKey);
+  if (preferred?.ready_for_attempt) return preferred.key;
   return foods.find((item) => item.ready_for_attempt)?.key ?? foods[0]?.key ?? "";
+}
+
+export function latestSuccessfulFoodKey(
+  turns: readonly Readonly<{
+    readonly food_key?: string | undefined;
+    readonly result: Readonly<{ readonly success?: boolean | undefined }>;
+  }>[],
+): string {
+  return [...turns].reverse().find((turn) => (
+    turn.result.success !== false
+    && typeof turn.food_key === "string"
+    && turn.food_key.length > 0
+  ))?.food_key ?? "";
 }
 
 export function detailTitle(focus: DetailFocus, tab: string): string {

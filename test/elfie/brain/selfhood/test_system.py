@@ -60,6 +60,7 @@ def test_prompt_projection_is_natural_language_and_has_no_raw_trait_numbers() ->
     assert "0.8" not in projection.adaptive_self_text
     assert "先观察边缘、声音和可离开的路径" not in projection.adaptive_self_text
     assert "先观察环境边缘" in projection.adaptive_self_text
+    assert "不要每句使用或连续重复" in projection.adaptive_self_text
 
 
 def test_incomplete_or_legacy_seed_fails_closed() -> None:

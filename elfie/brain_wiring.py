@@ -17,6 +17,7 @@ from elfie.brain.memory.memory_records import MaintenanceRequest
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.model_food import ModelPortMemoryAdapter
 from elfie.brain.motivation.system import MotivationSystem
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.orientation.system import OrientationSystem
 from elfie.brain.reasoning.context_source import BrainContextProvider
 from elfie.brain.reasoning.context_types import (
@@ -237,8 +238,13 @@ def assemble_brain_runtime(
     activity_store: ActivityStorePort | None = None,
     journal_store: BrainJournalPort | None = None,
     restore_clock: Callable[[datetime], None] | None = None,
+    observation_sink: BrainObservationSink | None = None,
 ) -> BrainRuntime:
     """Assemble Brain once while keeping sibling adapters outside Brain ownership."""
+    if observation_sink is not None:
+        # MemorySystem arrives pre-built; the sink only exists by the time
+        # cognition is configured, so attach it here exactly once.
+        memory.bind_observation_sink(observation_sink)
     communication.bind_perception_adapter(CommunicationPerceptionAdapter(workspace))
     capabilities = EffectiveCapabilityProjection(
         current_body=current_body,
@@ -272,7 +278,7 @@ def assemble_brain_runtime(
         }
 
     context = BrainContextProvider(
-        memory=ReasoningMemoryBridge(memory),
+        memory=ReasoningMemoryBridge(memory, observation_sink=observation_sink),
         conversations=ReasoningContextWorkspace(),
         activities=ActivityContextReader(resolved_activity_store),
         capability_reader=capabilities.current,
@@ -285,6 +291,7 @@ def assemble_brain_runtime(
             consolidate=run_memory_maintenance,
             initial_at=initial_at,
         ),
+        observation_sink=observation_sink,
     )
     brain_runtime = BrainRuntime(
         elfie_id=elfie_id,
@@ -316,6 +323,7 @@ def assemble_brain_runtime(
         activity_store=resolved_activity_store,
         journal_store=journal_store,
         restore_clock=restore_clock,
+        observation_sink=observation_sink,
     )
     nervous_system.bind_perception_notifier(brain_runtime.notify_perception)
     return brain_runtime

@@ -23,6 +23,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalEntry, BrainJournalPort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_types import CapabilityDescriptor
 from elfie.brain.reasoning.decision_types import TurnDecision
@@ -193,6 +194,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         world_capability_catalog: Callable[[], tuple[CapabilityDescriptor, ...]]
         | None = None,
         embodied_input_mode: EmbodiedInputMode | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         if self._brain_runtime is not None:
             raise ElfieLifecycleError("Elfie cognition is already configured")
@@ -239,6 +241,7 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             activity_store=self._activity_store,
             journal_store=self._journal_store,
             restore_clock=self._restore_cognitive_clock,
+            observation_sink=observation_sink,
         )
 
     def _restore_cognitive_clock(self, captured_at: datetime) -> None:
@@ -267,6 +270,23 @@ class ElfieFacadeOperations(_ElfieFacadeState):
             self._elapsed_time += seconds
             timestamp = self._elapsed_time
         self._require_brain_runtime().post_clock(timestamp)
+
+    def set_clock_base(self, base: datetime) -> None:
+        """Anchor the logical clock at an absolute base without a clock pulse.
+
+        The facade clock and the homeostasis/emotion baselines move to ``base``
+        together, so no physiological or affective time passes for the
+        re-anchor itself. Nothing is posted to the Brain runtime: no clock
+        pulse, turn or outcome is produced. The clock only moves forward.
+        """
+        target = base.timestamp()
+        with self._clock_lock:
+            delta = target - self._elapsed_time
+            if delta < 0:
+                raise InvalidClockDeltaError(delta)
+            self._elapsed_time = target
+            self._energy.last_updated_at = target
+            self._emotion.last_updated_at = target
 
     def pump_body_events(
         self,

@@ -45,6 +45,26 @@ class ModelTokenBudget(FrozenContractModel):
     max_tokens: Annotated[int, Field(strict=True, ge=16)]
 
 
+class ContextBudgetAllocation(FrozenContractModel):
+    """The deterministic budget split and cut counters of one compile pass.
+
+    Everything here is computed by ``ModelContextCompiler.compile``; the
+    counters record how many rows each budget cursor clipped or dropped
+    entirely.  History rows (state updates, summaries, conversation) share
+    one cursor by construction, so their cuts are reported together.
+    """
+
+    max_tokens: int = Field(ge=16)
+    reserved: int = Field(ge=0)
+    memory_budget: int = Field(ge=0)
+    content_budget: int = Field(ge=1)
+    event_budget: int = Field(ge=0)
+    observation_budget: int = Field(ge=0)
+    event_truncated_count: int = Field(ge=0, default=0)
+    history_truncated_count: int = Field(ge=0, default=0)
+    run_observation_truncated_count: int = Field(ge=0, default=0)
+
+
 class CompiledEvent(FrozenContractModel):
     """One perception row with identity fields separate from inert content."""
 
@@ -136,6 +156,7 @@ class CompiledModelContext(FrozenContractModel):
     orientation: OrientationSnapshot
     capabilities: EffectiveCapabilities
     truncated: bool
+    budget_allocation: ContextBudgetAllocation
     selfhood: SelfhoodPromptProjection
     memory_recall_revision: int = 0
     memory_state: MemoryStateSnapshot = Field(
@@ -149,6 +170,7 @@ class _BudgetCursor:
     def __init__(self, remaining: int) -> None:
         self.remaining = remaining
         self.truncated = False
+        self.truncated_count = 0
 
     def fit(self, content: str) -> str:
         words = content.split()
@@ -156,6 +178,7 @@ class _BudgetCursor:
             return content
         if self.remaining <= 0:
             self.truncated = True
+            self.truncated_count += 1
             return "[truncated]"
         allowed = self.remaining
         if len(words) <= allowed:
@@ -163,6 +186,7 @@ class _BudgetCursor:
             return content
         self.remaining = 0
         self.truncated = True
+        self.truncated_count += 1
         return f"{' '.join(words[:allowed])} [truncated]"
 
 
@@ -309,6 +333,17 @@ class ModelContextCompiler:
                 or observation_cursor.truncated
                 or memory.truncated
             ),
+            budget_allocation=ContextBudgetAllocation(
+                max_tokens=budget.max_tokens,
+                reserved=reserved,
+                memory_budget=memory_budget,
+                content_budget=content_budget,
+                event_budget=event_budget,
+                observation_budget=observation_budget,
+                event_truncated_count=event_cursor.truncated_count,
+                history_truncated_count=cursor.truncated_count,
+                run_observation_truncated_count=(observation_cursor.truncated_count),
+            ),
             selfhood=context.selfhood,
             memory_recall_revision=context.memory.recall_revision,
             memory_state=context.memory.state,
@@ -401,6 +436,7 @@ __all__ = (
     "CompiledModelContext",
     "CompiledRunObservation",
     "CompiledStateUpdate",
+    "ContextBudgetAllocation",
     "ModelContextCompiler",
     "ModelTokenBudget",
 )

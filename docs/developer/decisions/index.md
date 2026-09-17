@@ -42,3 +42,4 @@ The current contract always states the enforceable rule.
 - [ADR-0034: Preserve legacy contract version headers during governance cutover](./0034-legacy-contract-version-header-compatibility)
 - [ADR-0035: Hierarchical placement for internal and public design documents](./0035-hierarchical-design-placement)
 - [ADR-0036: Standard procedural Skills and typed executable Tools](./0036-standard-skills-and-typed-tools)
+- [ADR-0037: One typed brain observation surface with a single sink Port](./0037-brain-observation-surface)

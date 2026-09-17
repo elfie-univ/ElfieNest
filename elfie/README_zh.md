@@ -76,6 +76,12 @@ ExecutionReceipt ----------------------------------> EventWorkspace
 模型是内部契约的唯一事实源；需要 JSON Schema 时对公开模型调用
 `model_json_schema()` 按需生成，不在仓库中维护 Schema 文件或导出脚本。
 
+Brain 观测是单一强类型表面：`Elfie.configure_cognition` 接受一个可选的
+`observation_sink: BrainObservationSink`（与 `BrainObservation` 封套、`NoOpSink`
+一起定义在 `elfie/brain/observation.py`）。每个 Brain 边界通过它发出边界自有的
+frozen payload 模型；未接入 sink 的生产路径不构造任何观测封套，开发者工具通过实现
+该 sink 消费观测，不再附加额外的 Brain 回调。
+
 ## 依赖方向
 
 ```text
@@ -112,4 +118,6 @@ uv run --no-sync pytest -q \
 - `test/elfie/body/`、`test/elfie/nervous_system/`：身体与物理边界；
 - `test/elfie/communication/`、`test/elfie/brain/reasoning/`：消息与思考中枢；
 - `test/architecture/test_elfie_cognitive_contracts.py`：认知入口、依赖方向、
-  Pydantic 契约和磁盘 Schema 禁令。
+  Pydantic 契约和磁盘 Schema 禁令；
+- `test/architecture/test_elfie_brain_observation_surface.py`：Brain 观测表面保持
+  领域纯净、强类型且不落盘 Schema。

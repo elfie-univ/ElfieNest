@@ -195,6 +195,65 @@ def test_call_llm_api_records_successful_model_call(monkeypatch: pytest.MonkeyPa
     assert events[-1].metadata["response_chars"] == len("observed response")
 
 
+def test_call_llm_api_observation_keeps_effective_options_and_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    observer = get_model_execution_observer()
+    observer.reset()
+
+    def fake_dispatch(
+        api_base: str,
+        api_key: str,
+        model_name: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        provider: str,
+        *,
+        request_options: dict[str, object] | None = None,
+        timeout_seconds: float | None = None,
+    ) -> tuple[str, dict[str, int]]:
+        del (
+            api_base,
+            api_key,
+            model_name,
+            messages,
+            temperature,
+            max_tokens,
+            provider,
+            request_options,
+            timeout_seconds,
+        )
+        return "observed response", {"prompt_tokens": 2, "completion_tokens": 3}
+
+    monkeypatch.setitem(API_DISPATCH, "chat_completions", fake_dispatch)
+    config = model_execution_config()
+    config.providers["observed_options"] = {
+        "api_base": "https://api.observed.test",
+        "api_key": "",
+        "api_mode": "chat_completions",
+    }
+
+    call_llm_api(
+        config,
+        "observed_options",
+        "observed-model",
+        [{"role": "user", "content": "hello"}],
+        0.1,
+        100,
+        thinking=False,
+        request_options={"thinking": {"type": "disabled"}},
+        timeout_seconds=2.5,
+    )
+
+    events = observer.snapshot()
+    observer.reset()
+    metadata = events[-1].metadata
+    assert '"thinking":{"type":"disabled"}' in metadata["effective_request_options"]
+    assert metadata["max_tokens"] == 100
+    assert metadata["timeout_seconds"] == 2.5
+
+
 def test_call_llm_api_records_failed_model_call(monkeypatch: pytest.MonkeyPatch):
     observer = get_model_execution_observer()
     observer.reset()

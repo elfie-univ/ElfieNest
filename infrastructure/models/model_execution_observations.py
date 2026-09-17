@@ -117,6 +117,10 @@ class ModelCallObservation:
     config_fingerprint: str | None = None
     tool_called: bool = False
     reasoning_observed: bool = False
+    effective_request_options: str | None = None
+    max_tokens: int | None = None
+    timeout_seconds: float | None = None
+    thinking_enabled: bool = False
 
     def to_event(self) -> ModelExecutionEvent:
         metadata: dict[str, ModelExecutionMetadataValue] = {
@@ -140,6 +144,7 @@ class ModelCallObservation:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "config_fingerprint": self.config_fingerprint,
+            "effective_request_options": self.effective_request_options,
         }
         for key, value in optional_text.items():
             if value:
@@ -149,6 +154,8 @@ class ModelCallObservation:
             "time_to_first_token_ms": self.time_to_first_token_ms,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
+            "max_tokens": self.max_tokens,
+            "timeout_seconds": self.timeout_seconds,
         }
         for key, numeric_value in optional_numbers.items():
             if numeric_value is not None:
@@ -157,6 +164,8 @@ class ModelCallObservation:
             metadata["tool_called"] = True
         if self.reasoning_observed:
             metadata["reasoning_observed"] = True
+        if self.thinking_enabled:
+            metadata["thinking_enabled"] = True
         return ModelExecutionEvent(
             event_type=ModelExecutionEventType.MODEL_CALL,
             status=self.status,

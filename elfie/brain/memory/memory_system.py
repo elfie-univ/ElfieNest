@@ -7,12 +7,24 @@ from collections import deque
 from dataclasses import replace
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Callable, Dict, cast
+from time import perf_counter
+from typing import Any, Callable, Dict, Tuple, cast
 from uuid import uuid4
 
 from elfie.brain.memory.contracts import (
     MemoryStateSnapshot,
     RelationshipImportanceProjection,
+)
+from elfie.brain.memory.observation_payloads import (
+    MemoryEncodeCandidate,
+    MemoryEncodeCommit,
+    MemoryReinforcementApplied,
+    MemoryUseProposalRecorded,
+)
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
 )
 from elfie.brain.state_lifecycle import (
     StateCandidate,
@@ -46,6 +58,8 @@ from .recall_renderer import render_recall_bundle
 
 logger = logging.getLogger("elfie.brain.memory.memory_system")
 
+_MEMORY_ENCODE_BOUNDARY = "memory.encode"
+
 
 def _parse_timestamp(value: str) -> datetime:
     """Parse a typed event timestamp for proposal ordering checks."""
@@ -70,6 +84,7 @@ class MemorySystem:
         personality_data: dict | None = None,
         clock: Callable[[], datetime] | None = None,
         initial_at: datetime | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ):
         """初始化 typed Memory 主线；具体存储由 Bootstrap 注入。"""
         self.storage = storage
@@ -86,6 +101,9 @@ class MemorySystem:
                 binder(elfie_id)
         self._owns_storage = False
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._observation_sink: BrainObservationSink | None = None
+        self._encode_observation_sequence = 0
+        self._encode_observation_lock = RLock()
         state_at = initial_at or self._clock()
         total_count = storage.count_memory_records()
         initial_state = MemoryStateSnapshot(
@@ -115,6 +133,182 @@ class MemorySystem:
         self._use_proposals: dict[str, MemoryUseProposal] = {}
         self._use_proposal_order: deque[str] = deque(maxlen=2048)
         self.consolidator = MemoryConsolidator(self.storage, elfie_id=elfie_id)
+        if observation_sink is not None:
+            self.bind_observation_sink(observation_sink)
+
+    def bind_observation_sink(self, sink: BrainObservationSink | None) -> None:
+        """Attach the unified observation sink exactly once.
+
+        The sink drives this facade's memory.encode boundary and, when the
+        injected store exposes the same optional capability, the store's
+        memory.recall.selection boundary (see SQLiteMemoryStoreAdapter).
+        """
+        if sink is None or self._observation_sink is not None:
+            return
+        self._observation_sink = sink
+        binder = getattr(self.storage, "bind_observation_sink", None)
+        if callable(binder):
+            binder(sink)
+
+    def _next_encode_observation_sequence(self) -> int:
+        with self._encode_observation_lock:
+            self._encode_observation_sequence += 1
+            return self._encode_observation_sequence
+
+    def _elapsed_ms(self, started: float) -> float:
+        if self._observation_sink is None:
+            return 0.0
+        return round((perf_counter() - started) * 1000.0, 2)
+
+    def _emit_encode_candidate(
+        self,
+        candidate: EpisodicMemoryCandidate,
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[MemoryEncodeCandidate](
+                boundary=_MEMORY_ENCODE_BOUNDARY,
+                kind="encode_candidate",
+                sequence=self._next_encode_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                # MemorySystem holds no turn/frame context; candidate IDs
+                # carry the provenance link instead.
+                turn_id="",
+                frame_id="",
+                cause_event_ids=tuple(
+                    str(value) for value in candidate.source_event_ids
+                ),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=MemoryEncodeCandidate(
+                    candidate_id=str(candidate.candidate_id),
+                    base_revision=candidate.base_revision,
+                    source_event_ids=tuple(
+                        str(value) for value in candidate.source_event_ids
+                    ),
+                    emotion=candidate.emotion,
+                    intensity=candidate.intensity,
+                    content_chars=len(candidate.content),
+                ),
+            )
+        )
+
+    def _emit_encode_commit(
+        self,
+        *,
+        receipt: StateCommitReceipt,
+        episode_id: str | None,
+        revision_before: int,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        # Unified envelope status rule: duplicate/stale receipts preempted
+        # the commit before its main effect (skipped); the polarity is in
+        # the payload.
+        commit_status = (
+            ObservationStatus.skipped
+            if receipt.status in (StateCommitStatus.DUPLICATE, StateCommitStatus.STALE)
+            else ObservationStatus.completed
+        )
+        sink.emit(
+            BrainObservation[MemoryEncodeCommit](
+                boundary=_MEMORY_ENCODE_BOUNDARY,
+                kind="encode_commit",
+                sequence=self._next_encode_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id="",
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
+                status=commit_status,
+                payload=MemoryEncodeCommit(
+                    candidate_id=str(receipt.candidate_id),
+                    episode_id=episode_id,
+                    status=receipt.status.value,
+                    reason=receipt.reason,
+                    revision_before=revision_before,
+                    revision_after=self.revision,
+                ),
+            )
+        )
+
+    def _emit_use_proposal_recorded(
+        self,
+        *,
+        proposal: MemoryUseProposal,
+        accepted: bool,
+        reason: str | None,
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[MemoryUseProposalRecorded](
+                boundary=_MEMORY_ENCODE_BOUNDARY,
+                kind="use_proposal_recorded",
+                sequence=self._next_encode_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id="",
+                cause_event_ids=(),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=MemoryUseProposalRecorded(
+                    proposal_id=proposal.proposal_id,
+                    target_kind=proposal.target_kind,
+                    target_ids=tuple(proposal.target_ids),
+                    recall_revision=proposal.recall_revision,
+                    accepted=accepted,
+                    reason=reason,
+                ),
+            )
+        )
+
+    def _emit_reinforcement_applied(
+        self,
+        *,
+        receipt: QualifiedReinforcementReceipt,
+        accepted: bool,
+        reason: str | None,
+        revision_before: int,
+        revision_after: int,
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[MemoryReinforcementApplied](
+                boundary=_MEMORY_ENCODE_BOUNDARY,
+                kind="reinforcement_applied",
+                sequence=self._next_encode_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id="",
+                cause_event_ids=(str(receipt.event_id),),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=MemoryReinforcementApplied(
+                    event_id=receipt.event_id,
+                    proposal_id=receipt.proposal_id,
+                    target_kind=receipt.target_kind,
+                    target_id=receipt.target_id,
+                    outcome_kind=receipt.outcome_kind,
+                    recall_revision=receipt.recall_revision,
+                    accepted=accepted,
+                    reason=reason,
+                    revision_before=revision_before,
+                    revision_after=revision_after,
+                ),
+            )
+        )
 
     def bind_elfie_identity(
         self,
@@ -216,6 +410,28 @@ class MemorySystem:
         cannot be treated as a reinforcement receipt until an independent
         authoritative outcome is supplied.
         """
+        started = perf_counter() if self._observation_sink is not None else 0.0
+        try:
+            accepted = self._submit_memory_use_proposal(proposal, bundle)
+        except ValueError as error:
+            self._emit_use_proposal_recorded(
+                proposal=proposal,
+                accepted=False,
+                reason=str(error),
+                duration_ms=self._elapsed_ms(started),
+            )
+            raise
+        self._emit_use_proposal_recorded(
+            proposal=proposal,
+            accepted=accepted,
+            reason=None if accepted else "proposal_already_submitted",
+            duration_ms=self._elapsed_ms(started),
+        )
+        return accepted
+
+    def _submit_memory_use_proposal(
+        self, proposal: MemoryUseProposal, bundle: RecallBundle
+    ) -> bool:
         if proposal.recall_revision != self.revision:
             raise ValueError("memory-use proposal revision is stale")
         if bundle.recall_revision != proposal.recall_revision:
@@ -247,6 +463,33 @@ class MemorySystem:
         self, receipt: QualifiedReinforcementReceipt
     ) -> bool:
         """Settle one authoritative outcome into the storage-owned policy."""
+        revision_before = self.revision
+        started = perf_counter() if self._observation_sink is not None else 0.0
+        try:
+            accepted = self._consume_reinforcement_receipt(receipt)
+        except ValueError as error:
+            self._emit_reinforcement_applied(
+                receipt=receipt,
+                accepted=False,
+                reason=str(error),
+                revision_before=revision_before,
+                revision_after=self.revision,
+                duration_ms=self._elapsed_ms(started),
+            )
+            raise
+        self._emit_reinforcement_applied(
+            receipt=receipt,
+            accepted=accepted,
+            reason=None if accepted else "storage_rejected_receipt",
+            revision_before=revision_before,
+            revision_after=self.revision,
+            duration_ms=self._elapsed_ms(started),
+        )
+        return accepted
+
+    def _consume_reinforcement_receipt(
+        self, receipt: QualifiedReinforcementReceipt
+    ) -> bool:
         proposal = None
         if receipt.proposal_id is not None:
             proposal = self._use_proposals.get(receipt.proposal_id)
@@ -300,25 +543,57 @@ class MemorySystem:
     ) -> StateCommitReceipt:
         """Validate and commit one explicit Turn candidate exactly once."""
         with self._episode_candidate_lock:
+            revision_before = self.revision
+            encode_started = (
+                perf_counter() if self._observation_sink is not None else 0.0
+            )
+            candidate_cause_ids = tuple(
+                str(value) for value in candidate.source_event_ids
+            )
+            self._emit_encode_candidate(
+                candidate,
+                duration_ms=self._elapsed_ms(encode_started),
+            )
             if candidate.candidate_id in self._committed_episode_candidate_ids:
-                return StateCommitReceipt(
+                receipt = StateCommitReceipt(
                     candidate_id=candidate.candidate_id,
                     status=StateCommitStatus.DUPLICATE,
                     revision=self.revision,
                     reason="candidate_already_committed",
                 )
+                self._emit_encode_commit(
+                    receipt=receipt,
+                    episode_id=None,
+                    revision_before=revision_before,
+                    cause_event_ids=candidate_cause_ids,
+                )
+                return receipt
             if candidate.base_revision != self.revision:
-                return StateCommitReceipt(
+                receipt = StateCommitReceipt(
                     candidate_id=candidate.candidate_id,
                     status=StateCommitStatus.STALE,
                     revision=self.revision,
                     reason="base_revision_mismatch",
                 )
-            return self._commit_source_first_candidate(candidate)
+                self._emit_encode_commit(
+                    receipt=receipt,
+                    episode_id=None,
+                    revision_before=revision_before,
+                    cause_event_ids=candidate_cause_ids,
+                )
+                return receipt
+            return self._commit_source_first_candidate(
+                candidate,
+                revision_before=revision_before,
+                cause_event_ids=candidate_cause_ids,
+            )
 
     def _commit_source_first_candidate(
         self,
         candidate: EpisodicMemoryCandidate,
+        *,
+        revision_before: int,
+        cause_event_ids: Tuple[str, ...] = (),
     ) -> StateCommitReceipt:
         intensity = (
             candidate.intensity / 100.0
@@ -344,7 +619,9 @@ class MemorySystem:
                 ],
             },
         )
+        commit_started = perf_counter() if self._observation_sink is not None else 0.0
         receipt = self.storage.record_episode(episode)
+        commit_duration_ms = self._elapsed_ms(commit_started)
         status = (
             StateCommitStatus.COMMITTED
             if receipt.status == "committed"
@@ -360,7 +637,7 @@ class MemorySystem:
             self._committed_episode_candidate_ids.discard(oldest)
         self._committed_episode_candidate_order.append(candidate.candidate_id)
         self._committed_episode_candidate_ids.add(candidate.candidate_id)
-        return StateCommitReceipt(
+        commit_receipt = StateCommitReceipt(
             candidate_id=candidate.candidate_id,
             status=status,
             revision=self.revision,
@@ -368,6 +645,14 @@ class MemorySystem:
             if status is StateCommitStatus.DUPLICATE
             else None,
         )
+        self._emit_encode_commit(
+            receipt=commit_receipt,
+            episode_id=episode.episode_id,
+            revision_before=revision_before,
+            cause_event_ids=cause_event_ids,
+            duration_ms=commit_duration_ms,
+        )
+        return commit_receipt
 
     def pending_consolidation_ids(self, limit: int = 8) -> tuple[str, ...]:
         """Return a bounded wake-up view for the single maintenance owner.

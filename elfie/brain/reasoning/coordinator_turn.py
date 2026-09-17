@@ -5,23 +5,33 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from threading import Lock
+from time import perf_counter
 from typing import Literal, Tuple, cast
 from uuid import uuid4
 
 from elfie.brain.activity.context import ActivityContext
 from elfie.brain.consolidation.contracts import CognitiveConsolidationSnapshot
 from elfie.brain.emotion.contracts import EmotionSnapshot, TrustedAppraisalScope
-from elfie.brain.energy.contracts import EnergySnapshot
+from elfie.brain.energy.contracts import CognitiveBudgetReservation, EnergySnapshot
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.memory.memory_records import RecallBundle
 from elfie.brain.motivation.contracts import MotivationSnapshot
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.context_builder import ContextAssembler
 from elfie.brain.reasoning.context_compiler import (
     ModelContextCompiler,
     ModelTokenBudget,
 )
-from elfie.brain.reasoning.context_types import ConversationContext
+from elfie.brain.reasoning.context_types import BrainContext, ConversationContext
+from elfie.brain.reasoning.coordinator_observations import (
+    EnergyBudgetStateObservation,
+)
 from elfie.brain.reasoning.coordinator_ports import BrainContextSource
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeSeed,
@@ -38,14 +48,29 @@ from elfie.brain.reasoning.model_port import (
     ModelGenerationRequest,
     ModelResponseMode,
 )
+from elfie.brain.reasoning.observation_payloads import (
+    CompiledContextObservation,
+    CompiledConversationObservation,
+)
 from elfie.brain.reasoning.reply_safety import ReplySafetyContext
 from elfie.brain.reasoning.run import (
     CurrentRunObservation,
     ReasoningBudget,
     ReasoningDepth,
 )
+from elfie.brain.reasoning.run_controller_observations import (
+    CognitiveBudgetReservedObservation,
+    ContextTrimObservation,
+    ConversationAppendedObservation,
+    ConversationSummaryCoverageObservation,
+    ReasoningBudgetFrozenObservation,
+    ReasoningContextFrozenObservation,
+    ReasoningModeSelectedObservation,
+    SelfhoodProjectionObservation,
+)
 from elfie.brain.reasoning.skill_port import EmptySkillCatalog, SkillCatalog
 from elfie.brain.reasoning.worker import ReasoningTask
+from elfie.brain.selfhood.contracts import SelfhoodPromptProjection
 from elfie.brain.workspace.contracts import (
     ActivityPayload,
     ActivitySignal,
@@ -97,6 +122,7 @@ class ReasoningRunController:
         allowed_tools: Tuple[str, ...] = (),
         skill_catalog: SkillCatalog | None = None,
         constitution: ReasoningConstitution,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._elfie_id = elfie_id
         self._homeostasis = homeostasis
@@ -107,6 +133,9 @@ class ReasoningRunController:
         self._header = ModelHeaderAssembler(constitution)
         self._context_builder = ContextAssembler()
         self._compiler = ModelContextCompiler()
+        self._sink = observation_sink
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
 
     def build_task(
         self,
@@ -121,7 +150,12 @@ class ReasoningRunController:
     ) -> ReasoningTask:
         """Appraise inputs, seal snapshots, and compile one model request."""
         captured_at = datetime.fromtimestamp(timestamp, timezone.utc)
-        self._homeostasis.snapshot(timestamp)
+        cause_ids = tuple(
+            item.meta.event_id
+            for item in frame.events + frame.state_updates + frame.media_samples
+        )
+        sink = self._sink
+        reserve_started = perf_counter() if sink is not None else 0.0
         energy_reservation = (
             self._homeostasis.reserve_cognitive_budget(
                 turn_id,
@@ -130,10 +164,35 @@ class ReasoningRunController:
             if requires_model
             else None
         )
-        homeostasis = self._homeostasis.snapshot(timestamp)
-        conversation = conversation or self._context_source.conversation(
-            frame, captured_at
+        reserve_duration_ms = (
+            round((perf_counter() - reserve_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
         )
+        homeostasis = self._homeostasis.snapshot(timestamp)
+        self._emit_budget_reserve(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            reservation=energy_reservation,
+            homeostasis=homeostasis,
+            duration_ms=reserve_duration_ms,
+        )
+        if conversation is None:
+            append_started = perf_counter() if sink is not None else 0.0
+            conversation = self._context_source.conversation(frame, captured_at)
+            append_duration_ms = (
+                round((perf_counter() - append_started) * 1000.0, 2)
+                if sink is not None
+                else 0.0
+            )
+            self._emit_conversation_appended(
+                turn_id=turn_id,
+                frame=frame,
+                cause_ids=cause_ids,
+                conversation=conversation,
+                duration_ms=append_duration_ms,
+            )
         memory_turn = self._context_source.memory_turn(frame, emotion, captured_at)
         memory = memory_turn.context
         recall = cast(RecallBundle, memory.recall)
@@ -179,7 +238,20 @@ class ReasoningRunController:
         selfhood_reader = getattr(self._context_source, "selfhood", None)
         if selfhood_reader is None:
             raise RuntimeError("Selfhood projection is unavailable")
+        projection_started = perf_counter() if sink is not None else 0.0
         selfhood = selfhood_reader(captured_at)
+        projection_duration_ms = (
+            round((perf_counter() - projection_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
+        self._emit_selfhood_projection(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            selfhood=selfhood,
+            duration_ms=projection_duration_ms,
+        )
         motivation_reader = getattr(self._context_source, "motivation", None)
         motivation = (
             motivation_reader(captured_at)
@@ -211,8 +283,18 @@ class ReasoningRunController:
             captured_at=captured_at,
             constitution_version=self._header.version,
         )
+        # This is the exact read point for Setup: every owner value below is
+        # the immutable snapshot that the Context Engine will use.  Keep it
+        # separate from the Lab's mutable ``state_before`` fixture.
+        self._emit_context_frozen(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            context=context,
+        )
+        mode_started = perf_counter() if sink is not None else 0.0
         response_mode = self._response_mode(frame)
-        reasoning_depth = self._reasoning_depth(
+        reasoning_depth, depth_basis = self._reasoning_depth(
             frame,
             homeostasis,
             recall=recall,
@@ -235,18 +317,40 @@ class ReasoningRunController:
             and response_mode
             in (ModelResponseMode.DIRECT_REPLY, ModelResponseMode.DECISION_PLAN)
         )
+        fast_owner_reply = response_mode is ModelResponseMode.DIRECT_REPLY
+        mode_duration_ms = (
+            round((perf_counter() - mode_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
+        self._emit_mode_selected(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            depth=reasoning_depth,
+            depth_basis=depth_basis,
+            reasoning_mode=reasoning_mode,
+            response_mode=response_mode,
+            requires_model=requires_model,
+            structured_owner_reply=structured_owner_reply,
+            fast_owner_reply=fast_owner_reply,
+            effective_tools=effective_tools,
+            skill_count=len(available_skills),
+            duration_ms=mode_duration_ms,
+        )
+        budget_started = perf_counter() if sink is not None else 0.0
         reasoning_budget = self._reasoning_budget(
             homeostasis,
             reasoning_depth,
             effective_tools=effective_tools,
             structured_owner_reply=structured_owner_reply,
         )
-        reply_channel_id, reply_conversation_id = self._owner_reply_target(frame)
-        fast_owner_reply = response_mode is ModelResponseMode.DIRECT_REPLY
-        cause_ids = tuple(
-            item.meta.event_id
-            for item in frame.events + frame.state_updates + frame.media_samples
+        budget_duration_ms = (
+            round((perf_counter() - budget_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
         )
+        reply_channel_id, reply_conversation_id = self._owner_reply_target(frame)
         deadline = captured_at + timedelta(seconds=self._hard_timeout)
         seed = DecisionDecodeSeed(
             turn_id=turn_id,
@@ -262,11 +366,22 @@ class ReasoningRunController:
         token_budget = ModelTokenBudget(
             max_tokens=self._model_token_budget(homeostasis)
         )
+        self._emit_budget_frozen(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_ids,
+            budget=reasoning_budget,
+            deadline=deadline,
+            token_budget=token_budget,
+            homeostasis=homeostasis,
+            duration_ms=budget_duration_ms,
+        )
 
         def build_context_request(
             observations: tuple[CurrentRunObservation, ...],
         ) -> ModelGenerationRequest:
             """Rebuild every cognitive step through the one Context Engine."""
+            compile_started = perf_counter()
             compiled = self._compiler.compile(
                 context,
                 budget=token_budget,
@@ -291,7 +406,7 @@ class ReasoningRunController:
                     response_mode is ModelResponseMode.DECISION_PLAN
                 ),
             )
-            return ModelGenerationRequest(
+            request = ModelGenerationRequest(
                 turn_id=seed.turn_id,
                 frame_id=seed.frame_id,
                 context_revision=seed.context_revision,
@@ -325,6 +440,95 @@ class ReasoningRunController:
                     structured_owner_reply=structured_owner_reply,
                 ),
             )
+            sink = self._sink
+            if sink is not None:
+                allocation = compiled.budget_allocation
+                sink.emit(
+                    BrainObservation[ContextTrimObservation](
+                        boundary="reasoning.context_engine",
+                        kind="context_trimmed",
+                        sequence=self._next_sequence(),
+                        captured_at=datetime.now(timezone.utc),
+                        turn_id=str(seed.turn_id),
+                        frame_id=str(seed.frame_id),
+                        cause_event_ids=tuple(
+                            str(item) for item in seed.cause_event_ids
+                        ),
+                        duration_ms=round(
+                            (perf_counter() - compile_started) * 1000.0,
+                            2,
+                        ),
+                        status=ObservationStatus.completed,
+                        payload=ContextTrimObservation(
+                            max_tokens=allocation.max_tokens,
+                            reserved=allocation.reserved,
+                            memory_budget=allocation.memory_budget,
+                            content_budget=allocation.content_budget,
+                            event_budget=allocation.event_budget,
+                            observation_budget=allocation.observation_budget,
+                            truncated=compiled.truncated,
+                            memory_truncated=compiled.memory.truncated,
+                            event_truncated_count=allocation.event_truncated_count,
+                            history_truncated_count=(
+                                allocation.history_truncated_count
+                            ),
+                            run_observation_truncated_count=(
+                                allocation.run_observation_truncated_count
+                            ),
+                        ),
+                    )
+                )
+                sink.emit(
+                    BrainObservation[CompiledContextObservation](
+                        boundary="reasoning.context_engine",
+                        kind="compiled_context",
+                        sequence=self._next_sequence(),
+                        captured_at=datetime.now(timezone.utc),
+                        turn_id=str(seed.turn_id),
+                        frame_id=str(seed.frame_id),
+                        cause_event_ids=tuple(
+                            str(item) for item in seed.cause_event_ids
+                        ),
+                        duration_ms=round(
+                            (perf_counter() - compile_started) * 1000,
+                            2,
+                        ),
+                        status=ObservationStatus.completed,
+                        payload=CompiledContextObservation(
+                            turn_id=str(seed.turn_id),
+                            frame_id=str(seed.frame_id),
+                            context_revision=seed.context_revision,
+                            capability_revision=seed.capability_revision,
+                            memory_recall_revision=compiled.memory_recall_revision,
+                            max_tokens=token_budget.max_tokens,
+                            reasoning_mode=request.reasoning_mode,
+                            response_mode=request.response_mode.value,
+                            system_prompt=system_prompt,
+                            user_prompt=user_prompt,
+                            event_count=len(compiled.events),
+                            state_update_count=len(compiled.state_updates),
+                            media_sample_count=len(compiled.media_samples),
+                            conversation_count=len(compiled.conversation),
+                            summary_count=len(compiled.summaries),
+                            run_observation_count=len(observations),
+                            memory_chars=len(compiled.memory.content),
+                            memory_estimated_tokens=(compiled.memory.estimated_tokens),
+                            truncated=compiled.truncated,
+                            conversation=tuple(
+                                CompiledConversationObservation(
+                                    event_id=str(row.event_id),
+                                    actor_id=str(row.actor.actor_id),
+                                    display_name=row.actor.display_name,
+                                    source_kind=row.actor.source_kind,
+                                    occurred_at=row.occurred_at,
+                                    content=row.content,
+                                )
+                                for row in compiled.conversation
+                            ),
+                        ),
+                    )
+                )
+            return request
 
         request = build_context_request(())
         return ReasoningTask(
@@ -344,15 +548,300 @@ class ReasoningRunController:
             appraisal_scopes=appraisal_scopes,
             context_request_builder=build_context_request,
             skill_catalog=self._skill_catalog,
+            observation_sink=self._sink,
         )
+
+    def _next_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
 
     def observe_conversation(
         self,
         frame: TurnFrame,
         captured_at: datetime,
+        *,
+        turn_id: TurnId | None = None,
+        cause_event_ids: Tuple[EventId, ...] = (),
     ) -> ConversationContext:
         """Append admitted input before Memory revision pinning and Recall."""
-        return self._context_source.conversation(frame, captured_at)
+        sink = self._sink
+        append_started = perf_counter() if sink is not None else 0.0
+        conversation = self._context_source.conversation(frame, captured_at)
+        append_duration_ms = (
+            round((perf_counter() - append_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
+        self._emit_conversation_appended(
+            turn_id=turn_id,
+            frame=frame,
+            cause_ids=cause_event_ids,
+            conversation=conversation,
+            duration_ms=append_duration_ms,
+        )
+        return conversation
+
+    def _emit_budget_reserve(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        reservation: CognitiveBudgetReservation | None,
+        homeostasis: EnergySnapshot,
+        duration_ms: float,
+    ) -> None:
+        """Record one cognitive-budget reservation (§A5); unwired = no-op."""
+        sink = self._sink
+        if sink is None or reservation is None:
+            return
+        sink.emit(
+            BrainObservation[CognitiveBudgetReservedObservation](
+                boundary="energy",
+                kind="budget_reserve",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=CognitiveBudgetReservedObservation(
+                    mode=reservation.mode,
+                    source=reservation.source,
+                    granted=reservation.granted,
+                    owner_revision=reservation.owner_revision,
+                    responsive=self._contains_owner_message(frame),
+                    budget=EnergyBudgetStateObservation(
+                        energy=homeostasis.energy,
+                        fatigue=homeostasis.fatigue,
+                        cognitive_mode=homeostasis.cognitive_mode,
+                        long_reasoning_allowed=homeostasis.long_reasoning_allowed,
+                        available_cognitive_budget=(
+                            homeostasis.available_cognitive_budget
+                        ),
+                        reserved_cognitive_budget=(
+                            homeostasis.reserved_cognitive_budget
+                        ),
+                    ),
+                ),
+            )
+        )
+
+    def _emit_selfhood_projection(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        selfhood: SelfhoodPromptProjection,
+        duration_ms: float,
+    ) -> None:
+        """Record the frozen Selfhood projection read for this Turn (§A3)."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[SelfhoodProjectionObservation](
+                boundary="selfhood",
+                kind="projection_snapshot",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=SelfhoodProjectionObservation(
+                    revision=selfhood.revision,
+                    projected_at=selfhood.captured_at,
+                    identity_core_text=selfhood.identity_core_text,
+                    adaptive_self_text=selfhood.adaptive_self_text,
+                ),
+            )
+        )
+
+    def _emit_context_frozen(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        context: BrainContext,
+    ) -> None:
+        """Record the immutable owner state read at reasoning entry."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[ReasoningContextFrozenObservation](
+                boundary="reasoning.run_controller",
+                kind="context_frozen",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=None,
+                status=ObservationStatus.completed,
+                payload=ReasoningContextFrozenObservation(
+                    context_revision=context.revision,
+                    constitution_version=context.constitution_version,
+                    context_captured_at=context.captured_at,
+                    emotion=context.emotion,
+                    homeostasis=context.homeostasis,
+                    motivation=context.motivation,
+                    orientation=context.orientation,
+                    selfhood=context.selfhood,
+                ),
+            )
+        )
+
+    def _emit_mode_selected(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        depth: ReasoningDepth,
+        depth_basis: str,
+        reasoning_mode: Literal["fast", "long"],
+        response_mode: ModelResponseMode,
+        requires_model: bool,
+        structured_owner_reply: bool,
+        fast_owner_reply: bool,
+        effective_tools: Tuple[str, ...],
+        skill_count: int,
+        duration_ms: float,
+    ) -> None:
+        """Record the DIRECT/DELIBERATE admission decision (§B1)."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[ReasoningModeSelectedObservation](
+                boundary="reasoning.run_controller",
+                kind="mode_selected",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=ReasoningModeSelectedObservation(
+                    depth=depth.value,
+                    depth_basis=depth_basis,
+                    reasoning_mode=reasoning_mode,
+                    response_mode=response_mode.value,
+                    requires_model=requires_model,
+                    structured_owner_reply=structured_owner_reply,
+                    fast_owner_reply=fast_owner_reply,
+                    effective_tools=effective_tools,
+                    skill_count=skill_count,
+                ),
+            )
+        )
+
+    def _emit_budget_frozen(
+        self,
+        *,
+        turn_id: TurnId,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        budget: ReasoningBudget,
+        deadline: datetime,
+        token_budget: ModelTokenBudget,
+        homeostasis: EnergySnapshot,
+        duration_ms: float,
+    ) -> None:
+        """Record the frozen per-Run admission envelope (§B1)."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[ReasoningBudgetFrozenObservation](
+                boundary="reasoning.run_controller",
+                kind="budget_frozen",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=ReasoningBudgetFrozenObservation(
+                    max_steps=budget.max_steps,
+                    max_model_calls=budget.max_model_calls,
+                    max_planned_model_calls=budget.max_planned_model_calls,
+                    max_tool_calls=budget.max_tool_calls,
+                    deadline_seconds=budget.deadline_seconds,
+                    hard_deadline_seconds=self._hard_timeout,
+                    absolute_deadline=deadline,
+                    max_context_tokens=token_budget.max_tokens,
+                    cognitive_mode=homeostasis.cognitive_mode,
+                    long_reasoning_allowed=homeostasis.long_reasoning_allowed,
+                ),
+            )
+        )
+
+    def _emit_conversation_appended(
+        self,
+        *,
+        turn_id: TurnId | None,
+        frame: TurnFrame,
+        cause_ids: Tuple[EventId, ...],
+        conversation: ConversationContext,
+        duration_ms: float,
+    ) -> None:
+        """Record the workspace state observed after one append pass (§B2)."""
+        sink = self._sink
+        if sink is None:
+            return
+        partition: Tuple[str, str] | None = None
+        for event in reversed(frame.events):
+            payload = event.payload
+            if isinstance(payload, SocialPayload):
+                partition = (payload.channel_id, payload.conversation_id)
+                break
+        channel_id = partition[0] if partition is not None else None
+        conversation_id = partition[1] if partition is not None else None
+        sink.emit(
+            BrainObservation[ConversationAppendedObservation](
+                boundary="reasoning.context_workspace",
+                kind="conversation_appended",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id) if turn_id is not None else "",
+                frame_id=str(frame.frame_id),
+                cause_event_ids=tuple(str(item) for item in cause_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=ConversationAppendedObservation(
+                    channel_id=channel_id,
+                    conversation_id=conversation_id,
+                    input_event_ids=tuple(
+                        str(event.meta.event_id)
+                        for event in frame.events
+                        if isinstance(event.payload, SocialPayload)
+                    ),
+                    message_count=len(conversation.messages),
+                    active_topic_message_count=len(conversation.active_topic_messages),
+                    summaries=tuple(
+                        ConversationSummaryCoverageObservation(
+                            summary_id=summary.summary_id,
+                            version=summary.version,
+                            source_event_ids=tuple(
+                                str(item) for item in summary.source_event_ids
+                            ),
+                            unresolved_count=len(summary.unresolved_items),
+                        )
+                        for summary in conversation.summaries
+                    ),
+                ),
+            )
+        )
 
     @staticmethod
     def _model_token_budget(homeostasis) -> int:
@@ -486,22 +975,23 @@ class ReasoningRunController:
         *,
         recall: RecallBundle | None = None,
         conversation: ConversationContext | None = None,
-    ) -> ReasoningDepth:
+    ) -> tuple[ReasoningDepth, str]:
         """Select depth using host evidence, never based on message vocabulary.
 
         The depth gate is a budget admission decision.  It uses typed signals
         already present at the host boundary: internal work, high salience or
         priority, failed execution evidence, unresolved context, and Memory
         conflicts.  Ordinary owner text stays DIRECT; the model does not
-        classify its own budget.
+        classify its own budget.  The returned basis names the signal that
+        decided, for the run-controller observation.
         """
         if (
             frame.source_domain is SourceDomain.ACTIVITY
             and homeostasis.long_reasoning_allowed
         ):
-            return ReasoningDepth.DELIBERATE
+            return ReasoningDepth.DELIBERATE, "activity_domain_long_reasoning"
         if not homeostasis.long_reasoning_allowed:
-            return ReasoningDepth.DIRECT
+            return ReasoningDepth.DIRECT, "long_reasoning_not_allowed"
         if frame.source_domain is SourceDomain.COMMUNICATION and any(
             event.salience >= 0.9
             or event.meta.priority in (Priority.HIGH, Priority.CRITICAL)
@@ -509,7 +999,10 @@ class ReasoningRunController:
         ):
             # Salience already triggers an embodied Turn.  It must not turn
             # every fast body reaction into a long-budget reasoning run.
-            return ReasoningDepth.DELIBERATE
+            return (
+                ReasoningDepth.DELIBERATE,
+                "communication_salience_or_priority",
+            )
         if any(
             isinstance(event, ProcessingFailureEvent)
             or (
@@ -525,14 +1018,14 @@ class ReasoningRunController:
             )
             for event in frame.events
         ):
-            return ReasoningDepth.DELIBERATE
+            return ReasoningDepth.DELIBERATE, "execution_failure_evidence"
         if recall is not None and recall.conflicts:
-            return ReasoningDepth.DELIBERATE
+            return ReasoningDepth.DELIBERATE, "recall_conflicts"
         if conversation is not None and any(
             summary.unresolved_items for summary in conversation.summaries
         ):
-            return ReasoningDepth.DELIBERATE
-        return ReasoningDepth.DIRECT
+            return ReasoningDepth.DELIBERATE, "conversation_unresolved_items"
+        return ReasoningDepth.DIRECT, "default_direct"
 
     @staticmethod
     def _reasoning_mode(
@@ -683,6 +1176,19 @@ class ReasoningRunController:
                 "- target_kind must be node, assertion, or episode; copy target_id "
                 "exactly from the matching NODE/FACT/EPISODE id. Never prepend "
                 "fact:, node:, or assertion:."
+            )
+            response_policy += (
+                "\nOWNER_CHAT_STYLE:\n"
+                "- Answer the current owner message directly in one or two short, "
+                "natural sentences. Acknowledge an explicit feeling or situation "
+                "before adding advice.\n"
+                "- For a greeting or a simple feeling/status update, finish with the "
+                "acknowledgment or support; do not append a question. Ask only when "
+                "a missing fact is required to answer or act.\n"
+                "- Do not prepend automatic confirmations such as '好的' or '好的呢'. Use no "
+                "speech marker by default. If the prior Elfie reply contains any of "
+                "哒/喵/呢/啦/呀, use no speech marker in this reply; otherwise use at "
+                "most one only when it adds real nuance."
             )
         elif structured_owner_reply:
             response_policy = (

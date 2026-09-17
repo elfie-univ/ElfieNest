@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
@@ -306,3 +309,174 @@ def test_batch_listing_skips_an_incompatible_stored_report(
 
     assert listing.status_code == 200, listing.text
     assert listing.json()["items"] == []
+
+
+class _RecordingObservationSink:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._events: list = []
+
+    def emit(self, event: Any) -> None:
+        with self._lock:
+            self._events.append(event)
+
+    def snapshot(self) -> tuple:
+        with self._lock:
+            return tuple(self._events)
+
+
+def _capture_fixture_and_scenario() -> tuple:
+    from devtools.brain_eval.lab_runner import (
+        LabFixtureDefinition,
+        LabScenarioDefinition,
+        LabScenarioStep,
+        LabStepAction,
+    )
+
+    fixture = LabFixtureDefinition(
+        fixture_id="anchor-elfie",
+        elfie_id="00001001",
+        name="小榛",
+        species_id="fox",
+        age_years=2.0,
+        description="Brain evaluation anchor",
+        appearance_description="red fox",
+        personality_description="curious, warm and independent",
+    )
+    scenario = LabScenarioDefinition(
+        scenario_family_id="p0-response-scope",
+        scenario_version="1.0.0",
+        variant_id="communication-wave-request",
+        seed=11,
+        hidden=False,
+        steps=(
+            LabScenarioStep(
+                action=LabStepAction.TURN,
+                source_domain="communication",
+                message="回复我的同时挥挥手。",
+            ),
+        ),
+    )
+    return fixture, scenario
+
+
+def _evidence_shape(value: Any) -> Any:
+    """Recursive shape skeleton: mapping keys, sequence lengths, leaf types."""
+
+    if isinstance(value, Mapping):
+        return {key: _evidence_shape(value[key]) for key in sorted(value)}
+    if isinstance(value, (list, tuple)):
+        return tuple(_evidence_shape(item) for item in value)
+    return type(value).__name__
+
+
+_EPISODE_EVIDENCE_FIELDS = frozenset(
+    {
+        "candidate_id",
+        "candidate_spec_sha256",
+        "scenario_family_id",
+        "scenario_version",
+        "variant_id",
+        "fixture_id",
+        "seed",
+        "execution_success",
+        "scenario_verdict",
+        "hidden",
+        "turns",
+        "effects",
+        "completion_claims",
+        "identity_changes",
+        "disclosures",
+        "capability_uses",
+        "public_outputs",
+        "model_executions",
+        "resources",
+    }
+)
+
+
+def test_capture_episode_with_observation_sink_yields_evidence_and_stream(
+    tmp_path,
+) -> None:
+    """One opt-in run produces eval evidence AND a non-empty observation stream."""
+
+    from devtools.brain_eval.gates import evaluate_p0_gates
+    from devtools.brain_eval.lab_runner import capture_lab_episode
+    from elfie.brain.observation import BrainObservation
+
+    fixture, scenario = _capture_fixture_and_scenario()
+    sink = _RecordingObservationSink()
+
+    episode = capture_lab_episode(
+        candidate_id="candidate",
+        candidate_spec_sha256="d" * 64,
+        fixture=fixture,
+        scenario=scenario,
+        food_key="mock",
+        runtime_root=tmp_path / "runtime",
+        observation_sink=sink,
+    )
+
+    assert episode.candidate_id == "candidate"
+    assert episode.turns
+    assert episode.public_outputs
+    assert episode.resources.model_calls == 1
+    assert evaluate_p0_gates((episode,)) == ()
+
+    stream = sink.snapshot()
+    assert stream
+    assert all(isinstance(event, BrainObservation) for event in stream)
+    assert all(event.boundary for event in stream)
+    assert all(event.kind for event in stream)
+
+
+def test_capture_episode_without_observation_sink_keeps_baseline_evidence_shape(
+    tmp_path,
+) -> None:
+    """Default path: evidence shape stays identical to the no-sink baseline."""
+
+    from devtools.brain_eval.gates import evaluate_p0_gates
+    from devtools.brain_eval.lab_runner import capture_lab_episode
+
+    fixture, scenario = _capture_fixture_and_scenario()
+
+    baseline = capture_lab_episode(
+        candidate_id="candidate",
+        candidate_spec_sha256="d" * 64,
+        fixture=fixture,
+        scenario=scenario,
+        food_key="mock",
+        runtime_root=tmp_path / "baseline-runtime",
+    )
+    opt_in = capture_lab_episode(
+        candidate_id="candidate",
+        candidate_spec_sha256="d" * 64,
+        fixture=fixture,
+        scenario=scenario,
+        food_key="mock",
+        runtime_root=tmp_path / "optin-runtime",
+        observation_sink=_RecordingObservationSink(),
+    )
+
+    # Same observable facts as the pre-existing no-sink baseline case.
+    assert baseline.candidate_id == "candidate"
+    assert baseline.turns
+    assert baseline.public_outputs
+    assert baseline.resources.model_calls == 1
+    assert evaluate_p0_gates((baseline,)) == ()
+
+    assert set(baseline.model_dump()) == _EPISODE_EVIDENCE_FIELDS
+    assert set(opt_in.model_dump()) == _EPISODE_EVIDENCE_FIELDS
+    assert _evidence_shape(baseline.model_dump()) == _evidence_shape(
+        opt_in.model_dump()
+    )
+    assert baseline.seed == opt_in.seed
+    assert baseline.hidden == opt_in.hidden
+    assert baseline.execution_success == opt_in.execution_success
+    assert baseline.resources.model_calls == opt_in.resources.model_calls
+    assert baseline.resources.input_tokens == opt_in.resources.input_tokens
+    assert baseline.resources.output_tokens == opt_in.resources.output_tokens
+    assert baseline.resources.cost_microunits == opt_in.resources.cost_microunits
+    assert len(baseline.turns) == len(opt_in.turns)
+    assert len(baseline.effects) == len(opt_in.effects)
+    assert len(baseline.model_executions) == len(opt_in.model_executions)

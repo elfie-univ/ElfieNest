@@ -95,6 +95,11 @@ class ModelGenerationRequest(FrozenContractModel):
     available_skills: Tuple[SkillMetadata, ...] = ()
     temperature: Annotated[float, Field(strict=True, ge=0.0, le=2.0)] = 0.2
     max_tokens: Annotated[int, Field(strict=True, ge=1)] = 512
+    # Relative wall-clock budget supplied by ReasoningRun for one provider
+    # request.  The Brain-owned absolute deadline remains the semantic
+    # authority; this field only carries the remaining transport budget across
+    # the ModelPort boundary.
+    timeout_seconds: Optional[Annotated[float, Field(strict=True, gt=0.0)]] = None
 
     @model_validator(mode="after")
     def validate_direct_reply_scope(self) -> ModelGenerationRequest:

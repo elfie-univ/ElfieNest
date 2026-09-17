@@ -157,6 +157,7 @@ def compile_recall_bundle(
 
     processed_groups: set[Tuple[str, ...]] = set()
     packets_by_assertion = {packet.assertion.assertion_id: packet for packet in packets}
+    has_relevant_packet = any(packet.assertion.relevance > 0.0 for packet in packets)
 
     # Conversation episodes are the durable source for facts that have not
     # yet been projected into graph assertions.  They are otherwise treated
@@ -183,6 +184,12 @@ def compile_recall_bundle(
         selected_episodes.append(episode.episode_id)
 
     for packet in packets:
+        if has_relevant_packet and packet.assertion.relevance <= 0.0:
+            # Zero-relevance graph neighbours are useful only when there is
+            # room after the direct hits.  They must not evict the requested
+            # fact from a bounded P0 memory slice.
+            truncated = True
+            continue
         group_ids = _conflict_group_ids(packet, packets_by_assertion)
         group_key = group_ids
         if group_key in processed_groups:
@@ -208,8 +215,27 @@ def compile_recall_bundle(
                 rendered = compact
                 cost = compact_cost
             else:
-                truncated = True
-                continue
+                # Keep the highest-ranked relation addressable when the P0
+                # memory slice is too small for even the compact evidence
+                # form.  The minimal form intentionally retains only the
+                # typed IDs, direction, state and source links; dropping the
+                # excerpt is visible through the block's truncation marker.
+                minimal = "\n".join(
+                    _render_packet(
+                        item,
+                        minimal=True,
+                        include_conflicts=index == 0,
+                    )
+                    for index, item in enumerate(group)
+                )
+                minimal_cost = estimate_prompt_tokens(minimal)
+                if minimal_cost <= available - used and minimal_cost > 0:
+                    rendered = minimal
+                    cost = minimal_cost
+                    truncated = True
+                else:
+                    truncated = True
+                    continue
         lines.append(rendered)
         used += cost
         for item in group:
@@ -406,9 +432,40 @@ def _render_packet(
     packet: _FactPacket,
     *,
     compact: bool = False,
+    minimal: bool = False,
     include_conflicts: bool = True,
 ) -> str:
     assertion = packet.assertion
+    if minimal:
+        object_value = assertion.object_node_id or _json_value(assertion.object_literal)
+        subject_label = _safe(
+            packet.subject.label
+            if packet.subject is not None
+            else assertion.subject_id,
+            96,
+        )
+        object_label = _safe(
+            packet.object_node.label
+            if packet.object_node is not None
+            else object_value,
+            96,
+        )
+        sources = "; ".join(
+            f"{_safe(item.evidence_id)}(source={_safe(item.source_id)})"
+            for item in packet.evidence
+        )
+        lines = [
+            f'<FACT id="{_safe_attr(assertion.assertion_id)}">',
+            f"关系：{_safe(assertion.subject_id)} --{_safe(assertion.predicate)}--> "
+            f"{_safe(object_value)}",
+            f"标签：{subject_label} -> {object_label}",
+            f"状态：{_safe(assertion.status)}；证据：{sources or 'unknown'}",
+        ]
+        if include_conflicts:
+            for conflict in packet.conflicts:
+                lines.append(_render_conflict(conflict, compact=True))
+        lines.append("</FACT>")
+        return "\n".join(lines)
     subject = _node_label(packet.subject, assertion.subject_id)
     object_value = (
         _node_label(packet.object_node, assertion.object_node_id or "unknown")

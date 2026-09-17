@@ -1,10 +1,14 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 import devtools.elfie_lab.session as session_module
 from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
+from devtools.elfie_lab.turn_summary import turn_model_call_observations
 from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.reasoning.food_port import NoAvailableFoodError
 from elfie.diagnostics import ElfieDiagnostics
 
 
@@ -54,14 +58,18 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     assert "request" not in turn["model_call"]
     assert "capabilities" not in turn["model_call"]
     assert "effective_parameters" not in turn["model_call"]
-    assert turn["trace"]["stages"]["model_calls"]
-    assert len(turn["trace"]["stages"]["model_calls"]) == 1
-    captured_call = turn["trace"]["stages"]["model_calls"][0]
-    assert captured_call["response"]
-    assert captured_call["request"]["user_prompt"].endswith("今天心情怎么样？")
-    assert captured_call["capabilities"]["provider"] == "mock"
-    assert captured_call["effective_parameters"]["max_tokens"] == 1536
+    # The summary sources provider/model/duration from the Brain's model_call
+    # envelopes; food fields stay deterministic food-key derivations.
+    assert turn["model_call"]["food_key"] == "mock"
+    assert turn["model_call"]["provider"] == "mock"
     assert turn["model_call"]["model"] == "elfie-mock"
+    assert turn["model_call"]["call_index"] == 1
+    assert turn["model_call"]["food_used"] == "mock"
+    assert turn["model_call"]["execution_stage"] == "mock"
+    assert turn["model_call"]["degraded"] is False
+    assert turn["model_call"]["duration_ms"] >= 0
+    assert "skipped" not in turn["model_call"]
+    assert "model_calls" not in turn["trace"]["stages"]
     stages = turn["trace"]["stages"]
     assert stages["typed_input"]["source"] == "developer_tool"
     assert stages["typed_input"]["source_domain"] == "communication"
@@ -108,31 +116,45 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     context_build = reasoning_run["iterations"][0]["context_build"]
     assert (
         context_build["output"]["context_revision"]
-        == captured_call["request"]["context_revision"]
+        == model_call["effective_parameters"]["context_revision"]
     )
-    assert context_build["output"]["prompt_sections"]
-    assert "user_prompt" not in context_build["output"]
-    assert context_build["raw"]["user_prompt"]
+    compiled = context_build["output"]["compiled"]
+    assert compiled is not None
+    assert compiled["context_revision"] == context_build["output"]["context_revision"]
+    assert context_build["output"]["system_prompt"]
+    assert context_build["output"]["user_prompt"].endswith("今天心情怎么样？")
+    assert context_build["raw"]["compile_event"]["payload"]["user_prompt"]
     assert model_call["input"]["system_prompt"]
     assert model_call["input"]["user_prompt"].endswith("今天心情怎么样？")
     assert model_call["effective_parameters"]["reasoning_mode"]
     assert model_call["output"]["response"]
+    assert model_call["output"]["provider"] == "mock"
+    assert model_call["output"]["model"] == "elfie-mock"
     assert model_call["output"]["parsed_result"]["type"] == "answer"
     assert model_call["output"]["parsed_result"]["content"]
     assert (
         observability["chain"][1]["raw"]["source"]
-        == "ModelGenerationRequest.user_prompt"
+        == "brain_observations.reasoning.agent_loop.model_call"
     )
-    assert setup["baseline_memory"]["evidence_basis"] == "model_request.RELEVANT_MEMORY"
+    workspace = observability["chain"][1]["output"]["workspace"]
+    assert workspace["checkpoint"]["status"] == "已保存"
+    assert workspace["threads"][0]["channel_id"] == "elfie-lab"
+    assert workspace["threads"][0]["conversation_id"] == "developer-conversation"
+    assert all(message["is_current"] for message in workspace["threads"][0]["messages"])
+    assert setup["baseline_memory"]["evidence_basis"] == (
+        "brain_observations.reasoning.memory_bridge"
+    )
+    assert setup["baseline_memory"]["status"] == "skipped"
+    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_relevant"
     assert all("used_by" not in owner for owner in setup["owner_snapshots"])
     assert all(
-        owner["evidence_basis"] == "state_before" for owner in setup["owner_snapshots"]
+        owner["evidence_basis"] == "reasoning.run_controller.context_frozen"
+        for owner in setup["owner_snapshots"]
     )
-    assert reasoning_run["iterations"][0]["guard"]["status"] == "skipped"
-    assert (
-        "separate Guard record"
-        in reasoning_run["iterations"][0]["guard"]["skip_reason"]
-    )
+    guard = reasoning_run["iterations"][0]["guard"]
+    assert guard["number"] == "4.1.6"
+    assert guard["status"] == "continued"
+    assert guard["output"]["decision"] == "继续"
     assert observability["chain"][6]["output"]["duration_ms"] == turn["duration_ms"]
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
@@ -244,7 +266,11 @@ def test_consolidation_consolidates_memory_without_external_actions(
             ClosedEpisode(
                 episode_id=f"lab-offline-{index}",
                 idempotency_key=f"lab-offline-{index}",
-                occurred_from=session.elfie.cognitive_datetime.isoformat(),
+                # Wall-clock anchored lab clock: the lifecycle sentinel needs
+                # a genuinely aged memory, not the 1970 freshness accident.
+                occurred_from=(
+                    (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+                ),
                 content_text=content,
                 emotion="happy",
                 emotion_intensity=importance,
@@ -413,3 +439,42 @@ def test_failed_turn_does_not_persist_exception_secrets_or_paths(
     assert turn["error"] == "RuntimeError"
     assert "sk-sensitive-secret" not in persisted
     assert str(tmp_path) not in persisted
+
+
+def test_unavailable_food_turn_exposes_a_safe_actionable_message(
+    tmp_path, session_factory, monkeypatch
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("粮食不可用提示")
+    session = session_factory(spec, storage)
+
+    def fail_runtime(_food_key, _config_dir, **_kwargs):
+        raise NoAvailableFoodError()
+
+    monkeypatch.setattr(session_module, "create_model_execution", fail_runtime)
+
+    turn = session.run_turn(StimulusBundle(message="触发模型不可用"), "food-test")
+
+    assert turn["result"]["success"] is False
+    assert turn["result"]["message"] == "当前模型不可用，请检查粮食配置或切换可用粮食。"
+
+
+def test_mock_turn_yields_model_call_envelopes_behind_the_summary(
+    tmp_path, session_factory
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("信封证据")
+    session = session_factory(spec, storage)
+
+    turn = session.run_turn(StimulusBundle(message="你好"), "mock")
+
+    envelopes = turn_model_call_observations(session._capture_sink.snapshot())
+    assert envelopes
+    payload = envelopes[-1].payload
+    assert payload.provider == "mock"
+    assert payload.model_key == "elfie-mock"
+    assert payload.user_prompt.endswith("你好")
+    assert payload.duration_ms >= 0
+    assert turn["model_call"]["provider"] == payload.provider
+    assert turn["model_call"]["model"] == payload.model_key
+    assert turn["model_call"]["call_index"] == len(envelopes)

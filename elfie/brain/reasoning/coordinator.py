@@ -8,8 +8,9 @@ from concurrent.futures import Future
 from dataclasses import replace
 from datetime import datetime, timezone
 from random import Random
-from threading import Event
-from typing import Callable, Optional, Tuple
+from threading import Event, Lock
+from time import perf_counter
+from typing import Callable, Literal, Optional, Tuple
 from uuid import uuid4
 
 from elfie.brain.consolidation.system import consolidation_candidate_to_perception
@@ -24,9 +25,28 @@ from elfie.brain.emotion.stimulus import EmotionStimulusEvent, StimulusSource
 from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournal
 from elfie.brain.motivation.system import recovery_candidate_to_perception
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationError,
+    ObservationStatus,
+)
 from elfie.brain.reasoning.coordinator_completion import (
     CompletionDisposition,
     CoordinatorCompletionHandler,
+)
+from elfie.brain.reasoning.coordinator_observations import (
+    CognitiveBudgetReleasedObservation,
+    CognitiveBudgetSettledObservation,
+    DecisionRoutedObservation,
+    EmotionAppraisalInputObservation,
+    EmotionAppraisalObservation,
+    EmotionCandidateObservation,
+    EmotionDimensionChangeObservation,
+    EmotionEffectObservation,
+    EnergyBudgetStateObservation,
+    EventSalienceObservation,
+    WorkspaceFrameAdmissionObservation,
 )
 from elfie.brain.reasoning.coordinator_outcomes import (
     reasoning_failure_outcome,
@@ -77,7 +97,7 @@ from elfie.brain.workspace.contracts import (
     SourceDomain,
 )
 from elfie.brain.workspace.system import EventWorkspace
-from elfie.brain.workspace.trigger_policy import TurnTriggerPolicy
+from elfie.brain.workspace.trigger_policy import TurnTriggerDecision, TurnTriggerPolicy
 from elfie.brain.workspace.types import FrameLifecycleError
 from elfie.message_types import ElfieId, EventId, TurnId
 
@@ -114,6 +134,7 @@ class BrainCoordinator:
         on_outcome: Callable[[TurnOutcome], None] | None = None,
         on_state_change: Callable[[], None] | None = None,
         reasoning_retention: int = 256,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         if reasoning_retention <= 0:
             raise ValueError("reasoning_retention must be positive")
@@ -135,6 +156,12 @@ class BrainCoordinator:
         self._consolidation_blocked = consolidation_blocked or (lambda: False)
         self._journal = journal
         self._on_state_change = on_state_change
+        # Coordinator-owned observation surface.  Emits are guarded on the
+        # sink before anything is constructed, so an unwired coordinator
+        # pays zero allocation cost for observation.
+        self._sink = observation_sink
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
         # A low-salience drive candidate still deserves one Brain turn.  Keep
         # this admission bit separate from event salience so Motivation cannot
         # accidentally be starved by the normal input thresholds.
@@ -148,6 +175,7 @@ class BrainCoordinator:
             allowed_tools=allowed_tools,
             skill_catalog=skill_catalog,
             constitution=constitution,
+            observation_sink=observation_sink,
         )
         self._runtime = CoordinatorRuntime(elfie_id, reasoning_worker)
         self._inflight: Optional[InFlightTurn] = None
@@ -164,6 +192,7 @@ class BrainCoordinator:
             outcomes=self._outcomes,
             settlement=settlement,
             context_source=context_source,
+            observation_sink=observation_sink,
         )
         self._embodied_mock = (
             EmbodiedMockController(
@@ -309,6 +338,375 @@ class BrainCoordinator:
 
         return record
 
+    def _next_observation_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    @staticmethod
+    def _emotion_effects(
+        effects: tuple[ChannelEffect, ...],
+    ) -> tuple:
+        return tuple(
+            EmotionEffectObservation(
+                channel=effect.channel.value,
+                direction=effect.direction.value,
+                strength=effect.strength,
+                confidence=effect.confidence,
+            )
+            for effect in effects
+        )
+
+    def _emit_appraisal_input(
+        self,
+        *,
+        turn_id: str,
+        frame_id: str,
+        event_id: str,
+        stimulus: EmotionStimulusEvent,
+        guidance: AffectiveAppraisal | None,
+        duration_ms: float,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[EmotionAppraisalInputObservation](
+                boundary="emotion",
+                kind="appraisal_input",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=turn_id,
+                frame_id=frame_id,
+                cause_event_ids=(event_id,),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=EmotionAppraisalInputObservation(
+                    event_id=event_id,
+                    stimulus_id=str(stimulus.event_id),
+                    source=stimulus.source.value,
+                    dose=stimulus.dose,
+                    appraisals=tuple(
+                        EmotionAppraisalObservation(
+                            scope_id=appraisal.scope.scope_id,
+                            cause_event_id=str(appraisal.scope.cause_event_id),
+                            relevance=appraisal.scope.relevance.value,
+                            related_actor_id=appraisal.scope.related_actor_id,
+                            relationship_weight=appraisal.scope.relationship_weight,
+                            effects=self._emotion_effects(appraisal.effects),
+                            reason=appraisal.reason,
+                        )
+                        for appraisal in stimulus.appraisals
+                    ),
+                    guidance_applied=guidance is not None,
+                    guidance_effects=(
+                        self._emotion_effects(guidance.effects)
+                        if guidance is not None
+                        else ()
+                    ),
+                    guidance_reason=guidance.reason if guidance is not None else None,
+                ),
+            )
+        )
+
+    def _emit_emotion_candidate(
+        self,
+        *,
+        turn_id: str,
+        frame_id: str,
+        stage: Literal["fast", "slow"],
+        anchor: EmotionTurnSnapshot,
+        candidate: EmotionTurnSnapshot,
+        duration_ms: float,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        after_by_name = dict(candidate.emotions)
+        dimensions = tuple(
+            EmotionDimensionChangeObservation(
+                name=name,
+                before=before,
+                after=after_by_name.get(name, before),
+            )
+            for name, before in anchor.emotions
+        )
+        sink.emit(
+            BrainObservation[EmotionCandidateObservation](
+                boundary="emotion",
+                kind="emotion_candidate",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=turn_id,
+                frame_id=frame_id,
+                cause_event_ids=tuple(str(item) for item in candidate.source_event_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=EmotionCandidateObservation(
+                    stage=stage,
+                    revision=candidate.revision,
+                    dimensions=dimensions,
+                    changed_dimensions=tuple(
+                        item.name for item in dimensions if item.after != item.before
+                    ),
+                    source_event_ids=tuple(
+                        str(item) for item in candidate.source_event_ids
+                    ),
+                ),
+            )
+        )
+
+    def _emit_emotion_feedback_failed(
+        self,
+        *,
+        turn_id: str,
+        frame_id: str,
+        anchor: EmotionTurnSnapshot,
+        error: Exception,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[EmotionCandidateObservation](
+                boundary="emotion",
+                kind="emotion_candidate",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=turn_id,
+                frame_id=frame_id,
+                cause_event_ids=(),
+                duration_ms=0.0,
+                status=ObservationStatus.degraded,
+                error=ObservationError(
+                    type=type(error).__name__,
+                    message="emotion_feedback_reconcile_failed",
+                ),
+                payload=EmotionCandidateObservation(
+                    stage="slow",
+                    revision=anchor.revision,
+                ),
+            )
+        )
+
+    def _budget_state(self) -> EnergyBudgetStateObservation:
+        mode, long_allowed, _balance = self._homeostasis.cognitive_policy()
+        return EnergyBudgetStateObservation(
+            energy=self._homeostasis.energy,
+            fatigue=self._homeostasis.fatigue,
+            cognitive_mode=mode,
+            long_reasoning_allowed=long_allowed,
+            available_cognitive_budget=self._homeostasis.activity_budget_available(),
+            reserved_cognitive_budget=self._homeostasis.reserved_cognitive_budget(),
+        )
+
+    def _emit_budget_settled(
+        self,
+        *,
+        turn_id: TurnId,
+        frame_id: EventId,
+        stage: str,
+        consumed: float,
+        charged: float,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[CognitiveBudgetSettledObservation](
+                boundary="energy",
+                kind="budget_settled",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame_id),
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=CognitiveBudgetSettledObservation(
+                    stage=stage,
+                    consumed=consumed,
+                    charged=charged,
+                    budget=self._budget_state(),
+                ),
+            )
+        )
+
+    def _emit_budget_released(
+        self,
+        *,
+        turn_id: TurnId,
+        frame_id: EventId,
+        stage: str,
+        released: bool,
+        cause_event_ids: Tuple[str, ...] = (),
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[CognitiveBudgetReleasedObservation](
+                boundary="energy",
+                kind="budget_released",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=str(frame_id),
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=CognitiveBudgetReleasedObservation(
+                    stage=stage,
+                    released=released,
+                    budget=self._budget_state(),
+                ),
+            )
+        )
+
+    def _emit_frame_admission(
+        self,
+        *,
+        turn_id: TurnId,
+        decision: TurnTriggerDecision,
+        frame=None,
+        duration_ms: float = 0.0,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        if frame is None:
+            payload = WorkspaceFrameAdmissionObservation(
+                trigger_reason=decision.reason.value if decision.reason else "",
+                cutoff_seq=decision.cutoff_seq or 0,
+                admitted=False,
+                detail="no_perception",
+            )
+            frame_id = ""
+            cause_event_ids: tuple[str, ...] = ()
+        else:
+            payload = WorkspaceFrameAdmissionObservation(
+                source_domain=(
+                    frame.source_domain.value
+                    if frame.source_domain is not None
+                    else None
+                ),
+                trigger_reason=decision.reason.value if decision.reason else "",
+                cutoff_seq=decision.cutoff_seq or 0,
+                event_count=len(frame.events),
+                max_event_salience=max(
+                    (event.salience for event in frame.events),
+                    default=0.0,
+                ),
+                event_saliences=tuple(
+                    EventSalienceObservation(
+                        event_id=str(event.meta.event_id),
+                        salience=event.salience,
+                    )
+                    for event in frame.events
+                ),
+                admitted=True,
+            )
+            frame_id = str(frame.frame_id)
+            cause_event_ids = tuple(str(event.meta.event_id) for event in frame.events)
+        sink.emit(
+            BrainObservation[WorkspaceFrameAdmissionObservation](
+                boundary="workspace",
+                kind="frame_claim",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id=frame_id,
+                cause_event_ids=cause_event_ids,
+                duration_ms=duration_ms,
+                status=(
+                    ObservationStatus.completed
+                    if frame is not None
+                    else ObservationStatus.skipped
+                ),
+                payload=payload,
+            )
+        )
+
+    def _emit_frame_claim_failed(
+        self,
+        *,
+        turn_id: TurnId,
+        decision: TurnTriggerDecision,
+        error: FrameLifecycleError,
+        duration_ms: float,
+    ) -> None:
+        """Record one claim error that is not the no-perception skip (§A1)."""
+        sink = self._sink
+        if sink is None:
+            return
+        sink.emit(
+            BrainObservation[WorkspaceFrameAdmissionObservation](
+                boundary="workspace",
+                kind="frame_claim",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(turn_id),
+                frame_id="",
+                cause_event_ids=(),
+                duration_ms=duration_ms,
+                status=ObservationStatus.failed,
+                error=ObservationError(
+                    type=type(error).__name__,
+                    message=f"frame_claim_failed:{error.reason}",
+                ),
+                payload=WorkspaceFrameAdmissionObservation(
+                    trigger_reason=decision.reason.value if decision.reason else "",
+                    cutoff_seq=decision.cutoff_seq or 0,
+                    admitted=False,
+                    detail=error.reason,
+                ),
+            )
+        )
+
+    def _emit_decision_routed(
+        self,
+        *,
+        frame,
+        decision,
+        routed: bool | None,
+        duration_ms: float,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        plan = decision.plan
+        sink.emit(
+            BrainObservation[DecisionRoutedObservation](
+                boundary="decision_boundary",
+                kind="decision_routed",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(plan.turn_id),
+                frame_id=str(plan.frame_id),
+                cause_event_ids=tuple(str(item) for item in plan.cause_event_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=DecisionRoutedObservation(
+                    plan_id=str(plan.plan_id),
+                    intent_types=tuple(intent.type for intent in plan.intents),
+                    interaction_scope_kind=decision.interaction_scope.kind,
+                    source_domain=decision.source_domain.value,
+                    response_domain=(
+                        decision.response_scope.external_domain.value
+                        if decision.response_scope.external_domain is not None
+                        else None
+                    ),
+                    response_channel_id=decision.response_scope.channel_id,
+                    response_conversation_id=decision.response_scope.conversation_id,
+                    memory_eligible=decision.memory_eligible,
+                    routed=routed,
+                ),
+            )
+        )
+
     def _maybe_emit_motivation(self) -> None:
         evaluator = getattr(self._context_source, "evaluate_motivation", None)
         if evaluator is None:
@@ -348,6 +746,8 @@ class BrainCoordinator:
     def _prepare_affect_transaction(
         self,
         frame,
+        *,
+        turn_id: str = "",
     ) -> tuple[FrameAffectTxn, bool]:
         """Calculate this frame's fast affect once, retaining it across replay."""
 
@@ -370,9 +770,15 @@ class BrainCoordinator:
         stimuli: list[EmotionStimulusEvent] = []
         scopes_by_id = {scope.scope_id: scope for scope in indirect_scopes}
         for event in frame.events:
+            appraise_started = perf_counter() if self._sink is not None else 0.0
             stimulus = self._appraiser.appraise(
                 event,
                 trusted_scopes=indirect_scopes,
+            )
+            appraise_duration_ms = (
+                round((perf_counter() - appraise_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
             )
             if stimulus is None:
                 continue
@@ -389,11 +795,33 @@ class BrainCoordinator:
                 stimulus = stimulus.model_copy(
                     update={"appraisals": stimulus.appraisals + (guidance,)}
                 )
+            self._emit_appraisal_input(
+                turn_id=turn_id,
+                frame_id=str(frame.frame_id),
+                event_id=str(event.meta.event_id),
+                stimulus=stimulus,
+                guidance=guidance,
+                duration_ms=appraise_duration_ms,
+            )
             stimuli.append(stimulus)
+        candidate_started = perf_counter() if self._sink is not None else 0.0
         fast_candidate = self._emotion.candidate_from(
             anchor,
             tuple(stimuli),
             timestamp=self._timestamp,
+        )
+        candidate_duration_ms = (
+            round((perf_counter() - candidate_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
+        self._emit_emotion_candidate(
+            turn_id=turn_id,
+            frame_id=str(frame.frame_id),
+            stage="fast",
+            anchor=anchor,
+            candidate=fast_candidate,
+            duration_ms=candidate_duration_ms,
         )
         return (
             FrameAffectTxn(
@@ -456,6 +884,15 @@ class BrainCoordinator:
         if decision.reason is None or decision.cutoff_seq is None:
             return
         turn_id = TurnId(f"turn_{uuid4().hex}")
+        claim_started = perf_counter() if self._sink is not None else 0.0
+
+        def claim_elapsed_ms() -> float:
+            return (
+                round((perf_counter() - claim_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+
         frame = None
         for source_domain in source_domains or (None,):
             try:
@@ -469,17 +906,45 @@ class BrainCoordinator:
                 break
             except FrameLifecycleError as error:
                 if error.reason != "no perception writes are available":
+                    self._emit_frame_claim_failed(
+                        turn_id=turn_id,
+                        decision=decision,
+                        error=error,
+                        duration_ms=claim_elapsed_ms(),
+                    )
                     raise
         if frame is None:
+            self._emit_frame_admission(
+                turn_id=turn_id,
+                decision=decision,
+                duration_ms=0.0,
+            )
             self._motivation_due = False
             self._consolidation_due = False
             return
+        self._emit_frame_admission(
+            turn_id=turn_id,
+            decision=decision,
+            frame=frame,
+            duration_ms=claim_elapsed_ms(),
+        )
         try:
             if self._journal is not None:
                 self._journal.record_run_started(frame, turn_id)
             requires_model = self._requires_model(frame)
-            affect_txn, is_new_affect_txn = self._prepare_affect_transaction(frame)
-            conversation = self._turn_factory.observe_conversation(frame, now)
+            affect_txn, is_new_affect_txn = self._prepare_affect_transaction(
+                frame,
+                turn_id=str(turn_id),
+            )
+            conversation = self._turn_factory.observe_conversation(
+                frame,
+                now,
+                turn_id=turn_id,
+                cause_event_ids=tuple(
+                    item.meta.event_id
+                    for item in frame.events + frame.state_updates + frame.media_samples
+                ),
+            )
             self._flush_pending_handoffs()
             task = self._turn_factory.build_task(
                 frame,
@@ -502,7 +967,23 @@ class BrainCoordinator:
                     )
                 self._affect_txn = affect_txn
         except Exception as error:  # noqa: BLE001 - claim boundary owns failure mapping
-            self._homeostasis.release_cognitive_budget(turn_id)
+            release_started = perf_counter() if self._sink is not None else 0.0
+            budget_released = self._homeostasis.release_cognitive_budget(turn_id)
+            release_duration_ms = (
+                round((perf_counter() - release_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+            self._emit_budget_released(
+                turn_id=turn_id,
+                frame_id=frame.frame_id,
+                stage="admission_failed",
+                released=budget_released,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in frame.events
+                ),
+                duration_ms=release_duration_ms,
+            )
             released = self._workspace.release(
                 frame.frame_id,
                 turn_id,
@@ -651,7 +1132,27 @@ class BrainCoordinator:
         try:
             result = control.future.result()
         except Exception:  # noqa: BLE001 - completion handler owns failure mapping
-            self._homeostasis.settle_cognitive_budget(control.turn_id, consumed=0.25)
+            settle_started = perf_counter() if self._sink is not None else 0.0
+            charged = self._homeostasis.settle_cognitive_budget(
+                control.turn_id,
+                consumed=0.25,
+            )
+            settle_duration_ms = (
+                round((perf_counter() - settle_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+            self._emit_budget_settled(
+                turn_id=control.turn_id,
+                frame_id=inflight.frame.frame_id,
+                stage="worker_failed",
+                consumed=0.25,
+                charged=charged,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in inflight.frame.events
+                ),
+                duration_ms=settle_duration_ms,
+            )
         else:
             self._remember_reasoning(control.turn_id, result.reasoning)
             consumed = (
@@ -659,9 +1160,27 @@ class BrainCoordinator:
                 + (0.5 * result.reasoning.tool_calls)
                 + (0.1 * len(result.reasoning.steps))
             )
-            self._homeostasis.settle_cognitive_budget(
+            requested_charge = max(0.25, consumed)
+            settle_started = perf_counter() if self._sink is not None else 0.0
+            charged = self._homeostasis.settle_cognitive_budget(
                 control.turn_id,
-                consumed=max(0.25, consumed),
+                consumed=requested_charge,
+            )
+            settle_duration_ms = (
+                round((perf_counter() - settle_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+            self._emit_budget_settled(
+                turn_id=control.turn_id,
+                frame_id=inflight.frame.frame_id,
+                stage="worker_done",
+                consumed=requested_charge,
+                charged=charged,
+                cause_event_ids=tuple(
+                    str(event.meta.event_id) for event in inflight.frame.events
+                ),
+                duration_ms=settle_duration_ms,
             )
             slow_candidate = self._slow_emotion_candidate(inflight, result)
         disposition = self._completion.complete(inflight, control)
@@ -744,12 +1263,33 @@ class BrainCoordinator:
                         cause_key=f"turn:{inflight.task.seed.turn_id}",
                     ),
                 )
-            return self._emotion.candidate_from(
+            slow_started = perf_counter() if self._sink is not None else 0.0
+            candidate = self._emotion.candidate_from(
                 txn.anchor,
                 stimuli,
                 timestamp=self._timestamp,
             )
+            slow_duration_ms = (
+                round((perf_counter() - slow_started) * 1000.0, 2)
+                if self._sink is not None
+                else 0.0
+            )
+            self._emit_emotion_candidate(
+                turn_id=str(inflight.task.seed.turn_id),
+                frame_id=str(inflight.frame.frame_id),
+                stage="slow",
+                anchor=txn.anchor,
+                candidate=candidate,
+                duration_ms=slow_duration_ms,
+            )
+            return candidate
         except Exception as error:  # noqa: BLE001 - preserve completed turn
+            self._emit_emotion_feedback_failed(
+                turn_id=str(inflight.task.seed.turn_id),
+                frame_id=str(inflight.frame.frame_id),
+                anchor=txn.anchor,
+                error=error,
+            )
             diagnostic_logger.warning(
                 "Model emotion feedback could not reconcile the turn",
                 extra={
@@ -808,9 +1348,26 @@ class BrainCoordinator:
         inflight.terminal_reason = reason
         self._plan_sink.cancel_stale(inflight.task.seed.turn_id, reason)
         self._worker.abandon(inflight.future)
-        self._homeostasis.settle_cognitive_budget(
+        settle_started = perf_counter() if self._sink is not None else 0.0
+        charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
+        self._emit_budget_settled(
+            turn_id=inflight.task.seed.turn_id,
+            frame_id=inflight.frame.frame_id,
+            stage="stale",
+            consumed=0.5,
+            charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         try:
             self._settlement.settle(inflight.task.state_candidates)
@@ -850,9 +1407,26 @@ class BrainCoordinator:
 
     def _timeout_turn(self, inflight: InFlightTurn) -> None:
         self._worker.abandon(inflight.future)
-        self._homeostasis.settle_cognitive_budget(
+        settle_started = perf_counter() if self._sink is not None else 0.0
+        charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
+        self._emit_budget_settled(
+            turn_id=inflight.task.seed.turn_id,
+            frame_id=inflight.frame.frame_id,
+            stage="timeout",
+            consumed=0.5,
+            charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         try:
             self._settlement.settle(inflight.task.state_candidates)
@@ -877,8 +1451,21 @@ class BrainCoordinator:
             inflight.task.seed,
             "reasoning_hard_timeout",
         )
+        routed_started = perf_counter() if self._sink is not None else 0.0
         decision = govern_decision(inflight.frame, plan)
-        if self._plan_sink.accept(decision):
+        accepted = self._plan_sink.accept(decision)
+        routed_duration_ms = (
+            round((perf_counter() - routed_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
+        self._emit_decision_routed(
+            frame=inflight.frame,
+            decision=decision,
+            routed=accepted,
+            duration_ms=routed_duration_ms,
+        )
+        if accepted:
             self._workspace.commit(inflight.frame.frame_id, inflight.task.seed.turn_id)
             self._affect_txn = None
             self._outcomes.record(reasoning_timeout_outcome(plan))
@@ -918,9 +1505,26 @@ class BrainCoordinator:
         if inflight is None:
             return
         self._worker.abandon(inflight.future)
-        self._homeostasis.settle_cognitive_budget(
+        settle_started = perf_counter() if self._sink is not None else 0.0
+        charged = self._homeostasis.settle_cognitive_budget(
             inflight.task.seed.turn_id,
             consumed=0.5,
+        )
+        settle_duration_ms = (
+            round((perf_counter() - settle_started) * 1000.0, 2)
+            if self._sink is not None
+            else 0.0
+        )
+        self._emit_budget_settled(
+            turn_id=inflight.task.seed.turn_id,
+            frame_id=inflight.frame.frame_id,
+            stage="coordinator_stop",
+            consumed=0.5,
+            charged=charged,
+            cause_event_ids=tuple(
+                str(event.meta.event_id) for event in inflight.frame.events
+            ),
+            duration_ms=settle_duration_ms,
         )
         if inflight.terminal_status is not None:
             self._inflight = None

@@ -59,6 +59,42 @@ def test_glm_fast_json_text_disables_provider_thinking() -> None:
     ) == {"thinking": {"type": "disabled"}}
 
 
+def test_volcengine_fast_json_text_disables_provider_thinking() -> None:
+    request = StructuredModelExecutionRequest(
+        prompt="{}",
+        messages=(),
+        response_schema_name="CognitiveAction",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
+        provider="volcengine_coding_plan_0001",
+        model_key="volcengine_coding_plan_0001/doubao-seed-2.0-lite",
+        reasoning_mode="fast",
+    )
+
+    assert ModelExecutionAgent._structured_request_options(
+        request, StructuredGenerationMode.JSON_TEXT
+    ) == {"thinking": {"type": "disabled"}}
+
+
+def test_volcengine_long_json_text_enables_provider_thinking() -> None:
+    request = StructuredModelExecutionRequest(
+        prompt="{}",
+        messages=(),
+        response_schema_name="DecisionPlan",
+        response_schema={"type": "object"},
+        selected_mode=StructuredGenerationMode.JSON_TEXT,
+        allowed_tools=(),
+        provider="volcengine_coding_plan_0001",
+        model_key="volcengine_coding_plan_0001/doubao-seed-2.0-lite",
+        reasoning_mode="long",
+    )
+
+    assert ModelExecutionAgent._structured_request_options(
+        request, StructuredGenerationMode.JSON_TEXT
+    ) == {"thinking": {"type": "enabled"}}
+
+
 def test_plain_text_request_has_no_schema_prompt_or_json_format() -> None:
     request = StructuredModelExecutionRequest(
         prompt="hello",

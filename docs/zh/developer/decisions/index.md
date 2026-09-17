@@ -41,3 +41,4 @@
 - [ADR-0034：治理切换期间兼容旧契约版本标记](./0034-legacy-contract-version-header-compatibility)
 - [ADR-0035：Internal 与公开 Design 文档的分层归置](./0035-hierarchical-design-placement)
 - [ADR-0036：标准流程 Skill 与强类型可执行 Tool](./0036-standard-skills-and-typed-tools)
+- [ADR-0037：单一类型化 Brain 观测表面与唯一 sink Port](./0037-brain-observation-surface)

@@ -18,6 +18,7 @@ from elfie.body import (
     VisionSample,
 )
 from elfie.brain.journal import BrainJournalKind
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.decision_types import TurnDecision
 from elfie.brain.reasoning.execution_types import ExecutionReceipt
 from elfie.brain.reasoning.model_port import (
@@ -154,13 +155,22 @@ class LabCommunicationChannel:
 class BrainTurnAdapter:
     """Submit one explicit input lane, then wait on the production Brain lifecycle."""
 
-    def __init__(self, elfie: Elfie) -> None:
+    def __init__(
+        self,
+        elfie: Elfie,
+        *,
+        observation_sink: BrainObservationSink | None = None,
+    ) -> None:
         self._elfie = elfie
         self._runtime = SelectedLabModelExecution()
         self._tools = SelectedLabToolPort(self._runtime)
         self.channel = LabCommunicationChannel()
         self._elfie.register_communication_channel(self.channel, connect=True)
-        self._elfie.configure_cognition(self._runtime, tool_port=self._tools)
+        self._elfie.configure_cognition(
+            self._runtime,
+            tool_port=self._tools,
+            observation_sink=observation_sink,
+        )
         self._elfie.start()
 
     def run(

@@ -5,11 +5,13 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from devtools.elfie_lab.brain_turn_adapter import BrainTurnAdapter
 from devtools.elfie_lab.model_execution_adapters import create_model_execution
+from devtools.elfie_lab.observation_capture import CapturingObservationSink
 from devtools.elfie_lab.schemas import (
     ElfieSpec,
     StimulusBundle,
@@ -23,9 +25,14 @@ from devtools.elfie_lab.session_state import apply_state_injection, model_skip_r
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.trace_projection import build_observability_trace
 from devtools.elfie_lab.turn_projection import project_decision
-from devtools.elfie_lab.turn_summary import model_call_summary, stimulus_modalities
+from devtools.elfie_lab.turn_summary import (
+    model_call_summary_from_observations,
+    stimulus_modalities,
+)
 from elfie import ElfieFactory
 from elfie.body import HeadlessBody
+from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.observation import BrainObservationSink
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.factory import ElfieAssembly
@@ -61,6 +68,9 @@ class ElfieLabSession:
         spec: ElfieSpec,
         storage: ElfieLabStorage,
         model_execution_config_dir: str | None = None,
+        memory_store: MemoryStorePort | None = None,
+        memory_store_factory: Callable[[], MemoryStorePort] | None = None,
+        observation_sink: BrainObservationSink | None = None,
     ):
         self.spec = spec
         self.storage = storage
@@ -75,8 +85,24 @@ class ElfieLabSession:
         )
         self.body = HeadlessBody(body_id=f"{spec.elfie_id}:headless")
         self.body.connect()
+        if memory_store_factory is not None:
+            self._memory_store_factory = memory_store_factory
+        elif memory_store is not None:
+            self._memory_store_factory = lambda: memory_store
+        else:
+            self._memory_store_factory = lambda: SQLiteMemoryStoreAdapter(
+                storage.memory_path(spec.elfie_id)
+            )
+        self._observation_sink = observation_sink
+        # The Brain must see exactly one sink: forward to the caller's sink
+        # when present, and record envelopes for the run's trace projection
+        # and the model-call summary.
+        self._capture_sink = CapturingObservationSink(observation_sink)
         workspace = storage.elfie_dir(spec.elfie_id)
         profile_store = YamlProfileStoreAdapter(workspace / "profile")
+        self._journal_store = SQLiteBrainJournalAdapter(
+            storage.journal_path(spec.elfie_id)
+        )
         self.elfie = ElfieFactory().restore(
             ElfieAssembly(
                 profile=profile_store.load(),
@@ -87,20 +113,20 @@ class ElfieLabSession:
                 reasoning_constitution=ReasoningConstitution.from_mapping(
                     load_reasoning_constitution()
                 ),
-                memory_store=SQLiteMemoryStoreAdapter(
-                    storage.memory_path(spec.elfie_id)
-                ),
+                memory_store=self._memory_store_factory(),
                 activity_store=SQLiteActivityStoreAdapter(
                     storage.activity_path(spec.elfie_id)
                 ),
-                journal_store=SQLiteBrainJournalAdapter(
-                    storage.journal_path(spec.elfie_id)
-                ),
+                journal_store=self._journal_store,
                 body=self.body,
                 embodied_input_mode=EmbodiedInputMode.BRAIN,
             ),
         )
-        self._turn_adapter = BrainTurnAdapter(self.elfie)
+        self._anchor_cognitive_clock()
+        self._turn_adapter = BrainTurnAdapter(
+            self.elfie,
+            observation_sink=self._capture_sink,
+        )
         self._lock = threading.Lock()
         self._closed = False
 
@@ -147,6 +173,7 @@ class ElfieLabSession:
         with self._lock:
             self._ensure_open()
             turn_id = new_id("turn")
+            self._capture_sink.clear()
             trace: Dict[str, Any] = {}
             pre_injection = self.snapshot()
             injection_changes = apply_state_injection(
@@ -203,9 +230,6 @@ class ElfieLabSession:
                             if reasoning is not None
                             else None
                         ),
-                        "model_calls": [
-                            dict(call) for call in getattr(model_execution, "calls", [])
-                        ],
                     },
                     "warnings": [],
                 }
@@ -213,6 +237,11 @@ class ElfieLabSession:
                 error = type(exc).__name__
                 result = {
                     "success": False,
+                    "message": (
+                        "当前模型不可用，请检查粮食配置或切换可用粮食。"
+                        if error == "NoAvailableFoodError"
+                        else "本轮处理失败，请查看右侧检查器。"
+                    ),
                     "reason": "调试回合执行失败",
                     "error": error,
                 }
@@ -229,6 +258,20 @@ class ElfieLabSession:
                     **trace.get("stages", {}),
                 }
             state_after = self.snapshot()
+            workspace_checkpoint = None
+            try:
+                # Context Workspace already owns this persisted checkpoint;
+                # Lab only reads it so the inspector can project the complete
+                # retained state without creating a second store.
+                workspace_checkpoint = (
+                    self.elfie.continuity_checkpoint().conversation.model_dump(
+                        mode="json"
+                    )
+                )
+            except Exception as checkpoint_error:  # pragma: no cover - safety boundary
+                trace.setdefault("warnings", []).append(
+                    f"context_workspace_checkpoint:{type(checkpoint_error).__name__}"
+                )
             try:
                 trace.setdefault("stages", {})["observability"] = (
                     build_observability_trace(
@@ -242,20 +285,18 @@ class ElfieLabSession:
                         decision=decision,
                         duration_ms=duration_ms,
                         warnings=trace.get("warnings", []),
+                        observations=self._capture_sink.snapshot(),
+                        workspace_checkpoint=workspace_checkpoint,
                     )
                 )
             except Exception as projection_error:  # pragma: no cover - safety boundary
                 trace.setdefault("warnings", []).append(
                     f"observability_projection:{type(projection_error).__name__}"
                 )
-            model_call = model_call_summary(
-                model_execution.calls[-1]
-                if model_execution is not None and model_execution.calls
-                else {
-                    "food_key": food_key,
-                    "skipped": True,
-                    "reason": error or model_skip_reason(trace),
-                }
+            model_call = model_call_summary_from_observations(
+                self._capture_sink.snapshot(),
+                food_key=food_key,
+                fallback_reason=error or model_skip_reason(trace),
             )
             record = TurnRecord(
                 turn_id=turn_id,
@@ -293,6 +334,9 @@ class ElfieLabSession:
             self.body.connect()
             workspace = self.storage.elfie_dir(self.spec.elfie_id)
             profile_store = YamlProfileStoreAdapter(workspace / "profile")
+            self._journal_store = SQLiteBrainJournalAdapter(
+                self.storage.journal_path(self.spec.elfie_id)
+            )
             self.elfie = ElfieFactory().restore(
                 ElfieAssembly(
                     profile=profile_store.load(),
@@ -303,20 +347,20 @@ class ElfieLabSession:
                     reasoning_constitution=ReasoningConstitution.from_mapping(
                         load_reasoning_constitution()
                     ),
-                    memory_store=SQLiteMemoryStoreAdapter(
-                        self.storage.memory_path(self.spec.elfie_id)
-                    ),
+                    memory_store=self._memory_store_factory(),
                     activity_store=SQLiteActivityStoreAdapter(
                         self.storage.activity_path(self.spec.elfie_id)
                     ),
-                    journal_store=SQLiteBrainJournalAdapter(
-                        self.storage.journal_path(self.spec.elfie_id)
-                    ),
+                    journal_store=self._journal_store,
                     body=self.body,
                     embodied_input_mode=EmbodiedInputMode.BRAIN,
                 ),
             )
-            self._turn_adapter = BrainTurnAdapter(self.elfie)
+            self._anchor_cognitive_clock()
+            self._turn_adapter = BrainTurnAdapter(
+                self.elfie,
+                observation_sink=self._capture_sink,
+            )
             self._closed = False
             self.storage.save_session(self.get_payload())
             return self.get_payload()
@@ -358,6 +402,24 @@ class ElfieLabSession:
             return replacement
         finally:
             self._lock.release()
+
+    def _anchor_cognitive_clock(self) -> None:
+        """Anchor the restored Elfie's logical clock away from the UNIX epoch.
+
+        A restored Elfie starts its logical clock at 0.0, which renders every
+        receipt ``occurred_at`` and owner snapshot ``captured_at`` as 1970
+        dates. Continue from the persisted continuity checkpoint when one
+        exists — its captured time is exactly where the Brain's homeostasis
+        baseline resumes — and anchor a fresh Elfie at the current wall clock
+        instead. This only re-bases the clock; it never runs a turn.
+        """
+        checkpoint = self._journal_store.load_checkpoint()
+        base = (
+            checkpoint.captured_at
+            if checkpoint is not None
+            else datetime.now(timezone.utc)
+        )
+        self.elfie.set_clock_base(base)
 
     def _close_locked(self) -> None:
         if self._closed:

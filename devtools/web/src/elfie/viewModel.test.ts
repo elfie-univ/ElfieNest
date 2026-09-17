@@ -5,6 +5,7 @@ import {
   createSubmissionGate,
   detailTitle,
   formatSignedDelta,
+  latestSuccessfulFoodKey,
   selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
 } from "./viewModel";
@@ -55,5 +56,15 @@ describe("Elfie Lab view model", () => {
     expect(selectReadyFoodAfterLoad("", foods)).toBe("mock");
     expect(selectReadyFoodAfterLoad("food_emergency", foods)).toBe("mock");
     expect(selectReadyFoodAfterLoad("mock", foods)).toBe("mock");
+    expect(selectReadyFoodAfterLoad("", foods, "mock")).toBe("mock");
+  });
+
+  it("restores the latest successful Food when a session reloads", () => {
+    expect(latestSuccessfulFoodKey([
+      { food_key: "failed", result: { success: false } },
+      { food_key: "working", result: { success: true } },
+      { food_key: "missing", result: { success: false } },
+    ])).toBe("working");
+    expect(latestSuccessfulFoodKey([{ result: { success: false } }])).toBe("");
   });
 });
