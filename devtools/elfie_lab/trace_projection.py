@@ -157,6 +157,24 @@ def _stage_duration(
     return float(sum(value for value in member_durations if value is not None))
 
 
+def _event_duration_sum(events: Sequence[Mapping[str, Any]]) -> Optional[float]:
+    """Sum measured durations for one projected sub-step.
+
+    The envelope owns timing.  A present event with no measured duration is
+    still a real event and therefore reports ``0.0``; no elapsed time is
+    inferred from neighboring records.
+    """
+    if not events:
+        return None
+    return float(
+        sum(
+            value
+            for value in (event.get("duration_ms") for event in events)
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        )
+    )
+
+
 def _scoped_events(
     observations: Sequence[BrainObservation],
     *,
@@ -622,6 +640,12 @@ def build_observability_trace(
     compiles = _turn_compiles(observations, frame_id=frame_id)
     trims = _turn_context_trims(observations, frame_id=frame_id)
     model_calls = _turn_model_calls(observations, frame_id=frame_id)
+    completion_events = _scoped_events(
+        observations,
+        boundary="reasoning.completion",
+        kinds=("judge",),
+        frame_id=frame_id,
+    )
     first_request = _model_request_view(model_calls[0]) if model_calls else {}
     stage_durations = {
         stage_id: _stage_duration(observations, members)
@@ -646,7 +670,10 @@ def build_observability_trace(
     )
     reasoning_stage = _reasoning_stage(
         reasoning=reasoning,
-        loop_events=_turn_agent_loop_events(observations, frame_id=frame_id),
+        loop_events=[
+            *_turn_agent_loop_events(observations, frame_id=frame_id),
+            *[_event_dump(event) for event in completion_events],
+        ],
         compiles=compiles,
         trims=trims,
         duration_ms=stage_durations["reasoning_run"],
@@ -1689,6 +1716,7 @@ def _reasoning_stage(
         observation_stage = _observation_stage(
             number=f"{iteration_number}.4",
             observations=observations,
+            duration_ms=_event_duration_sum(bucket.get("observation", [])),
         )
         # The ModelCall card keeps the wire-format parse the session chain pins;
         # the Cognitive Action card prefers the keyed envelope decode.
@@ -1702,6 +1730,15 @@ def _reasoning_stage(
         iterations.append(
             {
                 "number": iteration_number,
+                "duration_ms": _event_duration_sum(
+                    [
+                        *call_events,
+                        *bucket.get("action_decoded", []),
+                        *bucket.get("observation", []),
+                        *bucket.get("guard", []),
+                        *judge_events,
+                    ]
+                ),
                 "status": (
                     "failed"
                     if call and str(call.get("status")) == "failed"
@@ -1724,6 +1761,11 @@ def _reasoning_stage(
                         else "unavailable"
                     ),
                     "input": {},
+                    "duration_ms": (
+                        compiles[compile_index].duration_ms
+                        if compile_index is not None
+                        else None
+                    ),
                     "output": context_output,
                     "raw": {
                         "compile_event": (
@@ -1800,6 +1842,7 @@ def _reasoning_stage(
         iterations[0]["observation_stage"] = _observation_stage(
             number="4.1.4",
             observations=iterations[0]["observations"],
+            duration_ms=None,
         )
 
     report = _mapping(_mapping(reasoning.get("decode")).get("report"))
@@ -1911,6 +1954,9 @@ def _action_projection(
         raw = {"source": "model_step.summary", "model_step": dict(model_step)}
     return {
         "number": number,
+        "duration_ms": (
+            action_event.get("duration_ms") if action_event is not None else None
+        ),
         "status": "parsed" if parsed_result is not None else "unavailable",
         "input": {"model_call": model_call_number},
         "output": parsed_result,
@@ -1949,6 +1995,7 @@ def _observation_record_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
     """
     payload = _mapping(event.get("payload"))
     return {
+        "duration_ms": event.get("duration_ms"),
         "kind": payload.get("observation_kind"),
         "status": payload.get("observation_status"),
         "summary": payload.get("content"),
@@ -1964,6 +2011,7 @@ def _judge_entry(event: Mapping[str, Any]) -> Dict[str, Any]:
     payload = _mapping(event.get("payload"))
     verdict = payload.get("verdict")
     return {
+        "duration_ms": event.get("duration_ms"),
         "kind": "judge",
         "status": verdict,
         "summary": payload.get("judge_reason") or verdict,
@@ -1984,6 +2032,7 @@ def _observation_stage(
     *,
     number: str,
     observations: Sequence[Mapping[str, Any]],
+    duration_ms: Optional[float],
 ) -> Optional[Dict[str, Any]]:
     """Project an Observations slot only when a real record exists."""
     recorded = [dict(observation) for observation in observations]
@@ -1991,6 +2040,7 @@ def _observation_stage(
         return None
     return {
         "number": number,
+        "duration_ms": duration_ms,
         "id": "observations",
         "title": "Observations",
         "status": "observed",
@@ -2020,6 +2070,7 @@ def _guard_projection(
     )
     return {
         "number": number,
+        "duration_ms": event.get("duration_ms"),
         "status": status,
         "input": {
             "depth": payload.get("depth"),

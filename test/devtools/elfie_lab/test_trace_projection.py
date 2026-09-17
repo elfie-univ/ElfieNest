@@ -18,6 +18,7 @@ from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopActionObservation,
+    AgentLoopGuardObservation,
     AgentLoopJudgeObservation,
     AgentLoopObservationRecorded,
     ModelCallObservation,
@@ -567,6 +568,107 @@ def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence
     assert all("used_by" not in owner for owner in trace["chain"][2]["owner_snapshots"])
     assert first["model_call"]["capabilities"] is None
     assert "provider_raw" not in first["model_call"]
+
+
+def test_reasoning_substeps_preserve_source_durations():
+    compiled = CompiledContextObservation(
+        turn_id="turn-substep-durations",
+        frame_id="frame-1",
+        context_revision=7,
+        capability_revision=1,
+        reasoning_mode="long",
+        response_mode="structured",
+        system_prompt="SYSTEM",
+        user_prompt="USER",
+        max_tokens=1024,
+    )
+    action = AgentLoopActionObservation(
+        iteration_index=1,
+        action_type="answer",
+        content="好的",
+    )
+    observation = AgentLoopObservationRecorded(
+        iteration_index=1,
+        observation_kind="reply",
+        observation_status="received",
+        content="回复已准备",
+    )
+    judge = AgentLoopJudgeObservation(
+        iteration_index=1,
+        action_type="answer",
+        verdict="accepted",
+        content="好的",
+    )
+    guard = AgentLoopGuardObservation(
+        iteration_index=1,
+        guard="none",
+        may_continue=True,
+        outcome="continued",
+        depth="deliberate",
+        model_calls_used=1,
+        max_model_calls=4,
+        model_calls_remaining=3,
+        tool_calls_used=0,
+        max_tool_calls=2,
+        deadline_remaining_ms=1000,
+        cancelled=False,
+    )
+    trace = build_observability_trace(
+        turn_id="turn-substep-durations",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed", "model_calls": 1}},
+        result={"success": True},
+        decision={},
+        duration_ms=30,
+        observations=[
+            _observation(
+                boundary="reasoning.context_engine",
+                kind="compiled_context",
+                payload=compiled,
+                duration_ms=1.5,
+            ),
+            _model_call_observation(
+                context_revision=7,
+                duration_ms=11.0,
+            ),
+            _observation(
+                boundary="reasoning.agent_loop",
+                kind="action_decoded",
+                payload=action,
+                duration_ms=2.0,
+            ),
+            _observation(
+                boundary="reasoning.agent_loop",
+                kind="observation",
+                payload=observation,
+                duration_ms=3.0,
+            ),
+            _observation(
+                boundary="reasoning.agent_loop",
+                kind="guard",
+                payload=guard,
+                duration_ms=4.0,
+            ),
+            _observation(
+                boundary="reasoning.completion",
+                kind="judge",
+                payload=judge,
+                duration_ms=5.0,
+            ),
+        ],
+    )
+
+    iteration = trace["chain"][3]["iterations"][0]
+    assert iteration["duration_ms"] == 25.0
+    assert iteration["context_build"]["duration_ms"] == 1.5
+    assert iteration["model_call"]["duration_ms"] == 11.0
+    assert iteration["action"]["duration_ms"] == 2.0
+    assert iteration["observation_stage"]["duration_ms"] == 3.0
+    assert iteration["completion"][0]["duration_ms"] == 5.0
+    assert iteration["guard"]["duration_ms"] == 4.0
 
 
 def test_reasoning_projection_does_not_create_a_phantom_iteration_for_prefix_observation():

@@ -336,7 +336,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("已记录");
     expect(markup).not.toContain("context v4");
     expect(markup).not.toContain("frame-1");
-    expect(markup.match(/<strong>Model Call<\/strong>/g)).toHaveLength(1);
+    expect(markup.match(/<strong>模型调用<\/strong>/g)).toHaveLength(1);
   });
 
   it("keeps the ReasoningRun overview non-duplicative and hides empty iteration input", () => {
@@ -385,6 +385,40 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("降级原因");
     expect(markup).not.toContain("迭代输入");
     expect(markup.match(/终止回退/g)).toHaveLength(1);
+  });
+
+  it("keeps every reasoning substep readable with duration-only collapsed metadata", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [{
+            ...firstIteration,
+            context_build: { ...(firstIteration.context_build as FixtureNode), duration_ms: 0.9 },
+            model_call: { ...(firstIteration.model_call as FixtureNode), duration_ms: 4110 },
+            action: { ...(firstIteration.action as FixtureNode), duration_ms: 2.4 },
+            observation_stage: { number: "4.1.4", status: "observed", duration_ms: 3.2, raw: { source: "test" } },
+            completion: [{ kind: "verify", status: "accepted", summary: "reply accepted", duration_ms: 1.1 }],
+            guard: { number: "4.1.6", status: "continued", duration_ms: 0.8, output: { decision: "继续" }, raw: { source: "test" } },
+          }],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["reasoning_run", "reasoning-4.1"]);
+
+    for (const title of ["上下文构建", "模型调用", "认知行动", "观察记录", "完成判定", "守卫判断"]) {
+      expect(markup).toContain(`<strong>${title}</strong>`);
+    }
+    for (const duration of ["耗时 0.90 ms", "耗时 4.11 s", "耗时 2 ms", "耗时 1 ms", "耗时 0.80 ms"]) {
+      expect(markup).toContain(duration);
+    }
+    expect(markup).not.toContain("elfie-mock ·");
+    expect(markup).not.toContain("Host 解析</small>");
+    expect(markup).not.toContain("Memory Recall");
+    expect(markup).not.toContain("Observations");
   });
 
   it("keeps delivery as a child of governance", () => {
@@ -604,6 +638,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("待记忆经历");
     expect(markup).toContain("精简经历");
     expect(markup).toContain("已保存");
+    expect(markup).not.toContain('<article class="trace-memory-point"><dl class="trace-fields">');
     expect(markup).toContain('aria-label="历史交互"');
     expect(markup).not.toContain("当前消息正文");
     expect(markup).not.toContain("当前回复正文");

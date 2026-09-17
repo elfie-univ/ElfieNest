@@ -125,6 +125,15 @@ function formatDuration(value: unknown): string {
   return value < 1000 ? `${value < 1 ? value.toFixed(2) : Math.round(value)} ms` : `${(value / 1000).toFixed(2)} s`;
 }
 
+function durationMeta(node: TraceNode): string | undefined {
+  const duration = formatDuration(
+    node.duration_ms
+      ?? record(node.timing).duration_ms
+      ?? record(node.output).duration_ms,
+  );
+  return duration === "未记录" ? undefined : `耗时 ${duration}`;
+}
+
 // Guard legacy receipts persisted before the lab's clock was anchored away
 // from the UNIX epoch; their 1970-era timestamps render as "未记录".
 const epochishYearCutoff = 1971;
@@ -476,7 +485,7 @@ function BlockList({ items, omit = [] }: Readonly<{ readonly items: readonly unk
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
     const point = record(value);
-    return <article className="trace-memory-point" key={`${String(point.summary_id ?? point.candidate_id ?? point.event_id ?? point.target_id ?? "item")}-${index}`}><Fields values={point} omit={omit} /></article>;
+    return <Fields key={`${String(point.summary_id ?? point.candidate_id ?? point.event_id ?? point.target_id ?? "item")}-${index}`} values={point} omit={omit} />;
   })}</div>;
 }
 
@@ -836,14 +845,12 @@ function WorkspaceSummaryList({ items }: Readonly<{ readonly items: readonly unk
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
     const summary = record(value);
-    return <article className="trace-memory-point" key={`${String(summary.summary_id ?? "summary")}-${index}`}>
-      <Fields values={{
+    return <Fields key={`${String(summary.summary_id ?? "summary")}-${index}`} values={{
         occurred_from: summary.occurred_from,
         occurred_to: summary.occurred_to,
         content: summary.content,
         unresolved_items: summary.unresolved_items,
-      }} />
-    </article>;
+      }} />;
   })}</div>;
 }
 
@@ -851,16 +858,14 @@ function WorkspaceStateList({ items }: Readonly<{ readonly items: readonly unkno
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
     const state = record(value);
-    return <article className="trace-memory-point" key={`workspace-state-${index}`}>
-      <Fields values={{
+    return <Fields key={`workspace-state-${index}`} values={{
         state: state.state,
         participants: state.participants,
         started_at: state.started_at,
         last_activity_at: state.last_activity_at,
         topic_message_count: state.message_count,
         summary_count: state.summary_count,
-      }} />
-    </article>;
+      }} />;
   })}</div>;
 }
 
@@ -868,16 +873,14 @@ function WorkspacePendingReplyList({ items }: Readonly<{ readonly items: readonl
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
     const reply = record(value);
-    return <article className="trace-memory-point" key={`pending-reply-${index}`}>
-      <Fields values={{
+    return <Fields key={`pending-reply-${index}`} values={{
         status: reply.status,
         channel_id: reply.channel_id,
         conversation_id: reply.conversation_id,
         content: reply.content,
         prepared_at: reply.prepared_at,
         memory_eligible: reply.memory_eligible,
-      }} />
-    </article>;
+      }} />;
   })}</div>;
 }
 
@@ -885,8 +888,7 @@ function WorkspacePendingMemoryList({ items }: Readonly<{ readonly items: readon
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
     const episode = record(value);
-    return <article className="trace-memory-point" key={`pending-memory-${index}`}>
-      <Fields values={{
+    return <Fields key={`pending-memory-${index}`} values={{
         status: episode.status,
         event_kind: episode.event_kind,
         occurred_from: episode.occurred_from,
@@ -896,8 +898,7 @@ function WorkspacePendingMemoryList({ items }: Readonly<{ readonly items: readon
         stimulus: episode.stimulus,
         sensory: episode.sensory,
         metadata: episode.metadata,
-      }} />
-    </article>;
+      }} />;
   })}</div>;
 }
 
@@ -1301,7 +1302,7 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
   const availableSkills = capabilities.available_skills;
   const output = record(call.output);
   const parsed = output.parsed_result;
-  return <article className="trace-model-call">
+  return <>
     <section className="trace-evidence"><h4>有效参数</h4><Fields values={modelCallParameters(call)} /></section>
     {hasContent(responseSchema) ? <Evidence title="响应结构定义" value={responseSchema} /> : null}
     {hasContent(toolDefinitions) ? <Evidence title="工具定义" value={toolDefinitions} /> : null}
@@ -1311,22 +1312,11 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
     <Evidence title="模型原始输出" value={call.response ?? output.response} />
     {hasContent(parsed) ? <Evidence title="模型结果（Host 解析）" value={parsed} /> : <div className="trace-unavailable"><span>模型结果（Host 解析）</span><Status value="unavailable" /></div>}
     {hasContent(call.provider_raw) ? <Evidence title="Provider 原始包" value={call.provider_raw} /> : null}
-  </article>;
+  </>;
 }
 
 function modelCallMeta(call: TraceNode): string | undefined {
-  const effective = record(call.effective_parameters);
-  const output = record(call.output);
-  const provider = effective.provider ?? output.provider;
-  const fullModel = String(effective.model ?? output.model ?? "");
-  const duration = formatDuration(call.duration_ms);
-  // Show only the short model label (last path segment) in the trigger meta;
-  // the full provider/model identity is in the expanded body's 有效参数
-  // section. The trigger title "Model Call" must stay fully visible, so meta
-  // is kept compact.
-  const shortModel = fullModel.includes("/") ? fullModel.split("/").pop() ?? fullModel : fullModel;
-  const modelPart = shortModel || (provider ? String(provider) : "");
-  return [modelPart, duration === "未记录" ? "" : duration].filter(Boolean).join(" · ") || undefined;
+  return durationMeta(call);
 }
 
 function ModelCall({
@@ -1343,7 +1333,7 @@ function ModelCall({
   return <TraceDisclosure
     id={id}
     number={String(call.number ?? "")}
-    title="Model Call"
+    title="模型调用"
     meta={modelCallMeta(call)}
     onToggle={onToggle}
     open={open}
@@ -1391,7 +1381,8 @@ function ContextBuild({
   return <TraceDisclosure
     id={id}
     number={String(build.number ?? "")}
-    title="Context Build"
+    title="上下文构建"
+    meta={durationMeta(build)}
     onToggle={onToggle}
     open={open}
     raw={build.raw ?? build}
@@ -1423,21 +1414,6 @@ function reasoningOverview(node: TraceNode): JsonRecord {
     skill_calls: output.skill_calls ?? "未采集",
     run_reason: hasContent(reason) ? reason : undefined,
   };
-}
-
-const COGNITIVE_ACTION_LABELS: Readonly<Record<string, string>> = {
-  recall_memory: "回忆记忆",
-  answer: "回答草稿",
-  clarification: "澄清草稿",
-  noop: "无操作草稿",
-};
-
-function cognitiveActionMeta(action: TraceNode): string | undefined {
-  const output = record(action.output);
-  const type = typeof output.type === "string" ? output.type : "";
-  if (!type) return "Host 解析";
-  const label = COGNITIVE_ACTION_LABELS[type] ?? type;
-  return `${label} · Host 解析`;
 }
 
 function GuardBody({ guard }: Readonly<{ readonly guard: TraceNode }>): React.JSX.Element {
@@ -1495,13 +1471,13 @@ function StepList({
     const step = record(value);
     const id = `${idPrefix}-${String(step.ordinal ?? index)}`;
     const fallback = completion && ["fallback", "safe_noop"].includes(statusOf(step.status));
-    const itemTitle = completion ? (fallback ? "终止回退" : "完成判定") : step.operation === "memory_recall" ? "Memory Recall" : String(step.operation ?? step.kind ?? `Step ${index + 1}`);
+    const itemTitle = completion ? (fallback ? "终止回退" : "完成判定") : step.operation === "memory_recall" ? "记忆召回" : String(step.operation ?? step.kind ?? `步骤 ${index + 1}`);
     return <TraceDisclosure
       id={id}
       key={id}
       number={`${numberPrefix}.${numberStart + index}`}
       title={itemTitle}
-      meta={undefined}
+      meta={durationMeta(step)}
       onToggle={onToggle}
       open={openChildren.has(id)}
       raw={step}
@@ -1539,7 +1515,8 @@ function ObservationStage({
   return <TraceDisclosure
     id={id}
     number={String(effectiveStage.number ?? "")}
-    title="Observations"
+    title="观察记录"
+    meta={durationMeta(stage ?? {})}
     onToggle={onToggle}
     open={open}
     raw={effectiveStage.raw ?? effectiveStage}
@@ -1599,8 +1576,8 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
         {hasContent(action) ? <TraceDisclosure
           id={`${iterationId}-action`}
           number={`${String(iteration.number)}.3`}
-          title="Cognitive Action"
-          meta={cognitiveActionMeta(record(action))}
+          title="认知行动"
+          meta={durationMeta(action)}
           onToggle={toggle}
           open={openChildren.has(`${iterationId}-action`)}
           raw={action.raw ?? action}
@@ -1629,8 +1606,8 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
         {hasContent(guard) ? <TraceDisclosure
           id={`${iterationId}-guard`}
           number={guard.number ? String(guard.number) : guardNumber}
-          title="Guard"
-          meta={String(record(guard.output).decision ?? "") || undefined}
+          title="守卫判断"
+          meta={durationMeta(guard)}
           onToggle={toggle}
           open={openChildren.has(`${iterationId}-guard`)}
           raw={guard.raw ?? guard}
