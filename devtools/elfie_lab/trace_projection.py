@@ -490,6 +490,54 @@ def _routing_block(
     }
 
 
+_RECEIPT_FAILURE_STATUSES = frozenset(
+    {"rejected", "failed", "interrupted", "timed_out", "cancelled"}
+)
+
+
+def _receipt_lifecycle_projection(receipts: Sequence[Any]) -> List[Dict[str, Any]]:
+    """Collapse one intent's accepted/started/completed receipts into one row.
+
+    The raw receipt list remains lossless in ``output.receipts`` and ``raw``.
+    This projection is only the human-facing summary: opaque receipt/intent
+    identifiers are deliberately used as grouping keys but never emitted.
+    """
+    groups: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    order: List[Tuple[str, str]] = []
+    for index, value in enumerate(receipts):
+        receipt = _mapping(value)
+        executor = str(receipt.get("executor") or "unknown")
+        intent_id = str(receipt.get("intent_id") or f"receipt-{index}")
+        key = (intent_id, executor)
+        group = groups.get(key)
+        if group is None:
+            group = {
+                "executor": executor,
+                "lifecycle": [],
+                "latest_status": None,
+                "error": None,
+            }
+            groups[key] = group
+            order.append(key)
+        status = receipt.get("status")
+        if status is not None:
+            group["lifecycle"].append(str(status))
+            group["latest_status"] = str(status)
+        if receipt.get("error") is not None:
+            group["error"] = receipt.get("error")
+    return [groups[key] for key in order]
+
+
+def _route_result(routing: Optional[Mapping[str, Any]]) -> str:
+    """Keep routing outcome distinct from delivery/result success."""
+    routed = routing.get("routed") if routing is not None else None
+    if routed is True:
+        return "routed"
+    if routed is False:
+        return "not_routed"
+    return "unavailable"
+
+
 def _activity_preflight_block(
     observations: Sequence[BrainObservation],
     *,
@@ -2380,20 +2428,14 @@ def _governance_stage(
     activity_request = _activity_request_projection(
         activity_intents, activity_preflight
     )
+    receipt_lifecycle = _receipt_lifecycle_projection(receipts)
     receipt_statuses = [
-        str(_mapping(receipt).get("status"))
-        for receipt in receipts
-        if _mapping(receipt).get("status") is not None
+        str(group["latest_status"])
+        for group in receipt_lifecycle
+        if group.get("latest_status") is not None
     ]
-    failure_statuses = {
-        "rejected",
-        "failed",
-        "interrupted",
-        "timed_out",
-        "cancelled",
-    }
     if result.get("success") is False or any(
-        status in failure_statuses for status in receipt_statuses
+        status in _RECEIPT_FAILURE_STATUSES for status in receipt_statuses
     ):
         status = "failed"
     elif receipt_statuses and all(status == "completed" for status in receipt_statuses):
@@ -2421,7 +2463,9 @@ def _governance_stage(
         "output": {
             "result": dict(result),
             "receipts": list(receipts),
+            "receipt_lifecycle": receipt_lifecycle,
             "activity_proposals": activity_intents,
+            "route_result": _route_result(routing),
         },
         "routing": dict(routing) if routing is not None else None,
         "activity_request": activity_request,
@@ -2463,6 +2507,42 @@ def _activity_request_projection(
     }
 
 
+_VISIBLE_STATE_DIFF_KEYS = (
+    "energy",
+    "fatigue",
+    "primary_emotion",
+    "cognitive_mode",
+    "normal_budget_available",
+    "emergency_reserve_available",
+    "reserved_cognitive_budget",
+    "is_sleeping",
+    "sleeping",
+)
+
+
+def _visible_state_diff(state_diff: Mapping[str, Any]) -> Dict[str, Any]:
+    """Keep only user-facing settlement changes in the default projection.
+
+    ``raw.state_diff`` remains the complete persistence comparison.  The
+    default stage output is intentionally an allowlist so revisions, capture
+    timestamps, journal counters, orientation IDs and other bookkeeping do not
+    masquerade as meaningful state changes.
+    """
+    visible: Dict[str, Any] = {}
+    for key in _VISIBLE_STATE_DIFF_KEYS:
+        if key in state_diff:
+            value = state_diff[key]
+            visible[key] = dict(value) if isinstance(value, Mapping) else value
+    # ``available_cognitive_budget`` is a legacy state name.  Show it only
+    # when the canonical energy value is absent, avoiding a duplicate row.
+    if "energy" not in state_diff and "available_cognitive_budget" in state_diff:
+        value = state_diff["available_cognitive_budget"]
+        visible["available_cognitive_budget"] = (
+            dict(value) if isinstance(value, Mapping) else value
+        )
+    return visible
+
+
 def _settlement_stage(
     *,
     turn_id: str,
@@ -2482,13 +2562,7 @@ def _settlement_stage(
     cognitive_status = str(cognitive_turn.get("status") or "")
     if cognitive_status in {"failed", "timed_out", "stale", "cancelled"}:
         status = "failed"
-    elif (
-        state_after
-        or cognitive_status
-        or memory_writeback
-        or emotion_changes
-        or energy_settlement
-    ):
+    elif state_after or memory_writeback or emotion_changes or energy_settlement:
         status = "settled"
     else:
         status = "unavailable"
@@ -2507,7 +2581,7 @@ def _settlement_stage(
             "recorded_turn_id": turn_id,
             "duration_ms": duration_ms,
             "state_after": dict(state_after),
-            "state_diff": dict(state_diff),
+            "state_diff": _visible_state_diff(state_diff),
             "warnings": warning_list,
             "cognitive_turn": dict(cognitive_turn),
         },

@@ -554,10 +554,36 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).toContain("治理与交付");
     expect(markup).toContain("交付摘要");
-    expect(markup).toContain("执行回执");
+    expect(markup).toContain("交付回执");
     expect(markup).not.toContain("6.1");
     expect(markup).not.toContain("Delivery / Activity request");
     expect(markup).not.toContain("Activity 请求");
+  });
+
+  it("shows an explicit routing result and one readable row per receipt lifecycle", () => {
+    const enriched = withChainNodes({
+      5: (node) => ({
+        ...node,
+        routing: { routed: false, response_domain: "communication", memory_eligible: false },
+        output: {
+          ...(node.output as FixtureNode),
+          receipt_lifecycle: [{ executor: "communication", lifecycle: ["accepted", "started", "completed"], latest_status: "completed" }],
+          receipts: [
+            { receipt_id: "receipt-accepted", intent_id: "intent-1", executor: "communication", status: "accepted" },
+            { receipt_id: "receipt-started", intent_id: "intent-1", executor: "communication", status: "started" },
+            { receipt_id: "receipt-completed", intent_id: "intent-1", executor: "communication", status: "completed" },
+          ],
+        },
+      }),
+    });
+    const markup = renderInspector("链路", enriched, "output", ["governance_delivery"]);
+
+    expect(markup).toContain("路由结果");
+    expect(markup).toContain("未路由");
+    expect(markup).toContain("交付回执");
+    expect(markup).toContain("已接受 → 已开始 → 已完成");
+    expect(markup.match(/<article class="trace-receipt">/g) ?? []).toHaveLength(1);
+    expect(markup).not.toContain("receipt-accepted");
   });
 
   it("shows the formed decision content without exposing plan or intent IDs", () => {
@@ -691,7 +717,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("conversation-dawn");
 
     const plain = renderInspector("链路", turn, "chain", ["event_admission", "context_workspace", "governance_delivery", "settlement"]);
-    for (const title of ["上下文分区", "历史交互", "压缩摘要", "路由", "<strong>记忆写回</strong>", "情绪候选", "认知预算结算", "处理方式", "进入推理时冻结状态"]) {
+    for (const title of ["上下文分区", "历史交互", "压缩摘要", "<strong>记忆写回</strong>", "情绪候选", "认知预算结算", "处理方式", "进入推理时冻结状态"]) {
       expect(plain).not.toContain(title);
     }
   });
@@ -961,11 +987,27 @@ describe("Elfie Lab Turn Inspector", () => {
     const markup = renderInspector("链路", enriched, "chain", ["settlement"]);
 
     expect(markup).toContain("94.9 → 94.91");
-    expect(markup).toContain("认知整理 版本");
-    expect(markup).toContain("3 → 4");
-    expect(markup).toContain("定位 新鲜度");
-    expect(markup).toContain("unknown → current");
+    expect(markup).not.toContain("认知整理 版本");
+    expect(markup).not.toContain("3 → 4");
+    expect(markup).not.toContain("定位 新鲜度");
+    expect(markup).not.toContain("unknown → current");
     expect(markup).not.toContain('"before"');
     expect(markup).not.toContain('"after"');
+  });
+
+  it("does not show an unchanged emotion candidate as a settlement disclosure", () => {
+    const enriched = withChainNodes({
+      6: (node) => ({
+        ...node,
+        emotion_changes: {
+          stage: "fast",
+          changed_dimensions: [],
+          dimensions: [{ name: "happiness", before: 0.5, after: 0.5 }],
+        },
+      }),
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["settlement"]);
+
+    expect(markup).not.toContain("情绪候选");
   });
 });

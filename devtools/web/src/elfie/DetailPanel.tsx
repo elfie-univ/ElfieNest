@@ -177,6 +177,10 @@ function fieldLabel(key: string): string {
     speech: "实际回复",
     result_status: "交付状态",
     target_domain: "目标域",
+    route_result: "路由结果",
+    executor: "执行通道",
+    lifecycle: "生命周期",
+    latest_status: "最新状态",
     preflight_status: "预检结果",
     step_count: "步骤数",
     goal: "目标",
@@ -598,6 +602,12 @@ const routeLabels: Readonly<Record<string, string>> = {
   no_reply: "不回复",
 };
 
+const routeResultLabels: Readonly<Record<string, string>> = {
+  routed: "已路由",
+  not_routed: "未路由",
+  unavailable: "未采集",
+};
+
 const executorLabels: Readonly<Record<string, string>> = {
   body: "身体通道",
   communication: "消息通道",
@@ -629,6 +639,12 @@ function displayFieldValue(key: string, value: unknown): unknown {
   }
   if (key === "routed" && typeof value === "string") {
     return routeLabels[value] ?? value;
+  }
+  if (key === "route_result" && typeof value === "string") {
+    return routeResultLabels[value] ?? value;
+  }
+  if (key === "lifecycle" && Array.isArray(value)) {
+    return value.map(statusLabel).join(" → ");
   }
   if (key === "interaction_scope_kind" && typeof value === "string") {
     return scopeKindLabels[value] ?? value;
@@ -739,6 +755,17 @@ function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonl
 
 const compactIdLength = 14;
 const noisyDiffKeys: ReadonlySet<string> = new Set(["captured_at", "unknown_fields"]);
+const visibleStateDiffKeys: ReadonlySet<string> = new Set([
+  "energy",
+  "fatigue",
+  "primary_emotion",
+  "cognitive_mode",
+  "normal_budget_available",
+  "emergency_reserve_available",
+  "reserved_cognitive_budget",
+  "is_sleeping",
+  "sleeping",
+]);
 const stateDiffInternalKeys: ReadonlySet<string> = new Set([
   "id",
   "turn_id",
@@ -807,7 +834,9 @@ function readableStateDiff(value: unknown, path = ""): JsonRecord {
     return { [path || "状态"]: diffLeafText(source) };
   }
   const rows: JsonRecord = {};
+  const allowLegacyBudget = !path && source.energy === undefined && source.available_cognitive_budget !== undefined;
   for (const [key, child] of Object.entries(source)) {
+    if (!path && !visibleStateDiffKeys.has(key) && !(allowLegacyBudget && key === "available_cognitive_budget")) continue;
     if (noisyDiffKeys.has(key) || stateDiffInternalKeys.has(key)) continue;
     Object.assign(rows, readableStateDiff(child, path ? `${path} ${fieldLabel(key)}` : fieldLabel(key)));
   }
@@ -922,13 +951,39 @@ function DecisionEvidence({ output }: Readonly<{ readonly output: JsonRecord }>)
   }))}</div></section>;
 }
 
-function ReceiptEvidence({ receipts }: Readonly<{ readonly receipts: readonly unknown[] }>): React.JSX.Element | null {
-  if (!receipts.length) return null;
-  return <section className="trace-evidence"><h4>执行回执</h4><div className="trace-receipt-list">{receipts.map((value, index) => {
+function receiptLifecycleRows(receipts: readonly unknown[]): readonly JsonRecord[] {
+  const groups = new Map<string, JsonRecord>();
+  for (const [index, value] of receipts.entries()) {
     const receipt = record(value);
-    const executor = hasContent(receipt.executor) ? String(receipt.executor) : "未提供执行器";
-    const details = { occurred_at: occurredAtValue(receipt.occurred_at), error: receipt.error };
-    return <article className="trace-receipt" key={`${String(receipt.status ?? "receipt")}-${index}`}><header><strong>{executorLabels[executor] ?? executor}</strong><Status value={receipt.status} /></header>{hasVisibleFields(details) ? <Fields values={details} /> : null}</article>;
+    const executor = hasContent(receipt.executor) ? String(receipt.executor) : "unknown";
+    const intentId = hasContent(receipt.intent_id) ? String(receipt.intent_id) : `receipt-${index}`;
+    const key = `${intentId}:${executor}`;
+    const current = groups.get(key) ?? { executor, lifecycle: [], latest_status: undefined, error: undefined };
+    const lifecycle = Array.isArray(current.lifecycle) ? [...current.lifecycle] : [];
+    if (hasContent(receipt.status)) lifecycle.push(receipt.status);
+    groups.set(key, {
+      ...current,
+      lifecycle,
+      latest_status: hasContent(receipt.status) ? receipt.status : current.latest_status,
+      error: hasContent(receipt.error) ? receipt.error : current.error,
+    });
+  }
+  return [...groups.values()];
+}
+
+function ReceiptEvidence({
+  receipts,
+  lifecycle,
+}: Readonly<{
+  readonly receipts: readonly unknown[];
+  readonly lifecycle?: readonly unknown[];
+}>): React.JSX.Element | null {
+  const rows = lifecycle?.length ? lifecycle.map(record) : receiptLifecycleRows(receipts);
+  if (!rows.length) return null;
+  return <section className="trace-evidence"><h4>交付回执</h4><div className="trace-receipt-list">{rows.map((receipt, index) => {
+    const executor = hasContent(receipt.executor) ? String(receipt.executor) : "unknown";
+    const details = { lifecycle: receipt.lifecycle, error: receipt.error };
+    return <article className="trace-receipt" key={`${executor}-${String(receipt.latest_status ?? index)}-${index}`}><header><strong>{executorLabels[executor] ?? "未提供执行器"}</strong><Status value={receipt.latest_status} /></header>{hasVisibleFields(details) ? <Fields values={details} /> : null}</article>;
   })}</div></section>;
 }
 
@@ -1385,6 +1440,30 @@ function stageTitle(node: TraceNode): string {
   return stageTitleLabels[id] ?? String(node.title ?? node.id ?? "未命名阶段");
 }
 
+function displayStageStatus(node: TraceNode): TraceStatus {
+  const id = String(node.id ?? "");
+  const rawStatus = statusOf(node.status);
+  const output = record(node.output);
+  if (id === "governance_delivery") {
+    if (record(output.result).success === false) return "failed";
+    const lifecycle = list(output.receipt_lifecycle).map(record);
+    const statuses = lifecycle.length
+      ? lifecycle.map((item) => statusOf(item.latest_status))
+      : receiptLifecycleRows(list(output.receipts)).map((item) => statusOf(item.latest_status));
+    if (statuses.some((status) => ["rejected", "failed", "interrupted", "timed_out", "cancelled"].includes(status))) return "failed";
+    if (statuses.length && statuses.every((status) => status === "completed")) return "completed";
+    if (statuses.length) return "waiting_receipt";
+    if (record(output.result).success === true) return "completed";
+  }
+  if (id === "settlement") {
+    const cognitiveStatus = statusOf(record(output.cognitive_turn).status);
+    if (["failed", "timed_out", "stale", "cancelled"].includes(cognitiveStatus)) return "failed";
+    if (hasContent(output.state_after) || hasContent(node.memory_writeback) || hasContent(node.emotion_changes) || hasContent(node.energy_settlement)) return "settled";
+    if (rawStatus === "settled" || rawStatus === "completed") return "unavailable";
+  }
+  return rawStatus;
+}
+
 function stageAnomaly(node: TraceNode): string {
   const id = String(node.id ?? "");
   const output = record(node.output);
@@ -1399,13 +1478,13 @@ function stageAnomaly(node: TraceNode): string {
   }
   if (id === "governance_delivery") {
     if (record(output.result).success === false) return "交付失败";
-    if (statusOf(node.status) === "failed") return "交付失败";
+    if (displayStageStatus(node) === "failed") return "交付失败";
   }
   if (id === "settlement") {
     const warningCount = list(output.warnings).length;
     if (warningCount > 0) return `warning ${warningCount}`;
   }
-  const status = statusOf(node.status);
+  const status = displayStageStatus(node);
   if (status === "failed" || status === "degraded" || status === "skipped") {
     const reason = [output.failure_reason, output.error_code].find(hasContent);
     return reason ? String(readableReason(reason)) : stageAnomalyLabels[status] ?? status;
@@ -2153,12 +2232,20 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
   const receipts = list(output.receipts);
   const routing = record(node.routing);
   const activityRequest = record(node.activity_request);
+  const receiptLifecycle = list(output.receipt_lifecycle);
   const activityRequests = list(activityRequest.requests).map(record);
   const preflight = record(activityRequest.preflight);
   const preflightVerdicts = list(preflight.verdicts).map(record);
-  const actualReply = result.speech ?? result.message;
+  const actualReply = [result.speech, result.message].find(hasContent);
   const resultSummary = {
     target_domain: routing.response_domain ?? routing.interaction_scope_kind,
+    route_result: hasContent(output.route_result)
+      ? output.route_result
+      : routing.routed === true
+        ? "routed"
+        : routing.routed === false
+          ? "not_routed"
+          : "unavailable",
     routed: routing.routed,
     result_status: result.success === true
       ? "completed"
@@ -2173,7 +2260,7 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
   };
   return <>
     <Evidence title="交付摘要" value={resultSummary} />
-    <ReceiptEvidence receipts={receipts} />
+    <ReceiptEvidence lifecycle={receiptLifecycle} receipts={receipts} />
     {hasVisibleFields(routing, ["routed", "memory_eligible"]) ? <section className="trace-evidence"><h4>路由</h4><Fields values={routing} omit={["routed", "memory_eligible"]} /></section> : null}
     {hasContent(activityRequest) ? <section className="trace-evidence"><h4>Activity 请求</h4>
       <div className="trace-memory-list">
@@ -2218,6 +2305,15 @@ function writebackStatus(writeback: JsonRecord): string {
   if (commits.length && commits.every((item) => ["committed", "duplicate"].includes(String(item.status)))) return "committed";
   if (commits.some((item) => ["rejected", "stale", "failed"].includes(String(item.status)))) return "failed";
   return "candidate";
+}
+
+function hasMeaningfulEmotionChange(changes: JsonRecord): boolean {
+  if (list(changes.changed_dimensions).length > 0) return true;
+  return list(changes.dimensions).some((value) => {
+    const dimension = record(value);
+    if (!hasContent(dimension.before) && !hasContent(dimension.after)) return false;
+    return JSON.stringify(dimension.before) !== JSON.stringify(dimension.after);
+  });
 }
 
 function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
@@ -2270,6 +2366,7 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   const cognitiveStatus = statusOf(cognitiveTurn.status);
   const cognitiveException = cognitiveStatus !== "unavailable" && cognitiveStatus !== "completed";
   const memoryStatus = writebackStatus(writeback);
+  const showEmotionChanges = hasContent(emotionChanges) && hasMeaningfulEmotionChange(emotionChanges);
   return <>
     {list(output.warnings).length ? <Evidence title="警告" value={output.warnings} /> : null}
     {hasStateDiff ? <Evidence title="本轮状态变化" value={stateDiffRows} /> : <Evidence title="结算后关键状态" value={stateCore} />}
@@ -2284,7 +2381,7 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
     >
       <WritebackBody writeback={writeback} />
     </TraceDisclosure> : null}
-    {hasContent(emotionChanges) ? <TraceDisclosure
+    {showEmotionChanges ? <TraceDisclosure
       id={emotionId}
       title="情绪候选"
       onToggle={toggle}
@@ -2348,7 +2445,7 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
       <button aria-expanded={open} className="trace-node-trigger" title={stageTip} onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{stageTitle(node)}</strong><small>{nodeMeta(node)}</small></span>
-        <span className="trace-node-aside"><Status value={node.status} /></span>
+        <span className="trace-node-aside"><Status value={displayStageStatus(node)} /></span>
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>
     </div>

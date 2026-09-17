@@ -1861,6 +1861,99 @@ def test_governance_projects_the_decision_routing_block():
     }
 
 
+def test_governance_groups_receipt_lifecycle_and_uses_latest_status():
+    receipts = [
+        {
+            "receipt_id": "receipt-accepted",
+            "intent_id": "intent-1",
+            "executor": "communication",
+            "status": "accepted",
+        },
+        {
+            "receipt_id": "receipt-started",
+            "intent_id": "intent-1",
+            "executor": "communication",
+            "status": "started",
+        },
+        {
+            "receipt_id": "receipt-completed",
+            "intent_id": "intent-1",
+            "executor": "communication",
+            "status": "completed",
+        },
+    ]
+    trace = build_observability_trace(
+        turn_id="turn-receipt-lifecycle",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "completed"}, "output_receipts": receipts},
+        result={"success": True},
+        decision={"message_texts": ["你好"]},
+        duration_ms=30,
+    )
+
+    governance = trace["chain"][5]
+    assert governance["status"] == "completed"
+    assert governance["output"]["receipt_lifecycle"] == [
+        {
+            "executor": "communication",
+            "lifecycle": ["accepted", "started", "completed"],
+            "latest_status": "completed",
+            "error": None,
+        }
+    ]
+    assert governance["output"]["receipts"] == receipts
+
+
+def test_settlement_default_state_diff_is_allowlisted_but_raw_diff_stays_complete():
+    full_diff = {
+        "energy": {"before": 90.0, "after": 89.0},
+        "fatigue": {"before": 0.1, "after": 0.2},
+        "cognitive_consolidation": {"revision": {"before": 1, "after": 2}},
+        "orientation": {"freshness": {"before": "unknown", "after": "current"}},
+        "journal": {"entry_count": {"before": 1, "after": 2}},
+    }
+    trace = build_observability_trace(
+        turn_id="turn-state-diff",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={"energy": 89.0},
+        state_diff=full_diff,
+        raw_stages={"reasoning": {"status": "completed"}},
+        result={"success": True},
+        decision={},
+        duration_ms=30,
+    )
+
+    settlement = trace["chain"][6]
+    assert settlement["output"]["state_diff"] == {
+        "energy": {"before": 90.0, "after": 89.0},
+        "fatigue": {"before": 0.1, "after": 0.2},
+    }
+    assert settlement["raw"]["state_diff"] == full_diff
+
+
+def test_settlement_does_not_claim_settled_from_cognitive_status_alone():
+    trace = build_observability_trace(
+        turn_id="turn-no-settlement-evidence",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "reasoning": {"status": "completed"},
+            "cognitive_turn": {"status": "completed"},
+        },
+        result={"success": True},
+        decision={},
+        duration_ms=30,
+    )
+
+    assert trace["chain"][6]["status"] == "unavailable"
+
+
 def test_settlement_projects_memory_writeback_emotion_and_energy_blocks():
     budget = EnergyBudgetStateObservation(
         energy=90.0,
