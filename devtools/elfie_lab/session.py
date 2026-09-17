@@ -237,6 +237,11 @@ class ElfieLabSession:
                 error = type(exc).__name__
                 result = {
                     "success": False,
+                    "message": (
+                        "当前模型不可用，请检查粮食配置或切换可用粮食。"
+                        if error == "NoAvailableFoodError"
+                        else "本轮处理失败，请查看右侧检查器。"
+                    ),
                     "reason": "调试回合执行失败",
                     "error": error,
                 }

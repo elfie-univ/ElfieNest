@@ -18,6 +18,7 @@ import {
 import {
   selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
+  latestSuccessfulFoodKey,
   type DetailFocus,
 } from "./viewModel";
 import "./legacy.css";
@@ -81,14 +82,16 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
     const sharedSubscriptions = subscriptionCatalog?.items ?? [];
     setModelSubscriptions(sharedSubscriptions);
     setReviewerSubscriptions(sharedSubscriptions.filter((item) => item.supports_reviewer));
-    setFood((current) => selectReadyFoodAfterLoad(current, nextFoods));
     if (catalog !== null) setRuntimeWarning("");
     const selected = selectElfieIdAfterLoad(
       id,
       sessionRef.current?.elfie_id,
       elfies.items[0]?.elfie_id,
     );
-    setSession(selected === undefined ? null : await requestJson(`elfies/${encodeURIComponent(selected)}`, sessionSchema));
+    const nextSession = selected === undefined ? null : await requestJson(`elfies/${encodeURIComponent(selected)}`, sessionSchema);
+    const lastSuccessfulFood = nextSession === null ? "" : latestSuccessfulFoodKey(nextSession.turns);
+    setFood((current) => selectReadyFoodAfterLoad(current, nextFoods, lastSuccessfulFood));
+    setSession(nextSession);
   }
   useEffect(() => { void load().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "加载失败")); }, []);
 
@@ -246,7 +249,9 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
       setDetailFocus("output");
       setDetailTab("摘要");
       setDetailOpen(true);
-      setNotice("刺激已发送，结果已加入时间线。");
+      setNotice(turn.result.success === false
+        ? "刺激已接收，但本轮处理失败，请查看右侧检查器。"
+        : "刺激已发送，结果已加入时间线。");
       return true;
     } catch (error) {
       setPending(null);

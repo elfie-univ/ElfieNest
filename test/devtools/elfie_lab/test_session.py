@@ -8,6 +8,7 @@ from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.turn_summary import turn_model_call_observations
 from elfie.brain.memory.memory_records import ClosedEpisode
+from elfie.brain.reasoning.food_port import NoAvailableFoodError
 from elfie.diagnostics import ElfieDiagnostics
 
 
@@ -438,6 +439,24 @@ def test_failed_turn_does_not_persist_exception_secrets_or_paths(
     assert turn["error"] == "RuntimeError"
     assert "sk-sensitive-secret" not in persisted
     assert str(tmp_path) not in persisted
+
+
+def test_unavailable_food_turn_exposes_a_safe_actionable_message(
+    tmp_path, session_factory, monkeypatch
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("粮食不可用提示")
+    session = session_factory(spec, storage)
+
+    def fail_runtime(_food_key, _config_dir, **_kwargs):
+        raise NoAvailableFoodError()
+
+    monkeypatch.setattr(session_module, "create_model_execution", fail_runtime)
+
+    turn = session.run_turn(StimulusBundle(message="触发模型不可用"), "food-test")
+
+    assert turn["result"]["success"] is False
+    assert turn["result"]["message"] == "当前模型不可用，请检查粮食配置或切换可用粮食。"
 
 
 def test_mock_turn_yields_model_call_envelopes_behind_the_summary(

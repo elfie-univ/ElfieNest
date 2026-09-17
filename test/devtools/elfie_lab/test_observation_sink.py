@@ -43,6 +43,7 @@ def test_lab_session_forwards_single_observation_sink(tmp_path):
         "recall_started",
         "recall_result",
         "compiled_context",
+        "context_frozen",
         "context_trimmed",
         "model_call",
         "orientation_snapshot",
