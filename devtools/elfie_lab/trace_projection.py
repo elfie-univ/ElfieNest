@@ -136,17 +136,22 @@ _STAGE_EVENT_MEMBERS: Dict[str, Tuple[Tuple[str, Tuple[str, ...]], ...]] = {
 def _stage_duration(
     observations: Sequence[BrainObservation],
     boundaries_and_kinds: Sequence[Tuple[str, Tuple[str, ...]]],
+    *,
+    frame_id: Any = None,
 ) -> Optional[float]:
     """Sum the measured ``duration_ms`` of one stage's member envelopes.
 
     Read-only over the envelopes the Brain already recorded: no duration
     is re-measured or inferred.  A member event without a measured
     duration contributes zero, and a stage with no member events at all
-    reports ``None`` so the frontend renders the honest "未记录".
+    reports ``None`` so the frontend renders the honest "未记录".  When the
+    turn frame is known, a different frame is never allowed to contribute a
+    duration to this turn's header.
     """
     member_durations = [
         event.duration_ms
         for event in observations
+        if (not frame_id or str(event.frame_id) == str(frame_id))
         if any(
             event.boundary == boundary and event.kind in kinds
             for boundary, kinds in boundaries_and_kinds
@@ -211,12 +216,15 @@ def _turn_context_trims(
     Uses the same frame scoping as :func:`_turn_compiles` so the positional
     trim↔compile pairing below stays aligned with the compiles list.
     """
-    return _scoped_events(
-        observations,
-        boundary=_CONTEXT_ENGINE_BOUNDARY,
-        kinds=("context_trimmed",),
-        frame_id=frame_id,
-    )
+    events = [
+        event
+        for event in observations
+        if event.boundary == _CONTEXT_ENGINE_BOUNDARY
+        and event.kind == "context_trimmed"
+    ]
+    if frame_id:
+        events = [event for event in events if str(event.frame_id) == str(frame_id)]
+    return events
 
 
 def _admission_block(
@@ -640,15 +648,16 @@ def build_observability_trace(
     compiles = _turn_compiles(observations, frame_id=frame_id)
     trims = _turn_context_trims(observations, frame_id=frame_id)
     model_calls = _turn_model_calls(observations, frame_id=frame_id)
-    completion_events = _scoped_events(
-        observations,
-        boundary="reasoning.completion",
-        kinds=("judge",),
-        frame_id=frame_id,
-    )
+    completion_events = [
+        event
+        for event in observations
+        if event.boundary == "reasoning.completion"
+        and event.kind == "judge"
+        and (not frame_id or str(event.frame_id) == str(frame_id))
+    ]
     first_request = _model_request_view(model_calls[0]) if model_calls else {}
     stage_durations = {
-        stage_id: _stage_duration(observations, members)
+        stage_id: _stage_duration(observations, members, frame_id=frame_id)
         for stage_id, members in _STAGE_EVENT_MEMBERS.items()
     }
 
@@ -674,6 +683,9 @@ def build_observability_trace(
             *_turn_agent_loop_events(observations, frame_id=frame_id),
             *[_event_dump(event) for event in completion_events],
         ],
+        terminal_events=_turn_agent_loop_terminal_events(
+            observations, frame_id=frame_id
+        ),
         compiles=compiles,
         trims=trims,
         duration_ms=stage_durations["reasoning_run"],
@@ -893,9 +905,7 @@ def _turn_compiles(
         and event.kind == "compiled_context"
     ]
     if frame_id:
-        scoped = [event for event in compiles if event.frame_id == frame_id]
-        if scoped:
-            compiles = scoped
+        compiles = [event for event in compiles if str(event.frame_id) == str(frame_id)]
     return compiles
 
 
@@ -917,9 +927,7 @@ def _turn_model_calls(
         if event.boundary == _AGENT_LOOP_BOUNDARY and event.kind == "model_call"
     ]
     if frame_id:
-        scoped = [event for event in events if str(event.frame_id) == str(frame_id)]
-        if scoped:
-            events = scoped
+        events = [event for event in events if str(event.frame_id) == str(frame_id)]
     return [_event_dump(event) for event in events]
 
 
@@ -941,9 +949,24 @@ def _turn_agent_loop_events(
         and event.kind in _AGENT_LOOP_ITERATION_KINDS
     ]
     if frame_id:
-        scoped = [event for event in events if str(event.frame_id) == str(frame_id)]
-        if scoped:
-            events = scoped
+        events = [event for event in events if str(event.frame_id) == str(frame_id)]
+    return [_event_dump(event) for event in events]
+
+
+def _turn_agent_loop_terminal_events(
+    observations: Sequence[BrainObservation],
+    *,
+    frame_id: Any,
+) -> List[Dict[str, Any]]:
+    """Dump run-level agent-loop closure records for raw trace evidence."""
+    events = [
+        event
+        for event in observations
+        if event.boundary == _AGENT_LOOP_BOUNDARY
+        and event.kind in {"guard_stop", "run_failed"}
+    ]
+    if frame_id:
+        events = [event for event in events if str(event.frame_id) == str(frame_id)]
     return [_event_dump(event) for event in events]
 
 
@@ -1641,6 +1664,7 @@ def _reasoning_stage(
     *,
     reasoning: Mapping[str, Any],
     loop_events: Sequence[Mapping[str, Any]],
+    terminal_events: Sequence[Mapping[str, Any]],
     compiles: Sequence[BrainObservation],
     trims: Sequence[BrainObservation],
     duration_ms: Optional[float],
@@ -1678,7 +1702,10 @@ def _reasoning_stage(
         typed_observations = [
             _observation_record_entry(event) for event in bucket.get("observation", ())
         ]
-        observations = steps_observations or typed_observations
+        observations = _merge_observation_records(
+            steps_observations,
+            typed_observations,
+        )
         completions = [
             step for step in group if str(step.get("kind", "")).lower() == "verify"
         ]
@@ -1705,6 +1732,12 @@ def _reasoning_stage(
         )
         context_output: Dict[str, Any] = {}
         if compile_payload is not None:
+            # Keep revisions in the projection for causal correlation and the
+            # raw-record view.  The human-facing Fields/Evidence renderer
+            # filters these internal identifiers; the compiled prompt remains
+            # the visible result of this slot.
+            context_output["context_revision"] = compile_payload.context_revision
+            context_output["capability_revision"] = compile_payload.capability_revision
             context_output["compiled"] = _compiled_summary(compile_payload)
             if compile_payload.system_prompt is not None:
                 context_output["system_prompt"] = compile_payload.system_prompt
@@ -1722,7 +1755,10 @@ def _reasoning_stage(
         # the Cognitive Action card prefers the keyed envelope decode.
         model_call_parsed = steps_result if steps_result is not None else typed_result
         action_parsed = typed_result if typed_result is not None else steps_result
-        guard_number = f"{iteration_number}.{5 + len(completions)}"
+        # The six iteration slots are stable conceptual modules.  Completion
+        # rows may be absent, but Guard must remain 4.1.6 rather than shifting
+        # based on how many legacy verification rows happened to be present.
+        guard_number = f"{iteration_number}.6"
         guard_event = (bucket.get("guard") or [None])[-1]
         guard_outcome = (
             _mapping(guard_event.get("payload")).get("outcome") if guard_event else None
@@ -1847,6 +1883,8 @@ def _reasoning_stage(
 
     report = _mapping(_mapping(reasoning.get("decode")).get("report"))
     reasoning_raw = dict(reasoning)
+    if terminal_events:
+        reasoning_raw["terminal_events"] = [dict(event) for event in terminal_events]
     leftover_trims = trims[len(compiles) :]
     if leftover_trims:
         reasoning_raw["context_trims_unpaired"] = [
@@ -1867,9 +1905,114 @@ def _reasoning_stage(
             "failure_reason": reasoning.get("failure_reason"),
             "selected_mode": report.get("selected_mode"),
             "fallback_reason": report.get("fallback_reason"),
+            "terminal_reason": _terminal_reason(terminal_events),
         },
         "raw": reasoning_raw,
     }
+
+
+def _merge_observation_records(
+    legacy: Sequence[Mapping[str, Any]],
+    typed: Sequence[Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Keep legacy display fields while attaching richer typed evidence.
+
+    The legacy ``CognitiveStep`` rows carry readable operation/tool fields;
+    typed observation envelopes carry source ids and revisions.  They are two
+    views of the same records in current Brain runs, but a legacy tool request
+    has a following observation row while the typed stream records only the
+    latter.  Match semantic kinds and leave request-only rows untouched instead
+    of blindly pairing by array position.
+    """
+    if not legacy:
+        return [dict(item) for item in typed]
+    if not typed:
+        return [dict(item) for item in legacy]
+
+    remaining_typed = [dict(item) for item in typed]
+    merged: List[Dict[str, Any]] = []
+    for legacy_item in legacy:
+        row = dict(legacy_item)
+        expected_kind = _legacy_observation_kind(row)
+        match_index = (
+            next(
+                (
+                    index
+                    for index, item in enumerate(remaining_typed)
+                    if _typed_observation_kind(item) == expected_kind
+                ),
+                None,
+            )
+            if expected_kind is not None
+            else None
+        )
+        if match_index is not None:
+            typed_item = remaining_typed.pop(match_index)
+            if typed_item.get("kind") is not None:
+                row["observation_kind"] = typed_item["kind"]
+            if typed_item.get("status") is not None:
+                row["observation_status"] = typed_item["status"]
+            if not row.get("summary") and typed_item.get("summary"):
+                row["summary"] = typed_item["summary"]
+            if typed_item.get("source_ids"):
+                row["source_ids"] = typed_item["source_ids"]
+            if typed_item.get("revision") is not None:
+                row["revision"] = typed_item["revision"]
+            raw_legacy = row.get("raw")
+            raw_typed = typed_item.get("raw")
+            if raw_legacy is not None or raw_typed is not None:
+                row["raw"] = {
+                    "legacy_step": raw_legacy,
+                    "observation_event": raw_typed,
+                }
+        merged.append(row)
+    merged.extend(remaining_typed)
+    return merged
+
+
+def _typed_observation_kind(item: Mapping[str, Any]) -> Optional[str]:
+    kind = item.get("kind")
+    if not isinstance(kind, str) or not kind:
+        return None
+    # A stale memory recall is emitted as ``revision`` but still belongs to
+    # the legacy ``operation=memory_recall`` row in the visible trace.
+    return "memory" if kind == "revision" else kind
+
+
+def _terminal_reason(events: Sequence[Mapping[str, Any]]) -> Optional[str]:
+    """Expose the latest run-level closure reason in the readable summary."""
+    for event in reversed(events):
+        payload = _mapping(event.get("payload"))
+        kind = str(event.get("kind") or "")
+        if kind == "run_failed":
+            return str(payload.get("error_type") or "run_failed")
+        reason = payload.get("reason") or payload.get("stop_reason")
+        if reason is not None:
+            return str(reason)
+    return None
+
+
+def _legacy_observation_kind(item: Mapping[str, Any]) -> Optional[str]:
+    kind = str(item.get("kind") or "").lower()
+    if kind == "skill":
+        return "skill"
+    if kind == "tool":
+        # CognitiveStep records tool requests, whereas the typed stream emits
+        # only the resulting observation.  The following legacy observation
+        # row owns the typed ``tool`` envelope.
+        return None
+    if kind != "observation":
+        return None
+    operation = str(item.get("operation") or "")
+    if operation == "memory_recall":
+        return "memory"
+    if operation == "activity_preflight":
+        return "activity"
+    if str(item.get("status") or "") == "invalid_cognitive_action":
+        return "repair"
+    if item.get("tool_key"):
+        return "tool"
+    return "observation"
 
 
 def _model_call_projection(
@@ -1920,6 +2063,8 @@ def _model_call_projection(
             "allowed_tools": payload.get("allowed_tools"),
             "tool_definition_count": payload.get("tool_definition_count"),
             "skill_count": payload.get("skill_count"),
+            "context_revision": payload.get("context_revision"),
+            "capability_revision": payload.get("capability_revision"),
         },
         "capabilities": capability_view or None,
         "duration_ms": call.get("duration_ms"),
@@ -1957,7 +2102,13 @@ def _action_projection(
         "duration_ms": (
             action_event.get("duration_ms") if action_event is not None else None
         ),
-        "status": "parsed" if parsed_result is not None else "unavailable",
+        "status": (
+            "failed"
+            if action_event is not None and action_event.get("status") == "failed"
+            else "parsed"
+            if parsed_result is not None
+            else "unavailable"
+        ),
         "input": {"model_call": model_call_number},
         "output": parsed_result,
         "raw": raw,
@@ -1983,6 +2134,9 @@ def _typed_action_result(payload: Mapping[str, Any]) -> Any:
         result["missing_facts"] = list(payload["missing_facts"])
     if payload.get("validation_errors"):
         result["validation_errors"] = list(payload["validation_errors"])
+    memory_use_count = payload.get("memory_use_count")
+    if isinstance(memory_use_count, int) and memory_use_count > 0:
+        result["memory_use_count"] = memory_use_count
     return result
 
 

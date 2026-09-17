@@ -35,17 +35,26 @@ const statusLabels: Readonly<Record<string, string>> = {
   parsed: "已解析",
   observed: "已产生观察",
   returned: "已返回",
+  requested: "已请求",
   accepted: "已接受",
   revision_required: "要求修订",
   fallback: "终止回退",
   safe_noop: "安全无操作",
   committed: "已提交",
   recalled: "已召回",
+  duplicate: "已复用",
+  stale: "已过期",
   received: "已收到",
   loaded: "已加载",
   repair_returned: "修订已返回",
   invalid_output: "输出无效",
+  invalid_cognitive_action: "行动无效",
   activity_preflight: "Activity 预检",
+  needs_clarification: "需要澄清",
+  tool_failed: "工具失败",
+  tool_rejected: "工具被拒绝",
+  budget_exhausted: "预算耗尽",
+  model_unavailable: "模型不可用",
   pending: "待处理",
   degraded: "已降级",
   deferred: "已延期",
@@ -64,7 +73,7 @@ const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   event_admission: "本轮输入：确认输入通道与处理内容",
   context_workspace: "上下文工作区：查看分区内的历史、摘要与待处理状态",
   setup: "运行准备：冻结外部状态与记忆版本，确定推理模式与预算",
-  reasoning_run: "推理执行：循环“编译→调用→行动→观察→守卫→判定”，产出最终决策",
+  reasoning_run: "推理执行：循环“编译→调用→行动→观察→判定→守卫”，产出最终决策",
   turn_decision: "回合决策：把接受的草稿固化为唯一的类型化决策",
   governance_delivery: "治理与交付：治理检查后交付到目标通道，产出回执",
   settlement: "结算：提交状态候选与记忆写回，落持久化证据",
@@ -182,7 +191,13 @@ function fieldLabel(key: string): string {
     provider: "Provider",
     model: "模型",
     selected_mode: "Host 解析模式",
+    observation_kind: "观察类型",
+    observation_status: "观察状态",
+    tool_key: "工具",
+    operation: "操作",
+    ok: "执行成功",
     verdict: "判定",
+    judge_reason: "判定原因",
     action_type: "行动类型",
     revision_requested: "是否要求修订",
     external_claim_replaced: "是否替换外部声明",
@@ -209,9 +224,18 @@ function fieldLabel(key: string): string {
     failure_reason: "失败原因",
     fallback_reason: "降级原因",
     run_reason: "失败/回退原因",
+    terminal_reason: "终止原因",
     model_calls: "模型调用次数",
     tool_calls: "工具调用次数",
     skill_calls: "技能调用次数",
+    model_calls_used: "模型调用已用",
+    model_calls_remaining: "模型调用剩余",
+    tool_calls_used: "工具调用已用",
+    decision: "判断",
+    guard: "触发检查",
+    stop_reason: "停止原因",
+    deadline_remaining: "剩余时间",
+    cancelled: "已取消",
     text: "文本",
     action: "动作",
     content: "内容",
@@ -397,6 +421,83 @@ const sourceDomainLabels: Readonly<Record<string, string>> = {
   activity: "Activity",
 };
 
+const actionTypeLabels: Readonly<Record<string, string>> = {
+  AnswerDraft: "回复草稿",
+  ClarificationDraft: "澄清草稿",
+  RecallMemory: "记忆召回",
+  NoOpDraft: "无操作草稿",
+  reply: "回复",
+  answer: "回复",
+  clarification: "澄清",
+  recall_memory: "记忆召回",
+  noop: "无操作",
+};
+
+const observationKindLabels: Readonly<Record<string, string>> = {
+  skill: "技能调用",
+  tool: "工具调用",
+  observation: "观察",
+  repair: "修订准备",
+  memory: "记忆结果",
+  revision: "修订结果",
+  activity: "Activity 预检",
+  judge: "完成判定",
+  reply: "回复结果",
+};
+
+const operationLabels: Readonly<Record<string, string>> = {
+  load: "加载技能",
+  load_skill: "加载技能",
+  search: "检索",
+  read: "读取",
+  read_file: "读取文件",
+  list: "列出",
+  send_message: "发送消息",
+  activity_preflight: "Activity 预检",
+  memory_recall: "召回记忆",
+};
+
+const guardLabels: Readonly<Record<string, string>> = {
+  none: "未触发停止条件",
+  cancellation: "取消请求",
+  deadline: "时间预算",
+  model_budget: "模型调用预算",
+  tool_budget: "工具调用预算",
+  steps: "步骤预算",
+  depth: "推理深度限制",
+};
+
+const stopReasonLabels: Readonly<Record<string, string>> = {
+  cancelled: "已取消",
+  deadline_exceeded: "时间预算耗尽",
+  model_call_budget_exhausted: "模型调用预算耗尽",
+  tool_call_budget_exhausted: "工具调用预算耗尽",
+  step_budget_exhausted: "步骤预算耗尽",
+  recall_memory_not_allowed_in_direct: "直接处理不允许记忆召回",
+};
+
+const reasonLabels: Readonly<Record<string, string>> = {
+  cognitive_action_validation_failed: "认知行动校验失败",
+  model_call_budget_exhausted: "模型调用预算耗尽",
+  tool_call_budget_exhausted: "工具调用预算耗尽",
+  step_budget_exhausted: "步骤预算耗尽",
+  recall_memory_not_allowed_in_direct: "直接处理不允许记忆召回",
+  unsupported_external_completion_claim: "回复包含未经证实的外部完成声明",
+  model_unavailable: "模型不可用",
+  tool_not_available: "工具不可用",
+  tool_not_authorized: "工具未获授权",
+  tool_result_failed: "工具返回失败",
+};
+
+function readableLabel(value: unknown, labels: Readonly<Record<string, string>>): unknown {
+  if (typeof value !== "string") return value;
+  return labels[value] ?? value;
+}
+
+function readableReason(value: unknown): unknown {
+  return readableLabel(value, reasonLabels);
+}
+
 function modalitiesText(value: unknown): unknown {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return value;
   return value.map((item) => modalityLabels[item] ?? item).join("、");
@@ -480,6 +581,14 @@ function Fields({ values, omit = [] }: Readonly<{ readonly values: JsonRecord; r
   return <dl className="trace-fields">{entries.map(([key, value]) => <div className="trace-field" key={key}><dt>{fieldLabel(key)}</dt><dd><FieldValue value={value} /></dd></div>)}</dl>;
 }
 
+function hasVisibleFields(value: unknown, omit: readonly string[] = []): boolean {
+  const source = record(value);
+  const excluded = new Set(omit);
+  return Object.entries(source).some(([key, item]) => (
+    !excluded.has(key) && !INTERNAL_FIELD_KEYS.has(key) && hasContent(item)
+  ));
+}
+
 function BlockList({ items, omit = [] }: Readonly<{ readonly items: readonly unknown[]; readonly omit?: readonly string[] }>): React.JSX.Element | null {
   if (!items.length) return null;
   return <div className="trace-memory-list">{items.map((value, index) => {
@@ -491,6 +600,7 @@ function BlockList({ items, omit = [] }: Readonly<{ readonly items: readonly unk
 function Evidence({ title, value, emptyLabel = "未采集" }: Readonly<{ readonly title: string; readonly value: unknown; readonly emptyLabel?: string }>): React.JSX.Element {
   const objectValue = typeof value === "object" && value !== null && !Array.isArray(value) ? record(value) : null;
   const textList = Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string");
+  if (objectValue !== null && !hasVisibleFields(objectValue)) return <></>;
   return <section className="trace-evidence"><h4>{title}</h4>{hasContent(value) ? objectValue !== null ? <Fields values={objectValue} /> : textList ? <div className="trace-text-list">{value.map((item, index) => <p key={`${String(item)}-${index}`}>{item}</p>)}</div> : <pre className="trace-code">{pretty(value)}</pre> : <p className="trace-muted">{emptyLabel}</p>}</section>;
 }
 
@@ -1043,7 +1153,7 @@ function stageAnomaly(node: TraceNode): string {
   const status = statusOf(node.status);
   if (status === "failed" || status === "degraded" || status === "skipped") {
     const reason = [output.failure_reason, output.error_code].find(hasContent);
-    return reason ? String(reason) : stageAnomalyLabels[status] ?? status;
+    return reason ? String(readableReason(reason)) : stageAnomalyLabels[status] ?? status;
   }
   return "";
 }
@@ -1260,25 +1370,34 @@ function OwnerSnapshot({
   </TraceDisclosure>;
 }
 
-function modelInput(call: TraceNode): string {
+function modelInput(call: TraceNode): string | undefined {
   const input = record(call.input);
   const request = record(call.request);
   const system = input.system_prompt ?? request.system_prompt;
   const user = input.user_prompt ?? request.user_prompt;
+  if (!hasContent(system) && !hasContent(user)) return undefined;
   return `SYSTEM\n${pretty(system)}\n\nUSER\n${pretty(user)}`;
+}
+
+function modelDisplayName(value: unknown): unknown {
+  if (typeof value !== "string" || !value) return value;
+  const segments = value.split("/");
+  return segments[segments.length - 1] || value;
 }
 
 function modelCallParameters(call: TraceNode): JsonRecord {
   const effective = record(call.effective_parameters);
   const output = record(call.output);
-  const value = (key: string, fallback: unknown = "未采集"): unknown => {
+  const value = (key: string): unknown => {
     const candidate = effective[key] ?? output[key];
-    return candidate === undefined || candidate === null ? fallback : candidate;
+    return candidate === undefined || candidate === null ? undefined : candidate;
   };
   const allowedTools = effective.allowed_tools;
   return {
-    provider: value("provider"),
-    model: value("model"),
+    // Provider connection IDs are correlation metadata, not a useful default
+    // debugging field.  The raw-record toggle still preserves them.  Keep the
+    // served model family because it changes the observed response quality.
+    model: modelDisplayName(value("model")),
     reasoning_mode: value("reasoning_mode"),
     response_mode: value("response_mode"),
     response_schema: value("response_schema"),
@@ -1299,6 +1418,8 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
   const responseSchema = record(call.effective_parameters).response_schema_definition;
   const toolDefinitions = capabilities.tool_definitions;
   const availableSkills = capabilities.available_skills;
+  const parameters = modelCallParameters(call);
+  const fullInput = modelInput(call);
   const output = record(call.output);
   const parsed = output.parsed_result;
   const promptTokens = call.prompt_tokens;
@@ -1313,13 +1434,14 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
     }
     : null;
   return <>
-    <section className="trace-evidence"><h4>有效参数</h4><Fields values={modelCallParameters(call)} /></section>
+    {hasVisibleFields(parameters) ? <section className="trace-evidence"><h4>有效参数</h4><Fields values={parameters} /></section> : null}
     {hasContent(responseSchema) ? <Evidence title="响应结构定义" value={responseSchema} /> : null}
     {hasContent(toolDefinitions) ? <Evidence title="工具定义" value={toolDefinitions} /> : null}
     {hasContent(availableSkills) ? <Evidence title="技能清单" value={availableSkills} /> : null}
     {tokenUsage ? <Evidence title="Token 用量" value={tokenUsage} /> : null}
-    <Evidence title="模型输入（完整消息）" value={modelInput(call)} />
-    <Evidence title="模型原始输出" value={call.response ?? output.response} />
+    {hasContent(fullInput) ? <Evidence title="模型输入（完整消息）" value={fullInput} /> : null}
+    {hasContent(call.response ?? output.response) ? <Evidence title="模型原始输出" value={call.response ?? output.response} /> : null}
+    {hasContent(call.error) ? <Evidence title="模型调用错误" value={call.error} /> : null}
     {hasContent(parsed) ? <Evidence title="模型结果（Host 解析）" value={parsed} /> : <div className="trace-unavailable"><span>模型结果（Host 解析）</span><Status value="unavailable" /></div>}
     {hasContent(call.provider_raw) ? <Evidence title="Provider 原始包" value={call.provider_raw} /> : null}
   </>;
@@ -1399,25 +1521,19 @@ function ContextBuild({
     status={build.status}
     tooltip={SUB_STEP_DESCRIPTIONS.context_build}
   >
-    <Evidence title="编译结果（完整消息）" value={compiledPrompt} />
+    {hasContent(compiledPrompt) ? <Evidence title="编译结果（完整消息）" value={compiledPrompt} /> : null}
     {trimSummary ? <Evidence title="上下文裁剪" value={trimSummary} /> : null}
   </TraceDisclosure>;
-}
-
-function ActionBody({ action }: Readonly<{ readonly action: TraceNode }>): React.JSX.Element {
-  return <>
-    <Evidence title="输入" value={action.input} />
-    <Evidence title="输出" value={action.output} />
-  </>;
 }
 
 function reasoningOverview(node: TraceNode): JsonRecord {
   const output = record(node.output);
   const failure = output.failure_reason;
   const fallback = output.fallback_reason;
+  const terminal = output.terminal_reason;
   const reason = hasContent(failure) && hasContent(fallback) && String(failure) !== String(fallback)
-    ? `${String(failure)}；回退：${String(fallback)}`
-    : failure ?? fallback;
+    ? `${String(readableReason(failure))}；回退：${String(readableReason(fallback))}`
+    : readableReason(failure ?? fallback ?? terminal);
   return {
     model_calls: output.model_calls ?? "未采集",
     tool_calls: output.tool_calls ?? "未采集",
@@ -1427,62 +1543,205 @@ function reasoningOverview(node: TraceNode): JsonRecord {
 }
 
 function GuardBody({ guard }: Readonly<{ readonly guard: TraceNode }>): React.JSX.Element {
+  const input = record(guard.input);
+  const output = record(guard.output);
+  const guardName = String(output.guard ?? "");
+  const deadlineRemaining = typeof output.deadline_remaining_ms === "number"
+    ? formatDuration(output.deadline_remaining_ms)
+    : undefined;
+  const details = {
+    decision: output.decision ?? (output.outcome === "continued" ? "继续" : output.outcome === "stopped" ? "停止" : undefined),
+    guard: guardName && guardName !== "none" ? readableLabel(guardName, guardLabels) : undefined,
+    stop_reason: readableLabel(output.stop_reason, stopReasonLabels),
+    depth: guardName === "depth" ? input.depth : undefined,
+    model_calls_used: input.model_calls_used,
+    max_model_calls: output.max_model_calls,
+    model_calls_remaining: output.model_calls_remaining,
+    tool_calls_used: input.tool_calls_used,
+    max_tool_calls: output.max_tool_calls,
+    deadline_remaining: deadlineRemaining,
+    cancelled: output.cancelled === true ? true : undefined,
+  };
   return <>
-    <Evidence title="输入" value={guard.input} />
-    <Evidence title="输出" value={guard.output} />
+    {hasVisibleFields(details) ? (
+      <section className="trace-evidence">
+        <h4>继续条件与预算</h4>
+        <Fields values={details} />
+      </section>
+    ) : null}
+  </>;
+}
+
+function ActionBody({ action }: Readonly<{ readonly action: TraceNode }>): React.JSX.Element {
+  const output = record(action.output);
+  const actionType = output.type ?? output.action_type ?? output.action;
+  const content = output.content ?? output.message ?? output.text;
+  const knownKeys = new Set([
+    "type",
+    "action_type",
+    "action",
+    "query",
+    "recall_reason",
+    "noop_reason",
+    "memory_use_count",
+    "content",
+    "message",
+    "text",
+    "missing_facts",
+    "validation_errors",
+  ]);
+  const remaining = Object.fromEntries(Object.entries(output).filter(([key]) => !knownKeys.has(key)));
+  const details = {
+    action_type: readableLabel(actionType, actionTypeLabels),
+    query: output.query,
+    recall_reason: output.recall_reason,
+    noop_reason: output.noop_reason,
+    memory_use_count: typeof output.memory_use_count === "number" && output.memory_use_count > 0
+      ? output.memory_use_count
+      : undefined,
+  };
+  return <>
+    {hasVisibleFields(details) ? <Fields values={details} /> : null}
+    {hasContent(content) ? <Evidence title="行动内容" value={content} /> : null}
+    {hasContent(output.missing_facts) ? <Evidence title="缺失事实" value={output.missing_facts} /> : null}
+    {hasContent(output.validation_errors) ? <Evidence title="校验错误" value={output.validation_errors} /> : null}
+    {hasContent(remaining) ? <Evidence title="行动结果" value={remaining} /> : null}
+    {!Object.keys(output).length ? <Evidence title="行动结果" value={action.output} /> : null}
+  </>;
+}
+
+function ObservationBody({ step }: Readonly<{ readonly step: TraceNode }>): React.JSX.Element {
+  const kind = step.observation_kind ?? step.kind;
+  const operation = step.operation;
+  const observationStatus = step.observation_status ?? step.status;
+  const result = step.summary
+    ?? step.content
+    ?? step.returned_evidence
+    ?? step.recorded_content
+    ?? step.result;
+  const details = {
+    observation_kind: readableLabel(kind, observationKindLabels),
+    observation_status: hasContent(observationStatus) ? statusLabel(observationStatus) : undefined,
+    operation: readableLabel(operation, operationLabels),
+    tool_key: step.tool_key,
+    ok: step.ok,
+  };
+  return <>
+    {hasVisibleFields(details) ? <Fields values={details} /> : null}
+    {hasContent(result) ? <Evidence title="结果" value={result} /> : null}
   </>;
 }
 
 function StepBody({ step, completion }: Readonly<{ readonly step: TraceNode; readonly completion: boolean }>): React.JSX.Element {
   const memoryRecall = step.operation === "memory_recall";
   if (memoryRecall) {
+    const details = {
+      query: step.query,
+      reason: readableReason(step.reason),
+      status: hasContent(step.status) ? statusLabel(step.status) : undefined,
+      detail: step.detail,
+    };
     return <>
-      <Fields values={{ query: step.query, reason: step.reason, status: step.status, detail: step.detail }} />
-      <Evidence title="记忆记录" value={step.returned_evidence ?? step.summary} />
+      {hasVisibleFields(details) ? <Fields values={details} /> : null}
+      {hasContent(step.returned_evidence ?? step.summary) ? <Evidence title="记忆记录" value={step.returned_evidence ?? step.summary} /> : null}
     </>;
   }
   if (completion) {
     const completionDetails = {
-      verdict: step.verdict,
-      action_type: step.action_type,
-      revision_requested: step.revision_requested,
-      external_claim_replaced: step.external_claim_replaced,
-      current_nest_sanitized: step.current_nest_sanitized,
-      memory_use_count: step.memory_use_count,
+      verdict: readableLabel(step.verdict, { accepted: "接受", revision_required: "要求修订" }),
+      action_type: readableLabel(step.action_type, actionTypeLabels),
+      judge_reason: readableReason(step.judge_reason),
+      revision_requested: step.revision_requested === true ? true : undefined,
+      external_claim_replaced: step.external_claim_replaced === true ? true : undefined,
+      current_nest_sanitized: step.current_nest_sanitized === true ? true : undefined,
+      memory_use_count: typeof step.memory_use_count === "number" && step.memory_use_count > 0 ? step.memory_use_count : undefined,
     };
     return <>
       {Object.values(completionDetails).some(hasContent) ? <Fields values={completionDetails} /> : null}
-      <Evidence title="判断结果" value={step.content ?? step.summary} />
+      {hasContent(step.content ?? step.summary) ? <Evidence title="判断结果" value={step.content ?? step.summary} /> : null}
     </>;
   }
-  return <Evidence title="输出" value={step.summary} />;
+  return <ObservationBody step={step} />;
+}
+
+function observationTitle(step: TraceNode, index: number): string {
+  if (step.operation === "memory_recall") return "记忆召回";
+  if (step.kind === "skill") return "技能调用";
+  if (step.kind === "tool") return "工具请求";
+  const operation = typeof step.operation === "string" ? step.operation : "";
+  if (operation) return String(readableLabel(operation, operationLabels));
+  const kind = typeof step.observation_kind === "string"
+    ? step.observation_kind
+    : typeof step.kind === "string"
+      ? step.kind
+      : "";
+  if (kind) return String(readableLabel(kind, observationKindLabels));
+  return `观察记录 ${index + 1}`;
+}
+
+function totalDuration(values: readonly unknown[]): number | undefined {
+  const durations = values
+    .map((value) => record(value).duration_ms)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return durations.length ? durations.reduce((sum, value) => sum + value, 0) : undefined;
+}
+
+function CompletionStage({
+  steps,
+  id,
+  number,
+  open,
+  onToggle,
+}: Readonly<{
+  readonly steps: readonly unknown[];
+  readonly id: string;
+  readonly number: string;
+  readonly open: boolean;
+  readonly onToggle: (id: string) => void;
+}>): React.JSX.Element | null {
+  if (!steps.length) return null;
+  const records = steps.map(record);
+  const last = records[records.length - 1] ?? {};
+  return <TraceDisclosure
+    id={id}
+    number={`${number}.5`}
+    title="完成判定"
+    meta={durationMeta({ duration_ms: totalDuration(steps) })}
+    onToggle={onToggle}
+    open={open}
+    raw={records}
+    status={last.verdict ?? last.status}
+    tooltip={SUB_STEP_DESCRIPTIONS.judge}
+  >
+    {records.length === 1
+      ? <StepBody completion step={records[0] ?? {}} />
+      : <div className="trace-step-list">{records.map((step, index) => <section className="trace-evidence" key={`${String(step.ordinal ?? index)}-${index}`}>
+        <h4>第 {index + 1} 次判定</h4>
+        <StepBody completion step={step} />
+      </section>)}</div>}
+  </TraceDisclosure>;
 }
 
 function StepList({
-  title,
   steps,
   numberStart,
   numberPrefix,
   idPrefix,
   openChildren,
   onToggle,
-  completion = false,
 }: Readonly<{
-  readonly title?: string;
   readonly steps: readonly unknown[];
   readonly numberStart: number;
   readonly numberPrefix: string;
   readonly idPrefix: string;
   readonly openChildren: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
-  readonly completion?: boolean;
 }>): React.JSX.Element | null {
   if (!steps.length) return null;
   const list = <div className="trace-step-list">{steps.map((value, index) => {
     const step = record(value);
     const id = `${idPrefix}-${String(step.ordinal ?? index)}`;
-    const fallback = completion && ["fallback", "safe_noop"].includes(statusOf(step.status));
-    const itemTitle = completion ? (fallback ? "终止回退" : "完成判定") : step.operation === "memory_recall" ? "记忆召回" : String(step.operation ?? step.kind ?? `步骤 ${index + 1}`);
+    const itemTitle = observationTitle(step, index);
     return <TraceDisclosure
       id={id}
       key={id}
@@ -1493,13 +1752,12 @@ function StepList({
       open={openChildren.has(id)}
       raw={step}
       status={step.status}
-      showStatus={!fallback}
-      tooltip={completion ? SUB_STEP_DESCRIPTIONS.judge : SUB_STEP_DESCRIPTIONS[String(step.operation ?? step.kind ?? "")]}
+      tooltip={SUB_STEP_DESCRIPTIONS[String(step.operation ?? step.kind ?? "")]}
     >
-      <StepBody completion={completion} step={step} />
+      <StepBody completion={false} step={step} />
     </TraceDisclosure>;
   })}</div>;
-  return title ? <section className="trace-step-section"><h4>{title}</h4>{list}</section> : list;
+  return list;
 }
 
 function ObservationStage({
@@ -1541,7 +1799,6 @@ function ObservationStage({
       onToggle={onToggle}
       openChildren={openChildren}
       steps={observations}
-      title="记录"
     />
   </TraceDisclosure>;
 }
@@ -1569,19 +1826,18 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
       const observationStage = hasContent(iteration.observation_stage) ? record(iteration.observation_stage) : undefined;
       const candidateGuard = record(iteration.guard);
       const guard = statusOf(candidateGuard.status) === "skipped" ? {} : candidateGuard;
-      const completionStart = 5;
-      const guardNumber = `${String(iteration.number)}.${completionStart + completion.length}`;
+      const guardNumber = `${String(iteration.number)}.6`;
       return <TraceDisclosure
         id={iterationId}
         key={iterationId}
         number={String(iteration.number)}
-        title="Iteration"
+        title="迭代"
         onToggle={toggle}
         open={openChildren.has(iterationId)}
         raw={iteration.raw}
         status={iteration.status}
       >
-        {hasContent(iteration.input) ? <Evidence title="迭代输入" value={iteration.input} /> : null}
+        {hasVisibleFields(iteration.input) ? <Evidence title="迭代输入" value={iteration.input} /> : null}
         {hasContent(context) ? <ContextBuild build={context} id={`${iterationId}-context`} onToggle={toggle} open={openChildren.has(`${iterationId}-context`)} /> : null}
         {hasContent(modelCall) ? <ModelCall call={modelCall} id={`${iterationId}-model`} onToggle={toggle} open={openChildren.has(`${iterationId}-model`)} /> : null}
         {hasContent(action) ? <TraceDisclosure
@@ -1605,13 +1861,11 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
           observations={observations}
           stage={observationStage}
         /> : null}
-        <StepList
-          completion
-          idPrefix={`${String(iteration.number)}.completion`}
-          numberStart={completionStart}
-          numberPrefix={String(iteration.number)}
+        <CompletionStage
+          id={`${iterationId}-completion`}
+          number={String(iteration.number)}
           onToggle={toggle}
-          openChildren={openChildren}
+          open={openChildren.has(`${iterationId}-completion`)}
           steps={completion}
         />
         {hasContent(guard) ? <TraceDisclosure

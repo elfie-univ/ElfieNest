@@ -120,8 +120,9 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     compiled = context_build["output"]["compiled"]
     assert compiled is not None
     assert compiled["context_revision"] == context_build["output"]["context_revision"]
-    assert "user_prompt" not in context_build["output"]
-    assert context_build["raw"]["user_prompt"]
+    assert context_build["output"]["system_prompt"]
+    assert context_build["output"]["user_prompt"].endswith("今天心情怎么样？")
+    assert context_build["raw"]["compile_event"]["payload"]["user_prompt"]
     assert model_call["input"]["system_prompt"]
     assert model_call["input"]["user_prompt"].endswith("今天心情怎么样？")
     assert model_call["effective_parameters"]["reasoning_mode"]
@@ -149,11 +150,10 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         owner["evidence_basis"] == "reasoning.run_controller.context_frozen"
         for owner in setup["owner_snapshots"]
     )
-    assert reasoning_run["iterations"][0]["guard"]["status"] == "skipped"
-    assert (
-        "separate Guard record"
-        in reasoning_run["iterations"][0]["guard"]["skip_reason"]
-    )
+    guard = reasoning_run["iterations"][0]["guard"]
+    assert guard["number"] == "4.1.6"
+    assert guard["status"] == "continued"
+    assert guard["output"]["decision"] == "继续"
     assert observability["chain"][6]["output"]["duration_ms"] == turn["duration_ms"]
     assert (
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]

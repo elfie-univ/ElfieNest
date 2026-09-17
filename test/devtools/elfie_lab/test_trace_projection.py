@@ -19,6 +19,7 @@ from elfie.brain.orientation.contracts import OrientationSnapshot
 from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopActionObservation,
     AgentLoopGuardObservation,
+    AgentLoopGuardStopObservation,
     AgentLoopJudgeObservation,
     AgentLoopObservationRecorded,
     ModelCallObservation,
@@ -478,6 +479,31 @@ def test_bridge_events_from_other_frames_do_not_leak_into_the_turn_view():
     assert [point["id"] for point in memory["returned_points"]] == ["episode:1"]
 
 
+def test_reasoning_events_from_other_frames_do_not_leak_into_iteration_view():
+    trace = build_observability_trace(
+        turn_id="turn-frame-scope",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "reasoning": {"status": "completed", "model_calls": 1},
+            "cognitive_turn": {"frame_id": "frame-1"},
+        },
+        result={},
+        decision={},
+        duration_ms=1,
+        observations=[
+            _model_call_observation(context_revision=7, frame_id="frame-other"),
+        ],
+    )
+
+    reasoning = trace["chain"][3]
+    assert reasoning["iterations"] == []
+    assert reasoning["output"]["model_calls"] == 1
+    assert reasoning["duration_ms"] is None
+
+
 def test_reasoning_projection_keeps_each_model_cycle_with_its_following_evidence():
     trace = build_observability_trace(
         turn_id="turn-multi",
@@ -669,6 +695,134 @@ def test_reasoning_substeps_preserve_source_durations():
     assert iteration["observation_stage"]["duration_ms"] == 3.0
     assert iteration["completion"][0]["duration_ms"] == 5.0
     assert iteration["guard"]["duration_ms"] == 4.0
+
+
+def test_reasoning_guard_keeps_the_sixth_slot_and_exposes_terminal_reason():
+    guard = AgentLoopGuardObservation(
+        iteration_index=1,
+        guard="model_budget",
+        may_continue=False,
+        outcome="stopped",
+        depth="direct",
+        model_calls_used=1,
+        max_model_calls=1,
+        model_calls_remaining=0,
+        tool_calls_used=0,
+        max_tool_calls=0,
+        deadline_remaining_ms=11950.5,
+        cancelled=False,
+        stop_reason="model_call_budget_exhausted",
+    )
+    trace = build_observability_trace(
+        turn_id="turn-guard-stop",
+        stimulus={"source_domain": "communication", "message": "你好"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={"reasoning": {"status": "safe_noop", "model_calls": 1}},
+        result={},
+        decision={},
+        duration_ms=20,
+        observations=[
+            _model_call_observation(context_revision=7),
+            _observation(
+                boundary="reasoning.agent_loop",
+                kind="guard",
+                payload=guard,
+            ),
+            _observation(
+                boundary="reasoning.agent_loop",
+                kind="guard_stop",
+                payload=AgentLoopGuardStopObservation(
+                    status="safe_noop",
+                    reason="model_call_budget_exhausted",
+                    model_calls=1,
+                    tool_calls=0,
+                    skill_calls=0,
+                    step_count=1,
+                    depth="direct",
+                ),
+            ),
+        ],
+    )
+
+    reasoning = trace["chain"][3]
+    iteration = reasoning["iterations"][0]
+    assert iteration["guard"]["number"] == "4.1.6"
+    assert reasoning["output"]["terminal_reason"] == "model_call_budget_exhausted"
+    assert reasoning["raw"]["terminal_events"][0]["kind"] == "guard_stop"
+
+
+def test_reasoning_observation_merge_keeps_tool_request_separate_from_result():
+    trace = build_observability_trace(
+        turn_id="turn-observation-merge",
+        stimulus={"source_domain": "communication", "message": "查一下"},
+        state_before={},
+        state_after={},
+        state_diff={},
+        raw_stages={
+            "reasoning": {
+                "status": "completed",
+                "model_calls": 1,
+                "steps": [
+                    {"kind": "model", "summary": '{"type":"answer"}'},
+                    {
+                        "kind": "skill",
+                        "status": "loaded",
+                        "operation": "load",
+                        "tool_key": "load_skill",
+                        "summary": "search skill",
+                    },
+                    {
+                        "kind": "tool",
+                        "status": "requested",
+                        "operation": "search",
+                        "tool_key": "web_search",
+                        "summary": "web_search",
+                    },
+                    {
+                        "kind": "observation",
+                        "status": "received",
+                        "operation": "search",
+                        "tool_key": "web_search",
+                        "ok": True,
+                        "summary": "搜索结果",
+                    },
+                ],
+            },
+        },
+        result={},
+        decision={},
+        duration_ms=20,
+        observations=[
+            _model_call_observation(context_revision=7),
+            _agent_loop_observation(
+                kind="observation",
+                payload=AgentLoopObservationRecorded(
+                    iteration_index=1,
+                    observation_kind="skill",
+                    observation_status="loaded",
+                    content="search skill",
+                ),
+            ),
+            _agent_loop_observation(
+                kind="observation",
+                payload=AgentLoopObservationRecorded(
+                    iteration_index=1,
+                    observation_kind="tool",
+                    observation_status="received",
+                    content="搜索结果",
+                ),
+            ),
+        ],
+    )
+
+    observations = trace["chain"][3]["iterations"][0]["observations"]
+    assert len(observations) == 3
+    assert observations[0]["observation_kind"] == "skill"
+    assert "observation_kind" not in observations[1]
+    assert observations[2]["observation_kind"] == "tool"
+    assert observations[2]["summary"] == "搜索结果"
 
 
 def test_reasoning_projection_does_not_create_a_phantom_iteration_for_prefix_observation():
@@ -1899,6 +2053,7 @@ def _bridge_observation(
 def _model_call_observation(
     *,
     context_revision: int,
+    frame_id: str = "frame-1",
     user_prompt: str = "CURRENT_MESSAGE\n你好",
     response: str = '{"type":"answer","content":"好的"}',
     iteration_index: int = 1,
@@ -1912,6 +2067,7 @@ def _model_call_observation(
     return _observation(
         boundary="reasoning.agent_loop",
         kind="model_call",
+        frame_id=frame_id,
         duration_ms=duration_ms,
         payload=ModelCallObservation(
             iteration_index=iteration_index,

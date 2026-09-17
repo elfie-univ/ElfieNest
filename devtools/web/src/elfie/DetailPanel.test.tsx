@@ -258,7 +258,7 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).toContain("trace-disclosure-trigger");
     expect(markup).toContain("4.1");
-    expect(markup).toContain("Iteration");
+    expect(markup).toContain("迭代");
     expect(markup).toContain("aria-expanded=\"false\"");
     expect(markup).not.toContain("模型输入（完整消息）");
     expect(markup).not.toContain("模型原始输出");
@@ -372,6 +372,110 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(withoutUsage).not.toContain("Token 用量");
   });
 
+  it("renders legacy and typed action results as readable action evidence", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [{
+            ...firstIteration,
+            action: {
+              ...(firstIteration.action as FixtureNode),
+              output: { action: "reply", message: "我在这里" },
+            },
+          }, iterations[1]],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-action"]);
+
+    expect(markup).toContain("行动类型");
+    expect(markup).toContain("回复");
+    expect(markup).toContain("行动内容");
+    expect(markup).toContain("我在这里");
+    expect(markup).not.toContain("model_call");
+  });
+
+  it("keeps Guard readable, stable at .6, and free of duplicate raw fields", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [{
+            ...firstIteration,
+            completion: [],
+            guard: {
+              number: "4.1.6",
+              status: "stopped",
+              input: { depth: "direct", model_calls_used: 1, tool_calls_used: 0 },
+              output: {
+                decision: "停止",
+                outcome: "stopped",
+                guard: "model_budget",
+                stop_reason: "model_call_budget_exhausted",
+                model_calls_remaining: 0,
+                max_model_calls: 1,
+                max_tool_calls: 0,
+                deadline_remaining_ms: 11950.5,
+                cancelled: false,
+              },
+              raw: { source: "test" },
+            },
+          }, iterations[1]],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-guard"]);
+
+    expect(markup).toContain(">4.1.6<");
+    expect(markup).toContain("继续条件与预算");
+    expect(markup).toContain("模型调用已用");
+    expect(markup).toContain("模型调用剩余");
+    expect(markup).toContain("剩余时间");
+    expect(markup).toContain("模型调用预算耗尽");
+    expect(markup).toContain("11.95 s");
+    expect(markup).not.toContain("deadline_remaining_ms");
+    expect(markup).not.toContain("outcome");
+    expect(markup).not.toContain("cancelled");
+  });
+
+  it("shows completion judge reasons without an empty 未采集 block", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          iterations: [{
+            ...firstIteration,
+            completion: [{
+              kind: "judge",
+              status: "accepted",
+              verdict: "accepted",
+              action_type: "AnswerDraft",
+              judge_reason: "unsupported_external_completion_claim",
+              content: "我不能确认外部已经完成。",
+            }],
+          }, iterations[1]],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-completion"]);
+
+    expect(markup).toContain("判定原因");
+    expect(markup).toContain("回复包含未经证实的外部完成声明");
+    expect(markup).toContain("回复草稿");
+    expect(markup).toContain("我不能确认外部已经完成。");
+    expect(markup).not.toContain("<p class=\"trace-muted\">未采集</p>");
+  });
+
   it("keeps the ReasoningRun overview non-duplicative and hides empty iteration input", () => {
     const enriched = withChainNodes({
       3: (node) => {
@@ -417,7 +521,8 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("失败原因");
     expect(markup).not.toContain("降级原因");
     expect(markup).not.toContain("迭代输入");
-    expect(markup.match(/终止回退/g)).toHaveLength(1);
+    expect(markup.match(/终止回退/g) ?? []).toHaveLength(0);
+    expect(markup.match(/安全无操作/g) ?? []).toHaveLength(2);
   });
 
   it("keeps every reasoning substep readable with duration-only collapsed metadata", () => {
@@ -505,11 +610,11 @@ describe("Elfie Lab Turn Inspector", () => {
   });
 
   it("hides the empty completion-fields placeholder while keeping the verdict", () => {
-    const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1", "4.1.completion-0"]);
+    const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-completion"]);
 
     expect(markup).toContain("判断结果");
     expect(markup).toContain("reply accepted");
-    expect(markup.match(/<p class="trace-muted">未采集<\/p>/g) ?? []).toHaveLength(1);
+    expect(markup.match(/<p class="trace-muted">未采集<\/p>/g) ?? []).toHaveLength(0);
   });
 
   it("does not synthesize stage cards for a Turn without an observability trace", () => {
