@@ -216,10 +216,9 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("Memory skipped");
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("revision 4");
-    expect(markup).toContain('data-tip="本轮输入：确认输入通道与处理内容"');
-    expect(markup).toContain('data-tip="结算：提交状态候选与记忆写回，落持久化证据"');
-    expect(markup).not.toContain("title=");
-    expect(markup).not.toContain('title=""');
+    expect(markup).toContain('title="本轮输入：确认输入通道与处理内容"');
+    expect(markup).toContain('title="结算：提交状态候选与记忆写回，落持久化证据"');
+    expect(markup).not.toContain("data-tip=");
     expect(markup).not.toContain("trace-node-chevron");
     expect(markup).not.toContain("4.1.1");
     expect(markup).not.toContain("4.1.2");
@@ -251,7 +250,7 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).not.toContain("个快照");
     expect(markup).not.toContain("Memory skipped");
-    expect(markup).toContain('data-tip="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
+    expect(markup).toContain('title="运行准备：冻结外部状态与记忆版本，确定推理模式与预算"');
   });
 
   it("keeps the production reasoning tree collapsed below the selected Run", () => {
@@ -469,6 +468,14 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("记录来源");
     expect(markup).toContain("生产链路");
     expect(markup).not.toContain(">真实<");
+  });
+
+  it("hides the empty completion-fields placeholder while keeping the verdict", () => {
+    const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1", "4.1.completion-0"]);
+
+    expect(markup).toContain("判断结果");
+    expect(markup).toContain("reply accepted");
+    expect(markup.match(/<p class="trace-muted">未采集<\/p>/g) ?? []).toHaveLength(1);
   });
 
   it("does not synthesize stage cards for a Turn without an observability trace", () => {
@@ -763,16 +770,15 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("显著性");
   });
 
-  it("renders instant data-tip CSS tooltips on stage and sub-step triggers", () => {
+  it("uses browser-native title tooltips on stage and sub-step triggers", () => {
     const markup = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1"]);
 
-    expect(markup).toContain('data-tip="本轮输入：确认输入通道与处理内容"');
-    expect(markup).toContain('data-tip="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
-    expect(markup).toContain('data-tip="模型调用：发送上下文，取回模型响应"');
-    expect(markup).toContain('data-tip="行动解析：把响应解析为类型化行动"');
-    expect(markup).not.toContain('data-tip="守卫判断：检查剩余预算与时间，决定是否继续"');
-    expect(markup).not.toContain("title=");
-    expect(markup).not.toContain('title=""');
+    expect(markup).toContain('title="本轮输入：确认输入通道与处理内容"');
+    expect(markup).toContain('title="上下文编译：按预算重新编译模型上下文，裁剪低相关材料"');
+    expect(markup).toContain('title="模型调用：发送上下文，取回模型响应"');
+    expect(markup).toContain('title="行动解析：把响应解析为类型化行动"');
+    expect(markup).not.toContain('title="守卫判断：检查剩余预算与时间，决定是否继续"');
+    expect(markup).not.toContain("data-tip=");
   });
 
   it("drops 1970 captured_at and unknown_fields state-diff rows and truncates long id arrays", () => {

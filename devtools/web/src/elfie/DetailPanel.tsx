@@ -59,9 +59,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   stopped: "停止",
 };
 
-// Stage descriptions ride on data-tip attributes of the trace triggers: detail-modal.css
-// renders an instant CSS tooltip anchored just below each trigger (no native title delay,
-// no double popup).
+// Stage descriptions are exposed through the browser-native title tooltip on trace triggers.
 const STAGE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   event_admission: "本轮输入：确认输入通道与处理内容",
   context_workspace: "上下文工作区：查看分区内的历史、摘要与待处理状态",
@@ -611,7 +609,7 @@ function TraceDisclosure({
   const visibleMeta = showStatus && statusOf(status) !== "skipped" ? meta : undefined;
   return <section className={`trace-disclosure${open ? " is-open" : ""}`}>
     <div className="trace-disclosure-header">
-      <button aria-expanded={open} className="trace-disclosure-trigger" data-tip={tooltip} onClick={() => onToggle(id)} type="button">
+      <button aria-expanded={open} className="trace-disclosure-trigger" title={tooltip} onClick={() => onToggle(id)} type="button">
         <span aria-hidden="true" className="trace-disclosure-chevron">{open ? "⌄" : "›"}</span>
         {number ? <span className="trace-disclosure-number">{number}</span> : null}
         <span className="trace-disclosure-title"><strong>{title}</strong>{visibleMeta ? <small>{visibleMeta}</small> : null}</span>
@@ -1432,15 +1430,16 @@ function StepBody({ step, completion }: Readonly<{ readonly step: TraceNode; rea
     </>;
   }
   if (completion) {
+    const completionDetails = {
+      verdict: step.verdict,
+      action_type: step.action_type,
+      revision_requested: step.revision_requested,
+      external_claim_replaced: step.external_claim_replaced,
+      current_nest_sanitized: step.current_nest_sanitized,
+      memory_use_count: step.memory_use_count,
+    };
     return <>
-      <Fields values={{
-        verdict: step.verdict,
-        action_type: step.action_type,
-        revision_requested: step.revision_requested,
-        external_claim_replaced: step.external_claim_replaced,
-        current_nest_sanitized: step.current_nest_sanitized,
-        memory_use_count: step.memory_use_count,
-      }} />
+      {Object.values(completionDetails).some(hasContent) ? <Fields values={completionDetails} /> : null}
       <Evidence title="判断结果" value={step.content ?? step.summary} />
     </>;
   }
@@ -1852,7 +1851,7 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
   };
   return <article className={`trace-node${open ? " is-open" : ""}`}>
     <div className="trace-node-header">
-      <button aria-expanded={open} className="trace-node-trigger" data-tip={stageTip} onClick={onToggle} type="button">
+      <button aria-expanded={open} className="trace-node-trigger" title={stageTip} onClick={onToggle} type="button">
         <span className="trace-node-number">{String(node.number ?? "")}</span>
         <span className="trace-node-title"><strong>{String(node.title ?? node.id ?? "未命名阶段")}</strong><small>{nodeMeta(node)}</small></span>
         <span className="trace-node-aside"><Status value={node.status} /></span>
