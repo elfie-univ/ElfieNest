@@ -92,7 +92,7 @@ class ActivityPreflightService:
     def _emit_verdict(
         self,
         draft: ActivityDraft,
-        result: ActivityPreflightResult,
+        result: Optional[ActivityPreflightResult],
         *,
         turn_id: str = "",
         frame_id: str = "",

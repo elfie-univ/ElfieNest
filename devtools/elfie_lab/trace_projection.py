@@ -12,7 +12,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    overload,
+)
 
 from elfie.brain.observation import BrainObservation
 
@@ -1006,6 +1016,14 @@ def _on_demand_entry(event: BrainObservation) -> Dict[str, Any]:
     }
 
 
+@overload
+def _event_dump(event: BrainObservation) -> Dict[str, Any]: ...
+
+
+@overload
+def _event_dump(event: None) -> None: ...
+
+
 def _event_dump(event: Optional[BrainObservation]) -> Optional[Dict[str, Any]]:
     if event is None:
         return None
@@ -1878,7 +1896,8 @@ def _reasoning_stage(
         # rows may be absent, but Guard must remain 4.1.6 rather than shifting
         # based on how many legacy verification rows happened to be present.
         guard_number = f"{iteration_number}.6"
-        guard_event = (bucket.get("guard") or [None])[-1]
+        guard_events = bucket.get("guard", [])
+        guard_event = guard_events[-1] if guard_events else None
         guard_outcome = (
             _mapping(guard_event.get("payload")).get("outcome") if guard_event else None
         )

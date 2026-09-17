@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from random import Random
 from threading import Event, Lock
 from time import perf_counter
-from typing import Callable, Optional, Tuple
+from typing import Callable, Literal, Optional, Tuple
 from uuid import uuid4
 
 from elfie.brain.consolidation.system import consolidation_candidate_to_perception
@@ -414,7 +414,7 @@ class BrainCoordinator:
         *,
         turn_id: str,
         frame_id: str,
-        stage: str,
+        stage: Literal["fast", "slow"],
         anchor: EmotionTurnSnapshot,
         candidate: EmotionTurnSnapshot,
         duration_ms: float,

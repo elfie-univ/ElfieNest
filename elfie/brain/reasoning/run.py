@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from enum import Enum, unique
 from threading import Event
 from time import monotonic
-from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Literal, Optional, Tuple, cast
 
 from pydantic import Field, JsonValue
 
@@ -1331,12 +1331,32 @@ class ReasoningRun:
         sink = self._observation_sink
         if sink is None:
             return
+        guard_name: Literal[
+            "none",
+            "cancellation",
+            "deadline",
+            "model_budget",
+            "tool_budget",
+            "steps",
+            "depth",
+        ]
         if fired is None:
             guard_name = "none"
             may_continue = True
             stop_reason = None
         else:
-            guard_name = fired[0]
+            guard_name = cast(
+                Literal[
+                    "none",
+                    "cancellation",
+                    "deadline",
+                    "model_budget",
+                    "tool_budget",
+                    "steps",
+                    "depth",
+                ],
+                fired[0],
+            )
             may_continue = False
             stop_reason = fired[2]
         deadline_remaining_ms: Optional[float] = None
