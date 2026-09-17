@@ -11,7 +11,7 @@ const observability = {
     {
       number: "1",
       id: "event_admission",
-      title: "Event admission",
+      title: "事件准入",
       status: "completed",
       duration_ms: 18,
       input: { source_domain: "communication", message: "你好，今天怎么样？" },
@@ -21,7 +21,7 @@ const observability = {
     {
       number: "2",
       id: "context_workspace",
-      title: "Context Workspace",
+      title: "上下文工作区",
       status: "completed",
       duration_ms: 0.27,
       input: { turn_id: "turn-1", message: "你好，今天怎么样？" },
@@ -31,7 +31,7 @@ const observability = {
     {
       number: "3",
       id: "setup",
-      title: "Setup",
+      title: "运行准备",
       status: "completed",
       input: { turn_id: "turn-1" },
       output: {
@@ -44,11 +44,11 @@ const observability = {
         capabilities: { provider: "mock", json_schema: true, tools: false },
       },
       owner_snapshots: [
-        { id: "orientation", title: "Orientation", status: "recorded", input: { source_record: "state_before" }, output: { location: "巢内" }, evidence_basis: "state_before", raw: { location: "巢内" } },
-        { id: "selfhood", title: "Selfhood", status: "recorded", input: { source_record: "state_before" }, output: { identity_core: { display_name: "艾菲" }, adaptive_self: { big_five: { openness: 0.5 } } }, raw: {} },
-        { id: "emotion", title: "Emotion", status: "recorded", input: { source_record: "state_before" }, output: { primary_emotion: "happiness", emotions: { happiness: 0.7 } }, raw: {} },
-        { id: "energy", title: "Energy", status: "recorded", input: { source_record: "state_before" }, output: { energy: 88, fatigue: 0.1 }, raw: {} },
-        { id: "motivation", title: "Motivation", status: "recorded", input: { source_record: "state_before" }, output: { recovery_status: "stable" }, raw: {} },
+        { id: "orientation", title: "定位", status: "recorded", input: { source_record: "state_before" }, output: { location: "巢内" }, evidence_basis: "state_before", raw: { location: "巢内" } },
+        { id: "selfhood", title: "自我", status: "recorded", input: { source_record: "state_before" }, output: { identity_core: { display_name: "艾菲" }, adaptive_self: { big_five: { openness: 0.5 } } }, raw: {} },
+        { id: "emotion", title: "情绪", status: "recorded", input: { source_record: "state_before" }, output: { primary_emotion: "happiness", emotions: { happiness: 0.7 } }, raw: {} },
+        { id: "energy", title: "能量", status: "recorded", input: { source_record: "state_before" }, output: { energy: 88, fatigue: 0.1 }, raw: {} },
+        { id: "motivation", title: "动机", status: "recorded", input: { source_record: "state_before" }, output: { recovery_status: "stable" }, raw: {} },
       ],
       baseline_memory: { status: "skipped", query: "", reason: "baseline not needed", evidence_basis: "model_request.RELEVANT_MEMORY" },
       raw: { state_before: { energy: 88 } },
@@ -56,7 +56,7 @@ const observability = {
     {
       number: "4",
       id: "reasoning_run",
-      title: "ReasoningRun",
+      title: "推理运行",
       status: "completed",
       output: { status: "completed", model_calls: 2, tool_calls: 0, skill_calls: 0 },
       iterations: [
@@ -189,13 +189,13 @@ describe("Elfie Lab Turn Inspector", () => {
   });
 
   it("renders the seven production stages and actual reasoning iterations", () => {
-    const markup = renderInspector();
+    const markup = renderInspector("链路", turn, "chain", ["reasoning_run"]);
 
-    expect(markup).toContain("Turn 处理链路");
-    for (const label of ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "回合决策", "治理与交付", "结算"]) {
+    expect(markup).toContain("回合处理链路");
+    for (const label of ["事件准入", "上下文工作区", "运行准备", "推理运行", "回合决策", "治理与交付", "结算"]) {
       expect(markup).toContain(label);
     }
-    const stagePositions = ["Event admission", "Context Workspace", "Setup", "ReasoningRun", "回合决策", "治理与交付", "结算"]
+    const stagePositions = ["事件准入", "上下文工作区", "运行准备", "推理运行", "回合决策", "治理与交付", "结算"]
       .map((label) => markup.indexOf(label));
     expect(stagePositions).toEqual([...stagePositions].sort((left, right) => left - right));
     expect(markup).toContain("4.1");
@@ -222,6 +222,26 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).not.toContain("detail-tabs");
   });
 
+  it("starts with every production stage collapsed unless explicitly requested", () => {
+    const markup = renderInspector();
+
+    expect(markup).not.toContain("trace-node-body");
+    expect(markup).not.toContain("trace-disclosure-content");
+  });
+
+  it("surfaces a failed inner stage in the turn status", () => {
+    const failed = withChainNodes({
+      3: (node) => ({
+        ...node,
+        status: "failed",
+        output: { ...(node.output as FixtureNode), failure_reason: "model_unavailable" },
+      }),
+    });
+    const markup = renderInspector("链路", failed);
+
+    expect(markup).toContain('<div class="trace-turn-title-row"><h3>回合 01</h3><span class="trace-status trace-status-failed">');
+  });
+
   it("shows short anomaly reasons in collapsed stage metas", () => {
     const markup = renderInspector("链路", withChainNodes({
       5: (node) => ({ ...node, output: { ...(node.output as FixtureNode), result: { success: false, error: "delivery rejected" } } }),
@@ -229,7 +249,7 @@ describe("Elfie Lab Turn Inspector", () => {
     }));
 
     expect(markup).toContain("交付失败");
-    expect(markup).toContain("warning 2");
+    expect(markup).toContain("警告 2");
     expect(markup).not.toContain("个快照");
   });
 
@@ -244,9 +264,9 @@ describe("Elfie Lab Turn Inspector", () => {
   });
 
   it("keeps the production reasoning tree collapsed below the selected Run", () => {
-    const markup = renderInspector();
+    const markup = renderInspector("链路", turn, "chain", ["reasoning_run"]);
 
-    expect(markup).toContain("trace-disclosure-trigger");
+    expect(markup).toContain("trace-node-trigger");
     expect(markup).toContain("4.1");
     expect(markup).toContain("迭代");
     expect(markup).toContain("aria-expanded=\"false\"");
@@ -354,9 +374,9 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("输入 Token");
     expect(markup).toContain("输出 Token");
     expect(markup).toContain("总 Token");
+    expect(markup).toContain("模型层耗时");
     expect(markup).toContain(">165<");
-    expect(markup).not.toContain("Provider 延迟");
-    expect(markup).not.toContain(">321.5<");
+    expect(markup).toContain(">321.5 ms<");
 
     const withoutUsage = renderInspector("链路", turn, "chain", ["reasoning_run", "reasoning-4.1", "reasoning-4.1-model"]);
     expect(withoutUsage).not.toContain("Token 用量");
@@ -506,7 +526,7 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup).toContain("工具调用次数");
     expect(markup).toContain("技能调用次数");
     expect(markup).toContain("失败/回退原因");
-    expect(markup).toContain("Host 解析模式");
+    expect(markup).toContain("宿主解析模式");
     expect(markup).not.toContain("<dt>状态</dt>");
     expect(markup).not.toContain("失败原因");
     expect(markup).not.toContain("降级原因");
@@ -540,24 +560,24 @@ describe("Elfie Lab Turn Inspector", () => {
     for (const title of ["上下文构建", "模型调用", "认知行动", "观察记录", "完成判定", "守卫判断"]) {
       expect(markup).toContain(`<strong>${title}</strong>`);
     }
-    for (const duration of ["耗时 0.90 ms", "耗时 4.11 s", "耗时 2 ms", "耗时 1 ms", "耗时 0.80 ms"]) {
+    for (const duration of ["耗时 0.9 ms", "耗时 4.11 s", "耗时 2.4 ms", "耗时 1.1 ms", "耗时 0.8 ms"]) {
       expect(markup).toContain(duration);
     }
     expect(markup).not.toContain("elfie-mock ·");
-    expect(markup).not.toContain("Host 解析</small>");
+    expect(markup).not.toContain("宿主解析</small>");
     expect(markup).not.toContain("Memory Recall");
     expect(markup).not.toContain("Observations");
   });
 
   it("keeps governance and delivery as one flat stage", () => {
-    const markup = renderInspector("链路", turn, "output");
+    const markup = renderInspector("链路", turn, "output", ["governance_delivery"]);
 
     expect(markup).toContain("治理与交付");
     expect(markup).toContain("交付摘要");
     expect(markup).toContain("交付回执");
     expect(markup).not.toContain("6.1");
     expect(markup).not.toContain("Delivery / Activity request");
-    expect(markup).not.toContain("Activity 请求");
+    expect(markup).not.toContain("活动请求");
   });
 
   it("shows an explicit routing result and one readable row per receipt lifecycle", () => {
@@ -597,10 +617,10 @@ describe("Elfie Lab Turn Inspector", () => {
   });
 
   it("shows the five setup owner snapshots without returning to raw JSON by default", () => {
-    const markup = renderInspector("快照");
+    const markup = renderInspector("快照", turn, "chain", ["setup"]);
 
     expect(markup).toContain("进入推理时冻结状态");
-    for (const label of ["Orientation", "Selfhood", "Emotion", "Energy", "Motivation"]) {
+    for (const label of ["定位", "自我", "情绪", "能量", "动机"]) {
       expect(markup).toContain(label);
     }
     expect(markup).toContain("trace-disclosure-trigger");
@@ -650,8 +670,8 @@ describe("Elfie Lab Turn Inspector", () => {
     const turnWithoutProjection = { ...turn, trace: { stages: {} } } as unknown as ElfieTurn;
     const markup = renderInspector("链路", turnWithoutProjection);
 
-    expect(markup).not.toContain("Event admission");
-    expect(markup).not.toContain("Context Workspace");
+    expect(markup).not.toContain("事件准入");
+    expect(markup).not.toContain("上下文工作区");
     expect(markup).toContain("未采集");
   });
 

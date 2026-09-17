@@ -1038,6 +1038,15 @@ def test_failed_reasoning_remains_explicit_in_the_production_chain():
     assert trace["chain"][3]["status"] == "failed"
     assert trace["chain"][3]["output"]["failure_reason"] == "model_unavailable"
     assert trace["chain"][4]["status"] == "unavailable"
+    assert [stage["title"] for stage in trace["chain"]] == [
+        "事件准入",
+        "上下文工作区",
+        "运行准备",
+        "推理运行",
+        "回合决策",
+        "治理与交付",
+        "结算",
+    ]
 
 
 def test_chain_stages_carry_the_sum_of_their_member_event_durations():

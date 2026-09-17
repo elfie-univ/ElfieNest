@@ -1579,7 +1579,7 @@ def _event_admission_stage(
     return {
         "number": "1",
         "id": "event_admission",
-        "title": "Event admission",
+        "title": "事件准入",
         "status": "completed" if stimulus or typed_input else "unavailable",
         "duration_ms": duration_ms,
         "input": {
@@ -1645,7 +1645,7 @@ def _context_workspace_stage(
     return {
         "number": "2",
         "id": "context_workspace",
-        "title": "Context Workspace",
+        "title": "上下文工作区",
         "status": (
             "completed"
             if (
@@ -1718,7 +1718,7 @@ def _setup_stage(
     return {
         "number": "3",
         "id": "setup",
-        "title": "Setup",
+        "title": "运行准备",
         "status": "completed"
         if state_before or request or context_frozen
         else "unavailable",
@@ -1752,11 +1752,11 @@ def _owner_snapshots(
         return []
     captured_at = frozen_state.get("context_captured_at")
     values = (
-        ("orientation", "Orientation", frozen_state.get("orientation")),
-        ("selfhood", "Selfhood", frozen_state.get("selfhood")),
-        ("emotion", "Emotion", frozen_state.get("emotion")),
-        ("energy", "Energy", frozen_state.get("homeostasis")),
-        ("motivation", "Motivation", frozen_state.get("motivation")),
+        ("orientation", "定位", frozen_state.get("orientation")),
+        ("selfhood", "自我", frozen_state.get("selfhood")),
+        ("emotion", "情绪", frozen_state.get("emotion")),
+        ("energy", "能量", frozen_state.get("homeostasis")),
+        ("motivation", "动机", frozen_state.get("motivation")),
     )
     snapshots: List[Dict[str, Any]] = []
     for module_id, title, value in values:
@@ -2012,7 +2012,7 @@ def _reasoning_stage(
     return {
         "number": "4",
         "id": "reasoning_run",
-        "title": "ReasoningRun",
+        "title": "推理运行",
         "status": reasoning.get("status", "unavailable"),
         "duration_ms": duration_ms,
         "iterations": iterations,
@@ -2315,7 +2315,7 @@ def _observation_stage(
         "number": number,
         "duration_ms": duration_ms,
         "id": "observations",
-        "title": "Observations",
+        "title": "观察记录",
         "status": "observed",
         "input": {"step_count": len(recorded)},
         "output": {"records": recorded},
@@ -2495,7 +2495,7 @@ def _activity_request_projection(
     }.get(str(preflight_status), "candidate")
     return {
         "id": "activity_request",
-        "title": "Activity 请求",
+        "title": "活动请求",
         "status": status,
         "requests": requests,
         "preflight": preflight,

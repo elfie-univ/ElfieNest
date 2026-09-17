@@ -57,7 +57,7 @@ const statusLabels: Readonly<Record<string, string>> = {
   repair_returned: "修订已返回",
   invalid_output: "输出无效",
   invalid_cognitive_action: "行动无效",
-  activity_preflight: "Activity 预检",
+  activity_preflight: "活动预检",
   needs_clarification: "需要澄清",
   tool_failed: "工具失败",
   tool_rejected: "工具被拒绝",
@@ -137,7 +137,25 @@ function Status({ value }: Readonly<{ readonly value: unknown }>): React.JSX.Ele
 
 function formatDuration(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "未记录";
-  return value < 1000 ? `${value < 1 ? value.toFixed(2) : Math.round(value)} ms` : `${(value / 1000).toFixed(2)} s`;
+  if (value === 0) return "0 ms";
+  if (Math.abs(value) < 0.01) return "<0.01 ms";
+  const formatDecimal = (number: number): string => number.toFixed(2).replace(/\.?(0+)$/, "");
+  return Math.abs(value) < 1000 ? `${formatDecimal(value)} ms` : `${formatDecimal(value / 1000)} s`;
+}
+
+function formatDisplayNumber(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (value !== 0 && Math.abs(value) < 0.01) return "<0.01";
+  return value.toFixed(2).replace(/\.?(0+)$/, "");
+}
+
+function formatDisplayJson(value: unknown): string {
+  const serialized = JSON.stringify(value, (_key, item) => (
+    typeof item === "number" && Number.isFinite(item)
+      ? (formatDisplayNumber(item).startsWith("<") ? item : Number(formatDisplayNumber(item)))
+      : item
+  ), 2);
+  return serialized ?? String(value);
 }
 
 function durationMeta(node: TraceNode): string | undefined {
@@ -207,9 +225,9 @@ function fieldLabel(key: string): string {
     skill_count: "技能数量",
     tool_definitions: "工具定义详情",
     available_skills: "可用技能",
-    provider: "Provider",
+    provider: "模型提供方",
     model: "模型",
-    selected_mode: "Host 解析模式",
+    selected_mode: "宿主解析模式",
     observation_kind: "观察类型",
     observation_status: "观察状态",
     tool_key: "工具",
@@ -234,8 +252,8 @@ function fieldLabel(key: string): string {
     motion_intents: "动作意图",
     expression_intents: "表情意图",
     action_intents: "动作意图",
-    activity_intents: "Activity 意图",
-    noop_intents: "No-op 意图",
+    activity_intents: "活动意图",
+    noop_intents: "无操作意图",
     source_record: "输入来源",
     recorded_turn_id: "记录的 Turn",
     receipt_count: "回执数量",
@@ -402,7 +420,7 @@ function fieldLabel(key: string): string {
     pending_close: "待关闭",
     thread_count: "上下文分区数",
     pending_reply_count: "待结算回复数",
-    pending_memory_count: "待写入 Memory 数",
+    pending_memory_count: "待写入记忆数",
     prepared_at: "准备时间",
     occurred_from: "起始时间",
     occurred_to: "结束时间",
@@ -445,7 +463,7 @@ const modalityLabels: Readonly<Record<string, string>> = {
 const sourceDomainLabels: Readonly<Record<string, string>> = {
   communication: "消息",
   embodied: "现场",
-  activity: "Activity",
+  activity: "活动",
 };
 
 const actionTypeLabels: Readonly<Record<string, string>> = {
@@ -476,7 +494,7 @@ const observationKindLabels: Readonly<Record<string, string>> = {
   repair: "修订准备",
   memory: "记忆结果",
   revision: "修订结果",
-  activity: "Activity 预检",
+  activity: "活动预检",
   judge: "完成判定",
   reply: "回复结果",
 };
@@ -489,7 +507,7 @@ const operationLabels: Readonly<Record<string, string>> = {
   read_file: "读取文件",
   list: "列出",
   send_message: "发送消息",
-  activity_preflight: "Activity 预检",
+  activity_preflight: "活动预检",
   memory_recall: "召回记忆",
 };
 
@@ -583,7 +601,7 @@ const domainLabels: Readonly<Record<string, string>> = {
   communication: "消息",
   embodied: "现场",
   nervous_system: "具身",
-  activity: "Activity",
+  activity: "活动",
 };
 
 const scopeKindLabels: Readonly<Record<string, string>> = {
@@ -592,13 +610,13 @@ const scopeKindLabels: Readonly<Record<string, string>> = {
   body: "身体",
   communication: "消息",
   embodied: "现场",
-  activity: "Activity",
+  activity: "活动通道",
 };
 
 const routeLabels: Readonly<Record<string, string>> = {
   reply_via_message: "消息回复",
   reply_via_speech: "语音回复",
-  reply_via_activity: "Activity 请求",
+  reply_via_activity: "活动请求",
   no_reply: "不回复",
 };
 
@@ -611,7 +629,7 @@ const routeResultLabels: Readonly<Record<string, string>> = {
 const executorLabels: Readonly<Record<string, string>> = {
   body: "身体通道",
   communication: "消息通道",
-  activity: "Activity",
+  activity: "活动通道",
   internal: "内部处理",
 };
 
@@ -651,6 +669,11 @@ function displayFieldValue(key: string, value: unknown): unknown {
   }
   if (key === "modalities") return modalitiesText(value);
   if (key === "reason_codes") return Array.isArray(value) ? value.map(readableReason) : readableReason(value);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (key.endsWith("_ms") || key === "duration_ms" || key === "deadline_remaining_ms") return formatDuration(value);
+    if (key.endsWith("_seconds") || key === "timeout_seconds" || key === "deadline_seconds") return `${formatDisplayNumber(value)} s`;
+    return formatDisplayNumber(value);
+  }
   return value;
 }
 
@@ -661,7 +684,7 @@ function FieldValue({ value }: Readonly<{ readonly value: unknown }>): React.JSX
   }
   const joined = primitiveJoin(value);
   if (joined !== null) return <span className="trace-value-text">{joined}</span>;
-  return <pre className="trace-code trace-code-inline">{pretty(value)}</pre>;
+  return <pre className="trace-code trace-code-inline">{formatDisplayJson(value)}</pre>;
 }
 
 // These values are retained in every raw record for correlation and replay,
@@ -817,10 +840,11 @@ function compactStringArray(value: unknown): string | null {
 
 function readableDiffValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "未记录";
+  if (typeof value === "number" && Number.isFinite(value)) return formatDisplayNumber(value);
   if (isPrimitive(value)) return String(value);
   const compacted = compactStringArray(value);
   if (compacted !== null) return compacted;
-  return JSON.stringify(value) ?? String(value);
+  return formatDisplayJson(value);
 }
 
 function diffLeafText(value: unknown): string {
@@ -923,7 +947,7 @@ function DecisionEvidence({ output }: Readonly<{ readonly output: JsonRecord }>)
     const type = String(item.type ?? "");
     return type !== "motion" && type !== "expression";
   });
-  addGroup("Activity 请求", list(output.activity_intents));
+  addGroup("活动请求", list(output.activity_intents));
   addGroup("无操作", list(output.noop_intents));
 
   const fallbackTexts: Array<[string, readonly unknown[]]> = [
@@ -1059,7 +1083,7 @@ const conversationSpeakerLabels: Readonly<Record<string, string>> = {
   developer_tool: "开发者",
   human: "开发者",
   system: "系统",
-  activity: "Activity",
+  activity: "活动",
   microphone: "麦克风",
   vision: "视觉输入",
   touch: "触觉输入",
@@ -1118,6 +1142,14 @@ function conversationSpeaker(row: JsonRecord): string {
   // the current Elfie instead of exposing an abstract participant label.
   return "elfie";
 }
+
+const ownerTitleLabels: Readonly<Record<string, string>> = {
+  orientation: "定位",
+  selfhood: "自我",
+  emotion: "情绪",
+  energy: "能量",
+  motivation: "动机",
+};
 
 function admissionValue(input: JsonRecord, modality: string): unknown {
   const projectedValues = record(input.modality_values);
@@ -1372,7 +1404,7 @@ function WorkspaceNode({ node, mountOpenIds }: Readonly<{
     },
     {
       id: `${baseId}-pending-memory`,
-      title: "待写入 Memory",
+      title: "待写入记忆",
       raw: pendingMemory,
       content: pendingMemory.length ? <WorkspacePendingMemoryList items={pendingMemory} /> : null,
       visible: pendingMemory.length > 0,
@@ -1413,14 +1445,6 @@ function projectedNodes(turn: ElfieTurn): readonly TraceNode[] {
   return list(projected.chain).map(record);
 }
 
-function defaultNodeId(focus: DetailFocus, initialTab: string): string {
-  if (focus === "input") return "event_admission";
-  if (focus === "output") return "governance_delivery";
-  if (initialTab === "快照") return "setup";
-  if (initialTab === "原始") return "settlement";
-  return "reasoning_run";
-}
-
 // Stage header meta rule: duration by default; reasoning_run keeps "N 个迭代";
 // anomalies add one short reason. Counts/revision summaries are gone by design.
 const stageAnomalyLabels: Readonly<Record<string, string>> = {
@@ -1430,6 +1454,10 @@ const stageAnomalyLabels: Readonly<Record<string, string>> = {
 };
 
 const stageTitleLabels: Readonly<Record<string, string>> = {
+  event_admission: "事件准入",
+  context_workspace: "上下文工作区",
+  setup: "运行准备",
+  reasoning_run: "推理运行",
   turn_decision: "回合决策",
   governance_delivery: "治理与交付",
   settlement: "结算",
@@ -1464,17 +1492,37 @@ function displayStageStatus(node: TraceNode): TraceStatus {
   return rawStatus;
 }
 
+function turnStatus(turn: ElfieTurn, nodes: readonly TraceNode[]): TraceStatus {
+  if (turn.error || turn.result.success === false) return "failed";
+  const statuses = nodes.map(displayStageStatus);
+  const failureStatuses = new Set([
+    "failed",
+    "rejected",
+    "timed_out",
+    "cancelled",
+    "invalid_output",
+    "invalid_cognitive_action",
+    "tool_failed",
+    "tool_rejected",
+  ]);
+  if (statuses.some((status) => failureStatuses.has(status))) return "failed";
+  if (statuses.includes("waiting_receipt")) return "waiting_receipt";
+  if (statuses.includes("degraded") || statuses.includes("revision_required")) return "degraded";
+  if (turn.result.success === true) return "completed";
+  return "unavailable";
+}
+
 function stageAnomaly(node: TraceNode): string {
   const id = String(node.id ?? "");
   const output = record(node.output);
   if (id === "setup") {
     const baselineStatus = statusOf(record(node.baseline_memory).status);
-    if (baselineStatus === "degraded") return "Memory degraded";
+    if (baselineStatus === "degraded") return "记忆降级";
   }
   if (id === "event_admission") {
     const admission = String(output.status ?? "");
-    if (admission === "deferred") return "admission deferred";
-    if (admission === "rejected") return "admission rejected";
+    if (admission === "deferred") return "准入延期";
+    if (admission === "rejected") return "准入拒绝";
   }
   if (id === "governance_delivery") {
     if (record(output.result).success === false) return "交付失败";
@@ -1482,7 +1530,7 @@ function stageAnomaly(node: TraceNode): string {
   }
   if (id === "settlement") {
     const warningCount = list(output.warnings).length;
-    if (warningCount > 0) return `warning ${warningCount}`;
+    if (warningCount > 0) return `警告 ${warningCount}`;
   }
   const status = displayStageStatus(node);
   if (status === "failed" || status === "degraded" || status === "skipped") {
@@ -1497,17 +1545,11 @@ function nodeMeta(node: TraceNode): string {
     ? `${list(node.iterations).length} 个迭代`
     : "";
   const anomaly = stageAnomaly(node);
-  // Setup's previous duration mixed memory/selection work with snapshots
-  // taken before the immutable BrainContext existed.  Until the stage gets a
-  // dedicated measured boundary, do not present that partial number as the
-  // freeze cost.
-  const duration = String(node.id ?? "") === "setup"
-    ? "未记录"
-    : formatDuration(
-      node.duration_ms
-        ?? record(node.timing).duration_ms
-        ?? record(node.output).duration_ms,
-    );
+  const duration = formatDuration(
+    node.duration_ms
+      ?? record(node.timing).duration_ms
+      ?? record(node.output).duration_ms,
+  );
   return [detail, anomaly, duration === "未记录" ? "" : `耗时 ${duration}`]
     .filter(Boolean)
     .join(" · ");
@@ -1692,10 +1734,10 @@ function OwnerSnapshot({
   return <TraceDisclosure
     id={id}
     {...(number !== undefined ? { number } : {})}
-    title={String(owner.title ?? owner.id ?? "模块")}
+    title={ownerTitleLabels[String(owner.id ?? "")] ?? String(owner.title ?? owner.id ?? "模块")}
     onToggle={onToggle}
     open={open}
-    raw={owner.raw}
+    raw={owner}
     status={owner.status}
     showStatus={false}
     showRaw={false}
@@ -1758,13 +1800,15 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
   const parsed = output.parsed_result;
   const promptTokens = call.prompt_tokens;
   const completionTokens = call.completion_tokens;
-  const tokenUsage = hasContent(promptTokens) || hasContent(completionTokens)
+  const providerLatency = call.provider_latency_ms;
+  const tokenUsage = hasContent(promptTokens) || hasContent(completionTokens) || hasContent(providerLatency)
     ? {
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       total_tokens: typeof promptTokens === "number" && typeof completionTokens === "number"
         ? promptTokens + completionTokens
         : undefined,
+      provider_latency_ms: providerLatency,
     }
     : null;
   return <>
@@ -1776,8 +1820,8 @@ function ModelCallBody({ call }: Readonly<{ readonly call: TraceNode }>): React.
     {hasContent(fullInput) ? <Evidence title="模型输入（完整消息）" value={fullInput} /> : null}
     {hasContent(call.response ?? output.response) ? <Evidence title="模型原始输出" value={call.response ?? output.response} /> : null}
     {hasContent(call.error) ? <Evidence title="模型调用错误" value={call.error} /> : null}
-    {hasContent(parsed) ? <Evidence title="模型结果（Host 解析）" value={parsed} /> : <div className="trace-unavailable"><span>模型结果（Host 解析）</span><Status value="unavailable" /></div>}
-    {hasContent(call.provider_raw) ? <Evidence title="Provider 原始包" value={call.provider_raw} /> : null}
+    {hasContent(parsed) ? <Evidence title="模型结果（宿主解析）" value={parsed} /> : <div className="trace-unavailable"><span>模型结果（宿主解析）</span><Status value="unavailable" /></div>}
+    {hasContent(call.provider_raw) ? <Evidence title="模型提供方原始包" value={call.provider_raw} /> : null}
   </>;
 }
 
@@ -1803,7 +1847,7 @@ function ModelCall({
     meta={modelCallMeta(call)}
     onToggle={onToggle}
     open={open}
-    raw={call.raw ?? call}
+    raw={call}
     status={call.status}
     tooltip={SUB_STEP_DESCRIPTIONS.model_call}
   >
@@ -1851,7 +1895,7 @@ function ContextBuild({
     meta={durationMeta(build)}
     onToggle={onToggle}
     open={open}
-    raw={build.raw ?? build}
+    raw={build}
     status={build.status}
     tooltip={SUB_STEP_DESCRIPTIONS.context_build}
   >
@@ -2122,7 +2166,7 @@ function ObservationStage({
     meta={durationMeta(stage ?? {})}
     onToggle={onToggle}
     open={open}
-    raw={effectiveStage.raw ?? effectiveStage}
+    raw={effectiveStage}
     status={effectiveStage.status}
     tooltip={SUB_STEP_DESCRIPTIONS.observation}
   >
@@ -2168,7 +2212,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
         title="迭代"
         onToggle={toggle}
         open={openChildren.has(iterationId)}
-        raw={iteration.raw}
+        raw={iteration}
         status={iteration.status}
       >
         {hasVisibleFields(iteration.input) ? <Evidence title="迭代输入" value={iteration.input} /> : null}
@@ -2181,7 +2225,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
           meta={durationMeta(action)}
           onToggle={toggle}
           open={openChildren.has(`${iterationId}-action`)}
-          raw={action.raw ?? action}
+          raw={action}
           status={action.status}
           tooltip={SUB_STEP_DESCRIPTIONS.action}
         >
@@ -2209,7 +2253,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
           meta={durationMeta(guard)}
           onToggle={toggle}
           open={openChildren.has(`${iterationId}-guard`)}
-          raw={guard.raw ?? guard}
+          raw={guard}
           status={guard.status}
           tooltip={SUB_STEP_DESCRIPTIONS.guard}
         >
@@ -2262,7 +2306,7 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
     <Evidence title="交付摘要" value={resultSummary} />
     <ReceiptEvidence lifecycle={receiptLifecycle} receipts={receipts} />
     {hasVisibleFields(routing, ["routed", "memory_eligible"]) ? <section className="trace-evidence"><h4>路由</h4><Fields values={routing} omit={["routed", "memory_eligible"]} /></section> : null}
-    {hasContent(activityRequest) ? <section className="trace-evidence"><h4>Activity 请求</h4>
+    {hasContent(activityRequest) ? <section className="trace-evidence"><h4>活动请求</h4>
       <div className="trace-memory-list">
         {(activityRequests.length ? activityRequests : [{}]).map((request, index) => {
           const requestPreflight = preflightVerdicts.find((verdict) => (
@@ -2270,7 +2314,7 @@ function GovernanceNode({ node, preview }: Readonly<{ readonly node: TraceNode; 
             && String(verdict.activity_id) === String(request.activity_id)
           )) ?? preflight;
           return <Fields key={`activity-request-${index}`} values={{
-            activity: request.type === "activity" ? "Activity" : request.type,
+            activity: request.type === "activity" ? "活动" : request.type,
             content: request.content,
             goal: request.goal,
             state: request.state,
@@ -2422,9 +2466,7 @@ function NodeBody({ node, preview, mountOpenIds }: Readonly<{
 }
 
 function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.Element {
-  return hasContent(node.raw)
-    ? <pre className="trace-code trace-node-raw-view">{pretty(node.raw)}</pre>
-    : <div className="trace-unavailable"><span>原始记录</span><Status value="unavailable" /></div>;
+  return <pre className="trace-code trace-node-raw-view">{pretty(node)}</pre>;
 }
 
 function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
@@ -2463,24 +2505,24 @@ function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly
   const stimulusMessage = typeof stimulus.message === "string" ? stimulus.message : "";
   const iterations = list(reasoningNode.iterations).length || list(reasoning.steps).length ? list(reasoningNode.iterations).length || 1 : 0;
   const calls = typeof reasoning.model_calls === "number" ? reasoning.model_calls : list(traceStages(turn).model_calls).length;
-  const overallStatus = turn.result.success === false || turn.error ? "failed" : turn.result.success === true ? "completed" : "unavailable";
+  const overallStatus = turnStatus(turn, nodes);
   return <>
     <section className="trace-turn-header">
-      <div className="trace-turn-title-row"><h3>{index >= 0 ? `Turn ${String(index + 1).padStart(2, "0")}` : "Turn"}</h3><Status value={overallStatus} /></div>
+      <div className="trace-turn-title-row"><h3>{index >= 0 ? `回合 ${String(index + 1).padStart(2, "0")}` : "回合"}</h3><Status value={overallStatus} /></div>
       <p className="trace-turn-message">{stimulusMessage || "非文字刺激"}</p>
-      <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "Activity" : "消息"}</span></div>
+      <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "活动" : "消息"}</span></div>
     </section>
     <dl className="trace-stat-row"><div><dt>耗时</dt><dd>{formatDuration(turn.duration_ms)}</dd></div><div><dt>迭代</dt><dd>{iterations}</dd></div><div><dt>模型调用</dt><dd>{calls}</dd></div><div><dt>记录来源</dt><dd>{projected.source === "production_turn_record" ? "生产链路" : "未采集"}</dd></div></dl>
-    <section className="trace-chain" aria-label="Turn 处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
+    <section className="trace-chain" aria-label="回合处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
   </>;
 }
 
-export function DetailPanel({ session, selectedTurn, open, initialTab, focus, previewResult, onClose, defaultOpenDetails }: Props): React.JSX.Element {
-  const [openNode, setOpenNode] = useState<ReadonlySet<string>>(() => new Set(defaultOpenDetails ?? [defaultNodeId(focus, initialTab)]));
-  useEffect(() => { setOpenNode(new Set(defaultOpenDetails ?? [defaultNodeId(focus, initialTab)])); }, [defaultOpenDetails, focus, initialTab, selectedTurn?.turn_id]);
+export function DetailPanel({ session, selectedTurn, open, previewResult, onClose, defaultOpenDetails }: Props): React.JSX.Element {
+  const [openNode, setOpenNode] = useState<ReadonlySet<string>>(() => new Set(defaultOpenDetails ?? []));
+  useEffect(() => { setOpenNode(new Set(defaultOpenDetails ?? [])); }, [defaultOpenDetails, selectedTurn?.turn_id]);
   if (selectedTurn === null) return <></>;
   return <aside aria-hidden={!open} className={open ? "detail-panel" : "detail-panel is-closed"}>
-    <div className="detail-heading"><div><h2>Turn 检查器</h2></div><Button aria-label="收起回合详情" onClick={onClose} shape="circle" type="text">×</Button></div>
+    <div className="detail-heading"><div><h2>回合检查器</h2></div><Button aria-label="收起回合详情" onClick={onClose} shape="circle" type="text">×</Button></div>
     <div className="detail-content inspector-content"><TurnInspector
       onToggle={(id) => setOpenNode((current) => {
         const next = new Set(current);
