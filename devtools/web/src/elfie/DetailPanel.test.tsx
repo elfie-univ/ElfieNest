@@ -339,6 +339,54 @@ describe("Elfie Lab Turn Inspector", () => {
     expect(markup.match(/<strong>Model Call<\/strong>/g)).toHaveLength(1);
   });
 
+  it("keeps the ReasoningRun overview non-duplicative and hides empty iteration input", () => {
+    const enriched = withChainNodes({
+      3: (node) => {
+        const iterations = node.iterations as unknown as FixtureNode[];
+        const firstIteration = iterations[0];
+        if (firstIteration === undefined) throw new Error("fixture missing first iteration");
+        return {
+          ...node,
+          status: "safe_noop",
+          output: {
+            status: "safe_noop",
+            model_calls: 1,
+            tool_calls: 0,
+            skill_calls: 0,
+            failure_reason: "cognitive_action_validation_failed",
+            fallback_reason: "cognitive_action_validation_failed",
+            selected_mode: "json_text",
+          },
+          iterations: [{
+            ...firstIteration,
+            input: {},
+            completion: [{ kind: "verify", status: "safe_noop", summary: "safe fallback" }],
+            model_call: {
+              ...firstIteration.model_call as FixtureNode,
+              output: { response: "MODEL RAW RESPONSE", selected_mode: "json_text" },
+            },
+          }],
+        };
+      },
+    });
+    const markup = renderInspector("链路", enriched, "chain", [
+      "reasoning_run",
+      "reasoning-4.1",
+      "reasoning-4.1-model",
+    ]);
+
+    expect(markup).toContain("模型调用次数");
+    expect(markup).toContain("工具调用次数");
+    expect(markup).toContain("技能调用次数");
+    expect(markup).toContain("失败/回退原因");
+    expect(markup).toContain("Host 解析模式");
+    expect(markup).not.toContain("<dt>状态</dt>");
+    expect(markup).not.toContain("失败原因");
+    expect(markup).not.toContain("降级原因");
+    expect(markup).not.toContain("迭代输入");
+    expect(markup.match(/终止回退/g)).toHaveLength(1);
+  });
+
   it("keeps delivery as a child of governance", () => {
     const markup = renderInspector("链路", turn, "output");
 

@@ -264,9 +264,8 @@
 .trace-node-aside { display: flex; align-items: center; gap: 5px; }
 .trace-node-body { display: grid; gap: 12px; min-width: 0; padding: 12px 10px 14px; border-top: 1px solid var(--border-subtle); border-radius: 0 0 9px 9px; background: #fcfefd; }
 .trace-status { display: inline-flex; align-items: center; gap: 3px; min-height: 19px; padding: 2px 6px; border: 1px solid transparent; border-radius: 99px; color: var(--text-tertiary); font-size: 9px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
-.trace-status-completed, .trace-status-recorded, .trace-status-compiled, .trace-status-parsed, .trace-status-observed, .trace-status-returned, .trace-status-accepted, .trace-status-continued, .trace-status-committed, .trace-status-recalled, .trace-status-fallback, .trace-status-safe_noop { border-color: #b7d9c5; color: #217a5c; background: #eaf7ef; }
-.trace-status-revision_required { border-color: #e5c998; color: #876920; background: #fffaf0; }
-.trace-status-stopped { border-color: #e5c998; color: #876920; background: #fffaf0; }
+.trace-status-completed, .trace-status-recorded, .trace-status-compiled, .trace-status-parsed, .trace-status-observed, .trace-status-returned, .trace-status-accepted, .trace-status-continued, .trace-status-committed, .trace-status-recalled { border-color: #b7d9c5; color: #217a5c; background: #eaf7ef; }
+.trace-status-revision_required, .trace-status-stopped, .trace-status-fallback, .trace-status-safe_noop { border-color: #e5c998; color: #876920; background: #fffaf0; }
 .trace-status-unavailable, .trace-status-missing { border-color: #ddd3b5; color: #876920; background: #fffaf0; }
 .trace-status-failed { border-color: #e5bdb9; color: var(--status-error); background: #fff2f0; }
 .trace-status-skipped, .trace-status-empty { border-color: var(--border-subtle); color: var(--text-tertiary); background: var(--surface-secondary); }

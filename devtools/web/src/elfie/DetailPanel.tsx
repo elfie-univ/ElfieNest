@@ -174,7 +174,7 @@ function fieldLabel(key: string): string {
     available_skills: "可用技能",
     provider: "Provider",
     model: "模型",
-    selected_mode: "解析模式",
+    selected_mode: "Host 解析模式",
     verdict: "判定",
     action_type: "行动类型",
     revision_requested: "是否要求修订",
@@ -201,6 +201,7 @@ function fieldLabel(key: string): string {
     warnings: "警告",
     failure_reason: "失败原因",
     fallback_reason: "降级原因",
+    run_reason: "失败/回退原因",
     model_calls: "模型调用次数",
     tool_calls: "工具调用次数",
     skill_calls: "技能调用次数",
@@ -1281,6 +1282,7 @@ function modelCallParameters(call: TraceNode): JsonRecord {
     reasoning_mode: value("reasoning_mode"),
     response_mode: value("response_mode"),
     response_schema: value("response_schema"),
+    selected_mode: value("selected_mode"),
     temperature: value("temperature"),
     max_tokens: value("max_tokens"),
     timeout_seconds: value("timeout_seconds"),
@@ -1408,6 +1410,21 @@ function ActionBody({ action }: Readonly<{ readonly action: TraceNode }>): React
   </>;
 }
 
+function reasoningOverview(node: TraceNode): JsonRecord {
+  const output = record(node.output);
+  const failure = output.failure_reason;
+  const fallback = output.fallback_reason;
+  const reason = hasContent(failure) && hasContent(fallback) && String(failure) !== String(fallback)
+    ? `${String(failure)}；回退：${String(fallback)}`
+    : failure ?? fallback;
+  return {
+    model_calls: output.model_calls ?? "未采集",
+    tool_calls: output.tool_calls ?? "未采集",
+    skill_calls: output.skill_calls ?? "未采集",
+    run_reason: hasContent(reason) ? reason : undefined,
+  };
+}
+
 const COGNITIVE_ACTION_LABELS: Readonly<Record<string, string>> = {
   recall_memory: "回忆记忆",
   answer: "回答草稿",
@@ -1484,11 +1501,12 @@ function StepList({
       key={id}
       number={`${numberPrefix}.${numberStart + index}`}
       title={itemTitle}
-      meta={hasContent(step.status) ? statusLabel(step.status) : undefined}
+      meta={undefined}
       onToggle={onToggle}
       open={openChildren.has(id)}
       raw={step}
       status={step.status}
+      showStatus={!fallback}
       tooltip={completion ? SUB_STEP_DESCRIPTIONS.judge : SUB_STEP_DESCRIPTIONS[String(step.operation ?? step.kind ?? "")]}
     >
       <StepBody completion={completion} step={step} />
@@ -1552,7 +1570,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
     });
   };
   return <>
-    <Fields values={record(node.output)} />
+    <Fields values={reasoningOverview(node)} />
     <div className="trace-iteration-list">{iterations.map((iteration) => {
       const iterationId = `reasoning-${String(iteration.number)}`;
       const observations = list(iteration.observations);
@@ -1575,7 +1593,7 @@ function ReasoningNode({ node, mountOpenIds }: Readonly<{ readonly node: TraceNo
         raw={iteration.raw}
         status={iteration.status}
       >
-        <Evidence title="迭代输入" value={iteration.input} />
+        {hasContent(iteration.input) ? <Evidence title="迭代输入" value={iteration.input} /> : null}
         {hasContent(context) ? <ContextBuild build={context} id={`${iterationId}-context`} onToggle={toggle} open={openChildren.has(`${iterationId}-context`)} /> : null}
         {hasContent(modelCall) ? <ModelCall call={modelCall} id={`${iterationId}-model`} onToggle={toggle} open={openChildren.has(`${iterationId}-model`)} /> : null}
         {hasContent(action) ? <TraceDisclosure
