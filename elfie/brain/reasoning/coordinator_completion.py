@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from datetime import datetime, timezone
 from enum import Enum, unique
+from threading import Lock
+from time import perf_counter
 from typing import Literal
 
 from elfie.brain.memory.memory_records import MemoryUseProposal
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
+from elfie.brain.reasoning.coordinator_observations import DecisionRoutedObservation
 from elfie.brain.reasoning.coordinator_outcomes import reasoning_failure_outcome
 from elfie.brain.reasoning.coordinator_ports import TurnDecisionSink
 from elfie.brain.reasoning.coordinator_runtime import TurnOutcomeBuffer
@@ -44,12 +53,61 @@ class CoordinatorCompletionHandler:
         outcomes: TurnOutcomeBuffer,
         settlement: TurnSettlementPort,
         context_source=None,
+        observation_sink: BrainObservationSink | None = None,
     ) -> None:
         self._workspace = workspace
         self._plan_sink = plan_sink
         self._outcomes = outcomes
         self._settlement = settlement
         self._context_source = context_source
+        self._observation_sink = observation_sink
+        self._emit_lock = Lock()
+        self._emit_sequence = 0
+
+    def _next_observation_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    def _emit_decision_routed(
+        self,
+        frame,
+        decision,
+        *,
+        duration_ms: float,
+    ) -> None:
+        sink = self._observation_sink
+        if sink is None:
+            return
+        plan = decision.plan
+        sink.emit(
+            BrainObservation[DecisionRoutedObservation](
+                boundary="decision_boundary",
+                kind="decision_routed",
+                sequence=self._next_observation_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id=str(plan.turn_id),
+                frame_id=str(plan.frame_id),
+                cause_event_ids=tuple(str(item) for item in plan.cause_event_ids),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=DecisionRoutedObservation(
+                    plan_id=str(plan.plan_id),
+                    intent_types=tuple(intent.type for intent in plan.intents),
+                    interaction_scope_kind=decision.interaction_scope.kind,
+                    source_domain=decision.source_domain.value,
+                    response_domain=(
+                        decision.response_scope.external_domain.value
+                        if decision.response_scope.external_domain is not None
+                        else None
+                    ),
+                    response_channel_id=decision.response_scope.channel_id,
+                    response_conversation_id=decision.response_scope.conversation_id,
+                    memory_eligible=decision.memory_eligible,
+                    routed=None,
+                ),
+            )
+        )
 
     def complete(
         self,
@@ -104,10 +162,21 @@ class CoordinatorCompletionHandler:
         # a truthful host notice, but that notice must not pollute the topic
         # Episode used by future Memory Recall.
         memory_eligible = result.reasoning.status is ReasoningStatus.COMPLETED
+        routed_started = perf_counter() if self._observation_sink is not None else 0.0
         decision = govern_decision(
             inflight.frame,
             result.decode.plan,
             memory_eligible=memory_eligible,
+        )
+        routed_duration_ms = (
+            round((perf_counter() - routed_started) * 1000.0, 2)
+            if self._observation_sink is not None
+            else 0.0
+        )
+        self._emit_decision_routed(
+            inflight.frame,
+            decision,
+            duration_ms=routed_duration_ms,
         )
         if result.reasoning.status not in {
             ReasoningStatus.COMPLETED,

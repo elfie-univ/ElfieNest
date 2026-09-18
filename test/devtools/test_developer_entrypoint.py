@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
@@ -50,6 +51,27 @@ def test_default_developer_tools_resolve_under_developer_home(
         developer_home / "nest_lab",
         developer_home / "elfie_lab" / "evaluation",
     )
+
+
+def test_brain_trace_list_is_backend_only(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        developer_main,
+        "list_brain_trace_sources",
+        lambda *_args, **_kwargs: {"elfies": [], "foods": []},
+    )
+    monkeypatch.setattr(
+        developer_main.webbrowser,
+        "open",
+        lambda *_args, **_kwargs: pytest.fail("brain-trace must not open a browser"),
+    )
+    monkeypatch.setattr(
+        developer_main.uvicorn,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("brain-trace must not start HTTP"),
+    )
+
+    assert developer_main.main(["brain-trace", "list", "--data-dir", "/tmp/lab"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"elfies": [], "foods": []}
 
 
 def test_elfie_lab_opens_default_url_when_server_becomes_ready(

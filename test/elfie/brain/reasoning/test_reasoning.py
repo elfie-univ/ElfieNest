@@ -723,7 +723,8 @@ class StaticActivityPreflight:
         self.status = status
         self.calls = 0
 
-    def preflight(self, draft) -> ActivityPreflightResult:
+    def preflight(self, draft, *, turn_id: str = "", frame_id: str = ""):
+        del turn_id, frame_id
         self.calls += 1
         reasons = ()
         if self.status is not ActivityPreflightStatus.VALIDATED:
@@ -1182,6 +1183,26 @@ def test_reasoning_run_honors_local_deadline_before_model_call() -> None:
     assert result.status is ReasoningStatus.TIMED_OUT
     assert result.failure_reason == "deadline_exceeded"
     assert runtime.calls == []
+
+
+def test_reasoning_run_passes_remaining_deadline_to_model_port() -> None:
+    runtime = SearchRuntime()
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(
+            max_steps=4,
+            max_model_calls=1,
+            max_tool_calls=0,
+            deadline_seconds=2.0,
+        ),
+    ).run(_task())
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert runtime.calls
+    assert runtime.calls[0].timeout_seconds is not None
+    assert 0.0 < runtime.calls[0].timeout_seconds <= 2.0
 
 
 def test_reasoning_run_exposes_model_unavailable_as_failure() -> None:

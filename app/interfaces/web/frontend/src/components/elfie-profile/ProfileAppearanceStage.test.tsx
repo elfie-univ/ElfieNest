@@ -203,7 +203,7 @@ describe("ProfileAppearanceStage", () => {
     await waitFor(() => expect(capture).toHaveBeenCalledOnce())
     await user.click(await screen.findByRole("button", { name: "设为头像" }))
 
-    const notice = container.querySelector(".profile-appearance__notice")
+    const notice = container.querySelector(".inline-banner--notice")
     if (notice === null) throw new TypeError("Expected the saved avatar notice")
     expect(notice).toHaveTextContent("头像已保存")
     expect(onAvatarSave).toHaveBeenCalledWith(expect.objectContaining({ blob }))

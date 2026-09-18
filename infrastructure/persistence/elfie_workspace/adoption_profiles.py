@@ -638,19 +638,31 @@ def _decode_portraits(
         return None
     if not full_body_url or not headshot_url:
         raise ValueError("accepted Adoption portraits must contain both views")
-    return _decode_png_data_url(full_body_url), _decode_png_data_url(headshot_url)
+    return _decode_portrait_data_url(full_body_url), _decode_portrait_data_url(
+        headshot_url
+    )
 
 
-def _decode_png_data_url(value: str) -> bytes:
-    prefix = "data:image/png;base64,"
-    if not value.startswith(prefix):
-        raise ValueError("accepted Adoption portrait must be a PNG data URL")
+def _decode_portrait_data_url(value: str) -> bytes:
+    """Decode a PNG or JPEG data URL into raw image bytes."""
+    png_prefix = "data:image/png;base64,"
+    jpeg_prefix = "data:image/jpeg;base64,"
+    if value.startswith(png_prefix):
+        payload = value[len(png_prefix) :]
+    elif value.startswith(jpeg_prefix):
+        payload = value[len(jpeg_prefix) :]
+    else:
+        raise ValueError("accepted Adoption portrait must be a PNG or JPEG data URL")
     try:
-        content = base64.b64decode(value[len(prefix) :], validate=True)
+        content = base64.b64decode(payload, validate=True)
     except (binascii.Error, ValueError) as error:
         raise ValueError("accepted Adoption portrait is not valid base64") from error
-    if not content.startswith(b"\x89PNG\r\n\x1a\n") or len(content) > 8 * 1024 * 1024:
+    if len(content) > 8 * 1024 * 1024:
+        raise ValueError("accepted Adoption portrait exceeds maximum size")
+    if value.startswith(png_prefix) and not content.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("accepted Adoption portrait is not a valid PNG")
+    if value.startswith(jpeg_prefix) and not content.startswith(b"\xff\xd8\xff"):
+        raise ValueError("accepted Adoption portrait is not a valid JPEG")
     return content
 
 

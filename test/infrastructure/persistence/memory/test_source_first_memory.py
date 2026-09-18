@@ -74,6 +74,30 @@ def test_episode_write_is_complete_idempotent_and_reopenable(tmp_path: Path) -> 
             )
 
 
+def test_recall_drops_incidental_question_word_matches() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("preference", "preference-key", "2026-08-26", "主人喜欢香菜")
+        )
+        store.record_episode(
+            ClosedEpisode("unrelated", "unrelated-key", "2026-08-26", "主人昨天去公园")
+        )
+        store.record_episode(
+            ClosedEpisode(
+                "question-word",
+                "question-word-key",
+                "2026-08-26",
+                "这是一个问题的记录",
+            )
+        )
+
+        lexical = store.search_text("主人以前喜欢什么？", top_k=10)
+        recalled = store.recall(RecallRequest(text="主人以前喜欢什么？"))
+
+        assert [item[0] for item in lexical] == ["preference"]
+        assert [episode.episode_id for episode in recalled.episodes] == ["preference"]
+
+
 def test_host_failure_notice_is_not_recallable_from_legacy_episode() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(

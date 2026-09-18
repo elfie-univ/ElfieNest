@@ -89,6 +89,13 @@ unions. Pydantic models are the single source of truth for internal contracts;
 when a JSON Schema is needed, call `model_json_schema()` on the public model on
 demand — do not maintain Schema files or export scripts in the repo.
 
+Brain observation is one typed surface: `Elfie.configure_cognition` accepts a
+single optional `observation_sink: BrainObservationSink` (defined with the
+`BrainObservation` envelope and `NoOpSink` in `elfie/brain/observation.py`).
+Every brain boundary emits boundary-owned frozen payload models through it, an
+unwired production path constructs no observation envelopes, and developer
+tools implement the sink instead of attaching extra brain callbacks.
+
 ## Dependency direction
 
 ```text
@@ -130,4 +137,6 @@ For the full environment setup and quality gate see
   boundaries;
 - `test/elfie/communication/`, `test/elfie/brain/reasoning/`: messages and Reasoning;
 - `test/architecture/test_elfie_cognitive_contracts.py`: cognitive entry
-  points, dependency direction, Pydantic contracts and the on-disk Schema ban.
+  points, dependency direction, Pydantic contracts and the on-disk Schema ban;
+- `test/architecture/test_elfie_brain_observation_surface.py`: the brain
+  observation surface stays domain-pure, typed and Schema-free.

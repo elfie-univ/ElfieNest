@@ -757,8 +757,7 @@
 .profile-appearance__idle-portrait { width: 100%; height: 100%; object-fit: contain; }
 .profile-appearance__idle-portrait-frame--framed .profile-appearance__idle-portrait { object-fit: fill; }
 .profile-appearance__idle-fallback { line-height: 1; }
-.profile-appearance__notice { margin: 12px 0 0; color: var(--accent-hover); font-size: 13px; }
-.profile-appearance__error { margin: 12px 0 0; color: var(--error-text); font-size: 13px; }
+
 .profile-capture { width: min(720px, calc(100vw - 32px)); max-width: none; }
 .profile-capture__workspace {
   position: relative;
@@ -866,7 +865,6 @@
   color: var(--text-muted);
   background: var(--field-bg);
 }
-.profile-capture__error { margin: 0; color: var(--error-text); }
 .profile-capture__actions {
   align-items: center;
   justify-content: space-between;

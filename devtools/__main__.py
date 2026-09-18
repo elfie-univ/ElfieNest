@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import webbrowser
 from pathlib import Path
@@ -10,6 +11,12 @@ from secrets import token_urlsafe
 
 import uvicorn
 
+from devtools.brain_trace import (
+    BrainTraceValidationError,
+    collect_brain_trace,
+    list_brain_trace_sources,
+    load_messages_file,
+)
 from devtools.elfie_lab.host import loopback_host
 from devtools.entrypoint import DeveloperTool, available_tools, resolve_tool
 from devtools.lab_restart import (
@@ -17,6 +24,7 @@ from devtools.lab_restart import (
     RestartTimeoutError,
     restart_default_lab,
 )
+from infrastructure.persistence.layout.data_home import get_elfie_developer_home
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,6 +36,8 @@ def _parser() -> argparse.ArgumentParser:
 Examples:
   %(prog)s elfie-lab                    # 单精灵实验（HTTP 9001）
   %(prog)s brain-eval                   # 批量评测（HTTP 9001）
+  %(prog)s brain-trace list             # 列出可采集的精灵和模型
+  %(prog)s brain-trace collect          # 采集 Brain 端到端数据
   %(prog)s nest-lab                     # 精灵巢实验（HTTP 9001）
 
 Documentation: https://elfienest.dev/developer/engineering/devtools
@@ -56,6 +66,34 @@ Documentation: https://elfienest.dev/developer/engineering/devtools
                     type=int,
                     help="Godot WebSocket 内部端口（默认：HTTP 端口 + 1）",
                 )
+    trace_parser = subparsers.add_parser(
+        "brain-trace",
+        help="采集 Brain 端到端中间数据（无 UI）",
+        description="Brain Trace — data-only production Brain chain collection",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    trace_actions = trace_parser.add_subparsers(
+        dest="brain_trace_action",
+        title="Actions",
+    )
+    list_parser = trace_actions.add_parser("list", help="列出可选择的 Elfie 和模型粮食")
+    list_parser.add_argument("--data-dir", default=None)
+    list_parser.add_argument("--model-config-dir", default=None)
+    collect_parser = trace_actions.add_parser(
+        "collect", help="执行并写入 Brain trace artifact"
+    )
+    collect_parser.add_argument("--data-dir", default=None)
+    collect_parser.add_argument("--elfie-id", required=True)
+    collect_parser.add_argument("--memory", choices=("real", "mock"), required=True)
+    collect_parser.add_argument("--model", choices=("real", "mock"), required=True)
+    collect_parser.add_argument("--food-key", default=None)
+    collect_parser.add_argument("--messages-file", required=True)
+    collect_parser.add_argument("--memory-fixture", default=None)
+    collect_parser.add_argument("--model-config-dir", default=None)
+    collect_parser.add_argument(
+        "--output-root",
+        default=str(Path(__file__).resolve().parents[1] / "build" / "brain-trace"),
+    )
     return parser
 
 
@@ -129,6 +167,39 @@ def _run_nest_lab(args: argparse.Namespace) -> int:
 
 def _run_elfie_lab(args: argparse.Namespace) -> int:
     return _run_unified_lab(args, "experiment", "/elfie/experiment")
+
+
+def _run_brain_trace(args: argparse.Namespace) -> int:
+    """Run the backend-only Brain collector; never starts a web service."""
+    data_dir = getattr(args, "data_dir", None) or str(
+        get_elfie_developer_home() / "elfie_lab"
+    )
+    model_config_dir = getattr(args, "model_config_dir", None)
+    try:
+        if args.brain_trace_action in (None, "list"):
+            payload = list_brain_trace_sources(
+                data_dir,
+                model_execution_config_dir=model_config_dir,
+            )
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 0
+        messages = load_messages_file(args.messages_file)
+        result = collect_brain_trace(
+            elfie_id=args.elfie_id,
+            messages=messages,
+            memory_mode=args.memory,
+            model_mode=args.model,
+            food_key=args.food_key,
+            data_dir=data_dir,
+            output_root=args.output_root,
+            memory_fixture=args.memory_fixture,
+            model_execution_config_dir=model_config_dir,
+        )
+        print(json.dumps(result.to_dict(), ensure_ascii=False))
+        return 0 if result.status == "completed" else 1
+    except (BrainTraceValidationError, ValueError, KeyError) as error:
+        print(f"brain-trace: invalid input or run failure: {error}", file=sys.stderr)
+        return 2
 
 
 def _run_unified_lab(
@@ -226,6 +297,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.tool is None:
         _parser().print_help()
         return 0
+    if args.tool == "brain-trace":
+        return _run_brain_trace(args)
     try:
         _restart_default_lab_if_requested(args, raw_args)
     except (ForeignPortOwnerError, RestartTimeoutError) as error:

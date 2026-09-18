@@ -14,6 +14,7 @@ function renderTimeline(): string {
     onSelectTurn={doNothing}
     onSend={async () => true}
     onUpload={async () => ({ id: "media-1", mimeType: "image/png" })}
+    pending={null}
     portraitEpoch={0}
     session={null}
   />);
@@ -51,6 +52,7 @@ function renderTimelineWithTurn(): string {
     onSelectTurn={doNothing}
     onSend={async () => true}
     onUpload={async () => ({ id: "media-1", mimeType: "image/png" })}
+    pending={null}
     portraitEpoch={0}
     session={session}
   />);

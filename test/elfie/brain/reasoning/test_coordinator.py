@@ -393,6 +393,7 @@ def _coordinator(
     reasoning_retention: int = 256,
     context_source=None,
     embodied_input_mode: EmbodiedInputMode = EmbodiedInputMode.BRAIN,
+    observation_sink=None,
 ) -> tuple[BrainCoordinator, EmotionSystem, EnergySystem]:
     initial = NOW.timestamp()
     emotion = EmotionSystem(clock=lambda: initial)
@@ -417,6 +418,7 @@ def _coordinator(
         embodied_input_mode=embodied_input_mode,
         allowed_tools=allowed_tools,
         reasoning_retention=reasoning_retention,
+        observation_sink=observation_sink,
     )
     return coordinator, emotion, energy
 

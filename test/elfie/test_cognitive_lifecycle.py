@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Event
 from unittest.mock import MagicMock
 
@@ -32,6 +32,7 @@ from elfie.communication import (
     TextPart,
 )
 from elfie.factory import ElfieAssembly
+from elfie.lifecycle_errors import InvalidClockDeltaError
 from elfie.message_types import ActorRef, MessageMeta, TurnId
 from elfie.profile import create_visual_profile
 from infrastructure.persistence.configuration.bundled_defaults import (
@@ -424,3 +425,47 @@ def test_cognitive_start_rolls_back_router_when_coordinator_start_fails() -> Non
     runtime.coordinator.stop.assert_called_once_with()
     runtime.coordinator.join.assert_called_once_with()
     assert runtime._started is False
+
+
+def test_fresh_elfie_keeps_epoch_default_clock() -> None:
+    elfie = _new_elfie("elfie-clock-default")
+
+    assert elfie.elapsed_time == 0.0
+    assert elfie.cognitive_datetime == datetime.fromtimestamp(0.0, tz=timezone.utc)
+
+
+def test_set_clock_base_anchors_logical_clock_without_a_clock_pulse() -> None:
+    elfie = _new_elfie("elfie-clock-base", model_port=MagicMock())
+    elfie.start()
+    post_clock = MagicMock(wraps=elfie._brain_runtime.post_clock)
+    elfie._brain_runtime.post_clock = post_clock
+    base = datetime(2026, 9, 8, 12, 0, 0, tzinfo=timezone.utc)
+
+    elfie.set_clock_base(base)
+
+    post_clock.assert_not_called()
+    expected = datetime.fromtimestamp(base.timestamp(), tz=timezone.utc)
+    assert elfie.elapsed_time == base.timestamp()
+    assert elfie.cognitive_datetime == expected
+    assert elfie._energy.last_updated_at == base.timestamp()
+    assert elfie._emotion.last_updated_at == base.timestamp()
+    assert elfie._energy.get_energy() == 100.0
+    assert elfie.turn_outcomes() == ()
+
+    # The anchored clock keeps advancing normally through clock pulses.
+    elfie.advance_clock(0.5)
+    assert elfie.cognitive_datetime == datetime.fromtimestamp(
+        base.timestamp() + 0.5, tz=timezone.utc
+    )
+    elfie.stop()
+    elfie.join()
+
+
+def test_set_clock_base_rejects_moving_the_clock_backwards() -> None:
+    elfie = _new_elfie("elfie-clock-base-guard")
+
+    elfie.set_clock_base(datetime.fromtimestamp(10.0, tz=timezone.utc))
+
+    with pytest.raises(InvalidClockDeltaError):
+        elfie.set_clock_base(datetime.fromtimestamp(5.0, tz=timezone.utc))
+    assert elfie.elapsed_time == 10.0

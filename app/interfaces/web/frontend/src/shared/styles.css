@@ -249,3 +249,9 @@ a { color: inherit; text-decoration: none; }
   .manage { padding: 22px; }
   .manage-head { align-items: flex-start; flex-direction: column; }
 }
+
+.inline-banner { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 0; padding: 11px 14px; border: 1px solid; border-radius: 12px; font-size: 14px; line-height: 1.55; text-align: left; }
+.inline-banner svg { flex: none; margin-top: 2px; }
+.inline-banner--error { border-color: color-mix(in srgb, var(--error-text) 38%, transparent); background: color-mix(in srgb, var(--error-text) 9%, var(--surface-raised)); color: var(--error-text); }
+.inline-banner--notice { border-color: color-mix(in srgb, var(--accent-hover) 38%, transparent); background: color-mix(in srgb, var(--accent-hover) 9%, var(--surface-raised)); color: var(--text); }
+.inline-banner--notice svg { color: var(--accent-hover); }

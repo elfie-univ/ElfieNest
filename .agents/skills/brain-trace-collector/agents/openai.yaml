@@ -1,0 +1,4 @@
+interface:
+  display_name: Brain Trace Collector
+  short_description: Collect structured Brain pipeline evidence with swappable model and memory edges.
+  default_prompt: Collect the requested Brain trace through the Developer Tools backend and return the artifact path without analyzing it.

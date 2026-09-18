@@ -198,7 +198,7 @@ describe("AdoptionJourneyDialog", () => {
 
     const dialog = await screen.findByRole("alertdialog")
     expect(dialog).toHaveTextContent("领养名额已满")
-    expect(dialog).toHaveTextContent("当前 Nest 暂时没有新的领养名额")
+    expect(dialog).toHaveTextContent("当前通道暂时没有可用名额，请联系管理员调整")
     await user.click(screen.getByRole("button", { name: "知道了" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -219,8 +219,8 @@ describe("AdoptionJourneyDialog", () => {
     renderJourney({ onOpenChange })
 
     const dialog = await screen.findByRole("alertdialog")
-    expect(dialog).toHaveTextContent("领养服务暂不可用")
-    expect(dialog).toHaveTextContent("请联系管理员")
+    expect(dialog).toHaveTextContent("跨星通道暂时不可用")
+    expect(dialog).toHaveTextContent("请联系管理员确认通道状态")
     expect(screen.getByRole("button", { name: "知道了" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "重新检查" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "退出领养" })).not.toBeInTheDocument()
@@ -449,7 +449,7 @@ describe("AdoptionJourneyDialog", () => {
     await user.click(screen.getByRole("button", { name: "迎接 TA" }))
 
     expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
-    expect(screen.getByText("服务已重启或候选已过期，已重新生成候选，请重新选择")).toBeInTheDocument()
+    expect(screen.getByText("通道已恢复，之前的候选已失效，请重新选择")).toBeInTheDocument()
     expect(api.adoptionCandidates).toHaveBeenNthCalledWith(2, expect.not.objectContaining({
       adoption_session_id: expect.anything(),
     }), "csrf")

@@ -17,6 +17,7 @@ from devtools.elfie_lab.schemas import StimulusBundle
 from devtools.elfie_lab.session import ElfieLabSession
 from devtools.elfie_lab.session_state import apply_state_injection
 from devtools.elfie_lab.storage import ElfieLabStorage
+from elfie.brain.observation import BrainObservationSink
 
 
 @unique
@@ -105,8 +106,14 @@ def capture_lab_episode(
     runtime_root: Path,
     fixture_snapshot_root: Optional[Path] = None,
     model_config_dir: Optional[str] = None,
+    observation_sink: BrainObservationSink | None = None,
 ) -> EpisodeEvidence:
-    """Run a scenario against real Brain wiring in a disposable data root."""
+    """Run a scenario against real Brain wiring in a disposable data root.
+
+    When ``observation_sink`` is provided, the same episode run also streams
+    the Brain's typed observation envelopes into the sink; without it the
+    capture stays on the zero-overhead default path.
+    """
 
     _validate_scenario(scenario)
     selected_root = runtime_root.expanduser().resolve(strict=False)
@@ -140,6 +147,7 @@ def capture_lab_episode(
         model_execution_config_dir=(
             model_config_dir or str(selected_root / "runtime_config")
         ),
+        observation_sink=observation_sink,
     )
     records = []
     try:

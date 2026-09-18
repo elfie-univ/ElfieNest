@@ -1,7 +1,7 @@
 import {
   Activity, ArrowLeft, Camera, Cctv, Check, ChevronDown, ChevronUp, Copy, Cuboid, Eye, EyeOff, Globe2, House, Maximize2, PanelLeftOpen,
   LockKeyhole, LogOut, Menu, MessagesSquare, Minus, Palette, PawPrint, Pause, Pencil, Play, PlugZap, Plus,
-  QrCode, RotateCcw, RotateCw, ScrollText, Search, Settings, User, Users, Utensils, Venus, Wrench, X, Mars,
+  QrCode, RotateCcw, RotateCw, ScrollText, Search, Settings, TriangleAlert, User, Users, Utensils, Venus, Wrench, X, Mars,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -9,7 +9,7 @@ export type IconName =
   | "activity" | "arrow-left" | "camera" | "cctv" | "check" | "chevron-down" | "chevron-up" | "copy" | "cuboid"
   | "eye" | "eye-off" | "globe-2" | "house" | "lock-keyhole" | "log-out" | "maximize-2" | "menu" | "messages-square" | "minus" | "panel-left-open"
   | "palette" | "paw-print" | "pause" | "pencil" | "play" | "plug-zap" | "plus" | "qr-code" | "rotate-ccw" | "rotate-cw" | "search" | "scroll"
-  | "settings" | "user" | "users" | "utensils" | "venus" | "wrench" | "x" | "mars"
+  | "settings" | "triangle-alert" | "user" | "users" | "utensils" | "venus" | "wrench" | "x" | "mars"
 
 const iconComponents = {
   activity: Activity,
@@ -45,6 +45,7 @@ const iconComponents = {
   search: Search,
   scroll: ScrollText,
   settings: Settings,
+  "triangle-alert": TriangleAlert,
   user: User,
   users: Users,
   utensils: Utensils,

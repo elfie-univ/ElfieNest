@@ -18,6 +18,7 @@ import {
 import {
   selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
+  latestSuccessfulFoodKey,
   type DetailFocus,
 } from "./viewModel";
 import "./legacy.css";
@@ -38,6 +39,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const [items, setItems] = useState<readonly ElfieListItem[]>([]);
   const [session, setSession] = useState<ElfieSession | null>(null);
   const [foods, setFoods] = useState<readonly FoodItem[]>([]);
+  const [pending, setPending] = useState<{ readonly message: string } | null>(null);
   const [modelSubscriptions, setModelSubscriptions] = useState<readonly ModelSubscription[]>([]);
   const [reviewerSubscriptions, setReviewerSubscriptions] = useState<readonly ReviewerSubscription[]>([]);
   const [food, setFood] = useState("");
@@ -80,14 +82,16 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
     const sharedSubscriptions = subscriptionCatalog?.items ?? [];
     setModelSubscriptions(sharedSubscriptions);
     setReviewerSubscriptions(sharedSubscriptions.filter((item) => item.supports_reviewer));
-    setFood((current) => selectReadyFoodAfterLoad(current, nextFoods));
     if (catalog !== null) setRuntimeWarning("");
     const selected = selectElfieIdAfterLoad(
       id,
       sessionRef.current?.elfie_id,
       elfies.items[0]?.elfie_id,
     );
-    setSession(selected === undefined ? null : await requestJson(`elfies/${encodeURIComponent(selected)}`, sessionSchema));
+    const nextSession = selected === undefined ? null : await requestJson(`elfies/${encodeURIComponent(selected)}`, sessionSchema);
+    const lastSuccessfulFood = nextSession === null ? "" : latestSuccessfulFoodKey(nextSession.turns);
+    setFood((current) => selectReadyFoodAfterLoad(current, nextFoods, lastSuccessfulFood));
+    setSession(nextSession);
   }
   useEffect(() => { void load().catch((error: unknown) => setNotice(error instanceof Error ? error.message : "加载失败")); }, []);
 
@@ -233,7 +237,28 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   async function remove(): Promise<void> { if (deleteTarget === null) return; try { const result = await requestJson(`elfies/${encodeURIComponent(deleteTarget.elfie_id)}`, deletionSchema, { method: "delete" }); setDeleteTarget(null); if (sessionRef.current?.elfie_id === deleteTarget.elfie_id) { sessionRef.current = null; setSession(null); configuredPreviewKey.current = ""; } await load(result.next_elfie_id); setNotice("测试精灵已移入回收区。"); } catch (error) { setNotice(error instanceof Error ? error.message : "删除失败"); } }
   async function personality(values: BigFive): Promise<void> { if (session === null) return; try { setSession(await requestJson(`elfies/${session.elfie_id}/personality`, sessionSchema, { method: "patch", json: values })); setPersonalityTarget(null); setNotice("人格参数已保存。"); } catch (error) { setNotice(error instanceof Error ? error.message : "保存失败"); } }
   async function upload(file: File): Promise<{ readonly id: string; readonly mimeType: string }> { if (session === null) throw new Error("请先创建测试精灵"); const form = new FormData(); form.set("file", file); const media = await requestFormJson(`elfies/${session.elfie_id}/media`, mediaSchema, { method: "post", form }); return { id: media.media_id, mimeType: media.mime_type }; }
-  async function send(body: Record<string, unknown>): Promise<boolean> { if (session === null) return false; try { const turn = await requestJson(`elfies/${session.elfie_id}/turns`, turnSchema, { method: "post", json: body, timeout: 190_000 }); setSession((current) => current === null ? null : { ...current, turns: [...current.turns, turn] }); await load(session.elfie_id); setSelectedTurn(turn); setDetailFocus("output"); setDetailTab("摘要"); setDetailOpen(true); setNotice("刺激已发送，结果已加入时间线。"); return true; } catch (error) { setNotice(error instanceof Error ? error.message : "发送失败"); return false; } }
+  async function send(body: Record<string, unknown>): Promise<boolean> {
+    if (session === null) return false;
+    setPending({ message: typeof body.message === "string" ? body.message : "" });
+    try {
+      const turn = await requestJson(`elfies/${session.elfie_id}/turns`, turnSchema, { method: "post", json: body, timeout: 190_000 });
+      setSession((current) => current === null ? null : { ...current, turns: [...current.turns, turn] });
+      setPending(null);
+      await load(session.elfie_id);
+      setSelectedTurn(turn);
+      setDetailFocus("output");
+      setDetailTab("摘要");
+      setDetailOpen(true);
+      setNotice(turn.result.success === false
+        ? "刺激已接收，但本轮处理失败，请查看右侧检查器。"
+        : "刺激已发送，结果已加入时间线。");
+      return true;
+    } catch (error) {
+      setPending(null);
+      setNotice(error instanceof Error ? error.message : "发送失败");
+      return false;
+    }
+  }
   function selectTurn(turn: ElfieTurn, focus: string): void {
     const selectedFocus: DetailFocus = focus === "input" || focus === "chain" ? focus : "output";
     setSelectedTurn(turn);
@@ -262,7 +287,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   return <main className={shellClass}>
     {mode === "experiment" ? <>
       <ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onNewFood={() => openNewFood()} onSelect={(id) => { setMenuOpen(false); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />
-      <TimelinePanel food={food} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} portraitEpoch={portraitEpoch} session={session} />
+      <TimelinePanel food={food} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} pending={pending} portraitEpoch={portraitEpoch} session={session} />
       <DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} />
     </> : <Suspense fallback={<section className="evaluation-workspace evaluation-loading" aria-label="Elfie 批量评测"><Spin size="large" tip="正在加载批量评测…"><span /></Spin></section>}><EvaluationWorkspace elfies={items} food={food} foods={foods} reviewerSubscriptions={reviewerSubscriptions} onDeleteReviewerSubscription={deleteReviewerSubscription} onSaveReviewerSubscription={saveReviewerSubscription} onNewFood={openNewFood} onNewElfie={openElfieManagement} session={session} /></Suspense>}
     <ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} elfieManagementOpen={elfieManagementOpen} elfies={items} foods={foods} modelSubscriptions={modelSubscriptions} onConfigurationClose={() => { pendingFoodSelection.current = null; setConfigurationOpen(false); }} onConfigureFood={configureFood} onDeleteFood={deleteFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onElfieManagementClose={() => { pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onElfieManagementCreate={() => { setElfieManagementOpen(false); setCreateOpen(true); }} onElfieManagementDelete={(id) => { pendingElfieSelection.current = null; setElfieManagementOpen(false); void requestDelete(id); }} onElfieManagementSelect={(id) => { pendingElfieSelection.current?.(id); pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} onProbeOllama={probeOllama} personalityTarget={personalityTarget} />

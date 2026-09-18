@@ -2,13 +2,37 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 import {
-  APPLICATION_MENU,
+  applicationMenuTemplate,
   backgroundMenuTemplate,
   normalizeApplicationMenuLocale,
 } from "./application_menu.js";
 
-test("application menu is suppressed on every desktop platform", () => {
-  assert.equal(APPLICATION_MENU, null);
+test("application menu keeps editing role accelerators available on macOS", () => {
+  const template = applicationMenuTemplate("darwin", "zh-CN");
+  assert.ok(template);
+
+  assert.equal(template[0]?.role, "appMenu");
+  assert.equal(template[1]?.label, "编辑");
+
+  const editMenu = template[1];
+  assert.ok(editMenu && Array.isArray(editMenu.submenu));
+  assert.deepEqual(
+    editMenu.submenu
+      .filter((item) => typeof item === "object" && item !== null && "role" in item)
+      .map((item) => item.role),
+    ["undo", "redo", "cut", "copy", "paste", "selectAll"],
+  );
+});
+
+test("application menu localizes the edit label for English systems", () => {
+  const template = applicationMenuTemplate("darwin", "en-US");
+  assert.ok(template);
+  assert.equal(template[1]?.label, "Edit");
+});
+
+test("application menu stays suppressed on Windows and Linux", () => {
+  assert.equal(applicationMenuTemplate("win32", "zh-CN"), null);
+  assert.equal(applicationMenuTemplate("linux", "zh-CN"), null);
 });
 
 test("background menu exposes only open and explicit quit actions", () => {

@@ -88,6 +88,7 @@ def call_llm_api_result(
     config_fingerprint = _provider_config_fingerprint(provider_cfg, model_name)
 
     metadata: Mapping[str, Any] = {}
+    effective_request_options: dict[str, Any] | None = None
     try:
         request_profile = _resolve_request_profile(provider_cfg, model_name, api_mode)
         effective_messages = _adapt_messages(messages, request_profile)
@@ -234,6 +235,13 @@ def call_llm_api_result(
                 finished_at=finished_at,
                 duration_ms=(perf_counter() - started) * 1000.0,
                 config_fingerprint=config_fingerprint,
+                effective_request_options=_trace_request_options(
+                    request_options,
+                    effective_request_options,
+                ),
+                max_tokens=max_tokens,
+                timeout_seconds=timeout_seconds,
+                thinking_enabled=thinking,
             )
         )
         raise
@@ -269,6 +277,13 @@ def call_llm_api_result(
                 else None
             ),
             config_fingerprint=config_fingerprint,
+            effective_request_options=_trace_request_options(
+                request_options,
+                effective_request_options,
+            ),
+            max_tokens=max_tokens,
+            timeout_seconds=timeout_seconds,
+            thinking_enabled=thinking,
             prompt_tokens=_usage_count(
                 usage, "prompt_tokens", "input_tokens", "prompt_eval_count"
             ),
@@ -439,6 +454,21 @@ def _trace_value(value: Any, *, depth: int = 0) -> Any:
     if value is None or isinstance(value, (bool, int, float)):
         return value
     return str(value)
+
+
+def _trace_request_options(
+    raw_options: Mapping[str, Any] | None,
+    effective_options: Mapping[str, Any] | None,
+) -> str | None:
+    """Serialize safe effective Provider options for the execution trace."""
+    options = effective_options if effective_options is not None else raw_options
+    if not options:
+        return None
+    return json.dumps(
+        _trace_value(options),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def _invoke_dispatch(

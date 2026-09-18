@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import type { AppearanceCapture, AppearanceCaptureAdapter, AppearanceCaptureInput } from "./appearance-capture"
 import { AppearanceCaptureError } from "./appearance-capture"
+import { InlineBanner } from "@/components/InlineBanner"
 import { ProfileCaptureDialog } from "./ProfileCaptureDialog"
 import { ProfileGodotViewport, type PreviewStatus } from "./ProfileGodotViewport"
 import {
@@ -143,6 +144,7 @@ export function ProfileAppearanceStage({
         || error instanceof ProfileGodotPreviewError) {
         setCapturePending(false)
         setCaptureOpen(false)
+        setNotice("")
         setCaptureError(t("profile.appearance.captureError"))
         return false
       }
@@ -186,6 +188,7 @@ export function ProfileAppearanceStage({
       preview.send("reset")
     } catch (error) {
       if (error instanceof ProfileGodotPreviewError) {
+        setNotice("")
         setCaptureError(t("profile.appearance.error"))
         return
       }
@@ -210,6 +213,7 @@ export function ProfileAppearanceStage({
       setPosePreset(preset.value)
     } catch (error) {
       if (error instanceof ProfileGodotPreviewError) {
+        setNotice("")
         setCaptureError(t("profile.appearance.error"))
         return
       }
@@ -262,7 +266,7 @@ export function ProfileAppearanceStage({
                   elfieName={profile.name}
                   onAvatar={async (nextCapture): Promise<boolean> => {
                     if (onAvatarSave === undefined) {
-                      setNotice(t("profile.appearance.saveError"))
+                      setNotice("")
                       setCaptureError(t("profile.appearance.saveError"))
                       return false
                     }
@@ -276,7 +280,7 @@ export function ProfileAppearanceStage({
                       setCaptureOpen(false)
                       return true
                     } catch {
-                      setNotice(t("profile.appearance.saveError"))
+                      setNotice("")
                       setCaptureError(t("profile.appearance.saveError"))
                       return false
                     }
@@ -365,8 +369,8 @@ export function ProfileAppearanceStage({
           {showControls ? <p className="profile-appearance__hint">{t("profile.appearance.inactiveHint")}</p> : null}
         </div>
       )}
-      {showControls && !captureOpen && captureError.length > 0 && <p className="profile-appearance__error" role="alert">{captureError}</p>}
-      {showControls && notice.length > 0 && <p className="profile-appearance__notice" role="status">{notice}</p>}
+      {showControls && !captureOpen && captureError.length > 0 && <InlineBanner role="alert" tone="error">{captureError}</InlineBanner>}
+      {showControls && notice.length > 0 && <InlineBanner role="status" tone="notice">{notice}</InlineBanner>}
     </section>
   )
 }

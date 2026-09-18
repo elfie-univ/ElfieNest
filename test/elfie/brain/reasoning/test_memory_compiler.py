@@ -153,6 +153,15 @@ def test_compact_packets_keep_bounded_source_evidence() -> None:
     assert "<EPISODE" not in compiled.content
 
 
+def test_minimal_packets_keep_top_fact_addressable_in_small_budget() -> None:
+    compiled = compile_recall_bundle(_bundle(), max_tokens=240)
+
+    assert compiled.truncated is True
+    assert '<FACT id="a1">' in compiled.content
+    assert "主人 -> 乌龙茶" in compiled.content
+    assert compiled.assertion_ids == ("a1", "a2")
+
+
 def test_orphan_conversation_episode_survives_p0_memory_budget() -> None:
     base = _bundle()
     compiled = compile_recall_bundle(

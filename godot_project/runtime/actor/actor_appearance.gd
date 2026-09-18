@@ -22,6 +22,19 @@ const REGION_MID_LUMA := {
 	"dog": 0.62,
 	"fox": 0.56,
 }
+const BIND_POSITION_SOURCE_META := &"elfienest_bind_position_mesh_source"
+const BIND_POSITION_BAKED_FROM_META := &"elfienest_bind_position_baked_from"
+
+# The baked CUSTOM0 bind positions and the appearance shader code depend only
+# on species-scene facts: the source mesh resource, its skin/skeleton rest
+# chain and the mesh-to-visual-root node chain. They never depend on
+# per-candidate appearance values, bone pose scales or visual_root.scale: the
+# shader divides CUSTOM0 by appearance_region_coordinate_scale, so baking at
+# unit scale and passing vec3(1.0) keeps region coordinates identical while
+# the adoption candidates share one rebuilt mesh and one compiled shader.
+static var _appearance_shader: Shader
+static var _bind_position_mesh_cache: Dictionary = {}
+
 const REGION_DEBUG_SHADER_CODE := """
 shader_type spatial;
 render_mode unshaded, cull_disabled, blend_mix, depth_draw_never;
@@ -704,7 +717,7 @@ static func apply_region_debug(
 		material.set_shader_parameter("appearance_species_id", 0 if species_id == "dog" else 1)
 		material.set_shader_parameter(
 			"appearance_region_coordinate_scale",
-			visual_root.scale,
+			Vector3.ONE,
 		)
 		material.set_shader_parameter("appearance_selected_region", selected_region)
 		material.set_shader_parameter("appearance_region_debug_color", debug_color)
@@ -969,6 +982,17 @@ uniform float appearance_marking_intensity = 0.90;
 	return source.substr(0, fragment_start) + APPEARANCE_SHADER_SUFFIX
 
 
+static func _cached_appearance_shader() -> Shader:
+	if _appearance_shader == null:
+		var shader_code := _build_appearance_shader_code()
+		if shader_code.is_empty():
+			return null
+		var shader := Shader.new()
+		shader.code = shader_code
+		_appearance_shader = shader
+	return _appearance_shader
+
+
 static func _ensure_bind_position_attribute(
 	visual_root: Node3D,
 	mesh_instance: MeshInstance3D,
@@ -976,13 +1000,41 @@ static func _ensure_bind_position_attribute(
 	var source_mesh := mesh_instance.mesh as ArrayMesh
 	if source_mesh == null:
 		return
+	# A previously baked custom mesh records the source resource it was built
+	# from; resolve back to that source so repeated applies keep producing the
+	# original cache key instead of keying on the custom mesh's own identity.
+	if source_mesh.has_meta(BIND_POSITION_BAKED_FROM_META):
+		var baked_from: Variant = source_mesh.get_meta(BIND_POSITION_BAKED_FROM_META)
+		if baked_from is ArrayMesh and is_instance_valid(baked_from as Object):
+			source_mesh = baked_from as ArrayMesh
+	var mesh_to_visual_root := visual_root.global_transform.affine_inverse() * mesh_instance.global_transform
+	var cache_key := "%d|%s" % [source_mesh.get_instance_id(), str(mesh_to_visual_root)]
+	if String(mesh_instance.get_meta(BIND_POSITION_SOURCE_META, "")) == cache_key:
+		return
+	var cached_mesh := _bind_position_mesh_cache.get(cache_key) as ArrayMesh
+	if cached_mesh == null:
+		cached_mesh = _build_bind_position_mesh(
+			visual_root,
+			mesh_instance,
+			source_mesh,
+			mesh_to_visual_root,
+		)
+		_bind_position_mesh_cache[cache_key] = cached_mesh
+	mesh_instance.mesh = cached_mesh
+	mesh_instance.set_meta(BIND_POSITION_SOURCE_META, cache_key)
 
+
+static func _build_bind_position_mesh(
+	visual_root: Node3D,
+	mesh_instance: MeshInstance3D,
+	source_mesh: ArrayMesh,
+	mesh_to_visual_root: Transform3D,
+) -> ArrayMesh:
 	var custom_mesh := ArrayMesh.new()
 	custom_mesh.blend_shape_mode = source_mesh.blend_shape_mode
 	for blend_shape_index in range(source_mesh.get_blend_shape_count()):
 		custom_mesh.add_blend_shape(source_mesh.get_blend_shape_name(blend_shape_index))
 
-	var mesh_to_visual_root := visual_root.global_transform.affine_inverse() * mesh_instance.global_transform
 	for surface_index in range(source_mesh.get_surface_count()):
 		var arrays := source_mesh.surface_get_arrays(surface_index)
 		if arrays.size() < Mesh.ARRAY_MAX:
@@ -1011,6 +1063,10 @@ static func _ensure_bind_position_attribute(
 			int(source_mesh.surface_get_format(surface_index))
 			& Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		) != 0 else 4
+		# CUSTOM0 stays in the visual-root frame at unit scale: the shader
+		# divides it by appearance_region_coordinate_scale, which is always
+		# vec3(1.0), so the baked attribute is independent of visual_root.scale
+		# and can be cached across actors and appearance changes.
 		for vertex_index in range(vertices.size()):
 			var bind_position := _bind_position_from_skin(
 				vertices[vertex_index],
@@ -1020,15 +1076,10 @@ static func _ensure_bind_position_attribute(
 				influence_stride,
 				mesh_to_visual_root * vertices[vertex_index],
 			)
-			var evaluated_position := Vector3(
-				bind_position.x * visual_root.scale.x,
-				bind_position.y * visual_root.scale.y,
-				bind_position.z * visual_root.scale.z,
-			)
 			var offset := vertex_index * 4
-			bind_positions[offset] = evaluated_position.x
-			bind_positions[offset + 1] = evaluated_position.y
-			bind_positions[offset + 2] = evaluated_position.z
+			bind_positions[offset] = bind_position.x
+			bind_positions[offset + 1] = bind_position.y
+			bind_positions[offset + 2] = bind_position.z
 			bind_positions[offset + 3] = 1.0
 		arrays[Mesh.ARRAY_CUSTOM0] = bind_positions
 
@@ -1054,7 +1105,8 @@ static func _ensure_bind_position_attribute(
 
 	custom_mesh.custom_aabb = source_mesh.custom_aabb
 	custom_mesh.shadow_mesh = source_mesh.shadow_mesh
-	mesh_instance.mesh = custom_mesh
+	custom_mesh.set_meta(BIND_POSITION_BAKED_FROM_META, source_mesh)
+	return custom_mesh
 
 
 static func _bind_skin_matrices(
@@ -1221,11 +1273,9 @@ static func _apply_material_parameters(
 		1.0,
 	)
 
-	var shader_code := _build_appearance_shader_code()
-	if shader_code.is_empty():
+	var shader := _cached_appearance_shader()
+	if shader == null:
 		return
-	var shader := Shader.new()
-	shader.code = shader_code
 	for node in visual_root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance == null or mesh_instance.mesh == null:
@@ -1245,7 +1295,7 @@ static func _apply_material_parameters(
 			)
 			material.set_shader_parameter(
 				"appearance_region_coordinate_scale",
-				visual_root.scale,
+				Vector3.ONE,
 			)
 			material.set_shader_parameter(
 				"appearance_region_source_texture",

@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from threading import RLock
+from time import perf_counter
 from typing import Literal, Protocol, Tuple
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
@@ -20,6 +22,19 @@ from elfie.brain.memory.memory_records import (
     RecallBundle,
     RecallRequest,
 )
+from elfie.brain.observation import (
+    BrainObservation,
+    BrainObservationSink,
+    ObservationStatus,
+)
+from elfie.brain.reasoning.observation_payloads import (
+    MemoryRecallBundleObservation,
+    MemoryRecallRequestObservation,
+    MemoryRecallResultObservation,
+    MemoryRecallStarted,
+    MemoryStateObservation,
+    MemoryTurnOpened,
+)
 from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
 from elfie.message_types import EventId, UTCDateTime
 
@@ -31,6 +46,25 @@ MemoryRecallStatus = Literal[
     "unavailable",
     "budget_exhausted",
 ]
+
+_RECALL_COMPLETED_STATUSES = frozenset({"recalled", "skipped"})
+_RECALL_SKIPPED_STATUSES = frozenset({"duplicate", "budget_exhausted"})
+
+
+def _recall_observation_status(status: str) -> ObservationStatus:
+    """Map one Memory recall status onto the envelope lifecycle state.
+
+    Unified envelope rule: a gate-refused baseline ("not relevant" /
+    "not requested") is a completed gate decision whose polarity lives in
+    the payload, while a duplicate short-circuit or exhausted on-demand
+    budget preempted the recall before its main effect (skipped).
+    """
+    if status in _RECALL_COMPLETED_STATUSES:
+        return ObservationStatus.completed
+    if status in _RECALL_SKIPPED_STATUSES:
+        return ObservationStatus.skipped
+    return ObservationStatus.degraded
+
 
 _RECALL_INTENT = re.compile(
     r"(?:母星|家乡星球|恒星|伊洛拉|雨季|旱季|本地日|迷雾镇|Elfaria|"
@@ -120,33 +154,52 @@ class ReasoningMemorySession:
         """Perform at most one unique on-demand Recall for P0."""
         normalized = self._normalize(query)
         if not normalized:
-            return MemoryRecallResult(
+            result = MemoryRecallResult(
                 status="unavailable",
                 query=query,
                 pinned_revision=self._pinned_revision,
                 reason="blank_recall_query",
             )
+            self._bridge._emit_recall_result(
+                frame_id=self._frame_id,
+                result=result,
+                duration_ms=0.0,
+            )
+            return result
         with self._lock:
             previous = self._results.get(normalized)
             if previous is not None:
-                return MemoryRecallResult(
+                result = MemoryRecallResult(
                     status="duplicate",
                     query=query,
                     pinned_revision=self._pinned_revision,
                     bundle=previous.bundle,
                     reason="query_already_recalled_in_run",
                 )
+                self._bridge._emit_recall_result(
+                    frame_id=self._frame_id,
+                    result=result,
+                    duration_ms=0.0,
+                )
+                return result
             if self._on_demand_recalls >= self._max_on_demand_recalls:
-                return MemoryRecallResult(
+                result = MemoryRecallResult(
                     status="budget_exhausted",
                     query=query,
                     pinned_revision=self._pinned_revision,
                     reason="on_demand_recall_budget_exhausted",
                 )
+                self._bridge._emit_recall_result(
+                    frame_id=self._frame_id,
+                    result=result,
+                    duration_ms=0.0,
+                )
+                return result
             self._on_demand_recalls += 1
         result = self._bridge._recall_at_revision(  # noqa: SLF001 - owned session
             query,
             pinned_revision=self._pinned_revision,
+            frame_id=self._frame_id,
         )
         with self._lock:
             self._results[normalized] = result
@@ -162,10 +215,17 @@ class ReasoningMemorySession:
 class ReasoningMemoryBridge:
     """Translate a Turn into pinned Recall without owning persistent facts."""
 
-    def __init__(self, memory: MemorySystem) -> None:
+    def __init__(
+        self,
+        memory: MemorySystem,
+        observation_sink: BrainObservationSink | None = None,
+    ) -> None:
         self._memory = memory
+        self._sink = observation_sink
         self._memory_lock = RLock()
         self._bundle_lock = RLock()
+        self._emit_lock = RLock()
+        self._emit_sequence = 0
         self._bundles: OrderedDict[str, RecallBundle] = OrderedDict()
         self._bundle_capacity = 256
 
@@ -182,6 +242,8 @@ class ReasoningMemoryBridge:
             for event in frame.events
             if isinstance(event.payload, SocialPayload)
         ).strip()
+        sink = self._sink
+        pin_started = perf_counter() if sink is not None else 0.0
         try:
             with self._memory_lock:
                 pinned_revision = self._memory.revision
@@ -191,6 +253,18 @@ class ReasoningMemoryBridge:
             state = MemoryStateSnapshot.unknown().model_copy(
                 update={"captured_at": captured_at}
             )
+        pin_duration_ms = (
+            round((perf_counter() - pin_started) * 1000.0, 2)
+            if sink is not None
+            else 0.0
+        )
+        self._emit_turn_opened(
+            frame=frame,
+            query=query,
+            pinned_revision=pinned_revision,
+            state=state,
+            duration_ms=pin_duration_ms,
+        )
         session = ReasoningMemorySession(
             self,
             frame_id=frame.frame_id,
@@ -200,6 +274,7 @@ class ReasoningMemoryBridge:
             baseline = self._recall_at_revision(
                 query,
                 pinned_revision=pinned_revision,
+                frame_id=frame.frame_id,
             )
         else:
             baseline = MemoryRecallResult(
@@ -208,6 +283,11 @@ class ReasoningMemoryBridge:
                 pinned_revision=pinned_revision,
                 bundle=RecallBundle(recall_revision=pinned_revision),
                 reason="baseline_recall_not_relevant",
+            )
+            self._emit_recall_result(
+                frame_id=frame.frame_id,
+                result=baseline,
+                duration_ms=0.0,
             )
         session.set_baseline(baseline)
         bundle = baseline.bundle or RecallBundle(recall_revision=pinned_revision)
@@ -233,39 +313,219 @@ class ReasoningMemoryBridge:
         query: str,
         *,
         pinned_revision: int,
+        frame_id: EventId | None = None,
     ) -> MemoryRecallResult:
+        request = self._request(query)
+        self._emit_recall_started(
+            frame_id=frame_id,
+            query=query,
+            pinned_revision=pinned_revision,
+            request=request,
+        )
+        sink = self._sink
+        recall_started = perf_counter() if sink is not None else 0.0
+
+        def recall_elapsed_ms() -> float:
+            """Zero-cost when unwired: perf_counter only runs with a sink."""
+            return (
+                round((perf_counter() - recall_started) * 1000.0, 2)
+                if sink is not None
+                else 0.0
+            )
+
         try:
             with self._memory_lock:
                 if self._memory.revision != pinned_revision:
-                    return MemoryRecallResult(
+                    result = MemoryRecallResult(
                         status="stale",
                         query=query,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_before_recall",
                     )
-                bundle = self._memory.recall(self._request(query))
+                    self._emit_recall_result(
+                        frame_id=frame_id,
+                        result=result,
+                        duration_ms=recall_elapsed_ms(),
+                    )
+                    return result
+                bundle = self._memory.recall(request)
                 if (
                     bundle.recall_revision != pinned_revision
                     or self._memory.revision != pinned_revision
                 ):
-                    return MemoryRecallResult(
+                    result = MemoryRecallResult(
                         status="stale",
                         query=query,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_during_recall",
                     )
+                    self._emit_recall_result(
+                        frame_id=frame_id,
+                        result=result,
+                        duration_ms=recall_elapsed_ms(),
+                    )
+                    return result
         except Exception as error:  # noqa: BLE001 - typed degradation boundary
-            return MemoryRecallResult(
+            result = MemoryRecallResult(
                 status="unavailable",
                 query=query,
                 pinned_revision=pinned_revision,
                 reason=f"memory_unavailable:{type(error).__name__}",
             )
-        return MemoryRecallResult(
+            self._emit_recall_result(
+                frame_id=frame_id,
+                result=result,
+                duration_ms=recall_elapsed_ms(),
+            )
+            return result
+        result = MemoryRecallResult(
             status="recalled",
             query=query,
             pinned_revision=pinned_revision,
             bundle=bundle,
+        )
+        self._emit_recall_result(
+            frame_id=frame_id,
+            result=result,
+            duration_ms=recall_elapsed_ms(),
+        )
+        return result
+
+    def _next_sequence(self) -> int:
+        with self._emit_lock:
+            self._emit_sequence += 1
+            return self._emit_sequence
+
+    def _emit_turn_opened(
+        self,
+        *,
+        frame: TurnFrame,
+        query: str,
+        pinned_revision: int,
+        state: MemoryStateSnapshot,
+        duration_ms: float,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        frame_id = str(frame.frame_id)
+        sink.emit(
+            BrainObservation[MemoryTurnOpened](
+                boundary="reasoning.memory_bridge",
+                kind="turn_opened",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id=frame_id,
+                cause_event_ids=tuple(str(item.meta.event_id) for item in frame.events),
+                duration_ms=duration_ms,
+                status=ObservationStatus.completed,
+                payload=MemoryTurnOpened(
+                    frame_id=frame_id,
+                    query=query,
+                    pinned_revision=pinned_revision,
+                    state=MemoryStateObservation(
+                        revision=state.revision,
+                        episodic_count=state.episodic_count,
+                        total_count=state.total_count,
+                        snapshot_freshness=state.snapshot_freshness,
+                    ),
+                ),
+            )
+        )
+
+    def _emit_recall_started(
+        self,
+        *,
+        frame_id: EventId | None,
+        query: str,
+        pinned_revision: int,
+        request: RecallRequest,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        rendered_frame_id = str(frame_id) if frame_id is not None else None
+        sink.emit(
+            BrainObservation[MemoryRecallStarted](
+                boundary="reasoning.memory_bridge",
+                kind="recall_started",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id=rendered_frame_id or "",
+                cause_event_ids=(),
+                duration_ms=0.0,
+                status=ObservationStatus.completed,
+                payload=MemoryRecallStarted(
+                    frame_id=rendered_frame_id,
+                    query=query,
+                    pinned_revision=pinned_revision,
+                    request=MemoryRecallRequestObservation(
+                        mode=request.mode,
+                        seed_limit=request.seed_limit,
+                        node_limit=request.node_limit,
+                        assertion_limit=request.assertion_limit,
+                        episode_limit=request.episode_limit,
+                        evidence_limit=request.evidence_limit,
+                        character_limit=request.character_limit,
+                    ),
+                ),
+            )
+        )
+
+    def _emit_recall_result(
+        self,
+        *,
+        frame_id: EventId | None,
+        result: MemoryRecallResult,
+        duration_ms: float,
+    ) -> None:
+        sink = self._sink
+        if sink is None:
+            return
+        rendered_frame_id = str(frame_id) if frame_id is not None else None
+        bundle = result.bundle
+        sink.emit(
+            BrainObservation[MemoryRecallResultObservation](
+                boundary="reasoning.memory_bridge",
+                kind="recall_result",
+                sequence=self._next_sequence(),
+                captured_at=datetime.now(timezone.utc),
+                turn_id="",
+                frame_id=rendered_frame_id or "",
+                cause_event_ids=(),
+                duration_ms=duration_ms,
+                status=_recall_observation_status(result.status),
+                payload=MemoryRecallResultObservation(
+                    frame_id=rendered_frame_id,
+                    query=result.query,
+                    status=result.status,
+                    pinned_revision=result.pinned_revision,
+                    reason=result.reason,
+                    bundle=(
+                        MemoryRecallBundleObservation(
+                            recall_revision=bundle.recall_revision,
+                            focus_node_ids=tuple(
+                                item.node_id for item in bundle.focus_nodes
+                            ),
+                            assertion_ids=tuple(
+                                item.assertion_id for item in bundle.assertions
+                            ),
+                            episode_ids=tuple(
+                                item.episode_id for item in bundle.episodes
+                            ),
+                            evidence_ids=tuple(
+                                item.evidence_id for item in bundle.evidence
+                            ),
+                            path_count=len(bundle.paths),
+                            conflict_count=len(bundle.conflicts),
+                        )
+                        if bundle is not None
+                        else None
+                    ),
+                ),
+            )
         )
 
     @staticmethod

@@ -165,6 +165,7 @@ class SerializedModelExecutionAdapter:
             brain_owned_system_prompt=True,
             temperature=request.temperature,
             max_tokens=min(request.max_tokens, capabilities.max_output_tokens),
+            timeout_seconds=request.timeout_seconds,
         )
         lease = self._acquire_current_lease(request.turn_id)
         try:
