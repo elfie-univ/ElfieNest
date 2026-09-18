@@ -2,6 +2,8 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ElfieLabApp } from "./elfie/ElfieLabApp";
+import { MemoryAuditBaselinePage } from "./elfie/MemoryAuditBaselinePage";
+import { MemoryAuditPage } from "./elfie/MemoryAuditPage";
 import { currentLabKind } from "./lab-kind";
 import { NestLabApp } from "./nest/NestLabApp";
 import { routeFromPath, devtoolsRoutes, type DevtoolsRoute } from "./routes";
@@ -22,6 +24,10 @@ function Application(): React.JSX.Element {
 
   const content = route === devtoolsRoutes.nestExperiment
     ? <NestLabApp />
+    : route === devtoolsRoutes.elfieMemoryAuditBaseline
+      ? <MemoryAuditBaselinePage />
+    : route === devtoolsRoutes.elfieMemoryAudit
+      ? <MemoryAuditPage />
     : <ElfieLabApp mode={route === devtoolsRoutes.elfieEvaluations ? "evaluation" : "experiment"} />;
 
   return <DevtoolsTheme mode="light">

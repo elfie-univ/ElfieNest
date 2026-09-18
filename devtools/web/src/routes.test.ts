@@ -8,6 +8,7 @@ describe("Developer Tools 页面路由", () => {
     expect(routeFromPath(labKinds.elfie, "/elfie/experiment")).toBe(devtoolsRoutes.elfieExperiment);
     expect(routeFromPath(labKinds.elfie, "/elfie/evaluations")).toBe(devtoolsRoutes.elfieEvaluations);
     expect(routeFromPath(labKinds.elfie, "/elfie/evaluations/")).toBe(devtoolsRoutes.elfieEvaluations);
+    expect(routeFromPath(labKinds.elfie, "/elfie/memory-audit")).toBe(devtoolsRoutes.elfieMemoryAudit);
     expect(routeFromPath(labKinds.elfie, "/")).toBe(devtoolsRoutes.elfieExperiment);
   });
 
@@ -16,15 +17,17 @@ describe("Developer Tools 页面路由", () => {
     expect(routeFromPath(labKinds.nest, "/")).toBe(devtoolsRoutes.nestExperiment);
   });
 
-  it("统一服务按路径识别三页", () => {
+  it("统一服务按路径识别开发工具页面", () => {
     expect(routeFromPath(labKinds.unified, "/elfie/experiment")).toBe(devtoolsRoutes.elfieExperiment);
     expect(routeFromPath(labKinds.unified, "/elfie/evaluations")).toBe(devtoolsRoutes.elfieEvaluations);
+    expect(routeFromPath(labKinds.unified, "/elfie/memory-audit")).toBe(devtoolsRoutes.elfieMemoryAudit);
     expect(routeFromPath(labKinds.unified, "/nest/experiment")).toBe(devtoolsRoutes.nestExperiment);
   });
 
-  it("为三页暴露可读的路径", () => {
+  it("为开发工具页面暴露可读的路径", () => {
     expect(routePath(devtoolsRoutes.elfieExperiment)).toBe("/elfie/experiment");
     expect(routePath(devtoolsRoutes.elfieEvaluations)).toBe("/elfie/evaluations");
+    expect(routePath(devtoolsRoutes.elfieMemoryAudit)).toBe("/elfie/memory-audit");
     expect(routePath(devtoolsRoutes.nestExperiment)).toBe("/nest/experiment");
   });
 
