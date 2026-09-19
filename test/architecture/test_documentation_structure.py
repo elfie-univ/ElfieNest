@@ -88,6 +88,7 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
         "elfie-brain-ten-system-architecture.md",
         "elfie-emotion-system.md",
         "elfie-memory-architecture.md",
+        "elfie-memory-debug-workspace.md",
         "elfie-reasoning-core.md",
         "elfie-selfhood-and-fixed-model-header.md",
     }

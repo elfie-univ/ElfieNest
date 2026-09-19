@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ElfieSession, ElfieTurn } from "./contracts";
 import { DetailPanel } from "./DetailPanel";
+import type { MemoryDebugRecallContext } from "./MemoryDebugWorkspacePage";
 import type { DetailFocus } from "./viewModel";
 
 const observability = {
@@ -159,12 +160,14 @@ function renderInspector(
   selectedTurn: ElfieTurn | null = turn,
   focus: DetailFocus = "chain",
   defaultOpenDetails?: readonly string[],
+  onOpenMemoryDebug?: (context: MemoryDebugRecallContext) => void,
 ): string {
   return renderToStaticMarkup(<DetailPanel
     defaultOpenDetails={defaultOpenDetails}
     focus={focus}
     initialTab={initialTab}
     onClose={() => undefined}
+    onOpenMemoryDebug={onOpenMemoryDebug}
     open
     previewResult={null}
     selectedTurn={selectedTurn}
@@ -227,6 +230,24 @@ describe("Elfie Lab Turn Inspector", () => {
 
     expect(markup).not.toContain("trace-node-body");
     expect(markup).not.toContain("trace-disclosure-content");
+  });
+
+  it("offers the real Recall trace as the entry point to the memory graph", () => {
+    const recalledTurn = withChainNodes({
+      2: (node) => ({
+        ...node,
+        baseline_memory: {
+          status: "recalled",
+          query: "用户近况",
+          recall_id: "recall-turn-1",
+          returned_points: [{ kind: "focus_node", id: "node-1" }],
+          selection: { candidate_boundary: "scored_candidates_only", candidates: [], summaries: [] },
+        },
+      }),
+    });
+    const markup = renderInspector("链路", recalledTurn, "chain", ["setup", "setup-baseline-memory"], () => undefined);
+
+    expect(markup).toContain("在记忆图谱中查看本次召回");
   });
 
   it("surfaces a failed inner stage in the turn status", () => {

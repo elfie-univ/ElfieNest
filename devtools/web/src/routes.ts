@@ -3,6 +3,9 @@ import type { LabKind } from "./lab-kind";
 export const devtoolsRoutes = {
   elfieExperiment: "elfie-experiment",
   elfieEvaluations: "elfie-evaluations",
+  elfieMemoryAudit: "elfie-memory-audit",
+  elfieMemoryAuditBaseline: "elfie-memory-audit-baseline",
+  elfieMemoryDebugWorkspace: "elfie-memory-debug-workspace",
   nestExperiment: "nest-experiment",
 } as const;
 
@@ -11,6 +14,9 @@ export type DevtoolsRoute = (typeof devtoolsRoutes)[keyof typeof devtoolsRoutes]
 const routePaths: Readonly<Record<DevtoolsRoute, string>> = {
   [devtoolsRoutes.elfieExperiment]: "/elfie/experiment",
   [devtoolsRoutes.elfieEvaluations]: "/elfie/evaluations",
+  [devtoolsRoutes.elfieMemoryAudit]: "/elfie/memory-audit",
+  [devtoolsRoutes.elfieMemoryAuditBaseline]: "/elfie/memory-audit-baseline",
+  [devtoolsRoutes.elfieMemoryDebugWorkspace]: "/elfie/memory-debug",
   [devtoolsRoutes.nestExperiment]: "/nest/experiment",
 };
 
@@ -28,6 +34,15 @@ export function routeFromPath(kind: LabKind, pathname: string): DevtoolsRoute {
   if (kind === "nest") return devtoolsRoutes.nestExperiment;
   if (kind === "unified" && path === "/nest/experiment") {
     return devtoolsRoutes.nestExperiment;
+  }
+  if (path === "/elfie/memory-audit") {
+    return devtoolsRoutes.elfieMemoryAudit;
+  }
+  if (path === "/elfie/memory-audit-baseline") {
+    return devtoolsRoutes.elfieMemoryAuditBaseline;
+  }
+  if (path === "/elfie/memory-debug") {
+    return devtoolsRoutes.elfieMemoryDebugWorkspace;
   }
   if (path === "/elfie/evaluations" || path === "/evaluations") {
     return devtoolsRoutes.elfieEvaluations;

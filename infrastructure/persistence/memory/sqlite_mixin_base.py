@@ -53,6 +53,9 @@ class SQLiteMemoryMixinBase:
         """Return a marker-gated predicate for rows produced by Genesis."""
         raise NotImplementedError
 
+    def read_consistency_token(self) -> str:
+        raise NotImplementedError
+
     def upsert_node_record(self, node: NodeInput) -> str:
         raise NotImplementedError
 
@@ -97,6 +100,17 @@ class SQLiteMemoryMixinBase:
     def list_graph_assertions(
         self, limit: int = 800, *, privacy_scope: str | None = None
     ) -> tuple[RecallAssertion, ...]:
+        raise NotImplementedError
+
+    def count_graph_assertions(self, *, privacy_scope: str | None = None) -> int:
+        raise NotImplementedError
+
+    def list_memory_evidence(
+        self, limit: int = 1000, *, privacy_scope: str | None = None
+    ) -> tuple[RecallEvidence, ...]:
+        raise NotImplementedError
+
+    def count_memory_evidence(self, *, privacy_scope: str | None = None) -> int:
         raise NotImplementedError
 
     def _upsert_episode_fts_from_values(

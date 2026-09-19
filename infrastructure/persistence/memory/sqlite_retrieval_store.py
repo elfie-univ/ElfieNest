@@ -71,6 +71,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     def _emit_recall_candidate_scored(
         self,
         *,
+        recall_id: str | None,
         query_terms: tuple[str, ...],
         candidate_id: str,
         candidate_kind: str,
@@ -96,6 +97,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=RecallCandidateScored(
+                    recall_id=recall_id,
                     query_terms=query_terms,
                     candidate_id=candidate_id,
                     candidate_kind=candidate_kind,
@@ -110,6 +112,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
     def _emit_recall_selection_summary(
         self,
         *,
+        recall_id: str | None,
         candidates_seen: int,
         kept: int,
         truncated: bool,
@@ -133,6 +136,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 duration_ms=duration_ms,
                 status=ObservationStatus.completed,
                 payload=RecallSelectionSummary(
+                    recall_id=recall_id,
                     candidates_seen=candidates_seen,
                     kept=kept,
                     truncated=truncated,
@@ -153,6 +157,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         node_type: str | None = None,
         *,
         privacy_scope: str | None = None,
+        recall_id: str | None = None,
     ) -> list[tuple[str, float]]:
         """Deterministic lexical search over Episode text and graph labels."""
         if top_k < 1 or not query.strip():
@@ -345,6 +350,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 else:
                     exclusion_reason = "ranked_out_of_top_k"
                 self._emit_recall_candidate_scored(
+                    recall_id=recall_id,
                     query_terms=tuple(terms),
                     candidate_id=identifier,
                     candidate_kind=candidate_kinds.get(identifier, "node"),
@@ -384,6 +390,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             request.text,
             lexical_fetch_limit,
             privacy_scope=request.privacy_scope,
+            recall_id=request.recall_id,
         )
         lexical_truncated = len(lexical_candidates) > request.lexical_limit
         # Keep oversampled candidates through graph expansion and the v2 score
@@ -678,6 +685,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         bounded = _bound_bundle(bundle, request.character_limit)
         if sink is not None:
             self._emit_recall_selection_summary(
+                recall_id=request.recall_id,
                 candidates_seen=len(lexical_candidates) + len(request.seed_node_ids),
                 kept=(
                     len(bounded.focus_nodes)

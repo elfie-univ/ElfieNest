@@ -81,6 +81,7 @@ class MemoryRecallStarted(FrozenContractModel):
     (bridge precedent), so the payload anchors its own frame identity.
     """
 
+    recall_id: Optional[str] = None
     frame_id: Optional[str] = None
     query: str
     pinned_revision: int = Field(ge=0)
@@ -121,6 +122,7 @@ class MemoryRecallResultObservation(FrozenContractModel):
     (bridge precedent), so the payload anchors its own frame identity.
     """
 
+    recall_id: Optional[str] = None
     frame_id: Optional[str] = None
     query: str
     status: str

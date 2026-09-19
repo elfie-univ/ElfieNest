@@ -21,6 +21,7 @@
     - [Selfhood 与固定模型头部](./elfie/brain/elfie-selfhood-and-fixed-model-header)：Selfhood authority 与在线模型固定前缀。
     - [Emotion 情绪系统](./elfie/brain/elfie-emotion-system)：情绪状态、动态和边界。
     - [Memory 架构](./elfie/brain/elfie-memory-architecture)：持久经历、知识和召回。
+    - [Memory Debug Workspace 最终设计](./elfie/brain/elfie-memory-debug-workspace)：全库图、Episode 过程、Recall 解释和 Elfie Lab 联动。
     - [Brain 评价与进化系统](./elfie/brain/elfie-brain-evaluation-system)：证据优先的评价和受约束改进。
   - Embodiment 设计：
     - [具身控制链路设计](./elfie/embodiment/elfie-embodied-control-chain)：Brain 到身体的语义指令链路、

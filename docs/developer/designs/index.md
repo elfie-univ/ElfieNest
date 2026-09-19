@@ -29,6 +29,8 @@ only when an owner has multiple documents. This page is a catalog, not another p
     - [Emotion system](./elfie/brain/elfie-emotion-system): affect state, dynamics and boundaries.
     - [Memory architecture](./elfie/brain/elfie-memory-architecture): durable experience, knowledge
       and retrieval.
+    - [Memory Debug Workspace final design](./elfie/brain/elfie-memory-debug-workspace): whole-library
+      graph, Episode processing, Recall explanation, and Elfie Lab integration.
     - [Brain evaluation and evolution system](./elfie/brain/elfie-brain-evaluation-system): evidence-
       first evaluation and constrained improvement.
   - Embodiment designs:

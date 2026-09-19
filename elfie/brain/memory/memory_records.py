@@ -775,6 +775,9 @@ class RecallRequest:
     """Bounded semantic query accepted by the Memory Port."""
 
     text: str = ""
+    # Ephemeral observation correlation only.  It is never persisted as a
+    # Memory fact and never participates in retrieval or ranking.
+    recall_id: Optional[str] = None
     seed_node_ids: Tuple[str, ...] = ()
     node_types: Tuple[str, ...] = ()
     relation_types: Tuple[str, ...] = ()
@@ -835,6 +838,8 @@ class RecallRequest:
                 raise ValueError(f"{name} must not contain blank values")
         if self.privacy_scope is not None and not self.privacy_scope.strip():
             raise ValueError("privacy_scope must not be blank when supplied")
+        if self.recall_id is not None and not self.recall_id.strip():
+            raise ValueError("recall_id must not be blank when supplied")
 
 
 @dataclass(frozen=True)

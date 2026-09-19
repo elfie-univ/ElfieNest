@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -10,6 +11,7 @@ from devtools.elfie_lab.turn_summary import turn_model_call_observations
 from elfie.brain.memory.memory_records import ClosedEpisode
 from elfie.brain.reasoning.food_port import NoAvailableFoodError
 from elfie.diagnostics import ElfieDiagnostics
+from infrastructure.persistence.brain_journal import SQLiteBrainJournalAdapter
 
 
 @pytest.fixture
@@ -160,6 +162,38 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         storage.load_latest_session(spec.elfie_id)["turns"][0]["turn_id"]
         == turn["turn_id"]
     )
+
+
+def test_restored_legacy_clock_reanchors_energy_after_runtime_restore(
+    tmp_path, session_factory
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("旧时钟恢复")
+    session = session_factory(spec, storage)
+
+    session.run_turn(StimulusBundle(message="建立连续性检查点"), "mock")
+    checkpoint = session._journal_store.load_checkpoint()
+    assert checkpoint is not None
+
+    legacy_time = datetime.fromtimestamp(45.001, timezone.utc)
+    legacy_checkpoint = replace(
+        checkpoint,
+        captured_at=legacy_time,
+        energy=replace(
+            checkpoint.energy,
+            last_updated_at=45.001000000000005,
+        ),
+    )
+    session.close()
+    with SQLiteBrainJournalAdapter(storage.journal_path(spec.elfie_id)) as journal:
+        journal.save_checkpoint(legacy_checkpoint)
+
+    restored = session_factory(spec, storage)
+    energy = ElfieDiagnostics(restored.elfie).energy
+
+    assert restored.elfie.elapsed_time == 45.001
+    assert energy.last_updated_at == restored.elfie.elapsed_time
+    energy.snapshot(restored.elfie.elapsed_time)
 
 
 def test_mock_embodied_turn_uses_body_output_only(tmp_path, session_factory):

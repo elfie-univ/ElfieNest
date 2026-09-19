@@ -19,6 +19,8 @@
     "ky": "^2.0.2",
     "react": "latest",
     "react-dom": "latest",
+    "react-force-graph-3d": "^1.29.1",
+    "three": "^0.186.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

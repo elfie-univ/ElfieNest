@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+import devtools.elfie_lab.app as elfie_lab_app
 from devtools.elfie_lab.app import create_app
+from devtools.memory_audit import MemoryInspectionStaleError
 
 from .food_test_helpers import seed_mock_food
 
@@ -29,6 +31,88 @@ def test_create_app_installs_the_bundled_species_catalog(
     assert frozenset(
         species_registry.current_species_catalog().supported_species
     ) == frozenset({"dog", "fox"})
+
+
+def test_memory_episode_preview_is_sandboxed(tmp_path, client_for):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    elfie_id = client.post("/api/elfies", json=complete_elfie_payload()).json()[
+        "elfie_id"
+    ]
+    database = app.state.storage.memory_path(elfie_id)
+    before = database.read_bytes()
+
+    response = client.post(
+        "/api/memory-audit/add-episode-preview",
+        json={"elfie_id": elfie_id, "content_text": "主人喜欢香菜，今天在花园散步。"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["operation"]["status"] == "completed"
+    assert payload["operation"]["production_mutated"] is False
+    assert (
+        payload["after"]["counts"]["episodes"]
+        == payload["before"]["counts"]["episodes"] + 1
+    )
+    assert database.read_bytes() == before
+
+
+def test_memory_workspace_routes_are_directly_loadable_and_empty_memory_is_explicit(
+    tmp_path, client_for
+):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+
+    for path in ("/elfie/memory-audit", "/elfie/memory-debug"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert '<div id="root"></div>' in response.text
+
+    response = client.get("/api/memory-audit/inspect")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "没有可审计的测试精灵"
+
+
+def test_memory_inspect_exposes_stale_snapshot_as_conflict(
+    tmp_path, client_for, monkeypatch
+):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    client.post("/api/elfies", json=complete_elfie_payload())
+
+    def raise_stale(*args, **kwargs):
+        raise MemoryInspectionStaleError("读取边界已过期")
+
+    monkeypatch.setattr(elfie_lab_app, "build_inspection_report", raise_stale)
+
+    response = client.get("/api/memory-audit/inspect")
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": {
+            "code": "memory_snapshot_stale",
+            "message": "读取边界已过期",
+        }
+    }
+
+
+def test_memory_inspect_accepts_node_type_filter_and_keeps_graph_context(
+    tmp_path, client_for
+):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    client.post("/api/elfies", json=complete_elfie_payload())
+
+    response = client.get(
+        "/api/memory-audit/inspect",
+        params=[("node_type", "person")],
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["filters"]["node_types"] == ["person"]
+    assert payload["coverage"]["filters_applied"] is True
+    assert payload["matched_counts"]["nodes"] > 0
+    assert payload["counts"]["graph_nodes"] >= payload["matched_counts"]["nodes"]
 
 
 def test_create_elfie_requires_core_profile_and_allows_optional_personality(

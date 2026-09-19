@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "antd";
 
 import type { ElfieSession, ElfieTurn } from "./contracts";
+import type { MemoryDebugRecallContext } from "./MemoryDebugWorkspacePage";
 import type { DetailFocus } from "./viewModel";
 
 type PreviewResult = Readonly<{
@@ -18,6 +19,7 @@ type Props = Readonly<{
   readonly focus: DetailFocus;
   readonly previewResult: PreviewResult | null;
   readonly onClose: () => void;
+  readonly onOpenMemoryDebug?: ((context: MemoryDebugRecallContext) => void) | undefined;
   // Test seam: stage and known nested detail ids opened on mount so
   // static-render tests can assert nested views without DOM interaction.
   // Interactive clicks keep the single-open stage accordion behavior.
@@ -104,6 +106,50 @@ function record(value: unknown): JsonRecord {
 
 function list(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function recallContextFromTrace(source: JsonRecord, origin: MemoryDebugRecallContext["source"]): MemoryDebugRecallContext {
+  const points = list(source.returned_points);
+  const selection = record(source.selection);
+  const returned = record(source.returned_ids ?? selection.returned_ids);
+  const ids = (key: "nodes" | "assertions" | "episodes" | "evidence"): string[] => Array.isArray(returned[key]) ? returned[key].map(String).filter(Boolean) : [];
+  const inferred = { nodes: [] as string[], assertions: [] as string[], episodes: [] as string[], evidence: [] as string[] };
+  points.forEach((value) => {
+    const point = record(value);
+    const id = String(point.id ?? point.node_id ?? point.assertion_id ?? point.episode_id ?? point.evidence_id ?? "");
+    if (!id) return;
+    const kind = String(point.kind ?? "");
+    if (kind === "focus_node" || kind === "node") inferred.nodes.push(id);
+    else if (kind === "assertion") inferred.assertions.push(id);
+    else if (kind === "episode") inferred.episodes.push(id);
+    else if (kind === "evidence") inferred.evidence.push(id);
+  });
+  return {
+    source: origin,
+    recall_id: typeof source.recall_id === "string" ? source.recall_id : null,
+    ...(typeof source.query === "string" ? { query: source.query } : {}),
+    ...(typeof source.status === "string" ? { status: source.status } : {}),
+    revision: typeof source.revision === "string" || typeof source.revision === "number" ? source.revision : null,
+    reason: typeof source.reason === "string" ? source.reason : null,
+    selection,
+    returned_points: points,
+    returned_ids: {
+      nodes: ids("nodes").length ? ids("nodes") : [...new Set(inferred.nodes)],
+      assertions: ids("assertions").length ? ids("assertions") : [...new Set(inferred.assertions)],
+      episodes: ids("episodes").length ? ids("episodes") : [...new Set(inferred.episodes)],
+      evidence: ids("evidence").length ? ids("evidence") : [...new Set(inferred.evidence)],
+    },
+    raw: source,
+  };
+}
+
+function MemoryDebugRecallAction({ source, origin, onOpen }: Readonly<{
+  readonly source: JsonRecord;
+  readonly origin: MemoryDebugRecallContext["source"];
+  readonly onOpen?: ((context: MemoryDebugRecallContext) => void) | undefined;
+}>): React.JSX.Element | null {
+  if (!onOpen) return null;
+  return <Button className="trace-memory-debug-action" onClick={() => onOpen(recallContextFromTrace(source, origin))} size="small" type="link">在记忆图谱中查看本次召回</Button>;
 }
 
 function hasContent(value: unknown): boolean {
@@ -880,6 +926,20 @@ function MemoryEvidence({ points, fallback }: Readonly<{ readonly points: readon
   })}</div></section>;
 }
 
+function RecallSelection({ selection }: Readonly<{ readonly selection: unknown }>): React.JSX.Element | null {
+  const source = record(selection);
+  const candidates = list(source.candidates).map(record);
+  const summaries = list(source.summaries).map(record);
+  if (!candidates.length && !summaries.length) return null;
+  return <section className="trace-evidence trace-recall-selection"><h4>召回候选决定（真实评分观测）</h4>
+    {summaries.length ? <Fields values={{ candidate_boundary: source.candidate_boundary, candidates_seen: summaries[0]?.candidates_seen, kept: summaries[0]?.kept, truncated: summaries[0]?.truncated, character_budget: `${String(summaries[0]?.character_budget_used ?? 0)} / ${String(summaries[0]?.character_budget_limit ?? 0)}` }} /> : null}
+    {candidates.length ? <div className="trace-recall-candidate-list">{candidates.map((candidate, index) => <article className={`trace-recall-candidate ${candidate.kept ? "is-kept" : "is-excluded"}`} key={`${String(candidate.candidate_kind ?? "candidate")}-${String(candidate.candidate_id ?? index)}`}>
+      <header><strong>{candidate.kept ? "保留" : "排除"}</strong><span>{String(candidate.candidate_id ?? "未记录")}</span></header>
+      <Fields values={{ kind: candidate.candidate_kind, score: candidate.score, matched_terms: candidate.matched_terms, reason: candidate.exclusion_reason }} />
+    </article>)}</div> : null}
+  </section>;
+}
+
 function SkipDetails({
   node,
   fallbackReason,
@@ -1644,9 +1704,10 @@ function setupProcessingMode(output: JsonRecord): string | undefined {
   return labels.length ? labels.join(" · ") : undefined;
 }
 
-function SetupNode({ node, mountOpenIds }: Readonly<{
+function SetupNode({ node, mountOpenIds, onOpenMemoryDebug }: Readonly<{
   readonly node: TraceNode;
   readonly mountOpenIds?: ReadonlySet<string> | undefined;
+  readonly onOpenMemoryDebug?: ((context: MemoryDebugRecallContext) => void) | undefined;
 }>): React.JSX.Element {
   const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(() => new Set(
     Array.from(mountOpenIds ?? []).filter((id) => id.startsWith("setup-")),
@@ -1656,6 +1717,7 @@ function SetupNode({ node, mountOpenIds }: Readonly<{
   const selfhoodProjection = record(node.selfhood_projection);
   const budget = record(node.budget);
   const baseline = record(node.baseline_memory);
+  const onDemand = list(baseline.on_demand).map(record);
   const baselineStatus = statusOf(baseline.status);
   const baselineReason = String(baseline.reason ?? baseline.skip_reason ?? "");
   const normalMemorySkip = baselineStatus === "skipped" && baselineReason === "baseline_recall_not_relevant";
@@ -1709,8 +1771,29 @@ function SetupNode({ node, mountOpenIds }: Readonly<{
         returned_count: list(baseline.returned_points).length,
         reason: baselineReason,
       }} />
+      <MemoryDebugRecallAction origin="baseline" onOpen={onOpenMemoryDebug} source={baseline} />
+      <RecallSelection selection={baseline.selection} />
       <MemoryEvidence points={list(baseline.returned_points)} fallback={baseline.returned_evidence} />
     </TraceDisclosure> : null}
+    {onDemand.map((entry, index) => {
+      const id = `setup-memory-on-demand-${index}`;
+      return <TraceDisclosure
+        key={id}
+        id={id}
+        title={`按需召回 ${String(entry.query ?? "")}`}
+        meta={String(entry.recall_id ?? "")}
+        onToggle={toggle}
+        open={openChildren.has(id)}
+        status={entry.status}
+        raw={entry.raw}
+        showStatus
+      >
+        <Fields values={{ query: entry.query, revision: entry.revision, reason: entry.reason, returned_count: list(entry.returned_points).length }} />
+        <MemoryDebugRecallAction origin="on_demand" onOpen={onOpenMemoryDebug} source={entry} />
+        <RecallSelection selection={entry.selection} />
+        <MemoryEvidence points={list(entry.returned_points)} fallback={entry.returned_evidence} />
+      </TraceDisclosure>;
+    })}
   </>;
 }
 
@@ -2449,15 +2532,16 @@ function SettlementNode({ node }: Readonly<{ readonly node: TraceNode }>): React
   </>;
 }
 
-function NodeBody({ node, preview, mountOpenIds }: Readonly<{
+function NodeBody({ node, preview, mountOpenIds, onOpenMemoryDebug }: Readonly<{
   readonly node: TraceNode;
   readonly preview: PreviewResult | null;
   readonly mountOpenIds?: ReadonlySet<string> | undefined;
+  readonly onOpenMemoryDebug?: ((context: MemoryDebugRecallContext) => void) | undefined;
 }>): React.JSX.Element {
   const id = String(node.id ?? "");
   if (id === "event_admission") return <AdmissionNode node={node} />;
   if (id === "context_workspace") return <WorkspaceNode mountOpenIds={mountOpenIds} node={node} />;
-  if (id === "setup") return <SetupNode mountOpenIds={mountOpenIds} node={node} />;
+  if (id === "setup") return <SetupNode mountOpenIds={mountOpenIds} node={node} onOpenMemoryDebug={onOpenMemoryDebug} />;
   if (id === "reasoning_run") return <ReasoningNode node={node} mountOpenIds={mountOpenIds} />;
   if (id === "turn_decision") return <DecisionNode node={node} />;
   if (id === "governance_delivery") return <GovernanceNode node={node} preview={preview} />;
@@ -2469,12 +2553,13 @@ function NodeRaw({ node }: Readonly<{ readonly node: TraceNode }>): React.JSX.El
   return <pre className="trace-code trace-node-raw-view">{pretty(node)}</pre>;
 }
 
-function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
+function NodeCard({ node, open, onToggle, preview, mountOpenIds, onOpenMemoryDebug }: Readonly<{
   readonly node: TraceNode;
   readonly open: boolean;
   readonly onToggle: () => void;
   readonly preview: PreviewResult | null;
   readonly mountOpenIds?: ReadonlySet<string> | undefined;
+  readonly onOpenMemoryDebug?: ((context: MemoryDebugRecallContext) => void) | undefined;
 }>): React.JSX.Element {
   const [rawMode, setRawMode] = useState(false);
   const stageTip = STAGE_DESCRIPTIONS[String(node.id ?? "")];
@@ -2491,11 +2576,11 @@ function NodeCard({ node, open, onToggle, preview, mountOpenIds }: Readonly<{
       </button>
       <button aria-pressed={rawMode} className="trace-node-mode" onClick={toggleRaw} type="button">{rawMode ? "摘要" : "原始记录"}</button>
     </div>
-    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody mountOpenIds={mountOpenIds} node={node} preview={preview} />}</div> : null}
+    {open ? <div className="trace-node-body">{rawMode ? <NodeRaw node={node} /> : <NodeBody mountOpenIds={mountOpenIds} node={node} onOpenMemoryDebug={onOpenMemoryDebug} preview={preview} />}</div> : null}
   </article>;
 }
 
-function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly<{ readonly session: ElfieSession | null; readonly turn: ElfieTurn; readonly preview: PreviewResult | null; readonly openNodes: ReadonlySet<string>; readonly onToggle: (id: string) => void }>): React.JSX.Element {
+function TurnInspector({ session, turn, preview, openNodes, onToggle, onOpenMemoryDebug }: Readonly<{ readonly session: ElfieSession | null; readonly turn: ElfieTurn; readonly preview: PreviewResult | null; readonly openNodes: ReadonlySet<string>; readonly onToggle: (id: string) => void; readonly onOpenMemoryDebug?: ((context: MemoryDebugRecallContext) => void) | undefined }>): React.JSX.Element {
   const nodes = projectedNodes(turn);
   const index = session?.turns.findIndex((item) => item.turn_id === turn.turn_id) ?? -1;
   const stimulus = record(turn.stimulus_bundle);
@@ -2513,11 +2598,11 @@ function TurnInspector({ session, turn, preview, openNodes, onToggle }: Readonly
       <div className="trace-turn-meta"><span>{new Date(turn.timestamp).toLocaleTimeString("zh-CN")}</span><span>{stimulus.source_domain === "embodied" ? "现场" : stimulus.source_domain === "activity" ? "活动" : "消息"}</span></div>
     </section>
     <dl className="trace-stat-row"><div><dt>耗时</dt><dd>{formatDuration(turn.duration_ms)}</dd></div><div><dt>迭代</dt><dd>{iterations}</dd></div><div><dt>模型调用</dt><dd>{calls}</dd></div><div><dt>记录来源</dt><dd>{projected.source === "production_turn_record" ? "生产链路" : "未采集"}</dd></div></dl>
-    <section className="trace-chain" aria-label="回合处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
+    <section className="trace-chain" aria-label="回合处理链路">{nodes.map((node) => <NodeCard key={`${turn.turn_id}:${String(node.id)}`} mountOpenIds={openNodes} node={node} onOpenMemoryDebug={onOpenMemoryDebug} onToggle={() => onToggle(String(node.id))} open={openNodes.has(String(node.id))} preview={preview} />)}</section>
   </>;
 }
 
-export function DetailPanel({ session, selectedTurn, open, previewResult, onClose, defaultOpenDetails }: Props): React.JSX.Element {
+export function DetailPanel({ session, selectedTurn, open, previewResult, onClose, onOpenMemoryDebug, defaultOpenDetails }: Props): React.JSX.Element {
   const [openNode, setOpenNode] = useState<ReadonlySet<string>>(() => new Set(defaultOpenDetails ?? []));
   useEffect(() => { setOpenNode(new Set(defaultOpenDetails ?? [])); }, [defaultOpenDetails, selectedTurn?.turn_id]);
   if (selectedTurn === null) return <></>;
@@ -2537,6 +2622,7 @@ export function DetailPanel({ session, selectedTurn, open, previewResult, onClos
       preview={previewResult}
       session={session}
       turn={selectedTurn}
+      onOpenMemoryDebug={onOpenMemoryDebug}
     /></div>
   </aside>;
 }
