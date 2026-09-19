@@ -11,6 +11,8 @@
 > Conformance ledger: [Memory conformance](../../../conformance/elfie-memory)
 > Domain sources: Memory source-first design, Brain observability boundaries, the Memory Audit design discussion, and the current Developer Tools implementation.
 
+> Design relations: **Owner:** Elfie / Brain / Memory / Developer Tools; **Parent:** [Brain ten-system architecture](./elfie-brain-ten-system-architecture.md); **Children:** none; **Normative contracts:** [Memory architecture](./elfie-memory-architecture.md), [Brain contract](../../../contracts/brain.md); **Current architecture:** [Cognitive flow](../../../architecture/cognitive-flow.md); **Conformance:** [Memory conformance](../../../conformance/elfie-memory.md); **Domain sources:** Memory source-first design, Brain observability boundaries, the Memory Audit design discussion, and the current Developer Tools implementation.
+
 ## 1. Decision summary
 
 Memory Debug Workspace is a developer debugging surface, not a user memory-management page and not a second Memory implementation.

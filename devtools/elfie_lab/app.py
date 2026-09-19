@@ -4,7 +4,7 @@ import base64
 import binascii
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, AsyncIterator, Callable, List, Optional, Union
+from typing import Annotated, AsyncIterator, Callable, List, Literal, Optional, Union
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -273,7 +273,7 @@ def create_app(
     class MemoryRecallRequest(BaseModel):
         elfie_id: Optional[str] = None
         query: str = Field(min_length=1, max_length=2000)
-        mode: str = "basic_local"
+        mode: Literal["basic", "local", "basic_local"] = "basic_local"
         limit: int = Field(default=20, ge=1, le=200)
 
     @app.post("/api/memory-audit/recall")

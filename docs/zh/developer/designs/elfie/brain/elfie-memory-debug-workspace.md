@@ -11,6 +11,8 @@
 > 一致性台账：[Memory 一致性](../../../conformance/elfie-memory)
 > 领域资料来源：Memory source-first 设计、Brain 可观测链路、Memory Audit 历史讨论与当前 Developer Tools 实现。
 
+> 设计关系：**所属模块：**Elfie / Brain / Memory / Developer Tools；**上级设计：**[Brain 十系统架构](./elfie-brain-ten-system-architecture.md)；**下级设计：**无；**规范性契约：**[Memory 架构](./elfie-memory-architecture.md)、[Brain 契约](../../../contracts/brain.md)；**当前架构：**[认知信息流](../../../architecture/cognitive-flow.md)；**一致性台账：**[Memory 一致性](../../../conformance/elfie-memory.md)；**领域资料来源：**Memory source-first 设计、Brain 可观测链路、Memory Audit 历史讨论与当前 Developer Tools 实现。
+
 ## 1. 设计结论
 
 Memory Debug Workspace 是给开发者使用的记忆调试工作台，不是面向普通用户的记忆管理页面，也不是第二套 Memory 实现。

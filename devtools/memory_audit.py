@@ -12,6 +12,7 @@ authority.
 from __future__ import annotations
 
 import argparse
+import binascii
 import csv
 import json
 import re
@@ -68,7 +69,7 @@ def _decode_inspection_cursor(value: str | None) -> dict[str, str]:
     padded = value + "=" * (-len(value) % 4)
     try:
         decoded = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
-    except (ValueError, UnicodeDecodeError, base64.binascii.Error) as exc:
+    except (ValueError, UnicodeDecodeError, binascii.Error) as exc:
         raise ValueError("invalid memory inspection cursor") from exc
     if not isinstance(decoded, dict) or any(
         not isinstance(key, str) or not isinstance(item, str)
