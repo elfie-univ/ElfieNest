@@ -5,6 +5,7 @@ export const devtoolsRoutes = {
   elfieEvaluations: "elfie-evaluations",
   elfieMemoryAudit: "elfie-memory-audit",
   elfieMemoryAuditBaseline: "elfie-memory-audit-baseline",
+  elfieMemoryDebugWorkspace: "elfie-memory-debug-workspace",
   nestExperiment: "nest-experiment",
 } as const;
 
@@ -15,6 +16,7 @@ const routePaths: Readonly<Record<DevtoolsRoute, string>> = {
   [devtoolsRoutes.elfieEvaluations]: "/elfie/evaluations",
   [devtoolsRoutes.elfieMemoryAudit]: "/elfie/memory-audit",
   [devtoolsRoutes.elfieMemoryAuditBaseline]: "/elfie/memory-audit-baseline",
+  [devtoolsRoutes.elfieMemoryDebugWorkspace]: "/elfie/memory-debug",
   [devtoolsRoutes.nestExperiment]: "/nest/experiment",
 };
 
@@ -38,6 +40,9 @@ export function routeFromPath(kind: LabKind, pathname: string): DevtoolsRoute {
   }
   if (path === "/elfie/memory-audit-baseline") {
     return devtoolsRoutes.elfieMemoryAuditBaseline;
+  }
+  if (path === "/elfie/memory-debug") {
+    return devtoolsRoutes.elfieMemoryDebugWorkspace;
   }
   if (path === "/elfie/evaluations" || path === "/evaluations") {
     return devtoolsRoutes.elfieEvaluations;

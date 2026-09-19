@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import RLock
 from time import perf_counter
 from typing import Literal, Protocol, Tuple
+from uuid import uuid4
 
 from elfie.brain.emotion.contracts import EmotionSnapshot
 from elfie.brain.memory import EpisodicMemoryCandidate, MemorySystem
@@ -315,8 +316,10 @@ class ReasoningMemoryBridge:
         pinned_revision: int,
         frame_id: EventId | None = None,
     ) -> MemoryRecallResult:
-        request = self._request(query)
+        recall_id = f"reasoning-recall:{uuid4().hex}"
+        request = replace(self._request(query), recall_id=recall_id)
         self._emit_recall_started(
+            recall_id=recall_id,
             frame_id=frame_id,
             query=query,
             pinned_revision=pinned_revision,
@@ -343,6 +346,7 @@ class ReasoningMemoryBridge:
                         reason="memory_revision_changed_before_recall",
                     )
                     self._emit_recall_result(
+                        recall_id=recall_id,
                         frame_id=frame_id,
                         result=result,
                         duration_ms=recall_elapsed_ms(),
@@ -360,6 +364,7 @@ class ReasoningMemoryBridge:
                         reason="memory_revision_changed_during_recall",
                     )
                     self._emit_recall_result(
+                        recall_id=recall_id,
                         frame_id=frame_id,
                         result=result,
                         duration_ms=recall_elapsed_ms(),
@@ -373,6 +378,7 @@ class ReasoningMemoryBridge:
                 reason=f"memory_unavailable:{type(error).__name__}",
             )
             self._emit_recall_result(
+                recall_id=recall_id,
                 frame_id=frame_id,
                 result=result,
                 duration_ms=recall_elapsed_ms(),
@@ -385,6 +391,7 @@ class ReasoningMemoryBridge:
             bundle=bundle,
         )
         self._emit_recall_result(
+            recall_id=recall_id,
             frame_id=frame_id,
             result=result,
             duration_ms=recall_elapsed_ms(),
@@ -437,6 +444,7 @@ class ReasoningMemoryBridge:
     def _emit_recall_started(
         self,
         *,
+        recall_id: str,
         frame_id: EventId | None,
         query: str,
         pinned_revision: int,
@@ -458,6 +466,7 @@ class ReasoningMemoryBridge:
                 duration_ms=0.0,
                 status=ObservationStatus.completed,
                 payload=MemoryRecallStarted(
+                    recall_id=recall_id,
                     frame_id=rendered_frame_id,
                     query=query,
                     pinned_revision=pinned_revision,
@@ -477,6 +486,7 @@ class ReasoningMemoryBridge:
     def _emit_recall_result(
         self,
         *,
+        recall_id: str | None = None,
         frame_id: EventId | None,
         result: MemoryRecallResult,
         duration_ms: float,
@@ -484,6 +494,7 @@ class ReasoningMemoryBridge:
         sink = self._sink
         if sink is None:
             return
+        resolved_recall_id = recall_id or f"reasoning-recall:{uuid4().hex}"
         rendered_frame_id = str(frame_id) if frame_id is not None else None
         bundle = result.bundle
         sink.emit(
@@ -498,6 +509,7 @@ class ReasoningMemoryBridge:
                 duration_ms=duration_ms,
                 status=_recall_observation_status(result.status),
                 payload=MemoryRecallResultObservation(
+                    recall_id=resolved_recall_id,
                     frame_id=rendered_frame_id,
                     query=result.query,
                     status=result.status,

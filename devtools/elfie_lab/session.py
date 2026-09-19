@@ -122,11 +122,14 @@ class ElfieLabSession:
                 embodied_input_mode=EmbodiedInputMode.BRAIN,
             ),
         )
-        self._anchor_cognitive_clock()
         self._turn_adapter = BrainTurnAdapter(
             self.elfie,
             observation_sink=self._capture_sink,
         )
+        # Brain startup restores the durable checkpoint after construction;
+        # anchor once more so the facade and restored owner clocks share the
+        # exact same floating-point instant.
+        self._anchor_cognitive_clock()
         self._lock = threading.Lock()
         self._closed = False
 
@@ -356,11 +359,11 @@ class ElfieLabSession:
                     embodied_input_mode=EmbodiedInputMode.BRAIN,
                 ),
             )
-            self._anchor_cognitive_clock()
             self._turn_adapter = BrainTurnAdapter(
                 self.elfie,
                 observation_sink=self._capture_sink,
             )
+            self._anchor_cognitive_clock()
             self._closed = False
             self.storage.save_session(self.get_payload())
             return self.get_payload()

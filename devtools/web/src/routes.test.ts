@@ -9,6 +9,9 @@ describe("Developer Tools 页面路由", () => {
     expect(routeFromPath(labKinds.elfie, "/elfie/evaluations")).toBe(devtoolsRoutes.elfieEvaluations);
     expect(routeFromPath(labKinds.elfie, "/elfie/evaluations/")).toBe(devtoolsRoutes.elfieEvaluations);
     expect(routeFromPath(labKinds.elfie, "/elfie/memory-audit")).toBe(devtoolsRoutes.elfieMemoryAudit);
+    expect(routeFromPath(labKinds.elfie, "/elfie/memory-audit/")).toBe(devtoolsRoutes.elfieMemoryAudit);
+    expect(routeFromPath(labKinds.elfie, "/elfie/memory-debug")).toBe(devtoolsRoutes.elfieMemoryDebugWorkspace);
+    expect(routeFromPath(labKinds.elfie, "/elfie/memory-debug/")).toBe(devtoolsRoutes.elfieMemoryDebugWorkspace);
     expect(routeFromPath(labKinds.elfie, "/")).toBe(devtoolsRoutes.elfieExperiment);
   });
 
@@ -21,6 +24,9 @@ describe("Developer Tools 页面路由", () => {
     expect(routeFromPath(labKinds.unified, "/elfie/experiment")).toBe(devtoolsRoutes.elfieExperiment);
     expect(routeFromPath(labKinds.unified, "/elfie/evaluations")).toBe(devtoolsRoutes.elfieEvaluations);
     expect(routeFromPath(labKinds.unified, "/elfie/memory-audit")).toBe(devtoolsRoutes.elfieMemoryAudit);
+    expect(routeFromPath(labKinds.unified, "/elfie/memory-audit/")).toBe(devtoolsRoutes.elfieMemoryAudit);
+    expect(routeFromPath(labKinds.unified, "/elfie/memory-debug")).toBe(devtoolsRoutes.elfieMemoryDebugWorkspace);
+    expect(routeFromPath(labKinds.unified, "/elfie/memory-debug/")).toBe(devtoolsRoutes.elfieMemoryDebugWorkspace);
     expect(routeFromPath(labKinds.unified, "/nest/experiment")).toBe(devtoolsRoutes.nestExperiment);
   });
 
@@ -28,6 +34,7 @@ describe("Developer Tools 页面路由", () => {
     expect(routePath(devtoolsRoutes.elfieExperiment)).toBe("/elfie/experiment");
     expect(routePath(devtoolsRoutes.elfieEvaluations)).toBe("/elfie/evaluations");
     expect(routePath(devtoolsRoutes.elfieMemoryAudit)).toBe("/elfie/memory-audit");
+    expect(routePath(devtoolsRoutes.elfieMemoryDebugWorkspace)).toBe("/elfie/memory-debug");
     expect(routePath(devtoolsRoutes.nestExperiment)).toBe("/nest/experiment");
   });
 

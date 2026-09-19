@@ -917,11 +917,13 @@ def _memory_view(
     query = ""
     revision: Any = None
     reason: Optional[str] = None
+    recall_id: Optional[str] = None
     points: List[Dict[str, Any]] = []
     if baseline is not None:
         bundle = baseline.bundle
         status = baseline.status
         query = opened.query if opened is not None else baseline.query
+        recall_id = getattr(baseline, "recall_id", None)
         revision = (
             bundle.recall_revision if bundle is not None else baseline.pinned_revision
         )
@@ -938,8 +940,12 @@ def _memory_view(
         "reason": reason,
         "returned_evidence": "",
         "returned_points": points,
+        "recall_id": recall_id,
+        "selection": _recall_selection_details(observations, recall_id=recall_id),
         "selected": _selected_memory(observations),
-        "on_demand": [_on_demand_entry(event) for event in on_demand_events],
+        "on_demand": [
+            _on_demand_entry(event, observations) for event in on_demand_events
+        ],
         "raw": {
             "source": "brain_observations",
             "turn_opened": _event_dump(turn_opened),
@@ -954,6 +960,11 @@ def _memory_view(
         "reason": reason,
         "returned_evidence": "",
         "returned_points": points,
+        "recall_id": recall_id,
+        "selection": _recall_selection_details(observations, recall_id=recall_id),
+        "on_demand": [
+            _on_demand_entry(event, observations) for event in on_demand_events
+        ],
         "evidence_basis": "brain_observations.reasoning.memory_bridge",
     }
     return {"block": block, "baseline_memory": baseline_memory}
@@ -973,6 +984,52 @@ def _bundle_points(bundle: Any) -> List[Dict[str, Any]]:
     for point_id in bundle.evidence_ids:
         points.append({"kind": "evidence", "id": point_id, "evidence": point_id})
     return points
+
+
+def _recall_selection_details(
+    observations: Sequence[BrainObservation],
+    *,
+    recall_id: Optional[str],
+) -> Dict[str, Any]:
+    """Project only the scorer decisions belonging to one Recall operation."""
+    candidates: List[Dict[str, Any]] = []
+    summaries: List[Dict[str, Any]] = []
+    for event in observations:
+        if event.boundary != "memory.recall.selection":
+            continue
+        payload = event.payload
+        event_recall_id = getattr(payload, "recall_id", None)
+        if recall_id is not None and event_recall_id != recall_id:
+            continue
+        if recall_id is None and event_recall_id is not None:
+            continue
+        if event.kind == "candidate_scored" and len(candidates) < 200:
+            candidates.append(
+                {
+                    "candidate_id": payload.candidate_id,
+                    "candidate_kind": payload.candidate_kind,
+                    "score": payload.score,
+                    "matched_terms": list(payload.matched_terms),
+                    "kept": payload.kept,
+                    "exclusion_reason": payload.exclusion_reason,
+                }
+            )
+        elif event.kind == "selection_summary":
+            summaries.append(
+                {
+                    "candidates_seen": payload.candidates_seen,
+                    "kept": payload.kept,
+                    "truncated": payload.truncated,
+                    "character_budget_used": payload.character_budget_used,
+                    "character_budget_limit": payload.character_budget_limit,
+                }
+            )
+    return {
+        "recall_id": recall_id,
+        "candidate_boundary": "scored_candidates_only",
+        "candidates": candidates,
+        "summaries": summaries,
+    }
 
 
 def _selected_memory(
@@ -1000,10 +1057,14 @@ def _selected_memory(
     return selected
 
 
-def _on_demand_entry(event: BrainObservation) -> Dict[str, Any]:
+def _on_demand_entry(
+    event: BrainObservation,
+    observations: Sequence[BrainObservation],
+) -> Dict[str, Any]:
     payload = event.payload
     bundle = payload.bundle
     return {
+        "recall_id": getattr(payload, "recall_id", None),
         "status": payload.status,
         "query": payload.query,
         "reason": payload.reason,
@@ -1012,6 +1073,10 @@ def _on_demand_entry(event: BrainObservation) -> Dict[str, Any]:
         ),
         "returned_evidence": "",
         "returned_points": _bundle_points(bundle),
+        "selection": _recall_selection_details(
+            observations,
+            recall_id=getattr(payload, "recall_id", None),
+        ),
         "raw": _event_dump(event),
     }
 

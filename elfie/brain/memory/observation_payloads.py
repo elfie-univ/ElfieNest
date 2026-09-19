@@ -34,6 +34,7 @@ class RecallCandidateScored(FrozenContractModel):
     :class:`RecallSelectionSummary`, not per candidate.
     """
 
+    recall_id: Optional[str] = None
     query_terms: Tuple[str, ...] = ()
     candidate_id: str
     candidate_kind: str
@@ -60,6 +61,7 @@ class RecallSelectionSummary(FrozenContractModel):
     caps the in-hand ``RecallRequest`` carried.
     """
 
+    recall_id: Optional[str] = None
     candidates_seen: int = Field(ge=0)
     kept: int = Field(ge=0)
     truncated: bool = False

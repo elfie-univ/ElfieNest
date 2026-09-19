@@ -7,6 +7,7 @@ import { DetailPanel } from "./DetailPanel";
 import { ElfieModals, type Creation } from "./ElfieModals";
 import { ElfieSidebar } from "./ElfieSidebar";
 import { configureFoodResponseSchema, elfieListSchema, foodsSchema, mediaSchema, modelSubscriptionsSchema, ollamaProbeSchema, reviewerSubscriptionsSchema, sessionSchema, turnSchema, type BigFive, type ElfieListItem, type ElfieSession, type ElfieTurn, type FoodConfiguration, type FoodItem, type ModelSubscription, type OllamaProbe, type PreviewIntent, type ReviewerSubscription } from "./contracts";
+import { MemoryDebugWorkspacePage, type MemoryDebugRecallContext } from "./MemoryDebugWorkspacePage";
 import { TimelinePanel } from "./TimelinePanel";
 
 const EvaluationWorkspace = lazy(() => import("./EvaluationWorkspace").then((module) => ({ default: module.EvaluationWorkspace })));
@@ -56,6 +57,8 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailTab, setDetailTab] = useState("摘要");
   const [detailFocus, setDetailFocus] = useState<DetailFocus>("output");
+  const [memoryDebugOpen, setMemoryDebugOpen] = useState(false);
+  const [memoryDebugRecall, setMemoryDebugRecall] = useState<MemoryDebugRecallContext | null>(null);
   const [previewStatus, setPreviewStatus] = useState("加载中");
   const [portraitEpoch, setPortraitEpoch] = useState(0);
   const [previewResult, setPreviewResult] = useState<{ readonly turnId: string; readonly intentId: string; readonly status: "completed" | "unsupported"; readonly reason: string } | null>(null);
@@ -271,6 +274,18 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
     setSelectedTurn(null);
     setDetailOpen(false);
   }
+  function openMemoryDebug(context: MemoryDebugRecallContext | null = null): void {
+    if (sessionRef.current === null) {
+      setNotice("请先选择测试精灵，再打开它的记忆图谱。");
+      return;
+    }
+    setMemoryDebugRecall(context);
+    setMemoryDebugOpen(true);
+  }
+  function closeMemoryDebug(): void {
+    setMemoryDebugOpen(false);
+    setMemoryDebugRecall(null);
+  }
 
   async function deleteFood(foodId: string): Promise<void> {
     try {
@@ -286,10 +301,11 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const shellClass = `lab-shell${collapsed ? " left-closed" : ""}${mode === "experiment" && detailOpen ? " detail-open" : ""}${mode === "evaluation" ? " evaluation-mode" : ""}`;
   return <main className={shellClass}>
     {mode === "experiment" ? <>
-      <ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onNewFood={() => openNewFood()} onSelect={(id) => { setMenuOpen(false); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />
+      <ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onNewFood={() => openNewFood()} onOpenMemoryDebug={() => openMemoryDebug()} onSelect={(id) => { setMenuOpen(false); closeMemoryDebug(); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />
       <TimelinePanel food={food} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} pending={pending} portraitEpoch={portraitEpoch} session={session} />
-      <DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} />
+      <DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} onOpenMemoryDebug={openMemoryDebug} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} />
     </> : <Suspense fallback={<section className="evaluation-workspace evaluation-loading" aria-label="Elfie 批量评测"><Spin size="large" tip="正在加载批量评测…"><span /></Spin></section>}><EvaluationWorkspace elfies={items} food={food} foods={foods} reviewerSubscriptions={reviewerSubscriptions} onDeleteReviewerSubscription={deleteReviewerSubscription} onSaveReviewerSubscription={saveReviewerSubscription} onNewFood={openNewFood} onNewElfie={openElfieManagement} session={session} /></Suspense>}
+    {mode === "experiment" && memoryDebugOpen && session !== null ? <div className="memory-debug-overlay" role="dialog" aria-label={`查看 ${session.profile.name} 的记忆图谱`} aria-modal="true"><MemoryDebugWorkspacePage embedded elfieId={session.elfie_id} elfieName={session.profile.name} initialRecall={memoryDebugRecall} onClose={closeMemoryDebug} /></div> : null}
     <ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} elfieManagementOpen={elfieManagementOpen} elfies={items} foods={foods} modelSubscriptions={modelSubscriptions} onConfigurationClose={() => { pendingFoodSelection.current = null; setConfigurationOpen(false); }} onConfigureFood={configureFood} onDeleteFood={deleteFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onElfieManagementClose={() => { pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onElfieManagementCreate={() => { setElfieManagementOpen(false); setCreateOpen(true); }} onElfieManagementDelete={(id) => { pendingElfieSelection.current = null; setElfieManagementOpen(false); void requestDelete(id); }} onElfieManagementSelect={(id) => { pendingElfieSelection.current?.(id); pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} onProbeOllama={probeOllama} personalityTarget={personalityTarget} />
     {notice ? <Alert className="toast" message={notice} role="status" showIcon type={notice.includes("失败") || notice.includes("错误") || notice.includes("不可用") ? "error" : "success"} /> : null}
   </main>;

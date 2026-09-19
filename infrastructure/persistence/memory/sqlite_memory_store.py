@@ -470,6 +470,72 @@ class SQLiteMemoryStoreAdapter(
         row = self.conn.execute("PRAGMA user_version").fetchone()
         return int(row[0])
 
+    def read_consistency_token(self) -> str:
+        """Return a deterministic token for this adapter's current read boundary.
+
+        This is deliberately not exposed as Memory's semantic revision.  The
+        durable Memory contract does not persist that facade revision, so the
+        developer read path uses a content/updated-at fingerprint only to
+        reject mixed pagination pages.
+        """
+        parts: list[str] = [f"schema:{self.schema_version}"]
+        queries: list[tuple[str, tuple[object, ...]]] = [
+            (
+                "SELECT episode_id, updated_at, content_sha256, lifecycle "
+                "FROM episodes "
+                + (
+                    "WHERE json_extract(metadata_json, '$.elfie_id')=? "
+                    if self.elfie_id is not None
+                    else ""
+                )
+                + "ORDER BY episode_id",
+                (str(self.elfie_id),) if self.elfie_id is not None else (),
+            ),
+            (
+                "SELECT node_id, updated_at, properties_json, status, merged_into "
+                "FROM nodes "
+                + (
+                    "WHERE json_extract(properties_json, '$.elfie_id')=? "
+                    if self.elfie_id is not None
+                    else ""
+                )
+                + "ORDER BY node_id",
+                (str(self.elfie_id),) if self.elfie_id is not None else (),
+            ),
+            (
+                "SELECT assertion_id, updated_at, lifecycle, subject_node_id, object_node_id "
+                "FROM assertions "
+                + (
+                    "WHERE EXISTS (SELECT 1 FROM nodes AS owner_node "
+                    "WHERE owner_node.node_id=assertions.subject_node_id "
+                    "AND json_extract(owner_node.properties_json, '$.elfie_id')=?) "
+                    if self.elfie_id is not None
+                    else ""
+                )
+                + "ORDER BY assertion_id",
+                (str(self.elfie_id),) if self.elfie_id is not None else (),
+            ),
+            (
+                "SELECT evidence_id, source_type, source_id, created_at "
+                "FROM evidence ORDER BY evidence_id",
+                (),
+            ),
+            (
+                "SELECT assertion_id, evidence_id, stance, created_at "
+                "FROM assertion_evidence ORDER BY assertion_id, evidence_id",
+                (),
+            ),
+        ]
+        with self._lock:
+            for query, params in queries:
+                rows = self.conn.execute(query, params).fetchall()
+                parts.append(query)
+                parts.extend(
+                    "|".join("" if value is None else str(value) for value in row)
+                    for row in rows
+                )
+        return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
     def rebuild_text_indexes(self) -> dict[str, int]:
         """Rebuild disposable lexical projections from their fact tables."""
         with self._lock:

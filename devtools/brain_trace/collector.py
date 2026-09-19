@@ -635,6 +635,7 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
     recalls: List[Dict[str, Any]] = []
     scored_count = 0
     selection_summaries: List[Dict[str, Any]] = []
+    selections_by_recall: Dict[str, Dict[str, Any]] = {}
     for event in events:
         boundary = str(event.get("boundary", ""))
         kind = str(event.get("kind", ""))
@@ -661,6 +662,7 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
             request = payload.get("request")
             recalls.append(
                 {
+                    "recall_id": payload.get("recall_id"),
                     "frame_id": str(payload.get("frame_id") or ""),
                     "query": str(payload.get("query") or ""),
                     "mode": (
@@ -673,6 +675,7 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
         elif boundary == "reasoning.memory_bridge" and kind == "recall_result":
             bundle = payload.get("bundle")
             result: Dict[str, Any] = {
+                "recall_id": payload.get("recall_id"),
                 "status": str(payload.get("status") or ""),
                 "reason": payload.get("reason"),
                 "query": str(payload.get("query") or ""),
@@ -695,9 +698,16 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
                 (
                     recall
                     for recall in reversed(recalls)
-                    if recall["frame_id"] == str(payload.get("frame_id") or "")
-                    and recall["query"] == str(payload.get("query") or "")
-                    and recall["result"] is None
+                    if (
+                        payload.get("recall_id")
+                        and recall.get("recall_id") == payload.get("recall_id")
+                    )
+                    or (
+                        not payload.get("recall_id")
+                        and recall["frame_id"] == str(payload.get("frame_id") or "")
+                        and recall["query"] == str(payload.get("query") or "")
+                        and recall["result"] is None
+                    )
                 ),
                 None,
             )
@@ -706,6 +716,7 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
             else:
                 recalls.append(
                     {
+                        "recall_id": payload.get("recall_id"),
                         "frame_id": str(payload.get("frame_id") or ""),
                         "query": str(payload.get("query") or ""),
                         "mode": None,
@@ -715,22 +726,53 @@ def _memory_recall_summary(events: Iterable[Mapping[str, Any]]) -> Dict[str, Any
                 )
         elif boundary == "memory.recall.selection" and kind == "candidate_scored":
             scored_count += 1
-        elif boundary == "memory.recall.selection" and kind == "selection_summary":
-            selection_summaries.append(
+            recall_id = str(payload.get("recall_id") or "unbound")
+            selection = selections_by_recall.setdefault(
+                recall_id,
                 {
-                    "candidates_seen": payload.get("candidates_seen", 0),
-                    "kept": payload.get("kept", 0),
-                    "truncated": payload.get("truncated", False),
-                    "character_budget_used": payload.get("character_budget_used", 0),
-                    "character_budget_limit": payload.get("character_budget_limit", 0),
-                }
+                    "recall_id": payload.get("recall_id"),
+                    "candidates": [],
+                    "summary": None,
+                },
             )
+            if len(selection["candidates"]) < 200:
+                selection["candidates"].append(
+                    {
+                        "candidate_id": payload.get("candidate_id"),
+                        "candidate_kind": payload.get("candidate_kind"),
+                        "score": payload.get("score"),
+                        "matched_terms": list(payload.get("matched_terms", ())),
+                        "kept": payload.get("kept"),
+                        "exclusion_reason": payload.get("exclusion_reason"),
+                    }
+                )
+        elif boundary == "memory.recall.selection" and kind == "selection_summary":
+            summary = {
+                "recall_id": payload.get("recall_id"),
+                "candidates_seen": payload.get("candidates_seen", 0),
+                "kept": payload.get("kept", 0),
+                "truncated": payload.get("truncated", False),
+                "character_budget_used": payload.get("character_budget_used", 0),
+                "character_budget_limit": payload.get("character_budget_limit", 0),
+            }
+            selection_summaries.append(summary)
+            recall_id = str(payload.get("recall_id") or "unbound")
+            selection = selections_by_recall.setdefault(
+                recall_id,
+                {
+                    "recall_id": payload.get("recall_id"),
+                    "candidates": [],
+                    "summary": None,
+                },
+            )
+            selection["summary"] = summary
     return {
         "turn_opened": turn_opened,
         "recalls": recalls,
         "selection": {
             "candidate_scored_count": scored_count,
             "summaries": selection_summaries,
+            "by_recall": list(selections_by_recall.values()),
         },
     }
 

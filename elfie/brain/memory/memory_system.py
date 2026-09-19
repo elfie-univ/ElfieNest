@@ -396,6 +396,8 @@ class MemorySystem:
         recall = getattr(self.storage, "recall", None)
         if not callable(recall):
             raise TypeError("the configured Memory store does not support RecallBundle")
+        if self._observation_sink is not None and request.recall_id is None:
+            request = replace(request, recall_id=f"memory-recall:{uuid4().hex}")
         # The storage adapter owns candidate selection; the facade binds the
         # result to the current semantic revision so a later outcome cannot
         # settle a proposal against an obsolete snapshot.

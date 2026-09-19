@@ -1602,6 +1602,83 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             )[:bounded_limit]
         )
 
+    def count_graph_assertions(self, *, privacy_scope: str | None = None) -> int:
+        """Count the same visible assertion projection used by diagnostics."""
+        return len(
+            self.list_graph_assertions(limit=100_000, privacy_scope=privacy_scope)
+        )
+
+    def list_memory_evidence(
+        self, limit: int = 1000, *, privacy_scope: str | None = None
+    ) -> tuple[RecallEvidence, ...]:
+        """Return visible Evidence from source, relation and direct Node links.
+
+        Evidence is not a graph entity and therefore is not inferred from the
+        number of Assertions.  The candidate IDs come from the existing typed
+        Episode/Node/Assertion reads; row decoding remains delegated to the
+        adapter's typed ``get_evidence`` path.
+        """
+        bounded_limit = max(0, min(int(limit), 100_000))
+        if bounded_limit == 0:
+            return ()
+        episodes = self.list_episodes(limit=10_000, include_forgotten=True)
+        nodes = self.list_graph_nodes(limit=10_000, privacy_scope=privacy_scope)
+        assertions = self.list_graph_assertions(
+            limit=100_000, privacy_scope=privacy_scope
+        )
+        episode_ids = tuple(dict.fromkeys(item.episode_id for item in episodes))
+        node_ids = tuple(dict.fromkeys(item.node_id for item in nodes))
+        evidence_ids = {
+            evidence_id
+            for assertion in assertions
+            for evidence_id in assertion.evidence_ids
+        }
+        with self._lock:
+            if episode_ids:
+                placeholders = ",".join("?" for _ in episode_ids)
+                rows = self.conn.execute(
+                    "SELECT evidence_id FROM evidence "
+                    "WHERE source_type='episode' AND source_id IN ("
+                    + placeholders
+                    + ")",
+                    episode_ids,
+                ).fetchall()
+                evidence_ids.update(str(row[0]) for row in rows)
+            if node_ids:
+                placeholders = ",".join("?" for _ in node_ids)
+                rows = self.conn.execute(
+                    "SELECT evidence_id FROM node_aliases WHERE node_id IN ("
+                    + placeholders
+                    + ") AND evidence_id IS NOT NULL "
+                    "UNION SELECT evidence_id FROM node_descriptions WHERE node_id IN ("
+                    + placeholders
+                    + ") AND evidence_id IS NOT NULL",
+                    [*node_ids, *node_ids],
+                ).fetchall()
+                evidence_ids.update(str(row[0]) for row in rows)
+        if episode_ids:
+            placeholders = ",".join("?" for _ in episode_ids)
+            with self._lock:
+                rows = self.conn.execute(
+                    "SELECT evidence_id FROM episode_mentions WHERE episode_id IN ("
+                    + placeholders
+                    + ") AND evidence_id IS NOT NULL",
+                    episode_ids,
+                ).fetchall()
+            evidence_ids.update(str(row[0]) for row in rows)
+        evidence = [
+            item
+            for evidence_id in sorted(evidence_ids)
+            if (item := self.get_evidence(evidence_id)) is not None
+        ]
+        return tuple(evidence[:bounded_limit])
+
+    def count_memory_evidence(self, *, privacy_scope: str | None = None) -> int:
+        """Count visible Evidence using the same source/link enumeration."""
+        return len(
+            self.list_memory_evidence(limit=100_000, privacy_scope=privacy_scope)
+        )
+
     def get_assertion_evidence(
         self,
         assertion_ids: Iterable[str],
@@ -1721,7 +1798,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         namespace_params: list[object] = []
         if getattr(self, "elfie_id", None) is not None:
             namespace_clause = (
-                " AND ((e.source_type='episode' AND EXISTS ("
+                " AND ("
+                "(e.source_type='episode' AND EXISTS ("
                 "SELECT 1 FROM episodes AS source_e "
                 "WHERE source_e.episode_id=e.source_id "
                 "AND json_extract(source_e.metadata_json, '$.elfie_id')=?))"
@@ -1730,9 +1808,33 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 "JOIN assertions AS source_a ON source_a.assertion_id=source_ae.assertion_id "
                 "JOIN nodes AS source_n ON source_n.node_id=source_a.subject_node_id "
                 "WHERE source_ae.evidence_id=e.evidence_id "
-                "AND json_extract(source_n.properties_json, '$.elfie_id')=?)))"
+                "AND json_extract(source_n.properties_json, '$.elfie_id')=?))"
+                " OR EXISTS ("
+                "SELECT 1 FROM node_aliases AS source_na "
+                "JOIN nodes AS source_alias_node ON source_alias_node.node_id=source_na.node_id "
+                "WHERE source_na.evidence_id=e.evidence_id "
+                "AND json_extract(source_alias_node.properties_json, '$.elfie_id')=?)"
+                " OR EXISTS ("
+                "SELECT 1 FROM node_descriptions AS source_nd "
+                "JOIN nodes AS source_description_node ON source_description_node.node_id=source_nd.node_id "
+                "WHERE source_nd.evidence_id=e.evidence_id "
+                "AND json_extract(source_description_node.properties_json, '$.elfie_id')=?)"
+                " OR EXISTS ("
+                "SELECT 1 FROM episode_mentions AS source_em "
+                "JOIN episodes AS source_mention_episode ON source_mention_episode.episode_id=source_em.episode_id "
+                "WHERE source_em.evidence_id=e.evidence_id "
+                "AND json_extract(source_mention_episode.metadata_json, '$.elfie_id')=?)"
+                ")"
             )
-            namespace_params.extend([str(self.elfie_id), str(self.elfie_id)])
+            namespace_params.extend(
+                [
+                    str(self.elfie_id),
+                    str(self.elfie_id),
+                    str(self.elfie_id),
+                    str(self.elfie_id),
+                    str(self.elfie_id),
+                ]
+            )
         with self._lock:
             row = self.conn.execute(
                 """SELECT e.evidence_id, e.source_type, e.source_id, e.source_version,

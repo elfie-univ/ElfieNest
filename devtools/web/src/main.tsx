@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { ElfieLabApp } from "./elfie/ElfieLabApp";
 import { MemoryAuditBaselinePage } from "./elfie/MemoryAuditBaselinePage";
 import { MemoryAuditPage } from "./elfie/MemoryAuditPage";
+import { MemoryDebugWorkspacePage } from "./elfie/MemoryDebugWorkspacePage";
 import { currentLabKind } from "./lab-kind";
 import { NestLabApp } from "./nest/NestLabApp";
 import { routeFromPath, devtoolsRoutes, type DevtoolsRoute } from "./routes";
@@ -26,12 +27,14 @@ function Application(): React.JSX.Element {
     ? <NestLabApp />
     : route === devtoolsRoutes.elfieMemoryAuditBaseline
       ? <MemoryAuditBaselinePage />
+    : route === devtoolsRoutes.elfieMemoryDebugWorkspace
+      ? <MemoryDebugWorkspacePage />
     : route === devtoolsRoutes.elfieMemoryAudit
       ? <MemoryAuditPage />
     : <ElfieLabApp mode={route === devtoolsRoutes.elfieEvaluations ? "evaluation" : "experiment"} />;
 
   return <DevtoolsTheme mode="light">
-    <GlobalLabNav activeRoute={route} currentKind={kind} onNavigate={setRoute} />
+    {route !== devtoolsRoutes.elfieMemoryDebugWorkspace && <GlobalLabNav activeRoute={route} currentKind={kind} onNavigate={setRoute} />}
     {content}
   </DevtoolsTheme>;
 }

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, AsyncIterator, Callable, List, Optional, Union
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,10 @@ from devtools.elfie_lab.static_host import mount_static_surfaces
 from devtools.elfie_lab.storage import ElfieLabStorage
 from devtools.elfie_lab.system_routes import build_system_router
 from devtools.memory_audit import (
+    MemoryInspectionStaleError,
     _read_only_store,
+    _sandbox_store,
+    build_add_episode_preview,
     build_inspection_report,
     build_recall_report,
 )
@@ -218,6 +221,10 @@ def create_app(
     def memory_audit_baseline_page() -> HTMLResponse:
         return frontend_shell(shell)
 
+    @app.get("/elfie/memory-debug", include_in_schema=False)
+    def memory_debug_page() -> HTMLResponse:
+        return frontend_shell(shell)
+
     def _memory_database(elfie_id: Optional[str]) -> tuple[str, Path]:
         selected = elfie_id
         if selected is None:
@@ -236,20 +243,32 @@ def create_app(
     @app.get("/api/memory-audit/inspect")
     def inspect_memory(
         elfie_id: Optional[str] = None,
-        node_type: Optional[List[str]] = None,
+        node_type: Annotated[Optional[List[str]], Query()] = None,
         contains: Optional[str] = None,
+        page_size: int = 1000,
+        cursor: Optional[str] = None,
     ) -> dict[str, object]:
         selected, database = _memory_database(elfie_id)
         with _read_only_store(database, elfie_id=selected) as store:
-            return build_inspection_report(
-                store,
-                database=str(database),
-                node_types=tuple(node_type or ()),
-                contains=contains,
-                genesis_submission=None,
-                confidence_threshold=0.6,
-                limit=1000,
-            )
+            try:
+                return build_inspection_report(
+                    store,
+                    database=str(database),
+                    node_types=tuple(node_type or ()),
+                    contains=contains,
+                    genesis_submission=None,
+                    confidence_threshold=0.6,
+                    limit=page_size,
+                    cursor=cursor,
+                )
+            except MemoryInspectionStaleError as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "memory_snapshot_stale",
+                        "message": str(exc),
+                    },
+                ) from exc
 
     class MemoryRecallRequest(BaseModel):
         elfie_id: Optional[str] = None
@@ -273,6 +292,30 @@ def create_app(
         )
         with _read_only_store(database, elfie_id=selected) as store:
             return build_recall_report(store, recall_request)
+
+    class MemoryEpisodePreviewRequest(BaseModel):
+        elfie_id: Optional[str] = None
+        content_text: str = Field(min_length=1, max_length=20_000)
+        summary_text: Optional[str] = Field(default=None, max_length=500)
+        mode: str = "deterministic_local"
+
+    @app.post("/api/memory-audit/add-episode-preview")
+    def preview_memory_episode(
+        request: MemoryEpisodePreviewRequest,
+    ) -> dict[str, object]:
+        if request.mode != "deterministic_local":
+            raise HTTPException(
+                status_code=422,
+                detail="当前只支持 deterministic_local 隔离预演",
+            )
+        selected, database = _memory_database(request.elfie_id)
+        with _sandbox_store(database, elfie_id=selected) as store:
+            return build_add_episode_preview(
+                store,
+                content_text=request.content_text,
+                summary_text=request.summary_text,
+                mode=request.mode,
+            )
 
     if nest_world is not None:
 

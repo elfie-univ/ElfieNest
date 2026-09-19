@@ -25,6 +25,7 @@ type Props = Readonly<{
   readonly onNewFood: () => void;
   readonly onMenu: () => void;
   readonly onEditPersonality: () => void;
+  readonly onOpenMemoryDebug?: (() => void) | undefined;
   readonly preview: Preview;
 }>;
 
@@ -71,9 +72,9 @@ function Personality({ session, onEdit }: Readonly<{ session: ElfieSession; onEd
   return <section className="portrait-section"><div className="section-heading"><strong>大五人格</strong><Button className="section-action" onClick={onEdit} size="small" type="text">修改</Button></div><div className="personality-layout"><PersonalityRadar values={session.profile.big_five} /><div className="personality-tags">{session.profile.personality_tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div></section>;
 }
 
-function Memory({ session }: Readonly<{ session: ElfieSession }>): React.JSX.Element {
+function Memory({ session, onOpen }: Readonly<{ session: ElfieSession; onOpen?: (() => void) | undefined }>): React.JSX.Element {
   const memory = session.profile.memory_cognition;
-  return <section className="memory-section"><div className="section-heading"><strong>记忆与认知</strong><small><b>{session.current_state.memory_count}</b> 条经历</small></div>
+  return <section className="memory-section"><div className="section-heading"><strong>记忆与认知</strong><span><small><b>{session.current_state.memory_count}</b> 条经历</small><Button aria-label="打开当前精灵记忆图谱" className="section-action" disabled={!onOpen} onClick={onOpen} size="small" type="text">图谱</Button></span></div>
     <details data-memory-panel="topics"><summary><span>记忆主题</span><i>＋</i></summary><TopicWall topics={memory.topics} /></details>
     <details data-memory-panel="timeline"><summary><span>重要经历</span><i>＋</i></summary><ImpactTimeline events={memory.important_events} /></details>
     <details data-memory-panel="relationship"><summary><span>关系认知</span><i>＋</i></summary><RelationshipGraph graph={memory.relations} /></details>
@@ -147,5 +148,5 @@ function Switcher(props: Readonly<Pick<Props, "items" | "session" | "collapsed" 
 
 export function ElfieSidebar(props: Props): React.JSX.Element {
   const { session } = props;
-  return <aside className="elfie-panel" aria-label="当前测试精灵"><Button className="panel-collapse" aria-label={props.collapsed ? "展开精灵信息" : "收起精灵信息"} onClick={props.onCollapse} shape="circle" type="text">{props.collapsed ? "›" : "‹"}</Button>{session === null ? <section className="elfie-empty"><div className="empty-orbit"><span>◇</span></div><h1>创建第一只<br />测试精灵</h1><p>它将使用独立记忆和会话，不会影响普通用户数据。</p><Button className="primary-button" onClick={props.onCreate} type="primary">＋ 新建测试精灵</Button></section> : <><section className="elfie-content"><div className="identity-block"><Portrait elfieId={session.elfie_id} epoch={props.portraitEpoch} name={session.profile.name} url={session.profile.portrait_url} /><div className="identity-copy"><span className="dev-badge">测试精灵</span><h1>{session.profile.name}</h1><p>{session.profile.description || session.profile.personality_summary}</p><div className="identity-meta"><span>{session.profile.species_label || session.profile.species_id}</span><span>{session.profile.life_stage}</span><code>{session.elfie_id}</code></div></div></div><Preview iframeRef={props.iframeRef} preview={props.preview} status={props.previewStatus} /><Personality onEdit={props.onEditPersonality} session={session} /><Memory session={session} /><ExperimentConfig food={props.food} foods={props.foods} onFood={props.onFood} onNewFood={props.onNewFood} warning={props.runtimeWarning} /></section><Switcher {...props} /></>}</aside>;
+  return <aside className="elfie-panel" aria-label="当前测试精灵"><Button className="panel-collapse" aria-label={props.collapsed ? "展开精灵信息" : "收起精灵信息"} onClick={props.onCollapse} shape="circle" type="text">{props.collapsed ? "›" : "‹"}</Button>{session === null ? <section className="elfie-empty"><div className="empty-orbit"><span>◇</span></div><h1>创建第一只<br />测试精灵</h1><p>它将使用独立记忆和会话，不会影响普通用户数据。</p><Button className="primary-button" onClick={props.onCreate} type="primary">＋ 新建测试精灵</Button></section> : <><section className="elfie-content"><div className="identity-block"><Portrait elfieId={session.elfie_id} epoch={props.portraitEpoch} name={session.profile.name} url={session.profile.portrait_url} /><div className="identity-copy"><span className="dev-badge">测试精灵</span><h1>{session.profile.name}</h1><p>{session.profile.description || session.profile.personality_summary}</p><div className="identity-meta"><span>{session.profile.species_label || session.profile.species_id}</span><span>{session.profile.life_stage}</span><code>{session.elfie_id}</code></div></div></div><Preview iframeRef={props.iframeRef} preview={props.preview} status={props.previewStatus} /><Personality onEdit={props.onEditPersonality} session={session} /><Memory onOpen={props.onOpenMemoryDebug} session={session} /><ExperimentConfig food={props.food} foods={props.foods} onFood={props.onFood} onNewFood={props.onNewFood} warning={props.runtimeWarning} /></section><Switcher {...props} /></>}</aside>;
 }

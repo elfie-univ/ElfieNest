@@ -21,18 +21,22 @@ import tempfile
 import time
 from collections import Counter, defaultdict
 from contextlib import contextmanager
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import RLock
 from typing import Any, Iterable, Iterator, Mapping, Sequence, Tuple
+from uuid import uuid4
 
-from elfie.brain.memory import RecallRequest, render_recall_bundle
+from elfie.brain.memory import MemorySystem, RecallRequest, render_recall_bundle
 from elfie.brain.memory.memory_records import (
     ClosedEpisode,
+    ConsolidationRequest,
     RecallAssertion,
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.observation import BrainObservation
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import SCHEMA_VERSION
 
@@ -40,11 +44,76 @@ DEFAULT_READ_LIMIT = 10_000
 DEFAULT_SHOW_LIMIT = 50
 MAX_READ_LIMIT = 100_000
 MAX_EVIDENCE_PER_ASSERTION = 24
+MAX_PREVIEW_AFFECTED_RECORDS = 200
 _DISAMBIGUATED_LABEL = re.compile(r"^(.*?)-[0-9]+$")
+
+
+class MemoryInspectionStaleError(RuntimeError):
+    """Raised when a pagination cursor crosses a changed Memory boundary."""
+
+
+def _encode_inspection_cursor(values: Mapping[str, str]) -> str:
+    """Encode stable per-collection IDs for a read-only inspection page."""
+    raw = json.dumps(dict(values), ensure_ascii=False, sort_keys=True).encode("utf-8")
+    import base64
+
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_inspection_cursor(value: str | None) -> dict[str, str]:
+    if not value:
+        return {}
+    import base64
+
+    padded = value + "=" * (-len(value) % 4)
+    try:
+        decoded = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, base64.binascii.Error) as exc:
+        raise ValueError("invalid memory inspection cursor") from exc
+    if not isinstance(decoded, dict) or any(
+        not isinstance(key, str) or not isinstance(item, str)
+        for key, item in decoded.items()
+    ):
+        raise ValueError("invalid memory inspection cursor")
+    return dict(decoded)
+
+
+def _record_id(record: Any, field: str) -> str:
+    value = getattr(record, field, None)
+    if value is None and isinstance(record, Mapping):
+        value = record.get(field)
+    return str(value or "")
+
+
+def _inspection_page(
+    records: Sequence[Any],
+    *,
+    field: str,
+    after: str | None,
+    limit: int,
+) -> tuple[tuple[Any, ...], str | None]:
+    ordered = tuple(sorted(records, key=lambda item: _record_id(item, field)))
+    start = 0
+    if after:
+        start = next(
+            (
+                index
+                for index, item in enumerate(ordered)
+                if _record_id(item, field) > after
+            ),
+            len(ordered),
+        )
+    page = ordered[start : start + limit]
+    if start + len(page) >= len(ordered) or not page:
+        return page, None
+    return page, _record_id(page[-1], field)
 
 
 def _plain(value: Any) -> Any:
     """Convert typed records into JSON-compatible values without leaking rows."""
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _plain(model_dump(mode="json"))
     if is_dataclass(value):
         return {item.name: _plain(getattr(value, item.name)) for item in fields(value)}
     if isinstance(value, Mapping):
@@ -52,6 +121,69 @@ def _plain(value: Any) -> Any:
     if isinstance(value, (tuple, list)):
         return [_plain(item) for item in value]
     return value
+
+
+class _MemoryAuditObservationSink:
+    """Collect bounded Memory observations for one disposable audit request."""
+
+    def __init__(self) -> None:
+        self._events: list[BrainObservation[Any]] = []
+        self._lock = RLock()
+
+    def emit(self, event: BrainObservation[Any]) -> None:
+        """Collect without allowing diagnostics to affect Memory behavior."""
+        try:
+            with self._lock:
+                self._events.append(event)
+        except Exception:
+            # Developer diagnostics must never turn an otherwise valid Recall
+            # into a failed Memory operation.
+            return
+
+    def snapshot(self) -> tuple[BrainObservation[Any], ...]:
+        with self._lock:
+            return tuple(self._events)
+
+
+def _snapshot_metadata(*, generated_at: str, consistency_token: str) -> dict[str, Any]:
+    """Describe this request's read boundary without inventing a revision."""
+    return {
+        "snapshot_id": f"memory-audit:{uuid4().hex}",
+        "generated_at": generated_at,
+        "consistency": "single_request",
+        "source": "typed_memory_read_boundary",
+        "schema_version": SCHEMA_VERSION,
+        "semantic_revision": None,
+        "semantic_revision_status": "unavailable",
+        "read_consistency_token": consistency_token,
+    }
+
+
+def _recall_selection_projection(
+    events: Sequence[BrainObservation[Any]],
+    bundle: Any,
+) -> dict[str, Any]:
+    """Project the scorer's own candidate decisions for one Recall."""
+    candidates: list[dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
+    for event in events:
+        if event.boundary != "memory.recall.selection":
+            continue
+        if event.kind == "candidate_scored":
+            candidates.append(_plain(event.payload))
+        elif event.kind == "selection_summary":
+            summaries.append(_plain(event.payload))
+    return {
+        "candidate_boundary": "scored_candidates_only",
+        "candidates": candidates,
+        "summaries": summaries,
+        "returned_ids": {
+            "nodes": [item.node_id for item in bundle.focus_nodes],
+            "assertions": [item.assertion_id for item in bundle.assertions],
+            "episodes": [item.episode_id for item in bundle.episodes],
+            "evidence": [item.evidence_id for item in bundle.evidence],
+        },
+    }
 
 
 def _json_text(value: Any) -> str:
@@ -375,12 +507,25 @@ def build_inspection_report(
     genesis_submission: str | None = None,
     confidence_threshold: float = 0.6,
     limit: int = DEFAULT_READ_LIMIT,
+    cursor: str | None = None,
 ) -> dict[str, Any]:
     """Build a typed, disposable inspection report from one Memory database."""
+    generated_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     bounded_limit = max(1, min(int(limit), MAX_READ_LIMIT))
-    all_episodes = store.list_episodes(limit=bounded_limit, include_forgotten=True)
-    all_nodes = store.list_graph_nodes(limit=bounded_limit)
-    all_assertions = store.list_graph_assertions(limit=bounded_limit)
+    cursor_values = _decode_inspection_cursor(cursor)
+    consistency_token = store.read_consistency_token()
+    expected_consistency_token = cursor_values.get("snapshot_token")
+    if (
+        expected_consistency_token is not None
+        and expected_consistency_token != consistency_token
+    ):
+        raise MemoryInspectionStaleError(
+            "Memory 在分页期间发生变化；当前读取边界已过期，请重新加载"
+        )
+    all_episodes = store.list_episodes(limit=MAX_READ_LIMIT, include_forgotten=True)
+    all_nodes = store.list_graph_nodes(limit=MAX_READ_LIMIT)
+    all_assertions = store.list_graph_assertions(limit=MAX_READ_LIMIT)
+    all_evidence = store.list_memory_evidence(limit=MAX_READ_LIMIT)
     focus_nodes, graph_nodes, visible_assertions = _filter_graph(
         all_nodes,
         all_assertions,
@@ -407,14 +552,106 @@ def build_inspection_report(
             ),
         )
 
+    page_episodes, next_episode_cursor = _inspection_page(
+        episodes,
+        field="episode_id",
+        after=cursor_values.get("episodes"),
+        limit=bounded_limit,
+    )
+    page_nodes, next_node_cursor = _inspection_page(
+        graph_nodes,
+        field="node_id",
+        after=cursor_values.get("nodes"),
+        limit=bounded_limit,
+    )
+    page_assertions, next_assertion_cursor = _inspection_page(
+        visible_assertions,
+        field="assertion_id",
+        after=cursor_values.get("assertions"),
+        limit=bounded_limit,
+    )
+    page_evidence, next_evidence_cursor = _inspection_page(
+        all_evidence,
+        field="evidence_id",
+        after=cursor_values.get("evidence"),
+        limit=bounded_limit,
+    )
+    page_node_ids = {node.node_id for node in page_nodes}
+    context_node_ids = {
+        endpoint
+        for assertion in page_assertions
+        for endpoint in (assertion.subject_id, assertion.object_node_id)
+        if endpoint is not None and endpoint not in page_node_ids
+    }
+    context_nodes = tuple(
+        node for node in graph_nodes if node.node_id in context_node_ids
+    )
+    next_cursor_values = {
+        key: value
+        for key, value in (
+            ("episodes", next_episode_cursor),
+            ("nodes", next_node_cursor),
+            ("assertions", next_assertion_cursor),
+            ("evidence", next_evidence_cursor),
+        )
+        if value is not None
+    }
+    if next_cursor_values:
+        next_cursor_values["snapshot_token"] = consistency_token
+    next_cursor = (
+        _encode_inspection_cursor(next_cursor_values) if next_cursor_values else None
+    )
+
     integrity = store.integrity_report()
+    total_counts = {
+        "episodes": store.count_episodes(include_forgotten=True),
+        "nodes": store.count_graph_nodes(),
+        "assertions": store.count_graph_assertions(),
+        "evidence": store.count_memory_evidence(),
+    }
+    loaded_counts = {
+        "episodes": len(page_episodes),
+        "nodes": len(page_nodes),
+        "assertions": len(page_assertions),
+        "evidence": len(page_evidence),
+        "evidence_for_visible_assertions": len(evidence),
+    }
+    filters_applied = bool(node_types or contains or genesis_submission)
+    matched_counts = {
+        "episodes": len(episodes),
+        "nodes": len(focus_nodes) if filters_applied else len(graph_nodes),
+        "assertions": len(visible_assertions),
+        "evidence": len(all_evidence),
+    }
+    truncated = {
+        key: key in next_cursor_values
+        for key in ("episodes", "nodes", "assertions", "evidence")
+    }
+    coverage = (
+        "partial"
+        if next_cursor is not None
+        else ("filtered" if filters_applied else "complete")
+    )
+    snapshot = _snapshot_metadata(
+        generated_at=generated_at,
+        consistency_token=consistency_token,
+    )
+    snapshot.update(
+        {
+            "coverage": coverage,
+            "read_limit": bounded_limit,
+            "filters_applied": filters_applied,
+            "next_cursor": next_cursor,
+        }
+    )
     source_counts = Counter(_node_source(node) or "<none>" for node in all_nodes)
     episode_source_counts = Counter(
         _episode_source(episode) or "<none>" for episode in all_episodes
     )
     report: dict[str, Any] = {
         "format": "elfienest.memory-audit.v1",
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "generated_at": generated_at,
+        "snapshot": snapshot,
         "database": database,
         "elfie_id": store.elfie_id,
         "schema_version": SCHEMA_VERSION,
@@ -426,14 +663,25 @@ def build_inspection_report(
             "read_limit": bounded_limit,
         },
         "counts": {
-            "episodes": len(all_episodes),
-            "nodes": len(all_nodes),
-            "assertions": len(all_assertions),
+            **total_counts,
             "evidence_for_visible_assertions": len(evidence),
             "focus_nodes": len(focus_nodes),
             "graph_nodes": len(graph_nodes),
             "visible_assertions": len(visible_assertions),
             "integrity": dict(integrity),
+        },
+        "loaded_counts": loaded_counts,
+        "matched_counts": matched_counts,
+        "coverage": {
+            "status": coverage,
+            "truncated": truncated,
+            "filters_applied": filters_applied,
+            "read_limit": bounded_limit,
+        },
+        "pagination": {
+            "page_size": bounded_limit,
+            "next_cursor": next_cursor,
+            "cursor": cursor,
         },
         "node_type_counts": dict(
             sorted(Counter(node.node_type for node in all_nodes).items())
@@ -452,10 +700,11 @@ def build_inspection_report(
             confidence_threshold=confidence_threshold,
         ),
         "data": {
-            "nodes": [_plain(node) for node in graph_nodes],
-            "assertions": [_plain(assertion) for assertion in visible_assertions],
-            "episodes": [_plain(episode) for episode in episodes],
-            "evidence": [_plain(item) for item in evidence],
+            "nodes": [_plain(node) for node in page_nodes],
+            "context_nodes": [_plain(node) for node in context_nodes],
+            "assertions": [_plain(assertion) for assertion in page_assertions],
+            "episodes": [_plain(episode) for episode in page_episodes],
+            "evidence": [_plain(item) for item in page_evidence],
         },
     }
     return report
@@ -731,6 +980,26 @@ def _read_only_store(
             yield store
 
 
+@contextmanager
+def _sandbox_store(
+    database: Path,
+    *,
+    elfie_id: str | None = None,
+) -> Iterator[SQLiteMemoryStoreAdapter]:
+    """Open an explicitly disposable writable copy for developer previews."""
+    source_path = database.expanduser().resolve()
+    if not source_path.is_file():
+        raise ValueError(f"Memory database does not exist: {source_path}")
+    with tempfile.TemporaryDirectory(prefix="elfienest-memory-sandbox-") as temp_dir:
+        target_path = Path(temp_dir).resolve() / "knowledge.sqlite"
+        source_uri = source_path.as_uri() + "?mode=ro"
+        with sqlite3.connect(source_uri, uri=True) as source:
+            with sqlite3.connect(str(target_path)) as target:
+                source.backup(target)
+        with SQLiteMemoryStoreAdapter(target_path, elfie_id=elfie_id) as store:
+            yield store
+
+
 def _print_inspection(report: Mapping[str, Any], show_limit: int) -> None:
     counts = report["counts"]
     print(f"Memory 总览: {report['database']}")
@@ -775,12 +1044,26 @@ def build_recall_report(
     store: SQLiteMemoryStoreAdapter,
     request: RecallRequest,
 ) -> dict[str, Any]:
+    generated_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    request = (
+        request
+        if request.recall_id is not None
+        else replace(request, recall_id=f"memory-audit-recall:{uuid4().hex}")
+    )
+    observation_sink = _MemoryAuditObservationSink()
+    binder = getattr(store, "bind_observation_sink", None)
+    if callable(binder):
+        binder(observation_sink)
     started = time.perf_counter()
     bundle = store.recall(request)
     elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
     return {
         "format": "elfienest.memory-recall-audit.v1",
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "generated_at": generated_at,
+        "snapshot": _snapshot_metadata(
+            generated_at=generated_at,
+            consistency_token=store.read_consistency_token(),
+        ),
         "request": _plain(request),
         "elapsed_ms": elapsed_ms,
         "counts": {
@@ -793,7 +1076,169 @@ def build_recall_report(
             "truncated": bundle.limits.truncated,
         },
         "bundle": _plain(bundle),
+        "selection": _recall_selection_projection(
+            observation_sink.snapshot(),
+            bundle,
+        ),
         "rendered": render_recall_bundle(bundle),
+    }
+
+
+class _DeterministicMemoryPreviewModel:
+    """Return an empty grounded proposal so Consolidation uses its local extractor."""
+
+    def ask_with_food(
+        self,
+        prompt: str,
+        *,
+        food_key: str | None,
+        elfie_id: str | None,
+        scene: str,
+        semantic_role: str,
+        energy: float,
+        task_complexity: int,
+        allowed_tools: list[str] | None,
+    ) -> str:
+        del (
+            prompt,
+            food_key,
+            elfie_id,
+            scene,
+            semantic_role,
+            energy,
+            task_complexity,
+            allowed_tools,
+        )
+        return '{"nodes":[],"mentions":[],"assertions":[]}'
+
+
+def _preview_record_ids(report: Mapping[str, Any]) -> dict[str, set[str]]:
+    data = report.get("data", {})
+    return {
+        "episodes": {str(item["episode_id"]) for item in data.get("episodes", [])},
+        "nodes": {str(item["node_id"]) for item in data.get("nodes", [])},
+        "assertions": {
+            str(item["assertion_id"]) for item in data.get("assertions", [])
+        },
+        "evidence": {str(item["evidence_id"]) for item in data.get("evidence", [])},
+    }
+
+
+def _preview_counts(report: Mapping[str, Any]) -> dict[str, int]:
+    counts = report.get("counts", {})
+    return {
+        key: int(counts.get(key, 0))
+        for key in (
+            "episodes",
+            "nodes",
+            "assertions",
+            "evidence_for_visible_assertions",
+        )
+    }
+
+
+def build_add_episode_preview(
+    store: SQLiteMemoryStoreAdapter,
+    *,
+    content_text: str,
+    summary_text: str | None = None,
+    mode: str = "deterministic_local",
+) -> dict[str, Any]:
+    """Run the real Episode -> Consolidation path against a disposable store copy."""
+    operation_id = f"memory-audit-add:{uuid4().hex}"
+    started_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    started = time.perf_counter()
+    before = build_inspection_report(
+        store,
+        database="sandbox",
+        limit=DEFAULT_READ_LIMIT,
+    )
+    episode_id = f"preview-episode:{uuid4().hex}"
+    episode = ClosedEpisode(
+        episode_id=episode_id,
+        idempotency_key=f"{operation_id}:episode",
+        occurred_from=started_at,
+        content_text=content_text,
+        summary_text=summary_text.strip()
+        if summary_text and summary_text.strip()
+        else None,
+        event_kind="developer_preview",
+        metadata={"developer_preview": True, "operation_id": operation_id},
+    )
+    status = "failed"
+    receipt: dict[str, Any] = {}
+    error: dict[str, str] | None = None
+    try:
+        memory = MemorySystem(store, elfie_id=store.elfie_id)
+        episode_receipt = memory.record_closed_episode(episode)
+        consolidation_receipt = memory.run_consolidation_batch(
+            ConsolidationRequest(
+                max_episodes=1,
+                worker_id=operation_id,
+            ),
+            model_port=_DeterministicMemoryPreviewModel(),
+        )
+        receipt = {
+            "episode": _plain(episode_receipt),
+            "consolidation": _plain(consolidation_receipt),
+        }
+        status = (
+            "completed" if consolidation_receipt.consolidated_episode_ids else "failed"
+        )
+        if (
+            consolidation_receipt.consolidated_episode_ids
+            and consolidation_receipt.errors
+        ):
+            status = "partial"
+    except Exception as exc:  # noqa: BLE001 - preview reports the real failure
+        error = {"type": type(exc).__name__, "message": str(exc)}
+
+    after = build_inspection_report(
+        store,
+        database="sandbox",
+        limit=DEFAULT_READ_LIMIT,
+    )
+    before_ids = _preview_record_ids(before)
+    after_ids = _preview_record_ids(after)
+    added = {
+        key: sorted(after_ids[key] - before_ids[key])[:MAX_PREVIEW_AFFECTED_RECORDS]
+        for key in before_ids
+    }
+    affected: dict[str, list[dict[str, Any]]] = {}
+    for key, id_field in (
+        ("episodes", "episode_id"),
+        ("nodes", "node_id"),
+        ("assertions", "assertion_id"),
+        ("evidence", "evidence_id"),
+    ):
+        wanted = set(added[key])
+        affected[key] = [
+            _plain(item)
+            for item in after["data"][key]
+            if str(item.get(id_field)) in wanted
+        ][:MAX_PREVIEW_AFFECTED_RECORDS]
+    return {
+        "format": "elfienest.memory-audit.add-episode-preview.v1",
+        "operation": {
+            "operation_id": operation_id,
+            "started_at": started_at,
+            "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
+            "status": status,
+            "mode": mode,
+            "sandbox": True,
+            "production_mutated": False,
+            "cleanup": "automatic",
+        },
+        "input": {
+            "episode_id": episode_id,
+            "content_chars": len(content_text),
+            "summary": episode.summary_text,
+        },
+        "before": {"counts": _preview_counts(before)},
+        "after": {"counts": _preview_counts(after)},
+        "changes": {"added_ids": added, "affected": affected},
+        "receipt": receipt,
+        "error": error,
     }
 
 

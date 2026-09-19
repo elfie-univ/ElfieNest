@@ -288,6 +288,14 @@
 .trace-memory-point { display: grid; gap: 5px; }
 .trace-memory-point p { margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
 .trace-memory-point p strong { display: inline-block; min-width: 32px; margin-right: 6px; color: var(--accent-primary); font-size: 9px; }
+.trace-recall-candidate-list { display: grid; gap: 6px; max-height: 280px; overflow: auto; }
+.trace-recall-candidate { display: grid; gap: 5px; padding: 7px 8px; border-left: 3px solid var(--border-default); border-radius: 6px; background: var(--surface-elevated); }
+.trace-recall-candidate.is-kept { border-left-color: var(--accent-primary); }
+.trace-recall-candidate.is-excluded { border-left-color: #c99436; }
+.trace-recall-candidate header { display: flex; align-items: baseline; justify-content: space-between; gap: 7px; }
+.trace-recall-candidate header strong { color: var(--accent-primary); font-size: 9px; }
+.trace-recall-candidate.is-excluded header strong { color: #9a6716; }
+.trace-recall-candidate header span { min-width: 0; overflow: hidden; color: var(--text-secondary); font-family: "SF Mono", Menlo, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .trace-intent, .trace-receipt { display: grid; gap: 5px; }
 .trace-intent header, .trace-receipt header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .trace-intent header strong, .trace-receipt header strong { color: var(--text-primary); font-size: 10px; }

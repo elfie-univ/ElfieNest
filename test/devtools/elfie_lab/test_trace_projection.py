@@ -12,6 +12,8 @@ from elfie.brain.memory.observation_payloads import (
     MemoryEncodeCommit,
     MemoryReinforcementApplied,
     MemoryUseProposalRecorded,
+    RecallCandidateScored,
+    RecallSelectionSummary,
 )
 from elfie.brain.motivation.contracts import MotivationSnapshot
 from elfie.brain.observation import BrainObservation, ObservationStatus
@@ -74,6 +76,7 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
         _bridge_observation(
             kind="recall_result",
             payload=MemoryRecallResultObservation(
+                recall_id="recall-1",
                 frame_id="frame-1",
                 query="你还记得吗？",
                 status="recalled",
@@ -100,6 +103,30 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
                     recall_revision=42,
                     assertion_ids=("assertion:memory-2",),
                 ),
+            ),
+        ),
+        _observation(
+            boundary="memory.recall.selection",
+            kind="candidate_scored",
+            frame_id="",
+            payload=RecallCandidateScored(
+                recall_id="recall-1",
+                candidate_id="episode:1",
+                candidate_kind="episode",
+                score=0.8,
+                matched_terms=("记得",),
+                kept=True,
+            ),
+        ),
+        _observation(
+            boundary="memory.recall.selection",
+            kind="selection_summary",
+            frame_id="",
+            payload=RecallSelectionSummary(
+                recall_id="recall-1",
+                candidates_seen=1,
+                kept=1,
+                character_budget_limit=6000,
             ),
         ),
         _observation(
@@ -136,6 +163,8 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
     assert memory["status"] == "recalled"
     assert memory["query"] == "你还记得吗？"
     assert memory["revision"] == 42
+    assert memory["selection"]["candidates"][0]["candidate_id"] == "episode:1"
+    assert memory["selection"]["summaries"][0]["kept"] == 1
     assert memory["returned_points"] == [
         {"kind": "focus_node", "id": "node:1", "evidence": "node:1"},
         {
@@ -175,6 +204,7 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
     assert baseline["status"] == "recalled"
     assert baseline["revision"] == 42
     assert baseline["returned_points"] == memory["returned_points"]
+    assert baseline["selection"]["recall_id"] == "recall-1"
     assert baseline["evidence_basis"] == "brain_observations.reasoning.memory_bridge"
 
     assert trace["chain"][1]["output"]["context_revision"] == 7
