@@ -7,7 +7,7 @@
 > OPT-001 的冻结历史基线；本文不表示当前代码已经实现，也不授权修改既有 Elfie 数据
 >
 > 上游世界资料：
-> [Elfaria 自底向上世界设定](../elfaria/elfaria-bottom-up-world-design-v0.1.md)、
+> [Elfaria 自底向上世界设定](../elfaria/elfaria-bottom-up-world-design.md)、
 > [Elfaria 世界公共知识总览](../elfaria/elfaria-public-knowledge-overview-v0.1.md)
 
 ## 1. 目标与不可变原则

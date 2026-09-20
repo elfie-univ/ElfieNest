@@ -2,7 +2,7 @@
 
 > 状态：总设计基线。本文件只定义“从世界设定产生哪些产物，以及 Genesis 如何使用它们”；它不是世界事实源、居民知识正文、执行计划或验收清单。
 >
-> 唯一的作者侧上游是[《Elfaria 自底向上世界设定》](elfaria-bottom-up-world-design-v0.1.md)。运行时不直接读取 Markdown，而是读取由它编译、审阅并校验后的机器知识包。
+> 唯一的作者侧上游是[《Elfaria 自底向上世界设定》](elfaria-bottom-up-world-design.md)。运行时不直接读取 Markdown，而是读取由它编译、审阅并校验后的机器知识包。
 
 ## 1. 核心目标
 

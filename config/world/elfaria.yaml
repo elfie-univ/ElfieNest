@@ -2566,10 +2566,10 @@ genesis:
     - generation-policy-v1
     - arrival-rules-v1
   source_refs:
-    - docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    - docs/.internal/elfaria/elfaria-bottom-up-world-design.md
     - docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
   coverage_manifest:
-    creator_source_ref: docs/.internal/elfaria/elfaria-bottom-up-world-design-v0.1.md
+    creator_source_ref: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
     resident_source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
     links:
       - {upstream_id: world.identity, resident_fact_ids: [world.identity]}
