@@ -1,8 +1,10 @@
 # Genesis 整体设计：资料准备流程与个体生成流程
 
-> 状态：整体采用两个流程组织，内容细节持续完善。本文直接维护当前设计，不按旧阶段命名，也不累积对话修改历史；未决定的事项集中列在文末。
+> 状态：两个流程已并入 [Genesis v0.3](./genesis-core-kernel-design-v0.3.md)。本文保留为领域讨论来源，
+> 不再单独定义当前流程；未决定的事项集中列在文末。
 > 重点：资料准备流程中世界设定、居民知识和生成资料的组织。个体生成流程只说明输入、输出和主要依赖，具体算法另行讨论。
-> 范围止于个体生成完成，不展开外貌、生成后运行、代码接口或存储实现。本文是领域设计讨论稿，不覆盖现行契约，也不表示代码已经实现。
+> 范围止于个体生成完成，不展开外貌、生成后运行、代码接口或存储实现。本文是已被 v0.3 吸收的领域
+> 设计讨论稿，不覆盖现行契约，也不表示代码已经实现。
 
 ## 1. 目标与当前已明确的要求
 
@@ -247,11 +249,11 @@ B 保留适用范围、传播与普及程度、重要程度、学习条件与难
 ## 10. 对照资料
 
 - [自底向上世界设定](../elfaria/elfaria-bottom-up-world-design.md)：世界设定的现有正文与维护方式。
-- [世界公共知识总览](../elfaria/elfaria-public-knowledge-overview-v0.1.md)：居民知识的现有阅读组织。
+- [Elfaria 居民知识](../elfaria/elfaria-resident-knowledge.md)：第二步居民知识的最终人读稿。
 - [物种卡](../elfaria/elfaria-species-cards-v0.1.md)：物种构造与群体知识的现有表达。
-- [物种与个体设定旧稿](../elfaria/elfie-world-species-and-character-setting.md)：仅供历史查考；世界事实已归入世界设定。
+- 物种与个体设定旧稿：已删除；其中仍有效的世界事实已归入世界设定。
 - [Lumi 参考个体](../elfaria/saevi-reference-elfie-v0.1.md)：个人输出与不可推广的特例。
-- [世界知识衍生与个体初始化总设计稿](../elfaria/genesis-core-kernel-design-v0.1.md)：知识产物和来源关系的既有表述，需与本稿及现行契约区分。
-- [Genesis v0.2 历史草稿](genesis-core-kernel-design-v0.2.md)：生活背景、个人知识和经历依赖的参考，不作为本文的组织骨架。
+- [世界知识衍生与个体初始化 v0.1](genesis-source-and-individual-initialization-v0.1.md)：知识产物和来源关系的历史表述。
+- [Genesis v0.3](genesis-core-kernel-design-v0.3.md)：已吸收本文两个流程并作为当前唯一活动设计草案。
 - [Elfie 现行契约](../../developer/contracts/elfie.md#genesis)、[ADR-0033](../../developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md)：生成与最终输出边界。
 - [配置管理契约](../../developer/contracts/configuration-management.md)：现有世界与物种配置位置。

@@ -2567,10 +2567,10 @@ genesis:
     - arrival-rules-v1
   source_refs:
     - docs/.internal/elfaria/elfaria-bottom-up-world-design.md
-    - docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
+    - docs/.internal/elfaria/elfaria-resident-knowledge.md
   coverage_manifest:
     creator_source_ref: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
-    resident_source_ref: docs/.internal/elfaria/elfaria-public-knowledge-overview-v0.1.md
+    resident_source_ref: docs/.internal/elfaria/elfaria-resident-knowledge.md
     links:
       - {upstream_id: world.identity, resident_fact_ids: [world.identity]}
       - {upstream_id: world.known_region, resident_fact_ids: [world.known_region]}
@@ -2979,4 +2979,4 @@ genesis:
       - earth.adaptation
     required_module_ids:
       - earth_program
-  content_sha256: cecbad908163c131effdab7a30a43bd5d8f9c7cf729cd3e67c9c002c14a8ddee
+  content_sha256: c44375ea672ce1d0c1bb5502340033b45ca3d0a800039338204fd6b2f2d74849

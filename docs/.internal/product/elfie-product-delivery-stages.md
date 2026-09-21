@@ -10,7 +10,7 @@
 > [Nest 与 Godot 虚拟生活世界设计](../../developer/designs/nest-godot-virtual-world-functional-architecture.md)
 > 第一阶段执行与评测基线：[记忆支撑的完整聊天闭环执行计划](../drafts/elfie-stage1-memory-backed-chat-execution-plan.md)
 > 现行架构边界：Profile、Genesis 与创建输入遵守 ADR-0033、Elfie 2.3、Brain 1.5 和
-> [Genesis v0.2](../drafts/genesis-core-kernel-design-v0.2.md)
+> [Genesis v0.3](../drafts/genesis-core-kernel-design-v0.3.md)
 
 ## 1. 文档目标
 

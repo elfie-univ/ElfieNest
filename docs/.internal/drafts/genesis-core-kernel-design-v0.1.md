@@ -1,6 +1,6 @@
 # OPT-001 最终设计：Elfaria 世界知识与 Elfie 个体初始化
 
-> **历史文档：已被 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 与 ADR-0033 取代。**
+> **历史文档：已被 [Genesis v0.3](./genesis-core-kernel-design-v0.3.md) 与 ADR-0033 取代。**
 > 本文只证明 OPT-001 当时的实现与验收，不再维护，也不得作为当前 Profile、Genesis、创建输入持久化或
 > 运行时知识路径的权威；其中 Manifest、Profile 来源字段和运行时身份描述均不能覆盖最新契约。
 >
