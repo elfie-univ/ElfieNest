@@ -1,8 +1,8 @@
 # 配置管理契约
 
-**契约版本：** 1.4
+**契约版本：** 1.6
 **采用日期：** 2026-08-15
-**修订日期：** 2026-09-01
+**修订日期：** 2026-09-24
 **适用范围：** 应用默认配置、用户配置、读取与发行打包
 
 > **规范性目标。** 本契约定义 ElfieNest 唯一的配置管理方式，只整理现有配置，
@@ -55,6 +55,11 @@ config/
 │   └── emotion-expressions.yaml
 ├── nest/
 │   └── defaults.yaml
+├── genesis/                  # 已发布源资料包；尚未激活创建链
+│   ├── program.yaml
+│   ├── knowledge/elfaria.yaml
+│   ├── knowledge/geography.yaml
+│   └── species/              # 显式目录、成员与展示资产
 ├── world/
 │   └── elfaria.yaml
 └── species/
@@ -72,6 +77,23 @@ config/
 强类型值，不读取 YAML；Profile 只接收最终生成的档案字段，绝不接收资料包。Godot 的 3D
 资源包仍位于 `godot_project/characters/`；物种配置只保存语义链接和外观绑定。Loader 必须把
 运行时资产 View 与 Genesis 创建投影分开暴露，不能向 Profile 注入一个万能目录。
+
+### Genesis 源资料包
+
+经审阅的多成员源资料包放在 `config/genesis/`，注册入口为 `program.yaml`。
+显式清单绑定每个成员的路径、版本、状态和字节摘要；入口摘要排除自身。
+每个文件都必须属于清单；未知文件、缺件、重复或越界路径、符号链接和摘要变化均拒绝。
+源资料发布还要求造物者源稿章节绑定、居民知识逐单元精确投影和零条未解决知识条件；
+内容变化须发布新版本。
+
+资料发布不切换现有 world/species 生产读取器；在强类型 Genesis 消费者、语义与可行性
+校验及单一路径切换独立验收之前，它们仍是唯一生效的创建路径，不在新旧输入之间
+混读或回退。源资料检查器仅在技术完整性与已声明来源检查通过时接受 published；
+已发布资料包不会自动进入领养。激活阻塞仍须显式记录；Myelle 在 Godot 角色资产齐备
+前在物种目录保持 draft。见 [ADR-0039](../decisions/0039-genesis-preparation-package)
+及 [ADR-0040](../decisions/0040-genesis-source-publication-before-activation)。
+
+### 用户文件
 
 用户目录保持为：
 

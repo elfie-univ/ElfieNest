@@ -35,6 +35,15 @@ def test_bundled_root_is_exactly_the_registered_document_inventory() -> None:
         for spec in CONFIG_DOCUMENTS.values()
         if spec.required_bundled
     }
+    # Registered Genesis preparation members are individually hash-validated;
+    # do not exempt the entire directory from the closed inventory.
+    for document_id, spec in CONFIG_DOCUMENTS.items():
+        if spec.bundled_relative_path == "genesis/program.yaml":
+            package = BundledConfigSource(BUNDLED_ROOT).load(document_id)
+            registered.update(
+                f"genesis/{member['path']}"
+                for member in package.document["manifest"]["members"]
+            )
     actual = {
         path.relative_to(BUNDLED_ROOT).as_posix()
         for path in BUNDLED_ROOT.rglob("*")
@@ -198,8 +207,15 @@ def test_configuration_contract_freezes_genesis_source_ownership() -> None:
     species_english_normalized = " ".join(species_english.split())
     species_chinese_normalized = " ".join(species_chinese.split())
 
-    assert "**Contract version:** 1.4" in english
-    assert "**契约版本：** 1.4" in chinese
+    assert "**Contract version:** 1.6" in english
+    assert "**契约版本：** 1.6" in chinese
+    assert "config/genesis/" in english
+    assert "config/genesis/" in chinese
+    assert (
+        "published bundle is not automatically adoption-eligible" in english_normalized
+    )
+    assert "已发布资料包不会自动进入领养" in chinese_normalized
+    assert "| CFG-006 | P1 | open |" in conformance
     assert "world/elfaria.yaml" in english
     assert (
         "Profile receives only the final generated dossier fields" in english_normalized

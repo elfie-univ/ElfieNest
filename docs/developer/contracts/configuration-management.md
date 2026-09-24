@@ -1,8 +1,8 @@
 # Configuration management contract
 
-**Contract version:** 1.4
+**Contract version:** 1.6
 **Adopted:** 2026-08-15
-**Revised:** 2026-09-01
+**Revised:** 2026-09-24
 **Scope:** application defaults, user configuration, loading and release packaging
 
 > **Normative target.** This contract defines the one configuration-management
@@ -59,6 +59,11 @@ config/
 │   └── emotion-expressions.yaml
 ├── nest/
 │   └── defaults.yaml
+├── genesis/                  # published source package; not yet an active creation input
+│   ├── program.yaml
+│   ├── knowledge/elfaria.yaml
+│   ├── knowledge/geography.yaml
+│   └── species/              # explicit catalog, members and display assets
 ├── world/
 │   └── elfaria.yaml
 └── species/
@@ -80,6 +85,28 @@ package remains under `godot_project/characters/`; only its semantic package lin
 and appearance bindings are represented in species configuration. The loader
 exposes that runtime asset view separately from the Genesis creation projection;
 there is no universal catalog injected into Profile.
+
+### Genesis source package
+
+The reviewed multi-member source package lives at `config/genesis/`, with
+`program.yaml` as its registered entry. Its explicit manifest binds every member
+path, version, status and byte digest; the entry digest excludes itself. Every
+file must belong to that manifest. Unknown files, missing members, duplicate or
+escaping paths, symbolic links and changed digests fail closed. Source publication
+also requires recorded creator-section bindings, exact resident-unit projection
+and zero unresolved knowledge conditions. Content changes require a new version.
+
+Publishing the source package does not switch the current world/species production
+readers. They remain the sole active creation path until a typed Genesis consumer,
+semantic and feasibility validation, and a separately verified single-path
+cutover; there is no fallback or merged read. The source inspector accepts a
+published bundle only when its technical and declared source checks pass. A
+published bundle is not automatically adoption-eligible. Its activation blockers
+remain explicit; Myelle stays draft in the species catalog until its Godot role
+assets exist. See [ADR-0039](../decisions/0039-genesis-preparation-package) and
+[ADR-0040](../decisions/0040-genesis-source-publication-before-activation).
+
+### User-owned files
 
 The user-owned layout remains:
 

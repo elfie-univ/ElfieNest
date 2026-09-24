@@ -5,8 +5,14 @@
 > It records current implementation facts and deletion gates; it does not
 > authorize new scattered configuration or product behavior.
 
-**State:** ready (v0.2 structural rows closed)
-**Closure state:** ready (v0.2 structural rows closed)
+**State:** open (CFG-006; v0.2 structural rows remain closed)
+**Closure state:** open
+
+## Genesis preparation gap
+
+| ID | Severity | Status | Current deviation | Closure gate | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| CFG-006 | P1 | open | `config/genesis/program.yaml` and its 18 explicit members form a published source package; current production still uses world/species. Myelle remains draft in the source catalog. | Implement the typed Genesis consumer, complete semantic/feasibility validation and retire old creation reads without removing runtime assets; enable Myelle only after its role assets exist. | target=Configuration 1.6 and ADR-0040; inventory=entry, 12 YAML members and 6 display assets; references=`genesis_program.py`, `test_genesis_program.py`, closed inventory gate; verification=source publication integrity, 161-unit exact knowledge projection, 45/45 resolved knowledge conditions, 100-unit geography and route-distance checks, 41 source-section bindings, simplified learning/arrival rules and candidate budget scope; residuals=typed consumer, semantic feasibility/production cutover and Myelle runtime role assets. |
 
 ## Current inventory
 

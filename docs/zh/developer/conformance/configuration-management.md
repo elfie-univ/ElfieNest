@@ -3,8 +3,14 @@
 > 本文是规范性[配置管理契约](../contracts/configuration-management)的开放迁移台账，
 > 只记录当前实现事实和删除门，不授权新增散落配置或产品行为。
 
-**状态：** ready（v0.2 结构行已关闭）
-**收口状态：** ready（v0.2 结构行已关闭）
+**状态：** open（CFG-006；v0.2 结构行保持关闭）
+**收口状态：** open
+
+## Genesis 准备资料缺口
+
+| ID | 严重性 | 状态 | 当前差距 | 关闭条件 | 证据 |
+| --- | --- | --- | --- | --- | --- |
+| CFG-006 | P1 | open | `config/genesis/program.yaml` 及 18 个显式成员组成已发布源资料包；生产仍读 world/species。Myelle 在源资料目录中保持 draft。 | 实现强类型 Genesis 消费者，完成语义/可行性校验并退役旧创建读取，保留运行资产；Myelle 角色资产齐备后才开放。 | target=配置契约 1.6 与 ADR-0040；inventory=入口、12 份 YAML 成员和 6 张展示资产；references=`genesis_program.py`、`test_genesis_program.py`、封闭配置清单门禁；verification=源资料发布完整性、161 条知识精确投影、45/45 条已解析知识条件、100 单元地理与路线距离检查、41 个来源章节绑定、简化学习/赴地规则和候选预算口径；residuals=强类型消费者、语义可行性/生产切换和 Myelle 运行角色资产。 |
 
 ## 当前清单
 

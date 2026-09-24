@@ -189,10 +189,14 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="configuration-management",
-        version="1.4",
+        version="1.6",
         english_path="docs/developer/contracts/configuration-management.md",
         chinese_path="docs/zh/developer/contracts/configuration-management.md",
         decision_paths=(
+            "docs/developer/decisions/0040-genesis-source-publication-before-activation.md",
+            "docs/zh/developer/decisions/0040-genesis-source-publication-before-activation.md",
+            "docs/developer/decisions/0039-genesis-preparation-package.md",
+            "docs/zh/developer/decisions/0039-genesis-preparation-package.md",
             "docs/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/zh/developer/decisions/0017-bundled-defaults-and-user-configuration.md",
             "docs/developer/decisions/0020-configuration-driven-species-packages.md",
