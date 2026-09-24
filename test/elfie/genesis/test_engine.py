@@ -23,22 +23,28 @@ def intent() -> GenesisAppearanceIntent:
     )
 
 
-def test_species_and_stage_are_small_priors_not_global_multipliers() -> None:
+def test_species_do_not_assign_personality_and_stage_is_a_small_prior() -> None:
     engine = GenesisEngine()
-    dog = engine.core_personality(
+    dog_mature = engine.core_personality(
         species_id="dog",
         life_stage="mature",
         answers=("any",) * 5,
     )
-    fox = engine.core_personality(
+    fox_mature = engine.core_personality(
         species_id="fox",
         life_stage="mature",
         answers=("any",) * 5,
     )
+    dog_youth = engine.core_personality(
+        species_id="dog",
+        life_stage="youth",
+        answers=("any",) * 5,
+    )
 
-    assert dog.latent != fox.latent
-    assert all(-2.0 <= value <= 2.0 for value in dog.latent)
-    assert max(abs(value) for value in dog.latent) < 0.2
+    assert dog_mature.latent == fox_mature.latent
+    assert dog_youth.latent != dog_mature.latent
+    assert all(-2.0 <= value <= 2.0 for value in dog_mature.latent)
+    assert max(abs(value) for value in dog_mature.latent) < 0.2
 
 
 @pytest.mark.parametrize("species_id", ("dog", "fox"))
