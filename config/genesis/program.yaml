@@ -2,39 +2,39 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v1
+program_version: elfaria-genesis.v3
 status: published
 sources:
   world:
     path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
-    sha256: 9a27a31eb76a2172848cc30343bf84686fe65e2b4e354111a5456e7d432b9f19
+    sha256: 972cde5dfc068334cfe7fd39da56ba8657378d71417dfdc1c9f4f9a0c99cdff4
   resident:
     path: docs/.internal/elfaria/elfaria-resident-knowledge.md
-    sha256: daa1fe8aeb236e69054d2bd3afa8e0ed2104751095b4c498cfc31d6bf8efe188
+    sha256: 4b1ae835737ecded773cb572ad8ab8e069447b7183134ee80010148470bad8be
   generation:
     path: docs/.internal/elfaria/elfaria-generation-rules.md
-    sha256: 39e99f75ba7f43deb8907c9b2f4da249fbbcf9a981ed5529e90dc50f7a6646e4
+    sha256: f028e4eea136df832495be4b6338c140a3bd158cd817666c8951610fa588a9b0
   geography:
     path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
-    sha256: e7127c536f069305a94e6b50556483c81f2f7482354e81e3a2578161480b3d7b
+    sha256: 5230fc53793cac33f4771b35b690c1cab6c3878cb5929751e15b0b0e79f4d838
   species:
     path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v1
+  package_version: elfaria-genesis.v3
   status: published
   members:
   - path: knowledge/elfaria.yaml
     kind: resident_knowledge
-    version: elfaria-resident-knowledge.v6
+    version: elfaria-resident-knowledge.v9
     status: published
-    sha256: 820c9708c26bea6d3d3fb6fd05b366c6338fb2c251b2a07c3a6778147bc0ad9e
+    sha256: 78d8497f28e61eb78b808d6c1818051a2d3622316709f0c9c23d1aadc266f9ab
   - path: knowledge/geography.yaml
     kind: geography_knowledge
-    version: elfaria-geography.v9
+    version: elfaria-geography.v12
     status: published
-    sha256: 0a3e1a8f5c625cee267fd02f478c421bf0b285cfb45aca5709baabfd2933afdb
+    sha256: 54e4a57e299f5a1245831b92af6bd606382bce2449a4b8f984ac73b1970834fe
   - path: species/catalog.yaml
     kind: species_catalog
     version: species-catalog.v4
@@ -119,15 +119,15 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 5c47fca4f7d3ebc24d8a49ef0530fcf1bc84455c33deeeaa3552dbb85f6a108b
+  content_sha256: 69a11b2b2cc57ea8fe261b6388c8a1bd29238ea8dc80c0430950f58ce850f488
 coverage:
   status: complete
   resident_source_ref: resident
   knowledge_member: knowledge/elfaria.yaml
-  knowledge_version: elfaria-resident-knowledge.v6
-  projected_units: 161
+  knowledge_version: elfaria-resident-knowledge.v9
+  projected_units: 160
   body_projection: preserved_from_verified_build_draft
-  stable_source_anchors: 161_explicit_knowledge_unit_anchors
+  stable_source_anchors: 160_explicit_knowledge_unit_anchors
   upstream_atomic_coverage: complete_for_registered_source_sections
   rule_sources:
     world: world#8
@@ -328,12 +328,12 @@ coverage:
     - upstream_id: geography-source#4
       source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
       stable_anchor: geography-source#4
-      output_refs: [knowledge/geography.yaml#places]
+      output_refs: [knowledge/geography.yaml#places, knowledge/geography.yaml#place_relations]
       disposition: retained
     - upstream_id: geography-source#5
       source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
       stable_anchor: geography-source#5
-      output_refs: [knowledge/geography.yaml#network.land_backbone_paths]
+      output_refs: [knowledge/geography.yaml#network.land_backbone_paths, knowledge/geography.yaml#route_aliases]
       disposition: retained
     - upstream_id: geography-source#6
       source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
@@ -360,11 +360,11 @@ coverage:
       source_path: docs/.internal/elfaria/elfaria-resident-knowledge.md
       stable_anchor: '<!-- knowledge-unit: <knowledge_id> -->'
       output_refs: ['knowledge/elfaria.yaml#knowledge[]']
-      unit_count: 161
+      unit_count: 160
       disposition: one_to_one_exact_description
     source_coverage_notes:
     - The current creator documents expose stable section anchors, so every registered section is bound now.
-    - Creator sources are bound at stable section anchors; resident facts use the separate 161-unit source anchors and are not inferred from paragraph position.
+    - Creator sources are bound at stable section anchors; resident facts use the separate 160-unit source anchors and are not inferred from paragraph position.
     - No unresolved condition is treated as eligible by this coverage record.
 rules:
   world:
@@ -374,98 +374,8 @@ rules:
     - world#8.6
     route_time_model_ref: geography-model.v9
     route_topology_source: knowledge/geography.yaml
-    routes:
-    - id: town_saevi
-      from: mistyville_center
-      to: saevi_tribal_center
-      source_ref: world#8.4
-      status: topology_alias
-    - id: town_tovren
-      from: mistyville_center
-      to: tovren_tribal_center
-      source_ref: world#8.4
-      status: topology_alias
-    - id: town_myelle
-      from: mistyville_center
-      to: myelle_tribal_center
-      source_ref: world#8.4
-      status: topology_alias
-    - id: saevi_firstroot
-      from: saevi_tribal_center
-      to: firstroot_tree
-      source_ref: world#8.4
-      status: topology_alias
-    - id: tovren_riverturn
-      from: tovren_tribal_center
-      to: riverturn_hill
-      source_ref: world#8.4
-      status: topology_alias
-    - id: tovren_clearheart
-      from: tovren_tribal_center
-      to: clearheart_ferry
-      source_ref: world#8.4
-      status: topology_alias
-    - id: myelle_skymirror
-      from: myelle_tribal_center
-      to: skymirror_trailhead
-      source_ref: world#8.4
-      status: topology_alias
-    - id: square_ring
-      from: skyreach_square
-      to: skyreach_square
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-      topology: loop
-      counts_as_shortcut: false
-    - id: council_lane
-      from: skyreach_square
-      to: elder_council_hall
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-    - id: learning_lane
-      from: skyreach_square
-      to: learning_healing_hall
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-    - id: hundred_trades_street
-      from: skyreach_square
-      to: hundred_trades_south_end
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-    - id: earthbound_road
-      from: skyreach_square
-      to: earthbound_station
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-    - id: undercity_road
-      from: skyreach_square
-      to: undercity_gate
-      source_ref: world#8.2.1
-      status: topology_alias
-      bidirectional: true
-    - id: saevi_main_street
-      from: saevi_tribal_center
-      to: saevi_elder_house
-      source_ref: world#8.3
-      status: topology_alias
-      bidirectional: true
-    - id: tovren_main_street
-      from: tovren_tribal_center
-      to: tovren_elder_house
-      source_ref: world#8.3
-      status: topology_alias
-      bidirectional: true
-    - id: myelle_main_street
-      from: myelle_tribal_center
-      to: myelle_elder_house
-      source_ref: world#8.3
-      status: topology_alias
-      bidirectional: true
+    place_registry_ref: knowledge/geography.yaml#places
+    route_aliases_ref: knowledge/geography.yaml#route_aliases
     route_time_policy: resolve_from_geography_grid_hops
     routing:
       method: shortest_legal_path_over_geography_grid_hops
@@ -477,217 +387,6 @@ rules:
     - 渡点不是湖心岛
     - 天镜湖山路口不是整处湖泊景观
     - 缺少住宅连接段和分段通行数据时不生成完整到访证据
-    places:
-    - id: mistyville
-      name: 迷雾镇
-      kind: territory
-      source_ref: world#8
-    - id: east_forest
-      name: 东部森林
-      kind: region
-      parent: mistyville
-      source_ref: world#8
-    - id: south_plain
-      name: 南部平原
-      kind: region
-      parent: mistyville
-      source_ref: world#8
-    - id: north_mountain
-      name: 北部山地
-      kind: region
-      parent: mistyville
-      source_ref: world#8
-    - id: lake_shore
-      name: 湖岸
-      kind: region
-      parent: mistyville
-      source_ref: world#8
-    - id: shallow_underground
-      name: 浅地下
-      kind: region
-      parent: mistyville
-      source_ref: world#8
-    - id: mistyville_center
-      name: 迷雾镇中心
-      kind: settlement
-      parent: mistyville
-      source_ref: world#8
-    - id: saevi_tribal_center
-      name: Saevi 部落中心
-      kind: settlement
-      parent: east_forest
-      source_ref: world#8
-    - id: tovren_tribal_center
-      name: Tovren 部落中心
-      kind: settlement
-      parent: south_plain
-      source_ref: world#8
-    - id: myelle_tribal_center
-      name: Myelle 部落中心
-      kind: settlement
-      parent: north_mountain
-      source_ref: world#8
-    - id: skyreach_square
-      name: 通天广场
-      kind: public_space
-      parent: mistyville_center
-      source_ref: world#8
-    - id: skyreach_tree
-      name: 通天古树
-      kind: landmark
-      parent: skyreach_square
-      source_ref: world#8
-    - id: elder_council_hall
-      name: 长老院
-      kind: facility
-      parent: mistyville_center
-      source_ref: world#8
-    - id: learning_healing_hall
-      name: 学疗院
-      kind: facility
-      parent: mistyville_center
-      source_ref: world#8
-    - id: hundred_trades_street
-      name: 百业街
-      kind: commercial_area
-      parent: mistyville_center
-      source_ref: world#8
-    - id: hundred_trades_south_end
-      name: 百业街南端
-      kind: route_endpoint
-      parent: hundred_trades_street
-      source_ref: world#8
-    - id: earthbound_station
-      name: 赴地跃迁基站
-      kind: controlled_facility
-      parent: mistyville_center
-      source_ref: world#8
-    - id: undercity_gate
-      name: 地下城门
-      kind: controlled_entrance
-      parent: mistyville_center
-      source_ref: world#8
-    - id: saevi_elder_house
-      name: Saevi 长老屋
-      kind: residence_and_council
-      parent: saevi_tribal_center
-      source_ref: world#8
-    - id: tovren_elder_house
-      name: Tovren 长老屋
-      kind: residence_and_council
-      parent: tovren_tribal_center
-      source_ref: world#8
-    - id: myelle_elder_house
-      name: Myelle 长老屋
-      kind: residence_and_council
-      parent: myelle_tribal_center
-      source_ref: world#8
-    - id: firstroot_tree
-      name: 祖树
-      kind: landmark
-      parent: east_forest
-      source_ref: world#8
-    - id: riverturn_hill
-      name: 回澜丘
-      kind: landmark
-      parent: south_plain
-      source_ref: world#8
-    - id: riverturn_bend
-      name: 回澜河湾
-      kind: landmark
-      parent: south_plain
-      source_ref: world#8
-    - id: clearheart_lake
-      name: 澄心湖
-      kind: lake
-      parent: mistyville
-      source_ref: world#8
-    - id: clearheart_ferry
-      name: 澄心湖渡点
-      kind: ferry_landing
-      parent: lake_shore
-      source_ref: world#8
-    - id: lakeheart_isle
-      name: 湖心岛
-      kind: island
-      parent: clearheart_lake
-      source_ref: world#8
-    - id: skymirror_trailhead
-      name: 天镜湖山路口
-      kind: route_endpoint
-      parent: north_mountain
-      source_ref: world#8
-    - id: skymirror_lake
-      name: 天镜湖
-      kind: lake
-      parent: north_mountain
-      source_ref: world#8
-    - id: cloudfall_falls
-      name: 垂云瀑
-      kind: landmark
-      parent: north_mountain
-      source_ref: world#8
-    - id: cloudcrown_city
-      name: 云冠城
-      kind: inaccessible_city
-      parent: north_mountain
-      source_ref: world#8
-    - id: undercity
-      name: 地下城
-      kind: controlled_region
-      parent: mistyville
-      source_ref: world#8
-    - id: deep_underground
-      name: 深层地下
-      kind: controlled_region
-      parent: undercity
-      source_ref: world#8
-    - id: saevi_region
-      name: Saevi 部落地区
-      kind: cultural_region
-      parent: mistyville
-      common_ecological_region: east_forest
-      exact_boundary: confirmed
-      boundary_source_ref: geography-source#elfaria-geography-source.v6
-      source_ref: species#5
-    - id: tovren_region
-      name: Tovren 部落地区
-      kind: cultural_region
-      parent: mistyville
-      common_ecological_region: south_plain
-      exact_boundary: confirmed
-      boundary_source_ref: geography-source#elfaria-geography-source.v6
-      source_ref: species#5
-    - id: myelle_region
-      name: Myelle 部落地区
-      kind: cultural_region
-      parent: mistyville
-      common_ecological_region: north_mountain
-      exact_boundary: confirmed
-      boundary_source_ref: geography-source#elfaria-geography-source.v6
-      source_ref: species#5
-    place_relations:
-    - subject: skyreach_tree
-      relation: at_center_of
-      object: skyreach_square
-    - subject: skyreach_square
-      relation: coordinate_origin_of
-      object: mistyville_center
-    - subject: cloudcrown_city
-      relation: suspended_above
-      object: skymirror_lake
-    - subject: cloudfall_falls
-      relation: outflow_from
-      object: skymirror_lake
-    - subject: riverturn_bend
-      relation: open_arc_below
-      object: riverturn_hill
-    - subject: lakeheart_isle
-      relation: in_center_of
-      object: clearheart_lake
-    - subject: undercity_gate
-      relation: public_entrance_to
-      object: undercity
     route_geometry_status: endpoints_and_grid_hop_rules_only
     access_rules:
     - id: earthbound_entry
@@ -876,7 +575,7 @@ rules:
     reserved_names: [Saevi, Tovren, Myelle]
     public_name_sources:
       species: species/catalog.yaml
-      places: rules.world
+      places: knowledge/geography.yaml#places
     selection:
       algorithm: sha256_domain_choice
       domain: naming
@@ -1542,7 +1241,7 @@ rules:
     status: grid_hop_time_ready
     source_refs:
     - generation#6.1
-    - geography-source#elfaria-geography-source.v7
+    - geography-source#elfaria-geography-source.v9
     model_member: knowledge/geography.yaml
     usable_for_generation: true
     grid_dimensions:

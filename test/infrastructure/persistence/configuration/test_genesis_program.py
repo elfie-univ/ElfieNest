@@ -276,12 +276,12 @@ def test_preparation_package_fails_closed(tmp_path: Path, attack: str) -> None:
         BundledConfigSource(root).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE)
 
 
-def test_registered_knowledge_is_still_the_existing_161_unit_projection() -> None:
+def test_registered_knowledge_is_still_the_existing_160_unit_projection() -> None:
     knowledge = yaml.safe_load(
         (ROOT / "genesis/knowledge/elfaria.yaml").read_text(encoding="utf-8")
     )
     rows = knowledge["knowledge"]
-    assert len(rows) == len({row["id"] for row in rows}) == 161
+    assert len(rows) == len({row["id"] for row in rows}) == 160
     source = ROOT.parent / knowledge["source"]["path"]
     assert (
         hashlib.sha256(source.read_bytes()).hexdigest() == knowledge["source"]["sha256"]
@@ -291,7 +291,7 @@ def test_registered_knowledge_is_still_the_existing_161_unit_projection() -> Non
         == "<!-- knowledge-unit: {knowledge_id} -->"
     )
     assert knowledge["source"]["anchor_scope"] == "source_paragraph_or_list_item"
-    assert knowledge["source"]["anchor_count"] == 161
+    assert knowledge["source"]["anchor_count"] == 160
     assert knowledge["source"]["anchor_ids_are_stable"] is True
     assert knowledge["source"]["projection"] == "one_to_one_exact_description"
     body = (
@@ -315,6 +315,9 @@ def test_registered_knowledge_is_still_the_existing_161_unit_projection() -> Non
         else:
             paragraph.append(line.strip())
     assert units == [row["description"] for row in rows]
+    knowledge_by_id = {row["id"]: row for row in rows}
+    assert "mastery_difficulty" not in knowledge_by_id["C-03-04"]
+    assert "E-06-10" not in knowledge_by_id
     program = yaml.safe_load(
         (ROOT / "genesis/program.yaml").read_text(encoding="utf-8")
     )
@@ -335,18 +338,23 @@ def test_preparation_references_are_registered_and_unknown_conditions_block() ->
     )
     rules = program["rules"]
     world = rules["world"]
+    assert "places" not in world
+    assert "routes" not in world
+    geography = yaml.safe_load(
+        (ROOT / "genesis/knowledge/geography.yaml").read_text(encoding="utf-8")
+    )
     registries = {
-        "place": {row["id"] for row in world["places"]},
-        "route": {row["id"] for row in world["routes"]},
+        "place": {row["id"] for row in geography["places"]},
+        "route": {row["id"] for row in geography["route_aliases"]},
         "vocation": {row["id"] for row in rules["learning"]["vocations"]},
         "experience": {row["id"] for row in rules["events"]["templates"]},
     }
-    assert len(world["places"]) == len(registries["place"]) == 36
-    assert len(world["routes"]) == len(registries["route"]) == 16
-    for place in world["places"]:
-        if "parent" in place:
-            assert place["parent"] in registries["place"]
-    for route in world["routes"]:
+    assert len(geography["places"]) == len(registries["place"]) == 37
+    assert len(geography["route_aliases"]) == len(registries["route"]) == 16
+    for place in geography["places"]:
+        if "parent_id" in place:
+            assert place["parent_id"] in registries["place"]
+    for route in geography["route_aliases"]:
         assert route["from"] in registries["place"]
         assert route["to"] in registries["place"]
         assert route["status"] == "topology_alias"
@@ -428,7 +436,7 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
         for binding in coverage["creator_bindings"]
     )
     projection = coverage["resident_projection"][0]
-    assert projection["unit_count"] == 161
+    assert projection["unit_count"] == 160
     assert projection["disposition"] == "one_to_one_exact_description"
 
     expected_stages = {"youth", "young_adult", "mature", "elder"}
@@ -458,7 +466,7 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
     assert rules["geography"]["status"] == "grid_hop_time_ready"
     assert rules["geography"]["usable_for_generation"] is True
     assert geography["schema_version"] == 6
-    assert geography["knowledge_version"] == "elfaria-geography.v9"
+    assert geography["knowledge_version"] == "elfaria-geography.v12"
     assert geography["model_status"] == "complete"
     assert geography["publication_ready"] is True
 
@@ -478,6 +486,11 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
         "E": 8,
         "X": 9,
     }
+    assert geography["validation"]["place_relation_count"] == 7
+    assert geography["validation"]["route_alias_count"] == 16
+    assert geography["validation"]["place_parent_status"] == (
+        "complete_for_registered_places"
+    )
     counts = {
         region: sum(row.count(region) for row in grid["region_matrix"])
         for region in geography["regions"]
@@ -527,9 +540,32 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
     )
 
     place_by_id = {place["id"]: place for place in geography["places"]}
-    world_place_ids = {place["id"] for place in rules["world"]["places"]}
-    assert set(place_by_id) == world_place_ids
-    assert len(place_by_id) == 36
+    assert rules["world"]["place_registry_ref"] == "knowledge/geography.yaml#places"
+    assert (
+        rules["world"]["route_aliases_ref"] == "knowledge/geography.yaml#route_aliases"
+    )
+    assert len(place_by_id) == 37
+    assert place_by_id["earthbound_station"]["parent_id"] == "central_mixed"
+    assert place_by_id["undercity"]["parent_id"] == "shallow_underground"
+    assert place_by_id["cloudfall_falls"]["parent_id"] == "north_mountain"
+    assert place_by_id["earthbound_station"]["parent_id"] == "central_mixed"
+    relation_keys = {
+        (item["subject"], item["relation"], item["object"])
+        for item in geography["place_relations"]
+    }
+    assert relation_keys == {
+        ("skyreach_tree", "at_center_of", "skyreach_square"),
+        ("skyreach_square", "coordinate_origin_of", "mistyville_center"),
+        ("cloudcrown_city", "suspended_above", "skymirror_lake"),
+        ("cloudfall_falls", "outflow_from", "skymirror_lake"),
+        ("riverturn_bend", "open_arc_below", "riverturn_hill"),
+        ("lakeheart_isle", "in_center_of", "clearheart_lake"),
+        ("undercity_gate", "public_entrance_to", "undercity"),
+    }
+    assert all(
+        item["subject"] in place_by_id and item["object"] in place_by_id
+        for item in geography["place_relations"]
+    )
     for place in place_by_id.values():
         assert ("cell" in place) ^ ("regions" in place)
         if "cell" in place:

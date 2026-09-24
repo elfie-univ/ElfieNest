@@ -26,6 +26,8 @@ def build_profile(
     character_profile = elfie.profile
     diagnostics = ElfieDiagnostics(elfie)
     selfhood = diagnostics.selfhood.snapshot()
+    selfhood_projection = diagnostics.selfhood.prompt_projection()
+    origin = character_profile.identity.origin
     resolved = AppearanceResolver().resolve(character_profile).to_payload()
     big_five = selfhood.big_five.model_dump()
     return {
@@ -35,9 +37,13 @@ def build_profile(
         "species_label": (
             "小狗" if character_profile.identity.species_id == "dog" else "狐狸"
         ),
+        "age_years": origin.age_years,
+        "gender": character_profile.identity.gender,
+        "origin_place_label": origin.origin_place_label,
         "personality_summary": _personality_summary(big_five),
         "personality_tags": _personality_tags(big_five),
         "big_five": big_five,
+        "selfhood_projection": selfhood_projection.model_dump(mode="json"),
         "personality_derivation": {
             "preset": "Genesis",
             "matched_keywords": [],

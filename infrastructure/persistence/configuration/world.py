@@ -417,6 +417,18 @@ def _validate_package(
             raise ValueError(f"地点 {place.place_id} 的 parent_id 未定义")
         if place.parent_id == place.place_id:
             raise ValueError(f"地点 {place.place_id} 不能以自身为父节点")
+    for place in package.places:
+        seen: set[str] = set()
+        current = place
+        while current.parent_id in place_ids:
+            if current.place_id in seen:
+                raise ValueError(f"地点层级存在环: {place.place_id}")
+            seen.add(current.place_id)
+            current = next(
+                candidate
+                for candidate in package.places
+                if candidate.place_id == current.parent_id
+            )
 
     event_ids = {event.event_id for event in package.story_events}
     if len(event_ids) != len(package.story_events):
@@ -446,6 +458,17 @@ def _validate_package(
     for route in package.routes:
         if route.from_place_id not in place_ids or route.to_place_id not in place_ids:
             raise ValueError(f"route {route.route_id} 引用了未定义地点")
+    relation_keys = {
+        (relation.subject_id, relation.relation, relation.object_id)
+        for relation in package.place_relations
+    }
+    if len(relation_keys) != len(package.place_relations):
+        raise ValueError("地点关系必须唯一")
+    for relation in package.place_relations:
+        if relation.subject_id not in place_ids or relation.object_id not in place_ids:
+            raise ValueError(f"place relation {relation.relation} 引用了未定义地点")
+        if not relation.relation.strip() or not relation.source_ref.strip():
+            raise ValueError("地点关系必须有 relation 和 source_ref")
     for cell in package.spatial_population.cells:
         if cell.place_id not in place_ids:
             raise ValueError(f"population cell {cell.cell_id} 引用了未定义地点")

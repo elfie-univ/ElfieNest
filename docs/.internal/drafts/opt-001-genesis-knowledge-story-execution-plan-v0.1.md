@@ -6,14 +6,14 @@
 >
 > **历史边界：** 本文是已关闭 OPT-001 的执行与证据快照，不是现行 Genesis 设计。本文中的
 > 长期 Manifest、Profile 来源字段、旧 worktree 路径和提交后重放写法已被 ADR-0033、Elfie 2.3、
-> Brain 1.5 与 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 取代；后续实现不得复制这些旧边界。
+> Brain 1.5 与 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 取代；后续实现不得复制这些旧边界。
 
 当前 worktree 另有本地 `16547111`（OPT-002 连续学习提交，领先 origin 一步）；它不是本计划范围，必须保留但不纳入 OPT-001 的变更或验收。实现前以目标基线与当前提交分别做差异盘点，不得混入或反向修改该提交。
 
 <<<<<<<< HEAD:docs/.internal/elfaria/opt-001-genesis-knowledge-story-execution-plan-v0.1.md
-本计划把已保存的 [Genesis 核心设计](genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
+本计划对应的旧核心设计已退役，历史版本见 Git；后续实现以 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准，本文只保留当时的执行顺序。
 ========
-本计划把已保存的 [Genesis 核心设计](./genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
+本计划对应的旧核心设计已退役，历史版本见 Git；后续实现以 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准，本文只保留当时的执行顺序。
 >>>>>>>> origin/main:docs/.internal/drafts/opt-001-genesis-knowledge-story-execution-plan-v0.1.md
 
 本次修订补回实施所需的字段、引用、时间、导入、读取和评测契约；不增加新的世界设定。第一版按本计划的最小垂直切片落地；后续只处理本文件列出的验收残余，不在本阶段发散。

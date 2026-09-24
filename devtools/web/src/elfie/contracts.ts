@@ -136,9 +136,16 @@ export const sessionSchema = z.object({
   profile: z.object({
     elfie_id: z.string(), name: z.string(), species_id: z.union([z.literal("dog"), z.literal("fox")]),
     species_label: z.string().default(""), life_stage: z.string().default(""), age_years: z.number().optional(),
+    gender: z.string().nullable().optional(), origin_place_label: z.string().default(""),
     description: z.string().default(""), appearance_description: z.string().default(""),
     personality_summary: z.string().default(""), personality_tags: z.array(z.string()).default([]),
     big_five: bigFiveSchema, portrait_url: z.string().default(""), appearance: z.record(z.string(), z.unknown()),
+    selfhood_projection: z.object({
+      revision: z.number().int().nonnegative(),
+      captured_at: z.string(),
+      identity_core_text: z.string(),
+      adaptive_self_text: z.string(),
+    }).optional(),
     memory_cognition: memoryCognitionSchema.prefault({ topics: [], important_events: [], relations: { nodes: [], links: [] }, knowledge: { nodes: [], links: [] }, world_understanding: "尚未形成稳定的世界理解" }),
     spec_revision: z.number().optional(), updated_at: z.string().optional(),
   }).passthrough(),

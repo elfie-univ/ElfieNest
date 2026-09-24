@@ -154,6 +154,8 @@ the real connection and delivers the message.
 
 ## 4. Genesis is creation, not a sixth runtime organ
 
+The [Genesis complete design](./genesis-complete-design.md) refines this boundary with the two-stage preparation/creation flow and individual-generation algorithms; implementation gaps remain in ELF-019.
+
 `genesis/` owns domain rules for life initialization. It runs only during
 adoption and no longer owns the data after creation. The one-way source path is
 `CreatorWorldSkeleton -> ResidentKnowledgeBaseline -> GenesisSourcePackage ->

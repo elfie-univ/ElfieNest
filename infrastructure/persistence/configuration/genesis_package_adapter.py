@@ -23,6 +23,7 @@ from elfie.genesis.world import (
     SpatialPopulationModel,
     WorldKnowledgeFact,
     WorldPlace,
+    WorldPlaceRelation,
     WorldStoryEvent,
 )
 
@@ -46,10 +47,18 @@ def decode_genesis_package(
     world = _mapping(rules["world"], "rules.world")
     knowledge = tuple(_knowledge(item) for item in _array(knowledge_doc, "knowledge"))
     region_aliases = _geographic_place_regions(geography)
+    if _text(world, "place_registry_ref") != "knowledge/geography.yaml#places":
+        raise ValueError("地点注册表必须由 geography.yaml 提供")
+    if _text(world, "route_aliases_ref") != "knowledge/geography.yaml#route_aliases":
+        raise ValueError("路线别名必须由 geography.yaml 提供")
     places = tuple(
-        _place(item, region_aliases.get(_text(_mapping(item, "world place"), "id"), ()))
-        for item in _array(world, "places")
+        _geography_place(
+            item,
+            region_aliases.get(_text(_mapping(item, "geographic place"), "id"), ()),
+        )
+        for item in _array(geography, "places")
     ) + _region_places(geography)
+    place_relations = _place_relations(geography)
     events = tuple(
         _event(item)
         for item in _array(_mapping(rules["events"], "rules.events"), "templates")
@@ -101,7 +110,8 @@ def decode_genesis_package(
         knowledge=knowledge,
         unknown_boundaries=(),
         manifest=manifest,
-        routes=_routes(world),
+        routes=_routes(geography),
+        place_relations=place_relations,
         spatial_population=_population(geography),
         name_rules=_name_rules(rules),
         generation_policy=GenerationPolicy(
@@ -193,20 +203,24 @@ def _conditions(raw: Any) -> tuple[KnowledgeCondition, ...]:
     return tuple(result)
 
 
-def _place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPlace:
-    item = _mapping(raw, "world place")
+def _geography_place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPlace:
+    """Project the geography member's complete public place registry."""
+    item = _mapping(raw, "geographic place")
     place_id = _text(item, "id")
     kind = _PLACE_KIND_ALIASES.get(_text(item, "kind"), _text(item, "kind"))
     if place_id == "learning_healing_hall":
         kind = "learning_place"
+    elif place_id == "skyreach_square":
+        kind = "settlement_shared_space"
+    label = _text(item, "name")
     return WorldPlace(
         place_id=place_id,
         version=1,
-        label=_text(item, "name"),
+        label=label,
         kind=kind,
-        parent_id=_text(item, "parent", required=False) or "elfaria",
+        parent_id=_text(item, "parent_id", required=False) or "elfaria",
         aliases=region_aliases,
-        description=_text(item, "name"),
+        description=_text(item, "description", required=False) or label,
         status="active",
     )
 
@@ -225,9 +239,9 @@ def _event(raw: Any) -> WorldStoryEvent:
     )
 
 
-def _routes(world: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
+def _routes(geography: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
     result = []
-    for raw in _array(world, "routes"):
+    for raw in _array(geography, "route_aliases"):
         item = _mapping(raw, "route")
         result.append(
             GenesisRoute(
@@ -235,6 +249,26 @@ def _routes(world: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
                 from_place_id=_text(item, "from"),
                 to_place_id=_text(item, "to"),
                 label=_text(item, "id"),
+            )
+        )
+    return tuple(result)
+
+
+def _place_relations(
+    geography: Mapping[str, Any],
+) -> tuple[WorldPlaceRelation, ...]:
+    result: list[WorldPlaceRelation] = []
+    for raw in _array(geography, "place_relations"):
+        item = _mapping(raw, "place relation")
+        subject_id = _text(item, "subject")
+        relation = _text(item, "relation")
+        object_id = _text(item, "object")
+        result.append(
+            WorldPlaceRelation(
+                subject_id=subject_id,
+                relation=relation,
+                object_id=object_id,
+                source_ref=f"knowledge/geography.yaml#place_relations:{subject_id}:{relation}:{object_id}",
             )
         )
     return tuple(result)
@@ -273,7 +307,7 @@ def _region_places(geography: Mapping[str, Any]) -> tuple[WorldPlace, ...]:
             version=1,
             label=_text(_mapping(raw, f"regions.{region_id}"), "name"),
             kind="geographic_region",
-            parent_id="mistyville",
+            parent_id=_text(_mapping(raw, f"regions.{region_id}"), "parent_place_id"),
             aliases=(),
             description=_text(_mapping(raw, f"regions.{region_id}"), "name"),
             status="active",

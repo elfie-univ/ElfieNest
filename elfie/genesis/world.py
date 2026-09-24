@@ -264,6 +264,16 @@ class WorldPlace:
 
 
 @dataclass(frozen=True)
+class WorldPlaceRelation:
+    """One reviewed spatial relation between two registered public places."""
+
+    subject_id: str
+    relation: str
+    object_id: str
+    source_ref: str = ""
+
+
+@dataclass(frozen=True)
 class WorldStoryEvent:
     event_id: str
     version: int
@@ -295,6 +305,7 @@ class GenesisSourcePackage:
     unknown_boundaries: tuple[str, ...]
     manifest: SourcePackageManifest
     routes: tuple[GenesisRoute, ...] = ()
+    place_relations: tuple[WorldPlaceRelation, ...] = ()
     spatial_population: SpatialPopulationModel = field(
         default_factory=SpatialPopulationModel
     )
@@ -355,5 +366,6 @@ __all__ = (
     "WorldItemStatus",
     "WorldKnowledgeFact",
     "WorldPlace",
+    "WorldPlaceRelation",
     "WorldStoryEvent",
 )

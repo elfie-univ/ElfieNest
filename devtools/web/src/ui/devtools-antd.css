@@ -57,6 +57,19 @@
 .lab-form .ant-alert,
 .food-editor-form .ant-alert { margin: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.elfie-creation-modal .ant-modal-body { max-height: calc(100dvh - 140px); }
+.elfie-creation-form { gap: 10px; }
+.elfie-creation-form > label { gap: 4px; }
+.elfie-creation-identity { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 14px; }
+.elfie-creation-identity > label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; color: var(--text-secondary); font-size: 14px; font-weight: 650; white-space: nowrap; }
+.elfie-creation-identity .ant-input { min-width: 0; }
+.elfie-creation-form textarea.ant-input { min-height: 48px; }
+.elfie-creation-advanced { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 10px; }
+.elfie-creation-advanced .trait-row { grid-template-columns: 48px minmax(0, 1fr) 38px; gap: 6px; min-width: 0; font-size: 12px; }
+.elfie-creation-advanced .ant-slider { min-width: 0; margin: 5px 6px; }
+.elfie-creation-advanced .creation-gender-field { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
+.elfie-creation-actions { position: sticky; bottom: -24px; z-index: 1; margin-top: 0; padding: 10px 0; background: var(--surface-primary); }
+.elfie-creation-actions > .ant-btn:first-child { margin-right: auto; padding-inline: 0; color: var(--accent-primary); }
 
 .food-connection-switch.ant-segmented { padding: 4px; background: var(--surface-inset); }
 .food-connection-switch .ant-segmented-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -153,4 +166,10 @@
   .lab-modal .ant-modal { max-width: calc(100vw - 20px); margin: 10px auto; }
   .lab-modal .ant-modal-body { max-height: calc(100vh - 115px); padding: 18px; }
   .food-connection-switch .ant-segmented-group { grid-template-columns: 1fr; }
+  .elfie-creation-advanced { grid-template-columns: 1fr; }
+  .elfie-creation-actions { bottom: -18px; }
+}
+
+@media (max-width: 560px) {
+  .elfie-creation-identity { grid-template-columns: 1fr; gap: 10px; }
 }

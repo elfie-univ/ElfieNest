@@ -25,6 +25,7 @@ function renderSidebar(session: ElfieSession | null): string {
     onCreate={doNothing}
     onDelete={doNothing}
     onEditPersonality={doNothing}
+    onOpenSelfhood={doNothing}
     onFood={doNothing}
     onMenu={doNothing}
     onNewFood={doNothing}
@@ -46,6 +47,25 @@ describe("Elfie memory visualization SSR boundary", () => {
     // Then: the established empty-state outcome remains available.
     expect(markup).toContain("创建第一只");
     expect(markup).not.toContain("本地开发环境");
+  });
+
+  it("offers the Selfhood module beside the Big Five panel", () => {
+    const session = sessionSchema.parse({
+      elfie_id: "elfie-1",
+      profile: {
+        elfie_id: "elfie-1", name: "艾菲", species_id: "fox", age_years: 4, life_stage: "成年", gender: "female", origin_place_label: "东部森林", big_five: { openness: .5, conscientiousness: .5, extraversion: .5, agreeableness: .5, neuroticism: .5 }, appearance: {},
+        selfhood_projection: { revision: 1, captured_at: "2026-01-01T00:00:00Z", identity_core_text: "我是艾菲", adaptive_self_text: "保持好奇" },
+      },
+      current_state: { energy: 100, fatigue: 0, primary_emotion: "calm", is_sleeping: false },
+      turns: [],
+    });
+
+    const markup = renderSidebar(session);
+    expect(markup).toContain("修改");
+    expect(markup).toContain("Selfhood");
+    expect(markup).toContain("4 岁 · 成年");
+    expect(markup).toContain("雌性");
+    expect(markup).toContain("东部森林");
   });
 });
 

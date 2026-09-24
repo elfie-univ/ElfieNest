@@ -131,7 +131,6 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
         for field in (
             "name",
             "species_id",
-            "age_years",
             "description",
             "appearance_description",
         )
@@ -150,6 +149,79 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
     assert created.status_code == 201
     assert created.json()["profile"]["age_years"] == 2.0
     assert created.json()["profile"]["life_stage"] == "青年"
+
+
+def test_create_elfie_uses_explicit_advanced_candidate_values(
+    tmp_path, client_for, monkeypatch
+):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    captured = []
+    compile_candidate = app.state.storage._genesis.compile
+
+    def capture_candidate(request):
+        captured.append(request)
+        return compile_candidate(request)
+
+    monkeypatch.setattr(app.state.storage._genesis, "compile", capture_candidate)
+    traits = {
+        "openness": 0.12,
+        "conscientiousness": 0.34,
+        "extraversion": 0.56,
+        "agreeableness": 0.78,
+        "neuroticism": 0.9,
+    }
+    response = client.post(
+        "/api/elfies",
+        json={
+            **complete_elfie_payload("高级精灵", "fox"),
+            "age_years": 6,
+            "gender": "male",
+            "big_five": traits,
+        },
+    )
+
+    assert response.status_code == 201
+    profile = response.json()["profile"]
+    assert profile["age_years"] == 6
+    assert profile["gender"] == "male"
+    assert profile["origin_place_label"]
+    assert profile["big_five"] == traits
+    assert profile["selfhood_projection"]["identity_core_text"].startswith(
+        "我是 〈高级精灵〉"
+    )
+    assert (
+        "我的稳定相处与表达方式" in profile["selfhood_projection"]["adaptive_self_text"]
+    )
+    assert len(captured) == 1
+    assert captured[0].gender == "male"
+    assert captured[0].candidate is not None
+    assert captured[0].candidate.gender == "male"
+    assert captured[0].candidate.age_years == 6
+    assert captured[0].candidate.personality.candidate.latent == tuple(
+        4 * value - 2 for value in traits.values()
+    )
+
+
+def test_create_elfie_basic_randomizes_unset_advanced_values(tmp_path, client_for):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload("基础精灵", "dog")
+    payload.pop("age_years")
+    response = client.post("/api/elfies", json=payload)
+
+    assert response.status_code == 201
+    assert 2 <= response.json()["profile"]["age_years"] <= 20
+    assert all(
+        0 <= value <= 1 for value in response.json()["profile"]["big_five"].values()
+    )
+
+
+def test_create_elfie_rejects_invalid_advanced_values(tmp_path, client_for):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload()
+    for changes in ({"age_years": 1}, {"gender": "any"}, {"big_five": {"openness": 2}}):
+        response = client.post("/api/elfies", json={**payload, **changes})
+        assert response.status_code == 422
 
 
 def test_update_big_five_refreshes_current_session_profile(tmp_path, client_for):

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Input, Modal, Select, Slider } from "antd";
 
 import type { BigFive, ElfieListItem, ElfieSession, FoodConfiguration, FoodItem, ModelSubscription, OllamaProbe } from "./contracts";
-import { createSubmissionGate, creationAgeError } from "./viewModel";
+import { createSubmissionGate, creationAgeError, randomCreationValues } from "./viewModel";
 
 type FoodManagementView = "list" | "form";
 type OllamaProbeView = Readonly<{
@@ -21,6 +21,7 @@ type Props = Readonly<{
   readonly modelSubscriptions: readonly ModelSubscription[];
   readonly deleteTarget: ElfieListItem | null;
   readonly personalityTarget: ElfieSession | null;
+  readonly selfhoodTarget: ElfieSession | null;
   readonly onCreateClose: () => void;
   readonly onElfieManagementClose: () => void;
   readonly onElfieManagementCreate: () => void;
@@ -35,12 +36,15 @@ type Props = Readonly<{
   readonly onDelete: () => void;
   readonly onPersonalityClose: () => void;
   readonly onPersonality: (values: BigFive) => void;
+  readonly onSelfhoodClose: () => void;
 }>;
 
 export type Creation = Readonly<{
   readonly name: string;
   readonly species_id: string;
-  readonly age_years: string;
+  readonly age_years?: string;
+  readonly gender?: "male" | "female";
+  readonly big_five?: BigFive;
   readonly description: string;
   readonly appearance_description: string;
   readonly personality_description: string;
@@ -57,7 +61,6 @@ const traits: readonly [keyof BigFive, string][] = [
 const initialCreation: Creation = {
   name: "",
   species_id: "dog",
-  age_years: "2",
   description: "用于本地调试的单精灵",
   appearance_description: "默认测试外貌",
   personality_description: "",
@@ -104,8 +107,42 @@ function selectedOptionValue(models: readonly string[], value: string, fallback 
   return models.includes(value) ? value : fallback;
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function textList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
+function SelfhoodPanel({ session }: Readonly<{ session: ElfieSession }>): React.JSX.Element {
+  const [view, setView] = useState<"state" | "projection">("state");
+  const projection = session.profile.selfhood_projection;
+  const state = record(session.current_state.selfhood);
+  const identity = record(state.identity_core);
+  const adaptive = record(state.adaptive_self);
+  const bigFive = record(adaptive.big_five);
+  const groups = [
+    ["互动倾向", textList(adaptive.interaction_tendency_ids)],
+    ["应对与注意", textList(adaptive.coping_tendency_ids)],
+    ["表达倾向", textList(adaptive.expression_tendency_ids)],
+    ["个人规范", textList(adaptive.value_ids)],
+    ["口癖候选", textList(adaptive.speech_marker_ids)],
+    ["来源事件", textList(adaptive.source_event_ids)],
+  ] as const;
+  return <div className="selfhood-output">
+    <div className="selfhood-toolbar"><p>{view === "state" ? "Selfhood 当前保存的结构化状态。" : "由这些状态确定性组装、每轮提供给大模型的文字。"}</p><Button onClick={() => setView((current) => current === "state" ? "projection" : "state")} size="small">{view === "state" ? "查看组装输出" : "返回存储值"}</Button></div>
+    {view === "state" ? <section className="selfhood-state"><h3>身份核心</h3><dl><dt>精灵 ID</dt><dd>{String(identity.elfie_id ?? "—")}</dd><dt>名字</dt><dd>{String(identity.display_name ?? "—")}</dd><dt>物种 ID</dt><dd>{String(identity.species_id ?? "—")}</dd><dt>正式物种</dt><dd>{String(identity.species_name ?? "—")}</dd><dt>居民身份</dt><dd>{String(identity.resident_role ?? "—")}</dd></dl>
+      <h3>大五人格</h3><div className="selfhood-big-five">{traits.map(([key, label]) => <div key={key}><span>{label}</span><strong>{Number(bigFive[key] ?? session.profile.big_five[key]).toFixed(4)}</strong></div>)}</div>
+      <h3>适应性自我</h3>{groups.map(([label, values]) => <div className="selfhood-state-group" key={label}><strong>{label}</strong><span>{values.length ? values.map((value) => <i key={value}>{value}</i>) : <em>未设置</em>}</span></div>)}
+    </section> : projection ? <section className="selfhood-projection"><h3>给大模型的组装输出</h3><pre>{projection.identity_core_text}{"\n\n"}{projection.adaptive_self_text}</pre><small>Selfhood revision {projection.revision}</small></section> : <Alert message="当前会话没有 Selfhood 输出投影" showIcon type="warning" />}
+  </div>;
+}
+
 export function ElfieModals(props: Props): React.JSX.Element {
   const [creation, setCreation] = useState<Creation>(initialCreation);
+  const [creationAdvanced, setCreationAdvanced] = useState(false);
+  const [creationValues, setCreationValues] = useState(() => randomCreationValues("dog"));
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [view, setView] = useState<FoodManagementView>("list");
@@ -129,6 +166,8 @@ export function ElfieModals(props: Props): React.JSX.Element {
   useEffect(() => {
     if (!props.createOpen) return;
     setCreation(initialCreation);
+    setCreationAdvanced(false);
+    setCreationValues(randomCreationValues("dog"));
     setCreating(false);
     setCreateError("");
     creationGate.current.leave();
@@ -279,14 +318,14 @@ export function ElfieModals(props: Props): React.JSX.Element {
     }));
   }
 
-  function setCreationValue(name: keyof Creation, value: string): void {
+  function setCreationValue(name: "name" | "species_id" | "description", value: string): void {
     setCreation((current) => ({ ...current, [name]: value }));
   }
 
   async function submitCreation(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!creationGate.current.enter()) return;
-    const validationError = creationAgeError(creation.age_years, creation.species_id);
+    const validationError = creationAgeError(String(creationValues.age), creation.species_id);
     if (validationError !== null) {
       creationGate.current.leave();
       setCreateError(validationError);
@@ -295,7 +334,12 @@ export function ElfieModals(props: Props): React.JSX.Element {
     setCreating(true);
     setCreateError("");
     try {
-      const created = await props.onCreate(creation);
+      const created = await props.onCreate({
+        ...creation,
+        age_years: String(creationValues.age),
+        gender: creationValues.gender,
+        big_five: creationValues.bigFive,
+      });
       if (created !== true) setCreateError(typeof created === "string" ? created : "创建失败");
     } finally {
       creationGate.current.leave();
@@ -516,13 +560,20 @@ export function ElfieModals(props: Props): React.JSX.Element {
       <section aria-label="测试精灵列表" className="elfie-management-list">{props.elfies.length ? props.elfies.map((item) => <article className="elfie-management-row" key={item.elfie_id}><div><strong>{item.name}</strong><small>{item.species_id === "dog" ? "小狗" : "狐狸"} · {item.elfie_id}</small></div><div><Button onClick={() => props.onElfieManagementSelect(item.elfie_id)}>选择</Button><Button danger onClick={() => props.onElfieManagementDelete(item.elfie_id)}>删除</Button></div></article>) : <p className="form-empty">还没有测试精灵。点击上方按钮新建。</p>}</section>
     </Modal>
 
-    <Modal className="lab-modal" closable={!creating} footer={null} onCancel={() => { if (!creating) props.onCreateClose(); }} open={props.createOpen} title={<ModalTitle eyebrow="独立测试数据" title="新建测试精灵" />} width={680} zIndex={1300}>
-      <form aria-label="新建测试精灵" className="lab-form" onSubmit={(event) => { void submitCreation(event); }}>
-        <label>精灵物种<Select onChange={(value) => setCreationValue("species_id", value)} options={[{ label: "小狗", value: "dog" }, { label: "狐狸", value: "fox" }]} value={creation.species_id} /></label>
-        <label>精灵名称<Input autoComplete="off" maxLength={60} onChange={(event) => setCreationValue("name", event.target.value)} placeholder="给它起一个名字" required value={creation.name} /></label>
-        <label>用途描述<Input.TextArea maxLength={240} onChange={(event) => setCreationValue("description", event.target.value)} placeholder="例如：验证普通聊天" required rows={2} value={creation.description} /></label>
+    <Modal className="lab-modal elfie-creation-modal" closable={!creating} footer={null} onCancel={() => { if (!creating) props.onCreateClose(); }} open={props.createOpen} title={<ModalTitle eyebrow="独立测试数据" title="新建测试精灵" />} width={680} zIndex={1300}>
+      <form aria-label="新建测试精灵" className="lab-form elfie-creation-form" onSubmit={(event) => { void submitCreation(event); }}>
+        <div className="elfie-creation-identity">
+          <label><span>物种：</span><Select onChange={(value) => { setCreationValue("species_id", value); setCreationValues((current) => ({ ...current, age: current.age <= (value === "fox" ? 15 : 20) ? current.age : randomCreationValues(value).age })); }} options={[{ label: "小狗", value: "dog" }, { label: "狐狸", value: "fox" }]} value={creation.species_id} /></label>
+          <label><span>姓名：</span><Input autoComplete="off" maxLength={60} onChange={(event) => setCreationValue("name", event.target.value)} placeholder="给它起一个名字" required value={creation.name} /></label>
+        </div>
+        <label>用途描述<Input.TextArea maxLength={240} onChange={(event) => setCreationValue("description", event.target.value)} placeholder="例如：验证普通聊天" required rows={3} value={creation.description} /></label>
+        {creationAdvanced ? <section aria-label="高级创建参数" className="elfie-creation-advanced">
+          <label className="trait-row"><span>年龄</span><Slider max={creation.species_id === "fox" ? 15 : 20} min={2} onChange={(age) => setCreationValues((current) => ({ ...current, age }))} step={1} value={creationValues.age} /><output>{creationValues.age} 岁</output></label>
+          <label className="creation-gender-field"><span>性别</span><Select onChange={(gender) => setCreationValues((current) => ({ ...current, gender }))} options={[{ label: "雌性", value: "female" }, { label: "雄性", value: "male" }]} value={creationValues.gender} /></label>
+          {traits.map(([key, label]) => <label className="trait-row" key={key}><span>{label}</span><Slider aria-label={label} max={1} min={0} onChange={(value) => setCreationValues((current) => ({ ...current, bigFive: { ...current.bigFive, [key]: value } }))} step={0.01} value={creationValues.bigFive[key]} /><output>{creationValues.bigFive[key].toFixed(2)}</output></label>)}
+        </section> : null}
         {createError ? <Alert message={createError} showIcon type="error" /> : null}
-        <div className="modal-actions"><Button disabled={creating} onClick={props.onCreateClose}>取消</Button><Button htmlType="submit" loading={creating} type="primary">创建并切换</Button></div>
+        <div className="modal-actions elfie-creation-actions"><Button aria-expanded={creationAdvanced} disabled={creating} onClick={() => setCreationAdvanced((current) => !current)} type="text">{creationAdvanced ? "收起高级" : "展开高级"}</Button><Button disabled={creating} onClick={props.onCreateClose}>取消</Button><Button htmlType="submit" loading={creating} type="primary">创建并切换</Button></div>
       </form>
     </Modal>
 
@@ -532,6 +583,10 @@ export function ElfieModals(props: Props): React.JSX.Element {
         <div className="trait-editor">{traits.map(([key, label]) => <label className="trait-row" key={key}><span>{label}</span><Slider aria-label={label} max={1} min={0} onChange={(value) => setValues((current) => ({ ...current, [key]: value }))} step={0.01} value={values[key]} /><output>{values[key].toFixed(2)}</output></label>)}</div>
         <div className="modal-actions"><Button onClick={props.onPersonalityClose}>取消</Button><Button htmlType="submit" type="primary">保存修改</Button></div>
       </form>
+    </Modal>
+
+    <Modal className="lab-modal selfhood-modal" footer={null} onCancel={props.onSelfhoodClose} open={props.selfhoodTarget !== null} title={<ModalTitle eyebrow="Brain · Selfhood" title="Selfhood 模块" />} width={760} zIndex={1300}>
+      {props.selfhoodTarget ? <SelfhoodPanel session={props.selfhoodTarget} /> : null}
     </Modal>
 
     <Modal className="lab-modal confirm-modal" footer={null} onCancel={props.onDeleteClose} open={props.deleteTarget !== null} title={<ModalTitle eyebrow="可恢复删除" title="删除测试精灵" />} width={520} zIndex={1300}>

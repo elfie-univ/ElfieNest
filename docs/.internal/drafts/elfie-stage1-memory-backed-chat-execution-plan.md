@@ -7,7 +7,7 @@
 > 当前优先级：P0；先完成“通过聊天认识一只完整外星精灵”，不进入精灵巢真实生活
 > 文档边界：本文冻结目标、事实所有权、实施顺序和验收门；不表示这些能力已经实现
 > 当前架构说明：本文保留 Stage 1 的历史实施与验收证据；Profile、Genesis 和创建输入的现行边界以
-> ADR-0033、Elfie 2.3、Brain 1.5 与 [Genesis v0.3](./genesis-core-kernel-design-v0.3.md) 为准，本文旧有
+> ADR-0033、Elfie 2.3、Brain 1.5 与 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准，本文旧有
 > Manifest/Profile-Canon 表述不得覆盖它们
 
 ## 当前基线后的执行窗口（2026-08-27）

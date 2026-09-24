@@ -44,6 +44,7 @@ from .contracts import (
     InitializationManifest,
     KnowledgeMastery,
     KnowledgeSeed,
+    PlaceRelationSeed,
     PlaceSeed,
     ProfileDraft,
     RelationshipSeed,
@@ -521,14 +522,12 @@ class GenesisCompiler:
         )
         square = _first_place_id(source.places, kind="settlement_shared_space")
         waystation = _first_place_id(source.places, kind="departure_facility")
-        gateway = _first_place_id(source.places, kind="earth_gateway_station")
         visited = _unique(
             item
             for item in (
                 private_home,
                 public_home,
                 learning_place,
-                square,
                 waystation,
                 life_rule.workplace_place_id,
             )
@@ -570,15 +569,26 @@ class GenesisCompiler:
             proficiency_band=life_rule.proficiency_band,
             workplace_place_id=life_rule.workplace_place_id,
         )
-        # Endpoint visibility or a birthplace never proves full route traversal.
-        mobility = LifeContextMobility(visited_place_ids=visited, familiar_route_ids=())
+        # A named route is familiar only when both of its reviewed endpoints
+        # are part of the lived projection. The mandatory final segment to the
+        # Earthbound Station is therefore retained as ``earthbound_road``;
+        # using that facility does not imply a town-center visit.
+        mobility = LifeContextMobility(
+            visited_place_ids=visited,
+            familiar_route_ids=_unique(
+                (
+                    *_routes_for_places(source, visited),
+                    _route_between(source, square, waystation),
+                )
+            ),
+        )
         preparation_days = source.earth_arrival_rules.preparation_duration_local_days
         if preparation_days != 3:
             raise GenesisError("赴地前准备固定为一次 3 个本地日的简单培训")
         transition = LifeContextEarthTransition(
             preparation_duration_local_days=preparation_days,
             departure_place_id=waystation or public_home,
-            route_id=_route_between(source, waystation, gateway),
+            route_id=_route_between(source, square, waystation),
             earth_household_ref=request.owner_reference,
             invitation_accepted=request.invitation_accepted,
         )
@@ -1091,6 +1101,11 @@ class GenesisCompiler:
         for index, theme in enumerate(selected):
             person_ids = self._people_for_theme(theme, relationships, request)
             place_ids = self._places_for_theme(theme, context, request)
+            route_ids = (
+                context.mobility.familiar_route_ids
+                if theme.theme_id in {"departure-decision", "arrival-nest"}
+                else _routes_for_places(self._source, place_ids)
+            )
             event_age = max(
                 theme.min_age_years,
                 min(
@@ -1132,6 +1147,7 @@ class GenesisCompiler:
                     temporal_label=temporal_label,
                     life_stage=event_stage,
                     place_ids=place_ids,
+                    route_ids=route_ids,
                     person_ids=person_ids,
                     result=theme.outcome,
                     feeling=(
@@ -1355,6 +1371,7 @@ class GenesisCompiler:
             knowledge_seeds=knowledge_seeds,
             episode_seeds=episodes,
             place_seeds=self._place_seeds(context, request),
+            place_relation_seeds=self._place_relation_seeds(),
         )
         content_hash = genesis_content_hash(bundle)
         output_ids = planned_genesis_output_ids(bundle)
@@ -1406,6 +1423,7 @@ class GenesisCompiler:
                 kind="home_world",
                 aliases=(self._source.display_name,),
                 source_ref=f"place:{self._source.world_id}",
+                importance=0.35,
             )
         )
         append(
@@ -1416,6 +1434,7 @@ class GenesisCompiler:
                 parent_id=self._source.world_id,
                 aliases=(),
                 source_ref=f"place:{self._source.known_region_id}",
+                importance=0.65,
             )
         )
         append(
@@ -1426,11 +1445,43 @@ class GenesisCompiler:
                 parent_id=context.origin.predeparture_home_place_id,
                 visibility="private",
                 source_ref="genesis:private-home",
+                importance=0.9,
             )
         )
+        # The public geography graph is part of every Elfie's initial Memory.
+        # Personal familiarity is represented by visit episodes and importance,
+        # not by deleting public place nodes from the shared graph.
+        requested.update(place.place_id for place in self._source.places)
+        familiar = {
+            place_id
+            for place_id in (
+                *context.mobility.visited_place_ids,
+                context.origin.birth_settlement_id,
+                context.earth_transition.departure_place_id,
+                request.arrival_base_id,
+                f"private:{request.elfie_id}:home",
+            )
+            if place_id
+        }
+        pending_familiar = list(familiar)
+        while pending_familiar:
+            current = pending_familiar.pop()
+            parent = place_by_id.get(current)
+            if parent is None or not parent.parent_id or parent.parent_id in familiar:
+                continue
+            if parent.parent_id in place_by_id:
+                familiar.add(parent.parent_id)
+                pending_familiar.append(parent.parent_id)
         for place in sorted(self._source.places, key=lambda item: item.place_id):
             if place.place_id not in requested:
                 continue
+            importance = (
+                0.9
+                if place.place_id in context.mobility.visited_place_ids
+                else 0.65
+                if place.place_id in familiar
+                else 0.35
+            )
             append(
                 PlaceSeed(
                     place_id=place.place_id,
@@ -1440,6 +1491,7 @@ class GenesisCompiler:
                     aliases=place.aliases,
                     description=place.description,
                     source_ref=f"place:{place.place_id}",
+                    importance=importance,
                 )
             )
         if request.arrival_base_id not in place_by_id:
@@ -1450,9 +1502,21 @@ class GenesisCompiler:
                     kind="earth_home",
                     description=self._source.earth_home_role,
                     source_ref="genesis:accepted-arrival-base",
+                    importance=0.9,
                 )
             )
         return tuple(result)
+
+    def _place_relation_seeds(self) -> tuple[PlaceRelationSeed, ...]:
+        return tuple(
+            PlaceRelationSeed(
+                subject_id=relation.subject_id,
+                relation=relation.relation,
+                object_id=relation.object_id,
+                source_ref=relation.source_ref,
+            )
+            for relation in self._source.place_relations
+        )
 
     def _generated_names(
         self, request: GenesisCompileInput, count: int
@@ -1595,6 +1659,23 @@ def _route_between(source: GenesisSourcePackage, start: str, end: str) -> str:
         if {route.from_place_id, route.to_place_id} == {start, end}:
             return route.route_id
     return ""
+
+
+def _routes_for_places(
+    source: GenesisSourcePackage, place_ids: Iterable[str]
+) -> tuple[str, ...]:
+    """Return declared route aliases whose endpoints were both contacted."""
+
+    contacted = {place_id for place_id in place_ids if place_id}
+    if not contacted:
+        return ()
+    return tuple(
+        route.route_id
+        for route in sorted(source.routes, key=lambda item: item.route_id)
+        if route.from_place_id != route.to_place_id
+        and route.from_place_id in contacted
+        and route.to_place_id in contacted
+    )
 
 
 def _unique(values: Iterable[str]) -> tuple[str, ...]:

@@ -4,7 +4,9 @@
 - **Date:** 2026-09-22
 - **Scope:** configuration placement and preparation-package integrity
 
-> The draft-only publication gate below is superseded by [ADR-0040](./0040-genesis-source-publication-before-activation). The inventory and no-dual-read decisions remain.
+> The draft-only publication gate and the pre-cutover production-reader statement
+> below are superseded by [ADR-0040](./0040-genesis-source-publication-before-activation)
+> and the CFG-006 closure. The inventory and no-dual-read decisions remain.
 
 ## Decision
 
@@ -14,9 +16,11 @@ hash-bound manifest. Inspection validates technical integrity, not life semantic
 The inspector rejects published status until a separately verified publication
 and typed-consumer implementation exists.
 
-Current production world/species readers remain unchanged. No dual read, fallback,
-new creation engine or runtime source dependency is introduced. The later cutover
-must retire old creation inputs while preserving required runtime appearance assets.
+At the time of this decision, production world/species readers remained unchanged.
+The decision introduced no dual read, fallback, new creation engine or runtime
+source dependency. The later cutover retired those creation inputs while
+preserving required runtime appearance assets; the current single-path state is
+recorded by ADR-0040 and CFG-006.
 Missing geography, course evidence or unresolved policy remains a publication
 blocker rather than a default invented by a loader.
 

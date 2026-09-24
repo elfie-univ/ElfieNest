@@ -114,6 +114,7 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
         }
         assert {path.name for path in (design_root / "elfie").glob("*.md")} == {
             "elfie-top-level-module-design.md",
+            "genesis-complete-design.md",
         }
         assert {
             path.name for path in (design_root / "elfie" / "embodiment").glob("*.md")
@@ -147,6 +148,7 @@ def test_design_documents_use_the_lazy_owner_hierarchy() -> None:
             design_root / "app" / "native-release-validation.md",
             design_root / "app" / "service-lifecycle-state-machine.md",
             design_root / "elfie" / "elfie-top-level-module-design.md",
+            design_root / "elfie" / "genesis-complete-design.md",
             *(design_root / "elfie" / "embodiment").glob("*.md"),
             *(design_root / "elfie" / "brain").glob("*.md"),
         )
@@ -166,6 +168,8 @@ def test_public_content_directories_are_not_empty() -> None:
 def test_vitepress_navigation_uses_the_protected_paths() -> None:
     config = (DOCS_ROOT / ".vitepress" / "config.mts").read_text(encoding="utf-8")
     required_paths = {
+        'link: "/developer/designs/elfie/genesis-complete-design"',
+        'link: "/zh/developer/designs/elfie/genesis-complete-design"',
         'link: "/user-guide/"',
         'link: "/zh/user-guide/"',
         'link: "/developer/architecture/"',

@@ -30,9 +30,28 @@
 
 | ID | 严重度 | 状态 | 当前偏差 | 关闭条件 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| ELF-019 | P0 | open | 已发布的 `config/genesis/` 资料包现为唯一创建来源，旧生产路径已移除（CFG-006 已关闭）。剩余缺口是端到端人生可行性、接受输入/版本绑定、完整个人知识/关系/Episode/Selfhood 投影，以及由 Nest 确认的入驻。当前先持久化 Genesis 结果，再尝试 Runtime 注册；Runtime 恢复独立进行。 | 在现有单一创建链上完成下方剩余语义与入驻门禁；保留断源恢复、已激活资料包绑定及最终所有者 authority，不增加第二来源路径。 | target=Elfie 2.6、Application 1.12、Configuration 1.7、ADR-0033/0040；inventory=Bootstrap 源、Adoption 候选/会话、Genesis 编译/初始化、Memory、Admission、Nest、UI；references=`config/genesis/program.yaml`、ADR-0033/0040、`app_wiring/adoption.py`、`compiler.py`、`initializer.py`、`resident_admission/service.py`；verification=聚焦现状测试、资料包/可行性、五步语义、Memory Recall 和中断入驻验收；residuals=下方七个剩余收口切片。 |
+| ELF-019 | P0 | open | 已发布的 `config/genesis/` 资料包现为唯一创建来源，旧生产路径已移除（CFG-006 已关闭）。剩余缺口是端到端人生可行性、接受输入/版本绑定、完整个人知识/关系/Episode/Selfhood 投影，以及由 Nest 确认的入驻。当前先持久化 Genesis 结果，再尝试 Runtime 注册；Runtime 恢复独立进行。 | 在现有单一创建链上完成下方剩余语义与入驻门禁；保留断源恢复、已激活资料包绑定及最终所有者 authority，不增加第二来源路径。 | target=Elfie 2.6、Application 1.12、Configuration 1.7、ADR-0033/0040；inventory=Bootstrap 源、Adoption 候选/会话、Genesis 编译/初始化、Memory、Admission、Nest、UI；references=`config/genesis/program.yaml`、ADR-0033/0040、`app_wiring/adoption.py`、`compiler.py`、`initializer.py`、`resident_admission/service.py`；verification=聚焦现状测试、资料包/可行性、五步语义、Memory Recall 和中断入驻验收；residuals=下方六个剩余收口切片。 |
 
 **收口状态：** open
+
+## 已采纳 Genesis 设计对齐
+
+[Genesis 完整设计](../designs/elfie/genesis-complete-design.md) 1.0 是唯一维护的详细设计。
+ELF-019 继续保持 **open**；原有收口步骤补充以下目标，不另建平行台账。
+
+| ELF-019 内的目标 | 盘点与引用 | 必需验收 | 剩余项 |
+| --- | --- | --- | --- |
+| 版本化个体策略 | 参数源 `generation#11`、Program 规则、Genesis 强类型消费者 | 编译角色/重要性、目的份额、文化吸引、公开地点清单和数值抽样版本；检查引用与样本分布 | 源稿默认值已冻结，活动包尚未编译或启用该策略 |
+| 候选年龄与家庭网 | 候选注册、Genesis 人生生成；设计 3.1、6.5.3 | 尊重所选阶段与四年余量；共享子女集合、主角锚定、有限展开、合法生育/排行、生命状态与照护 | 待生成实现及边界案例证据 |
+| 接触、行程与时间线 | Genesis 人生/个人计划；设计 6.5.4～6.5.7 | 好友稳定抽样、不递归扩家、不重复累计机会；路线/权限/时段、重复访问与停留、本人知情过滤 | 待端到端语义证据 |
+| 赴地基站资料一致性 | 地理基站 parent 与居民单元 B-03、B-03-02、B-06-09、B-06-17、E-08 | 基站是辖域独立设施，到基站不等于到镇中心；混合条件单元拆分并保留旧新映射，同步源稿/编译条件/摘要；镇外赴地不获得镇中心知识 | 源文档/YAML/Program 已对齐；v3 包只在 geography 中保留地点和路线注册表，初始基站/镇中心地点图谱断言已完成本地验证。完整入驻与 Recall 证据仍归公共地理切片 |
+| 公共地理、故事与知识 | 设计 6.5.5 的居民基线清单、个人计划及 Memory 输入 | 应知地点/关系、无条件知识实际形成；全部实际访问与必要生命事件有证据；故事保留完整知识与事件时资格 | 当前切片已持久化全部发布地点节点及其容器层级、审定空间关系、已实现 Episode 的带证据 `visits` 边及 Episode 中的路线 ID；完整访问/故事提取覆盖与 Recall 证据仍待补齐 |
+| 最终所有者与 Lab | Selfhood/Memory 提交、Lab 所有者投影；设计 5.4、6.5.10 | 同一创建链检查 Profile 来源/年龄/性别、Selfhood 存储及组装输出、经历/人物/地点/知识和选中/未选原因 | UI 字段、源条数或原文提交不能单独证明完成 |
+
+本次文档归位不改变运行策略、世界事实、存储契约或入驻状态。资料矛盾是明确的激活门，
+不能以放宽资格替代修复；关闭时仍须提供 target、inventory、references、verification、residuals 五类证据。
+
+
 ## 机器覆盖
 
 系统层扫描器禁止反向根导入并精确棘轮 Elfie 直接技术 import；Elfie 技术 import 精确
@@ -113,3 +132,18 @@ Genesis v1 收口顺序如下。CFG-006 已关闭；其余项目仍是独立开�
 运行期依赖。ELF-013 的结构切片继续关闭；ELF-019 仍待剩余生成与入驻证据后收口。
 CFG-006 已在[配置管理台账](configuration-management)中关闭。
 真实既有 workspace 迁移与 Myelle 角色资产完成是独立范围，不藏进 Genesis v1 切换。
+
+
+### 本轮审查与执行验收补充
+
+ELF-019 是实现与验收差距，open 不表示详细设计未完成；每片具备证据后局部收口，全部目标满足后才关闭整行。CFG-006 关闭的是单一创建资料入口，不能替代内容正确性与消费完整性验收。现有契约的单一来源、Genesis 决策和 Memory 所有权仍适用，无须增加第二接口。
+
+| 顺序 / 既有所有者 | 具体任务 | 验收与当前状态 |
+| --- | --- | --- |
+| 1 / geography 源、成员与配置 Adapter | 单一地点/路由注册表，五区层级，区域说明和私人家乡挂载 | 已修正源稿、YAML 和父级投影；检查恰好五个直接分区、中心/基站并列、无环、外部区不入镇。抽样代码仍存在内部类型中，公共 Memory 投影过滤及完整描述覆盖待实现 |
+| 2 / Program 与 Genesis compiler | 把已冻结策略参数编译成强类型输入，消费五区归属、路网和年龄/家庭/访问规则 | 参数逐项有来源、消费者和边界案例；缺失阻止发布/生成，不能代码默认值掩盖。依原有步骤 2–6 顺序实施 |
+| 3 / 居民知识编译与 Genesis | 登记小主题成员映射；先个人资格筛选，再组织已获原文，保留时间与原子边界 | 当前 topic 仅取 ID 大章，主题组织未实现；核对全部成员只属于合法主题，不混入未获得知识，不丢正文 |
+| 4 / Memory 与 Recall | 既定 APSO 入口接收有界主题材料，保留逐事实证据；检索命中后展开同主题已获内容 | 待实现；跨成员问题、长主题预算、时间/权限隔离、去重、断源恢复都要实测。原子写入测试不能替代检索效果 |
+| 5 / Lab 与 Admission | 用同一生成链检查分区、完整人生与分组知识，完成原有入驻门 | 待实现/验收；三方提交与崩溃恢复沿步骤 8，不能以 Lab 展示或资料包校验宣布完成 |
+
+保留当前 Bootstrap → Adoption → Genesis → 最终 owner → Admission 主链、版本绑定、现有关系/经历依据和断源恢复；按上述依赖原地扩展。地理内容修正已落地，知识组织是明确待实施目标；未证明的运行和检索效果不写成已完成。所有后续数值、篇幅上限、主题映射均进入版本化包并由真实消费者验证。

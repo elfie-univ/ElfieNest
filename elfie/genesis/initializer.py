@@ -234,6 +234,7 @@ class GenesisMemoryCommitter:
         place_node_ids = self._write_places(bundle, storage, scope, now)
         node_ids.extend(place_node_ids.values())
         self._write_place_hierarchy(bundle, storage, place_node_ids, now)
+        self._write_place_relations(bundle, storage, place_node_ids, now)
 
         person_node_ids: dict[str, str] = {}
         for relationship in bundle.relationship_seeds:
@@ -428,6 +429,7 @@ class GenesisMemoryCommitter:
                         "feeling": seed.feeling,
                         "impact": seed.impact,
                         "place_ids": list(seed.place_ids),
+                        "route_ids": list(seed.route_ids),
                         "person_ids": list(seed.person_ids),
                         "predecessor_ids": list(seed.predecessor_ids),
                         "related_ids": list(seed.related_ids),
@@ -438,6 +440,45 @@ class GenesisMemoryCommitter:
                 )
             )
             node_ids.append(episode_id)
+
+            # Keep actual episode locations queryable in the initial graph as
+            # well as in the Episode payload.  The Episode remains the source
+            # of truth for wording, route metadata and chronology; this typed
+            # edge is only the evidenced personal contact projection.
+            for place_id in seed.place_ids:
+                place_node = place_node_ids.get(place_id)
+                if place_node is None:
+                    raise GenesisValidationError(
+                        f"EpisodeSeed 引用的地点没有生成节点: {place_id}"
+                    )
+                place_seed = next(
+                    place for place in bundle.place_seeds if place.place_id == place_id
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        self_id,
+                        "visits",
+                        object_node_id=place_node,
+                        context=relation_context(
+                            "genesis_episode_place", symmetric=False, role="visited"
+                        ),
+                        epistemic_status="known",
+                        confidence=1.0,
+                        importance=relation_importance("visits", place_seed.importance),
+                    ),
+                    EvidenceInput(
+                        evidence_id=(
+                            f"genesis:evidence:episode-place:{safe_elfie}:"
+                            f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
+                        ),
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=seed.content,
+                        source_version=seed.source_version,
+                        captured_at=now,
+                    ),
+                )
 
         for relationship in bundle.relationship_seeds:
             target_key = relationship.object_id or relationship.person_id
@@ -594,7 +635,7 @@ class GenesisMemoryCommitter:
                     scope=scope,
                     status="active",
                     confidence=1.0,
-                    importance=0.8,
+                    importance=place.importance,
                     properties={
                         "entity_type": "place",
                         "place_id": place.place_id,
@@ -653,6 +694,59 @@ class GenesisMemoryCommitter:
                     source_type="seed",
                     source_id=place.source_ref or f"place:{place.place_id}",
                     excerpt=f"{place.label} 位于 {next((item.label for item in bundle.place_seeds if item.place_id == place.parent_id), place.parent_id)}。",
+                    source_version=bundle.manifest.compiler_version,
+                    captured_at=now,
+                ),
+            )
+
+    def _write_place_relations(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        place_node_ids: dict[str, str],
+        now: str,
+    ) -> None:
+        """Persist the reviewed non-hierarchical public geography relations."""
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        for relation in bundle.place_relation_seeds:
+            subject_node = place_node_ids[relation.subject_id]
+            object_node = place_node_ids[relation.object_id]
+            relation_semantics = relation_spec(relation.relation)
+            if relation_semantics is None:
+                raise GenesisValidationError(
+                    f"地点关系没有注册语义: {relation.relation}"
+                )
+            evidence_id = (
+                f"genesis:evidence:place-relation:{safe_elfie}:"
+                f"{safe_component(relation.subject_id)}:"
+                f"{safe_component(relation.relation)}:{safe_component(relation.object_id)}"
+            )
+            self._record_assertion(
+                storage,
+                AssertionInput(
+                    subject_node,
+                    relation.relation,
+                    object_node_id=object_node,
+                    context=relation_context(
+                        "genesis_place_relation",
+                        symmetric=relation_semantics.symmetric,
+                        role=relation.relation,
+                    ),
+                    epistemic_status="known",
+                    confidence=1.0,
+                    importance=relation_importance(
+                        relation.relation, relation.importance
+                    ),
+                ),
+                EvidenceInput(
+                    evidence_id=evidence_id,
+                    source_type="seed",
+                    source_id=relation.source_ref,
+                    excerpt=(
+                        f"{relation.subject_id} {relation.relation} "
+                        f"{relation.object_id}。"
+                    ),
                     source_version=bundle.manifest.compiler_version,
                     captured_at=now,
                 ),

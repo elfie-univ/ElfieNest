@@ -67,7 +67,8 @@ def _bundle() -> GenesisBundle:
 
 
 def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
-    bundle = _bundle()
+    compilation = _compilation()
+    bundle = compilation.bundle
     source = load_genesis_source_package()
     required_youth_themes = {
         theme.theme_id
@@ -76,12 +77,12 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     }
 
     assert bundle.validate() is None
-    assert len(bundle.knowledge_seeds) == 124
+    assert len(bundle.knowledge_seeds) == 120
     facts = {fact.fact_id: fact.statement for fact in source.knowledge}
     assert all(seed.content == facts[seed.seed_id] for seed in bundle.knowledge_seeds)
     knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
     assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
-    assert "B-04-02" not in knowledge_ids
+    assert {"B-03-02", "B-04-02"}.isdisjoint(knowledge_ids)
     assert {
         episode.theme_id for episode in bundle.episode_seeds
     } == required_youth_themes
@@ -90,6 +91,31 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert bundle.relationship_seeds[-2].object_kind == "person"
     assert bundle.relationship_seeds[-2].role == "owner"
     assert bundle.relationship_seeds[-1].object_kind == "group"
+    assert (
+        len(bundle.place_seeds) == 49
+    )  # 46 published places (including regions) + world/private home + Earth home
+    assert {place.place_id for place in source.places} <= {
+        seed.place_id for seed in bundle.place_seeds
+    }
+    assert len(bundle.place_relation_seeds) == 7
+    assert {
+        (relation.subject_id, relation.relation, relation.object_id)
+        for relation in bundle.place_relation_seeds
+    } == {
+        (relation.subject_id, relation.relation, relation.object_id)
+        for relation in source.place_relations
+    }
+    assert "skyreach_square" not in compilation.life_context.mobility.visited_place_ids
+    assert "earthbound_road" in compilation.life_context.mobility.familiar_route_ids
+    assert compilation.life_context.earth_transition.route_id == "earthbound_road"
+    place_importance = {seed.place_id: seed.importance for seed in bundle.place_seeds}
+    assert place_importance["earthbound_station"] > place_importance["skyreach_square"]
+    assert place_importance[f"private:{compilation.life_context.elfie_id}:home"] == 0.9
+    assert all(
+        episode.route_ids
+        for episode in bundle.episode_seeds
+        if episode.theme_id in {"departure-decision", "arrival-nest"}
+    )
     assert bundle.manifest.output_ids
 
 

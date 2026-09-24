@@ -82,6 +82,9 @@ config/
 前仍为 draft，不进入领养。见 [ADR-0039](../decisions/0039-genesis-preparation-package)
 及 [ADR-0040](../decisions/0040-genesis-source-publication-before-activation)。
 
+资料包内部由 `knowledge/geography.yaml` 唯一维护公开地点、容器父级、明确空间关系和命名路线别名的机器注册表。
+`program.yaml` 只保留这些注册表的强类型引用和生成策略，不得再复制地点或路线行，避免基站/镇中心边界及后续路线修订在成员之间漂移。
+
 ### 用户文件
 
 用户目录保持为：

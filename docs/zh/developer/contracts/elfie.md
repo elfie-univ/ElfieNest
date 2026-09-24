@@ -207,6 +207,8 @@ Brain 拥有十个 authority 不同的概念系统：
 
 ## Genesis
 
+已采纳的 [Genesis 完整设计](../designs/elfie/genesis-complete-design.md) 细化本节边界内的生成算法；实现与验收缺口仍见 [ELF-019](../conformance/elfie.md)，设计采纳不代表台账关闭。
+
 Genesis 是一次性创建流程，不是运行器官，也不是第二个 Brain。它读取已激活且已发布的强类型
 `GenesisSourcePackage`、仅创建期存在的已接受领养输入和受控随机源。`elfie/genesis/`
 拥有把这些输入变成一个个体的全部语义决定：身份解析、生活上下文、个人知识资格/掌握、

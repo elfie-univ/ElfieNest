@@ -357,6 +357,12 @@ def create_app(
                 request.description,
                 appearance_description=request.appearance_description,
                 personality_description=request.personality_description,
+                gender=request.gender,
+                big_five_overrides=(
+                    request.big_five.model_dump()
+                    if request.big_five is not None
+                    else None
+                ),
             )
             return sessions.get(spec.elfie_id).get_payload()
         except ValueError as exc:

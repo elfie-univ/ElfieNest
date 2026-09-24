@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import secrets
 import shutil
 import sqlite3
@@ -17,10 +18,17 @@ from elfie.brain.selfhood import (
     derive_personality,
 )
 from elfie.genesis import (
+    BIG_FIVE_TRAITS,
+    CandidateSignature,
+    GenesisAppearanceIntent,
+    GenesisCandidate,
     GenesisCompileInput,
     GenesisCompiler,
+    GenesisPersonality,
     stage_for_age,
 )
+from elfie.genesis.appearance import generate_appearance, signature, visible_key
+from elfie.genesis.personality import profile as genesis_personality_profile
 from infrastructure.persistence.configuration.bundled_defaults import (
     load_selfhood_defaults,
 )
@@ -73,28 +81,52 @@ class ElfieLabStorage:
         self,
         name: str,
         species_id: str = "fox",
-        age_years: float = 2.0,
+        age_years: Optional[float] = None,
         description: str = "用于本地调试的单精灵",
         *,
         appearance_description: str = "默认测试外貌",
         personality_description: str = "",
         elfie_id: Optional[str] = None,
         big_five_overrides: Optional[Dict[str, float]] = None,
+        gender: Optional[str] = None,
     ) -> ElfieSpec:
         if species_id not in {"dog", "fox"}:
             raise ValueError("精灵物种只能是 dog 或 fox")
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("精灵名称不能为空")
+        if age_years is None:
+            generation = self._catalog.definition(
+                species_id, adoptable_only=True
+            ).genesis
+            if generation is None:
+                raise ValueError("物种缺少 Genesis 年龄配置")
+            maximum = max(upper for _, upper in generation.stage_ranges.values())
+            age_years = secrets.choice(tuple(range(2, maximum + 1)))
         if (
             isinstance(age_years, bool)
             or not isinstance(age_years, (int, float))
             or not math.isfinite(float(age_years))
             or not float(age_years).is_integer()
-            or age_years <= 0
+            or age_years < 2
             or age_years > 100
         ):
-            raise ValueError("精灵年龄必须是 1 到 100 岁之间的整数")
+            raise ValueError("精灵年龄必须是 2 到 100 岁之间的整数")
+        if gender is None:
+            gender = secrets.choice(("male", "female"))
+        if gender not in {"male", "female"}:
+            raise ValueError("精灵性别必须是 male 或 female")
+        if big_five_overrides is not None and (
+            set(big_five_overrides) != set(BIG_FIVE_TRAITS)
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0 <= value <= 1
+                for value in big_five_overrides.values()
+            )
+        ):
+            raise ValueError("大五人格必须提供五个 0 到 1 之间的数值")
         required_text = {
             "用途描述": description,
             "外貌描述": appearance_description,
@@ -109,16 +141,14 @@ class ElfieLabStorage:
         if self.profile_path(selected_elfie_id).exists():
             raise ValueError(f"测试精灵已经存在: {selected_elfie_id}")
         normalized_age = float(age_years)
-        random_big_five = big_five_overrides or {
-            trait: round(secrets.SystemRandom().uniform(0.2, 0.8), 4)
-            for trait in (
-                "openness",
-                "conscientiousness",
-                "extraversion",
-                "agreeableness",
-                "neuroticism",
-            )
-        }
+        selected_big_five = (
+            big_five_overrides
+            if big_five_overrides is not None
+            else {
+                trait: round(secrets.SystemRandom().uniform(0.2, 0.8), 4)
+                for trait in BIG_FIVE_TRAITS
+            }
+        )
         spec = ElfieSpec(
             elfie_id=selected_elfie_id,
             name=clean_name,
@@ -129,7 +159,7 @@ class ElfieLabStorage:
             appearance_description=appearance_description.strip(),
             personality_description=personality_description.strip(),
         )
-        self._save_character_profile(spec, random_big_five)
+        self._save_character_profile(spec, selected_big_five, gender=gender)
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         return spec
 
@@ -269,6 +299,8 @@ class ElfieLabStorage:
         self,
         spec: ElfieSpec,
         big_five_overrides: Optional[Dict[str, float]] = None,
+        *,
+        gender: Optional[str] = None,
     ) -> None:
         if spec.age_years is None or not float(spec.age_years).is_integer():
             raise ValueError("测试精灵年龄必须是整数年")
@@ -278,22 +310,64 @@ class ElfieLabStorage:
             hashlib.sha256(f"{spec.elfie_id}:appearance".encode()).digest()[:8],
             "big",
         )
+        selected_gender = gender or secrets.choice(("male", "female"))
+        selected_big_five = (
+            big_five_overrides
+            if big_five_overrides is not None
+            else {
+                trait: round(secrets.SystemRandom().uniform(0.2, 0.8), 4)
+                for trait in BIG_FIVE_TRAITS
+            }
+        )
+        latent = tuple(4 * selected_big_five[trait] - 2 for trait in BIG_FIVE_TRAITS)
+        personality = genesis_personality_profile(latent)
+        appearance = generate_appearance(
+            seed=appearance_seed,
+            species_id=spec.species_id,
+            intent=GenesisAppearanceIntent(
+                "standard", "standard", "balanced", "any", "face"
+            ),
+            role="primary_match",
+            rng=random.Random(appearance_seed),
+            life_stage=life_stage,
+            age_years=age_years,
+            gender=selected_gender,
+            variant_index=0,
+            catalog=self._catalog,
+        )
+        candidate = GenesisCandidate(
+            candidate_id=f"lab:{spec.elfie_id}",
+            role="primary_match",
+            seed=appearance_seed,
+            species_id=spec.species_id,
+            life_stage=life_stage,
+            age_years=age_years,
+            gender=selected_gender,
+            appearance=appearance,
+            personality=GenesisPersonality(personality, personality),
+            signature=CandidateSignature(
+                personality=tuple(value / 2 for value in latent),
+                appearance=signature(appearance),
+                visual_key=visible_key(appearance),
+            ),
+        )
         compilation = self._genesis.compile(
             GenesisCompileInput(
                 elfie_id=spec.elfie_id,
                 owner_reference="developer-tool",
                 display_name=spec.name,
                 species_id=spec.species_id,
-                gender="female",
+                gender=selected_gender,
                 life_stage=life_stage,
                 age_years_at_adoption=age_years,
                 appearance_seed=appearance_seed,
+                candidate=candidate,
                 height="standard",
                 build="standard",
                 face="balanced",
                 signature="any",
                 personality_description=spec.personality_description,
-                big_five_overrides=big_five_overrides,
+                big_five_overrides=selected_big_five,
                 original_name=spec.name,
                 adoption_anchor_at=spec.created_at,
                 reservation_id=f"lab-genesis:{spec.elfie_id}",

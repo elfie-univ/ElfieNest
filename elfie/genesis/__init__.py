@@ -32,6 +32,7 @@ from .contracts import (
     KnowledgeSeed,
     KnowledgeStatus,
     MemoryCertainty,
+    PlaceRelationSeed,
     PlaceSeed,
     ProfileDraft,
     RelationshipSeed,
@@ -52,7 +53,13 @@ from .serialization import (
     output_ids_hash,
     planned_genesis_output_ids,
 )
-from .world import GenesisSourcePackage, WorldKnowledgeFact, WorldPlace, WorldStoryEvent
+from .world import (
+    GenesisSourcePackage,
+    WorldKnowledgeFact,
+    WorldPlace,
+    WorldPlaceRelation,
+    WorldStoryEvent,
+)
 
 __all__ = (
     "BIG_FIVE_TRAITS",
@@ -86,6 +93,7 @@ __all__ = (
     "InitializationManifest",
     "MemoryCertainty",
     "PlaceSeed",
+    "PlaceRelationSeed",
     "ProfileDraft",
     "RelationshipSeed",
     "SelfModelSeed",
@@ -93,6 +101,7 @@ __all__ = (
     "GenesisSourcePackage",
     "WorldKnowledgeFact",
     "WorldPlace",
+    "WorldPlaceRelation",
     "WorldStoryEvent",
     "KnowledgeDecisionTrace",
     "LifeContext",

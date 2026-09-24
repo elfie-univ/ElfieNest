@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from infrastructure.persistence.configuration.documents import (
 )
 from infrastructure.persistence.configuration.world import (
     GenesisSourcePackageError,
+    _validate_package,
     load_genesis_source_package,
 )
 
@@ -18,15 +20,29 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v1"
+    assert package.package_version == "elfaria-genesis.v3"
     assert package.manifest.status == "published"
     assert len(package.manifest.member_ids) == 18
-    assert len(package.knowledge) == 161
+    assert len(package.knowledge) == 160
     assert package.knowledge[0].fact_id == "A-01"
     assert package.knowledge[0].source_ref == "knowledge/elfaria.yaml#A-01"
     assert "Saevi、Tovren 和 Myelle" in package.knowledge[0].statement
     assert len(package.story_events) == 16
     assert len(package.routes) == 16
+    assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert len(package.place_relations) == 7
+    assert {
+        (item.subject_id, item.relation, item.object_id)
+        for item in package.place_relations
+    } == {
+        ("skyreach_tree", "at_center_of", "skyreach_square"),
+        ("skyreach_square", "coordinate_origin_of", "mistyville_center"),
+        ("cloudcrown_city", "suspended_above", "skymirror_lake"),
+        ("cloudfall_falls", "outflow_from", "skymirror_lake"),
+        ("riverturn_bend", "open_arc_below", "riverturn_hill"),
+        ("lakeheart_isle", "in_center_of", "clearheart_lake"),
+        ("undercity_gate", "public_entrance_to", "undercity"),
+    }
 
 
 def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
@@ -83,3 +99,42 @@ def test_genesis_source_package_rejects_a_tampered_member(tmp_path: Path) -> Non
 
     with pytest.raises(GenesisSourcePackageError):
         load_genesis_source_package(root=root)
+
+
+def test_genesis_source_package_rejects_parent_cycles() -> None:
+    package = load_genesis_source_package()
+    station = package.place("earthbound_station")
+    center = package.place("mistyville_center")
+    places = tuple(
+        replace(
+            place,
+            parent_id=(
+                "mistyville_center"
+                if place.place_id == station.place_id
+                else "earthbound_station"
+                if place.place_id == center.place_id
+                else place.parent_id
+            ),
+        )
+        for place in package.places
+    )
+    tampered = replace(package, places=places)
+
+    with pytest.raises(ValueError, match="地点层级存在环"):
+        _validate_package(tampered, {"program_version": package.package_version})
+
+
+def test_public_geography_has_five_districts_and_separate_town_facilities() -> None:
+    package = load_genesis_source_package()
+    assert {p.place_id for p in package.places if p.parent_id == "mistyville"} == {
+        "north_mountain",
+        "east_forest",
+        "south_plain",
+        "central_mixed",
+        "clearheart_lake",
+    }
+    assert package.place("mistyville_center").parent_id == "central_mixed"
+    assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert package.place("D").parent_id == "central_mixed"
+    assert package.place("X").parent_id == "elfaria"
+    assert "混住" in package.place("central_mixed").description

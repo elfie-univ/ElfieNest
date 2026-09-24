@@ -13,6 +13,7 @@
 - Infrastructure 单篇设计：
   - [Provider 与 Endpoint 模型可用性](./provider-model-availability)：精选模型加载、在用范围、证据与健康投影。
 - Elfie 设计：
+  - [Genesis 完整设计](./elfie/genesis-complete-design)：资料准备、五步生成、人物经历与最终所有者交接。
   - [Elfie 顶级模块设计](./elfie/elfie-top-level-module-design)：一只完整 Elfie 的模块所有权、
     生命系统和边界。
   - Brain 父级与系统：

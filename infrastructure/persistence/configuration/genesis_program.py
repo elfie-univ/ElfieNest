@@ -1,7 +1,9 @@
-"""Technical integrity of the non-active Genesis source package.
+"""Technical integrity checks for the versioned Genesis source package.
 
-Publication of the source bundle does not activate it for Adoption. Business
-payloads stay with the Genesis owner; this inspector checks package integrity.
+Package validation is not itself per-species availability activation. Business
+payloads stay with the Genesis owner; this inspector checks package integrity
+and declared publication coverage before the registered creation adapter uses
+the package.
 """
 
 from __future__ import annotations

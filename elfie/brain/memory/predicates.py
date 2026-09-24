@@ -83,6 +83,13 @@ PREDICATES: Final[frozenset[str]] = frozenset(
         "guardian_of",
         "owns",
         "friend_of",
+        "at_center_of",
+        "coordinate_origin_of",
+        "suspended_above",
+        "outflow_from",
+        "open_arc_below",
+        "in_center_of",
+        "public_entrance_to",
     }
 )
 
@@ -106,6 +113,19 @@ RELATION_REGISTRY: Final[Mapping[str, RelationSpec]] = {
     ),
     "kin_of": RelationSpec("kin_of", "家人", symmetric=True, type_prior=0.78),
     "friend_of": RelationSpec("friend_of", "朋友", symmetric=True, type_prior=0.82),
+    "at_center_of": RelationSpec("at_center_of", "位于中心", type_prior=0.72),
+    "coordinate_origin_of": RelationSpec(
+        "coordinate_origin_of", "坐标原点", type_prior=0.62
+    ),
+    "suspended_above": RelationSpec("suspended_above", "悬浮于上方", type_prior=0.62),
+    "outflow_from": RelationSpec("outflow_from", "发源于", type_prior=0.62),
+    "open_arc_below": RelationSpec(
+        "open_arc_below", "位于下方开放弧湾", type_prior=0.62
+    ),
+    "in_center_of": RelationSpec("in_center_of", "位于中心水域", type_prior=0.62),
+    "public_entrance_to": RelationSpec(
+        "public_entrance_to", "公开入口", type_prior=0.72
+    ),
     "classmate_of": RelationSpec(
         "classmate_of", "同学", symmetric=True, type_prior=0.58
     ),

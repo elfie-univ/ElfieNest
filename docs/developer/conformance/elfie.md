@@ -33,9 +33,30 @@
 
 | ID | Severity | Status | Current deviation | Closure gate | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| ELF-019 | P0 | open | The published `config/genesis/` package is now the sole creation source and the old production paths are removed (CFG-006 closed). Remaining gaps are end-to-end life feasibility, accepted-input/version binding, complete personal knowledge/relationship/Episode/Selfhood projection, and Nest-backed admission confirmation. Durable Genesis publication currently precedes runtime registration; runtime recovery is separate. | Close the remaining semantic and admission gates below on the existing single creation path. Preserve source-free restore, the activated package binding, and final-owner authority; do not add a second source path. | target=Elfie 2.6, Application 1.12, Configuration 1.7, ADR-0033/0040; inventory=Bootstrap source, Adoption candidate/session, Genesis compiler/initializer, Memory, Admission, Nest and UI; references=`config/genesis/program.yaml`, ADR-0033/0040, `app_wiring/adoption.py`, `compiler.py`, `initializer.py`, `resident_admission/service.py`; verification=focused characterization, package/feasibility, five-gate semantic, Memory Recall and interrupted-admission checks; residuals=the seven remaining closure slices below. |
+| ELF-019 | P0 | open | The published `config/genesis/` package is now the sole creation source and the old production paths are removed (CFG-006 closed). Remaining gaps are end-to-end life feasibility, accepted-input/version binding, complete personal knowledge/relationship/Episode/Selfhood projection, and Nest-backed admission confirmation. Durable Genesis publication currently precedes runtime registration; runtime recovery is separate. | Close the remaining semantic and admission gates below on the existing single creation path. Preserve source-free restore, the activated package binding, and final-owner authority; do not add a second source path. | target=Elfie 2.6, Application 1.12, Configuration 1.7, ADR-0033/0040; inventory=Bootstrap source, Adoption candidate/session, Genesis compiler/initializer, Memory, Admission, Nest and UI; references=`config/genesis/program.yaml`, ADR-0033/0040, `app_wiring/adoption.py`, `compiler.py`, `initializer.py`, `resident_admission/service.py`; verification=focused characterization, package/feasibility, five-gate semantic, Memory Recall and interrupted-admission checks; residuals=the six remaining closure slices below. |
 
 **Closure state:** open
+
+## Accepted Genesis design alignment
+
+The [Genesis complete design](../designs/elfie/genesis-complete-design.md), version 1.0,
+is the sole maintained detailed design. ELF-019 remains **open**. Its existing closure
+slices also cover the following accepted targets; these rows are not new independent registers.
+
+| Target within ELF-019 | Inventory and references | Verification required | Residual |
+| --- | --- | --- | --- |
+| Versioned individual policy | Generation source `generation#11`; program rules and typed Genesis consumer | Compile role/importance mappings, purpose shares, cultural attraction, public-place allowlist and numeric sampler versions; validate configuration references and distributions | Source defaults are frozen; the active package has not compiled or activated this policy |
+| Candidate age and family graph | Candidate registry; Genesis life construction; design 3.1 and 6.5.3 | Respect selected stage and four-year lifetime margin; shared parent child sets, anchored protagonist, bounded expansion, legal births/ranks, life status and care | Generation and edge-case evidence pending |
+| Contacts, trips and chronology | Genesis life/plan generation; design 6.5.4–6.5.7 | Stable friendship draws, no recursive family expansion, no opportunity double counting; route/permission/time checks, repeated visits and stays, personal-knowledge filtering | End-to-end semantic evidence pending |
+| Earthbound station source consistency | Geography station parent plus resident units B-03, B-03-02, B-06-09, B-06-17 and E-08 | Station is an independent facility in the territory, not a town-center visit; split mixed-condition units with stable old/new mapping, synchronize source/compiled conditions and digests; outside-center departure gains no center knowledge | Source/Markdown, geography member and Program references are aligned; the v3 package now keeps the place and route registries in geography only, and the initial station/town graph assertion is verified locally. End-to-end admission and Recall evidence remain under the public-geography slice |
+| Public geography, stories and knowledge | Resident baseline units listed in design 6.5.5; plan and Memory input | Every required known place/relation and unconditional unit is materialized; every actual visit and required life event has evidence; full text and event-time eligibility survive story rendering | The current slice persists every published place node with its container hierarchy, reviewed spatial relations, evidenced `visits` edges for realized Episodes, and route IDs in Episodes; full visit/story extraction coverage and Recall evidence remain pending |
+| Final owners and Lab | Selfhood/Memory submissions; Lab owner projections; design 5.4 and 6.5.10 | Inspect Profile origin/age/sex, stored Selfhood plus assembled output, episodes/people/places/knowledge and selected/rejected reasons through the same creation path | Do not infer completion from UI fields, source counts or submitted text alone |
+
+No runtime policy, source-world fact, storage contract or admission status is changed by
+moving these documents. Existing source inconsistencies are explicit activation gates,
+not permission to weaken eligibility. Closure still requires the target, inventory,
+references, verification and residuals evidence required by this register.
+
 
 ## Machine coverage
 
@@ -153,3 +174,18 @@ ELF-019 remains open until its remaining generation and admission evidence exist
 CFG-006 is closed in the [configuration-management register](configuration-management).
 Migration of existing real workspaces and Myelle role-asset completion are
 separate scopes; neither is hidden inside Genesis v1 cutover.
+
+
+### Review and execution acceptance additions
+
+ELF-019 tracks implementation and acceptance gaps; open does not mean the detailed design is unfinished. Close individual slices with evidence, then the whole row only when all targets pass. CFG-006 closes the single creation-source entry, not content correctness or complete consumption. Existing single-source, Genesis-decision and Memory-ownership contracts apply without another interface.
+
+| Order / existing owner | Concrete task | Acceptance and current state |
+| --- | --- | --- |
+| 1 / geography source, member and configuration Adapter | One place/route registry, five-district hierarchy, descriptions and private hometown attachment | Source, YAML and parent projection corrected; check exactly five direct districts, peer center/station, no cycles and external regions outside town. Internal sampling codes still need public Memory filtering and full description coverage |
+| 2 / Program and Genesis compiler | Compile frozen parameters into typed inputs; consume districts, roads and age/family/visit policies | Every parameter has provenance, a consumer and boundary cases; missing inputs block publication/generation, without hidden defaults. Follow existing steps 2–6 |
+| 3 / resident compilation and Genesis | Declare small-topic membership; select eligible units before organizing full text, preserving time and atomic boundaries | Current topic is only the ID chapter; grouping is unimplemented. Verify complete membership, no unacquired knowledge and no lost text |
+| 4 / Memory and Recall | Submit bounded groups through existing APSO, retain fact evidence, expand acquired topic siblings after retrieval | Pending; test cross-member questions, large-topic budgets, temporal/access filtering, deduplication and source-free reopen. Atomic-write tests do not prove retrieval quality |
+| 5 / Lab and Admission | Inspect geography, full life history and grouped knowledge through the same generator; complete existing admission gates | Pending implementation/acceptance; three-owner commit/crash recovery follows step 8. UI display or package validation cannot prove completion |
+
+Preserve Bootstrap → Adoption → Genesis → final owners → Admission, version bindings, relationship/episode evidence and source-free restore. Extend existing owners in dependency order. Geography corrections are implemented; knowledge organization remains an explicit implementation target. Unverified runtime/retrieval effects remain open. Subsequent numeric policies, size limits and topic mappings enter the versioned package and require real consumers.

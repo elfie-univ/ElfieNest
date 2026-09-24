@@ -88,6 +88,10 @@ class EpisodeSeed:
     occurred_from: str | None = None
     occurred_to: str | None = None
     place_ids: tuple[str, ...] = ()
+    # Reviewed route aliases used by this episode. Geometry and travel cost
+    # remain owned by the geography source; the IDs survive in Memory as
+    # episode metadata after the transient LifeContext is discarded.
+    route_ids: tuple[str, ...] = ()
     person_ids: tuple[str, ...] = ()
     result: str = ""
     feeling: str = ""
@@ -198,6 +202,20 @@ class PlaceSeed:
     description: str = ""
     visibility: Literal["public", "private"] = "public"
     source_ref: str = ""
+    # Per-Elfie familiarity with this public baseline node.  The shared world
+    # graph stays complete; repeated visits only change this local importance.
+    importance: float = 0.35
+
+
+@dataclass(frozen=True)
+class PlaceRelationSeed:
+    """One explicit source-backed relation in the public place graph."""
+
+    subject_id: str
+    relation: str
+    object_id: str
+    source_ref: str = ""
+    importance: float = 0.8
 
 
 @dataclass(frozen=True)
@@ -223,6 +241,7 @@ class GenesisBundle:
     knowledge_seeds: tuple[KnowledgeSeed, ...] = ()
     episode_seeds: tuple[EpisodeSeed, ...] = ()
     place_seeds: tuple[PlaceSeed, ...] = ()
+    place_relation_seeds: tuple[PlaceRelationSeed, ...] = ()
 
     def validate(self) -> None:
         """Reject an incomplete or over-powered creation package.
@@ -276,6 +295,13 @@ class GenesisBundle:
         )
         _require_unique((seed.place_id for seed in self.place_seeds), "place_id")
         _require_unique(
+            (
+                f"{seed.subject_id}:{seed.relation}:{seed.object_id}"
+                for seed in self.place_relation_seeds
+            ),
+            "place relation",
+        )
+        _require_unique(
             [seed.seed_id for seed in self.knowledge_seeds]
             + [seed.seed_id for seed in self.episode_seeds],
             "Genesis seed_id",
@@ -312,6 +338,28 @@ class GenesisBundle:
                     "PlaceSeed.parent_id 必须引用本次地点或 earth"
                 )
             _validate_text_collection(place.aliases, "PlaceSeed.aliases")
+            if not 0.0 <= place.importance <= 1.0:
+                raise GenesisValidationError("PlaceSeed.importance 必须在 [0, 1] 内")
+
+        for relation in self.place_relation_seeds:
+            if (
+                not relation.subject_id.strip()
+                or not relation.relation.strip()
+                or not relation.object_id.strip()
+                or not relation.source_ref.strip()
+            ):
+                raise GenesisValidationError(
+                    "PlaceRelationSeed 的端点、关系和来源不能为空"
+                )
+            if not 0.0 <= relation.importance <= 1.0:
+                raise GenesisValidationError(
+                    "PlaceRelationSeed.importance 必须在 [0, 1] 内"
+                )
+            if (
+                relation.subject_id not in place_ids
+                or relation.object_id not in place_ids
+            ):
+                raise GenesisValidationError("PlaceRelationSeed 必须引用本次地点投影")
 
         for relationship in self.relationship_seeds:
             _validate_relationship_seed(relationship)
@@ -520,6 +568,7 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
     _validate_text_collection(seed.aliases, "EpisodeSeed.aliases")
     _validate_text_collection(seed.retrieval_terms, "EpisodeSeed.retrieval_terms")
     _validate_text_collection(seed.place_ids, "EpisodeSeed.place_ids")
+    _validate_text_collection(seed.route_ids, "EpisodeSeed.route_ids")
     _validate_text_collection(seed.person_ids, "EpisodeSeed.person_ids")
     _validate_text_collection(seed.predecessor_ids, "EpisodeSeed.predecessor_ids")
     _validate_text_collection(seed.causal_links, "EpisodeSeed.causal_links")
@@ -528,6 +577,8 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
         raise GenesisValidationError("结构化 EpisodeSeed 至少需要一个别名或检索词")
     if len(set(seed.place_ids)) != len(seed.place_ids):
         raise GenesisValidationError("EpisodeSeed.place_ids 必须唯一")
+    if len(set(seed.route_ids)) != len(seed.route_ids):
+        raise GenesisValidationError("EpisodeSeed.route_ids 必须唯一")
     if len(set(seed.person_ids)) != len(seed.person_ids):
         raise GenesisValidationError("EpisodeSeed.person_ids 必须唯一")
     if not 0.0 <= seed.emotion_intensity <= 1.0:
@@ -663,6 +714,7 @@ __all__ = (
     "InitializationManifest",
     "MemoryCertainty",
     "PlaceSeed",
+    "PlaceRelationSeed",
     "ProfileDraft",
     "RelationshipSeed",
     "SelfModelSeed",

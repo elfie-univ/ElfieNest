@@ -94,6 +94,13 @@ Myelle remains draft and unavailable for adoption until its Godot role assets
 exist. See [ADR-0039](../decisions/0039-genesis-preparation-package) and
 [ADR-0040](../decisions/0040-genesis-source-publication-before-activation).
 
+Within the package, `knowledge/geography.yaml` is the sole machine registry for
+public places, container parents, explicit spatial relations and named route
+aliases. `program.yaml` keeps only typed references to those registries plus
+generation policy; it must not repeat place or route rows. This prevents the
+station/town boundary or any later route correction from drifting between
+members.
+
 ### User-owned files
 
 The user-owned layout remains:

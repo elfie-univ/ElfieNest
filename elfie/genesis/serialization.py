@@ -47,6 +47,7 @@ def genesis_content_hash(bundle: GenesisBundle) -> str:
         "episodes": [_jsonable(item) for item in bundle.episode_seeds],
         "relationships": [_jsonable(item) for item in bundle.relationship_seeds],
         "places": [_jsonable(item) for item in bundle.place_seeds],
+        "place_relations": [_jsonable(item) for item in bundle.place_relation_seeds],
     }
     encoded = json.dumps(
         payload,

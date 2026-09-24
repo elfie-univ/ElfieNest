@@ -266,6 +266,8 @@ Profile, Selfhood, Memory, Activity or execution facts.
 
 ## Genesis
 
+The accepted [Genesis complete design](../designs/elfie/genesis-complete-design.md) details the algorithms within these boundaries. Implementation and verification gaps remain in [ELF-019](../conformance/elfie.md); design acceptance does not close that register.
+
 Genesis is a one-time creation flow, not a runtime organ and not a second Brain.
 It consumes the activated, published, typed `GenesisSourcePackage`, accepted transient
 adoption input and controlled randomness. `elfie/genesis/` owns every semantic
