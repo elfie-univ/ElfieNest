@@ -219,7 +219,7 @@ func _capture_browser_canvas() -> String:
 		+ " context.imageSmoothingEnabled = true;"
 		+ " context.imageSmoothingQuality = 'high';"
 		+ " context.drawImage(canvas, 0, 0, target.width, target.height);"
-		+ " window.__elfieLabCaptureData = target.toDataURL('image/jpeg', 0.9);"
+		+ " window.__elfieLabCaptureData = target.toDataURL('image/png');"
 		+ " }"
 		+ " }"
 		+ " catch (_) { window.__elfieLabCaptureData = ''; }"
@@ -237,7 +237,7 @@ func _capture_browser_canvas() -> String:
 	if not raw_data_url is String:
 		return ""
 	var data_url := String(raw_data_url)
-	return data_url if data_url.begins_with("data:image/jpeg;base64,") else ""
+	return data_url if data_url.begins_with("data:image/png;base64,") else ""
 
 
 func _post_lab_message(event_name: String, payload: Dictionary) -> void:

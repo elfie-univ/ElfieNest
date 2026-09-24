@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from devtools.elfie_lab.app import create_app
 
 
@@ -26,3 +28,12 @@ def test_list_elfies_includes_saved_portrait_url(tmp_path, client_for):
     assert response.json()["items"][0]["portrait_url"] == (
         f"/api/elfies/{elfie_id}/portrait"
     )
+
+
+def test_godot_browser_capture_uses_the_png_portrait_api_contract():
+    source = (
+        Path(__file__).resolve().parents[3] / "godot_project/runtime/lab/lab_runtime.gd"
+    ).read_text(encoding="utf-8")
+
+    assert "target.toDataURL('image/png')" in source
+    assert 'data_url.begins_with("data:image/png;base64,")' in source

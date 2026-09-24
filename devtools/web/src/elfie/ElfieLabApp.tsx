@@ -49,7 +49,7 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const [elfieManagementOpen, setElfieManagementOpen] = useState(false);
   const [configurationOpen, setConfigurationOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<ElfieSession | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ElfieListItem | null>(null);
   const [personalityTarget, setPersonalityTarget] = useState<ElfieSession | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -236,8 +236,23 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
       return error instanceof Error ? error.message : "创建失败";
     }
   }
-  async function requestDelete(id: string): Promise<void> { if (sessionRef.current?.elfie_id === id) { setDeleteTarget(sessionRef.current); return; } try { setDeleteTarget(await requestJson(`elfies/${encodeURIComponent(id)}`, sessionSchema)); } catch (error) { setNotice(error instanceof Error ? error.message : "无法读取待删除精灵"); } }
-  async function remove(): Promise<void> { if (deleteTarget === null) return; try { const result = await requestJson(`elfies/${encodeURIComponent(deleteTarget.elfie_id)}`, deletionSchema, { method: "delete" }); setDeleteTarget(null); if (sessionRef.current?.elfie_id === deleteTarget.elfie_id) { sessionRef.current = null; setSession(null); configuredPreviewKey.current = ""; } await load(result.next_elfie_id); setNotice("测试精灵已移入回收区。"); } catch (error) { setNotice(error instanceof Error ? error.message : "删除失败"); } }
+  function requestDelete(id: string): void {
+    const target = items.find((item) => item.elfie_id === id);
+    if (target === undefined) { setNotice("待删除精灵不在当前列表中，请刷新页面。"); return; }
+    setDeleteTarget(target);
+  }
+  async function remove(): Promise<void> {
+    if (deleteTarget === null) return;
+    let nextId: string | null;
+    try {
+      const result = await requestJson(`elfies/${encodeURIComponent(deleteTarget.elfie_id)}`, deletionSchema, { method: "delete" });
+      nextId = result.next_elfie_id;
+    } catch (error) { setNotice(error instanceof Error ? error.message : "删除失败"); return; }
+    setDeleteTarget(null);
+    if (sessionRef.current?.elfie_id === deleteTarget.elfie_id) { sessionRef.current = null; setSession(null); configuredPreviewKey.current = ""; }
+    try { await load(nextId); setNotice("测试精灵已移入回收区。"); }
+    catch (error) { setNotice(`测试精灵已移入回收区，但无法切换下一只：${error instanceof Error ? error.message : "加载失败"}`); }
+  }
   async function personality(values: BigFive): Promise<void> { if (session === null) return; try { setSession(await requestJson(`elfies/${session.elfie_id}/personality`, sessionSchema, { method: "patch", json: values })); setPersonalityTarget(null); setNotice("人格参数已保存。"); } catch (error) { setNotice(error instanceof Error ? error.message : "保存失败"); } }
   async function upload(file: File): Promise<{ readonly id: string; readonly mimeType: string }> { if (session === null) throw new Error("请先创建测试精灵"); const form = new FormData(); form.set("file", file); const media = await requestFormJson(`elfies/${session.elfie_id}/media`, mediaSchema, { method: "post", form }); return { id: media.media_id, mimeType: media.mime_type }; }
   async function send(body: Record<string, unknown>): Promise<boolean> {
@@ -301,12 +316,12 @@ export function ElfieLabApp({ mode = "experiment" }: Props): React.JSX.Element {
   const shellClass = `lab-shell${collapsed ? " left-closed" : ""}${mode === "experiment" && detailOpen ? " detail-open" : ""}${mode === "evaluation" ? " evaluation-mode" : ""}`;
   return <main className={shellClass}>
     {mode === "experiment" ? <>
-      <ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={(id) => { void requestDelete(id); }} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onNewFood={() => openNewFood()} onOpenMemoryDebug={() => openMemoryDebug()} onSelect={(id) => { setMenuOpen(false); closeMemoryDebug(); configuredPreviewKey.current = ""; void load(id); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />
+      <ElfieSidebar collapsed={collapsed} food={food} foods={foods} iframeRef={frameRef} items={items} menuOpen={menuOpen} onCollapse={() => setCollapsed(!collapsed)} onCreate={() => { setMenuOpen(false); setCreateOpen(true); }} onDelete={requestDelete} onEditPersonality={() => setPersonalityTarget(session)} onFood={setFood} onMenu={() => setMenuOpen(!menuOpen)} onNewFood={() => openNewFood()} onOpenMemoryDebug={() => openMemoryDebug()} onSelect={(id) => { setMenuOpen(false); closeMemoryDebug(); configuredPreviewKey.current = ""; void load(id).catch((error: unknown) => setNotice(`无法切换测试精灵：${error instanceof Error ? error.message : "加载失败"}`)); }} portraitEpoch={portraitEpoch} preview={preview} previewStatus={previewStatus} runtimeWarning={runtimeWarning} session={session} />
       <TimelinePanel food={food} onPreviewIntent={playIntent} onSelectTurn={selectTurn} onSend={send} onUpload={upload} pending={pending} portraitEpoch={portraitEpoch} session={session} />
       <DetailPanel focus={detailFocus} initialTab={detailTab} onClose={closeDetail} onOpenMemoryDebug={openMemoryDebug} open={detailOpen} previewResult={previewResult} selectedTurn={selectedTurn} session={session} />
     </> : <Suspense fallback={<section className="evaluation-workspace evaluation-loading" aria-label="Elfie 批量评测"><Spin size="large" tip="正在加载批量评测…"><span /></Spin></section>}><EvaluationWorkspace elfies={items} food={food} foods={foods} reviewerSubscriptions={reviewerSubscriptions} onDeleteReviewerSubscription={deleteReviewerSubscription} onSaveReviewerSubscription={saveReviewerSubscription} onNewFood={openNewFood} onNewElfie={openElfieManagement} session={session} /></Suspense>}
     {mode === "experiment" && memoryDebugOpen && session !== null ? <div className="memory-debug-overlay" role="dialog" aria-label={`查看 ${session.profile.name} 的记忆图谱`} aria-modal="true"><MemoryDebugWorkspacePage embedded elfieId={session.elfie_id} elfieName={session.profile.name} initialRecall={memoryDebugRecall} onClose={closeMemoryDebug} /></div> : null}
-    <ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} elfieManagementOpen={elfieManagementOpen} elfies={items} foods={foods} modelSubscriptions={modelSubscriptions} onConfigurationClose={() => { pendingFoodSelection.current = null; setConfigurationOpen(false); }} onConfigureFood={configureFood} onDeleteFood={deleteFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onElfieManagementClose={() => { pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onElfieManagementCreate={() => { setElfieManagementOpen(false); setCreateOpen(true); }} onElfieManagementDelete={(id) => { pendingElfieSelection.current = null; setElfieManagementOpen(false); void requestDelete(id); }} onElfieManagementSelect={(id) => { pendingElfieSelection.current?.(id); pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} onProbeOllama={probeOllama} personalityTarget={personalityTarget} />
-    {notice ? <Alert className="toast" message={notice} role="status" showIcon type={notice.includes("失败") || notice.includes("错误") || notice.includes("不可用") ? "error" : "success"} /> : null}
+    <ElfieModals configurationOpen={configurationOpen} createOpen={createOpen} deleteTarget={deleteTarget} elfieManagementOpen={elfieManagementOpen} elfies={items} foods={foods} modelSubscriptions={modelSubscriptions} onConfigurationClose={() => { pendingFoodSelection.current = null; setConfigurationOpen(false); }} onConfigureFood={configureFood} onDeleteFood={deleteFood} onCreate={create} onCreateClose={() => setCreateOpen(false)} onElfieManagementClose={() => { pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onElfieManagementCreate={() => { setElfieManagementOpen(false); setCreateOpen(true); }} onElfieManagementDelete={(id) => { pendingElfieSelection.current = null; setElfieManagementOpen(false); requestDelete(id); }} onElfieManagementSelect={(id) => { pendingElfieSelection.current?.(id); pendingElfieSelection.current = null; setElfieManagementOpen(false); }} onDelete={() => { void remove(); }} onDeleteClose={() => setDeleteTarget(null)} onPersonality={(value) => { void personality(value); }} onPersonalityClose={() => setPersonalityTarget(null)} onProbeOllama={probeOllama} personalityTarget={personalityTarget} />
+    {notice ? <Alert className="toast" message={notice} role="status" showIcon type={notice.includes("失败") || notice.includes("错误") || notice.includes("不可用") || notice.includes("无法") ? "error" : "success"} /> : null}
   </main>;
 }

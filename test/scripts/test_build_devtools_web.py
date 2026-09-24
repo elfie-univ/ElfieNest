@@ -56,3 +56,29 @@ def test_ensure_bundle_repairs_an_incomplete_node_modules_directory(
 
     assert result == output
     assert calls == [("pnpm", "install", "--frozen-lockfile"), ("pnpm", "run", "build")]
+
+
+def test_ensure_bundle_repairs_missing_memory_graph_dependency(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "frontend"
+    (source / "node_modules" / ".bin").mkdir(parents=True)
+    (source / "node_modules" / ".bin" / "tsc").write_text("", encoding="utf-8")
+    for package in ("antd", "@ant-design/icons"):
+        manifest = source / "node_modules" / package / "package.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("{}", encoding="utf-8")
+    (source / "package.json").write_text("{}", encoding="utf-8")
+    output = tmp_path / "output"
+    monkeypatch.setattr(build_devtools_web, "WEB_SOURCE", source)
+    monkeypatch.setattr(build_devtools_web, "OUTPUT_DIRECTORY", output)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(command, *, cwd, check):
+        calls.append(tuple(command))
+
+    monkeypatch.setattr(build_devtools_web.subprocess, "run", fake_run)
+
+    build_devtools_web.ensure_bundle(pnpm_command="pnpm")
+
+    assert calls == [("pnpm", "install", "--frozen-lockfile"), ("pnpm", "run", "build")]

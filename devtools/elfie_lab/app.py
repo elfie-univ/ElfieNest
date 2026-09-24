@@ -372,7 +372,8 @@ def create_app(
     @app.delete("/api/elfies/{elfie_id}")
     def delete_elfie(elfie_id: str):
         try:
-            storage.get_elfie(elfie_id)
+            if not storage.profile_path(elfie_id).is_file():
+                raise KeyError(f"测试精灵不存在: {elfie_id}")
             if evaluation_service.has_active_run(elfie_id):
                 raise HTTPException(
                     status_code=409,

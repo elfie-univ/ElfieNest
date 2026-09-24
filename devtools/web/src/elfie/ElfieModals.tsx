@@ -19,7 +19,7 @@ type Props = Readonly<{
   readonly configurationOpen: boolean;
   readonly foods: readonly FoodItem[];
   readonly modelSubscriptions: readonly ModelSubscription[];
-  readonly deleteTarget: ElfieSession | null;
+  readonly deleteTarget: ElfieListItem | null;
   readonly personalityTarget: ElfieSession | null;
   readonly onCreateClose: () => void;
   readonly onElfieManagementClose: () => void;
@@ -535,7 +535,7 @@ export function ElfieModals(props: Props): React.JSX.Element {
     </Modal>
 
     <Modal className="lab-modal confirm-modal" footer={null} onCancel={props.onDeleteClose} open={props.deleteTarget !== null} title={<ModalTitle eyebrow="可恢复删除" title="删除测试精灵" />} width={520} zIndex={1300}>
-      <form aria-label="删除测试精灵" className="lab-form" onSubmit={(event) => { event.preventDefault(); props.onDelete(); }}><p>确认删除 <strong>{props.deleteTarget?.profile.name}</strong>？它的档案、会话和媒体会移入 Lab 回收区。</p><div className="modal-actions"><Button onClick={props.onDeleteClose}>取消</Button><Button danger htmlType="submit" type="primary">删除</Button></div></form>
+      <form aria-label="删除测试精灵" className="lab-form" onSubmit={(event) => { event.preventDefault(); props.onDelete(); }}><p>确认删除 <strong>{props.deleteTarget?.name}</strong>？它的档案、会话和媒体会移入 Lab 回收区。</p><div className="modal-actions"><Button onClick={props.onDeleteClose}>取消</Button><Button danger htmlType="submit" type="primary">删除</Button></div></form>
     </Modal>
   </>;
 }

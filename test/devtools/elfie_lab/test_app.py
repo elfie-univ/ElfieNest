@@ -398,6 +398,27 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     assert (bundle / "manifest.json").is_file()
 
 
+def test_delete_elfie_recycles_unloadable_legacy_profile(tmp_path, client_for):
+    import yaml
+
+    data_dir = tmp_path / "data"
+    client = client_for(create_app(str(data_dir), str(tmp_path / "runtime")))
+    elfie_id = client.post(
+        "/api/elfies", json=complete_elfie_payload("旧版精灵")
+    ).json()["elfie_id"]
+    profile_path = data_dir / "elfies" / elfie_id / "profile" / "profile.yaml"
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    profile["provenance"] = {"generator_version": "retired"}
+    profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
+
+    response = client.delete(f"/api/elfies/{elfie_id}")
+
+    assert response.status_code == 200
+    assert client.get("/api/elfies").json()["items"] == []
+    bundle = next((data_dir / "trash").iterdir())
+    assert (bundle / "elfies" / elfie_id / "profile" / "profile.yaml").is_file()
+
+
 def test_delete_elfie_returns_not_found_when_absent(tmp_path, client_for):
     # Given
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
