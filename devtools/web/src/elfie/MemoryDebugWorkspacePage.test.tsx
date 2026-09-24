@@ -49,7 +49,12 @@ describe("记忆调试工作台", () => {
     />);
 
     expect(markup).toContain("一次 Recall 的解释链");
-    expect(markup).toContain("聊天回合 Trace（不重复检索）");
+    expect(markup).toContain('value="用户近况"');
+    expect(markup).not.toContain("当前搜索");
+    expect(markup).not.toContain("按相关性排序的搜索结果");
+    expect(markup).not.toContain("搜索内容");
+    expect(markup).not.toContain("再次执行真实检索");
+    expect(markup).toContain("Recall 返回摘要");
     expect(markup).toContain('aria-pressed="false" title="只显示本次搜索结果">仅看搜索结果</button>');
     expect(markup).toContain("recall-turn-1");
     expect(markup).toContain("关闭记忆图谱浮窗");

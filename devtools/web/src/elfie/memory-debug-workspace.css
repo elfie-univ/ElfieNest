@@ -653,9 +653,6 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-drawer .memory-debug-preview-counts strong { color: #dceaf4; }
 .memory-debug-drawer .memory-debug-preview-ids { color: #a9bdca; }
 .memory-debug-drawer .memory-debug-preview summary { color: #b892ff; }
-.memory-debug-drawer-query { display: grid; gap: .25rem; margin: .8rem 0; padding: .65rem .7rem; border: 1px solid rgba(155,190,218,.16); border-radius: .5rem; background: rgba(17,40,58,.72); }
-.memory-debug-drawer-query span { color: #8ea9bb; font: .62rem ui-monospace, monospace; }
-.memory-debug-drawer-query strong { overflow-wrap: anywhere; color: #e6dcff; font-size: .78rem; }
 .memory-debug-process-rail { display: grid; gap: .42rem; margin: .8rem 0 1rem; padding-left: .15rem; }
 .memory-debug-process-item { position: relative; display: grid; grid-template-columns: .95rem 1fr auto; align-items: center; gap: .45rem; min-height: 1.9rem; padding: .35rem .45rem; border-left: 1px solid rgba(155,190,218,.16); color: #829bad; }
 .memory-debug-process-item::before { position: absolute; top: 1.65rem; left: .43rem; width: 1px; height: .55rem; background: rgba(155,190,218,.18); content: ""; }
@@ -869,9 +866,9 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
   .memory-debug-filter-grid { grid-template-columns: 1fr; }
 }
 
-/* Keep the Episode rail with the graph; offset the left drawer only past its first card. */
+/* Keep Episode cards visible beside the open operations drawer. */
 .memory-debug-page .memory-debug-memory-cards { right: 1.15rem; left: 1.15rem; }
-.memory-debug-page.memory-debug-left-panel-open .memory-debug-drawer-left { left: 18rem; }
+.memory-debug-page.memory-debug-left-panel-open .memory-debug-memory-cards { left: calc(1.15rem + 32rem + .75rem); }
 .memory-debug-context-note {
   margin: -.2rem 0 .45rem !important;
   color: #91a6b5 !important;

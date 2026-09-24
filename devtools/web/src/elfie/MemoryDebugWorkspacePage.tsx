@@ -1636,7 +1636,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
 
       {leftPanelOpen && <aside className="memory-debug-drawer memory-debug-drawer-left" aria-label={tab === "add" ? "添加 Episode 面板" : "搜索结果面板"}>
         <div className="memory-debug-drawer-head"><div><span>MEMORY · WORKSPACE</span><strong>{tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions"><button type="button" aria-label={tab === "add" ? "关闭添加 Episode 面板" : "关闭搜索结果面板"} onClick={() => setLeftPanelOpen(false)}>×</button></div></div>
-        <div className="memory-debug-inspector-context"><span>{tab === "add" ? "当前操作" : "当前搜索"}</span><strong>{tab === "add" ? "隔离预演 · 不写生产库" : "按相关性排序的搜索结果"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
+        {tab === "add" && <div className="memory-debug-inspector-context"><span>当前操作</span><strong>隔离预演 · 不写生产库</strong><small>{coverageLabel} · {coverageDetail}</small></div>}
         <div className="memory-debug-drawer-scroll">
         {tab === "add" && <div className="memory-debug-panel">
           <h2>添加完整 Episode</h2>
@@ -1657,9 +1657,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           </div>}
         </div>}
         {tab === "recall" && <div className="memory-debug-panel">
-          <h2>搜索结果</h2>
-          <div className="memory-debug-drawer-query"><span>搜索内容</span><strong>{query || "尚未输入查询"}</strong><small>结果按相关性排序 · {traceRecall ? "聊天回合 Trace（不重复检索）" : "来自当前精灵的 Memory"}</small></div>
-          <button className="primary" disabled={!query.trim()} onClick={() => void runRecall()}>再次执行真实检索</button>
           {recallView && <>
             <div className="memory-debug-metric-grid" aria-label="Recall 返回摘要">
               <div><span>节点</span><strong>{recallView.bundle.focus_nodes.length}</strong><small>Recall 返回</small></div>

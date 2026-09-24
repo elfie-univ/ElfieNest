@@ -311,6 +311,8 @@ def test_consolidation_consolidates_memory_without_external_actions(
                 importance=importance,
             )
         )
+    consolidation_batch = memory.pending_consolidation_ids()
+    assert {"lab-offline-0", "lab-offline-1"}.issubset(consolidation_batch)
     ElfieDiagnostics(session.elfie).energy.is_sleeping = True
     ElfieDiagnostics(session.elfie).energy.fatigue = 90.0
 
@@ -331,14 +333,13 @@ def test_consolidation_consolidates_memory_without_external_actions(
     assert session.snapshot()["activity_count"] == 0
     offline = session.snapshot()["cognitive_consolidation"]
     assert offline["status"] == "satisfied"
-    assert offline["last_consolidated_count"] == 2
+    assert offline["last_consolidated_count"] == len(consolidation_batch)
     assert offline["last_knowledge_created"] >= 1
-    # The consolidation pass has projected both Episodes.  A lifecycle-only
-    # wake-up may still be pending for the same maintenance owner; it is not a
-    # second projection queue and must remain visible to the scheduler.
-    assert ElfieDiagnostics(session.elfie).memory.pending_consolidation_ids() == (
-        "maintenance:lifecycle",
-    )
+    # One bounded pass projects the captured batch. Any remaining Genesis
+    # material stays visible to the same maintenance owner for a later pass.
+    remaining = memory.pending_consolidation_ids()
+    assert set(consolidation_batch).isdisjoint(remaining)
+    assert {"lab-offline-0", "lab-offline-1"}.isdisjoint(remaining)
 
     # And: the satisfaction window suppresses a duplicate night-work turn.
     session.elfie.advance_clock(1.0)
