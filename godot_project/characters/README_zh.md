@@ -30,7 +30,7 @@ characters/
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-当前可选择物种是 Saevi（灵狐）和 Tovren（灵犬）。Myelle（灵猫）目前只保留
+当前可选择物种是 Saevi 和 Tovren。Myelle 目前只保留
 在故事/档案设计中：它没有完整的正式资源包，因此明确不可用于运行时。一个
 物种只有在自己的目录中提供完整 manifest 并通过校验后才可选择；运行时不会用
 程序化场景、SVG 或其他占位资源顶上去。运行时按照 `species` 选择场景；旧数据
