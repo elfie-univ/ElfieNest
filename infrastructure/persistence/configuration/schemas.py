@@ -51,6 +51,15 @@ def validate_registered_document(
         _validate_species_catalog_shape(document, label)
     elif document_id is ConfigDocumentId.GENESIS_SOURCE_PACKAGE:
         _validate_genesis_source_package_shape(document, label)
+    elif document_id is ConfigDocumentId.GENESIS_PROGRAM:
+        from infrastructure.persistence.configuration.genesis_program import (
+            validate_genesis_program,
+        )
+
+        try:
+            validate_genesis_program(document, path)
+        except (ValueError, OSError) as exc:
+            raise ConfigSchemaError(f"{label}: {exc}") from exc
     elif document_id is ConfigDocumentId.MODEL_CATALOG:
         _validate_model_catalog_shape(document, label)
     elif document_id in (

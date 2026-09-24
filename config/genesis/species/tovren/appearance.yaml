@@ -1,0 +1,757 @@
+document_kind: appearance_profile
+schema_version: 1
+profile_version: 3
+supported_controls:
+- stature
+- build
+- signature
+control_options:
+  stature:
+  - small
+  - standard
+  - tall
+  - any
+  build:
+  - slim
+  - standard
+  - round
+  - any
+  face:
+  - soft
+  - balanced
+  - defined
+  - any
+  signature:
+  - warm
+  - marked
+  - any
+control_ranges:
+  stature:
+    minimum: 0.82
+    base: 1.0
+    maximum: 1.18
+  build:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  face:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+  signature:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+stature_scale:
+  minimum: 0.82
+  base: 1.0
+  maximum: 1.18
+build_scale:
+  minimum: 0.9
+  base: 1.0
+  maximum: 1.1
+build_weights:
+  body_fat: 0.55
+  frame_size: 0.3
+  muscularity: 0.15
+  local_bias: 0.0
+proportion_scales:
+  HeadScale:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  NeckLength:
+    minimum: 0.86
+    base: 1.0
+    maximum: 1.14
+  ArmLength:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  LegLength:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  ShoulderWidth:
+    minimum: 0.89
+    base: 1.0
+    maximum: 1.11
+  HandScale:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  PawScale:
+    minimum: 0.89
+    base: 1.0
+    maximum: 1.11
+  TailLength:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  EyeScale:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  EyeSpacing:
+    minimum: 0.94
+    base: 1.0
+    maximum: 1.06
+  EyeHeight:
+    minimum: 0.95
+    base: 1.0
+    maximum: 1.05
+shape_correlations:
+  Body_ChestFullness:
+    body_fat: 0.52
+    frame_size: 0.26
+    muscularity: 0.2
+    local_bias: 0.3
+  Body_WaistWidth:
+    body_fat: 0.74
+    frame_size: 0.18
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_BellyDepth:
+    body_fat: 0.92
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_HipWidth:
+    body_fat: 0.67
+    frame_size: 0.26
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_HipDepth:
+    body_fat: 0.74
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_ArmThickness:
+    body_fat: 0.77
+    frame_size: 0.22
+    muscularity: 0.2
+    local_bias: 0.25
+  Body_LegThickness:
+    body_fat: 0.82
+    frame_size: 0.22
+    muscularity: 0.2
+    local_bias: 0.2
+  Body_NeckThickness:
+    body_fat: 0.72
+    frame_size: 0.22
+    muscularity: 0.0
+    local_bias: 0.2
+  Body_PawFullness:
+    body_fat: 0.5
+    frame_size: 0.22
+    muscularity: 0.0
+    local_bias: 0.3
+  Face_CheekFullness:
+    body_fat: 0.68
+    frame_size: 0.16
+    muscularity: 0.0
+    local_bias: 0.3
+  Face_LowerFullness:
+    body_fat: 0.64
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.28
+palettes:
+- snow_white
+- ivory
+- cream
+- honey_gold
+- apricot
+- russet
+- chestnut
+- chocolate
+- silver_gray
+- smoky_charcoal
+batch_palette_order:
+- ivory
+- honey_gold
+- apricot
+- russet
+- silver_gray
+- cream
+- chestnut
+- chocolate
+- snow_white
+- smoky_charcoal
+patterns:
+- solid
+pattern_color_slots:
+  solid: 1
+pattern_layouts:
+  solid:
+  - solid
+markings:
+- none
+- crescent
+- s_glyph
+- double_spiral
+- constellation
+- comet
+- alien_rune
+- diamond
+- star
+- lightning
+- wave
+- halo
+- blush
+- freckles
+- heart
+- mole
+marking_placements:
+- none
+- forehead_center
+- forehead_left
+- forehead_right
+- cheek_pair
+- chest
+- belly_center
+eye_colors:
+- brown
+- amber
+- blue
+- hazel
+nose_colors:
+- black
+- dark_brown
+- charcoal
+distributions:
+  ear_droop:
+    mean: 0.35
+    standard_deviation: 0.17
+    minimum: 0.0
+    maximum: 1.0
+species_traits:
+- jowl_fullness_bias
+- ear_fold_bias
+- tail_curl_bias
+max_region_accents: 2
+max_marks: 1
+max_forehead_marks: 1
+region_rules:
+  head_tuft:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.82
+  forehead_mark_zone:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.62
+    default_intensity: 0.0
+  ear_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.76
+  ear_tip_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.78
+  cheek_fluff:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.62
+    default_intensity: 0.0
+  chest_tuft:
+    mode: color-or-mark
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.72
+  belly_center:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.62
+    default_intensity: 0.0
+  forearm_paw_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.76
+  elbow_cuff_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.76
+  lower_leg_foot_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.76
+  knee_cuff_pair:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.76
+  tail_tip:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.8
+  tail_underside:
+    mode: color-only
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.62
+    default_intensity: 0.8
+region_recipes:
+  base:
+    accents: []
+  head_tuft_honey:
+    accents:
+    - region_id: head_tuft
+      color_id: honey_gold
+      grade_id: L1
+      intensity: 0.82
+  ear_tip_silver:
+    accents:
+    - region_id: ear_tip_pair
+      color_id: silver_gray
+      grade_id: D1
+      intensity: 0.78
+  forearm_chocolate:
+    accents:
+    - region_id: forearm_paw_pair
+      color_id: chocolate
+      grade_id: D1
+      intensity: 0.76
+  chest_apricot:
+    accents:
+    - region_id: chest_tuft
+      color_id: apricot
+      grade_id: L1
+      intensity: 0.72
+  head_and_ear:
+    accents:
+    - region_id: head_tuft
+      color_id: ivory
+      grade_id: L1
+      intensity: 0.8
+    - region_id: ear_tip_pair
+      color_id: russet
+      grade_id: D1
+      intensity: 0.72
+  paws_and_tail:
+    accents:
+    - region_id: forearm_paw_pair
+      color_id: smoky_charcoal
+      grade_id: D2
+      intensity: 0.72
+    - region_id: tail_tip
+      color_id: snow_white
+      grade_id: L2
+      intensity: 0.76
+  ear_and_chest:
+    accents:
+    - region_id: ear_pair
+      color_id: cream
+      grade_id: L1
+      intensity: 0.74
+    - region_id: chest_tuft
+      color_id: honey_gold
+      grade_id: L1
+      intensity: 0.7
+  tuft_and_tail:
+    accents:
+    - region_id: head_tuft
+      color_id: apricot
+      grade_id: L1
+      intensity: 0.8
+    - region_id: tail_tip
+      color_id: ivory
+      grade_id: L2
+      intensity: 0.74
+region_recipe_order:
+- base
+- head_tuft_honey
+- ear_tip_silver
+- forearm_chocolate
+- chest_apricot
+- head_and_ear
+- paws_and_tail
+- ear_and_chest
+- tuft_and_tail
+batch_recipe_order:
+- base
+- head_tuft_honey
+- ear_tip_silver
+- forearm_chocolate
+- chest_apricot
+- head_and_ear
+- paws_and_tail
+- ear_and_chest
+- tuft_and_tail
+batch_marking_order:
+- none
+- crescent
+- none
+- blush
+- none
+- heart
+- none
+- freckles
+- none
+- s_glyph
+marking_rules:
+  none:
+    placements:
+    - none
+    allowed_colors:
+    - snow_white
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - russet
+    - chestnut
+    - chocolate
+    - silver_gray
+    - smoky_charcoal
+  crescent:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  s_glyph:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  double_spiral:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  constellation:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  comet:
+    placements:
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  alien_rune:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  diamond:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  star:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  lightning:
+    placements:
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  wave:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  halo:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - honey_gold
+    - apricot
+    - silver_gray
+    - smoky_charcoal
+  blush:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - apricot
+    - honey_gold
+    - cream
+  freckles:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - chestnut
+    - chocolate
+    - smoky_charcoal
+  heart:
+    placements:
+    - chest
+    - belly_center
+    allowed_colors:
+    - apricot
+    - honey_gold
+    - russet
+  mole:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - chestnut
+    - chocolate
+    - smoky_charcoal
+status: published
+source_refs:
+- species#genesis-appearance-boundaries
+parameter_provenance:
+  source_path: config/species/dog/appearance.yaml
+  source_sha256: fef3295e71dee13e0a6ef50dcd8de3a5d43d05aa21ab79fcf8820c2a6ec329b0
+  status: inherited_configuration_not_new_biological_facts
+  inherited_numeric_parameters_recalibrated: false
+  unsupported_values_are_not_generation_options: true
+  new_unsourced_parameters: author_review_required
+runtime_capabilities:
+  inspection: static_source_and_glb_only
+  model_file: godot_project/characters/dog/dog.glb
+  scene_file: godot_project/characters/dog/dog.tscn
+  manifest_file: godot_project/characters/dog/species_manifest.json
+  adapter_file: godot_project/runtime/actor/actor_appearance.gd
+  required_assets_present: true
+  render_validation_this_revision: not_run
+  author_render_acceptance: accepted_without_recheck
+  control_support:
+    stature: aggregate_height_scale
+    build: aggregate_width_depth_scale_only
+    signature: palette_pattern_region_color_and_safe_marking_only
+  bone_scale_bindings: [HeadScale, NeckLength, ArmLength, LegLength, HandScale, PawScale, TailLength]
+  model_morph_target_count: 0
+  blend_shape_bindings: []
+  unsupported_controls: [face, signature.ears]
+  unavailable_fields: [shape_correlations, proportion_scales.ShoulderWidth,
+    proportion_scales.EyeScale, proportion_scales.EyeSpacing, proportion_scales.EyeHeight,
+    distributions.ear_droop, eye_colors, nose_colors]
+  unsupported_behavior:
+  - 局部胖瘦、肌肉和完整脸型 Morph；配置系数与 source 造型原型不等于正式模型支持。
+  - 耳形替换、独立眼鼻改色和无绑定比例控制不能生成可见差异承诺。
+  material_support: 只使用正式清单 material_parameters 的值及本文件更窄的区域/安全标记约束。
+  require_material_option_in_manifest: true
+  life_stage_visual_validation: accepted_by_author_without_recheck
+  missing_binding_or_asset: reject_candidate_without_reroll
+  presentation_image_proves_runtime_readiness: false

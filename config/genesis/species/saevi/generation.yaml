@@ -1,0 +1,85 @@
+document_kind: species_generation_profile
+schema_version: 1
+generation_version: saevi-genesis.v4
+stage_ranges:
+  youth:
+  - 0
+  - 2
+  young_adult:
+  - 2
+  - 5
+  mature:
+  - 5
+  - 10
+  elder:
+  - 10
+  - 15
+appearance_preferences:
+  warm:
+  - golden
+  - orange_red
+  - fox_red
+  - chestnut
+  marked:
+  - crescent
+  - s_glyph
+  - constellation
+  ears:
+  - fox
+status: published
+age_unit: local_year
+stage_endpoint_policy:
+  lower_inclusive: true
+  upper_exclusive: true
+  final_endpoint: death_not_sampleable
+  terminal_age_local_years: 15
+  source_ref: species#genesis-life-stage-endpoints
+  guarantees_survival_until_terminal_age: false
+source_ref: world#5.3
+birth_region_policy_ref: rules.population.allowed_species_by_region_ref
+source_refs:
+- species#genesis-birth-and-arrival
+- generation#1
+- generation#2
+- generation#3
+- generation#4
+shared_rule_refs:
+  population: rules.population
+  household: rules.household
+  learning: rules.learning
+  arrival: rules.arrival
+birth_eligibility:
+  at_time: birth
+  requires: [habitable_place, species_suitable_environment, registered_residence,
+    feasible_family_and_care, feasible_life_and_earth_transition]
+  region_allowlist_is_hard_constraint: true
+  biological_parent_age_gap_ref: rules.household.biological_parent_min_age_gap_local_years
+  require_parents_alive_at_adoption: false
+  missing_evidence: reject_plan
+earth_transition_eligibility:
+  stage_allowlist:
+    status: confirmed
+    allowed_stages: all_defined_stages
+    excluded_stages: []
+    age_restriction: strictly_greater_than_one_local_year
+    minimum_age_rule_ref: rules.candidates.minimum_age_local_years_exclusive
+    source_ref: species#genesis-birth-and-arrival
+  requires: [alive_at_departure, alive_at_arrival, age_appropriate_understanding,
+    voluntary_consent, feasible_legal_journey, completed_age_appropriate_preparation,
+    age_strictly_greater_than_one_local_year]
+  adult_care: 按个体实际能力与需要检查，不因成年或物种名称免除必要照护。
+  consent_by_caregiver_replaces_individual_willingness: false
+  preparation_rule_ref: rules.arrival
+  training_does_not_prove_arrival: true
+  actual_arrival_requires: actual_arrival_fact
+  runtime_asset_gate_ref: appearance.yaml#runtime_capabilities
+  missing_evidence: reject_plan
+appearance_constraints:
+  rule_ref: appearance.yaml
+  same_actual_age_as_identity: true
+  unavailable_control: reject_request
+  preferences_override_support_or_hard_choices: false
+  preferences_assign_personality_profession_or_knowledge: false
+  life_stage_visual_curve:
+    status: accepted_by_author_without_recheck
+    reason: 用户决定本版本生命阶段外貌免于复验；只承认现有年龄阶段和已支持的外貌控制，不宣称存在逐年龄 Morph 曲线。

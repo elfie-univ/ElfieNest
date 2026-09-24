@@ -1,0 +1,1572 @@
+version: 1
+document_kind: genesis_program
+schema_version: 1
+program_id: elfaria
+program_version: elfaria-genesis.v1
+status: published
+sources:
+  world:
+    path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+    sha256: 9a27a31eb76a2172848cc30343bf84686fe65e2b4e354111a5456e7d432b9f19
+  resident:
+    path: docs/.internal/elfaria/elfaria-resident-knowledge.md
+    sha256: daa1fe8aeb236e69054d2bd3afa8e0ed2104751095b4c498cfc31d6bf8efe188
+  generation:
+    path: docs/.internal/elfaria/elfaria-generation-rules.md
+    sha256: 39e99f75ba7f43deb8907c9b2f4da249fbbcf9a981ed5529e90dc50f7a6646e4
+  geography:
+    path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+    sha256: e7127c536f069305a94e6b50556483c81f2f7482354e81e3a2578161480b3d7b
+  species:
+    path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+    sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
+manifest:
+  package_id: elfaria-genesis
+  package_version: elfaria-genesis.v1
+  status: published
+  members:
+  - path: knowledge/elfaria.yaml
+    kind: resident_knowledge
+    version: elfaria-resident-knowledge.v6
+    status: published
+    sha256: 820c9708c26bea6d3d3fb6fd05b366c6338fb2c251b2a07c3a6778147bc0ad9e
+  - path: knowledge/geography.yaml
+    kind: geography_knowledge
+    version: elfaria-geography.v9
+    status: published
+    sha256: 0a3e1a8f5c625cee267fd02f478c421bf0b285cfb45aca5709baabfd2933afdb
+  - path: species/catalog.yaml
+    kind: species_catalog
+    version: species-catalog.v4
+    status: published
+    sha256: 5c5eee0608ca481be596e588838c7d8ba4b5dd870239cc93d0f65ed4f531722e
+  - path: species/myelle/appearance.yaml
+    kind: appearance_profile
+    version: '2'
+    status: published
+    sha256: baf6bf8686a87417a5fda9df93b936af8457bd67920e41b41eb0046e37d6c41a
+  - path: species/myelle/assets/full-body.png
+    kind: display_asset
+    version: myelle-concept.v1
+    status: published
+    sha256: b82c1397174e03dd05b58de9e5a851ff352878cc029698e3f34c55416b4f0118
+  - path: species/myelle/assets/headshot.png
+    kind: display_asset
+    version: myelle-concept.v1
+    status: published
+    sha256: d82bc0ea1bcecc8556eed52b349f60d982f1a47174a4737196e93d62a8b3fd95
+  - path: species/myelle/generation.yaml
+    kind: species_generation_profile
+    version: myelle-genesis.v3
+    status: published
+    sha256: 7551b64c53feaeadfeecc7750f3cb8423b04d126c0d839228b89ce9deaeb511a
+  - path: species/myelle/species.yaml
+    kind: species_definition
+    version: myelle.v3
+    status: published
+    sha256: dd247cebaffbc0ff95a5ff8eff18d7945429bd1f5420aa756e65b6f47075fa75
+  - path: species/saevi/appearance.yaml
+    kind: appearance_profile
+    version: '3'
+    status: published
+    sha256: 7215397e12f2a373524c8314e4f33f1585310c2e475fc4db42bf473b6c6d1a80
+  - path: species/saevi/assets/full-body.png
+    kind: display_asset
+    version: fox-display.v1
+    status: published
+    sha256: 44d123a3df5bb86d5d75b9ab23b9d603e31897c25fa997e24199203cdf9f9996
+  - path: species/saevi/assets/headshot.png
+    kind: display_asset
+    version: fox-display.v1
+    status: published
+    sha256: b70e4191dde0c9ca953f37a71a3271adc488b3ad7f69d07fbbbea7b4a092afd9
+  - path: species/saevi/generation.yaml
+    kind: species_generation_profile
+    version: saevi-genesis.v4
+    status: published
+    sha256: aa97360e112a5f56dd44891593c82a629934fa61896c9af7bdd23d4c400095d4
+  - path: species/saevi/species.yaml
+    kind: species_definition
+    version: saevi.v3
+    status: published
+    sha256: 6bead0d3fca727e3027cca22c691af2fcca14fee6bd6a08faa26b5594d817f3d
+  - path: species/tovren/appearance.yaml
+    kind: appearance_profile
+    version: '3'
+    status: published
+    sha256: 32b0b9f6b885ec72b1fa9ad87141d90c54d3b8fac44bebd4a3869f6ba13929bc
+  - path: species/tovren/assets/full-body.png
+    kind: display_asset
+    version: dog-display.v1
+    status: published
+    sha256: 01c2ef6fe9f221817e294e4759106a5abebd216b45ab4f3b711204a97aee41b0
+  - path: species/tovren/assets/headshot.png
+    kind: display_asset
+    version: dog-display.v1
+    status: published
+    sha256: 5c5a10f8c0fa0e89078fbe65c033afb5c1ac72a457f57b151002422e540a8f6a
+  - path: species/tovren/generation.yaml
+    kind: species_generation_profile
+    version: tovren-genesis.v4
+    status: published
+    sha256: 06d660f7355dfdffe56dfb57d732ac89314e3be64a285f13063c6596fc057276
+  - path: species/tovren/species.yaml
+    kind: species_definition
+    version: tovren.v3
+    status: published
+    sha256: ce7ae8b1252b94d4a6e7ec65e58c3bb2d8abfd6cdad67b9153dc2f54a4131bef
+  publication_blockers: []
+  activation_blockers:
+  - id: myelle-runtime-readiness
+    reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
+  - id: production-cutover
+    reason: 当前领养仍由旧 world/species 加载链提供资料；新包接入强类型生产消费者及全链路验收后才能切换，不双读或回退。
+  content_sha256: 23e154960d5d52e07074f732f55a0038479fce27118c8e4464fb7041d5aa44dc
+coverage:
+  status: complete
+  resident_source_ref: resident
+  knowledge_member: knowledge/elfaria.yaml
+  knowledge_version: elfaria-resident-knowledge.v6
+  projected_units: 161
+  body_projection: preserved_from_verified_build_draft
+  stable_source_anchors: 161_explicit_knowledge_unit_anchors
+  upstream_atomic_coverage: complete_for_registered_source_sections
+  rule_sources:
+    world: world#8
+    population: generation#1
+    household: generation#2
+    learning: generation#3
+    arrival: generation#4
+    policy: generation#5
+    people: generation#8
+    events: generation#8
+    geography: generation#6.1
+  condition_resolution:
+    units_with_conditions: 45
+    resolved: 45
+    blocked: 0
+  source_coverage:
+    id: genesis-source-coverage.v1
+    status: complete_for_registered_source_sections
+    granularity: source_section_anchor
+    atomic_id_status: section_anchor_contract
+    rule: every_registered_source_section_must_bind_to_a_rule_or_member
+    creator_bindings:
+    - upstream_id: world#1
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#1
+      output_refs: [rules.world]
+      disposition: retained
+    - upstream_id: world#2
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#2
+      output_refs: [rules.world, rules.population]
+      disposition: retained
+    - upstream_id: world#3
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#3
+      output_refs: [rules.world]
+      disposition: retained
+    - upstream_id: world#4
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#4
+      output_refs: [rules.world]
+      disposition: retained
+    - upstream_id: world#5
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#5
+      output_refs: [rules.world, rules.population]
+      disposition: retained
+    - upstream_id: world#6
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#6
+      output_refs: [rules.world]
+      disposition: retained
+    - upstream_id: world#7
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#7
+      output_refs: [rules.life_archetypes, rules.relationship_archetypes, rules.episode_themes]
+      disposition: retained
+    - upstream_id: world#8
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8
+      output_refs: [rules.world, rules.life_archetypes, rules.relationship_archetypes, rules.episode_themes]
+      disposition: retained
+    - upstream_id: world#8.2
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.2
+      output_refs: [rules.world, rules.household, rules.relationship_archetypes]
+      disposition: retained
+    - upstream_id: world#8.3
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.3
+      output_refs: [rules.world, rules.household]
+      disposition: retained
+    - upstream_id: world#8.4
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.4
+      output_refs: [rules.world, rules.population, rules.geography]
+      disposition: retained
+    - upstream_id: world#8.5
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.5
+      output_refs: [rules.world, rules.episode_themes]
+      disposition: retained
+    - upstream_id: world#8.6
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.6
+      output_refs: [rules.population, rules.geography]
+      disposition: retained
+    - upstream_id: generation#1
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#1
+      output_refs: [rules.population]
+      disposition: retained
+    - upstream_id: generation#2
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#2
+      output_refs: [rules.household]
+      disposition: retained
+    - upstream_id: generation#3
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#3
+      output_refs: [rules.learning, rules.life_archetypes]
+      disposition: retained
+    - upstream_id: generation#4
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#4
+      output_refs: [rules.arrival]
+      disposition: retained
+    - upstream_id: generation#5
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#5
+      output_refs: [rules.policy]
+      disposition: retained
+    - upstream_id: generation#6.1
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#6.1
+      output_refs: [rules.geography, rules.population]
+      disposition: retained
+    - upstream_id: generation#7
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#7
+      output_refs: [rules.learning, rules.arrival, rules.people]
+      disposition: retained
+    - upstream_id: generation#8
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#8
+      output_refs: [rules.life_archetypes, rules.names, rules.relationship_archetypes, rules.episode_themes, rules.people, rules.events]
+      disposition: retained
+    - upstream_id: generation#10
+      source_path: docs/.internal/elfaria/elfaria-generation-rules.md
+      stable_anchor: generation#10
+      output_refs: [rules.knowledge_condition_review]
+      disposition: retained
+    - upstream_id: species#0
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#0
+      output_refs: [species/catalog.yaml]
+      disposition: retained
+    - upstream_id: species#1
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#1
+      output_refs: [species/saevi/species.yaml, species/tovren/species.yaml, species/myelle/species.yaml]
+      disposition: retained
+    - upstream_id: species#2
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#2
+      output_refs: [species/saevi/species.yaml]
+      disposition: retained
+    - upstream_id: species#3
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#3
+      output_refs: [species/tovren/species.yaml]
+      disposition: retained
+    - upstream_id: species#4
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#4
+      output_refs: [species/myelle/species.yaml]
+      disposition: retained
+    - upstream_id: species#5
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#5
+      output_refs: [species/saevi/generation.yaml, species/tovren/generation.yaml, species/myelle/generation.yaml]
+      disposition: retained
+    - upstream_id: species#7.1
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#7.1
+      output_refs: [species/saevi/generation.yaml, species/tovren/generation.yaml, species/myelle/generation.yaml]
+      disposition: retained
+    - upstream_id: species#7.2
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#7.2
+      output_refs: [species/saevi/generation.yaml, species/tovren/generation.yaml, species/myelle/generation.yaml, rules.arrival]
+      disposition: retained
+    - upstream_id: species#7.3
+      source_path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
+      stable_anchor: species#7.3
+      output_refs: [species/saevi/appearance.yaml, species/tovren/appearance.yaml, species/myelle/appearance.yaml]
+      disposition: retained
+    - upstream_id: world#8.7
+      source_path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
+      stable_anchor: world#8.7
+      output_refs: [knowledge/geography.yaml#source_artifacts]
+      disposition: retained
+    - upstream_id: geography-source#1
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#1
+      output_refs: [knowledge/geography.yaml#source_artifacts]
+      disposition: retained
+    - upstream_id: geography-source#2
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#2
+      output_refs: [knowledge/geography.yaml#source_artifacts]
+      disposition: retained
+    - upstream_id: geography-source#3
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#3
+      output_refs: [knowledge/geography.yaml#grid.region_matrix, knowledge/geography.yaml#regions]
+      disposition: retained
+    - upstream_id: geography-source#4
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#4
+      output_refs: [knowledge/geography.yaml#places]
+      disposition: retained
+    - upstream_id: geography-source#5
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#5
+      output_refs: [knowledge/geography.yaml#network.land_backbone_paths]
+      disposition: retained
+    - upstream_id: geography-source#6
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#6
+      output_refs: [knowledge/geography.yaml#network.water, knowledge/geography.yaml#network.local_roads]
+      disposition: retained
+    - upstream_id: geography-source#7
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#7
+      output_refs: [knowledge/geography.yaml#population, knowledge/geography.yaml#species_policy]
+      disposition: retained
+    - upstream_id: geography-source#8
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#8
+      output_refs: [knowledge/geography.yaml#travel_policy]
+      disposition: retained
+    - upstream_id: geography-source#9
+      source_path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+      stable_anchor: geography-source#9
+      output_refs: [knowledge/geography.yaml#validation]
+      disposition: retained
+    resident_projection:
+    - upstream_id: resident#knowledge-unit
+      source_path: docs/.internal/elfaria/elfaria-resident-knowledge.md
+      stable_anchor: '<!-- knowledge-unit: <knowledge_id> -->'
+      output_refs: ['knowledge/elfaria.yaml#knowledge[]']
+      unit_count: 161
+      disposition: one_to_one_exact_description
+    source_coverage_notes:
+    - The current creator documents expose stable section anchors, so every registered section is bound now.
+    - Creator sources are bound at stable section anchors; resident facts use the separate 161-unit source anchors and are not inferred from paragraph position.
+    - No unresolved condition is treated as eligible by this coverage record.
+rules:
+  world:
+    id: elfaria-world-space.v3
+    source_refs:
+    - world#8.4
+    - world#8.6
+    route_time_model_ref: geography-model.v9
+    route_topology_source: knowledge/geography.yaml
+    routes:
+    - id: town_saevi
+      from: mistyville_center
+      to: saevi_tribal_center
+      source_ref: world#8.4
+      status: topology_alias
+    - id: town_tovren
+      from: mistyville_center
+      to: tovren_tribal_center
+      source_ref: world#8.4
+      status: topology_alias
+    - id: town_myelle
+      from: mistyville_center
+      to: myelle_tribal_center
+      source_ref: world#8.4
+      status: topology_alias
+    - id: saevi_firstroot
+      from: saevi_tribal_center
+      to: firstroot_tree
+      source_ref: world#8.4
+      status: topology_alias
+    - id: tovren_riverturn
+      from: tovren_tribal_center
+      to: riverturn_hill
+      source_ref: world#8.4
+      status: topology_alias
+    - id: tovren_clearheart
+      from: tovren_tribal_center
+      to: clearheart_ferry
+      source_ref: world#8.4
+      status: topology_alias
+    - id: myelle_skymirror
+      from: myelle_tribal_center
+      to: skymirror_trailhead
+      source_ref: world#8.4
+      status: topology_alias
+    - id: square_ring
+      from: skyreach_square
+      to: skyreach_square
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+      topology: loop
+      counts_as_shortcut: false
+    - id: council_lane
+      from: skyreach_square
+      to: elder_council_hall
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+    - id: learning_lane
+      from: skyreach_square
+      to: learning_healing_hall
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+    - id: hundred_trades_street
+      from: skyreach_square
+      to: hundred_trades_south_end
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+    - id: earthbound_road
+      from: skyreach_square
+      to: earthbound_station
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+    - id: undercity_road
+      from: skyreach_square
+      to: undercity_gate
+      source_ref: world#8.2.1
+      status: topology_alias
+      bidirectional: true
+    - id: saevi_main_street
+      from: saevi_tribal_center
+      to: saevi_elder_house
+      source_ref: world#8.3
+      status: topology_alias
+      bidirectional: true
+    - id: tovren_main_street
+      from: tovren_tribal_center
+      to: tovren_elder_house
+      source_ref: world#8.3
+      status: topology_alias
+      bidirectional: true
+    - id: myelle_main_street
+      from: myelle_tribal_center
+      to: myelle_elder_house
+      source_ref: world#8.3
+      status: topology_alias
+      bidirectional: true
+    route_time_policy: resolve_from_geography_grid_hops
+    routing:
+      method: shortest_legal_path_over_geography_grid_hops
+      allow_straight_line_substitution: false
+      allow_map_pixel_measurement: false
+      time_policy: land_grid_hop_days_or_water_grid_hop_days
+      require_edge_permissions_at_event: true
+    known_limits:
+    - 渡点不是湖心岛
+    - 天镜湖山路口不是整处湖泊景观
+    - 缺少住宅连接段和分段通行数据时不生成完整到访证据
+    places:
+    - id: mistyville
+      name: 迷雾镇
+      kind: territory
+      source_ref: world#8
+    - id: east_forest
+      name: 东部森林
+      kind: region
+      parent: mistyville
+      source_ref: world#8
+    - id: south_plain
+      name: 南部平原
+      kind: region
+      parent: mistyville
+      source_ref: world#8
+    - id: north_mountain
+      name: 北部山地
+      kind: region
+      parent: mistyville
+      source_ref: world#8
+    - id: lake_shore
+      name: 湖岸
+      kind: region
+      parent: mistyville
+      source_ref: world#8
+    - id: shallow_underground
+      name: 浅地下
+      kind: region
+      parent: mistyville
+      source_ref: world#8
+    - id: mistyville_center
+      name: 迷雾镇中心
+      kind: settlement
+      parent: mistyville
+      source_ref: world#8
+    - id: saevi_tribal_center
+      name: Saevi 部落中心
+      kind: settlement
+      parent: east_forest
+      source_ref: world#8
+    - id: tovren_tribal_center
+      name: Tovren 部落中心
+      kind: settlement
+      parent: south_plain
+      source_ref: world#8
+    - id: myelle_tribal_center
+      name: Myelle 部落中心
+      kind: settlement
+      parent: north_mountain
+      source_ref: world#8
+    - id: skyreach_square
+      name: 通天广场
+      kind: public_space
+      parent: mistyville_center
+      source_ref: world#8
+    - id: skyreach_tree
+      name: 通天古树
+      kind: landmark
+      parent: skyreach_square
+      source_ref: world#8
+    - id: elder_council_hall
+      name: 长老院
+      kind: facility
+      parent: mistyville_center
+      source_ref: world#8
+    - id: learning_healing_hall
+      name: 学疗院
+      kind: facility
+      parent: mistyville_center
+      source_ref: world#8
+    - id: hundred_trades_street
+      name: 百业街
+      kind: commercial_area
+      parent: mistyville_center
+      source_ref: world#8
+    - id: hundred_trades_south_end
+      name: 百业街南端
+      kind: route_endpoint
+      parent: hundred_trades_street
+      source_ref: world#8
+    - id: earthbound_station
+      name: 赴地跃迁基站
+      kind: controlled_facility
+      parent: mistyville_center
+      source_ref: world#8
+    - id: undercity_gate
+      name: 地下城门
+      kind: controlled_entrance
+      parent: mistyville_center
+      source_ref: world#8
+    - id: saevi_elder_house
+      name: Saevi 长老屋
+      kind: residence_and_council
+      parent: saevi_tribal_center
+      source_ref: world#8
+    - id: tovren_elder_house
+      name: Tovren 长老屋
+      kind: residence_and_council
+      parent: tovren_tribal_center
+      source_ref: world#8
+    - id: myelle_elder_house
+      name: Myelle 长老屋
+      kind: residence_and_council
+      parent: myelle_tribal_center
+      source_ref: world#8
+    - id: firstroot_tree
+      name: 祖树
+      kind: landmark
+      parent: east_forest
+      source_ref: world#8
+    - id: riverturn_hill
+      name: 回澜丘
+      kind: landmark
+      parent: south_plain
+      source_ref: world#8
+    - id: riverturn_bend
+      name: 回澜河湾
+      kind: landmark
+      parent: south_plain
+      source_ref: world#8
+    - id: clearheart_lake
+      name: 澄心湖
+      kind: lake
+      parent: mistyville
+      source_ref: world#8
+    - id: clearheart_ferry
+      name: 澄心湖渡点
+      kind: ferry_landing
+      parent: lake_shore
+      source_ref: world#8
+    - id: lakeheart_isle
+      name: 湖心岛
+      kind: island
+      parent: clearheart_lake
+      source_ref: world#8
+    - id: skymirror_trailhead
+      name: 天镜湖山路口
+      kind: route_endpoint
+      parent: north_mountain
+      source_ref: world#8
+    - id: skymirror_lake
+      name: 天镜湖
+      kind: lake
+      parent: north_mountain
+      source_ref: world#8
+    - id: cloudfall_falls
+      name: 垂云瀑
+      kind: landmark
+      parent: north_mountain
+      source_ref: world#8
+    - id: cloudcrown_city
+      name: 云冠城
+      kind: inaccessible_city
+      parent: north_mountain
+      source_ref: world#8
+    - id: undercity
+      name: 地下城
+      kind: controlled_region
+      parent: mistyville
+      source_ref: world#8
+    - id: deep_underground
+      name: 深层地下
+      kind: controlled_region
+      parent: undercity
+      source_ref: world#8
+    - id: saevi_region
+      name: Saevi 部落地区
+      kind: cultural_region
+      parent: mistyville
+      common_ecological_region: east_forest
+      exact_boundary: confirmed
+      boundary_source_ref: geography-source#elfaria-geography-source.v6
+      source_ref: species#5
+    - id: tovren_region
+      name: Tovren 部落地区
+      kind: cultural_region
+      parent: mistyville
+      common_ecological_region: south_plain
+      exact_boundary: confirmed
+      boundary_source_ref: geography-source#elfaria-geography-source.v6
+      source_ref: species#5
+    - id: myelle_region
+      name: Myelle 部落地区
+      kind: cultural_region
+      parent: mistyville
+      common_ecological_region: north_mountain
+      exact_boundary: confirmed
+      boundary_source_ref: geography-source#elfaria-geography-source.v6
+      source_ref: species#5
+    place_relations:
+    - subject: skyreach_tree
+      relation: at_center_of
+      object: skyreach_square
+    - subject: skyreach_square
+      relation: coordinate_origin_of
+      object: mistyville_center
+    - subject: cloudcrown_city
+      relation: suspended_above
+      object: skymirror_lake
+    - subject: cloudfall_falls
+      relation: outflow_from
+      object: skymirror_lake
+    - subject: riverturn_bend
+      relation: open_arc_below
+      object: riverturn_hill
+    - subject: lakeheart_isle
+      relation: in_center_of
+      object: clearheart_lake
+    - subject: undercity_gate
+      relation: public_entrance_to
+      object: undercity
+    route_geometry_status: endpoints_and_grid_hop_rules_only
+    access_rules:
+    - id: earthbound_entry
+      place_ref: earthbound_station
+      requires:
+      - scheduled_transition_or_authorized_visit
+      - valid_entry_permission
+      outside_visibility_grants_entry: false
+    - id: island_entry
+      place_ref: lakeheart_isle
+      requires:
+      - registered_water_route
+      - actual_crossing
+      landing_is_island: true
+    - id: cloudcrown_entry
+      place_ref: cloudcrown_city
+      ordinary_travel_allowed: false
+      observation_only: true
+    calendar:
+      source_ref: world#3
+      days_per_local_year: 196
+      annual_events:
+      - event_ref: connection_day
+        day: 50
+      - event_ref: silence_day
+        day: 148
+      earth_age_conversion: false
+  population:
+    id: population-model.v4
+    source_refs:
+    - generation#1
+    - world#8.6
+    selection_order:
+    - user_selected_species
+    - uniform_allowed_region
+    - uniform_cell_within_selected_region
+    allowed_species_by_region_ref: knowledge/geography.yaml#regions[].allowed_species
+    species_selection:
+      source: user_input
+      allowlist_is_hard_constraint: true
+      allowed_regions_from: regions[].allowed_species
+    region_sampling:
+      distribution: uniform_over_allowed_regions_for_selected_species
+      derive_regions_from: knowledge/geography.yaml#regions[].allowed_species
+    cell_sampling:
+      distribution: uniform_over_cells_in_selected_region
+      derive_cells_from: knowledge/geography.yaml#grid.region_matrix
+    allocation_rule: selected_species_uniform_region_then_uniform_cell
+    allocation_status:
+      status: grid_hop_time_ready
+      model_member: knowledge/geography.yaml
+      sample_unit_count: 100
+      birth_eligible_cell_count: 83
+      region_distribution: uniform_over_allowed_regions_for_selected_species
+      cell_distribution: uniform_over_cells_in_selected_region
+      birth_eligible_regions_have_allowed_species: true
+      ordinary_cell_pair_topology_computable: true
+      ordinary_grid_edge_travel_times_resolved: true
+    grid_model_member: knowledge/geography.yaml
+    grid_dimensions:
+    - 10
+    - 10
+    sample_unit_count: 100
+    distance_model: legal_path_grid_hops
+  household:
+    id: household-care.v1
+    source_ref: generation#2
+    biological_parent_min_age_gap_local_years: 3
+    fixed_relative_count: false
+    require_parent_alive_at_adoption: false
+    required_evidence:
+    - age_at_event
+    - alive_at_event
+    - care_capacity
+    - shared_residence_or_contact
+    youth_care:
+    - actual_caregiver
+    residence_templates:
+    - id: forest_tree_dwelling
+      region_refs:
+      - east_forest
+      source_ref: world#8.3
+      instance_scope: current_genesis
+      requires:
+      - approved_habitable_cell
+      - settlement_ref
+      - registered_road_connector
+      - residents_at_event
+      public_place_creation: false
+    - id: plain_ground_dwelling
+      region_refs:
+      - south_plain
+      - lake_shore
+      source_ref: world#8.3
+      instance_scope: current_genesis
+      requires:
+      - approved_habitable_cell
+      - settlement_ref
+      - registered_road_connector
+      - residents_at_event
+      public_place_creation: false
+    - id: mountain_dwelling
+      region_refs:
+      - north_mountain
+      source_ref: world#8.3
+      instance_scope: current_genesis
+      requires:
+      - approved_habitable_cell
+      - settlement_ref
+      - registered_road_connector
+      - residents_at_event
+      public_place_creation: false
+    - id: shallow_cave_dwelling
+      region_refs:
+      - shallow_underground
+      - north_mountain
+      source_ref: world#8.3
+      instance_scope: current_genesis
+      requires:
+      - approved_habitable_cell
+      - settlement_ref
+      - registered_road_connector
+      - residents_at_event
+      public_place_creation: false
+    - id: town_dwelling
+      place_refs:
+      - mistyville_center
+      source_ref: world#8.2
+      instance_scope: current_genesis
+      requires:
+      - approved_habitable_cell
+      - settlement_ref
+      - registered_road_connector
+      - residents_at_event
+      public_place_creation: false
+  life_archetypes:
+    id: life-archetypes.v1
+    source_ref: generation#8
+    status: confirmed
+    selection:
+      weight_field: weight
+      normalize_within_eligible_species_stage_and_region: true
+      vocation_is_potential_until_qualified: true
+      youth_without_qualification_uses: household_learning
+    non_occupational_paths:
+    - id: household_learning
+      applicable_stages: [youth]
+      requires:
+      - actual_care_relationship
+      - age_appropriate_activity
+      - actual_contact
+      vocation_assignment: forbidden_before_qualification
+    archetypes:
+    - id: household_member
+      applicable_species: [Saevi, Tovren, Myelle]
+      applicable_stages: [youth, young_adult, mature, elder]
+      region_selection: geography_allowed_regions_for_species
+      place_selection: registered_residence_in_selected_region
+      weight: 1.0
+      household_roles: [caregiver, household_member, learner]
+      care_and_trade_context: 在实际居住区域参与家庭照护、邻里互助和当地生产生活。
+      learning_path_ref: household_learning
+      apprenticeship_refs: [apprenticeship]
+      vocation_options_ref: rules.learning.vocations
+      vocation_selection: actual_apprenticeship_only
+      vocation_ref: null
+      proficiency_band: introductory
+      workplace_place_selection: actual_household_or_apprenticeship_place
+      residence_rule_ref: rules.household.residence_templates
+  names:
+    id: name-rules.v1
+    source_ref: generation#8
+    status: confirmed
+    formal_species_names: [Saevi, Tovren, Myelle]
+    technical_species_ids:
+      Saevi: fox
+      Tovren: dog
+      Myelle: cat
+    private_name_lexicon:
+      default: [Nemi, Ari, Sora, Tavi, Mira, Lio, Ena, Rin, Kio, Veya, Oru, Pela]
+      species_preference:
+        Saevi: [Veya, Nemi, Pela]
+        Tovren: [Ari, Lio, Kio]
+        Myelle: [Sora, Mira, Ena]
+      shared_fallback: [Tavi, Rin, Oru]
+    reserved_names: [Saevi, Tovren, Myelle]
+    public_name_sources:
+      species: species/catalog.yaml
+      places: rules.world
+    selection:
+      algorithm: sha256_domain_choice
+      domain: naming
+      unique_within: current_genesis_private_person_namespace
+      generated_name_is_not_identity: true
+      model_may_not_create_or_modify: true
+      unconfirmed_name: use_relationship_label
+  episode_themes:
+    forbidden:
+    - future_plan_as_fact
+    - unregistered_place_or_route
+    - age_infeasible_event
+    - missing_prerequisite_evidence
+    - padding_without_actual_event
+    id: episode-themes.v1
+    instance_fields:
+    - participants
+    - place_ref
+    - event_time
+    - prerequisite_evidence
+    - outcome
+    quantity:
+      maximum_instances: unbounded_by_fixed_config
+      normal_total_minimum: 5
+      optional_theme_minimum_instances: 0
+      padding: false
+      required_events_first: true
+      required_theme_minimum_instances: 1
+      young_exception: actual_age_feasible_events
+    source_ref: generation#8
+    status: confirmed
+    themes:
+    - emotional_tone: belonging
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 熟悉家附近的生活路径
+      id: early-home
+      impact: 遇到陌生地方时会先寻找熟悉的回去路线
+      label: 归属
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 1
+      obstacle: 住处分散，回去的路需要自己慢慢辨认
+      order: 10
+      outcome: 在家人照料下记住一条回家的路径
+      place_kinds:
+      - private_home
+      required: true
+      required_roles:
+      - family
+      weight: 0.8
+    - emotional_tone: curiosity
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 学会一项需要向有经验者请教的事情
+      id: learning-path
+      impact: 面对不懂的事会先承认边界，再向熟悉的人请教
+      label: 学习
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 1
+      obstacle: 自己只能看到一部分线索
+      order: 20
+      outcome: 明白复杂事情需要观察、询问和练习
+      place_kinds:
+      - learning_place
+      required: false
+      required_roles:
+      - teacher
+      weight: 0.82
+    - emotional_tone: trust
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 和别人一起处理一件日常事务
+      id: shared-space-choice
+      impact: 遇到协作分歧时会先确认约定，而不是直接猜测
+      label: 协作
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 1
+      obstacle: 每个人一开始理解的分工不一样
+      order: 30
+      outcome: 重新约定每个人愿意承担的部分
+      place_kinds:
+      - settlement_shared_space
+      required: true
+      required_roles:
+      - friend
+      weight: 0.88
+    - emotional_tone: resolve
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 在熟悉的聚居地完成一项小责任
+      id: craft-practice
+      impact: 逐渐相信小的可靠行动也能改变关系
+      label: 第一次责任
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 2
+      obstacle: 事情比预想的更需要耐心
+      order: 35
+      outcome: 在邻里提醒下完成并复盘做法
+      place_kinds:
+      - tribal_center
+      required: false
+      required_roles:
+      - neighbor
+      weight: 0.8
+    - emotional_tone: alert
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 在雨水增多时沿熟悉路线往返
+      id: rain-route
+      impact: 天气变化时会先观察实际状况，再决定是否出行
+      label: 雨季路线
+      life_stages:
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 3
+      obstacle: 水面和气味线索会随着天气变化
+      order: 36
+      outcome: 学会根据当时看到的路径和水势调整出行
+      place_kinds:
+      - tribal_center
+      required: false
+      required_roles:
+      - route_keeper
+      weight: 0.7
+    - emotional_tone: resolve
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 在了解赴地边界后作出自己的选择
+      id: departure-decision
+      impact: 重要决定要在知道边界后由自己确认
+      label: 赴地决定
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 2
+      obstacle: 新世界和离开熟悉生活都带来不确定
+      order: 40
+      outcome: 在自愿前提下报名并完成必要准备
+      place_kinds:
+      - departure_facility
+      required: true
+      required_knowledge_ids:
+      - E-08
+      weight: 0.94
+    - emotional_tone: wonder
+      event_variable_refs:
+      - participants
+      - place_ref
+      - event_time
+      - prerequisite_evidence
+      - outcome
+      goal: 通过获准的设施抵达 ElfieNest
+      id: arrival-nest
+      impact: 面对陌生设备和生活方式时会通过观察、接触和询问学习
+      label: 抵达
+      life_stages:
+      - youth
+      - young_adult
+      - mature
+      - elder
+      minimum_age_local_years: 2
+      obstacle: 地球设备和新的生活空间都不熟悉
+      order: 50
+      outcome: 抵达后开始和领养家庭真实相处
+      place_kinds:
+      - earth_gateway_station
+      - earth_home
+      required: true
+      required_knowledge_ids:
+      - E-08-02
+      - E-08-03
+      weight: 1.0
+  relationship_archetypes:
+    archetypes:
+    - competency_ids:
+      - care
+      - plant_care
+      episode_theme_ids:
+      - early-home
+      familiarity: intimate
+      id: kin-fox
+      importance: 0.95
+      initial_trust: 0.88
+      species:
+      - Saevi
+      role: family
+      weight: 1.0
+    - competency_ids:
+      - care
+      - route_maintenance
+      episode_theme_ids:
+      - early-home
+      familiarity: intimate
+      id: kin-dog
+      importance: 0.95
+      initial_trust: 0.88
+      species:
+      - Tovren
+      role: family
+      weight: 1.0
+    - competency_ids:
+      - care
+      - observation
+      episode_theme_ids:
+      - early-home
+      familiarity: intimate
+      id: kin-cat
+      importance: 0.88
+      initial_trust: 0.82
+      species:
+      - Myelle
+      role: family
+      weight: 0.5
+    - competency_ids:
+      - cooperation
+      episode_theme_ids:
+      - shared-space-choice
+      - craft-practice
+      familiarity: known
+      id: friend
+      importance: 0.9
+      initial_trust: 0.78
+      species: [Saevi, Tovren, Myelle]
+      role: friend
+      weight: 1.0
+    - competency_ids:
+      - observation
+      - navigation
+      episode_theme_ids:
+      - shared-space-choice
+      - rain-route
+      familiarity: known
+      id: path_friend
+      importance: 0.62
+      initial_trust: 0.58
+      species: [Saevi, Tovren, Myelle]
+      role: friend
+      weight: 0.8
+    - competency_ids:
+      - teaching
+      episode_theme_ids:
+      - learning-path
+      familiarity: known
+      id: mentor
+      importance: 0.82
+      initial_trust: 0.7
+      species: [Saevi, Tovren, Myelle]
+      role: teacher
+      weight: 0.8
+    - competency_ids:
+      - memory
+      episode_theme_ids:
+      - shared-space-choice
+      familiarity: known
+      id: elder
+      importance: 0.78
+      initial_trust: 0.55
+      species: [Saevi, Tovren, Myelle]
+      role: elder
+      weight: 0.7
+    - competency_ids:
+      - cooperation
+      episode_theme_ids:
+      - craft-practice
+      - rain-route
+      familiarity: acquainted
+      id: neighbor
+      importance: 0.48
+      initial_trust: 0.42
+      species: [Saevi, Tovren, Myelle]
+      role: neighbor
+      weight: 0.8
+    - competency_ids:
+      - navigation
+      episode_theme_ids:
+      - rain-route
+      - departure-decision
+      familiarity: known
+      id: route-keeper
+      importance: 0.56
+      initial_trust: 0.5
+      species: [Saevi, Tovren, Myelle]
+      role: route_keeper
+      weight: 0.8
+    - competency_ids:
+      - teaching
+      episode_theme_ids:
+      - learning-path
+      familiarity: known
+      id: learning-keeper
+      importance: 0.5
+      initial_trust: 0.48
+      species: [Saevi, Tovren, Myelle]
+      role: learning_keeper
+      weight: 0.6
+    contact:
+      no_contact_fallback: reject_relationship
+      required_evidence:
+      - actual_contact
+      - shared_context
+      - time_and_place_feasibility
+    id: relationship-archetypes.v1
+    person_constraints:
+      ability: role_matched_competency
+      age: age_and_role_compatible_at_event
+      living_status: alive_and_available_at_event
+      place: shared_residence_or_registered_route_or_registered_facility
+    quantity:
+      full_life_guidance:
+      - 10
+      - 20
+      guidance_is_not_quota: true
+      maximum: unbounded_by_fixed_config
+      minimum: 0
+      mode: actual_contact_derived
+      padding: false
+    significance:
+      episode_eligibility_requires:
+      - actual_contact
+      - theme_prerequisites
+      fields:
+      - familiarity
+      - initial_trust
+      - importance
+    source_ref: generation#8
+    status: confirmed
+  learning:
+    id: apprenticeship.v1
+    source_ref: generation#3
+    model: teacher_apprenticeship
+    minimum_start_age_local_years: 2
+    rule: 找一名会该手艺的居民跟随学习若干本地年
+    required_evidence:
+    - teacher_ref
+    - duration_local_years
+    - actual_learning_experience
+    completion: teacher_confirms_practical_ability
+    completion_means_mastery: false
+    apprenticeships:
+    - id: apprenticeship
+      teacher_selection: one_existing_resident_who_practices_the_vocation
+      actual_practice_required: true
+    vocations:
+    - id: craftsperson
+      name: 工匠
+      apprenticeship_years: 1
+      qualification_evidence:
+      - apprenticeship_completed
+    - id: plant_cultivator
+      name: 植物培育者
+      apprenticeship_years: 1
+      qualification_evidence:
+      - apprenticeship_completed
+    - id: healer
+      name: 医者
+      apprenticeship_years: 2
+      qualification_evidence:
+      - apprenticeship_completed
+    - id: route_maintainer
+      name: 道路维护者
+      apprenticeship_years: 1
+      qualification_evidence:
+      - apprenticeship_completed
+  arrival:
+    id: earth-arrival-preparation.v2
+    source_ref: generation#4
+    model: one_short_preparation_training
+    duration_unit: local_day
+    duration_local_days: 3
+    minimum_age_rule_ref: rules.candidates.minimum_age_local_years_exclusive
+    requires:
+    - consent_to_arrive
+    - registered_trip
+    training: attend_a_simple_pre_arrival_training
+    completion: training_completed
+    result: travel_to_earth_and_arrive
+    arrival_facts_only_after_arrival: true
+    knowledge_after_arrival:
+    - E-08-02
+    - E-08-03
+  policy:
+    id: genesis-policy.v4
+    source_ref: generation#5
+    reproducibility:
+      id: genesis-randomness.v1
+      algorithm: sha256-domain-v1
+      hash: SHA-256
+      canonical_input_order:
+      - algorithm_version
+      - master_seed
+      - domain
+      - stable_object_or_slot_id
+      - domain_policy_version
+      - attempt_id
+      - draw_counter
+      canonicalization: canonical_json_sorted_keys_compact
+      text_encoding: utf8
+      text_normalization: NFC
+      digest_output:
+        bytes: 32
+        encoding: lowercase_hex
+      master_seed:
+        source: accepted_genesis_reservation
+        bytes: 32
+        retained_after_commit: false
+      domain_policy_version: genesis-policy.v4
+      stable_id_order: lexical_utf8
+      draw_counter_start: 0
+      integer_sampling: rejection_sampling
+      domains:
+      - candidate
+      - birth
+      - age
+      - appearance
+      - personality
+      - naming
+      - household
+      - learning
+      - vocation
+      - relocation
+      - journey
+      - people
+      - episodes
+      - knowledge
+      retry:
+        same_inputs_same_result: true
+        attempt_id_increments: true
+        draw_counter_resets_per_domain_stream: true
+        redraw_knowledge: false
+        replace_seed_on_retry: false
+        mutate_frozen_identity: false
+    candidates:
+      target_count: 5
+      minimum_age_local_years_exclusive: 1
+      integer_age_minimum: 2
+      applies_to: candidate_and_earth_departure
+      reject_candidate_ages_below_minimum: true
+      reject_departure_ages_below_minimum: true
+      invitation_count:
+      - 1
+      - 3
+      max_attempts: 12
+      attempt_scope: one_complete_candidate_attempt
+      budget_status: confirmed
+      existing_engine_proposals_per_role: 96
+      change_existing_engine: false
+      attempt_limit_rule: maximum 12 complete-candidate attempts per five-candidate batch; internal appearance proposals are excluded
+      partial_batch_policy: report_incomplete; do_not_present_as_full_batch
+    backtracking:
+      options_per_choice: 8
+      total_backtracks: 64
+    knowledge:
+      supported_difficulties: [medium]
+      unknown_difficulty: reject_publication
+      mastery_probabilities:
+        medium:
+          numerator: 1
+          denominator: 2
+      eligible_without_difficulty: certain
+      mandatory_after_actual_completion: certain
+      draws_per_knowledge_id: 1
+      retry_redraw: false
+      training_bypasses_event_eligibility: false
+    relationships:
+      fixed_minimum_count: false
+      basis: actual_household_learning_and_contact
+    episodes:
+      status: confirmed
+      normal_minimum: 5
+      young_exception: actual_age_feasible_events
+      fixed_maximum: false
+      required_events_first: true
+      allow_padding: false
+    exhausted_budget: report_unsatisfiable
+    mutate_frozen_identity: false
+    replace_seed_on_retry: false
+  people:
+    id: people-and-roles.v1
+    source_ref: generation#8
+    status: confirmed
+    identity_scope: current_genesis
+    name_is_identity: false
+    fixed_cast_required: false
+    naming:
+      unconfirmed_name: use_relationship_label
+      public_names: registered_catalog_only
+      historical_figures_are_not_living_contacts: true
+    roles:
+    - id: caregiver
+      name: 照护者
+      purpose: 在实际家庭生活中承担日常照料和保护。
+      requires:
+      - age_and_capacity_at_event
+      - actual_care_relationship
+      - residence_or_contact
+    - id: mentor
+      name: 师傅
+      purpose: 在真实拜师经历中传授一项手艺，并在结束时确认可以实际操作。
+      requires:
+      - can_do_vocation
+      - alive_and_available_during_training
+      - actual_teaching_contact
+    historical_names:
+    - Sera
+    - Toro
+    - Myra
+    - Vale
+    - Lin
+    - Durn
+    - Reo
+    - Ning
+  events:
+    id: life-events.v1
+    source_ref: generation#8
+    instance_requirements:
+    - participants
+    - place_ref
+    - event_time
+    - prerequisite_evidence
+    - outcome
+    templates:
+    - id: birth
+      requires:
+      - actual_birthplace
+      - biological_parent_age
+      - care_arrangement
+    - id: care
+      requires:
+      - actual_caregiver
+      - care_capacity
+      - contact
+    - id: learning
+      requires:
+      - teacher
+      - vocation
+      - location
+      - duration_local_years
+      - actual_learning_experience
+    - id: apprenticeship_completion
+      requires:
+      - actual_learning_experience
+      - actual_practice
+      - teacher_confirms_practical_ability
+    - id: work
+      requires:
+      - qualified_scope
+      - actual_workplace
+      - time_budget
+    - id: relocation
+      requires:
+      - prior_and_new_residence
+      - legal_route
+      - travel_time
+      - household_change
+    - id: mutual_signature
+      requires:
+      - in_person_contact
+      - mutual_consent
+      grants_other_contacts: false
+    - id: household_connection
+      requires:
+      - actual_home_relay
+      - privacy_and_care_agreement
+    - id: companion_plant_care
+      requires:
+      - actual_conscious_plant
+      - suitable_fixed_environment
+      - care_consent
+    - id: adulthood
+      requires:
+      - age_stage_transition
+      - actual_ceremony_if_claimed
+    - id: partnership
+      requires:
+      - mutual_choice
+      - actual_relationship
+    - id: farewell
+      requires:
+      - actual_death
+      - prior_relationship_or_actual_attendance
+      mandatory: false
+    - id: connection_day
+      requires:
+      - calendar_day_50
+      - actual_participation
+    - id: silence_day
+      requires:
+      - calendar_day_148
+      - actual_participation
+    - id: deep_exploration
+      requires:
+      - tribal_recommendation
+      - joint_review
+      - specific_open_window
+      - permitted_route
+      - return_and_verified_report
+      open_window_interval_local_years:
+      - 3
+      - 5
+      fixed_periodic_schedule: false
+    - id: earth_arrival
+      requires:
+      - actual_transfer
+      - actual_arrival
+      training_is_completion: false
+  knowledge_condition_review:
+    source_ref: generation#10
+    status: confirmed
+    unresolved_is_eligible: false
+    source_revision_before_compilation: true
+    preserve_complete_unit: true
+    proposals:
+      regional_units: residence_in_matching_region
+      town_roads: public_area_visit
+      public_landmark_units: public baseline; keep entry, interior and personal-experience conditions in separate units
+      deep_exploration: completed_exploration_with_return_and_verified_report
+      firstroot_belief: local_tradition_contact
+  geography:
+    id: geography-model.v9
+    status: grid_hop_time_ready
+    source_refs:
+    - generation#6.1
+    - geography-source#elfaria-geography-source.v7
+    model_member: knowledge/geography.yaml
+    usable_for_generation: true
+    grid_dimensions:
+    - 10
+    - 10
+    sample_unit_count: 100
+    grid_network_member: knowledge/geography.yaml
+    place_grid_membership: knowledge/geography.yaml#places[].cell_or_regions
+    region_matrix: knowledge/geography.yaml#grid.region_matrix
+    land_backbone_path_count: 16
+    land_backbone_node_count: 32
+    land_backbone_edge_count: 35
+    water_ferry_node_count: 4
+    water_edge_count: 6
+    local_roads: runtime_derived_four_direction_same_region_only
+    adjacent_grid_cells_are_not_implicitly_connected: true
+    distance_formula: legal_path_grid_hops
+    travel_time_unit: walk_day_or_water_day
+    land_days_per_grid_hop: 2
+    water_days_per_grid_hop: 3
+    water_requires_boat_or_ferry: true
+    water_cost_is_upper_layer_service_cost: true
+    kilometer_runtime_fields: forbidden
+    straight_line_or_pixel_substitution: false
+    travel_time_status: grid_hop_rule_confirmed
