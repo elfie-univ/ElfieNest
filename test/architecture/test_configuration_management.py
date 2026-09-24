@@ -47,14 +47,7 @@ def test_bundled_root_is_exactly_the_registered_document_inventory() -> None:
     actual = {
         path.relative_to(BUNDLED_ROOT).as_posix()
         for path in BUNDLED_ROOT.rglob("*")
-        if path.is_file()
-        and (
-            path.relative_to(BUNDLED_ROOT).as_posix() == "species/catalog.yaml"
-            or (
-                DYNAMIC_PACKAGE_ROOT not in path.parents
-                and SKILL_RESOURCE_ROOT not in path.parents
-            )
-        )
+        if path.is_file() and SKILL_RESOURCE_ROOT not in path.parents
     }
 
     assert None not in registered
@@ -207,28 +200,29 @@ def test_configuration_contract_freezes_genesis_source_ownership() -> None:
     species_english_normalized = " ".join(species_english.split())
     species_chinese_normalized = " ".join(species_chinese.split())
 
-    assert "**Contract version:** 1.6" in english
-    assert "**契约版本：** 1.6" in chinese
+    assert "**Contract version:** 1.7" in english
+    assert "**契约版本：** 1.7" in chinese
     assert "config/genesis/" in english
     assert "config/genesis/" in chinese
-    assert (
-        "published bundle is not automatically adoption-eligible" in english_normalized
-    )
-    assert "已发布资料包不会自动进入领养" in chinese_normalized
-    assert "| CFG-006 | P1 | open |" in conformance
-    assert "world/elfaria.yaml" in english
+    assert "Myelle remains draft and unavailable for adoption" in english_normalized
+    assert "Myelle 在 Godot 角色资产齐备" in chinese_normalized
+    assert "| CFG-006 | P1 | closed |" in conformance
+    assert "genesis/program.yaml" in english
+    assert "sole active creation input" in english
     assert (
         "Profile receives only the final generated dossier fields" in english_normalized
     )
-    assert "Profile 只接收最终生成的档案字段" in chinese_normalized
+    assert "Profile 只接收" in chinese_normalized
+    assert "最终生成的档案字段" in chinese_normalized
     assert (
-        "runtime asset view separately from the Genesis creation projection" in english
+        "runtime asset view separately from the Genesis creation projection"
+        in english_normalized
     )
-    assert "运行时资产 View 与 Genesis 创建投影分开暴露" in chinese_normalized
+    assert "运行时资产 View 与 Genesis 创建投影分开" in chinese_normalized
     assert "second hard-coded Profile Canon" in english_normalized
     assert "第二份硬编码 Profile Canon" in chinese_normalized
     assert "| CFG-005 | P0 | closed (v0.2 structural) |" in conformance
-    assert "Status: normative, version 3" in species_english_normalized
-    assert "状态：规范性契约，版本 3" in species_chinese_normalized
+    assert "Status: normative, version 4" in species_english_normalized
+    assert "状态：规范性契约，版本 4" in species_chinese_normalized
     assert "Profile receives neither catalog nor package" in species_english_normalized
     assert "Profile 不接收目录或资料包" in species_chinese_normalized

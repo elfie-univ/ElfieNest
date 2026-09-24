@@ -21,6 +21,12 @@ with catalog status `draft` while its Godot role assets are missing; it cannot b
 offered for adoption. Saevi/Tovren appearance review is author-accepted without
 a new render run; the technical render record is not rewritten.
 
+The App availability projection therefore selects only an activated creation
+package and species with validated creation rules and runtime assets. It never
+interprets source publication alone as permission to offer candidates. Activation
+is a separate, verified handoff to the existing Adoption → ResidentAdmission →
+Elfie Genesis path, not a second creation path or an administrator allowlist.
+
 ## Consequences
 
 The preparation-only publication restriction in ADR-0039 is superseded by this

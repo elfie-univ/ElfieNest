@@ -4,7 +4,7 @@
 > [Elfie internal architecture contract](../contracts/elfie). It records the
 > evidence for closed slices and the exact current gaps without weakening the target. Rows
 > ELF-001 through ELF-009 record the Ports/Adapters migration; ELF-010 onward
-> records the life-system work adopted by the current contract version 2.5.
+> records the life-system work adopted by the current contract version 2.6.
 
 ## Conformance closure
 
@@ -29,6 +29,12 @@
 | ELF-017 | P0 | closed | Orientation and Selfhood are independent authorities. The generic continuity checkpoint contains Energy, Memory, Motivation, Cognitive Consolidation and conversation state, but deliberately excludes Selfhood and Orientation; Selfhood restores from its own sole durable document, Orientation is re-sourced, and short-lived Emotion returns to its personality-derived baseline on sleep or restart. | Focused state, settlement and cross-module recovery tests cover explicit ownership, source/version rules, separate durable-owner restore, process-local Emotion restart, stale checkpoint rejection and single-message resistance for personality and norms. | target=ELF-017 continuous life state and ADR-0030/0031; inventory=Brain state owners, Selfhood store and continuity; references=checkpoint/settlement guards; verification=state and cross-module recovery tests; residuals=none |
 | ELF-018 | P0 | open | The three Brain domains and dynamic catalog path are implemented; the real Godot room now proves movement, terminal Body feedback, targeted hearing, semantic vision, touch and proprioceptive position under the stage-one Brain-owned Mock mode. | Keep exactly `Communication`/`Embodied`/`Activity`; keep `ACCEPTED`/`STARTED` in the ledger; publish one terminal embodied outcome plus compatible body facts through EventWorkspace; separately evidence live model-driven control. Hearing/vision/touch/position scenarios are now evidenced. | target=ADR-0033 and Brain/Elfie/System/Nest-Godot contracts v1.7/2.4/1.10/1.2; inventory=Brain workspace/decision types, Body/NervousSystem, Godot Adapter/Transport/Gateway and vertical-slice plan; references=dynamic capability catalog, scoped receipt payloads, Brain-owned Mock controller and real-room E2E harness; verification=relevant Python regression 825/825, architecture suite 229/229, real Godot room E2E `build/e2e/brain-godot-live` with scene manifest, `world_ready`, actual movement, `speech_reach`, `visual_observation`, targeted Body inputs and terminal outcomes, plus compile/lint; residuals=external physical body, v2 async submission/receipt stream and live model-driven embodied control remain open |
 
+## Genesis v1 gap
+
+| ID | Severity | Status | Current deviation | Closure gate | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| ELF-019 | P0 | open | The published `config/genesis/` package is now the sole creation source and the old production paths are removed (CFG-006 closed). Remaining gaps are end-to-end life feasibility, accepted-input/version binding, complete personal knowledge/relationship/Episode/Selfhood projection, and Nest-backed admission confirmation. Durable Genesis publication currently precedes runtime registration; runtime recovery is separate. | Close the remaining semantic and admission gates below on the existing single creation path. Preserve source-free restore, the activated package binding, and final-owner authority; do not add a second source path. | target=Elfie 2.6, Application 1.12, Configuration 1.7, ADR-0033/0040; inventory=Bootstrap source, Adoption candidate/session, Genesis compiler/initializer, Memory, Admission, Nest and UI; references=`config/genesis/program.yaml`, ADR-0033/0040, `app_wiring/adoption.py`, `compiler.py`, `initializer.py`, `resident_admission/service.py`; verification=focused characterization, package/feasibility, five-gate semantic, Memory Recall and interrupted-admission checks; residuals=the seven remaining closure slices below. |
+
 **Closure state:** open
 
 ## Machine coverage
@@ -43,8 +49,9 @@ slices.
 
 The earlier Ports/Adapters and life-system rows retain their evidence. The v0.2
 Profile and Genesis ownership gaps in ELF-010 and ELF-013 are closed for the
-current implementation; embodied-control gaps in ELF-018, real-workspace migration and external
-model/embodiment acceptance remain separate gates. Contract 2.5 reuses these boundaries and
+current implementation; the full Genesis v1 behavior remains open in ELF-019.
+Embodied-control gaps in ELF-018, real-workspace migration and external
+model/embodiment acceptance remain separate gates. Contract 2.6 reuses these boundaries and
 existing baselines; it does not create a second legacy baseline. This register is not a second runtime
 authority or permission to add compatibility fields.
 
@@ -74,7 +81,75 @@ the old path, then close only the matching row.
 6. bounded Motivation and Cognitive Consolidation close ELF-015;
 7. Genesis now closes ELF-013 for the v0.2 structural slice: semantic compilation is in `elfie/genesis`, creation inputs are transaction-only, and final-owner/source-isolation evidence exists.
 
-The detailed execution plan is a separate implementation artifact. It may split
-these rows into smaller acceptance slices but cannot reorder Motivation ahead of
-Activity, remove one-body authority, add compatibility storage or redefine the
-owners fixed by the contract.
+## Genesis v1 closure order
+
+The Genesis v1 closure order is recorded below. CFG-006 is now closed; the
+remaining items describe separate open implementation gates:
+
+1. **Typed source and product cutover (`CFG-006`; closed).** The published
+   `config/genesis/program.yaml` manifest and its 18 members feed the typed
+   creation and availability views. Adoption and Genesis use this single source;
+   old production config files are removed, and Myelle remains excluded as
+   draft. Check: package integrity, closed inventory, release-manifest coverage
+   and persisted Adoption/Memory E2E.
+2. **Geography and life-feasibility primitives (`elfie/genesis`).** Use the 100
+   cells, 83 birth-eligible cells, allowed species regions, 16 ordered land chains,
+   local same-subregion adjacency and the four registered ferry ports from that
+   view. Expose legal paths and travel
+   days (two per land edge, three per water edge), not invented straight lines.
+   Check: known routes, ordinary ferry access to the lake island, blocked
+   land crossing, inaccessible Cloudcrown and unregistered dungeon access, plus
+   feasible birth/guardian/learning/arrival witnesses for eligible stages.
+3. **Candidate gate (`Adoption`, `GenesisEngine`).** Validate hard choices and
+   supported age/appearance; generate five distinct candidates where feasible
+   within 12 complete-candidate attempts per batch (the existing 96 internal
+   appearance proposals are not extra attempts), each with a life witness before
+   display. The five questionnaire answers affect personality only.
+   Preserve the existing 1–3 invitations and deterministic reply semantics.
+   Check: five-way diversity, age ≥2, impossible-choice explanation, no
+   unproven candidate display and no Myelle option while draft.
+4. **Acceptance freeze (`Adoption`, Admission reservation).** Atomically bind
+   the accepted candidate/name, package/policy/compiler revisions, seed, time
+   anchor and idempotency key in a private durable envelope. Validate the name
+   as data, including Unicode/control/reserved-character rules. Published replies
+   never change, and restart or candidate TTL cannot regenerate an accepted
+   identity. Check: duplicate/changed clicks, expiry, package revocation and
+   restart all preserve or reject the *same* reservation.
+5. **LifeContext (`elfie/genesis/compiler.py`).** Choose an allowed region
+   uniformly, then a birth cell uniformly within it; build private home,
+   age-valid care, one real apprenticeship when applicable, work and actual
+   journeys in chronological order. Actual visit is distinct from reachability;
+   arrival needs consent, age ≥2 and the simple three-local-day preparation.
+   Check: boundary cells, missing guardian/teacher/route and youth cases fail
+   cleanly; every selected route and event slot is time/space-valid.
+6. **Personal plan (`elfie/genesis`, Selfhood).** Evaluate the four declared
+   knowledge condition leaves against evidence at the time of acquisition;
+   draw difficulty once and keep the entire resident paragraph or none. Build
+   actual people/relationships, necessary complete Episodes (normally at least
+   five, with the youth exception and no padding), personal life facts and
+   closed Selfhood mapping without quotas or generic personality fallback.
+   Model wording may only project fixed facts. Check: no self-supporting
+   knowledge/event, no invented stranger,
+   youth episode exception, no discarded life fact or unknown mapping.
+7. **Bundle, Memory and determinism (`elfie/genesis/initializer.py`).** Jointly
+   validate identity/age, timeline, routes, relationships, knowledge, Selfhood
+   and final-owner references; use versioned canonical SHA-256 domains and
+   bounded dependency-aware backtracking. Submit only knowledge, relationships
+   and episodes through Memory's existing atomic source-first entry; index
+   objects to their actual evidence, not the first Episode by default. Check:
+   fixed vectors, retry equivalence, failure atomicity, source-free reopen and
+   Recall with no unearned facts or technical markers.
+8. **Admission transaction (`resident_admission`, Adoption, Nest).** Extend the
+   current durable state machine with a real Nest bed reservation/confirmation,
+   execution fencing, package-revocation ordering, compensation and status/
+   cancellation. `committed` is the activation fence only after all three owner
+   results; Runtime connection follows it. Check: concurrency, duplicate calls,
+   each crash window, cancellation before/after publication and no partially
+   visible resident.
+Each slice first characterizes the existing path and then changes only its
+owner. No fallback, dual-read period, new life generator or Profile/Canon runtime
+dependency is permitted. The closed ELF-013 structural slice stays closed;
+ELF-019 remains open until its remaining generation and admission evidence exists.
+CFG-006 is closed in the [configuration-management register](configuration-management).
+Migration of existing real workspaces and Myelle role-asset completion are
+separate scopes; neither is hidden inside Genesis v1 cutover.

@@ -189,7 +189,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="configuration-management",
-        version="1.6",
+        version="1.7",
         english_path="docs/developer/contracts/configuration-management.md",
         chinese_path="docs/zh/developer/contracts/configuration-management.md",
         decision_paths=(
@@ -261,7 +261,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="elfie-internal-architecture",
-        version="2.5",
+        version="2.6",
         english_path="docs/developer/contracts/elfie.md",
         chinese_path="docs/zh/developer/contracts/elfie.md",
         decision_paths=(
@@ -279,6 +279,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0033-embodied-feedback-and-capability-routing.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/developer/decisions/0040-genesis-source-publication-before-activation.md",
+            "docs/zh/developer/decisions/0040-genesis-source-publication-before-activation.md",
         ),
         agent_paths=(
             "elfie/AGENTS.md",
@@ -335,7 +337,7 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
     ),
     ContractRegistration(
         contract_id="application-architecture",
-        version="1.11",
+        version="1.12",
         english_path="docs/developer/contracts/application.md",
         chinese_path="docs/zh/developer/contracts/application.md",
         decision_paths=(
@@ -355,6 +357,8 @@ CONTRACT_REGISTRY: Tuple[ContractRegistration, ...] = (
             "docs/zh/developer/decisions/0028-script-control-plane-layout.md",
             "docs/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
             "docs/zh/developer/decisions/0033-one-time-genesis-and-final-owner-isolation.md",
+            "docs/developer/decisions/0040-genesis-source-publication-before-activation.md",
+            "docs/zh/developer/decisions/0040-genesis-source-publication-before-activation.md",
         ),
         agent_paths=(
             "app/AGENTS.md",

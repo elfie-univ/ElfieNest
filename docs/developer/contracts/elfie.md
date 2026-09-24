@@ -1,8 +1,8 @@
 # Elfie internal architecture contract
 
-**Contract version:** 2.5
+**Contract version:** 2.6
 **Adopted:** 2026-08-11
-**Revised:** 2026-09-03
+**Revised:** 2026-09-24
 **Scope:** `elfie/` and Infrastructure Port views scoped to one Elfie
 
 > **Normative target.** This contract defines the life-system ownership,
@@ -267,13 +267,23 @@ Profile, Selfhood, Memory, Activity or execution facts.
 ## Genesis
 
 Genesis is a one-time creation flow, not a runtime organ and not a second Brain.
-It consumes a published typed `GenesisSourcePackage`, accepted transient
+It consumes the activated, published, typed `GenesisSourcePackage`, accepted transient
 adoption input and controlled randomness. `elfie/genesis/` owns every semantic
 decision that turns those inputs into an individual: identity resolution,
 life context, personal knowledge eligibility/mastery, people, relationships,
 episode skeletons and owner-specific seed policy. Infrastructure may load the
 typed package and persist the validated outputs through Ports, but it must not
 make any of those decisions.
+
+The single creation path has five semantic gates: generate up to five distinct
+candidates only after a legal life is feasible; accept one and freeze identity,
+appearance, personality and package/policy versions; construct a time- and
+route-valid `LifeContext` without changing those anchors; derive only personally
+eligible complete knowledge, actual people/episodes and a closed Selfhood mapping;
+then jointly validate sibling outputs before Admission publishes them. A later
+gate cannot manufacture an earlier prerequisite or re-draw an accepted fact.
+Geography, learning and travel come from the same activated package; unknown
+facts remain unknown rather than being supplied by a model or default.
 
 Genesis co-materializes Profile and Brain Selfhood plus Genesis Memory and any
 other explicitly owned startup seed in one ephemeral bundle. Profile and

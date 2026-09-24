@@ -1,6 +1,6 @@
 # Configuration management contract
 
-**Contract version:** 1.6
+**Contract version:** 1.7
 **Adopted:** 2026-08-15
 **Revised:** 2026-09-24
 **Scope:** application defaults, user configuration, loading and release packaging
@@ -59,32 +59,23 @@ config/
 │   └── emotion-expressions.yaml
 ├── nest/
 │   └── defaults.yaml
-├── genesis/                  # published source package; not yet an active creation input
+├── genesis/                  # published and active Genesis creation package
 │   ├── program.yaml
 │   ├── knowledge/elfaria.yaml
 │   ├── knowledge/geography.yaml
 │   └── species/              # explicit catalog, members and display assets
-├── world/
-│   └── elfaria.yaml
-└── species/
-    ├── catalog.yaml
-    └── <package>/
-        ├── species.yaml
-        ├── appearance.yaml
-        ├── genesis.yaml
-        └── assets/*.png
 ```
 
-This tree is the source of bundled defaults and registered Genesis creation
-sources. `world/elfaria.yaml` and `species/catalog.yaml` are registered
-documents; species members are validated as immutable packages by Infrastructure
-Adapters and joined into a typed published `GenesisSourcePackage` before domain
-use. Genesis receives typed values and does not read YAML. Profile receives only
-the final generated dossier fields, never the source package. The Godot 3D
-package remains under `godot_project/characters/`; only its semantic package link
-and appearance bindings are represented in species configuration. The loader
-exposes that runtime asset view separately from the Genesis creation projection;
-there is no universal catalog injected into Profile.
+This tree is the source of bundled defaults and the registered Genesis creation
+package. `genesis/program.yaml` is the only creation-package entry; its manifest
+binds the resident knowledge, geography, species definitions, appearance rules
+and display assets consumed by Adoption and Genesis. Infrastructure validates
+and projects the package into typed values; Genesis does not read YAML. Profile
+receives only the final generated dossier fields, never the source package. The
+Godot 3D package remains under `godot_project/characters/`; only its semantic
+package link and appearance bindings are represented in species configuration.
+The loader exposes that runtime asset view separately from the Genesis creation
+projection; there is no universal catalog injected into Profile.
 
 ### Genesis source package
 
@@ -96,14 +87,11 @@ escaping paths, symbolic links and changed digests fail closed. Source publicati
 also requires recorded creator-section bindings, exact resident-unit projection
 and zero unresolved knowledge conditions. Content changes require a new version.
 
-Publishing the source package does not switch the current world/species production
-readers. They remain the sole active creation path until a typed Genesis consumer,
-semantic and feasibility validation, and a separately verified single-path
-cutover; there is no fallback or merged read. The source inspector accepts a
-published bundle only when its technical and declared source checks pass. A
-published bundle is not automatically adoption-eligible. Its activation blockers
-remain explicit; Myelle stays draft in the species catalog until its Godot role
-assets exist. See [ADR-0039](../decisions/0039-genesis-preparation-package) and
+The registered Genesis package is the sole active creation input; there is no
+fallback or merged read from the retired world/species paths. The source
+inspector accepts it only when its technical and declared source checks pass.
+Myelle remains draft and unavailable for adoption until its Godot role assets
+exist. See [ADR-0039](../decisions/0039-genesis-preparation-package) and
 [ADR-0040](../decisions/0040-genesis-source-publication-before-activation).
 
 ### User-owned files
@@ -163,8 +151,7 @@ Infrastructure.
 | Reasoning constitution | `brain/reasoning-constitution.yaml` | none | Elfie Brain Reasoning | bundled only |
 | Emotion-expression mapping | `brain/emotion-expressions.yaml` | none | Elfie Brain Emotion | bundled only |
 | Nest initialization defaults | `nest/defaults.yaml` | none | Nest | bundled only |
-| Elfaria resident/creator source | `world/elfaria.yaml` | none | Elfie Genesis source semantics; Infrastructure typed loader | bundled only |
-| Species catalog and packages | `species/catalog.yaml` and `species/<package>/` | none | Elfie Genesis source semantics; Infrastructure typed loader; typed availability projection to Adoption | bundled only |
+| Elfaria Genesis package | `genesis/program.yaml` and its manifest members | none | Elfie Genesis source semantics; Infrastructure typed loader; typed availability projection to Adoption | bundled only |
 | Provider connections and endpoint models | none | `providers.yaml` | App configuration providers | user only |
 | API and OAuth credentials | none | `auth.env`, `credentials/oauth/` or process environment | secret capability | user only; never merged |
 
