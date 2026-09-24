@@ -60,6 +60,52 @@ owners, not a requirement for ten processes, databases or empty packages.
 | 9 | Persistent Activity | validated goals and work that survive the current Turn; steps, conditions, scheduling, pause/resume/cancel, retry, idempotency and receipts | preflight results, state events and bounded Activity triggers | become a second Brain or directly perform open-ended external actions |
 | 10 | Cognitive Consolidation | interruptible sleep/idle review of memories, activities, emotion trajectories and outcomes under a no-external-side-effect scope | validated state candidates or a later Activity trigger | directly message, move, create Activity, expand permission or rewrite authoritative state |
 
+Memory relation rules are part of the Brain boundary. Relation predicates come from one versioned
+registry. `elfie` and `person` are distinct entity node types; a relationship word is never a node
+type. Assertions are sourced propositions: symmetric social relations (`friend_of`, `kin_of`,
+`sibling_of`, and similar predicates) have one canonical stored assertion and a derived reverse
+view, while directed relations (`parent_of`, `owned_by`, `student_of`, and similar predicates)
+retain endpoint roles. A coarse `kin_of` is allowed when the source does not identify the exact
+kinship; absence of an edge is unknown, and co-occurrence is not evidence of a social relation.
+Multiple relations between the same endpoints coexist. Assertion `importance` ranks salience for
+recall and maintenance; it is separate from `confidence` and must not be propagated merely by
+graph adjacency. The registry-owned type prior and bounded sourced-history signals may rank an
+explicit childhood friend above a routine neighbor without collapsing either fact.
+
+Memory has exactly two semantic layers. A `ClosedEpisode` is an already-processed, complete topic,
+story or learning unit and is the normal text-memory result; it may aggregate multiple turns, but
+it is not the raw communication log or raw media. `Node`/`Assertion` is the higher-level note and
+relationship graph derived from Episodes. Genesis may additionally commit the explicitly sourced
+identity and relationship skeleton needed at creation time; its KnowledgeSeed and EpisodeSeed
+content is stored as complete Episodes first and is eligible for the same later Consolidation.
+Its relationships, reusable knowledge and Patterns may be returned directly by Recall. Node
+properties are also searchable: intrinsic attributes such as appearance, personality and species
+remain structured properties, while a rebuildable lexical projection makes their user-visible
+values available as candidates even when the canonical name is unknown. Technical IDs and
+provenance metadata are not ordinary property-search text, and an intrinsic property does not need
+an Assertion solely for retrieval. Evidence links both layers to the Episode that supports them.
+Raw upstream material is outside the normal Memory Recall contract; any internal slice used to index
+an unusually large Episode is an implementation detail, not a third semantic Memory layer.
+An Episode has no title field: its original content is the primary display and retrieval text. Any
+legacy `summary_text` is optional metadata only. Consolidation does not create an event Node for
+every Episode and does not generate generic `about`, `knows`, `knows_boundary` or `related_to` edges.
+
+Knowledge Node admission is stricter than ordinary text capture: `canonical_label` is one
+source-grounded short title (at most 40 characters and never a complete Episode), while the full
+source-grounded explanation is stored as the Node description with kind `context`. A model proposal
+must explicitly set `reusable_knowledge=true`; ordinary facts stay in the Episode and the local
+fallback extractor never promotes knowledge by keyword or quotation alone. A rejected proposal
+leaves the Episode retryable rather than writing a long or invented graph label.
+
+Memory attributes have one registry-owned storage class per key: stable identity or structural values
+are validated Node properties; sourced human-readable prose belongs to Node descriptions; temporal,
+multi-valued, conflicting, independently evidenced or relational values are Attribute Assertions.
+`properties_json` is a bounded projection of the first class and approved search values, never a bag
+of technical metadata or a duplicate Assertion. Developer Tools may project these records through a
+typed read-only Inspector (`NodeDetail`, `AssertionDetail`, `EpisodeDetail`, `EvidenceDetail`) with a
+shared header, primary content, connections, source and collapsed technical details. This projection
+does not change the Memory/Recall API or create another fact source.
+
 Context assembly, Turn settlement, decision governance, routing, Journal,
 Checkpoint and receipt reconciliation are mandatory mechanisms serving these
 owners. They are not additional peer mental systems.

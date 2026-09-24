@@ -49,6 +49,40 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 | 9 | 跨回合活动 | 经过校验且跨当前 Turn 存续的 Goal 和工作；Step、条件、调度、暂停/恢复/取消、重试、幂等和回执 | Preflight 结果、状态事件和有界 Activity Trigger | 成为第二个 Brain 或直接执行开放式外部行动 |
 | 10 | 心智整理 | 在无外部副作用 Scope 中可中断地整理睡眠/空闲期记忆、Activity、情绪轨迹和结果 | 已校验状态候选或未来 Activity Trigger | 直接发消息、移动、创建 Activity、扩权或改写权威状态 |
 
+Memory 的关系规则属于 Brain 边界。关系谓词只能来自一份带版本的注册表。`elfie` 和
+`person` 是不同的实体节点类型；关系词不能成为节点类型。Assertion 是带来源的命题：
+对称社交关系（`friend_of`、`kin_of`、`sibling_of` 等）只保存一条规范 Assertion，再
+派生反向视图；有方向的关系（`parent_of`、`owned_by`、`student_of` 等）保留两端角色。
+来源没有说明具体亲属关系时允许使用粗粒度 `kin_of`；没有边表示未知，共同出现不能证明
+社交关系。同一对端点可以并存多条关系。Assertion 的 `importance` 只用于召回和维护时的
+显著性，与 `confidence` 分开，不能仅沿图邻接传播。注册表类型先验和有界的来源历史信号
+可以让明确的童年朋友排在普通邻居之前，但不能合并这两条事实。
+
+Memory 只有两层语义。`ClosedEpisode` 是已经加工好的完整话题、故事或学习单元，是普通的
+文本记忆结果；它可以聚合多轮对话，但不是原始聊天日志或原始媒体。`Node`/`Assertion` 是
+基于 Episode 整理出的高层笔记与关系图。Genesis 只在创建时直接提交有明确来源的身份和关系
+骨架；它的 KnowledgeSeed 与 EpisodeSeed 内容先完整存成 Episode，再参加同一套后续整理。
+其中的关系、可复用知识和 Pattern 可以直接作为 Recall 结果。Node 属性也可以检索：外貌、性格、物种
+等描述自身的属性仍以结构化属性保存，再通过可重建的词法投影把面向用户的值作为候选，即使忘记规范
+名称也能找到节点。技术 ID 和来源元数据不进入普通属性搜索文本，属性也不需要为了检索而强行变成
+Assertion。Evidence 把这两层关联到支持它们的 Episode。上游原始材料不属于普通 Memory Recall 契约；
+为了给异常大的 Episode 建索引而使用的内部切片只是实现细节，不是第三个语义 Memory 层。
+Episode 没有标题字段：原始正文是主要的显示和检索文本。已有的 `summary_text` 只能作为可选元数据。
+Consolidation 不为每个 Episode 自动创建 event Node，也不生成通用的 `about`、`knows`、
+`knows_boundary` 或 `related_to` 边。
+
+知识 Node 的准入比普通文本捕获更严格：`canonical_label` 必须是一个有原文依据的短标题（最多 40 个字符，
+不能是完整 Episode），完整且有原文依据的解释保存为 kind 为 `context` 的 Node description。模型只有明确给出
+`reusable_knowledge=true` 时才能提升知识 Node；普通事实继续保留在 Episode 中，本地回退提取器不会仅凭关键词或
+引号内容提升知识。提案被拒绝时 Episode 保持可重试，不写入长句或模型臆造的图谱标签。
+
+Memory 属性由注册表为每个 key 指定唯一存储类别：稳定身份或结构分类值是经过校验的 Node property；有来源的
+人类可读文字属于 Node description；随时间变化、多值、有冲突、需要独立证据或本身是关系的值属于 Attribute
+Assertion。`properties_json` 只是第一类属性和获准搜索值的有界投影，不能成为技术元数据的杂物箱，也不能
+复制 Assertion。Developer Tools 可以通过类型化的只读 Inspector（`NodeDetail`、`AssertionDetail`、
+`EpisodeDetail`、`EvidenceDetail`）投影这些记录，统一使用页首、主要内容、关联、来源和折叠技术详情；该投影
+不改变 Memory/Recall API，也不创建第二个事实源。
+
 上下文组装、Turn 结算、决策治理、路由、Journal、Checkpoint 和回执对账是服务这些
 所有者的必需机制，不是额外平级心智系统。
 
