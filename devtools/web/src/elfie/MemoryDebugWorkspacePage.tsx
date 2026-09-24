@@ -1093,6 +1093,12 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       clearSearch();
       return;
     }
+    setSelectedId("");
+    setSelectedEdgeId("");
+    setSelectedEpisodeId("");
+    setSelectedEvidenceId("");
+    setDetailSelection(null);
+    setDetailPanelOpen(false);
     setPreview(null);
     setRecall(null);
     setTraceRecall(null);
