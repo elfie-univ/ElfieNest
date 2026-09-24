@@ -37,3 +37,9 @@ def test_godot_browser_capture_uses_the_png_portrait_api_contract():
 
     assert "target.toDataURL('image/png')" in source
     assert 'data_url.begins_with("data:image/png;base64,")' in source
+    assert "var portrait_height := 512" in source
+    assert "const side = Math.min(canvas.width, canvas.height);" in source
+    assert (
+        "context.drawImage(canvas, x, y, side, side, 0, 0, target.width, target.height);"
+        in source
+    )
