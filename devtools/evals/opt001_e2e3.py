@@ -183,12 +183,16 @@ def run(output: Path) -> dict[str, Any]:
                         with SQLiteMemoryStoreAdapter(memory_path) as storage:
                             episode_count = storage.count_episodes()
                             person_count = storage.count_graph_nodes("person")
+                            elfie_count = storage.count_graph_nodes("elfie")
+                            group_count = storage.count_graph_nodes("group")
                             marker = storage.get_graph_node(
                                 f"genesis:receipt:{elfie_id}"
                             )
                             valid_graph = (
                                 episode_count == 5
-                                and person_count == 13
+                                and person_count == 1
+                                and elfie_count == 12
+                                and group_count == 1
                                 and marker is not None
                             )
                             if not valid_graph:

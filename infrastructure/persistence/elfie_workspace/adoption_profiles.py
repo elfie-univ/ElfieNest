@@ -473,12 +473,14 @@ class FinalElfieWorkspaceAdapter:
             )
             if memory_output_ids != marker_output_ids:
                 raise ValueError("Memory output inventory is inconsistent")
-            missing_outputs = [
-                str(identifier)
-                for identifier in marker_output_ids
-                if memory.get_graph_node(str(identifier)) is None
-                and memory.get_episode(str(identifier)) is None
-            ]
+            missing_outputs: list[str] = []
+            for identifier in marker_output_ids:
+                value = str(identifier)
+                if memory.get_graph_node(value) is not None:
+                    continue
+                episode = memory.get_episode(value)
+                if episode is None or episode.lifecycle == "forgotten":
+                    missing_outputs.append(value)
             if missing_outputs:
                 raise ValueError(
                     "Genesis output inventory contains missing records: "

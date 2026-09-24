@@ -346,6 +346,35 @@ def test_consolidation_consolidates_memory_without_external_actions(
     assert len(session.elfie.turn_outcomes()) == 1
 
 
+def test_manual_consolidation_runs_while_awake_without_creating_an_episode(
+    tmp_path, session_factory
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("手动整理")
+    session = session_factory(spec, storage)
+    memory = ElfieDiagnostics(session.elfie).memory
+    memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="manual-episode-1",
+            idempotency_key="manual-episode-1",
+            occurred_from=(datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+            content_text="主人在花园陪我散步",
+            emotion="happy",
+            emotion_intensity=0.8,
+            importance=0.8,
+        )
+    )
+
+    result = session.run_manual_consolidation("mock")
+
+    assert result["triggered"] is True
+    assert result["success"] is True
+    assert result["candidate_id"].startswith("consolidation:")
+    assert result["consolidated_count"] > 0
+    assert len(session.turns) == 0
+    assert session.snapshot()["cognitive_consolidation"]["status"] == "satisfied"
+
+
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
     spec = storage.create_elfie("边界测试")

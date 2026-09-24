@@ -9,8 +9,9 @@ type RecallReport = { elapsed_ms: number; counts: Record<string, number | boolea
 type GraphNode = { id: string; kind: string; label: string; x: number; y: number };
 type GraphEdge = { id: string; source: string; target: string; label: string; kind: string; evidenceIds?: string[] };
 
-const labels: Record<string, string> = { person: "人物", knowledge: "知识", place: "地点", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
-const colors: Record<string, string> = { person: "#7a5aa6", knowledge: "#277b5e", place: "#3b7195", event: "#a06b18", elfie: "#b55f3d", self_model: "#516f8b", genesis_commit_receipt: "#80735f", literal: "#718078" };
+const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
+const colors: Record<string, string> = { person: "#7a5aa6", group: "#8b6b3f", knowledge: "#277b5e", place: "#3b7195", object: "#6d8f62", event: "#a06b18", elfie: "#b55f3d", self_model: "#516f8b", genesis_commit_receipt: "#80735f", literal: "#718078" };
+const NON_SEMANTIC_LEGACY_PREDICATES = new Set(["about", "knows", "knows_boundary", "related_to"]);
 
 function nodeLabel(node: AuditItem): string { const kind = node.node_type ?? "unknown"; return labels[kind] ?? kind; }
 function graphLabel(value: string, limit = 12): string { return value.length > limit ? `${value.slice(0, limit)}…` : value; }
@@ -55,6 +56,7 @@ export function MemoryAuditPage(): React.JSX.Element {
     const nodeIds = new Set(nodes.map((item) => item.id));
     const edges: GraphEdge[] = [];
     assertions.forEach((item) => {
+      if (NON_SEMANTIC_LEGACY_PREDICATES.has(String(item.predicate ?? ""))) return;
       const assertionId = String(item.assertion_id);
       const assertionEvidence = (Array.isArray(item.evidence_ids) ? item.evidence_ids : []).map(String).filter((id) => evidenceIds.has(id));
       if (item.subject_id && item.object_node_id && nodeIds.has(String(item.subject_id)) && nodeIds.has(String(item.object_node_id))) edges.push({ id: assertionId, source: String(item.subject_id), target: String(item.object_node_id), label: String(item.predicate ?? "关系"), kind: "assertion", evidenceIds: assertionEvidence });
@@ -102,7 +104,7 @@ export function MemoryAuditPage(): React.JSX.Element {
       <div className="memory-audit-main">
         <div className="memory-audit-graph-head"><div><strong>记忆关系图</strong><span>全部 Node 与 Assertion；Evidence 在选中关系后查看</span></div><span>全库 {report?.counts.nodes ?? 0} 节点 · {report?.counts.assertions ?? 0} 条关系</span></div>
         {loading ? <div className="memory-audit-empty">正在读取真实 Memory…</div> : <div className="memory-audit-graph-canvas" aria-label="真实记忆来源链">
-          <div className="memory-audit-memory-cards" aria-label="记忆卡片来源">{(report?.data.episodes ?? []).map((episode) => <button key={String(episode.episode_id)} title={String(episode.summary_text ?? episode.content_text ?? "")} onClick={() => setMessage(`记忆卡片：${String(episode.summary_text ?? episode.content_text ?? "")}`)}>{String(episode.summary_text ?? episode.content_text ?? episode.episode_id)}</button>)}</div>
+          <div className="memory-audit-memory-cards" aria-label="记忆卡片来源">{(report?.data.episodes ?? []).map((episode) => <button key={String(episode.episode_id)} title={String(episode.content_text ?? episode.episode_id)} onClick={() => setMessage(`记忆卡片：${String(episode.content_text ?? episode.episode_id)}`)}>{String(episode.content_text ?? episode.episode_id)}</button>)}</div>
           <svg className="memory-audit-svg" viewBox="0 0 1040 720" role="img" aria-label="Episode、Evidence 与 Node 关系网络">
             <defs><marker id="memory-audit-arrow-v2" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="3.5"><path d="M0,0 L8,3.5 L0,7 Z" /></marker></defs>
             {graph.edges.map((edge) => { const source = graphNodeById.get(edge.source); const target = graphNodeById.get(edge.target); if (!source || !target) return null; return <g className={`memory-audit-svg-edge ${edge.kind} ${selectedEdgeId === edge.id ? "is-selected" : ""}`} key={edge.id} onClick={() => { setSelectedEdgeId(edge.id); setSelectedId(""); setTab("detail"); }} role="button" tabIndex={0}><line markerEnd="url(#memory-audit-arrow-v2)" x1={source.x} x2={target.x} y1={source.y + 22} y2={target.y - 22} /><text x={(source.x + target.x) / 2} y={(source.y + target.y) / 2 - 6}>{edge.label}</text><title>{edge.label}</title></g>; })}
@@ -111,7 +113,7 @@ export function MemoryAuditPage(): React.JSX.Element {
               <text className="memory-audit-svg-node-label" x={node.x} y={node.y + 4} textAnchor="middle">{graphLabel(node.label, 8)}</text><title>{node.label}</title>
             </g>)}
           </svg>
-          <div className="memory-audit-legend-v2"><span className="assertion-key">关系边 Assertion</span><span className="person-key">人物</span><span className="knowledge-key">知识</span><span className="place-key">地点</span></div>
+          <div className="memory-audit-legend-v2"><span className="assertion-key">关系边 Assertion</span><span className="person-key">人物</span><span className="elfie-key">精灵</span><span className="group-key">群体/家庭</span><span className="knowledge-key">知识</span><span className="place-key">地点</span></div>
         </div>}
         <footer className="memory-audit-footer">当前画布：{graph.nodes.filter((node) => !["episode", "evidence"].includes(node.kind)).length} 个 Node · {graph.edges.filter((edge) => edge.kind === "assertion").length} 条关系边　|　全库：{report?.counts.nodes ?? 0} 节点 · {report?.counts.assertions ?? 0} 关系 · {report?.counts.episodes ?? 0} Episode</footer>
       </div>

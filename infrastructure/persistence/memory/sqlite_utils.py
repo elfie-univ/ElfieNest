@@ -9,6 +9,31 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+_NON_SEARCHABLE_NODE_PROPERTY_KEYS = frozenset(
+    {
+        "elfie_id",
+        "genesis_submission_id",
+        "source_id",
+        "source_ref",
+        "source_version",
+        "seed_id",
+        "knowledge_id",
+        "relationship_id",
+        "person_id",
+        "person_species_id",
+        "episode_id",
+        "episode_ids",
+        "related_ids",
+        "prerequisite_ids",
+        "consultable_target_ids",
+        "privacy_scope",
+        "recall_eligible",
+        "confidence_class",
+        "initial_confidence",
+        "policy_version",
+    }
+)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -58,6 +83,37 @@ def json_list(value: str | None) -> list[Any]:
     return result if isinstance(result, list) else []
 
 
+def searchable_node_property_text(properties: Mapping[str, Any] | None) -> str:
+    """Flatten user-facing Node properties into a rebuildable text projection.
+
+    Properties remain structured facts in ``nodes.properties_json``.  This
+    projection is only for lexical candidate search, so technical identifiers
+    and provenance fields are deliberately excluded.
+    """
+
+    values: list[str] = []
+
+    def visit(value: Any, key: str | None = None) -> None:
+        if key is not None and key in _NON_SEARCHABLE_NODE_PROPERTY_KEYS:
+            return
+        if isinstance(value, Mapping):
+            for child_key, child_value in value.items():
+                visit(child_value, str(child_key))
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                visit(item, key)
+            return
+        if isinstance(value, bool) or value is None:
+            return
+        text = str(value).strip()
+        if text:
+            values.append(text)
+
+    visit(properties or {})
+    return "\n".join(dict.fromkeys(values))
+
+
 def bounded_score(value: object, default: float = 0.5) -> float:
     try:
         score = float(value)  # type: ignore[arg-type]
@@ -95,6 +151,7 @@ __all__ = [
     "normalize_text",
     "normalized_tokens",
     "safe_json_mapping",
+    "searchable_node_property_text",
     "stable_id",
     "utc_now",
 ]

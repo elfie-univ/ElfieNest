@@ -70,6 +70,7 @@ def add_edge(
     target_id: str,
     predicate: str,
     weight: float = 0.5,
+    context: str = None,
 ) -> None:
     evidence_id = f"test:evidence:{source_id}:{target_id}:{predicate}"
     storage.record_sourced_assertion(
@@ -79,6 +80,7 @@ def add_edge(
             object_node_id=target_id,
             confidence=max(0.0, min(1.0, weight)),
             importance=max(0.0, min(1.0, weight)),
+            context=context,
             evidence_ids=(evidence_id,),
         ),
         EvidenceInput(

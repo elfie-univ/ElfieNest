@@ -274,7 +274,7 @@ def create_app(
         elfie_id: Optional[str] = None
         query: str = Field(min_length=1, max_length=2000)
         mode: Literal["basic", "local", "basic_local"] = "basic_local"
-        limit: int = Field(default=20, ge=1, le=200)
+        limit: int = Field(default=8, ge=1, le=200)
 
     @app.post("/api/memory-audit/recall")
     def recall_memory(request: MemoryRecallRequest) -> dict[str, object]:
@@ -283,11 +283,13 @@ def create_app(
             text=request.query,
             mode=request.mode,
             lexical_limit=request.limit,
-            seed_limit=min(request.limit, 20),
+            seed_limit=min(request.limit, 6),
             node_limit=request.limit,
-            assertion_limit=request.limit,
-            episode_limit=min(request.limit, 20),
-            evidence_limit=min(request.limit, 50),
+            assertion_limit=min(request.limit, 12),
+            episode_limit=min(request.limit, 5),
+            evidence_limit=min(request.limit, 8),
+            hop_limit=1,
+            neighbors_per_node=6,
             character_limit=12000,
         )
         with _read_only_store(database, elfie_id=selected) as store:
@@ -499,6 +501,37 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except MediaNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SessionClosedError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/elfies/{elfie_id}/consolidation")
+    def run_manual_consolidation(
+        elfie_id: str,
+        request: api_models.ManualConsolidationRequest,
+    ):
+        """Run one explicit night-work pass through the production Brain path."""
+        try:
+            food = find_food_item(
+                request.food_key,
+                model_environment,
+                food_store,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if food is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Runtime 粮食目录中不存在粮食: {request.food_key}",
+            )
+        if not food["ready_for_attempt"]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"粮食“{food['display_name']}”尚未配置：{food['unavailable_reason']}",
+            )
+        try:
+            return sessions.get(elfie_id).run_manual_consolidation(request.food_key)
         except SessionClosedError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except (KeyError, ValueError) as exc:

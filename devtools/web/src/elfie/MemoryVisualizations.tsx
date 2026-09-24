@@ -30,7 +30,12 @@ function nodeText(node: GraphNode, x: number, y: number, units = 8): React.JSX.E
 
 function dashPattern(kind: string): string | undefined {
   const patterns: Readonly<Record<string, string>> = {
-    owner: "1 0", family: "2 2", friend: "7 3", acquaintance: "2 5",
+    owner: "1 0", owner_of: "1 0", owned_by: "1 0",
+    family: "2 2", kin_of: "2 2",
+    friend: "7 3", friend_of: "7 3",
+    acquaintance: "2 5", acquaintance_of: "2 5",
+    classmate_of: "5 2", colleague_of: "5 2", neighbor_of: "2 5",
+    parent_of: "1 0", child_of: "1 0", sibling_of: "4 2",
     conflicts: "2 4", revises: "8 3", supports: "1 0", derived_from: "5 3",
   };
   return patterns[kind];
@@ -62,8 +67,9 @@ export function RelationshipGraph({ graph }: Readonly<{ graph: Memory["relations
           </g>;
         })}
         {nodes.map((node) => {
+          const isSelf = node.is_self === true || node.kind === "self";
           const isElfie = node.kind === "elfie";
-          const shape = node.kind === "self" ? "self" : isElfie ? "elfie" : "human";
+          const shape = isSelf ? "self" : isElfie ? "elfie" : ["group", "place", "object"].includes(node.kind ?? "") ? node.kind : "human";
           return <g className={`memory-node ${shape}`} data-memory-node={node.id} data-node-shape={shape} key={node.id}>
             {isElfie
               ? <rect height={node.size * 1.7} rx="7" width={node.size * 2.5} x={node.x - node.size * 1.25} y={node.y - node.size * 0.85} />

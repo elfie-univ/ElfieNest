@@ -29,11 +29,26 @@ from elfie.brain.memory.memory_records import (
     EvidenceInput,
     MentionInput,
     NodeInput,
+    memory_knowledge_kind,
+    resolve_memory_node_type,
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.model_food import MemoryModelPort, ask_memory_model
+from elfie.brain.memory.predicates import (
+    NON_SEMANTIC_LEGACY_PREDICATES,
+    relation_context,
+    relation_importance,
+    relation_spec,
+    resolve_predicate,
+)
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
+
+# A knowledge Node is a reusable index entry, not a second copy of the
+# Episode.  Keep the admission rule close to the model boundary so a provider
+# cannot turn a complete paragraph into the graph label shown by the UI.
+_KNOWLEDGE_TITLE_MAX_CHARS = 40
+_KNOWLEDGE_TITLE_SENTENCE_MARKS = frozenset("。！？!?；;\n")
 
 
 class MemoryProjectionDeferred(RuntimeError):
@@ -172,32 +187,15 @@ class MemoryConsolidator:
             source_version=episode.source_version,
             attribution=episode.attribution,
         )
-        event_id = f"event:{episode.episode_id}"
-        nodes: list[NodeInput] = [
-            NodeInput(
-                node_id=event_id,
-                node_type="event",
-                canonical_label=episode.summary_text or episode.content_text[:120],
-                description=episode.content_text,
-                confidence=1.0,
-                properties={"episode_id": episode.episode_id},
-            )
-        ]
-        mentions: list[MentionInput] = [
-            MentionInput(
-                episode_id=episode.episode_id,
-                surface_text=episode.summary_text or episode.content_text[:120],
-                node_id=event_id,
-                resolution_state="resolved",
-                role="event",
-                confidence=1.0,
-            )
-        ]
+        # Episodes are already the durable source unit.  Do not manufacture an
+        # event Node for every Episode; only an explicit, reusable event
+        # proposal may enter the graph below.
+        nodes: list[NodeInput] = []
+        mentions: list[MentionInput] = []
         model_projection = self._projection_from_model(
             episode=episode,
             model_port=model_port,
             evidence_id=evidence_id,
-            event_id=event_id,
             evidence=evidence,
             base_nodes=nodes,
             base_mentions=mentions,
@@ -214,7 +212,6 @@ class MemoryConsolidator:
         assertions: list[AssertionInput] = []
         aliases: list[AliasInput] = []
         labels = self._labels_from_content(episode.content_text)
-        label_nodes: list[tuple[str, str]] = []
         for label, node_type, start in labels:
             node_id = (
                 "node:"
@@ -222,7 +219,6 @@ class MemoryConsolidator:
                     f"elfie|{node_type}|{label.casefold()}".encode()
                 ).hexdigest()[:24]
             )
-            label_nodes.append((label, node_id))
             nodes.append(
                 NodeInput(
                     node_id=node_id,
@@ -243,16 +239,6 @@ class MemoryConsolidator:
                     confidence=0.75,
                 )
             )
-            assertions.append(
-                AssertionInput(
-                    subject_id=event_id,
-                    predicate="involves",
-                    object_node_id=node_id,
-                    confidence=0.8,
-                    importance=0.6,
-                    evidence_ids=(evidence_id,),
-                )
-            )
         self._append_deterministic_owner_claims(
             episode.content_text,
             episode.episode_id,
@@ -269,47 +255,8 @@ class MemoryConsolidator:
             aliases,
             mentions,
             assertions,
+            scope=(f"elfie:{self.elfie_id}" if self.elfie_id else "elfie"),
         )
-        if episode.emotion:
-            emotion_id = (
-                "emotion:"
-                + hashlib.sha256(
-                    episode.emotion.casefold().encode("utf-8")
-                ).hexdigest()[:24]
-            )
-            nodes.append(
-                NodeInput(
-                    node_id=emotion_id,
-                    node_type="emotion",
-                    canonical_label=episode.emotion,
-                    confidence=0.8,
-                )
-            )
-            assertions.append(
-                AssertionInput(
-                    subject_id=event_id,
-                    predicate="felt",
-                    object_node_id=emotion_id,
-                    confidence=0.8,
-                    importance=0.6,
-                    evidence_ids=(evidence_id,),
-                )
-            )
-        # Capture a small, explicit social/affinity fact when the wording is
-        # unambiguous. The source Episode remains the complete narrative.
-        if any(token in episode.content_text for token in ("喜欢", "爱", "讨厌")):
-            relation = "dislikes" if "讨厌" in episode.content_text else "likes"
-            if len(label_nodes) >= 2:
-                assertions.append(
-                    AssertionInput(
-                        subject_id=label_nodes[0][1],
-                        predicate=relation,
-                        object_node_id=label_nodes[1][1],
-                        confidence=0.65,
-                        importance=0.5,
-                        evidence_ids=(evidence_id,),
-                    )
-                )
         return ConsolidationProjection(
             episode_id=episode.episode_id,
             nodes=tuple(nodes),
@@ -437,8 +384,164 @@ class MemoryConsolidator:
         aliases: list[AliasInput],
         mentions: list[MentionInput],
         assertions: list[AssertionInput],
+        *,
+        scope: str = "elfie",
     ) -> None:
-        """Capture explicitly named people, aliases and relationships."""
+        """Capture explicitly named entities, aliases and relationships.
+
+        Pairwise social relations are admitted only when the Episode states the
+        relation directly (for example ``Nemi 和 Pela 是朋友``).  Merely
+        mentioning two names in one Episode is not enough to create an edge.
+        ``elfie`` is used for named residents so the relation graph preserves
+        the distinction between an Elfie and a human person.
+        """
+        name_pattern = r"(?:[A-Za-z][A-Za-z0-9_-]{0,31}|[\u4e00-\u9fff]{1,12})"
+        pairwise_pattern = re.compile(
+            rf"(?P<left>{name_pattern})\s*(?:和|与)\s*"
+            rf"(?:精灵\s*)?(?P<right>{name_pattern})\s*"
+            r"(?:是|属于)\s*(?P<role>朋友|家人|亲人|亲戚|同学|同事|邻居|玩伴|青梅竹马|兄弟姐妹|兄弟|姐妹)"
+        )
+        directed_pattern = re.compile(
+            rf"(?P<subject>{name_pattern})\s*(?:是|属于)\s*"
+            rf"(?P<object>{name_pattern})\s*的"
+            r"(?P<role>父亲|母亲|爸爸|妈妈|父母|儿子|女儿|子女)"
+        )
+        relation_predicates = {
+            "朋友": ("friend_of", "friend"),
+            "玩伴": ("friend_of", "childhood_companion"),
+            "青梅竹马": ("friend_of", "childhood_companion"),
+            "家人": ("kin_of", "unspecified"),
+            "亲人": ("kin_of", "unspecified"),
+            "亲戚": ("kin_of", "unspecified"),
+            "同学": ("classmate_of", "classmate"),
+            "同事": ("colleague_of", "colleague"),
+            "邻居": ("neighbor_of", "neighbor"),
+            "兄弟姐妹": ("sibling_of", "sibling"),
+            "兄弟": ("sibling_of", "sibling"),
+            "姐妹": ("sibling_of", "sibling"),
+        }
+        directed_predicates = {
+            "父亲": ("parent_of", "father"),
+            "母亲": ("parent_of", "mother"),
+            "爸爸": ("parent_of", "father"),
+            "妈妈": ("parent_of", "mother"),
+            "父母": ("parent_of", "unspecified"),
+            "儿子": ("child_of", "son"),
+            "女儿": ("child_of", "daughter"),
+            "子女": ("child_of", "unspecified"),
+        }
+        emitted_assertions: set[str] = set()
+
+        def add_elfie(label: str, start: int) -> str:
+            node_id = _projection_id("node:", "elfie", "elfie", label)
+            if not any(node.node_id == node_id for node in nodes):
+                nodes.append(
+                    NodeInput(
+                        node_id=node_id,
+                        node_type="elfie",
+                        canonical_label=label,
+                        scope=scope,
+                        confidence=0.95,
+                        properties={"extraction": "explicit_pairwise_relation"},
+                    )
+                )
+            mentions.append(
+                MentionInput(
+                    episode_id=episode_id,
+                    surface_text=label,
+                    node_id=node_id,
+                    resolution_state="resolved",
+                    role="elfie",
+                    span_start=start,
+                    span_end=start + len(label),
+                    confidence=0.95,
+                )
+            )
+            return node_id
+
+        def emit_relation(
+            left: str,
+            right: str,
+            left_start: int,
+            right_start: int,
+            predicate: str,
+            specificity: str,
+            role: str,
+            *,
+            symmetric: bool,
+            source: str,
+        ) -> None:
+            left_id = add_elfie(left, left_start)
+            right_id = add_elfie(right, right_start)
+            if symmetric:
+                subject_id, object_id = sorted((left_id, right_id))
+                assertion_id = _projection_id(
+                    "assertion:",
+                    episode_id,
+                    predicate,
+                    min(left_id, right_id),
+                    max(left_id, right_id),
+                )
+            else:
+                subject_id, object_id = left_id, right_id
+                assertion_id = _projection_id(
+                    "assertion:", episode_id, predicate, subject_id, object_id
+                )
+            if assertion_id in emitted_assertions:
+                return
+            emitted_assertions.add(assertion_id)
+            assertions.append(
+                AssertionInput(
+                    subject_id=subject_id,
+                    predicate=predicate,
+                    object_node_id=object_id,
+                    epistemic_status="reported",
+                    context=relation_context(
+                        source,
+                        symmetric=symmetric,
+                        specificity=specificity,
+                        role=role,
+                    ),
+                    confidence=0.95,
+                    importance=relation_importance(
+                        predicate,
+                        0.94 if specificity == "childhood_companion" else None,
+                    ),
+                    evidence_ids=(evidence_id,),
+                    assertion_id=assertion_id,
+                )
+            )
+
+        for match in pairwise_pattern.finditer(content):
+            left = match.group("left").strip()
+            right = match.group("right").strip()
+            predicate, specificity = relation_predicates[match.group("role")]
+            emit_relation(
+                left,
+                right,
+                match.start("left"),
+                match.start("right"),
+                predicate,
+                specificity,
+                match.group("role"),
+                symmetric=True,
+                source="explicit_pairwise_relation",
+            )
+
+        for match in directed_pattern.finditer(content):
+            predicate, specificity = directed_predicates[match.group("role")]
+            emit_relation(
+                match.group("subject").strip(),
+                match.group("object").strip(),
+                match.start("subject"),
+                match.start("object"),
+                predicate,
+                specificity,
+                match.group("role"),
+                symmetric=False,
+                source="explicit_directed_relation",
+            )
+
         matches = list(
             re.finditer(
                 r"(?:我的|我有个|那个)?(?:朋友|同事|同学|哥哥|姐姐|弟弟|妹妹|爸爸|妈妈)"
@@ -472,20 +575,6 @@ class MemoryConsolidator:
                     confidence=0.9,
                 )
             )
-            owner_id = _projection_id("node:", "person", "elfie", "主人")
-            if any(node.node_id == owner_id for node in nodes):
-                assertions.append(
-                    AssertionInput(
-                        subject_id=owner_id,
-                        predicate="knows",
-                        object_node_id=node_id,
-                        viewpoint="owner",
-                        epistemic_status="reported",
-                        confidence=0.85,
-                        importance=0.7,
-                        evidence_ids=(evidence_id,),
-                    )
-                )
         for match in re.finditer(
             r"([^\s，。！？,.!?；;]{1,32})\s*(?:也叫|又叫|昵称是)\s*([^\s，。！？,.!?；;]{1,32})",
             content,
@@ -508,7 +597,6 @@ class MemoryConsolidator:
         episode: ClosedEpisode,
         model_port: MemoryModelPort | None,
         evidence_id: str,
-        event_id: str,
         evidence: EvidenceInput,
         base_nodes: list[NodeInput],
         base_mentions: list[MentionInput],
@@ -533,11 +621,17 @@ class MemoryConsolidator:
             return None
         prompt = (
             "从下面这条已经闭合的 Elfie Episode 提取候选记忆。只能返回 JSON 对象，"
-            "不要 Markdown。所有 nodes.label、mentions.surface_text、assertions 的"
+            "不要 Markdown。所有节点标题、mentions.surface_text、assertions 的"
             "subject_ref/object_ref 必须是原文中出现的短语；不要补写原文没有的事实。"
-            "结构：{nodes:[{label,type,description,aliases}],mentions:[{surface_text,label,role}],"
-            "assertions:[{subject_ref,predicate,object_ref,object_literal,polarity,"
-            "epistemic_status,viewpoint,context,confidence,importance_event}]}\n"
+            "knowledge 节点必须提供唯一的短标题 title（不超过40字，不能是完整句子），"
+            "并把完整解释放在 context，且只有可复用知识才设置 reusable_knowledge:true；"
+            "普通事实只保留在 Episode。旧格式也可用 label 作为短标题，但完整句子不能作为标题。"
+            "不要为每条 Episode 自动创建 event 节点；只有可被其他记录复用的明确事件才可将"
+            "type设为event并同时给出reusable_event:true。不要生成about、knows、knows_boundary或related_to。"
+            "结构：{nodes:[{title,label,type,context,description,aliases,reusable_knowledge,reusable_event}],"
+            "mentions:[{surface_text,label,role}],assertions:[{subject_ref,predicate,object_ref,"
+            "object_literal,polarity,epistemic_status,viewpoint,context,confidence,"
+            "importance_event}]}\n"
             f"Episode：{episode.content_text}"
         )
         try:
@@ -554,7 +648,6 @@ class MemoryConsolidator:
                 raw=raw,
                 evidence=evidence,
                 evidence_id=evidence_id,
-                event_id=event_id,
                 base_nodes=base_nodes,
                 base_mentions=base_mentions,
             )
@@ -579,7 +672,6 @@ class MemoryConsolidator:
         raw: Mapping[str, Any],
         evidence: EvidenceInput,
         evidence_id: str,
-        event_id: str,
         base_nodes: list[NodeInput],
         base_mentions: list[MentionInput],
     ) -> ConsolidationProjection | None:
@@ -595,21 +687,66 @@ class MemoryConsolidator:
         for item in raw_nodes:
             if not isinstance(item, dict):
                 raise ValueError("node proposal must be an object")
-            label = _required_model_text(item, "label")
+            raw_label = _model_text(item.get("label"))
+            raw_title = _model_text(item.get("title"))
+            label = raw_title or raw_label
+            if not label:
+                raise ValueError("model node requires title or label")
             if label not in content:
                 raise ValueError("model node label is not grounded in Episode")
-            node_type = _model_text(item.get("type")) or "concept"
-            # Reusable semantic anchors share identity across Episodes.  Event
-            # nodes remain episode-scoped; the adapter also resolves aliases
-            # deterministically when a proposal uses a different local ID.
+            proposed_type = _model_text(item.get("type")) or "concept"
+            type_spec = resolve_memory_node_type(proposed_type)
+            node_type = proposed_type
+            node_properties: dict[str, Any] = {}
+            description_kind = "description"
+            if type_spec.domain == "knowledge":
+                node_type = "knowledge"
+                if item.get("reusable_knowledge") is not True:
+                    raise ValueError(
+                        "knowledge node proposals require reusable_knowledge=true"
+                    )
+                node_properties["knowledge_kind"] = str(
+                    item.get("knowledge_kind") or memory_knowledge_kind(proposed_type)
+                )
+                label = _validate_knowledge_title(label, content)
+                description_kind = "context"
+            elif type_spec.domain == "entity":
+                node_type = type_spec.kind
+            elif type_spec.domain == "event":
+                node_type = "event"
+            elif type_spec.domain == "technical":
+                raise ValueError("technical node types are not valid model proposals")
+            # Reusable semantic anchors share identity across Episodes. An
+            # event is admitted only when the proposal explicitly marks it as
+            # reusable; an ordinary Episode remains the source unit.
+            if type_spec.domain == "event" and item.get("reusable_event") is not True:
+                raise ValueError("event node proposals require reusable_event=true")
             node_id = _projection_id("node:", node_type, "elfie", label)
             labels_to_ids[label] = node_id
-            raw_description = _model_text(item.get("description"))
+            # Keep the source explanation on the Node as context/description;
+            # the canonical label remains the short title above.  When a
+            # knowledge proposal omits context, the complete Episode is the
+            # auditable fallback rather than another model-invented summary.
+            raw_description = _model_text(
+                item.get("context")
+                if type_spec.domain == "knowledge"
+                else item.get("description")
+            )
+            if raw_description is None and type_spec.domain == "knowledge":
+                raw_description = _model_text(item.get("description"))
+            if raw_description is None and type_spec.domain == "knowledge":
+                raw_description = content
             grounded_description = (
                 raw_description
                 if raw_description and raw_description in content
                 else None
             )
+            if type_spec.domain == "knowledge" and grounded_description is None:
+                raise ValueError("knowledge context must be grounded in Episode")
+            if raw_label and raw_label != label and raw_label in content:
+                # Preserve references emitted in the legacy label field while
+                # using the validated title as the canonical graph label.
+                labels_to_ids[raw_label] = node_id
             if "importance" in item:
                 raise ValueError(
                     "model importance must be expressed as importance_event"
@@ -621,6 +758,7 @@ class MemoryConsolidator:
                     node_type=node_type,
                     canonical_label=label,
                     description=grounded_description,
+                    properties=node_properties,
                     confidence=_model_score(item.get("confidence"), 0.6),
                     # Importance is an admission baseline plus an auditable
                     # event.  Do not materialize a second, lossy score here;
@@ -654,6 +792,7 @@ class MemoryConsolidator:
                             text=description,
                             evidence_id=evidence_id,
                             confidence=_model_score(item.get("confidence"), 0.6),
+                            kind=description_kind,
                         )
                     )
         raw_mentions = raw.get("mentions", [])
@@ -667,12 +806,6 @@ class MemoryConsolidator:
                 raise ValueError("model mention is not grounded in Episode")
             label = _model_text(item.get("label")) or surface
             resolved_node_id = labels_to_ids.get(label)
-            if resolved_node_id is None:
-                resolved_node_id = _projection_id("node:", "concept", "elfie", label)
-                labels_to_ids[label] = resolved_node_id
-                nodes.append(
-                    NodeInput(resolved_node_id, "concept", label, confidence=0.55)
-                )
             start = _model_int(item.get("span_start"))
             if start is None:
                 start = content.find(surface)
@@ -681,7 +814,7 @@ class MemoryConsolidator:
                     episode_id=episode.episode_id,
                     surface_text=surface,
                     node_id=resolved_node_id,
-                    resolution_state="resolved",
+                    resolution_state=("resolved" if resolved_node_id else "unresolved"),
                     role=_model_text(item.get("role")),
                     span_start=start if start >= 0 else None,
                     span_end=(start + len(surface)) if start >= 0 else None,
@@ -690,6 +823,9 @@ class MemoryConsolidator:
             )
 
         assertions: list[AssertionInput] = []
+        symmetric_assertions: set[tuple[str, str, str, str, str, str, str | None]] = (
+            set()
+        )
         raw_assertions = raw.get("assertions", [])
         if not isinstance(raw_assertions, list):
             raise ValueError("assertions must be a list")
@@ -709,15 +845,43 @@ class MemoryConsolidator:
                 object_node_id = labels_to_ids[object_ref]
             else:
                 object_node_id = None
-            predicate = _required_model_text(item, "predicate")
+            predicate = resolve_predicate(_required_model_text(item, "predicate"))
+            if predicate in NON_SEMANTIC_LEGACY_PREDICATES:
+                raise ValueError(
+                    f"model predicate is legacy/non-semantic and cannot be written: {predicate}"
+                )
             importance_event = _model_importance_event(item.get("importance_event"))
             if "importance" in item:
                 raise ValueError(
                     "model importance must be expressed as importance_event"
                 )
+            subject_id = labels_to_ids[subject_ref]
+            relation = relation_spec(predicate)
+            if (
+                relation is not None
+                and relation.symmetric
+                and object_node_id is not None
+            ):
+                subject_id, object_node_id = sorted((subject_id, object_node_id))
+                symmetric_key = (
+                    predicate,
+                    subject_id,
+                    object_node_id,
+                    str(item.get("polarity") or "positive"),
+                    str(item.get("epistemic_status") or "known"),
+                    str(item.get("viewpoint") or ""),
+                    _model_text(item.get("context")),
+                )
+                if symmetric_key in symmetric_assertions:
+                    continue
+                symmetric_assertions.add(symmetric_key)
+            relation_baseline = relation_importance(
+                predicate,
+                None if relation is not None else episode.importance,
+            )
             assertions.append(
                 AssertionInput(
-                    subject_id=labels_to_ids[subject_ref],
+                    subject_id=subject_id,
                     predicate=predicate,
                     object_node_id=object_node_id,
                     object_literal=object_literal,
@@ -739,14 +903,22 @@ class MemoryConsolidator:
                     viewpoint=_model_text(item.get("viewpoint")),
                     context=_model_text(item.get("context")),
                     confidence=_model_score(item.get("confidence"), 0.6),
-                    importance=episode.importance,
-                    initial_importance=episode.initial_importance,
+                    importance=relation_baseline,
+                    initial_importance=(
+                        relation_baseline
+                        if relation is not None
+                        else episode.initial_importance
+                    ),
                     importance_event_class=importance_event,
                     object_literal_type=_model_text(item.get("object_literal_type")),
                     evidence_ids=(evidence_id,),
                 )
             )
-        if not assertions and len(nodes) == len(base_nodes):
+        if (
+            not assertions
+            and len(nodes) == len(base_nodes)
+            and len(mentions) == len(base_mentions)
+        ):
             return None
         return ConsolidationProjection(
             episode_id=episode.episode_id,
@@ -766,31 +938,25 @@ class MemoryConsolidator:
     def _labels_from_content(content: str) -> list[tuple[str, str, int]]:
         dictionary = {
             "主人": "person",
-            "朋友": "person",
             "长老": "person",
             "地球": "place",
             "精灵巢": "place",
             "花园": "place",
             "厨房": "place",
-            "香菜": "food",
-            "鱼味": "food",
-            "鸡肉": "food",
-            "猫": "animal",
-            "狗": "animal",
-            "牛顿第一定律": "knowledge",
-            "万有引力": "knowledge",
+            "香菜": "object",
+            "鱼味": "object",
+            "鸡肉": "object",
+            "猫": "elfie",
+            "狗": "elfie",
         }
         found: list[tuple[str, str, int]] = []
         for label, kind in dictionary.items():
             start = content.find(label)
             if start >= 0:
                 found.append((label, kind, start))
-        # Quoted/marked terms are useful for seed knowledge while avoiding a
-        # graph node for every token in ordinary prose.
-        for match in re.finditer(r"[“「『]([^”」』]{2,32})[”」』]", content):
-            label = match.group(1).strip()
-            if label and not any(item[0] == label for item in found):
-                found.append((label, "knowledge", match.start(1)))
+        # Knowledge is deliberately absent from this local fallback.  A
+        # reusable knowledge Node needs a model-supplied title, context and
+        # admission decision; ordinary text remains an Episode until then.
         return sorted(found, key=lambda item: (item[2], item[0]))
 
 
@@ -854,6 +1020,33 @@ def _model_importance_event(value: object) -> str | None:
     return event_class
 
 
+def _validate_knowledge_title(title: str, content: str) -> str:
+    """Admit one short, source-grounded title for a knowledge Node.
+
+    A full Episode remains the source text.  Treating that text as the
+    canonical label makes the graph unreadable and creates a fake one-node
+    summary, so reject it at the model boundary instead of repairing it with
+    a heuristic title.
+    """
+
+    candidate = title.strip()
+    source = content.strip()
+    if not candidate:
+        raise ValueError("knowledge title must not be blank")
+    if len(candidate) > _KNOWLEDGE_TITLE_MAX_CHARS:
+        raise ValueError("knowledge title is too long")
+    if any(mark in candidate for mark in _KNOWLEDGE_TITLE_SENTENCE_MARKS):
+        raise ValueError("knowledge title must be a short phrase, not a sentence")
+    if candidate == source and len(candidate) >= 20:
+        raise ValueError("knowledge title must not duplicate the complete Episode")
+    # A punctuation-free provider response can still be a whole paragraph.
+    # Reject labels that consume almost all of a long source instead of
+    # silently inventing a lossy title.
+    if len(candidate) >= 20 and len(candidate) >= len(source) * 0.75:
+        raise ValueError("knowledge title is too close to the complete Episode")
+    return candidate
+
+
 def _model_int(value: object) -> int | None:
     if value is None or isinstance(value, bool):
         return None
@@ -889,11 +1082,17 @@ def _alias_input(
 
 
 def _description_input(
-    *, node_id: str, text: str, evidence_id: str, confidence: float
+    *,
+    node_id: str,
+    text: str,
+    evidence_id: str,
+    confidence: float,
+    kind: str = "description",
 ) -> DescriptionInput:
     return DescriptionInput(
         node_id=node_id,
         text=text,
+        kind=kind,
         evidence_id=evidence_id,
         confidence=confidence,
     )

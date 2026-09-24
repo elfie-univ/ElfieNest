@@ -91,8 +91,10 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
             )
         )
         assert elfie.selfhood_snapshot().species_name
-        assert memory.count_episodes() == 5
-        assert memory.count_graph_nodes("person") == 13
+        assert memory.count_episodes() == len(compilation.bundle.knowledge_seeds) + 5
+        assert memory.count_graph_nodes("person") == 1
+        assert memory.count_graph_nodes("group") == 1
+        assert memory.count_graph_nodes("elfie") == 12
         assert memory.get_graph_node("genesis:self:00000001") is not None
         assert memory.get_graph_node("genesis:self-model:00000001") is not None
         assert memory.get_graph_node("genesis:receipt:00000001") is not None
@@ -275,7 +277,7 @@ def test_workspace_reopen_rejects_a_missing_declared_output(
             if ":knowledge:" in identifier
         )
         memory.conn.execute(
-            "UPDATE nodes SET status='forgotten' WHERE node_id=?",
+            "UPDATE episodes SET lifecycle='forgotten' WHERE episode_id=?",
             (knowledge_id,),
         )
         memory.conn.commit()

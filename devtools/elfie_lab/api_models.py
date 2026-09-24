@@ -188,6 +188,17 @@ class TurnRequest(BaseModel):
         return self
 
 
+class ManualConsolidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    food_key: str = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def normalize_food_key(self) -> "ManualConsolidationRequest":
+        self.food_key = self.food_key.strip().lower()
+        return self
+
+
 class PortraitRequest(BaseModel):
     data_url: str = Field(min_length=32, max_length=7_000_000)
 
@@ -281,4 +292,5 @@ __all__ = (
     "PortraitRequest",
     "ProbeOllamaRequest",
     "TurnRequest",
+    "ManualConsolidationRequest",
 )

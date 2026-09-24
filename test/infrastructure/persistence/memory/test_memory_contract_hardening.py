@@ -921,7 +921,8 @@ def test_memory_maintenance_uses_one_budget_across_both_stages() -> None:
     class MaintenanceModel:
         def ask_with_food(self, **_kwargs: object) -> str:
             return (
-                '{"nodes":[{"label":"待投影来源","type":"concept"}],'
+                '{"nodes":[{"label":"待投影来源","type":"concept",'
+                '"reusable_knowledge":true}],'
                 '"mentions":[],"assertions":[]}'
             )
 

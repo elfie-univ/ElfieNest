@@ -80,18 +80,16 @@ def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:
         seen_targets.add(target)
         output.append(f"{PERSON_NODE_PREFIX}{safe_elfie}:{safe_component(target)}")
 
+    # Knowledge is admitted as complete source Episodes.  The graph Node is a
+    # later Consolidation product, so it must not appear in the Genesis output
+    # inventory (or become visible before the nightly pass).
     output.extend(
-        f"{KNOWLEDGE_NODE_PREFIX}{safe_elfie}:{safe_component(seed.seed_id)}"
+        f"{EPISODE_NODE_PREFIX}{safe_elfie}:knowledge:{safe_component(seed.seed_id)}"
         for seed in bundle.knowledge_seeds
     )
     for episode in bundle.episode_seeds:
         safe_seed = safe_component(episode.seed_id)
-        output.extend(
-            (
-                f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_seed}",
-                f"{EVENT_NODE_PREFIX}{safe_elfie}:{safe_seed}",
-            )
-        )
+        output.append(f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_seed}")
     output.append(f"{GENESIS_RECEIPT_PREFIX}{elfie_id}")
     return tuple(output)
 

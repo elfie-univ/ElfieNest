@@ -47,7 +47,7 @@ from elfie.communication.contracts import InboundDisposition, InboundDisposition
 from elfie.communication.perception_adapter import CommunicationPerceptionAdapter
 from elfie.communication.router import RegisteredChannel
 from elfie.lifecycle_errors import ElfieLifecycleError, InvalidClockDeltaError
-from elfie.message_types import ElfieId, TurnId
+from elfie.message_types import ElfieId, EventId, TurnId
 from elfie.nervous_system import NervousSystem
 from elfie.profile import (
     ElfieProfile,
@@ -326,6 +326,10 @@ class ElfieFacadeOperations(_ElfieFacadeState):
         if disposition.status is InboundDispositionStatus.ACCEPTED:
             self._require_brain_runtime().notify_perception()
         return disposition
+
+    def request_consolidation(self) -> EventId | None:
+        """Request one explicit consolidation Activity Turn for Lab/debug use."""
+        return self._require_brain_runtime().request_consolidation()
 
     def turn_outcomes(self) -> tuple[TurnOutcome, ...]:
         return self._require_brain_runtime().outcomes()

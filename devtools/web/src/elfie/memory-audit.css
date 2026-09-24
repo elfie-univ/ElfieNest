@@ -409,7 +409,9 @@ body:has(.memory-audit-page) {
 .memory-audit-svg-node.knowledge circle { fill: #e3f5eb; stroke: #3e9873; }
 .memory-audit-svg-node.place circle { fill: #e7f3fa; stroke: #4c86a6; }
 .memory-audit-svg-node.event circle { fill: #fff5dc; stroke: #c99436; }
-.memory-audit-svg-node.elfie circle, .memory-audit-svg-node.self_model circle { fill: #fff0e7; stroke: #b35f3d; }
+.memory-audit-svg-node.elfie circle { fill: #fff0e7; stroke: #b35f3d; }
+.memory-audit-svg-node.group circle { fill: #fff5dc; stroke: #a06b18; }
+.memory-audit-svg-node.self_model circle { fill: #eef4f8; stroke: #516f8b; }
 .memory-audit-svg-node.is-selected rect, .memory-audit-svg-node.is-selected path, .memory-audit-svg-node.is-selected circle { stroke: #1f6d52; stroke-width: 4; filter: drop-shadow(0 2px 4px rgba(33,122,92,.25)); }
 .memory-audit-svg-node-kind { fill: #71857c; font-size: 10px; font-weight: 700; }
 .memory-audit-svg-node-label { fill: #20352d; font-size: 11px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
@@ -419,6 +421,6 @@ body:has(.memory-audit-page) {
 .memory-audit-edge-evidence { margin: .45rem 0; padding: .6rem .7rem; border-left: 2px solid #789b8b; color: #527267; background: #f4f8f5; font: .68rem/1.45 ui-monospace, monospace; }
 .memory-audit-legend-v2 { display: flex; flex-wrap: wrap; gap: .8rem; padding: .65rem 1rem; border-top: 1px solid #e5eee9; color: #4e6258; background: #fff; font-size: .68rem; }
 .memory-audit-legend-v2 span::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: .3rem; vertical-align: -2px; border: 1px solid currentColor; }
-.memory-audit-legend-v2 .episode-key::before { border-radius: 4px; background: #fff5dc; }.memory-audit-legend-v2 .evidence-key::before { width: 18px; height: 0; border: 0; border-top: 2px dotted #789b8b; }.memory-audit-legend-v2 .assertion-key::before { width: 18px; height: 0; border: 0; border-top: 2px solid #6e9c87; }.memory-audit-legend-v2 .person-key::before { border-radius: 50%; background: #f2ebff; }.memory-audit-legend-v2 .knowledge-key::before { background: #e3f5eb; }.memory-audit-legend-v2 .place-key::before { border-radius: 50%; background: #e7f3fa; }
+.memory-audit-legend-v2 .episode-key::before { border-radius: 4px; background: #fff5dc; }.memory-audit-legend-v2 .evidence-key::before { width: 18px; height: 0; border: 0; border-top: 2px dotted #789b8b; }.memory-audit-legend-v2 .assertion-key::before { width: 18px; height: 0; border: 0; border-top: 2px solid #6e9c87; }.memory-audit-legend-v2 .person-key::before { border-radius: 50%; background: #f2ebff; }.memory-audit-legend-v2 .elfie-key::before { border-radius: 50%; background: #fff0e7; }.memory-audit-legend-v2 .group-key::before { border-radius: 50%; background: #fff5dc; }.memory-audit-legend-v2 .knowledge-key::before { background: #e3f5eb; }.memory-audit-legend-v2 .place-key::before { border-radius: 50%; background: #e7f3fa; }
 @media (max-width: 1050px) { .memory-audit-shell { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .memory-audit-page { margin-left: 0; padding: 1rem; } .memory-audit-graph { grid-template-columns: repeat(2, minmax(0, 1fr)); } .memory-audit-toolbar { flex-wrap: wrap; } }

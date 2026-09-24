@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { labKinds } from "./lab-kind";
-import { devtoolsRoutes, routeFromPath, routeHref, routePath } from "./routes";
+import { devtoolsRoutes, elfieIdFromSearch, routeFromPath, routeHref, routePath } from "./routes";
 
 describe("Developer Tools 页面路由", () => {
+  it("从 Memory Debug 查询参数读取当前精灵", () => {
+    expect(elfieIdFromSearch("?elfie_id=96474648")).toBe("96474648");
+    expect(elfieIdFromSearch("?elfie_id=%20")).toBeUndefined();
+  });
+
   it("将 Elfie 页面映射到稳定地址", () => {
     expect(routeFromPath(labKinds.elfie, "/elfie/experiment")).toBe(devtoolsRoutes.elfieExperiment);
     expect(routeFromPath(labKinds.elfie, "/elfie/evaluations")).toBe(devtoolsRoutes.elfieEvaluations);

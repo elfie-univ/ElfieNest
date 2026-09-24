@@ -2,7 +2,7 @@
 
 > 状态：设计基线（已完成本轮精细化审查；不代表当前源码已经符合）
 > 版本：v1
-> 更新时间：2026-09-18
+> 更新时间：2026-09-23
 > 所属模块：Elfie / Brain / Memory / Developer Tools
 > 上级设计：[Brain 十系统架构](./elfie-brain-ten-system-architecture)
 > 下级设计：无
@@ -57,23 +57,65 @@ Memory Debug Workspace 是给开发者使用的记忆调试工作台，不是面
 
 ## 3. 语义模型与显示边界
 
-### 3.1 Memory 的五层显示模型
+### 3.1 Memory 的两层显示模型
 
 页面使用以下稳定语义，不允许因为 UI 方便而合并或重复建模：
 
 | 层 | 语义 | 页面表现 |
 | --- | --- | --- |
-| Event / Turn | 运行时发生的事实或一次 Brain Turn | 在详情或嵌入 Elfie Lab 的上下文中显示，不直接当作知识图节点 |
-| ClosedEpisode | 已完成、可持久化、可追溯的经验来源 | 左侧最上方的 Episode 来源带；显示时间、摘要、状态和关联范围 |
+| ClosedEpisode | 已加工、完整且有边界的话题、故事或学习单元 | 左侧最上方的 Episode 来源带，也可以作为文本 Recall 结果 |
 | Evidence | Node/Assertion 对 Episode 或其他来源的出处证明 | 作为来源连接、边上的 provenance 和右侧证据详情显示，不作为普通节点 |
-| Node | 被 Memory 维护的实体、概念或知识单元 | 左侧全局知识图中的节点 |
-| Assertion | Node 与 Node 之间的有向语义关系 | 左侧知识图中的有向边；关系类型、置信度和生命周期在右侧显示 |
+| Node / Assertion | 基于 Episode 整理出的高层笔记、实体、可复用知识或明确关系 | 左侧知识图中的节点/边，也可以直接作为 Recall 结果；右侧显示主体、客体、可读关系语义、方向、关系类型、置信度和生命周期 |
 
-RecallBundle 是一次搜索的输出，不是图上的第六类永久节点。它在右侧搜索过程和左侧临时高亮中显示。
+RecallBundle 是一次搜索的输出，不是图上的第三类永久节点。Recall 可以返回 Episode、Node/Assertion
+或两者，不需要返回上游原始聊天或媒体。
+
+工作台直接使用 Memory 的类型体系，不再建立第二套 UI 类型体系。实体节点使用规范的
+`elfie`、`person`、`group`、`place` 和 `object`；`event` 只在 Episode 明确描述了需要被其他记录
+引用的可复用事件身份时创建，不是每个 Episode 的投影，也不是第三个语义层；`knowledge`
+携带 `knowledge_kind`（`fact`、`concept`、`pattern`、`guideline` 或 `belief`）；`self_model`
+只在自我/世界理解视图中显示。当前精灵是带 `is_self` 标记的真实 `elfie` Node。可视化中心
+锚点只能引用它，不能产生一个没有来源的第二个 Node。
+
+普通关系视图显示实体之间的 Assertion 及其来源；知识视图显示知识之间的 Assertion 及其来源。
+系统不生成通用的 `about`、`knows`、`knows_boundary` 或 `related_to` 边；概念关系必须使用
+已注册且有来源依据的谓词。每条图谱边都必须携带 Assertion 身份，并能打开关联的 Evidence 和 Episode；丢掉
+该身份的投影不符合工作台契约。
+
+### 3.1 关系显示契约
+
+关系图使用 Memory 注册表中的规范谓词。对称关系只显示一次，并用不强调主客体的双方语义；
+有方向的关系明确显示主体角色和反向角色。详情必须同时显示谓词、可读关系句、在有意义时的
+端点方向、置信度、重要度和 Evidence。`kin_of` 显示为“家人（具体关系未知）”。同一对节点
+的多条关系是独立的行和边，只在展示排序时按重要度排序。缺失边或共同出现不能渲染成关系。
+
+### 3.2 Inspector 详情投影
+
+详情是现有 Memory 记录上的只读投影。UI 不得从原始行拼出第二个事实源。每次选中都使用同一个紧凑顺序：
+
+1. **页首：** 语义类型、规范名称、一行摘要、状态、重要度和置信度；
+2. **主要内容：** 按类型展示属性，或展示可读的 Assertion 关系句；
+3. **关联：** 分组显示关系、属性事实、受影响对象或概念链接，按重要度排序并限制初始条数；
+4. **来源：** Episode、Evidence、摘录、时间、视角、归因和媒体引用；
+5. **技术详情：** ID、hash、策略版本、原始 qualifiers 和投影元数据放入折叠区。
+
+Node 详情按注册属性分组支持 `elfie`/`person`、`group`、`place`、`object`、`knowledge`、`event` 和
+`self_model`。Assertion 详情只呈现一次可读关系句，同时呈现两端角色、方向或对称性、有效时间、极性、
+认识状态、重要度、置信度、冲突和 Evidence。Episode 先显示原始正文，再显示参与者/地点/上下文、受影响的
+Node 与 Assertion；长正文可以只做视觉折叠，但不能生成标题。旧摘要只能作为元数据。Evidence 先显示摘录
+或媒体预览，再显示来源以及支持、反驳或上下文 Assertion。可复用的 `event` Node 链接回支持它的 Episode，
+不复制完整故事。
+
+投影使用带公共页首/来源字段的类型化选择联合（`NodeDetail`、`AssertionDetail`、`EpisodeDetail`、
+`EvidenceDetail`）。这是 Developer Tools 的读模型；上层 Memory/Recall 接口和 SQLite 权威保持不变。
+未知字段显示为未知或放入技术详情，不能猜测。画布图例命名语义 Node 类型以及来源/关系含义，不再把基础
+图形形状作为主要图例。
 
 ### 3.2 Source-first 原则
 
-ClosedEpisode 是持久来源，Node、Assertion 和 Evidence 是可重建、可解释的投影。页面必须能够从任意 Node 或 Assertion 回到其 Evidence，再回到来源 Episode。
+ClosedEpisode 是持久的第一层记忆，Node/Assertion 是可重建、可解释的高层笔记，Evidence 是
+来源链。页面必须能够从任意 Node 或 Assertion 回到其 Evidence，再回到来源 Episode 或批准种子；Recall 可以直接
+返回 Node/Assertion，不要求再读取上游原始聊天。
 
 任何“当前知识”都必须能够回答：
 
@@ -99,7 +141,7 @@ ClosedEpisode 是持久来源，Node、Assertion 和 Evidence 是可重建、可
 
 ### 4.2 左侧结构
 
-左侧从上到下包含三层：
+左侧从上到下包含三个显示区域：
 
 1. Episode 来源带：按时间或当前操作上下文排列完整 Episode。Episode 是来源层，不与下方知识图中的 Node 重复。
 2. 全局知识图：显示 Node 和 Assertion。Evidence 用连接线、边标记或详情关联表示。
@@ -121,6 +163,10 @@ ClosedEpisode 是持久来源，Node、Assertion 和 Evidence 是可重建、可
 
 图形可以是 2D、2.5D 或 3D。第一阶段只要达到“可拖拽、可缩放、可查找、结构清楚、不会因节点多而失控”，不要求接入 Godot 或把 Memory 图交给物理世界 authority。
 
+视觉编码固定为：Node 半径只表示 Node `importance`；语义 Assertion 线宽只表示该关系的
+`importance`；置信度、熟悉度和连接数量不改变这两个尺度，分别放入详情、透明度/徽标或布局信息。
+Episode 来源卡片使用固定的界面尺寸，来源虚线使用固定细线；选择状态只改变颜色或光晕，不绘制包围矩形。
+
 ## 5. 右侧三个面板
 
 ### 5.1 详情面板
@@ -129,7 +175,7 @@ ClosedEpisode 是持久来源，Node、Assertion 和 Evidence 是可重建、可
 
 支持的选择对象：
 
-- Episode：完整来源内容、时间、来源、状态、摘要、关联 Node/Assertion、处理结果和失败信息；
+- Episode：原始完整 Episode 内容、时间、上游引用、状态、旧摘要元数据、关联 Node/Assertion、处理结果和失败信息；
 - Node：类型、名称、描述、置信度、重要性、生命周期、来源 Evidence、相关 Assertion、冲突和 supersedes；
 - Assertion：主语、关系、宾语、谓词、置信度、状态、Evidence、创建和更新过程；
 - Evidence：引用的 Episode、证据片段、提取位置、证据类型、支持对象和可信状态；
@@ -340,14 +386,17 @@ Developer Tools 的默认安全边界：
 
 ### 11.3 推荐迁移顺序
 
-1. 冻结本设计和数据边界，明确 `/elfie/memory-audit` 为 legacy baseline，并先建立 `/elfie/memory-debug` 独立入口。
-2. 抽出统一的 LibrarySnapshot、DetailProjection、OperationTrace、RecallExplanation 和共享选择状态。
-3. 先替换左侧全局图：Episode 来源带、Node/Assertion 图、Evidence 追踪、过滤、缩放和高亮。
-4. 保留并完善详情面板，使所有选择都能回到来源和证据。
-5. 接入已有的 Recall selection observation，完成逐候选评分、淘汰原因、预算裁剪和左侧高亮。
-6. 为 Add Episode 增加隔离 dry-run、真实步骤观测、失败/部分成功和重放；在没有安全闸门前不开放生产提交。
-7. 将同一工作台嵌入 Elfie Lab Turn Debug，实现 Memory 与 Context 的双向跳转。
-8. 通过验收后再删除或隐藏旧的固定图布局；删除是最后一步，不是第一步。
+1. 冻结两层 Episode/Node–Assertion 契约和 Episode 话题/大小边界，明确 `/elfie/memory-audit` 为 legacy baseline，并先建立 `/elfie/memory-debug` 独立入口。
+2. 建立规范 Node 类型注册表，让所有写入方统一使用注册表。
+3. 收紧 Consolidation 准入，避免属性和弱共现变成正式图谱事实。
+4. 抽出统一的 LibrarySnapshot、DetailProjection、OperationTrace、RecallExplanation 和共享选择状态。
+5. 先替换左侧全局图：Episode 来源带、Node/Assertion 图、Evidence 追踪、过滤、缩放和高亮。
+6. 保留并完善详情面板，使所有选择和每条关系边都能回到来源 Episode/批准种子和 Evidence。
+7. 接入已有的 Recall selection observation，完成逐候选评分、淘汰原因、预算裁剪和直接图谱结果高亮。
+8. 为 Add Episode 增加隔离 dry-run、真实步骤观测、失败/部分成功和重放；在没有安全闸门前不开放生产提交。
+9. 将同一工作台嵌入 Elfie Lab Turn Debug，实现 Memory 与 Context 的双向跳转。
+10. 重建开发 Memory 数据并验证类型和来源不变量。
+11. 通过验收后再删除或隐藏旧的固定图布局；删除是最后一步，不是第一步。
 
 ## 12. 设计效果评估
 

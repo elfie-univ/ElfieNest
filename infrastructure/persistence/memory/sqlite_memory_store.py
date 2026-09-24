@@ -549,17 +549,7 @@ class SQLiteMemoryStoreAdapter(
                          FROM episodes"""
                 )
                 self.conn.execute("DELETE FROM nodes_fts")
-                self.conn.execute(
-                    """INSERT INTO nodes_fts(node_id, searchable_text)
-                       SELECT n.node_id,
-                              n.canonical_label
-                              || CASE WHEN n.description IS NULL THEN '' ELSE char(10) || n.description END
-                              || COALESCE((SELECT char(10) || group_concat(a.alias, char(10))
-                                             FROM node_aliases AS a WHERE a.node_id=n.node_id), '')
-                              || COALESCE((SELECT char(10) || group_concat(d.text, char(10))
-                                             FROM node_descriptions AS d WHERE d.node_id=n.node_id), '')
-                         FROM nodes AS n"""
-                )
+                self._refresh_all_text_projections()
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)

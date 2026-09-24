@@ -7,7 +7,7 @@ import { MemoryAuditPage } from "./elfie/MemoryAuditPage";
 import { MemoryDebugWorkspacePage } from "./elfie/MemoryDebugWorkspacePage";
 import { currentLabKind } from "./lab-kind";
 import { NestLabApp } from "./nest/NestLabApp";
-import { routeFromPath, devtoolsRoutes, type DevtoolsRoute } from "./routes";
+import { elfieIdFromSearch, routeFromPath, devtoolsRoutes, type DevtoolsRoute } from "./routes";
 import { DevtoolsTheme } from "./ui/DevtoolsTheme";
 import { GlobalLabNav } from "./ui/GlobalLabNav";
 import "./styles.css";
@@ -23,12 +23,14 @@ function Application(): React.JSX.Element {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [kind]);
 
+  const selectedElfieId = elfieIdFromSearch(window.location.search);
+
   const content = route === devtoolsRoutes.nestExperiment
     ? <NestLabApp />
     : route === devtoolsRoutes.elfieMemoryAuditBaseline
       ? <MemoryAuditBaselinePage />
     : route === devtoolsRoutes.elfieMemoryDebugWorkspace
-      ? <MemoryDebugWorkspacePage />
+      ? selectedElfieId ? <MemoryDebugWorkspacePage elfieId={selectedElfieId} /> : <MemoryDebugWorkspacePage />
     : route === devtoolsRoutes.elfieMemoryAudit
       ? <MemoryAuditPage />
     : <ElfieLabApp mode={route === devtoolsRoutes.elfieEvaluations ? "evaluation" : "experiment"} />;

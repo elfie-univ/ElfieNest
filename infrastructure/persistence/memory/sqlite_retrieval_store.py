@@ -166,7 +166,14 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         if not terms:
             return []
         term_weights = {
-            term: (0.10 if term in _LEXICAL_QUESTION_TERMS else 1.0) for term in terms
+            term: (
+                0.10
+                if term in _LEXICAL_QUESTION_TERMS
+                else 0.15
+                if len(term) == 1 and "\u4e00" <= term <= "\u9fff"
+                else 1.0
+            )
+            for term in terms
         }
         total_term_weight = sum(term_weights.values())
         like_patterns = _lexical_like_patterns(query, terms)
@@ -416,15 +423,32 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 seed_ids.append(resolved)
                 explicit_seed_ids.append(resolved)
         episode_scores: dict[str, float] = {}
+        direct_graph_ids: list[str] = []
+        exact_graph_ids: list[str] = []
         for node_id, score in lexical:
             graph_node = self.get_graph_node(
                 node_id, privacy_scope=request.privacy_scope, now=now
             )
             if graph_node is not None and _recall_eligible(graph_node):
                 if not allowed_types or graph_node.node_type in allowed_types:
-                    seed_ids.append(graph_node.node_id)
+                    direct_graph_ids.append(graph_node.node_id)
+                    if _node_matches_query_label(graph_node, request.text):
+                        exact_graph_ids.append(graph_node.node_id)
             else:
                 episode_scores[node_id] = score
+        # A direct label hit is already the user's requested graph subject.
+        # Keep matching Episodes as sources, but do not promote every entity
+        # mentioned by those Episodes into unrelated search seeds.
+        seed_ids.extend(dict.fromkeys(exact_graph_ids or direct_graph_ids))
+        # Explicit Node seeds must also work as a reverse lookup into the
+        # Episodes that mention them. This is the same source-first Episode
+        # path used by lexical hits; it does not introduce a second ranking
+        # system or manufacture an Assertion.
+        for episode_id, score in self._episode_scores_for_nodes(
+            explicit_seed_ids,
+            privacy_scope=request.privacy_scope,
+        ).items():
+            episode_scores[episode_id] = max(episode_scores.get(episode_id, 0.0), score)
         if episode_scores and _has_episode_filters(request):
             episode_scores = self._filter_episode_window(episode_scores, request)
 
@@ -434,28 +458,29 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         # existing graph owner return the complete current/superseded claim
         # set.  This keeps corrections and their two sources together without
         # reintroducing every weak lexical candidate as a seed.
-        for subject_id in self._assertion_subjects_for_episodes(
-            episode_scores,
-            privacy_scope=request.privacy_scope,
-        ):
-            resolved = self.resolve_graph_node_id(subject_id)
-            if resolved is None:
-                continue
-            node = self.get_graph_node(
-                resolved,
+        if not exact_graph_ids:
+            for subject_id in self._assertion_subjects_for_episodes(
+                episode_scores,
                 privacy_scope=request.privacy_scope,
-                now=now,
-            )
-            if (
-                node is not None
-                and _recall_eligible(node)
-                and (not allowed_types or node.node_type in allowed_types)
             ):
-                seed_ids.append(resolved)
+                resolved = self.resolve_graph_node_id(subject_id)
+                if resolved is None:
+                    continue
+                node = self.get_graph_node(
+                    resolved,
+                    privacy_scope=request.privacy_scope,
+                    now=now,
+                )
+                if (
+                    node is not None
+                    and _recall_eligible(node)
+                    and (not allowed_types or node.node_type in allowed_types)
+                ):
+                    seed_ids.append(resolved)
 
         # An exact/rare term may first hit an Episode. Mentions promote its
         # resolved nodes into the graph seed set without inventing entities.
-        if episode_scores:
+        if episode_scores and not exact_graph_ids:
             episode_ids = tuple(episode_scores)
             placeholders = ",".join("?" for _ in episode_ids)
             with self._lock:
@@ -483,23 +508,31 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             node_id: index
             for index, node_id in enumerate(dict.fromkeys(explicit_seed_ids))
         }
+        exact_order = {
+            node_id: index
+            for index, node_id in enumerate(dict.fromkeys(exact_graph_ids))
+        }
         if len(unique_seed_ids) > request.seed_limit:
 
             def seed_rank(node_id: str) -> tuple[int, float, str]:
                 if node_id in explicit_order:
                     return (0, float(explicit_order[node_id]), node_id)
+                if node_id in exact_order:
+                    return (1, float(exact_order[node_id]), node_id)
                 node = self.get_graph_node(
                     node_id, privacy_scope=request.privacy_scope, now=now
                 )
                 if node is None:
-                    return (1, 0.0, node_id)
+                    return (2, 0.0, node_id)
                 score = MemoryScorePolicy.recall_score(
-                    relevance=lexical_scores.get(node_id, 0.25),
+                    # Episode-linked subjects are useful fallback anchors,
+                    # but have no direct text match of their own.
+                    relevance=lexical_scores.get(node_id, 0.0),
                     freshness=node.freshness,
                     importance=node.importance,
                     confidence=node.confidence,
                 )
-                return (1, -score.rank, node_id)
+                return (2, -score.rank, node_id)
 
             unique_seed_ids = sorted(unique_seed_ids, key=seed_rank)
         seeds_truncated = len(unique_seed_ids) > request.seed_limit
@@ -813,6 +846,43 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             ).fetchall()
         return {str(row[0]): scores[str(row[0])] for row in rows}
 
+    def _episode_scores_for_nodes(
+        self,
+        node_ids: Iterable[str],
+        *,
+        privacy_scope: str | None,
+    ) -> dict[str, float]:
+        """Return bounded direct Episode relevance for explicit Node seeds."""
+
+        del privacy_scope  # namespace and source visibility are applied below
+        ids = tuple(dict.fromkeys(node_ids))
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        params: list[object] = list(ids)
+        namespace_clause = ""
+        if getattr(self, "elfie_id", None) is not None:
+            namespace_clause = " AND json_extract(ep.metadata_json, '$.elfie_id')=?"
+            params.append(str(self.elfie_id))
+        with self._lock:
+            rows = self.conn.execute(
+                f"""SELECT em.episode_id, MAX(COALESCE(em.confidence, 0.5)) AS confidence
+                      FROM episode_mentions AS em
+                      JOIN episodes AS ep ON ep.episode_id=em.episode_id
+                     WHERE em.node_id IN ({placeholders})
+                       AND em.resolution_state='resolved'
+                       AND ep.lifecycle='active'
+                       AND {_episode_recall_eligibility("ep")}
+                       {namespace_clause}
+                     GROUP BY em.episode_id""",
+                params,
+            ).fetchall()
+        return {
+            str(row["episode_id"]): max(0.0, min(1.0, float(row["confidence"] or 0.5)))
+            * 0.75
+            for row in rows
+        }
+
     def _episodes_for_recall(
         self,
         source_ids: Iterable[str],
@@ -1105,6 +1175,25 @@ def _lexical_normalize(value: str) -> str:
     return " ".join(cleaned.split())
 
 
+def _node_matches_query_label(node: RecallNode, query: str) -> bool:
+    """Return whether a graph hit names the requested subject directly.
+
+    Episode text is intentionally broader than a graph label.  This small
+    distinction lets Recall keep matching Episodes as sources while avoiding
+    promotion of every entity co-mentioned by those Episodes.
+    """
+    normalized_query = _lexical_normalize(query)
+    if not normalized_query:
+        return False
+    labels = [node.label]
+    aliases = node.properties.get("aliases")
+    if isinstance(aliases, (list, tuple, set, frozenset)):
+        labels.extend(str(alias) for alias in aliases)
+    return any(
+        normalized_query in _lexical_normalize(label) for label in labels if label
+    )
+
+
 def _lexical_search_terms(query: str) -> list[str]:
     """Prefer multi-character terms for Chinese questions.
 
@@ -1119,7 +1208,10 @@ def _lexical_search_terms(query: str) -> list[str]:
     meaningful = [
         term for term in terms if not (len(term) == 1 and "\u4e00" <= term <= "\u9fff")
     ]
-    return meaningful or terms
+    # Keep low-weight single-character matches alongside bigrams.  Many
+    # published facts deliberately index short subjects such as 水 and 火;
+    # a natural question can split those subjects across bigram boundaries.
+    return meaningful + [term for term in terms if term not in meaningful]
 
 
 def _recall_eligible(node: RecallNode) -> bool:

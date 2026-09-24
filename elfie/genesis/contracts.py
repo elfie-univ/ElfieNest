@@ -116,7 +116,7 @@ class RelationshipSeed:
     relationship_id: str = ""
     subject_id: str = ""
     object_id: str = ""
-    object_kind: Literal["person", "place", "group"] = "person"
+    object_kind: Literal["person", "elfie", "place", "group"] = "person"
     direction: str = "elfie_to_person"
     familiarity: Literal["intimate", "known", "acquainted", "heard"] = "known"
     importance: float = 0.5
@@ -321,8 +321,6 @@ class GenesisBundle:
                 raise GenesisValidationError(
                     "RelationshipSeed.subject_id 必须指向当前 Elfie"
                 )
-            if relationship.object_kind != "person":
-                raise GenesisValidationError("当前 Genesis 关系只允许人物对象")
             if relationship.object_id != relationship.person_id:
                 raise GenesisValidationError(
                     "RelationshipSeed.object_id 必须与 person_id 一致"
@@ -473,7 +471,7 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         or seed.version < 1
     ):
         raise GenesisValidationError("RelationshipSeed.version 必须为正整数")
-    if seed.object_kind not in ("person", "place", "group"):
+    if seed.object_kind not in ("person", "elfie", "place", "group"):
         raise GenesisValidationError("RelationshipSeed.object_kind 无效")
     if seed.familiarity not in ("intimate", "known", "acquainted", "heard"):
         raise GenesisValidationError("RelationshipSeed.familiarity 无效")

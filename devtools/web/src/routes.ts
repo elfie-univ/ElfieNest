@@ -24,6 +24,12 @@ export function routePath(route: DevtoolsRoute): string {
   return routePaths[route];
 }
 
+/** Read the optional Elfie selection carried by the Memory Debug URL. */
+export function elfieIdFromSearch(search: string): string | undefined {
+  const value = new URLSearchParams(search).get("elfie_id")?.trim();
+  return value || undefined;
+}
+
 function normalizedPath(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, "");
   return trimmed || "/";

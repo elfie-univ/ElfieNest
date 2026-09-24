@@ -842,7 +842,12 @@ class GenesisCompiler:
                     ),
                 )
             )
-        while len(selected_rules) < max(0, count - 1):
+        # Two adoption-side anchors are always present below: the human owner
+        # and the household/group that receives the Elfie.  Keep the policy's
+        # relationship_count as the total number of relationship targets,
+        # rather than silently adding those anchors on top of the configured
+        # bound.
+        while len(selected_rules) < max(0, count - 2):
             index = len(selected_rules)
             selected_rules.append(
                 _weighted_choice(
@@ -876,6 +881,7 @@ class GenesisCompiler:
             pool = names_by_species[person_species_id]
             display_name = pool[name_index % len(pool)]
             name_counters[person_species_id] = name_index + 1
+            object_kind = "elfie"
             result.append(
                 RelationshipSeed(
                     person_id=person_id,
@@ -890,7 +896,8 @@ class GenesisCompiler:
                     relationship_id=f"rel:{person_id}",
                     subject_id=f"elfie:{request.elfie_id}",
                     object_id=person_id,
-                    direction="elfie_to_person",
+                    object_kind=object_kind,
+                    direction=f"elfie_to_{object_kind}",
                     familiarity=rule.familiarity,
                     importance=rule.importance,
                     aliases=(display_name, rule.role),
@@ -915,6 +922,35 @@ class GenesisCompiler:
             )
         result.append(
             RelationshipSeed(
+                person_id=f"owner-person-{request.owner_reference}",
+                display_name="主人",
+                role="owner",
+                initial_trust=0.65,
+                shared_facts=(
+                    "主人是负责照料我的地球人。",
+                    "我们会通过真实相处逐步建立信任。",
+                ),
+                unknown_facts=("主人的完整生活、过去和每天的想法。",),
+                relationship_id=f"rel:owner-person-{request.owner_reference}",
+                subject_id=f"elfie:{request.elfie_id}",
+                object_id=f"owner-person-{request.owner_reference}",
+                object_kind="person",
+                direction="elfie_to_person",
+                familiarity="acquainted",
+                importance=0.95,
+                aliases=("主人", request.owner_reference),
+                retrieval_terms=("主人", "照料"),
+                episode_ids=(),
+                source="adoption_decision",
+                source_ref="adoption:accepted",
+                source_version="adoption-decision.v1",
+                certainty="high",
+                version=1,
+                age_band_at_genesis=context.identity.life_stage,
+            )
+        )
+        result.append(
+            RelationshipSeed(
                 person_id=f"owner-{request.owner_reference}",
                 display_name="领养家庭",
                 role="earth_household",
@@ -927,7 +963,8 @@ class GenesisCompiler:
                 relationship_id=f"rel:owner-{request.owner_reference}",
                 subject_id=f"elfie:{request.elfie_id}",
                 object_id=f"owner-{request.owner_reference}",
-                direction="elfie_to_person",
+                object_kind="group",
+                direction="elfie_to_group",
                 familiarity="acquainted",
                 importance=0.90,
                 aliases=("领养家庭", "主人"),
@@ -1049,6 +1086,7 @@ class GenesisCompiler:
                 selected.append(relationship.person_id)
                 break
         if theme.theme_id == "arrival-nest":
+            selected.append(f"owner-person-{request.owner_reference}")
             selected.append(f"owner-{request.owner_reference}")
         if not selected:
             for relationship in relationships:

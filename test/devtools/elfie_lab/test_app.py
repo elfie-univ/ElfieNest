@@ -104,12 +104,12 @@ def test_memory_inspect_accepts_node_type_filter_and_keeps_graph_context(
 
     response = client.get(
         "/api/memory-audit/inspect",
-        params=[("node_type", "person")],
+        params=[("node_type", "group")],
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["filters"]["node_types"] == ["person"]
+    assert payload["filters"]["node_types"] == ["group"]
     assert payload["coverage"]["filters_applied"] is True
     assert payload["matched_counts"]["nodes"] > 0
     assert payload["counts"]["graph_nodes"] >= payload["matched_counts"]["nodes"]
@@ -238,6 +238,29 @@ def test_app_create_elfie_and_chat(tmp_path, client_for):
 
     restored = client.get(f"/api/elfies/{elfie_id}")
     assert len(restored.json()["turns"]) == 1
+
+
+def test_app_manual_consolidation_route_validates_food_and_returns_receipt(
+    tmp_path, client_for
+):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    app = create_app(str(tmp_path / "data"), str(runtime_dir))
+    client = client_for(app)
+    elfie_id = client.post(
+        "/api/elfies", json=complete_elfie_payload("手动整理路由")
+    ).json()["elfie_id"]
+    response = client.post(
+        f"/api/elfies/{elfie_id}/consolidation",
+        json={"food_key": "mock"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["triggered"] is True
+    assert payload["candidate_id"].startswith("consolidation:")
+    assert payload["consolidated_count"] > 0
 
 
 def test_create_elfie_uses_random_personality_and_preserves_appearance_text(

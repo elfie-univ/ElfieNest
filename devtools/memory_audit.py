@@ -397,7 +397,16 @@ def _inspection_checks(
         }
         for node in nodes
         if node.node_type
-        in {"elfie", "event", "knowledge", "person", "place", "self_model"}
+        in {
+            "elfie",
+            "event",
+            "knowledge",
+            "person",
+            "group",
+            "place",
+            "object",
+            "self_model",
+        }
         if not node.description or not node.description.strip()
     ]
     low_confidence_nodes = [

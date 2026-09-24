@@ -41,8 +41,10 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
 
     memory_path = workspace / "memory" / "knowledge.sqlite"
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as storage:
-        assert storage.count_episodes() == 5
-        assert storage.count_graph_nodes("person") == 13
+        assert storage.count_episodes() == len(compilation.bundle.knowledge_seeds) + 5
+        assert storage.count_graph_nodes("person") == 1
+        assert storage.count_graph_nodes("group") == 1
+        assert storage.count_graph_nodes("elfie") == 12
         marker = storage.get_graph_node("genesis:receipt:00000101")
         assert marker is not None
         assert marker.properties["output_ids"] == list(
@@ -53,24 +55,26 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
 
         identity = storage.recall(RecallRequest(text="你来自哪里？", lexical_limit=10))
         assert any(
-            item.node_id.endswith(":world-identity") for item in identity.focus_nodes
+            item.episode_id.endswith(f":knowledge:{safe_component('world.identity')}")
+            for item in identity.episodes
         )
-        assert any(
-            assertion.object_node_id
-            and assertion.object_node_id.endswith(":world-identity")
+        assert not any(
+            assertion.predicate in {"knows", "knows_boundary"}
             for assertion in identity.assertions
         )
 
         unknown = storage.recall(RecallRequest(text="完整地图", lexical_limit=10))
         assert any(
-            assertion.predicate == "knows_boundary"
-            and assertion.qualifiers.get("epistemic_status") == "uncertain"
-            for assertion in unknown.assertions
+            item.episode_id.endswith(
+                f":knowledge:{safe_component('boundary.full_map')}"
+            )
+            and "不知道完整答案" in item.excerpt
+            for item in unknown.episodes
         )
 
     # A close/reopen cycle must preserve the same source Episodes and marker.
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as reopened:
-        assert reopened.count_episodes() == 5
+        assert reopened.count_episodes() == len(compilation.bundle.knowledge_seeds) + 5
         assert reopened.get_graph_node("genesis:receipt:00000101") is not None
 
     adapter.finalize("00000101")
@@ -100,13 +104,12 @@ def test_typed_genesis_propagates_importance_to_nodes_and_assertions() -> None:
 
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="00000104") as storage:
         GenesisMemoryCommitter().commit(customized, storage)
-        knowledge_id = (
-            f"genesis:knowledge:00000104:"
+        knowledge_episode = storage.get_episode(
+            "genesis:episode:00000104:knowledge:"
             f"{safe_component(customized.knowledge_seeds[0].seed_id)}"
         )
-        knowledge = storage.get_graph_node(knowledge_id)
-        assert knowledge is not None
-        assert knowledge.importance == pytest.approx(0.91)
+        assert knowledge_episode is not None
+        assert knowledge_episode.importance == pytest.approx(0.91)
         person_id = "genesis:person:00000104:kin-01"
         person = storage.get_graph_node(person_id)
         assert person is not None

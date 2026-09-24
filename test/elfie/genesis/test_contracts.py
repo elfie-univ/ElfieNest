@@ -65,7 +65,21 @@ def test_genesis_bundle_validates_bounded_creation_outputs() -> None:
     assert len(bundle.knowledge_seeds) == 102
     assert len(bundle.episode_seeds) == 5
     assert len(bundle.relationship_seeds) == 13
+    assert {seed.object_kind for seed in bundle.relationship_seeds[:-2]} == {"elfie"}
+    assert bundle.relationship_seeds[-2].object_kind == "person"
+    assert bundle.relationship_seeds[-2].role == "owner"
+    assert bundle.relationship_seeds[-1].object_kind == "group"
     assert bundle.manifest.output_ids
+
+
+def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:
+    bundle = _bundle()
+
+    assert all(
+        relationship.object_kind in {"elfie", "person", "group"}
+        for relationship in bundle.relationship_seeds
+    )
+    assert bundle.validate() is None
 
 
 def test_genesis_rejects_more_than_five_pre_arrival_events() -> None:
@@ -155,7 +169,7 @@ def test_generation_catalogs_change_life_social_and_episode_outputs() -> None:
         relationship.person_species_id and relationship.vocation_id
         for compilation in compilations
         for relationship in compilation.bundle.relationship_seeds
-        if relationship.role != "earth_household"
+        if relationship.role not in {"owner", "earth_household"}
     )
     assert all(compilation.bundle.validate() is None for compilation in compilations)
     assert (

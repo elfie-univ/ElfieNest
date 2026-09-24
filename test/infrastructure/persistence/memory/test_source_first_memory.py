@@ -734,6 +734,87 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
         assert [assertion.predicate for assertion in bundle.assertions] == ["knows"]
 
 
+def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() -> None:
+    self_id = "genesis:self:legacy"
+    knowledge_ids = tuple(
+        f"genesis:knowledge:legacy:fact-{index}" for index in range(16)
+    )
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-chat",
+                "chat-key",
+                "2026-01-01",
+                "[owner:1] 我喜欢蓝色。",
+            )
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="episode-chat",
+                nodes=(
+                    NodeInput(self_id, "person", "精灵"),
+                    NodeInput("friend", "person", "小林"),
+                    *(
+                        NodeInput(
+                            node_id,
+                            "knowledge",
+                            "Elfaria 一年有 196 个本地日。"
+                            if index == 0
+                            else f"其他世界知识 {index}",
+                        )
+                        for index, node_id in enumerate(knowledge_ids)
+                    ),
+                ),
+                evidence=(
+                    EvidenceInput("source", "episode", "episode-chat", excerpt="来源"),
+                ),
+                assertions=(
+                    *(
+                        AssertionInput(
+                            self_id,
+                            "knows",
+                            object_node_id=node_id,
+                            importance=0.9,
+                            evidence_ids=("source",),
+                        )
+                        for node_id in knowledge_ids
+                    ),
+                    AssertionInput(
+                        self_id,
+                        "relationship",
+                        object_node_id="friend",
+                        importance=0.3,
+                        evidence_ids=("source",),
+                    ),
+                ),
+            )
+        )
+
+        world = store.recall(RecallRequest(text="196 个本地日"))
+        assert knowledge_ids[0] in {node.node_id for node in world.focus_nodes}
+        assert self_id not in {node.node_id for node in world.focus_nodes}
+        assert not any(
+            assertion.predicate in {"knows", "knows_boundary"}
+            for assertion in world.assertions
+        )
+
+        social = store.recall(RecallRequest(seed_node_ids=(self_id,), hop_limit=1))
+        assert any(
+            assertion.predicate == "relationship" for assertion in social.assertions
+        )
+        assert not any(
+            assertion.predicate in {"knows", "knows_boundary"}
+            for assertion in social.assertions
+        )
+
+        chat = store.recall(RecallRequest(text="蓝色"))
+        assert "episode-chat" in {episode.episode_id for episode in chat.episodes}
+        assert any(
+            assertion.predicate == "knows"
+            for assertion in store.list_graph_assertions(limit=100)
+        )
+
+
 def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(ClosedEpisode("episode-1", "k1", "2026-01-01", "香菜资料"))
@@ -753,6 +834,29 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
         store.rebuild_text_indexes()
         assert store.search_text("芫荽", top_k=5)[0][0] == "food"
         assert store.search_text("可食用", top_k=5)[0][0] == "food"
+
+
+def test_node_property_search_finds_a_person_without_a_name() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.upsert_node_record(
+            NodeInput(
+                "person-unknown",
+                "person",
+                "未命名人物",
+                properties={
+                    "appearance": {"skin_tone": "长得黑"},
+                    "source_ref": "internal-source-id",
+                },
+            )
+        )
+
+        matches = store.find_graph_nodes("长得黑")
+        assert matches and matches[0].node_id == "person-unknown"
+        assert not store.find_graph_nodes("internal-source-id")
+
+        store.rebuild_text_indexes()
+        rebuilt = store.recall(RecallRequest(text="长得黑"))
+        assert "person-unknown" in {node.node_id for node in rebuilt.focus_nodes}
 
 
 def test_recall_prioritizes_a_direct_label_over_broad_distractors() -> None:
@@ -780,6 +884,37 @@ def test_recall_prioritizes_a_direct_label_over_broad_distractors() -> None:
         )
 
         assert any(node.node_id == "known-region" for node in bundle.focus_nodes)
+        assert not any(
+            node.node_id.startswith("distractor-") for node in bundle.focus_nodes
+        )
+
+
+def test_recall_from_explicit_node_seed_returns_episodes_that_mention_it() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("episode-place", "place-key", "2026-01-01", "我在花园散步。")
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="episode-place",
+                nodes=(NodeInput("garden", "place", "花园"),),
+                mentions=(MentionInput("episode-place", "花园", "garden", "resolved"),),
+                evidence=(
+                    EvidenceInput(
+                        "evidence-place",
+                        "episode",
+                        "episode-place",
+                        excerpt="我在花园散步。",
+                    ),
+                ),
+            )
+        )
+
+        bundle = store.recall(
+            RecallRequest(seed_node_ids=("garden",), episode_limit=4, node_limit=4)
+        )
+
+        assert [episode.episode_id for episode in bundle.episodes] == ["episode-place"]
 
 
 def test_conflicting_qualified_claims_remain_visible_with_their_sources() -> None:

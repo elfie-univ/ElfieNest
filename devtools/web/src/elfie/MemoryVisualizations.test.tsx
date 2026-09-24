@@ -198,6 +198,29 @@ describe("dense memory visualization semantics", () => {
     expect(relationship).toContain("…");
   });
 
+  it("centers the real elfie node without changing its canonical leaf type", () => {
+    // Given: the backend's canonical Elfie node with an explicit self marker.
+    const canonical = memoryCognitionSchema.parse({
+      relations: {
+        nodes: [
+          { id: "elfie-self", label: "艾菲", kind: "elfie", is_self: true, weight: 1 },
+          { id: "family", label: "领养家庭", kind: "group", weight: 0.9 },
+        ],
+        links: [{ source: "elfie-self", target: "family", label: "属于", relation_kind: "owner", weight: 0.9 }],
+      },
+    });
+
+    // When
+    const markup = renderToStaticMarkup(<RelationshipGraph graph={canonical.relations} />);
+
+    // Then: the actual Elfie remains an Elfie node and is the visual center.
+    expect(markup).toContain('data-memory-node="elfie-self"');
+    expect(markup).toContain('data-node-shape="self"');
+    expect(markup).toContain('class="memory-node self"');
+    expect(markup).toContain('data-memory-node="family"');
+    expect(markup).toContain('class="memory-node group"');
+  });
+
   it("ignores dangling links and renders honest empty states", () => {
     // Given: an empty relationship graph and knowledge with one dangling link.
     const sparseMemory = memoryCognitionSchema.parse({

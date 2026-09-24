@@ -43,6 +43,97 @@ RetentionProfile = Literal[
     "genesis",
 ]
 
+NodeDomain = Literal["entity", "event", "knowledge", "self_model", "technical"]
+KnowledgeKind = Literal["fact", "concept", "pattern", "guideline", "belief"]
+
+
+@dataclass(frozen=True)
+class MemoryNodeTypeSpec:
+    """Registered semantic meaning for one persisted ``node_type`` value.
+
+    The store keeps a flat leaf value for compatibility with existing indexes and
+    filters.  ``domain`` is the stable top-level taxonomy used by projections;
+    ``kind`` records a registered subtype or technical classification.
+    """
+
+    domain: NodeDomain
+    kind: str
+    canonical: bool = True
+    visible: bool = True
+
+
+_MEMORY_NODE_TYPE_REGISTRY: dict[str, MemoryNodeTypeSpec] = {
+    # Canonical v1 entity leaves.
+    "elfie": MemoryNodeTypeSpec("entity", "elfie"),
+    "person": MemoryNodeTypeSpec("entity", "person"),
+    "group": MemoryNodeTypeSpec("entity", "group"),
+    "place": MemoryNodeTypeSpec("entity", "place"),
+    "object": MemoryNodeTypeSpec("entity", "object"),
+    # Canonical non-entity leaves.
+    "event": MemoryNodeTypeSpec("event", "event"),
+    "knowledge": MemoryNodeTypeSpec("knowledge", "fact"),
+    "self_model": MemoryNodeTypeSpec("self_model", "self_model"),
+    # Registered subtypes retained by the current source-first fixtures.  They
+    # have a stable domain and can be normalized in a later data rebuild.
+    "entity": MemoryNodeTypeSpec("entity", "entity", canonical=False),
+    "food": MemoryNodeTypeSpec("entity", "object", canonical=False),
+    "facility": MemoryNodeTypeSpec("entity", "place", canonical=False),
+    "planet": MemoryNodeTypeSpec("entity", "place", canonical=False),
+    "animal": MemoryNodeTypeSpec("entity", "elfie", canonical=False),
+    "pet": MemoryNodeTypeSpec("entity", "elfie", canonical=False),
+    "episodic": MemoryNodeTypeSpec("event", "event", canonical=False),
+    "concept": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
+    "claim": MemoryNodeTypeSpec("knowledge", "fact", canonical=False),
+    "theory": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
+    "law": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
+    "pattern": MemoryNodeTypeSpec("knowledge", "pattern", canonical=False),
+    "emotion": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
+    "preference": MemoryNodeTypeSpec("knowledge", "belief", canonical=False),
+    # Operational rows may be inspected by the audit surface but are not part
+    # of the normal cognitive graph.
+    "genesis_commit_receipt": MemoryNodeTypeSpec(
+        "technical", "genesis_commit_receipt", visible=False
+    ),
+    "literal": MemoryNodeTypeSpec("technical", "literal", visible=False),
+}
+
+MEMORY_NODE_TYPE_REGISTRY = dict(_MEMORY_NODE_TYPE_REGISTRY)
+
+
+def resolve_memory_node_type(node_type: str) -> MemoryNodeTypeSpec:
+    """Return the registered semantic specification for a node type."""
+
+    key = node_type.strip().lower()
+    if not key:
+        raise ValueError("node_type must not be blank")
+    try:
+        return _MEMORY_NODE_TYPE_REGISTRY[key]
+    except KeyError as error:
+        raise ValueError(f"unsupported Memory node_type: {node_type}") from error
+
+
+def memory_node_domain(node_type: str) -> NodeDomain:
+    """Return the stable top-level domain for a registered node type."""
+
+    return resolve_memory_node_type(node_type).domain
+
+
+def memory_knowledge_kind(
+    node_type: str, properties: Mapping[str, JsonValue] | None = None
+) -> KnowledgeKind | str:
+    """Return the registered or explicitly declared knowledge subtype."""
+
+    spec = resolve_memory_node_type(node_type)
+    if spec.domain != "knowledge":
+        raise ValueError(f"{node_type} is not a knowledge node type")
+    declared = (properties or {}).get("knowledge_kind")
+    if declared is None:
+        return spec.kind
+    kind = str(declared).strip().lower()
+    if kind not in {"fact", "concept", "pattern", "guideline", "belief"}:
+        raise ValueError(f"unsupported knowledge_kind: {declared}")
+    return kind  # type: ignore[return-value]
+
 
 @dataclass(frozen=True)
 class SourceReference:
@@ -320,6 +411,9 @@ class NodeInput:
     def __post_init__(self) -> None:
         if not self.node_id.strip() or not self.node_type.strip():
             raise ValueError("node_id and node_type must not be blank")
+        resolve_memory_node_type(self.node_type)
+        if memory_node_domain(self.node_type) == "knowledge":
+            memory_knowledge_kind(self.node_type, self.properties)
         if not self.canonical_label.strip():
             raise ValueError("canonical_label must not be blank")
         if not self.scope.strip():
@@ -474,7 +568,7 @@ class AssertionInput:
     half_life_days: float = 30.0
     retention_profile: RetentionProfile = "semantic"
     object_literal_type: Optional[str] = None
-    predicate_registry_version: str = "memory.predicates.v1"
+    predicate_registry_version: str = "memory.predicates.v2"
     policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
     # Optional policy event emitted by Consolidation.  It is intentionally a

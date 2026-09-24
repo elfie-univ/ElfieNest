@@ -223,7 +223,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
                 ('transient', 'ordinary', 'salient', 'semantic', 'stable', 'genesis')),
         conflict_group TEXT,
         supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
-        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v1'
+        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v2'
             CHECK (length(trim(predicate_registry_version)) > 0),
         policy_version TEXT NOT NULL DEFAULT 'memory.v3'
             CHECK (length(trim(policy_version)) > 0),

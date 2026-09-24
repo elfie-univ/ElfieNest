@@ -63,6 +63,7 @@ from elfie.brain.reasoning.coordinator_types import (
     BarrierControl,
     FrameAffectTxn,
     InFlightTurn,
+    ManualConsolidationControl,
     PerceptionControl,
     StopControl,
     WorkerDoneControl,
@@ -216,6 +217,17 @@ class BrainCoordinator:
     def notify_perception(self, *, urgent_reason: Optional[str] = None) -> None:
         self._runtime.post(PerceptionControl(urgent_reason))
 
+    def request_consolidation(self, timeout: float = 1.0) -> Optional[EventId]:
+        """Queue one explicit consolidation request and return its candidate ID.
+
+        The request is handled by the coordinator owner thread so candidate
+        admission and the subsequent Activity Turn keep the same single-writer
+        lifecycle as an automatic night-window trigger.
+        """
+        result: Future[Optional[EventId]] = Future()
+        self._runtime.post(ManualConsolidationControl(result))
+        return result.result(timeout=timeout)
+
     def synchronize(self, timeout: float = 1.0) -> None:
         """Wait until all mailbox messages posted before this call are handled."""
         reached = Event()
@@ -287,6 +299,8 @@ class BrainCoordinator:
                 return
             if isinstance(message, BrainClockPulse):
                 self._handle_clock(message)
+            elif isinstance(message, ManualConsolidationControl):
+                self._handle_manual_consolidation(message)
             elif isinstance(message, PerceptionControl):
                 if message.urgent_reason is not None and self._inflight is not None:
                     self._mark_stale(self._inflight, message.urgent_reason)
@@ -742,6 +756,35 @@ class BrainCoordinator:
                 )
             )
             self._consolidation_due = ingest.disposition is IngestDisposition.ACCEPTED
+
+    def _handle_manual_consolidation(
+        self,
+        control: ManualConsolidationControl,
+    ) -> None:
+        """Admit a developer-requested candidate without faking a user event."""
+        requester = getattr(self._context_source, "request_manual_consolidation", None)
+        if requester is None:
+            control.result.set_result(None)
+            return
+        now = datetime.fromtimestamp(self._timestamp, timezone.utc)
+        candidate = requester(
+            now=now,
+            blocked=self._inflight is not None or self._consolidation_blocked(),
+        )
+        if candidate is None:
+            control.result.set_result(None)
+            return
+        ingest = self._workspace.publish(
+            consolidation_candidate_to_perception(
+                candidate,
+                elfie_id=self._elfie_id,
+            )
+        )
+        accepted = ingest.disposition is IngestDisposition.ACCEPTED
+        self._consolidation_due = accepted
+        if accepted:
+            self._maybe_start_turn()
+        control.result.set_result(candidate.candidate_id if accepted else None)
 
     def _prepare_affect_transaction(
         self,

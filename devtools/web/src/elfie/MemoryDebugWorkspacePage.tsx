@@ -5,6 +5,15 @@ import type { ForceGraphMethods } from "react-force-graph-3d";
 import { CanvasTexture, Sprite, SpriteMaterial } from "three";
 
 import "./memory-debug-workspace.css";
+import {
+  projectAssertionDetail,
+  projectEpisodeDetail,
+  projectEvidenceDetail,
+  projectNodeDetail,
+  type InspectorField as ProjectedInspectorField,
+  type InspectorHeader as ProjectedInspectorHeader,
+  type InspectorNode,
+} from "./inspectorProjection";
 
 type Tab = "detail" | "add" | "recall";
 type DetailSelection = "node" | "edge" | "episode" | "evidence" | null;
@@ -16,6 +25,7 @@ type RecallSelection = { recall_id?: string | null; candidate_boundary: string; 
 type AuditReport = { database: string; elfie_id: string; snapshot: SnapshotMetadata & { coverage?: string; read_limit?: number; filters_applied?: boolean; next_cursor?: string | null }; counts: Record<string, number>; loaded_counts: Record<string, number>; matched_counts: Record<string, number>; focus_node_ids?: string[]; coverage: { status: string; truncated: Record<string, boolean>; filters_applied: boolean; read_limit: number }; pagination?: { page_size: number; next_cursor: string | null; cursor: string | null }; node_type_counts: Record<string, number>; predicate_counts: Record<string, number>; checks: { checks: Array<{ status: string; name: string; detail?: string }> }; data: { nodes: AuditItem[]; context_nodes?: AuditItem[]; assertions: AuditRecord[]; episodes: AuditRecord[]; evidence: AuditRecord[] } };
 type RecallReport = { elapsed_ms: number; snapshot: SnapshotMetadata; request?: AuditRecord; counts: Record<string, number | boolean>; bundle: { focus_nodes: AuditItem[]; assertions: AuditRecord[]; episodes: AuditRecord[]; evidence: AuditRecord[]; conflicts?: AuditRecord[]; limits?: AuditRecord }; selection: RecallSelection; rendered: string };
 type PreviewReport = { operation: { operation_id: string; elapsed_ms: number; status: string; mode: string; sandbox: boolean; production_mutated: boolean; cleanup: string }; input: { episode_id: string; content_chars: number; summary: string | null }; before: { counts: Record<string, number> }; after: { counts: Record<string, number> }; changes: { added_ids: Record<string, string[]>; affected: Record<string, AuditRecord[]> }; receipt: AuditRecord; error: { type: string; message: string } | null };
+type ConsolidationReport = { success: boolean; triggered: boolean; candidate_id?: string | null; turn_id?: string | null; status?: string; before?: AuditRecord | null; after?: AuditRecord | null; knowledge_created?: number; consolidated_count?: number };
 export type MemoryDebugRecallReturnedIds = Readonly<{
   readonly nodes: readonly string[];
   readonly assertions: readonly string[];
@@ -43,17 +53,32 @@ export type MemoryDebugWorkspaceProps = Readonly<{
 }>;
 type GraphNodeSeed = { id: string; kind: string; label: string };
 type GraphNode = { id: string; kind: string; label: string; x: number; y: number; radius?: number };
-type GraphEdge = { id: string; source: string; target: string; label: string; kind: string; evidenceIds?: string[] };
+type GraphEdge = { id: string; source: string; target: string; label: string; predicate?: string; kind: string; evidenceIds?: string[]; symmetric?: boolean; importance?: number };
 type Graph3DNode = GraphNodeSeed & { val: number; degree: number; originalId?: string; preview?: boolean; x?: number; y?: number; z?: number };
 type Graph3DLink = GraphEdge;
-type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; nodeTypes?: ReadonlySet<string> | undefined; predicateTypes?: ReadonlySet<string> | undefined };
+type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; nodeTypes?: ReadonlySet<string> | undefined; predicateTypes?: ReadonlySet<string> | undefined; includeNodeIds?: ReadonlySet<string> | undefined; includeAssertionIds?: ReadonlySet<string> | undefined };
 type GraphLayout = { nodes: GraphNode[]; edges: GraphEdge[]; lod: "force" | "overview" };
 type ReadPhase = "loading" | "partial" | "ready" | "empty" | "stale" | "error";
 
-const labels: Record<string, string> = { person: "人物", knowledge: "知识", place: "地点", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
-const colors: Record<string, string> = { person: "#7a5aa6", knowledge: "#277b5e", place: "#3b7195", event: "#a06b18", elfie: "#b55f3d", self_model: "#516f8b", genesis_commit_receipt: "#80735f", literal: "#718078" };
-const graphTypeColors: Record<string, string> = { person: "#b892ff", knowledge: "#42d6a4", place: "#5bb9ff", event: "#ffc857", elfie: "#ff8f6b", self_model: "#8da9c4", genesis_commit_receipt: "#d0b57a", literal: "#a7b7c4" };
+function normalizedGraphScore(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0.5;
+  return Math.min(1, Math.max(0, value));
+}
+
+/** Node radius is a memory-salience projection; graph degree is kept for labels/layout only. */
+export function graphNodeValue(importance: number | undefined): number {
+  return Math.max(1.5, normalizedGraphScore(importance) * 4);
+}
+
+/** Semantic assertion width represents pairwise relation importance, not selection state. */
+export function graphLinkWidth(importance: number | undefined): number {
+  return 1.2 + normalizedGraphScore(importance) * 3;
+}
+
+const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
+const graphTypeColors: Record<string, string> = { person: "#b892ff", group: "#d5a85f", knowledge: "#42d6a4", place: "#5bb9ff", object: "#7db277", event: "#ffc857", elfie: "#ff8f6b", self_model: "#8da9c4", genesis_commit_receipt: "#d0b57a", literal: "#a7b7c4" };
 const DIMMED_LINK_COLOR = "rgba(107, 133, 151, 0.16)";
+const NON_SEMANTIC_LEGACY_PREDICATES = new Set(["about", "knows", "knows_boundary", "related_to"]);
 
 function graphNodeColor(kind: string): string { return graphTypeColors[kind] ?? "#8da9c4"; }
 
@@ -65,9 +90,68 @@ function recordText(record: AuditRecord | null, key: string, fallback = "—"): 
 function recordNumber(record: AuditRecord | null, key: string): number | null { const value = record?.[key]; return typeof value === "number" && Number.isFinite(value) ? value : null; }
 function recordBoolean(record: AuditRecord | null, key: string): boolean | null { const value = record?.[key]; return typeof value === "boolean" ? value : null; }
 function recordStringArray(record: AuditRecord | null, key: string): string[] { const value = record?.[key]; return Array.isArray(value) ? value.map(String).filter(Boolean) : []; }
-function recordPercent(record: AuditRecord | null, key: string): string { const value = record?.[key]; return typeof value === "number" ? `${Math.round(value * 100)}%` : "—"; }
-function recordJson(record: AuditRecord | null, key: string): string { return JSON.stringify(record?.[key] ?? {}, null, 2); }
 function recordLifecycle(record: AuditItem): string { return String(record.status ?? record.properties?.lifecycle ?? record.properties?.status ?? "unknown"); }
+const relationLabels: Record<string, string> = {
+  owner_of: "主人",
+  owned_by: "归属于",
+  member_of: "成员",
+  kin_of: "家人（具体关系未知）",
+  friend_of: "朋友",
+  classmate_of: "同学",
+  colleague_of: "同事",
+  neighbor_of: "邻居",
+  acquaintance_of: "认识",
+  parent_of: "父母",
+  child_of: "子女",
+  sibling_of: "兄弟姐妹",
+  student_of: "学生",
+  teacher_of: "老师",
+  guided_by: "由其引导",
+  // Legacy rows are read-only compatibility data and are normalized for the
+  // detail surface without becoming new semantic vocabulary.
+  family: "家人（具体关系未知）",
+  friend: "朋友",
+  owner: "归属于",
+  acquaintance: "认识",
+};
+const relationAliases: Record<string, string> = { family: "kin_of", friend: "friend_of", owner: "owned_by", acquaintance: "acquaintance_of" };
+const symmetricRelationKinds = new Set(["kin_of", "friend_of", "classmate_of", "colleague_of", "neighbor_of", "acquaintance_of", "sibling_of", "near", "related_to"]);
+function relationIsSymmetric(kind: string): boolean { return symmetricRelationKinds.has(relationAliases[kind] ?? kind); }
+function relationKindFromRecord(record: AuditRecord | null, fallback = "关系"): string {
+  const predicate = recordText(record, "predicate", fallback);
+  if (predicate !== "relationship") return relationAliases[predicate] ?? predicate;
+  const qualifiers = record?.qualifiers;
+  if (qualifiers && typeof qualifiers === "object" && !Array.isArray(qualifiers)) {
+    const context = (qualifiers as Record<string, unknown>).context;
+    if (typeof context === "string") {
+      const role = context.split(":").pop()?.trim();
+      if (role) return relationAliases[role] ?? role;
+    }
+  }
+  return predicate;
+}
+export function relationDisplayLabel(kind: string): string { return relationLabels[kind] ?? kind; }
+export function relationSentence(source: string, target: string, kind: string, sourceKind?: string, targetKind?: string): string {
+  const normalizedKind = relationAliases[kind] ?? kind;
+  const label = relationDisplayLabel(normalizedKind);
+  if (normalizedKind === "friend_of") return `${source} 和 ${target} 是朋友`;
+  if (normalizedKind === "kin_of") return `${source} 和 ${target} 是家人（具体关系未知）`;
+  if (normalizedKind === "classmate_of") return `${source} 和 ${target} 是同学`;
+  if (normalizedKind === "colleague_of") return `${source} 和 ${target} 是同事`;
+  if (normalizedKind === "neighbor_of") return `${source} 和 ${target} 是邻居`;
+  if (normalizedKind === "acquaintance_of") return `${source} 和 ${target} 互相认识`;
+  if (normalizedKind === "near") return `${source} 和 ${target} 相互靠近`;
+  if (normalizedKind === "parent_of") return `${source} 是 ${target} 的父母`;
+  if (normalizedKind === "child_of") return `${source} 是 ${target} 的子女`;
+  if (normalizedKind === "sibling_of") return `${source} 和 ${target} 是兄弟姐妹`;
+  if (normalizedKind === "owned_by" && sourceKind === "elfie" && targetKind !== "elfie") return `${target} 是 ${source} 的主人`;
+  if (normalizedKind === "owner_of") return `${source} 是 ${target} 的主人`;
+  if (normalizedKind === "student_of") return `${source} 是 ${target} 的学生`;
+  if (normalizedKind === "teacher_of") return `${source} 是 ${target} 的老师`;
+  if (normalizedKind === "member_of") return `${source} 是 ${target} 的成员`;
+  if (normalizedKind === "guided_by") return `${source} 由 ${target} 引导`;
+  return `${source} → ${target} · ${label}`;
+}
 const emptyRecallReturnedIds = (): MemoryDebugRecallReturnedIds => ({ nodes: [], assertions: [], episodes: [], evidence: [] });
 function inferRecallReturnedIds(points: readonly unknown[]): MemoryDebugRecallReturnedIds {
   const result = emptyRecallReturnedIds() as { nodes: string[]; assertions: string[]; episodes: string[]; evidence: string[] };
@@ -122,8 +206,58 @@ function InspectorFieldGrid({ fields }: { fields: InspectorField[] }): React.JSX
   return <dl className="memory-debug-field-grid">{fields.map((field) => <div className="memory-debug-field-row" key={field.label}><dt>{field.label}</dt><dd className={field.mono ? "is-mono" : undefined}>{field.value}</dd></div>)}</dl>;
 }
 
+function projectedFields(fields: ProjectedInspectorField[]): InspectorField[] {
+  return fields.map((field) => ({ label: field.label, value: field.value, mono: field.source === "technical" }));
+}
+
+function InspectorHeaderSummary({ header, className = "" }: { header: ProjectedInspectorHeader; className?: string }): React.JSX.Element {
+  const percent = (value: number | null): string => value == null ? "未记录" : `${Math.round(value * 100)}%`;
+  return <div className="memory-debug-inspector-header">
+    <span className={`memory-debug-type ${className}`}>{header.semanticType}</span>
+    <h2>{header.label}</h2>
+    <p className="memory-debug-detail-copy">{header.summary}</p>
+    <div className="memory-debug-inspector-stats" aria-label="对象状态摘要">
+      <div><span>状态</span><strong>{header.status}</strong></div>
+      <div><span>重要度</span><strong>{percent(header.importance)}</strong></div>
+      <div><span>置信度</span><strong>{percent(header.confidence)}</strong></div>
+    </div>
+  </div>;
+}
+
+function InspectorConnections({
+  connections,
+  onAssertion,
+}: {
+  connections: Array<{ id: string; label: string; detail: string; importance: number | null; confidence: number | null; kind: string }>;
+  onAssertion?: (id: string) => void;
+}): React.JSX.Element {
+  if (!connections.length) return <p>暂无已记录关联。</p>;
+  return <div>{connections.map((connection) => {
+    const content = <><strong>{connection.label}</strong><span>{connection.detail}</span><small>{connection.importance == null ? "重要度未记录" : `${Math.round(connection.importance * 100)}% 重要度`} · {connection.confidence == null ? "置信度未记录" : `${Math.round(connection.confidence * 100)}% 置信度`}</small></>;
+    return onAssertion && connection.kind === "relation"
+      ? <button className="memory-debug-related-card" type="button" key={connection.id} onClick={() => onAssertion(connection.id)}>{content}</button>
+      : <div className="memory-debug-related-card memory-debug-related-card-static" key={connection.id}>{content}</div>;
+  })}</div>;
+}
+
+function InspectorSources({
+  sources,
+  onEpisode,
+}: {
+  sources: Array<{ id: string; label: string; excerpt: string; kind: string }>;
+  onEpisode?: (id: string) => void;
+}): React.JSX.Element {
+  if (!sources.length) return <p>当前快照没有可解析的来源 Episode。</p>;
+  return <div>{sources.map((source) => {
+    const content = <><strong>{source.label}</strong><span>{source.excerpt}</span></>;
+    return onEpisode && source.kind === "episode"
+      ? <button className="memory-debug-evidence-card" type="button" key={source.id} onClick={() => onEpisode(source.id)}>{content}</button>
+      : <div className="memory-debug-evidence-card memory-debug-related-card-static" key={source.id}>{content}</div>;
+  })}</div>;
+}
+
 export function MemoryDebugLegend({ layoutLocked }: { layoutLocked: boolean }): React.JSX.Element {
-  return <div className="memory-debug-legend-v2" aria-label="图例"><span className="node-key">点 Node</span><span className="episode-key">矩形 Episode</span><span className="assertion-key">实线 Assertion 关系</span><span className="evidence-key">虚线 Evidence 证据</span><span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击 Node / Assertion 查看右侧详情</span></div>;
+  return <div className="memory-debug-legend-v2" aria-label="图例"><span className="memory-debug-type-key person-key">人物</span><span className="memory-debug-type-key elfie-key">精灵</span><span className="memory-debug-type-key group-key">群体/家庭</span><span className="memory-debug-type-key knowledge-key">知识</span><span className="memory-debug-type-key place-key">地点</span><span className="assertion-key">关系</span><span className="evidence-key">来源</span><span className="memory-debug-scale-key">点大小=重要度 · 关系线宽=重要度</span><span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击节点/关系查看右侧详情</span></div>;
 }
 
 function endpointId(endpoint: unknown): string {
@@ -333,6 +467,9 @@ function MemoryDebugGraphFallback({
         kind: edge.kind,
       };
       if (edge.evidenceIds) projected.evidenceIds = [...edge.evidenceIds];
+      if (edge.predicate) projected.predicate = edge.predicate;
+      if (edge.symmetric) projected.symmetric = true;
+      if (edge.importance !== undefined) projected.importance = edge.importance;
       return projected;
     });
     return layoutMemoryDebugGraph({
@@ -345,8 +482,10 @@ function MemoryDebugGraphFallback({
   const positions = new Map(layout.nodes.map((node) => [node.id, node]));
   const nodePalette: Record<string, string> = {
     person: "#b892ff",
+    group: "#d5a85f",
     knowledge: "#42d6a4",
     place: "#5bb9ff",
+    object: "#7db277",
     event: "#ffc857",
     elfie: "#ff8f6b",
     self_model: "#8da9c4",
@@ -374,7 +513,7 @@ function MemoryDebugGraphFallback({
         const link = linksById.get(edge.id) ?? edge as Graph3DLink;
         const stroke = selected ? "#fff" : highlighted ? "#ff9d57" : dimmed ? DIMMED_LINK_COLOR : "#5e9fbb";
         return <g className={dimmed ? "memory-debug-2d-edge is-dimmed" : "memory-debug-2d-edge"} key={edge.id} onClick={() => onLinkClick(link)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onLinkClick(link); } }}>
-          <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeWidth={selected ? 4 : highlighted ? 3 : 1.25} strokeDasharray={edge.kind === "preview-assertion" ? "7 4" : undefined} markerEnd={dimmed ? undefined : "url(#memory-debug-fallback-arrow)"} />
+          <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeWidth={graphLinkWidth(edge.importance)} strokeDasharray={edge.kind === "preview-assertion" ? "7 4" : undefined} markerEnd={dimmed || edge.symmetric ? undefined : "url(#memory-debug-fallback-arrow)"} />
           <text x={(source.x + target.x) / 2} y={(source.y + target.y) / 2 - 5}>{shortGraphLabel(edge.label, 18)}</text>
           <title>{edge.label}</title>
         </g>;
@@ -401,6 +540,7 @@ function MemoryDebugGraphFallback({
 export function projectMemoryDebugGraph(report: AuditReport | null, filters: GraphFilters = {}): { nodes: GraphNodeSeed[]; edges: GraphEdge[] } {
   const assertions = report?.data.assertions ?? [];
   const nodes = (report?.data.nodes ?? []).filter((item) => {
+    if (filters.includeNodeIds && !filters.includeNodeIds.has(item.id)) return false;
     if (filters.nodeTypes && !filters.nodeTypes.has(item.node_type ?? "node")) return false;
     if (filters.lifecycle && filters.lifecycle !== "all" && recordLifecycle(item) !== filters.lifecycle) return false;
     if (filters.minConfidence != null && (typeof item.confidence !== "number" || item.confidence < filters.minConfidence)) return false;
@@ -413,7 +553,9 @@ export function projectMemoryDebugGraph(report: AuditReport | null, filters: Gra
   const edges: GraphEdge[] = [];
   assertions.forEach((item) => {
     const assertionId = String(item.assertion_id);
+    if (filters.includeAssertionIds && !filters.includeAssertionIds.has(assertionId)) return;
     const predicate = String(item.predicate ?? "关系");
+    if (NON_SEMANTIC_LEGACY_PREDICATES.has(predicate)) return;
     if (filters.predicateTypes && !filters.predicateTypes.has(predicate)) return;
     if (filters.minConfidence != null && (typeof item.confidence !== "number" || item.confidence < filters.minConfidence)) return;
     const source = item.subject_id == null ? "" : String(item.subject_id);
@@ -428,13 +570,17 @@ export function projectMemoryDebugGraph(report: AuditReport | null, filters: Gra
       literalNodes.set(target, { id: target, kind: "literal", label: String(item.object_literal) });
     }
     if (!target) return;
+    const importance = recordNumber(item, "importance");
     edges.push({
       id: assertionId,
       source,
       target,
-      label: predicate,
+      label: relationDisplayLabel(relationKindFromRecord(item, predicate)),
+      predicate,
       kind: "assertion",
       evidenceIds: assertionEvidence,
+      symmetric: relationIsSymmetric(relationKindFromRecord(item, predicate)),
+      ...(importance == null ? {} : { importance }),
     });
   });
   projectedNodes.sort((left, right) => left.id.localeCompare(right.id));
@@ -463,13 +609,14 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [query, setQuery] = useState(initialRecall?.query ?? "");
   const [episodeText, setEpisodeText] = useState("");
-  const [episodeSummary, setEpisodeSummary] = useState("");
   const [loading, setLoading] = useState(true);
   const [readPhase, setReadPhase] = useState<ReadPhase>("loading");
   const [readError, setReadError] = useState("");
   const [message, setMessage] = useState("");
   const [graphFitReady, setGraphFitReady] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [consolidationRunning, setConsolidationRunning] = useState(false);
+  const [showFullGraph, setShowFullGraph] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(true);
   const [tracePositions, setTracePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [graphViewport, setGraphViewport] = useState({ width: 0, height: 0 });
@@ -639,9 +786,12 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const recallView = recall ?? (traceRecall ? buildTraceRecallReport(traceRecall, report) : null);
   const recalledNodeIds = new Set(recallView?.selection.returned_ids.nodes ?? []);
   const recalledAssertionIds = new Set(recallView?.selection.returned_ids.assertions ?? []);
+  const recalledEpisodeIds = new Set(
+    (recallView?.bundle.episodes ?? []).map((episode) => String(episode.episode_id ?? "")).filter(Boolean),
+  );
   const excludedRecallNodeIds = new Set(
     (recallView?.selection.candidates ?? [])
-      .filter((candidate) => !candidate.kept && ["node", "person", "knowledge", "place", "event", "elfie", "self_model"].includes(candidate.candidate_kind))
+      .filter((candidate) => !candidate.kept && ["node", "person", "group", "knowledge", "place", "event", "elfie", "self_model"].includes(candidate.candidate_kind))
       .map((candidate) => candidate.candidate_id),
   );
   const recalledAssertionNodeIds = new Set(
@@ -674,6 +824,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       minConfidence: localConfidence,
       nodeTypes: selectedTypes.length ? new Set(selectedTypes) : undefined,
       predicateTypes: selectedPredicates.length ? new Set(selectedPredicates) : undefined,
+      includeNodeIds: recallView && !showFullGraph
+        ? new Set([...recalledNodeIds, ...recalledAssertionNodeIds])
+        : undefined,
+      includeAssertionIds: recallView && !showFullGraph ? recalledAssertionIds : undefined,
     });
     const degree = new Map<string, number>();
     projection.edges.forEach((edge) => {
@@ -685,10 +839,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       const record = records.get(item.id);
       const importance = typeof record?.importance === "number" ? record.importance : .5;
       const nodeDegree = degree.get(item.id) ?? 0;
-      return { ...item, degree: nodeDegree, val: Math.max(1.5, importance * 4 + Math.min(nodeDegree, 8) * .55) };
+      return { ...item, degree: nodeDegree, val: graphNodeValue(importance) };
     });
     return { nodes, edges: projection.edges };
-  }, [lifecycleFilter, localConfidence, report, selectedPredicates, selectedTypes]);
+  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypes, showFullGraph]);
   const graphNodeIds = useMemo(() => new Set(graph.nodes.map((node) => node.id)), [graph.nodes]);
   const previewNodeKey = (id: string): string => previewNodeIds.has(id) || !graphNodeIds.has(id) ? `preview:${id}` : id;
   const previewGraphNodes = useMemo(() => (preview?.changes.affected.nodes ?? []).map((item) => {
@@ -700,7 +854,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       kind: String(item.node_type ?? "node"),
       label: String(item.label ?? item.node_id),
       degree: 1,
-      val: 2.8,
+      val: graphNodeValue(typeof item.importance === "number" ? item.importance : undefined),
       preview: id !== originalId,
     } satisfies Graph3DNode;
   }), [graphNodeIds, preview, previewNodeIds]);
@@ -708,9 +862,12 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     id: `preview:${String(item.assertion_id)}`,
     source: previewNodeKey(String(item.subject_id)),
     target: previewNodeKey(String(item.object_node_id ?? "")),
-    label: String(item.predicate ?? "关系"),
+    label: relationDisplayLabel(relationKindFromRecord(item, String(item.predicate ?? "关系"))),
+    predicate: String(item.predicate ?? "关系"),
     kind: "preview-assertion",
     evidenceIds: Array.isArray(item.evidence_ids) ? item.evidence_ids.map(String) : [],
+    symmetric: relationIsSymmetric(relationKindFromRecord(item, String(item.predicate ?? "关系"))),
+    importance: typeof item.importance === "number" ? item.importance : undefined,
   })).filter((edge) => edge.target !== "preview:"), [graphNodeIds, preview, previewNodeIds]);
   const graphData: { nodes: Graph3DNode[]; links: Graph3DLink[] } = useMemo(() => ({
     nodes: [...graph.nodes, ...previewGraphNodes],
@@ -720,14 +877,18 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     // where a string endpoint is expected after a graph click.
     links: [...graph.edges, ...previewGraphEdges].map((edge): Graph3DLink => {
       const cloned: Graph3DLink = { id: edge.id, source: edge.source, target: edge.target, label: edge.label, kind: edge.kind };
+      if (edge.predicate) cloned.predicate = edge.predicate;
+      if (edge.symmetric) cloned.symmetric = true;
       if (edge.evidenceIds) cloned.evidenceIds = [...edge.evidenceIds];
+      if (edge.importance !== undefined) cloned.importance = edge.importance;
       return cloned;
     }),
   }), [graph, previewGraphEdges, previewGraphNodes]);
   const visibleEpisodes = useMemo(() => (report?.data.episodes ?? []).filter((episode) => {
     if (lifecycleFilter !== "all" && String(episode.lifecycle ?? "unknown") !== lifecycleFilter) return false;
+    if (recallView && !showFullGraph && !recalledEpisodeIds.has(String(episode.episode_id ?? ""))) return false;
     return true;
-  }).sort((left, right) => String(left.occurred_from ?? left.occurred_at ?? left.episode_id).localeCompare(String(right.occurred_from ?? right.occurred_at ?? right.episode_id))), [lifecycleFilter, report]);
+  }).sort((left, right) => String(left.occurred_from ?? left.occurred_at ?? left.episode_id).localeCompare(String(right.occurred_from ?? right.occurred_at ?? right.episode_id))), [lifecycleFilter, recallView, report, showFullGraph]);
   const hasLocalFilters = Boolean(
     selectedTypes.length || selectedPredicates.length || lifecycleFilter !== "all" || confidenceFilter !== "all",
   );
@@ -737,8 +898,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     lifecycleFilter !== "all",
     confidenceFilter !== "all",
   ].filter(Boolean).length;
-  const graphNodeById = new Map([...graph.nodes, ...previewGraphNodes].map((node) => [node.id, node]));
-
   function updateTracePositions(): void {
     const instance = graphRef.current;
     if (!selectedEpisodeId || !instance) {
@@ -878,6 +1037,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setDetailSelection(null);
     setRecall(null);
     setTraceRecall(null);
+    setShowFullGraph(false);
     setPreview(null);
     setFilterOpen(false);
     setDrawerOpen(false);
@@ -896,6 +1056,22 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setSelectedPredicates([]);
     setLifecycleFilter("all");
     setConfidenceFilter("all");
+  }
+
+  function clearSearch(): void {
+    setQuery("");
+    setRecall(null);
+    setTraceRecall(null);
+    setShowFullGraph(false);
+    setSelectedId("");
+    setSelectedEdgeId("");
+    setSelectedEpisodeId("");
+    setSelectedEvidenceId("");
+    setDetailSelection(null);
+    setPreview(null);
+    setDrawerOpen(false);
+    setTab("detail");
+    setMessage("已清除搜索结果。");
   }
 
   function openFilter(): void {
@@ -925,7 +1101,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setTab("recall");
     setDrawerOpen(true);
     if (!query.trim()) {
-      setMessage("请先在顶部输入搜索内容。");
+      clearSearch();
       return;
     }
     setSelectedId("");
@@ -936,8 +1112,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setPreview(null);
     setRecall(null);
     setTraceRecall(null);
+    setShowFullGraph(false);
     setMessage("正在执行真实 recall…");
-    const response = await fetch("/api/memory-audit/recall", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, ...(elfieId ? { elfie_id: elfieId } : {}) }) });
+    const response = await fetch("/api/memory-audit/recall", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, limit: 8, ...(elfieId ? { elfie_id: elfieId } : {}) }) });
     if (!response.ok) { setMessage(await response.text()); return; }
     const next = await response.json() as RecallReport;
     next.bundle.focus_nodes = next.bundle.focus_nodes.map((node) => normalizeNode(node as AuditItem & { node_id?: string }));
@@ -945,6 +1122,51 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setRecall(next);
     setMessage(`已完成检索：${next.counts.focus_nodes ?? 0} 个节点，${next.elapsed_ms}ms`);
     setTab("recall");
+  }
+
+  async function runManualConsolidation(): Promise<void> {
+    setFilterOpen(false);
+    if (!elfieId) {
+      setMessage("请先选择一个精灵。");
+      return;
+    }
+    setConsolidationRunning(true);
+    setMessage("正在手动触发 Consolidation…");
+    try {
+      const foodsResponse = await fetch("/api/runtime/foods");
+      if (!foodsResponse.ok) {
+        setMessage(await foodsResponse.text());
+        return;
+      }
+      const foodsPayload = await foodsResponse.json() as { items?: Array<{ key: string; ready_for_attempt?: boolean }> };
+      const food = (foodsPayload.items ?? []).find((item) => item.ready_for_attempt);
+      if (!food) {
+        setMessage("没有可用的模型粮食，无法执行 Consolidation。");
+        return;
+      }
+      const response = await fetch(`/api/elfies/${encodeURIComponent(elfieId)}/consolidation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ food_key: food.key }),
+      });
+      if (!response.ok) {
+        setMessage(await response.text());
+        return;
+      }
+      const next = await response.json() as ConsolidationReport;
+      await loadReport();
+      if (!next.triggered) {
+        setMessage("本次没有触发：当前没有待整理的 Episode，或已有整理正在进行。");
+      } else if (next.success) {
+        setMessage(`手动 Consolidation 已完成：整理 ${next.consolidated_count ?? 0} 个 Episode，新增 ${next.knowledge_created ?? 0} 个知识节点。`);
+      } else {
+        setMessage(`Consolidation 已触发，但回合状态为 ${next.status ?? "unknown"}。`);
+      }
+    } catch (error: unknown) {
+      setMessage(String(error));
+    } finally {
+      setConsolidationRunning(false);
+    }
   }
 
   async function runEpisodePreview(): Promise<void> {
@@ -966,7 +1188,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setPreviewLoading(true);
     setMessage("正在临时副本中执行 Episode → Consolidation…");
     try {
-      const response = await fetch("/api/memory-audit/add-episode-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ elfie_id: elfieId, content_text: episodeText, summary_text: episodeSummary.trim() || null, mode: "deterministic_local" }) });
+      const response = await fetch("/api/memory-audit/add-episode-preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ elfie_id: elfieId, content_text: episodeText, mode: "deterministic_local" }) });
       if (!response.ok) { setMessage(await response.text()); return; }
       const next = await response.json() as PreviewReport;
       setPreview(next);
@@ -977,9 +1199,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   }
 
   function showItem(id: string): void {
-    // Inspecting an object is deliberately separate from choosing the graph's
-    // highlight context. Keep the active Recall/Episode/edge context visible
-    // while the developer walks through related details.
+    // Details are a child view of the current result set. The drawer header
+    // provides an explicit route back to that result set.
     setSelectedId(id);
     setDetailSelection("node");
     setTab("detail");
@@ -1002,14 +1223,53 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setTab("detail");
     setDrawerOpen(true);
   }
+  function showAssertion(id: string): void {
+    setSelectedId("");
+    setSelectedEvidenceId("");
+    setSelectedEdgeId(id);
+    setDetailSelection("edge");
+    setTab("detail");
+    setDrawerOpen(true);
+  }
+  function backToRecall(): void {
+    setSelectedId("");
+    setSelectedEdgeId("");
+    setSelectedEpisodeId("");
+    setSelectedEvidenceId("");
+    setDetailSelection(null);
+    setTab("recall");
+    setDrawerOpen(true);
+  }
   const selectedEdge = graph.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const selectedEdgeTargetId = selectedEdge ? endpointId(selectedEdge.target) : "";
-  const selectedEdgeTargetLabel = selectedEdge ? graphNodeById.get(selectedEdgeTargetId)?.label ?? selectedEdgeTargetId : "—";
   const selectedEdgeEvidence = selectedEdge ? (selectedEdge.evidenceIds ?? []).map((id) => report?.data.evidence.find((item) => String(item.evidence_id) === id)).filter(Boolean) : [];
   const selectedEdgeRecord = visibleAssertions.find((item) => String(item.assertion_id) === selectedEdgeId) ?? null;
+  const selectedEdgeRelationKind = relationKindFromRecord(selectedEdgeRecord, selectedEdge?.predicate ?? selectedEdge?.label ?? "关系");
+  const selectedEdgeIsSymmetric = relationIsSymmetric(selectedEdgeRelationKind);
   const selectedNodeAssertions = selected ? visibleAssertions.filter((item) => String(item.subject_id) === selected.id || String(item.object_node_id) === selected.id) : [];
   const selectedNodeEvidence = [...new Map(selectedNodeAssertions.flatMap((item) => (Array.isArray(item.evidence_ids) ? item.evidence_ids : []).map(String)).map((id) => [id, report?.data.evidence.find((item) => String(item.evidence_id) === id)]).filter((entry): entry is [string, AuditRecord] => entry[1] != null))].map(([, item]) => item);
   const selectedEpisodeSourceRefs = recordArray(selectedEpisode, "source_refs");
+  const inspectorNodeById = new Map<string, InspectorNode>((report?.data.nodes ?? []).map((node) => [node.id, node as InspectorNode]));
+  const inspectorEvidenceById = new Map<string, AuditRecord>((report?.data.evidence ?? []).map((item) => [String(item.evidence_id), item]));
+  const inspectorEpisodeById = new Map<string, AuditRecord>((report?.data.episodes ?? []).map((item) => [String(item.episode_id), item]));
+  const inspectorRelationInput = {
+    nodeById: inspectorNodeById,
+    evidenceById: inspectorEvidenceById,
+    episodes: report?.data.episodes ?? [],
+    relationKind: relationKindFromRecord,
+    relationLabel: relationDisplayLabel,
+    relationSentence,
+  };
+  const selectedNodeProjection = selected ? projectNodeDetail(selected, { ...inspectorRelationInput, assertions: visibleAssertions }) : null;
+  const selectedAssertionProjection = selectedEdgeRecord
+    ? projectAssertionDetail({ ...selectedEdgeRecord, symmetric: selectedEdgeIsSymmetric }, inspectorRelationInput)
+    : null;
+  const selectedEpisodeProjection = selectedEpisode
+    ? projectEpisodeDetail(selectedEpisode, { assertions: visibleAssertions, evidence: report?.data.evidence ?? [], nodeById: inspectorNodeById })
+    : null;
+  const selectedEvidenceProjection = selectedEvidence
+    ? projectEvidenceDetail(selectedEvidence, visibleAssertions, inspectorEpisodeById)
+    : null;
   const selectedEdgeNodeIds = new Set([selectedEdge ? endpointId(selectedEdge.source) : "", selectedEdgeTargetId].filter(Boolean));
   // The initial node is only a detail-panel default; it must not turn the whole
   // library into a dimmed focus view before the developer performs an action.
@@ -1024,7 +1284,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     ...previewNodeIds,
     ...previewAssertionNodeIds,
   ]);
-  const typeFilterOrder = ["elfie", "event", "genesis_commit_receipt", "knowledge", "person", "place", "self_model", "literal"];
+  const typeFilterOrder = ["elfie", "event", "genesis_commit_receipt", "group", "knowledge", "person", "place", "object", "self_model", "literal"];
   const typeFilterOptions = Object.entries(report?.node_type_counts ?? {})
     .sort(([left], [right]) => (typeFilterOrder.indexOf(left) === -1 ? 999 : typeFilterOrder.indexOf(left)) - (typeFilterOrder.indexOf(right) === -1 ? 999 : typeFilterOrder.indexOf(right)) || left.localeCompare(right));
   const predicateFilterOptions = Object.entries(report?.predicate_counts ?? {})
@@ -1047,6 +1307,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           ? "快照已过期，请刷新"
           : readPhase === "error"
             ? "读取失败，可重试"
+            : recallView && !showFullGraph
+              ? "搜索结果视图"
             : hasLocalFilters
               ? "已按筛选读取"
             : report?.coverage.status === "complete"
@@ -1062,7 +1324,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const graphNodeCount = report?.counts.graph_nodes ?? loadedNodeCount;
   const focusNodeCount = report?.counts.focus_nodes ?? matchedNodeCount;
   const contextNodeCount = hasLocalFilters ? Math.max(filterContextNodeIds.size, graphNodeCount - focusNodeCount) : 0;
-  const coverageDetail = hasLocalFilters
+  const coverageDetail = recallView && !showFullGraph
+    ? `搜索子图 ${graph.nodes.length} · 命中 Episode ${recalledEpisodeIds.size} · 全库 ${totalNodeCount}`
+    : hasLocalFilters
     ? `焦点 ${focusNodeCount} · 上下文 ${contextNodeCount} · 全库 ${totalNodeCount}`
     : `当前 ${loadedNodeCount} · 全库 ${totalNodeCount}`;
   const recallSummary = recallView?.selection.summaries.at(-1) ?? null;
@@ -1070,7 +1334,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const requestQueryTerms = recordStringArray(recallView?.request ?? null, "query_terms");
   const candidateQueryTerms = [...new Set((recallView?.selection.candidates ?? []).flatMap((candidate) => candidate.query_terms ?? candidate.matched_terms ?? []))];
   const recallQueryTerms = requestQueryTerms.length ? requestQueryTerms : candidateQueryTerms;
-  const recallQueryTermsSource = requestQueryTerms.length ? "request" : candidateQueryTerms.length ? "候选命中词" : "未观测";
   const Graph3D = ForceGraph3DComponent;
   const recallProcess = [
     { label: "查询", detail: query.trim() ? "已输入" : "等待输入", state: query.trim() ? "done" : "idle" },
@@ -1151,12 +1414,15 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           <div className="memory-debug-top-search">
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索记忆" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runRecall(); }} placeholder="搜索 Node、Assertion、Episode…" />
+            {query ? <button type="button" className="memory-debug-search-clear" aria-label="清除搜索" title="清除搜索" onClick={clearSearch}>×</button> : null}
             <button type="button" onClick={() => void runRecall()}>搜索</button>
           </div>
           <button type="button" className={`memory-debug-filter-trigger${filterOpen ? " is-active" : ""}`} aria-expanded={filterOpen} onClick={openFilter}>过滤{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
         </div>
         <div className="memory-debug-top-actions">
           <button type="button" className="is-primary" onClick={openAddPanel}>＋ 添加 Episode</button>
+          <button type="button" className="memory-debug-consolidation-trigger" onClick={() => void runManualConsolidation()} disabled={!elfieId || consolidationRunning} title="手动触发一次夜间 Consolidation；不会伪造用户 Episode" aria-label="手动触发 Consolidation">{consolidationRunning ? "整理中…" : "手动 Consolidation"}</button>
+          {recallView && <button type="button" className={showFullGraph ? "is-active" : ""} aria-pressed={showFullGraph} onClick={() => setShowFullGraph((visible) => !visible)} title={showFullGraph ? "切回本次搜索命中的子图" : "查看完整 Memory 图谱"}>{showFullGraph ? "仅看搜索结果" : "查看全库"}</button>}
           <button type="button" className={layoutLocked ? "is-active" : ""} aria-pressed={layoutLocked} title={layoutLocked ? "允许拖拽节点位置；相机仍需按住鼠标拖动旋转" : "锁定节点位置；相机仍可按住鼠标拖动旋转"} aria-label={layoutLocked ? "允许拖拽节点" : "锁定节点"} onClick={() => setLayoutLocked((locked) => !locked)}>{layoutLocked ? "允许拖拽节点" : "锁定节点"}</button>
           <button type="button" onClick={() => fitGraph()} title="重新居中并缩放当前可见的连通图" aria-label="适配当前图谱">适配当前图谱</button>
           <button type="button" onClick={resetGraph} title="清除选择、Recall 和预演状态，并重新适配图谱" aria-label="重置视图状态">重置视图</button>
@@ -1182,7 +1448,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           <div className="memory-debug-memory-cards" aria-label="Episode 时间线">{visibleEpisodes.map((episode) => {
             const episodeId = String(episode.episode_id);
             const isSelected = selectedEpisodeId === episodeId;
-            const summary = String(episode.summary_text ?? episode.content_text ?? episode.episode_id);
+            const summary = String(episode.content_text ?? episode.episode_id);
             const evidenceCount = (report?.data.evidence ?? []).filter((item) => String(item.source_id ?? "") === episodeId).length;
             return <button ref={(element) => { if (element) episodeCardRefs.current.set(episodeId, element); else episodeCardRefs.current.delete(episodeId); }} className={isSelected ? "is-active" : ""} key={episodeId} title={summary} onClick={() => showEpisode(episodeId)} aria-pressed={isSelected}>
               <span className="memory-debug-episode-time">{formatEpisodeTime(episode)}</span>
@@ -1237,14 +1503,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
                 return graphLinkColor(hasTransientHighlight, selectedEdgeId, linkId, link.kind, isReturned, isAffected);
               }}
               linkWidth={(link) => {
-                const linkId = String(link.id ?? "");
-                return selectedEdgeId === linkId ? 4.2 : selectedEpisodeAssertionIds.has(linkId) || recalledAssertionIds.has(linkId) || link.kind === "preview-assertion" ? 2.8 : 1.2;
+                return graphLinkWidth(link.importance);
               }}
               linkDirectionalArrowLength={(link) => {
                 const linkId = String(link.id ?? "");
                 const isReturned = recalledAssertionIds.has(linkId);
                 const isAffected = selectedEpisodeAssertionIds.has(linkId) || previewAssertionIds.has(linkId) || link.kind === "preview-assertion";
-                return graphLinkArrowLength(hasTransientHighlight, selectedEdgeId, linkId, link.kind, isReturned, isAffected);
+                return link.symmetric ? 0 : graphLinkArrowLength(hasTransientHighlight, selectedEdgeId, linkId, link.kind, isReturned, isAffected);
               }}
               linkDirectionalArrowColor={(link) => {
                 const linkId = String(link.id ?? "");
@@ -1278,7 +1543,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
             /></WebGLGraphErrorBoundary> : graphFallback}
             {webglStatus === "available" && Graph3D && graphData.nodes.length > 0 && !graphFitReady && <div className="memory-debug-3d-loading memory-debug-3d-loading-overlay">正在稳定 3D 布局…</div>}
           </div>
-          {selectedEpisode && <svg className="memory-debug-trace-overlay" aria-hidden="true">
+          {selectedEpisode && <svg className="memory-debug-trace-overlay" aria-label="Episode 证据连线">
             {Array.from(selectedEpisodeNodeIds).map((nodeId) => {
               const point = tracePositions[nodeId];
               if (!point) return null;
@@ -1292,7 +1557,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               const sourceX = source.x;
               const sourceY = source.y;
               const controlX = (sourceX + point.x) / 2;
-              return <g key={nodeId}><title>{selectedEpisodeEvidence.map((evidence) => String(evidence.evidence_id)).join(" · ") || "Evidence trace"}</title><path className="memory-debug-trace-line" d={`M ${sourceX} ${sourceY} C ${controlX} ${sourceY + 18}, ${controlX} ${point.y - 18}, ${point.x} ${point.y}`} /><circle className="memory-debug-trace-dot" cx={point.x} cy={point.y} r="4" /></g>;
+              const evidenceId = selectedEpisodeEvidence[0] ? String(selectedEpisodeEvidence[0].evidence_id) : "";
+              const path = `M ${sourceX} ${sourceY} C ${controlX} ${sourceY + 18}, ${controlX} ${point.y - 18}, ${point.x} ${point.y}`;
+              return <g key={nodeId} className="memory-debug-trace-hit" role={evidenceId ? "button" : undefined} tabIndex={evidenceId ? 0 : undefined} aria-label={evidenceId ? `查看 Evidence ${evidenceId}` : "Evidence trace"} onClick={() => { if (evidenceId) showEvidence(evidenceId); }} onKeyDown={(event) => { if (evidenceId && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); showEvidence(evidenceId); } }}><title>{selectedEpisodeEvidence.map((evidence) => String(evidence.evidence_id)).join(" · ") || "Evidence trace"}</title><path className="memory-debug-trace-hit-line" d={path} /><path className="memory-debug-trace-line" d={path} /><circle className="memory-debug-trace-dot" cx={point.x} cy={point.y} r="4" /></g>;
             })}
           </svg>}
           <MemoryDebugLegend layoutLocked={layoutLocked} />
@@ -1300,77 +1567,49 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       <footer className="memory-debug-footer">当前视图：{graph.nodes.filter((node) => !["episode", "evidence"].includes(node.kind)).length} Node · {graph.edges.filter((edge) => edge.kind === "assertion").length} Assertion · {visibleEpisodes.length} Episode · {loadedEvidenceCount} Evidence　|　全库：{totalNodeCount} Node · {report?.counts.assertions ?? 0} Assertion · {report?.counts.episodes ?? 0} Episode · {totalEvidenceCount} Evidence</footer>
 
       {drawerOpen && <aside className="memory-debug-drawer" aria-label="记忆详情与操作面板">
-        <div className="memory-debug-drawer-head"><div><span>INSPECTOR · SHARED VIEW</span><strong>{tab === "detail" ? "详情" : tab === "add" ? "添加 Episode" : "Recall 过程"}</strong></div><button type="button" aria-label="关闭详情面板" onClick={() => setDrawerOpen(false)}>×</button></div>
-        <div className="memory-debug-inspector-context"><span>当前上下文</span><strong>{tab === "detail" ? (detailSelection === "episode" && selectedEpisode ? "Episode 来源" : detailSelection === "edge" && selectedEdge ? "Assertion 关系" : detailSelection === "evidence" && selectedEvidence ? "Evidence 证据" : detailSelection === "node" && selected ? `${nodeLabel(selected)} Node` : "未选择") : tab === "add" ? "隔离预演 · 不写生产库" : "一次 Recall 的解释链"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
+        <div className="memory-debug-drawer-head"><div><span>INSPECTOR · SHARED VIEW</span><strong>{tab === "detail" ? "详情" : tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions">{tab === "detail" && recallView && <button type="button" className="memory-debug-drawer-back" onClick={backToRecall}>← 搜索结果</button>}<button type="button" aria-label="关闭详情面板" onClick={() => setDrawerOpen(false)}>×</button></div></div>
+        <div className="memory-debug-inspector-context"><span>当前上下文</span><strong>{tab === "detail" ? (detailSelection === "episode" && selectedEpisode ? "Episode 来源" : detailSelection === "edge" && selectedEdge ? "Assertion 关系" : detailSelection === "evidence" && selectedEvidence ? "Evidence 证据" : detailSelection === "node" && selected ? `${nodeLabel(selected)} Node` : "未选择") : tab === "add" ? "隔离预演 · 不写生产库" : "按相关性排序的搜索结果"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
         <div className="memory-debug-drawer-scroll">
         {tab === "detail" && <div className="memory-debug-panel">
-          {detailSelection === "episode" && selectedEpisode ? <>
-            <span className="memory-debug-type memory-debug-episode-type">Episode 来源</span>
-            <h2>{recordText(selectedEpisode, "summary_text", recordText(selectedEpisode, "episode_id"))}</h2>
-            <p className="memory-debug-detail-copy">{recordText(selectedEpisode, "content_text", "没有来源内容")}</p>
-            <InspectorFieldGrid fields={[
-              { label: "ID", value: recordText(selectedEpisode, "episode_id"), mono: true },
-              { label: "类型", value: recordText(selectedEpisode, "event_kind") },
-              { label: "生命周期", value: recordText(selectedEpisode, "lifecycle") },
-              { label: "重要度", value: recordPercent(selectedEpisode, "importance") },
-              { label: "整理版本", value: recordText(selectedEpisode, "projection_revision"), mono: true },
-            ]} />
-            <h4>来源与时间</h4>
-            <div className="memory-debug-detail-list"><div><span>发生时间</span><strong>{recordText(selectedEpisode, "occurred_from", "时间未记录")} → {recordText(selectedEpisode, "occurred_to", "时间未记录")}</strong></div><div><span>归因</span><strong>{recordText(selectedEpisode, "attribution")} · {recordText(selectedEpisode, "detail_level")}</strong></div>{selectedEpisodeSourceRefs.map((source, index) => <div key={String(source.source_id ?? index)}><span>{recordText(source, "source_kind", "source")}</span><strong>{recordText(source, "source_id")}{source.locator ? ` · ${String(source.locator)}` : ""}</strong></div>)}</div>
-            <h4>Evidence → 受影响对象</h4>
-            {selectedEpisodeEvidence.length ? selectedEpisodeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item.evidence_id)} onClick={() => showEvidence(String(item.evidence_id))}><strong>{String(item.evidence_id)}</strong><span>{String(item.excerpt ?? "没有摘录")}</span><small>{String(item.modality ?? "text")} · {String(item.attribution ?? item.stance ?? "未标注")} · {String(item.source_reliability_class ?? "reliability 未记录")}</small></button>) : <p>当前 Episode 尚未在可见 Assertion 中关联 Evidence。</p>}
-            <p className="memory-debug-muted">受影响 Node {selectedEpisodeNodeIds.size} 个 · Assertion {selectedEpisodeAssertionIds.size} 条</p>
-            <h4>Episode 元数据</h4><pre>{recordJson(selectedEpisode, "metadata")}</pre>
-          </> : detailSelection === "edge" && selectedEdge ? <>
-            <span className="memory-debug-type memory-debug-relation-type">Assertion 关系</span>
-            <h2>{selectedEdge.label}</h2>
-            <p className="memory-debug-detail-copy">{graphNodeById.get(endpointId(selectedEdge.source))?.label ?? endpointId(selectedEdge.source)} → {selectedEdgeTargetLabel} <small>({selectedEdgeTargetId})</small></p>
-            <InspectorFieldGrid fields={[
-              { label: "ID", value: selectedEdgeId, mono: true },
-              { label: "状态", value: recordText(selectedEdgeRecord, "status") },
-              { label: "置信度", value: recordPercent(selectedEdgeRecord, "confidence") },
-              { label: "重要度", value: recordPercent(selectedEdgeRecord, "importance") },
-              { label: "Evidence", value: String(selectedEdgeEvidence.length) },
-            ]} />
-            <h4>限定条件</h4><pre>{recordJson(selectedEdgeRecord, "qualifiers")}</pre>
-            <h4>证明 Evidence</h4>
+          {detailSelection === "episode" && selectedEpisode && selectedEpisodeProjection ? <>
+            <InspectorHeaderSummary header={selectedEpisodeProjection.header} className="memory-debug-episode-type" />
+            <InspectorFieldGrid fields={projectedFields(selectedEpisodeProjection.fields)} />
+            <h4>关联对象</h4>
+            <InspectorConnections connections={selectedEpisodeProjection.connections} />
+            <h4>来源证据 · {selectedEpisodeEvidence.length}</h4>
+            {selectedEpisodeEvidence.length ? selectedEpisodeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item.evidence_id)} onClick={() => showEvidence(String(item.evidence_id))}><strong>{String(item.evidence_id)}</strong><span>{String(item.excerpt ?? "没有摘录")}</span><small>{String(item.modality ?? "text")} · {String(item.attribution ?? item.stance ?? "未标注")} · {String(item.source_reliability_class ?? "可靠性未记录")}</small></button>) : <p>当前 Episode 尚未关联可见 Evidence。</p>}
+            <details className="memory-debug-content-details"><summary>展开完整 Episode 正文</summary><p className="memory-debug-long-content">{selectedEpisodeProjection.content}</p></details>
+            <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedEpisodeProjection.technical)} /><div className="memory-debug-detail-list">{selectedEpisodeSourceRefs.map((source, index) => <div key={String(source.source_id ?? index)}><span>{recordText(source, "source_kind", "source")}</span><strong>{recordText(source, "source_id")}{source.locator ? ` · ${String(source.locator)}` : ""}</strong></div>)}</div></details>
+          </> : detailSelection === "edge" && selectedEdge && selectedAssertionProjection ? <>
+            <InspectorHeaderSummary header={selectedAssertionProjection.header} className="memory-debug-relation-type" />
+            <p className="memory-debug-detail-copy memory-debug-relation-sentence">{selectedAssertionProjection.sentence}</p>
+            <InspectorFieldGrid fields={projectedFields(selectedAssertionProjection.fields)} />
+            <h4>来源证据 · {selectedEdgeEvidence.length}</h4>
             {selectedEdgeEvidence.length ? selectedEdgeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item?.evidence_id)} onClick={() => showEvidence(String(item?.evidence_id))}><strong>{String(item?.evidence_id)}</strong><span>{String(item?.excerpt ?? "没有摘录")}</span><small>{String(item?.source_type ?? "source")} · {String(item?.modality ?? "text")} · {String(item?.attribution ?? item?.stance ?? "未标注")}</small></button>) : <p>这条关系没有关联 Evidence。</p>}
-          </> : detailSelection === "evidence" && selectedEvidence ? <>
-            <span className="memory-debug-type memory-debug-evidence-type">Evidence 证据</span>
-            <h2>{recordText(selectedEvidence, "evidence_id")}</h2>
-            <blockquote className="memory-debug-edge-evidence memory-debug-evidence-hero">{recordText(selectedEvidence, "excerpt", "没有摘录")}</blockquote>
-            <InspectorFieldGrid fields={[
-              { label: "来源 ID", value: recordText(selectedEvidence, "source_id"), mono: true },
-              { label: "来源类型", value: recordText(selectedEvidence, "source_type") },
-              { label: "模态", value: recordText(selectedEvidence, "modality") },
-              { label: "归因", value: recordText(selectedEvidence, "attribution", recordText(selectedEvidence, "stance")) },
-              { label: "可靠性", value: recordText(selectedEvidence, "source_reliability_class") },
-            ]} />
-            <h4>支持对象</h4>
-            {visibleAssertions.filter((item) => Array.isArray(item.evidence_ids) && item.evidence_ids.map(String).includes(selectedEvidenceId)).map((item) => <button className="memory-debug-related-card" type="button" key={String(item.assertion_id)} onClick={() => { setSelectedEvidenceId(""); setSelectedId(""); setSelectedEdgeId(String(item.assertion_id)); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }}><strong>{String(item.predicate ?? "关系")}</strong><span>{String(item.subject_id)} → {String(item.object_node_id ?? item.object_literal ?? "字面值")}</span></button>)}
-          </> : detailSelection === "node" && selected ? <>
-            <span className="memory-debug-type" style={{ background: colors[selected.node_type ?? ""] }}>{nodeLabel(selected)} Node</span>
-            <h2>{selected.label}</h2>
-            <p className="memory-debug-detail-copy">{selected.description || "没有描述"}</p>
-            <InspectorFieldGrid fields={[
-              { label: "ID", value: selected.id, mono: true },
-              { label: "生命周期", value: recordLifecycle(selected) },
-              { label: "置信度", value: selected.confidence == null ? "—" : String(Math.round(selected.confidence * 100)) + "%" },
-              { label: "重要度", value: selected.importance == null ? "—" : String(Math.round(selected.importance * 100)) + "%" },
-              { label: "新鲜度", value: selected.freshness == null ? "—" : String(Math.round(selected.freshness * 100)) + "%" },
-            ]} />
-            <h4>相关 Assertion · {selectedNodeAssertions.length}</h4>
-            {selectedNodeAssertions.length ? selectedNodeAssertions.map((item) => <button className="memory-debug-related-card" type="button" key={String(item.assertion_id)} onClick={() => { setSelectedId(""); setSelectedEvidenceId(""); setSelectedEdgeId(String(item.assertion_id)); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }}><strong>{String(item.predicate ?? "关系")}</strong><span>{String(item.subject_id)} → {String(item.object_node_id ?? item.object_literal ?? "字面值")}</span><small>{recordPercent(item, "confidence")} · {Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} Evidence</small></button>) : <p>当前节点没有可见 Assertion。</p>}
-            <h4>关联 Evidence</h4>
+            <details className="memory-debug-raw-details"><summary>技术详情与原始限定条件</summary><InspectorFieldGrid fields={projectedFields(selectedAssertionProjection.technical)} /></details>
+          </> : detailSelection === "evidence" && selectedEvidence && selectedEvidenceProjection ? <>
+            <InspectorHeaderSummary header={selectedEvidenceProjection.header} className="memory-debug-evidence-type" />
+            <blockquote className="memory-debug-edge-evidence memory-debug-evidence-hero">{selectedEvidenceProjection.excerpt}</blockquote>
+            <InspectorFieldGrid fields={projectedFields(selectedEvidenceProjection.fields)} />
+            <h4>关联对象</h4>
+            <InspectorConnections connections={selectedEvidenceProjection.connections} onAssertion={(id) => { setSelectedEvidenceId(""); setSelectedId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }} />
+            <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedEvidenceProjection.technical)} /></details>
+          </> : detailSelection === "node" && selected && selectedNodeProjection ? <>
+            <InspectorHeaderSummary header={selectedNodeProjection.header} />
+            <InspectorFieldGrid fields={projectedFields(selectedNodeProjection.fields)} />
+            <h4>相关关系 · {selectedNodeProjection.connections.length}</h4>
+            <InspectorConnections connections={selectedNodeProjection.connections} onAssertion={(id) => { setSelectedId(""); setSelectedEvidenceId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }} />
+            <h4>来源证据 · {selectedNodeEvidence.length}</h4>
             {selectedNodeEvidence.length ? selectedNodeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item.evidence_id)} onClick={() => showEvidence(String(item.evidence_id))}><strong>{String(item.evidence_id)}</strong><span>{String(item.excerpt ?? "没有摘录")}</span></button>) : <p>当前节点没有从可见关系追溯到 Evidence。</p>}
-            <h4>节点属性</h4><pre>{JSON.stringify(selected.properties ?? {}, null, 2)}</pre>
+            <h4>被哪些 Episode 提到 · {selectedNodeProjection.sources.length}</h4>
+            <InspectorSources sources={selectedNodeProjection.sources} onEpisode={showEpisode} />
+            <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedNodeProjection.technical)} /></details>
           </> : <div className="memory-debug-empty-state"><strong>未选择对象</strong><span>点击左侧 Episode、Node 或 Assertion 查看事实、来源和关联。</span></div>}
         </div>}
         {tab === "add" && <div className="memory-debug-panel">
           <h2>添加完整 Episode</h2>
           <p>输入有上下文、有头尾的完整故事，在隔离副本中观察 Episode → Evidence → Node / Assertion 的结果。</p>
           <div className="memory-debug-operation-banner"><strong>隔离预演</strong><span>只读复制生产库 · 不写入生产 Memory · operation trace 未接入的步骤标记为“未观测”</span></div>
-          <label className="memory-debug-field-label">Episode 摘要（可选）<input value={episodeSummary} onChange={(event) => setEpisodeSummary(event.target.value)} placeholder="一句话概括来源经历" maxLength={500} /></label>
           <label className="memory-debug-field-label">Episode 内容<textarea value={episodeText} onChange={(event) => setEpisodeText(event.target.value)} placeholder="例如：今天我在花园散步，发现自己喜欢安静的雨声。" rows={8} /></label>
           <button className="primary" disabled={previewLoading || !episodeText.trim()} onClick={() => void runEpisodePreview()}>{previewLoading ? "正在隔离预演…" : "开始隔离预演"}</button>
           <div className="memory-debug-process-rail memory-debug-process-rail-long" aria-label="添加 Episode 过程"><div className="memory-debug-process-caption"><strong>处理过程</strong><span>仅显示当前可观测状态</span></div>{addProcess.map((step) => <div className={`memory-debug-process-item is-${step.state}`} key={step.label}><span className="memory-debug-process-dot" /><strong>{step.label}</strong><small>{step.detail}</small></div>)}</div>
@@ -1386,33 +1625,50 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           </div>}
         </div>}
         {tab === "recall" && <div className="memory-debug-panel">
-          <h2>Recall 解释链</h2>
-          <div className="memory-debug-drawer-query"><span>查询</span><strong>{query || "尚未输入查询"}</strong><small>查询词：{recallQueryTerms.join("、") || "未观测"} · 来源：{traceRecall ? "聊天回合 Trace（不重复检索）" : recallQueryTermsSource} · recall_id：{recallView?.selection.recall_id ?? "未记录"}</small></div>
-          <div className="memory-debug-process-rail" aria-label="Recall 过程">{recallProcess.map((step) => <div className={`memory-debug-process-item is-${step.state}`} key={step.label}><span className="memory-debug-process-dot" /><strong>{step.label}</strong><small>{step.detail}</small></div>)}</div>
+          <h2>搜索结果</h2>
+          <div className="memory-debug-drawer-query"><span>搜索内容</span><strong>{query || "尚未输入查询"}</strong><small>结果按相关性排序 · {traceRecall ? "聊天回合 Trace（不重复检索）" : "来自当前精灵的 Memory"}</small></div>
           <button className="primary" disabled={!query.trim()} onClick={() => void runRecall()}>再次执行真实检索</button>
           {recallView && <>
             <div className="memory-debug-metric-grid" aria-label="Recall 返回摘要">
-              <div><span>耗时</span><strong>{traceRecall ? "—" : `${recallView.elapsed_ms}ms`}</strong><small>{traceRecall ? "聊天 Trace 未记录此耗时" : "本次读取"}</small></div>
-              <div><span>返回 Node</span><strong>{recallView.counts.focus_nodes ?? 0}</strong><small>焦点节点</small></div>
-              <div><span>Assertion</span><strong>{recallView.counts.assertions ?? 0}</strong><small>关系边</small></div>
-              <div><span>Evidence</span><strong>{recallView.counts.evidence ?? 0}</strong><small>关联证据</small></div>
-              <div><span>候选</span><strong>{recallView.selection.candidates.length}</strong><small>进入解释链</small></div>
+              <div><span>节点</span><strong>{recallView.bundle.focus_nodes.length}</strong><small>搜索命中</small></div>
+              <div><span>Episode</span><strong>{recallView.bundle.episodes.length}</strong><small>命中的故事</small></div>
+              <div><span>关系</span><strong>{recallView.bundle.assertions.length}</strong><small>命中的边</small></div>
+              <div><span>证据</span><strong>{recallView.bundle.evidence.length}</strong><small>可追溯来源</small></div>
             </div>
-            <div className="memory-debug-observation-grid" aria-label="Recall 观测摘要">
-              <div><span>评分候选</span><strong>{recordNumber(recallSummary, "candidates_seen") ?? "未观测"}</strong><small>进入评分</small></div>
-              <div><span>保留</span><strong>{recordNumber(recallSummary, "kept") ?? "未观测"}</strong><small>进入 RecallBundle</small></div>
-              <div><span>字符预算</span><strong>{recordNumber(recallSummary, "character_budget_used") ?? "未观测"} / {recordNumber(recallSummary, "character_budget_limit") ?? "未观测"}</strong><small>已用 / 上限</small></div>
-              <div><span>截断</span><strong>{recordBoolean(recallSummary, "truncated") == null ? (recordBoolean(recallLimits, "truncated") == null ? "未观测" : String(recordBoolean(recallLimits, "truncated"))) : String(recordBoolean(recallSummary, "truncated"))}</strong><small>结果是否截断</small></div>
-            </div>
-            <h4>RecallBundle · 返回对象</h4>
-            {recallView.bundle.focus_nodes.map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · relevance {node.relevance ?? "—"}</small></span></button>)}
-            <h4>候选决定 · 命中与淘汰</h4>
-            <div className="memory-debug-selection-list" aria-label="Recall 候选决定">{recallView.selection.candidates.map((candidate, index) => <div className={["memory-debug-selection", candidate.kept ? "is-kept" : "is-excluded"].join(" ")} key={candidate.candidate_kind + ":" + candidate.candidate_id}>
-              <div className="memory-debug-selection-head"><strong>{candidate.kept ? "保留" : "排除"}</strong><code>{candidate.candidate_id}</code><span>{candidate.candidate_kind}</span></div>
-              <div className="memory-debug-selection-facts"><span>{candidate.rank == null ? `序号 ${index + 1}` : `rank ${candidate.rank}`}</span><span>score {candidate.score.toFixed(3)}</span><span>命中 {candidate.matched_terms?.join("、") || "未观测"}</span></div>
-              <small>{candidate.kept ? "进入 RecallBundle" : candidate.exclusion_reason ?? "原因未观测"}</small>
-            </div>)}</div>
-            <details className="memory-debug-raw-details"><summary>原始 Recall 回执</summary><pre className="memory-debug-rendered">{recallView.rendered}</pre></details>
+            <h4>最相关节点 · {recallView.bundle.focus_nodes.length}</h4>
+            {recallView.bundle.focus_nodes.length ? recallView.bundle.focus_nodes.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance == null ? "—" : node.relevance.toFixed(2)}</small></span></button>) : <p className="memory-debug-empty-result">没有找到可显示的节点。</p>}
+            <h4>命中的 Episode · {recallView.bundle.episodes.length}</h4>
+            {recallView.bundle.episodes.length ? recallView.bundle.episodes.slice(0, 5).map((episode, index) => {
+              const episodeId = recordText(episode, "episode_id", `episode-${index + 1}`);
+              const excerpt = recordText(episode, "excerpt", recordText(episode, "content_text", episodeId));
+              return <button className="memory-debug-result memory-debug-episode-result" key={episodeId} onClick={() => showEpisode(episodeId)}><b>{index + 1}</b><span>{excerpt}<small>Episode · 相关度 {recordNumber(episode, "relevance") == null ? "—" : recordNumber(episode, "relevance")?.toFixed(2)} · 重要度 {recordNumber(episode, "importance") == null ? "—" : `${Math.round((recordNumber(episode, "importance") ?? 0) * 100)}%`}</small></span></button>;
+            }) : <p className="memory-debug-empty-result">没有直接命中的 Episode；结果可能来自节点本身。</p>}
+            <h4>命中的关系 · {recallView.bundle.assertions.length}</h4>
+            {recallView.bundle.assertions.length ? recallView.bundle.assertions.slice(0, 6).map((assertion, index) => {
+              const assertionId = recordText(assertion, "assertion_id", `assertion-${index + 1}`);
+              const source = report?.data.nodes.find((node) => node.id === String(assertion.subject_id ?? ""));
+              const target = report?.data.nodes.find((node) => node.id === String(assertion.object_node_id ?? ""));
+              const kind = relationKindFromRecord(assertion, recordText(assertion, "predicate", "关系"));
+              const sentence = source && target ? relationSentence(source.label, target.label, kind, source.node_type, target.node_type) : `${recordText(assertion, "subject_id")} → ${recordText(assertion, "object_node_id", recordText(assertion, "object_literal"))} · ${relationDisplayLabel(kind)}`;
+              return <button className="memory-debug-result" key={assertionId} onClick={() => showAssertion(assertionId)}><b>{index + 1}</b><span>{sentence}<small>关系 · 重要度 {recordNumber(assertion, "importance") == null ? "—" : `${Math.round((recordNumber(assertion, "importance") ?? 0) * 100)}%`}</small></span></button>;
+            }) : <p className="memory-debug-empty-result">没有可显示的关系边。</p>}
+            <details className="memory-debug-raw-details memory-debug-recall-technical"><summary>查看检索过程（一次 Recall 的解释链）</summary>
+              <p className="memory-debug-technical-note">recall_id：{recallView.selection.recall_id ?? "未记录"} · 查询词：{recallQueryTerms.join("、") || "未观测"}</p>
+              <div className="memory-debug-process-rail" aria-label="Recall 过程">{recallProcess.map((step) => <div className={`memory-debug-process-item is-${step.state}`} key={step.label}><span className="memory-debug-process-dot" /><strong>{step.label}</strong><small>{step.detail}</small></div>)}</div>
+              <div className="memory-debug-observation-grid" aria-label="Recall 观测摘要">
+                <div><span>评分候选</span><strong>{recordNumber(recallSummary, "candidates_seen") ?? "未观测"}</strong><small>进入评分</small></div>
+                <div><span>保留</span><strong>{recordNumber(recallSummary, "kept") ?? "未观测"}</strong><small>进入 RecallBundle</small></div>
+                <div><span>字符预算</span><strong>{recordNumber(recallSummary, "character_budget_used") ?? "未观测"} / {recordNumber(recallSummary, "character_budget_limit") ?? "未观测"}</strong><small>已用 / 上限</small></div>
+                <div><span>截断</span><strong>{recordBoolean(recallSummary, "truncated") == null ? (recordBoolean(recallLimits, "truncated") == null ? "未观测" : String(recordBoolean(recallLimits, "truncated"))) : String(recordBoolean(recallSummary, "truncated"))}</strong><small>结果是否截断</small></div>
+              </div>
+              <h4>候选决定 · 命中与淘汰</h4>
+              <div className="memory-debug-selection-list" aria-label="Recall 候选决定">{recallView.selection.candidates.map((candidate, index) => <div className={["memory-debug-selection", candidate.kept ? "is-kept" : "is-excluded"].join(" ")} key={candidate.candidate_kind + ":" + candidate.candidate_id}>
+                <div className="memory-debug-selection-head"><strong>{candidate.kept ? "保留" : "排除"}</strong><code>{candidate.candidate_id}</code><span>{candidate.candidate_kind}</span></div>
+                <div className="memory-debug-selection-facts"><span>{candidate.rank == null ? `序号 ${index + 1}` : `rank ${candidate.rank}`}</span><span>score {candidate.score.toFixed(3)}</span><span>命中 {candidate.matched_terms?.join("、") || "未观测"}</span></div>
+                <small>{candidate.kept ? "进入 RecallBundle" : candidate.exclusion_reason ?? "原因未观测"}</small>
+              </div>)}</div>
+              <details><summary>原始 Recall 回执</summary><pre className="memory-debug-rendered">{recallView.rendered}</pre></details>
+            </details>
           </>}
         </div>}
         </div>

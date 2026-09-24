@@ -195,6 +195,32 @@ def test_orphan_conversation_episode_survives_p0_memory_budget() -> None:
     assert "主人说：请记住，我喜欢蓝色。" in compiled.content
 
 
+def test_standalone_world_knowledge_keeps_source_and_precedes_graph_noise() -> None:
+    base = _bundle()
+    statement = "Elfaria 一年有 196 个本地日。"
+    knowledge = RecallNode(
+        "genesis:knowledge:elfie:year",
+        "knowledge",
+        statement,
+        statement + "\n[历法/common/known]\n本地日",
+        0.99,
+        properties={"source_ref": "resident-knowledge:nature.light_cycle"},
+    )
+    compiled = compile_recall_bundle(
+        RecallBundle(
+            focus_nodes=base.focus_nodes + (knowledge,),
+            assertions=base.assertions,
+            evidence=base.evidence,
+        ),
+        max_tokens=290,
+    )
+
+    assert '<NODE id="genesis:knowledge:elfie:year">' in compiled.content
+    assert statement in compiled.content
+    assert compiled.content.count(statement) == 1
+    assert "resident-knowledge:nature.light_cycle" in compiled.content
+
+
 def test_memory_excerpts_are_escaped_as_data() -> None:
     malicious = _bundle()
     evidence = malicious.evidence[0]

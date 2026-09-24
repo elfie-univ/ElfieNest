@@ -183,6 +183,30 @@ def compile_recall_bundle(
         used += cost
         selected_episodes.append(episode.episode_id)
 
+    # Standalone world facts are directly usable text.  Reserve room for them
+    # before graph neighbours consume the bounded context.
+    assertion_node_ids = {
+        node_id
+        for assertion in bundle.assertions
+        for node_id in (assertion.subject_id, assertion.object_node_id)
+        if node_id is not None
+    }
+    for node in bundle.focus_nodes:
+        if (
+            node.node_type != "knowledge"
+            or node.node_id in assertion_node_ids
+            or node.relevance <= 0.0
+        ):
+            continue
+        rendered = _render_node(node)
+        cost = estimate_prompt_tokens(rendered)
+        if cost > available - used:
+            truncated = True
+            continue
+        lines.append(rendered)
+        used += cost
+        selected_node_ids.add(node.node_id)
+
     for packet in packets:
         if has_relevant_packet and packet.assertion.relevance <= 0.0:
             # Zero-relevance graph neighbours are useful only when there is
@@ -258,12 +282,7 @@ def compile_recall_bundle(
             )
 
     for node in bundle.focus_nodes:
-        if node.node_id in selected_node_ids or node.node_id in {
-            node_id
-            for assertion in bundle.assertions
-            for node_id in (assertion.subject_id, assertion.object_node_id)
-            if node_id is not None
-        }:
+        if node.node_id in selected_node_ids or node.node_id in assertion_node_ids:
             continue
         rendered = _render_node(node)
         cost = estimate_prompt_tokens(rendered)
@@ -537,7 +556,17 @@ def _render_packet(
 
 
 def _render_node(node: RecallNode) -> str:
-    description = f"；说明：{_safe(node.description, 240)}" if node.description else ""
+    if node.node_type == "knowledge":
+        source_ref = node.properties.get("source_ref")
+        description = (
+            f"；来源：{_safe(source_ref)}"
+            if isinstance(source_ref, str) and source_ref
+            else ""
+        )
+    else:
+        description = (
+            f"；说明：{_safe(node.description, 240)}" if node.description else ""
+        )
     return (
         f'<NODE id="{_safe_attr(node.node_id)}">\n'
         f"节点：{_safe(node.label)}；类型：{_safe(node.node_type)}"

@@ -229,6 +229,10 @@ class BrainRuntime:
     def notify_perception(self, *, urgent_reason: Optional[str] = None) -> None:
         self.coordinator.notify_perception(urgent_reason=urgent_reason)
 
+    def request_consolidation(self) -> Optional[EventId]:
+        """Request one explicit receipt-backed consolidation Activity Turn."""
+        return self.coordinator.request_consolidation()
+
     def outcomes(self) -> Tuple[TurnOutcome, ...]:
         return self.coordinator.outcomes()
 

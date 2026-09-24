@@ -19,7 +19,8 @@ const denseGraphSchema = z.object({
   nodes: z.array(z.object({
     id: z.string(),
     label: z.string(),
-    kind: z.enum(["self", "human", "elfie", "knowledge", "belief", "pattern"]).optional(),
+    kind: z.enum(["self", "human", "elfie", "person", "group", "place", "object", "knowledge", "fact", "concept", "guideline", "belief", "pattern"]).optional(),
+    is_self: z.boolean().optional(),
     weight: normalizedScalarSchema.default(0.5),
     confidence: normalizedScalarSchema.optional(),
     source_event_ids: z.array(z.string()).default([]),

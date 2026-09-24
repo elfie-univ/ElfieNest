@@ -2,7 +2,7 @@
 
 > Status: design baseline reviewed in this cycle; this does not claim current source conformance
 > Version: v1
-> Updated: 2026-09-18
+> Updated: 2026-09-23
 > Owner: Elfie / Brain / Memory / Developer Tools
 > Parent design: [Brain ten-system architecture](./elfie-brain-ten-system-architecture)
 > Child design: none
@@ -35,17 +35,72 @@ This document freezes semantics, boundaries, interaction, and acceptance criteri
 
 ## 2. Semantic model
 
-The display model is source-first:
+The display model has two semantic layers plus provenance:
 
 | Layer | Meaning | Display |
 | --- | --- | --- |
-| Event / Turn | Runtime fact or Brain turn | Detail or Elfie Lab context, not a knowledge node |
-| ClosedEpisode | Durable completed experience source | Episode source rail |
+| ClosedEpisode | Complete, already-processed topic, story or learning unit | Episode source rail and direct text-memory result |
 | Evidence | Provenance for a Node or Assertion | Provenance connector and detail, not an ordinary node |
-| Node | Entity, concept, or knowledge unit | Graph node |
-| Assertion | Directed semantic relation | Graph edge |
+| Node / Assertion | Higher-level note, entity, reusable knowledge or explicit relationship derived from Episodes | Graph node/edge and direct Recall result; the detail panel shows subject, object, readable relation semantics, direction, predicate, confidence and lifecycle |
 
-RecallBundle is the result of one query, not a permanent graph entity. Every Node and Assertion must be traceable through Evidence to its source Episode. Lifecycle, importance, retention, confidence, conflict, and supersedes remain distinct fields.
+RecallBundle is the result of one query, not a permanent graph entity. A Recall may return an
+Episode, a Node/Assertion, or both; it does not need to return raw upstream conversation or media.
+Every Node and Assertion must be traceable through Evidence to its source Episode or approved seed. Lifecycle,
+importance, retention, confidence, conflict, and supersedes remain distinct fields.
+
+The graph uses the Memory taxonomy rather than a second UI taxonomy. Entity nodes are rendered
+with the canonical leaf types `elfie`, `person`, `group`, `place` and `object`; `event` is an
+optional reusable event identity admitted only when an Episode explicitly describes an event that
+other records need to reference, not a per-Episode projection or third semantic layer; `knowledge` carries `knowledge_kind` (`fact`, `concept`, `pattern`,
+`guideline` or `belief`); and `self_model` is shown only in the self/world understanding views.
+The current Elfie is the real `elfie` Node with an `is_self` marker. A visual center anchor may
+refer to that Node, but it has no independent identity or source.
+
+The normal relation view includes entity-to-entity Assertions and their source links. The normal
+knowledge view includes knowledge-to-knowledge Assertions and their source links. Generic `about`,
+`knows`, `knows_boundary` and `related_to` edges are not generated; a concept relation must use a
+registered, source-grounded predicate. Every graph edge exposes its Assertion
+identity and can open the attached Evidence and Episode; a projection that drops that identity is
+incomplete.
+
+### 2.1 Relation display contract
+
+The relation graph renders canonical predicates from the Memory registry. Symmetric relations are
+shown once with a neutral two-endpoint sentence; directed relations show the subject role and the
+reverse role explicitly. The detail panel must show the predicate, readable sentence, endpoint
+direction when meaningful, confidence, importance and Evidence. `kin_of` is displayed as “family
+(specific relation unknown)”. Multiple relations between the same two nodes are separate rows and
+edges, ordered by importance only for presentation. A missing edge or a co-occurring pair is never
+rendered as a relationship.
+
+### 2.2 Inspector detail projection
+
+Detail is a read-only projection over the existing Memory records. The UI does not assemble a
+second fact source from raw rows. Every selection uses the same compact order:
+
+1. **Header:** semantic type, canonical label, one-line summary, status, importance and confidence;
+2. **Primary content:** the type-specific attributes or readable assertion sentence;
+3. **Connections:** grouped relations, attribute facts, affected objects or concept links, ordered
+   by importance with a bounded initial count;
+4. **Source:** Episode, Evidence, excerpt, time, viewpoint, attribution and media references;
+5. **Technical details:** IDs, hashes, policy versions, raw qualifiers and projection metadata in a
+   collapsed section.
+
+Node detail uses the registered attribute groups for `elfie`/`person`, `group`, `place`, `object`,
+`knowledge`, `event` and `self_model`. Assertion detail shows one readable sentence, endpoint roles,
+direction or symmetry, valid time, polarity, epistemic status, importance, confidence, conflicts
+and Evidence. Episode detail shows the original content first, then participants/place/context,
+affected Nodes and Assertions, and may collapse the same content visually for long records. A
+legacy summary is metadata, never an Episode title. Evidence detail leads with
+the excerpt or media preview and then shows its source and supported, contradicted or contextual
+Assertions. A reusable graph `event` Node links back to its supporting Episode and never duplicates the full story.
+
+The projection has a typed selection union (`NodeDetail`, `AssertionDetail`, `EpisodeDetail` or
+`EvidenceDetail`) with common header/source fields and type-specific sections. It is a Developer
+Tools read model; the upper Memory/Recall interface and the SQLite authority remain unchanged.
+Unknown fields are shown as unknown or in technical details, never guessed. The canvas legend
+names semantic Node types and source/relationship meaning; it does not explain primitive shapes as
+the primary legend.
 
 ## 3. Layout and interaction
 
@@ -58,6 +113,12 @@ The left side contains:
 3. counts and current filter/highlight status.
 
 The default view is the whole knowledge base. Filtering dims unrelated content by default instead of deleting all context. The graph supports pan, zoom, node dragging, selection, related highlighting, long-label truncation with full detail on the right, and level-of-detail behavior for large libraries. 2D/2.5D/3D is an implementation choice; the graph must not become a Godot physics authority.
+
+Visual encoding is fixed: Node radius represents only Node `importance`; semantic Assertion width
+represents only the relation's `importance`. Confidence, familiarity, and connection count do not
+change those two scales and belong in detail, opacity/badges, or layout metadata. Episode source
+cards use fixed UI dimensions, provenance traces use a fixed thin line, and selection changes color
+or halo without drawing a bounding rectangle.
 
 The right side contains:
 
@@ -93,20 +154,27 @@ All operation states are explicit: idle, preview, running, paused, succeeded, pa
 
 ## 6. Current implementation and migration decision
 
-The current implementation already provides reusable source-first persistence, read-only inspect/recall boundaries, statistics, a Detail/Add/Recall shell, and typed recall selection observations. It still lacks a scalable global graph, complete provenance highlighting, real Add Episode operation traces, candidate-level Recall explanation, and Elfie Lab integration.
+The current implementation already provides topic-oriented Episode capture, reusable source-first
+persistence, read-only inspect/recall boundaries, statistics, a Detail/Add/Recall shell, and typed
+recall selection observations. It still lacks a frozen Episode content/size contract, sparse
+Node–Assertion admission, complete provenance highlighting, real Add Episode operation traces,
+candidate-level Recall explanation, and Elfie Lab integration.
 
 The decision is to preserve the current Memory back end, projections, and tests, and implement the new workspace behind the independent `/elfie/memory-debug` route. Keep `/elfie/memory-audit` and its legacy styles as the unchanged baseline until the new workspace passes acceptance. Do not build a second Memory authority.
 
 Recommended order:
 
-1. freeze this design, keep `/elfie/memory-audit` as the legacy baseline, and create the independent `/elfie/memory-debug` entry;
-2. define the four shared read-only projections and shared view state;
-3. replace the left graph with the full-library source/graph view;
-4. complete Detail and provenance navigation;
-5. expose existing recall-selection observations candidate by candidate;
-6. add isolated Add Episode tracing and replay;
-7. embed the same workspace in Elfie Lab;
-8. retire the fixed legacy layout only after acceptance.
+1. freeze the two-layer Episode/Node–Assertion contract and the Episode topic/size boundary, keeping `/elfie/memory-audit` as the legacy baseline;
+2. register canonical Node types and normalize every writer to the registry;
+3. narrow Consolidation admission so attributes and weak co-occurrences do not become formal graph facts;
+4. define the four shared read-only projections and shared view state;
+5. replace the left graph with the full-library Episode/Node–Assertion view;
+6. complete Detail and provenance navigation, including Assertion identity on every edge;
+7. expose existing recall-selection observations candidate by candidate and allow direct graph results;
+8. add isolated Add Episode tracing and replay;
+9. embed the same workspace in Elfie Lab;
+10. regenerate development Memory data and verify type/source invariants;
+11. retire the fixed legacy layout only after acceptance.
 
 ## 7. Evaluation
 
@@ -114,7 +182,7 @@ The design scores approximately 8.8/10 against the developer debugging goals: 9/
 
 The decisive improvement is not visual decoration. It is the closure of three evidence chains:
 
-- source Episode → Evidence → Node/Assertion;
+- source Episode/approved seed → Evidence → Node/Assertion;
 - Add Episode step → observed effect → affected graph objects;
 - Recall candidate → selection decision → RecallBundle → actual Elfie Lab context.
 

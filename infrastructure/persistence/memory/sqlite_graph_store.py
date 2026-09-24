@@ -43,6 +43,7 @@ from .sqlite_utils import (
     content_hash,
     json_object,
     normalize_text,
+    searchable_node_property_text,
     stable_id,
     utc_now,
 )
@@ -1328,7 +1329,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 params.append(privacy_scope)
             visibility, visibility_params = self._genesis_visibility("n")
             params.extend(visibility_params)
-            params.extend([like, like, like])
+            params.extend([like, like, like, like])
             params.append(max(0, limit))
             rows = self.conn.execute(
                 """SELECT DISTINCT n.node_id, n.node_type, n.canonical_label,
@@ -1338,14 +1339,17 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                                WHEN n.normalized_label LIKE ? THEN 0.8
                                WHEN a.normalized_alias LIKE ? THEN 0.75
                                ELSE 0.5 END AS score
-                     FROM nodes AS n LEFT JOIN node_aliases AS a ON a.node_id=n.node_id
+                     FROM nodes AS n
+                     LEFT JOIN node_aliases AS a ON a.node_id=n.node_id
+                     LEFT JOIN nodes_fts AS nf ON nf.node_id=n.node_id
                     WHERE n.status IN ('active', 'candidate', 'unresolved') AND n.merged_into IS NULL"""
                 + scope
                 + " AND "
                 + visibility
                 + """
                       AND (n.normalized_label LIKE ? OR a.normalized_alias LIKE ?
-                           OR lower(COALESCE(n.description,'')) LIKE ?)
+                           OR lower(COALESCE(n.description,'')) LIKE ?
+                           OR lower(COALESCE(nf.searchable_text,'')) LIKE ?)
                     ORDER BY score DESC, n.node_id LIMIT ?""",
                 params,
             ).fetchall()
@@ -1435,6 +1439,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         recall_eligibility_clause = ""
         if recall_eligible_only:
             recall_eligibility_clause = """
+                AND NOT (
+                    a.predicate IN ('knows', 'knows_boundary')
+                    AND a.subject_node_id LIKE 'genesis:self:%'
+                    AND a.object_node_id LIKE 'genesis:knowledge:%'
+                )
                 AND EXISTS (
                     SELECT 1 FROM nodes AS rs
                      WHERE rs.node_id=a.subject_node_id
@@ -2406,14 +2415,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 self._ensure_importance_baseline_locked(
                     "node", node.node_id, target, now
                 )
-        self.conn.execute(
-            """INSERT INTO nodes_fts(node_id, searchable_text) VALUES (?, ?)
-               ON CONFLICT(node_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-            (
-                node.node_id,
-                "\n".join(value for value in (label, description or "") if value),
-            ),
-        )
+        self._refresh_node_text_projection(node.node_id)
 
     def _insert_alias(
         self,
@@ -2701,7 +2703,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
 
     def _refresh_node_text_projection(self, node_id: str) -> None:
         row = self.conn.execute(
-            "SELECT canonical_label, description FROM nodes WHERE node_id=?",
+            "SELECT canonical_label, description, properties_json FROM nodes WHERE node_id=?",
             (node_id,),
         ).fetchone()
         if row is None:
@@ -2709,6 +2711,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         values = [str(row["canonical_label"])]
         if row["description"]:
             values.append(str(row["description"]))
+        property_text = searchable_node_property_text(
+            json_object(row["properties_json"])
+        )
+        if property_text:
+            values.append(property_text)
         values.extend(
             str(item[0])
             for item in self.conn.execute(
@@ -3990,7 +3997,7 @@ def _row_as_assertion_input(
         retention_profile=str(row["retention_profile"] or "semantic"),  # type: ignore[arg-type]
         object_literal_type=row["object_literal_type"],
         predicate_registry_version=str(
-            row["predicate_registry_version"] or "memory.predicates.v1"
+            row["predicate_registry_version"] or "memory.predicates.v2"
         ),
         policy_version=str(row["policy_version"] or MemoryScorePolicy.version),
         genesis_submission_id=row["genesis_submission_id"],

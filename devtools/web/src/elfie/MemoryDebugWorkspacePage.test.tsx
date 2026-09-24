@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphNavigationActive, projectMemoryDebugGraph, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, projectMemoryDebugGraph, relationDisplayLabel, relationSentence, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
 
 describe("记忆调试工作台", () => {
   it("要求相机只在按住拖动时旋转，并使用更稳定的 Orbit 控制", () => {
@@ -17,6 +17,7 @@ describe("记忆调试工作台", () => {
     expect(markup).toContain("搜索 Node、Assertion、Episode");
     expect(markup).toContain("过滤");
     expect(markup).toContain("添加 Episode");
+    expect(markup).toContain("手动 Consolidation");
     expect(markup).toContain("允许拖拽节点");
     expect(markup).toContain("适配当前图谱");
     expect(markup).not.toContain("名称或描述");
@@ -63,6 +64,26 @@ describe("记忆调试工作台", () => {
     expect(toggleEpisodeSelection("arrival-nest", "neighborhood")).toBe("neighborhood");
   });
 
+  it("把有方向的 Assertion 显示成可读关系语义", () => {
+    expect(relationDisplayLabel("friend")).toBe("朋友");
+    expect(relationSentence("Ari", "Ena", "friend")).toBe("Ari 和 Ena 是朋友");
+    expect(relationSentence("Ari", "Kio", "kin_of")).toBe("Ari 和 Kio 是家人（具体关系未知）");
+    expect(relationSentence("Ari", "Ena", "parent_of")).toBe("Ari 是 Ena 的父母");
+    expect(relationSentence("精灵", "主人", "owner", "elfie", "person")).toBe("主人 是 精灵 的主人");
+
+    const graph = projectMemoryDebugGraph({
+      data: {
+        nodes: [
+          { id: "ari", node_type: "elfie", label: "Ari" },
+          { id: "ena", node_type: "elfie", label: "Ena" },
+        ],
+        assertions: [{ assertion_id: "friend-1", subject_id: "ari", object_node_id: "ena", predicate: "friend" }],
+        evidence: [],
+      },
+    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+    expect(graph.edges[0]).toMatchObject({ label: "朋友", predicate: "friend", symmetric: true });
+  });
+
   it("把高亮上下文之外的 Assertion 箭头和连线一起降为不可见灰态", () => {
     expect(graphLinkArrowLength(true, "", "unrelated", "assertion", false, false)).toBe(0);
     expect(graphLinkColor(true, "", "unrelated", "assertion", false, false)).toBe("rgba(107, 133, 151, 0.16)");
@@ -70,11 +91,29 @@ describe("记忆调试工作台", () => {
     expect(graphLinkArrowLength(true, "selected", "selected", "assertion", false, false)).toBe(4);
   });
 
+  it("只用重要度决定节点大小和关系线宽", () => {
+    expect(graphNodeValue(.8)).toBe(graphNodeValue(.8));
+    expect(graphNodeValue(.8)).toBeGreaterThan(graphNodeValue(.2));
+    expect(graphLinkWidth(.8)).toBeGreaterThan(graphLinkWidth(.2));
+    expect(graphLinkWidth(undefined)).toBe(graphLinkWidth(.5));
+
+    const graph = projectMemoryDebugGraph({
+      data: {
+        nodes: [{ id: "a", node_type: "person", label: "甲" }, { id: "b", node_type: "person", label: "乙" }],
+        assertions: [{ assertion_id: "relation-1", subject_id: "a", object_node_id: "b", predicate: "friend_of", importance: .82 }],
+        evidence: [],
+      },
+    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+
+    expect(graph.edges[0]).toMatchObject({ importance: .82 });
+  });
+
   it("把操作提示并入图例，不再用横向遮挡层盖住图面", () => {
     const markup = renderToStaticMarkup(<MemoryDebugLegend layoutLocked />);
 
     expect(markup).not.toContain('class="memory-debug-3d-hint"');
     expect(markup).toContain('memory-debug-legend-hint');
+    expect(markup).toContain("点大小=重要度 · 关系线宽=重要度");
   });
 
   it("使用独立 CSS 命名空间，不污染 legacy memory-audit selectors", () => {
@@ -156,17 +195,29 @@ describe("记忆调试工作台", () => {
           { id: "node-b", node_type: "person", label: "乙" },
         ],
         assertions: [
-          { assertion_id: "assertion-knows", subject_id: "node-a", object_node_id: "node-b", predicate: "knows" },
+          { assertion_id: "assertion-friend", subject_id: "node-a", object_node_id: "node-b", predicate: "friend_of" },
           { assertion_id: "assertion-supports", subject_id: "node-a", object_node_id: "node-b", predicate: "supports" },
         ],
         evidence: [],
       },
     } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
 
-    const graph = projectMemoryDebugGraph(report, { predicateTypes: new Set(["knows"]) });
+    const graph = projectMemoryDebugGraph(report, { predicateTypes: new Set(["friend_of"]) });
 
     expect(graph.nodes.map((node) => node.id)).toEqual(["node-a", "node-b"]);
-    expect(graph.edges.map((edge) => edge.id)).toEqual(["assertion-knows"]);
+    expect(graph.edges.map((edge) => edge.id)).toEqual(["assertion-friend"]);
+  });
+
+  it("不把旧的 about/knows 边重新显示成语义关系", () => {
+    const graph = projectMemoryDebugGraph({
+      data: {
+        nodes: [{ id: "self", node_type: "elfie", label: "艾菲" }, { id: "knowledge", node_type: "knowledge", label: "规律" }],
+        assertions: [{ assertion_id: "legacy-about", subject_id: "self", object_node_id: "knowledge", predicate: "about" }],
+        evidence: [],
+      },
+    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+
+    expect(graph.edges).toEqual([]);
   });
 
   it("支持在同一个过滤面板中组合多个节点类型", () => {

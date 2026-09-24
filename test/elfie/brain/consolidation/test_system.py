@@ -72,6 +72,27 @@ def test_consolidation_is_blocked_and_does_not_duplicate_pending_candidate():
     assert system.snapshot(now + timedelta(seconds=2)).pending_episode_count == 1
 
 
+def test_manual_consolidation_bypasses_sleep_gate_but_keeps_pending_boundary():
+    now = datetime(2026, 8, 12, tzinfo=timezone.utc)
+    calls: list[int] = []
+    system = CognitiveConsolidationSystem(
+        pending_episode_ids=lambda _limit: ("episode-1", "episode-2"),
+        consolidate=lambda limit: calls.append(limit) or {"consolidated_count": limit},
+        initial_at=now,
+    )
+
+    candidate = system.request_manual(now=now + timedelta(seconds=1), blocked=False)
+
+    assert candidate is not None
+    assert candidate.episode_ids == ("episode-1", "episode-2")
+    assert system.settle(
+        candidate.candidate_id,
+        now=now + timedelta(seconds=2),
+        success=True,
+    )
+    assert calls == [2]
+
+
 def test_consolidation_checkpoint_restores_pending_candidate_without_running_work():
     now = datetime(2026, 8, 12, tzinfo=timezone.utc)
     calls: list[int] = []

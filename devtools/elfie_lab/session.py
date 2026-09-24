@@ -324,6 +324,61 @@ class ElfieLabSession:
             self.storage.save_session(self.get_payload())
             return record
 
+    def run_manual_consolidation(self, food_key: str) -> Dict[str, Any]:
+        """Trigger one receipt-backed consolidation without creating an Episode."""
+        with self._lock:
+            self._ensure_open()
+            started = time.perf_counter()
+            before = self.snapshot().get("cognitive_consolidation")
+            model_execution = create_model_execution(
+                food_key,
+                self.model_execution_config_dir,
+                workspace_resolver=lambda scope_id: (
+                    self.storage.elfie_dir(scope_id) if scope_id is not None else None
+                ),
+            )
+            (
+                candidate_id,
+                outcome,
+                turn_decision,
+                receipts,
+                reasoning,
+            ) = self._turn_adapter.run_manual_consolidation(model_execution)
+            after = self.snapshot().get("cognitive_consolidation")
+            self.storage.save_session(self.get_payload())
+            duration_ms = round((time.perf_counter() - started) * 1000, 2)
+            return {
+                "success": outcome is not None and outcome.status.value == "completed",
+                "triggered": candidate_id is not None,
+                "candidate_id": candidate_id,
+                "turn_id": str(outcome.turn_id) if outcome is not None else None,
+                "status": outcome.status.value
+                if outcome is not None
+                else "not_triggered",
+                "before": before,
+                "after": after,
+                "knowledge_created": (
+                    after.get("last_knowledge_created", 0)
+                    if isinstance(after, dict)
+                    else 0
+                ),
+                "consolidated_count": (
+                    after.get("last_consolidated_count", 0)
+                    if isinstance(after, dict)
+                    else 0
+                ),
+                "duration_ms": duration_ms,
+                "decision": (
+                    turn_decision.plan.intents[0].type
+                    if turn_decision is not None and turn_decision.plan.intents
+                    else None
+                ),
+                "receipt_count": len(receipts),
+                "reasoning": reasoning.model_dump(mode="json")
+                if reasoning is not None
+                else None,
+            }
+
     def reset(self) -> Dict[str, Any]:
         with self._lock:
             self._ensure_open()
