@@ -1,6 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Select } from "antd";
+import { FilterOutlined, PlusOutlined, SearchOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { Button, Input, Select } from "antd";
 import type { ForceGraphMethods } from "react-force-graph-3d";
 import { CanvasTexture, Sprite, SpriteMaterial } from "three";
 
@@ -257,7 +258,7 @@ function InspectorSources({
 }
 
 export function MemoryDebugLegend({ layoutLocked }: { layoutLocked: boolean }): React.JSX.Element {
-  return <div className="memory-debug-legend-v2" aria-label="图例"><span className="memory-debug-type-key person-key">人物</span><span className="memory-debug-type-key elfie-key">精灵</span><span className="memory-debug-type-key group-key">群体/家庭</span><span className="memory-debug-type-key knowledge-key">知识</span><span className="memory-debug-type-key place-key">地点</span><span className="assertion-key">关系</span><span className="evidence-key">来源</span><span className="memory-debug-scale-key">点大小=重要度 · 关系线宽=重要度</span><span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击节点/关系查看右侧详情</span></div>;
+  return <div className="memory-debug-legend-v2" aria-label="图例"><span className="memory-debug-type-key person-key">人物</span><span className="memory-debug-type-key elfie-key">精灵</span><span className="memory-debug-type-key group-key">群体/家庭</span><span className="memory-debug-type-key knowledge-key">知识</span><span className="memory-debug-type-key place-key">地点</span><span className="episode-key">Episode</span><span className="assertion-key">关系</span><span className="evidence-key">来源</span><span className="memory-debug-scale-key">点大小=重要度 · 关系线宽=重要度</span><span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击节点/关系查看右侧详情</span></div>;
 }
 
 function endpointId(endpoint: unknown): string {
@@ -1422,18 +1423,31 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}${leftPanelOpen ? " memory-debug-left-panel-open" : ""}${detailPanelOpen ? " memory-debug-right-panel-open" : ""}${leftPanelOpen && detailPanelOpen ? " memory-debug-two-drawers" : ""}`}>
     <div className="memory-debug-graph-canvas" ref={graphCanvasRef} aria-label="真实记忆来源链">
       <header className="memory-debug-topbar">
-        <div className="memory-debug-search-group">
-          <div className="memory-debug-top-search">
-            <span aria-hidden="true">⌕</span>
-            <input aria-label="搜索记忆" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runRecall(); }} placeholder="搜索 Node、Assertion、Episode…" />
-            {query ? <button type="button" className="memory-debug-search-clear" aria-label="清除搜索" title="清除搜索" onClick={() => clearSearch()}>×</button> : null}
-            <button type="button" onClick={() => void runRecall()}>搜索</button>
+        <div className="memory-debug-topbar-left">
+          <div className="memory-debug-search-group">
+            <Input.Search
+              aria-label="搜索记忆"
+              className="memory-debug-query"
+              value={query}
+              onChange={(event) => {
+                const nextQuery = event.target.value;
+                if (!nextQuery) clearSearch();
+                else setQuery(nextQuery);
+              }}
+              onSearch={() => { void runRecall(); }}
+              placeholder="搜索 Node、Assertion、Episode…"
+              prefix={<SearchOutlined aria-hidden="true" />}
+              allowClear
+              enterButton="搜索"
+            />
+            <Button type="default" className={`memory-debug-filter-trigger${filterOpen ? " is-active" : ""}`} icon={<FilterOutlined />} aria-expanded={filterOpen} onClick={openFilter}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button>
           </div>
-          <button type="button" className={`memory-debug-filter-trigger${filterOpen ? " is-active" : ""}`} aria-expanded={filterOpen} onClick={openFilter}>过滤{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
+          <div className="memory-debug-operation-actions">
+            <Button type="primary" className="memory-debug-command-button" icon={<PlusOutlined />} onClick={openAddPanel} title="添加 Episode" aria-label="添加 Episode">添加</Button>
+            <Button type="default" className="memory-debug-command-button memory-debug-consolidation-trigger" icon={<ThunderboltOutlined />} onClick={() => void runManualConsolidation()} disabled={!elfieId || consolidationRunning} title="手动触发一次夜间 Consolidation；不会伪造用户 Episode" aria-label="手动触发 Consolidation">{consolidationRunning ? "整理中…" : "手动整理"}</Button>
+          </div>
         </div>
         <div className="memory-debug-top-actions">
-          <button type="button" className="is-primary" onClick={openAddPanel}>＋ 添加 Episode</button>
-          <button type="button" className="memory-debug-consolidation-trigger" onClick={() => void runManualConsolidation()} disabled={!elfieId || consolidationRunning} title="手动触发一次夜间 Consolidation；不会伪造用户 Episode" aria-label="手动触发 Consolidation">{consolidationRunning ? "整理中…" : "手动 Consolidation"}</button>
           {recallView && <button type="button" className={showOnlyRecallResults ? "is-active" : ""} aria-pressed={showOnlyRecallResults} onClick={() => setShowOnlyRecallResults((visible) => !visible)} title={showOnlyRecallResults ? "显示完整 Memory 图谱" : "只显示本次搜索结果"}>{showOnlyRecallResults ? "显示完整图谱" : "仅看搜索结果"}</button>}
           <button type="button" className={layoutLocked ? "is-active" : ""} aria-pressed={layoutLocked} title={layoutLocked ? "允许拖拽节点位置；相机仍需按住鼠标拖动旋转" : "锁定节点位置；相机仍可按住鼠标拖动旋转"} aria-label={layoutLocked ? "允许拖拽节点" : "锁定节点"} onClick={() => setLayoutLocked((locked) => !locked)}>{layoutLocked ? "允许拖拽节点" : "锁定节点"}</button>
           <button type="button" onClick={() => fitGraph()} title="重新居中并缩放当前可见的连通图" aria-label="适配当前图谱">适配当前图谱</button>

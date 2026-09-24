@@ -567,14 +567,6 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-brand strong { font-size: .82rem; }
 .memory-debug-brand > span:last-child { color: #7890a2; font: .58rem ui-monospace, monospace; letter-spacing: .12em; }
 .memory-debug-brand-mark { color: #b892ff; font-size: 1.2rem; text-shadow: 0 0 12px rgba(184,146,255,.8); }
-.memory-debug-top-search { display: flex; flex: 1 1 32rem; align-items: center; min-width: 12rem; max-width: 42rem; height: 2.45rem; border: 1px solid rgba(155,190,218,.28); border-radius: .7rem; background: rgba(15,34,53,.88); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
-.memory-debug-top-search > span { padding-left: .85rem; color: #8ea9bb; font-size: 1.25rem; }
-.memory-debug-top-search input { min-width: 0; flex: 1; height: 100%; padding: 0 .65rem; border: 0; outline: 0; color: #e6f0f8; background: transparent; font: .75rem ui-monospace, monospace; }
-.memory-debug-top-search input::placeholder { color: #71889a; }
-.memory-debug-top-search button { height: 100%; padding: 0 .9rem; border: 0; border-left: 1px solid rgba(155,190,218,.2); border-radius: 0 .65rem .65rem 0; color: #dfeeff; background: rgba(77,62,130,.7); cursor: pointer; font-size: .72rem; }
-.memory-debug-top-search button:hover { background: rgba(107,77,180,.86); }
-.memory-debug-top-search .memory-debug-search-clear { padding: 0 .55rem; border-left: 0; border-radius: 0; color: #b7cada; background: transparent; font-size: 1rem; }
-.memory-debug-top-search .memory-debug-search-clear:hover { color: #fff; background: rgba(107,77,180,.42); }
 .memory-debug-top-actions { display: flex; flex: 0 0 auto; align-items: center; gap: .38rem; }
 .memory-debug-top-actions button { min-height: 2.35rem; padding: .45rem .68rem; border: 1px solid rgba(155,190,218,.22); border-radius: .58rem; color: #c9dce9; background: rgba(17,38,58,.86); cursor: pointer; font: .68rem ui-monospace, monospace; white-space: nowrap; }
 .memory-debug-top-actions button:hover,
@@ -681,7 +673,6 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-message { position: absolute; z-index: 45; right: 1.3rem; bottom: 4rem; width: auto; max-width: min(32rem, calc(100vw - 2.6rem)); margin: 0; padding: .55rem .75rem; border: 1px solid rgba(155,190,218,.2); border-radius: .5rem; color: #dceaf4; background: rgba(8,23,38,.92); box-shadow: 0 10px 28px rgba(0,0,0,.28); }
 @media (max-width: 980px) {
   .memory-debug-topbar { flex-wrap: wrap; padding: .55rem .8rem; }
-  .memory-debug-top-search { order: 3; flex-basis: 100%; max-width: none; }
   .memory-debug-page .memory-debug-memory-cards { top: 7.55rem; }
   .memory-debug-page > .memory-debug-graph-canvas > .memory-debug-state-strip { top: 11.8rem; }
   .memory-debug-drawer { top: 6.2rem; }
@@ -812,15 +803,34 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-page-embedded .memory-debug-topbar { border-top-left-radius: .72rem; border-top-right-radius: .72rem; }
 .memory-debug-embedded-context { max-width: 16rem; overflow: hidden; color: #9fb8c8 !important; font-size: .62rem !important; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The graph page is the whole memory workspace: search/filter stay left,
-   graph actions stay right, and embedded close is part of that same row. */
+/* Group memory operations on the left and view controls on the right. */
 .memory-debug-topbar { gap: .55rem; }
 .memory-debug-brand { display: none; }
-.memory-debug-search-group { display: flex; flex: 1 1 auto; align-items: center; gap: .38rem; min-width: 0; }
-.memory-debug-top-search { flex: 1 1 auto; max-width: none; }
-.memory-debug-filter-trigger { min-height: 2.35rem; padding: .45rem .68rem; border: 1px solid rgba(155,190,218,.22); border-radius: .58rem; color: #c9dce9; background: rgba(17,38,58,.86); cursor: pointer; font: .68rem ui-monospace, monospace; white-space: nowrap; }
-.memory-debug-filter-trigger:hover,
-.memory-debug-filter-trigger.is-active { border-color: #a98cff; color: #fff; background: rgba(71,53,126,.82); }
+.memory-debug-topbar-left,
+.memory-debug-search-group,
+.memory-debug-operation-actions { display: flex; align-items: center; }
+.memory-debug-topbar-left { flex: 0 1 auto; gap: .65rem; min-width: 0; }
+.memory-debug-search-group { width: auto; flex: 0 1 auto; gap: .38rem; min-width: 0; }
+.memory-debug-query { width: 32rem; min-width: 0; flex: 0 1 32rem; }
+.memory-debug-query .ant-input-affix-wrapper { height: 2.45rem; padding-inline: .7rem; border-color: rgba(155,190,218,.28); border-radius: .58rem 0 0 .58rem; color: #e6f0f8; background: rgba(15,34,53,.88); box-shadow: none; }
+.memory-debug-query .ant-input-affix-wrapper:hover,
+.memory-debug-query .ant-input-affix-wrapper-focused { border-color: #a98cff; box-shadow: 0 0 0 2px rgba(169,140,255,.12); }
+.memory-debug-query .ant-input { color: #e6f0f8; background: transparent; font: .72rem ui-monospace, monospace; }
+.memory-debug-query .ant-input::placeholder { color: #829bad; }
+.memory-debug-query .ant-input-prefix,
+.memory-debug-query .ant-input-clear-icon { color: #8ea9bb; }
+.memory-debug-query .ant-input-group-addon { background: transparent; }
+.memory-debug-query .ant-input-search-button { width: 4.3rem; height: 2.45rem; padding-inline: .85rem; border-color: rgba(155,190,218,.28); border-radius: 0 .58rem .58rem 0; color: #f3efff; background: linear-gradient(135deg, #7054ca, #4e3a9b); box-shadow: none; font-size: .7rem; }
+.memory-debug-query .ant-input-search-button:hover { border-color: #bba6ff; color: #fff; background: linear-gradient(135deg, #8669e1, #604bb4); }
+.memory-debug-filter-trigger.ant-btn { box-sizing: border-box; height: 2.45rem !important; min-height: 2.45rem !important; padding: 0 .62rem; border-color: rgba(155,190,218,.22); border-radius: .58rem; color: #c9dce9; background: rgba(17,38,58,.86); box-shadow: none; font: .68rem/1.1 ui-monospace, monospace; white-space: nowrap; }
+.memory-debug-filter-trigger.ant-btn:hover,
+.memory-debug-filter-trigger.ant-btn.is-active { border-color: #a98cff; color: #fff; background: rgba(71,53,126,.82); }
+.memory-debug-operation-actions { flex: 0 0 auto; gap: .38rem; padding-left: .65rem; border-left: 1px solid rgba(155,190,218,.17); }
+.memory-debug-command-button.ant-btn { box-sizing: border-box; height: 2.45rem !important; min-height: 2.45rem !important; padding: 0 .62rem; border-color: rgba(155,190,218,.22); border-radius: .58rem; color: #c9dce9; background: rgba(17,38,58,.86); box-shadow: none; font: .68rem/1.1 ui-monospace, monospace; white-space: nowrap; }
+.memory-debug-command-button.ant-btn:hover { border-color: #a98cff; color: #fff; background: rgba(71,53,126,.82); }
+.memory-debug-command-button.ant-btn-primary,
+.memory-debug-command-button.ant-btn-primary:hover { border-color: #a98cff; color: #fff; background: linear-gradient(135deg, #7c5ce0, #4e3a9b); }
+.memory-debug-top-actions { margin-left: auto; }
 .memory-debug-topbar-close { display: grid; width: 2.25rem; min-width: 2.25rem; height: 2.25rem; min-height: 2.25rem !important; place-items: center; padding: 0 !important; border-color: rgba(255,143,107,.52) !important; border-radius: 50% !important; color: #ffd5c8 !important; background: rgba(123,54,48,.38) !important; font: 1.25rem/1 ui-sans-serif, system-ui, sans-serif !important; }
 .memory-debug-topbar-close:hover,
 .memory-debug-topbar-close:focus-visible { border-color: #ff8f6b !important; color: #fff !important; background: rgba(158,67,58,.58) !important; outline: none; }
@@ -859,17 +869,9 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
   .memory-debug-filter-grid { grid-template-columns: 1fr; }
 }
 
-/* Keep the Episode strip in the graph area when a side drawer is open. */
-.memory-debug-left-panel-open .memory-debug-memory-cards {
-  left: calc(min(27rem, calc(100vw - 2.3rem)) + 1.75rem);
-}
-.memory-debug-right-panel-open .memory-debug-memory-cards {
-  right: calc(min(27rem, calc(100vw - 2.3rem)) + 1.75rem);
-}
-.memory-debug-two-drawers .memory-debug-memory-cards {
-  right: calc(min(32rem, (100vw - 3.45rem) / 2) + 1.75rem);
-  left: calc(min(32rem, (100vw - 3.45rem) / 2) + 1.75rem);
-}
+/* Keep the Episode rail with the graph; offset the left drawer only past its first card. */
+.memory-debug-page .memory-debug-memory-cards { right: 1.15rem; left: 1.15rem; }
+.memory-debug-page.memory-debug-left-panel-open .memory-debug-drawer-left { left: 18rem; }
 .memory-debug-context-note {
   margin: -.2rem 0 .45rem !important;
   color: #91a6b5 !important;
@@ -879,16 +881,4 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-drawer .memory-debug-zero-score-result {
   border-left: 3px solid rgba(155,190,218,.42);
   background: rgba(17,40,58,.45);
-}
-@media (max-width: 760px) {
-  .memory-debug-left-panel-open .memory-debug-memory-cards,
-  .memory-debug-right-panel-open .memory-debug-memory-cards {
-    display: none;
-  }
-  .memory-debug-two-drawers .memory-debug-drawer-left {
-    bottom: 60%;
-  }
-  .memory-debug-two-drawers .memory-debug-drawer-right {
-    top: 70%;
-  }
 }

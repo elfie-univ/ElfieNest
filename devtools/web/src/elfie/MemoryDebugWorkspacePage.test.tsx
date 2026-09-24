@@ -15,9 +15,17 @@ describe("记忆调试工作台", () => {
     const markup = renderToStaticMarkup(<MemoryDebugWorkspacePage />);
 
     expect(markup).toContain("搜索 Node、Assertion、Episode");
-    expect(markup).toContain("过滤");
-    expect(markup).toContain("添加 Episode");
-    expect(markup).toContain("手动 Consolidation");
+    expect(markup).toContain('class="memory-debug-topbar-left"');
+    expect(markup).toContain('class="memory-debug-search-group"');
+    expect(markup).toContain('class="memory-debug-operation-actions"');
+    expect(markup).toContain('class="memory-debug-top-actions"');
+    expect(markup).not.toContain("memory-debug-search-clear");
+    expect(markup).toContain("筛选");
+    expect(markup).toContain('aria-label="添加 Episode"');
+    expect(markup).toContain(">添加</span>");
+    expect(markup).toContain('aria-label="手动触发 Consolidation"');
+    expect(markup).toContain(">手动整理</span>");
+    expect(markup).toContain("anticon-thunderbolt");
     expect(markup).toContain("允许拖拽节点");
     expect(markup).toContain("适配当前图谱");
     expect(markup).not.toContain("名称或描述");
@@ -156,6 +164,7 @@ describe("记忆调试工作台", () => {
 
     expect(markup).not.toContain('class="memory-debug-3d-hint"');
     expect(markup).toContain('memory-debug-legend-hint');
+    expect(markup).toContain('<span class="episode-key">Episode</span>');
     expect(markup).toContain("点大小=重要度 · 关系线宽=重要度");
   });
 

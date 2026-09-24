@@ -1,8 +1,8 @@
 # Elfie Memory Debug Workspace: Final Design
 
 > Status: design baseline reviewed in this cycle; this does not claim current source conformance
-> Version: v1
-> Updated: 2026-09-23
+> Version: v1.1
+> Updated: 2026-09-24
 > Owner: Elfie / Brain / Memory / Developer Tools
 > Parent design: [Brain ten-system architecture](./elfie-brain-ten-system-architecture)
 > Child design: none
@@ -25,7 +25,11 @@ It answers three questions:
 
 The workspace has one shared interaction model:
 
-- the existing top toolbar remains unchanged;
+- the top toolbar groups search/filter and memory operations on the left, and graph controls on the right, with flexible space between;
+- search and filter stay adjacent but separate: search runs Recall, filter opens graph conditions, and Add Episode and manual Consolidation remain distinct actions;
+- the search field and Search Results drawer share the same desktop width; the filter button stays immediately after the search field, and the top operation group remains left-aligned;
+- the Episode rail remains in its normal position below the toolbar and horizontally scrollable; drawers overlay the graph, with the left operation drawer offset just beyond the first Episode card with a visible gap, while staying on the left side, and the right detail drawer staying on the right;
+- Add Episode uses an add icon and manual Consolidation uses an action/trigger icon;
 - the graph remains the central, full workspace canvas;
 - a closable left overlay contains Search/Recall results or Add Episode and its result;
 - a separate closable right overlay contains selected-object Detail only;
@@ -107,11 +111,11 @@ the primary legend.
 
 ## 3. Layout and interaction
 
-The graph uses the full workspace behind two optional overlays. The existing top toolbar stays in place and keeps its current controls.
+The graph uses the full workspace behind two optional overlays. The top toolbar places search/filter and memory operations on the left, graph controls on the right, and leaves flexible space between the groups. Search runs Recall; filter opens the current graph's conditions; Add Episode and manual Consolidation remain separate actions.
 
 The central canvas contains:
 
-1. an Episode source rail;
+1. a horizontally scrollable Episode source rail in its normal position below the toolbar. Drawers remain overlays on the graph rather than moving below the rail; the left operation drawer is offset just beyond the first Episode card, not toward the canvas center, and the right detail drawer stays on the right;
 2. a Node/Assertion knowledge graph;
 3. counts and current filter/highlight status.
 
@@ -140,7 +144,7 @@ The left overlay is opened from the existing top toolbar and switches between tw
 - Add Episode: a complete Episode, validation, dry-run/isolated execution, observed steps, affected objects, and failure details;
 - Search/Recall: query normalization, candidates, scores, matched terms, kept/excluded decisions, budget truncation, final RecallBundle, and graph highlights.
 
-Both overlays are optional and independently closable. Closing the left overlay preserves the selected-object Detail; closing Detail preserves the search results or Add Episode state. Clearing the search query clears its result highlights and closes the Search/Recall overlay without changing the toolbar layout.
+Both overlays are optional and independently closable. Closing the left overlay preserves the selected-object Detail; closing Detail preserves the search results or Add Episode state. Clearing the search query clears its result highlights and closes the Search/Recall overlay without changing the toolbar layout. The desktop workspace is the target; no narrow-screen drawer layout is required.
 
 The actual order of material entering the model context belongs to Elfie Lab Context/Turn Debug. The Memory page explains Memory selection, not Prompt order.
 
