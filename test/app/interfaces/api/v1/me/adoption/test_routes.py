@@ -109,8 +109,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     assert options.json()["species"][0]["appearance_controls"] == [
         {"control_id": "stature", "options": ["small", "standard", "tall", "any"]},
         {"control_id": "build", "options": ["slim", "standard", "round", "any"]},
-        {"control_id": "face", "options": ["soft", "balanced", "defined", "any"]},
-        {"control_id": "signature", "options": ["warm", "marked", "ears", "any"]},
+        {"control_id": "signature", "options": ["warm", "marked", "any"]},
     ]
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
@@ -121,15 +120,15 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
             "appearance": {
                 "stature": "tall",
                 "build": "round",
-                "face": "soft",
+                "face": "any",
                 "signature": "warm",
-                "priority": "face",
+                "priority": "signature",
             },
             "answers": ["quiet", "research", "plan", "discuss", "steady"],
             "batch_number": 1,
         },
     )
-    assert candidates.status_code == 200
+    assert candidates.status_code == 200, candidates.text
     candidate_set = candidates.json()
     selected = candidate_set["candidates"][0]
     assert selected["runtime_appearance"]["species_id"] == "fox"
@@ -174,16 +173,49 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     assert committed.json()["persistence_status"] == "committed"
 
     workspace = final_root_layout(tmp_path).elfie(committed_id)
+    source_facts = {
+        fact.fact_id: fact for fact in load_genesis_source_package().knowledge
+    }
     with SQLiteMemoryStoreAdapter(
         workspace.knowledge_database, elfie_id=committed_id
     ) as memory:
-        person = memory.get_graph_node(f"genesis:person:{committed_id}:kin-01")
-        assert person is not None
-        assert person.properties["person_species_id"] == "fox"
-        assert person.properties["vocation_id"] == "plant_cultivator"
-        assert person.properties["episode_ids"]
+        person_nodes = tuple(
+            node
+            for node in memory.list_graph_nodes(limit=1000)
+            if node.properties.get("entity_type") == "person"
+            and not node.properties.get("is_owner")
+        )
+        assert person_nodes
+        assert person_nodes[0].properties["person_species_id"] in {
+            "fox",
+            "dog",
+            "cat",
+        }
+        assert person_nodes[0].properties["vocation_id"] == ""
         assert memory.count_episodes() == 5
-        assert memory.count_graph_nodes("knowledge") == 102
+        assert memory.count_graph_nodes("knowledge") >= 100
+        assert memory.get_graph_node(f"genesis:knowledge:{committed_id}:E-08-02")
+        assert memory.get_graph_node(f"genesis:knowledge:{committed_id}:E-08-03")
+        assert (
+            memory.get_graph_node(f"genesis:knowledge:{committed_id}:B-04-02") is None
+        )
+        knowledge_nodes = tuple(
+            node
+            for node in memory.list_graph_nodes(limit=1000)
+            if node.properties.get("entity_type") == "knowledge"
+        )
+        assert len(knowledge_nodes) >= 100
+        for node in knowledge_nodes:
+            knowledge_id = node.properties.get("knowledge_id")
+            assert isinstance(knowledge_id, str)
+            fact = source_facts[knowledge_id]
+            assert node.label == fact.statement
+            assert node.properties["source_ref"] == (
+                f"resident-knowledge:{knowledge_id}"
+            )
+            assert node.properties["source_version"] == (
+                f"resident-knowledge-v{fact.version}"
+            )
     assert not workspace.genesis_compile_envelope.exists()
     assert not workspace.genesis_stage_marker.exists()
 

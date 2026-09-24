@@ -6,12 +6,12 @@
 
 ## 范围与结论
 
-本阶段在不修改狗、狐狸 GLB 的前提下确定了可复用局部区域。最终结果不再保留独立实验 Shader：
+本阶段在不修改Tovren、Saevi GLB 的前提下确定了可复用局部区域。最终结果不再保留独立实验 Shader：
 
 - `godot_project/runtime/actor/actor_appearance.gd` 是正式区域公式和 V9 相对明暗组合的唯一来源；
 - `godot_project/scripts/test/render_production_region_debug.gd` 是唯一可重放的区域基线渲染器，
   区域分类直接委托给 `ActorAppearance`；
-- 狗和狐狸共用同一套13区协议，但允许物种专属几何阈值；
+- Tovren 和 Saevi共用同一套13区协议，但允许物种专属几何阈值；
 - 每个候选最多启用两个可染色区域。
 
 此前27轮发现过程在调边界时有价值，但正式提升后已经清除，避免它们继续成为第二事实源。其长期
@@ -28,16 +28,16 @@ APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
   --script res://scripts/test/render_production_region_debug.gd
 ```
 
-渲染器会在临时目录写出狗、狐狸总图、逐区图片、逐视角图片和机器可读目录。仓库只保留两张紧凑
+渲染器会在临时目录写出Tovren、Saevi总图、逐区图片、逐视角图片和机器可读目录。仓库只保留两张紧凑
 总图和目录作为发布证据。
 
 ## 冻结基线
 
 [正式区域基线清单](../../../../public/assets/appearance-experiments/phase-3/production-region-baseline-v1.json)
 
-![狗正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/dog-formal-region-grid-4views.png)
+![Tovren正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/dog-formal-region-grid-4views.png)
 
-![狐狸正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/fox-formal-region-grid-4views.png)
+![Saevi正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/fox-formal-region-grid-4views.png)
 
 每行对应一个区域，四列依次为正面、四分之三、侧面和俯视。高亮颜色只用于定位；产品局部染色
 仍使用与基础毛色相同的 V9 局部相对明暗迁移。
@@ -66,5 +66,5 @@ APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
 ## 冻结边界
 
 正式实现使用计算后的3D模型坐标和原始材质贴图采样，不是屏幕空间遮罩，也不在截图上后处理。
-修改区域必须重新提供狗和狐狸的多视角基线，且不得新增第二套换色或区域分类器。暂缓的跨身体
+修改区域必须重新提供Tovren 和 Saevi 的多视角基线，且不得新增第二套换色或区域分类器。暂缓的跨身体
 外星纹样不属于本契约。

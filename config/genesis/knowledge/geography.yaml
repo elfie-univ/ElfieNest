@@ -1,0 +1,362 @@
+document_kind: geography_knowledge
+schema_version: 6
+knowledge_version: elfaria-geography.v9
+status: published
+knowledge_scope: genesis_generation_input
+model_status: complete
+publication_ready: true
+resident_projection: not_resident_knowledge_catalog
+
+source_refs:
+  - world#8.2
+  - world#8.3
+  - world#8.4
+  - world#8.5
+  - world#8.6
+  - generation#1
+  - generation#6.1
+  - geography-source#elfaria-geography-source.v7
+
+source_artifacts:
+  - id: surface-map
+    kind: original_surface_map
+    path: docs/.internal/elfaria/elfaria-world-images/surface-map.png
+    sha256: 9019114580eeef663548e24330653e7e983fa1d5697b6e9b0d3be670b286d186
+    role: visual_terrain_and_anchor_source
+  - id: surface-map-route-source
+    kind: human_annotated_route_map
+    path: docs/.internal/elfaria/elfaria-world-images/surface-map-route-source.png
+    sha256: 615dda93d9ea6bcb67b673613641c7e5f432e81c3a0f4f8bbfad57d5c9b29289
+    role: route_and_boundary_review_evidence
+  - id: geography-intermediate
+    kind: human_reviewed_derivation
+    path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
+    sha256: e7127c536f069305a94e6b50556483c81f2f7482354e81e3a2578161480b3d7b
+    role: authoritative_editing_and_review_source
+
+design_boundary:
+  map_is_abstract: true
+  grid_is_sampling_container_not_scale_map: true
+  cell_is_not_a_residence_or_full_settlement_footprint: true
+  logical_place_grid_assignment_is_authoritative: true
+  route_topology_is_explicit_user_reviewed_input: true
+  no_place_or_residence_is_inferred_from_map_pixels: true
+  runtime_travel_unit: local_travel_days
+  kilometer_runtime_fields_forbidden: true
+
+grid:
+  dimensions: [10, 10]
+  unit_count: 100
+  row_order: south_to_north
+  column_order: west_to_east
+  cell_id_format: u-r{row:02d}-c{column:02d}
+  display_label_format: R{row}C{column}
+  cell_is_sampling_container: true
+  cell_is_not_residence: true
+  region_matrix:
+    - [A1, A1, C2, C2, C2, C3, C3, C3, C3, A2]
+    - [A1, A1, C2, C2, C2, C3, E, E, E, A2]
+    - [A1, C2, C1, C1, C1, C3, E, E, E, A2]
+    - [A1, C2, C1, C1, D, D, E, E, B, A2]
+    - [A1, A1, C1, D, D, D, B, B, B, B]
+    - [A1, A1, C1, C1, D, D, B, B, B, B]
+    - [A1, A1, A1, A1, D, B, B, B, B, B]
+    - [X, A1, A1, A1, A1, A1, B, B, B, B]
+    - [X, X, A1, A1, A1, A1, A1, B, X, X]
+    - [X, X, A1, A1, A1, A1, A1, A1, X, X]
+  derived_cell_fields:
+    source: region_matrix_and_region_rules
+    fields:
+      - region_id
+      - macro_region
+      - terrain
+      - component_id
+      - habitable
+      - birth_eligible
+      - allowed_species
+      - local_road_eligibility
+      - place_ids
+      - backbone_node
+      - ferry_node
+    rule: do_not_materialize_one_record_per_cell_in_this_source
+
+regions:
+  A1:
+    name: 北部山地
+    macro_region: mountain
+    terrain: mountain_highland
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Myelle]
+  A2:
+    name: 东南山地
+    macro_region: mountain
+    terrain: mountain_highland
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Myelle]
+  B:
+    name: 东部森林
+    macro_region: forest
+    terrain: forest
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Saevi]
+  C1:
+    name: 西部平原
+    macro_region: plain
+    terrain: plain
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Tovren]
+  C2:
+    name: 南部平原
+    macro_region: plain
+    terrain: plain
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Tovren]
+  C3:
+    name: 湖岸平原
+    macro_region: plain
+    terrain: plain
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Tovren]
+  D:
+    name: 中央混住区
+    macro_region: mixed
+    terrain: mixed_settlement
+    component_id: mainland_surface
+    habitable: true
+    birth_eligible: true
+    allowed_species: [Saevi, Tovren, Myelle]
+  E:
+    name: 澄心湖水域
+    macro_region: water
+    terrain: lake_water
+    component_id: clearheart_water
+    habitable: false
+    birth_eligible: false
+    allowed_species: []
+  X:
+    name: 外部区域
+    macro_region: external
+    terrain: unknown_external
+    component_id: external_unknown
+    habitable: false
+    birth_eligible: false
+    allowed_species: []
+
+landscape:
+  components:
+    mainland_surface: {kind: land, ordinary_land_route: true, ordinary_birth_sampling: true}
+    clearheart_water: {kind: water, ordinary_land_route: false, ordinary_birth_sampling: false}
+    lakeheart_isle_surface: {kind: island, ordinary_land_route: false, ordinary_birth_sampling: false}
+    mountain_highland: {kind: terrain_overlay, ordinary_land_route: true, ordinary_birth_sampling: true}
+    cloudcrown_aerial: {kind: aerial, ordinary_land_route: false, ordinary_birth_sampling: false}
+    undercity_subterranean: {kind: underground, ordinary_land_route: false, ordinary_birth_sampling: false}
+    deep_underground: {kind: restricted_underground, ordinary_land_route: false, ordinary_birth_sampling: false}
+    external_unknown: {kind: external, ordinary_land_route: false, ordinary_birth_sampling: false}
+  barriers:
+    - id: clearheart_lake_surface
+      blocks_mode: land
+      opens_only_via: [water-ferry-network]
+      source_ref: world#8.5
+    - id: cloudcrown_entry
+      blocks_mode: entry
+      opens_only_via: []
+      observation_only: true
+      source_ref: world#8.5
+    - id: external_region_boundary
+      blocks_mode: all
+      opens_only_via: []
+      source_ref: surface-map-review
+
+places:
+  - {id: clearheart_ferry, name: 澄心湖渡点, kind: access_point, access: land, cell: R3C5}
+  - {id: clearheart_lake, name: 澄心湖, kind: water_body, access: water, regions: [E], range_semantics: all_cells_with_region}
+  - {id: cloudcrown_city, name: 云冠城, kind: aerial_landmark, access: observation_only, cell: R8C5, component_id: cloudcrown_aerial}
+  - {id: cloudfall_falls, name: 垂云瀑, kind: landmark, access: mountain, cell: R7C5, parent_id: skymirror_lake}
+  - {id: deep_underground, name: 深层地下, kind: controlled_region, access: underground, cell: R5C4, parent_id: undercity, component_id: deep_underground}
+  - {id: earthbound_station, name: 赴地跃迁基站, kind: controlled_facility, access: land, cell: R4C3, parent_id: mistyville_center}
+  - {id: east_forest, name: 东部森林, kind: region, access: land, regions: [B], parent_id: mistyville}
+  - {id: elder_council_hall, name: 长老院, kind: facility, access: land, cell: R5C4, parent_id: mistyville_center}
+  - {id: firstroot_tree, name: 祖树, kind: landmark, access: land, cell: R5C8}
+  - {id: hundred_trades_south_end, name: 百业街南端, kind: route_endpoint, access: land, cell: R5C4, parent_id: hundred_trades_street}
+  - {id: hundred_trades_street, name: 百业街, kind: commercial_area, access: land, cell: R5C4, parent_id: mistyville_center}
+  - {id: lake_shore, name: 湖岸, kind: region, access: mixed, regions: [E], parent_id: mistyville}
+  - {id: lakeheart_isle, name: 湖心岛, kind: island_landmark, access: water, cell: R1C7, component_id: lakeheart_isle_surface}
+  - {id: learning_healing_hall, name: 学疗院, kind: facility, access: land, cell: R5C4, parent_id: mistyville_center}
+  - {id: mistyville, name: 迷雾镇, kind: territory, access: mixed, regions: [D]}
+  - {id: mistyville_center, name: 迷雾镇中心, kind: settlement, access: land, cell: R5C4, parent_id: mistyville}
+  - {id: myelle_elder_house, name: Myelle 长老屋, kind: residence_and_council, access: land, cell: R6C3, parent_id: myelle_tribal_center}
+  - {id: myelle_region, name: Myelle 部落地区, kind: cultural_region, access: mixed, regions: [A1, A2], parent_id: mistyville}
+  - {id: myelle_tribal_center, name: Myelle 部落中心, kind: settlement, access: land, cell: R6C3}
+  - {id: north_mountain, name: 北部山地, kind: region, access: mixed, regions: [A1, A2], parent_id: mistyville}
+  - {id: riverturn_bend, name: 回澜河湾, kind: landmark, access: land, cell: R2C3, parent_id: riverturn_hill}
+  - {id: riverturn_hill, name: 回澜丘, kind: landmark, access: land, cell: R2C2}
+  - {id: saevi_elder_house, name: Saevi 长老屋, kind: residence_and_council, access: land, cell: R5C6, parent_id: saevi_tribal_center}
+  - {id: saevi_region, name: Saevi 部落地区, kind: cultural_region, access: mixed, regions: [B], parent_id: mistyville}
+  - {id: saevi_tribal_center, name: Saevi 部落中心, kind: settlement, access: land, cell: R5C6}
+  - {id: shallow_underground, name: 浅地下, kind: region, access: underground, regions: [D], parent_id: mistyville}
+  - {id: skymirror_lake, name: 天镜湖, kind: water_body, access: mountain, cell: R8C5}
+  - {id: skymirror_trailhead, name: 天镜湖山路口, kind: access_point, access: mountain, cell: R7C4}
+  - {id: skyreach_square, name: 通天广场, kind: facility, access: land, cell: R5C4, parent_id: mistyville_center}
+  - {id: skyreach_tree, name: 通天古树, kind: landmark, access: land, cell: R5C4, parent_id: skyreach_square}
+  - {id: south_plain, name: 南部平原, kind: region, access: mixed, regions: [C1, C2, C3], parent_id: mistyville}
+  - {id: tovren_elder_house, name: Tovren 长老屋, kind: residence_and_council, access: land, cell: R1C5, parent_id: tovren_tribal_center}
+  - {id: tovren_region, name: Tovren 部落地区, kind: cultural_region, access: mixed, regions: [C1, C2, C3], parent_id: mistyville}
+  - {id: tovren_tribal_center, name: Tovren 部落中心, kind: settlement, access: land, cell: R1C5}
+  - {id: undercity, name: 地下城, kind: underground_region, access: underground, cell: R5C4, parent_id: undercity_gate, component_id: undercity_subterranean}
+  - {id: undercity_gate, name: 地下城门, kind: controlled_entrance, access: land, cell: R5C4, parent_id: mistyville_center}
+
+network:
+  node_model:
+    grid_cell_is_node: true
+    named_place_does_not_create_edge: true
+    adjacent_grid_cells_are_not_implicitly_connected: true
+    local_and_backbone_edges_are_derived_by_runtime: true
+  land_backbone_paths:
+    - [R8C3, R7C3, R6C3]
+    - [R6C3, R5C2, R4C2, R4C3]
+    - [R6C3, R6C4, R5C4]
+    - [R7C4, R6C4, R5C4]
+    - [R5C4, R6C5, R5C6, R4C6, R4C7, R5C8]
+    - [R5C4, R4C3]
+    - [R4C3, R3C2, R2C2]
+    - [R4C3, R3C3, R3C4]
+    - [R5C4, R4C4, R3C4]
+    - [R5C4, R4C5, R3C5]
+    - [R3C4, R2C3, R1C3, R0C3]
+    - [R3C4, R2C4, R2C5, R1C5]
+    - [R0C3, R1C4, R1C5]
+    - [R1C5, R0C3, R0C7]
+    - [R0C7, R0C8, R0C9]
+    - [R3C1, R3C2]
+  land_backbone_edge_rule:
+    derive_from: consecutive_cells_in_land_backbone_paths
+    each_consecutive_pair_is_one_land_grid_hop: true
+    do_not_interpolate_undeclared_cells: true
+    direction: bidirectional
+    expected_unique_edge_count: 35
+    expected_unique_node_count: 32
+  water:
+    ferry_nodes: [R3C5, R1C5, R4C7, R0C7]
+    connectivity: complete_undirected
+    expected_edge_count: 6
+    edge_cost_kind: water_day
+    grid_hop_definition: shortest_water_cell_chain_between_ferry_nodes
+    grid_hop_edges:
+      - {from: R3C5, to: R1C5, water_grid_hops: 4}
+      - {from: R3C5, to: R4C7, water_grid_hops: 3}
+      - {from: R3C5, to: R0C7, water_grid_hops: 5}
+      - {from: R1C5, to: R4C7, water_grid_hops: 5}
+      - {from: R1C5, to: R0C7, water_grid_hops: 3}
+      - {from: R4C7, to: R0C7, water_grid_hops: 4}
+    grid_hop_edges_are_undirected: true
+    requires_boat_or_ferry: true
+    requires_service_or_vessel: true
+    cost_is_higher_than_land: true
+    cost_model: upper_layer_boat_or_ferry_service_cost
+    island_destinations:
+      - {place_id: lakeheart_isle, cell: R1C7, from_ferry: R0C7, mode: water, water_grid_hops: 1}
+  local_roads:
+    generation: runtime
+    allowed_when:
+      - four_direction_adjacent
+      - each_adjacent_pair_is_one_land_grid_hop
+      - same_region_code
+      - both_cells_habitable
+      - no_river_or_water_barrier
+    cross_region_rule: use_explicit_land_backbone_or_water_route
+    no_explicit_cell_edge_list: true
+  forbidden_shortcuts:
+    - {from: E, to: lakeheart_isle_surface, mode: land, reason: 湖面不可直接步行}
+    - {from: R5C4, to: R5C6, mode: land, reason: 跨区域必须使用显式道路}
+
+travel_policy:
+  distance_is_time_not_length: true
+  land_day_kind: walk_day
+  water_day_kind: water_day
+  days_shape: integer
+  land_days_per_grid_hop: 2
+  land_formula: legal_land_grid_hops * land_days_per_grid_hop
+  water_days_per_grid_hop: 3
+  water_formula: water_grid_hops * water_days_per_grid_hop
+  land_is_faster_than_water: true
+  water_requires_boat_or_ferry: true
+  water_cost_is_upper_layer_service_cost: true
+  edge_values_status: grid_hop_rule_confirmed
+  unresolved_land_backbone_edges: 0
+  unresolved_water_edges: 0
+  no_pixel_or_straight_line_conversion: true
+
+place_grid_policy:
+  point_place_requires_one_cell: true
+  range_place_uses_region_or_cell_set: true
+  same_cell_may_contain_multiple_places: true
+  town_center_is_point_within_host_cell: true
+  clearheart_lake_is_range_not_point: true
+  cloudcrown_and_skymirror_share_cell: true
+
+population:
+  selection_order:
+    - user_selected_species
+    - uniform_allowed_region
+    - uniform_cell_within_selected_region
+  species_selection:
+    source: user_input
+    allowed_regions_from: regions[].allowed_species
+    allowlist_is_hard_constraint: true
+  ordinary_birth_scope: selected_species_allowed_regions
+  excluded_regions: [E, X]
+  region_sampling:
+    distribution: uniform_over_allowed_regions_for_selected_species
+    derive_regions_from: regions[].allowed_species
+  cell_sampling:
+    distribution: uniform_over_cells_in_selected_region
+    derive_cells_from: grid.region_matrix
+  allocation_rule: selected_species_uniform_region_then_uniform_cell
+  no_fixed_population_per_cell: true
+
+species_policy:
+  canonical_names: [Saevi, Tovren, Myelle]
+  allowed_species_source: regions[].allowed_species
+  region_allowlist_is_hard_constraint: true
+  selection_source: user_selected_species
+  single_species_regions: [A1, A2, B, C1, C2, C3]
+  central_mixed_region: D
+  no_species_regions: [E, X]
+  survival_is_not_personality_or_occupation: true
+
+validation:
+  unit_count: 100
+  region_counts: {A1: 30, A2: 4, B: 19, C1: 8, C2: 8, C3: 6, D: 8, E: 8, X: 9}
+  eligible_cell_count: 83
+  land_backbone_path_count: 16
+  land_backbone_node_count: 32
+  land_backbone_edge_count: 35
+  birth_eligible_cells_reachable_from_town_center: 83
+  all_birth_eligible_cells_reachable: true
+  water_ferry_node_count: 4
+  water_edge_count: 6
+  water_grid_hop_edges: 6
+  land_days_per_grid_hop: 2
+  water_days_per_grid_hop: 3
+  birth_eligible_regions_have_allowed_species: true
+  place_count: 36
+  all_place_refs_are_cell_or_region_based: true
+  all_network_refs_are_matrix_cells_or_declared_places: true
+  no_materialized_sampling_units: true
+  no_kilometer_runtime_fields: true
+  topology_status: complete_for_16_reviewed_source_paths
+  travel_time_status: grid_hop_rule_confirmed
+  publication_ready: true
+  blockers: []

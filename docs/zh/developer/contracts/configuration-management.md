@@ -1,8 +1,8 @@
 # 配置管理契约
 
-**契约版本：** 1.4
+**契约版本：** 1.7
 **采用日期：** 2026-08-15
-**修订日期：** 2026-09-01
+**修订日期：** 2026-09-24
 **适用范围：** 应用默认配置、用户配置、读取与发行打包
 
 > **规范性目标。** 本契约定义 ElfieNest 唯一的配置管理方式，只整理现有配置，
@@ -55,23 +55,34 @@ config/
 │   └── emotion-expressions.yaml
 ├── nest/
 │   └── defaults.yaml
-├── world/
-│   └── elfaria.yaml
-└── species/
-    ├── catalog.yaml
-    └── <package>/
-        ├── species.yaml
-        ├── appearance.yaml
-        ├── genesis.yaml
-        └── assets/*.png
+├── genesis/                  # 已发布并用于创建的 Genesis 资料包
+│   ├── program.yaml
+│   ├── knowledge/elfaria.yaml
+│   ├── knowledge/geography.yaml
+│   └── species/              # 显式目录、成员与展示资产
 ```
 
-这棵目录是内置默认值和已注册 Genesis 创建资料的来源。`world/elfaria.yaml` 与
-`species/catalog.yaml` 是已注册文档；物种成员由 Infrastructure Adapter 作为不可变包
-统一校验，并在领域使用前组成强类型、已发布的 `GenesisSourcePackage`。Genesis 只接收
-强类型值，不读取 YAML；Profile 只接收最终生成的档案字段，绝不接收资料包。Godot 的 3D
-资源包仍位于 `godot_project/characters/`；物种配置只保存语义链接和外观绑定。Loader 必须把
-运行时资产 View 与 Genesis 创建投影分开暴露，不能向 Profile 注入一个万能目录。
+这棵目录是内置默认值和已登记 Genesis 创建资料包的来源。`genesis/program.yaml` 是唯一
+创建资料包入口；其 manifest 绑定领养与 Genesis 使用的居民知识、地理、物种定义、外观规则
+和展示资产。Infrastructure 负责校验并投影为强类型值；Genesis 不读取 YAML。Profile 只接收
+最终生成的档案字段，绝不接收资料包。Godot 的 3D 资源包仍位于 `godot_project/characters/`；
+物种配置只保存语义链接和外观绑定。Loader 必须把运行时资产 View 与 Genesis 创建投影分开
+暴露，不能向 Profile 注入一个万能目录。
+
+### Genesis 源资料包
+
+经审阅的多成员源资料包放在 `config/genesis/`，注册入口为 `program.yaml`。
+显式清单绑定每个成员的路径、版本、状态和字节摘要；入口摘要排除自身。
+每个文件都必须属于清单；未知文件、缺件、重复或越界路径、符号链接和摘要变化均拒绝。
+源资料发布还要求造物者源稿章节绑定、居民知识逐单元精确投影和零条未解决知识条件；
+内容变化须发布新版本。
+
+登记的 Genesis 资料包是唯一生效的创建输入；不再从退役的 world/species 路径回退或混读。
+源资料检查器只在技术完整性与已声明来源检查通过时接受该包。Myelle 在 Godot 角色资产齐备
+前仍为 draft，不进入领养。见 [ADR-0039](../decisions/0039-genesis-preparation-package)
+及 [ADR-0040](../decisions/0040-genesis-source-publication-before-activation)。
+
+### 用户文件
 
 用户目录保持为：
 
@@ -121,8 +132,7 @@ Nest、模型或工具语义转交给 Infrastructure。
 | Reasoning constitution | `brain/reasoning-constitution.yaml` | 无 | Elfie Brain Reasoning | 仅内置 |
 | 情绪表达映射 | `brain/emotion-expressions.yaml` | 无 | Elfie Brain Emotion | 仅内置 |
 | Nest 初始化默认值 | `nest/defaults.yaml` | 无 | Nest | 仅内置 |
-| Elfaria 居民/造物者资料 | `world/elfaria.yaml` | 无 | Elfie Genesis 资料语义；Infrastructure 强类型 Loader | 仅内置 |
-| 物种目录和物种包 | `species/catalog.yaml`、`species/<package>/` | 无 | Elfie Genesis 资料语义；Infrastructure 强类型 Loader；向 Adoption 提供强类型可用性投影 | 仅内置 |
+| Elfaria Genesis 资料包 | `genesis/program.yaml` 及其 manifest 成员 | 无 | Elfie Genesis 资料语义；Infrastructure 强类型 Loader；向 Adoption 提供强类型可用性投影 | 仅内置 |
 | Provider 连接与 endpoint 模型 | 无 | `providers.yaml` | App 配置 Provider | 仅用户 |
 | API 与 OAuth 凭据 | 无 | `auth.env`、`credentials/oauth/` 或进程环境 | Secret 能力 | 仅用户，绝不合并 |
 

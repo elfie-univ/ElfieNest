@@ -11,6 +11,7 @@ from elfie.genesis import (
     GenesisError,
     GenesisValidationError,
 )
+from elfie.genesis.compiler import stage_for_age
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -22,6 +23,7 @@ def _compilation(
     *,
     species_id: str = "fox",
     stage: str = "youth",
+    age_years: int | None = None,
     seed: int = 23,
     source=None,
 ):
@@ -29,7 +31,13 @@ def _compilation(
     source = source or load_genesis_source_package()
     definition = catalog.definition(species_id, adoptable_only=True)
     assert definition.genesis is not None
-    age_years = definition.genesis.stage_ranges[stage][0]
+    if age_years is None:
+        minimum, maximum = definition.genesis.stage_ranges[stage]
+        age_years = next(
+            age
+            for age in range(max(2, minimum), maximum + 1)
+            if stage_for_age(species_id, age, catalog) == stage
+        )
     return GenesisCompiler(source, catalog=catalog).compile(
         GenesisCompileInput(
             elfie_id=elfie_id,
@@ -58,13 +66,26 @@ def _bundle() -> GenesisBundle:
     return _compilation().bundle
 
 
-def test_genesis_bundle_validates_bounded_creation_outputs() -> None:
+def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     bundle = _bundle()
+    source = load_genesis_source_package()
+    required_youth_themes = {
+        theme.theme_id
+        for theme in source.episode_themes
+        if theme.required and "youth" in theme.life_stages and theme.min_age_years <= 2
+    }
 
     assert bundle.validate() is None
-    assert len(bundle.knowledge_seeds) == 102
-    assert len(bundle.episode_seeds) == 5
-    assert len(bundle.relationship_seeds) == 13
+    assert len(bundle.knowledge_seeds) == 124
+    facts = {fact.fact_id: fact.statement for fact in source.knowledge}
+    assert all(seed.content == facts[seed.seed_id] for seed in bundle.knowledge_seeds)
+    knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
+    assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
+    assert "B-04-02" not in knowledge_ids
+    assert {
+        episode.theme_id for episode in bundle.episode_seeds
+    } == required_youth_themes
+    assert bundle.relationship_seeds
     assert {seed.object_kind for seed in bundle.relationship_seeds[:-2]} == {"elfie"}
     assert bundle.relationship_seeds[-2].object_kind == "person"
     assert bundle.relationship_seeds[-2].role == "owner"
@@ -82,13 +103,23 @@ def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:
     assert bundle.validate() is None
 
 
-def test_genesis_rejects_more_than_five_pre_arrival_events() -> None:
-    bundle = _bundle()
-    extra = replace(bundle.episode_seeds[-1], seed_id="extra-episode")
-    oversized = replace(bundle, episode_seeds=(*bundle.episode_seeds, extra))
+def test_genesis_rejects_adoption_before_age_two() -> None:
+    with pytest.raises(GenesisError, match="至少 2 岁"):
+        _compilation(stage="youth", age_years=1)
 
-    with pytest.raises(GenesisValidationError, match="3 到 5"):
-        oversized.validate()
+
+def test_genesis_allows_more_than_five_source_grounded_events() -> None:
+    bundle = _compilation(stage="mature").bundle
+    last = bundle.episode_seeds[-1]
+    extra = replace(
+        last,
+        seed_id="extra-episode",
+        predecessor_ids=(last.seed_id,),
+        causal_links=(f"{last.seed_id} -> extra-episode",),
+    )
+    expanded = replace(bundle, episode_seeds=(*bundle.episode_seeds, extra))
+
+    assert expanded.validate() is None
 
 
 def test_genesis_rejects_duplicate_relationship_objects() -> None:
@@ -160,13 +191,10 @@ def test_generation_catalogs_change_life_social_and_episode_outputs() -> None:
     assert (
         len({item.life_context.origin.birth_settlement_id for item in compilations}) > 1
     )
-    assert len({item.life_context.vocation.vocation_id for item in compilations}) > 1
+    # A vocation is not sampled from a catalog; the source requires actual
+    # teacher-backed apprenticeship evidence before assigning one.
     assert all(
-        item.life_context.vocation.vocation_id != "not_specified"
-        for item in compilations
-    )
-    assert all(
-        relationship.person_species_id and relationship.vocation_id
+        relationship.person_species_id
         for compilation in compilations
         for relationship in compilation.bundle.relationship_seeds
         if relationship.role not in {"owner", "earth_household"}
@@ -195,18 +223,18 @@ def test_age_is_directly_mapped_to_the_requested_earth_year() -> None:
     )
 
 
-def test_genesis_requires_the_earth_program_for_every_arrival() -> None:
+def test_genesis_requires_the_confirmed_simple_preparation_duration() -> None:
     source = load_genesis_source_package()
     invalid_source = replace(
         source,
         earth_arrival_rules=replace(
             source.earth_arrival_rules,
-            required_module_ids=("local_orientation",),
+            preparation_duration_local_days=2,
         ),
     )
 
-    with pytest.raises(GenesisError, match="earth_program"):
-        _compilation("missing-earth-program", source=invalid_source)
+    with pytest.raises(GenesisError, match="固定为一次 3 个本地日"):
+        _compilation("wrong-preparation-duration", source=invalid_source)
 
 
 def test_genesis_rejects_an_unavailable_required_arrival_fact() -> None:

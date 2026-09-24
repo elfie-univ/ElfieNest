@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import unicodedata
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import Iterable, Literal, Mapping
@@ -57,12 +58,11 @@ from .serialization import (
 from .world import (
     EpisodeTheme,
     GenesisSourcePackage,
+    KnowledgeCondition,
     RelationshipArchetype,
     WorldKnowledgeFact,
     WorldPlace,
 )
-
-_REQUIRED_EARTH_MODULE_ID = "earth_program"
 
 
 @dataclass(frozen=True)
@@ -171,8 +171,7 @@ class LifeContextMobility:
 
 @dataclass(frozen=True)
 class LifeContextEarthTransition:
-    curriculum_version: str
-    completed_module_ids: tuple[str, ...]
+    preparation_duration_local_days: int
     departure_place_id: str
     route_id: str
     earth_household_ref: str
@@ -329,9 +328,14 @@ class GenesisCompiler:
         species = self._species(request.species_id)
         context = self._life_context(request, candidate)
         profile = self._profile(request, candidate, context)
-        knowledge_entries, traces = self._knowledge(context, request.species_id)
         relationships = self._relationships(request, context)
         episodes = self._episodes(request, context, relationships)
+        knowledge_entries, traces = self._knowledge(
+            context,
+            request.species_id,
+            episodes,
+            seed=request.appearance_seed,
+        )
         relationships = self._attach_relationship_episodes(relationships, episodes)
         selfhood = self._selfhood(request, candidate, species)
         bundle = self._bundle(
@@ -382,9 +386,9 @@ class GenesisCompiler:
         if (
             isinstance(request.age_years_at_adoption, bool)
             or not isinstance(request.age_years_at_adoption, int)
-            or request.age_years_at_adoption < 1
+            or request.age_years_at_adoption < 2
         ):
-            raise GenesisError("age_years_at_adoption 必须为正整数")
+            raise GenesisError("age_years_at_adoption 必须为至少 2 岁的整数")
         if not request.invitation_accepted:
             raise GenesisError("只有已接受的领养决定可以进入 Genesis")
         if not self._source.earth_arrival_rules.allows(
@@ -469,7 +473,9 @@ class GenesisCompiler:
         self, request: GenesisCompileInput, candidate: GenesisCandidate
     ) -> LifeContext:
         source = self._source
-        rng = random.Random(self._domain_seed(request.appearance_seed, "origin"))
+        region_rng = random.Random(
+            self._domain_seed(request.appearance_seed, "birth-region")
+        )
         cells = tuple(
             sorted(
                 source.spatial_population.eligible_cells(request.species_id),
@@ -478,7 +484,15 @@ class GenesisCompiler:
         )
         if not cells:
             raise GenesisError(f"资料包没有物种 {request.species_id} 的出生地点")
-        cell = _weighted_choice(cells, rng)
+        eligible_regions = tuple(sorted({cell.region_id for cell in cells}))
+        if not eligible_regions:
+            raise GenesisError(f"资料包没有物种 {request.species_id} 的可出生区域")
+        region_id = eligible_regions[region_rng.randrange(len(eligible_regions))]
+        regional_cells = tuple(cell for cell in cells if cell.region_id == region_id)
+        cell_rng = random.Random(
+            self._domain_seed(request.appearance_seed, f"birth-cell:{region_id}")
+        )
+        cell = regional_cells[cell_rng.randrange(len(regional_cells))]
         public_home = cell.place_id
         life_rules = tuple(
             sorted(
@@ -503,9 +517,7 @@ class GenesisCompiler:
         )
         private_home = f"private:{request.elfie_id}:home"
         learning_place = (
-            life_rule.institution_ids[0]
-            if life_rule.institution_ids
-            else _first_place_id(source.places, kind="learning_place")
+            life_rule.institution_ids[0] if life_rule.institution_ids else ""
         )
         square = _first_place_id(source.places, kind="settlement_shared_space")
         waystation = _first_place_id(source.places, kind="departure_facility")
@@ -522,11 +534,6 @@ class GenesisCompiler:
             )
             if item
         )
-        routes = tuple(
-            route.route_id
-            for route in sorted(source.routes, key=lambda item: item.route_id)
-            if route.from_place_id in visited or route.to_place_id in visited
-        )
         # Admission supplies the real creation anchor.  The deterministic
         # fallback keeps direct compilation free of wall-clock nondeterminism.
         anchor = request.adoption_anchor_at or f"genesis-anchor:{request.elfie_id}"
@@ -542,7 +549,7 @@ class GenesisCompiler:
             personality_anchor=tuple(candidate.personality.candidate.latent),
         )
         origin = LifeContextOrigin(
-            birth_region_id=source.known_region_id,
+            birth_region_id=cell.region_id,
             birth_settlement_id=public_home,
             birth_cell_id=cell.cell_id if cell is not None else "settlement-default",
             childhood_home_place_id=private_home,
@@ -563,17 +570,13 @@ class GenesisCompiler:
             proficiency_band=life_rule.proficiency_band,
             workplace_place_id=life_rule.workplace_place_id,
         )
-        mobility = LifeContextMobility(
-            visited_place_ids=visited, familiar_route_ids=routes
-        )
-        module_ids = tuple(source.earth_arrival_rules.required_module_ids)
-        if _REQUIRED_EARTH_MODULE_ID not in module_ids:
-            raise GenesisError("所有抵达地球的 Elfie 都必须完成 earth_program 必修培训")
-        if len(module_ids) != len(set(module_ids)):
-            raise GenesisError("赴地必修培训模块 ID 必须唯一")
+        # Endpoint visibility or a birthplace never proves full route traversal.
+        mobility = LifeContextMobility(visited_place_ids=visited, familiar_route_ids=())
+        preparation_days = source.earth_arrival_rules.preparation_duration_local_days
+        if preparation_days != 3:
+            raise GenesisError("赴地前准备固定为一次 3 个本地日的简单培训")
         transition = LifeContextEarthTransition(
-            curriculum_version=source.package_version,
-            completed_module_ids=tuple(module_ids),
+            preparation_duration_local_days=preparation_days,
             departure_place_id=waystation or public_home,
             route_id=_route_between(source, waystation, gateway),
             earth_household_ref=request.owner_reference,
@@ -640,20 +643,25 @@ class GenesisCompiler:
         return place.label if place is not None else place_id
 
     def _knowledge(
-        self, context: LifeContext, species_id: str
+        self,
+        context: LifeContext,
+        species_id: str,
+        episodes: tuple[EpisodeSeed, ...],
+        *,
+        seed: int,
     ) -> tuple[tuple[PersonalKnowledgeEntry, ...], tuple[KnowledgeDecisionTrace, ...]]:
         required = set(self._source.earth_arrival_rules.required_knowledge_ids)
+        post_arrival = set(self._source.earth_arrival_rules.post_arrival_knowledge_ids)
         selected: list[PersonalKnowledgeEntry] = []
         traces: list[KnowledgeDecisionTrace] = []
         facts = {fact.fact_id: fact for fact in self._source.knowledge}
-        missing_required = sorted(required - facts.keys())
+        missing_required = sorted((required | post_arrival) - facts.keys())
         if missing_required:
             raise GenesisError(
                 "赴地规则引用了未发布的必修知识: " + ", ".join(missing_required)
             )
         for fact in self._source.knowledge:
             access = _access_for(fact, species_id)
-            mandatory = fact.fact_id in required
             if access == "denied":
                 traces.append(
                     KnowledgeDecisionTrace(
@@ -661,79 +669,88 @@ class GenesisCompiler:
                     )
                 )
                 continue
-            mastery_level: Literal["full", "partial", "reference_only", "none"]
-            if mandatory:
-                if fact.status == "unknown-boundary" or fact.level == "unknown":
-                    raise GenesisError(f"赴地必修知识 {fact.fact_id} 不能是未知边界")
-                mastery_level = "full"
-                decision = "mandatory"
-                epistemic_kind = fact.epistemic_kind
-                acquired_via = "earth_program"
-                recall_eligible = True
-            elif fact.status == "unknown-boundary":
-                mastery_level = "reference_only"
-                decision = "boundary"
-                epistemic_kind = "unknown_boundary"
-                acquired_via = "public_boundary"
-                recall_eligible = True
-            elif fact.level == "common":
-                mastery_level = "full"
-                decision = "common_exposure"
-                epistemic_kind = fact.epistemic_kind
-                acquired_via = "common_exposure"
-                recall_eligible = True
-            elif _is_exposed(fact, context):
-                mastery_level = "partial"
-                decision = "regional_exposure"
-                epistemic_kind = fact.epistemic_kind
-                acquired_via = "local_exposure"
-                recall_eligible = True
-            else:
-                mastery_level = "none"
-                decision = "not_exposed"
-                traces.append(
-                    KnowledgeDecisionTrace(
-                        fact.fact_id, access, "none", decision, "没有足够接触机会"
-                    )
-                )
-                continue
-            statement_variant = "full"
-            if mastery_level == "partial" and fact.variant("partial"):
-                statement_variant = "partial"
-            elif mastery_level == "partial":
-                # A lower mastery level is safe only when the reviewed source
-                # supplies its own resident-facing wording.  Never turn a
-                # missing partial variant into accidental full knowledge.
+            eligible = all(
+                self._condition_satisfied(condition, context, episodes)
+                for condition in fact.conditions
+            )
+            if fact.fact_id in post_arrival and not eligible:
                 traces.append(
                     KnowledgeDecisionTrace(
                         fact.fact_id,
                         access,
-                        "insufficient_variant",
                         "none",
-                        "来源没有提供可安全下放的 partial 版本",
+                        "not_yet_eligible",
+                        "抵达事件尚未完成",
                     )
                 )
                 continue
-            statement = fact.variant(statement_variant) or fact.statement
-            if mastery_level == "reference_only":
-                statement = _boundary_statement(statement)
+            mandatory = fact.fact_id in required or fact.fact_id in post_arrival
+            if not mandatory and not eligible:
+                traces.append(
+                    KnowledgeDecisionTrace(
+                        fact.fact_id, access, "none", "not_eligible", "来源条件未满足"
+                    )
+                )
+                continue
+            if fact.status == "unknown-boundary" or fact.level == "unknown":
+                if mandatory:
+                    raise GenesisError(f"赴地必修知识 {fact.fact_id} 不能是未知边界")
+                mastery_level: Literal["full", "partial", "reference_only", "none"] = (
+                    "reference_only"
+                )
+                epistemic_kind = "unknown_boundary"
+                acquired_via = "public_boundary"
+                decision = "boundary"
+            else:
+                if fact.mastery_difficulty == "medium" and not mandatory:
+                    probability = (
+                        self._source.generation_policy.medium_knowledge_probability
+                    )
+                    draw = random.Random(
+                        self._domain_seed(seed, f"knowledge:{fact.fact_id}")
+                    ).random()
+                    if draw >= probability:
+                        traces.append(
+                            KnowledgeDecisionTrace(
+                                fact.fact_id,
+                                access,
+                                "eligible",
+                                "not_mastered",
+                                "中等掌握难度的稳定抽样未通过",
+                            )
+                        )
+                        continue
+                mastery_level = "full"
+                epistemic_kind = fact.epistemic_kind
+                acquired_via = (
+                    "earth_program"
+                    if fact.fact_id in required
+                    else "source_eligibility"
+                )
+                decision = (
+                    "mandatory"
+                    if mandatory
+                    else (
+                        "medium_mastery"
+                        if fact.mastery_difficulty == "medium"
+                        else "eligible_certain"
+                    )
+                )
+            statement = fact.statement
             importance = max(fact.importance, 0.82) if mandatory else fact.importance
             entry = PersonalKnowledgeEntry(
                 knowledge_id=fact.fact_id,
                 mastery_level=mastery_level,
                 epistemic_kind=epistemic_kind,
-                statement_variant_id=statement_variant,
+                statement_variant_id="full",
                 topic_ids=(fact.topic,),
                 aliases=fact.aliases,
                 compiled_search_terms=fact.retrieval_terms,
-                recall_eligible=recall_eligible,
+                recall_eligible=True,
                 acquired_via=acquired_via,
                 acquired_stage=context.identity.life_stage,
                 acquisition_ref=f"knowledge:{fact.fact_id}",
-                consultable_target_ids=(context.learning.institution_ids[0],)
-                if mastery_level == "reference_only"
-                and context.learning.institution_ids
-                else (),
+                consultable_target_ids=(),
                 confidence_class=fact.certainty,
                 initial_confidence=_mastery_confidence(fact.certainty, mastery_level),
                 importance_class=_importance_class(importance),
@@ -749,7 +766,7 @@ class GenesisCompiler:
             selected.append(entry)
             traces.append(
                 KnowledgeDecisionTrace(
-                    fact.fact_id, access, "available", decision, "来源和接触条件通过"
+                    fact.fact_id, access, "eligible", decision, "来源条件全部满足"
                 )
             )
         selected = _close_prerequisites(selected, facts, species_id, context)
@@ -757,19 +774,79 @@ class GenesisCompiler:
         missing_after_closure = sorted(required - selected_by_id.keys())
         if missing_after_closure:
             raise GenesisError(
-                "赴地必修知识未能形成可掌握的个人知识: "
-                + ", ".join(missing_after_closure)
+                "赴地必修知识未能形成个人知识: " + ", ".join(missing_after_closure)
             )
         insufficient = sorted(
-            knowledge_id
-            for knowledge_id in required
-            if selected_by_id[knowledge_id].mastery_level != "full"
+            fact_id
+            for fact_id in required | post_arrival
+            if fact_id in selected_by_id
+            and selected_by_id[fact_id].mastery_level != "full"
         )
         if insufficient:
-            raise GenesisError(
-                "赴地必修知识必须达到 full 掌握: " + ", ".join(insufficient)
-            )
+            raise GenesisError("必修知识必须达到 full 掌握: " + ", ".join(insufficient))
         return tuple(selected), tuple(traces)
+
+    def _condition_satisfied(
+        self,
+        condition: KnowledgeCondition,
+        context: LifeContext,
+        episodes: tuple[EpisodeSeed, ...],
+    ) -> bool:
+        if condition.kind == "place":
+            target_id = condition.value("id")
+            contact = condition.value("contact")
+            target = self._place(target_id)
+            if target is None:
+                return False
+            if contact == "residence":
+                return context.origin.birth_region_id == target_id or (
+                    context.origin.birth_region_id in target.aliases
+                )
+            if contact == "public_area_visit":
+                return any(
+                    self._is_place_within(place_id, target_id)
+                    for place_id in context.mobility.visited_place_ids
+                )
+            if contact in {"exterior_view", "entered"}:
+                return target_id in context.mobility.visited_place_ids
+            # Merely living near a landmark does not prove participation in its tradition.
+            return False
+        if condition.kind == "route":
+            return (
+                condition.value("id") in context.mobility.familiar_route_ids
+                and condition.value("extent") == "full"
+                and condition.value("status") == "traversed"
+            )
+        if condition.kind == "experience":
+            return (
+                condition.value("id") == "earth_arrival"
+                and condition.value("status") == "completed"
+                and condition.value("outcome") == "arrived_on_earth"
+                and any(episode.theme_id == "arrival-nest" for episode in episodes)
+            )
+        if condition.kind == "vocation":
+            values = {
+                "id": context.vocation.vocation_id,
+                "proficiency": context.vocation.proficiency_band,
+                "workplace": context.vocation.workplace_place_id,
+            }
+            return all(
+                values.get(key, "") == value for key, value in condition.attributes
+            )
+        return False
+
+    def _is_place_within(self, place_id: str, target_id: str) -> bool:
+        current_id = place_id
+        seen: set[str] = set()
+        while current_id and current_id not in seen:
+            if current_id == target_id:
+                return True
+            seen.add(current_id)
+            place = self._place(current_id)
+            if place is None:
+                return False
+            current_id = place.parent_id
+        return False
 
     def _eligible_episode_themes(
         self, context: LifeContext
@@ -789,15 +866,49 @@ class GenesisCompiler:
             raise GenesisError("资料包没有匹配当前年龄和生命阶段的经历主题")
         return themes
 
+    def _selected_episode_themes(
+        self,
+        request: GenesisCompileInput,
+        context: LifeContext,
+    ) -> tuple[EpisodeTheme, ...]:
+        eligible = self._eligible_episode_themes(context)
+        selected = sorted(
+            (theme for theme in eligible if theme.required),
+            key=lambda item: (item.order, item.theme_id),
+        )
+        if context.identity.life_stage == "youth":
+            if not selected:
+                raise GenesisError("幼体没有可由实际生活支持的经历，不能补造经历")
+        else:
+            target = max(
+                self._source.generation_policy.normal_episode_minimum,
+                len(selected),
+            )
+            if len(eligible) < target:
+                raise GenesisError(
+                    f"当前生命阶段只有 {len(eligible)} 段有来源的可行经历，无法满足通常至少 {target} 段；不补造经历"
+                )
+            remaining = [theme for theme in eligible if theme not in selected]
+            while len(selected) < target:
+                index = len(selected)
+                chosen = _weighted_choice(
+                    tuple(remaining),
+                    random.Random(
+                        self._domain_seed(
+                            request.appearance_seed, f"episode-theme:{index}"
+                        )
+                    ),
+                )
+                selected.append(chosen)
+                remaining.remove(chosen)
+        return tuple(sorted(selected, key=lambda item: (item.order, item.theme_id)))
+
     def _relationships(
         self,
         request: GenesisCompileInput,
         context: LifeContext,
     ) -> tuple[RelationshipSeed, ...]:
-        count = _bounded_count(
-            self._source.generation_policy.relationship_count, preferred=13
-        )
-        themes = self._eligible_episode_themes(context)
+        themes = self._selected_episode_themes(request, context)
         rules = tuple(
             sorted(
                 self._source.relationship_archetypes, key=lambda item: item.archetype_id
@@ -806,12 +917,11 @@ class GenesisCompiler:
         if not rules:
             raise GenesisError("资料包没有 RelationshipArchetypeRules")
 
-        required_roles = _unique(
-            role
-            for theme in themes
-            if theme.required or theme.required_roles
-            for role in theme.required_roles
-        )
+        theme_ids_by_role: dict[str, set[str]] = {}
+        for theme in themes:
+            for role in theme.required_roles:
+                theme_ids_by_role.setdefault(role, set()).add(theme.theme_id)
+        required_roles = tuple(sorted(theme_ids_by_role))
         selected_rules: list[RelationshipArchetype] = []
         for role in required_roles:
             compatible = tuple(
@@ -821,6 +931,10 @@ class GenesisCompiler:
                 and (
                     not rule.life_stages
                     or context.identity.life_stage in rule.life_stages
+                )
+                and (
+                    not rule.episode_theme_ids
+                    or theme_ids_by_role[role] <= set(rule.episode_theme_ids)
                 )
             )
             if role == "family":
@@ -842,24 +956,6 @@ class GenesisCompiler:
                     ),
                 )
             )
-        # Two adoption-side anchors are always present below: the human owner
-        # and the household/group that receives the Elfie.  Keep the policy's
-        # relationship_count as the total number of relationship targets,
-        # rather than silently adding those anchors on top of the configured
-        # bound.
-        while len(selected_rules) < max(0, count - 2):
-            index = len(selected_rules)
-            selected_rules.append(
-                _weighted_choice(
-                    rules,
-                    random.Random(
-                        self._domain_seed(
-                            request.appearance_seed, f"relationship-slot:{index}"
-                        )
-                    ),
-                )
-            )
-
         names_by_species: dict[str, tuple[str, ...]] = {}
         name_counters: dict[str, int] = {}
         result: list[RelationshipSeed] = []
@@ -869,13 +965,15 @@ class GenesisCompiler:
             if person_id in used_person_ids:
                 person_id = f"{person_id}-{index + 1:02d}"
             used_person_ids.add(person_id)
-            person_species_id = rule.person_species_ids[
+            species_rng = random.Random(
                 self._domain_seed(request.appearance_seed, f"person-species:{index}")
-                % len(rule.person_species_ids)
+            )
+            person_species_id = rule.person_species_ids[
+                species_rng.randrange(len(rule.person_species_ids))
             ]
             if person_species_id not in names_by_species:
                 names_by_species[person_species_id] = self._generated_names_for_species(
-                    request, person_species_id, max(4, count)
+                    request, person_species_id, max(4, len(selected_rules))
                 )
             name_index = name_counters.get(person_species_id, 0)
             pool = names_by_species[person_species_id]
@@ -986,31 +1084,13 @@ class GenesisCompiler:
         context: LifeContext,
         relationships: tuple[RelationshipSeed, ...],
     ) -> tuple[EpisodeSeed, ...]:
-        count = _bounded_count(
-            self._source.generation_policy.episode_count, preferred=5
-        )
-        eligible = self._eligible_episode_themes(context)
-        required = [theme for theme in eligible if theme.required]
-        selected: list[EpisodeTheme] = sorted(
-            required[:count], key=lambda item: (item.order, item.theme_id)
-        )
-        remaining = [theme for theme in eligible if theme not in selected]
-        while len(selected) < min(count, len(eligible)):
-            index = len(selected)
-            chosen = _weighted_choice(
-                tuple(remaining),
-                random.Random(
-                    self._domain_seed(request.appearance_seed, f"episode-theme:{index}")
-                ),
-            )
-            selected.append(chosen)
-            remaining.remove(chosen)
-        selected = sorted(selected, key=lambda item: (item.order, item.theme_id))
+        selected = self._selected_episode_themes(request, context)
+        count = len(selected)
 
         result: list[EpisodeSeed] = []
         for index, theme in enumerate(selected):
             person_ids = self._people_for_theme(theme, relationships, request)
-            place_ids = self._places_for_theme(theme, context)
+            place_ids = self._places_for_theme(theme, context, request)
             event_age = max(
                 theme.min_age_years,
                 min(
@@ -1020,14 +1100,21 @@ class GenesisCompiler:
                 ),
             )
             event_stage = stage_for_age(request.species_id, event_age, self._catalog)
-            labels = "、".join(self._label(place_id) for place_id in place_ids)
+            labels = "、".join(
+                self._source.earth_home_name
+                if theme.theme_id == "arrival-nest"
+                and place_id == request.arrival_base_id
+                else self._label(place_id)
+                for place_id in place_ids
+            )
             content = (
                 f"我在{labels}尝试{theme.goal}。起初{theme.obstacle}；"
                 f"后来{theme.outcome}。这让我记住：{theme.impact}"
             )
             temporal_label = (
                 "抵达地球时"
-                if set(theme.place_kinds) & {"earth_gateway_station", "earth_home"}
+                if theme.theme_id == "arrival-nest"
+                or set(theme.place_kinds) & {"earth_gateway_station", "earth_home"}
                 else "抵达前"
             )
             result.append(
@@ -1064,8 +1151,6 @@ class GenesisCompiler:
                     age_years_at_event=event_age,
                 )
             )
-        if len(result) < 3:
-            raise GenesisError("资料包可用经历主题不足以满足 Genesis 数量边界")
         return tuple(result)
 
     def _people_for_theme(
@@ -1085,19 +1170,23 @@ class GenesisCompiler:
                     continue
                 selected.append(relationship.person_id)
                 break
+            else:
+                raise GenesisError(
+                    f"经历 {theme.theme_id} 缺少真实可用的人物关系: {role}"
+                )
         if theme.theme_id == "arrival-nest":
             selected.append(f"owner-person-{request.owner_reference}")
             selected.append(f"owner-{request.owner_reference}")
-        if not selected:
-            for relationship in relationships:
-                if relationship.role != "earth_household":
-                    selected.append(relationship.person_id)
-                    break
         return _unique(selected)
 
     def _places_for_theme(
-        self, theme: EpisodeTheme, context: LifeContext
+        self,
+        theme: EpisodeTheme,
+        context: LifeContext,
+        request: GenesisCompileInput,
     ) -> tuple[str, ...]:
+        if theme.theme_id == "arrival-nest":
+            return (request.arrival_base_id,)
         if "private_home" in theme.place_kinds:
             return (context.origin.childhood_home_place_id,)
         if set(theme.place_kinds) & {"earth_gateway_station", "earth_home"}:
@@ -1283,6 +1372,7 @@ class GenesisCompiler:
     ) -> tuple[PlaceSeed, ...]:
         requested = set(context.mobility.visited_place_ids)
         requested.add(context.earth_transition.departure_place_id)
+        requested.add(request.arrival_base_id)
         requested.update(
             item
             for item in (
@@ -1291,6 +1381,15 @@ class GenesisCompiler:
             )
             if item
         )
+        place_by_id = {place.place_id: place for place in self._source.places}
+        pending = list(requested)
+        while pending:
+            place = place_by_id.get(pending.pop())
+            if place is None or place.parent_id in requested:
+                continue
+            if place.parent_id in place_by_id:
+                requested.add(place.parent_id)
+                pending.append(place.parent_id)
         result: list[PlaceSeed] = []
         seen: set[str] = set()
 
@@ -1343,6 +1442,16 @@ class GenesisCompiler:
                     source_ref=f"place:{place.place_id}",
                 )
             )
+        if request.arrival_base_id not in place_by_id:
+            append(
+                PlaceSeed(
+                    place_id=request.arrival_base_id,
+                    label=self._source.earth_home_name,
+                    kind="earth_home",
+                    description=self._source.earth_home_role,
+                    source_ref="genesis:accepted-arrival-base",
+                )
+            )
         return tuple(result)
 
     def _generated_names(
@@ -1372,8 +1481,8 @@ class GenesisCompiler:
 
 def _candidate_age_years(candidate: GenesisCandidate) -> int:
     value = candidate.age_years
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise GenesisError("候选年龄必须是正整数年")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 2:
+        raise GenesisError("候选年龄必须至少为 2 岁")
     return value
 
 
@@ -1384,12 +1493,54 @@ def _domain_seed(
     algorithm: str = "blake2b-labeled-v1",
     policy_version: str = "generation-policy.v1",
 ) -> int:
-    if algorithm != "blake2b-labeled-v1":
+    if algorithm == "blake2b-labeled-v1":
+        digest = hashlib.blake2b(
+            f"{seed}:{label}:{policy_version}".encode(), digest_size=8
+        ).digest()
+        return int.from_bytes(digest, "big")
+    if algorithm != "sha256-domain-v1":
         raise GenesisError(f"不支持的 Genesis seed 算法: {algorithm}")
-    digest = hashlib.blake2b(
-        f"{seed}:{label}:{policy_version}".encode(), digest_size=8
-    ).digest()
-    return int.from_bytes(digest, "big")
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**256:
+        raise GenesisError("SHA-256 Genesis master_seed 必须是 32 字节非负整数")
+    domain, stable_id = _seed_domain_and_id(label)
+    canonical_input = {
+        "algorithm_version": algorithm,
+        "attempt_id": 0,
+        "domain": unicodedata.normalize("NFC", domain),
+        "domain_policy_version": unicodedata.normalize("NFC", policy_version),
+        "draw_counter": 0,
+        "master_seed": f"{seed:064x}",
+        "stable_object_or_slot_id": unicodedata.normalize("NFC", stable_id),
+    }
+    encoded = json.dumps(
+        canonical_input, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return int.from_bytes(hashlib.sha256(encoded).digest(), "big")
+
+
+def _seed_domain_and_id(label: str) -> tuple[str, str]:
+    domains = {
+        "birth": "birth",
+        "birth-cell": "birth",
+        "birth-region": "birth",
+        "life-archetype": "household",
+        "episode-theme": "episodes",
+        "relationship-role": "people",
+        "person-species": "people",
+        "names": "naming",
+        "knowledge": "knowledge",
+    }
+    prefix, separator, stable_id = label.partition(":")
+    domain_key = prefix if separator else label
+    try:
+        domain = domains[domain_key]
+    except KeyError as error:
+        raise GenesisError(f"未登记的 Genesis 随机域: {domain_key}") from error
+    if separator:
+        stable_object_id = f"cell:{stable_id}" if prefix == "birth-cell" else stable_id
+    else:
+        stable_object_id = domain_key.removeprefix("birth-")
+    return domain, stable_object_id
 
 
 def _generated_names_for_seed(
@@ -1401,12 +1552,15 @@ def _generated_names_for_seed(
 ) -> tuple[str, ...]:
     pool = source.name_rules.pool(species_id) or ("Nemi",)
     policy = source.generation_policy
-    offset = _domain_seed(
-        seed,
-        f"names:{species_id}",
-        algorithm=policy.seed_algorithm,
-        policy_version=policy.policy_version,
-    ) % len(pool)
+    name_rng = random.Random(
+        _domain_seed(
+            seed,
+            f"names:{species_id}",
+            algorithm=policy.seed_algorithm,
+            policy_version=policy.policy_version,
+        )
+    )
+    offset = name_rng.randrange(len(pool))
     rotated = tuple(pool[offset:] + pool[:offset])
     result: list[str] = []
     for index in range(max(count, 1)):
@@ -1452,6 +1606,8 @@ def _unique(values: Iterable[str]) -> tuple[str, ...]:
 
 
 def _access_for(fact: WorldKnowledgeFact, species_id: str) -> str:
+    if fact.conditions:
+        return "available"
     eligible = set(fact.eligibility)
     return (
         "available"
@@ -1659,13 +1815,6 @@ def _close_prerequisites(
             raise GenesisError(f"知识前置闭包缺少条目: {fact_id}")
         result.append(selected_entry)
     return result
-
-
-def _bounded_count(bounds: tuple[int, int], *, preferred: int) -> int:
-    minimum, maximum = bounds
-    if minimum < 1 or maximum < minimum:
-        raise GenesisError("Genesis 生成数量范围无效")
-    return min(maximum, max(minimum, preferred))
 
 
 def stage_for_age(

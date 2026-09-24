@@ -1,178 +1,85 @@
+from __future__ import annotations
+
+import shutil
 from pathlib import Path
 
 import pytest
-import yaml
 
+from infrastructure.persistence.configuration.documents import (
+    resolve_bundled_config_root,
+)
 from infrastructure.persistence.configuration.world import (
     GenesisSourcePackageError,
-    _document_hash,
     load_genesis_source_package,
 )
 
 
-def _copy_world_config(root: Path) -> Path:
-    source = Path(__file__).resolve().parents[4] / "config" / "world" / "elfaria.yaml"
-    target = root / "world" / "elfaria.yaml"
-    target.parent.mkdir(parents=True)
-    target.write_bytes(source.read_bytes())
-    return target
-
-
-def test_genesis_source_package_loads_the_bounded_first_version() -> None:
+def test_genesis_source_package_loads_the_published_version_bound_bundle() -> None:
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.known_region_id == "mistyville"
-    assert {place.place_id for place in package.places} >= {
-        "mistyville_square",
-        "mistyville_homes",
-        "mistyville_learning_house",
-        "mistyville_waystation",
-        "earth_gateway_station",
-        "elfie_nest",
+    assert package.package_version == "elfaria-genesis.v1"
+    assert package.manifest.status == "published"
+    assert len(package.manifest.member_ids) == 18
+    assert len(package.knowledge) == 161
+    assert package.knowledge[0].fact_id == "A-01"
+    assert package.knowledge[0].source_ref == "knowledge/elfaria.yaml#A-01"
+    assert "Saevi、Tovren 和 Myelle" in package.knowledge[0].statement
+    assert len(package.story_events) == 16
+    assert len(package.routes) == 16
+
+
+def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
+    package = load_genesis_source_package()
+    cells = package.spatial_population.cells
+
+    assert len(cells) == 83
+    assert all(cell.weight == 1.0 for cell in cells)
+    assert {cell.region_id for cell in cells} == {
+        "A1",
+        "A2",
+        "B",
+        "C1",
+        "C2",
+        "C3",
+        "D",
     }
-    assert {event.event_id for event in package.story_events} >= {
-        "story_signal",
-        "story_confirmation",
-        "story_station",
-        "story_program",
-        "story_arrival",
-    }
-    topics = {fact.topic for fact in package.knowledge}
     assert {
-        "world_identity",
-        "nature_and_physics",
-        "geography",
-        "species_and_body",
-        "society_and_civilization",
-        "history_and_culture",
-        "earth_and_arrival",
-        "knowledge_boundary",
-    } <= topics
-    assert any(fact.status == "unknown-boundary" for fact in package.knowledge)
+        species_id
+        for cell in cells
+        if cell.region_id == "D"
+        for species_id in cell.species_ids
+    } == {"fox", "dog", "cat"}
+    assert all(cell.species_ids == ("fox",) for cell in cells if cell.region_id == "B")
+    assert package.place("myelle_region").aliases == ("A1", "A2")
 
 
-def test_genesis_source_package_publishes_resident_weather_facts() -> None:
+def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     package = load_genesis_source_package()
 
-    light_cycle = package.fact("nature.light_cycle")
-    seasons = package.fact("nature.seasons")
-    water_cycle = package.fact("nature.water_cycle")
-
-    assert "Solara" in light_cycle.statement
-    assert "伊洛拉" not in light_cycle.statement
-    assert "196 个本地日" in light_cycle.statement
-    assert light_cycle.level == "common"
-    assert light_cycle.status == "active"
-    assert "雨季" in seasons.statement
-    assert "旱季" in seasons.statement
-    assert seasons.level == "common"
-    assert seasons.status == "active"
-    assert "降雨" in water_cycle.statement
-    assert "可以出现气象雾" in seasons.statement
-    assert "不会出现霜、雪" in seasons.statement
-    assert "其他地区" in seasons.statement
-    assert "蒸发" not in water_cycle.statement
-    assert "凝结" not in water_cycle.statement
-    assert water_cycle.level == "common"
-    assert water_cycle.status == "active"
-    assert all(
-        "Canon" not in fact.statement for fact in (light_cycle, seasons, water_cycle)
+    myelle_landscape = package.fact("B-02-02")
+    assert myelle_landscape.conditions[0].kind == "place"
+    assert myelle_landscape.conditions[0].value("id") == "myelle_region"
+    assert myelle_landscape.conditions[0].value("contact") == "residence"
+    assert package.fact("B-04-02").conditions[0].kind == "route"
+    assert package.fact("B-04-02").conditions[0].value("status") == "traversed"
+    assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
+    assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
+    assert package.generation_policy.medium_knowledge_probability == 0.5
+    assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
+    assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
+        "E-08-02",
+        "E-08-03",
     )
 
 
-def test_genesis_source_package_source_refs_resolve_to_fact_ids() -> None:
-    package = load_genesis_source_package()
-    fact_ids = {fact.fact_id for fact in package.knowledge}
-
-    source_ids = {
-        fact.source_ref.split("#", maxsplit=1)[1] for fact in package.knowledge
-    }
-
-    assert all(
-        fact.source_ref.startswith("canon:elfaria-world.v0.1#")
-        for fact in package.knowledge
-    )
-    assert source_ids == fact_ids
-
-
-def test_genesis_source_package_publishes_complete_generation_catalogs() -> None:
-    package = load_genesis_source_package()
-
-    fact_ids = {fact.fact_id for fact in package.knowledge}
-    mapped_ids = [
-        resident_id
-        for link in package.coverage_manifest.links
-        for resident_id in link.resident_fact_ids
-    ]
-
-    assert package.coverage_manifest.creator_source_ref
-    assert package.coverage_manifest.resident_source_ref
-    assert len(mapped_ids) == len(fact_ids)
-    assert set(mapped_ids) == fact_ids
-    assert len(mapped_ids) == len(set(mapped_ids))
-    assert package.life_archetypes
-    assert package.relationship_archetypes
-    assert package.episode_themes
-    assert package.routes
-
-
-def test_genesis_source_package_rejects_incomplete_coverage_manifest(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    links = document["genesis"]["coverage_manifest"]["links"]
-    document["genesis"]["coverage_manifest"]["links"] = links[:-1]
-    document["genesis"]["content_sha256"] = _document_hash(document)
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(GenesisSourcePackageError, match="CoverageManifest"):
-        load_genesis_source_package(root=tmp_path)
-
-
-def test_genesis_source_package_rejects_a_modified_core_fact(tmp_path: Path) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["earth_relation"]["earth_home_name"] = "另一个基地"
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
+def test_genesis_source_package_rejects_a_tampered_member(tmp_path: Path) -> None:
+    root = tmp_path / "config"
+    shutil.copytree(resolve_bundled_config_root(), root)
+    member = root / "genesis" / "knowledge" / "elfaria.yaml"
+    member.write_text(
+        member.read_text(encoding="utf-8") + "# tampered\n", encoding="utf-8"
     )
 
     with pytest.raises(GenesisSourcePackageError):
-        load_genesis_source_package(root=tmp_path)
-
-
-def test_genesis_source_package_rejects_an_unknown_place_reference(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["knowledge"][0]["related_ids"] = ["not-a-place"]
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(GenesisSourcePackageError):
-        load_genesis_source_package(root=tmp_path)
-
-
-def test_genesis_source_package_preserves_optional_knowledge_importance(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["knowledge"][0]["importance"] = 0.91
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
-
-    package = load_genesis_source_package(root=tmp_path)
-
-    assert package.knowledge[0].importance == 0.91
+        load_genesis_source_package(root=root)

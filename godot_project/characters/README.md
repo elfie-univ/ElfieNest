@@ -33,7 +33,7 @@ characters/
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-Saevi (fox) and Tovren (dog) are the current selectable species. Myelle (cat)
+Saevi and Tovren are the current selectable species. Myelle
 remains a narrative/profile design entry only: it has no complete production
 asset package and is intentionally unavailable at runtime. A species becomes
 selectable only after its directory contains a complete manifest-validated

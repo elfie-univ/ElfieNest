@@ -251,10 +251,8 @@ class GenesisBundle:
             raise GenesisValidationError("Genesis Selfhood 与 Profile 的物种不一致")
         if not self.knowledge_seeds:
             raise GenesisValidationError("Genesis 必须提供个人 KnowledgeSeed")
-        if not 3 <= len(self.episode_seeds) <= 5:
-            raise GenesisValidationError("EpisodeSeed 必须有 3 到 5 段连续经历")
-        if not 10 <= len(self.relationship_seeds) <= 20:
-            raise GenesisValidationError("Genesis 必须初始化 10 到 20 个关系对象")
+        if not self.episode_seeds:
+            raise GenesisValidationError("Genesis 至少需要一段有事实支持的个人经历")
         if not self.place_seeds:
             raise GenesisValidationError("Genesis 必须提供个人可见地点投影")
 
@@ -354,9 +352,6 @@ class GenesisBundle:
             raise GenesisValidationError("EpisodeSeed 至少需要一个人物引用")
         if not any(seed.impact.strip() for seed in self.episode_seeds):
             raise GenesisValidationError("EpisodeSeed 至少需要一条长期影响")
-        if not any(seed.predecessor_ids for seed in self.episode_seeds):
-            raise GenesisValidationError("EpisodeSeed 至少需要一条前后因果链")
-
         knowledge_ids = {seed.seed_id for seed in self.knowledge_seeds}
         for seed in self.knowledge_seeds:
             if not set(seed.prerequisite_ids) <= knowledge_ids:

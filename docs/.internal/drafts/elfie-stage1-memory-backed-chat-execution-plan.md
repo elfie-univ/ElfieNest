@@ -7,7 +7,7 @@
 > 当前优先级：P0；先完成“通过聊天认识一只完整外星精灵”，不进入精灵巢真实生活
 > 文档边界：本文冻结目标、事实所有权、实施顺序和验收门；不表示这些能力已经实现
 > 当前架构说明：本文保留 Stage 1 的历史实施与验收证据；Profile、Genesis 和创建输入的现行边界以
-> ADR-0033、Elfie 2.3、Brain 1.5 与 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 为准，本文旧有
+> ADR-0033、Elfie 2.3、Brain 1.5 与 [Genesis v0.3](./genesis-core-kernel-design-v0.3.md) 为准，本文旧有
 > Manifest/Profile-Canon 表述不得覆盖它们
 
 ## 当前基线后的执行窗口（2026-08-27）
@@ -649,7 +649,7 @@ Receipt/持久化差异、机器断言和体验 Rubric。每个 `EvalRun` 至少
 | 用“恢复区/床”圆当前问题 | 形成第一阶段自己的 Mock 世界事实 | 只说当前能力边界；休息、地点必须有对应 authority | 1、5 |
 | 保存所有闲聊 | 隐私、容量、噪声和错误召回持续增长 | 有界工作记忆 + typed salience，只存明确长期事实 | 4 |
 | 入站先进入 Brain、历史写入随后失败 | Memory 保存了无法在重启后证明的主人陈述 | owner claim 同时等待权威历史身份和认知送达 | 1、4 |
-| 硬编码“主人/厨房/猫狗”实体词典 | 异星人名、地点和关系丢失，地球实体反而被偏置 | Genesis/owner 写入用 typed entity IDs；P0 召回不依赖该词典 | 3–4 |
+| 硬编码地球实体词典 | 异星人名、地点和关系丢失，地球实体反而被偏置 | Genesis/owner 写入用 typed entity IDs；P0 召回不依赖该词典 | 3–4 |
 | 两只 Elfie 共用查询或缓存 | 主人信息和故事串到另一只精灵 | Port、Store、message ID 和测试均以 elfie_id 作用域隔离 | 1–5 |
 | 自动 Consolidation 扩大事实 | 模型归纳被当成正式世界知识 | P0 不允许自动产物进入 factual eligibility | 1–5 |
 | 旧 Elfie 没有新种子 | 发布后新旧体验混杂 | 默认新领养；旧数据策略在发布门前显式决定 | 3、5 |

@@ -8,7 +8,7 @@
     "profile_seed": 23
   },
   "genesis": {
-    "source": "config/world/elfaria.yaml + adoption-genesis.v1",
+    "source": "config/genesis/program.yaml + adoption-genesis.v1",
     "canon_version": "elfaria-world.v0.1",
     "expected_knowledge_topics": [
       "world_identity",

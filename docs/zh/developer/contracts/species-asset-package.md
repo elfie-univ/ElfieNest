@@ -1,7 +1,7 @@
 # 物种资源包契约
 
-状态：规范性契约，版本 3<br>
-修订日期：2026-09-01<br>
+状态：规范性契约，版本 4<br>
+修订日期：2026-09-24<br>
 决策：[ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 本契约定义一个物种什么时候才是 ElfieNest 可用的运行时物种。不能因为有
@@ -10,8 +10,8 @@
 
 ## 配置包
 
-唯一的注册文件是 `config/species/catalog.yaml`。每一条记录指向
-`config/species/<package>/` 下的一个包，并声明稳定的技术 `species_id`、canon ID、
+物种目录是 `config/genesis/species/catalog.yaml` 中的 manifest 成员。每一条记录指向
+`config/genesis/species/<package>/` 下的一个包，并声明稳定的技术 `species_id`、canon ID、
 显示名称、状态（`draft`、`published`、`retired`）、排序和定义版本。物种包包含：
 
 ```text

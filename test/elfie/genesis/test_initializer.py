@@ -21,7 +21,7 @@ class _GenesisKnowledgeProposal:
 
     def ask_with_food(self, **kwargs: object) -> str:
         prompt = str(kwargs.get("prompt", ""))
-        if "Elfaria" in prompt and "母星" in prompt:
+        if "Elfaria" in prompt and "星球" in prompt:
             return json.dumps(
                 {
                     "nodes": [
@@ -29,8 +29,7 @@ class _GenesisKnowledgeProposal:
                             "title": "Elfaria",
                             "label": "Elfaria",
                             "type": "knowledge",
-                            "description": "Elfie 的母星名为 Elfaria。",
-                            "aliases": ["母星"],
+                            "context": "Elfaria 是精灵生活的星球",
                             "reusable_knowledge": True,
                         }
                     ],
@@ -40,25 +39,6 @@ class _GenesisKnowledgeProposal:
                             "label": "Elfaria",
                             "role": "concept",
                         }
-                    ],
-                    "assertions": [],
-                },
-                ensure_ascii=False,
-            )
-        if "水循环" in prompt:
-            return json.dumps(
-                {
-                    "nodes": [
-                        {
-                            "title": "水循环",
-                            "label": "水循环",
-                            "type": "knowledge",
-                            "description": "水循环",
-                            "reusable_knowledge": True,
-                        }
-                    ],
-                    "mentions": [
-                        {"surface_text": "水循环", "label": "水循环", "role": "concept"}
                     ],
                     "assertions": [],
                 },
@@ -91,7 +71,9 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
 
         assert first.status == "committed"
         assert second.status == "duplicate"
-        assert storage.count_episodes() == len(bundle.knowledge_seeds) + 5
+        assert storage.count_episodes() == len(bundle.knowledge_seeds) + len(
+            bundle.episode_seeds
+        )
         assert (
             storage.get_episode(
                 "genesis:episode:genesis-check:early-home"
@@ -102,7 +84,13 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             storage.get_graph_node("genesis:self:genesis-check").properties["is_self"]
             is True
         )
-        person_id = "genesis:person:genesis-check:kin-01"
+        first_relationship = bundle.relationship_seeds[0]
+        relationship_target = (
+            first_relationship.object_id or first_relationship.person_id
+        )
+        person_id = (
+            f"genesis:person:genesis-check:{safe_component(relationship_target)}"
+        )
         assert (
             storage.get_graph_node(person_id).properties["relationship_label"]
             == "family"
@@ -158,36 +146,26 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             for assertion in place_edges
         )
         assert all(assertion.evidence_ids for assertion in place_edges)
-        assert (
-            storage.conn.execute(
-                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='elfie'"
-            ).fetchone()[0]
-            == 12
-        )
-        assert (
-            storage.conn.execute(
-                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='person'"
-            ).fetchone()[0]
-            == 1
-        )
-        assert (
-            storage.conn.execute(
-                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='group'"
-            ).fetchone()[0]
-            == 1
-        )
-        assert (
-            storage.conn.execute(
-                "SELECT COUNT(*) FROM nodes WHERE json_extract(properties_json, '$.entity_type')='place'"
-            ).fetchone()[0]
-            == 9
-        )
-        assert (
-            storage.conn.execute(
-                "SELECT COUNT(*) FROM episodes WHERE episode_id LIKE 'genesis:episode:%'"
-            ).fetchone()[0]
-            == len(bundle.knowledge_seeds) + 5
-        )
+        for kind in ("elfie", "person", "group"):
+            expected = sum(
+                relationship.object_kind == kind
+                for relationship in bundle.relationship_seeds
+            ) + (kind == "elfie")
+            assert (
+                storage.conn.execute(
+                    "SELECT COUNT(*) FROM nodes "
+                    "WHERE json_extract(properties_json, '$.entity_type')=?",
+                    (kind,),
+                ).fetchone()[0]
+                == expected
+            )
+        assert storage.conn.execute(
+            "SELECT COUNT(*) FROM nodes "
+            "WHERE json_extract(properties_json, '$.entity_type')='place'"
+        ).fetchone()[0] == len(bundle.place_seeds)
+        assert storage.conn.execute(
+            "SELECT COUNT(*) FROM episodes WHERE episode_id LIKE 'genesis:episode:%'"
+        ).fetchone()[0] == len(bundle.knowledge_seeds) + len(bundle.episode_seeds)
         assert not storage.list_graph_nodes(limit=1000, privacy_scope=None) or not any(
             node.node_type == "event" for node in storage.list_graph_nodes(limit=1000)
         )
@@ -197,6 +175,15 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
     None
 ):
     bundle = _bundle()
+    elfaria_source = next(
+        seed
+        for seed in bundle.knowledge_seeds
+        if "Elfaria 是精灵生活的星球" in seed.content
+    )
+    elfaria_episode_id = (
+        "genesis:episode:genesis-check:knowledge:"
+        f"{safe_component(elfaria_source.seed_id)}"
+    )
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         GenesisMemoryCommitter().commit(bundle, storage)
@@ -226,11 +213,10 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
         )
 
         source_recall = storage.recall(
-            RecallRequest(text="母星 Elfaria", lexical_limit=10)
+            RecallRequest(text="Elfaria 是精灵生活的星球", lexical_limit=10)
         )
         assert any(
-            item.episode_id == "genesis:episode:genesis-check:knowledge:world-identity"
-            for item in source_recall.episodes
+            item.episode_id == elfaria_episode_id for item in source_recall.episodes
         )
         assert "genesis:self-model:genesis-check" not in {
             node.node_id for node in source_recall.focus_nodes
@@ -240,7 +226,9 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             ConsolidationRequest(max_episodes=200),
             model_port=_GenesisKnowledgeProposal(),
         )
-        assert len(batch.consolidated_episode_ids) == len(bundle.knowledge_seeds) + 5
+        assert len(batch.consolidated_episode_ids) == len(bundle.knowledge_seeds) + len(
+            bundle.episode_seeds
+        )
         elfaria = next(
             node
             for node in storage.list_graph_nodes(limit=2000)
@@ -248,15 +236,8 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
         )
         assert elfaria.node_type == "knowledge"
         assert any(
-            evidence.source_id
-            == "genesis:episode:genesis-check:knowledge:world-identity"
+            evidence.source_id == elfaria_episode_id
             for evidence in storage.list_memory_evidence(limit=5000)
-        )
-
-        water = storage.recall(RecallRequest(text="水循环"))
-        assert any(
-            node.label == "水循环" and node.node_type == "knowledge"
-            for node in water.focus_nodes
         )
 
 

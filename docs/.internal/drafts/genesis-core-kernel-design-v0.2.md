@@ -1,14 +1,14 @@
 # Genesis 核心内核设计 v0.2：从世界骨架到初始记忆
 
-> 状态：内部现行目标设计；受 ADR-0033 与 Elfie 2.3 / Brain 1.5 契约约束
+> 状态：冻结的上一版技术目标设计；受 ADR-0033 与 Elfie 2.3 / Brain 1.5 契约约束
 >
-> 版本定位：本文经确认后成为 Genesis 唯一现行目标设计，并取代
-> [OPT-001 Genesis v0.1](./genesis-core-kernel-design-v0.1.md) 作为后续设计依据。v0.1 保留为已落地
-> OPT-001 的冻结历史基线；本文不表示当前代码已经实现，也不授权修改既有 Elfie 数据
+> 版本定位：本文是 v0.3 之前的技术目标快照，现由
+> [Genesis v0.3](./genesis-core-kernel-design-v0.3.md) 统一继任。v0.1 和本文都保留为历史输入，
+> 不再作为当前设计依据；本文不表示当前代码已经实现，也不授权修改既有 Elfie 数据
 >
 > 上游世界资料：
-> [Elfaria 自底向上世界设定](../elfaria/elfaria-bottom-up-world-design-v0.1.md)、
-> [Elfaria 世界公共知识总览](../elfaria/elfaria-public-knowledge-overview-v0.1.md)
+> [Elfaria 自底向上世界设定](../elfaria/elfaria-bottom-up-world-design.md)、
+> [Elfaria 居民知识](../elfaria/elfaria-resident-knowledge.md)
 
 ## 1. 目标与不可变原则
 
@@ -43,11 +43,12 @@ Genesis 的目标不是让模型临场编出一个角色，而是把已经确认
 
 本设计不规定具体概率和评分数值。它们必须作为阶段 2 的版本化策略数据存在，由程序校验，不能散落在代码或模型提示词中。
 
-### 1.1 与 Genesis v0.1 的版本关系
+### 1.1 与 Genesis v0.1 的历史关系
 
 v0.1 是已关闭 OPT-001 的实施与验收快照，不再随新设计更新；历史 E1/E2/E3 证据只证明 v0.1。
-v0.2 是它的直接继任，不是平行管线，也不能复用 OPT-001 的 `closed` 状态宣称已经落地。实施 v0.2
-必须另立工作项，迁移现有入口和合同，并重新建立受影响门禁。
+v0.2 是它的直接技术继任，不是平行管线，也不能复用 OPT-001 的 `closed` 状态宣称已经落地。
+它现已冻结为历史目标；v0.3 统一接管总体流程和后续设计入口。v0.2 的实施记录仍需与当时的目标
+一起理解，不能把历史迁移计划冒充为 v0.3 已经落地。
 
 | 处置 | v0.1 | v0.2 |
 | --- | --- | --- |
@@ -59,8 +60,8 @@ v0.2 是它的直接继任，不是平行管线，也不能复用 OPT-001 的 `c
 | 替换 | 三类 Seed 机械共享 certainty 等字段 | Confidence、Importance 按最终记录类型生成；Retention 由 Memory 准入策略解析，Episode 没有 Confidence |
 | 替换 | `custom/CFHO` 作为通用扩展输入 | 只接受注册的 AdoptionSelection 字段或版本化类型扩展；自由文本不能影响结构化事实 |
 
-负责人确认后，后续设计只维护 v0.2；v0.1 保持冻结。实施不得保留长期双写、旧新随机分流、兼容
-fallback 或第二套 Memory 路径；未来若形成 v0.3，v0.2 同样转为冻结历史快照。
+本文冻结后，后续设计只维护 v0.3；v0.1/v0.2 保持冻结。实施不得保留长期双写、旧新随机分流、
+兼容 fallback 或第二套 Memory 路径。
 
 ## 2. 六阶段主流程与数据归属
 

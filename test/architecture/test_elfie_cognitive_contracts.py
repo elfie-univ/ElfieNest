@@ -272,8 +272,8 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
     english_normalized = " ".join(english_contract.split())
     chinese_normalized = " ".join(chinese_contract.split())
 
-    assert "**Contract version:** 2.5" in english_contract
-    assert "**契约版本：** 2.5" in chinese_contract
+    assert "**Contract version:** 2.6" in english_contract
+    assert "**契约版本：** 2.6" in chinese_contract
 
     for owner in (
         "Event Workspace",
@@ -334,7 +334,7 @@ def test_elfie_life_system_contract_keeps_the_accepted_owners_and_gaps() -> None
 
 def test_current_genesis_design_uses_memory_owned_retention_and_severs_inputs() -> None:
     design = (
-        PROJECT_ROOT / "docs/.internal/drafts/genesis-core-kernel-design-v0.2.md"
+        PROJECT_ROOT / "docs/.internal/drafts/genesis-core-kernel-design-v0.3.md"
     ).read_text(encoding="utf-8")
 
     assert "`retention_profile=genesis`" in design

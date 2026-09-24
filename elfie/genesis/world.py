@@ -134,6 +134,7 @@ class SpatialPopulationCell:
     """Generator-only birthplace choice; never emitted as resident knowledge."""
 
     cell_id: str
+    region_id: str
     place_id: str
     species_ids: tuple[str, ...]
     weight: float
@@ -171,10 +172,8 @@ class GenerationPolicy:
 
     policy_version: str = "generation-policy.v1"
     seed_algorithm: str = "blake2b-labeled-v1"
-    relationship_count: tuple[int, int] = (10, 20)
-    episode_count: tuple[int, int] = (3, 5)
-    salient_relationship_count: tuple[int, int] = (3, 5)
-    repeated_relationship_count: tuple[int, int] = (1, 2)
+    normal_episode_minimum: int = 5
+    medium_knowledge_probability: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -189,7 +188,8 @@ class EarthArrivalRules:
         "elder",
     )
     required_knowledge_ids: tuple[str, ...] = ()
-    required_module_ids: tuple[str, ...] = ()
+    post_arrival_knowledge_ids: tuple[str, ...] = ()
+    preparation_duration_local_days: int = 3
 
     def allows(self, species_id: str, life_stage: str) -> bool:
         return (
@@ -225,6 +225,8 @@ class WorldKnowledgeFact:
     prerequisite_ids: tuple[str, ...] = ()
     acquisition_channels: tuple[str, ...] = ()
     exposure_weight: float = 0.5
+    mastery_difficulty: str = ""
+    conditions: tuple[KnowledgeCondition, ...] = ()
 
     def variant(self, key: str) -> str | None:
         if key == "full":
@@ -233,6 +235,20 @@ class WorldKnowledgeFact:
             if variant_id == key:
                 return value
         return None
+
+
+@dataclass(frozen=True)
+class KnowledgeCondition:
+    """One source-declared condition for acquiring a resident knowledge unit."""
+
+    kind: Literal["place", "route", "experience", "vocation"]
+    attributes: tuple[tuple[str, str], ...]
+
+    def value(self, key: str) -> str:
+        for name, value in self.attributes:
+            if name == key:
+                return value
+        return ""
 
 
 @dataclass(frozen=True)

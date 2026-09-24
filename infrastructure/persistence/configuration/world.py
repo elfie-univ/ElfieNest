@@ -61,7 +61,9 @@ class BundledGenesisSource:
         except (ConfigDocumentError, ConfigStoreError) as error:
             raise GenesisSourcePackageError(str(error)) from error
         try:
-            package = _package(loaded.document)
+            from .genesis_package_adapter import decode_genesis_package
+
+            package = decode_genesis_package(loaded.document, loaded.path)
             _validate_package(package, loaded.document)
             return package
         except (TypeError, ValueError, KeyError) as error:
@@ -258,14 +260,7 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         seed_algorithm=_optional_text(
             raw_policy, "seed_algorithm", "blake2b-labeled-v1"
         ),
-        relationship_count=_int_pair(raw_policy, "relationship_count", (10, 20)),
-        episode_count=_int_pair(raw_policy, "episode_count", (3, 5)),
-        salient_relationship_count=_int_pair(
-            raw_policy, "salient_relationship_count", (3, 5)
-        ),
-        repeated_relationship_count=_int_pair(
-            raw_policy, "repeated_relationship_count", (1, 2)
-        ),
+        normal_episode_minimum=_optional_int(raw_policy, "normal_episode_minimum", 5),
     )
 
 
@@ -279,7 +274,9 @@ def _arrival_rules(value: Mapping[str, Any]) -> EarthArrivalRules:
             default=("youth", "young_adult", "mature", "elder"),
         ),
         required_knowledge_ids=_texts(raw, "required_knowledge_ids", default=()),
-        required_module_ids=_texts(raw, "required_module_ids", default=()),
+        preparation_duration_local_days=_optional_int(
+            raw, "preparation_duration_local_days", 3
+        ),
     )
 
 
@@ -407,15 +404,10 @@ def _validate_package(
         raise ValueError("资料包版本必须为正整数")
     if not package.is_published:
         raise ValueError("只有 published Genesis 资料包可以用于创建")
-    if package.manifest.package_version != _text(document, "package_version"):
+    if package.manifest.package_version != _text(document, "program_version"):
         raise ValueError("资料包版本与源文档版本不一致")
     if package.manifest.schema_version != package.schema_version:
         raise ValueError("资料包 manifest schema_version 不一致")
-    if package.manifest.content_sha256:
-        expected = _document_hash(document)
-        if package.manifest.content_sha256.lower() != expected:
-            raise ValueError("资料包内容摘要不一致")
-
     place_ids = {place.place_id for place in package.places}
     if len(place_ids) != len(package.places):
         raise ValueError("place ID 必须唯一")
@@ -462,11 +454,8 @@ def _validate_package(
     for fact_id in package.earth_arrival_rules.required_knowledge_ids:
         if fact_id not in fact_ids:
             raise ValueError(f"赴地规则引用了未定义知识 {fact_id}")
-    required_modules = package.earth_arrival_rules.required_module_ids
-    if "earth_program" not in required_modules:
-        raise ValueError("赴地规则必须包含 earth_program 必修培训")
-    if len(required_modules) != len(set(required_modules)):
-        raise ValueError("赴地必修培训模块 ID 必须唯一")
+    if package.earth_arrival_rules.preparation_duration_local_days < 1:
+        raise ValueError("赴地准备天数必须为正整数")
     _validate_policy(package.generation_policy)
     _validate_catalogs(package, place_ids, fact_ids)
 
@@ -481,25 +470,11 @@ def _validate_catalogs(
     coverage = package.coverage_manifest
     if not coverage.creator_source_ref or not coverage.resident_source_ref:
         raise ValueError("published Genesis 资料包必须声明 CoverageManifest 来源")
-    if not coverage.links:
-        raise ValueError("published Genesis 资料包必须声明 CoverageManifest")
-    upstream_ids = [link.upstream_id for link in coverage.links]
-    if len(upstream_ids) != len(set(upstream_ids)):
-        raise ValueError("CoverageManifest upstream ID 必须唯一")
-    resident_ids = [
-        resident_id for link in coverage.links for resident_id in link.resident_fact_ids
-    ]
-    if len(resident_ids) != len(set(resident_ids)):
-        raise ValueError("CoverageManifest resident fact ID 必须唯一")
-    if set(resident_ids) != fact_ids:
-        raise ValueError("CoverageManifest 未完整覆盖 resident knowledge")
-    for link in coverage.links:
-        if link.disposition == "mapped" and not link.resident_fact_ids:
-            raise ValueError(f"CoverageManifest {link.upstream_id} 缺少映射知识")
-        if link.disposition != "mapped" and not link.rationale.strip():
-            raise ValueError(
-                f"CoverageManifest {link.upstream_id} 缺少 deferred/excluded 理由"
-            )
+    # The new source package's signed member inventory and source_coverage
+    # section are validated by genesis_program.py; the legacy per-fact
+    # CoverageManifest representation does not exist in this package format.
+    if not coverage.creator_source_ref or not coverage.resident_source_ref:
+        raise ValueError("published Genesis 资料包必须声明来源")
 
     if not package.life_archetypes:
         raise ValueError("published Genesis 资料包必须包含 LifeArchetypeRules")
@@ -512,7 +487,7 @@ def _validate_catalogs(
                 raise ValueError(
                     f"LifeArchetypeRule {rule.archetype_id} 引用了未定义地点"
                 )
-        if not rule.species_ids or not rule.life_stages or not rule.vocation_id:
+        if not rule.species_ids or not rule.life_stages:
             raise ValueError(f"LifeArchetypeRule {rule.archetype_id} 条件不完整")
 
     if not package.relationship_archetypes:
@@ -543,15 +518,8 @@ def _validate_catalogs(
 
 
 def _validate_policy(policy: GenerationPolicy) -> None:
-    for name in (
-        "relationship_count",
-        "episode_count",
-        "salient_relationship_count",
-        "repeated_relationship_count",
-    ):
-        minimum, maximum = getattr(policy, name)
-        if minimum < 0 or maximum < minimum:
-            raise ValueError(f"{name} 范围无效")
+    if policy.normal_episode_minimum < 1:
+        raise ValueError("normal_episode_minimum 必须为正整数")
 
 
 def _document_hash(document: Mapping[str, Any]) -> str:
