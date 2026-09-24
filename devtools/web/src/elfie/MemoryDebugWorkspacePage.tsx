@@ -703,13 +703,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     labelSpritesRef.current.clear();
   }, []);
 
-  async function loadReport(requestFilter = "all"): Promise<void> {
+  async function loadReport(requestFilter = "all", preserveMessage = false): Promise<void> {
     const requestId = reportRequestRef.current + 1;
     reportRequestRef.current = requestId;
     setLoading(true);
     setReadPhase("loading");
     setReadError("");
-    setMessage("");
+    if (!preserveMessage) setMessage("");
     try {
       let cursor: string | null = null;
       let merged: AuditReport | null = null;
@@ -789,7 +789,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       const errorMessage = String(error);
       setReadPhase("error");
       setReadError(errorMessage);
-      setMessage(errorMessage);
+      if (!preserveMessage) setMessage(errorMessage);
       setLoading(false);
     }
   }
@@ -1179,7 +1179,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
         return;
       }
       const next = await response.json() as ConsolidationReport;
-      await loadReport();
       if (!next.triggered) {
         setMessage("本次没有触发：当前没有待整理的 Episode，或已有整理正在进行。");
       } else if (next.success) {
@@ -1187,6 +1186,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       } else {
         setMessage(`Consolidation 已触发，但回合状态为 ${next.status ?? "unknown"}。`);
       }
+      void loadReport("all", true);
     } catch (error: unknown) {
       setMessage(String(error));
     } finally {

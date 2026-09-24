@@ -537,6 +537,7 @@ body:has(.memory-debug-page) {
 .memory-debug-legend-hint { margin-left: auto; color: rgba(214,230,241,.76); font: .64rem ui-monospace, monospace; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
 .memory-debug-legend-v2 .memory-debug-legend-hint::before { display: none; }
 .memory-debug-legend-v2 .memory-debug-scale-key { color: #e3d8ff; }
+.memory-debug-legend-v2 .memory-debug-scale-key::before { display: none; }
 .memory-debug-legend-v2 .assertion-key::before { border-top-color: #5e9fbb; }
 .memory-debug-legend-v2 .evidence-key::before { border-top: 2px dashed #b892ff; }
 .memory-debug-legend-v2 .returned-key::before { border-color: #ff6f91; background: #ff6f91; }
