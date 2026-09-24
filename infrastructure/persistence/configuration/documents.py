@@ -48,7 +48,6 @@ class ConfigDocumentId(str, Enum):
     NEST_DEFAULTS = "nest_defaults"
     SPECIES_CATALOG = "species_catalog"
     GENESIS_SOURCE_PACKAGE = "genesis_source_package"
-    GENESIS_PROGRAM = "genesis_program"
     RUNTIME_SETTINGS = "runtime_settings"
     PROVIDER_CONNECTIONS = "provider_connections"
     TOOL_SETTINGS = "tool_settings"
@@ -215,7 +214,7 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
     ),
     ConfigDocumentId.SPECIES_CATALOG: ConfigDocumentSpec(
         ConfigDocumentId.SPECIES_CATALOG,
-        "species/catalog.yaml",
+        "genesis/species/catalog.yaml",
         None,
         1,
         ConfigPolicy.BUNDLED_ONLY,
@@ -228,28 +227,15 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
     ),
     ConfigDocumentId.GENESIS_SOURCE_PACKAGE: ConfigDocumentSpec(
         ConfigDocumentId.GENESIS_SOURCE_PACKAGE,
-        "world/elfaria.yaml",
-        None,
-        1,
-        ConfigPolicy.BUNDLED_ONLY,
-        "elfie.genesis",
-        True,
-        "genesis-source-package-v1",
-        "immutable-bundled",
-        "bootstrap",
-        "fail-closed",
-    ),
-    ConfigDocumentId.GENESIS_PROGRAM: ConfigDocumentSpec(
-        ConfigDocumentId.GENESIS_PROGRAM,
         "genesis/program.yaml",
         None,
         1,
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.genesis",
         True,
-        "genesis-preparation-program-v1",
+        "genesis-program-v1",
         "immutable-bundled",
-        "preparation-inspection-only",
+        "bootstrap",
         "fail-closed",
     ),
     ConfigDocumentId.RUNTIME_SETTINGS: ConfigDocumentSpec(

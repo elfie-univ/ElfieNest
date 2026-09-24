@@ -1,4 +1,4 @@
-"""Validate published source packages without activating them for adoption."""
+"""Validate the published source package that now feeds adoption."""
 
 import hashlib
 import json
@@ -44,7 +44,7 @@ def test_species_directories_use_world_names_without_changing_runtime_ids() -> N
 
 
 def test_registered_source_package_contains_confirmed_parameters() -> None:
-    loaded = BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_PROGRAM)
+    loaded = BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE)
     document = loaded.document
     assert loaded.path == ROOT / "genesis/program.yaml"
     assert document["status"] == document["manifest"]["status"] == "published"
@@ -52,7 +52,6 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert not document["manifest"]["publication_blockers"]
     assert {item["id"] for item in document["manifest"]["activation_blockers"]} == {
         "myelle-runtime-readiness",
-        "production-cutover",
     }
     rules = document["rules"]
     population = rules["population"]
@@ -274,7 +273,7 @@ def test_preparation_package_fails_closed(tmp_path: Path, attack: str) -> None:
         ).hexdigest()
     entry.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
     with pytest.raises(ConfigDocumentError):
-        BundledConfigSource(root).load(ConfigDocumentId.GENESIS_PROGRAM)
+        BundledConfigSource(root).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE)
 
 
 def test_registered_knowledge_is_still_the_existing_161_unit_projection() -> None:
@@ -331,7 +330,9 @@ def test_registered_knowledge_is_still_the_existing_161_unit_projection() -> Non
 
 
 def test_preparation_references_are_registered_and_unknown_conditions_block() -> None:
-    program = BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_PROGRAM).document
+    program = (
+        BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE).document
+    )
     rules = program["rules"]
     world = rules["world"]
     registries = {
@@ -413,7 +414,9 @@ def test_preparation_references_are_registered_and_unknown_conditions_block() ->
 
 
 def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
-    program = BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_PROGRAM).document
+    program = (
+        BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE).document
+    )
     coverage = program["coverage"]["source_coverage"]
     assert program["coverage"]["status"] == "complete"
     assert coverage["status"] == "complete_for_registered_source_sections"
@@ -444,7 +447,9 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
 
 
 def test_geography_model_is_complete_and_distances_are_route_based() -> None:
-    program = BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_PROGRAM).document
+    program = (
+        BundledConfigSource(ROOT).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE).document
+    )
     rules = program["rules"]
     geography_path = ROOT / "genesis/knowledge/geography.yaml"
     geography = yaml.safe_load(geography_path.read_text(encoding="utf-8"))

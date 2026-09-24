@@ -39,7 +39,7 @@ manifest:
     kind: species_catalog
     version: species-catalog.v4
     status: published
-    sha256: 5c5eee0608ca481be596e588838c7d8ba4b5dd870239cc93d0f65ed4f531722e
+    sha256: 2cf937a2e441ff2d35323c657799373d620bfe643c4774fbf6cef9288f155e2e
   - path: species/myelle/appearance.yaml
     kind: appearance_profile
     version: '2'
@@ -119,9 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  - id: production-cutover
-    reason: 当前领养仍由旧 world/species 加载链提供资料；新包接入强类型生产消费者及全链路验收后才能切换，不双读或回退。
-  content_sha256: 23e154960d5d52e07074f732f55a0038479fce27118c8e4464fb7041d5aa44dc
+  content_sha256: 5c47fca4f7d3ebc24d8a49ef0530fcf1bc84455c33deeeaa3552dbb85f6a108b
 coverage:
   status: complete
   resident_source_ref: resident

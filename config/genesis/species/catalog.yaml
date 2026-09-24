@@ -1,3 +1,4 @@
+version: 1
 document_kind: species_catalog
 schema_version: 1
 catalog_version: species-catalog.v4

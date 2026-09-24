@@ -50,8 +50,6 @@ def validate_registered_document(
     elif document_id is ConfigDocumentId.SPECIES_CATALOG:
         _validate_species_catalog_shape(document, label)
     elif document_id is ConfigDocumentId.GENESIS_SOURCE_PACKAGE:
-        _validate_genesis_source_package_shape(document, label)
-    elif document_id is ConfigDocumentId.GENESIS_PROGRAM:
         from infrastructure.persistence.configuration.genesis_program import (
             validate_genesis_program,
         )
@@ -636,21 +634,24 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
         document,
         {
             "version",
+            "document_kind",
             "schema_version",
             "catalog_version",
             "appearance_protocol_version",
-            "world_package_version",
+            "status",
             "species",
         },
         label,
     )
+    if document.get("version") != 1:
+        raise ConfigSchemaError(f"{label}.version 必须是 1")
+    if document.get("document_kind") != "species_catalog":
+        raise ConfigSchemaError(f"{label} 不是受支持的 Genesis species catalog")
     _positive_int(document.get("schema_version"), f"{label}.schema_version")
-    for field in (
-        "catalog_version",
-        "appearance_protocol_version",
-        "world_package_version",
-    ):
+    for field in ("catalog_version", "appearance_protocol_version"):
         _string(document.get(field), f"{label}.{field}")
+    if document.get("status") != "published":
+        raise ConfigSchemaError(f"{label}.status 必须是 published")
     species = document.get("species")
     if not isinstance(species, list) or not species:
         raise ConfigSchemaError(f"{label}.species 必须是非空数组")
@@ -661,6 +662,8 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
         "status",
         "sort_order",
         "definition_version",
+        "files",
+        "display_name",
     }
     for index, raw in enumerate(species):
         item = _object(raw, f"{label}.species[{index}]")
@@ -670,8 +673,17 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
             "package",
             "species_package_id",
             "definition_version",
+            "display_name",
         ):
             _string(item.get(field), f"{label}.species[{index}].{field}")
+        files = _object(item.get("files"), f"{label}.species[{index}].files")
+        _keys(
+            files,
+            {"definition", "generation", "appearance"},
+            f"{label}.species[{index}].files",
+        )
+        for field in ("definition", "generation", "appearance"):
+            _string(files.get(field), f"{label}.species[{index}].files.{field}")
         if item.get("status") not in ("draft", "published", "retired"):
             raise ConfigSchemaError(
                 f"{label}.species[{index}].status 必须是 draft/published/retired"
@@ -690,7 +702,7 @@ def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> 
 def _validate_genesis_source_package_shape(
     document: Mapping[str, Any], label: str
 ) -> None:
-    """Validate the bounded, source-only Genesis package document."""
+    """Validate the multi-file published Genesis source package."""
 
     _keys(
         document,
@@ -1062,31 +1074,24 @@ def _validate_genesis_metadata(value: Any, label: str) -> None:
             {
                 "version",
                 "seed_algorithm",
-                "relationship_count",
-                "episode_count",
-                "salient_relationship_count",
-                "repeated_relationship_count",
+                "normal_episode_minimum",
             },
             policy_label,
         )
         for field in ("version", "seed_algorithm"):
             if field in policy:
                 _string(policy[field], f"{policy_label}.{field}")
-        for field in (
-            "relationship_count",
-            "episode_count",
-            "salient_relationship_count",
-            "repeated_relationship_count",
-        ):
-            if field in policy:
-                _integer_pair(policy[field], f"{policy_label}.{field}")
+        if "normal_episode_minimum" in policy:
+            _positive_int(
+                policy["normal_episode_minimum"],
+                f"{policy_label}.normal_episode_minimum",
+            )
     if "arrival" in metadata:
         arrival = _object(metadata["arrival"], f"{label}.genesis.arrival")
         for field in (
             "eligible_species_ids",
             "eligible_life_stages",
             "required_knowledge_ids",
-            "required_module_ids",
         ):
             if field in arrival:
                 _string_list(
@@ -1100,10 +1105,15 @@ def _validate_genesis_metadata(value: Any, label: str) -> None:
                 "eligible_species_ids",
                 "eligible_life_stages",
                 "required_knowledge_ids",
-                "required_module_ids",
+                "preparation_duration_local_days",
             },
             f"{label}.genesis.arrival",
         )
+        if "preparation_duration_local_days" in arrival:
+            _positive_int(
+                arrival["preparation_duration_local_days"],
+                f"{label}.genesis.arrival.preparation_duration_local_days",
+            )
     if "routes" in metadata:
         routes = metadata["routes"]
         if not isinstance(routes, list):

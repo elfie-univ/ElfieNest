@@ -1,9 +1,8 @@
 """Bundled species catalog and package loader.
 
-The catalog is a registered bundled configuration document. Member files are
-loaded only through the fixed ``config/species/<package>/`` layout; callers do
-not provide arbitrary paths. Semantic validation happens here before the
-typed catalog crosses into Profile, Genesis or Adoption.
+The catalog and members are covered by the published ``config/genesis``
+inventory. Semantic validation happens here before the typed catalog crosses
+into Profile, Genesis or Adoption.
 """
 
 from __future__ import annotations
@@ -69,7 +68,7 @@ _REQUIRED_SHAPE_CORRELATIONS = (
     "Face_CheekFullness",
     "Face_LowerFullness",
 )
-_REQUIRED_SEMANTIC_CONTROLS = ("stature", "build", "face", "signature")
+_REQUIRED_SEMANTIC_CONTROLS = ("stature", "build", "signature")
 _TEXT_DIGEST_SUFFIXES = frozenset((".json", ".txt", ".yaml", ".yml"))
 
 
@@ -85,6 +84,9 @@ class BundledSpeciesCatalogSource:
 
     def load(self) -> SpeciesCatalog:
         try:
+            # Verify the Genesis manifest first so species files cannot drift
+            # from the package revision consumed by Adoption.
+            BundledConfigSource(self.root).load(ConfigDocumentId.GENESIS_SOURCE_PACKAGE)
             loaded = BundledConfigSource(self.root).load(
                 ConfigDocumentId.SPECIES_CATALOG
             )
@@ -120,7 +122,7 @@ class BundledSpeciesCatalogSource:
                 document, "appearance_protocol_version"
             ),
             definitions=tuple(definitions),
-            digest=_catalog_digest(self.root / "species"),
+            digest=_catalog_digest(self.root / "genesis" / "species"),
         )
         _validate_catalog(catalog)
         return catalog
@@ -130,33 +132,38 @@ class BundledSpeciesCatalogSource:
         package = _package_id(entry, "package")
         if species_id != entry.get("species_id"):
             raise ValueError("species_id 无效")
-        package_root = self.root / "species" / package
-        species_document = _read_member(package_root / "species.yaml")
-        appearance_document = _read_member(package_root / "appearance.yaml")
-        genesis_document = _read_optional_member(package_root / "genesis.yaml")
+        species_root = self.root / "genesis" / "species"
+        package_root = species_root / package
+        files = _object(entry.get("files"), "catalog.files")
+        species_document = _read_member(_member_path(species_root, files, "definition"))
+        appearance_document = _read_member(
+            _member_path(species_root, files, "appearance")
+        )
+        genesis_document = _read_member(_member_path(species_root, files, "generation"))
 
         expected_id = _string(species_document, "technical_species_id")
         if expected_id != species_id:
             raise ValueError("species.yaml technical_species_id 与 catalog 不一致")
         appearance = _appearance_profile(species_id, appearance_document)
+        identity = _object(species_document.get("identity"), "species.identity")
+        sensory_profile = _object(
+            species_document.get("sensory_profile"), "species.sensory_profile"
+        )
+        display_name = _string(identity, "display_name")
         identity_card = SpeciesIdentityCard(
             package_id=_string(species_document, "species_package_id"),
-            display_name=_string(species_document, "display_name"),
-            display_name_zh=_string(species_document, "display_name_zh"),
-            earth_shape_label=_string(species_document, "earth_shape_label"),
+            display_name=display_name,
+            display_name_zh=display_name,
+            earth_shape_label=display_name,
             technical_species_id=species_id,
             sort_order=_nonnegative_int(entry, "sort_order"),
-            common_sensory_biases=_string_tuple(
-                species_document, "common_sensory_biases"
-            ),
-            common_knowledge=_string_tuple(species_document, "common_knowledge"),
-            earth_first_contact_cues=_string_tuple(
-                species_document, "earth_first_contact_cues"
-            ),
+            common_sensory_biases=_string_tuple(sensory_profile, "common_biases"),
+            common_knowledge=(),
+            earth_first_contact_cues=(),
             package_version=_string(species_document, "package_version"),
         )
         images = self._presentation_images(package_root, species_document, entry)
-        genesis = _genesis_profile(genesis_document) if genesis_document else None
+        genesis = _genesis_profile(genesis_document)
         status = _status(entry)
         species_package_id = _string(entry, "species_package_id")
         if species_package_id != identity_card.package_id:
@@ -170,7 +177,7 @@ class BundledSpeciesCatalogSource:
             display_name_zh=identity_card.display_name_zh,
             earth_shape_label=identity_card.earth_shape_label,
             config_package_id=package,
-            godot_package_id=_package_id(species_document, "godot_package_id"),
+            godot_package_id=_package_id(identity, "godot_package_id"),
             sort_order=identity_card.sort_order,
             status=status,
             definition_version=_string(entry, "definition_version"),
@@ -244,7 +251,9 @@ def species_asset_path(
     if images is None or kind not in ("headshot", "full-body"):
         raise SpeciesCatalogError("物种图片类型无效或物种没有图片")
     relative = images.headshot if kind == "headshot" else images.full_body
-    package_root = (root / "species" / definition.config_package_id).resolve()
+    package_root = (
+        root / "genesis" / "species" / definition.config_package_id
+    ).resolve()
     path = (package_root / relative).resolve()
     try:
         path.relative_to(package_root)
@@ -369,36 +378,24 @@ def _appearance_profile(
             else 0
         ),
     )
-    missing_proportions = set(_REQUIRED_PROPORTION_SCALES).difference(
-        profile.proportion_scales
-    )
-    missing_shapes = set(_REQUIRED_SHAPE_CORRELATIONS).difference(
-        profile.shape_correlations
-    )
     missing_controls = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
         profile.supported_controls
     )
-    missing_control_ranges = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
-        profile.control_ranges
-    )
-    missing_control_options = set(_REQUIRED_SEMANTIC_CONTROLS).difference(
+    missing_options = set(profile.supported_controls).difference(
         profile.control_options
     )
+    missing_ranges = set(profile.supported_controls).difference(profile.control_ranges)
     if (
-        missing_proportions
-        or missing_shapes
-        or missing_controls
-        or missing_control_ranges
-        or missing_control_options
+        missing_controls
+        or missing_options
+        or missing_ranges
         or "ear_droop" not in profile.distributions
     ):
         raise ValueError(
-            f"{species_id} appearance 缺少必要控制: "
-            f"proportion={sorted(missing_proportions)} "
-            f"shape={sorted(missing_shapes)} "
-            f"controls={sorted(missing_controls)} "
-            f"control_ranges={sorted(missing_control_ranges)} "
-            f"control_options={sorted(missing_control_options)} "
+            f"{species_id} appearance 缺少必要控制或声明能力数据: "
+            f"supported_controls={sorted(missing_controls)} "
+            f"control_options={sorted(missing_options)} "
+            f"control_ranges={sorted(missing_ranges)} "
             f"ear_droop={'ear_droop' not in profile.distributions}"
         )
     return profile
@@ -602,10 +599,13 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         ):
             raise ValueError(f"genesis.stage_ranges.{stage} 必须是两个整数")
         minimum, maximum = int(raw_range[0]), int(raw_range[1])
-        if minimum < 1 or maximum < minimum or maximum > _MAX_AGE_YEARS:
+        if minimum < 0 or maximum < minimum or maximum > _MAX_AGE_YEARS:
             raise ValueError(f"genesis.stage_ranges.{stage} 超出地球年龄范围")
         stage_ranges[stage] = (minimum, maximum)
     prior = document.get("personality_prior")
+    if prior is None:
+        # Species configuration must not assign individual personality.
+        prior = (0.0,) * _GENESIS_TRAITS
     if (
         not isinstance(prior, (list, tuple))
         or len(prior) != _GENESIS_TRAITS
@@ -614,7 +614,7 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
             for value in prior
         )
     ):
-        raise ValueError("genesis.personality_prior 必须是 5 个数字")
+        raise ValueError("generation.personality_prior 若提供必须是 5 个数字")
     raw_preferences = document.get("appearance_preferences", {})
     preferences: dict[str, tuple[str, ...]] = {}
     if not isinstance(raw_preferences, Mapping):
@@ -624,7 +624,7 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
             raise ValueError("appearance_preferences 的键必须是字符串")
         preferences[key] = _tuple_value(value, f"appearance_preferences.{key}")
     return SpeciesGenesisProfile(
-        config_version=_string(document, "config_version"),
+        config_version=_string(document, "generation_version"),
         stage_ranges=stage_ranges,
         personality_prior=tuple(float(value) for value in prior),
         appearance_preferences=preferences,
@@ -638,6 +638,22 @@ def _read_member(path: Path) -> dict[str, Any]:
     if document.get("schema_version") != 1:
         raise ValueError(f"{path.name} schema_version 必须是 1")
     return document
+
+
+def _member_path(
+    package_root: Path,
+    files: Mapping[str, Any],
+    key: str,
+) -> Path:
+    relative = files.get(key)
+    if not isinstance(relative, str) or not relative.strip():
+        raise ValueError(f"catalog.files.{key} 必须是非空路径")
+    candidate = (package_root / relative).resolve()
+    try:
+        candidate.relative_to(package_root.resolve())
+    except ValueError as error:
+        raise ValueError(f"物种成员路径越界: {relative}") from error
+    return candidate
 
 
 def _read_optional_member(path: Path) -> dict[str, Any] | None:
@@ -862,7 +878,7 @@ def _relative_png(mapping: Mapping[str, Any], key: str) -> str:
 def _catalog_digest(root: Path) -> str:
     digest = hashlib.sha256()
     if not root.is_dir():
-        raise ValueError("config/species 目录不存在")
+        raise ValueError("config/genesis/species 目录不存在")
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         digest.update(path.relative_to(root).as_posix().encode("utf-8"))
         digest.update(b"\0")

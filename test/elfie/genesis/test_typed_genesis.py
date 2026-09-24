@@ -40,9 +40,11 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
     assert selfhood["identity_core"]["elfie_id"] == "00000101"
 
     memory_path = workspace / "memory" / "knowledge.sqlite"
+    expected_episode_count = len(compilation.bundle.episode_seeds)
+    expected_person_count = len(compilation.bundle.relationship_seeds)
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as storage:
-        assert storage.count_episodes() == 5
-        assert storage.count_graph_nodes("person") == 13
+        assert storage.count_episodes() == expected_episode_count
+        assert storage.count_graph_nodes("person") == expected_person_count
         marker = storage.get_graph_node("genesis:receipt:00000101")
         assert marker is not None
         assert marker.properties["output_ids"] == list(
@@ -70,7 +72,7 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
 
     # A close/reopen cycle must preserve the same source Episodes and marker.
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as reopened:
-        assert reopened.count_episodes() == 5
+        assert reopened.count_episodes() == expected_episode_count
         assert reopened.get_graph_node("genesis:receipt:00000101") is not None
 
     adapter.finalize("00000101")

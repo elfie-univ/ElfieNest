@@ -170,6 +170,21 @@ def test_species_stage_ranges_can_differ() -> None:
     assert all(14 <= candidate.age_years <= 20 for candidate in dog.candidates)
 
 
+@pytest.mark.parametrize("species_id", ("fox", "dog"))
+def test_youth_candidates_are_older_than_one_local_year(species_id: str) -> None:
+    batch = GenesisEngine().generate_batch(
+        master_seed=19,
+        batch_number=1,
+        species_id=species_id,
+        life_stage="youth",
+        gender="female",
+        appearance=intent(),
+        answers=("any",) * 5,
+    )
+
+    assert all(candidate.age_years >= 2 for candidate in batch.candidates)
+
+
 def test_exact_age_continuously_changes_youth_height_and_allometry() -> None:
     common = {
         "seed": 73,

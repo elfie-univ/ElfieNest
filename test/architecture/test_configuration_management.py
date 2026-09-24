@@ -14,7 +14,7 @@ from infrastructure.persistence.configuration.documents import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BUNDLED_ROOT = PROJECT_ROOT / "config"
-DYNAMIC_PACKAGE_ROOT = BUNDLED_ROOT / "species"
+DYNAMIC_PACKAGE_ROOT = BUNDLED_ROOT / "genesis" / "species"
 SKILL_RESOURCE_ROOT = BUNDLED_ROOT / "brain" / "skills"
 
 

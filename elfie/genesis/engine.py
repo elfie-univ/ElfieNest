@@ -275,6 +275,11 @@ class GenesisEngine:
             raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
         ranges = definition.genesis.stage_ranges
         minimum, maximum = ranges[stage]
+        minimum = max(minimum, 2)
+        if minimum > maximum:
+            raise GenesisError(
+                f"物种 {species_id!r} 的 {stage} 阶段没有符合赴地年龄规则的候选"
+            )
         return rng.randint(minimum, maximum)
 
     def _validate_request(
