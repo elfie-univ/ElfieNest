@@ -25,9 +25,12 @@ It answers three questions:
 
 The workspace has one shared interaction model:
 
-- a large left canvas shows the whole memory structure;
-- a smaller right panel contains Detail, Add Episode, and Search/Recall tabs;
-- selection, filters, and highlights are shared in both directions;
+- the existing top toolbar remains unchanged;
+- the graph remains the central, full workspace canvas;
+- a closable left overlay contains Search/Recall results or Add Episode and its result;
+- a separate closable right overlay contains selected-object Detail only;
+- selecting a left-side result highlights the graph and opens its Detail on the right while keeping the result list open;
+- the left and right overlays can be closed independently, and filters and highlights stay shared;
 - the workspace can open standalone or from Elfie Lab Turn Debug;
 - Elfie Lab remains authoritative for the actual Turn, Prompt Context, and final context order.
 
@@ -104,9 +107,9 @@ the primary legend.
 
 ## 3. Layout and interaction
 
-The default layout is a left canvas taking roughly two-thirds to three-quarters of the window and a right panel taking the remainder.
+The graph uses the full workspace behind two optional overlays. The existing top toolbar stays in place and keeps its current controls.
 
-The left side contains:
+The central canvas contains:
 
 1. an Episode source rail;
 2. a Node/Assertion knowledge graph;
@@ -120,11 +123,16 @@ change those two scales and belong in detail, opacity/badges, or layout metadata
 cards use fixed UI dimensions, provenance traces use a fixed thin line, and selection changes color
 or halo without drawing a bounding rectangle.
 
-The right side contains:
+The right overlay contains only:
 
-- Detail: complete facts for a selected Episode, Node, Assertion, Evidence, or operation step;
-- Add Episode: a complete Episode, validation, dry-run/isolated execution, real observed steps, affected objects, replay and failure details;
+- Detail: complete facts for a selected Episode, Node, Assertion, or Evidence.
+
+The left overlay is opened from the existing top toolbar and switches between two modes:
+
+- Add Episode: a complete Episode, validation, dry-run/isolated execution, observed steps, affected objects, and failure details;
 - Search/Recall: query normalization, candidates, scores, matched terms, kept/excluded decisions, budget truncation, final RecallBundle, and graph highlights.
+
+Both overlays are optional and independently closable. Closing the left overlay preserves the selected-object Detail; closing Detail preserves the search results or Add Episode state. Clearing the search query clears its result highlights and closes the Search/Recall overlay without changing the toolbar layout.
 
 The actual order of material entering the model context belongs to Elfie Lab Context/Turn Debug. The Memory page explains Memory selection, not Prompt order.
 
@@ -137,7 +145,7 @@ The page consumes four read-only projections:
 - OperationTrace: run id, ordered steps, versions, observations, affected objects, errors, and replay state;
 - RecallExplanation: query id, candidate-level scoring, ranking, kept/excluded reason, limits, character budget, final RecallBundle, and the Elfie Lab link.
 
-The UI keeps one shared selection, filter, highlight, operation, and recall state. A left-side selection updates Detail; a right-side operation highlights affected objects; a Recall decision highlights returned, related, and candidate-but-excluded objects. Missing observations are shown as unknown, never inferred.
+The UI keeps one shared selection, filter, highlight, operation, and recall state. A left-overlay result updates the graph selection and right-side Detail without replacing the result list; an Add Episode operation highlights affected objects in the graph; a Recall decision highlights returned, related, and candidate-but-excluded objects. Missing observations are shown as unknown, never inferred.
 
 ## 5. Safety and Elfie Lab integration
 

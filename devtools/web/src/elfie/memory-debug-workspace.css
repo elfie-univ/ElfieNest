@@ -738,6 +738,17 @@ body:has(.memory-debug-page) { width: 100%; height: 100%; overflow: hidden; }
 .memory-debug-empty-state { display: grid; gap: .35rem; min-height: 12rem; place-content: center; text-align: center; }
 .memory-debug-empty-state strong { color: #eef7fd; }
 .memory-debug-empty-state span { color: #8ea9bb; font-size: .72rem; line-height: 1.5; }
+
+/* Keep operation and detail drawers over the graph instead of reserving columns. */
+.memory-debug-drawer-left { right: auto; left: 1.15rem; box-shadow: 12px 18px 56px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.05); }
+.memory-debug-drawer-right { right: 1.15rem; left: auto; }
+.memory-debug-two-drawers .memory-debug-drawer { width: min(32rem, calc((100vw - 3.45rem) / 2)); }
+@media (max-width: 760px) {
+  .memory-debug-drawer-left { right: auto; left: .6rem; width: min(32rem, calc(100vw - 1.2rem)); }
+  .memory-debug-drawer-right { right: .6rem; left: auto; width: min(32rem, calc(100vw - 1.2rem)); }
+  .memory-debug-two-drawers .memory-debug-drawer-left { top: 5.2rem; right: .6rem; bottom: calc(50% + .2rem); left: .6rem; width: auto; }
+  .memory-debug-two-drawers .memory-debug-drawer-right { top: calc(50% + .2rem); right: .6rem; bottom: .6rem; left: .6rem; width: auto; }
+}
 .memory-debug-operation-banner { display: grid; gap: .3rem; margin: .75rem 0; padding: .62rem .7rem; border: 1px solid rgba(184,146,255,.25); border-radius: .48rem; background: rgba(59,43,110,.32); }
 .memory-debug-operation-banner strong { color: #e6dcff; font-size: .72rem; }
 .memory-debug-operation-banner span { color: #bcaee8; font: .62rem ui-monospace, monospace; line-height: 1.4; }

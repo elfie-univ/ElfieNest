@@ -15,7 +15,7 @@ import {
   type InspectorNode,
 } from "./inspectorProjection";
 
-type Tab = "detail" | "add" | "recall";
+type Tab = "add" | "recall";
 type DetailSelection = "node" | "edge" | "episode" | "evidence" | null;
 type AuditItem = { id: string; node_type?: string; label: string; description?: string | null; confidence?: number | null; importance?: number | null; freshness?: number | null; half_life_days?: number | null; status?: string | null; properties?: Record<string, unknown>; relevance?: number };
 type AuditRecord = Record<string, unknown>;
@@ -600,8 +600,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
   const [detailSelection, setDetailSelection] = useState<DetailSelection>(null);
   const [filterContextNodeIds, setFilterContextNodeIds] = useState<ReadonlySet<string>>(new Set());
-  const [tab, setTab] = useState<Tab>(initialRecall ? "recall" : "detail");
-  const [drawerOpen, setDrawerOpen] = useState(Boolean(initialRecall));
+  const [tab, setTab] = useState<Tab>("recall");
+  const [leftPanelOpen, setLeftPanelOpen] = useState(Boolean(initialRecall));
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedPredicates, setSelectedPredicates] = useState<string[]>([]);
@@ -1040,8 +1041,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setShowFullGraph(false);
     setPreview(null);
     setFilterOpen(false);
-    setDrawerOpen(false);
-    setTab("detail");
+    setLeftPanelOpen(false);
+    setDetailPanelOpen(false);
     setLayoutLocked(true);
     fitGraph(0);
   }
@@ -1063,52 +1064,35 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setRecall(null);
     setTraceRecall(null);
     setShowFullGraph(false);
-    setSelectedId("");
-    setSelectedEdgeId("");
-    setSelectedEpisodeId("");
-    setSelectedEvidenceId("");
-    setDetailSelection(null);
-    setPreview(null);
-    setDrawerOpen(false);
-    setTab("detail");
+    if (tab === "recall") setLeftPanelOpen(false);
     setMessage("已清除搜索结果。");
   }
 
   function openFilter(): void {
     setFilterOpen((open) => {
       const next = !open;
-      if (next) setDrawerOpen(false);
+      if (next) setLeftPanelOpen(false);
       return next;
     });
   }
 
   function openAddPanel(): void {
     setFilterOpen(false);
-    setSelectedId("");
-    setSelectedEdgeId("");
-    setSelectedEpisodeId("");
-    setSelectedEvidenceId("");
-    setDetailSelection(null);
     setRecall(null);
     setTraceRecall(null);
     setPreview(null);
     setTab("add");
-    setDrawerOpen(true);
+    setLeftPanelOpen(true);
   }
 
   async function runRecall(): Promise<void> {
     setFilterOpen(false);
     setTab("recall");
-    setDrawerOpen(true);
+    setLeftPanelOpen(true);
     if (!query.trim()) {
       clearSearch();
       return;
     }
-    setSelectedId("");
-    setSelectedEdgeId("");
-    setSelectedEpisodeId("");
-    setSelectedEvidenceId("");
-    setDetailSelection(null);
     setPreview(null);
     setRecall(null);
     setTraceRecall(null);
@@ -1172,16 +1156,11 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   async function runEpisodePreview(): Promise<void> {
     setFilterOpen(false);
     setTab("add");
-    setDrawerOpen(true);
+    setLeftPanelOpen(true);
     if (!episodeText.trim()) {
       setMessage("请先输入完整 Episode 内容。");
       return;
     }
-    setSelectedId("");
-    setSelectedEdgeId("");
-    setSelectedEpisodeId("");
-    setSelectedEvidenceId("");
-    setDetailSelection(null);
     setRecall(null);
     setTraceRecall(null);
     setPreview(null);
@@ -1199,12 +1178,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   }
 
   function showItem(id: string): void {
-    // Details are a child view of the current result set. The drawer header
-    // provides an explicit route back to that result set.
+    // Keep search results in the left panel while the selected item opens on the right.
     setSelectedId(id);
+    setSelectedEdgeId("");
+    setSelectedEpisodeId("");
+    setSelectedEvidenceId("");
     setDetailSelection("node");
-    setTab("detail");
-    setDrawerOpen(true);
+    setDetailPanelOpen(true);
   }
   function showEpisode(id: string): void {
     const nextId = toggleEpisodeSelection(selectedEpisodeId, id);
@@ -1213,32 +1193,23 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setSelectedEdgeId("");
     setSelectedEvidenceId("");
     setDetailSelection(nextId ? "episode" : null);
-    setTab("detail");
-    setDrawerOpen(Boolean(nextId));
+    setDetailPanelOpen(Boolean(nextId));
   }
   function showEvidence(id: string): void {
     setSelectedId("");
+    setSelectedEdgeId("");
+    setSelectedEpisodeId("");
     setSelectedEvidenceId(id);
     setDetailSelection("evidence");
-    setTab("detail");
-    setDrawerOpen(true);
+    setDetailPanelOpen(true);
   }
   function showAssertion(id: string): void {
     setSelectedId("");
+    setSelectedEpisodeId("");
     setSelectedEvidenceId("");
     setSelectedEdgeId(id);
     setDetailSelection("edge");
-    setTab("detail");
-    setDrawerOpen(true);
-  }
-  function backToRecall(): void {
-    setSelectedId("");
-    setSelectedEdgeId("");
-    setSelectedEpisodeId("");
-    setSelectedEvidenceId("");
-    setDetailSelection(null);
-    setTab("recall");
-    setDrawerOpen(true);
+    setDetailPanelOpen(true);
   }
   const selectedEdge = graph.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   const selectedEdgeTargetId = selectedEdge ? endpointId(selectedEdge.target) : "";
@@ -1365,19 +1336,19 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     else if (node.kind === "literal") {
       setSelectedEdgeId(nodeId.replace(/^literal:/, ""));
       setSelectedId("");
+      setSelectedEpisodeId("");
       setDetailSelection("edge");
-      setTab("detail");
-      setDrawerOpen(true);
+      setDetailPanelOpen(true);
     } else setMessage(node.label);
   }
 
   function handleGraphLinkClick(link: Graph3DLink): void {
     setSelectedEdgeId(String(link.id ?? ""));
     setSelectedId("");
+    setSelectedEpisodeId("");
     setSelectedEvidenceId("");
     setDetailSelection("edge");
-    setTab("detail");
-    setDrawerOpen(true);
+    setDetailPanelOpen(true);
   }
 
   const fallbackHighlightedNodeIds = new Set([
@@ -1407,7 +1378,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     onLinkClick={handleGraphLinkClick}
   />;
 
-  return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}`}>
+  return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}${leftPanelOpen && detailPanelOpen ? " memory-debug-two-drawers" : ""}`}>
     <div className="memory-debug-graph-canvas" ref={graphCanvasRef} aria-label="真实记忆来源链">
       <header className="memory-debug-topbar">
         <div className="memory-debug-search-group">
@@ -1566,11 +1537,11 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
         </>}
       <footer className="memory-debug-footer">当前视图：{graph.nodes.filter((node) => !["episode", "evidence"].includes(node.kind)).length} Node · {graph.edges.filter((edge) => edge.kind === "assertion").length} Assertion · {visibleEpisodes.length} Episode · {loadedEvidenceCount} Evidence　|　全库：{totalNodeCount} Node · {report?.counts.assertions ?? 0} Assertion · {report?.counts.episodes ?? 0} Episode · {totalEvidenceCount} Evidence</footer>
 
-      {drawerOpen && <aside className="memory-debug-drawer" aria-label="记忆详情与操作面板">
-        <div className="memory-debug-drawer-head"><div><span>INSPECTOR · SHARED VIEW</span><strong>{tab === "detail" ? "详情" : tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions">{tab === "detail" && recallView && <button type="button" className="memory-debug-drawer-back" onClick={backToRecall}>← 搜索结果</button>}<button type="button" aria-label="关闭详情面板" onClick={() => setDrawerOpen(false)}>×</button></div></div>
-        <div className="memory-debug-inspector-context"><span>当前上下文</span><strong>{tab === "detail" ? (detailSelection === "episode" && selectedEpisode ? "Episode 来源" : detailSelection === "edge" && selectedEdge ? "Assertion 关系" : detailSelection === "evidence" && selectedEvidence ? "Evidence 证据" : detailSelection === "node" && selected ? `${nodeLabel(selected)} Node` : "未选择") : tab === "add" ? "隔离预演 · 不写生产库" : "按相关性排序的搜索结果"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
+      {detailPanelOpen && <aside className="memory-debug-drawer memory-debug-drawer-right" aria-label="详情面板">
+        <div className="memory-debug-drawer-head"><div><span>INSPECTOR · DETAIL</span><strong>详情</strong></div><div className="memory-debug-drawer-head-actions"><button type="button" aria-label="关闭详情面板" onClick={() => setDetailPanelOpen(false)}>×</button></div></div>
+        <div className="memory-debug-inspector-context"><span>当前对象</span><strong>{detailSelection === "episode" && selectedEpisode ? "Episode 来源" : detailSelection === "edge" && selectedEdge ? "Assertion 关系" : detailSelection === "evidence" && selectedEvidence ? "Evidence 证据" : detailSelection === "node" && selected ? `${nodeLabel(selected)} Node` : "未选择"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
         <div className="memory-debug-drawer-scroll">
-        {tab === "detail" && <div className="memory-debug-panel">
+        <div className="memory-debug-panel">
           {detailSelection === "episode" && selectedEpisode && selectedEpisodeProjection ? <>
             <InspectorHeaderSummary header={selectedEpisodeProjection.header} className="memory-debug-episode-type" />
             <InspectorFieldGrid fields={projectedFields(selectedEpisodeProjection.fields)} />
@@ -1592,20 +1563,27 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
             <blockquote className="memory-debug-edge-evidence memory-debug-evidence-hero">{selectedEvidenceProjection.excerpt}</blockquote>
             <InspectorFieldGrid fields={projectedFields(selectedEvidenceProjection.fields)} />
             <h4>关联对象</h4>
-            <InspectorConnections connections={selectedEvidenceProjection.connections} onAssertion={(id) => { setSelectedEvidenceId(""); setSelectedId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }} />
+            <InspectorConnections connections={selectedEvidenceProjection.connections} onAssertion={(id) => { setSelectedEvidenceId(""); setSelectedId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setDetailPanelOpen(true); }} />
             <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedEvidenceProjection.technical)} /></details>
           </> : detailSelection === "node" && selected && selectedNodeProjection ? <>
             <InspectorHeaderSummary header={selectedNodeProjection.header} />
             <InspectorFieldGrid fields={projectedFields(selectedNodeProjection.fields)} />
             <h4>相关关系 · {selectedNodeProjection.connections.length}</h4>
-            <InspectorConnections connections={selectedNodeProjection.connections} onAssertion={(id) => { setSelectedId(""); setSelectedEvidenceId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setTab("detail"); setDrawerOpen(true); }} />
+            <InspectorConnections connections={selectedNodeProjection.connections} onAssertion={(id) => { setSelectedId(""); setSelectedEvidenceId(""); setSelectedEdgeId(id); setDetailSelection("edge"); setDetailPanelOpen(true); }} />
             <h4>来源证据 · {selectedNodeEvidence.length}</h4>
             {selectedNodeEvidence.length ? selectedNodeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item.evidence_id)} onClick={() => showEvidence(String(item.evidence_id))}><strong>{String(item.evidence_id)}</strong><span>{String(item.excerpt ?? "没有摘录")}</span></button>) : <p>当前节点没有从可见关系追溯到 Evidence。</p>}
             <h4>被哪些 Episode 提到 · {selectedNodeProjection.sources.length}</h4>
             <InspectorSources sources={selectedNodeProjection.sources} onEpisode={showEpisode} />
             <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedNodeProjection.technical)} /></details>
           </> : <div className="memory-debug-empty-state"><strong>未选择对象</strong><span>点击左侧 Episode、Node 或 Assertion 查看事实、来源和关联。</span></div>}
-        </div>}
+        </div>
+        </div>
+      </aside>}
+
+      {leftPanelOpen && <aside className="memory-debug-drawer memory-debug-drawer-left" aria-label={tab === "add" ? "添加 Episode 面板" : "搜索结果面板"}>
+        <div className="memory-debug-drawer-head"><div><span>MEMORY · WORKSPACE</span><strong>{tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions"><button type="button" aria-label={tab === "add" ? "关闭添加 Episode 面板" : "关闭搜索结果面板"} onClick={() => setLeftPanelOpen(false)}>×</button></div></div>
+        <div className="memory-debug-inspector-context"><span>{tab === "add" ? "当前操作" : "当前搜索"}</span><strong>{tab === "add" ? "隔离预演 · 不写生产库" : "按相关性排序的搜索结果"}</strong><small>{coverageLabel} · {coverageDetail}</small></div>
+        <div className="memory-debug-drawer-scroll">
         {tab === "add" && <div className="memory-debug-panel">
           <h2>添加完整 Episode</h2>
           <p>输入有上下文、有头尾的完整故事，在隔离副本中观察 Episode → Evidence → Node / Assertion 的结果。</p>
