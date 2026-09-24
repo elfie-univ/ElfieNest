@@ -279,6 +279,51 @@ export function formatEpisodeTime(record: AuditRecord): string {
     hour12: false,
   }).format(date).replace(/\//g, "-");
 }
+
+export function recallGraphProjectionFilters(
+  hasRecall: boolean,
+  showOnlyRecallResults: boolean,
+  nodeIds: ReadonlySet<string>,
+  assertionIds: ReadonlySet<string>,
+): Pick<GraphFilters, "includeNodeIds" | "includeAssertionIds"> {
+  return hasRecall && showOnlyRecallResults
+    ? { includeNodeIds: nodeIds, includeAssertionIds: assertionIds }
+    : {};
+}
+
+export function splitRecallFocusNodes(nodes: readonly AuditItem[]): {
+  ranked: AuditItem[];
+  zeroScore: AuditItem[];
+  unscored: AuditItem[];
+} {
+  const ranked = nodes
+    .filter((node) => typeof node.relevance === "number" && Number.isFinite(node.relevance) && node.relevance > 0)
+    .sort((left, right) => (right.relevance ?? 0) - (left.relevance ?? 0));
+  const zeroScore = nodes.filter((node) => typeof node.relevance === "number" && Number.isFinite(node.relevance) && node.relevance <= 0);
+  const unscored = nodes.filter((node) => typeof node.relevance !== "number" || !Number.isFinite(node.relevance));
+  return { ranked, zeroScore, unscored };
+}
+
+export function recallGraphNodeHitIds(returnedNodeIds: ReadonlySet<string>, focusNodes: ReturnType<typeof splitRecallFocusNodes>): Set<string> {
+  const zeroScoreIds = new Set(focusNodes.zeroScore.map((node) => node.id));
+  return new Set([...returnedNodeIds].filter((id) => !zeroScoreIds.has(id)));
+}
+
+export function filterMemoryDebugEpisodes(
+  episodes: readonly AuditRecord[],
+  lifecycleFilter: string,
+  recalledEpisodeIds?: ReadonlySet<string>,
+): AuditRecord[] {
+  return episodes
+    .filter((episode) => {
+      if (lifecycleFilter !== "all" && String(episode.lifecycle ?? "unknown") !== lifecycleFilter) return false;
+      if (recalledEpisodeIds && !recalledEpisodeIds.has(String(episode.episode_id ?? ""))) return false;
+      return true;
+    })
+    .sort((left, right) => String(left.occurred_from ?? left.occurred_at ?? left.episode_id)
+      .localeCompare(String(right.occurred_from ?? right.occurred_at ?? right.episode_id)));
+}
+
 function mergeRecords(records: AuditRecord[], incoming: AuditRecord[], key: string): AuditRecord[] {
   const merged = new Map(records.map((record) => [String(record[key] ?? ""), record]));
   incoming.forEach((record) => merged.set(String(record[key] ?? ""), record));
@@ -617,7 +662,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const [graphFitReady, setGraphFitReady] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [consolidationRunning, setConsolidationRunning] = useState(false);
-  const [showFullGraph, setShowFullGraph] = useState(false);
+  const [showOnlyRecallResults, setShowOnlyRecallResults] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(true);
   const [tracePositions, setTracePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [graphViewport, setGraphViewport] = useState({ width: 0, height: 0 });
@@ -785,31 +830,18 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       [String(item.subject_id), item.object_node_id == null ? "" : String(item.object_node_id)].filter(Boolean).forEach((id) => selectedEpisodeNodeIds.add(id));
     });
   const recallView = recall ?? (traceRecall ? buildTraceRecallReport(traceRecall, report) : null);
-  const recalledNodeIds = new Set(recallView?.selection.returned_ids.nodes ?? []);
+  const returnedRecallNodeIds = new Set(recallView?.selection.returned_ids.nodes ?? []);
+  const recalledFocusNodeGroups = splitRecallFocusNodes(recallView?.bundle.focus_nodes ?? []);
+  const recalledNodeIds = recallGraphNodeHitIds(returnedRecallNodeIds, recalledFocusNodeGroups);
   const recalledAssertionIds = new Set(recallView?.selection.returned_ids.assertions ?? []);
   const recalledEpisodeIds = new Set(
     (recallView?.bundle.episodes ?? []).map((episode) => String(episode.episode_id ?? "")).filter(Boolean),
-  );
-  const excludedRecallNodeIds = new Set(
-    (recallView?.selection.candidates ?? [])
-      .filter((candidate) => !candidate.kept && ["node", "person", "group", "knowledge", "place", "event", "elfie", "self_model"].includes(candidate.candidate_kind))
-      .map((candidate) => candidate.candidate_id),
   );
   const recalledAssertionNodeIds = new Set(
     visibleAssertions
       .filter((item) => recalledAssertionIds.has(String(item.assertion_id)))
       .flatMap((item) => [String(item.subject_id), item.object_node_id == null ? "" : String(item.object_node_id)])
       .filter(Boolean),
-  );
-  const recalledRelatedNodeIds = new Set(
-    visibleAssertions
-      .filter((item) => {
-        const subjectId = String(item.subject_id ?? "");
-        const objectId = String(item.object_node_id ?? "");
-        return recalledNodeIds.has(subjectId) || recalledNodeIds.has(objectId) || recalledAssertionIds.has(String(item.assertion_id));
-      })
-      .flatMap((item) => [String(item.subject_id ?? ""), String(item.object_node_id ?? "")])
-      .filter((id) => id && !recalledNodeIds.has(id)),
   );
   const previewNodeIds = useMemo(() => new Set(preview?.changes.added_ids.nodes ?? []), [preview]);
   const previewAssertionIds = useMemo(() => new Set(preview?.changes.added_ids.assertions ?? []), [preview]);
@@ -820,15 +852,18 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       .filter(Boolean),
   ), [preview, previewAssertionIds]);
   const graph = useMemo(() => {
+    const recallProjection = recallGraphProjectionFilters(
+      Boolean(recallView),
+      showOnlyRecallResults,
+      new Set([...recalledNodeIds, ...recalledAssertionNodeIds]),
+      recalledAssertionIds,
+    );
     const projection = projectMemoryDebugGraph(report, {
       lifecycle: lifecycleFilter,
       minConfidence: localConfidence,
       nodeTypes: selectedTypes.length ? new Set(selectedTypes) : undefined,
       predicateTypes: selectedPredicates.length ? new Set(selectedPredicates) : undefined,
-      includeNodeIds: recallView && !showFullGraph
-        ? new Set([...recalledNodeIds, ...recalledAssertionNodeIds])
-        : undefined,
-      includeAssertionIds: recallView && !showFullGraph ? recalledAssertionIds : undefined,
+      ...recallProjection,
     });
     const degree = new Map<string, number>();
     projection.edges.forEach((edge) => {
@@ -843,7 +878,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       return { ...item, degree: nodeDegree, val: graphNodeValue(importance) };
     });
     return { nodes, edges: projection.edges };
-  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypes, showFullGraph]);
+  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypes, showOnlyRecallResults]);
   const graphNodeIds = useMemo(() => new Set(graph.nodes.map((node) => node.id)), [graph.nodes]);
   const previewNodeKey = (id: string): string => previewNodeIds.has(id) || !graphNodeIds.has(id) ? `preview:${id}` : id;
   const previewGraphNodes = useMemo(() => (preview?.changes.affected.nodes ?? []).map((item) => {
@@ -885,11 +920,11 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       return cloned;
     }),
   }), [graph, previewGraphEdges, previewGraphNodes]);
-  const visibleEpisodes = useMemo(() => (report?.data.episodes ?? []).filter((episode) => {
-    if (lifecycleFilter !== "all" && String(episode.lifecycle ?? "unknown") !== lifecycleFilter) return false;
-    if (recallView && !showFullGraph && !recalledEpisodeIds.has(String(episode.episode_id ?? ""))) return false;
-    return true;
-  }).sort((left, right) => String(left.occurred_from ?? left.occurred_at ?? left.episode_id).localeCompare(String(right.occurred_from ?? right.occurred_at ?? right.episode_id))), [lifecycleFilter, recallView, report, showFullGraph]);
+  const visibleEpisodes = useMemo(() => filterMemoryDebugEpisodes(
+    report?.data.episodes ?? [],
+    lifecycleFilter,
+    recallView ? recalledEpisodeIds : undefined,
+  ), [lifecycleFilter, recallView, report]);
   const hasLocalFilters = Boolean(
     selectedTypes.length || selectedPredicates.length || lifecycleFilter !== "all" || confidenceFilter !== "all",
   );
@@ -1038,7 +1073,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setDetailSelection(null);
     setRecall(null);
     setTraceRecall(null);
-    setShowFullGraph(false);
+    setShowOnlyRecallResults(false);
     setPreview(null);
     setFilterOpen(false);
     setLeftPanelOpen(false);
@@ -1059,12 +1094,12 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setConfidenceFilter("all");
   }
 
-  function clearSearch(): void {
+  function clearSearch(closeRecallPanel = tab === "recall"): void {
     setQuery("");
     setRecall(null);
     setTraceRecall(null);
-    setShowFullGraph(false);
-    if (tab === "recall") setLeftPanelOpen(false);
+    setShowOnlyRecallResults(false);
+    if (closeRecallPanel) setLeftPanelOpen(false);
     setMessage("已清除搜索结果。");
   }
 
@@ -1090,7 +1125,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setTab("recall");
     setLeftPanelOpen(true);
     if (!query.trim()) {
-      clearSearch();
+      clearSearch(true);
       return;
     }
     setSelectedId("");
@@ -1102,7 +1137,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setPreview(null);
     setRecall(null);
     setTraceRecall(null);
-    setShowFullGraph(false);
+    setShowOnlyRecallResults(false);
     setMessage("正在执行真实 recall…");
     const response = await fetch("/api/memory-audit/recall", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, limit: 8, ...(elfieId ? { elfie_id: elfieId } : {}) }) });
     if (!response.ok) { setMessage(await response.text()); return; }
@@ -1256,8 +1291,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     ...selectedEdgeNodeIds,
     ...recalledNodeIds,
     ...recalledAssertionNodeIds,
-    ...recalledRelatedNodeIds,
-    ...excludedRecallNodeIds,
     ...previewNodeIds,
     ...previewAssertionNodeIds,
   ]);
@@ -1284,8 +1317,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           ? "快照已过期，请刷新"
           : readPhase === "error"
             ? "读取失败，可重试"
-            : recallView && !showFullGraph
-              ? "搜索结果视图"
+            : recallView && showOnlyRecallResults
+              ? "搜索命中子图"
+            : recallView
+              ? "全图搜索高亮"
             : hasLocalFilters
               ? "已按筛选读取"
             : report?.coverage.status === "complete"
@@ -1301,8 +1336,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const graphNodeCount = report?.counts.graph_nodes ?? loadedNodeCount;
   const focusNodeCount = report?.counts.focus_nodes ?? matchedNodeCount;
   const contextNodeCount = hasLocalFilters ? Math.max(filterContextNodeIds.size, graphNodeCount - focusNodeCount) : 0;
-  const coverageDetail = recallView && !showFullGraph
+  const coverageDetail = recallView && showOnlyRecallResults
     ? `搜索子图 ${graph.nodes.length} · 命中 Episode ${recalledEpisodeIds.size} · 全库 ${totalNodeCount}`
+    : recallView
+    ? `相关节点 ${recalledFocusNodeGroups.ranked.length} · 零分 ${recalledFocusNodeGroups.zeroScore.length} · 未评分 ${recalledFocusNodeGroups.unscored.length} · 命中关系 ${recalledAssertionIds.size} · 全库 ${totalNodeCount}`
     : hasLocalFilters
     ? `焦点 ${focusNodeCount} · 上下文 ${contextNodeCount} · 全库 ${totalNodeCount}`
     : `当前 ${loadedNodeCount} · 全库 ${totalNodeCount}`;
@@ -1364,8 +1401,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     ...previewAssertionNodeIds,
     ...selectedEdgeNodeIds,
     ...recalledAssertionNodeIds,
-    ...recalledRelatedNodeIds,
-    ...excludedRecallNodeIds,
     ...highlightedNodeIds,
   ]);
   const fallbackHighlightedEdgeIds = new Set([
@@ -1384,14 +1419,14 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     onLinkClick={handleGraphLinkClick}
   />;
 
-  return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}${leftPanelOpen && detailPanelOpen ? " memory-debug-two-drawers" : ""}`}>
+  return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}${leftPanelOpen ? " memory-debug-left-panel-open" : ""}${detailPanelOpen ? " memory-debug-right-panel-open" : ""}${leftPanelOpen && detailPanelOpen ? " memory-debug-two-drawers" : ""}`}>
     <div className="memory-debug-graph-canvas" ref={graphCanvasRef} aria-label="真实记忆来源链">
       <header className="memory-debug-topbar">
         <div className="memory-debug-search-group">
           <div className="memory-debug-top-search">
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索记忆" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runRecall(); }} placeholder="搜索 Node、Assertion、Episode…" />
-            {query ? <button type="button" className="memory-debug-search-clear" aria-label="清除搜索" title="清除搜索" onClick={clearSearch}>×</button> : null}
+            {query ? <button type="button" className="memory-debug-search-clear" aria-label="清除搜索" title="清除搜索" onClick={() => clearSearch()}>×</button> : null}
             <button type="button" onClick={() => void runRecall()}>搜索</button>
           </div>
           <button type="button" className={`memory-debug-filter-trigger${filterOpen ? " is-active" : ""}`} aria-expanded={filterOpen} onClick={openFilter}>过滤{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
@@ -1399,7 +1434,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
         <div className="memory-debug-top-actions">
           <button type="button" className="is-primary" onClick={openAddPanel}>＋ 添加 Episode</button>
           <button type="button" className="memory-debug-consolidation-trigger" onClick={() => void runManualConsolidation()} disabled={!elfieId || consolidationRunning} title="手动触发一次夜间 Consolidation；不会伪造用户 Episode" aria-label="手动触发 Consolidation">{consolidationRunning ? "整理中…" : "手动 Consolidation"}</button>
-          {recallView && <button type="button" className={showFullGraph ? "is-active" : ""} aria-pressed={showFullGraph} onClick={() => setShowFullGraph((visible) => !visible)} title={showFullGraph ? "切回本次搜索命中的子图" : "查看完整 Memory 图谱"}>{showFullGraph ? "仅看搜索结果" : "查看全库"}</button>}
+          {recallView && <button type="button" className={showOnlyRecallResults ? "is-active" : ""} aria-pressed={showOnlyRecallResults} onClick={() => setShowOnlyRecallResults((visible) => !visible)} title={showOnlyRecallResults ? "显示完整 Memory 图谱" : "只显示本次搜索结果"}>{showOnlyRecallResults ? "显示完整图谱" : "仅看搜索结果"}</button>}
           <button type="button" className={layoutLocked ? "is-active" : ""} aria-pressed={layoutLocked} title={layoutLocked ? "允许拖拽节点位置；相机仍需按住鼠标拖动旋转" : "锁定节点位置；相机仍可按住鼠标拖动旋转"} aria-label={layoutLocked ? "允许拖拽节点" : "锁定节点"} onClick={() => setLayoutLocked((locked) => !locked)}>{layoutLocked ? "允许拖拽节点" : "锁定节点"}</button>
           <button type="button" onClick={() => fitGraph()} title="重新居中并缩放当前可见的连通图" aria-label="适配当前图谱">适配当前图谱</button>
           <button type="button" onClick={resetGraph} title="清除选择、Recall 和预演状态，并重新适配图谱" aria-label="重置视图状态">重置视图</button>
@@ -1462,9 +1497,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
                 const isSelected = selectedId === nodeId;
                 const isReturned = recalledNodeIds.has(nodeId);
                 const isAffected = selectedEpisodeNodeIds.has(nodeId) || previewNodeIds.has(nodeId) || previewAssertionNodeIds.has(nodeId);
-                const isRelated = selectedEdgeNodeIds.has(nodeId) || recalledAssertionNodeIds.has(nodeId) || recalledRelatedNodeIds.has(nodeId);
-                const isExcluded = excludedRecallNodeIds.has(nodeId);
-                const isHighlighted = isSelected || isReturned || isAffected || isRelated || isExcluded || highlightedNodeIds.has(nodeId);
+                const isRelated = selectedEdgeNodeIds.has(nodeId) || recalledAssertionNodeIds.has(nodeId);
+                const isHighlighted = isSelected || isReturned || isAffected || isRelated || highlightedNodeIds.has(nodeId);
                 if (hasTransientHighlight && !isHighlighted) return "rgba(97, 123, 143, 0.22)";
                 if (node.preview) return "#ff9d57";
                 return graphNodeColor(node.kind);
@@ -1614,13 +1648,23 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           <button className="primary" disabled={!query.trim()} onClick={() => void runRecall()}>再次执行真实检索</button>
           {recallView && <>
             <div className="memory-debug-metric-grid" aria-label="Recall 返回摘要">
-              <div><span>节点</span><strong>{recallView.bundle.focus_nodes.length}</strong><small>搜索命中</small></div>
+              <div><span>节点</span><strong>{recallView.bundle.focus_nodes.length}</strong><small>Recall 返回</small></div>
               <div><span>Episode</span><strong>{recallView.bundle.episodes.length}</strong><small>命中的故事</small></div>
               <div><span>关系</span><strong>{recallView.bundle.assertions.length}</strong><small>命中的边</small></div>
               <div><span>证据</span><strong>{recallView.bundle.evidence.length}</strong><small>可追溯来源</small></div>
             </div>
-            <h4>最相关节点 · {recallView.bundle.focus_nodes.length}</h4>
-            {recallView.bundle.focus_nodes.length ? recallView.bundle.focus_nodes.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance == null ? "—" : node.relevance.toFixed(2)}</small></span></button>) : <p className="memory-debug-empty-result">没有找到可显示的节点。</p>}
+            <h4>相关节点 · {recalledFocusNodeGroups.ranked.length}</h4>
+            {recalledFocusNodeGroups.ranked.length ? recalledFocusNodeGroups.ranked.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance == null ? "未提供" : node.relevance.toFixed(2)}</small></span></button>) : <p className="memory-debug-empty-result">没有带正相关度的节点结果。</p>}
+          {recalledFocusNodeGroups.zeroScore.length > 0 && <>
+            <h4>零分节点 · {recalledFocusNodeGroups.zeroScore.length}</h4>
+            <p className="memory-debug-context-note">Recall 回执包含这些节点，但相关度为 0；它们不计作节点命中。若同时是命中关系的端点，图中仍会按关系结果标出。</p>
+            {recalledFocusNodeGroups.zeroScore.slice(0, 8).map((node, index) => <button className="memory-debug-result memory-debug-zero-score-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance?.toFixed(2)}</small></span></button>)}
+          </>}
+          {recalledFocusNodeGroups.unscored.length > 0 && <>
+            <h4>未评分节点 · {recalledFocusNodeGroups.unscored.length}</h4>
+            <p className="memory-debug-context-note">这些节点由 Recall 返回，但回执没有提供相关度；保留结果，不据此推断相关性强弱。</p>
+            {recalledFocusNodeGroups.unscored.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + recalledFocusNodeGroups.zeroScore.length + index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度未提供</small></span></button>)}
+          </>}
             <h4>命中的 Episode · {recallView.bundle.episodes.length}</h4>
             {recallView.bundle.episodes.length ? recallView.bundle.episodes.slice(0, 5).map((episode, index) => {
               const episodeId = recordText(episode, "episode_id", `episode-${index + 1}`);

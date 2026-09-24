@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, projectMemoryDebugGraph, relationDisplayLabel, relationSentence, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
 
 describe("记忆调试工作台", () => {
   it("要求相机只在按住拖动时旋转，并使用更稳定的 Orbit 控制", () => {
@@ -42,8 +42,51 @@ describe("记忆调试工作台", () => {
 
     expect(markup).toContain("一次 Recall 的解释链");
     expect(markup).toContain("聊天回合 Trace（不重复检索）");
+    expect(markup).toContain('aria-pressed="false" title="只显示本次搜索结果">仅看搜索结果</button>');
     expect(markup).toContain("recall-turn-1");
     expect(markup).toContain("关闭记忆图谱浮窗");
+  });
+
+  it("检索默认保留完整图谱，只有明确切换时才投影命中子图", () => {
+    const nodeIds = new Set(["hit-node"]);
+    const assertionIds = new Set(["hit-edge"]);
+
+    expect(recallGraphProjectionFilters(true, false, nodeIds, assertionIds)).toEqual({});
+    expect(recallGraphProjectionFilters(true, true, nodeIds, assertionIds)).toEqual({
+      includeNodeIds: nodeIds,
+      includeAssertionIds: assertionIds,
+    });
+    expect(recallGraphProjectionFilters(false, true, nodeIds, assertionIds)).toEqual({});
+  });
+
+  it("按回执相关度分开展示命中、零分和未评分节点", () => {
+    const groups = splitRecallFocusNodes([
+      { id: "context-zero", label: "零分关联项", relevance: 0 },
+      { id: "ranked-low", label: "较低命中", relevance: .2 },
+      { id: "context-unscored", label: "未评分关联项" },
+      { id: "ranked-high", label: "较高命中", relevance: .8 },
+    ]);
+
+    expect(groups.ranked.map((node) => node.id)).toEqual(["ranked-high", "ranked-low"]);
+    expect(groups.zeroScore.map((node) => node.id)).toEqual(["context-zero"]);
+    expect(groups.unscored.map((node) => node.id)).toEqual(["context-unscored"]);
+    expect(recallGraphNodeHitIds(new Set(["ranked-high", "context-zero", "context-unscored"]), groups))
+      .toEqual(new Set(["ranked-high", "context-unscored"]));
+    expect(splitRecallFocusNodes([{ id: "unscored", label: "没有分数的 Recall 返回项" }]))
+      .toMatchObject({ ranked: [], zeroScore: [], unscored: [{ id: "unscored" }] });
+  });
+
+  it("检索模式下时间带只显示命中的 Episode，不随全图/子图切换扩成全库", () => {
+    const episodes = [
+      { episode_id: "later", occurred_at: "2026-09-03" },
+      { episode_id: "miss", occurred_at: "2026-09-01" },
+      { episode_id: "earlier", occurred_at: "2026-09-02" },
+    ];
+
+    expect(filterMemoryDebugEpisodes(episodes, "all", new Set(["later", "earlier"]))
+      .map((episode) => episode.episode_id)).toEqual(["earlier", "later"]);
+    expect(filterMemoryDebugEpisodes(episodes, "all")
+      .map((episode) => episode.episode_id)).toEqual(["miss", "earlier", "later"]);
   });
 
   it("把 Episode 的发生时间转换为可读的时间线标签", () => {

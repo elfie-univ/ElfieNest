@@ -117,6 +117,14 @@ The central canvas contains:
 
 The default view is the whole knowledge base. Filtering dims unrelated content by default instead of deleting all context. The graph supports pan, zoom, node dragging, selection, related highlighting, long-label truncation with full detail on the right, and level-of-detail behavior for large libraries. 2D/2.5D/3D is an implementation choice; the graph must not become a Godot physics authority.
 
+During Recall, the default graph still shows the whole knowledge base: positively scored returned
+Nodes and endpoints of returned Assertions are emphasized, unrelated content is dimmed, and
+zero-score Nodes are not treated as relevant hits. Returned Nodes without a score remain visible
+as unscored results; the UI must not invent a relevance value. A zero-score Node that is also an
+endpoint of a returned Assertion may still be emphasized as that relation's endpoint. The Episode
+rail shows only Episodes in the RecallBundle and does not expand when the graph switches between
+the full library and the optional result-only projection.
+
 Visual encoding is fixed: Node radius represents only Node `importance`; semantic Assertion width
 represents only the relation's `importance`. Confidence, familiarity, and connection count do not
 change those two scales and belong in detail, opacity/badges, or layout metadata. Episode source
@@ -145,7 +153,7 @@ The page consumes four read-only projections:
 - OperationTrace: run id, ordered steps, versions, observations, affected objects, errors, and replay state;
 - RecallExplanation: query id, candidate-level scoring, ranking, kept/excluded reason, limits, character budget, final RecallBundle, and the Elfie Lab link.
 
-The UI keeps one shared selection, filter, highlight, operation, and recall state. A left-overlay result updates the graph selection and right-side Detail without replacing the result list; an Add Episode operation highlights affected objects in the graph; a Recall decision highlights returned, related, and candidate-but-excluded objects. Missing observations are shown as unknown, never inferred.
+The UI keeps one shared selection, filter, highlight, operation, and recall state. A left-overlay result updates the graph selection and right-side Detail without replacing the result list; an Add Episode operation highlights affected objects in the graph; Recall highlights returned scored or unscored Nodes and endpoints of returned Assertions, while zero-score Nodes and excluded candidates are not presented as relevant Node hits. A zero-score Node may still be emphasized when it is an endpoint of a returned Assertion. Missing observations are shown as unknown, never inferred.
 
 ## 5. Safety and Elfie Lab integration
 
