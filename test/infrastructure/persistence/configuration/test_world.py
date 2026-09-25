@@ -83,6 +83,11 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     )
     assert "earthbound_station" not in town.place_ids
     assert town.member_probability_for("mistyville_center") == 1.0
+    assert town.purpose_options() == (
+        ("探亲交往", 1.0),
+        ("观光", 1.0),
+        ("赶集交换", 1.0),
+    )
     assert town.distance_decay_days == 4.0
     assert (
         next(

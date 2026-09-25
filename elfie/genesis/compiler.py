@@ -878,8 +878,19 @@ class GenesisCompiler:
                     selected_places.append(place_id)
             if not selected_places:
                 continue
+            purpose = _weighted_text(
+                opportunity.purpose_options(),
+                random.Random(
+                    self._domain_seed(
+                        request.appearance_seed,
+                        f"visit-purpose:{opportunity.opportunity_id}",
+                    )
+                ),
+            )
             selected.add(opportunity.opportunity_id)
-            opportunities.append((opportunity, tuple(selected_places), count))
+            opportunities.append(
+                (replace(opportunity, purpose=purpose), tuple(selected_places), count)
+            )
         return tuple(opportunities)
 
     def _schedule_visit_ages(
@@ -2783,6 +2794,7 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "visit-age": "places",
         "visit-count": "places",
         "visit-member": "places",
+        "visit-purpose": "places",
         "person-species": "people",
         "names": "naming",
         "knowledge": "knowledge",
@@ -2850,6 +2862,20 @@ def _weighted_integer(values: tuple[tuple[int, float], ...], rng: random.Random)
     for value, weight in values:
         target -= float(weight)
         if target <= 0:
+            return value
+    return values[-1][0]
+
+
+def _weighted_text(values: tuple[tuple[str, float], ...], rng: random.Random) -> str:
+    """Choose one configured text value using the caller's deterministic RNG."""
+
+    total = sum(float(weight) for _, weight in values)
+    if total <= 0.0:
+        raise GenesisError("文本分布权重必须为正")
+    target = rng.random() * total
+    for value, weight in values:
+        target -= float(weight)
+        if target <= 0.0:
             return value
     return values[-1][0]
 

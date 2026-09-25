@@ -276,6 +276,7 @@ class VisitOpportunityRule:
     max_repeat_count: int = 1
     member_probability: float = 1.0
     member_probabilities: tuple[tuple[str, float], ...] = ()
+    purpose_weights: tuple[tuple[str, float], ...] = ()
     species_multipliers: tuple[tuple[str, float], ...] = ()
     region_multipliers: tuple[tuple[str, float], ...] = ()
     requires_opportunity_id: str = ""
@@ -297,6 +298,13 @@ class VisitOpportunityRule:
         for _, probability in (*self.member_probabilities,):
             if not 0.0 <= probability <= 1.0:
                 raise ValueError("visit opportunity member probability is invalid")
+        for purpose, weight in self.purpose_weights:
+            if not purpose.strip() or weight < 0.0:
+                raise ValueError("visit opportunity purpose weight is invalid")
+        if self.purpose_weights and not any(
+            weight > 0.0 for _, weight in self.purpose_weights
+        ):
+            raise ValueError("visit opportunity purpose weights cannot all be zero")
         for _, multiplier in (
             *self.species_multipliers,
             *self.region_multipliers,
@@ -308,6 +316,11 @@ class VisitOpportunityRule:
 
     def member_probability_for(self, place_id: str) -> float:
         return dict(self.member_probabilities).get(place_id, self.member_probability)
+
+    def purpose_options(self) -> tuple[tuple[str, float], ...]:
+        """Return configured purpose shares, with the legacy purpose as fallback."""
+
+        return self.purpose_weights or ((self.purpose, 1.0),)
 
     def species_multiplier_for(self, species_id: str) -> float:
         return dict(self.species_multipliers).get(species_id, 1.0)

@@ -602,6 +602,9 @@ def _visit_opportunities(
             item.get("member_probabilities", {}),
             "visit opportunity member probabilities",
         )
+        purpose_weights = _mapping(
+            item.get("purpose_weights", {}), "visit opportunity purpose weights"
+        )
         species_multipliers = _mapping(
             item.get("species_multipliers", {}), "visit opportunity species multipliers"
         )
@@ -632,6 +635,10 @@ def _visit_opportunities(
                         ),
                     )
                     for place_id in sorted(member_probabilities)
+                ),
+                purpose_weights=tuple(
+                    (str(purpose), _number(purpose_weights, str(purpose)))
+                    for purpose in sorted(purpose_weights)
                 ),
                 species_multipliers=tuple(
                     (str(species_id), _number(species_multipliers, str(species_id)))

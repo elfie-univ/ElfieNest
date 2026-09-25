@@ -374,6 +374,18 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
         for episode in episodes.values()
     )
     assert all(episode.purposes for episode in episodes.values())
+    town_episode = episodes.get("visit:town_center")
+    assert town_episode is not None
+    assert town_episode.purposes[0] in {"探亲交往", "观光", "赶集交换"}
+    repeat = _compilation(
+        "visit-opportunity-repeat", seed=7, stage="mature", age_years=8
+    )
+    repeat_town = next(
+        episode
+        for episode in repeat.bundle.episode_seeds
+        if episode.seed_id == "visit:town_center"
+    )
+    assert repeat_town.purposes == town_episode.purposes
     assert all(
         episode.source_version == "genesis-visit:visits-poisson-age-distance.v1"
         for episode in episodes.values()
