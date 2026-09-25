@@ -19,6 +19,7 @@ from .models import (
 )
 from .ports import (
     ElfieConstructionPort,
+    ResidentAdmissionNestPort,
     ResidentAdmissionPortError,
     ResidentAdmissionStorePort,
     ResidentSessionPort,
@@ -39,6 +40,7 @@ __all__ = (
     "ResidentAdmissionCompensationFailed",
     "ResidentAdmissionError",
     "ResidentAdmissionPortError",
+    "ResidentAdmissionNestPort",
     "ResidentAdmissionStorePort",
     "ResidentAdmissionResult",
     "ResidentAdmissionService",

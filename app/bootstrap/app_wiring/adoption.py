@@ -204,6 +204,7 @@ def build_adoption_services(
             nest_session,
             build_genesis_compiler,
             admission_store=adoption_persistence,
+            nest=nest_session,
         ),
     )
 
