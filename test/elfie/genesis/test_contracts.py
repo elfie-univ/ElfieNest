@@ -216,6 +216,37 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
     assert compilation.bundle.validate() is None
 
 
+def test_each_parent_union_draws_its_own_child_target() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            family_child_count_distribution=((1, 1 / 3), (2, 1 / 3), (3, 1 / 3)),
+            family_partner_annual_probability=1.0,
+        ),
+    )
+    compilation = _compilation(
+        "family-independent-child-draws",
+        source=source,
+        stage="mature",
+        age_years=8,
+        seed=0,
+    )
+
+    sibling_count = sum(
+        relationship.role == "sibling"
+        for relationship in compilation.bundle.relationship_seeds
+    )
+    child_count = sum(
+        relationship.role == "child"
+        for relationship in compilation.bundle.relationship_seeds
+    )
+
+    assert sibling_count == 2
+    assert child_count == 1
+
+
 def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
     source = load_genesis_source_package()
     source = replace(

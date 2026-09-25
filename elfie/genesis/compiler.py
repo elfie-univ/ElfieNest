@@ -1428,6 +1428,18 @@ class GenesisCompiler:
         main_age = context.identity.age_years_at_adoption
         parent_gap = self._source.generation_policy.family_parent_min_age_gap_years
         max_children = self._source.generation_policy.family_max_children
+        family_importance = family_rule.importance
+
+        def draw_child_target(stable_id: str) -> int:
+            return _weighted_integer(
+                self._source.generation_policy.family_child_count_distribution,
+                random.Random(
+                    self._domain_seed(
+                        request.appearance_seed,
+                        f"family-child-count:{stable_id}",
+                    )
+                ),
+            )
 
         def ordered_child_ages(anchor_age: int, target: int) -> tuple[int, ...]:
             """Return one union's distinct, legal ages in birth order."""
@@ -1451,7 +1463,7 @@ class GenesisCompiler:
             role="parent",
             person_gender="female",
             age_years=main_age + parent_gap + 1,
-            importance=0.95,
+            importance=family_importance,
             shared_fact="她是我的父母之一，曾参与我的早期照护。",
         )
         add_family_member(
@@ -1459,22 +1471,17 @@ class GenesisCompiler:
             role="parent",
             person_gender="male",
             age_years=main_age + parent_gap + 2,
-            importance=0.95,
+            importance=family_importance,
             shared_fact="他是我的父母之一，曾参与我的早期照护。",
         )
 
-        child_target = _weighted_integer(
-            self._source.generation_policy.family_child_count_distribution,
-            random.Random(
-                self._domain_seed(request.appearance_seed, "family-child-count")
-            ),
-        )
+        parent_child_target = draw_child_target("parents")
         # The protagonist is anchored into one shared parent-child set.  The
         # target distribution is drawn once per union; each additional child
         # occupies a distinct legal birth year and gets its rank from that
         # year.  This keeps both parents and all siblings on the same graph
         # instead of independently re-drawing the same family from each node.
-        child_ages = ordered_child_ages(main_age, child_target)
+        child_ages = ordered_child_ages(main_age, parent_child_target)
         sibling_ids: list[str] = []
         for order, sibling_age in enumerate(child_ages, start=1):
             if sibling_age == main_age:
@@ -1487,7 +1494,7 @@ class GenesisCompiler:
                 role="sibling",
                 person_gender="male" if sibling_index % 2 else "female",
                 age_years=sibling_age,
-                importance=0.65,
+                importance=family_importance * 0.68,
                 shared_fact="我们是同一对父母的子女，曾共享家庭生活。",
                 birth_order=order,
             )
@@ -1522,7 +1529,7 @@ class GenesisCompiler:
                 role="grandparent",
                 person_gender="female",
                 age_years=parent_age + parent_gap + 1,
-                importance=0.48,
+                importance=family_importance * 0.5,
                 shared_fact="她是我父母一方的父母，我通过家庭关系知道她。",
             )
             add_family_member(
@@ -1530,7 +1537,7 @@ class GenesisCompiler:
                 role="grandparent",
                 person_gender="male",
                 age_years=parent_age + parent_gap + 2,
-                importance=0.48,
+                importance=family_importance * 0.5,
                 shared_fact="他是我父母一方的父母，我通过家庭关系知道他。",
             )
             grandparent_target = _weighted_integer(
@@ -1556,7 +1563,7 @@ class GenesisCompiler:
                     role="aunt_uncle",
                     person_gender="female" if len(aunt_ids) % 2 == 0 else "male",
                     age_years=aunt_age,
-                    importance=0.32,
+                    importance=family_importance * 0.34,
                     shared_fact="这是我父母一方的兄弟姐妹，属于已知的旁系亲属。",
                     birth_order=order,
                 )
@@ -1600,7 +1607,7 @@ class GenesisCompiler:
                     role="partner",
                     person_gender=partner_gender,
                     age_years=max(policy.family_partner_min_age_years, main_age - 1),
-                    importance=0.75,
+                    importance=family_importance * 0.79,
                     shared_fact="这是我的伴侣，我们共同承担生活。",
                 )
 
@@ -1611,7 +1618,12 @@ class GenesisCompiler:
             # same deterministic timeline.
             first_birth_age = policy.family_partner_min_age_years + 1
             legal_years = max(0, main_age - first_birth_age + 1)
-            child_count = min(child_target, policy.family_max_children, legal_years)
+            partner_child_target = draw_child_target("partner")
+            child_count = min(
+                partner_child_target,
+                policy.family_max_children,
+                legal_years,
+            )
             for index in range(child_count):
                 person_id = f"family-child-{index + 1}"
                 child_ids.append(person_id)
@@ -1621,7 +1633,7 @@ class GenesisCompiler:
                     role="child",
                     person_gender="female" if index % 2 else "male",
                     age_years=max(0, main_age - birth_age),
-                    importance=0.75,
+                    importance=family_importance * 0.79,
                     shared_fact="这是我的子女，我们之间有家庭照护关系。",
                     birth_order=index + 1,
                 )
