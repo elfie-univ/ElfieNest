@@ -333,6 +333,8 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
     ]
     assert partnership_ages and child_birth_ages
     assert min(child_birth_ages) > max(partnership_ages)
+    partner = next(item for item in relationships.values() if item.role == "partner")
+    assert partner.relationship_start_age == partnership_ages[0]
     assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
     assert compilation.bundle.validate() is None
 

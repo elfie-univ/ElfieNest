@@ -1590,17 +1590,27 @@ class GenesisCompiler:
                 )
 
         partner_id: str | None = None
+        partner_start_age: int | None = None
         policy = self._source.generation_policy
         if main_age >= policy.family_partner_min_age_years:
             years = main_age - policy.family_partner_min_age_years + 1
             chance = 1.0 - (1.0 - policy.family_partner_annual_probability) ** years
-            if (
-                random.Random(
-                    self._domain_seed(request.appearance_seed, "family-partner")
-                ).random()
-                < chance
-            ):
+            partner_draw = random.Random(
+                self._domain_seed(request.appearance_seed, "family-partner")
+            ).random()
+            if partner_draw < chance:
                 partner_id = "family-partner"
+                for elapsed_years in range(years):
+                    annualized = 1.0 - (
+                        1.0 - policy.family_partner_annual_probability
+                    ) ** (elapsed_years + 1)
+                    if partner_draw < annualized:
+                        partner_start_age = (
+                            policy.family_partner_min_age_years + elapsed_years
+                        )
+                        break
+                if partner_start_age is None:
+                    raise GenesisError("伴侣抽样缺少合法的首次形成年龄")
                 partner_gender = "female" if request.gender == "male" else "male"
                 add_family_member(
                     person_id=partner_id,
@@ -1610,13 +1620,18 @@ class GenesisCompiler:
                     importance=family_importance * 0.79,
                     shared_fact="这是我的伴侣，我们共同承担生活。",
                 )
+                result[-1] = replace(
+                    result[-1], relationship_start_age=partner_start_age
+                )
 
         child_ids: list[str] = []
         if partner_id is not None:
             # The first child can only be born after one complete year of the
             # partnership.  Each later child occupies a different year on the
             # same deterministic timeline.
-            first_birth_age = policy.family_partner_min_age_years + 1
+            if partner_start_age is None:
+                raise GenesisError("已有伴侣但缺少关系形成年龄")
+            first_birth_age = partner_start_age + 1
             legal_years = max(0, main_age - first_birth_age + 1)
             partner_child_target = draw_child_target("partner")
             child_count = min(
@@ -2009,7 +2024,9 @@ class GenesisCompiler:
                         )
                     )
             elif relationship.role == "partner":
-                event_age = min(main_age, policy.family_partner_min_age_years)
+                event_age = relationship.relationship_start_age or min(
+                    main_age, policy.family_partner_min_age_years
+                )
                 if event_age >= 1:
                     candidates.append(
                         (

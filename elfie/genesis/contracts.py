@@ -145,6 +145,7 @@ class RelationshipSeed:
     vocation_id: str = ""
     person_species_id: str = ""
     age_years_at_genesis: int | None = None
+    relationship_start_age: int | None = None
     # Birth order is only meaningful for members of one shared family
     # children set.  The protagonist itself is the anchor and is therefore
     # represented by the absence of a RelationshipSeed entry.
@@ -561,6 +562,12 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")
     if seed.life_status not in {"alive", "deceased", "unknown"}:
         raise GenesisValidationError("RelationshipSeed.life_status 无效")
+    if seed.relationship_start_age is not None and (
+        isinstance(seed.relationship_start_age, bool)
+        or not isinstance(seed.relationship_start_age, int)
+        or seed.relationship_start_age < 1
+    ):
+        raise GenesisValidationError("RelationshipSeed.relationship_start_age 无效")
     if seed.birth_order is not None and (
         isinstance(seed.birth_order, bool)
         or not isinstance(seed.birth_order, int)
