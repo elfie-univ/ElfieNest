@@ -352,35 +352,89 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 
 ### 3.4 Hybrid Recall
 
-召回热路径是确定的、由索引驱动的，不要求调用模型。
+Recall 是确定性的 Memory 操作，不调用模型。它服务两个相关目的：(1) 将当前情境联想到有用的
+过去经历；(2) 找回能回答问题或帮助完成任务的既往经验和图谱知识。Brain/Reasoning 决定是否、
+何时调用 Recall；Memory 不要求每轮开始时必调，也不假设固定的推理轮次安排。
 
-#### 3.4.1 Basic / Text Search
+概念流程分五步：Query 与 Sense 独立生成候选，可以并行；二者结果取并集，不要求同时匹配；随后
+合并去重、施加全局过滤与各类结果限额，最后组装类型化结果。命名空间和隐私访问门在存储边界强制
+执行；实现可以把符合条件的过滤下推到分支优化，但观察到的结果必须等价于对候选并集合并后过滤。
 
-词法/全文搜索（以及可选的向量索引）用于查找 Episode 中的措辞、Node 名称、别名、带来源描述、
-面向用户的 Node 属性、罕见词、详细故事和来源引用。因此即使忘记规范名称，也可以通过“外貌”等属性
-找到人物。调用方知道属性路径时，可以再增加精确或范围条件。这是 Episode/Node 的直接候选检索路径，
-不搜索上游原始聊天日志。
+#### 3.4.1 Recall 输入与调用时机
 
-#### 3.4.2 Local / Graph Search
+请求有三个语义输入：可选 `Query`、可选 `Sense`、可选 `Filters`，另可接受有界结果数量限制。Query 和 Sense 至少提供一个。
+Query 用于已知的话题、实体、措辞或明确关系问题。Sense 是当前场景的稀疏特征签名；即使没有有用
+关键词，也可用于联想召回。Filters 是作用于两条分支结果的硬约束。调用方判断检索的预期价值是否
+足以支撑一次调用；问候或其他低信息输入可以不触发 Recall，明确指向过去事件的说法或依赖已有知识
+的问题通常值得调用。
 
-从文本命中或提供的 Node ID（Claim 也使用其 Node ID）开始，沿有界的带类型路径扩展到相关人物、地点、概念、
-情绪、事件和相关 Episode。遍历维护已访问集合，同一路径不重复访问同一 Node，并返回明确
-路径；跳数、邻居数和结果数都是硬上限。人物、时间、地点、历史情绪、主题和原因条件只约束
-同一批候选，不引入反馈学习排序。
+Memory Port 只接收已经可用的上下文，不自行读取实时 Orientation、Emotion、传感器、Profile 或对话
+历史。调用方可以提供情绪、地点、感知、人物/物品或活动的精简摘要。信号较弱或缺失时应省略，不要
+把它表示为反向匹配。工具/行动结果之后的第二次调用可以把该结果作为 Query 和/或 Sense；接口相同，
+不是另一种搜索模式。
 
-#### 3.4.3 Global Search（后续能力）
+Recall 从 Query 或 Sense 候选开始，可执行有界的带类型图遍历并返回明确路径。普通 `claim` Node 与其他注册 Node 类型使用相同路径。人物、地点、历史情绪、主题和原因 facet 约束候选；facet 缺失表示未知，不是负匹配。最小路径为身份/词法检索 → Episode 和/或 Node–Assertion 候选 → 有界 Local/Graph 扩展 → 按需选取 Episode/Evidence。候选选择前执行 namespace/隐私检查。普通 Recall 只返回 active 记录；archived 和 forgotten 永不成为候选，包括明确要求历史文本或精确 ID 的查询。单独的维护/审计检查不属于 Recall，不能把这些记录加入 `RecallBundle`。检索不会强化或修改记录。
 
-全局主题或社区搜索等图谱密集能力推迟到图谱积累了代表性密度之后。图谱摘要或 Pattern 可以
-作为直接 Recall 结果，但必须能回溯到 Assertion 和 Episode，不能成为新的事实源。
+#### 3.4.2 Query 分支
 
-#### 3.4.4 RecallBundle
+Query 分支有三条互补路径，由请求决定如何使用：
 
-最小路径是 Basic/Text → Episode 和/或 Node–Assertion 候选 → 有界 Local/Graph 扩展 → 在需要
-完整语境时选择 Episode/Evidence。排序/选取前先执行隐私和 namespace 过滤。普通 Recall 只返回
-active 记录；archived 和 forgotten 记录均不是候选，即使查询明确要求历史文本或精确 ID 也不例外。
-单独、显式的维护/审计检查不属于 Recall，也不能把这些记录放入 `RecallBundle`。匹配使用确定性的
-词法/图谱相关性、显式类型组/叶类型和 Episode 时间筛选、有界分类型结果数及稳定 ID 决胜规则；
-不按显著性、类型先验或来源历史排序。Recall 不会强化或修改记录。
+1. **身份与精确词解析。** 优先解析调用方提供的稳定 ID、规范名称和作用域内别名。适用于已知的人、地点、物品和概念；别名有歧义时必须保留歧义，不能静默选中某个 Node。
+2. **倒排词法检索。** 在 Episode、Node 和 Assertion 的可重建文本投影上检索。使用词法排序（例如 BM25），规范名称/别名、精确短语和罕见词应比宽泛的正文命中权重更高。Node 文档包括获准的名称、别名、带来源描述和面向用户的属性；Assertion 文档把有方向的主体—谓词—对象、限定信息和有用的来源措辞组织成文本；Episode 文档使用保留的正文/细节和获准元数据。这样可以从名字、短语、属性、故事细节或关系措辞找回记忆，不扫描原始 Communication 日志。
+3. **稠密语义检索（分阶段能力）。** 后续经评测的向量通道可从同一三种记录中召回释义或语义相似措辞。它是补充候选来源，不替代词法检索；“RAG”描述先检索再生成的模式，本身不是检索算法。Embedding 和向量索引始终是带版本、可重建的派生数据；初始契约不要求向量后端。
+
+明确的多跳关系问题应在 Query 中使用可选的类型化 `GraphQueryPlan`，不能寄望自然语言关键词匹配自动推断路径。计划给出锚点（`self`、稳定 Node ID 或实体提及）、有序的注册谓词及方向、可选的注册端点/类型条件，以及有界的结果投影/基数。调用方或已经运行中的 Reasoning 模型可以把自然语言转换为该计划；Memory 确定性校验并执行，不调用模型。没有计划时，自由文本走普通检索，并且只允许按意图做下文所述的小范围上下文扩展。不接受 SQL、任意谓词或无界图查询语言。
+
+`QuerySpec.text`、seed ID 和 `graph_plan` 在 Query 内各自可选。若同时提供多个，则对其候选结果取并集并去重，不隐式要求 AND。图查询锚点应明确给出，或从精简的实体提及中解析；不能把整句自然语言关系问题当作精确路径表达式。
+
+例如：“我所有的兄弟姐妹”可以沿注册的 sibling 关系，或受限的共同父母路径遍历；“我爸爸的阿姨的女儿”需要有序亲属关系路径，如果已存关系或角色限定不足以确定一个人，就必须返回歧义；“桌子是什么做的”以桌子为锚点，沿注册的 `made_of` 关系找到对象。路径缺失表示“未记录/未解析”，不表示该关系为假。缺少角色、性别、方向或时间限定时，Recall 不能臆造。
+
+#### 3.4.3 Sense 分支
+
+Sense 是调用方提供的稀疏 `SceneCue`，不是第二个自然语言 Query，也不是搜索所有当前信号的指令。它可以包含：
+
+- 带归因的情绪标签和强度；
+- 当前地点或环境锚点；
+- 显著的人物、物品、活动或角色；
+- 精简的感知/身体感觉摘要，例如看到、听到或感受到的内容。
+
+调用方只纳入足够显著/可靠的线索（尤其是有辨识度的场景信号）；阈值和有意的随机候选生成策略由
+调用方负责，不设成 Memory 的通用阈值。Memory 将可用线索与历史 Episode 场景/上下文投影比较，并可通过
+图谱解析人物、地点和物品锚点。只组合两侧都实际存在的维度：历史情绪或地点缺失表示未知，不是冲突。
+线索可以生成候选，但不会形成隐藏的显著性排序；只有调用方明确请求对应 facet 时，它才成为硬过滤条件。
+环境/感官自由文本可走词法检索；结构化场景 facet 可用索引精确/范围匹配。稠密场景相似度需经过评测后再加入。
+
+#### 3.4.4 合并、图扩展与过滤
+
+合并是 Query 与 Sense 候选的并集。只对相同 `(record_kind, record_id)` 的记录去重；合并各通道支持度，同时保留
+每个命中来源、命中字段/场景线索和图路径。若不同 Assertion 的时间、极性、视角、限定信息或 Evidence
+不同，即使端点相同也不能合并。不可比较的分支排序使用带版本的确定性排序融合规则（例如 RRF），只允许很小且
+有界的共同命中加成；不能假定词法、向量和场景原始分数使用相同标尺。最终顺序只反映查询相关性和显式请求的
+facet。Importance、freshness、confidence、来源历史和类型先验不参与 Recall 排序。各类型分别限额，避免某种数量巨大的记录挤掉其他类型。
+
+需要区分两种图操作：
+
+- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
+- **附带上下文扩展**：用少量直接相关邻居、关联 Episode 或 Evidence 丰富 Query/Sense 命中。它不能替代路径答案，也不能递归淹没图谱。扩展限定关系白名单和上限；人物、地点或物品通常最多一跳，只有意图明确要求才加深遍历。
+
+候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、注册类型组和叶 Node 类型、注册 Predicate、Episode 发生时间范围、人物/地点/实体锚点，以及注册属性或 Episode 场景 facet。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。时间过滤只作用于有来源的 Episode 发生时间（显式处理未知时间）；关系自身的有效时间作为 Assertion 限定信息筛选，Episode 时间不作用于没有时间概念的 Node。普通 Recall 只包含 active 记录；archived 和 forgotten 由不可放宽的生命周期访问门排除。相关的 superseded/冲突 Assertion 可保留，并明确展示状态和 Evidence。Namespace 与隐私访问门始终优先于搜索结果或请求的结果类型。
+
+#### 3.4.5 类型化结果组装
+
+根据实际命中的主要记录组装 `Episode`、`Node` 或 `Assertion`；关联记录是辅助上下文，不能取代主要命中：
+
+- Episode 包含有界摘录或摘要、发生时间范围/精度、相关场景，以及解释命中的参与者/地点/物品 Node 和所需 Assertion/Evidence。
+- Node 包含规范名称和类型、简短的带来源描述、选中的面向用户属性、相关直接 Assertion，以及少量（通常一两个）支撑 Episode/Evidence。
+- Assertion 包含有向三元组或类型化字面量、限定信息、时间/极性/视角/状态/confidence、直接来源 Evidence，以及保留的冲突/替代关系。
+
+类型化 `RecallBundle` 保留路径、来源链、命中通道/线索、冲突和明确截断。确定性 renderer 可以把同一 bundle 投影
+为面向模型的紧凑分段自由文本；必须保留不确定性和来源区别，不能编造叙述，也不能调用模型。结果数量限制在
+渲染前生效。单纯检索命中不是强化；生命周期转换及任何未来的重新激活都必须通过单独获准且有来源支撑的操作完成。
+
+#### 3.4.6 Global Search（后续能力）
+
+全局主题/社区检索和 Pattern/社区聚合推迟到图谱具有代表性密度且检索需求经评测后再做。图谱摘要或 Pattern
+可以成为直接 Recall 结果，但必须能追溯到 Assertion 和 Episode，不能成为新的事实源。
 
 ### 3.5 延期的 Memory Abstraction Loop
 
@@ -410,11 +464,58 @@ Node + Assertion → 夜间图上聚合 → 模型提案 + 确定性校验
 
 ### 4.2 Recall
 
-`RecallRequest` 可以指定文本、种子 Node ID（Claim 也使用其 Node ID）、类型组、叶子 Node 类型、关系白名单、Episode 发生时间范围、人物/地点/历史情绪/主题/原因条件、检索模式和数量限制。时间范围筛 Episode 的有来源发生时间（并显式处理未知时间），不筛没有发生时间概念的 Node；关系自身有效区间作为 Assertion 限定信息筛选。Node 类型组和叶子类型是主要类型过滤条件；不能携带 SQL 或图查询语言。
+概念接口为 `Recall(request: RecallRequest) -> RecallBundle`。它是只读查询契约，由调用方决定何时调用。
+Query、Sense 和 Filters 是三个语义输入；Query/Sense 各自可选，但至少要提供其中一个。也接受有界结果数量限制：
+
+```text
+RecallRequest {
+  query?: QuerySpec,
+  sense?: SceneCue,
+  filters?: RecallFilters,
+  limits?: RecallLimits
+}
+
+QuerySpec {
+  text?: string,
+  seed_ids?: [NodeId | AssertionId | EpisodeId],
+  graph_plan?: GraphQueryPlan
+}
+
+GraphQueryPlan {
+  anchor: self | node_id | entity_mention,
+  steps: [{predicate, direction, registered_qualifiers?}],
+  endpoint_constraints?: {node_types?, registered_properties?},
+  projection: endpoint | path | both,
+  cardinality: one | all
+}
+
+SceneCue {
+  affect?: [{label, intensity?, confidence?}],
+  place_or_environment?: [...],
+  salient_entities_or_activity?: [...],
+  perception_summary?: string
+}
+
+RecallFilters {
+  kinds?: [Episode | Node | Assertion],
+  type_groups?: [registered_type_group...],
+  node_types?: [registered_leaf_type...],
+  predicates?: [...],
+  episode_time_range?: {from?, to?, unknown_time?},
+  entity_ids?: [...],
+  registered_property_constraints?: [...],
+  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?}
+}
+```
+
+以上是语义示例，不是冻结的编程语言 schema。类型组从注册叶 Node 类型派生；类型组、叶类型、Predicate
+和属性条件都必须通过注入的注册表校验。Episode 时间只筛有来源的 Episode 发生时间；Assertion 有效期是
+限定信息，不是 Episode 时间。Filter 对合并后的候选一致生效。隐私、namespace 和 active 生命周期访问门由
+内部强制，不能通过请求放宽。调用方不能传 SQL、任意图查询语言或无限制属性路径。
 
 Memory Port 绑定单只 Elfie 的命名空间；请求不能扩大这个作用域。
 
-默认硬上限为：20 个词法命中、8 个种子 Node、2 跳图遍历、每个扩展 Node 12 个邻居、40 个 Node、80 个 Assertion、8 个 Episode、24 条 Evidence 和 12,000 个渲染字符。调用方可以请求更低上限，不能突破 Memory 上限。
+默认硬上限为：每分支 20 个词法命中、8 个种子记录、显式图路径最多 4 步、附带上下文最多 2 跳、每个扩展 Node 12 个邻居、40 个 Node、80 个 Assertion、8 个 Episode、24 条 Evidence 和 12,000 个渲染字符。调用方可以请求更低上限，不能突破 Memory 上限。显式路径上限允许“我爸爸的阿姨的女儿”这类请求，同时保持附带扩展更浅。
 
 输出是有界的 `RecallBundle`：
 
@@ -430,12 +531,16 @@ RecallBundle {
   evidence: [{id, source_type, source_id, source_version,
               span_or_locator, stance}],
   conflicts: [{assertion_ids, reason}],
+  match_provenance: [{record_kind, record_id, channels, matched_fields,
+                      scene_facets, assertion_path_ids}],
+  rendered_text: "可选的确定性、带标签投影",
   limits: {requested, returned, truncated}
 }
 ```
 
-Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程，
-使用它的上层负责组织叙述。Recall 不需要返回上游原始聊天或媒体。
+Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程。
+需要时的 `rendered_text` 是这些类型化记录的紧凑确定性投影，供 LLM 使用，不是第二份答案或模型生成的
+摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
 
 ### 4.3 延期的反馈与自适应排序
 
@@ -483,17 +588,34 @@ SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只
 
 ### 5.2 派生索引和缓存
 
-`episodes_fts` 和 `nodes_fts` 是可重建的全文投影，覆盖原始 Episode 正文、可选内容概括、明确批准的
-Episode `aliases`/`retrieval_terms`、名称、Node 别名、带来源描述和经过批准的面向用户 Node 属性。
-Episode 检索提示只改善搜索，不是 Episode 正文、内容概括或第二份语义事实。技术 ID、提交元数据、来源 ID 以及保留/评分字段不
-进入普通属性搜索文本。本设计不要求独立的语义 Segment 层；以后为异常大的 Episode 做内部切片也只是
-可重建的索引细节。向量索引（若启用）属于后续优化，不是首版前置条件，同样是派生物。
-必需查询索引覆盖 lifecycle 与 `next_review_at`、按 Episode/来源修订/时间/哈希检索 Maintenance 投影回执、Node 规范
-名称/类型/生命周期、别名、描述、按 Node/Episode 的提及、Assertion 两端、冲突/替代、Evidence 来源/
-independence key、`assertion_evidence` 两个方向及 Node/Assertion 通用来源查询。Recall 先获得有界索引候选集，
-只对候选派生 freshness/匹配顺序，不能扫描全库计算。运行租约、重试次数和检查点是有界控制状态，不返回
-Recall。非空投影回执仍绑定 Episode 来源版本/内容哈希。每个索引都服务于有界查询并声明重建
-来源；首版继续使用内嵌关系库，不以专用图数据库为前置条件。
+每只 Elfie 的 Memory SQLite 数据库拥有自己的可重建搜索投影；不存在全用户共享索引，也不要求在应用内存
+中装载所有用户的索引。初始倒排索引设计是一个按 `(record_kind, record_id)` 标识逻辑记录的
+`recall_documents` 投影。它索引获准的 Episode 正文/内容概括和检索提示、规范 Node 名称、作用域别名、带来源
+描述和获准的面向用户属性，以及渲染后的 Assertion 三元组/限定信息。Episode 检索提示属于索引元数据，不是
+Episode 正文、内容概括或第二份语义事实。持久化 SQLite FTS5 索引（若随附运行时不含 FTS5，则使用等效的
+SQLite 倒排索引）对这些文档排序。对象是 Episode、Node 和 Assertion，不是原始对话日志。字段权重应使精确
+名称/别名、罕见词和有方向的关系措辞高于宽泛的 Episode 正文。中文分词/规范化必须带版本并经过评测（分词后
+词项和/或合适的字符级回退）；只匹配空格分隔词语的索引不满足搜索契约。技术 ID、提交元数据、来源 ID 和
+保留/评分字段不属于普通可搜索文本。
+
+搜索文档是派生索引投影，不是另一层语义 Memory 或事实源。它保留来源记录 kind/ID 和来源修订，以便命中后
+连接回权威 Episode、Node 或 Assertion 及其 Evidence。更新必须幂等并绑定已提交的来源修订。可行时在来源事务
+中同步更新文本投影/索引；若提交后重建，必须暴露修订/延迟状态，并从权威行重建。索引缺失/过期可以确定性
+恢复，不能删除或替代来源事实。不需要独立语义 Segment 表；异常 Episode 的内部切片也只是可重建的检索细节。
+
+稠密向量是后续评测通道。若加入，Embedding 和向量条目按记录/命名空间持久化模型、分词器和来源修订信息，
+仍是可重建派生物；初始契约不选择 ANN 引擎，也不要求外部搜索服务。有限的 SQLite 页/索引缓存可以驻留内存，
+但不会把全库或完整索引装入应用内存。
+
+常规 B-tree 索引服务于频繁查询的结构化过滤和关联：lifecycle/status 与 `next_review_at`、Episode 投影
+修订/时间/哈希及选定的发生时间字段、Node 规范名称/类型/状态、Episode `aliases`/`retrieval_terms`、Node
+别名 `(normalized_alias, scope)`、描述 `(node_id, language, kind)`、按 Node/Episode 的提及、Assertion 主客体/
+谓词、冲突/替代、Evidence 来源/independence key、`assertion_evidence` 两个方向及 Node/Assertion 来源查询。
+可查询的场景 facet（例如带归因的历史情绪/强度和地点）必须使用类型化列或可重建的 facet 投影，不能只藏在不透明
+JSON 中。B-tree 只为高选择性/高频过滤维度添加；给所有属性建索引会增加磁盘、写入和维护成本。Recall 先获得
+有界候选集，只对候选派生查询相关性，不按 freshness 或其他生命周期/评分值排序，也不扫描全库。运行租约、重试
+次数和检查点是有界控制状态，不返回 Recall。成功投影修订仍绑定 Episode 来源版本/内容哈希。每种派生索引都
+声明其权威重建来源。首版继续使用内嵌关系库，不以专用图数据库为前置条件。
 
 使用/结果反馈收据、分数折叠和自适应排序不是首版 schema 或 Recall 契约要求。当前 `memory.v3` 实现中若已有这类记录，它们是单独追踪的实现/设计偏差，不能成为类型组或关系注册表工作的依赖。
 
@@ -570,7 +692,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.3 混合检索
 
-重放罕见词、关系网络、知识对象、情绪条件和时间限定经历。验证 Basic/Text 回退、有界 Local/Graph 路径、RecallBundle 来源链和明确截断。初始目标：罕见词 recall@5 ≥ 0.90，关系路径 precision = 1.00。
+重放：罕见词和别名；中文短语/字符变体；释义（用于后续稠密检索门）；强历史情绪与地点线索场景；线索缺失/未知；时间和 importance 过滤；仅 Query、仅 Sense、Query+Sense 并集；跨 Episode、Node、Assertion 的人物/地点/物品/知识命中；一跳兄弟姐妹/材料问题；三步亲属路径；有歧义和缺失的图路径；隐私/状态排除；保留通道来源的去重；以及每种记录类型的结果组装/截断。初始倒排索引和类型化 facet 行为要与延期向量门分别验证，同时验证有界附带图扩展、显式路径精确度、RecallBundle 来源链和渲染文本忠实度。初始目标仍为罕见词 recall@5 ≥ 0.90，关系路径 precision = 1.00。
 
 ### 8.4 Importance、Retention、confidence 和冲突
 
@@ -612,8 +734,10 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 - Facet 是正向约束：不同 facet 类别之间使用 AND，同一类别内的值使用 OR；缺少 facet 信息不能变成负事实。历史情绪读取 Episode 的带归因来源，不能读取实时 Emotion 状态。
 - 第一阶段 Recall 使用显式隐私、生命周期、类型组/叶子类型和时间筛选，再执行有界词法/图谱相关性及稳定确定性决胜。不按 importance、类型先验、来源历史、freshness、confidence 或反馈排序。archived 和 forgotten 记录排除在外。
-- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在候选选择前完成。
-- 初始模式只有 Basic/Text 和 Local/Graph。Global/community 与向量检索仍是后续的派生能力，初始契约不宣称支持。
+- Query 和 Sense 是独立候选分支，合并时取并集。去重键是 `(record_kind, record_id)`；融合重复支持但不折叠不同 Assertion。不可比较的分支分数使用确定性排序融合（RRF 或带版本的等价算法），保留命中来源，只允许有界的共同命中加成。对合并候选统一应用调用方过滤；是否为效率而将其下推，不改变语义。
+- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
+- 显式图路径是 Query 下的类型化子路由，只执行注册 Predicate，不是第四种顶层输入，也不是通用图查询语言。显式路径有独立于浅层附带上下文扩展的步骤/分支上限。Assertion 缺失不是负事实；角色/身份解析歧义必须明确保留。
+- 初始检索契约包括精确/别名解析、持久倒排词法检索、类型化场景 facet，以及对 Episode、Node、Assertion 的有界 Local/Graph 遍历。稠密向量相似度是经评测后再接入的派生通道；宽泛 Global/community 检索也延期。“混合”不意味着首版必须有向量引擎或模型调用。
 
 ### 9.5 全新 schema 和兼容边界
 
