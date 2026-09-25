@@ -14,6 +14,7 @@ from elfie.genesis.world import (
     GenerationPolicy,
     GenesisRoute,
     GenesisSourcePackage,
+    GeographyNetwork,
     KnowledgeCondition,
     LifeArchetypeRule,
     NameRules,
@@ -127,6 +128,7 @@ def decode_genesis_package(
         unknown_boundaries=(),
         manifest=manifest,
         routes=_routes(geography),
+        geography_network=_geography_network(geography),
         place_relations=place_relations,
         spatial_population=_population(geography),
         name_rules=_name_rules(rules),
@@ -318,6 +320,59 @@ def _routes(geography: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
             )
         )
     return tuple(result)
+
+
+def _geography_network(geography: Mapping[str, Any]) -> GeographyNetwork:
+    """Project the reviewed grid/path rules for Genesis feasibility checks."""
+
+    grid = _mapping(geography["grid"], "grid")
+    raw_matrix = _array(grid, "region_matrix")
+    if any(not isinstance(row, list) for row in raw_matrix):
+        raise TypeError("region_matrix 的每一行必须是数组")
+    region_matrix = tuple(tuple(str(value) for value in row) for row in raw_matrix)
+    network = _mapping(geography["network"], "network")
+    raw_paths = _array(network, "land_backbone_paths")
+    if any(not isinstance(path, list) for path in raw_paths):
+        raise TypeError("land_backbone_paths 的每一条路径必须是数组")
+    land_backbone_paths = tuple(
+        tuple(str(value).strip() for value in path) for path in raw_paths
+    )
+    water = _mapping(network["water"], "network.water")
+    water_edges = tuple(
+        (
+            _text(_mapping(edge, "water edge"), "from"),
+            _text(_mapping(edge, "water edge"), "to"),
+            _integer(_mapping(edge, "water edge"), "water_grid_hops"),
+        )
+        for edge in _array(water, "grid_hop_edges")
+    )
+    ferry_nodes = tuple(_strings(water, "ferry_nodes"))
+    island_destinations = tuple(
+        (
+            _text(_mapping(destination, "island destination"), "place_id"),
+            _text(_mapping(destination, "island destination"), "cell"),
+            _text(_mapping(destination, "island destination"), "from_ferry"),
+            _integer(_mapping(destination, "island destination"), "water_grid_hops"),
+        )
+        for destination in _array(water, "island_destinations")
+    )
+    place_cells: list[tuple[str, str]] = []
+    for raw_place in _array(geography, "places"):
+        place = _mapping(raw_place, "geographic place")
+        cell = _text(place, "cell", required=False)
+        if cell:
+            place_cells.append((_text(place, "id"), cell))
+    travel_policy = _mapping(geography["travel_policy"], "travel_policy")
+    return GeographyNetwork(
+        region_matrix=region_matrix,
+        land_backbone_paths=land_backbone_paths,
+        water_grid_hop_edges=water_edges,
+        island_destinations=island_destinations,
+        ferry_nodes=ferry_nodes,
+        place_cells=tuple(sorted(place_cells)),
+        land_days_per_grid_hop=_integer(travel_policy, "land_days_per_grid_hop"),
+        water_days_per_grid_hop=_integer(travel_policy, "water_days_per_grid_hop"),
+    )
 
 
 def _place_relations(

@@ -174,6 +174,9 @@ class LifeContextMobility:
     visit_purposes: tuple[tuple[str, str], ...] = ()
     visit_stay_days: tuple[tuple[str, int], ...] = ()
     opportunity_records: tuple[tuple[str, tuple[str, ...], int, str, int], ...] = ()
+    # Internal legal-path evidence.  Cells and costs remain transient Genesis
+    # data; only the reviewed route IDs are carried into Memory Episodes.
+    travel_paths: tuple[tuple[str, tuple[str, ...], int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -649,6 +652,11 @@ class GenesisCompiler:
                 )
                 for opportunity, place_ids, count in optional_visits
             ),
+            travel_paths=self._travel_paths(
+                context_origin_cell=cell.cell_id,
+                visited_place_ids=visited,
+                station_place_id=waystation,
+            ),
         )
         preparation_days = source.earth_arrival_rules.preparation_duration_local_days
         if preparation_days != 3:
@@ -672,6 +680,75 @@ class GenesisCompiler:
             content_hash="",
         )
         return replace(provisional, content_hash=_content_hash(provisional))
+
+    def _travel_paths(
+        self,
+        *,
+        context_origin_cell: str,
+        visited_place_ids: tuple[str, ...],
+        station_place_id: str,
+    ) -> tuple[tuple[str, tuple[str, ...], int], ...]:
+        """Resolve deterministic legal land paths for the lived projection."""
+
+        network = self._source.geography_network
+        start = _cell_label_from_population_id(context_origin_cell)
+        station = network.cell_for_place(station_place_id)
+        if station is None:
+            raise GenesisError("赴地基站缺少已登记的网格位置")
+        paths: list[tuple[str, tuple[str, ...], int]] = []
+        mandatory = network.shortest_land_path(start, station)
+        if mandatory is None:
+            raise GenesisError(f"出生地到赴地基站不存在合法陆路: {start} -> {station}")
+        paths.append(
+            (
+                "birth_to_earthbound_station",
+                mandatory,
+                (len(mandatory) - 1) * network.land_days_per_grid_hop,
+            )
+        )
+        place_cells = network.place_cells
+        for place_id in sorted(visited_place_ids):
+            destination = dict(place_cells).get(place_id)
+            if destination is None or destination == start:
+                continue
+            path = network.shortest_land_path(start, destination)
+            if path is not None:
+                paths.append(
+                    (
+                        f"birth_to:{place_id}",
+                        path,
+                        (len(path) - 1) * network.land_days_per_grid_hop,
+                    )
+                )
+                continue
+            island = next(
+                (
+                    (island_cell, ferry_cell, water_hops)
+                    for island_place_id, island_cell, ferry_cell, water_hops in network.island_destinations
+                    if island_place_id == place_id and island_cell == destination
+                ),
+                None,
+            )
+            if island is None:
+                raise GenesisError(
+                    f"出生地到已访问地点不存在合法路径: {start} -> {place_id}"
+                )
+            island_cell, ferry_cell, water_hops = island
+            land_path = network.shortest_land_path(start, ferry_cell)
+            if land_path is None:
+                raise GenesisError(
+                    f"出生地到湖泊渡点不存在合法陆路: {start} -> {place_id}"
+                )
+            combined_path = (*land_path, island_cell)
+            paths.append(
+                (
+                    f"birth_to:{place_id}",
+                    combined_path,
+                    (len(land_path) - 1) * network.land_days_per_grid_hop
+                    + water_hops * network.water_days_per_grid_hop,
+                )
+            )
+        return tuple(paths)
 
     def _sample_visit_opportunities(
         self,
@@ -2137,6 +2214,17 @@ def _route_between(source: GenesisSourcePackage, start: str, end: str) -> str:
         if {route.from_place_id, route.to_place_id} == {start, end}:
             return route.route_id
     return ""
+
+
+def _cell_label_from_population_id(cell_id: str) -> str:
+    """Translate the internal sampling-cell ID to the reviewed map label."""
+
+    if not cell_id.startswith("u-r") or "-c" not in cell_id:
+        raise GenesisError(f"出生采样单元格式无效: {cell_id}")
+    row, column = cell_id[3:].split("-c", 1)
+    if not row.isdigit() or not column.isdigit():
+        raise GenesisError(f"出生采样单元格式无效: {cell_id}")
+    return f"R{int(row)}C{int(column)}"
 
 
 def _routes_for_places(

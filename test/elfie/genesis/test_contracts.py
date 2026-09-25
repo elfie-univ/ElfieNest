@@ -109,6 +109,14 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert "skyreach_square" not in compilation.life_context.mobility.visited_place_ids
     assert "earthbound_road" in compilation.life_context.mobility.familiar_route_ids
     assert compilation.life_context.earth_transition.route_id == "earthbound_road"
+    travel_paths = {
+        path_id: (cells, days)
+        for path_id, cells, days in compilation.life_context.mobility.travel_paths
+    }
+    station_path, station_days = travel_paths["birth_to_earthbound_station"]
+    assert station_path[0].startswith("R") and station_path[-1] == "R4C3"
+    assert station_days == (len(station_path) - 1) * 2
+    assert len(station_path) > 1
     place_importance = {seed.place_id: seed.importance for seed in bundle.place_seeds}
     assert place_importance["earthbound_station"] > place_importance["skyreach_square"]
     assert place_importance[f"private:{compilation.life_context.elfie_id}:home"] == 0.9

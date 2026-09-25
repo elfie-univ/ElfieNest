@@ -130,6 +130,91 @@ class GenesisRoute:
 
 
 @dataclass(frozen=True)
+class GeographyNetwork:
+    """Typed runtime view of the reviewed geography topology.
+
+    The source package keeps the grid and reviewed backbone paths as creation
+    inputs.  They are not resident-facing coordinates.  Genesis uses this
+    view only to prove that a selected journey is legal and to calculate the
+    configured local-day cost.
+    """
+
+    region_matrix: tuple[tuple[str, ...], ...] = ()
+    land_backbone_paths: tuple[tuple[str, ...], ...] = ()
+    water_grid_hop_edges: tuple[tuple[str, str, int], ...] = ()
+    island_destinations: tuple[tuple[str, str, str, int], ...] = ()
+    ferry_nodes: tuple[str, ...] = ()
+    place_cells: tuple[tuple[str, str], ...] = ()
+    land_days_per_grid_hop: int = 2
+    water_days_per_grid_hop: int = 3
+
+    @property
+    def _land_edges(self) -> frozenset[tuple[str, str]]:
+        edges: set[tuple[str, str]] = set()
+        for path in self.land_backbone_paths:
+            for left, right in zip(path, path[1:]):
+                edges.add(_ordered_edge(left, right))
+        for row, values in enumerate(self.region_matrix):
+            for column, region in enumerate(values):
+                if region in {"E", "X"}:
+                    continue
+                for next_row, next_column in (
+                    (row + 1, column),
+                    (row, column + 1),
+                ):
+                    if next_row >= len(self.region_matrix):
+                        continue
+                    if next_column >= len(self.region_matrix[next_row]):
+                        continue
+                    if self.region_matrix[next_row][next_column] != region:
+                        continue
+                    edges.add(
+                        _ordered_edge(
+                            _cell_label(row, column),
+                            _cell_label(next_row, next_column),
+                        )
+                    )
+        return frozenset(edges)
+
+    def cell_for_place(self, place_id: str) -> str | None:
+        return dict(self.place_cells).get(place_id)
+
+    def shortest_land_path(
+        self, start: str, destination: str
+    ) -> tuple[str, ...] | None:
+        """Return the deterministic shortest legal land path, if one exists."""
+
+        if not start or not destination:
+            return None
+        if start == destination:
+            return (start,)
+        adjacency: dict[str, set[str]] = {}
+        for left, right in self._land_edges:
+            adjacency.setdefault(left, set()).add(right)
+            adjacency.setdefault(right, set()).add(left)
+        frontier: list[tuple[str, tuple[str, ...]]] = [(start, (start,))]
+        visited = {start}
+        for cell, path in frontier:
+            for neighbor in sorted(adjacency.get(cell, ())):
+                if neighbor in visited:
+                    continue
+                next_path = (*path, neighbor)
+                if neighbor == destination:
+                    return next_path
+                visited.add(neighbor)
+                frontier.append((neighbor, next_path))
+        return None
+
+
+def _ordered_edge(left: str, right: str) -> tuple[str, str]:
+    return tuple(sorted((left, right)))  # type: ignore[return-value]
+
+
+def _cell_label(row: int, column: int) -> str:
+    return f"R{row}C{column}"
+
+
+@dataclass(frozen=True)
 class SpatialPopulationCell:
     """Generator-only birthplace choice; never emitted as resident knowledge."""
 
@@ -382,6 +467,7 @@ class GenesisSourcePackage:
     unknown_boundaries: tuple[str, ...]
     manifest: SourcePackageManifest
     routes: tuple[GenesisRoute, ...] = ()
+    geography_network: GeographyNetwork = field(default_factory=GeographyNetwork)
     place_relations: tuple[WorldPlaceRelation, ...] = ()
     spatial_population: SpatialPopulationModel = field(
         default_factory=SpatialPopulationModel
@@ -430,6 +516,7 @@ __all__ = (
     "EarthArrivalRules",
     "EpisodeTheme",
     "GenesisRoute",
+    "GeographyNetwork",
     "GenesisSourcePackage",
     "GenerationPolicy",
     "LifeArchetypeRule",

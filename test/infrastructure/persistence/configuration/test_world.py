@@ -29,6 +29,15 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert "Saevi、Tovren 和 Myelle" in package.knowledge[0].statement
     assert len(package.story_events) == 16
     assert len(package.routes) == 16
+    assert package.geography_network.land_days_per_grid_hop == 2
+    assert package.geography_network.water_days_per_grid_hop == 3
+    assert package.geography_network.cell_for_place("earthbound_station") == "R4C3"
+    assert len(package.geography_network.land_backbone_paths) == 16
+    assert package.geography_network.island_destinations == (
+        ("lakeheart_isle", "R1C7", "R0C7", 1),
+    )
+    assert package.geography_network.shortest_land_path("R4C3", "R1C7") is None
+    assert package.geography_network.shortest_land_path("R4C3", "R0C7")[-1] == "R0C7"
     assert package.place("earthbound_station").parent_id == "central_mixed"
     assert package.place("mistyville_center").parent_id == "central_mixed"
     assert package.place("central_mixed").parent_id == "mistyville"
