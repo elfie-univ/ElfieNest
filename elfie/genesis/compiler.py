@@ -341,6 +341,7 @@ class GenesisCompiler:
         relationships = self._relationships(request, context)
         episodes = (
             *self._episodes(request, context, relationships),
+            *self._family_episodes(request, context, relationships),
             *self._visit_episodes(context),
         )
         knowledge_entries, traces = self._knowledge(
@@ -1848,6 +1849,109 @@ class GenesisCompiler:
                 )
             )
         return tuple(result)
+
+    def _family_episodes(
+        self,
+        request: GenesisCompileInput,
+        context: LifeContext,
+        relationships: tuple[RelationshipSeed, ...],
+    ) -> tuple[EpisodeSeed, ...]:
+        """Materialize only family events the protagonist could have lived."""
+
+        main_age = context.identity.age_years_at_adoption
+        policy = self._source.generation_policy
+        candidates: list[tuple[int, RelationshipSeed, str, str]] = []
+        for relationship in relationships:
+            if (
+                relationship.role == "child"
+                and relationship.age_years_at_genesis is not None
+            ):
+                event_age = main_age - relationship.age_years_at_genesis
+                if 1 <= event_age <= main_age:
+                    candidates.append(
+                        (
+                            event_age,
+                            relationship,
+                            "child_birth",
+                            f"{relationship.display_name}出生",
+                        )
+                    )
+            elif (
+                relationship.role == "sibling"
+                and relationship.age_years_at_genesis is not None
+            ):
+                event_age = main_age - relationship.age_years_at_genesis
+                if 1 <= event_age <= main_age:
+                    candidates.append(
+                        (
+                            event_age,
+                            relationship,
+                            "sibling_birth",
+                            f"{relationship.display_name}出生",
+                        )
+                    )
+            elif relationship.role == "partner":
+                event_age = min(main_age, policy.family_partner_min_age_years)
+                if event_age >= 1:
+                    candidates.append(
+                        (
+                            event_age,
+                            relationship,
+                            "partnership",
+                            f"和{relationship.display_name}建立伴侣关系",
+                        )
+                    )
+        ordered = sorted(
+            candidates,
+            key=lambda item: (item[0], item[1].person_id, item[2]),
+        )
+        episodes: list[EpisodeSeed] = []
+        for event_age, relationship, event_kind, label in ordered:
+            stage = stage_for_age(request.species_id, event_age, self._catalog)
+            if event_kind == "child_birth":
+                content = f"我在{event_age}岁左右经历了{label}，这段家庭变化让我开始承担新的照护责任。"
+                impact = "我记得家庭成员的出生会改变日常照护和相处方式。"
+            elif event_kind == "sibling_birth":
+                content = (
+                    f"我在{event_age}岁左右经历了家中{label}，我们后来共享家庭生活。"
+                )
+                impact = "我记得家庭成员的变化需要通过共同生活逐步熟悉。"
+            else:
+                content = f"我在{event_age}岁左右{label}，开始和对方共同承担生活。"
+                impact = "我记得重要关系需要在共同生活中逐步建立。"
+            episodes.append(
+                EpisodeSeed(
+                    seed_id=f"family-event:{event_kind}:{relationship.person_id}",
+                    content=content,
+                    source="personal_memory",
+                    source_ref=f"family-event:{event_kind}",
+                    source_version="genesis-family-episode.v0.1",
+                    scope="elfie",
+                    topic="biography.family",
+                    aliases=(event_kind, relationship.role),
+                    retrieval_terms=("家庭", label, relationship.role),
+                    certainty="high",
+                    temporal_label="抵达前",
+                    life_stage=stage,
+                    place_ids=(context.origin.childhood_home_place_id,),
+                    person_ids=(relationship.person_id,),
+                    result=label,
+                    feeling="我记得这段关系变化，但不会把未知细节当成亲历。",
+                    impact=impact,
+                    predecessor_ids=(episodes[-1].seed_id,) if episodes else (),
+                    causal_links=(
+                        f"{episodes[-1].seed_id} -> family-event:{event_kind}:{relationship.person_id}",
+                    )
+                    if episodes
+                    else (),
+                    emotional_tone="belonging",
+                    emotion_intensity=min(1.0, relationship.importance),
+                    importance=min(1.0, 0.65 + relationship.importance * 0.25),
+                    theme_id=f"family-event:{event_kind}",
+                    age_years_at_event=event_age,
+                )
+            )
+        return tuple(episodes)
 
     def _episodes(
         self,

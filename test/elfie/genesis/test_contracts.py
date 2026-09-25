@@ -83,9 +83,9 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
     assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
     assert {"B-03-02", "B-04-02"}.isdisjoint(knowledge_ids)
-    assert {
+    assert required_youth_themes <= {
         episode.theme_id for episode in bundle.episode_seeds
-    } == required_youth_themes
+    }
     assert bundle.relationship_seeds
     assert {seed.object_kind for seed in bundle.relationship_seeds[:-2]} == {"elfie"}
     assert bundle.relationship_seeds[-2].object_kind == "person"
@@ -251,6 +251,46 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
         parent_ids & set(item.related_person_ids)
         for item in grandparents + aunts_uncles
     )
+    assert compilation.bundle.validate() is None
+
+
+def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            family_child_count_distribution=((3, 1.0),),
+            family_partner_annual_probability=1.0,
+        ),
+    )
+    compilation = _compilation(
+        "family-timeline",
+        stage="mature",
+        age_years=6,
+        seed=7,
+        source=source,
+    )
+    relationships = {
+        item.person_id: item for item in compilation.bundle.relationship_seeds
+    }
+    family_episodes = tuple(
+        episode
+        for episode in compilation.bundle.episode_seeds
+        if episode.theme_id.startswith("family-event:")
+    )
+
+    assert family_episodes
+    assert all(1 <= episode.age_years_at_event <= 6 for episode in family_episodes)
+    assert all(
+        episode.person_ids and episode.person_ids[0] in relationships
+        for episode in family_episodes
+    )
+    assert all(
+        episode.place_ids == (compilation.life_context.origin.childhood_home_place_id,)
+        for episode in family_episodes
+    )
+    assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
     assert compilation.bundle.validate() is None
 
 

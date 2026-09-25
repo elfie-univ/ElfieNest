@@ -886,6 +886,8 @@ def _relationship_predicate(role: str) -> str:
         "parent": "child_of",
         "child": "parent_of",
         "sibling": "sibling_of",
+        "grandparent": "kin_of",
+        "aunt_uncle": "kin_of",
         "partner": "kin_of",
         "friend": "friend_of",
         "teacher": "student_of",
