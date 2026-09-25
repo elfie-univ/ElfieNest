@@ -319,6 +319,14 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert set(episodes) == {f"visit:{record[0]}" for record in records}
     assert all(episode.visit_count >= 1 for episode in episodes.values())
     assert all(episode.stay_days >= 1 for episode in episodes.values())
+    assert all(
+        len(episode.visit_age_years) == episode.visit_count
+        for episode in episodes.values()
+    )
+    assert all(
+        all(1 <= age <= 8 for age in episode.visit_age_years)
+        for episode in episodes.values()
+    )
     assert all(episode.purposes for episode in episodes.values())
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
     station_only = _compilation("station-only")

@@ -95,6 +95,7 @@ class EpisodeSeed:
     person_ids: tuple[str, ...] = ()
     visit_count: int = 1
     stay_days: int = 1
+    visit_age_years: tuple[int, ...] = ()
     purposes: tuple[str, ...] = ()
     result: str = ""
     feeling: str = ""
@@ -599,6 +600,15 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
     _validate_text_collection(seed.purposes, "EpisodeSeed.purposes")
     if seed.visit_count < 1 or seed.stay_days < 1:
         raise GenesisValidationError("EpisodeSeed 的访问次数和停留时长必须为正")
+    if any(
+        isinstance(age, bool) or not isinstance(age, int) or age < 1
+        for age in seed.visit_age_years
+    ):
+        raise GenesisValidationError("EpisodeSeed.visit_age_years 必须是正整数")
+    if seed.visit_age_years and len(seed.visit_age_years) != seed.visit_count:
+        raise GenesisValidationError(
+            "EpisodeSeed.visit_age_years 必须与 visit_count 一一对应"
+        )
     _validate_text_collection(seed.predecessor_ids, "EpisodeSeed.predecessor_ids")
     _validate_text_collection(seed.causal_links, "EpisodeSeed.causal_links")
     _validate_text_collection(seed.related_ids, "EpisodeSeed.related_ids")

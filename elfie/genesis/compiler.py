@@ -173,6 +173,7 @@ class LifeContextMobility:
     visit_counts: tuple[tuple[str, int], ...] = ()
     visit_purposes: tuple[tuple[str, str], ...] = ()
     visit_stay_days: tuple[tuple[str, int], ...] = ()
+    visit_age_years: tuple[tuple[str, tuple[int, ...]], ...] = ()
     opportunity_records: tuple[tuple[str, tuple[str, ...], int, str, int], ...] = ()
     # Internal legal-path evidence.  Cells and costs remain transient Genesis
     # data; only the reviewed route IDs are carried into Memory Episodes.
@@ -573,6 +574,17 @@ class GenesisCompiler:
         visit_counts_by_place: dict[str, int] = dict.fromkeys(mandatory_visited, 1)
         visit_purposes_by_place: dict[str, set[str]] = {}
         visit_stay_by_place: dict[str, int] = {}
+        visit_age_years = tuple(
+            (
+                opportunity.opportunity_id,
+                self._schedule_visit_ages(
+                    request,
+                    opportunity,
+                    count,
+                ),
+            )
+            for opportunity, _, count in optional_visits
+        )
         for opportunity, place_ids, count in optional_visits:
             for place_id in place_ids:
                 visit_counts_by_place[place_id] = (
@@ -644,6 +656,7 @@ class GenesisCompiler:
                 for place_id, purposes in sorted(visit_purposes_by_place.items())
             ),
             visit_stay_days=tuple(sorted(visit_stay_by_place.items())),
+            visit_age_years=visit_age_years,
             opportunity_records=tuple(
                 (
                     opportunity.opportunity_id,
@@ -843,6 +856,36 @@ class GenesisCompiler:
                     selected_places.append(place_id)
             opportunities.append((opportunity, tuple(selected_places), count))
         return tuple(opportunities)
+
+    def _schedule_visit_ages(
+        self,
+        request: GenesisCompileInput,
+        opportunity: VisitOpportunityRule,
+        count: int,
+    ) -> tuple[int, ...]:
+        """Place repeated visits on a stable, age-bounded personal timeline."""
+
+        first_age = max(1, opportunity.minimum_age_years)
+        last_age = request.age_years_at_adoption
+        if first_age > last_age:
+            return ()
+        available = list(range(first_age, last_age + 1))
+        ages: list[int] = []
+        for index in range(count):
+            draw = random.Random(
+                self._domain_seed(
+                    request.appearance_seed,
+                    f"visit-age:{opportunity.opportunity_id}:{index}",
+                )
+            )
+            # Prefer distinct years while possible, then allow repeated visits
+            # in one year once the opportunity has more occurrences than years.
+            if available:
+                selected = available.pop(draw.randrange(len(available)))
+            else:
+                selected = draw.randint(first_age, last_age)
+            ages.append(selected)
+        return tuple(sorted(ages))
 
     def _opportunity_distance_days(
         self, birth_cell_id: str, place_ids: tuple[str, ...]
@@ -1817,12 +1860,20 @@ class GenesisCompiler:
             labels = "、".join(self._label(place_id) for place_id in place_ids)
             seed_id = f"visit:{opportunity_id}"
             route_ids = _routes_for_places(self._source, place_ids)
+            visit_age_years = dict(context.mobility.visit_age_years).get(
+                opportunity_id, ()
+            )
+            age_label = (
+                "、".join(f"{age}岁" for age in visit_age_years)
+                if visit_age_years
+                else "未知年龄"
+            )
             result.append(
                 EpisodeSeed(
                     seed_id=seed_id,
                     content=(
                         f"我因为{purpose}去过{labels}。这次出行停留约{stay_days}天，"
-                        f"累计访问{visit_count}次。"
+                        f"累计访问{visit_count}次，发生在{age_label}。"
                     ),
                     source="personal_memory",
                     source_ref=f"visit-opportunity:{opportunity_id}",
@@ -1850,6 +1901,7 @@ class GenesisCompiler:
                     ),
                     visit_count=visit_count,
                     stay_days=stay_days,
+                    visit_age_years=visit_age_years,
                     purposes=(purpose,),
                 )
             )
@@ -2475,6 +2527,7 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "friend-count": "people",
         "friend-contact": "people",
         "visit-opportunity": "places",
+        "visit-age": "places",
         "visit-count": "places",
         "visit-member": "places",
         "person-species": "people",

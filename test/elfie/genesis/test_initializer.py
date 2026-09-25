@@ -318,6 +318,11 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
 
 def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
     bundle = _compilation("visit-memory", seed=4, stage="mature", age_years=8).bundle
+    expected_visit_ids = {
+        f"genesis:episode:visit-memory:{safe_component(episode.seed_id)}"
+        for episode in bundle.episode_seeds
+        if episode.seed_id.startswith("visit:")
+    }
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         GenesisMemoryCommitter().commit(bundle, storage)
@@ -325,12 +330,13 @@ def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
         visit_episodes = [
             episode
             for episode in storage.list_episodes(limit=1000)
-            if episode.episode_id.endswith("visit-town_center")
+            if episode.episode_id in expected_visit_ids
         ]
         assert visit_episodes
         metadata = visit_episodes[0].metadata
         assert metadata["visit_count"] >= 1
         assert metadata["stay_days"] >= 1
+        assert len(metadata["visit_age_years"]) == metadata["visit_count"]
         assert metadata["purposes"]
         predicates = {
             assertion.predicate
