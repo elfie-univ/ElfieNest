@@ -596,6 +596,7 @@ def _visit_opportunities(
                 requires_opportunity_id=_text(
                     item, "requires_opportunity_id", required=False
                 ),
+                distance_decay_days=_number(item, "distance_decay_days"),
             )
         )
     return tuple(result)

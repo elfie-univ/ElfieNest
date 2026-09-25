@@ -63,6 +63,15 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     )
     assert "earthbound_station" not in town.place_ids
     assert town.member_probability_for("mistyville_center") == 1.0
+    assert town.distance_decay_days == 4.0
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "forest_attraction"
+        ).distance_decay_days
+        == 12.0
+    )
     assert (
         next(
             item

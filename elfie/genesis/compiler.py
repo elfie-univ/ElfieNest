@@ -567,6 +567,7 @@ class GenesisCompiler:
             request,
             candidate,
             region_id=cell.region_id,
+            birth_cell_id=cell.cell_id,
         )
         visit_counts_by_place: dict[str, int] = dict.fromkeys(mandatory_visited, 1)
         visit_purposes_by_place: dict[str, set[str]] = {}
@@ -756,6 +757,7 @@ class GenesisCompiler:
         candidate: GenesisCandidate,
         *,
         region_id: str,
+        birth_cell_id: str,
     ) -> tuple[tuple[VisitOpportunityRule, tuple[str, ...], int], ...]:
         """Sample bounded visit groups without implying town or restricted access."""
 
@@ -783,6 +785,14 @@ class GenesisCompiler:
             attraction = opportunity.species_multiplier_for(
                 _species_label(request.species_id)
             ) * opportunity.region_multiplier_for(region_id)
+            distance_days = self._opportunity_distance_days(
+                birth_cell_id, opportunity.place_ids
+            )
+            if distance_days is None:
+                continue
+            distance_multiplier = math.exp(
+                -distance_days / opportunity.distance_decay_days
+            )
             expected = (
                 opportunity.annual_rate
                 * available_years
@@ -790,6 +800,7 @@ class GenesisCompiler:
                 * personality_multiplier
                 * curiosity_multiplier
                 * attraction
+                * distance_multiplier
             )
             probability = 1.0 - math.exp(-expected)
             draw = random.Random(
@@ -831,6 +842,57 @@ class GenesisCompiler:
                     selected_places.append(place_id)
             opportunities.append((opportunity, tuple(selected_places), count))
         return tuple(opportunities)
+
+    def _opportunity_distance_days(
+        self, birth_cell_id: str, place_ids: tuple[str, ...]
+    ) -> int | None:
+        """Return the round-trip cost to the nearest place in an opportunity."""
+
+        network = self._source.geography_network
+        start = _cell_label_from_population_id(birth_cell_id)
+        candidates: list[str] = []
+        pending = list(place_ids)
+        seen: set[str] = set()
+        while pending:
+            place_id = pending.pop()
+            if place_id in seen:
+                continue
+            seen.add(place_id)
+            cell = network.cell_for_place(place_id)
+            if cell:
+                candidates.append(cell)
+            pending.extend(
+                place.place_id
+                for place in self._source.places
+                if place.parent_id == place_id
+            )
+        costs: list[int] = []
+        for destination in candidates:
+            path = network.shortest_land_path(start, destination)
+            if path is not None:
+                costs.append(2 * (len(path) - 1) * network.land_days_per_grid_hop)
+                continue
+            island = next(
+                (
+                    (island_cell, ferry_cell, water_hops)
+                    for _, island_cell, ferry_cell, water_hops in network.island_destinations
+                    if island_cell == destination
+                ),
+                None,
+            )
+            if island is None:
+                continue
+            _, ferry_cell, water_hops = island
+            land_path = network.shortest_land_path(start, ferry_cell)
+            if land_path is not None:
+                costs.append(
+                    2
+                    * (
+                        (len(land_path) - 1) * network.land_days_per_grid_hop
+                        + water_hops * network.water_days_per_grid_hop
+                    )
+                )
+        return min(costs) if costs else None
 
     def _profile(
         self,

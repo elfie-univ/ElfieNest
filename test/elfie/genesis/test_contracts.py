@@ -276,6 +276,23 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     )
 
 
+def test_visit_distance_uses_round_trip_legal_route_cost() -> None:
+    source = load_genesis_source_package()
+    compiler = GenesisCompiler(source, catalog=load_and_configure_species_catalog())
+
+    assert (
+        compiler._opportunity_distance_days("u-r04-c09", ("mistyville_center",)) == 24
+    )
+    assert compiler._opportunity_distance_days("u-r04-c09", ("firstroot_tree",)) == 8
+    assert compiler._opportunity_distance_days("u-r04-c09", ("lakeheart_isle",)) == 54
+    assert (
+        compiler._opportunity_distance_days(
+            "u-r04-c09", ("clearheart_lake", "lake_shore", "lakeheart_isle")
+        )
+        == 32
+    )
+
+
 def test_genesis_rejects_adoption_before_age_two() -> None:
     with pytest.raises(GenesisError, match="至少 2 岁"):
         _compilation(stage="youth", age_years=1)

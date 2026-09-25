@@ -267,6 +267,7 @@ class VisitOpportunityRule:
     species_multipliers: tuple[tuple[str, float], ...] = ()
     region_multipliers: tuple[tuple[str, float], ...] = ()
     requires_opportunity_id: str = ""
+    distance_decay_days: float = 12.0
 
     def __post_init__(self) -> None:
         if not self.opportunity_id.strip() or not self.place_ids:
@@ -290,6 +291,8 @@ class VisitOpportunityRule:
         ):
             if multiplier < 0.0:
                 raise ValueError("visit opportunity multiplier must not be negative")
+        if self.distance_decay_days <= 0.0:
+            raise ValueError("visit opportunity distance decay must be positive")
 
     def member_probability_for(self, place_id: str) -> float:
         return dict(self.member_probabilities).get(place_id, self.member_probability)
