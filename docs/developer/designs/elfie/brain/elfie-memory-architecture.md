@@ -413,30 +413,65 @@ An Episode without a successful projection for its current source version retain
 
 ### 3.4 Hybrid Recall
 
-Recall is deterministic and index-driven on the hot path; it does not require a model call.
+Recall is a deterministic Memory operation and does not call a model. It serves two related needs: (1) associate the present situation with useful past Episodes, and (2) retrieve prior experience or graph knowledge that can answer a question or help complete a task. Brain/Reasoning owns whether and when to call Recall; Memory neither requires a call at turn start nor assumes a fixed reasoning-round schedule.
 
-#### 3.4.1 Basic / Text Search
+The conceptual pipeline has five steps. Query and Sense candidate generation run independently and may run in parallel; their results are unioned, not required to match both. Merge and deduplication follow, then global filters and per-kind limits, then typed result assembly. Namespace and privacy gates are mandatory at the storage boundary; implementations may push eligible filters into either branch as an optimization, but the observable result must equal applying them to the merged candidate set.
 
-Lexical/full-text search (and an optional vector index) finds Episode wording, Node names, aliases,
-sourced descriptions, user-visible Node properties, rare terms, detailed stories and source
-references. A query can therefore find a person from an attribute such as appearance even when the
-canonical name is forgotten. Structured property filters may add exact or range constraints when a
-caller knows the property path. This is the direct Episode/Node candidate path, not a search over
-raw upstream conversation logs.
+#### 3.4.1 Recall inputs and invocation
 
-#### 3.4.2 Local / Graph Search
+The request has three top-level inputs: optional `Query`, optional `Sense`, and optional `Filters`. At least one of Query or Sense is required. Query is for a known topic, entity, wording or explicit relation question. Sense is a sparse signature of the present scene, used for associative recall even when no useful keyword query exists. Filters are hard constraints over candidates from both branches. The caller decides whether the expected value justifies a call; a greeting or other low-information turn need not trigger Recall, while an explicit reference to a past event or a question requiring remembered facts normally should.
 
-Starting from text hits or supplied Node/Claim IDs, bounded typed traversal follows relationships to people, places, concepts, emotions, events and related Episodes. Traversal keeps a visited set, does not revisit a Node within one path, and returns explicit paths; hop, neighbor and result limits are hard caps. Person, time, place, historical emotion, topic and cause facets constrain or rank the same candidates.
+The Memory Port receives already available context only. It does not read live Orientation, Emotion, sensors, Profile or conversation history itself. The caller may include a compact summary of salient emotion, location, perception, people/objects or activity. Weak or absent signals should be omitted rather than represented as negative matches. A second call after a tool/action result can use that result as Query and/or Sense; this is the same interface, not a separate search mode.
 
-#### 3.4.3 Global Search (later capability)
+#### 3.4.2 Query branch
 
-Broad thematic or community search is deferred until the graph has representative density. A graph
-summary or Pattern may be a direct Recall result, but it must remain traceable to Assertions and
-Episodes and is not a new fact source.
+The Query branch has three complementary routes, selected by the request:
 
-#### 3.4.4 RecallBundle
+1. **Identity and exact-term resolution.** Resolve stable IDs, canonical labels and scoped aliases first when supplied. This is useful for named people, places, objects and concepts, but an ambiguous alias must remain ambiguous rather than silently choose one Node.
+2. **Inverted lexical retrieval.** Search rebuildable text projections for Episodes, Nodes and Assertions. Rank lexical candidates (for example with BM25), weighting canonical names/aliases and exact phrase or rare-term matches above broad body-text matches. Node documents include approved labels, aliases, sourced descriptions and user-visible properties; Assertion documents render the directed subject–predicate–object, qualifiers and useful sourced wording; Episode documents use their retained text/detail and approved metadata. This finds a remembered item from a name, phrase, attribute, story detail or relationship wording. It is not a scan of raw Communication logs.
+3. **Dense semantic retrieval (staged capability).** A later evaluated vector channel may retrieve paraphrases or semantically similar wording from the same three record kinds. It is a complementary candidate channel, not a replacement for lexical search; “RAG” describes a retrieve-then-generate pattern, not the retrieval algorithm. Embeddings and vector indexes remain derived, versioned and rebuildable. The initial contract does not require a vector backend.
 
-The minimum route is Basic/Text → Episode and/or Node–Assertion candidates → bounded Local/Graph expansion → selected Episodes/Evidence when context is useful. Privacy and namespace filters run before ranking. First-pass Recall uses active records. When that bounded pass is insufficient, the query explicitly requests historical material, or an exact stable ID/high-relevance source fingerprint is present, a separately capped archived lane may return archived records without mixing them into the active quota. Query relevance `R` combines lexical/semantic match, graph path and requested time/facets; Memory then derives `A=.65F+.35I`. Within either state lane, Nodes/Assertions rank by `R*A*(.25+.75C)`, while Episodes, which have no confidence, rank by `R*A`. Superseded/conflicting Assertions use a separate `R*A` lane so low confidence does not hide history. Each kind and state lane has its own bounded quota and stable-ID tie-breaker; `H` is not scored again because it already determines `F`. Retrieval alone is not reinforcement; only a qualified successful outcome can reactivate and strengthen an archived record.
+An explicit multi-hop relationship question uses an optional typed `GraphQueryPlan` within Query rather than hoping natural-language keyword matching infers the path. The plan supplies an anchor (`self`, a stable Node ID or an entity mention), an ordered list of registered predicates and directions, optional registered endpoint/type constraints, and a bounded result projection/cardinality. The caller or an already-running Reasoning model may turn natural language into this plan; Memory validates and executes it deterministically and makes no model call. Without a plan, free text performs ordinary retrieval and may receive only the small, intent-appropriate context expansion described below. No SQL, arbitrary predicate or unbounded graph language is accepted.
+
+`QuerySpec.text`, seed IDs and `graph_plan` are independently optional routes within Query. If more than one is present, their candidate sets are unioned and deduplicated; they are not implicitly ANDed. A graph anchor should be explicit or resolved from a concise entity mention, rather than treating the entire natural-language relation question as an exact path expression.
+
+Examples: “all my siblings” can traverse a registered sibling relation or a bounded shared-parent path; “my father's aunt's daughter” needs an ordered kinship path and must return ambiguity when the stored relations or role qualifiers do not identify one person; “what is this table made of?” anchors the table and follows a registered `made_of` relation to its object. A missing path means “not recorded / not resolved,” not that the relation is false. If role, gender, direction or time qualifications are absent, Recall must not invent them.
+
+#### 3.4.3 Sense branch
+
+Sense is a sparse, caller-supplied `SceneCue`, not a second natural-language Query and not an instruction to search every current signal. It may contain:
+
+- attributed affect/emotion labels and intensity;
+- current place or environment anchors;
+- salient people, objects, activities or roles;
+- a compact perception/body-sensation summary, such as what is seen, heard or felt.
+
+The caller admits only sufficiently salient/reliable cues (especially strong affect or distinctive scene signals); thresholds and any intentional stochastic recall policy belong to the caller, not a universal Memory cutoff. Memory compares available cues against historical Episode scene/context projections and may resolve their people/place/object anchors through the graph. It combines only dimensions actually present on both sides: missing historical emotion or location is unknown, not a mismatch. Strong emotion may favor a small top-ranked set of similarly attributed Episodes, but it does not by itself become a hard filter. Ambient/sensory free text can use lexical retrieval; structured scene facets can use indexed exact/range matching. Dense scene similarity can be added only after evaluation.
+
+#### 3.4.4 Merge, graph expansion and filters
+
+Merge is a union of Query and Sense candidates. Deduplicate only the same `(kind, id)` record; combine its channel support while preserving every match source, matched cue/field and graph path. Different Assertions that share endpoints remain distinct when their time, polarity, viewpoint, qualifiers or Evidence differ. Use a versioned rank-fusion rule such as Reciprocal Rank Fusion for incomparable channel ranks, with only a small bounded co-hit support bonus; do not compare raw lexical, vector and scene scores as though they shared a scale. The fused relevance `R` is bounded and deterministic. Importance, freshness and confidence affect final ordering as specified in §9.4, but cannot turn an irrelevant candidate into a relevant one. Per-kind quotas prevent one abundant type from crowding out all others.
+
+There are two distinct graph operations:
+
+- **Explicit path execution** answers a relationship request represented by `GraphQueryPlan`. Follow only the ordered, registered predicates and directions in the plan, return the actual Assertion path and endpoint records, and enforce a maximum of 4 path steps, 12 neighbors per expanded Node and the result cap. Direct person/attribute questions normally need zero or one hop. A two-hop friends-of-friends result is appropriate only when requested; there is no default friend-of-friend expansion. Location containment, object composition/material, causal knowledge and kinship each use their own registered relation semantics. If the graph stores no matching Assertion, do not synthesize one.
+- **Incidental context expansion** enriches a Query/Sense hit with a small number of directly relevant neighbors, linked Episodes or Evidence. It is not a path-answer substitute and must not recursively flood the graph. Expansion is relation-allowlisted and bounded; normally one hop for a person, place or object, with deeper traversal only when intent explicitly calls for it.
+
+After union, apply caller filters consistently to every result kind: allowed result kinds (`Episode`, `Node`, `Assertion`), Node types, predicate/relation types, time range, person/place/entity anchors, explicit minimum importance, and requested lifecycle/status lane. Filter families combine with AND; multiple values within a family combine with OR. Missing facet data is unknown, never a negative fact. Time filters use each record's own valid/occurrence semantics and do not fabricate a timestamp for unknown time. Archived material is a separate capped lane and is included only when the request/recall policy warrants historical retrieval. Mandatory namespace and privacy/lifecycle access gates always win over search scores or requested result types.
+
+#### 3.4.5 Typed result assembly
+
+Assemble an `Episode`, `Node` or `Assertion` as the primary result according to the record actually matched; linked records are supporting context, not substitutes:
+
+- An Episode includes a bounded excerpt or summary, occurrence range/precision, relevant scene, and selected participant/place/object Nodes plus the Assertions/Evidence needed to explain the match.
+- A Node includes canonical label and type, a short sourced description, selected user-visible properties, relevant direct Assertions, and at most a small number (normally one or two) of supporting Episodes/Evidence.
+- An Assertion includes its directed triple or typed literal, qualifiers, time/polarity/viewpoint/status/confidence, direct source Evidence, and any preserved conflict/supersession links.
+
+The typed `RecallBundle` retains paths, source provenance, match channels/cues, conflicts and explicit truncation. A deterministic renderer may project that same bundle into compact labeled free text for a model; it must preserve uncertainty and source distinctions and may not invent a narrative or call a model. Return limits are enforced before rendering. Retrieval alone is not reinforcement; only a qualified successful outcome can reactivate and strengthen an archived record.
+
+#### 3.4.6 Global search (later capability)
+
+Broad thematic/community search and Pattern/community aggregation are deferred until the graph has representative density and an evaluated retrieval need. A graph summary or Pattern may become a direct Recall result, but it must remain traceable to Assertions and Episodes and is not a new fact source.
 
 ### 3.5 Deferred Memory Abstraction Loop
 
@@ -462,11 +497,55 @@ Input is a complete, already-processed `ClosedEpisode` with a stable ID or idemp
 
 ### 4.2 Recall
 
-`RecallRequest` may specify text, seed Node/Claim IDs, node types, relation allowlists, time range, person/place/historical-emotion/topic/cause facets, retrieval mode and limits. It never contains SQL or graph query language.
+The conceptual port is `Recall(request: RecallRequest) -> RecallBundle`. It is a read-only query contract; callers choose when to invoke it. `RecallRequest` has three top-level fields, and Query/Sense are independently optional but at least one must be present:
+
+```text
+RecallRequest {
+  query?: QuerySpec,
+  sense?: SceneCue,
+  filters?: RecallFilters,
+  limits?: RecallLimits
+}
+
+QuerySpec {
+  text?: string,
+  seed_ids?: [NodeId | AssertionId | EpisodeId],
+  graph_plan?: GraphQueryPlan
+}
+
+GraphQueryPlan {
+  anchor: self | node_id | entity_mention,
+  steps: [{predicate, direction, registered_qualifiers?}],
+  endpoint_constraints?: {node_types?, registered_properties?},
+  projection: endpoint | path | both,
+  cardinality: one | all
+}
+
+SceneCue {
+  affect?: [{label, intensity?, confidence?}],
+  place_or_environment?: [...],
+  salient_entities_or_activity?: [...],
+  perception_summary?: string
+}
+
+RecallFilters {
+  kinds?: [Episode | Node | Assertion],
+  node_types?: [...],
+  predicates?: [...],
+  time_range?: {from?, to?, unknown_time?},
+  entity_ids?: [...],
+  registered_property_constraints?: [...],
+  episode_facets?: {historical_affect?, place_ids?, activity?},
+  minimum_importance?: number,
+  lifecycle_states?: [...]
+}
+```
+
+These shapes are semantic examples, not a frozen programming-language schema. Predicate/property names are validated against registries. Filters apply to the merged result across every record kind; privacy and the one-Elfie namespace are enforced internally and cannot be relaxed by the request. A caller cannot send SQL, arbitrary graph language or unrestricted property paths.
 
 The Memory Port is bound to one Elfie namespace; the request cannot widen that scope.
 
-Default hard limits are: 20 lexical hits, 8 seed Nodes, 2 graph hops, 12 neighbors per expanded Node, 40 Nodes, 80 Assertions, 8 Episodes, 24 Evidence items and 12,000 rendered characters. A caller may request lower limits; a higher request cannot bypass the Memory cap.
+Default hard limits are: 20 lexical hits per branch, 8 seed records, at most 4 steps in an explicit graph path, at most 2 incidental context hops, 12 neighbors per expanded Node, 40 Nodes, 80 Assertions, 8 Episodes, 24 Evidence items and 12,000 rendered characters. A caller may request lower limits; a higher request cannot bypass the Memory cap. The explicit-path cap permits questions such as “my father's aunt's daughter” while keeping incidental expansion shallower.
 
 The output is a bounded `RecallBundle`:
 
@@ -482,13 +561,18 @@ RecallBundle {
   evidence: [{id, source_type, source_id, source_version,
               span_or_locator, stance}],
   conflicts: [{assertion_ids, reason}],
+  match_provenance: [{record_kind, record_id, channels, matched_fields,
+                      scene_facets, assertion_path_ids}],
+  rendered_text: "optional deterministic, labeled projection",
   limits: {requested, returned, truncated}
 }
 ```
 
 Node–Assertion supplies high-density structure and reusable knowledge; Episodes supply the complete
-topic context; Evidence explains the derivation; and the consuming layer supplies narration. A
-Recall result does not have to include raw upstream conversation or media.
+topic context; Evidence explains the derivation. `rendered_text`, when requested, is a deterministic
+compact projection of these typed records for an LLM, not a second answer or a model-generated
+summary. The consuming layer still decides what to say or do. A Recall result does not have to
+include raw upstream conversation or media.
 
 ### 4.3 Qualified use and outcome feedback
 
@@ -532,24 +616,47 @@ Each Genesis submission's ID/version/hash and completion marker are durable pack
 
 ### 5.2 Derived indexes and cache
 
-`episodes_fts` and `nodes_fts` are rebuildable full-text projections over original Episode text,
-legacy summary metadata, labels, aliases, sourced descriptions and approved user-visible Node properties.
-Technical identifiers, submission metadata, provenance IDs and retention/scoring fields are not
-ordinary property-search text. No separate semantic Segment layer is required by this design; an
-internal slice for an unusually large Episode would be a rebuildable index detail only. An optional
-vector index is a later optimization, never a first-implementation prerequisite, and is also
-derived. Required lookup indexes cover lifecycle/status plus
-`next_review_at`, Episode successful projection revision/time/hash, Node normalized label/type/status,
-aliases `(normalized_alias, scope)`, descriptions `(node_id, language, kind)`, mentions by Node and
-Episode, Assertions by subject/predicate and object/predicate, conflict/supersession, Evidence
-source/independence key, both directions of `assertion_evidence`, and unique score-event receipts.
-Recall first obtains a bounded indexed candidate set and derives freshness/rank only for that set; it
+Each Elfie's Memory SQLite database owns its own rebuildable search projections; there is no shared
+all-user index and no requirement to load every user's index into application RAM. The initial
+inverted-index design is one logical `recall_documents` projection keyed by `(record_kind,
+record_id)`, with fields for canonical labels, aliases, sourced descriptions, approved user-visible
+properties, Episode wording and rendered Assertion triples/qualifiers. A persistent SQLite FTS5
+index (or equivalent SQLite inverted index if the bundled runtime lacks FTS5) ranks those documents.
+Its target is Episodes, Nodes and Assertions, not raw conversation logs. Field weights favor exact
+names/aliases, rare terms and directed relation wording over broad Episode body matches. Chinese
+tokenization/normalization must be versioned and evaluated (segmented terms and/or a suitable
+character-level fallback); an index that only matches whitespace-separated words is not an adequate
+search contract. Technical IDs, submission metadata, source IDs and retention/scoring fields are not
+ordinary searchable text.
+
+The search document is a derived index projection, not another semantic Memory layer or fact source.
+It retains the source record kind/ID and source revision so a hit joins back to the authoritative
+Episode, Node or Assertion and its Evidence. Updates are idempotent and tied to committed source
+revisions. Update the text projection/index in the source transaction where practical; if rebuilt
+after commit, expose its revision/lag and rebuild from authoritative rows. Missing/stale indexes are
+recoverable by deterministic rebuild and can never erase or replace source facts. No independent
+semantic Segment table is required; any internal Episode slicing is a rebuildable retrieval detail.
+
+Dense vectors are a later evaluated channel. If added, embeddings and vector entries are persisted
+per record/namespace with model, tokenizer and source revision, and remain derived/rebuildable; the
+initial contract does not select an ANN engine or require an external search service. Bounded SQLite
+page/index caches may reside in RAM, but the full corpus/index is not held in application memory.
+
+Use ordinary B-tree indexes for frequently queried structured filters and joins: lifecycle/status
+plus `next_review_at`, Episode projection revision/time/hash and selected occurrence-time columns,
+Node normalized label/type/status, aliases `(normalized_alias, scope)`, descriptions
+`(node_id, language, kind)`, mentions by Node and Episode, Assertions by subject/predicate and
+object/predicate, conflict/supersession, Evidence source/independence key, both directions of
+`assertion_evidence`, and unique score-event receipts. Queryable scene facets such as attributed
+historical emotion/intensity and location must be represented as typed columns or a rebuildable
+facet projection, not buried only in opaque JSON. Add B-tree indexes only for dimensions that are
+selective/frequently filtered; indexing every property increases disk use and write/maintenance
+cost. Recall obtains a bounded candidate set first and derives freshness/rank only for that set; it
 never computes freshness across the whole database. Operational leases, retry attempts and
-checkpoints are bounded controls and never returned by Recall. A non-null successful projection
-revision is a durable marker tied to the Episode source version/content hash; absence, or a revision
-tied to an older source hash, means that the current projection has not been committed. Each index
-exists for a bounded query and declares its rebuild source. The first implementation stays on the
-embedded relational store; a dedicated graph engine is not a prerequisite.
+checkpoints are bounded controls and never returned by Recall. A successful projection revision is
+a durable marker tied to the Episode source version/content hash. Every derived index declares its
+authoritative rebuild source. The first implementation stays on the embedded relational store; a
+dedicated graph engine is not a prerequisite.
 
 Score receipts also have bounded operational growth. Within a versioned late-arrival safety window, complete receipts remain replayable. After the source outcome/Evidence is durable, all local outbox events through a target watermark are settled and the window expires, importance receipts compact to the highest class per direction/window and reinforcement receipts fold into a checkpoint that retains policy version, folded state, event count/hash and last event time. A receipt older than the settled watermark is rejected into observable reconciliation state; it never silently changes the score or substitutes processing time. This compaction applies only to score-control receipts, never to semantic Episodes, Evidence or conflict history.
 
@@ -626,7 +733,7 @@ Verify mention resolution, canonicalization, Assertion/Evidence links, Claim Nod
 
 ### 8.3 Hybrid retrieval
 
-Replay a rare term, a relationship-network query, a knowledge object, an emotion facet and a time-bounded experience. Verify Basic/Text fallback, bounded Local/Graph paths, RecallBundle provenance and explicit truncation. Initial targets: rare-term recall@5 ≥ 0.90 and relationship-path precision = 1.00.
+Replay: a rare term and alias; Chinese phrase/character variants; a paraphrase (for the later dense gate); a scene with strong historical affect and place cues; omitted/unknown cues; time and importance filters; Query-only, Sense-only, and Query+Sense union; person/place/object/knowledge matches across Episodes, Nodes and Assertions; one-hop siblings/material queries; a three-step kinship path; ambiguous and missing graph paths; privacy/status exclusion; deduplication with channel provenance; and result assembly/truncation for each record kind. Verify the initial inverted-index and typed-facet behavior separately from any deferred vector gate, bounded incidental graph expansion, explicit path precision, RecallBundle provenance and rendered-text fidelity. Initial targets remain rare-term recall@5 ≥ 0.90 and relationship-path precision = 1.00.
 
 ### 8.4 Importance, retention, confidence and conflicts
 
@@ -666,9 +773,11 @@ This section closes implementation ambiguities identified during review. It is n
 ### 9.4 Recall semantics
 
 - Facets are positive constraints: different facet families combine with AND, values within one family combine with OR, and missing facet data does not become a negative fact. Historical emotion is read from the Episode's attributed source, never from live Emotion state.
-- Ranking is deterministic and kind-specific: derive query relevance `R` and freshness `F`, then use `R*(.65F+.35I)*(.25+.75C)` for eligible Nodes/Assertions within their active or archived lane, and `R*(.65F+.35I)` for Episodes and the conflict lane. Results remain separated by kind and state with stable-ID tie-breakers; policy components are bounded and versioned.
+- Query and Sense are independent candidate branches; their merged set is a union. Duplicate identity is `(record_kind, record_id)`, and duplicate support is fused without collapsing distinct Assertions. Use deterministic rank fusion (RRF or a versioned equivalent) for incomparable branch scores, preserve match provenance, and use only a bounded co-hit bonus. Apply global caller filters to the merged candidates, with semantics identical whether an implementation pushes them down for efficiency or not.
+- Ranking is deterministic and kind-specific: derive bounded query relevance `R` from lexical/semantic rank, graph path and matched requested facets, then derive freshness `F`; use `R*(.65F+.35I)*(.25+.75C)` for eligible Nodes/Assertions within their active or archived lane, and `R*(.65F+.35I)` for Episodes and the conflict lane. Importance/freshness/confidence order relevant results but do not substitute for relevance. Results remain separated by kind and state with stable-ID tie-breakers; policy components are bounded and versioned.
 - Active Assertions are preferred, while relevant `superseded` and conflicting Assertions remain visible with explicit status and Evidence. Privacy and namespace filtering happen before ranking.
-- Basic/Text and Local/Graph are the initial modes. Global/community and vector retrieval remain derived, later capabilities and are not advertised by the initial contract.
+- Explicit graph paths are a typed Query subroute over registered predicates, not a fourth top-level request input or a general graph language. Explicit paths have a bounded step/fanout cap distinct from shallower incidental context expansion. A missing Assertion is not a negative fact; ambiguous role/identity resolution stays explicit.
+- The initial retrieval contract is exact/alias resolution, persisted inverted lexical search, typed scene facets and bounded Local/Graph traversal over Episodes, Nodes and Assertions. Dense-vector similarity is a later derived channel gated by evaluation; broad Global/community retrieval is also deferred. “Hybrid” does not imply that a vector engine or model call is required in the first implementation.
 
 ### 9.5 Fresh schema and compatibility boundary
 
