@@ -27,7 +27,12 @@ from elfie.brain.memory.predicates import (
     relation_spec,
 )
 
-from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
+from .contracts import (
+    GenesisBundle,
+    GenesisValidationError,
+    KnowledgeSeed,
+    validate_genesis_bundle,
+)
 from .serialization import (
     EPISODE_NODE_PREFIX,
     GENESIS_RECEIPT_PREFIX,
@@ -319,8 +324,16 @@ class GenesisMemoryCommitter:
         # to the nightly Consolidator.  This makes the source auditable and
         # prevents Genesis from turning every published fact into a pre-baked
         # graph star.
+        knowledge_by_topic: dict[str, list[KnowledgeSeed]] = {}
+        for knowledge in bundle.knowledge_seeds:
+            knowledge_by_topic.setdefault(knowledge.topic, []).append(knowledge)
+        knowledge_topic_members = {
+            topic: tuple(item.seed_id for item in members)
+            for topic, members in knowledge_by_topic.items()
+        }
         for knowledge in bundle.knowledge_seeds:
             episode_id = _knowledge_episode_id(safe_elfie, knowledge.seed_id)
+            topic_members = knowledge_topic_members.get(knowledge.topic, ())
             searchable_summary = "；".join(
                 dict.fromkeys(
                     (
@@ -358,6 +371,10 @@ class GenesisMemoryCommitter:
                         "knowledge_id": knowledge.seed_id,
                         "scope": knowledge.scope,
                         "topic": knowledge.topic,
+                        "topic_bucket": knowledge.topic,
+                        "topic_member_ids": list(topic_members),
+                        "topic_member_index": topic_members.index(knowledge.seed_id),
+                        "topic_member_count": len(topic_members),
                         "aliases": list(knowledge.aliases),
                         "retrieval_terms": list(knowledge.retrieval_terms),
                         "certainty": knowledge.certainty,

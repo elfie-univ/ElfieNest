@@ -352,12 +352,13 @@ source:
   sha256: <source-digest>
 knowledge:
   - id: <stable-id>
+    topic: <reviewed-small-topic>
     description: <complete resident-facing fact>
     eligibility: <optional declarative rule>
     mastery_difficulty: <optional difficulty>
 ~~~
 
-Each resident-content unit maps to one record, including unlabeled lists/paragraphs. `description` preserves the complete original text. Normalize line breaks, list markers and label prefixes only, without changing wording, facts or epistemic boundaries. Do not add titles, topic groups, empty properties, generated defaults or partial content.
+Each resident-content unit maps to one record, including unlabeled lists/paragraphs. `topic` is an explicit reviewed organization field; it never changes the source fact. `description` preserves the complete original text. Normalize line breaks, list markers and label prefixes only, without changing wording, facts or epistemic boundaries. Do not add titles or topic prose to `description`, empty properties, generated defaults or partial content.
 
 | Human-readable label | Machine representation |
 | --- | --- |
@@ -578,7 +579,7 @@ Personal knowledge retains atomic facts organized into reviewed small-topic buck
 
 Generation may submit bounded topic groups through the existing APSO entrance with explicit member boundaries. Memory must preserve fact-level evidence and topic membership. Split oversized groups at whole-member boundaries under configured limits; never truncate text, substitute summaries or redraw eligibility. Grouping cannot turn legends, uncertainty or conditions into certain facts, or backdate later knowledge into earlier experiences.
 
-On a member hit, Recall expands relevant acquired siblings within its budget, deduplicating and retaining provenance. Return the whole group when it fits; otherwise return relevant complete members plus an omitted-member count/continuation reference. A hit does not guarantee unlimited context. Lab defaults to grouped reading with expandable eligibility, provenance and evidence per member. Acceptance covers cross-member questions, large-group splitting, unacquired-member isolation, temporal filtering, idempotency and source-free reopen. Current per-unit writes with chapter-only topics do not yet meet this target.
+On a member hit, Recall expands relevant acquired siblings within its budget, deduplicating and retaining provenance. Return the whole group when it fits; otherwise return relevant complete members plus an omitted-member count/continuation reference. A hit does not guarantee unlimited context. Lab defaults to grouped reading with expandable eligibility, provenance and evidence per member. The current source-first implementation keeps one complete Episode per fact and records the declared bucket and member order; Recall expands only those acquired siblings and reports omissions without concatenating or truncating facts. Acceptance still covers large-group splitting, unacquired-member isolation, temporal filtering, idempotency and source-free reopen.
 
 #### 6.5.9 Detailed stories, Selfhood and introduction
 

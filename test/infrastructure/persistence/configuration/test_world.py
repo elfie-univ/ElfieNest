@@ -102,6 +102,7 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert myelle_landscape.conditions[0].kind == "place"
     assert myelle_landscape.conditions[0].value("id") == "myelle_region"
     assert myelle_landscape.conditions[0].value("contact") == "residence"
+    assert package.fact("B-03-02").topic == "B-03"
     assert package.fact("B-04-02").conditions[0].kind == "route"
     assert package.fact("B-04-02").conditions[0].value("status") == "traversed"
     assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"

@@ -294,6 +294,8 @@ def test_registered_knowledge_is_still_the_existing_160_unit_projection() -> Non
     )
     rows = knowledge["knowledge"]
     assert len(rows) == len({row["id"] for row in rows}) == 160
+    assert all(isinstance(row.get("topic"), str) and row["topic"] for row in rows)
+    assert next(row for row in rows if row["id"] == "A-01-02")["topic"] == "A-01"
     source = ROOT.parent / knowledge["source"]["path"]
     assert (
         hashlib.sha256(source.read_bytes()).hexdigest() == knowledge["source"]["sha256"]

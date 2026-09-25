@@ -220,7 +220,7 @@ def _knowledge(raw: Any) -> WorldKnowledgeFact:
         version=1,
         statement=_text(item, "description"),
         scope="resident",
-        topic=fact_id.split("-", maxsplit=1)[0],
+        topic=_text(item, "topic"),
         aliases=(),
         retrieval_terms=(fact_id,),
         level=level,

@@ -267,6 +267,11 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             assert episode.content_text == seed.content
             assert episode.metadata["knowledge_id"] == seed.seed_id
             assert episode.metadata["topic"] == seed.topic
+            assert episode.metadata["topic_bucket"] == seed.topic
+            assert seed.seed_id in episode.metadata["topic_member_ids"]
+            assert episode.metadata["topic_member_count"] == len(
+                episode.metadata["topic_member_ids"]
+            )
         assert not [
             node
             for node in storage.list_graph_nodes(limit=1000)

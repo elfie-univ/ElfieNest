@@ -27,9 +27,9 @@ manifest:
   members:
   - path: knowledge/elfaria.yaml
     kind: resident_knowledge
-    version: elfaria-resident-knowledge.v9
+    version: elfaria-resident-knowledge.v10
     status: published
-    sha256: 78d8497f28e61eb78b808d6c1818051a2d3622316709f0c9c23d1aadc266f9ab
+    sha256: 21da0a3911872b9d787423b58161fb767b66a90e74ae5052eaf74c7ecd8d0131
   - path: knowledge/geography.yaml
     kind: geography_knowledge
     version: elfaria-geography.v12
@@ -119,12 +119,12 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 3b6ea241288550f3e9e0327180fa6b34a36bdda3e06dc52640bdfaf4f3178a7d
+  content_sha256: 3479abcbe1ac908176228d570234e302e8a0a72b92e232b15fa0d31c0dff03dd
 coverage:
   status: complete
   resident_source_ref: resident
   knowledge_member: knowledge/elfaria.yaml
-  knowledge_version: elfaria-resident-knowledge.v9
+  knowledge_version: elfaria-resident-knowledge.v10
   projected_units: 160
   body_projection: preserved_from_verified_build_draft
   stable_source_anchors: 160_explicit_knowledge_unit_anchors

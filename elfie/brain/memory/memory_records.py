@@ -1008,6 +1008,15 @@ class RecallEpisode:
     freshness: float = 1.0
     half_life_days: float = 2.0
     source_event_ids: Tuple[str, ...] = ()
+    # Genesis knowledge remains source-first and fact-level, while Recall may
+    # expand acquired siblings from the same reviewed topic bucket.  These
+    # fields make that expansion inspectable without concatenating or
+    # truncating the underlying Episodes.
+    topic_bucket: Optional[str] = None
+    topic_member_index: Optional[int] = None
+    topic_member_count: int = 0
+    topic_omitted_count: int = 0
+    topic_continuation: Optional[str] = None
 
 
 @dataclass(frozen=True)
