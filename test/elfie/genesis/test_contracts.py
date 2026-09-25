@@ -12,6 +12,7 @@ from elfie.genesis import (
     GenesisValidationError,
 )
 from elfie.genesis.compiler import stage_for_age
+from elfie.genesis.world import GeographyAccessRule
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -177,6 +178,10 @@ def test_compiler_emits_a_deduplicated_core_family_graph() -> None:
             )
         elif relationship.role == "sibling":
             assert {"self", *parent_ids} <= set(relationship.related_person_ids)
+    parents = tuple(item for item in family if item.role == "parent")
+    assert all("self" in item.care_recipient_person_ids for item in parents)
+    children = tuple(item for item in family if item.role == "child")
+    assert all("self" in item.caregiver_person_ids for item in children)
     assert compilation.bundle.validate() is None
 
 
@@ -402,6 +407,35 @@ def test_observation_only_landmarks_do_not_become_entered_visits() -> None:
 
     assert episode.place_ids == ()
     assert episode.observed_place_ids == ("cloudcrown_city",)
+
+
+def test_restricted_places_are_not_silently_sampled_as_ordinary_visits() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        access_rules=(
+            *source.access_rules,
+            GeographyAccessRule(
+                rule_id="review-only-square",
+                place_id="skyreach_square",
+                ordinary_travel_allowed=False,
+            ),
+        ),
+    )
+
+    compilation = _compilation(
+        "restricted-place",
+        seed=7,
+        stage="mature",
+        age_years=8,
+        source=source,
+    )
+
+    assert "skyreach_square" not in compilation.life_context.mobility.visited_place_ids
+    assert all(
+        "skyreach_square" not in place_ids
+        for _, place_ids, *_ in compilation.life_context.mobility.opportunity_records
+    )
 
 
 def test_genesis_rejects_adoption_before_age_two() -> None:

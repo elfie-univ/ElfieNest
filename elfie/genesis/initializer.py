@@ -264,6 +264,12 @@ class GenesisMemoryCommitter:
                     f"出生排行：第{relationship.birth_order}位"
                     if relationship.birth_order is not None
                     else "",
+                    f"照护者：{', '.join(relationship.caregiver_person_ids)}"
+                    if relationship.caregiver_person_ids
+                    else "",
+                    f"照护对象：{', '.join(relationship.care_recipient_person_ids)}"
+                    if relationship.care_recipient_person_ids
+                    else "",
                     f"职业线索：{relationship.vocation_id}"
                     if relationship.vocation_id
                     else "",
@@ -304,6 +310,10 @@ class GenesisMemoryCommitter:
                         "person_gender": relationship.person_gender,
                         "life_status": relationship.life_status,
                         "related_person_ids": list(relationship.related_person_ids),
+                        "caregiver_person_ids": list(relationship.caregiver_person_ids),
+                        "care_recipient_person_ids": list(
+                            relationship.care_recipient_person_ids
+                        ),
                         "vocation_id": relationship.vocation_id,
                         "competency_ids": list(relationship.competency_ids),
                         "eligible_episode_theme_ids": list(

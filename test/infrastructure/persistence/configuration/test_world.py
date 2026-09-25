@@ -54,6 +54,17 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
         ("island_entry", "lakeheart_isle", False),
         ("cloudcrown_entry", "cloudcrown_city", True),
     }
+    station_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "earthbound_entry"
+    )
+    assert station_rule.requires == (
+        "scheduled_transition_or_authorized_visit",
+        "valid_entry_permission",
+    )
+    cloudcrown_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "cloudcrown_entry"
+    )
+    assert cloudcrown_rule.ordinary_travel_allowed is False
     assert {
         item.opportunity_id for item in package.generation_policy.visit_opportunities
     } == {

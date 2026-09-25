@@ -153,6 +153,10 @@ class RelationshipSeed:
     person_gender: str = ""
     life_status: str = "alive"
     related_person_ids: tuple[str, ...] = ()
+    # Explicit care links make the family graph auditable without asking
+    # Memory to infer care from relationship prose.
+    caregiver_person_ids: tuple[str, ...] = ()
+    care_recipient_person_ids: tuple[str, ...] = ()
     competency_ids: tuple[str, ...] = ()
     eligible_episode_theme_ids: tuple[str, ...] = ()
 
@@ -557,6 +561,13 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
     _validate_text_collection(seed.retrieval_terms, "RelationshipSeed.retrieval_terms")
     _validate_text_collection(
         seed.related_person_ids, "RelationshipSeed.related_person_ids"
+    )
+    _validate_text_collection(
+        seed.caregiver_person_ids, "RelationshipSeed.caregiver_person_ids"
+    )
+    _validate_text_collection(
+        seed.care_recipient_person_ids,
+        "RelationshipSeed.care_recipient_person_ids",
     )
     if not (seed.aliases or seed.retrieval_terms):
         raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")

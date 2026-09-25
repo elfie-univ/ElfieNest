@@ -840,7 +840,6 @@ class GenesisCompiler:
             ).random()
             if draw >= probability:
                 continue
-            selected.add(opportunity.opportunity_id)
             count_draw = random.Random(
                 self._domain_seed(
                     request.appearance_seed,
@@ -857,6 +856,13 @@ class GenesisCompiler:
                     raise GenesisError(
                         f"访问机会引用了未注册地点: {opportunity.opportunity_id}/{place_id}"
                     )
+                # A typed geography rule can make a place unavailable for
+                # ordinary travel.  Keep observation-only landmarks in the
+                # opportunity so the episode can record ``witnessed``; a
+                # restricted place without that explicit observation mode
+                # must not silently become an entered visit.
+                if self._place_access(place_id) == "restricted":
+                    continue
                 if index == 0:
                     selected_places.append(place_id)
                     continue
@@ -869,6 +875,9 @@ class GenesisCompiler:
                 ).random()
                 if member_draw < member_probability:
                     selected_places.append(place_id)
+            if not selected_places:
+                continue
+            selected.add(opportunity.opportunity_id)
             opportunities.append((opportunity, tuple(selected_places), count))
         return tuple(opportunities)
 
@@ -1361,6 +1370,8 @@ class GenesisCompiler:
             shared_fact: str,
             birth_order: int | None = None,
             rule: RelationshipArchetype = family_rule,
+            caregiver_person_ids: tuple[str, ...] = (),
+            care_recipient_person_ids: tuple[str, ...] = (),
         ) -> None:
             if person_id in used_person_ids:
                 raise GenesisError(f"家庭图生成了重复人物: {person_id}")
@@ -1422,6 +1433,8 @@ class GenesisCompiler:
                     life_status=life_status,
                     competency_ids=rule.competency_ids,
                     eligible_episode_theme_ids=rule.episode_theme_ids,
+                    caregiver_person_ids=caregiver_person_ids,
+                    care_recipient_person_ids=care_recipient_person_ids,
                 )
             )
 
@@ -1465,6 +1478,7 @@ class GenesisCompiler:
             age_years=main_age + parent_gap + 1,
             importance=family_importance,
             shared_fact="她是我的父母之一，曾参与我的早期照护。",
+            care_recipient_person_ids=("self",),
         )
         add_family_member(
             person_id=parent_ids[1],
@@ -1473,6 +1487,7 @@ class GenesisCompiler:
             age_years=main_age + parent_gap + 2,
             importance=family_importance,
             shared_fact="他是我的父母之一，曾参与我的早期照护。",
+            care_recipient_person_ids=("self",),
         )
 
         parent_child_target = draw_child_target("parents")
@@ -1651,6 +1666,7 @@ class GenesisCompiler:
                     importance=family_importance * 0.79,
                     shared_fact="这是我的子女，我们之间有家庭照护关系。",
                     birth_order=index + 1,
+                    caregiver_person_ids=("self",),
                 )
 
         # Friends are selected from actual contact opportunities represented by
@@ -1826,6 +1842,41 @@ class GenesisCompiler:
                 related_person_ids=tuple(
                     sorted(related.get(relationship.person_id, ()))
                 ),
+                caregiver_person_ids=(
+                    tuple(
+                        sorted(
+                            {
+                                *relationship.caregiver_person_ids,
+                                *(
+                                    (partner_id,)
+                                    if relationship.role == "child"
+                                    and partner_id is not None
+                                    else ()
+                                ),
+                            }
+                        )
+                    )
+                    if relationship.role == "child"
+                    else relationship.caregiver_person_ids
+                ),
+                care_recipient_person_ids=(
+                    tuple(
+                        sorted(
+                            {
+                                *relationship.care_recipient_person_ids,
+                                *(
+                                    {"self", *sibling_ids, *child_ids}
+                                    if relationship.role == "parent"
+                                    else {"self", *child_ids}
+                                    if relationship.role == "partner"
+                                    else set()
+                                ),
+                            }
+                        )
+                    )
+                    if relationship.role in {"parent", "partner"}
+                    else relationship.care_recipient_person_ids
+                ),
             )
             for relationship in result
         ]
@@ -1857,6 +1908,7 @@ class GenesisCompiler:
                 certainty="high",
                 version=1,
                 age_band_at_genesis=context.identity.life_stage,
+                life_status="alive",
             )
         )
         result.append(
@@ -1886,6 +1938,7 @@ class GenesisCompiler:
                 certainty="high",
                 version=1,
                 age_band_at_genesis=context.identity.life_stage,
+                life_status="alive",
             )
         )
         return tuple(result)
@@ -1979,8 +2032,12 @@ class GenesisCompiler:
 
     def _place_access(self, place_id: str) -> str:
         for rule in self._source.access_rules:
-            if rule.place_id == place_id and rule.observation_only:
+            if rule.place_id != place_id:
+                continue
+            if rule.observation_only:
                 return "observation_only"
+            if not rule.ordinary_travel_allowed:
+                return "restricted"
         place = self._place(place_id)
         if place is None:
             return ""
