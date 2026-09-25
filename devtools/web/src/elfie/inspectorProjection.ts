@@ -110,6 +110,16 @@ const attributeLabels: Record<string, string> = {
   is_self: "当前精灵",
   is_owner: "主人标记",
   age_years_at_genesis: "创世年龄",
+  knowledge_id: "知识 ID",
+  topic_bucket: "知识主题桶",
+  topic_member_position: "主题成员顺序",
+  topic_member_ids: "主题成员",
+  mastery: "掌握状态",
+  eligibility: "获得条件",
+  acquired_via: "获得方式",
+  acquired_stage: "获得阶段",
+  recall_eligible: "允许召回",
+  initial_confidence: "初始置信度",
   life_stage: "生命阶段",
   vocation_id: "职业线索",
   competency_ids: "能力线索",
@@ -124,7 +134,9 @@ const attributeLabels: Record<string, string> = {
 
 const attributeOrder = [
   "is_self", "species_name", "species", "species_id", "kind", "place_kind", "object_kind", "knowledge_kind",
-  "display_name", "life_stage", "age_years_at_genesis", "relation_role", "vocation_id", "competency_ids",
+  "display_name", "life_stage", "age_years_at_genesis", "knowledge_id", "topic_bucket", "topic_member_position",
+  "topic_member_ids", "mastery", "eligibility", "acquired_via", "acquired_stage", "recall_eligible", "initial_confidence",
+  "relation_role", "vocation_id", "competency_ids",
   "familiarity", "trust_score", "visibility", "parent_id", "shared_facts", "unknown_facts",
 ];
 
@@ -391,6 +403,27 @@ export function projectEpisodeDetail(
   const evidenceIds = new Set(evidence.map((item) => String(item.evidence_id)));
   const affectedAssertions = input.assertions.filter((item) => Array.isArray(item.evidence_ids) && item.evidence_ids.some((id) => evidenceIds.has(String(id))));
   const nodeIds = new Set(affectedAssertions.flatMap((item) => [String(item.subject_id ?? ""), String(item.object_node_id ?? "")]).filter(Boolean));
+  const metadata = metadataOf(episode);
+  const topicBucket = typeof metadata.topic_bucket === "string" ? metadata.topic_bucket : "";
+  const topicMemberIndex = typeof metadata.topic_member_index === "number" ? metadata.topic_member_index : null;
+  const topicMemberCount = typeof metadata.topic_member_count === "number" ? metadata.topic_member_count : null;
+  const knowledgeFields = topicBucket ? [
+    field("knowledge_id", metadata.knowledge_id ?? episode.knowledge_id, "episode", "知识 ID"),
+    field("topic_bucket", topicBucket, "episode", "知识主题桶"),
+    field(
+      "topic_member_position",
+      topicMemberIndex == null || topicMemberCount == null ? null : `${topicMemberIndex + 1} / ${topicMemberCount}`,
+      "episode",
+      "主题成员顺序",
+    ),
+    field("topic_member_ids", metadata.topic_member_ids, "episode", "主题成员"),
+    field("mastery", metadata.mastery, "episode", "掌握状态"),
+    field("eligibility", metadata.eligibility, "episode", "获得条件"),
+    field("acquired_via", metadata.acquired_via, "episode", "获得方式"),
+    field("acquired_stage", metadata.acquired_stage, "episode", "获得阶段"),
+    field("recall_eligible", metadata.recall_eligible, "episode", "允许召回"),
+    field("initial_confidence", metadata.initial_confidence, "episode", "初始置信度"),
+  ] : [];
   return {
     kind: "episode",
     header: headerFor(episode, "Episode", "Episode", String(episode.content_text ?? "没有来源内容")),
@@ -400,6 +433,7 @@ export function projectEpisodeDetail(
       field("occurred_to", episode.occurred_to, "episode", "结束时间"),
       field("attribution", episode.attribution, "episode", "归因"),
       field("detail_level", episode.detail_level, "episode", "细节级别"),
+      ...knowledgeFields,
     ],
     connections: [
       ...[...nodeIds].map((id) => ({ id, label: "受影响 Node", detail: input.nodeById.get(id)?.label ?? id, importance: null, confidence: null, kind: "episode" as const })),
