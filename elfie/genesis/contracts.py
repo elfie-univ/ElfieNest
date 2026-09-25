@@ -148,11 +148,16 @@ class RelationshipSeed:
     age_years_at_genesis: int | None = None
     relationship_start_age: int | None = None
     # Birth order is only meaningful for members of one shared family
-    # children set.  The protagonist itself is the anchor and is therefore
-    # represented by the absence of a RelationshipSeed entry.
+    # children set.
     birth_order: int | None = None
+    # Parent nodes carry the complete shared child set, including the
+    # protagonist's rank, so this fact does not depend on an anchor node.
+    child_birth_orders: tuple[tuple[str, int], ...] = ()
     person_gender: str = ""
     life_status: str = "alive"
+    death_age_years_at_genesis: int | None = None
+    birth_event_age_years: int | None = None
+    death_event_age_years: int | None = None
     related_person_ids: tuple[str, ...] = ()
     # Explicit care links make the family graph auditable without asking
     # Memory to infer care from relationship prose.
@@ -580,6 +585,24 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")
     if seed.life_status not in {"alive", "deceased", "unknown"}:
         raise GenesisValidationError("RelationshipSeed.life_status 无效")
+    if seed.death_age_years_at_genesis is not None and (
+        isinstance(seed.death_age_years_at_genesis, bool)
+        or not isinstance(seed.death_age_years_at_genesis, int)
+        or seed.death_age_years_at_genesis < 1
+    ):
+        raise GenesisValidationError("RelationshipSeed.death_age_years_at_genesis 无效")
+    if (seed.life_status == "deceased") != (
+        seed.death_age_years_at_genesis is not None
+    ):
+        raise GenesisValidationError("RelationshipSeed 已故状态必须且只能携带享年")
+    for field_name, value in (
+        ("birth_event_age_years", seed.birth_event_age_years),
+        ("death_event_age_years", seed.death_event_age_years),
+    ):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 1
+        ):
+            raise GenesisValidationError(f"RelationshipSeed.{field_name} 无效")
     if seed.relationship_start_age is not None and (
         isinstance(seed.relationship_start_age, bool)
         or not isinstance(seed.relationship_start_age, int)
@@ -592,6 +615,30 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         or seed.birth_order < 1
     ):
         raise GenesisValidationError("RelationshipSeed.birth_order 必须为正整数")
+    if seed.child_birth_orders:
+        child_ids = tuple(person_id for person_id, _ in seed.child_birth_orders)
+        orders = tuple(order for _, order in seed.child_birth_orders)
+        if (
+            any(not person_id.strip() for person_id in child_ids)
+            or len(child_ids) != len(set(child_ids))
+            or len(orders) != len(set(orders))
+            or set(orders) != set(range(1, len(orders) + 1))
+            or any(
+                isinstance(order, bool) or not isinstance(order, int)
+                for order in orders
+            )
+        ):
+            raise GenesisValidationError(
+                "RelationshipSeed.child_birth_orders 必须是连续且去重的家庭排行"
+            )
+        if not set(child_ids) <= set(seed.related_person_ids):
+            raise GenesisValidationError(
+                "RelationshipSeed.child_birth_orders 必须与家庭关系图一致"
+            )
+        if seed.role == "parent" and "self" not in child_ids:
+            raise GenesisValidationError("父母共享子女集合必须包含主角")
+    elif seed.role == "parent":
+        raise GenesisValidationError("父母关系必须记录共享子女集合与主角排行")
 
 
 def _validate_episode_seed(seed: EpisodeSeed) -> None:

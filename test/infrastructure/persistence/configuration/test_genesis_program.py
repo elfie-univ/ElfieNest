@@ -121,7 +121,14 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     visits = policy["visits"]
     assert visits["source_ref"] == "generation#11.2"
     assert {opportunity["id"] for opportunity in visits["opportunities"]} == {
+        "local_forest_center",
+        "other_forest_center",
+        "local_plain_center",
+        "other_plain_center",
+        "local_mountain_center",
+        "other_mountain_center",
         "town_center",
+        "mixed_center",
         "forest_attraction",
         "plain_attraction",
         "mountain_attraction",
@@ -130,6 +137,9 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     }
     town = next(item for item in visits["opportunities"] if item["id"] == "town_center")
     assert "earthbound_station" not in town["place_ids"]
+    assert town["annual_rate"] == 0.8
+    assert town["home_regions"] == ["A1", "A2", "B", "C1", "C2", "C3"]
+    assert visits["sampler_version"] == "visits-poisson-age-distance.v2"
     reproducibility = policy["reproducibility"]
     assert reproducibility["algorithm"] == "sha256-domain-v1"
     assert reproducibility["canonical_input_order"] == [
@@ -483,6 +493,10 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
         "partner_min_age_years": 3,
         "partner_annual_probability": 0.25,
         "max_children": 3,
+        "lifespan": {
+            "cdf_power": 6,
+            "sampler_version": "conditioned-lifespan-cdf.v1",
+        },
         "source_ref": "generation#11.1",
     }
 

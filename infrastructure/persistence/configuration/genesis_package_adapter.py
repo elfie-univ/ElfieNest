@@ -82,6 +82,9 @@ def decode_genesis_package(
     )
     policy_knowledge = _mapping(policy["knowledge"], "rules.policy.knowledge")
     family_policy = _mapping(policy["family"], "rules.policy.family")
+    lifespan_policy = _mapping(
+        family_policy["lifespan"], "rules.policy.family.lifespan"
+    )
     child_distribution = _mapping(
         family_policy["child_count_distribution"],
         "rules.policy.family.child_count_distribution",
@@ -103,6 +106,10 @@ def decode_genesis_package(
     curiosity_multiplier = _mapping(
         personality_multipliers["curiosity"],
         "rules.policy.visits.personality_multipliers.curiosity",
+    )
+    risk_multiplier = _mapping(
+        personality_multipliers["risk"],
+        "rules.policy.visits.personality_multipliers.risk",
     )
     visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
@@ -201,6 +208,8 @@ def decode_genesis_package(
                 "rules.policy.family",
             ),
             family_max_children=_integer(family_policy, "max_children"),
+            family_lifespan_cdf_power=_integer(lifespan_policy, "cdf_power"),
+            family_lifespan_sampler_version=_text(lifespan_policy, "sampler_version"),
             relationship_importance_baselines=tuple(
                 (
                     str(role),
@@ -225,6 +234,9 @@ def decode_genesis_package(
             visit_social_multiplier_slope=_number(social_multiplier, "slope"),
             visit_curiosity_multiplier_base=_number(curiosity_multiplier, "base"),
             visit_curiosity_multiplier_slope=_number(curiosity_multiplier, "slope"),
+            visit_risk_multiplier_base=_number(risk_multiplier, "base"),
+            visit_risk_openness_slope=_number(risk_multiplier, "openness_slope"),
+            visit_risk_neuroticism_slope=_number(risk_multiplier, "neuroticism_slope"),
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
@@ -627,12 +639,23 @@ def _visit_opportunities(
         region_multipliers = _mapping(
             item.get("region_multipliers", {}), "visit opportunity region multipliers"
         )
+        regional_rates = _mapping(
+            item.get("annual_rates_by_region", {}),
+            "visit opportunity annual rates by region",
+        )
+        personality_factors = _mapping(
+            item.get("personality_factor_by_purpose", {}),
+            "visit opportunity personality factors",
+        )
         result.append(
             VisitOpportunityRule(
                 opportunity_id=_text(item, "id"),
                 place_ids=_strings(item, "place_ids"),
-                annual_rate=_bounded_probability(
-                    item, "annual_rate", "rules.policy.visits.opportunities"
+                annual_rate=_number(item, "annual_rate"),
+                home_regions=_strings(item, "home_regions", default=()),
+                annual_rates_by_region=tuple(
+                    (str(region_id), _number(regional_rates, str(region_id)))
+                    for region_id in sorted(regional_rates)
                 ),
                 minimum_age_years=_integer(item, "minimum_age_years"),
                 purpose=_text(item, "purpose"),
@@ -655,6 +678,10 @@ def _visit_opportunities(
                 purpose_weights=tuple(
                     (str(purpose), _number(purpose_weights, str(purpose)))
                     for purpose in sorted(purpose_weights)
+                ),
+                personality_factor_by_purpose=tuple(
+                    (str(purpose), str(factor))
+                    for purpose, factor in sorted(personality_factors.items())
                 ),
                 species_multipliers=tuple(
                     (str(species_id), _number(species_multipliers, str(species_id)))

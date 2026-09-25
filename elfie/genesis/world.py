@@ -9,6 +9,7 @@ to an Elfie.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -270,6 +271,8 @@ class VisitOpportunityRule:
     opportunity_id: str
     place_ids: tuple[str, ...]
     annual_rate: float
+    home_regions: tuple[str, ...] = ()
+    annual_rates_by_region: tuple[tuple[str, float], ...] = ()
     minimum_age_years: int = 2
     purpose: str = "sightseeing"
     stay_days: int = 1
@@ -277,6 +280,7 @@ class VisitOpportunityRule:
     member_probability: float = 1.0
     member_probabilities: tuple[tuple[str, float], ...] = ()
     purpose_weights: tuple[tuple[str, float], ...] = ()
+    personality_factor_by_purpose: tuple[tuple[str, str], ...] = ()
     species_multipliers: tuple[tuple[str, float], ...] = ()
     region_multipliers: tuple[tuple[str, float], ...] = ()
     requires_opportunity_id: str = ""
@@ -285,8 +289,10 @@ class VisitOpportunityRule:
     def __post_init__(self) -> None:
         if not self.opportunity_id.strip() or not self.place_ids:
             raise ValueError("visit opportunity must have an id and places")
-        if not 0.0 <= self.annual_rate <= 1.0:
-            raise ValueError("visit opportunity annual_rate must be between 0 and 1")
+        if not math.isfinite(self.annual_rate) or self.annual_rate < 0.0:
+            raise ValueError(
+                "visit opportunity annual_rate must be finite and non-negative"
+            )
         if (
             self.minimum_age_years < 0
             or self.stay_days < 1
@@ -301,6 +307,14 @@ class VisitOpportunityRule:
         for purpose, weight in self.purpose_weights:
             if not purpose.strip() or weight < 0.0:
                 raise ValueError("visit opportunity purpose weight is invalid")
+        for _, rate in self.annual_rates_by_region:
+            if not math.isfinite(rate) or rate < 0.0:
+                raise ValueError("visit opportunity regional rate is invalid")
+        if any(
+            not purpose.strip() or factor not in {"social", "curiosity", "risk"}
+            for purpose, factor in self.personality_factor_by_purpose
+        ):
+            raise ValueError("visit opportunity personality factor is invalid")
         if self.purpose_weights and not any(
             weight > 0.0 for _, weight in self.purpose_weights
         ):
@@ -321,6 +335,16 @@ class VisitOpportunityRule:
         """Return configured purpose shares, with the legacy purpose as fallback."""
 
         return self.purpose_weights or ((self.purpose, 1.0),)
+
+    def annual_rate_for(self, region_id: str) -> float:
+        """Return the reviewed annual opportunity rate for one home region."""
+
+        return dict(self.annual_rates_by_region).get(region_id, self.annual_rate)
+
+    def personality_factor_for(self, purpose: str) -> str:
+        """Return the single personality axis that governs this purpose."""
+
+        return dict(self.personality_factor_by_purpose).get(purpose, "curiosity")
 
     def species_multiplier_for(self, species_id: str) -> float:
         return dict(self.species_multipliers).get(species_id, 1.0)
@@ -357,6 +381,8 @@ class GenerationPolicy:
     family_partner_min_age_years: int = 3
     family_partner_annual_probability: float = 0.25
     family_max_children: int = 3
+    family_lifespan_cdf_power: int = 6
+    family_lifespan_sampler_version: str = "conditioned-lifespan-cdf.v1"
     relationship_importance_baselines: tuple[tuple[str, float], ...] = (
         ("core", 0.75),
         ("sibling", 0.65),
@@ -373,6 +399,9 @@ class GenerationPolicy:
     visit_social_multiplier_slope: float = 0.4
     visit_curiosity_multiplier_base: float = 0.8
     visit_curiosity_multiplier_slope: float = 0.4
+    visit_risk_multiplier_base: float = 0.8
+    visit_risk_openness_slope: float = 0.4
+    visit_risk_neuroticism_slope: float = -0.2
     visit_opportunities: tuple[VisitOpportunityRule, ...] = ()
 
     def candidate_stage_weight(self, stage: str) -> float:

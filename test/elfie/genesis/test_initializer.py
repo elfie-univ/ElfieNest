@@ -10,7 +10,11 @@ from elfie.genesis import (
     GenesisValidationError,
     genesis_content_hash,
 )
-from elfie.genesis.serialization import safe_component
+from elfie.genesis.serialization import (
+    EPISODE_NODE_PREFIX,
+    SELF_NODE_PREFIX,
+    safe_component,
+)
 from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
@@ -327,6 +331,28 @@ def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         GenesisMemoryCommitter().commit(bundle, storage)
 
+        parent = next(
+            item for item in bundle.relationship_seeds if item.role == "parent"
+        )
+        parent_target = parent.object_id or parent.person_id
+        parent_node = storage.get_graph_node(
+            f"genesis:person:visit-memory:{safe_component(parent_target)}"
+        )
+        assert parent_node is not None
+        assert parent_node.properties["child_birth_orders"] == [
+            {"person_id": person_id, "birth_order": order}
+            for person_id, order in parent.child_birth_orders
+        ]
+        self_node = storage.get_graph_node(f"{SELF_NODE_PREFIX}visit-memory")
+        assert self_node is not None
+        assert (
+            self_node.properties["family_birth_order"]
+            == dict(parent.child_birth_orders)["self"]
+        )
+        assert self_node.properties["family_child_count"] == len(
+            parent.child_birth_orders
+        )
+
         visit_episodes = [
             episode
             for episode in storage.list_episodes(limit=1000)
@@ -343,6 +369,58 @@ def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
             for assertion in storage.list_graph_assertions(limit=5000)
         }
         assert {"child_of", "kin_of"} <= predicates
+
+
+def test_genesis_commit_persists_deceased_family_and_known_death_episode() -> None:
+    compilation = _compilation(
+        "family-death-memory",
+        stage="elder",
+        age_years=11,
+        seed=7,
+    )
+    bundle = compilation.bundle
+    parents = tuple(
+        relationship
+        for relationship in bundle.relationship_seeds
+        if relationship.role == "parent"
+    )
+    death_episodes = tuple(
+        episode
+        for episode in bundle.episode_seeds
+        if episode.theme_id == "family-event:death"
+    )
+
+    assert all(relationship.life_status == "deceased" for relationship in parents)
+    assert {episode.person_ids[0] for episode in death_episodes} == {
+        relationship.person_id for relationship in parents
+    }
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        assert GenesisMemoryCommitter().commit(bundle, storage).status == "committed"
+
+        for relationship in parents:
+            target = relationship.object_id or relationship.person_id
+            person_node_id = (
+                f"genesis:person:family-death-memory:{safe_component(target)}"
+            )
+            properties = storage.get_graph_node(person_node_id).properties
+            assert properties["life_status"] == "deceased"
+            assert properties["death_age_years_at_genesis"] == (
+                relationship.death_age_years_at_genesis
+            )
+            assert properties["death_event_age_years"] == (
+                relationship.death_event_age_years
+            )
+
+        for episode in death_episodes:
+            episode_id = (
+                f"{EPISODE_NODE_PREFIX}family-death-memory:"
+                f"{safe_component(episode.seed_id)}"
+            )
+            stored = storage.get_episode(episode_id)
+            assert stored is not None
+            assert stored.content_text == episode.content
+            assert stored.metadata["age_years_at_event"] == episode.age_years_at_event
 
 
 def test_genesis_rejects_a_second_manifest_for_the_same_elfie() -> None:

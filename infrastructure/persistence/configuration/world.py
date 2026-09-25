@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -258,12 +259,14 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
     raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
     raw_family = _mapping(raw_policy.get("family", {}))
+    raw_lifespan = _mapping(raw_family.get("lifespan", {}))
     raw_importance = _mapping(raw_policy.get("importance", {}))
     raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
     raw_visits = _mapping(raw_policy.get("visits", {}))
     raw_visit_personality = _mapping(raw_visits.get("personality_multipliers", {}))
     raw_visit_social = _mapping(raw_visit_personality.get("social", {}))
     raw_visit_curiosity = _mapping(raw_visit_personality.get("curiosity", {}))
+    raw_visit_risk = _mapping(raw_visit_personality.get("risk", {}))
     raw_household = _mapping(value.get("household", {}))
     raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
     child_distribution = tuple(
@@ -310,6 +313,10 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
             "family.partner_annual_probability",
         ),
         family_max_children=_optional_int(raw_family, "max_children", 3),
+        family_lifespan_cdf_power=_optional_int(raw_lifespan, "cdf_power", 6),
+        family_lifespan_sampler_version=_optional_text(
+            raw_lifespan, "sampler_version", "conditioned-lifespan-cdf.v1"
+        ),
         relationship_importance_baselines=tuple(
             sorted(
                 (
@@ -354,6 +361,18 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         visit_curiosity_multiplier_slope=_number_value(
             raw_visit_curiosity.get("slope", 0.4),
             "visits.personality_multipliers.curiosity.slope",
+        ),
+        visit_risk_multiplier_base=_number_value(
+            raw_visit_risk.get("base", 0.8),
+            "visits.personality_multipliers.risk.base",
+        ),
+        visit_risk_openness_slope=_signed_number_value(
+            raw_visit_risk.get("openness_slope", 0.4),
+            "visits.personality_multipliers.risk.openness_slope",
+        ),
+        visit_risk_neuroticism_slope=_signed_number_value(
+            raw_visit_risk.get("neuroticism_slope", -0.2),
+            "visits.personality_multipliers.risk.neuroticism_slope",
         ),
     )
 
@@ -557,6 +576,12 @@ def _validate_package(
             raise ValueError(
                 f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义地点"
             )
+    home_regions = {cell.region_id for cell in package.spatial_population.cells}
+    for opportunity in package.generation_policy.visit_opportunities:
+        if set(opportunity.home_regions) - home_regions:
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义居住区"
+            )
     relation_keys = {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in package.place_relations
@@ -690,16 +715,29 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("friend_max_count 必须为正整数")
     if not policy.visit_sampler_version.strip():
         raise ValueError("visit_sampler_version 不能为空")
+    if (
+        isinstance(policy.family_lifespan_cdf_power, bool)
+        or not isinstance(policy.family_lifespan_cdf_power, int)
+        or not 1 <= policy.family_lifespan_cdf_power <= 64
+    ):
+        raise ValueError("条件寿命 CDF 幂指数必须是 1 到 64 的整数")
+    if policy.family_lifespan_sampler_version != "conditioned-lifespan-cdf.v1":
+        raise ValueError("不支持的条件寿命抽样版本")
     if any(
-        value < 0.0
+        not math.isfinite(value) or value < 0.0
         for value in (
             policy.visit_social_multiplier_base,
             policy.visit_social_multiplier_slope,
             policy.visit_curiosity_multiplier_base,
             policy.visit_curiosity_multiplier_slope,
+            policy.visit_risk_multiplier_base,
         )
     ):
         raise ValueError("访问人格倍率参数不能为负数")
+    if not math.isfinite(policy.visit_risk_openness_slope) or not math.isfinite(
+        policy.visit_risk_neuroticism_slope
+    ):
+        raise ValueError("风险人格倍率参数必须有限")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]
@@ -790,6 +828,15 @@ def _number_value(value: Any, key: str) -> float:
     result = float(value)
     if result <= 0.0:
         raise ValueError(f"{key} 必须为正数")
+    return result
+
+
+def _signed_number_value(value: Any, key: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} 必须是数字")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{key} 必须是有限数字")
     return result
 
 

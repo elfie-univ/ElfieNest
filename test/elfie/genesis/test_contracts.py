@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import math
+from collections import Counter
 from dataclasses import replace
 
 import pytest
@@ -12,7 +14,12 @@ from elfie.genesis import (
     GenesisError,
     GenesisValidationError,
 )
-from elfie.genesis.compiler import stage_for_age
+from elfie.genesis.compiler import (
+    _poisson_count,
+    _sample_conditioned_death_age,
+    _uniform_hash_subset,
+    stage_for_age,
+)
 from elfie.genesis.world import GeographyAccessRule
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -174,6 +181,17 @@ def test_compiler_emits_a_deduplicated_core_family_graph() -> None:
         relationship.person_gender and relationship.life_status in {"alive", "deceased"}
         for relationship in family
     )
+    assert all(
+        (relationship.life_status == "deceased")
+        == (relationship.death_age_years_at_genesis is not None)
+        for relationship in family
+    )
+    assert all(
+        relationship.age_years_at_genesis is not None
+        if relationship.life_status == "alive"
+        else relationship.age_years_at_genesis is None
+        for relationship in family
+    )
     for relationship in family:
         assert len(relationship.related_person_ids) == len(
             set(relationship.related_person_ids)
@@ -216,9 +234,26 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
 
     assert len(parents) == 2
     assert len(siblings) == 2
-    assert [item.age_years_at_genesis for item in siblings] == [7, 5]
-    assert [item.birth_order for item in siblings] == [1, 3]
-    assert len({item.age_years_at_genesis for item in siblings} | {6}) == 3
+    parent_child_orders = dict(parents[0].child_birth_orders)
+    assert dict(parents[1].child_birth_orders) == parent_child_orders
+    assert len(parent_child_orders) == 3
+    assert set(parent_child_orders) == {"self", *(item.person_id for item in siblings)}
+    assert set(parent_child_orders.values()) == {1, 2, 3}
+    assert all(
+        parent_child_orders[item.person_id] == item.birth_order for item in siblings
+    )
+    self_order = parent_child_orders["self"]
+    for sibling in siblings:
+        if sibling.age_years_at_genesis is not None:
+            assert (sibling.birth_order < self_order) == (
+                sibling.age_years_at_genesis > 6
+            )
+        assert sibling.birth_event_age_years == (
+            6 - sibling.age_years_at_genesis
+            if sibling.age_years_at_genesis is not None
+            and sibling.age_years_at_genesis < 6
+            else None
+        )
 
     shared_children = {"self", "family-sibling-1", "family-sibling-2"}
     assert all(shared_children <= set(item.related_person_ids) for item in parents)
@@ -227,6 +262,43 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
         for item in siblings
     )
     assert compilation.bundle.validate() is None
+
+
+def test_genesis_contract_requires_parent_rank_in_shared_child_set() -> None:
+    bundle = _compilation("missing-self-rank", stage="mature", age_years=6).bundle
+    relationships = list(bundle.relationship_seeds)
+    parent_index = next(
+        index
+        for index, relationship in enumerate(relationships)
+        if relationship.role == "parent"
+    )
+    relationships[parent_index] = replace(
+        relationships[parent_index], child_birth_orders=()
+    )
+
+    with pytest.raises(GenesisValidationError, match="共享子女集合与主角排行"):
+        replace(bundle, relationship_seeds=tuple(relationships)).validate()
+
+
+def test_child_birth_year_subsets_are_sampled_without_replacement_and_uniformly() -> (
+    None
+):
+    counts: Counter[tuple[int, ...]] = Counter()
+    values = (0, 1, 2, 3, 4)
+    for seed in range(5000):
+        counts[
+            _uniform_hash_subset(
+                values,
+                2,
+                lambda value, seed=seed: int.from_bytes(
+                    hashlib.sha256(f"{seed}:{value}".encode()).digest()[:8],
+                    "big",
+                ),
+            )
+        ] += 1
+
+    assert len(counts) == math.comb(len(values), 2)
+    assert max(counts.values()) - min(counts.values()) < 100
 
 
 def test_each_parent_union_draws_its_own_child_target() -> None:
@@ -298,6 +370,20 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
     assert compilation.bundle.validate() is None
 
 
+def test_elder_parents_do_not_force_grandparent_expansion() -> None:
+    compilation = _compilation(
+        "elder-parent-boundary",
+        species_id="fox",
+        stage="mature",
+        age_years=8,
+        seed=7,
+    )
+    assert not any(
+        relationship.role in {"grandparent", "aunt_uncle"}
+        for relationship in compilation.bundle.relationship_seeds
+    )
+
+
 def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
     source = load_genesis_source_package()
     source = replace(
@@ -331,9 +417,25 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
         for episode in family_episodes
     )
     assert all(
-        episode.place_ids == (compilation.life_context.origin.childhood_home_place_id,)
+        episode.place_ids
+        == (
+            ()
+            if episode.theme_id == "family-event:death"
+            else (compilation.life_context.origin.childhood_home_place_id,)
+        )
         for episode in family_episodes
     )
+    assert all(
+        not episode.predecessor_ids and not episode.causal_links
+        for episode in family_episodes
+    )
+    for episode in family_episodes:
+        if episode.theme_id != "family-event:death":
+            continue
+        person = relationships[episode.person_ids[0]]
+        assert person.life_status == "deceased"
+        assert episode.age_years_at_event == person.death_event_age_years
+        assert "死因" in episode.content
     partnership_ages = [
         episode.age_years_at_event
         for episode in family_episodes
@@ -348,12 +450,69 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
     assert min(child_birth_ages) > max(partnership_ages)
     partner = next(item for item in relationships.values() if item.role == "partner")
     assert partner.relationship_start_age == partnership_ages[0]
+    assert partner.age_years_at_genesis is not None
+    assert (
+        partner.age_years_at_genesis - (6 - partner.relationship_start_age)
+        >= source.generation_policy.family_partner_min_age_years
+    )
     assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
     assert compilation.bundle.validate() is None
 
 
+def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> None:
+    compilation = _compilation(
+        "family-death-timeline",
+        stage="elder",
+        age_years=11,
+        seed=7,
+    )
+    relationships = {
+        item.person_id: item for item in compilation.bundle.relationship_seeds
+    }
+    parents = tuple(item for item in relationships.values() if item.role == "parent")
+    death_episodes = tuple(
+        episode
+        for episode in compilation.bundle.episode_seeds
+        if episode.theme_id == "family-event:death"
+    )
+
+    assert len(parents) == 2
+    assert all(item.life_status == "deceased" for item in parents)
+    assert all(item.age_years_at_genesis is None for item in parents)
+    assert all(item.death_age_years_at_genesis is not None for item in parents)
+    assert {episode.person_ids[0] for episode in death_episodes} == {
+        item.person_id for item in parents
+    }
+    assert all(1 <= episode.age_years_at_event <= 11 for episode in death_episodes)
+    assert all(not episode.place_ids for episode in death_episodes)
+    assert all("死因" in episode.content for episode in death_episodes)
+    assert compilation.bundle.validate() is None
+
+
 def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
-    compilation = _compilation("visit-opportunity", seed=7, stage="mature", age_years=8)
+    source = load_genesis_source_package()
+    visit_opportunities = tuple(
+        replace(
+            opportunity,
+            annual_rate=10_000.0
+            if opportunity.opportunity_id == "town_center"
+            else 0.0,
+            annual_rates_by_region=(),
+            home_regions=(),
+            max_repeat_count=64,
+        )
+        for opportunity in source.generation_policy.visit_opportunities
+    )
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            visit_opportunities=visit_opportunities,
+        ),
+    )
+    compilation = _compilation(
+        "visit-opportunity", seed=7, stage="mature", age_years=8, source=source
+    )
     records = compilation.life_context.mobility.opportunity_records
     episodes = {
         episode.seed_id: episode
@@ -378,7 +537,11 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert town_episode is not None
     assert town_episode.purposes[0] in {"探亲交往", "观光", "赶集交换"}
     repeat = _compilation(
-        "visit-opportunity-repeat", seed=7, stage="mature", age_years=8
+        "visit-opportunity-repeat",
+        seed=7,
+        stage="mature",
+        age_years=8,
+        source=source,
     )
     repeat_town = next(
         episode
@@ -387,7 +550,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     )
     assert repeat_town.purposes == town_episode.purposes
     assert all(
-        episode.source_version == "genesis-visit:visits-poisson-age-distance.v1"
+        episode.source_version == "genesis-visit:visits-poisson-age-distance.v2"
         for episode in episodes.values()
     )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
@@ -396,6 +559,68 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert (
         "mistyville_center" not in station_only.life_context.mobility.visited_place_ids
     )
+
+
+def test_visit_opportunity_count_follows_capped_poisson_distribution() -> None:
+    samples = 10_000
+    counts = tuple(
+        _poisson_count(2.0, 64, (index + 0.5) / samples) for index in range(samples)
+    )
+
+    assert sum(counts) / samples == pytest.approx(2.0, abs=0.001)
+    assert counts.count(0) / samples == pytest.approx(math.exp(-2.0), abs=0.001)
+    assert counts.count(1) / samples == pytest.approx(2.0 * math.exp(-2.0), abs=0.001)
+
+
+def test_conditioned_lifespan_sample_obeys_survival_anchor_and_source_curve() -> None:
+    samples = 10_000
+    death_ages = tuple(
+        _sample_conditioned_death_age(
+            terminal_age=20,
+            minimum_survival_age=10,
+            cdf_power=6,
+            uniform=(index + 0.5) / samples,
+        )
+        for index in range(samples)
+    )
+    expected_by_15 = ((15 / 20) ** 6 - (10 / 20) ** 6) / (1.0 - (10 / 20) ** 6)
+
+    assert min(death_ages) >= 11
+    assert max(death_ages) <= 20
+    assert sum(age <= 15 for age in death_ages) / samples == pytest.approx(
+        expected_by_15, abs=0.001
+    )
+
+
+def test_residence_and_planned_learning_places_are_not_recorded_as_visits() -> None:
+    source = load_genesis_source_package()
+    opportunities = tuple(
+        replace(item, annual_rate=0.0, annual_rates_by_region=())
+        for item in source.generation_policy.visit_opportunities
+    )
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            visit_opportunities=opportunities,
+        ),
+    )
+    compilation = _compilation("residence-is-not-visit", source=source)
+
+    assert compilation.life_context.mobility.visited_place_ids == (
+        "earthbound_station",
+    )
+    assert (
+        "learning_healing_hall"
+        not in compilation.life_context.mobility.visited_place_ids
+    )
+    birth_cell = next(
+        cell
+        for cell in source.spatial_population.cells
+        if cell.cell_id == compilation.life_context.origin.birth_cell_id
+    )
+    assert compilation.life_context.origin.birth_region_id == birth_cell.region_id
+    assert compilation.life_context.origin.birth_settlement_id == birth_cell.place_id
 
 
 def test_visit_distance_uses_round_trip_legal_route_cost() -> None:

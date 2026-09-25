@@ -177,6 +177,36 @@ class GenesisMemoryCommitter:
         if selfhood is None or not selfhood.complete:
             raise GenesisValidationError("Genesis SelfhoodState 不完整")
         identity_core = selfhood.identity_core
+        parent_seed = next(
+            (
+                relationship
+                for relationship in bundle.relationship_seeds
+                if relationship.role == "parent"
+                and any(
+                    person_id == "self"
+                    for person_id, _ in relationship.child_birth_orders
+                )
+            ),
+            None,
+        )
+        self_birth_order = (
+            next(
+                order
+                for person_id, order in parent_seed.child_birth_orders
+                if person_id == "self"
+            )
+            if parent_seed is not None
+            else None
+        )
+        family_child_count = (
+            len(parent_seed.child_birth_orders) if parent_seed is not None else None
+        )
+        self_description = selfhood.self_description
+        if self_birth_order is not None and family_child_count is not None:
+            self_description = (
+                f"{self_description} 家庭排行第{self_birth_order}，"
+                f"父母共有{family_child_count}名子女。"
+            )
 
         self._upsert_node(
             storage,
@@ -184,7 +214,7 @@ class GenesisMemoryCommitter:
                 node_id=self_id,
                 node_type="elfie",
                 canonical_label=profile.identity.display_name,
-                description=selfhood.self_description,
+                description=self_description,
                 scope=scope,
                 status="active",
                 confidence=1.0,
@@ -199,6 +229,8 @@ class GenesisMemoryCommitter:
                     "species_name": identity_core.species_name or "",
                     "is_self": True,
                     "relationship_label": "self",
+                    "family_birth_order": self_birth_order,
+                    "family_child_count": family_child_count,
                 },
             ),
         )
@@ -257,12 +289,29 @@ class GenesisMemoryCommitter:
                     else "",
                     f"年龄：{relationship.age_years_at_genesis}岁"
                     if relationship.age_years_at_genesis is not None
+                    and relationship.life_status == "alive"
                     else "",
                     f"关系形成于：{relationship.relationship_start_age}岁"
                     if relationship.relationship_start_age is not None
                     else "",
                     f"出生排行：第{relationship.birth_order}位"
                     if relationship.birth_order is not None
+                    else "",
+                    "子女排行："
+                    + "、".join(
+                        f"{person_id}第{order}位"
+                        for person_id, order in relationship.child_birth_orders
+                    )
+                    if relationship.child_birth_orders
+                    else "",
+                    f"享年：{relationship.death_age_years_at_genesis}岁"
+                    if relationship.death_age_years_at_genesis is not None
+                    else "",
+                    f"出生时我{relationship.birth_event_age_years}岁"
+                    if relationship.birth_event_age_years is not None
+                    else "",
+                    f"离世时我{relationship.death_event_age_years}岁"
+                    if relationship.death_event_age_years is not None
                     else "",
                     f"照护者：{', '.join(relationship.caregiver_person_ids)}"
                     if relationship.caregiver_person_ids
@@ -307,8 +356,15 @@ class GenesisMemoryCommitter:
                         "age_years_at_genesis": relationship.age_years_at_genesis,
                         "relationship_start_age": relationship.relationship_start_age,
                         "birth_order": relationship.birth_order,
+                        "child_birth_orders": [
+                            {"person_id": person_id, "birth_order": order}
+                            for person_id, order in relationship.child_birth_orders
+                        ],
                         "person_gender": relationship.person_gender,
                         "life_status": relationship.life_status,
+                        "death_age_years_at_genesis": relationship.death_age_years_at_genesis,
+                        "birth_event_age_years": relationship.birth_event_age_years,
+                        "death_event_age_years": relationship.death_event_age_years,
                         "related_person_ids": list(relationship.related_person_ids),
                         "caregiver_person_ids": list(relationship.caregiver_person_ids),
                         "care_recipient_person_ids": list(
@@ -479,6 +535,7 @@ class GenesisMemoryCommitter:
                         "related_ids": list(seed.related_ids),
                         "causal_links": list(seed.causal_links),
                         "theme_id": seed.theme_id,
+                        "age_years_at_event": seed.age_years_at_event,
                         "sequence_index": sequence_index,
                     },
                 )

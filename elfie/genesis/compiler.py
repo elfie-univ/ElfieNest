@@ -15,7 +15,7 @@ import random
 import unicodedata
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import Iterable, Literal, Mapping
+from typing import Callable, Iterable, Literal, Mapping
 
 from elfie.brain.selfhood.contracts import (
     AdaptiveSelf,
@@ -551,22 +551,13 @@ class GenesisCompiler:
             random.Random(self._domain_seed(request.appearance_seed, "life-archetype")),
         )
         private_home = f"private:{request.elfie_id}:home"
-        learning_place = (
-            life_rule.institution_ids[0] if life_rule.institution_ids else ""
-        )
         square = _first_place_id(source.places, kind="settlement_shared_space")
         waystation = _first_place_id(source.places, kind="departure_facility")
-        mandatory_visited = _unique(
-            item
-            for item in (
-                private_home,
-                public_home,
-                learning_place,
-                waystation,
-                life_rule.workplace_place_id,
-            )
-            if item
-        )
+        # Birth and residence establish familiarity, not a travel episode.
+        # A learning or work location is not a visit until a corresponding
+        # completed activity exists.  The departure station is the one
+        # mandatory trip in the pre-arrival route.
+        mandatory_visited = _unique((waystation,) if waystation else ())
         optional_visits = self._sample_visit_opportunities(
             request,
             candidate,
@@ -793,24 +784,27 @@ class GenesisCompiler:
 
         latent = candidate.personality.candidate.latent
         openness = min(1.0, max(0.0, (latent[0] + 2.0) / 4.0))
+        neuroticism = min(1.0, max(0.0, (latent[1] + 2.0) / 4.0))
         extraversion = min(1.0, max(0.0, (latent[2] + 2.0) / 4.0))
         opportunities: list[tuple[VisitOpportunityRule, tuple[str, ...], int]] = []
         selected: set[str] = set()
         place_ids = {place.place_id for place in self._source.places}
         for opportunity in self._source.generation_policy.visit_opportunities:
+            if opportunity.home_regions and region_id not in opportunity.home_regions:
+                continue
             if opportunity.requires_opportunity_id and (
                 opportunity.requires_opportunity_id not in selected
             ):
                 continue
             if request.age_years_at_adoption < opportunity.minimum_age_years:
                 continue
-            if opportunity.annual_rate <= 0.0:
+            annual_rate = opportunity.annual_rate_for(region_id)
+            if annual_rate <= 0.0:
                 continue
             available_years = max(
                 0, request.age_years_at_adoption - opportunity.minimum_age_years + 1
             )
-            age_feasibility = min(1.0, available_years / 4.0)
-            personality_multiplier = (
+            social_multiplier = (
                 self._source.generation_policy.visit_social_multiplier_base
                 + self._source.generation_policy.visit_social_multiplier_slope
                 * extraversion
@@ -820,6 +814,27 @@ class GenesisCompiler:
                 + self._source.generation_policy.visit_curiosity_multiplier_slope
                 * openness
             )
+            risk_multiplier = (
+                self._source.generation_policy.visit_risk_multiplier_base
+                + self._source.generation_policy.visit_risk_openness_slope * openness
+                + self._source.generation_policy.visit_risk_neuroticism_slope
+                * neuroticism
+            )
+            purpose = _weighted_text(
+                opportunity.purpose_options(),
+                random.Random(
+                    self._domain_seed(
+                        request.appearance_seed,
+                        f"visit-purpose:{opportunity.opportunity_id}",
+                    )
+                ),
+            )
+            personality_factor = opportunity.personality_factor_for(purpose)
+            personality_multiplier = {
+                "social": social_multiplier,
+                "curiosity": curiosity_multiplier,
+                "risk": risk_multiplier,
+            }[personality_factor]
             attraction = opportunity.species_multiplier_for(
                 _species_label(request.species_id)
             ) * opportunity.region_multiplier_for(region_id)
@@ -832,33 +847,22 @@ class GenesisCompiler:
                 -distance_days / opportunity.distance_decay_days
             )
             expected = (
-                opportunity.annual_rate
+                annual_rate
                 * available_years
-                * age_feasibility
                 * personality_multiplier
-                * curiosity_multiplier
                 * attraction
                 * distance_multiplier
             )
-            probability = 1.0 - math.exp(-expected)
-            draw = random.Random(
-                self._domain_seed(
-                    request.appearance_seed,
-                    f"visit-opportunity:{opportunity.opportunity_id}",
-                )
-            ).random()
-            if draw >= probability:
-                continue
-            count_draw = random.Random(
-                self._domain_seed(
+            count = _poisson_count(
+                expected,
+                opportunity.max_repeat_count,
+                self._domain_uniform(
                     request.appearance_seed,
                     f"visit-count:{opportunity.opportunity_id}",
-                )
-            ).random()
-            count = min(
-                opportunity.max_repeat_count,
-                max(1, 1 + int(count_draw * max(0.0, expected - 1.0))),
+                ),
             )
+            if count == 0:
+                continue
             selected_places: list[str] = []
             for index, place_id in enumerate(opportunity.place_ids):
                 if place_id not in place_ids:
@@ -886,15 +890,6 @@ class GenesisCompiler:
                     selected_places.append(place_id)
             if not selected_places:
                 continue
-            purpose = _weighted_text(
-                opportunity.purpose_options(),
-                random.Random(
-                    self._domain_seed(
-                        request.appearance_seed,
-                        f"visit-purpose:{opportunity.opportunity_id}",
-                    )
-                ),
-            )
             selected.add(opportunity.opportunity_id)
             opportunities.append(
                 (replace(opportunity, purpose=purpose), tuple(selected_places), count)
@@ -1484,6 +1479,7 @@ class GenesisCompiler:
             role: str,
             person_gender: str,
             age_years: int,
+            minimum_survival_age: int = 0,
             importance: float,
             shared_fact: str,
             birth_order: int | None = None,
@@ -1495,12 +1491,26 @@ class GenesisCompiler:
                 raise GenesisError(f"家庭图生成了重复人物: {person_id}")
             used_person_ids.add(person_id)
             terminal = self._species(request.species_id).genesis.terminal_age_years
-            life_status = "deceased" if age_years >= terminal else "alive"
-            effective_age = (
-                min(age_years, max(0, terminal - 1))
-                if life_status == "deceased"
-                else age_years
+            death_age = _sample_conditioned_death_age(
+                terminal_age=terminal,
+                minimum_survival_age=minimum_survival_age,
+                cdf_power=policy.family_lifespan_cdf_power,
+                uniform=self._domain_uniform(
+                    request.appearance_seed, f"lifespan:{person_id}"
+                ),
             )
+            life_status = "deceased" if age_years >= death_age else "alive"
+            recorded_death_age = death_age if life_status == "deceased" else None
+            birth_event_age = main_age - age_years
+            if not 1 <= birth_event_age <= main_age:
+                birth_event_age = None
+            death_event_age = (
+                main_age - (age_years - death_age)
+                if recorded_death_age is not None
+                else None
+            )
+            if death_event_age is not None and not 1 <= death_event_age <= main_age:
+                death_event_age = None
             person_species_id = (
                 _species_label(request.species_id)
                 if role not in {"friend", "teacher", "neighbor"}
@@ -1537,7 +1547,7 @@ class GenesisCompiler:
                     }
                     else "genesis_relationship_plan",
                     source_ref=f"relationship:{person_id}",
-                    source_version="genesis-relationship.v0.3",
+                    source_version="genesis-relationship.v0.4",
                     certainty="high",
                     version=1,
                     related_species_id=person_species_id,
@@ -1545,10 +1555,15 @@ class GenesisCompiler:
                     home_place_id=context.origin.predeparture_home_place_id,
                     vocation_id=rule.vocation_id,
                     person_species_id=person_species_id,
-                    age_years_at_genesis=max(0, effective_age),
+                    age_years_at_genesis=(
+                        max(0, age_years) if life_status == "alive" else None
+                    ),
                     birth_order=birth_order,
                     person_gender=person_gender,
                     life_status=life_status,
+                    death_age_years_at_genesis=recorded_death_age,
+                    birth_event_age_years=birth_event_age,
+                    death_event_age_years=death_event_age,
                     competency_ids=rule.competency_ids,
                     eligible_episode_theme_ids=rule.episode_theme_ids,
                     caregiver_person_ids=caregiver_person_ids,
@@ -1579,28 +1594,85 @@ class GenesisCompiler:
                 ),
             )
 
-        def ordered_child_ages(anchor_age: int, target: int) -> tuple[int, ...]:
-            """Return one union's distinct, legal ages in birth order."""
+        def choose_child_ages(
+            *,
+            anchor_age: int,
+            target: int,
+            parent_current_ages: tuple[int, int],
+            union_id: str,
+        ) -> tuple[int, ...]:
+            """Uniformly choose a bounded legal child-year subset containing anchor."""
 
-            legal_years = max(1, min(max_children, anchor_age + 2))
-            count = max(1, min(target, legal_years))
-            ages = [anchor_age]
-            for age in range(anchor_age + 1, anchor_age + 2):
-                if len(ages) >= count:
-                    break
-                ages.append(age)
-            for age in range(anchor_age - 1, -1, -1):
-                if len(ages) >= count:
-                    break
-                ages.append(age)
-            return tuple(sorted(ages[:count], reverse=True))
+            terminal = self._species(request.species_id).genesis.terminal_age_years
+            max_child_age = min(parent_current_ages) - parent_gap
+            legal_years = tuple(
+                age
+                for age in range(max_child_age + 1)
+                if all(
+                    parent_age - age >= parent_gap
+                    and parent_age - age < terminal
+                    and stage_for_age(
+                        request.species_id,
+                        parent_age - age,
+                        self._catalog,
+                    )
+                    != "elder"
+                    for parent_age in parent_current_ages
+                )
+            )
+            if anchor_age not in legal_years:
+                raise GenesisError("家庭锚定子女年份不满足父母生育年龄")
+            count = min(max_children, max(1, target), len(legal_years))
+            other_years = _uniform_hash_subset(
+                tuple(age for age in legal_years if age != anchor_age),
+                count - 1,
+                lambda age: self._domain_seed(
+                    request.appearance_seed,
+                    f"family-child-year:{union_id}:{age}",
+                ),
+            )
+            return tuple(sorted((anchor_age, *other_years), reverse=True))
+
+        def sample_legal_years(
+            legal_years: tuple[int, ...], count: int, union_id: str
+        ) -> tuple[int, ...]:
+            """Choose a uniform, stable subset from a union's legal birth years."""
+
+            return _uniform_hash_subset(
+                legal_years,
+                count,
+                lambda age: self._domain_seed(
+                    request.appearance_seed,
+                    f"family-child-year:{union_id}:{age}",
+                ),
+            )
 
         parent_ids = ["family-parent-1", "family-parent-2"]
+        parent_child_target = draw_child_target("parents")
+        # The protagonist is anchored into one shared parent-child set.  The
+        # target distribution is drawn once per union; each additional child
+        # occupies a distinct legal birth year and gets its rank from that
+        # year.  This keeps both parents and all siblings on the same graph
+        # instead of independently re-drawing the same family from each node.
+        parent_current_ages = (
+            main_age + parent_gap + 1,
+            main_age + parent_gap + 2,
+        )
+        child_ages = choose_child_ages(
+            anchor_age=main_age,
+            target=parent_child_target,
+            parent_current_ages=parent_current_ages,
+            union_id="parents",
+        )
         add_family_member(
             person_id=parent_ids[0],
             role="parent",
             person_gender="female",
             age_years=main_age + parent_gap + 1,
+            minimum_survival_age=max(
+                main_age + parent_gap + 1 - min(child_ages),
+                parent_gap + 1 + min(2, main_age),
+            ),
             importance=family_importance,
             shared_fact="她是我的父母之一，曾参与我的早期照护。",
             care_recipient_person_ids=("self",),
@@ -1610,25 +1682,24 @@ class GenesisCompiler:
             role="parent",
             person_gender="male",
             age_years=main_age + parent_gap + 2,
+            minimum_survival_age=max(
+                main_age + parent_gap + 2 - min(child_ages),
+                parent_gap + 2 + min(2, main_age),
+            ),
             importance=family_importance,
             shared_fact="他是我的父母之一，曾参与我的早期照护。",
             care_recipient_person_ids=("self",),
         )
 
-        parent_child_target = draw_child_target("parents")
-        # The protagonist is anchored into one shared parent-child set.  The
-        # target distribution is drawn once per union; each additional child
-        # occupies a distinct legal birth year and gets its rank from that
-        # year.  This keeps both parents and all siblings on the same graph
-        # instead of independently re-drawing the same family from each node.
-        child_ages = ordered_child_ages(main_age, parent_child_target)
         sibling_ids: list[str] = []
+        sibling_order_by_id: dict[str, int] = {}
         for order, sibling_age in enumerate(child_ages, start=1):
             if sibling_age == main_age:
                 continue
             sibling_index = len(sibling_ids) + 1
             person_id = f"family-sibling-{sibling_index}"
             sibling_ids.append(person_id)
+            sibling_order_by_id[person_id] = order
             add_family_member(
                 person_id=person_id,
                 role="sibling",
@@ -1645,6 +1716,18 @@ class GenesisCompiler:
         # recursively expand those new people, which is the width/depth limit
         # from the Genesis design.
         expansion_related: dict[str, set[str]] = {}
+        parent_child_orders = tuple(
+            sorted(
+                (
+                    ("self", child_ages.index(main_age) + 1),
+                    *sibling_order_by_id.items(),
+                ),
+                key=lambda item: item[1],
+            )
+        )
+        child_orders_by_parent: dict[str, tuple[tuple[str, int], ...]] = dict.fromkeys(
+            parent_ids, parent_child_orders
+        )
 
         def set_birth_order(person_id: str, order: int) -> None:
             for index, relationship in enumerate(result):
@@ -1658,28 +1741,16 @@ class GenesisCompiler:
             parent_age = main_age + parent_gap + parent_index
             # A parent near the terminal age does not force an implausible
             # grandparent branch merely to make the tree look complete.
-            if parent_age + parent_gap + 1 >= terminal_age:
+            if (
+                parent_age + parent_gap + 1 >= terminal_age
+                or stage_for_age(request.species_id, parent_age, self._catalog)
+                == "elder"
+            ):
                 continue
             grandparent_ids = [
                 f"family-grandparent-{parent_index}-1",
                 f"family-grandparent-{parent_index}-2",
             ]
-            add_family_member(
-                person_id=grandparent_ids[0],
-                role="grandparent",
-                person_gender="female",
-                age_years=parent_age + parent_gap + 1,
-                importance=family_importance * relationship_decay,
-                shared_fact="她是我父母一方的父母，我通过家庭关系知道她。",
-            )
-            add_family_member(
-                person_id=grandparent_ids[1],
-                role="grandparent",
-                person_gender="male",
-                age_years=parent_age + parent_gap + 2,
-                importance=family_importance * relationship_decay,
-                shared_fact="他是我父母一方的父母，我通过家庭关系知道他。",
-            )
             grandparent_target = _weighted_integer(
                 self._source.generation_policy.family_child_count_distribution,
                 random.Random(
@@ -1689,15 +1760,42 @@ class GenesisCompiler:
                     )
                 ),
             )
-            grandparent_children = ordered_child_ages(parent_age, grandparent_target)
+            grandparent_ages = (
+                parent_age + parent_gap + 1,
+                parent_age + parent_gap + 2,
+            )
+            grandparent_children = choose_child_ages(
+                anchor_age=parent_age,
+                target=grandparent_target,
+                parent_current_ages=grandparent_ages,
+                union_id=parent_id,
+            )
             parent_order = grandparent_children.index(parent_age) + 1
             set_birth_order(parent_id, parent_order)
+            for index, grandparent_id in enumerate(grandparent_ids):
+                add_family_member(
+                    person_id=grandparent_id,
+                    role="grandparent",
+                    person_gender="female" if index == 0 else "male",
+                    age_years=grandparent_ages[index],
+                    minimum_survival_age=(
+                        grandparent_ages[index] - min(grandparent_children)
+                    ),
+                    importance=family_importance * relationship_decay,
+                    shared_fact=(
+                        "她是我父母一方的父母，我通过家庭关系知道她。"
+                        if index == 0
+                        else "他是我父母一方的父母，我通过家庭关系知道他。"
+                    ),
+                )
             aunt_ids: list[str] = []
+            aunt_order_by_id: dict[str, int] = {}
             for order, aunt_age in enumerate(grandparent_children, start=1):
                 if aunt_age == parent_age:
                     continue
                 aunt_id = f"family-aunt-uncle-{parent_index}-{len(aunt_ids) + 1}"
                 aunt_ids.append(aunt_id)
+                aunt_order_by_id[aunt_id] = order
                 add_family_member(
                     person_id=aunt_id,
                     role="aunt_uncle",
@@ -1707,6 +1805,14 @@ class GenesisCompiler:
                     shared_fact="这是我父母一方的兄弟姐妹，属于已知的旁系亲属。",
                     birth_order=order,
                 )
+            grandparent_child_orders = tuple(
+                sorted(
+                    ((parent_id, parent_order), *aunt_order_by_id.items()),
+                    key=lambda item: item[1],
+                )
+            )
+            for grandparent_id in grandparent_ids:
+                child_orders_by_parent[grandparent_id] = grandparent_child_orders
             union_children = {parent_id, *aunt_ids}
             for grandparent_id in grandparent_ids:
                 expansion_related.setdefault(grandparent_id, set()).update(
@@ -1731,6 +1837,10 @@ class GenesisCompiler:
 
         partner_id: str | None = None
         partner_start_age: int | None = None
+        partner_age = 0
+        first_birth_age = 0
+        partner_child_count = 0
+        partner_child_birth_ages: tuple[int, ...] = ()
         if main_age >= policy.family_partner_min_age_years:
             years = main_age - policy.family_partner_min_age_years + 1
             chance = 1.0 - (1.0 - policy.family_partner_annual_probability) ** years
@@ -1750,12 +1860,47 @@ class GenesisCompiler:
                         break
                 if partner_start_age is None:
                     raise GenesisError("伴侣抽样缺少合法的首次形成年龄")
+                partner_age = max(
+                    policy.family_partner_min_age_years,
+                    main_age - partner_start_age + policy.family_partner_min_age_years,
+                )
+                first_birth_age = partner_start_age + 1
+                terminal = self._species(request.species_id).genesis.terminal_age_years
+                legal_birth_ages = tuple(
+                    birth_age
+                    for birth_age in range(first_birth_age, main_age + 1)
+                    if stage_for_age(request.species_id, birth_age, self._catalog)
+                    != "elder"
+                    and parent_gap <= partner_age - (main_age - birth_age) < terminal
+                    and stage_for_age(
+                        request.species_id,
+                        partner_age - (main_age - birth_age),
+                        self._catalog,
+                    )
+                    != "elder"
+                )
+                partner_child_target = draw_child_target("partner")
+                partner_child_count = min(
+                    partner_child_target,
+                    policy.family_max_children,
+                    len(legal_birth_ages),
+                )
+                partner_child_birth_ages = sample_legal_years(
+                    legal_birth_ages, partner_child_count, "partner"
+                )
+                minimum_survival_age = max(
+                    partner_age - (main_age - partner_start_age),
+                    partner_age - (main_age - max(partner_child_birth_ages))
+                    if partner_child_count
+                    else 0,
+                )
                 partner_gender = "female" if request.gender == "male" else "male"
                 add_family_member(
                     person_id=partner_id,
                     role="partner",
                     person_gender=partner_gender,
-                    age_years=max(policy.family_partner_min_age_years, main_age - 1),
+                    age_years=partner_age,
+                    minimum_survival_age=minimum_survival_age,
                     importance=family_importance,
                     shared_fact="这是我的伴侣，我们共同承担生活。",
                 )
@@ -1770,18 +1915,9 @@ class GenesisCompiler:
             # same deterministic timeline.
             if partner_start_age is None:
                 raise GenesisError("已有伴侣但缺少关系形成年龄")
-            first_birth_age = partner_start_age + 1
-            legal_years = max(0, main_age - first_birth_age + 1)
-            partner_child_target = draw_child_target("partner")
-            child_count = min(
-                partner_child_target,
-                policy.family_max_children,
-                legal_years,
-            )
-            for index in range(child_count):
+            for index, birth_age in enumerate(partner_child_birth_ages):
                 person_id = f"family-child-{index + 1}"
                 child_ids.append(person_id)
-                birth_age = first_birth_age + index
                 add_family_member(
                     person_id=person_id,
                     role="child",
@@ -1867,11 +2003,23 @@ class GenesisCompiler:
                     1.0 - math.exp(-policy.friend_layer_decay_lambda * contact_strength)
                 ),
             )
+            friend_age = max(1, main_age - (index % 2))
+            friend_contact_age = min(
+                (
+                    theme_min_age[theme_id]
+                    for theme_id in rule.episode_theme_ids
+                    if theme_id in theme_min_age
+                ),
+                default=1,
+            )
             add_family_member(
                 person_id=person_id,
                 role="friend",
                 person_gender="female" if index % 2 else "male",
-                age_years=max(1, main_age - (index % 2)),
+                age_years=friend_age,
+                minimum_survival_age=max(
+                    0, friend_age - (main_age - friend_contact_age)
+                ),
                 importance=friend_importance,
                 shared_fact="我们曾在共同生活或共同活动中相识。",
                 rule=rule,
@@ -1897,6 +2045,39 @@ class GenesisCompiler:
             display_name = pool[name_index % len(pool)]
             name_counters[person_species_id] = name_index + 1
             object_kind = "elfie"
+            terminal_age = self._species(request.species_id).genesis.terminal_age_years
+            person_age = min(terminal_age - 1, max(1, main_age + index))
+            contact_age = min(
+                (
+                    theme_min_age[theme_id]
+                    for theme_id in rule.episode_theme_ids
+                    if theme_id in theme_min_age
+                ),
+                default=1,
+            )
+            minimum_survival_age = max(0, person_age - (main_age - contact_age))
+            death_age = _sample_conditioned_death_age(
+                terminal_age=self._species(
+                    request.species_id
+                ).genesis.terminal_age_years,
+                minimum_survival_age=minimum_survival_age,
+                cdf_power=policy.family_lifespan_cdf_power,
+                uniform=self._domain_uniform(
+                    request.appearance_seed, f"lifespan:{person_id}"
+                ),
+            )
+            life_status = "deceased" if person_age >= death_age else "alive"
+            recorded_death_age = death_age if life_status == "deceased" else None
+            birth_event_age = main_age - person_age
+            if not 1 <= birth_event_age <= main_age:
+                birth_event_age = None
+            death_event_age = (
+                main_age - (person_age - death_age)
+                if recorded_death_age is not None
+                else None
+            )
+            if death_event_age is not None and not 1 <= death_event_age <= main_age:
+                death_event_age = None
             result.append(
                 RelationshipSeed(
                     person_id=person_id,
@@ -1922,7 +2103,7 @@ class GenesisCompiler:
                     episode_ids=(),
                     source="genesis_relationship_plan",
                     source_ref=f"relationship:{person_id}",
-                    source_version="genesis-relationship.v0.2",
+                    source_version="genesis-relationship.v0.4",
                     certainty="high",
                     version=1,
                     related_species_id=person_species_id,
@@ -1930,9 +2111,13 @@ class GenesisCompiler:
                     home_place_id=context.origin.predeparture_home_place_id,
                     vocation_id=rule.vocation_id,
                     person_species_id=person_species_id,
-                    age_years_at_genesis=max(
-                        1, context.identity.age_years_at_adoption + index
+                    age_years_at_genesis=(
+                        person_age if life_status == "alive" else None
                     ),
+                    life_status=life_status,
+                    death_age_years_at_genesis=recorded_death_age,
+                    birth_event_age_years=birth_event_age,
+                    death_event_age_years=death_event_age,
                     competency_ids=rule.competency_ids,
                     eligible_episode_theme_ids=rule.episode_theme_ids,
                 )
@@ -1973,6 +2158,9 @@ class GenesisCompiler:
                 relationship,
                 related_person_ids=tuple(
                     sorted(related.get(relationship.person_id, ()))
+                ),
+                child_birth_orders=child_orders_by_parent.get(
+                    relationship.person_id, relationship.child_birth_orders
                 ),
                 caregiver_person_ids=(
                     tuple(
@@ -2191,9 +2379,9 @@ class GenesisCompiler:
         for relationship in relationships:
             if (
                 relationship.role == "child"
-                and relationship.age_years_at_genesis is not None
+                and relationship.birth_event_age_years is not None
             ):
-                event_age = main_age - relationship.age_years_at_genesis
+                event_age = relationship.birth_event_age_years
                 if 1 <= event_age <= main_age:
                     candidates.append(
                         (
@@ -2205,9 +2393,9 @@ class GenesisCompiler:
                     )
             elif (
                 relationship.role == "sibling"
-                and relationship.age_years_at_genesis is not None
+                and relationship.birth_event_age_years is not None
             ):
-                event_age = main_age - relationship.age_years_at_genesis
+                event_age = relationship.birth_event_age_years
                 if 1 <= event_age <= main_age:
                     candidates.append(
                         (
@@ -2230,6 +2418,21 @@ class GenesisCompiler:
                             f"和{relationship.display_name}建立伴侣关系",
                         )
                     )
+            if (
+                relationship.life_status == "deceased"
+                and relationship.death_age_years_at_genesis is not None
+                and relationship.death_event_age_years is not None
+                and relationship.importance >= 0.65
+                and relationship.familiarity != "heard"
+            ):
+                candidates.append(
+                    (
+                        relationship.death_event_age_years,
+                        relationship,
+                        "death",
+                        f"得知{relationship.display_name}去世",
+                    )
+                )
         ordered = sorted(
             candidates,
             key=lambda item: (item[0], item[1].person_id, item[2]),
@@ -2245,6 +2448,12 @@ class GenesisCompiler:
                     f"我在{event_age}岁左右经历了家中{label}，我们后来共享家庭生活。"
                 )
                 impact = "我记得家庭成员的变化需要通过共同生活逐步熟悉。"
+            elif event_kind == "death":
+                content = (
+                    f"我在{event_age}岁左右得知{relationship.display_name}去世。"
+                    "我记得这段送别，但不知道的死因和细节不会被补写。"
+                )
+                impact = "这次离别改变了我与家人的相处和记忆。"
             else:
                 content = f"我在{event_age}岁左右{label}，开始和对方共同承担生活。"
                 impact = "我记得重要关系需要在共同生活中逐步建立。"
@@ -2254,7 +2463,7 @@ class GenesisCompiler:
                     content=content,
                     source="personal_memory",
                     source_ref=f"family-event:{event_kind}",
-                    source_version="genesis-family-episode.v0.1",
+                    source_version="genesis-family-episode.v0.2",
                     scope="elfie",
                     topic="biography.family",
                     aliases=(event_kind, relationship.role),
@@ -2262,17 +2471,15 @@ class GenesisCompiler:
                     certainty="high",
                     temporal_label="抵达前",
                     life_stage=stage,
-                    place_ids=(context.origin.childhood_home_place_id,),
+                    place_ids=(
+                        (context.origin.childhood_home_place_id,)
+                        if event_kind != "death"
+                        else ()
+                    ),
                     person_ids=(relationship.person_id,),
                     result=label,
                     feeling="我记得这段关系变化，但不会把未知细节当成亲历。",
                     impact=impact,
-                    predecessor_ids=(episodes[-1].seed_id,) if episodes else (),
-                    causal_links=(
-                        f"{episodes[-1].seed_id} -> family-event:{event_kind}:{relationship.person_id}",
-                    )
-                    if episodes
-                    else (),
                     emotional_tone="belonging",
                     emotion_intensity=min(1.0, relationship.importance),
                     importance=min(1.0, 0.65 + relationship.importance * 0.25),
@@ -2745,6 +2952,16 @@ class GenesisCompiler:
             policy_version=policy.policy_version,
         )
 
+    def _domain_uniform(self, seed: int, label: str) -> float:
+        """Project one domain digest to a stable open-interval sample."""
+
+        bits = (
+            256
+            if self._source.generation_policy.seed_algorithm == "sha256-domain-v1"
+            else 64
+        )
+        return (self._domain_seed(seed, label) + 0.5) / (1 << bits)
+
 
 def _candidate_age_years(candidate: GenesisCandidate) -> int:
     value = candidate.age_years
@@ -2785,6 +3002,63 @@ def _domain_seed(
     return int.from_bytes(hashlib.sha256(encoded).digest(), "big")
 
 
+def _uniform_hash_subset(
+    values: tuple[int, ...], count: int, rank: Callable[[int], int]
+) -> tuple[int, ...]:
+    """Return a deterministic, equal-rank-weight subset without replacement."""
+
+    if count < 0 or count > len(values) or len(values) != len(set(values)):
+        raise GenesisError("家庭年份抽样的候选集合或数量无效")
+    return tuple(sorted(sorted(values, key=lambda value: (rank(value), value))[:count]))
+
+
+def _poisson_count(expected: float, maximum: int, uniform: float) -> int:
+    """Sample a Poisson count, folding its upper tail into the configured cap."""
+
+    if not math.isfinite(expected) or expected < 0.0 or maximum < 1:
+        raise GenesisError("访问机会的 Poisson 参数无效")
+    if not 0.0 <= uniform < 1.0:
+        raise GenesisError("访问机会的确定性抽样值必须位于 [0, 1)")
+    probability = math.exp(-expected)
+    cumulative = probability
+    if uniform < cumulative:
+        return 0
+    for count in range(1, maximum):
+        probability *= expected / count
+        cumulative += probability
+        if uniform < cumulative:
+            return count
+    return maximum
+
+
+def _sample_conditioned_death_age(
+    *,
+    terminal_age: int,
+    minimum_survival_age: int,
+    cdf_power: int,
+    uniform: float,
+) -> int:
+    """Sample one integer-year death age conditioned on required survival."""
+
+    if (
+        terminal_age < 1
+        or minimum_survival_age < 0
+        or minimum_survival_age >= terminal_age
+        or isinstance(cdf_power, bool)
+        or not 1 <= cdf_power <= 64
+    ):
+        raise GenesisError("条件寿命抽样的生命边界无效")
+    if not 0.0 < uniform < 1.0:
+        raise GenesisError("条件寿命抽样值必须位于 (0, 1)")
+    lower_cdf = (minimum_survival_age / terminal_age) ** cdf_power
+    sampled_cdf = lower_cdf + uniform * (1.0 - lower_cdf)
+    sampled_age = terminal_age * sampled_cdf ** (1.0 / cdf_power)
+    # The source lifespan curve is continuous; Memory and the current life
+    # timeline have local-year precision, so record the first completed age
+    # boundary at or after the sample.
+    return min(terminal_age, max(minimum_survival_age + 1, math.ceil(sampled_age)))
+
+
 def _seed_domain_and_id(label: str) -> tuple[str, str]:
     domains = {
         "birth": "birth",
@@ -2795,14 +3069,16 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "relationship-role": "people",
         "family-rule": "people",
         "family-child-count": "people",
+        "family-child-year": "people",
         "family-partner": "people",
+        "lifespan": "people",
         "friend-count": "people",
         "friend-contact": "people",
-        "visit-opportunity": "places",
-        "visit-age": "places",
-        "visit-count": "places",
-        "visit-member": "places",
-        "visit-purpose": "places",
+        "visit-opportunity": "journey",
+        "visit-age": "journey",
+        "visit-count": "journey",
+        "visit-member": "journey",
+        "visit-purpose": "journey",
         "person-species": "people",
         "names": "naming",
         "knowledge": "knowledge",

@@ -21,7 +21,12 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v4"
+    assert package.package_version == "elfaria-genesis.v5"
+    assert package.generation_policy.family_lifespan_cdf_power == 6
+    assert (
+        package.generation_policy.family_lifespan_sampler_version
+        == "conditioned-lifespan-cdf.v1"
+    )
     assert package.manifest.status == "published"
     assert len(package.manifest.member_ids) == 18
     assert len(package.knowledge) == 160
@@ -69,7 +74,14 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert {
         item.opportunity_id for item in package.generation_policy.visit_opportunities
     } == {
+        "local_forest_center",
+        "other_forest_center",
+        "local_plain_center",
+        "other_plain_center",
+        "local_mountain_center",
+        "other_mountain_center",
         "town_center",
+        "mixed_center",
         "forest_attraction",
         "plain_attraction",
         "mountain_attraction",
@@ -83,6 +95,8 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     )
     assert "earthbound_station" not in town.place_ids
     assert town.member_probability_for("mistyville_center") == 1.0
+    assert town.home_regions == ("A1", "A2", "B", "C1", "C2", "C3")
+    assert town.annual_rate_for("B") == 0.8
     assert town.purpose_options() == (
         ("探亲交往", 1.0),
         ("观光", 1.0),
@@ -154,6 +168,10 @@ def test_generation_policy_consumes_family_values_from_program() -> None:
                     "partner_min_age_years": 5,
                     "partner_annual_probability": 0.4,
                     "max_children": 4,
+                    "lifespan": {
+                        "cdf_power": 4,
+                        "sampler_version": "conditioned-lifespan-cdf.v1",
+                    },
                 },
             },
             "household": {"biological_parent_min_age_gap_local_years": 6},
@@ -165,6 +183,8 @@ def test_generation_policy_consumes_family_values_from_program() -> None:
     assert policy.family_partner_min_age_years == 5
     assert policy.family_partner_annual_probability == 0.4
     assert policy.family_max_children == 4
+    assert policy.family_lifespan_cdf_power == 4
+    assert policy.family_lifespan_sampler_version == "conditioned-lifespan-cdf.v1"
 
 
 def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
@@ -212,12 +232,29 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.friend_max_count == 2
     assert (
         package.generation_policy.visit_sampler_version
-        == "visits-poisson-age-distance.v1"
+        == "visits-poisson-age-distance.v2"
     )
     assert package.generation_policy.visit_social_multiplier_base == 0.8
     assert package.generation_policy.visit_social_multiplier_slope == 0.4
     assert package.generation_policy.visit_curiosity_multiplier_base == 0.8
     assert package.generation_policy.visit_curiosity_multiplier_slope == 0.4
+    assert package.generation_policy.visit_risk_multiplier_base == 0.8
+    assert package.generation_policy.visit_risk_openness_slope == 0.4
+    assert package.generation_policy.visit_risk_neuroticism_slope == -0.2
+    forest = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "forest_attraction"
+    )
+    assert forest.annual_rate_for("B") == 0.45
+    assert forest.species_multiplier_for("Saevi") == 1.3
+    assert forest.species_multiplier_for("Tovren") == 1.0
+    lake = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "lake_group"
+    )
+    assert lake.member_probability_for("lakeheart_isle") == 0.15
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",
