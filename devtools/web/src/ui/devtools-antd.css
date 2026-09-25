@@ -82,7 +82,7 @@
 .appearance-tools .capture-button.ant-btn { padding: 0 10px; }
 .panel-collapse.ant-btn { width: 40px; min-width: 40px; height: 40px; padding: 0; font-size: 24px; }
 .section-action.ant-btn { height: 30px; padding-inline: 8px; color: var(--accent-primary); }
-.elfie-switcher.ant-btn { width: 100%; min-height: 58px; height: auto; justify-content: flex-start; padding: 8px 10px; white-space: normal; }
+.elfie-switcher.ant-btn { width: 100%; min-height: 58px; height: auto; justify-content: flex-start; padding: 8px 10px; white-space: normal; background: var(--surface-elevated) !important; }
 .elfie-menu .ant-btn { height: auto; min-height: 38px; justify-content: flex-start; white-space: normal; }
 
 .bubble.ant-btn { width: max-content; max-width: min(78%, 680px); height: auto; min-height: 0; display: block; padding: 13px 16px; white-space: normal; text-align: left; }

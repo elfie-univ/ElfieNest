@@ -15,9 +15,6 @@ from typing import Any, Iterable, cast
 
 from .contracts import GenesisBundle
 
-# The Memory node is a technical completion receipt, not a resident-visible
-# manifest and never a source from which a life can be reconstructed.
-GENESIS_RECEIPT_PREFIX = "genesis:receipt:"
 SELF_NODE_PREFIX = "genesis:self:"
 SELF_MODEL_PREFIX = "genesis:self-model:"
 KNOWLEDGE_NODE_PREFIX = "genesis:knowledge:"
@@ -91,7 +88,6 @@ def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:
     for episode in bundle.episode_seeds:
         safe_seed = safe_component(episode.seed_id)
         output.append(f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_seed}")
-    output.append(f"{GENESIS_RECEIPT_PREFIX}{elfie_id}")
     return tuple(output)
 
 
@@ -130,7 +126,6 @@ def _jsonable(value: Any) -> Any:
 __all__ = (
     "EVENT_NODE_PREFIX",
     "EPISODE_NODE_PREFIX",
-    "GENESIS_RECEIPT_PREFIX",
     "KNOWLEDGE_NODE_PREFIX",
     "PERSON_NODE_PREFIX",
     "PLACE_NODE_PREFIX",

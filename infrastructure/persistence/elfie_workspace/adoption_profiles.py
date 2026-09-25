@@ -451,28 +451,11 @@ class FinalElfieWorkspaceAdapter:
             layout.knowledge_database,
             elfie_id=str(marker["elfie_id"]),
         ) as memory:
-            marker_node = memory.get_graph_node(f"genesis:receipt:{marker['elfie_id']}")
-            if marker_node is None:
-                raise ValueError("Genesis Memory completion marker is missing")
-            properties = marker_node.properties
-            for key in (
-                "manifest_id",
-                "content_hash",
-                "output_ids_hash",
-                "compiler_version",
-                "schema_version",
-                "idempotency_key_digest",
-            ):
-                if properties.get(key) != marker[key]:
-                    raise ValueError(f"Memory completion marker {key} is inconsistent")
-            memory_output_ids = _string_list(
-                properties.get("output_ids"), "Memory output inventory"
-            )
             marker_output_ids = _string_list(
                 marker.get("output_ids"), "Genesis output inventory"
             )
-            if memory_output_ids != marker_output_ids:
-                raise ValueError("Memory output inventory is inconsistent")
+            if output_ids_hash(marker_output_ids) != marker["output_ids_hash"]:
+                raise ValueError("Genesis output inventory digest is inconsistent")
             missing_outputs: list[str] = []
             for identifier in marker_output_ids:
                 value = str(identifier)
@@ -486,21 +469,19 @@ class FinalElfieWorkspaceAdapter:
                     "Genesis output inventory contains missing records: "
                     + ", ".join(missing_outputs[:8])
                 )
-            submission = memory.conn.execute(
-                """SELECT manifest_id, source_version, content_sha256,
-                                  expected_ids_hash
-                   FROM memory_genesis_submissions
-                   WHERE elfie_id=? AND submission_id=?""",
-                (str(marker["elfie_id"]), str(marker["idempotency_key_digest"])),
-            ).fetchone()
+            submission = memory.get_genesis_submission(
+                str(marker["idempotency_key_digest"])
+            )
             if submission is None:
                 raise ValueError("Genesis Memory submission receipt is missing")
             if (
-                str(submission["manifest_id"]) != str(marker["manifest_id"])
-                or str(submission["source_version"]) != str(marker["compiler_version"])
-                or str(submission["content_sha256"]) != str(marker["content_hash"])
-                or str(submission["expected_ids_hash"])
-                != _memory_output_ids_hash(marker["output_ids"])
+                submission.elfie_id != str(marker["elfie_id"])
+                or submission.submission_id != str(marker["idempotency_key_digest"])
+                or submission.manifest_id != str(marker["manifest_id"])
+                or submission.source_version != str(marker["compiler_version"])
+                or submission.content_sha256 != str(marker["content_hash"])
+                or submission.expected_ids_hash
+                != _memory_output_ids_hash(marker.get("output_ids"))
             ):
                 raise ValueError("Genesis Memory submission receipt is inconsistent")
         return marker

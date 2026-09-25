@@ -9,7 +9,7 @@ semantic choices have already been made by :mod:`elfie.genesis.compiler`.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -17,10 +17,14 @@ from elfie.brain.memory.memory_records import (
     AssertionInput,
     ClosedEpisode,
     EvidenceInput,
+    GenesisSubmissionReceipt,
     NodeInput,
     SourceReference,
 )
-from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.memory_store import (
+    GenesisSubmissionConflict,
+    MemoryStorePort,
+)
 from elfie.brain.memory.predicates import (
     relation_context,
     relation_importance,
@@ -30,7 +34,6 @@ from elfie.brain.memory.predicates import (
 from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
 from .serialization import (
     EPISODE_NODE_PREFIX,
-    GENESIS_RECEIPT_PREFIX,
     PERSON_NODE_PREFIX,
     PLACE_NODE_PREFIX,
     SELF_MODEL_PREFIX,
@@ -77,77 +80,94 @@ class GenesisMemoryCommitter:
 
         profile = bundle.profile_draft.profile
         elfie_id = profile.identity.elfie_id
-        marker_id = f"{GENESIS_RECEIPT_PREFIX}{elfie_id}"
         key_digest = _idempotency_key_digest(bundle.manifest.idempotency_key)
         inventory_hash = output_ids_hash(expected_ids)
         submission = getattr(storage, "genesis_submission", None)
-        if not callable(submission):
+        get_submission = getattr(storage, "get_genesis_submission", None)
+        if not callable(submission) or not callable(get_submission):
             raise TypeError("Genesis requires source-first Memory storage")
 
-        existing_marker = storage.get_graph_node(marker_id)
-        if existing_marker is not None:
-            self._verify_existing_marker(existing_marker, bundle)
-            return GenesisCommitReceipt(
-                manifest_id=bundle.manifest.manifest_id,
-                status="duplicate",
-                node_ids=_marker_node_ids(existing_marker),
-                idempotency_key_digest=key_digest,
-                content_hash=bundle.manifest.content_hash,
-                output_ids_hash=inventory_hash,
-                compiler_version=bundle.manifest.compiler_version,
-                schema_version=bundle.manifest.schema_version,
-                committed_at=str(existing_marker.properties.get("committed_at", "")),
-            )
+        existing_submission = get_submission(key_digest)
+        if existing_submission is not None:
+            self._verify_existing_submission(existing_submission, bundle, key_digest)
 
         now = datetime.now(timezone.utc).isoformat()
-        with submission(
-            submission_id=key_digest,
-            manifest_id=bundle.manifest.manifest_id,
-            source_version=bundle.manifest.compiler_version,
-            content_sha256=bundle.manifest.content_hash,
-            expected_ids=expected_ids,
-            elfie_id=elfie_id,
-        ) as accepted:
-            if not accepted:
-                marker = storage.get_graph_node(marker_id)
-                if marker is None:
-                    raise GenesisValidationError(
-                        "Genesis submission was marked duplicate without a completion marker"
+        try:
+            with submission(
+                submission_id=key_digest,
+                manifest_id=bundle.manifest.manifest_id,
+                source_version=bundle.manifest.compiler_version,
+                content_sha256=bundle.manifest.content_hash,
+                expected_ids=expected_ids,
+                elfie_id=elfie_id,
+            ) as accepted:
+                result = (
+                    self._commit_bundle(
+                        bundle, storage, now, key_digest, inventory_hash
                     )
-                return GenesisCommitReceipt(
-                    manifest_id=bundle.manifest.manifest_id,
-                    status="duplicate",
-                    node_ids=_marker_node_ids(marker),
-                    idempotency_key_digest=key_digest,
-                    content_hash=bundle.manifest.content_hash,
-                    output_ids_hash=inventory_hash,
-                    compiler_version=bundle.manifest.compiler_version,
-                    schema_version=bundle.manifest.schema_version,
-                    committed_at=str(marker.properties.get("committed_at", "")),
+                    if accepted
+                    else None
                 )
-            return self._commit_bundle(bundle, storage, now, key_digest, inventory_hash)
+        except GenesisSubmissionConflict as error:
+            if error.kind == "manifest":
+                raise GenesisValidationError(
+                    "该 Elfie 已经用另一个 Genesis manifest 初始化，不能覆盖已有生命起点"
+                ) from error
+            if error.kind == "output_owner":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 输出已归属另一个提交，不能用新幂等身份覆盖"
+                ) from error
+            if error.kind == "output_ids":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 输出清单与已提交版本不一致"
+                ) from error
+            if error.kind == "identity":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 幂等身份与已提交版本不一致"
+                ) from error
+            raise
+
+        committed_submission = get_submission(key_digest)
+        if committed_submission is None:
+            raise GenesisValidationError(
+                "Memory 已结束 Genesis 提交，但事务账本中没有完成回执"
+            )
+        self._verify_existing_submission(committed_submission, bundle, key_digest)
+        if result is not None:
+            return replace(result, committed_at=committed_submission.committed_at)
+        return GenesisCommitReceipt(
+            manifest_id=bundle.manifest.manifest_id,
+            status="duplicate",
+            node_ids=expected_ids,
+            idempotency_key_digest=key_digest,
+            content_hash=bundle.manifest.content_hash,
+            output_ids_hash=inventory_hash,
+            compiler_version=bundle.manifest.compiler_version,
+            schema_version=bundle.manifest.schema_version,
+            committed_at=committed_submission.committed_at,
+        )
 
     @staticmethod
-    def _verify_existing_marker(marker, bundle: GenesisBundle) -> None:
-        properties = marker.properties
-        if properties.get("manifest_id") != bundle.manifest.manifest_id:
+    def _verify_existing_submission(
+        receipt: GenesisSubmissionReceipt,
+        bundle: GenesisBundle,
+        submission_id: str,
+    ) -> None:
+        if receipt.submission_id != submission_id:
+            raise GenesisValidationError("Genesis 提交回执的幂等身份不一致")
+        if receipt.elfie_id != bundle.profile_draft.profile.identity.elfie_id:
+            raise GenesisValidationError("Genesis 提交回执属于另一只精灵")
+        if receipt.manifest_id != bundle.manifest.manifest_id:
             raise GenesisValidationError(
                 "该 Elfie 已经用另一个 Genesis manifest 初始化，不能覆盖已有生命起点"
             )
-        if properties.get("content_hash") != bundle.manifest.content_hash:
+        if receipt.content_sha256 != bundle.manifest.content_hash:
             raise GenesisValidationError(
                 "该 Elfie 的 Genesis manifest 内容与已提交版本不一致"
             )
-        expected_digest = _idempotency_key_digest(bundle.manifest.idempotency_key)
-        if properties.get("idempotency_key_digest") != expected_digest:
+        if receipt.source_version != bundle.manifest.compiler_version:
             raise GenesisValidationError(
-                "该 Elfie 的 Genesis 幂等身份与已提交版本不一致"
-            )
-        if properties.get("output_ids_hash") != output_ids_hash(
-            bundle.manifest.output_ids
-        ):
-            raise GenesisValidationError(
-                "该 Elfie 的 Genesis 输出清单与已提交版本不一致"
+                "该 Elfie 的 Genesis 编译器版本与已提交版本不一致"
             )
 
     def _commit_bundle(
@@ -550,37 +570,9 @@ class GenesisMemoryCommitter:
                 ),
             )
 
-        marker_id = f"{GENESIS_RECEIPT_PREFIX}{elfie_id}"
-        output_node_ids = (*node_ids, marker_id)
+        output_node_ids = tuple(node_ids)
         if output_node_ids != tuple(manifest.output_ids):
             raise GenesisValidationError("Genesis 实际输出 ID 与 Manifest 声明不一致")
-        self._upsert_node(
-            storage,
-            NodeInput(
-                node_id=marker_id,
-                node_type="genesis_commit_receipt",
-                canonical_label="Genesis commit receipt",
-                scope=scope,
-                status="active",
-                confidence=1.0,
-                importance=0.0,
-                retention_profile="stable",
-                properties={
-                    "genesis_kind": "commit_receipt",
-                    "manifest_id": manifest_id,
-                    "compiler_version": manifest.compiler_version,
-                    "schema_version": manifest.schema_version,
-                    "content_hash": manifest.content_hash,
-                    "idempotency_key_digest": key_digest,
-                    "output_ids_hash": inventory_hash,
-                    "status": "committed",
-                    "recall_eligible": False,
-                    "node_ids": list(output_node_ids),
-                    "output_ids": list(manifest.output_ids),
-                    "committed_at": now,
-                },
-            ),
-        )
         return GenesisCommitReceipt(
             manifest_id=manifest_id,
             status="committed",
@@ -751,15 +743,6 @@ class GenesisMemoryCommitter:
                     captured_at=now,
                 ),
             )
-
-
-def _marker_node_ids(marker) -> tuple[str, ...]:
-    if marker is None:
-        return ()
-    raw = marker.properties.get("node_ids", ())
-    if isinstance(raw, (list, tuple)):
-        return tuple(str(value) for value in raw)
-    return ()
 
 
 def _knowledge_episode_id(safe_elfie: str, seed_id: str) -> str:

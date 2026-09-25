@@ -425,6 +425,25 @@ def test_genesis_submission_is_atomic_marker_gated_and_retryable(
         }
         assert tags == {submission_id}
 
+        with pytest.raises(ValueError, match="already belongs to another submission"):
+            with first.genesis_submission(
+                submission_id="genesis-submission-retry-key",
+                manifest_id="manifest-1",
+                source_version="genesis.v1",
+                content_sha256=content_hash,
+                expected_ids=(episode.episode_id, node.node_id),
+            ):
+                pass
+        tags_after_rejection = {
+            row[0]
+            for row in first.connection.execute(
+                "SELECT genesis_submission_id FROM episodes WHERE episode_id=? "
+                "UNION ALL SELECT genesis_submission_id FROM nodes WHERE node_id=?",
+                (episode.episode_id, node.node_id),
+            ).fetchall()
+        }
+        assert tags_after_rejection == {submission_id}
+
         with first.genesis_submission(
             submission_id=submission_id,
             manifest_id="manifest-1",

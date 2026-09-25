@@ -11,6 +11,8 @@ from threading import Lock, RLock
 from types import TracebackType
 from typing import Final, Iterator
 
+from elfie.brain.memory.memory_records import GenesisSubmissionReceipt
+from elfie.brain.memory.memory_store import GenesisSubmissionConflict
 from elfie.brain.observation import BrainObservationSink
 from infrastructure.persistence.memory.schema import (
     INDEX_SQL,
@@ -251,15 +253,17 @@ class SQLiteMemoryStoreAdapter(
             ).fetchone()
             if existing is not None:
                 if str(existing["content_sha256"]) != content_sha256:
-                    raise ValueError(
-                        "Genesis submission identity was reused with a different hash"
+                    raise GenesisSubmissionConflict(
+                        "identity",
+                        "Genesis submission identity was reused with a different hash",
                     )
                 if (
                     str(existing["manifest_id"]) != manifest_id
                     or str(existing["source_version"]) != source_version
                 ):
-                    raise ValueError(
-                        "Genesis submission identity was reused with different metadata"
+                    raise GenesisSubmissionConflict(
+                        "identity",
+                        "Genesis submission identity was reused with different metadata",
                     )
                 if expected_ids:
                     expected_ids_hash = hashlib.sha256(
@@ -268,8 +272,9 @@ class SQLiteMemoryStoreAdapter(
                         )
                     ).hexdigest()
                     if str(existing["expected_ids_hash"]) != expected_ids_hash:
-                        raise ValueError(
-                            "Genesis submission identity was reused with different output IDs"
+                        raise GenesisSubmissionConflict(
+                            "output_ids",
+                            "Genesis submission identity was reused with different output IDs",
                         )
                 yield False
                 return
@@ -282,11 +287,42 @@ class SQLiteMemoryStoreAdapter(
                     (str(self.elfie_id), manifest_id),
                 ).fetchone()
                 if prior_manifest is not None:
-                    raise ValueError(
-                        "an Elfie cannot accept a different Genesis manifest"
+                    raise GenesisSubmissionConflict(
+                        "manifest",
+                        "an Elfie cannot accept a different Genesis manifest",
+                    )
+                identity_tables = (
+                    ("nodes", "node_id"),
+                    ("episodes", "episode_id"),
+                    ("node_aliases", "alias_id"),
+                    ("node_descriptions", "description_id"),
+                    ("episode_mentions", "mention_id"),
+                    ("assertions", "assertion_id"),
+                    ("evidence", "evidence_id"),
+                )
+                reused_output_ids: list[str] = []
+                for identifier in expected_ids:
+                    for table, column in identity_tables:
+                        owner = self.conn.execute(
+                            f"SELECT genesis_submission_id FROM {table} "
+                            f"WHERE {column}=?",
+                            (identifier,),
+                        ).fetchone()
+                        if (
+                            owner is not None
+                            and owner[0] is not None
+                            and str(owner[0]) != submission_id
+                        ):
+                            reused_output_ids.append(identifier)
+                            break
+                if reused_output_ids:
+                    raise GenesisSubmissionConflict(
+                        "output_owner",
+                        "Genesis output ID already belongs to another submission: "
+                        + ", ".join(reused_output_ids[:8]),
                     )
                 # A second adapter may have waited on SQLite's writer lock
-                # after the optimistic pre-check above. Re-check the marker
+                # after the optimistic pre-check above. Re-check the ledger
                 # inside the transaction so a concurrent exact retry returns
                 # the same idempotent result instead of surfacing a UNIQUE
                 # violation.
@@ -299,15 +335,17 @@ class SQLiteMemoryStoreAdapter(
                 ).fetchone()
                 if committed is not None:
                     if str(committed["content_sha256"]) != content_sha256:
-                        raise ValueError(
-                            "Genesis submission identity was reused with a different hash"
+                        raise GenesisSubmissionConflict(
+                            "identity",
+                            "Genesis submission identity was reused with a different hash",
                         )
                     if (
                         str(committed["manifest_id"]) != manifest_id
                         or str(committed["source_version"]) != source_version
                     ):
-                        raise ValueError(
-                            "Genesis submission identity was reused with different metadata"
+                        raise GenesisSubmissionConflict(
+                            "identity",
+                            "Genesis submission identity was reused with different metadata",
                         )
                     if expected_ids:
                         expected_ids_hash = hashlib.sha256(
@@ -316,8 +354,9 @@ class SQLiteMemoryStoreAdapter(
                             )
                         ).hexdigest()
                         if str(committed["expected_ids_hash"]) != expected_ids_hash:
-                            raise ValueError(
-                                "Genesis submission identity was reused with different output IDs"
+                            raise GenesisSubmissionConflict(
+                                "output_ids",
+                                "Genesis submission identity was reused with different output IDs",
                             )
                     self._commit_write_transaction(owns)
                     yield False
@@ -325,15 +364,6 @@ class SQLiteMemoryStoreAdapter(
                 self._active_genesis_submission_id = submission_id
                 yield True
                 if expected_ids:
-                    identity_tables = (
-                        ("nodes", "node_id"),
-                        ("episodes", "episode_id"),
-                        ("node_aliases", "alias_id"),
-                        ("node_descriptions", "description_id"),
-                        ("episode_mentions", "mention_id"),
-                        ("assertions", "assertion_id"),
-                        ("evidence", "evidence_id"),
-                    )
                     missing = [
                         identifier
                         for identifier in expected_ids
@@ -403,19 +433,40 @@ class SQLiteMemoryStoreAdapter(
     def genesis_submission_status(
         self, submission_id: str, content_sha256: str
     ) -> bool:
-        if self.elfie_id is None:
+        receipt = self.get_genesis_submission(submission_id)
+        if receipt is None:
             return False
-        row = self.conn.execute(
-            "SELECT content_sha256 FROM memory_genesis_submissions WHERE elfie_id=? AND submission_id=?",
-            (str(self.elfie_id), submission_id),
-        ).fetchone()
-        if row is None:
-            return False
-        if str(row["content_sha256"]) != content_sha256:
+        if receipt.content_sha256 != content_sha256:
             raise ValueError(
                 "Genesis submission identity was reused with a different hash"
             )
         return True
+
+    def get_genesis_submission(
+        self, submission_id: str
+    ) -> GenesisSubmissionReceipt | None:
+        if not submission_id.strip():
+            raise ValueError("Genesis submission ID must not be blank")
+        if self.elfie_id is None:
+            return None
+        row = self.conn.execute(
+            """SELECT elfie_id, submission_id, manifest_id, source_version,
+                      content_sha256, expected_ids_hash, committed_at
+               FROM memory_genesis_submissions
+               WHERE elfie_id=? AND submission_id=?""",
+            (str(self.elfie_id), submission_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return GenesisSubmissionReceipt(
+            elfie_id=str(row["elfie_id"]),
+            submission_id=str(row["submission_id"]),
+            manifest_id=str(row["manifest_id"]),
+            source_version=str(row["source_version"]),
+            content_sha256=str(row["content_sha256"]),
+            expected_ids_hash=str(row["expected_ids_hash"]),
+            committed_at=str(row["committed_at"]),
+        )
 
     def __enter__(self) -> SQLiteMemoryStoreAdapter:
         return self

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from typing import Protocol
+from typing import Literal, Protocol
 
 from .memory_records import (
     AssertionInput,
@@ -12,6 +12,7 @@ from .memory_records import (
     ConsolidationReceipt,
     EpisodeReceipt,
     EvidenceInput,
+    GenesisSubmissionReceipt,
     MaintenanceReceipt,
     MaintenanceRequest,
     NodeInput,
@@ -22,6 +23,18 @@ from .memory_records import (
     RecallRequest,
 )
 from .score_policy import ImportanceEvent
+
+
+class GenesisSubmissionConflict(ValueError):
+    """A committed Memory submission conflicts with a new Genesis write."""
+
+    def __init__(
+        self,
+        kind: Literal["identity", "manifest", "output_ids", "output_owner"],
+        message: str,
+    ) -> None:
+        self.kind = kind
+        super().__init__(message)
 
 
 class MemoryStorePort(Protocol):
@@ -139,5 +152,9 @@ class MemoryStorePort(Protocol):
         elfie_id: str | None = None,
     ) -> AbstractContextManager[bool]: ...
 
+    def get_genesis_submission(
+        self, submission_id: str
+    ) -> GenesisSubmissionReceipt | None: ...
 
-__all__ = ["MemoryStorePort"]
+
+__all__ = ["GenesisSubmissionConflict", "MemoryStorePort"]

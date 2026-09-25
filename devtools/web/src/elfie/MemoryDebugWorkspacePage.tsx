@@ -61,6 +61,14 @@ type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; no
 type GraphLayout = { nodes: GraphNode[]; edges: GraphEdge[]; lod: "force" | "overview" };
 type ReadPhase = "loading" | "partial" | "ready" | "empty" | "stale" | "error";
 
+export function isMemoryDebugSearchMode(tab: Tab, leftPanelOpen: boolean): boolean {
+  return tab === "recall" && leftPanelOpen;
+}
+
+export function isMemoryDebugSemanticNodeType(nodeType: string | undefined): boolean {
+  return nodeType !== "genesis_commit_receipt";
+}
+
 function normalizedGraphScore(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return 0.5;
   return Math.min(1, Math.max(0, value));
@@ -76,8 +84,8 @@ export function graphLinkWidth(importance: number | undefined): number {
   return 1.2 + normalizedGraphScore(importance) * 3;
 }
 
-const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
-const graphTypeColors: Record<string, string> = { person: "#b892ff", group: "#d5a85f", knowledge: "#42d6a4", place: "#5bb9ff", object: "#7db277", event: "#ffc857", elfie: "#ff8f6b", self_model: "#8da9c4", genesis_commit_receipt: "#d0b57a", literal: "#a7b7c4" };
+const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", literal: "字面值" };
+const graphTypeColors: Record<string, string> = { person: "#b892ff", group: "#d5a85f", knowledge: "#42d6a4", place: "#5bb9ff", object: "#7db277", event: "#ffc857", elfie: "#ff8f6b", self_model: "#8da9c4", literal: "#a7b7c4" };
 const DIMMED_LINK_COLOR = "rgba(107, 133, 151, 0.16)";
 const NON_SEMANTIC_LEGACY_PREDICATES = new Set(["about", "knows", "knows_boundary", "related_to"]);
 
@@ -586,6 +594,7 @@ function MemoryDebugGraphFallback({
 export function projectMemoryDebugGraph(report: AuditReport | null, filters: GraphFilters = {}): { nodes: GraphNodeSeed[]; edges: GraphEdge[] } {
   const assertions = report?.data.assertions ?? [];
   const nodes = (report?.data.nodes ?? []).filter((item) => {
+    if (!isMemoryDebugSemanticNodeType(item.node_type)) return false;
     if (filters.includeNodeIds && !filters.includeNodeIds.has(item.id)) return false;
     if (filters.nodeTypes && !filters.nodeTypes.has(item.node_type ?? "node")) return false;
     if (filters.lifecycle && filters.lifecycle !== "all" && recordLifecycle(item) !== filters.lifecycle) return false;
@@ -780,7 +789,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       if (cursor || !merged) throw new Error("Memory 分页未能在 100 批内收敛");
       setReport(merged);
       setFilterContextNodeIds(new Set([...contextIds].filter((id) => !new Set(merged?.focus_node_ids ?? []).has(id))));
-      setSelectedId((current) => current && merged?.data.nodes.some((node) => node.id === current) ? current : "");
+      setSelectedId((current) => current && merged?.data.nodes.some((node) => node.id === current && isMemoryDebugSemanticNodeType(node.node_type)) ? current : "");
       setSelectedEdgeId((current) => current && merged?.data.assertions.some((item) => String(item.assertion_id) === current) ? current : "");
       setSelectedEvidenceId((current) => current && merged?.data.evidence.some((item) => String(item.evidence_id) === current) ? current : "");
       setReadPhase(merged.counts.nodes === 0 && merged.counts.episodes === 0 && merged.counts.assertions === 0 && merged.counts.evidence === 0 ? "empty" : "ready");
@@ -813,7 +822,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     return () => observer.disconnect();
   }, [report?.snapshot.snapshot_id]);
 
-  const selected = report?.data.nodes.find((node) => node.id === selectedId) ?? null;
+  const selected = report?.data.nodes.find((node) => node.id === selectedId && isMemoryDebugSemanticNodeType(node.node_type)) ?? null;
   const visibleAssertions = report?.data.assertions ?? [];
   const localConfidence = confidenceFilter === "0.5" ? .5 : confidenceFilter === "0.8" ? .8 : undefined;
   const selectedEpisodeNodeIds = new Set<string>();
@@ -1074,6 +1083,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setDetailSelection(null);
     setRecall(null);
     setTraceRecall(null);
+    setQuery("");
     setShowOnlyRecallResults(false);
     setPreview(null);
     setFilterOpen(false);
@@ -1095,21 +1105,22 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setConfidenceFilter("all");
   }
 
-  function clearSearch(closeRecallPanel = tab === "recall"): void {
+  function clearSearch(closeRecallPanel = tab === "recall", announce = true): void {
     setQuery("");
     setRecall(null);
     setTraceRecall(null);
     setShowOnlyRecallResults(false);
     if (closeRecallPanel) setLeftPanelOpen(false);
-    setMessage("已清除搜索结果。");
+    if (announce) setMessage("已清除搜索结果。");
   }
 
   function openFilter(): void {
-    setFilterOpen((open) => {
-      const next = !open;
-      if (next) setLeftPanelOpen(false);
-      return next;
-    });
+    const next = !filterOpen;
+    setFilterOpen(next);
+    if (next) {
+      if (tab === "recall") clearSearch(true, false);
+      else setLeftPanelOpen(false);
+    }
   }
 
   function openAddPanel(): void {
@@ -1117,6 +1128,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setRecall(null);
     setTraceRecall(null);
     setPreview(null);
+    setQuery("");
+    setShowOnlyRecallResults(false);
     setTab("add");
     setLeftPanelOpen(true);
   }
@@ -1295,8 +1308,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     ...previewNodeIds,
     ...previewAssertionNodeIds,
   ]);
-  const typeFilterOrder = ["elfie", "event", "genesis_commit_receipt", "group", "knowledge", "person", "place", "object", "self_model", "literal"];
+  const typeFilterOrder = ["elfie", "event", "group", "knowledge", "person", "place", "object", "self_model", "literal"];
   const typeFilterOptions = Object.entries(report?.node_type_counts ?? {})
+    .filter(([kind]) => isMemoryDebugSemanticNodeType(kind))
     .sort(([left], [right]) => (typeFilterOrder.indexOf(left) === -1 ? 999 : typeFilterOrder.indexOf(left)) - (typeFilterOrder.indexOf(right) === -1 ? 999 : typeFilterOrder.indexOf(right)) || left.localeCompare(right));
   const predicateFilterOptions = Object.entries(report?.predicate_counts ?? {})
     .sort(([left], [right]) => left.localeCompare(right));
@@ -1356,6 +1370,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     { label: "评分 / 过滤", detail: recallView ? "已完成" : "等待候选", state: recallView ? "done" : "idle" },
     { label: "RecallBundle", detail: recallView ? "已生成" : "等待回执", state: recallView ? "done" : "idle" },
   ];
+  const searchMode = isMemoryDebugSearchMode(tab, leftPanelOpen);
   const addProcess = [
     { label: "接收 / 校验", detail: episodeText.trim() ? "输入已填写" : "等待输入", state: episodeText.trim() ? "done" : "idle" },
     { label: "来源写入", detail: preview ? "隔离副本" : "未观测", state: preview ? "done" : "unobserved" },
@@ -1448,7 +1463,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           </div>
         </div>
         <div className="memory-debug-top-actions">
-          {recallView && <button type="button" className={showOnlyRecallResults ? "is-active" : ""} aria-pressed={showOnlyRecallResults} onClick={() => setShowOnlyRecallResults((visible) => !visible)} title={showOnlyRecallResults ? "显示完整 Memory 图谱" : "只显示本次搜索结果"}>{showOnlyRecallResults ? "显示完整图谱" : "仅看搜索结果"}</button>}
           <button type="button" className={layoutLocked ? "is-active" : ""} aria-pressed={layoutLocked} title={layoutLocked ? "允许拖拽节点位置；相机仍需按住鼠标拖动旋转" : "锁定节点位置；相机仍可按住鼠标拖动旋转"} aria-label={layoutLocked ? "允许拖拽节点" : "锁定节点"} onClick={() => setLayoutLocked((locked) => !locked)}>{layoutLocked ? "允许拖拽节点" : "锁定节点"}</button>
           <button type="button" onClick={() => fitGraph()} title="重新居中并缩放当前可见的连通图" aria-label="适配当前图谱">适配当前图谱</button>
           <button type="button" onClick={resetGraph} title="清除选择、Recall 和预演状态，并重新适配图谱" aria-label="重置视图状态">重置视图</button>
@@ -1635,7 +1649,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       </aside>}
 
       {leftPanelOpen && <aside className="memory-debug-drawer memory-debug-drawer-left" aria-label={tab === "add" ? "添加 Episode 面板" : "搜索结果面板"}>
-        <div className="memory-debug-drawer-head"><div><span>MEMORY · WORKSPACE</span><strong>{tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions"><button type="button" aria-label={tab === "add" ? "关闭添加 Episode 面板" : "关闭搜索结果面板"} onClick={() => setLeftPanelOpen(false)}>×</button></div></div>
+        <div className="memory-debug-drawer-head"><div><span>MEMORY · WORKSPACE</span><strong>{tab === "add" ? "添加 Episode" : "搜索结果"}</strong></div><div className="memory-debug-drawer-head-actions">{searchMode && recallView && <button type="button" className={`memory-debug-search-mode-toggle${showOnlyRecallResults ? " is-active" : ""}`} aria-pressed={showOnlyRecallResults} onClick={() => setShowOnlyRecallResults((visible) => !visible)} title={showOnlyRecallResults ? "显示完整 Memory 图谱" : "只显示本次搜索结果"}>{showOnlyRecallResults ? "查看全部结果" : "仅看搜索结果"}</button>}<button type="button" aria-label={tab === "add" ? "关闭添加 Episode 面板" : "关闭搜索结果面板"} onClick={() => { if (tab === "recall") clearSearch(true, false); else setLeftPanelOpen(false); }}>×</button></div></div>
         {tab === "add" && <div className="memory-debug-inspector-context"><span>当前操作</span><strong>隔离预演 · 不写生产库</strong><small>{coverageLabel} · {coverageDetail}</small></div>}
         <div className="memory-debug-drawer-scroll">
         {tab === "add" && <div className="memory-debug-panel">

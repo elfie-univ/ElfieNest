@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from elfie.brain.memory.memory_records import RecallRequest
-from elfie.genesis import GenesisCompileInput, GenesisCompiler, GenesisError
+from elfie.genesis import (
+    GenesisCompileInput,
+    GenesisCompiler,
+    GenesisError,
+    GenesisMemoryCommitter,
+)
 from elfie.genesis.selection import derive_seed
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -180,20 +185,26 @@ def run(output: Path) -> dict[str, Any]:
                     workspace = Path(adapter.publish(elfie_id))
                     memory_path = workspace / "memory" / "knowledge.sqlite"
                     try:
-                        with SQLiteMemoryStoreAdapter(memory_path) as storage:
+                        with SQLiteMemoryStoreAdapter(
+                            memory_path, elfie_id=elfie_id
+                        ) as storage:
                             episode_count = storage.count_episodes()
                             person_count = storage.count_graph_nodes("person")
                             elfie_count = storage.count_graph_nodes("elfie")
                             group_count = storage.count_graph_nodes("group")
-                            marker = storage.get_graph_node(
-                                f"genesis:receipt:{elfie_id}"
+                            receipt = GenesisMemoryCommitter().commit(
+                                compilation.bundle, storage
                             )
                             valid_graph = (
                                 episode_count == 5
                                 and person_count == 1
                                 and elfie_count == 12
                                 and group_count == 1
-                                and marker is not None
+                                and receipt.status == "duplicate"
+                                and storage.get_graph_node(
+                                    f"genesis:receipt:{elfie_id}"
+                                )
+                                is None
                             )
                             if not valid_graph:
                                 failures.append(f"E3:{species_id}:{stage}:{seed}:graph")
@@ -238,13 +249,19 @@ def run(output: Path) -> dict[str, Any]:
                                     failures.append(
                                         f"E2:unknown:{species_id}:{fact.fact_id}"
                                     )
-                            with SQLiteMemoryStoreAdapter(memory_path) as reopened:
+                            with SQLiteMemoryStoreAdapter(
+                                memory_path, elfie_id=elfie_id
+                            ) as reopened:
+                                reopened_receipt = GenesisMemoryCommitter().commit(
+                                    compilation.bundle, reopened
+                                )
                                 restart_ok = (
                                     reopened.count_episodes() == 5
+                                    and reopened_receipt.status == "duplicate"
                                     and reopened.get_graph_node(
                                         f"genesis:receipt:{elfie_id}"
                                     )
-                                    is not None
+                                    is None
                                 )
                             if not restart_ok:
                                 failures.append(

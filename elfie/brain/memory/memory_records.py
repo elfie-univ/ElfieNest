@@ -89,10 +89,10 @@ _MEMORY_NODE_TYPE_REGISTRY: dict[str, MemoryNodeTypeSpec] = {
     "pattern": MemoryNodeTypeSpec("knowledge", "pattern", canonical=False),
     "emotion": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
     "preference": MemoryNodeTypeSpec("knowledge", "belief", canonical=False),
-    # Operational rows may be inspected by the audit surface but are not part
-    # of the normal cognitive graph.
+    # Historical rows are recognized for read-only inspection. New Genesis
+    # submissions record completion in the transaction ledger, never as Nodes.
     "genesis_commit_receipt": MemoryNodeTypeSpec(
-        "technical", "genesis_commit_receipt", visible=False
+        "technical", "genesis_commit_receipt", canonical=False, visible=False
     ),
     "literal": MemoryNodeTypeSpec("technical", "literal", visible=False),
 }
@@ -312,6 +312,42 @@ class EpisodeReceipt:
 
 
 @dataclass(frozen=True)
+class GenesisSubmissionReceipt:
+    """Technical acknowledgement of one committed Memory submission.
+
+    This is a projection of the Memory transaction ledger, not a graph Node or
+    a record of the wider Genesis/Admission workflow.
+    """
+
+    elfie_id: str
+    submission_id: str
+    manifest_id: str
+    source_version: str
+    content_sha256: str
+    expected_ids_hash: str
+    committed_at: str
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("elfie_id", self.elfie_id),
+            ("submission_id", self.submission_id),
+            ("manifest_id", self.manifest_id),
+            ("source_version", self.source_version),
+        ):
+            if not value.strip():
+                raise ValueError(f"{name} must not be blank")
+        for name, value in (
+            ("content_sha256", self.content_sha256),
+            ("expected_ids_hash", self.expected_ids_hash),
+        ):
+            if len(value) != 64 or any(
+                character not in "0123456789abcdefABCDEF" for character in value
+            ):
+                raise ValueError(f"{name} must be a SHA-256 digest")
+        _timestamp_key(self.committed_at)
+
+
+@dataclass(frozen=True)
 class MemoryUseProposal:
     """Bounded references a reasoning turn proposes to use.
 
@@ -411,7 +447,15 @@ class NodeInput:
     def __post_init__(self) -> None:
         if not self.node_id.strip() or not self.node_type.strip():
             raise ValueError("node_id and node_type must not be blank")
-        resolve_memory_node_type(self.node_type)
+        node_type_spec = resolve_memory_node_type(self.node_type)
+        if (
+            node_type_spec.domain == "technical"
+            and node_type_spec.kind == "genesis_commit_receipt"
+        ):
+            raise ValueError(
+                "Genesis submission receipts belong in the Memory transaction "
+                "ledger, not graph Nodes"
+            )
         if memory_node_domain(self.node_type) == "knowledge":
             memory_knowledge_kind(self.node_type, self.properties)
         if not self.canonical_label.strip():
@@ -1082,6 +1126,7 @@ __all__ = [
     "QualifiedReinforcementReceipt",
     "DescriptionInput",
     "EpisodeReceipt",
+    "GenesisSubmissionReceipt",
     "EvidenceInput",
     "MediaReference",
     "MentionInput",

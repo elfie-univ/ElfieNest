@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -62,11 +63,14 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         assert storage.count_episodes() == expected_episode_count
         for kind, expected_count in expected_relationship_node_counts.items():
             assert storage.count_graph_nodes(kind) == expected_count
-        marker = storage.get_graph_node("genesis:receipt:00000101")
-        assert marker is not None
-        assert marker.properties["output_ids"] == list(
-            compilation.bundle.manifest.output_ids
-        )
+        assert storage.get_graph_node("genesis:receipt:00000101") is None
+        submission_id = hashlib.sha256(
+            compilation.bundle.manifest.idempotency_key.strip().encode("utf-8")
+        ).hexdigest()
+        submission = storage.get_genesis_submission(submission_id)
+        assert submission is not None
+        assert submission.manifest_id == compilation.bundle.manifest.manifest_id
+        assert len(submission.expected_ids_hash) == 64
         rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
         assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
 
@@ -103,10 +107,11 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
             for item in unknown.episodes
         )
 
-    # A close/reopen cycle must preserve the same source Episodes and marker.
+    # A close/reopen cycle preserves semantic Episodes and the submission ledger.
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as reopened:
         assert reopened.count_episodes() == expected_episode_count
-        assert reopened.get_graph_node("genesis:receipt:00000101") is not None
+        assert reopened.get_graph_node("genesis:receipt:00000101") is None
+        assert reopened.get_genesis_submission(submission_id) == submission
 
     adapter.finalize("00000101")
 

@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -97,7 +98,11 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
         assert memory.count_graph_nodes("elfie") == 12
         assert memory.get_graph_node("genesis:self:00000001") is not None
         assert memory.get_graph_node("genesis:self-model:00000001") is not None
-        assert memory.get_graph_node("genesis:receipt:00000001") is not None
+        assert memory.get_graph_node("genesis:receipt:00000001") is None
+        submission_id = hashlib.sha256(
+            compilation.bundle.manifest.idempotency_key.strip().encode("utf-8")
+        ).hexdigest()
+        assert memory.get_genesis_submission(submission_id) is not None
 
     adapter.finalize("00000001")
     assert not (published / ".genesis-stage.json").exists()

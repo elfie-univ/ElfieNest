@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
 
 describe("记忆调试工作台", () => {
   it("要求相机只在按住拖动时旋转，并使用更稳定的 Orbit 控制", () => {
@@ -21,6 +21,7 @@ describe("记忆调试工作台", () => {
     expect(markup).toContain('class="memory-debug-top-actions"');
     expect(markup).not.toContain("memory-debug-search-clear");
     expect(markup).toContain("筛选");
+    expect(markup).not.toContain("memory-debug-search-mode-actions");
     expect(markup).toContain('aria-label="添加 Episode"');
     expect(markup).toContain(">添加</span>");
     expect(markup).toContain('aria-label="手动触发 Consolidation"');
@@ -55,9 +56,16 @@ describe("记忆调试工作台", () => {
     expect(markup).not.toContain("搜索内容");
     expect(markup).not.toContain("再次执行真实检索");
     expect(markup).toContain("Recall 返回摘要");
+    expect(markup).toContain('class="memory-debug-search-mode-toggle"');
     expect(markup).toContain('aria-pressed="false" title="只显示本次搜索结果">仅看搜索结果</button>');
     expect(markup).toContain("recall-turn-1");
     expect(markup).toContain("关闭记忆图谱浮窗");
+  });
+
+  it("只有左侧检索面板打开时才处于搜索模式", () => {
+    expect(isMemoryDebugSearchMode("recall", true)).toBe(true);
+    expect(isMemoryDebugSearchMode("recall", false)).toBe(false);
+    expect(isMemoryDebugSearchMode("add", true)).toBe(false);
   });
 
   it("检索默认保留完整图谱，只有明确切换时才投影命中子图", () => {
@@ -138,6 +146,22 @@ describe("记忆调试工作台", () => {
       },
     } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
     expect(graph.edges[0]).toMatchObject({ label: "朋友", predicate: "friend", symmetric: true });
+  });
+
+  it("不把历史 Genesis 提交回执投影成记忆图节点", () => {
+    expect(isMemoryDebugSemanticNodeType("genesis_commit_receipt")).toBe(false);
+    const graph = projectMemoryDebugGraph({
+      data: {
+        nodes: [
+          { id: "genesis:receipt:elfie-a", node_type: "genesis_commit_receipt", label: "初始化回执" },
+          { id: "person-a", node_type: "person", label: "家人" },
+        ],
+        assertions: [],
+        evidence: [],
+      },
+    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+
+    expect(graph.nodes.map((node) => node.id)).toEqual(["person-a"]);
   });
 
   it("把高亮上下文之外的 Assertion 箭头和连线一起降为不可见灰态", () => {

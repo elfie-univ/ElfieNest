@@ -4,7 +4,12 @@ from dataclasses import replace
 import pytest
 
 from elfie.brain.memory.consolidation import MemoryConsolidator
-from elfie.brain.memory.memory_records import ConsolidationRequest, RecallRequest
+from elfie.brain.memory.memory_records import (
+    ConsolidationRequest,
+    GenesisSubmissionReceipt,
+    NodeInput,
+    RecallRequest,
+)
 from elfie.genesis import (
     GenesisMemoryCommitter,
     GenesisValidationError,
@@ -73,6 +78,16 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
 
         assert first.status == "committed"
         assert second.status == "duplicate"
+        assert first.node_ids == tuple(bundle.manifest.output_ids)
+        assert second.node_ids == first.node_ids
+        assert second.committed_at == first.committed_at
+        assert storage.get_graph_node("genesis:receipt:genesis-check") is None
+        submission = storage.get_genesis_submission(first.idempotency_key_digest)
+        assert submission is not None
+        assert submission.manifest_id == bundle.manifest.manifest_id
+        assert submission.content_sha256 == bundle.manifest.content_hash
+        assert len(submission.expected_ids_hash) == 64
+        assert submission.committed_at
         assert storage.count_episodes() == len(bundle.knowledge_seeds) + len(
             bundle.episode_seeds
         )
@@ -323,3 +338,40 @@ def test_genesis_rejects_a_second_manifest_for_the_same_elfie() -> None:
         committer.commit(bundle, storage)
         with pytest.raises(GenesisValidationError, match="另一个 Genesis manifest"):
             committer.commit(conflicting, storage)
+
+
+def test_genesis_rejects_a_second_idempotency_identity_for_the_same_elfie() -> None:
+    bundle = _bundle()
+    conflicting = replace(
+        bundle,
+        manifest=replace(bundle.manifest, idempotency_key="different-retry-key"),
+    )
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        committer = GenesisMemoryCommitter()
+        committer.commit(bundle, storage)
+        with pytest.raises(GenesisValidationError, match="幂等身份"):
+            committer.commit(conflicting, storage)
+
+
+def test_genesis_submission_receipt_is_not_a_writable_graph_node() -> None:
+    with pytest.raises(ValueError, match="transaction ledger, not graph Nodes"):
+        NodeInput(
+            node_id="genesis:receipt:genesis-check",
+            node_type="genesis_commit_receipt",
+            canonical_label="Genesis commit receipt",
+        )
+
+
+def test_genesis_submission_receipt_accepts_opaque_submission_identity() -> None:
+    receipt = GenesisSubmissionReceipt(
+        elfie_id="elfie-a",
+        submission_id="genesis-submission-1",
+        manifest_id="manifest-1",
+        source_version="compiler.v1",
+        content_sha256="a" * 64,
+        expected_ids_hash="b" * 64,
+        committed_at="2026-09-25T10:00:00+00:00",
+    )
+
+    assert receipt.submission_id == "genesis-submission-1"
