@@ -180,6 +180,45 @@ def test_compiler_emits_a_deduplicated_core_family_graph() -> None:
     assert compilation.bundle.validate() is None
 
 
+def test_compiler_uses_one_ordered_parent_children_set() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            family_child_count_distribution=((3, 1.0),),
+            family_partner_annual_probability=0.0,
+        ),
+    )
+    compilation = _compilation(
+        "family-shared-children",
+        stage="mature",
+        age_years=6,
+        seed=7,
+        source=source,
+    )
+    relationships = compilation.bundle.relationship_seeds
+    parents = tuple(item for item in relationships if item.role == "parent")
+    siblings = tuple(item for item in relationships if item.role == "sibling")
+
+    assert len(parents) == 2
+    assert len(siblings) == 2
+    assert [item.age_years_at_genesis for item in siblings] == [7, 5]
+    assert [item.birth_order for item in siblings] == [1, 3]
+    assert len({item.age_years_at_genesis for item in siblings} | {6}) == 3
+
+    parent_related = {frozenset(item.related_person_ids) for item in parents}
+    assert len(parent_related) == 1
+    assert {"self", "family-sibling-1", "family-sibling-2"} <= next(
+        iter(parent_related)
+    )
+    assert all(
+        {"self", "family-parent-1", "family-parent-2"} <= set(item.related_person_ids)
+        for item in siblings
+    )
+    assert compilation.bundle.validate() is None
+
+
 def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     compilation = _compilation("visit-opportunity", seed=4, stage="mature", age_years=8)
     records = compilation.life_context.mobility.opportunity_records

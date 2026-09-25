@@ -143,6 +143,10 @@ class RelationshipSeed:
     vocation_id: str = ""
     person_species_id: str = ""
     age_years_at_genesis: int | None = None
+    # Birth order is only meaningful for members of one shared family
+    # children set.  The protagonist itself is the anchor and is therefore
+    # represented by the absence of a RelationshipSeed entry.
+    birth_order: int | None = None
     person_gender: str = ""
     life_status: str = "alive"
     related_person_ids: tuple[str, ...] = ()
@@ -552,6 +556,12 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")
     if seed.life_status not in {"alive", "deceased", "unknown"}:
         raise GenesisValidationError("RelationshipSeed.life_status 无效")
+    if seed.birth_order is not None and (
+        isinstance(seed.birth_order, bool)
+        or not isinstance(seed.birth_order, int)
+        or seed.birth_order < 1
+    ):
+        raise GenesisValidationError("RelationshipSeed.birth_order 必须为正整数")
 
 
 def _validate_episode_seed(seed: EpisodeSeed) -> None:

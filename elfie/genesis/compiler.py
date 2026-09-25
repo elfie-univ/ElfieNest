@@ -1231,6 +1231,7 @@ class GenesisCompiler:
             age_years: int,
             importance: float,
             shared_fact: str,
+            birth_order: int | None = None,
             rule: RelationshipArchetype = family_rule,
         ) -> None:
             if person_id in used_person_ids:
@@ -1280,6 +1281,7 @@ class GenesisCompiler:
                     vocation_id=rule.vocation_id,
                     person_species_id=person_species_id,
                     age_years_at_genesis=max(0, effective_age),
+                    birth_order=birth_order,
                     person_gender=person_gender,
                     life_status=life_status,
                     competency_ids=rule.competency_ids,
@@ -1313,29 +1315,39 @@ class GenesisCompiler:
                 self._domain_seed(request.appearance_seed, "family-child-count")
             ),
         )
-        sibling_count = max(
-            0,
-            min(
-                self._source.generation_policy.family_max_children - 1,
-                child_target - 1,
-            ),
-        )
+        # The protagonist is anchored into one shared parent-child set.  The
+        # target distribution is drawn once per union; each additional child
+        # occupies a distinct legal birth year and gets its rank from that
+        # year.  This keeps both parents and all siblings on the same graph
+        # instead of independently re-drawing the same family from each node.
+        max_children = self._source.generation_policy.family_max_children
+        legal_child_years = max(1, min(max_children, main_age + 2))
+        child_count = max(1, min(child_target, legal_child_years))
+        child_ages = [main_age]
+        for age in range(main_age + 1, main_age + 2):
+            if len(child_ages) >= child_count:
+                break
+            child_ages.append(age)
+        for age in range(main_age - 1, -1, -1):
+            if len(child_ages) >= child_count:
+                break
+            child_ages.append(age)
+        child_ages = sorted(child_ages[:child_count], reverse=True)
         sibling_ids: list[str] = []
-        sibling_ages: list[int] = []
-        for index in range(sibling_count):
-            direction = 1 if index % 2 == 0 else -1
-            distance = index // 2 + 1
-            sibling_ages.append(max(1, main_age + direction * distance))
-        for index, sibling_age in enumerate(sibling_ages, start=1):
-            person_id = f"family-sibling-{index}"
+        for order, sibling_age in enumerate(child_ages, start=1):
+            if sibling_age == main_age:
+                continue
+            sibling_index = len(sibling_ids) + 1
+            person_id = f"family-sibling-{sibling_index}"
             sibling_ids.append(person_id)
             add_family_member(
                 person_id=person_id,
                 role="sibling",
-                person_gender="male" if index % 2 else "female",
+                person_gender="male" if sibling_index % 2 else "female",
                 age_years=sibling_age,
                 importance=0.65,
                 shared_fact="我们是同一对父母的子女，曾共享家庭生活。",
+                birth_order=order,
             )
 
         partner_id: str | None = None
@@ -1374,6 +1386,7 @@ class GenesisCompiler:
                     age_years=max(1, main_age - parent_gap - index),
                     importance=0.75,
                     shared_fact="这是我的子女，我们之间有家庭照护关系。",
+                    birth_order=index + 1,
                 )
 
         friend_count = 1 + int(
@@ -1457,6 +1470,7 @@ class GenesisCompiler:
         related: dict[str, set[str]] = {
             relationship.person_id: set() for relationship in result
         }
+        parent_child_ids = {"self", *sibling_ids}
         for person_id in parent_ids:
             related[person_id].update(
                 {
@@ -1465,6 +1479,7 @@ class GenesisCompiler:
                     *sibling_ids,
                 }
             )
+            related[person_id].update(parent_child_ids)
         for person_id in sibling_ids:
             related[person_id].update(
                 {
@@ -1473,6 +1488,8 @@ class GenesisCompiler:
                     *[item for item in sibling_ids if item != person_id],
                 }
             )
+        for child_id in child_ids:
+            related[child_id].update({"self", *parent_ids})
         if partner_id is not None:
             related[partner_id].add("self")
             related[partner_id].update(child_ids)

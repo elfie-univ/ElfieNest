@@ -258,6 +258,9 @@ class GenesisMemoryCommitter:
                     f"年龄：{relationship.age_years_at_genesis}岁"
                     if relationship.age_years_at_genesis is not None
                     else "",
+                    f"出生排行：第{relationship.birth_order}位"
+                    if relationship.birth_order is not None
+                    else "",
                     f"职业线索：{relationship.vocation_id}"
                     if relationship.vocation_id
                     else "",
@@ -293,6 +296,7 @@ class GenesisMemoryCommitter:
                         ),
                         "person_species_id": relationship.person_species_id,
                         "age_years_at_genesis": relationship.age_years_at_genesis,
+                        "birth_order": relationship.birth_order,
                         "person_gender": relationship.person_gender,
                         "life_status": relationship.life_status,
                         "related_person_ids": list(relationship.related_person_ids),
