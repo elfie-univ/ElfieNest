@@ -132,6 +132,8 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
     assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
     assert package.generation_policy.candidate_proposal_count == 96
+    assert package.generation_policy.candidate_options_per_choice == 8
+    assert package.generation_policy.candidate_total_backtracks == 64
     assert package.generation_policy.medium_knowledge_probability == 0.5
     assert package.generation_policy.candidate_age_reserve_years == 4
     assert package.generation_policy.candidate_stage_weights == (

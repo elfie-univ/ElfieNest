@@ -11,6 +11,7 @@ from elfie.genesis import (
     GenesisError,
 )
 from elfie.genesis.appearance import generate_appearance
+from elfie.genesis.world import GenerationPolicy
 
 
 def intent() -> GenesisAppearanceIntent:
@@ -149,6 +150,65 @@ def test_previous_batch_signatures_are_respected() -> None:
     assert not {candidate.signature.visual_key for candidate in first.candidates} & {
         candidate.signature.visual_key for candidate in second.candidates
     }
+
+
+def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) -> None:
+    engine = GenesisEngine(
+        generation_policy=GenerationPolicy(
+            candidate_options_per_choice=2,
+            candidate_total_backtracks=4,
+        )
+    )
+    appearance = intent()
+    core = engine.core_personality(
+        species_id="dog", life_stage="young_adult", answers=("any",) * 5
+    )
+    proposals = {}
+    for role_index, role in enumerate(CANDIDATE_ROLES):
+        proposals[role] = [
+            engine._build_candidate(
+                seed=100 + role_index * 10 + proposal_index,
+                role=role,
+                species_id="dog",
+                life_stage="young_adult",
+                gender="female",
+                appearance=appearance,
+                core=core,
+                variant_index=role_index,
+            )
+            for proposal_index in (0, 1)
+        ]
+
+    first_role, second_role = CANDIDATE_ROLES[:2]
+    blocked = proposals[first_role][0].candidate_id
+
+    monkeypatch.setattr("elfie.genesis.engine.role_fit", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(
+        engine,
+        "_selection_score",
+        lambda candidate, **kwargs: 1.0 if candidate.seed % 10 == 0 else 0.0,
+    )
+
+    def constrained_distance(candidate, selected, history):
+        return not (
+            selected
+            and selected[0].candidate_id == blocked
+            and candidate.role == second_role
+        )
+
+    monkeypatch.setattr(engine, "_is_far_enough", constrained_distance)
+
+    selected = engine._select_candidates_with_backtracking(
+        proposals=proposals,
+        roles=CANDIDATE_ROLES,
+        appearance=appearance,
+        core_by_stage={"young_adult": core},
+        history=(),
+        batch_number=1,
+    )
+
+    assert selected[0].candidate_id == proposals[first_role][1].candidate_id
+    assert len(selected) == len(CANDIDATE_ROLES)
 
 
 def test_species_stage_ranges_can_differ() -> None:

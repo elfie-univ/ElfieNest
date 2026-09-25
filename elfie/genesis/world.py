@@ -313,6 +313,8 @@ class GenerationPolicy:
     normal_episode_minimum: int = 5
     medium_knowledge_probability: float = 0.5
     candidate_proposal_count: int = 96
+    candidate_options_per_choice: int = 8
+    candidate_total_backtracks: int = 64
     candidate_minimum_age_years: int = 2
     candidate_age_reserve_years: int = 4
     candidate_stage_weights: tuple[tuple[str, float], ...] = (

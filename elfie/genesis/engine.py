@@ -122,35 +122,15 @@ class GenesisEngine:
                 )
                 proposals[role].append(candidate)
 
-        selected: list[GenesisCandidate] = []
         history = tuple(previous_signatures)
-        for role in CANDIDATE_ROLES:
-            ranked = sorted(
-                proposals[role],
-                key=lambda candidate: self._selection_score(
-                    candidate,
-                    role=role,
-                    appearance=appearance,
-                    core=core_by_stage[candidate.life_stage],
-                    selected=tuple(selected),
-                    history=history,
-                    batch_number=batch_number,
-                ),
-                reverse=True,
-            )
-            choice = next(
-                (
-                    item
-                    for item in ranked
-                    if role_fit(item, role, appearance, core_by_stage[item.life_stage])
-                    >= ROLE_FIT_FLOORS[role]
-                    and self._is_far_enough(item, selected, history)
-                ),
-                None,
-            )
-            if choice is None:
-                raise GenesisError("无法同时满足候选匹配下限和差异度门槛，请重试本批次")
-            selected.append(choice)
+        selected = self._select_candidates_with_backtracking(
+            proposals=proposals,
+            roles=CANDIDATE_ROLES,
+            appearance=appearance,
+            core_by_stage=core_by_stage,
+            history=history,
+            batch_number=batch_number,
+        )
         random.Random(
             self._labeled_seed(
                 master_seed,
@@ -161,6 +141,98 @@ class GenesisEngine:
         ).shuffle(selected)
         core_stage = "young_adult" if life_stage == "any" else stages[0]
         return GenesisBatch(batch_number, tuple(selected), core_by_stage[core_stage])
+
+    def _select_candidates_with_backtracking(
+        self,
+        *,
+        proposals: dict[str, list[GenesisCandidate]],
+        roles: Sequence[str],
+        appearance: GenesisAppearanceIntent,
+        core_by_stage: dict[str, BigFiveProfile],
+        history: tuple[CandidateSignature, ...],
+        batch_number: int,
+    ) -> list[GenesisCandidate]:
+        """Choose one candidate per role within the published search budget.
+
+        Role and user inputs are frozen before this method.  Only an earlier
+        candidate slot may be reconsidered when a later slot has no legal
+        candidate.  Ranking and traversal are stable, so retries with the
+        same source inputs produce the same result.
+        """
+
+        options_per_choice = self._generation_policy.candidate_options_per_choice
+        max_backtracks = self._generation_policy.candidate_total_backtracks
+        backtracks = 0
+
+        def search(
+            index: int, selected: tuple[GenesisCandidate, ...]
+        ) -> tuple[GenesisCandidate, ...] | None:
+            nonlocal backtracks
+            if index == len(roles):
+                return selected
+            role = roles[index]
+            ranked = self._ranked_candidates(
+                proposals[role],
+                role=role,
+                appearance=appearance,
+                core_by_stage=core_by_stage,
+                selected=selected,
+                history=history,
+                batch_number=batch_number,
+            )
+            if not ranked:
+                return None
+            for option_index, choice in enumerate(ranked[:options_per_choice]):
+                result = search(index + 1, selected + (choice,))
+                if result is not None:
+                    return result
+                if option_index + 1 < len(ranked[:options_per_choice]):
+                    backtracks += 1
+                    if backtracks > max_backtracks:
+                        return None
+            return None
+
+        result = search(0, ())
+        if result is None:
+            raise GenesisError("无法在候选匹配、差异度和有限回溯预算内组成完整候选批次")
+        return list(result)
+
+    def _ranked_candidates(
+        self,
+        candidates: Sequence[GenesisCandidate],
+        *,
+        role: str,
+        appearance: GenesisAppearanceIntent,
+        core_by_stage: dict[str, BigFiveProfile],
+        selected: tuple[GenesisCandidate, ...],
+        history: tuple[CandidateSignature, ...],
+        batch_number: int,
+    ) -> list[GenesisCandidate]:
+        ranked = sorted(
+            candidates,
+            key=lambda candidate: self._selection_score(
+                candidate,
+                role=role,
+                appearance=appearance,
+                core=core_by_stage[candidate.life_stage],
+                selected=selected,
+                history=history,
+                batch_number=batch_number,
+            ),
+            reverse=True,
+        )
+        return [
+            candidate
+            for candidate in ranked
+            if role_fit(
+                candidate,
+                role,
+                appearance,
+                core_by_stage[candidate.life_stage],
+            )
+            >= ROLE_FIT_FLOORS[role]
+            and self._is_far_enough(candidate, selected, history)
+        ]
 
     def core_personality(
         self, *, species_id: str, life_stage: str, answers: Sequence[str]

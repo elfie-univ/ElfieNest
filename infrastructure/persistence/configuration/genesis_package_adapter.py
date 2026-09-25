@@ -70,6 +70,7 @@ def decode_genesis_package(
     policy = _mapping(rules["policy"], "rules.policy")
     policy_episodes = _mapping(policy["episodes"], "rules.policy.episodes")
     candidate_rules = _mapping(policy["candidates"], "rules.policy.candidates")
+    backtracking = _mapping(policy["backtracking"], "rules.policy.backtracking")
     age_policy = _mapping(
         candidate_rules["age_policy"], "rules.policy.candidates.age_policy"
     )
@@ -140,6 +141,8 @@ def decode_genesis_package(
             candidate_proposal_count=_integer(
                 candidate_rules, "existing_engine_proposals_per_role"
             ),
+            candidate_options_per_choice=_integer(backtracking, "options_per_choice"),
+            candidate_total_backtracks=_integer(backtracking, "total_backtracks"),
             candidate_minimum_age_years=_integer(
                 candidate_rules, "integer_age_minimum"
             ),

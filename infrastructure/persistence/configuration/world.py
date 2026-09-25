@@ -256,6 +256,7 @@ def _name_rules(value: Mapping[str, Any]) -> NameRules:
 
 def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
+    raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
     return GenerationPolicy(
         policy_version=_optional_text(raw_policy, "version", "generation-policy.v1"),
         seed_algorithm=_optional_text(
@@ -264,6 +265,12 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         normal_episode_minimum=_optional_int(raw_policy, "normal_episode_minimum", 5),
         candidate_proposal_count=_optional_int(
             raw_policy, "candidate_proposal_count", 96
+        ),
+        candidate_options_per_choice=_optional_int(
+            raw_backtracking, "options_per_choice", 8
+        ),
+        candidate_total_backtracks=_optional_int(
+            raw_backtracking, "total_backtracks", 64
         ),
     )
 
@@ -554,6 +561,10 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("normal_episode_minimum 必须为正整数")
     if policy.candidate_proposal_count < 1:
         raise ValueError("candidate_proposal_count 必须为正整数")
+    if policy.candidate_options_per_choice < 1:
+        raise ValueError("candidate_options_per_choice 必须为正整数")
+    if policy.candidate_total_backtracks < 0:
+        raise ValueError("candidate_total_backtracks 不能为负数")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]
