@@ -21,6 +21,7 @@ from elfie.genesis.world import (
     SourcePackageManifest,
     SpatialPopulationCell,
     SpatialPopulationModel,
+    VisitOpportunityRule,
     WorldKnowledgeFact,
     WorldPlace,
     WorldPlaceRelation,
@@ -82,6 +83,7 @@ def decode_genesis_package(
         "rules.policy.family.child_count_distribution",
     )
     household = _mapping(rules["household"], "rules.household")
+    visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
         policy["reproducibility"], "rules.policy.reproducibility"
     )
@@ -171,6 +173,7 @@ def decode_genesis_package(
                 "rules.policy.family",
             ),
             family_max_children=_integer(family_policy, "max_children"),
+            visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
             eligible_life_stages=("youth", "young_adult", "mature", "elder"),
@@ -441,6 +444,64 @@ def _relationship_archetypes(
                 vocation_id="",
                 competency_ids=_strings(item, "competency_ids"),
                 episode_theme_ids=_strings(item, "episode_theme_ids"),
+            )
+        )
+    return tuple(result)
+
+
+def _visit_opportunities(
+    policy: Mapping[str, Any],
+) -> tuple[VisitOpportunityRule, ...]:
+    group = _mapping(policy["visits"], "rules.policy.visits")
+    result: list[VisitOpportunityRule] = []
+    for raw in _array(group, "opportunities"):
+        item = _mapping(raw, "visit opportunity")
+        member_probabilities = _mapping(
+            item.get("member_probabilities", {}),
+            "visit opportunity member probabilities",
+        )
+        species_multipliers = _mapping(
+            item.get("species_multipliers", {}), "visit opportunity species multipliers"
+        )
+        region_multipliers = _mapping(
+            item.get("region_multipliers", {}), "visit opportunity region multipliers"
+        )
+        result.append(
+            VisitOpportunityRule(
+                opportunity_id=_text(item, "id"),
+                place_ids=_strings(item, "place_ids"),
+                annual_rate=_bounded_probability(
+                    item, "annual_rate", "rules.policy.visits.opportunities"
+                ),
+                minimum_age_years=_integer(item, "minimum_age_years"),
+                purpose=_text(item, "purpose"),
+                stay_days=_integer(item, "stay_days"),
+                max_repeat_count=_integer(item, "max_repeat_count"),
+                member_probability=_bounded_probability(
+                    item, "member_probability", "rules.policy.visits.opportunities"
+                ),
+                member_probabilities=tuple(
+                    (
+                        str(place_id),
+                        _bounded_probability(
+                            member_probabilities,
+                            str(place_id),
+                            "visit opportunity member probabilities",
+                        ),
+                    )
+                    for place_id in sorted(member_probabilities)
+                ),
+                species_multipliers=tuple(
+                    (str(species_id), _number(species_multipliers, str(species_id)))
+                    for species_id in sorted(species_multipliers)
+                ),
+                region_multipliers=tuple(
+                    (str(region_id), _number(region_multipliers, str(region_id)))
+                    for region_id in sorted(region_multipliers)
+                ),
+                requires_opportunity_id=_text(
+                    item, "requires_opportunity_id", required=False
+                ),
             )
         )
     return tuple(result)

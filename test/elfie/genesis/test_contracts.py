@@ -172,6 +172,28 @@ def test_compiler_emits_a_deduplicated_core_family_graph() -> None:
     assert compilation.bundle.validate() is None
 
 
+def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
+    compilation = _compilation("visit-opportunity", seed=6, stage="mature", age_years=8)
+    records = compilation.life_context.mobility.opportunity_records
+    episodes = {
+        episode.seed_id: episode
+        for episode in compilation.bundle.episode_seeds
+        if episode.seed_id.startswith("visit:")
+    }
+
+    assert any(record[0] == "town_center" for record in records)
+    assert set(episodes) == {f"visit:{record[0]}" for record in records}
+    assert all(episode.visit_count >= 1 for episode in episodes.values())
+    assert all(episode.stay_days >= 1 for episode in episodes.values())
+    assert all(episode.purposes for episode in episodes.values())
+    assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
+    station_only = _compilation("station-only")
+    assert "earthbound_station" in station_only.life_context.mobility.visited_place_ids
+    assert (
+        "mistyville_center" not in station_only.life_context.mobility.visited_place_ids
+    )
+
+
 def test_genesis_rejects_adoption_before_age_two() -> None:
     with pytest.raises(GenesisError, match="至少 2 岁"):
         _compilation(stage="youth", age_years=1)

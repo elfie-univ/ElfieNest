@@ -14,7 +14,7 @@ from elfie.genesis.serialization import safe_component
 from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
-from .test_contracts import _bundle
+from .test_contracts import _bundle, _compilation
 
 
 class _GenesisKnowledgeProposal:
@@ -309,6 +309,29 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             evidence.source_id == elfaria_episode_id
             for evidence in storage.list_memory_evidence(limit=5000)
         )
+
+
+def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
+    bundle = _compilation("visit-memory", seed=6, stage="mature", age_years=8).bundle
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+
+        visit_episodes = [
+            episode
+            for episode in storage.list_episodes(limit=1000)
+            if episode.episode_id.endswith("visit-town_center")
+        ]
+        assert visit_episodes
+        metadata = visit_episodes[0].metadata
+        assert metadata["visit_count"] >= 1
+        assert metadata["stay_days"] >= 1
+        assert metadata["purposes"]
+        predicates = {
+            assertion.predicate
+            for assertion in storage.list_graph_assertions(limit=5000)
+        }
+        assert {"child_of", "kin_of"} <= predicates
 
 
 def test_genesis_rejects_a_second_manifest_for_the_same_elfie() -> None:

@@ -32,6 +32,31 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert package.place("earthbound_station").parent_id == "central_mixed"
     assert len(package.place_relations) == 7
     assert {
+        item.opportunity_id for item in package.generation_policy.visit_opportunities
+    } == {
+        "town_center",
+        "forest_attraction",
+        "plain_attraction",
+        "mountain_attraction",
+        "lake_group",
+        "underground_exploration",
+    }
+    town = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "town_center"
+    )
+    assert "earthbound_station" not in town.place_ids
+    assert town.member_probability_for("mistyville_center") == 1.0
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "underground_exploration"
+        ).annual_rate
+        == 0.0
+    )
+    assert {
         (item.subject_id, item.relation, item.object_id)
         for item in package.place_relations
     } == {

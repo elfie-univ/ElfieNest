@@ -93,6 +93,9 @@ class EpisodeSeed:
     # episode metadata after the transient LifeContext is discarded.
     route_ids: tuple[str, ...] = ()
     person_ids: tuple[str, ...] = ()
+    visit_count: int = 1
+    stay_days: int = 1
+    purposes: tuple[str, ...] = ()
     result: str = ""
     feeling: str = ""
     impact: str = ""
@@ -582,6 +585,9 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
     _validate_text_collection(seed.place_ids, "EpisodeSeed.place_ids")
     _validate_text_collection(seed.route_ids, "EpisodeSeed.route_ids")
     _validate_text_collection(seed.person_ids, "EpisodeSeed.person_ids")
+    _validate_text_collection(seed.purposes, "EpisodeSeed.purposes")
+    if seed.visit_count < 1 or seed.stay_days < 1:
+        raise GenesisValidationError("EpisodeSeed 的访问次数和停留时长必须为正")
     _validate_text_collection(seed.predecessor_ids, "EpisodeSeed.predecessor_ids")
     _validate_text_collection(seed.causal_links, "EpisodeSeed.causal_links")
     _validate_text_collection(seed.related_ids, "EpisodeSeed.related_ids")

@@ -119,7 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 9989df369ec8ed368cfde4ae99b623a1e2a26287391ad197b0804cfc6599b82d
+  content_sha256: 3b6ea241288550f3e9e0327180fa6b34a36bdda3e06dc52640bdfaf4f3178a7d
 coverage:
   status: complete
   resident_source_ref: resident
@@ -1084,6 +1084,121 @@ rules:
       partner_annual_probability: 0.25
       max_children: 3
       source_ref: generation#11.1
+    visits:
+      source_ref: generation#11.2
+      opportunities:
+      - id: town_center
+        place_ids:
+        - mistyville_center
+        - skyreach_square
+        - skyreach_tree
+        - elder_council_hall
+        - learning_healing_hall
+        - hundred_trades_street
+        - hundred_trades_south_end
+        annual_rate: 0.16
+        minimum_age_years: 2
+        purpose: market_social_sightseeing
+        stay_days: 1
+        max_repeat_count: 4
+        member_probability: 0.55
+        member_probabilities:
+          mistyville_center: 1.0
+          skyreach_square: 0.85
+          skyreach_tree: 0.75
+          elder_council_hall: 0.35
+          learning_healing_hall: 0.3
+          hundred_trades_street: 0.65
+          hundred_trades_south_end: 0.5
+        species_multipliers:
+          Saevi: 0.9
+          Tovren: 1.0
+          Myelle: 0.9
+        region_multipliers:
+          A1: 0.7
+          A2: 0.7
+          B: 0.8
+          C1: 0.8
+          C2: 0.8
+          C3: 0.8
+          D: 1.5
+      - id: forest_attraction
+        place_ids: [firstroot_tree]
+        annual_rate: 0.08
+        minimum_age_years: 2
+        purpose: cultural_sightseeing
+        stay_days: 1
+        max_repeat_count: 3
+        member_probability: 1.0
+        species_multipliers:
+          Saevi: 2.0
+          Tovren: 0.8
+          Myelle: 0.7
+        region_multipliers:
+          B: 1.8
+      - id: plain_attraction
+        place_ids: [riverturn_hill, riverturn_bend]
+        annual_rate: 0.08
+        minimum_age_years: 2
+        purpose: cultural_sightseeing
+        stay_days: 1
+        max_repeat_count: 3
+        member_probability: 0.75
+        species_multipliers:
+          Saevi: 0.8
+          Tovren: 1.8
+          Myelle: 0.8
+        region_multipliers:
+          C1: 1.5
+          C2: 1.5
+          C3: 1.5
+      - id: mountain_attraction
+        place_ids: [skymirror_lake, cloudfall_falls, cloudcrown_city]
+        annual_rate: 0.06
+        minimum_age_years: 3
+        purpose: mountain_sightseeing
+        stay_days: 1
+        max_repeat_count: 2
+        member_probability: 0.85
+        member_probabilities:
+          skymirror_lake: 1.0
+          cloudfall_falls: 0.85
+          cloudcrown_city: 0.45
+        species_multipliers:
+          Saevi: 0.8
+          Tovren: 0.9
+          Myelle: 2.0
+        region_multipliers:
+          A1: 1.7
+          A2: 1.7
+      - id: lake_group
+        place_ids: [clearheart_lake, lake_shore, lakeheart_isle]
+        annual_rate: 0.04
+        minimum_age_years: 3
+        purpose: lake_sightseeing
+        stay_days: 1
+        max_repeat_count: 2
+        member_probability: 0.7
+        member_probabilities:
+          clearheart_lake: 1.0
+          lake_shore: 1.0
+          lakeheart_isle: 0.2
+        species_multipliers:
+          Saevi: 0.9
+          Tovren: 1.2
+          Myelle: 1.3
+        region_multipliers:
+          C1: 1.4
+          C2: 1.4
+          C3: 1.4
+      - id: underground_exploration
+        place_ids: [undercity_gate, undercity]
+        annual_rate: 0.0
+        minimum_age_years: 3
+        purpose: authorized_underground_activity
+        stay_days: 1
+        max_repeat_count: 1
+        member_probability: 0.0
     backtracking:
       options_per_choice: 8
       total_backtracks: 64

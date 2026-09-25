@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import unicodedata
 from dataclasses import asdict, dataclass, replace
@@ -61,6 +62,7 @@ from .world import (
     GenesisSourcePackage,
     KnowledgeCondition,
     RelationshipArchetype,
+    VisitOpportunityRule,
     WorldKnowledgeFact,
     WorldPlace,
 )
@@ -168,6 +170,10 @@ class LifeContextVocation:
 class LifeContextMobility:
     visited_place_ids: tuple[str, ...]
     familiar_route_ids: tuple[str, ...]
+    visit_counts: tuple[tuple[str, int], ...] = ()
+    visit_purposes: tuple[tuple[str, str], ...] = ()
+    visit_stay_days: tuple[tuple[str, int], ...] = ()
+    opportunity_records: tuple[tuple[str, tuple[str, ...], int, str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -330,7 +336,10 @@ class GenesisCompiler:
         context = self._life_context(request, candidate)
         profile = self._profile(request, candidate, context)
         relationships = self._relationships(request, context)
-        episodes = self._episodes(request, context, relationships)
+        episodes = (
+            *self._episodes(request, context, relationships),
+            *self._visit_episodes(context),
+        )
         knowledge_entries, traces = self._knowledge(
             context,
             request.species_id,
@@ -540,7 +549,7 @@ class GenesisCompiler:
         )
         square = _first_place_id(source.places, kind="settlement_shared_space")
         waystation = _first_place_id(source.places, kind="departure_facility")
-        visited = _unique(
+        mandatory_visited = _unique(
             item
             for item in (
                 private_home,
@@ -550,6 +559,31 @@ class GenesisCompiler:
                 life_rule.workplace_place_id,
             )
             if item
+        )
+        optional_visits = self._sample_visit_opportunities(
+            request,
+            candidate,
+            region_id=cell.region_id,
+        )
+        visit_counts_by_place: dict[str, int] = dict.fromkeys(mandatory_visited, 1)
+        visit_purposes_by_place: dict[str, set[str]] = {}
+        visit_stay_by_place: dict[str, int] = {}
+        for opportunity, place_ids, count in optional_visits:
+            for place_id in place_ids:
+                visit_counts_by_place[place_id] = (
+                    visit_counts_by_place.get(place_id, 0) + count
+                )
+                visit_purposes_by_place.setdefault(place_id, set()).add(
+                    opportunity.purpose
+                )
+                visit_stay_by_place[place_id] = max(
+                    visit_stay_by_place.get(place_id, 0), opportunity.stay_days
+                )
+        visited = _unique(
+            (
+                *mandatory_visited,
+                *(place_id for _, ids, _ in optional_visits for place_id in ids),
+            )
         )
         # Admission supplies the real creation anchor.  The deterministic
         # fallback keeps direct compilation free of wall-clock nondeterminism.
@@ -599,6 +633,22 @@ class GenesisCompiler:
                     _route_between(source, square, waystation),
                 )
             ),
+            visit_counts=tuple(sorted(visit_counts_by_place.items())),
+            visit_purposes=tuple(
+                (place_id, ",".join(sorted(purposes)))
+                for place_id, purposes in sorted(visit_purposes_by_place.items())
+            ),
+            visit_stay_days=tuple(sorted(visit_stay_by_place.items())),
+            opportunity_records=tuple(
+                (
+                    opportunity.opportunity_id,
+                    place_ids,
+                    count,
+                    opportunity.purpose,
+                    opportunity.stay_days,
+                )
+                for opportunity, place_ids, count in optional_visits
+            ),
         )
         preparation_days = source.earth_arrival_rules.preparation_duration_local_days
         if preparation_days != 3:
@@ -622,6 +672,88 @@ class GenesisCompiler:
             content_hash="",
         )
         return replace(provisional, content_hash=_content_hash(provisional))
+
+    def _sample_visit_opportunities(
+        self,
+        request: GenesisCompileInput,
+        candidate: GenesisCandidate,
+        *,
+        region_id: str,
+    ) -> tuple[tuple[VisitOpportunityRule, tuple[str, ...], int], ...]:
+        """Sample bounded visit groups without implying town or restricted access."""
+
+        latent = candidate.personality.candidate.latent
+        openness = min(1.0, max(0.0, (latent[0] + 2.0) / 4.0))
+        extraversion = min(1.0, max(0.0, (latent[2] + 2.0) / 4.0))
+        opportunities: list[tuple[VisitOpportunityRule, tuple[str, ...], int]] = []
+        selected: set[str] = set()
+        place_ids = {place.place_id for place in self._source.places}
+        for opportunity in self._source.generation_policy.visit_opportunities:
+            if opportunity.requires_opportunity_id and (
+                opportunity.requires_opportunity_id not in selected
+            ):
+                continue
+            if request.age_years_at_adoption < opportunity.minimum_age_years:
+                continue
+            if opportunity.annual_rate <= 0.0:
+                continue
+            available_years = max(
+                0, request.age_years_at_adoption - opportunity.minimum_age_years + 1
+            )
+            age_feasibility = min(1.0, available_years / 4.0)
+            personality_multiplier = 0.55 + 0.45 * extraversion
+            curiosity_multiplier = 0.65 + 0.35 * openness
+            attraction = opportunity.species_multiplier_for(
+                _species_label(request.species_id)
+            ) * opportunity.region_multiplier_for(region_id)
+            expected = (
+                opportunity.annual_rate
+                * available_years
+                * age_feasibility
+                * personality_multiplier
+                * curiosity_multiplier
+                * attraction
+            )
+            probability = 1.0 - math.exp(-expected)
+            draw = random.Random(
+                self._domain_seed(
+                    request.appearance_seed,
+                    f"visit-opportunity:{opportunity.opportunity_id}",
+                )
+            ).random()
+            if draw >= probability:
+                continue
+            selected.add(opportunity.opportunity_id)
+            count_draw = random.Random(
+                self._domain_seed(
+                    request.appearance_seed,
+                    f"visit-count:{opportunity.opportunity_id}",
+                )
+            ).random()
+            count = min(
+                opportunity.max_repeat_count,
+                max(1, 1 + int(count_draw * max(0.0, expected - 1.0))),
+            )
+            selected_places: list[str] = []
+            for index, place_id in enumerate(opportunity.place_ids):
+                if place_id not in place_ids:
+                    raise GenesisError(
+                        f"访问机会引用了未注册地点: {opportunity.opportunity_id}/{place_id}"
+                    )
+                if index == 0:
+                    selected_places.append(place_id)
+                    continue
+                member_probability = opportunity.member_probability_for(place_id)
+                member_draw = random.Random(
+                    self._domain_seed(
+                        request.appearance_seed,
+                        f"visit-member:{opportunity.opportunity_id}:{place_id}",
+                    )
+                ).random()
+                if member_draw < member_probability:
+                    selected_places.append(place_id)
+            opportunities.append((opportunity, tuple(selected_places), count))
+        return tuple(opportunities)
 
     def _profile(
         self,
@@ -1339,6 +1471,63 @@ class GenesisCompiler:
         )
         return tuple(result)
 
+    def _visit_episodes(
+        self,
+        context: LifeContext,
+    ) -> tuple[EpisodeSeed, ...]:
+        """Materialize each sampled opportunity as an auditable Episode."""
+
+        result: list[EpisodeSeed] = []
+        for (
+            opportunity_id,
+            place_ids,
+            visit_count,
+            purpose,
+            stay_days,
+        ) in context.mobility.opportunity_records:
+            if not place_ids:
+                continue
+            labels = "、".join(self._label(place_id) for place_id in place_ids)
+            seed_id = f"visit:{opportunity_id}"
+            route_ids = _routes_for_places(self._source, place_ids)
+            result.append(
+                EpisodeSeed(
+                    seed_id=seed_id,
+                    content=(
+                        f"我因为{purpose}去过{labels}。这次出行停留约{stay_days}天，"
+                        f"累计访问{visit_count}次。"
+                    ),
+                    source="personal_memory",
+                    source_ref=f"visit-opportunity:{opportunity_id}",
+                    source_version="genesis-visit.v0.1",
+                    scope="elfie",
+                    topic="biography.visits",
+                    aliases=(opportunity_id, purpose),
+                    retrieval_terms=("访问", purpose, *place_ids),
+                    certainty="high",
+                    temporal_label="抵达前",
+                    life_stage=context.identity.life_stage,
+                    place_ids=place_ids,
+                    route_ids=route_ids,
+                    result=f"完成了{purpose}相关的实际访问",
+                    feeling="我记得这次出行的主要目的和到过的地方。",
+                    impact="我对这些地点形成了与访问次数相称的熟悉程度。",
+                    related_ids=(),
+                    emotional_tone="curiosity",
+                    emotion_intensity=0.55,
+                    importance=min(1.0, 0.55 + 0.08 * visit_count),
+                    theme_id="visit-opportunity",
+                    age_years_at_event=min(
+                        context.identity.age_years_at_adoption,
+                        max(2, context.identity.age_years_at_adoption // 2),
+                    ),
+                    visit_count=visit_count,
+                    stay_days=stay_days,
+                    purposes=(purpose,),
+                )
+            )
+        return tuple(result)
+
     def _episodes(
         self,
         request: GenesisCompileInput,
@@ -1728,11 +1917,14 @@ class GenesisCompiler:
             if parent.parent_id in place_by_id:
                 familiar.add(parent.parent_id)
                 pending_familiar.append(parent.parent_id)
+        visit_counts = dict(context.mobility.visit_counts)
         for place in sorted(self._source.places, key=lambda item: item.place_id):
             if place.place_id not in requested:
                 continue
             importance = (
                 0.9
+                if place.place_id.startswith(f"private:{request.elfie_id}:")
+                else min(1.0, 0.7 + 0.05 * visit_counts.get(place.place_id, 0))
                 if place.place_id in context.mobility.visited_place_ids
                 else 0.65
                 if place.place_id in familiar
@@ -1850,6 +2042,9 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "family-child-count": "people",
         "family-partner": "people",
         "friend-count": "people",
+        "visit-opportunity": "places",
+        "visit-count": "places",
+        "visit-member": "places",
         "person-species": "people",
         "names": "naming",
         "knowledge": "knowledge",

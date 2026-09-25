@@ -167,6 +167,56 @@ class NameRules:
 
 
 @dataclass(frozen=True)
+class VisitOpportunityRule:
+    """One bounded, source-configured opportunity for a personal visit."""
+
+    opportunity_id: str
+    place_ids: tuple[str, ...]
+    annual_rate: float
+    minimum_age_years: int = 2
+    purpose: str = "sightseeing"
+    stay_days: int = 1
+    max_repeat_count: int = 1
+    member_probability: float = 1.0
+    member_probabilities: tuple[tuple[str, float], ...] = ()
+    species_multipliers: tuple[tuple[str, float], ...] = ()
+    region_multipliers: tuple[tuple[str, float], ...] = ()
+    requires_opportunity_id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.opportunity_id.strip() or not self.place_ids:
+            raise ValueError("visit opportunity must have an id and places")
+        if not 0.0 <= self.annual_rate <= 1.0:
+            raise ValueError("visit opportunity annual_rate must be between 0 and 1")
+        if (
+            self.minimum_age_years < 0
+            or self.stay_days < 1
+            or self.max_repeat_count < 1
+        ):
+            raise ValueError(
+                "visit opportunity age, stay and repeat limits are invalid"
+            )
+        for _, probability in (*self.member_probabilities,):
+            if not 0.0 <= probability <= 1.0:
+                raise ValueError("visit opportunity member probability is invalid")
+        for _, multiplier in (
+            *self.species_multipliers,
+            *self.region_multipliers,
+        ):
+            if multiplier < 0.0:
+                raise ValueError("visit opportunity multiplier must not be negative")
+
+    def member_probability_for(self, place_id: str) -> float:
+        return dict(self.member_probabilities).get(place_id, self.member_probability)
+
+    def species_multiplier_for(self, species_id: str) -> float:
+        return dict(self.species_multipliers).get(species_id, 1.0)
+
+    def region_multiplier_for(self, region_id: str) -> float:
+        return dict(self.region_multipliers).get(region_id, 1.0)
+
+
+@dataclass(frozen=True)
 class GenerationPolicy:
     """Versioned structural limits and deterministic algorithm identifiers."""
 
@@ -191,6 +241,7 @@ class GenerationPolicy:
     family_partner_min_age_years: int = 3
     family_partner_annual_probability: float = 0.25
     family_max_children: int = 3
+    visit_opportunities: tuple[VisitOpportunityRule, ...] = ()
 
     def candidate_stage_weight(self, stage: str) -> float:
         """Return the configured default-selection weight for one life stage."""
@@ -390,4 +441,5 @@ __all__ = (
     "WorldPlace",
     "WorldPlaceRelation",
     "WorldStoryEvent",
+    "VisitOpportunityRule",
 )

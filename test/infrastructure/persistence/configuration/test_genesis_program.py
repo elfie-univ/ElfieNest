@@ -118,6 +118,18 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert policy["episodes"]["fixed_maximum"] is False
     assert "maximum" not in policy["episodes"]
     assert "episode_count" not in policy
+    visits = policy["visits"]
+    assert visits["source_ref"] == "generation#11.2"
+    assert {opportunity["id"] for opportunity in visits["opportunities"]} == {
+        "town_center",
+        "forest_attraction",
+        "plain_attraction",
+        "mountain_attraction",
+        "lake_group",
+        "underground_exploration",
+    }
+    town = next(item for item in visits["opportunities"] if item["id"] == "town_center")
+    assert "earthbound_station" not in town["place_ids"]
     reproducibility = policy["reproducibility"]
     assert reproducibility["algorithm"] == "sha256-domain-v1"
     assert reproducibility["canonical_input_order"] == [

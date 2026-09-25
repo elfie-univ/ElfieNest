@@ -458,6 +458,11 @@ def _validate_package(
     for route in package.routes:
         if route.from_place_id not in place_ids or route.to_place_id not in place_ids:
             raise ValueError(f"route {route.route_id} 引用了未定义地点")
+    for opportunity in package.generation_policy.visit_opportunities:
+        if any(place_id not in place_ids for place_id in opportunity.place_ids):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义地点"
+            )
     relation_keys = {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in package.place_relations
@@ -543,6 +548,19 @@ def _validate_catalogs(
 def _validate_policy(policy: GenerationPolicy) -> None:
     if policy.normal_episode_minimum < 1:
         raise ValueError("normal_episode_minimum 必须为正整数")
+    opportunity_ids = [
+        opportunity.opportunity_id for opportunity in policy.visit_opportunities
+    ]
+    if len(opportunity_ids) != len(set(opportunity_ids)):
+        raise ValueError("VisitOpportunityRule ID 必须唯一")
+    opportunity_id_set = set(opportunity_ids)
+    for opportunity in policy.visit_opportunities:
+        if opportunity.requires_opportunity_id and (
+            opportunity.requires_opportunity_id not in opportunity_id_set
+        ):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 的前置机会未定义"
+            )
 
 
 def _document_hash(document: Mapping[str, Any]) -> str:
