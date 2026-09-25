@@ -207,14 +207,49 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
     assert [item.birth_order for item in siblings] == [1, 3]
     assert len({item.age_years_at_genesis for item in siblings} | {6}) == 3
 
-    parent_related = {frozenset(item.related_person_ids) for item in parents}
-    assert len(parent_related) == 1
-    assert {"self", "family-sibling-1", "family-sibling-2"} <= next(
-        iter(parent_related)
-    )
+    shared_children = {"self", "family-sibling-1", "family-sibling-2"}
+    assert all(shared_children <= set(item.related_person_ids) for item in parents)
     assert all(
         {"self", "family-parent-1", "family-parent-2"} <= set(item.related_person_ids)
         for item in siblings
+    )
+    assert compilation.bundle.validate() is None
+
+
+def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            family_child_count_distribution=((3, 1.0),),
+            family_partner_annual_probability=0.0,
+        ),
+    )
+    compilation = _compilation(
+        "family-bounded-ancestors",
+        species_id="dog",
+        stage="mature",
+        age_years=7,
+        seed=7,
+        source=source,
+    )
+    relationships = compilation.bundle.relationship_seeds
+    grandparents = tuple(item for item in relationships if item.role == "grandparent")
+    aunts_uncles = tuple(item for item in relationships if item.role == "aunt_uncle")
+
+    assert len(grandparents) == 4
+    assert len(aunts_uncles) == 4
+    assert not any(
+        item.role in {"great_grandparent", "cousin", "grandchild"}
+        for item in relationships
+    )
+    assert all("self" in item.related_person_ids for item in grandparents)
+    assert all("self" in item.related_person_ids for item in aunts_uncles)
+    parent_ids = {item.person_id for item in relationships if item.role == "parent"}
+    assert all(
+        parent_ids & set(item.related_person_ids)
+        for item in grandparents + aunts_uncles
     )
     assert compilation.bundle.validate() is None
 

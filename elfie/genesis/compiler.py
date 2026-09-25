@@ -1269,7 +1269,15 @@ class GenesisCompiler:
                     retrieval_terms=(role, person_id, person_species_id),
                     episode_ids=(),
                     source="genesis_family_graph"
-                    if role in {"parent", "sibling", "partner", "child"}
+                    if role
+                    in {
+                        "parent",
+                        "sibling",
+                        "partner",
+                        "child",
+                        "grandparent",
+                        "aunt_uncle",
+                    }
                     else "genesis_relationship_plan",
                     source_ref=f"relationship:{person_id}",
                     source_version="genesis-relationship.v0.3",
@@ -1291,6 +1299,24 @@ class GenesisCompiler:
 
         main_age = context.identity.age_years_at_adoption
         parent_gap = self._source.generation_policy.family_parent_min_age_gap_years
+        max_children = self._source.generation_policy.family_max_children
+
+        def ordered_child_ages(anchor_age: int, target: int) -> tuple[int, ...]:
+            """Return one union's distinct, legal ages in birth order."""
+
+            legal_years = max(1, min(max_children, anchor_age + 2))
+            count = max(1, min(target, legal_years))
+            ages = [anchor_age]
+            for age in range(anchor_age + 1, anchor_age + 2):
+                if len(ages) >= count:
+                    break
+                ages.append(age)
+            for age in range(anchor_age - 1, -1, -1):
+                if len(ages) >= count:
+                    break
+                ages.append(age)
+            return tuple(sorted(ages[:count], reverse=True))
+
         parent_ids = ["family-parent-1", "family-parent-2"]
         add_family_member(
             person_id=parent_ids[0],
@@ -1320,19 +1346,7 @@ class GenesisCompiler:
         # occupies a distinct legal birth year and gets its rank from that
         # year.  This keeps both parents and all siblings on the same graph
         # instead of independently re-drawing the same family from each node.
-        max_children = self._source.generation_policy.family_max_children
-        legal_child_years = max(1, min(max_children, main_age + 2))
-        child_count = max(1, min(child_target, legal_child_years))
-        child_ages = [main_age]
-        for age in range(main_age + 1, main_age + 2):
-            if len(child_ages) >= child_count:
-                break
-            child_ages.append(age)
-        for age in range(main_age - 1, -1, -1):
-            if len(child_ages) >= child_count:
-                break
-            child_ages.append(age)
-        child_ages = sorted(child_ages[:child_count], reverse=True)
+        child_ages = ordered_child_ages(main_age, child_target)
         sibling_ids: list[str] = []
         for order, sibling_age in enumerate(child_ages, start=1):
             if sibling_age == main_age:
@@ -1349,6 +1363,96 @@ class GenesisCompiler:
                 shared_fact="我们是同一对父母的子女，曾共享家庭生活。",
                 birth_order=order,
             )
+
+        # Expand only upward from the two direct parents.  Each parent has a
+        # separate grandparent union; that union reuses the already-created
+        # parent as one child and may add a bounded aunt/uncle set.  We do not
+        # recursively expand those new people, which is the width/depth limit
+        # from the Genesis design.
+        expansion_related: dict[str, set[str]] = {}
+
+        def set_birth_order(person_id: str, order: int) -> None:
+            for index, relationship in enumerate(result):
+                if relationship.person_id == person_id:
+                    result[index] = replace(relationship, birth_order=order)
+                    return
+            raise GenesisError(f"家庭图找不到待设置排行的人物: {person_id}")
+
+        terminal_age = self._species(request.species_id).genesis.terminal_age_years
+        for parent_index, parent_id in enumerate(parent_ids, start=1):
+            parent_age = main_age + parent_gap + parent_index
+            # A parent near the terminal age does not force an implausible
+            # grandparent branch merely to make the tree look complete.
+            if parent_age + parent_gap + 1 >= terminal_age:
+                continue
+            grandparent_ids = [
+                f"family-grandparent-{parent_index}-1",
+                f"family-grandparent-{parent_index}-2",
+            ]
+            add_family_member(
+                person_id=grandparent_ids[0],
+                role="grandparent",
+                person_gender="female",
+                age_years=parent_age + parent_gap + 1,
+                importance=0.48,
+                shared_fact="她是我父母一方的父母，我通过家庭关系知道她。",
+            )
+            add_family_member(
+                person_id=grandparent_ids[1],
+                role="grandparent",
+                person_gender="male",
+                age_years=parent_age + parent_gap + 2,
+                importance=0.48,
+                shared_fact="他是我父母一方的父母，我通过家庭关系知道他。",
+            )
+            grandparent_target = _weighted_integer(
+                self._source.generation_policy.family_child_count_distribution,
+                random.Random(
+                    self._domain_seed(
+                        request.appearance_seed,
+                        f"family-child-count:{parent_id}",
+                    )
+                ),
+            )
+            grandparent_children = ordered_child_ages(parent_age, grandparent_target)
+            parent_order = grandparent_children.index(parent_age) + 1
+            set_birth_order(parent_id, parent_order)
+            aunt_ids: list[str] = []
+            for order, aunt_age in enumerate(grandparent_children, start=1):
+                if aunt_age == parent_age:
+                    continue
+                aunt_id = f"family-aunt-uncle-{parent_index}-{len(aunt_ids) + 1}"
+                aunt_ids.append(aunt_id)
+                add_family_member(
+                    person_id=aunt_id,
+                    role="aunt_uncle",
+                    person_gender="female" if len(aunt_ids) % 2 == 0 else "male",
+                    age_years=aunt_age,
+                    importance=0.32,
+                    shared_fact="这是我父母一方的兄弟姐妹，属于已知的旁系亲属。",
+                    birth_order=order,
+                )
+            union_children = {parent_id, *aunt_ids}
+            for grandparent_id in grandparent_ids:
+                expansion_related.setdefault(grandparent_id, set()).update(
+                    {
+                        "self",
+                        *[item for item in grandparent_ids if item != grandparent_id],
+                        *union_children,
+                    }
+                )
+            expansion_related.setdefault(parent_id, set()).update(
+                {*grandparent_ids, *aunt_ids}
+            )
+            for aunt_id in aunt_ids:
+                expansion_related.setdefault(aunt_id, set()).update(
+                    {
+                        *grandparent_ids,
+                        parent_id,
+                        "self",
+                        *[item for item in aunt_ids if item != aunt_id],
+                    }
+                )
 
         partner_id: str | None = None
         policy = self._source.generation_policy
@@ -1470,6 +1574,8 @@ class GenesisCompiler:
         related: dict[str, set[str]] = {
             relationship.person_id: set() for relationship in result
         }
+        for person_id, linked_ids in expansion_related.items():
+            related.setdefault(person_id, set()).update(linked_ids)
         parent_child_ids = {"self", *sibling_ids}
         for person_id in parent_ids:
             related[person_id].update(
