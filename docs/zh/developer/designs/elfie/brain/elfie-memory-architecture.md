@@ -420,6 +420,14 @@ Sense 是调用方提供的稀疏 `SceneCue`，不是第二个自然语言 Query
 强情绪可以偏向少数排序靠前、情绪归因相近的 Episode，但不能单独变成硬过滤条件。环境/感官自由文本可
 走词法检索；结构化场景 facet 可用索引精确/范围匹配。稠密场景相似度需经过评测后再加入。
 
+Sense 内部可以走三路候选并集：(1) 实体/地点锚点经精确名称/别名解析，再反向查 Episode 提及/地点关联；
+(2) 情绪通道比较注册情绪类别和强度，优先类别重叠、归一化强度距离较小的记录；(3) 感知/环境措辞在
+历史 Episode 场景上下文中做词法检索。情绪标签通过带版本的词汇表归一化；类别相似度只能使用注册表中
+明确的关系；强度相似度按归一化到 `[0,1]` 后的 `1 - |当前强度 - 历史强度|` 计算（任一强度缺失时只用
+类别匹配）。各通道确定性融合并保留线索来源。缺失维度既不计分，也不扣分。
+调用方可以为独特/高强度线索请求较小的 Episode 配额；更宽泛的场景联想则请求更大的配额。这只是结果
+数量限制，不表示其他记忆不存在。
+
 #### 3.4.4 合并、图扩展与过滤
 
 合并是 Query 与 Sense 候选的并集。只对相同 `(kind, id)` 的记录去重；合并其各通道支持度，同时保留
@@ -431,10 +439,10 @@ Importance、freshness 和 confidence 按第 9.4 节参与最终排序，但不�
 
 需要区分两种图操作：
 
-- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
+- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。有效路径和注册端点约束决定候选是否符合；Importance/freshness 只能在多个有效命中之间排序，不能替代缺失边。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
 - **附带上下文扩展**：用少量直接相关邻居、关联 Episode 或 Evidence 丰富 Query/Sense 命中。它不能替代路径答案，也不能递归淹没图谱。扩展限定关系白名单和上限；人物、地点或物品通常最多一跳，只有意图明确要求才加深遍历。
 
-候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、Node 类型、predicate/关系类型、时间范围、人物/地点/实体锚点、显式 importance 下限，以及要求的生命周期/状态通道。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。时间过滤遵循每种记录自己的有效时间/发生时间语义，不为未知时间伪造时间戳。归档内容属于单独的有界通道，只有请求/Recall 策略需要历史材料时才纳入。命名空间和隐私/生命周期访问门始终优先于搜索分数和请求结果类型。
+候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、注册的 Node 类型/属性、predicate/关系类型、时间范围、人物/地点/实体锚点、历史情绪/地点/活动等 Episode facet、显式 importance 下限，以及要求的生命周期/状态通道。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。时间过滤遵循每种记录自己的有效时间/发生时间语义，不为未知时间伪造时间戳。归档内容属于单独的有界通道，只有请求/Recall 策略需要历史材料时才纳入。命名空间和隐私/生命周期访问门始终优先于搜索分数和请求结果类型。
 
 #### 3.4.5 类型化结果组装
 
@@ -501,7 +509,7 @@ QuerySpec {
 GraphQueryPlan {
   anchor: self | node_id | entity_mention,
   steps: [{predicate, direction, registered_qualifiers?}],
-  endpoint_constraints?: {node_types?, registered_properties?},
+  endpoint_constraints?: {node_types?, registered_properties?, exclude_anchor?},
   projection: endpoint | path | both,
   cardinality: one | all
 }
@@ -550,14 +558,13 @@ RecallBundle {
   conflicts: [{assertion_ids, reason}],
   match_provenance: [{record_kind, record_id, channels, matched_fields,
                       scene_facets, assertion_path_ids}],
-  rendered_text: "可选的确定性、带标签投影",
   limits: {requested, returned, truncated}
 }
 ```
 
 Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程。
-需要时的 `rendered_text` 是这些类型化记录的紧凑确定性投影，供 LLM 使用，不是第二份答案或模型生成的
-摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
+消费端的确定性 renderer 可以把类型化 bundle 投影为面向 LLM 的紧凑、带标签自由文本；这不是第二份答案，
+也不是模型生成摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
 
 ### 4.3 合格使用与结果反馈
 
