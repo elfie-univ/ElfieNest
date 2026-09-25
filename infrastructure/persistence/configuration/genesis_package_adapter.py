@@ -234,6 +234,7 @@ def decode_genesis_package(
             friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
             friend_max_count=_integer(importance_policy, "friend_max_count"),
             visit_sampler_version=_text(visits_policy, "sampler_version"),
+            visit_repeat_count_power=_number(visits_policy, "repeat_count_power"),
             visit_social_multiplier_base=_number(social_multiplier, "base"),
             visit_social_multiplier_slope=_number(social_multiplier, "slope"),
             visit_curiosity_multiplier_base=_number(curiosity_multiplier, "base"),
@@ -649,9 +650,9 @@ def _visit_opportunities(
         region_multipliers = _mapping(
             item.get("region_multipliers", {}), "visit opportunity region multipliers"
         )
-        regional_rates = _mapping(
-            item.get("annual_rates_by_region", {}),
-            "visit opportunity annual rates by region",
+        regional_probabilities = _mapping(
+            item.get("base_visit_probabilities_by_region", {}),
+            "visit opportunity base probabilities by region",
         )
         personality_factors = _mapping(
             item.get("personality_factor_by_purpose", {}),
@@ -661,11 +662,22 @@ def _visit_opportunities(
             VisitOpportunityRule(
                 opportunity_id=_text(item, "id"),
                 place_ids=_strings(item, "place_ids"),
-                annual_rate=_number(item, "annual_rate"),
+                base_visit_probability=_bounded_probability(
+                    item,
+                    "base_visit_probability",
+                    "rules.policy.visits.opportunities",
+                ),
                 home_regions=_strings(item, "home_regions", default=()),
-                annual_rates_by_region=tuple(
-                    (str(region_id), _number(regional_rates, str(region_id)))
-                    for region_id in sorted(regional_rates)
+                base_visit_probabilities_by_region=tuple(
+                    (
+                        str(region_id),
+                        _bounded_probability(
+                            regional_probabilities,
+                            str(region_id),
+                            "visit opportunity base probabilities by region",
+                        ),
+                    )
+                    for region_id in sorted(regional_probabilities)
                 ),
                 minimum_age_years=_integer(item, "minimum_age_years"),
                 purpose=_text(item, "purpose"),

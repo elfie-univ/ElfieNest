@@ -21,7 +21,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v6"
+    assert package.package_version == "elfaria-genesis.v8"
     assert package.geography_network.days_per_local_year == 196
     assert package.generation_policy.family_lifespan_cdf_power == 6
     assert (
@@ -97,7 +97,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert "earthbound_station" not in town.place_ids
     assert town.member_probability_for("mistyville_center") == 1.0
     assert town.home_regions == ("A1", "A2", "B", "C1", "C2", "C3")
-    assert town.annual_rate_for("B") == 0.8
+    assert town.base_visit_probability_for("B") == 0.8
     assert town.purpose_options() == (
         ("探亲交往", 1.0),
         ("观光", 1.0),
@@ -117,7 +117,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
             item
             for item in package.generation_policy.visit_opportunities
             if item.opportunity_id == "underground_exploration"
-        ).annual_rate
+        ).base_visit_probability
         == 0.0
     )
     assert {
@@ -233,8 +233,9 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.friend_max_count == 2
     assert (
         package.generation_policy.visit_sampler_version
-        == "visits-poisson-age-distance.v3"
+        == "visits-zero-heavy-power-count.v1"
     )
+    assert package.generation_policy.visit_repeat_count_power == 23.0
     assert package.generation_policy.visit_cross_region_lifetime_fraction == 0.1
     assert package.generation_policy.visit_social_multiplier_base == 0.8
     assert package.generation_policy.visit_social_multiplier_slope == 0.4
@@ -248,7 +249,7 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
         for item in package.generation_policy.visit_opportunities
         if item.opportunity_id == "forest_attraction"
     )
-    assert forest.annual_rate_for("B") == 0.45
+    assert forest.base_visit_probability_for("B") == 0.45
     assert forest.species_multiplier_for("Saevi") == 1.3
     assert forest.species_multiplier_for("Tovren") == 1.0
     lake = next(

@@ -119,7 +119,7 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert "maximum" not in policy["episodes"]
     assert "episode_count" not in policy
     visits = policy["visits"]
-    assert visits["source_ref"] == "generation#11.2"
+    assert visits["source_ref"] == "generation#11.3"
     assert {opportunity["id"] for opportunity in visits["opportunities"]} == {
         "local_forest_center",
         "other_forest_center",
@@ -136,10 +136,13 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
         "underground_exploration",
     }
     town = next(item for item in visits["opportunities"] if item["id"] == "town_center")
+    lake = next(item for item in visits["opportunities"] if item["id"] == "lake_group")
     assert "earthbound_station" not in town["place_ids"]
-    assert town["annual_rate"] == 0.8
+    assert town["base_visit_probability"] == 0.8
     assert town["home_regions"] == ["A1", "A2", "B", "C1", "C2", "C3"]
-    assert visits["sampler_version"] == "visits-poisson-age-distance.v3"
+    assert lake["max_repeat_count"] == 64
+    assert visits["sampler_version"] == "visits-zero-heavy-power-count.v1"
+    assert visits["repeat_count_power"] == 23.0
     assert visits["cross_region_lifetime_fraction"] == 0.1
     reproducibility = policy["reproducibility"]
     assert reproducibility["algorithm"] == "sha256-domain-v1"

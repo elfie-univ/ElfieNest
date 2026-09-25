@@ -275,9 +275,9 @@ class VisitOpportunityRule:
 
     opportunity_id: str
     place_ids: tuple[str, ...]
-    annual_rate: float
+    base_visit_probability: float
     home_regions: tuple[str, ...] = ()
-    annual_rates_by_region: tuple[tuple[str, float], ...] = ()
+    base_visit_probabilities_by_region: tuple[tuple[str, float], ...] = ()
     minimum_age_years: int = 2
     purpose: str = "sightseeing"
     stay_days: int = 1
@@ -294,10 +294,11 @@ class VisitOpportunityRule:
     def __post_init__(self) -> None:
         if not self.opportunity_id.strip() or not self.place_ids:
             raise ValueError("visit opportunity must have an id and places")
-        if not math.isfinite(self.annual_rate) or self.annual_rate < 0.0:
-            raise ValueError(
-                "visit opportunity annual_rate must be finite and non-negative"
-            )
+        if (
+            not math.isfinite(self.base_visit_probability)
+            or not 0.0 <= self.base_visit_probability <= 1.0
+        ):
+            raise ValueError("visit opportunity base probability must be in [0, 1]")
         if (
             self.minimum_age_years < 0
             or self.stay_days < 1
@@ -312,9 +313,9 @@ class VisitOpportunityRule:
         for purpose, weight in self.purpose_weights:
             if not purpose.strip() or weight < 0.0:
                 raise ValueError("visit opportunity purpose weight is invalid")
-        for _, rate in self.annual_rates_by_region:
-            if not math.isfinite(rate) or rate < 0.0:
-                raise ValueError("visit opportunity regional rate is invalid")
+        for _, probability in self.base_visit_probabilities_by_region:
+            if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+                raise ValueError("visit opportunity regional probability is invalid")
         if any(
             not purpose.strip() or factor not in {"social", "curiosity", "risk"}
             for purpose, factor in self.personality_factor_by_purpose
@@ -341,10 +342,12 @@ class VisitOpportunityRule:
 
         return self.purpose_weights or ((self.purpose, 1.0),)
 
-    def annual_rate_for(self, region_id: str) -> float:
-        """Return the reviewed annual opportunity rate for one home region."""
+    def base_visit_probability_for(self, region_id: str) -> float:
+        """Return the reviewed base visit probability for one home region."""
 
-        return dict(self.annual_rates_by_region).get(region_id, self.annual_rate)
+        return dict(self.base_visit_probabilities_by_region).get(
+            region_id, self.base_visit_probability
+        )
 
     def personality_factor_for(self, purpose: str) -> str:
         """Return the single personality axis that governs this purpose."""
@@ -399,7 +402,8 @@ class GenerationPolicy:
     friend_layer_decay_lambda: float = 0.65
     friend_contact_beta: float = 0.8
     friend_max_count: int = 2
-    visit_sampler_version: str = "visits-poisson-age-distance.v1"
+    visit_sampler_version: str = "visits-zero-heavy-power-count.v1"
+    visit_repeat_count_power: float = 23.0
     visit_social_multiplier_base: float = 0.8
     visit_social_multiplier_slope: float = 0.4
     visit_curiosity_multiplier_base: float = 0.8

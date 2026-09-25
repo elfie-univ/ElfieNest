@@ -15,8 +15,8 @@ from elfie.genesis import (
     GenesisValidationError,
 )
 from elfie.genesis.compiler import (
-    _poisson_count,
     _sample_conditioned_death_age,
+    _sample_visit_count,
     _uniform_hash_subset,
     stage_for_age,
 )
@@ -574,12 +574,18 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     visit_opportunities = tuple(
         replace(
             opportunity,
-            annual_rate=10_000.0
+            base_visit_probability=1.0
             if opportunity.opportunity_id == "town_center"
             else 0.0,
-            annual_rates_by_region=(),
+            base_visit_probabilities_by_region=(),
             home_regions=(),
             max_repeat_count=64,
+            member_probability=1.0,
+            member_probabilities=tuple(
+                (place_id, 1.0) for place_id in opportunity.place_ids
+            )
+            if opportunity.opportunity_id == "town_center"
+            else opportunity.member_probabilities,
         )
         for opportunity in source.generation_policy.visit_opportunities
     )
@@ -587,6 +593,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
         source,
         generation_policy=replace(
             source.generation_policy,
+            visit_repeat_count_power=1.0,
             visit_opportunities=visit_opportunities,
         ),
     )
@@ -654,6 +661,15 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     town_episode = episodes.get("visit:town_center")
     assert town_episode is not None
     assert town_episode.purposes[0] in {"探亲交往", "观光", "赶集交换"}
+    town_record = next(record for record in records if record[0] == "town_center")
+    town_place_ids = town_record[1]
+    visit_counts = dict(compilation.life_context.mobility.visit_counts)
+    assert town_record[2] > 1
+    assert town_episode.visit_count == town_record[2]
+    assert f"累计访问{town_record[2]}次" in town_episode.content
+    assert "其中一次行程" in town_episode.content
+    assert visit_counts[town_place_ids[0]] == town_record[2]
+    assert all(visit_counts[place_id] == 1 for place_id in town_place_ids[1:])
     repeat = _compilation(
         "visit-opportunity-repeat",
         seed=7,
@@ -668,7 +684,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     )
     assert repeat_town.purposes == town_episode.purposes
     assert all(
-        episode.source_version == "genesis-visit:visits-poisson-age-distance.v3"
+        episode.source_version == "genesis-visit:visits-zero-heavy-power-count.v1"
         for episode in episodes.values()
     )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
@@ -717,15 +733,34 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert all(town_ages.count(age) <= 1 for age in set(town_ages))
 
 
-def test_visit_opportunity_count_follows_capped_poisson_distribution() -> None:
-    samples = 10_000
+def test_visit_count_has_a_large_zero_mass_and_a_steep_repeat_tail() -> None:
+    samples = 20_000
     counts = tuple(
-        _poisson_count(2.0, 64, (index + 0.5) / samples) for index in range(samples)
+        _sample_visit_count(
+            probability=0.1,
+            maximum=100,
+            power=23.0,
+            visit_uniform=(index + 0.5) / samples,
+            count_uniform=((index * 7_919) % samples + 0.5) / samples,
+        )
+        for index in range(samples)
     )
 
-    assert sum(counts) / samples == pytest.approx(2.0, abs=0.001)
-    assert counts.count(0) / samples == pytest.approx(math.exp(-2.0), abs=0.001)
-    assert counts.count(1) / samples == pytest.approx(2.0 * math.exp(-2.0), abs=0.001)
+    assert counts.count(0) / samples == pytest.approx(0.9, abs=0.001)
+    assert sum(count >= 10 for count in counts) / samples == pytest.approx(
+        0.01, abs=0.002
+    )
+    assert max(counts) == 100
+    assert all(0 <= count <= 100 for count in counts)
+
+
+def test_visit_presence_and_repeat_count_use_independent_random_domains() -> None:
+    compiler = GenesisCompiler(load_genesis_source_package())
+
+    presence = compiler._domain_uniform(17, "visit-presence:town_center")
+    repeat_count = compiler._domain_uniform(17, "visit-repeat-count:town_center")
+
+    assert presence != repeat_count
 
 
 def test_conditioned_lifespan_sample_obeys_survival_anchor_and_source_curve() -> None:
@@ -751,7 +786,7 @@ def test_conditioned_lifespan_sample_obeys_survival_anchor_and_source_curve() ->
 def test_residence_and_planned_learning_places_are_not_recorded_as_visits() -> None:
     source = load_genesis_source_package()
     opportunities = tuple(
-        replace(item, annual_rate=0.0, annual_rates_by_region=())
+        replace(item, base_visit_probability=0.0, base_visit_probabilities_by_region=())
         for item in source.generation_policy.visit_opportunities
     )
     source = replace(
@@ -950,6 +985,36 @@ def test_generation_catalogs_change_life_social_and_episode_outputs() -> None:
         )
         > 5
     )
+
+
+def test_learning_theme_requires_actual_vocation_evidence() -> None:
+    source = load_genesis_source_package()
+    compiler = GenesisCompiler(source, catalog=load_and_configure_species_catalog())
+    compilation = _compilation(
+        "ordinary-household-learning", stage="mature", age_years=8
+    )
+
+    ordinary_themes = compiler._eligible_episode_themes(compilation.life_context)
+    assert compilation.life_context.vocation.vocation_id == ""
+    assert "learning-path" not in {theme.theme_id for theme in ordinary_themes}
+    assert "learning-path" not in {
+        episode.theme_id for episode in compilation.bundle.episode_seeds
+    }
+    assert all(
+        relationship.role != "teacher"
+        for relationship in compilation.bundle.relationship_seeds
+    )
+
+    qualified_context = replace(
+        compilation.life_context,
+        vocation=replace(
+            compilation.life_context.vocation,
+            vocation_id="craftsperson",
+            workplace_place_id="hundred_trades_street",
+        ),
+    )
+    qualified_themes = compiler._eligible_episode_themes(qualified_context)
+    assert "learning-path" in {theme.theme_id for theme in qualified_themes}
 
 
 def test_age_is_directly_mapped_to_the_requested_earth_year() -> None:

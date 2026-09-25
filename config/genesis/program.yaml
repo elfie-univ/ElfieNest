@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v6
+program_version: elfaria-genesis.v8
 status: published
 sources:
   world:
@@ -13,7 +13,7 @@ sources:
     sha256: 4b1ae835737ecded773cb572ad8ab8e069447b7183134ee80010148470bad8be
   generation:
     path: docs/.internal/elfaria/elfaria-generation-rules.md
-    sha256: f028e4eea136df832495be4b6338c140a3bd158cd817666c8951610fa588a9b0
+    sha256: ac42ef28199df96c4ea9a6b5a178e445389fc50b6fe1f71582342ab340683743
   geography:
     path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
     sha256: 5230fc53793cac33f4771b35b690c1cab6c3878cb5929751e15b0b0e79f4d838
@@ -22,7 +22,7 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v6
+  package_version: elfaria-genesis.v8
   status: published
   members:
   - path: knowledge/elfaria.yaml
@@ -119,7 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 5208710f5ed41c00a255d24992e4a6f5d9c56b7cf7bcee4e0d7dd531e203f8b5
+  content_sha256: dac6232e4885d2f770028e9339eae95ee72e9f4589cff541566c09e61fe37a52
 coverage:
   status: complete
   resident_source_ref: resident
@@ -1100,8 +1100,9 @@ rules:
       friend_contact_beta: 0.8
       friend_max_count: 2
     visits:
-      source_ref: generation#11.2
-      sampler_version: visits-poisson-age-distance.v3
+      source_ref: generation#11.3
+      sampler_version: visits-zero-heavy-power-count.v1
+      repeat_count_power: 23.0
       cross_region_lifetime_fraction: 0.1
       personality_multipliers:
         social:
@@ -1118,7 +1119,7 @@ rules:
       - id: local_forest_center
         home_regions: [B]
         place_ids: [saevi_tribal_center]
-        annual_rate: 0.6
+        base_visit_probability: 0.6
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 4
@@ -1130,7 +1131,7 @@ rules:
       - id: other_forest_center
         home_regions: [A1, A2, C1, C2, C3, D]
         place_ids: [saevi_tribal_center]
-        annual_rate: 0.15
+        base_visit_probability: 0.15
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 12
@@ -1142,7 +1143,7 @@ rules:
       - id: local_plain_center
         home_regions: [C1, C2, C3]
         place_ids: [tovren_tribal_center]
-        annual_rate: 0.6
+        base_visit_probability: 0.6
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 4
@@ -1154,7 +1155,7 @@ rules:
       - id: other_plain_center
         home_regions: [A1, A2, B, D]
         place_ids: [tovren_tribal_center]
-        annual_rate: 0.15
+        base_visit_probability: 0.15
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 12
@@ -1166,7 +1167,7 @@ rules:
       - id: local_mountain_center
         home_regions: [A1, A2]
         place_ids: [myelle_tribal_center]
-        annual_rate: 0.6
+        base_visit_probability: 0.6
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 4
@@ -1178,7 +1179,7 @@ rules:
       - id: other_mountain_center
         home_regions: [B, C1, C2, C3, D]
         place_ids: [myelle_tribal_center]
-        annual_rate: 0.15
+        base_visit_probability: 0.15
         minimum_age_years: 2
         purpose: 拜访交换
         distance_decay_days: 12
@@ -1197,7 +1198,7 @@ rules:
         - learning_healing_hall
         - hundred_trades_street
         - hundred_trades_south_end
-        annual_rate: 0.8
+        base_visit_probability: 0.8
         minimum_age_years: 2
         purpose: market_social_sightseeing
         purpose_weights:
@@ -1210,7 +1211,7 @@ rules:
           观光: curiosity
         distance_decay_days: 4
         stay_days: 1
-        max_repeat_count: 64
+        max_repeat_count: 100
         member_probability: 0.55
         member_probabilities:
           mistyville_center: 1.0
@@ -1230,7 +1231,7 @@ rules:
         - learning_healing_hall
         - hundred_trades_street
         - hundred_trades_south_end
-        annual_rate: 0.6
+        base_visit_probability: 0.6
         minimum_age_years: 2
         purpose: market_social_sightseeing
         purpose_weights:
@@ -1243,7 +1244,7 @@ rules:
           观光: curiosity
         distance_decay_days: 4
         stay_days: 1
-        max_repeat_count: 64
+        max_repeat_count: 100
         member_probability: 0.55
         member_probabilities:
           mistyville_center: 1.0
@@ -1255,8 +1256,8 @@ rules:
           hundred_trades_south_end: 0.5
       - id: forest_attraction
         place_ids: [firstroot_tree]
-        annual_rate: 0.45
-        annual_rates_by_region:
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
           A1: 0.10
           A2: 0.10
           B: 0.45
@@ -1273,8 +1274,8 @@ rules:
         species_multipliers: {Saevi: 1.3, Tovren: 1.0, Myelle: 1.0}
       - id: plain_attraction
         place_ids: [riverturn_hill, riverturn_bend]
-        annual_rate: 0.45
-        annual_rates_by_region:
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
           A1: 0.12
           A2: 0.12
           B: 0.12
@@ -1291,8 +1292,8 @@ rules:
         species_multipliers: {Saevi: 1.0, Tovren: 1.3, Myelle: 1.0}
       - id: mountain_attraction
         place_ids: [skymirror_lake, cloudfall_falls, cloudcrown_city]
-        annual_rate: 0.45
-        annual_rates_by_region:
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
           A1: 0.45
           A2: 0.45
           B: 0.10
@@ -1313,8 +1314,8 @@ rules:
         species_multipliers: {Saevi: 1.0, Tovren: 1.0, Myelle: 1.3}
       - id: lake_group
         place_ids: [clearheart_lake, lake_shore, lakeheart_isle]
-        annual_rate: 0.45
-        annual_rates_by_region:
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
           A1: 0.12
           A2: 0.12
           B: 0.12
@@ -1338,7 +1339,7 @@ rules:
           Myelle: 1.0
       - id: underground_exploration
         place_ids: [undercity_gate, undercity]
-        annual_rate: 0.0
+        base_visit_probability: 0.0
         minimum_age_years: 3
         purpose: authorized_underground_activity
         distance_decay_days: 12

@@ -774,12 +774,19 @@ class GenesisCompiler:
             assert metrics is not None
             opportunity_travel_days[opportunity_id] = metrics[0]
             opportunity_route_ids[opportunity_id] = metrics[2]
-            for place_id in place_ids:
+            for index, place_id in enumerate(place_ids):
                 if self._place_access(place_id) == "observation_only":
                     observed.append(place_id)
                     continue
                 visited.append(place_id)
-                visit_counts[place_id] = visit_counts.get(place_id, 0) + count
+                # The first place is the opportunity's main destination and
+                # receives its sampled repeat count. Conditional in-group
+                # sights are sampled once for that opportunity, so don't
+                # inflate their personal familiarity with the group's repeats.
+                place_visit_count = count if index == 0 else 1
+                visit_counts[place_id] = (
+                    visit_counts.get(place_id, 0) + place_visit_count
+                )
                 purposes.setdefault(place_id, set()).add(opportunity.purpose)
                 stay_by_place[place_id] = max(
                     stay_by_place.get(place_id, 0), opportunity.stay_days
@@ -1114,8 +1121,8 @@ class GenesisCompiler:
                 continue
             if request.age_years_at_adoption < opportunity.minimum_age_years:
                 continue
-            annual_rate = opportunity.annual_rate_for(region_id)
-            if annual_rate <= 0.0:
+            base_visit_probability = opportunity.base_visit_probability_for(region_id)
+            if base_visit_probability <= 0.0:
                 continue
             eligible_ages = self._visit_activity_ages(
                 request,
@@ -1155,9 +1162,17 @@ class GenesisCompiler:
                 "curiosity": curiosity_multiplier,
                 "risk": risk_multiplier,
             }[personality_factor]
-            attraction = opportunity.species_multiplier_for(
-                _species_label(request.species_id)
-            ) * opportunity.region_multiplier_for(region_id)
+            species_values = tuple(
+                value for _, value in opportunity.species_multipliers
+            )
+            species_scale = max((1.0, *species_values))
+            species_factor = (
+                opportunity.species_multiplier_for(_species_label(request.species_id))
+                / species_scale
+            )
+            region_values = tuple(value for _, value in opportunity.region_multipliers)
+            region_scale = max((1.0, *region_values))
+            region_factor = opportunity.region_multiplier_for(region_id) / region_scale
             distance_days = self._opportunity_distance_days(
                 birth_cell_id, opportunity.place_ids
             )
@@ -1166,19 +1181,54 @@ class GenesisCompiler:
             distance_multiplier = math.exp(
                 -distance_days / opportunity.distance_decay_days
             )
-            expected = (
-                annual_rate
-                * len(eligible_ages)
-                * personality_multiplier
-                * attraction
-                * distance_multiplier
+            personality_ceiling = {
+                "social": (
+                    self._source.generation_policy.visit_social_multiplier_base
+                    + self._source.generation_policy.visit_social_multiplier_slope
+                ),
+                "curiosity": (
+                    self._source.generation_policy.visit_curiosity_multiplier_base
+                    + self._source.generation_policy.visit_curiosity_multiplier_slope
+                ),
+                "risk": (
+                    self._source.generation_policy.visit_risk_multiplier_base
+                    + self._source.generation_policy.visit_risk_openness_slope
+                    + max(
+                        0.0,
+                        self._source.generation_policy.visit_risk_neuroticism_slope,
+                    )
+                ),
+            }[personality_factor]
+            personality_factor_probability = min(
+                1.0,
+                max(
+                    0.0,
+                    personality_multiplier / max(personality_ceiling, 1e-9),
+                ),
             )
-            count = _poisson_count(
-                expected,
+            age_factor = min(
+                1.0,
+                len(eligible_ages) / max(1, request.age_years_at_adoption),
+            )
+            visit_probability = (
+                base_visit_probability
+                * distance_multiplier
+                * region_factor
+                * species_factor
+                * age_factor
+                * personality_factor_probability
+            )
+            count = _sample_visit_count(
+                visit_probability,
                 opportunity.max_repeat_count,
-                self._domain_uniform(
+                self._source.generation_policy.visit_repeat_count_power,
+                visit_uniform=self._domain_uniform(
                     request.appearance_seed,
-                    f"visit-count:{opportunity.opportunity_id}",
+                    f"visit-presence:{opportunity.opportunity_id}",
+                ),
+                count_uniform=self._domain_uniform(
+                    request.appearance_seed,
+                    f"visit-repeat-count:{opportunity.opportunity_id}",
                 ),
             )
             if count == 0:
@@ -1656,6 +1706,9 @@ class GenesisCompiler:
     def _eligible_episode_themes(
         self, context: LifeContext
     ) -> tuple[EpisodeTheme, ...]:
+        # The package's apprenticeship_refs name available rules, not a
+        # resident's lived apprenticeship. A teacher-backed theme therefore
+        # needs an actual vocation in this person's life context.
         themes = tuple(
             sorted(
                 (
@@ -1663,6 +1716,10 @@ class GenesisCompiler:
                     for theme in self._source.episode_themes
                     if context.identity.life_stage in theme.life_stages
                     and context.identity.age_years_at_adoption >= theme.min_age_years
+                    and (
+                        "teacher" not in theme.required_roles
+                        or context.vocation.vocation_id
+                    )
                 ),
                 key=lambda item: (item.order, item.theme_id),
             )
@@ -2620,6 +2677,8 @@ class GenesisCompiler:
                 for place_id in place_ids
                 if self._place_access(place_id) == "observation_only"
             )
+            main_place_ids = visited_place_ids[:1]
+            incidental_place_ids = visited_place_ids[1:]
             route_ids = dict(context.mobility.opportunity_route_ids).get(
                 opportunity_id, ()
             )
@@ -2639,16 +2698,21 @@ class GenesisCompiler:
                     seed_id=seed_id,
                     content=(
                         (
-                            f"我因为{purpose}去过{'、'.join(self._label(place_id) for place_id in visited_place_ids)}。"
-                            if visited_place_ids
+                            f"我因为{purpose}去过{'、'.join(self._label(place_id) for place_id in main_place_ids)}，累计访问{visit_count}次。"
+                            if main_place_ids
                             else ""
                         )
                         + (
-                            f"我还从可到达的位置看见了{'、'.join(self._label(place_id) for place_id in observed_place_ids)}。"
+                            f"{'其中一次' if visit_count > 1 else '同一次'}行程还顺道到过{'、'.join(self._label(place_id) for place_id in incidental_place_ids)}。"
+                            if incidental_place_ids
+                            else ""
+                        )
+                        + (
+                            f"{'其中一次' if visit_count > 1 else '同一次'}行程还从可到达的位置看见了{'、'.join(self._label(place_id) for place_id in observed_place_ids)}。"
                             if observed_place_ids
                             else ""
                         )
-                        + f"每次往返路程约{travel_days}天、停留约{stay_days}天，累计访问{visit_count}次，发生在{age_label}。"
+                        + f"完整组合行程往返约{travel_days}天、停留约{stay_days}天；主要地点的访问发生在{age_label}。"
                     ),
                     source="personal_memory",
                     source_ref=f"visit-opportunity:{opportunity_id}",
@@ -2667,7 +2731,7 @@ class GenesisCompiler:
                     route_ids=route_ids,
                     result=f"完成了{purpose}相关的实际访问",
                     feeling="我记得这次出行的主要目的和到过的地方。",
-                    impact="我对这些地点形成了与访问次数相称的熟悉程度。",
+                    impact="我对主要地点形成了与访问次数相称的熟悉程度，对顺道到访的地点只留下一次接触的熟悉度。",
                     related_ids=(),
                     emotional_tone="curiosity",
                     emotion_intensity=0.55,
@@ -3415,23 +3479,25 @@ def _uniform_hash_subset(
     return tuple(sorted(sorted(values, key=lambda value: (rank(value), value))[:count]))
 
 
-def _poisson_count(expected: float, maximum: int, uniform: float) -> int:
-    """Sample a Poisson count, folding its upper tail into the configured cap."""
+def _sample_visit_count(
+    probability: float,
+    maximum: int,
+    power: float,
+    *,
+    visit_uniform: float,
+    count_uniform: float,
+) -> int:
+    """Sample zero or a bounded, zero-heavy repeat count from two draws."""
 
-    if not math.isfinite(expected) or expected < 0.0 or maximum < 1:
-        raise GenesisError("访问机会的 Poisson 参数无效")
-    if not 0.0 <= uniform < 1.0:
-        raise GenesisError("访问机会的确定性抽样值必须位于 [0, 1)")
-    probability = math.exp(-expected)
-    cumulative = probability
-    if uniform < cumulative:
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise GenesisError("访问概率必须在 [0, 1] 内")
+    if maximum < 1 or not math.isfinite(power) or power <= 0.0:
+        raise GenesisError("访问次数上限或幂指数无效")
+    if not 0.0 <= visit_uniform < 1.0 or not 0.0 <= count_uniform < 1.0:
+        raise GenesisError("访问抽样值必须位于 [0, 1)")
+    if visit_uniform >= probability:
         return 0
-    for count in range(1, maximum):
-        probability *= expected / count
-        cumulative += probability
-        if uniform < cumulative:
-            return count
-    return maximum
+    return min(maximum, max(1, math.ceil(maximum * count_uniform**power)))
 
 
 def _sample_conditioned_death_age(
@@ -3481,7 +3547,8 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "relationship-age": "people",
         "visit-opportunity": "journey",
         "visit-age": "journey",
-        "visit-count": "journey",
+        "visit-presence": "journey",
+        "visit-repeat-count": "journey",
         "visit-member": "journey",
         "visit-purpose": "journey",
         "visit-schedule": "journey",
@@ -3496,7 +3563,12 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
     except KeyError as error:
         raise GenesisError(f"未登记的 Genesis 随机域: {domain_key}") from error
     if separator:
-        stable_object_id = f"cell:{stable_id}" if prefix == "birth-cell" else stable_id
+        if prefix == "birth-cell":
+            stable_object_id = f"cell:{stable_id}"
+        elif prefix in {"visit-presence", "visit-repeat-count"}:
+            stable_object_id = f"{prefix}:{stable_id}"
+        else:
+            stable_object_id = stable_id
     else:
         stable_object_id = domain_key.removeprefix("birth-")
     return domain, stable_object_id

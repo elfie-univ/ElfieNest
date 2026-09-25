@@ -344,7 +344,11 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         ),
         friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
         visit_sampler_version=_optional_text(
-            raw_visits, "sampler_version", "visits-poisson-age-distance.v1"
+            raw_visits, "sampler_version", "visits-zero-heavy-power-count.v1"
+        ),
+        visit_repeat_count_power=_number_value(
+            raw_visits.get("repeat_count_power", 23.0),
+            "visits.repeat_count_power",
         ),
         visit_social_multiplier_base=_number_value(
             raw_visit_social.get("base", 0.8),
@@ -715,6 +719,11 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("friend_max_count 必须为正整数")
     if not policy.visit_sampler_version.strip():
         raise ValueError("visit_sampler_version 不能为空")
+    if (
+        not math.isfinite(policy.visit_repeat_count_power)
+        or policy.visit_repeat_count_power <= 0.0
+    ):
+        raise ValueError("visit_repeat_count_power 必须是有限正数")
     if not 0.0 <= policy.visit_cross_region_lifetime_fraction <= 1.0:
         raise ValueError("visit_cross_region_lifetime_fraction 必须在 [0, 1] 内")
     if (
