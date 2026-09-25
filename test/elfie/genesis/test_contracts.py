@@ -290,6 +290,18 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
         episode.place_ids == (compilation.life_context.origin.childhood_home_place_id,)
         for episode in family_episodes
     )
+    partnership_ages = [
+        episode.age_years_at_event
+        for episode in family_episodes
+        if episode.theme_id == "family-event:partnership"
+    ]
+    child_birth_ages = [
+        episode.age_years_at_event
+        for episode in family_episodes
+        if episode.theme_id == "family-event:child_birth"
+    ]
+    assert partnership_ages and child_birth_ages
+    assert min(child_birth_ages) > max(partnership_ages)
     assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
     assert compilation.bundle.validate() is None
 

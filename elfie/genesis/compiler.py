@@ -1541,16 +1541,21 @@ class GenesisCompiler:
 
         child_ids: list[str] = []
         if partner_id is not None:
-            legal_years = max(0, main_age - policy.family_partner_min_age_years)
+            # The first child can only be born after one complete year of the
+            # partnership.  Each later child occupies a different year on the
+            # same deterministic timeline.
+            first_birth_age = policy.family_partner_min_age_years + 1
+            legal_years = max(0, main_age - first_birth_age + 1)
             child_count = min(child_target, policy.family_max_children, legal_years)
             for index in range(child_count):
                 person_id = f"family-child-{index + 1}"
                 child_ids.append(person_id)
+                birth_age = first_birth_age + index
                 add_family_member(
                     person_id=person_id,
                     role="child",
                     person_gender="female" if index % 2 else "male",
-                    age_years=max(1, main_age - parent_gap - index),
+                    age_years=max(0, main_age - birth_age),
                     importance=0.75,
                     shared_fact="这是我的子女，我们之间有家庭照护关系。",
                     birth_order=index + 1,
