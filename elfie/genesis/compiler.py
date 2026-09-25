@@ -230,6 +230,7 @@ class PersonalKnowledgeEntry:
     related_ids: tuple[str, ...]
     prerequisite_ids: tuple[str, ...]
     source_statement: str
+    acquired_age_years: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1129,6 +1130,9 @@ class GenesisCompiler:
                     item for item in fact.prerequisite_ids if item in facts
                 ),
                 source_statement=statement,
+                acquired_age_years=self._knowledge_acquisition_age(
+                    fact, context, episodes
+                ),
             )
             selected.append(entry)
             traces.append(
@@ -1136,7 +1140,14 @@ class GenesisCompiler:
                     fact.fact_id, access, "eligible", decision, "来源条件全部满足"
                 )
             )
-        selected = _close_prerequisites(selected, facts, species_id, context)
+        selected = _close_prerequisites(
+            selected,
+            facts,
+            species_id,
+            context,
+            episodes,
+            acquisition_age=self._knowledge_acquisition_age,
+        )
         selected_by_id = {entry.knowledge_id: entry for entry in selected}
         missing_after_closure = sorted(required - selected_by_id.keys())
         if missing_after_closure:
@@ -1152,6 +1163,94 @@ class GenesisCompiler:
         if insufficient:
             raise GenesisError("必修知识必须达到 full 掌握: " + ", ".join(insufficient))
         return tuple(selected), tuple(traces)
+
+    def _knowledge_acquisition_age(
+        self,
+        fact: WorldKnowledgeFact,
+        context: LifeContext,
+        episodes: tuple[EpisodeSeed, ...],
+    ) -> int:
+        """Return the earliest age at which all declared conditions hold.
+
+        Genesis records the earliest evidence age for each condition and then
+        waits for the slowest conjunctive condition.  A fact without
+        conditions is baseline knowledge available from early life; it is
+        intentionally not backdated to a precise birthday.
+        """
+
+        condition_ages: list[int] = []
+        for condition in fact.conditions:
+            candidate_ages: list[int] = []
+            if condition.kind == "place":
+                target_id = condition.value("id")
+                contact = condition.value("contact")
+                if contact == "residence":
+                    candidate_ages.append(1)
+                else:
+                    for episode in episodes:
+                        matched = (
+                            target_id in episode.place_ids
+                            or target_id in episode.observed_place_ids
+                            if contact in {"entered", "exterior_view"}
+                            else any(
+                                self._is_place_within(place_id, target_id)
+                                for place_id in (
+                                    *episode.place_ids,
+                                    *episode.observed_place_ids,
+                                )
+                            )
+                        )
+                        if not matched:
+                            continue
+                        candidate_ages.extend(
+                            episode.visit_age_years
+                            or (
+                                (episode.age_years_at_event,)
+                                if episode.age_years_at_event is not None
+                                else ()
+                            )
+                        )
+            elif condition.kind == "route":
+                route_id = condition.value("id")
+                for episode in episodes:
+                    if route_id not in episode.route_ids:
+                        continue
+                    candidate_ages.extend(
+                        episode.visit_age_years
+                        or (
+                            (episode.age_years_at_event,)
+                            if episode.age_years_at_event is not None
+                            else ()
+                        )
+                    )
+            elif condition.kind == "experience":
+                if condition.value("id") == "earth_arrival":
+                    candidate_ages.extend(
+                        episode.age_years_at_event
+                        for episode in episodes
+                        if episode.theme_id == "arrival-nest"
+                        and episode.age_years_at_event is not None
+                    )
+            elif condition.kind == "vocation":
+                if condition.value("id") == context.vocation.vocation_id:
+                    candidate_ages.append(
+                        max(1, context.identity.age_years_at_adoption)
+                    )
+            if not candidate_ages:
+                # The caller already checked eligibility.  Keeping the age at
+                # the current anchor is safer than fabricating an earlier
+                # prerequisite event when a source condition has no episode
+                # projection yet.
+                candidate_ages.append(context.identity.age_years_at_adoption)
+            # A repeated visit does not postpone acquisition: the first
+            # evidence satisfying this condition is enough.  Multiple
+            # conditions are conjunctive, so the fact becomes available once
+            # the slowest condition has its earliest evidence.
+            condition_ages.append(min(candidate_ages))
+        return min(
+            context.identity.age_years_at_adoption,
+            max(condition_ages, default=1),
+        )
 
     def _condition_satisfied(
         self,
@@ -2899,6 +2998,7 @@ def _knowledge_seed(
         confidence_class=entry.confidence_class,
         initial_confidence=entry.initial_confidence,
         recall_eligible=entry.recall_eligible,
+        acquired_age_years=entry.acquired_age_years,
     )
 
 
@@ -2907,6 +3007,9 @@ def _close_prerequisites(
     facts: dict[str, WorldKnowledgeFact],
     species_id: str,
     context: LifeContext,
+    episodes: tuple[EpisodeSeed, ...],
+    *,
+    acquisition_age,
 ) -> list[PersonalKnowledgeEntry]:
     original = {entry.knowledge_id: entry for entry in entries}
     generated: dict[str, PersonalKnowledgeEntry] = {}
@@ -2985,6 +3088,7 @@ def _close_prerequisites(
             related_ids=fact.related_ids,
             prerequisite_ids=tuple(fact.prerequisite_ids),
             source_statement=statement,
+            acquired_age_years=acquisition_age(fact, context, episodes),
         )
         resolved[fact_id] = (True, frozenset(closure_ids))
         return resolved[fact_id]

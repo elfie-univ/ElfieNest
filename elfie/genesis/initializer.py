@@ -410,6 +410,7 @@ class GenesisMemoryCommitter:
                         "recall_eligible": bool(knowledge.recall_eligible),
                         "confidence_class": knowledge.confidence_class,
                         "initial_confidence": knowledge.initial_confidence,
+                        "acquired_age_years": knowledge.acquired_age_years,
                     },
                 )
             )

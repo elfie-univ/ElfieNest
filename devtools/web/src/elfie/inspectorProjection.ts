@@ -118,6 +118,7 @@ const attributeLabels: Record<string, string> = {
   eligibility: "获得条件",
   acquired_via: "获得方式",
   acquired_stage: "获得阶段",
+  acquired_age_years: "获得年龄",
   recall_eligible: "允许召回",
   initial_confidence: "初始置信度",
   life_stage: "生命阶段",
@@ -135,7 +136,7 @@ const attributeLabels: Record<string, string> = {
 const attributeOrder = [
   "is_self", "species_name", "species", "species_id", "kind", "place_kind", "object_kind", "knowledge_kind",
   "display_name", "life_stage", "age_years_at_genesis", "knowledge_id", "topic_bucket", "topic_member_position",
-  "topic_member_ids", "mastery", "eligibility", "acquired_via", "acquired_stage", "recall_eligible", "initial_confidence",
+  "topic_member_ids", "mastery", "eligibility", "acquired_via", "acquired_stage", "acquired_age_years", "recall_eligible", "initial_confidence",
   "relation_role", "vocation_id", "competency_ids",
   "familiarity", "trust_score", "visibility", "parent_id", "shared_facts", "unknown_facts",
 ];
@@ -421,6 +422,7 @@ export function projectEpisodeDetail(
     field("eligibility", metadata.eligibility, "episode", "获得条件"),
     field("acquired_via", metadata.acquired_via, "episode", "获得方式"),
     field("acquired_stage", metadata.acquired_stage, "episode", "获得阶段"),
+    field("acquired_age_years", metadata.acquired_age_years, "episode", "获得年龄"),
     field("recall_eligible", metadata.recall_eligible, "episode", "允许召回"),
     field("initial_confidence", metadata.initial_confidence, "episode", "初始置信度"),
   ] : [];

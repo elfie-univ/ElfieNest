@@ -67,6 +67,7 @@ class KnowledgeSeed:
     confidence_class: str = "high"
     initial_confidence: float = 1.0
     recall_eligible: bool = True
+    acquired_age_years: int | None = None
 
 
 @dataclass(frozen=True)
@@ -508,6 +509,12 @@ def _validate_knowledge_seed(seed: KnowledgeSeed) -> None:
         raise GenesisValidationError("KnowledgeSeed.level 无效")
     if seed.mastery not in ("known", "partial", "heard", "unknown"):
         raise GenesisValidationError("KnowledgeSeed.mastery 无效")
+    if seed.acquired_age_years is not None and (
+        isinstance(seed.acquired_age_years, bool)
+        or not isinstance(seed.acquired_age_years, int)
+        or seed.acquired_age_years < 1
+    ):
+        raise GenesisValidationError("KnowledgeSeed.acquired_age_years 无效")
     if seed.status not in ("active", "unknown-boundary"):
         raise GenesisValidationError("KnowledgeSeed.status 无效")
     if not 0.0 <= seed.importance <= 1.0:

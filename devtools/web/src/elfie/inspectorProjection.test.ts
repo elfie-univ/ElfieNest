@@ -131,6 +131,7 @@ describe("Inspector projection", () => {
         eligibility: ["居住在森林区域"],
         acquired_via: "source_eligibility",
         acquired_stage: "young_adult",
+        acquired_age_years: 4,
         recall_eligible: true,
         initial_confidence: 0.92,
       },
@@ -142,6 +143,7 @@ describe("Inspector projection", () => {
     expect(fields.get("topic_member_ids")).toContain("B-03-01");
     expect(fields.get("mastery")).toBe("full");
     expect(fields.get("eligibility")).toBe("居住在森林区域");
+    expect(fields.get("acquired_age_years")).toBe("4");
   });
 
   it("把 Evidence 首屏定位到摘录和支持 Assertion", () => {

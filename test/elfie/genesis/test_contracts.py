@@ -81,6 +81,13 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert len(bundle.knowledge_seeds) >= 100
     facts = {fact.fact_id: fact.statement for fact in source.knowledge}
     assert all(seed.content == facts[seed.seed_id] for seed in bundle.knowledge_seeds)
+    assert all(
+        seed.acquired_age_years is not None
+        and 1
+        <= seed.acquired_age_years
+        <= bundle.profile_draft.profile.identity.origin.age_years
+        for seed in bundle.knowledge_seeds
+    )
     knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
     assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
     assert {"B-03-02", "B-04-02"}.isdisjoint(knowledge_ids)
