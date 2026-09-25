@@ -33,6 +33,7 @@ from .selection import (
     personality_fit,
     role_fit,
 )
+from .world import GenerationPolicy
 
 _STAGES = ("youth", "young_adult", "mature", "elder")
 _GENDERS = ("male", "female")
@@ -50,8 +51,13 @@ class GenesisEngine:
     # adoption batches without weakening visible diversity.
     target_distance = 0.12
 
-    def __init__(self, catalog: SpeciesCatalog | None = None) -> None:
+    def __init__(
+        self,
+        catalog: SpeciesCatalog | None = None,
+        generation_policy: GenerationPolicy | None = None,
+    ) -> None:
         self._catalog = catalog
+        self._generation_policy = generation_policy or GenerationPolicy()
 
     def generate_batch(
         self,
@@ -68,7 +74,7 @@ class GenesisEngine:
         self._validate_request(
             batch_number, species_id, life_stage, gender, appearance, answers
         )
-        stages = _STAGES if life_stage == "any" else (life_stage,)
+        stages = self._legal_stages(species_id, life_stage)
         core_by_stage = {
             stage: core_profile(
                 species_id=species_id,
@@ -86,7 +92,13 @@ class GenesisEngine:
                 seed = derive_seed(
                     master_seed, batch_number, role_index, proposal_index
                 )
-                stage = self._choose_stage(seed, batch_number, role_index, life_stage)
+                stage = self._choose_stage(
+                    seed,
+                    batch_number,
+                    role_index,
+                    life_stage,
+                    stages,
+                )
                 candidate = self._build_candidate(
                     seed=seed,
                     role=role,
@@ -251,13 +263,30 @@ class GenesisEngine:
         # rendered region recipe is visibly different.
         return True
 
-    @staticmethod
-    def _choose_stage(seed: int, batch: int, role: int, requested: str) -> str:
+    def _choose_stage(
+        self,
+        seed: int,
+        batch: int,
+        role: int,
+        requested: str,
+        legal_stages: Sequence[str],
+    ) -> str:
         if requested != "any":
             return requested
-        offset = batch % len(_STAGES)
-        order = _STAGES[offset:] + _STAGES[:offset]
-        return order[(role + seed) % len(order)]
+        choices = tuple(
+            (stage, self._generation_policy.candidate_stage_weight(stage))
+            for stage in legal_stages
+            if self._generation_policy.candidate_stage_weight(stage) > 0.0
+        )
+        if not choices:
+            choices = tuple((stage, 1.0) for stage in legal_stages)
+        total = sum(weight for _, weight in choices)
+        draw = random.Random(derive_seed(seed, batch, role, 92)).random() * total
+        for stage, weight in choices:
+            draw -= weight
+            if draw < 0.0:
+                return stage
+        return choices[-1][0]
 
     @staticmethod
     def _choose_gender(seed: int, role: int, requested: str) -> str:
@@ -273,14 +302,47 @@ class GenesisEngine:
         )
         if definition.genesis is None:
             raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
-        ranges = definition.genesis.stage_ranges
-        minimum, maximum = ranges[stage]
-        minimum = max(minimum, 2)
+        minimum, maximum = self._legal_age_range(definition, stage)
         if minimum > maximum:
             raise GenesisError(
                 f"物种 {species_id!r} 的 {stage} 阶段没有符合赴地年龄规则的候选"
             )
         return rng.randint(minimum, maximum)
+
+    def _legal_stages(self, species_id: str, requested: str) -> tuple[str, ...]:
+        definition = (
+            self._catalog.definition(species_id, adoptable_only=True)
+            if self._catalog is not None
+            else get_species_definition(species_id, adoptable_only=True)
+        )
+        if definition.genesis is None:
+            raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
+        stages = _STAGES if requested == "any" else (requested,)
+        for stage in stages:
+            minimum, maximum = self._legal_age_range(definition, stage)
+            if minimum > maximum:
+                raise GenesisError(
+                    f"物种 {species_id!r} 的 {stage} 阶段没有符合赴地年龄规则的候选"
+                )
+        return tuple(stages)
+
+    def _legal_age_range(self, definition, stage: str) -> tuple[int, int]:
+        if definition.genesis is None:
+            raise GenesisError(f"物种 {definition.species_id!r} 缺少 Genesis 配置")
+        minimum, maximum = definition.genesis.stage_ranges[stage]
+        minimum = max(minimum, self._generation_policy.candidate_minimum_age_years)
+        stage_index = _STAGES.index(stage)
+        if stage_index:
+            previous_maximum = definition.genesis.stage_ranges[
+                _STAGES[stage_index - 1]
+            ][1]
+            minimum = max(minimum, previous_maximum + 1)
+        maximum = min(
+            maximum,
+            definition.genesis.terminal_age_years
+            - self._generation_policy.candidate_age_reserve_years,
+        )
+        return minimum, maximum
 
     def _validate_request(
         self,
@@ -307,6 +369,7 @@ class GenesisEngine:
         if appearance.priority not in ("stature", "build", "face", "signature"):
             raise GenesisError("appearance.priority无效")
         validate_answers(answers)
+        self._legal_stages(species, stage)
 
 
 __all__ = ("GenesisEngine",)

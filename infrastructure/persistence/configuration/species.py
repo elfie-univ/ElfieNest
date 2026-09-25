@@ -602,6 +602,19 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         if minimum < 0 or maximum < minimum or maximum > _MAX_AGE_YEARS:
             raise ValueError(f"genesis.stage_ranges.{stage} 超出地球年龄范围")
         stage_ranges[stage] = (minimum, maximum)
+    endpoint_policy = document.get("stage_endpoint_policy")
+    if not isinstance(endpoint_policy, Mapping):
+        raise ValueError("generation.stage_endpoint_policy 必须是对象")
+    terminal_age_years = _bounded_count(
+        endpoint_policy.get("terminal_age_local_years"),
+        "generation.stage_endpoint_policy.terminal_age_local_years",
+        1,
+        _MAX_AGE_YEARS,
+    )
+    if terminal_age_years != stage_ranges["elder"][1]:
+        raise ValueError(
+            "generation.stage_endpoint_policy.terminal_age_local_years 必须等于 elder 上限"
+        )
     prior = document.get("personality_prior")
     if prior is None:
         # Species configuration must not assign individual personality.
@@ -626,6 +639,7 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
     return SpeciesGenesisProfile(
         config_version=_string(document, "generation_version"),
         stage_ranges=stage_ranges,
+        terminal_age_years=terminal_age_years,
         personality_prior=tuple(float(value) for value in prior),
         appearance_preferences=preferences,
     )

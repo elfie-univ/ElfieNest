@@ -98,6 +98,7 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
         seed.place_id for seed in bundle.place_seeds
     }
     assert len(bundle.place_relation_seeds) == 7
+
     assert {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in bundle.place_relation_seeds
@@ -119,6 +120,11 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert bundle.manifest.output_ids
 
 
+def test_compiler_rejects_age_inside_terminal_reserve() -> None:
+    with pytest.raises(GenesisError, match="生命终点"):
+        _compilation(stage="elder", age_years=12)
+
+
 def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:
     bundle = _bundle()
 
@@ -127,6 +133,43 @@ def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:
         for relationship in bundle.relationship_seeds
     )
     assert bundle.validate() is None
+
+
+def test_compiler_emits_a_deduplicated_core_family_graph() -> None:
+    compilation = _compilation("family-graph", stage="mature", age_years=6)
+    relationships = compilation.bundle.relationship_seeds
+    family = tuple(
+        relationship
+        for relationship in relationships
+        if relationship.role in {"parent", "sibling", "partner", "child"}
+    )
+    parent_ids = {
+        relationship.person_id
+        for relationship in family
+        if relationship.role == "parent"
+    }
+
+    assert len(parent_ids) == 2
+    assert len({relationship.person_id for relationship in relationships}) == len(
+        relationships
+    )
+    assert all(
+        relationship.person_gender and relationship.life_status in {"alive", "deceased"}
+        for relationship in family
+    )
+    for relationship in family:
+        assert len(relationship.related_person_ids) == len(
+            set(relationship.related_person_ids)
+        )
+    for relationship in family:
+        if relationship.role == "parent":
+            assert "self" in relationship.related_person_ids
+            assert parent_ids - {relationship.person_id} <= set(
+                relationship.related_person_ids
+            )
+        elif relationship.role == "sibling":
+            assert {"self", *parent_ids} <= set(relationship.related_person_ids)
+    assert compilation.bundle.validate() is None
 
 
 def test_genesis_rejects_adoption_before_age_two() -> None:

@@ -67,7 +67,21 @@ def decode_genesis_package(
     after_arrival = _strings(arrival, "knowledge_after_arrival", default=())
     policy = _mapping(rules["policy"], "rules.policy")
     policy_episodes = _mapping(policy["episodes"], "rules.policy.episodes")
+    candidate_rules = _mapping(policy["candidates"], "rules.policy.candidates")
+    age_policy = _mapping(
+        candidate_rules["age_policy"], "rules.policy.candidates.age_policy"
+    )
+    stage_weights = _mapping(
+        age_policy["stage_weights"],
+        "rules.policy.candidates.age_policy.stage_weights",
+    )
     policy_knowledge = _mapping(policy["knowledge"], "rules.policy.knowledge")
+    family_policy = _mapping(policy["family"], "rules.policy.family")
+    child_distribution = _mapping(
+        family_policy["child_count_distribution"],
+        "rules.policy.family.child_count_distribution",
+    )
+    household = _mapping(rules["household"], "rules.household")
     reproducibility = _mapping(
         policy["reproducibility"], "rules.policy.reproducibility"
     )
@@ -119,6 +133,44 @@ def decode_genesis_package(
             seed_algorithm=_text(reproducibility, "algorithm"),
             normal_episode_minimum=_integer(policy_episodes, "normal_minimum"),
             medium_knowledge_probability=medium_probability,
+            candidate_minimum_age_years=_integer(
+                candidate_rules, "integer_age_minimum"
+            ),
+            candidate_age_reserve_years=_integer(age_policy, "terminal_reserve_years"),
+            candidate_stage_weights=tuple(
+                (
+                    stage,
+                    _bounded_probability(
+                        stage_weights,
+                        stage,
+                        "rules.policy.candidates.age_policy.stage_weights",
+                    ),
+                )
+                for stage in ("youth", "young_adult", "mature", "elder")
+            ),
+            family_child_count_distribution=tuple(
+                (
+                    child_count,
+                    _bounded_probability(
+                        child_distribution,
+                        str(child_count),
+                        "rules.policy.family.child_count_distribution",
+                    ),
+                )
+                for child_count in (1, 2, 3)
+            ),
+            family_parent_min_age_gap_years=_integer(
+                household, "biological_parent_min_age_gap_local_years"
+            ),
+            family_partner_min_age_years=_integer(
+                family_policy, "partner_min_age_years"
+            ),
+            family_partner_annual_probability=_bounded_probability(
+                family_policy,
+                "partner_annual_probability",
+                "rules.policy.family",
+            ),
+            family_max_children=_integer(family_policy, "max_children"),
         ),
         earth_arrival_rules=EarthArrivalRules(
             eligible_life_stages=("youth", "young_adult", "mature", "elder"),
@@ -433,6 +485,13 @@ def _probability(raw: Mapping[str, Any]) -> float:
     if denominator <= 0 or not 0 <= numerator <= denominator:
         raise ValueError("mastery probability 无效")
     return numerator / denominator
+
+
+def _bounded_probability(value: Mapping[str, Any], key: str, label: str) -> float:
+    result = _number(value, key)
+    if not 0.0 <= result <= 1.0:
+        raise ValueError(f"{label}.{key} 必须在 [0, 1] 内")
+    return result
 
 
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:

@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timezone
 
 from app.features.accounts import AccountPrincipal
+from elfie.genesis import GenesisEngine
 from elfie.profile import SpeciesCatalog, SpeciesDefinition, current_species_catalog
 
 from ._candidate_registry import CandidateRegistry
@@ -66,6 +67,7 @@ class AdoptionService:
         portraits: CandidatePortraitPort | None = None,
         candidate_reveal: CandidateRevealPort | None = None,
         catalog: SpeciesCatalog | None = None,
+        genesis: GenesisEngine | None = None,
         species_presentation: SpeciesPresentationPort | None = None,
         species_runtime: SpeciesRuntimeReadinessPort | None = None,
     ) -> None:
@@ -84,6 +86,7 @@ class AdoptionService:
             portraits=portraits,
             candidate_reveal=candidate_reveal,
             catalog=self._catalog,
+            genesis=genesis,
         )
 
     def get_options(

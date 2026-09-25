@@ -387,15 +387,30 @@ class GenesisCompiler:
         if (
             isinstance(request.age_years_at_adoption, bool)
             or not isinstance(request.age_years_at_adoption, int)
-            or request.age_years_at_adoption < 2
+            or request.age_years_at_adoption
+            < self._source.generation_policy.candidate_minimum_age_years
         ):
-            raise GenesisError("age_years_at_adoption 必须为至少 2 岁的整数")
+            raise GenesisError(
+                "age_years_at_adoption 必须为至少 "
+                f"{self._source.generation_policy.candidate_minimum_age_years} 岁的整数"
+            )
         if not request.invitation_accepted:
             raise GenesisError("只有已接受的领养决定可以进入 Genesis")
         if not self._source.earth_arrival_rules.allows(
             request.species_id, request.life_stage
         ):
             raise GenesisError("该物种或生命阶段不符合赴地资格")
+        species = self._species(request.species_id)
+        if species.genesis is None:
+            raise GenesisError("领养物种缺少 Genesis 年龄配置")
+        maximum_age = (
+            species.genesis.terminal_age_years
+            - self._source.generation_policy.candidate_age_reserve_years
+        )
+        if request.age_years_at_adoption > maximum_age:
+            raise GenesisError(
+                "age_years_at_adoption 必须保留物种生命终点前的 Genesis 策略年限"
+            )
         expected_stage = stage_for_age(
             request.species_id,
             request.age_years_at_adoption,
@@ -431,7 +446,10 @@ class GenesisCompiler:
             priority="face",
         )
         stage = request.life_stage
-        batch: GenesisBatch = GenesisEngine(catalog=self._catalog).generate_batch(
+        batch: GenesisBatch = GenesisEngine(
+            catalog=self._catalog,
+            generation_policy=self._source.generation_policy,
+        ).generate_batch(
             master_seed=request.appearance_seed,
             batch_number=1,
             species_id=request.species_id,
@@ -931,9 +949,13 @@ class GenesisCompiler:
         for theme in themes:
             for role in theme.required_roles:
                 theme_ids_by_role.setdefault(role, set()).add(theme.theme_id)
-        required_roles = tuple(sorted(theme_ids_by_role))
-        selected_rules: list[RelationshipArchetype] = []
-        for role in required_roles:
+        required_roles = tuple(
+            role
+            for role in sorted(theme_ids_by_role)
+            if role not in {"family", "friend"}
+        )
+
+        def compatible_rules(role: str) -> tuple[RelationshipArchetype, ...]:
             compatible = tuple(
                 rule
                 for rule in rules
@@ -944,21 +966,30 @@ class GenesisCompiler:
                 )
                 and (
                     not rule.episode_theme_ids
-                    or theme_ids_by_role[role] <= set(rule.episode_theme_ids)
+                    or theme_ids_by_role.get(role, set()) <= set(rule.episode_theme_ids)
                 )
             )
             if role == "family":
                 same_species = tuple(
                     rule
                     for rule in compatible
-                    if request.species_id in rule.person_species_ids
+                    if _species_label(request.species_id) in rule.person_species_ids
                 )
                 compatible = same_species or compatible
             if not compatible:
                 raise GenesisError(f"资料包没有满足经历角色的关系原型: {role}")
+            return compatible
+
+        family_rule = _weighted_choice(
+            compatible_rules("family"),
+            random.Random(self._domain_seed(request.appearance_seed, "family-rule")),
+        )
+        friend_rules = compatible_rules("friend")
+        selected_rules: list[RelationshipArchetype] = []
+        for role in required_roles:
             selected_rules.append(
                 _weighted_choice(
-                    compatible,
+                    compatible_rules(role),
                     random.Random(
                         self._domain_seed(
                             request.appearance_seed, f"relationship-role:{role}"
@@ -970,6 +1001,191 @@ class GenesisCompiler:
         name_counters: dict[str, int] = {}
         result: list[RelationshipSeed] = []
         used_person_ids: set[str] = set()
+
+        def generated_name(person_species_id: str) -> str:
+            if person_species_id not in names_by_species:
+                names_by_species[person_species_id] = self._generated_names_for_species(
+                    request,
+                    person_species_id,
+                    max(16, len(selected_rules) + 8),
+                )
+            index = name_counters.get(person_species_id, 0)
+            pool = names_by_species[person_species_id]
+            name_counters[person_species_id] = index + 1
+            return pool[index % len(pool)]
+
+        def add_family_member(
+            *,
+            person_id: str,
+            role: str,
+            person_gender: str,
+            age_years: int,
+            importance: float,
+            shared_fact: str,
+            rule: RelationshipArchetype = family_rule,
+        ) -> None:
+            if person_id in used_person_ids:
+                raise GenesisError(f"家庭图生成了重复人物: {person_id}")
+            used_person_ids.add(person_id)
+            terminal = self._species(request.species_id).genesis.terminal_age_years
+            life_status = "deceased" if age_years >= terminal else "alive"
+            effective_age = (
+                min(age_years, max(0, terminal - 1))
+                if life_status == "deceased"
+                else age_years
+            )
+            person_species_id = (
+                _species_label(request.species_id)
+                if role not in {"friend", "teacher", "neighbor"}
+                else rule.person_species_ids[0]
+            )
+            display_name = generated_name(person_species_id)
+            result.append(
+                RelationshipSeed(
+                    person_id=person_id,
+                    display_name=display_name,
+                    role=role,
+                    initial_trust=rule.initial_trust,
+                    shared_facts=(shared_fact,),
+                    unknown_facts=("对方没有在共同经历中告诉我的完整生活。",),
+                    relationship_id=f"rel:{person_id}",
+                    subject_id=f"elfie:{request.elfie_id}",
+                    object_id=person_id,
+                    object_kind="elfie",
+                    direction="elfie_to_elfie",
+                    familiarity=rule.familiarity,
+                    importance=importance,
+                    aliases=(display_name, role),
+                    retrieval_terms=(role, person_id, person_species_id),
+                    episode_ids=(),
+                    source="genesis_family_graph"
+                    if role in {"parent", "sibling", "partner", "child"}
+                    else "genesis_relationship_plan",
+                    source_ref=f"relationship:{person_id}",
+                    source_version="genesis-relationship.v0.3",
+                    certainty="high",
+                    version=1,
+                    related_species_id=person_species_id,
+                    age_band_at_genesis=context.identity.life_stage,
+                    home_place_id=context.origin.predeparture_home_place_id,
+                    vocation_id=rule.vocation_id,
+                    person_species_id=person_species_id,
+                    age_years_at_genesis=max(0, effective_age),
+                    person_gender=person_gender,
+                    life_status=life_status,
+                    competency_ids=rule.competency_ids,
+                    eligible_episode_theme_ids=rule.episode_theme_ids,
+                )
+            )
+
+        main_age = context.identity.age_years_at_adoption
+        parent_gap = self._source.generation_policy.family_parent_min_age_gap_years
+        parent_ids = ["family-parent-1", "family-parent-2"]
+        add_family_member(
+            person_id=parent_ids[0],
+            role="parent",
+            person_gender="female",
+            age_years=main_age + parent_gap + 1,
+            importance=0.95,
+            shared_fact="她是我的父母之一，曾参与我的早期照护。",
+        )
+        add_family_member(
+            person_id=parent_ids[1],
+            role="parent",
+            person_gender="male",
+            age_years=main_age + parent_gap + 2,
+            importance=0.95,
+            shared_fact="他是我的父母之一，曾参与我的早期照护。",
+        )
+
+        child_target = _weighted_integer(
+            self._source.generation_policy.family_child_count_distribution,
+            random.Random(
+                self._domain_seed(request.appearance_seed, "family-child-count")
+            ),
+        )
+        sibling_count = max(
+            0,
+            min(
+                self._source.generation_policy.family_max_children - 1,
+                child_target - 1,
+            ),
+        )
+        sibling_ids: list[str] = []
+        sibling_ages: list[int] = []
+        for index in range(sibling_count):
+            direction = 1 if index % 2 == 0 else -1
+            distance = index // 2 + 1
+            sibling_ages.append(max(1, main_age + direction * distance))
+        for index, sibling_age in enumerate(sibling_ages, start=1):
+            person_id = f"family-sibling-{index}"
+            sibling_ids.append(person_id)
+            add_family_member(
+                person_id=person_id,
+                role="sibling",
+                person_gender="male" if index % 2 else "female",
+                age_years=sibling_age,
+                importance=0.65,
+                shared_fact="我们是同一对父母的子女，曾共享家庭生活。",
+            )
+
+        partner_id: str | None = None
+        policy = self._source.generation_policy
+        if main_age >= policy.family_partner_min_age_years:
+            years = main_age - policy.family_partner_min_age_years + 1
+            chance = 1.0 - (1.0 - policy.family_partner_annual_probability) ** years
+            if (
+                random.Random(
+                    self._domain_seed(request.appearance_seed, "family-partner")
+                ).random()
+                < chance
+            ):
+                partner_id = "family-partner"
+                partner_gender = "female" if request.gender == "male" else "male"
+                add_family_member(
+                    person_id=partner_id,
+                    role="partner",
+                    person_gender=partner_gender,
+                    age_years=max(policy.family_partner_min_age_years, main_age - 1),
+                    importance=0.75,
+                    shared_fact="这是我的伴侣，我们共同承担生活。",
+                )
+
+        child_ids: list[str] = []
+        if partner_id is not None:
+            legal_years = max(0, main_age - policy.family_partner_min_age_years)
+            child_count = min(child_target, policy.family_max_children, legal_years)
+            for index in range(child_count):
+                person_id = f"family-child-{index + 1}"
+                child_ids.append(person_id)
+                add_family_member(
+                    person_id=person_id,
+                    role="child",
+                    person_gender="female" if index % 2 else "male",
+                    age_years=max(1, main_age - parent_gap - index),
+                    importance=0.75,
+                    shared_fact="这是我的子女，我们之间有家庭照护关系。",
+                )
+
+        friend_count = 1 + int(
+            random.Random(
+                self._domain_seed(request.appearance_seed, "friend-count")
+            ).random()
+            >= 0.5
+        )
+        for index in range(friend_count):
+            rule = friend_rules[index % len(friend_rules)]
+            person_id = f"friend-{index + 1}"
+            add_family_member(
+                person_id=person_id,
+                role="friend",
+                person_gender="female" if index % 2 else "male",
+                age_years=max(1, main_age - (index % 2)),
+                importance=0.45 if index == 0 else 0.35,
+                shared_fact="我们曾在共同生活或共同活动中相识。",
+                rule=rule,
+            )
+
         for index, rule in enumerate(selected_rules):
             person_id = rule.archetype_id
             if person_id in used_person_ids:
@@ -1028,6 +1244,41 @@ class GenesisCompiler:
                     eligible_episode_theme_ids=rule.episode_theme_ids,
                 )
             )
+
+        related: dict[str, set[str]] = {
+            relationship.person_id: set() for relationship in result
+        }
+        for person_id in parent_ids:
+            related[person_id].update(
+                {
+                    "self",
+                    *[item for item in parent_ids if item != person_id],
+                    *sibling_ids,
+                }
+            )
+        for person_id in sibling_ids:
+            related[person_id].update(
+                {
+                    "self",
+                    *parent_ids,
+                    *[item for item in sibling_ids if item != person_id],
+                }
+            )
+        if partner_id is not None:
+            related[partner_id].add("self")
+            related[partner_id].update(child_ids)
+            for child_id in child_ids:
+                related[child_id].update({"self", partner_id})
+        result = [
+            replace(
+                relationship,
+                related_person_ids=tuple(
+                    sorted(related.get(relationship.person_id, ()))
+                ),
+            )
+            for relationship in result
+        ]
+
         result.append(
             RelationshipSeed(
                 person_id=f"owner-person-{request.owner_reference}",
@@ -1178,7 +1429,12 @@ class GenesisCompiler:
         selected: list[str] = []
         for role in theme.required_roles:
             for relationship in relationships:
-                if relationship.role != role:
+                role_matches = (
+                    relationship.role in {"parent", "sibling", "partner", "child"}
+                    if role == "family"
+                    else relationship.role == role
+                )
+                if not role_matches:
                     continue
                 if relationship.eligible_episode_theme_ids and (
                     theme.theme_id not in relationship.eligible_episode_theme_ids
@@ -1590,6 +1846,10 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "life-archetype": "household",
         "episode-theme": "episodes",
         "relationship-role": "people",
+        "family-rule": "people",
+        "family-child-count": "people",
+        "family-partner": "people",
+        "friend-count": "people",
         "person-species": "people",
         "names": "naming",
         "knowledge": "knowledge",
@@ -1645,6 +1905,28 @@ def _weighted_choice(values, rng: random.Random):
         if target <= 0:
             return item
     return values[-1]
+
+
+def _weighted_integer(values: tuple[tuple[int, float], ...], rng: random.Random) -> int:
+    """Choose one configured integer without introducing a second sampler."""
+
+    total = sum(float(weight) for _, weight in values)
+    if total <= 0:
+        raise GenesisError("整数分布权重必须为正")
+    target = rng.random() * total
+    for value, weight in values:
+        target -= float(weight)
+        if target <= 0:
+            return value
+    return values[-1][0]
+
+
+def _species_label(species_id: str) -> str:
+    return {
+        "fox": "Saevi",
+        "dog": "Tovren",
+        "cat": "Myelle",
+    }.get(species_id, species_id)
 
 
 def _first_place_id(places: Iterable[WorldPlace], *, kind: str) -> str:

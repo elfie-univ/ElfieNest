@@ -44,6 +44,8 @@ def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     assert catalog.definition("dog").display_name == "Tovren"
     assert catalog.definition("fox").presentation_images is not None
     assert catalog.definition("dog").genesis is not None
+    assert catalog.definition("fox").genesis.terminal_age_years == 15
+    assert catalog.definition("dog").genesis.terminal_age_years == 20
     assert len(catalog.digest) == 64
     assert catalog.definition("fox").appearance.supported_controls == (
         "stature",

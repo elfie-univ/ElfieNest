@@ -174,6 +174,28 @@ class GenerationPolicy:
     seed_algorithm: str = "blake2b-labeled-v1"
     normal_episode_minimum: int = 5
     medium_knowledge_probability: float = 0.5
+    candidate_minimum_age_years: int = 2
+    candidate_age_reserve_years: int = 4
+    candidate_stage_weights: tuple[tuple[str, float], ...] = (
+        ("youth", 0.0),
+        ("young_adult", 0.75),
+        ("mature", 0.20),
+        ("elder", 0.05),
+    )
+    family_child_count_distribution: tuple[tuple[int, float], ...] = (
+        (1, 0.40),
+        (2, 0.45),
+        (3, 0.15),
+    )
+    family_parent_min_age_gap_years: int = 3
+    family_partner_min_age_years: int = 3
+    family_partner_annual_probability: float = 0.25
+    family_max_children: int = 3
+
+    def candidate_stage_weight(self, stage: str) -> float:
+        """Return the configured default-selection weight for one life stage."""
+
+        return dict(self.candidate_stage_weights).get(stage, 0.0)
 
 
 @dataclass(frozen=True)

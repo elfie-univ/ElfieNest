@@ -453,6 +453,25 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
         assert policy["age_restriction"] == "strictly_greater_than_one_local_year"
         assert set(generation["stage_ranges"]) == expected_stages
 
+    candidates = program["rules"]["policy"]["candidates"]
+    assert candidates["age_policy"] == {
+        "terminal_reserve_years": 4,
+        "stage_weights": {
+            "youth": 0.0,
+            "young_adult": 0.75,
+            "mature": 0.2,
+            "elder": 0.05,
+        },
+        "source_ref": "generation#11.1",
+    }
+    assert program["rules"]["policy"]["family"] == {
+        "child_count_distribution": {"1": 0.4, "2": 0.45, "3": 0.15},
+        "partner_min_age_years": 3,
+        "partner_annual_probability": 0.25,
+        "max_children": 3,
+        "source_ref": "generation#11.1",
+    }
+
 
 def test_geography_model_is_complete_and_distances_are_route_based() -> None:
     program = (

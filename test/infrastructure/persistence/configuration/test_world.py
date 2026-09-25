@@ -20,7 +20,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v3"
+    assert package.package_version == "elfaria-genesis.v4"
     assert package.manifest.status == "published"
     assert len(package.manifest.member_ids) == 18
     assert len(package.knowledge) == 160
@@ -82,6 +82,20 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
     assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
     assert package.generation_policy.medium_knowledge_probability == 0.5
+    assert package.generation_policy.candidate_age_reserve_years == 4
+    assert package.generation_policy.candidate_stage_weights == (
+        ("youth", 0.0),
+        ("young_adult", 0.75),
+        ("mature", 0.2),
+        ("elder", 0.05),
+    )
+    assert package.generation_policy.family_child_count_distribution == (
+        (1, 0.4),
+        (2, 0.45),
+        (3, 0.15),
+    )
+    assert package.generation_policy.family_parent_min_age_gap_years == 3
+    assert package.generation_policy.family_partner_annual_probability == 0.25
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

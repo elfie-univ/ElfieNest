@@ -95,7 +95,7 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         )
         assert (
             storage.get_graph_node(person_id).properties["relationship_label"]
-            == "family"
+            == "parent"
         )
         assert storage.get_graph_node(person_id).node_type == "elfie"
         assert storage.get_graph_node(person_id).properties["entity_type"] == "elfie"
@@ -126,12 +126,12 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert storage.conn.execute(
             """SELECT importance FROM assertions
                 WHERE subject_node_id='genesis:self:genesis-check'
-                  AND predicate='kin_of'
+                  AND predicate='child_of'
                   AND object_node_id=?""",
             (person_id,),
         ).fetchone()[0] == pytest.approx(0.37)
         assert any(
-            assertion.predicate == "kin_of"
+            assertion.predicate == "child_of"
             for assertion in storage.list_graph_assertions(limit=100)
             if assertion.subject_id == "genesis:self:genesis-check"
         )

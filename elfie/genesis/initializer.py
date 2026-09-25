@@ -288,6 +288,9 @@ class GenesisMemoryCommitter:
                         ),
                         "person_species_id": relationship.person_species_id,
                         "age_years_at_genesis": relationship.age_years_at_genesis,
+                        "person_gender": relationship.person_gender,
+                        "life_status": relationship.life_status,
+                        "related_person_ids": list(relationship.related_person_ids),
                         "vocation_id": relationship.vocation_id,
                         "competency_ids": list(relationship.competency_ids),
                         "eligible_episode_theme_ids": list(
@@ -550,6 +553,14 @@ class GenesisMemoryCommitter:
                 ),
             )
 
+        self._write_person_links(
+            bundle,
+            storage,
+            person_node_ids,
+            self_id,
+            now,
+        )
+
         marker_id = f"{GENESIS_RECEIPT_PREFIX}{elfie_id}"
         output_node_ids = (*node_ids, marker_id)
         if output_node_ids != tuple(manifest.output_ids):
@@ -592,6 +603,63 @@ class GenesisMemoryCommitter:
             schema_version=manifest.schema_version,
             committed_at=now,
         )
+
+    def _write_person_links(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        person_node_ids: dict[str, str],
+        self_id: str,
+        now: str,
+    ) -> None:
+        """Persist the bounded family graph edges without creating new people."""
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        resolved = {"self": self_id, **person_node_ids}
+        seen: set[tuple[str, str]] = set()
+        for relationship in bundle.relationship_seeds:
+            source = resolved.get(relationship.person_id)
+            if source is None:
+                continue
+            for target_key in relationship.related_person_ids:
+                target = resolved.get(target_key)
+                if target is None or target == source:
+                    continue
+                pair = tuple(sorted((source, target)))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                evidence_id = (
+                    f"genesis:evidence:person-link:{safe_elfie}:"
+                    f"{safe_component(relationship.person_id)}:{safe_component(target_key)}"
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        pair[0],
+                        "kin_of",
+                        object_node_id=pair[1],
+                        context=relation_context(
+                            "genesis_family_graph", symmetric=True
+                        ),
+                        epistemic_status="known",
+                        confidence=max(relationship.initial_trust, 0.5),
+                        importance=relation_importance(
+                            "kin_of", relationship.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=evidence_id,
+                        source_type="seed",
+                        source_id=relationship.source_ref,
+                        excerpt=(
+                            f"{relationship.display_name} 与 {target_key} "
+                            "属于同一已验证家庭或核心关系图。"
+                        ),
+                        source_version=relationship.source_version,
+                        captured_at=now,
+                    ),
+                )
 
     @staticmethod
     def _upsert_node(storage: MemoryStorePort, node: NodeInput) -> None:
@@ -790,6 +858,10 @@ def _relationship_predicate(role: str) -> str:
 
     role_map = {
         "family": "kin_of",
+        "parent": "child_of",
+        "child": "parent_of",
+        "sibling": "sibling_of",
+        "partner": "kin_of",
         "friend": "friend_of",
         "teacher": "student_of",
         "learning_keeper": "student_of",

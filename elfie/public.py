@@ -44,6 +44,7 @@ from elfie.genesis import (
     GenesisCompileEnvelope,
     GenesisCompileInput,
     GenesisCompiler,
+    GenesisEngine,
     GenesisSourcePackage,
 )
 from elfie.initialization import assemble_profile
@@ -89,6 +90,7 @@ __all__ = [
     "GenesisCompileInput",
     "GenesisCandidateReveal",
     "GenesisCompiler",
+    "GenesisEngine",
     "GenesisSourcePackage",
     "EventId",
     "InboundDisposition",

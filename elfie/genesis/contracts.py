@@ -140,6 +140,9 @@ class RelationshipSeed:
     vocation_id: str = ""
     person_species_id: str = ""
     age_years_at_genesis: int | None = None
+    person_gender: str = ""
+    life_status: str = "alive"
+    related_person_ids: tuple[str, ...] = ()
     competency_ids: tuple[str, ...] = ()
     eligible_episode_theme_ids: tuple[str, ...] = ()
 
@@ -371,6 +374,10 @@ class GenesisBundle:
                 raise GenesisValidationError(
                     "RelationshipSeed.object_id 必须与 person_id 一致"
                 )
+            if set(relationship.related_person_ids) - (relationship_people | {"self"}):
+                raise GenesisValidationError(
+                    "RelationshipSeed.related_person_ids 必须引用本次人物或 self"
+                )
             if set(relationship.episode_ids) - episode_ids:
                 raise GenesisValidationError(
                     "RelationshipSeed 只能引用本次 Genesis 的 Episode"
@@ -534,8 +541,13 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
         raise GenesisValidationError("RelationshipSeed 必须带 scope/topic")
     _validate_text_collection(seed.aliases, "RelationshipSeed.aliases")
     _validate_text_collection(seed.retrieval_terms, "RelationshipSeed.retrieval_terms")
+    _validate_text_collection(
+        seed.related_person_ids, "RelationshipSeed.related_person_ids"
+    )
     if not (seed.aliases or seed.retrieval_terms):
         raise GenesisValidationError("RelationshipSeed 至少需要一个别名或检索词")
+    if seed.life_status not in {"alive", "deceased", "unknown"}:
+        raise GenesisValidationError("RelationshipSeed.life_status 无效")
 
 
 def _validate_episode_seed(seed: EpisodeSeed) -> None:
