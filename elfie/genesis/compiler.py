@@ -2842,8 +2842,7 @@ class GenesisCompiler:
                 EpisodeSeed(
                     seed_id="early-home",
                     content=(
-                        f"我幼年时由{caregiver_names}承担早期照护，"
-                        f"我的家在{self._label(context.origin.childhood_home_place_id)}。"
+                        f"我幼年时由{caregiver_names}承担早期照护，我在家中长大。"
                     ),
                     source_ref="genesis:family-care",
                     source_version="genesis-family-episode.v0.3",

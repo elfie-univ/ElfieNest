@@ -249,6 +249,7 @@ def test_create_elfie_uses_explicit_advanced_candidate_values(
         == review["summary"]["selected_knowledge_count"]
     )
     assert review["outputs"]["selfhood"]
+    assert review["outputs"]["selfhood_projection"] == profile["selfhood_projection"]
     assert review["places"]
     assert review["place_relations"]
     assert app.state.storage.genesis_review_path(profile["elfie_id"]).is_file()

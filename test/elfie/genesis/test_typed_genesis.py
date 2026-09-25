@@ -24,6 +24,13 @@ from .test_contracts import _compilation
 
 def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> None:
     compilation = _compilation("00000101")
+    early_home = next(
+        episode
+        for episode in compilation.bundle.episode_seeds
+        if episode.theme_id == "early-home"
+    )
+    assert "我在家中长大" in early_home.content
+    assert "我的家在我的住处" not in early_home.content
     arrival = next(
         episode
         for episode in compilation.bundle.episode_seeds

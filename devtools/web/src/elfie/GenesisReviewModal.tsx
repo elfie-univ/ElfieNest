@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Input, Modal, Segmented, Tabs, Tag } from "antd";
+import { Alert, Button, Input, Modal, Segmented, Tabs, Tag } from "antd";
 
 import { requestJson } from "../api/http";
 import { genesisReviewSchema, type ElfieSession, type GenesisReview } from "./contracts";
@@ -79,6 +79,25 @@ function RecordList({ items, title, summary }: Readonly<{
   </section>;
 }
 
+function SelfhoodReview({ review }: Readonly<{ review: GenesisReview }>): React.JSX.Element {
+  const [showOutput, setShowOutput] = useState(false);
+  const projection = review.outputs.selfhood_projection;
+
+  return <>
+    <h3>Selfhood 结构化写入值</h3>
+    <pre>{json(review.outputs.selfhood)}</pre>
+    <div className="genesis-review-selfhood-action">
+      <Button aria-expanded={showOutput} onClick={() => setShowOutput((value) => !value)}>
+        {showOutput ? "收起组装输出" : "查看组装输出"}
+      </Button>
+    </div>
+    {showOutput ? <section aria-label="Selfhood 组装输出">
+      <h3>身份核心输出</h3><pre>{projection.identity_core_text}</pre>
+      <h3>人格与表达输出</h3><pre>{projection.adaptive_self_text}</pre>
+    </section> : null}
+  </>;
+}
+
 export function GenesisReviewBody({ review }: Readonly<{ review: GenesisReview }>): React.JSX.Element {
   const { summary, outputs, life, source } = review;
   const mobility = life.mobility;
@@ -97,7 +116,8 @@ export function GenesisReviewBody({ review }: Readonly<{ review: GenesisReview }
     },
     {
       key: "selfhood", label: "Profile 与 Selfhood",
-      children: <><h3>Profile 身份锚点</h3><pre>{json(outputs.profile)}</pre><h3>Selfhood 结构化写入值</h3><pre>{json(outputs.selfhood)}</pre></>,
+      forceRender: true,
+      children: <><h3>Profile 身份锚点</h3><pre>{json(outputs.profile)}</pre><SelfhoodReview review={review} /></>,
     },
     {
       key: "source", label: "生成来源",

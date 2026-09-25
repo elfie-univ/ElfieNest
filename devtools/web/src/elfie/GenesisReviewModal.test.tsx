@@ -89,6 +89,12 @@ const review = genesisReviewSchema.parse({
   outputs: {
     profile: { age_years: 6, gender: "female", origin_place_label: "森林居住区" },
     selfhood: { identity_core: { resident_role: "resident" } },
+    selfhood_projection: {
+      revision: 1,
+      captured_at: "2026-09-25T00:00:00Z",
+      identity_core_text: "我是 〈测试精灵〉，是一只 Elfie。",
+      adaptive_self_text: "我的稳定相处与表达方式：\n- 我喜欢探索新事物",
+    },
     knowledge: [{ seed_id: "K-01", content: "Memory 中实际写入的知识内容" }],
     output_ids: ["genesis:self:elfie"],
     content_hash: "bundle-digest",
@@ -104,5 +110,13 @@ describe("Genesis same-run review", () => {
     expect(markup).toContain("Memory 中实际写入的知识内容");
     expect(markup).toContain("来源条件全部满足");
     expect(markup).toContain("知识 1/2");
+  });
+
+  it("defaults to stored Selfhood and offers the assembled output on demand", () => {
+    const markup = renderToStaticMarkup(<GenesisReviewBody review={review} />);
+
+    expect(markup).toContain("Selfhood 结构化写入值");
+    expect(markup).toContain("查看组装输出");
+    expect(markup).not.toContain("我的稳定相处与表达方式");
   });
 });

@@ -188,6 +188,10 @@ export const genesisReviewSchema = z.object({
   place_relations: z.array(z.record(z.string(), z.unknown())),
   outputs: z.object({
     profile: z.record(z.string(), z.unknown()), selfhood: z.unknown(),
+    selfhood_projection: z.object({
+      revision: z.number().int().nonnegative(), captured_at: z.string(),
+      identity_core_text: z.string(), adaptive_self_text: z.string(),
+    }).passthrough(),
     knowledge: z.array(z.record(z.string(), z.unknown())),
     output_ids: z.array(z.string()), content_hash: z.string(),
   }).passthrough(),

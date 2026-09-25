@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage
 from elfie.brain.selfhood import (
+    SelfhoodSystem,
     derive_personality,
 )
 from elfie.genesis import (
@@ -538,6 +539,12 @@ class ElfieLabStorage:
                     "origin_place_label": plan.profile.identity.origin.origin_place_label,
                 },
                 "selfhood": _jsonable(bundle.selfhood_state),
+                "selfhood_projection": _jsonable(
+                    SelfhoodSystem(
+                        initial_at=bundle.selfhood_state.committed_at,
+                        initial=bundle.selfhood_state,
+                    ).prompt_projection()
+                ),
                 "knowledge": _jsonable(bundle.knowledge_seeds),
                 "output_ids": list(bundle.manifest.output_ids),
                 "content_hash": bundle.manifest.content_hash,
