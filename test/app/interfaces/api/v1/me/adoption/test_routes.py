@@ -179,43 +179,46 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     with SQLiteMemoryStoreAdapter(
         workspace.knowledge_database, elfie_id=committed_id
     ) as memory:
-        person_nodes = tuple(
+        relationship_nodes = tuple(
             node
             for node in memory.list_graph_nodes(limit=1000)
-            if node.properties.get("entity_type") == "person"
+            if node.properties.get("entity_type") == "elfie"
             and not node.properties.get("is_owner")
         )
-        assert person_nodes
-        assert person_nodes[0].properties["person_species_id"] in {
-            "fox",
-            "dog",
-            "cat",
+        assert relationship_nodes
+        assert relationship_nodes[0].properties["person_species_id"] in {
+            "Saevi",
+            "Tovren",
+            "Myelle",
         }
-        assert person_nodes[0].properties["vocation_id"] == ""
-        assert memory.count_episodes() == 5
-        assert memory.count_graph_nodes("knowledge") >= 100
-        assert memory.get_graph_node(f"genesis:knowledge:{committed_id}:E-08-02")
-        assert memory.get_graph_node(f"genesis:knowledge:{committed_id}:E-08-03")
+        assert relationship_nodes[0].properties["vocation_id"] == ""
+        episodes = memory.list_episodes(limit=1000)
         assert (
-            memory.get_graph_node(f"genesis:knowledge:{committed_id}:B-04-02") is None
+            sum(
+                episode.event_kind == "genesis_personal_episode" for episode in episodes
+            )
+            >= 5
         )
-        knowledge_nodes = tuple(
-            node
-            for node in memory.list_graph_nodes(limit=1000)
-            if node.properties.get("entity_type") == "knowledge"
+        knowledge_episodes = tuple(
+            episode
+            for episode in episodes
+            if episode.event_kind == "genesis_knowledge_episode"
         )
-        assert len(knowledge_nodes) >= 100
-        for node in knowledge_nodes:
-            knowledge_id = node.properties.get("knowledge_id")
+        assert len(knowledge_episodes) >= 100
+        knowledge_by_id = {
+            episode.metadata["knowledge_id"]: episode for episode in knowledge_episodes
+        }
+        assert "E-08-02" in knowledge_by_id
+        assert "E-08-03" in knowledge_by_id
+        assert "B-04-02" not in knowledge_by_id
+        for knowledge_id, episode in knowledge_by_id.items():
             assert isinstance(knowledge_id, str)
             fact = source_facts[knowledge_id]
-            assert node.label == fact.statement
-            assert node.properties["source_ref"] == (
+            assert episode.content_text == fact.statement
+            assert episode.source_refs[0].source_id == (
                 f"resident-knowledge:{knowledge_id}"
             )
-            assert node.properties["source_version"] == (
-                f"resident-knowledge-v{fact.version}"
-            )
+            assert episode.source_version == (f"resident-knowledge-v{fact.version}")
     assert not workspace.genesis_compile_envelope.exists()
     assert not workspace.genesis_stage_marker.exists()
 
