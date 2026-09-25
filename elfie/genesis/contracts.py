@@ -88,6 +88,7 @@ class EpisodeSeed:
     occurred_from: str | None = None
     occurred_to: str | None = None
     place_ids: tuple[str, ...] = ()
+    observed_place_ids: tuple[str, ...] = ()
     # Reviewed route aliases used by this episode. Geometry and travel cost
     # remain owned by the geography source; the IDs survive in Memory as
     # episode metadata after the transient LifeContext is discarded.
@@ -393,7 +394,10 @@ class GenesisBundle:
                 )
 
         for episode in self.episode_seeds:
-            if not set(episode.place_ids) <= place_ids:
+            if (
+                not (set(episode.place_ids) | set(episode.observed_place_ids))
+                <= place_ids
+            ):
                 raise GenesisValidationError(
                     "EpisodeSeed 引用的地点必须存在于 PlaceSeed"
                 )
@@ -616,6 +620,12 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
         raise GenesisValidationError("结构化 EpisodeSeed 至少需要一个别名或检索词")
     if len(set(seed.place_ids)) != len(seed.place_ids):
         raise GenesisValidationError("EpisodeSeed.place_ids 必须唯一")
+    if len(set(seed.observed_place_ids)) != len(seed.observed_place_ids):
+        raise GenesisValidationError("EpisodeSeed.observed_place_ids 必须唯一")
+    if set(seed.place_ids) & set(seed.observed_place_ids):
+        raise GenesisValidationError(
+            "EpisodeSeed.place_ids 与 observed_place_ids 不能重复"
+        )
     if len(set(seed.route_ids)) != len(seed.route_ids):
         raise GenesisValidationError("EpisodeSeed.route_ids 必须唯一")
     if len(set(seed.person_ids)) != len(seed.person_ids):

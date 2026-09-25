@@ -353,6 +353,24 @@ def test_visit_distance_uses_round_trip_legal_route_cost() -> None:
     )
 
 
+def test_observation_only_landmarks_do_not_become_entered_visits() -> None:
+    source = load_genesis_source_package()
+    catalog = load_and_configure_species_catalog()
+    compiler = GenesisCompiler(source, catalog=catalog)
+    base = _compilation("observation-only", seed=7, stage="mature", age_years=8)
+    mobility = replace(
+        base.life_context.mobility,
+        opportunity_records=(
+            ("mountain_attraction", ("cloudcrown_city",), 1, "mountain_sightseeing", 1),
+        ),
+        visit_age_years=(("mountain_attraction", (4,)),),
+    )
+    episode = compiler._visit_episodes(replace(base.life_context, mobility=mobility))[0]
+
+    assert episode.place_ids == ()
+    assert episode.observed_place_ids == ("cloudcrown_city",)
+
+
 def test_genesis_rejects_adoption_before_age_two() -> None:
     with pytest.raises(GenesisError, match="至少 2 岁"):
         _compilation(stage="youth", age_years=1)

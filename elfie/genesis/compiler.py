@@ -174,6 +174,7 @@ class LifeContextMobility:
     visit_purposes: tuple[tuple[str, str], ...] = ()
     visit_stay_days: tuple[tuple[str, int], ...] = ()
     visit_age_years: tuple[tuple[str, tuple[int, ...]], ...] = ()
+    observed_place_ids: tuple[str, ...] = ()
     opportunity_records: tuple[tuple[str, tuple[str, ...], int, str, int], ...] = ()
     # Internal legal-path evidence.  Cells and costs remain transient Genesis
     # data; only the reviewed route IDs are carried into Memory Episodes.
@@ -574,6 +575,12 @@ class GenesisCompiler:
         visit_counts_by_place: dict[str, int] = dict.fromkeys(mandatory_visited, 1)
         visit_purposes_by_place: dict[str, set[str]] = {}
         visit_stay_by_place: dict[str, int] = {}
+        observed_place_ids = _unique(
+            place_id
+            for _, place_ids, _ in optional_visits
+            for place_id in place_ids
+            if self._place_access(place_id) == "observation_only"
+        )
         visit_age_years = tuple(
             (
                 opportunity.opportunity_id,
@@ -587,6 +594,8 @@ class GenesisCompiler:
         )
         for opportunity, place_ids, count in optional_visits:
             for place_id in place_ids:
+                if self._place_access(place_id) == "observation_only":
+                    continue
                 visit_counts_by_place[place_id] = (
                     visit_counts_by_place.get(place_id, 0) + count
                 )
@@ -599,7 +608,12 @@ class GenesisCompiler:
         visited = _unique(
             (
                 *mandatory_visited,
-                *(place_id for _, ids, _ in optional_visits for place_id in ids),
+                *(
+                    place_id
+                    for _, ids, _ in optional_visits
+                    for place_id in ids
+                    if self._place_access(place_id) != "observation_only"
+                ),
             )
         )
         # Admission supplies the real creation anchor.  The deterministic
@@ -657,6 +671,7 @@ class GenesisCompiler:
             ),
             visit_stay_days=tuple(sorted(visit_stay_by_place.items())),
             visit_age_years=visit_age_years,
+            observed_place_ids=observed_place_ids,
             opportunity_records=tuple(
                 (
                     opportunity.opportunity_id,
@@ -1151,7 +1166,14 @@ class GenesisCompiler:
                     for place_id in context.mobility.visited_place_ids
                 )
             if contact in {"exterior_view", "entered"}:
-                return target_id in context.mobility.visited_place_ids
+                return target_id in (
+                    context.mobility.visited_place_ids
+                    if contact == "entered"
+                    else (
+                        *context.mobility.visited_place_ids,
+                        *context.mobility.observed_place_ids,
+                    )
+                )
             # Merely living near a landmark does not prove participation in its tradition.
             return False
         if condition.kind == "route":
@@ -1857,9 +1879,20 @@ class GenesisCompiler:
         ) in context.mobility.opportunity_records:
             if not place_ids:
                 continue
-            labels = "、".join(self._label(place_id) for place_id in place_ids)
             seed_id = f"visit:{opportunity_id}"
-            route_ids = _routes_for_places(self._source, place_ids)
+            visited_place_ids = tuple(
+                place_id
+                for place_id in place_ids
+                if self._place_access(place_id) != "observation_only"
+            )
+            observed_place_ids = tuple(
+                place_id
+                for place_id in place_ids
+                if self._place_access(place_id) == "observation_only"
+            )
+            route_ids = _routes_for_places(
+                self._source, (*visited_place_ids, *observed_place_ids)
+            )
             visit_age_years = dict(context.mobility.visit_age_years).get(
                 opportunity_id, ()
             )
@@ -1872,8 +1905,17 @@ class GenesisCompiler:
                 EpisodeSeed(
                     seed_id=seed_id,
                     content=(
-                        f"我因为{purpose}去过{labels}。这次出行停留约{stay_days}天，"
-                        f"累计访问{visit_count}次，发生在{age_label}。"
+                        (
+                            f"我因为{purpose}去过{'、'.join(self._label(place_id) for place_id in visited_place_ids)}。"
+                            if visited_place_ids
+                            else ""
+                        )
+                        + (
+                            f"我还从可到达的位置看见了{'、'.join(self._label(place_id) for place_id in observed_place_ids)}。"
+                            if observed_place_ids
+                            else ""
+                        )
+                        + f"这次出行停留约{stay_days}天，累计访问{visit_count}次，发生在{age_label}。"
                     ),
                     source="personal_memory",
                     source_ref=f"visit-opportunity:{opportunity_id}",
@@ -1885,7 +1927,8 @@ class GenesisCompiler:
                     certainty="high",
                     temporal_label="抵达前",
                     life_stage=context.identity.life_stage,
-                    place_ids=place_ids,
+                    place_ids=visited_place_ids,
+                    observed_place_ids=observed_place_ids,
                     route_ids=route_ids,
                     result=f"完成了{purpose}相关的实际访问",
                     feeling="我记得这次出行的主要目的和到过的地方。",
@@ -1906,6 +1949,12 @@ class GenesisCompiler:
                 )
             )
         return tuple(result)
+
+    def _place_access(self, place_id: str) -> str:
+        place = self._place(place_id)
+        if place is None:
+            return ""
+        return dict(place.metadata).get("access", "")
 
     def _family_episodes(
         self,

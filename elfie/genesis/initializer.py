@@ -453,6 +453,7 @@ class GenesisMemoryCommitter:
                         "feeling": seed.feeling,
                         "impact": seed.impact,
                         "place_ids": list(seed.place_ids),
+                        "observed_place_ids": list(seed.observed_place_ids),
                         "route_ids": list(seed.route_ids),
                         "person_ids": list(seed.person_ids),
                         "visit_count": seed.visit_count,
@@ -498,6 +499,42 @@ class GenesisMemoryCommitter:
                     EvidenceInput(
                         evidence_id=(
                             f"genesis:evidence:episode-place:{safe_elfie}:"
+                            f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
+                        ),
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=seed.content,
+                        source_version=seed.source_version,
+                        captured_at=now,
+                    ),
+                )
+            for place_id in seed.observed_place_ids:
+                place_node = place_node_ids.get(place_id)
+                if place_node is None:
+                    raise GenesisValidationError(
+                        f"EpisodeSeed 引用的观察地点没有生成节点: {place_id}"
+                    )
+                place_seed = next(
+                    place for place in bundle.place_seeds if place.place_id == place_id
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        self_id,
+                        "witnessed",
+                        object_node_id=place_node,
+                        context=relation_context(
+                            "genesis_episode_place", symmetric=False, role="observed"
+                        ),
+                        epistemic_status="known",
+                        confidence=1.0,
+                        importance=relation_importance(
+                            "witnessed", place_seed.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=(
+                            f"genesis:evidence:episode-observed-place:{safe_elfie}:"
                             f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
                         ),
                         source_type="episode",
