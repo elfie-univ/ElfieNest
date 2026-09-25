@@ -401,8 +401,16 @@ Sense 是调用方提供的稀疏 `SceneCue`，不是第二个自然语言 Query
 调用方只纳入足够显著/可靠的线索（尤其是有辨识度的场景信号）；阈值和有意的随机候选生成策略由
 调用方负责，不设成 Memory 的通用阈值。Memory 将可用线索与历史 Episode 场景/上下文投影比较，并可通过
 图谱解析人物、地点和物品锚点。只组合两侧都实际存在的维度：历史情绪或地点缺失表示未知，不是冲突。
-线索可以生成候选，但不会形成隐藏的显著性排序；只有调用方明确请求对应 facet 时，它才成为硬过滤条件。
+显式提供的线索可通过匹配 facet 贡献查询相关性；这不是隐藏的显著性先验，只有调用方明确请求对应 facet 时才成为硬过滤条件。
 环境/感官自由文本可走词法检索；结构化场景 facet 可用索引精确/范围匹配。稠密场景相似度需经过评测后再加入。
+
+Sense 内部可以走三路候选并集：(1) 实体/地点锚点经精确名称/别名解析，再反向查 Episode 提及/地点关联；
+(2) 情绪通道比较注册情绪类别和强度，优先类别重叠、归一化强度距离较小的记录；(3) 感知/环境措辞在
+历史 Episode 场景上下文中做词法检索。情绪标签通过带版本的词汇表归一化；类别相似度只能使用注册表中
+明确的关系；强度相似度按归一化到 `[0,1]` 后的 `1 - |当前强度 - 历史强度|` 计算（任一强度缺失时只用
+类别匹配）。各通道确定性融合并保留线索来源。缺失维度既不计分，也不扣分。
+调用方可以为独特/高强度线索请求较小的 Episode 配额；更宽泛的场景联想则请求更大的配额。这只是结果
+数量限制，不表示其他记忆不存在。
 
 #### 3.4.4 合并、图扩展与过滤
 
@@ -414,10 +422,10 @@ facet。Importance、freshness、confidence、来源历史和类型先验不参�
 
 需要区分两种图操作：
 
-- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
+- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。有效路径和注册端点约束决定候选是否符合；Importance 和 freshness 均不得改变路径资格，也不能弥补缺失边。多个有效路径按请求的投影/基数、查询相关性和稳定 ID 次序决胜。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
 - **附带上下文扩展**：用少量直接相关邻居、关联 Episode 或 Evidence 丰富 Query/Sense 命中。它不能替代路径答案，也不能递归淹没图谱。扩展限定关系白名单和上限；人物、地点或物品通常最多一跳，只有意图明确要求才加深遍历。
 
-候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、注册类型组和叶 Node 类型、注册 Predicate、Episode 发生时间范围、人物/地点/实体锚点，以及注册属性或 Episode 场景 facet。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。时间过滤只作用于有来源的 Episode 发生时间（显式处理未知时间）；关系自身的有效时间作为 Assertion 限定信息筛选，Episode 时间不作用于没有时间概念的 Node。普通 Recall 只包含 active 记录；archived 和 forgotten 由不可放宽的生命周期访问门排除。相关的 superseded/冲突 Assertion 可保留，并明确展示状态和 Evidence。Namespace 与隐私访问门始终优先于搜索结果或请求的结果类型。
+候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、注册类型组和叶 Node 类型、注册 Predicate 与属性、Episode 场景 facet（包括历史情绪、地点、活动、话题和原因）、人物/地点/实体锚点，以及可选的显式 importance 下限。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。importance 下限只是调用方请求的硬过滤条件，不是排序分数。Episode 时间过滤只作用于有来源的 Episode 发生时间（显式处理未知时间）；Assertion 自身的有效时间作为其限定信息筛选，Episode 时间不作用于没有时间概念的 Node。普通 Recall 只包含符合策略的 active 记录；archived 和 forgotten 由不可放宽的生命周期访问门排除。相关的 superseded/冲突 Assertion 可保留，并明确展示状态和 Evidence。Namespace、隐私和生命周期访问门不能被调用方过滤放宽。
 
 #### 3.4.5 类型化结果组装
 
@@ -484,7 +492,7 @@ QuerySpec {
 GraphQueryPlan {
   anchor: self | node_id | entity_mention,
   steps: [{predicate, direction, registered_qualifiers?}],
-  endpoint_constraints?: {node_types?, registered_properties?},
+  endpoint_constraints?: {node_types?, registered_properties?, exclude_anchor?},
   projection: endpoint | path | both,
   cardinality: one | all
 }
@@ -504,7 +512,8 @@ RecallFilters {
   episode_time_range?: {from?, to?, unknown_time?},
   entity_ids?: [...],
   registered_property_constraints?: [...],
-  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?}
+  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?},
+  minimum_importance?: number
 }
 ```
 
@@ -533,14 +542,13 @@ RecallBundle {
   conflicts: [{assertion_ids, reason}],
   match_provenance: [{record_kind, record_id, channels, matched_fields,
                       scene_facets, assertion_path_ids}],
-  rendered_text: "可选的确定性、带标签投影",
   limits: {requested, returned, truncated}
 }
 ```
 
 Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程。
-需要时的 `rendered_text` 是这些类型化记录的紧凑确定性投影，供 LLM 使用，不是第二份答案或模型生成的
-摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
+消费端的确定性 renderer 可以把类型化 bundle 投影为面向 LLM 的紧凑、带标签自由文本；这不是第二份答案，
+也不是模型生成摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
 
 ### 4.3 延期的反馈与自适应排序
 

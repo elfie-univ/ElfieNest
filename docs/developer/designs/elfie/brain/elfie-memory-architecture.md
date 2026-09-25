@@ -574,7 +574,9 @@ Sense is a sparse, caller-supplied `SceneCue`, not a second natural-language Que
 - salient people, objects, activities or roles;
 - a compact perception/body-sensation summary, such as what is seen, heard or felt.
 
-The caller admits only sufficiently salient/reliable cues (especially distinctive scene signals); thresholds and any intentional stochastic candidate-generation policy belong to the caller, not a universal Memory cutoff. Memory compares available cues against historical Episode scene/context projections and may resolve their people/place/object anchors through the graph. It combines only dimensions actually present on both sides: missing historical emotion or location is unknown, not a mismatch. A cue may generate candidates but does not create a hidden salience ranking or become a hard filter unless the caller explicitly requests that facet. Ambient/sensory free text can use lexical retrieval; structured scene facets can use indexed exact/range matching. Dense scene similarity can be added only after evaluation.
+The caller admits only sufficiently salient/reliable cues (especially distinctive scene signals); thresholds and any intentional stochastic candidate-generation policy belong to the caller, not a universal Memory cutoff. Memory compares available cues against historical Episode scene/context projections and may resolve their people/place/object anchors through the graph. It combines only dimensions actually present on both sides: missing historical emotion or location is unknown, not a mismatch. Explicitly supplied cues may contribute query relevance through their matched facets; this is not a hidden salience prior and becomes a hard filter only when the caller requests one. Ambient/sensory free text can use lexical retrieval; structured scene facets can use indexed exact/range matching. Dense scene similarity can be added only after evaluation.
+
+Sense itself may execute three candidate lanes and union them: (1) entity/place anchors resolve through exact labels/aliases and reverse Episode mentions/location links; (2) affect compares registered emotion categories and intensity, preferring category overlap and smaller normalized intensity distance; (3) perception/environment wording searches historical Episode scene context lexically. Affect labels are normalized through a versioned vocabulary; category similarity may use only explicit registry relationships, and intensity similarity is `1 - |current_intensity - historical_intensity|` after normalization to `[0,1]` (category-only match when either intensity is absent). Matched lanes are fused deterministically and retain cue provenance. Their scores are query relevance from explicit current cues, not importance/freshness/confidence weights. Missing dimensions contribute no score and no penalty. The caller can request a narrow Episode quota for a distinctive/high-intensity cue; broader associative recall uses a larger quota. These are result limits, not assertions that other memories do not exist.
 
 #### 3.4.4 Merge, graph expansion and filters
 
@@ -582,10 +584,10 @@ Merge is a union of Query and Sense candidates. Deduplicate only the same `(reco
 
 There are two distinct graph operations:
 
-- **Explicit path execution** answers a relationship request represented by `GraphQueryPlan`. Follow only the ordered, registered predicates and directions in the plan, return the actual Assertion path and endpoint records, and enforce a maximum of 4 path steps, 12 neighbors per expanded Node and the result cap. Direct person/attribute questions normally need zero or one hop. A two-hop friends-of-friends result is appropriate only when requested; there is no default friend-of-friend expansion. Location containment, object composition/material, causal knowledge and kinship each use their own registered relation semantics. If the graph stores no matching Assertion, do not synthesize one.
+- **Explicit path execution** answers a relationship request represented by `GraphQueryPlan`. Follow only the ordered, registered predicates and directions in the plan, return the actual Assertion path and endpoint records, and enforce a maximum of 4 path steps, 12 neighbors per expanded Node and the result cap. A valid path and its registered endpoint constraints determine eligibility; neither importance nor freshness may alter path eligibility or compensate for a missing edge. Resolve multiple valid paths by the requested projection/cardinality, query relevance and stable-ID tie-breaks. Direct person/attribute questions normally need zero or one hop. A two-hop friends-of-friends result is appropriate only when requested; there is no default friend-of-friend expansion. Location containment, object composition/material, causal knowledge and kinship each use their own registered relation semantics. If the graph stores no matching Assertion, do not synthesize one.
 - **Incidental context expansion** enriches a Query/Sense hit with a small number of directly relevant neighbors, linked Episodes or Evidence. It is not a path-answer substitute and must not recursively flood the graph. Expansion is relation-allowlisted and bounded; normally one hop for a person, place or object, with deeper traversal only when intent explicitly calls for it.
 
-After union, apply caller filters consistently to every result kind: allowed result kinds (`Episode`, `Node`, `Assertion`), registered type groups and leaf Node types, registered predicates, Episode occurrence-time range, person/place/entity anchors, and registered property or Episode-scene facets. Filter families combine with AND; multiple values within a family combine with OR. Missing facet data is unknown, never a negative fact. Time filters apply to sourced Episode occurrence time (with explicit unknown-time handling); a relation's own validity interval is filtered as an Assertion qualifier, and timeless Nodes are not filtered by Episode time. Ordinary Recall includes only active records; archived and forgotten records are excluded by a non-relaxable lifecycle gate. Superseded/conflicting Assertions may remain visible when relevant, with their status and Evidence made explicit. Namespace and privacy gates always win over search results or requested kinds.
+After union, apply caller filters consistently to every result kind: allowed result kinds (`Episode`, `Node`, `Assertion`), registered type groups and leaf Node types, registered predicates and properties, Episode-scene facets (including historical affect, location, activity, topic and cause), person/place/entity anchors, and an optional explicit minimum-importance threshold. Filter families combine with AND; multiple values within a family combine with OR. Missing facet data is unknown, never a negative fact. A minimum-importance threshold is a hard caller-requested filter, not a ranking score. Episode-time filters apply only to sourced Episode occurrence time (with explicit unknown-time handling); an Assertion's validity interval is filtered as its own qualifier, and timeless Nodes are not filtered by Episode time. Ordinary Recall returns only policy-eligible active records; archived and forgotten records are excluded by a non-relaxable lifecycle gate. Relevant superseded/conflicting Assertions may remain visible with status and Evidence made explicit. Namespace, privacy and lifecycle gates cannot be relaxed by caller filters.
 
 #### 3.4.5 Typed result assembly
 
@@ -644,7 +646,7 @@ QuerySpec {
 GraphQueryPlan {
   anchor: self | node_id | entity_mention,
   steps: [{predicate, direction, registered_qualifiers?}],
-  endpoint_constraints?: {node_types?, registered_properties?},
+  endpoint_constraints?: {node_types?, registered_properties?, exclude_anchor?},
   projection: endpoint | path | both,
   cardinality: one | all
 }
@@ -664,7 +666,8 @@ RecallFilters {
   episode_time_range?: {from?, to?, unknown_time?},
   entity_ids?: [...],
   registered_property_constraints?: [...],
-  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?}
+  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?},
+  minimum_importance?: number
 }
 ```
 
@@ -690,16 +693,15 @@ RecallBundle {
   conflicts: [{assertion_ids, reason}],
   match_provenance: [{record_kind, record_id, channels, matched_fields,
                       scene_facets, assertion_path_ids}],
-  rendered_text: "optional deterministic, labeled projection",
   limits: {requested, returned, truncated}
 }
 ```
 
 Node–Assertion supplies high-density structure and reusable knowledge; Episodes supply the complete
-topic context; Evidence explains the derivation. `rendered_text`, when requested, is a deterministic
-compact projection of these typed records for an LLM, not a second answer or a model-generated
-summary. The consuming layer still decides what to say or do. A Recall result does not have to
-include raw upstream conversation or media.
+topic context; Evidence explains the derivation. A deterministic consumer-side renderer may project
+the typed bundle into compact labeled free text for an LLM, but that projection is not a second
+answer or a model-generated summary. The consuming layer still decides what to say or do. A Recall
+result does not have to include raw upstream conversation or media.
 
 ### 4.3 Deferred feedback and adaptive ranking
 
