@@ -30,6 +30,12 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert len(package.story_events) == 16
     assert len(package.routes) == 16
     assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert package.place("mistyville_center").parent_id == "central_mixed"
+    assert package.place("central_mixed").parent_id == "mistyville"
+    mixed_region = dict(package.place("D").metadata)
+    assert mixed_region["terrain"] == "mixed_settlement"
+    assert mixed_region["resident_species"] == "Saevi、Tovren、Myelle"
+    assert mixed_region["birth_eligible"] == "true"
     assert len(package.place_relations) == 7
     assert {
         item.opportunity_id for item in package.generation_policy.visit_opportunities
@@ -107,6 +113,7 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.fact("B-04-02").conditions[0].value("status") == "traversed"
     assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
     assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
+    assert package.generation_policy.candidate_proposal_count == 96
     assert package.generation_policy.medium_knowledge_probability == 0.5
     assert package.generation_policy.candidate_age_reserve_years == 4
     assert package.generation_policy.candidate_stage_weights == (

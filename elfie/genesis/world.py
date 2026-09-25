@@ -224,6 +224,7 @@ class GenerationPolicy:
     seed_algorithm: str = "blake2b-labeled-v1"
     normal_episode_minimum: int = 5
     medium_knowledge_probability: float = 0.5
+    candidate_proposal_count: int = 96
     candidate_minimum_age_years: int = 2
     candidate_age_reserve_years: int = 4
     candidate_stage_weights: tuple[tuple[str, float], ...] = (
@@ -334,6 +335,9 @@ class WorldPlace:
     aliases: tuple[str, ...]
     description: str
     status: WorldItemStatus
+    # Public semantic attributes projected from geography; coordinates and
+    # sampling codes remain owned by the geography package.
+    metadata: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

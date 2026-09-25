@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import random
+import unicodedata
 from typing import Sequence
 
 from elfie.profile import SpeciesCatalog, get_species_definition
@@ -42,9 +45,6 @@ _GENDERS = ("male", "female")
 class GenesisEngine:
     """Build five intentionally different, deterministic candidate cores."""
 
-    # Keep enough proposals for role-fit, body-shape distance and the visible
-    # appearance uniqueness gate to coexist for both dog and fox packages.
-    proposal_count = 96
     # The visual key below is the hard uniqueness gate.  Keep the continuous
     # latent-distance gate slightly looser so constrained intents (for example
     # tall/round/soft/warm) can still produce all five candidates across three
@@ -88,9 +88,19 @@ class GenesisEngine:
             role: [] for role in CANDIDATE_ROLES
         }
         for role_index, role in enumerate(CANDIDATE_ROLES):
-            for proposal_index in range(self.proposal_count):
-                seed = derive_seed(
-                    master_seed, batch_number, role_index, proposal_index
+            for proposal_index in range(
+                self._generation_policy.candidate_proposal_count
+            ):
+                seed = self._labeled_seed(
+                    master_seed,
+                    "candidate",
+                    f"batch:{batch_number}:role:{role_index}:proposal:{proposal_index}",
+                    legacy_parts=(
+                        master_seed,
+                        batch_number,
+                        role_index,
+                        proposal_index,
+                    ),
                 )
                 stage = self._choose_stage(
                     seed,
@@ -104,7 +114,7 @@ class GenesisEngine:
                     role=role,
                     species_id=species_id,
                     life_stage=stage,
-                    gender=self._choose_gender(seed, role_index, gender),
+                    gender=self._choose_gender(seed, batch_number, role_index, gender),
                     appearance=appearance,
                     core=core_by_stage[stage],
                     variant_index=(batch_number - 1) * len(CANDIDATE_ROLES)
@@ -141,7 +151,14 @@ class GenesisEngine:
             if choice is None:
                 raise GenesisError("无法同时满足候选匹配下限和差异度门槛，请重试本批次")
             selected.append(choice)
-        random.Random(derive_seed(master_seed, batch_number, 91, 0)).shuffle(selected)
+        random.Random(
+            self._labeled_seed(
+                master_seed,
+                "candidate",
+                f"batch:{batch_number}:shuffle",
+                legacy_parts=(master_seed, batch_number, 91, 0),
+            )
+        ).shuffle(selected)
         core_stage = "young_adult" if life_stage == "any" else stages[0]
         return GenesisBatch(batch_number, tuple(selected), core_by_stage[core_stage])
 
@@ -180,7 +197,14 @@ class GenesisEngine:
         age_years = self._age_years(
             species_id,
             life_stage,
-            random.Random(derive_seed(seed, 8, 0, 0)),
+            random.Random(
+                self._labeled_seed(
+                    seed,
+                    "age",
+                    f"candidate:{seed}",
+                    legacy_parts=(seed, 8, 0, 0),
+                )
+            ),
         )
         genome = generate_appearance(
             seed=seed,
@@ -195,7 +219,7 @@ class GenesisEngine:
             catalog=self._catalog,
         )
         return GenesisCandidate(
-            candidate_id=f"{derive_seed(seed, 7, 0, 0):016x}",
+            candidate_id=f"{self._labeled_seed(seed, 'candidate', f'id:{seed}', legacy_parts=(seed, 7, 0, 0)):016x}",
             role=role,
             seed=seed,
             species_id=species_id,
@@ -281,18 +305,68 @@ class GenesisEngine:
         if not choices:
             choices = tuple((stage, 1.0) for stage in legal_stages)
         total = sum(weight for _, weight in choices)
-        draw = random.Random(derive_seed(seed, batch, role, 92)).random() * total
+        draw = (
+            random.Random(
+                self._labeled_seed(
+                    seed,
+                    "age",
+                    f"batch:{batch}:role:{role}:stage",
+                    legacy_parts=(seed, batch, role, 92),
+                )
+            ).random()
+            * total
+        )
         for stage, weight in choices:
             draw -= weight
             if draw < 0.0:
                 return stage
         return choices[-1][0]
 
-    @staticmethod
-    def _choose_gender(seed: int, role: int, requested: str) -> str:
+    def _choose_gender(self, seed: int, batch: int, role: int, requested: str) -> str:
         if requested != "any":
             return requested
-        return _GENDERS[(role + seed) % len(_GENDERS)]
+        draw = self._labeled_seed(
+            seed,
+            "candidate",
+            f"batch:{batch}:role:{role}:gender",
+            legacy_parts=(seed, role),
+        )
+        return _GENDERS[draw % len(_GENDERS)]
+
+    def _labeled_seed(
+        self,
+        seed: int,
+        domain: str,
+        stable_id: str,
+        *,
+        legacy_parts: tuple[int, ...],
+    ) -> int:
+        """Derive candidate randomness from the published Genesis policy."""
+
+        algorithm = self._generation_policy.seed_algorithm
+        if algorithm == "blake2b-labeled-v1":
+            return derive_seed(*legacy_parts)
+        if algorithm != "sha256-domain-v1":
+            raise GenesisError(f"不支持的 Genesis seed 算法: {algorithm}")
+        if (
+            isinstance(seed, bool)
+            or not isinstance(seed, int)
+            or not 0 <= seed < 2**256
+        ):
+            raise GenesisError("SHA-256 Genesis master_seed 必须是 32 字节非负整数")
+        canonical = {
+            "algorithm_version": algorithm,
+            "attempt_id": 0,
+            "domain": unicodedata.normalize("NFC", domain),
+            "domain_policy_version": self._generation_policy.policy_version,
+            "draw_counter": 0,
+            "master_seed": f"{seed:064x}",
+            "stable_object_or_slot_id": unicodedata.normalize("NFC", stable_id),
+        }
+        encoded = json.dumps(
+            canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return int.from_bytes(hashlib.sha256(encoded).digest(), "big")
 
     def _age_years(self, species_id: str, stage: str, rng: random.Random) -> int:
         definition = (

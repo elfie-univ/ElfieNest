@@ -211,6 +211,7 @@ class PlaceSeed:
     # Per-Elfie familiarity with this public baseline node.  The shared world
     # graph stays complete; repeated visits only change this local importance.
     importance: float = 0.35
+    metadata: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

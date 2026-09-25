@@ -140,6 +140,7 @@ def _place(raw: Any) -> WorldPlace:
         aliases=_texts(value, "aliases"),
         description=_text(value, "description"),
         status=_status(value, "status"),
+        metadata=_metadata(value.get("metadata", {})),
     )
 
 
@@ -261,6 +262,9 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
             raw_policy, "seed_algorithm", "blake2b-labeled-v1"
         ),
         normal_episode_minimum=_optional_int(raw_policy, "normal_episode_minimum", 5),
+        candidate_proposal_count=_optional_int(
+            raw_policy, "candidate_proposal_count", 96
+        ),
     )
 
 
@@ -548,6 +552,8 @@ def _validate_catalogs(
 def _validate_policy(policy: GenerationPolicy) -> None:
     if policy.normal_episode_minimum < 1:
         raise ValueError("normal_episode_minimum 必须为正整数")
+    if policy.candidate_proposal_count < 1:
+        raise ValueError("candidate_proposal_count 必须为正整数")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]
@@ -675,6 +681,31 @@ def _variant_pairs(value: Any) -> tuple[tuple[str, str], ...]:
             raise ValueError("statement_variants 必须是非空字符串映射")
         result.append((key, item.strip()))
     return tuple(result)
+
+
+def _metadata(value: Any) -> tuple[tuple[str, str], ...]:
+    """Decode optional public place attributes without accepting nested data."""
+
+    if value in ({}, None):
+        return ()
+    if not isinstance(value, Mapping):
+        raise TypeError("metadata 必须是对象")
+    result: list[tuple[str, str]] = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("metadata key 必须是非空字符串")
+        if isinstance(item, bool):
+            rendered = "true" if item else "false"
+        elif isinstance(item, (str, int, float)):
+            rendered = str(item)
+        elif isinstance(item, (list, tuple)) and all(
+            isinstance(member, str) and member.strip() for member in item
+        ):
+            rendered = ",".join(str(member).strip() for member in item)
+        else:
+            raise TypeError("metadata value 必须是标量或字符串数组")
+        result.append((key.strip(), rendered))
+    return tuple(sorted(result))
 
 
 def _int_pair(

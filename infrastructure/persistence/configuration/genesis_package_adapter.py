@@ -135,6 +135,9 @@ def decode_genesis_package(
             seed_algorithm=_text(reproducibility, "algorithm"),
             normal_episode_minimum=_integer(policy_episodes, "normal_minimum"),
             medium_knowledge_probability=medium_probability,
+            candidate_proposal_count=_integer(
+                candidate_rules, "existing_engine_proposals_per_role"
+            ),
             candidate_minimum_age_years=_integer(
                 candidate_rules, "integer_age_minimum"
             ),
@@ -268,6 +271,13 @@ def _geography_place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPla
     elif place_id == "skyreach_square":
         kind = "settlement_shared_space"
     label = _text(item, "name")
+    metadata = []
+    access = _text(item, "access", required=False)
+    if access:
+        metadata.append(("access", access))
+    range_semantics = _text(item, "range_semantics", required=False)
+    if range_semantics:
+        metadata.append(("range_semantics", range_semantics))
     return WorldPlace(
         place_id=place_id,
         version=1,
@@ -277,6 +287,7 @@ def _geography_place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPla
         aliases=region_aliases,
         description=_text(item, "description", required=False) or label,
         status="active",
+        metadata=tuple(metadata),
     )
 
 
@@ -357,17 +368,45 @@ def _population(geography: Mapping[str, Any]) -> SpatialPopulationModel:
 def _region_places(geography: Mapping[str, Any]) -> tuple[WorldPlace, ...]:
     regions = _mapping(geography["regions"], "regions")
     return tuple(
-        WorldPlace(
-            place_id=str(region_id),
-            version=1,
-            label=_text(_mapping(raw, f"regions.{region_id}"), "name"),
-            kind="geographic_region",
-            parent_id=_text(_mapping(raw, f"regions.{region_id}"), "parent_place_id"),
-            aliases=(),
-            description=_text(_mapping(raw, f"regions.{region_id}"), "name"),
-            status="active",
-        )
+        _region_place(region_id, _mapping(raw, f"regions.{region_id}"))
         for region_id, raw in sorted(regions.items())
+    )
+
+
+def _region_place(region_id: str, raw: Mapping[str, Any]) -> WorldPlace:
+    label = _text(raw, "name")
+    terrain = _text(raw, "terrain", required=False)
+    macro_region = _text(raw, "macro_region", required=False)
+    allowed_species = _strings(raw, "allowed_species", default=())
+    habitable = bool(raw.get("habitable", False))
+    birth_eligible = bool(raw.get("birth_eligible", False))
+    description_parts = [label]
+    if terrain:
+        description_parts.append(f"地貌：{terrain}")
+    if allowed_species:
+        description_parts.append(f"居住物种：{'、'.join(allowed_species)}")
+    description_parts.append("可出生" if birth_eligible else "不可作为出生地")
+    metadata = tuple(
+        sorted(
+            (
+                ("terrain", terrain),
+                ("macro_region", macro_region),
+                ("resident_species", "、".join(allowed_species)),
+                ("habitable", "true" if habitable else "false"),
+                ("birth_eligible", "true" if birth_eligible else "false"),
+            )
+        )
+    )
+    return WorldPlace(
+        place_id=str(region_id),
+        version=1,
+        label=label,
+        kind="geographic_region",
+        parent_id=_text(raw, "parent_place_id"),
+        aliases=(),
+        description="；".join(description_parts),
+        status="active",
+        metadata=metadata,
     )
 
 

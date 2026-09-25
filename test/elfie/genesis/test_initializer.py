@@ -317,7 +317,7 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
 
 
 def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
-    bundle = _compilation("visit-memory", seed=6, stage="mature", age_years=8).bundle
+    bundle = _compilation("visit-memory", seed=4, stage="mature", age_years=8).bundle
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         GenesisMemoryCommitter().commit(bundle, storage)

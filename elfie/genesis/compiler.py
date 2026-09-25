@@ -1940,6 +1940,7 @@ class GenesisCompiler:
                     description=place.description,
                     source_ref=f"place:{place.place_id}",
                     importance=importance,
+                    metadata=place.metadata,
                 )
             )
         if request.arrival_base_id not in place_by_id:

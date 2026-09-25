@@ -732,6 +732,7 @@ class GenesisMemoryCommitter:
                         "visibility": place.visibility,
                         "source_ref": place.source_ref,
                         "aliases": list(place.aliases),
+                        "metadata": dict(place.metadata),
                     },
                 ),
             )
