@@ -1,8 +1,8 @@
 # Elfie Memory Debug Workspace: Final Design
 
 > Status: design baseline reviewed in this cycle; this does not claim current source conformance
-> Version: v1.1
-> Updated: 2026-09-24
+> Version: v1.2
+> Updated: 2026-09-25
 > Owner: Elfie / Brain / Memory / Developer Tools
 > Parent design: [Brain ten-system architecture](./elfie-brain-ten-system-architecture)
 > Child design: none
@@ -96,10 +96,12 @@ second fact source from raw rows. Every selection uses the same compact order:
 Node detail uses the registered attribute groups for `elfie`/`person`, `group`, `place`, `object`,
 `knowledge`, `event` and `self_model`. Assertion detail shows one readable sentence, endpoint roles,
 direction or symmetry, valid time, polarity, epistemic status, importance, confidence, conflicts
-and Evidence. Episode detail shows the original content first, then participants/place/context,
-affected Nodes and Assertions, and may collapse the same content visually for long records. A
-legacy summary is metadata, never an Episode title. Evidence detail leads with
-the excerpt or media preview and then shows its source and supported, contradicted or contextual
+and Evidence. Episode detail shows a non-empty `summary_text` as a concise, read-only display
+headline, then the complete original content, time and precision, provenance, experience type,
+consolidation progress, detail level, participants/place/context, and affected Nodes and Assertions.
+When no summary is available, a content excerpt may be used as the display headline; it is not a
+stored or editable title and never replaces the full content. Evidence detail leads with the
+excerpt or media preview and then shows its source and supported, contradicted or contextual
 Assertions. A reusable graph `event` Node links back to its supporting Episode and never duplicates the full story.
 
 The projection has a typed selection union (`NodeDetail`, `AssertionDetail`, `EpisodeDetail` or
@@ -108,6 +110,35 @@ Tools read model; the upper Memory/Recall interface and the SQLite authority rem
 Unknown fields are shown as unknown or in technical details, never guessed. The canvas legend
 names semantic Node types and source/relationship meaning; it does not explain primitive shapes as
 the primary legend.
+
+### 2.3 Episode source-card hierarchy
+
+Episode source cards have three information levels:
+
+1. **Card:** show the Episode's evidenced occurrence/acquisition time first, following Memory's
+   time meaning and precision; display unknown time as unknown rather than inventing a date. Use
+   non-empty `summary_text` as the concise display
+   headline; otherwise use a bounded excerpt of the original content. The next line shows the
+   localized experience type and observed consolidation progress as separate values. Do not put
+   Memory lifecycle status on the card, and do not expose raw enum identifiers or invent a second
+   UI taxonomy.
+2. **Hover/focus:** reveal the full summary and content, time/precision, experience type,
+   provenance/source attribution, consolidation progress and content detail level. This must also
+   be reachable through keyboard focus. Missing values remain explicitly unknown or unavailable.
+3. **Selected detail:** retain all of the above and add linked people, places, topics, Nodes,
+   Assertions and Evidence, plus persisted importance/emotion or other supported attributes.
+   Technical IDs and hashes remain collapsed. Only facts present in the read-only projection may
+   be shown.
+
+The summary is a display synopsis, not a separate Episode title field, and the UI never edits it.
+Memory's summarization step should normally provide a concise summary when supported by the source;
+an absent summary remains valid, and the UI must not invent one.
+Experience type describes what happened or how knowledge was acquired; Genesis or another source
+attribution is provenance, not an experience type. Consolidation progress is operational state,
+not Episode meaning or Memory lifecycle. The rail displays only Episodes supplied by the current
+library/Recall projection and does not independently decide Recall eligibility. Memory Architecture
+owns the experience-type vocabulary, stored field semantics, and Recall lifecycle policy; this
+workspace defines only their read-only presentation.
 
 ## 3. Layout and interaction
 

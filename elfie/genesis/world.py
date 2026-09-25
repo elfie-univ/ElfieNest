@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from elfie.brain.memory.memory_records import EpisodeEventKind
+
 from .contracts import KnowledgeLevel, MemoryCertainty
 
 SourcePackageStatus = Literal["draft", "published", "retired"]
@@ -100,6 +102,7 @@ class EpisodeTheme:
     """Generator-only bounded skeleton for one personal episode."""
 
     theme_id: str
+    event_kind: EpisodeEventKind
     label: str
     weight: float
     life_stages: tuple[str, ...]

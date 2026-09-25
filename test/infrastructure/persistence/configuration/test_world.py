@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
+import yaml
 
 from infrastructure.persistence.configuration.documents import (
     resolve_bundled_config_root,
@@ -20,7 +23,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v3"
+    assert package.package_version == "elfaria-genesis.v4"
     assert package.manifest.status == "published"
     assert len(package.manifest.member_ids) == 18
     assert len(package.knowledge) == 160
@@ -43,6 +46,32 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
         ("lakeheart_isle", "in_center_of", "clearheart_lake"),
         ("undercity_gate", "public_entrance_to", "undercity"),
     }
+
+
+def test_genesis_source_rejects_unregistered_experience_kinds(tmp_path: Path) -> None:
+    config_root = tmp_path / "config"
+    shutil.copytree(resolve_bundled_config_root() / "genesis", config_root / "genesis")
+    program_path = config_root / "genesis" / "program.yaml"
+    document = yaml.safe_load(program_path.read_text(encoding="utf-8"))
+    document["rules"]["episode_themes"]["themes"][0]["event_kind"] = "reset"
+    canonical = dict(document)
+    manifest = dict(document["manifest"])
+    manifest.pop("content_sha256")
+    canonical["manifest"] = manifest
+    document["manifest"]["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            canonical,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    program_path.write_text(
+        yaml.safe_dump(document, allow_unicode=True), encoding="utf-8"
+    )
+
+    with pytest.raises(GenesisSourcePackageError, match="event_kind 无效"):
+        load_genesis_source_package(root=config_root)
 
 
 def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:

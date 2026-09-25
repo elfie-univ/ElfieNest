@@ -214,6 +214,15 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
         "departure-decision",
         "arrival-nest",
     }
+    assert {item["id"]: item["event_kind"] for item in episodes["themes"]} == {
+        "early-home": "outing",
+        "learning-path": "learning",
+        "shared-space-choice": "activity",
+        "craft-practice": "learning",
+        "rain-route": "outing",
+        "departure-decision": "life_event",
+        "arrival-nest": "life_event",
+    }
 
 
 @pytest.mark.parametrize(

@@ -33,6 +33,7 @@ from elfie.brain.memory import MemorySystem, RecallRequest, render_recall_bundle
 from elfie.brain.memory.memory_records import (
     ClosedEpisode,
     ConsolidationRequest,
+    EpisodeMaintenanceStatus,
     RecallAssertion,
     RecallEvidence,
     RecallNode,
@@ -373,6 +374,7 @@ def _inspection_checks(
     nodes: Sequence[RecallNode],
     assertions: Sequence[RecallAssertion],
     episodes: Sequence[ClosedEpisode],
+    maintenance_statuses: Mapping[str, EpisodeMaintenanceStatus],
     confidence_threshold: float,
 ) -> dict[str, Any]:
     node_ids = {node.node_id for node in nodes}
@@ -427,7 +429,9 @@ def _inspection_checks(
     pending_ids = [
         episode.episode_id
         for episode in episodes
-        if episode.projection_revision is None
+        if not _has_current_projection(
+            episode, maintenance_statuses.get(episode.episode_id)
+        )
     ]
 
     checks = [
@@ -488,12 +492,12 @@ def _inspection_checks(
             else "这些标签可能是同名实体的自动消歧结果，需要人工确认",
         },
         {
-            "name": "episodes_without_projection_revision",
+            "name": "episodes_without_current_projection",
             "status": "pass" if not pending_ids else "review",
             "count": len(pending_ids),
-            "detail": "所有 Episode 都有整理版本"
+            "detail": "所有 Episode 都有当前来源的整理回执"
             if not pending_ids
-            else "这些 Episode 还没有 projection_revision",
+            else "这些 Episode 尚无匹配当前来源的整理回执",
         },
     ]
     return {
@@ -504,8 +508,52 @@ def _inspection_checks(
         "low_confidence_nodes": low_confidence_nodes,
         "duplicate_labels": duplicate_labels,
         "possible_disambiguated_labels": possible_disambiguated_labels,
-        "episodes_without_projection_revision": pending_ids,
+        "episodes_without_current_projection": pending_ids,
     }
+
+
+def _has_current_projection(
+    episode: ClosedEpisode, status: EpisodeMaintenanceStatus | None
+) -> bool:
+    return bool(
+        status is not None
+        and status.state == "completed"
+        and status.source_version == episode.source_version
+        and status.source_sha256 == episode.content_sha256
+        and status.projection_revision
+    )
+
+
+def _episode_maintenance_projection(
+    episode: ClosedEpisode, status: EpisodeMaintenanceStatus | None
+) -> dict[str, Any]:
+    if (
+        status is None
+        or status.source_version != episode.source_version
+        or status.source_sha256 != episode.content_sha256
+        or (status.state == "completed" and not status.projection_revision)
+    ):
+        return {"state": "unknown", "attempts": None, "updated_at": None}
+    return {
+        "state": status.state,
+        "attempts": status.attempts,
+        "updated_at": status.updated_at,
+        "next_attempt_at": status.next_attempt_at,
+    }
+
+
+def _load_episode_maintenance_statuses(
+    store: SQLiteMemoryStoreAdapter,
+    episodes: Sequence[ClosedEpisode],
+) -> dict[str, EpisodeMaintenanceStatus]:
+    statuses: dict[str, EpisodeMaintenanceStatus] = {}
+    episode_ids = tuple(episode.episode_id for episode in episodes)
+    for offset in range(0, len(episode_ids), 800):
+        for status in store.list_episode_maintenance_statuses(
+            episode_ids[offset : offset + 800]
+        ):
+            statuses[status.episode_id] = status
+    return statuses
 
 
 def build_inspection_report(
@@ -533,6 +581,7 @@ def build_inspection_report(
             "Memory 在分页期间发生变化；当前读取边界已过期，请重新加载"
         )
     all_episodes = store.list_episodes(limit=MAX_READ_LIMIT, include_forgotten=True)
+    maintenance_statuses = _load_episode_maintenance_statuses(store, all_episodes)
     all_nodes = store.list_graph_nodes(limit=MAX_READ_LIMIT)
     all_assertions = store.list_graph_assertions(limit=MAX_READ_LIMIT)
     all_evidence = store.list_memory_evidence(limit=MAX_READ_LIMIT)
@@ -658,6 +707,14 @@ def build_inspection_report(
     episode_source_counts = Counter(
         _episode_source(episode) or "<none>" for episode in all_episodes
     )
+    projected_episodes = []
+    for episode in page_episodes:
+        projected = _plain(episode)
+        projected["maintenance"] = _episode_maintenance_projection(
+            episode, maintenance_statuses.get(episode.episode_id)
+        )
+        projected_episodes.append(projected)
+
     report: dict[str, Any] = {
         "format": "elfienest.memory-audit.v1",
         "generated_at": generated_at,
@@ -707,13 +764,14 @@ def build_inspection_report(
             nodes=all_nodes,
             assertions=all_assertions,
             episodes=all_episodes,
+            maintenance_statuses=maintenance_statuses,
             confidence_threshold=confidence_threshold,
         ),
         "data": {
             "nodes": [_plain(node) for node in page_nodes],
             "context_nodes": [_plain(node) for node in context_nodes],
             "assertions": [_plain(assertion) for assertion in page_assertions],
-            "episodes": [_plain(episode) for episode in page_episodes],
+            "episodes": projected_episodes,
             "evidence": [_plain(item) for item in page_evidence],
         },
     }
@@ -1172,7 +1230,7 @@ def build_add_episode_preview(
         summary_text=summary_text.strip()
         if summary_text and summary_text.strip()
         else None,
-        event_kind="developer_preview",
+        event_kind="unclassified",
         metadata={"developer_preview": True, "operation_id": operation_id},
     )
     status = "failed"

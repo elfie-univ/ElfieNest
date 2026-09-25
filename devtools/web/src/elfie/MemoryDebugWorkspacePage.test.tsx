@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeCardTooltip, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
 
 describe("记忆调试工作台", () => {
   it("要求相机只在按住拖动时旋转，并使用更稳定的 Orbit 控制", () => {
@@ -108,11 +108,35 @@ describe("记忆调试工作台", () => {
       .map((episode) => episode.episode_id)).toEqual(["earlier", "later"]);
     expect(filterMemoryDebugEpisodes(episodes, "all")
       .map((episode) => episode.episode_id)).toEqual(["miss", "earlier", "later"]);
+    expect(filterMemoryDebugEpisodes([
+      { episode_id: "unknown-time", temporal_label: "before_arrival" },
+      { episode_id: "later", occurred_from: "2026-09-03" },
+      { episode_id: "earlier", occurred_from: "2026-09-02" },
+    ], "all").map((episode) => episode.episode_id)).toEqual(["earlier", "later", "unknown-time"]);
   });
 
   it("把 Episode 的发生时间转换为可读的时间线标签", () => {
     expect(formatEpisodeTime({ occurred_from: "2026-09-18T14:32:00Z" })).toMatch(/^2026-09-18/);
+    expect(formatEpisodeTime({ temporal_label: "抵达前" })).toBe("抵达前（具体时间未记录）");
     expect(formatEpisodeTime({})).toBe("时间未记录");
+  });
+
+  it("Episode 悬停提示只显示独立摘要和完整正文", () => {
+    const tooltip = episodeCardTooltip({
+      episode_id: "episode-card",
+      summary_text: "  ",
+      content_text: "第一段完整正文。第二段完整正文。",
+      event_kind: "conversation",
+      attribution: "observed",
+      occurrence_precision: "range",
+      source_refs: [{ source_kind: "conversation", source_id: "chat-7" }],
+      maintenance: { state: "completed", attempts: 1 },
+      lifecycle: "archived",
+    });
+
+    expect(tooltip).toBe("标题：（空）\n正文：第一段完整正文。第二段完整正文。");
+    expect(episodeCardTooltip({ summary_text: "和朋友重新约定分工", content_text: "故事正文" }))
+      .toBe("标题：和朋友重新约定分工\n正文：故事正文");
   });
 
   it("从实际 Episode 卡片边界计算 Evidence 追踪线起点", () => {

@@ -1,6 +1,6 @@
 # Complete Genesis design
 
-> Status: accepted target design, version 1.0, 2026-09-25. The two phases, three preparation steps and five individual-generation steps remain intact. Implementation and verification gaps are tracked in ELF-019; acceptance of this design does not assert implementation completion.
+> Status: accepted target design, version 1.1, 2026-09-25. The two phases, three preparation steps and five individual-generation steps remain intact. Implementation and verification gaps are tracked in ELF-019; acceptance of this design does not assert implementation completion.
 
 **Design relations:**
 
@@ -570,6 +570,12 @@ World knowledge comes from the resident catalog. Personal knowledge comes from k
 Check full text and eligibility per unit: actual residence for regional conditions; passing/seeing/entry/use and actual segments for places/routes; real learning/capability for vocations; distinct training, departure and arrival states for Earth/new-home facts. Titles, place-name mentions and keywords cannot grant eligibility. Apprenticeship completion is not mastery of all professional knowledge.
 
 Each unit retains complete text, stable identity, source boundary, acquisition time or explicitly unknown time, and related person/place/episode references. Cover all unlabeled basic knowledge by admission completion; unknown-time knowledge cannot prove earlier skills. Difficulty values come from the source. One stable value per knowledge ID survives repeated visits, backtracking and story rewriting. Failed intermediate conditions invalidate dependencies without inventing a life to obtain desired knowledge.
+
+At Memory handoff, keep provenance separate from the Episode's experience type. Genesis is provenance; it is not itself a type such as `genesis_knowledge_episode`. A `KnowledgeSeed` representing acquired knowledge uses the registered `learning` kind; a personal `EpisodeSeed` uses the kind that describes its lived event. Initialization is never an experience kind. Preserve only evidenced acquisition/occurrence time: Genesis bundle or submission time is not the time the knowledge was acquired. If no time is supported, pass it as explicitly unknown; do not manufacture a birth or creation timestamp. Memory Architecture owns the registered vocabulary and its existing `event_kind` representation; this decision adds no duplicate source or title field.
+
+The Genesis Program declares the supported `event_kind` on each `EpisodeTheme`, and compilation carries that value through `EpisodeSeed` into the persisted Episode. The current Program v4 maps themes to `outing`, `learning`, `activity` or `life_event`; a `KnowledgeSeed` uses `learning`. Theme names, source labels and initialization state are never substituted for the experience kind, and unsupported values fail validation before Memory writes.
+
+For a personal `EpisodeSeed`, an available `result` or `impact` is passed to the optional Episode `summary_text`; the complete seed wording remains `content_text`. A `KnowledgeSeed` has no separate synopsis in the current path and leaves `summary_text` empty. This does not claim that the live conversation-close path generates a model synopsis.
 
 History/stories can use knowledge available at the event's time. Recheck eligibility and text against final actual facts. Missing required initial knowledge cannot be deferred to nightly consolidation.
 

@@ -8,6 +8,9 @@ import { CanvasTexture, Sprite, SpriteMaterial } from "three";
 import "./memory-debug-workspace.css";
 import {
   projectAssertionDetail,
+  episodeCardDisplayTitle,
+  episodeEventKindLabel,
+  episodeMaintenanceLabel,
   projectEpisodeDetail,
   projectEvidenceDetail,
   projectNodeDetail,
@@ -276,7 +279,13 @@ function endpointId(endpoint: unknown): string {
 }
 export function formatEpisodeTime(record: AuditRecord): string {
   const value = record.occurred_from ?? record.occurred_at ?? record.occurred_to;
-  if (value == null || value === "") return "时间未记录";
+  if (value == null || value === "") {
+    const temporalLabel = String(record.temporal_label ?? "").trim();
+    if (!temporalLabel) return "时间未记录";
+    const translated = ({ before_arrival: "抵达前", on_arrival: "抵达时", arrival: "抵达时" } as Record<string, string>)[temporalLabel];
+    const label = translated ?? (/[㐀-鿿]/.test(temporalLabel) ? temporalLabel : "");
+    return label ? `${label}（具体时间未记录）` : "时间未记录";
+  }
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat("zh-CN", {
@@ -287,6 +296,15 @@ export function formatEpisodeTime(record: AuditRecord): string {
     minute: "2-digit",
     hour12: false,
   }).format(date).replace(/\//g, "-");
+}
+
+export function episodeCardTooltip(record: AuditRecord): string {
+  const summary = String(record.summary_text ?? "").trim() || "（空）";
+  const content = String(record.content_text ?? "") || "（空）";
+  return [
+    `标题：${summary}`,
+    `正文：${content}`,
+  ].join("\n");
 }
 
 export function recallGraphProjectionFilters(
@@ -329,8 +347,23 @@ export function filterMemoryDebugEpisodes(
       if (recalledEpisodeIds && !recalledEpisodeIds.has(String(episode.episode_id ?? ""))) return false;
       return true;
     })
-    .sort((left, right) => String(left.occurred_from ?? left.occurred_at ?? left.episode_id)
-      .localeCompare(String(right.occurred_from ?? right.occurred_at ?? right.episode_id)));
+    .sort((left, right) => {
+      const leftTime = episodeSortTime(left);
+      const rightTime = episodeSortTime(right);
+      if (leftTime === null && rightTime !== null) return 1;
+      if (leftTime !== null && rightTime === null) return -1;
+      if (leftTime !== null && rightTime !== null && leftTime !== rightTime) {
+        return leftTime - rightTime;
+      }
+      return String(left.episode_id ?? "").localeCompare(String(right.episode_id ?? ""));
+    });
+}
+
+function episodeSortTime(episode: AuditRecord): number | null {
+  const value = episode.occurred_from ?? episode.occurred_at ?? episode.occurred_to;
+  if (value == null || value === "") return null;
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function mergeRecords(records: AuditRecord[], incoming: AuditRecord[], key: string): AuditRecord[] {
@@ -1488,12 +1521,12 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           <div className="memory-debug-memory-cards" aria-label="Episode 时间线">{visibleEpisodes.map((episode) => {
             const episodeId = String(episode.episode_id);
             const isSelected = selectedEpisodeId === episodeId;
-            const summary = String(episode.content_text ?? episode.episode_id);
-            const evidenceCount = (report?.data.evidence ?? []).filter((item) => String(item.source_id ?? "") === episodeId).length;
-            return <button ref={(element) => { if (element) episodeCardRefs.current.set(episodeId, element); else episodeCardRefs.current.delete(episodeId); }} className={isSelected ? "is-active" : ""} key={episodeId} title={summary} onClick={() => showEpisode(episodeId)} aria-pressed={isSelected}>
+            const summary = episodeCardDisplayTitle(episode);
+            const details = episodeCardTooltip(episode);
+            return <button ref={(element) => { if (element) episodeCardRefs.current.set(episodeId, element); else episodeCardRefs.current.delete(episodeId); }} className={isSelected ? "is-active" : ""} key={episodeId} title={details} aria-label={details} onClick={() => showEpisode(episodeId)} aria-pressed={isSelected}>
               <span className="memory-debug-episode-time">{formatEpisodeTime(episode)}</span>
               <strong className="memory-debug-episode-title">{summary}</strong>
-              <span className="memory-debug-episode-meta">{recordText(episode, "event_kind", "Episode")} · {recordText(episode, "lifecycle", "unknown")} · {evidenceCount} Evidence</span>
+              <span className="memory-debug-episode-meta">{episodeEventKindLabel(episode.event_kind)} · {episodeMaintenanceLabel(episode)}</span>
             </button>;
           })}</div>
           <div
@@ -1617,7 +1650,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
             <InspectorConnections connections={selectedEpisodeProjection.connections} />
             <h4>来源证据 · {selectedEpisodeEvidence.length}</h4>
             {selectedEpisodeEvidence.length ? selectedEpisodeEvidence.map((item) => <button className="memory-debug-evidence-card" type="button" key={String(item.evidence_id)} onClick={() => showEvidence(String(item.evidence_id))}><strong>{String(item.evidence_id)}</strong><span>{String(item.excerpt ?? "没有摘录")}</span><small>{String(item.modality ?? "text")} · {String(item.attribution ?? item.stance ?? "未标注")} · {String(item.source_reliability_class ?? "可靠性未记录")}</small></button>) : <p>当前 Episode 尚未关联可见 Evidence。</p>}
-            <details className="memory-debug-content-details"><summary>展开完整 Episode 正文</summary><p className="memory-debug-long-content">{selectedEpisodeProjection.content}</p></details>
+            <h4>完整经历正文</h4><p className="memory-debug-long-content">{selectedEpisodeProjection.content}</p>
             <details className="memory-debug-raw-details"><summary>技术详情</summary><InspectorFieldGrid fields={projectedFields(selectedEpisodeProjection.technical)} /><div className="memory-debug-detail-list">{selectedEpisodeSourceRefs.map((source, index) => <div key={String(source.source_id ?? index)}><span>{recordText(source, "source_kind", "source")}</span><strong>{recordText(source, "source_id")}{source.locator ? ` · ${String(source.locator)}` : ""}</strong></div>)}</div></details>
           </> : detailSelection === "edge" && selectedEdge && selectedAssertionProjection ? <>
             <InspectorHeaderSummary header={selectedAssertionProjection.header} className="memory-debug-relation-type" />

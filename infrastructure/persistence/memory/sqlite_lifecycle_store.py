@@ -49,7 +49,7 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
 
     def _lifecycle_episode_rows_locked(self) -> list[sqlite3.Row]:
         scope = ""
-        params: list[object] = []
+        params: list[object] = [str(getattr(self, "elfie_id", None) or "")]
         if getattr(self, "elfie_id", None) is not None:
             scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
             params.append(str(self.elfie_id))
@@ -57,6 +57,11 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
         params.extend(visibility_params)
         return self.conn.execute(
             """SELECT e.*,
+                      CASE WHEN mm.state='completed'
+                                  AND mm.source_version IS e.source_version
+                                  AND mm.source_hash=e.content_sha256
+                                  AND mm.projection_revision IS NOT NULL
+                           THEN 1 ELSE 0 END AS projection_current,
                       (SELECT COUNT(*) FROM evidence AS ev
                         WHERE ev.source_type='episode' AND ev.source_id=e.episode_id) AS evidence_count,
                       (SELECT COUNT(*) FROM evidence AS ev
@@ -64,6 +69,9 @@ class SQLiteLifecycleStoreMixin(SQLiteMemoryMixinBase):
                           AND (ev.source_sha256 IS NULL OR ev.source_sha256 <> e.content_sha256))
                         AS ungrounded_evidence_count
                  FROM episodes AS e
+                 LEFT JOIN memory_maintenance AS mm
+                   ON mm.elfie_id=? AND mm.stage='consolidation'
+                  AND mm.target_id=e.episode_id
                 WHERE e.lifecycle <> 'forgotten'"""
             + scope
             + " AND "
@@ -555,10 +563,7 @@ def _episode_transition(
             f"[forgotten:{row['content_sha256']}]",
             None,
         )
-    projected = (
-        row["projection_revision"] is not None
-        and row["projection_source_sha256"] == row["content_sha256"]
-    )
+    projected = bool(row["projection_current"])
     if not projected or lifecycle != "active":
         return None
     if detail == "full" and freshness <= MemoryScorePolicy.compress_freshness_threshold:
@@ -632,10 +637,7 @@ def _can_forget_episode(row: sqlite3.Row, freshness: float, now: str) -> bool:
     """Apply source/evidence safety before writing a logical forget marker."""
     if str(row["detail_level"]) != "digest":
         return False
-    if (
-        row["projection_revision"] is None
-        or row["projection_source_sha256"] != row["content_sha256"]
-    ):
+    if not bool(row["projection_current"]):
         return False
     if (
         int(row["evidence_count"] or 0) < 1

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 7
+SCHEMA_VERSION: Final[int] = 8
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -41,8 +41,11 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
             CHECK (occurrence_precision IN ('exact', 'range', 'unknown')),
         content_text TEXT NOT NULL CHECK (length(trim(content_text)) > 0),
         summary_text TEXT,
-        event_kind TEXT NOT NULL DEFAULT 'interaction'
-            CHECK (length(trim(event_kind)) > 0),
+        event_kind TEXT NOT NULL DEFAULT 'unclassified'
+            CHECK (event_kind IN (
+                'conversation', 'activity', 'outing', 'learning', 'life_event',
+                'observation', 'reflection', 'unclassified'
+            )),
         source_refs_json TEXT NOT NULL DEFAULT '[]'
             CHECK (json_valid(source_refs_json)),
         media_refs_json TEXT NOT NULL DEFAULT '[]'
@@ -70,17 +73,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
             CHECK (detail_level IN ('full', 'compressed', 'digest', 'incomplete')),
         lifecycle TEXT NOT NULL DEFAULT 'active'
             CHECK (lifecycle IN ('active', 'archived', 'forgotten')),
-        consolidation_state TEXT NOT NULL DEFAULT 'pending'
-            CHECK (consolidation_state IN ('pending', 'processing', 'consolidated', 'failed')),
-        consolidation_attempts INTEGER NOT NULL DEFAULT 0
-            CHECK (consolidation_attempts >= 0),
-        next_attempt_at TEXT,
-        lease_owner TEXT,
-        lease_until TEXT,
         content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
-        projection_revision TEXT,
-        projection_source_sha256 TEXT
-            CHECK (projection_source_sha256 IS NULL OR length(projection_source_sha256) = 64),
         last_reinforced_at TEXT,
         last_reviewed_at TEXT,
         next_review_at TEXT,
@@ -312,6 +305,9 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         lease_owner TEXT,
         lease_until TEXT,
         last_error TEXT,
+        source_version TEXT,
+        source_hash TEXT CHECK (source_hash IS NULL OR length(source_hash) = 64),
+        projection_revision TEXT,
         checkpoint_json TEXT NOT NULL DEFAULT '{}'
             CHECK (json_valid(checkpoint_json)),
         updated_at TEXT NOT NULL,
@@ -405,12 +401,11 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
 )
 
 INDEX_SQL: Final[tuple[str, ...]] = (
-    "CREATE INDEX IF NOT EXISTS idx_episodes_lifecycle_attempt ON episodes(lifecycle, consolidation_state, next_attempt_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_lifecycle ON episodes(lifecycle, next_review_at)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_time ON episodes(occurred_from, occurred_to, occurrence_precision)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_hash ON episodes(content_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_review ON episodes(lifecycle, next_review_at, importance)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_retention ON episodes(lifecycle, half_life_days, last_reinforced_at)",
-    "CREATE INDEX IF NOT EXISTS idx_episodes_projection ON episodes(projection_revision, projection_source_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_stage ON episodes(life_stage, temporal_label)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_label_type ON nodes(normalized_label, node_type, status)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_merged_into ON nodes(merged_into)",
@@ -438,6 +433,7 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",
     "CREATE INDEX IF NOT EXISTS idx_genesis_submission_elfie ON memory_genesis_submissions(elfie_id, manifest_id)",
     "CREATE INDEX IF NOT EXISTS idx_maintenance_due ON memory_maintenance(elfie_id, stage, state, next_attempt_at)",
+    "CREATE INDEX IF NOT EXISTS idx_maintenance_projection ON memory_maintenance(elfie_id, stage, target_id, source_version, source_hash, projection_revision)",
     "CREATE INDEX IF NOT EXISTS idx_diagnostics_episode ON projection_diagnostics(elfie_id, episode_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_importance_events_target ON memory_importance_events(elfie_id, target_kind, target_id, occurred_at)",
     "CREATE INDEX IF NOT EXISTS idx_retention_receipts_target ON memory_retention_receipts(elfie_id, target_kind, target_id, occurred_at)",

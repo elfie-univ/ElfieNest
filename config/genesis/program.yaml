@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v3
+program_version: elfaria-genesis.v4
 status: published
 sources:
   world:
@@ -22,7 +22,7 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v3
+  package_version: elfaria-genesis.v4
   status: published
   members:
   - path: knowledge/elfaria.yaml
@@ -119,7 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 69a11b2b2cc57ea8fe261b6388c8a1bd29238ea8dc80c0430950f58ce850f488
+  content_sha256: 36d28cf7a7fc143a6e599f99aa4fc4b671856c9fe70bfcae86736584351e4d34
 coverage:
   status: complete
   resident_source_ref: resident
@@ -617,6 +617,7 @@ rules:
       - outcome
       goal: 熟悉家附近的生活路径
       id: early-home
+      event_kind: outing
       impact: 遇到陌生地方时会先寻找熟悉的回去路线
       label: 归属
       life_stages:
@@ -643,6 +644,7 @@ rules:
       - outcome
       goal: 学会一项需要向有经验者请教的事情
       id: learning-path
+      event_kind: learning
       impact: 面对不懂的事会先承认边界，再向熟悉的人请教
       label: 学习
       life_stages:
@@ -669,6 +671,7 @@ rules:
       - outcome
       goal: 和别人一起处理一件日常事务
       id: shared-space-choice
+      event_kind: activity
       impact: 遇到协作分歧时会先确认约定，而不是直接猜测
       label: 协作
       life_stages:
@@ -695,6 +698,7 @@ rules:
       - outcome
       goal: 在熟悉的聚居地完成一项小责任
       id: craft-practice
+      event_kind: learning
       impact: 逐渐相信小的可靠行动也能改变关系
       label: 第一次责任
       life_stages:
@@ -721,6 +725,7 @@ rules:
       - outcome
       goal: 在雨水增多时沿熟悉路线往返
       id: rain-route
+      event_kind: outing
       impact: 天气变化时会先观察实际状况，再决定是否出行
       label: 雨季路线
       life_stages:
@@ -746,6 +751,7 @@ rules:
       - outcome
       goal: 在了解赴地边界后作出自己的选择
       id: departure-decision
+      event_kind: life_event
       impact: 重要决定要在知道边界后由自己确认
       label: 赴地决定
       life_stages:
@@ -772,6 +778,7 @@ rules:
       - outcome
       goal: 通过获准的设施抵达 ElfieNest
       id: arrival-nest
+      event_kind: life_event
       impact: 面对陌生设备和生活方式时会通过观察、接触和询问学习
       label: 抵达
       life_stages:

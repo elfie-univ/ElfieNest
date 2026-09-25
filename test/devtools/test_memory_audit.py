@@ -228,6 +228,34 @@ def test_empty_inspection_is_complete_zero_state_not_read_failure() -> None:
     )
 
 
+def test_inspection_projects_episode_consolidation_progress_separately() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-progress") as store:
+        store.record_episode(
+            ClosedEpisode(
+                "episode-progress",
+                "episode-progress-key",
+                None,
+                "完整的来源正文",
+                summary_text="简短经历主题",
+                event_kind="life_event",
+                occurrence_precision="unknown",
+                source_version="seed-v2",
+            )
+        )
+
+        report = build_inspection_report(store, database="memory.sqlite")
+
+    episode = report["data"]["episodes"][0]
+    assert episode["summary_text"] == "简短经历主题"
+    assert episode["content_text"] == "完整的来源正文"
+    assert episode["maintenance"]["state"] == "pending"
+    assert episode["maintenance"]["attempts"] == 0
+    assert "consolidation_state" not in episode
+    assert report["checks"]["episodes_without_current_projection"] == [
+        "episode-progress"
+    ]
+
+
 def test_inspection_scope_excludes_other_elfie_and_includes_superseded_claims(
     tmp_path,
 ) -> None:

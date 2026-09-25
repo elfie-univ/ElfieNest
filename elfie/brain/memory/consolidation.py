@@ -123,7 +123,7 @@ class MemoryConsolidator:
         """
         self.storage.recover_expired_leases()
 
-        episodes = self.storage.claim_episodes(
+        claims = self.storage.claim_episodes(
             limit=request.max_episodes,
             owner=request.worker_id,
             lease_seconds=request.lease_seconds,
@@ -134,11 +134,13 @@ class MemoryConsolidator:
         nodes_created = 0
         assertions_created = 0
         evidence_created = 0
-        for episode in episodes:
+        for claim in claims:
+            episode = claim.episode
             try:
-                projection = self._projection_for_episode(
-                    episode,
-                    model_port,
+                projection = replace(
+                    self._projection_for_episode(episode, model_port),
+                    claim_owner=claim.owner,
+                    claim_attempt=claim.attempt,
                 )
                 receipt = self.storage.apply_consolidation(projection)
                 consolidated.append(episode.episode_id)
@@ -148,12 +150,11 @@ class MemoryConsolidator:
             except Exception as error:  # noqa: BLE001 - retryable worker boundary
                 message = str(error)
                 logger.warning("Episode consolidation failed: %s", error)
-                claim_owner, claim_attempt = _episode_claim(episode)
                 self.storage.mark_episode_failed(
                     episode.episode_id,
                     message,
-                    owner=claim_owner,
-                    attempt=claim_attempt,
+                    owner=claim.owner,
+                    attempt=claim.attempt,
                 )
                 failed.append(episode.episode_id)
                 errors[episode.episode_id] = message
@@ -202,12 +203,7 @@ class MemoryConsolidator:
             required=True,
         )
         if model_projection is not None:
-            claim_owner, claim_attempt = _episode_claim(episode)
-            return replace(
-                model_projection,
-                claim_owner=claim_owner,
-                claim_attempt=claim_attempt,
-            )
+            return model_projection
 
         assertions: list[AssertionInput] = []
         aliases: list[AliasInput] = []
@@ -267,8 +263,6 @@ class MemoryConsolidator:
             source_version=episode.source_version,
             source_sha256=episode.content_sha256
             or hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest(),
-            claim_owner=_episode_claim(episode)[0],
-            claim_attempt=_episode_claim(episode)[1],
         )
 
     @staticmethod
@@ -958,17 +952,6 @@ class MemoryConsolidator:
         # reusable knowledge Node needs a model-supplied title, context and
         # admission decision; ordinary text remains an Episode until then.
         return sorted(found, key=lambda item: (item[2], item[0]))
-
-
-def _episode_claim(episode: ClosedEpisode) -> tuple[str | None, int | None]:
-    """Read the storage-issued Episode claim token, if this is a claimed row."""
-    owner_value = episode.metadata.get("_memory_claim_owner")
-    attempt_value = episode.metadata.get("_memory_claim_attempt")
-    owner = str(owner_value).strip() if owner_value is not None else ""
-    attempt = _model_int(attempt_value)
-    if not owner or attempt is None or attempt < 1:
-        return None, None
-    return owner, attempt
 
 
 def _parse_json_object(value: str) -> dict[str, Any]:

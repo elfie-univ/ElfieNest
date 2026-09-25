@@ -31,7 +31,7 @@ from infrastructure.persistence.memory.sqlite_lifecycle_store import (
 from infrastructure.persistence.memory.sqlite_retrieval_store import (
     SQLiteRecallStoreMixin,
 )
-from infrastructure.persistence.memory.sqlite_utils import utc_now
+from infrastructure.persistence.memory.sqlite_utils import json_object, utc_now
 from infrastructure.persistence.nest_db.sqlite_connection import (
     UnsafeSQLitePathError,
     connect_app_sqlite,
@@ -572,6 +572,13 @@ class SQLiteMemoryStoreAdapter(
                 (),
             ),
             (
+                "SELECT target_id, state, source_version, source_hash, "
+                "projection_revision, attempts, updated_at "
+                "FROM memory_maintenance WHERE elfie_id=? "
+                "AND stage='consolidation' ORDER BY target_id",
+                (str(getattr(self, "elfie_id", None) or ""),),
+            ),
+            (
                 "SELECT assertion_id, evidence_id, stance, created_at "
                 "FROM assertion_evidence ORDER BY assertion_id, evidence_id",
                 (),
@@ -593,12 +600,17 @@ class SQLiteMemoryStoreAdapter(
             owns = self._begin_write_transaction()
             try:
                 self.conn.execute("DELETE FROM episodes_fts")
-                self.conn.execute(
-                    """INSERT INTO episodes_fts(episode_id, searchable_text)
-                       SELECT episode_id, content_text || CASE
-                           WHEN summary_text IS NULL THEN '' ELSE char(10) || summary_text END
-                         FROM episodes"""
-                )
+                episode_rows = self.conn.execute(
+                    "SELECT episode_id, content_text, summary_text, metadata_json "
+                    "FROM episodes ORDER BY episode_id"
+                ).fetchall()
+                for row in episode_rows:
+                    self._upsert_episode_fts_from_values(
+                        str(row["episode_id"]),
+                        str(row["content_text"]),
+                        row["summary_text"],
+                        json_object(row["metadata_json"]),
+                    )
                 self.conn.execute("DELETE FROM nodes_fts")
                 self._refresh_all_text_projections()
                 self._commit_write_transaction(owns)

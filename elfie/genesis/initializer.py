@@ -338,15 +338,6 @@ class GenesisMemoryCommitter:
         # graph star.
         for knowledge in bundle.knowledge_seeds:
             episode_id = _knowledge_episode_id(safe_elfie, knowledge.seed_id)
-            searchable_summary = "；".join(
-                dict.fromkeys(
-                    (
-                        knowledge.content,
-                        *knowledge.aliases,
-                        *knowledge.retrieval_terms,
-                    )
-                )
-            )
             storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
@@ -354,8 +345,8 @@ class GenesisMemoryCommitter:
                     occurred_from=None,
                     occurrence_precision="unknown",
                     content_text=knowledge.content,
-                    summary_text=searchable_summary,
-                    event_kind="genesis_knowledge_episode",
+                    summary_text=None,
+                    event_kind="learning",
                     source_refs=(
                         SourceReference(
                             source_id=knowledge.source_ref,
@@ -430,8 +421,8 @@ class GenesisMemoryCommitter:
                     occurred_to=seed.occurred_to,
                     occurrence_precision=precision,
                     content_text=seed.content,
-                    summary_text=seed.result or seed.impact or seed.content[:240],
-                    event_kind="genesis_personal_episode",
+                    summary_text=seed.result or seed.impact or None,
+                    event_kind=seed.event_kind,
                     source_refs=(source_ref,),
                     source_event_ids=(),
                     source_version=seed.source_version,

@@ -1165,8 +1165,14 @@ def test_failed_lifecycle_target_remains_retryable_with_the_prior_checkpoint(
                 )
             )
         store.connection.execute(
-            "UPDATE episodes SET projection_revision='fixture', "
-            "projection_source_sha256=content_sha256"
+            """UPDATE memory_maintenance AS mm
+                  SET state='completed',
+                      source_version=(SELECT source_version FROM episodes AS e
+                                      WHERE e.episode_id=mm.target_id),
+                      source_hash=(SELECT content_sha256 FROM episodes AS e
+                                   WHERE e.episode_id=mm.target_id),
+                      projection_revision='fixture'
+                WHERE stage='consolidation'"""
         )
         store.connection.commit()
 
@@ -1212,8 +1218,14 @@ def test_lifecycle_checkpoint_does_not_skip_failure_before_later_success(
                 )
             )
         store.connection.execute(
-            "UPDATE episodes SET projection_revision='fixture', "
-            "projection_source_sha256=content_sha256"
+            """UPDATE memory_maintenance AS mm
+                  SET state='completed',
+                      source_version=(SELECT source_version FROM episodes AS e
+                                      WHERE e.episode_id=mm.target_id),
+                      source_hash=(SELECT content_sha256 FROM episodes AS e
+                                   WHERE e.episode_id=mm.target_id),
+                      projection_revision='fixture'
+                WHERE stage='consolidation'"""
         )
         store.connection.commit()
 

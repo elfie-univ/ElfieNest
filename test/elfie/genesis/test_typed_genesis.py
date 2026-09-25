@@ -30,6 +30,19 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         for episode in compilation.bundle.episode_seeds
         if episode.theme_id == "arrival-nest"
     )
+    expected_event_kinds = {
+        "early-home": "outing",
+        "learning-path": "learning",
+        "shared-space-choice": "activity",
+        "craft-practice": "learning",
+        "rain-route": "outing",
+        "departure-decision": "life_event",
+        "arrival-nest": "life_event",
+    }
+    assert all(
+        expected_event_kinds[episode.theme_id] == episode.event_kind
+        for episode in compilation.bundle.episode_seeds
+    )
     assert arrival.place_ids == ("elfie_nest",)
     arrival_base = next(
         place
@@ -79,6 +92,28 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
             for seed in compilation.bundle.knowledge_seeds
             if "Elfaria 是精灵生活的星球" in seed.content
         )
+        knowledge_episode = storage.get_episode(
+            "genesis:episode:00000101:knowledge:"
+            f"{safe_component(identity_seed.seed_id)}"
+        )
+        assert knowledge_episode is not None
+        assert knowledge_episode.summary_text is None
+        search_seed = next(
+            seed
+            for seed in compilation.bundle.knowledge_seeds
+            if seed.aliases or seed.retrieval_terms
+        )
+        search_term = (search_seed.aliases or search_seed.retrieval_terms)[0]
+        search_episode = storage.get_episode(
+            f"genesis:episode:00000101:knowledge:{safe_component(search_seed.seed_id)}"
+        )
+        assert search_episode is not None
+        indexed_text = storage.connection.execute(
+            "SELECT searchable_text FROM episodes_fts WHERE episode_id=?",
+            (search_episode.episode_id,),
+        ).fetchone()[0]
+        assert search_seed.content in indexed_text
+        assert search_term in indexed_text
         identity = storage.recall(
             RecallRequest(text="Elfaria 是精灵生活的星球", lexical_limit=10)
         )

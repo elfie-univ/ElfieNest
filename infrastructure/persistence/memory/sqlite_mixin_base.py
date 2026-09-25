@@ -11,13 +11,15 @@ from __future__ import annotations
 import sqlite3
 from contextlib import AbstractContextManager
 from threading import RLock
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from elfie.brain.memory.memory_records import (
     AssertionInput,
+    ClaimedEpisode,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
+    EpisodeMaintenanceStatus,
     EpisodeReceipt,
     EvidenceInput,
     MaintenanceReceipt,
@@ -114,7 +116,11 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def _upsert_episode_fts_from_values(
-        self, episode_id: str, content: str, summary: str | None
+        self,
+        episode_id: str,
+        content: str,
+        summary: str | None,
+        metadata: Mapping[str, object] | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -175,7 +181,12 @@ class SQLiteMemoryMixinBase:
         *,
         owner: str = "memory-worker",
         lease_seconds: int = 120,
-    ) -> tuple[ClosedEpisode, ...]:
+    ) -> tuple[ClaimedEpisode, ...]:
+        raise NotImplementedError
+
+    def list_episode_maintenance_statuses(
+        self, episode_ids: tuple[str, ...]
+    ) -> tuple[EpisodeMaintenanceStatus, ...]:
         raise NotImplementedError
 
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:

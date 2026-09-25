@@ -10,6 +10,7 @@ from elfie.genesis import (
     GenesisCompiler,
     GenesisError,
     GenesisValidationError,
+    genesis_content_hash,
 )
 from elfie.genesis.compiler import stage_for_age
 from infrastructure.persistence.configuration.species import (
@@ -117,6 +118,25 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
         if episode.theme_id in {"departure-decision", "arrival-nest"}
     )
     assert bundle.manifest.output_ids
+
+
+def test_genesis_episode_seed_rejects_process_names_as_experience_types() -> None:
+    bundle = _bundle()
+    invalid_seed = replace(bundle.episode_seeds[0], event_kind="reset")
+    invalid_bundle = replace(
+        bundle,
+        episode_seeds=(invalid_seed, *bundle.episode_seeds[1:]),
+    )
+    invalid_bundle = replace(
+        invalid_bundle,
+        manifest=replace(
+            invalid_bundle.manifest,
+            content_hash=genesis_content_hash(invalid_bundle),
+        ),
+    )
+
+    with pytest.raises(GenesisValidationError, match="EpisodeSeed.event_kind"):
+        invalid_bundle.validate()
 
 
 def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:

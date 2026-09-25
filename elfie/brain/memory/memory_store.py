@@ -7,9 +7,11 @@ from typing import Literal, Protocol
 
 from .memory_records import (
     AssertionInput,
+    ClaimedEpisode,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
+    EpisodeMaintenanceStatus,
     EpisodeReceipt,
     EvidenceInput,
     GenesisSubmissionReceipt,
@@ -109,7 +111,11 @@ class MemoryStorePort(Protocol):
         *,
         owner: str = "memory-worker",
         lease_seconds: int = 120,
-    ) -> tuple[ClosedEpisode, ...]: ...
+    ) -> tuple[ClaimedEpisode, ...]: ...
+
+    def list_episode_maintenance_statuses(
+        self, episode_ids: tuple[str, ...]
+    ) -> tuple[EpisodeMaintenanceStatus, ...]: ...
 
     def mark_episode_failed(
         self,

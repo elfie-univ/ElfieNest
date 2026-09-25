@@ -165,7 +165,7 @@ def test_cognition_reader_is_read_only_and_returns_typed_records(
                 occurred_from="2026-08-01T00:00:00Z",
                 content_text="被 Alice 领养",
                 importance=0.95,
-                event_kind="adoption",
+                event_kind="life_event",
                 metadata={
                     "major_event": True,
                     "title": "被领养",

@@ -608,7 +608,7 @@ class MemorySystem:
             idempotency_key=str(candidate.candidate_id),
             occurred_from=candidate.created_at.isoformat(),
             content_text=candidate.content,
-            event_kind="completed_interaction",
+            event_kind="conversation",
             source_event_ids=tuple(str(value) for value in candidate.source_event_ids),
             importance=max(0.0, min(1.0, intensity)),
             emotion=candidate.emotion,

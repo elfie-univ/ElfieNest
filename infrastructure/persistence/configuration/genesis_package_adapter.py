@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
 from elfie.genesis.world import (
     CoverageManifest,
@@ -399,9 +400,13 @@ def _episode_themes(rules: Mapping[str, Any]) -> tuple[EpisodeTheme, ...]:
     result = []
     for raw in _array(group, "themes"):
         item = _mapping(raw, "episode theme")
+        event_kind = _text(item, "event_kind")
+        if event_kind not in EPISODE_EVENT_KINDS or event_kind == "unclassified":
+            raise ValueError(f"EpisodeTheme {item.get('id')} event_kind 无效")
         result.append(
             EpisodeTheme(
                 theme_id=_text(item, "id"),
+                event_kind=cast(Any, event_kind),
                 label=_text(item, "label"),
                 weight=_number(item, "weight"),
                 life_stages=_strings(item, "life_stages"),

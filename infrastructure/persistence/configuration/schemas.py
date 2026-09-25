@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
 
+from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS
 from infrastructure.persistence.configuration.documents import ConfigDocumentId
 
 
@@ -1313,6 +1314,7 @@ def _validate_episode_themes(value: Any, label: str) -> None:
         raise ConfigSchemaError(f"{label} 必须是非空数组")
     fields = {
         "id",
+        "event_kind",
         "label",
         "weight",
         "life_stages",
@@ -1330,6 +1332,7 @@ def _validate_episode_themes(value: Any, label: str) -> None:
     }
     required = {
         "id",
+        "event_kind",
         "label",
         "weight",
         "life_stages",
@@ -1346,6 +1349,7 @@ def _validate_episode_themes(value: Any, label: str) -> None:
         _require_keys(item, required, item_label)
         for field in (
             "id",
+            "event_kind",
             "label",
             "emotional_tone",
             "goal",
@@ -1354,6 +1358,13 @@ def _validate_episode_themes(value: Any, label: str) -> None:
             "impact",
         ):
             _string(item[field], f"{item_label}.{field}")
+        if (
+            item["event_kind"] not in EPISODE_EVENT_KINDS
+            or item["event_kind"] == "unclassified"
+        ):
+            raise ConfigSchemaError(
+                f"{item_label}.event_kind 不是可用于 Genesis 的经历类型"
+            )
         for field in (
             "life_stages",
             "required_roles",

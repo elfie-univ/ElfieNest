@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   projectAssertionDetail,
+  episodeCardDisplayTitle,
+  episodeEventKindLabel,
+  episodeMaintenanceLabel,
   projectEpisodeDetail,
   projectEvidenceDetail,
   projectNodeDetail,
@@ -58,13 +61,13 @@ describe("Inspector projection", () => {
       [
         {
           episode_id: "episode-explicit-place",
-          event_kind: "genesis_personal_episode",
+          event_kind: "life_event",
           content_text: "在车站离开迷雾镇。",
           metadata: { place_ids: ["mistyville_waystation"] },
         },
         {
           episode_id: "episode-text-hit",
-          event_kind: "genesis_knowledge_episode",
+          event_kind: "learning",
           content_text: "迷雾镇有一座学习场所。",
           metadata: {},
         },
@@ -96,24 +99,47 @@ describe("Inspector projection", () => {
     expect(projected.sources[0]!.excerpt).toContain("从小一起玩");
   });
 
-  it("把 Episode 原文作为主内容，旧摘要不被当成标题", () => {
+  it("优先用摘要作只读标题，正文、类型和整理进度仍完整保留", () => {
     const projected = projectEpisodeDetail({
       episode_id: "episode-1",
-      summary_text: "关系说明",
+      summary_text: "和朋友重新约定分工",
       content_text: "这是一个较长的完整故事正文。",
-      event_kind: "interaction",
+      event_kind: "conversation",
       occurred_from: "2026-09-23T00:00:00Z",
+      occurrence_precision: "range",
+      source_refs: [{ source_kind: "conversation", source_id: "chat-1", source_version: "v2" }],
+      maintenance: { state: "completed", attempts: 2, updated_at: "2026-09-23T00:00:00Z" },
     }, {
       assertions: [{ assertion_id: "friend", subject_id: "ari", object_node_id: "ena", predicate: "friend_of", evidence_ids: ["ev-1"], importance: .9, confidence: .9 }],
       evidence: [{ evidence_id: "ev-1", source_id: "episode-1", excerpt: "Ari 和 Ena 是朋友。" }],
       nodeById: nodes,
     });
 
-    expect(projected.header.label).toBe("Episode");
-    expect(projected.header.summary).toContain("完整故事正文");
+    expect(episodeCardDisplayTitle({ summary_text: "  摘要标题  ", content_text: "正文" })).toBe("摘要标题");
+    expect(episodeCardDisplayTitle({ summary_text: " ", content_text: "正文" })).toBe("正文");
+    expect(episodeCardDisplayTitle({ content_text: "正文".repeat(100) })).toBe(`${"正文".repeat(89)}正…`);
+    expect(episodeCardDisplayTitle({ episode_id: "empty", summary_text: "", content_text: "" })).toBe("");
+    expect(episodeEventKindLabel("conversation")).toBe("对话交流");
+    expect(episodeMaintenanceLabel({ maintenance: { state: "completed" } })).toBe("已整理");
+    expect(episodeMaintenanceLabel({})).toBe("进度未记录");
+    expect(projected.header.label).toBe("和朋友重新约定分工");
+    expect(projected.header.summary).toBe("");
     expect(projected.content).toContain("完整故事正文");
-    expect(projected.connections.map((item) => item.kind)).toEqual(expect.arrayContaining(["episode", "relation"]));
+    expect(projected.fields.map((field) => field.label)).toEqual(expect.arrayContaining(["经历类型", "整理进度", "来源", "发生时间"]));
+    expect(projected.connections.map((item) => item.kind)).toEqual(expect.arrayContaining(["attribute", "relation"]));
     expect(projected.sources[0]!.kind).toBe("Evidence");
+  });
+
+  it("摘要为空时，详情中的摘要槽位保持为空且正文独立保留", () => {
+    const projected = projectEpisodeDetail({
+      episode_id: "episode-without-summary",
+      summary_text: null,
+      content_text: "这段经历只有正文，没有生成标题。",
+    }, { assertions: [], evidence: [], nodeById: nodes });
+
+    expect(projected.header.label).toBe("");
+    expect(projected.header.summary).toBe("");
+    expect(projected.content).toBe("这段经历只有正文，没有生成标题。");
   });
 
   it("把 Evidence 首屏定位到摘录和支持 Assertion", () => {

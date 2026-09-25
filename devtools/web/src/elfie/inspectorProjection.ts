@@ -146,6 +146,73 @@ export function inspectorAttributeLabel(key: string): string {
   return attributeLabels[key] ?? key.replace(/_/g, " ");
 }
 
+const episodeEventKindLabels: Record<string, string> = {
+  conversation: "对话交流",
+  activity: "活动",
+  outing: "出行",
+  learning: "学习成长",
+  life_event: "生活事件",
+  observation: "观察",
+  reflection: "反思",
+  unclassified: "待分类",
+};
+
+const episodeMaintenanceLabels: Record<string, string> = {
+  pending: "待整理",
+  processing: "整理中",
+  completed: "已整理",
+  failed: "整理失败",
+  skipped: "已跳过",
+  unknown: "进度未记录",
+};
+const episodePrecisionLabels: Record<string, string> = { exact: "精确时间", range: "时间范围", unknown: "具体时间未知" };
+const episodeAttributionLabels: Record<string, string> = { observed: "亲历或观察", told: "他人告知", inferred: "推断", felt: "主观感受" };
+const episodeDetailLevelLabels: Record<string, string> = { full: "完整", compressed: "压缩", digest: "摘要", incomplete: "不完整" };
+const episodeSourceKindLabels: Record<string, string> = { conversation: "对话", genesis_source: "Genesis 知识资料", personal_memory: "个人经历资料", adoption_decision: "领养来源" };
+
+export function episodeCardDisplayTitle(episode: InspectorRecord): string {
+  const summary = String(episode.summary_text ?? "").trim();
+  if (summary) return summary;
+  const content = String(episode.content_text ?? "").trim();
+  if (!content) return "";
+  const characters = Array.from(content);
+  return characters.length > 180 ? `${characters.slice(0, 179).join("")}…` : content;
+}
+
+export function episodeEventKindLabel(value: unknown): string {
+  const kind = String(value ?? "");
+  return episodeEventKindLabels[kind] ?? (kind ? "未知类型" : "类型未记录");
+}
+
+export function episodeMaintenanceLabel(episode: InspectorRecord): string {
+  const maintenance = episode.maintenance;
+  const state = maintenance && typeof maintenance === "object" && !Array.isArray(maintenance)
+    ? String((maintenance as InspectorRecord).state ?? "unknown")
+    : "unknown";
+  return episodeMaintenanceLabels[state] ?? "进度未记录";
+}
+
+function episodeTimestampLabel(value: unknown): string {
+  if (value == null || value === "") return "未记录";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date).replace(/\//g, "-");
+}
+
+function episodeTemporalContextLabel(value: unknown): string {
+  const context = String(value ?? "").trim();
+  if (!context) return "未记录";
+  const labels: Record<string, string> = { before_arrival: "抵达前", on_arrival: "抵达时", arrival: "抵达时" };
+  return labels[context] ?? context;
+}
+
 function formatValue(value: unknown): string {
   if (value == null || value === "") return "未记录";
   if (typeof value === "boolean") return value ? "是" : "否";
@@ -391,23 +458,57 @@ export function projectEpisodeDetail(
   const evidenceIds = new Set(evidence.map((item) => String(item.evidence_id)));
   const affectedAssertions = input.assertions.filter((item) => Array.isArray(item.evidence_ids) && item.evidence_ids.some((id) => evidenceIds.has(String(id))));
   const nodeIds = new Set(affectedAssertions.flatMap((item) => [String(item.subject_id ?? ""), String(item.object_node_id ?? "")]).filter(Boolean));
+  const metadata = metadataOf(episode);
+  for (const key of ["person_ids", "place_ids", "related_ids"]) {
+    for (const id of stringValues(metadata[key])) {
+      if (input.nodeById.has(id)) nodeIds.add(id);
+    }
+  }
+  const sourceRefs = Array.isArray(episode.source_refs)
+    ? episode.source_refs.filter((item): item is InspectorRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    : [];
+  const body = String(episode.content_text ?? "没有来源内容");
+  const summary = String(episode.summary_text ?? "").trim();
+  const maintenance = episode.maintenance && typeof episode.maintenance === "object" && !Array.isArray(episode.maintenance)
+    ? episode.maintenance as InspectorRecord
+    : {};
+  const header = headerFor(episode, "经历", summary, "");
+  // Episode summary is independent from its content. Keep this slot empty when
+  // no summary was generated instead of displaying the body as a substitute.
+  header.summary = "";
+  header.status = episodeMaintenanceLabel(episode);
   return {
     kind: "episode",
-    header: headerFor(episode, "Episode", "Episode", String(episode.content_text ?? "没有来源内容")),
+    header,
     fields: [
-      field("event_kind", episode.event_kind, "episode", "类型"),
-      field("occurred_from", episode.occurred_from, "episode", "开始时间"),
-      field("occurred_to", episode.occurred_to, "episode", "结束时间"),
-      field("attribution", episode.attribution, "episode", "归因"),
-      field("detail_level", episode.detail_level, "episode", "细节级别"),
+      field("occurred_from", episodeTimestampLabel(episode.occurred_from), "episode", "发生时间"),
+      field("occurred_to", episodeTimestampLabel(episode.occurred_to), "episode", "结束时间"),
+      field("occurrence_precision", episodePrecisionLabels[String(episode.occurrence_precision ?? "unknown")] ?? "时间精度未记录", "episode", "时间精度"),
+      field("event_kind", episodeEventKindLabel(episode.event_kind), "episode", "经历类型"),
+      field("maintenance_state", episodeMaintenanceLabel(episode), "episode", "整理进度"),
+      field("maintenance_attempts", maintenance.attempts, "episode", "整理尝试次数"),
+      field("maintenance_updated_at", maintenance.updated_at, "episode", "整理进度更新时间"),
+      field("attribution", episodeAttributionLabels[String(episode.attribution ?? "")] ?? "来源归因未记录", "episode", "来源归因"),
+      field("source_refs", sourceRefs.length ? sourceRefs.map((item) => episodeSourceKindLabels[String(item.source_kind ?? "")] ?? "其他来源") : "未记录", "episode", "来源"),
+      field("topic", metadata.topic, "episode", "话题"),
+      field("scope", metadata.scope, "episode", "范围"),
+      field("temporal_label", episodeTemporalContextLabel(episode.temporal_label), "episode", "时间背景"),
+      field("life_stage", episode.life_stage, "episode", "生命阶段"),
+      field("detail_level", episodeDetailLevelLabels[String(episode.detail_level ?? "")] ?? "内容细致级别未记录", "episode", "内容细致级别"),
+      field("emotion", episode.emotion, "episode", "情绪"),
+      field("emotion_intensity", episode.emotion_intensity, "episode", "情绪强度"),
     ],
     connections: [
-      ...[...nodeIds].map((id) => ({ id, label: "受影响 Node", detail: input.nodeById.get(id)?.label ?? id, importance: null, confidence: null, kind: "episode" as const })),
+      ...[...nodeIds].map((id) => {
+        const node = input.nodeById.get(id);
+        const nodeKind = inspectorTypeLabel(node?.node_type);
+        return { id, label: `相关${nodeKind}`, detail: node?.label ?? id, importance: null, confidence: node?.confidence ?? null, kind: "attribute" as const };
+      }),
       ...affectedAssertions.map((item) => ({ id: String(item.assertion_id), label: "受影响 Assertion", detail: String(item.predicate ?? "关系"), importance: score(item.importance), confidence: score(item.confidence), kind: "relation" as const })),
     ],
     sources: evidence.map((item) => sourceFor(item, "Evidence", String(item.evidence_id))),
     technical: [field("episode_id", episodeId, "technical", "ID"), field("metadata", episode.metadata, "technical", "元数据")],
-    content: String(episode.content_text ?? "没有来源内容"),
+    content: body,
   };
 }
 

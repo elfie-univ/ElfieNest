@@ -1,6 +1,6 @@
 # Genesis 完整设计
 
-> 状态：已采纳的目标设计；版本 1.0；2026-09-25。
+> 状态：已采纳的目标设计；版本 1.1；2026-09-25。
 > 本文定义生成目标，不声明代码已全部实现；差距与验收统一记入 ELF-019。
 >
 > 设计关系：**所属模块：** Elfie / Genesis；**上级设计：** [Elfie 顶层设计](./elfie-top-level-module-design.md)；**下级设计：** 无；
@@ -695,6 +695,18 @@ m>N、已有年份不合法或超出三孩模板时回溯父母未冻结时间�
 无标签基础知识在领养完成时全覆盖，但时间未知的知识不能支持必须证明的早期技能。
 中等难度等参数见源稿；每个知识 ID 只用一个稳定随机值，多次访问、回溯或重写故事不重抽。
 条件中间失败只回溯依赖项，不为获得目标知识倒造经历。
+
+交给 Memory 时，来源归因与 Episode 的经历类型必须分开。Genesis 是来源，不是
+`genesis_knowledge_episode` 这类经历类型。表示已取得知识的 `KnowledgeSeed` 使用注册的
+`learning` 类型；个人 `EpisodeSeed` 则使用描述其实际经历的类型。初始化永远不是经历类型。只保留有依据的
+取得/发生时间：Genesis Bundle 或提交时间不等于知识取得时间；没有时间证据时明确传递“时间未知”，不得编造出生时间或创建时间。
+Memory Architecture 定义注册词汇，并继续复用已有的 `event_kind` 表示；本设计不增加重复的来源或标题字段。
+
+Genesis Program 会在每个 `EpisodeTheme` 上声明受支持的 `event_kind`，编译时原样传到
+`EpisodeSeed` 并写入 Episode。当前 Program v4 的主题使用 `outing`、`learning`、`activity` 或
+`life_event`；`KnowledgeSeed` 使用 `learning`。不能用主题名、来源标签或初始化状态替代经历类型；不支持的类型必须在写入 Memory 前校验失败。
+
+对个人 `EpisodeSeed`，有值时会把 `result` 或 `impact` 写入可选的 Episode `summary_text`；完整种子措辞仍保留在 `content_text`。当前 `KnowledgeSeed` 路径没有单独概括，`summary_text` 留空。这不代表实时对话闭合路径已经会生成模型概括。
 
 履历与故事可使用事件当时已知的参考知识；最终再按实际事实复核资格与正文。
 初始必需知识缺失时不得以等待夜间整理代替完成检查。

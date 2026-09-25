@@ -34,6 +34,29 @@ _RECALL_LIMIT_MAX = {
 
 AttributionKind = Literal["observed", "told", "inferred", "felt"]
 OccurrencePrecision = Literal["exact", "range", "unknown"]
+EpisodeEventKind = Literal[
+    "conversation",
+    "activity",
+    "outing",
+    "learning",
+    "life_event",
+    "observation",
+    "reflection",
+    "unclassified",
+]
+EPISODE_EVENT_KINDS: Tuple[EpisodeEventKind, ...] = (
+    "conversation",
+    "activity",
+    "outing",
+    "learning",
+    "life_event",
+    "observation",
+    "reflection",
+    "unclassified",
+)
+EpisodeMaintenanceState = Literal[
+    "pending", "processing", "completed", "failed", "skipped"
+]
 RetentionProfile = Literal[
     "transient",
     "ordinary",
@@ -187,7 +210,7 @@ class ClosedEpisode:
     content_text: str
     occurred_to: Optional[str] = None
     summary_text: Optional[str] = None
-    event_kind: str = "interaction"
+    event_kind: EpisodeEventKind = "unclassified"
     source_refs: Tuple[SourceReference, ...] = ()
     media_refs: Tuple[MediaReference, ...] = ()
     source_event_ids: Tuple[str, ...] = ()
@@ -209,8 +232,6 @@ class ClosedEpisode:
     attribution: AttributionKind = "observed"
     privacy_scope: str = "private"
     source_version: Optional[str] = None
-    projection_revision: Optional[str] = None
-    projection_source_sha256: Optional[str] = None
     last_reinforced_at: Optional[str] = None
     last_reviewed_at: Optional[str] = None
     next_review_at: Optional[str] = None
@@ -234,6 +255,8 @@ class ClosedEpisode:
             _timestamp_key(self.occurred_from)
         if not self.content_text.strip():
             raise ValueError("content_text must not be blank")
+        if self.event_kind not in EPISODE_EVENT_KINDS:
+            raise ValueError(f"unsupported Episode event_kind: {self.event_kind}")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
         if not 0.0 <= self.initial_importance <= 1.0:
@@ -285,20 +308,43 @@ class ClosedEpisode:
             raise ValueError("privacy_scope must not be blank")
         for label, value in (
             ("source_version", self.source_version),
-            ("projection_revision", self.projection_revision),
-            ("projection_source_sha256", self.projection_source_sha256),
             ("policy_version", self.policy_version),
             ("genesis_submission_id", self.genesis_submission_id),
         ):
             if value is not None and not value.strip():
                 raise ValueError(f"{label} must not be blank when supplied")
-        if (
-            self.projection_source_sha256 is not None
-            and len(self.projection_source_sha256) != 64
-        ):
-            raise ValueError("projection_source_sha256 must be a 64-character digest")
         if self.content_sha256 is not None and len(self.content_sha256) != 64:
             raise ValueError("content_sha256 must be a 64-character digest")
+
+
+@dataclass(frozen=True)
+class ClaimedEpisode:
+    """An Episode paired with its ephemeral, storage-issued work lease."""
+
+    episode: ClosedEpisode
+    owner: str
+    attempt: int
+
+    def __post_init__(self) -> None:
+        if not self.owner.strip():
+            raise ValueError("claim owner must not be blank")
+        if self.attempt < 1:
+            raise ValueError("claim attempt must be positive")
+
+
+@dataclass(frozen=True)
+class EpisodeMaintenanceStatus:
+    """Read-only operational progress for an Episode's consolidation work."""
+
+    episode_id: str
+    state: EpisodeMaintenanceState
+    source_version: Optional[str]
+    source_sha256: Optional[str]
+    projection_revision: Optional[str]
+    attempts: int
+    next_attempt_at: Optional[str]
+    last_error: Optional[str]
+    updated_at: str
 
 
 @dataclass(frozen=True)

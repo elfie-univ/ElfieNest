@@ -154,11 +154,16 @@ def test_completed_candidate_uses_source_first_episode_even_at_low_intensity(
         receipt = memory.commit_episode_candidate(candidate)
         assert receipt.status.value == "committed"
         row = store.connection.execute(
-            "SELECT content_text, consolidation_state, source_event_ids_json FROM episodes"
+            "SELECT content_text, source_event_ids_json FROM episodes"
         ).fetchone()
         assert row[0] == candidate.content
-        assert row[1] == "pending"
-        assert "owner-1" in row[2]
+        assert "owner-1" in row[1]
+        assert (
+            store.connection.execute(
+                "SELECT state FROM memory_maintenance WHERE stage='consolidation'"
+            ).fetchone()[0]
+            == "pending"
+        )
     with SQLiteMemoryStoreAdapter(path) as store:
         restarted = MemorySystem(store)
         duplicate = restarted.commit_episode_candidate(candidate)
@@ -238,6 +243,36 @@ def test_unsupported_version_requires_explicit_fresh_store(tmp_path: Path) -> No
         MemoryStoreSchemaError, match="unsupported Memory schema version"
     ):
         SQLiteMemoryStoreAdapter(path)
+
+
+def test_v7_memory_store_is_rejected_without_mutating_its_contents(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "knowledge.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE episodes(episode_id TEXT PRIMARY KEY, consolidation_state TEXT)"
+        )
+        connection.execute("INSERT INTO episodes VALUES ('preserve-me', 'pending')")
+        connection.execute("PRAGMA user_version=7")
+        connection.commit()
+
+    with pytest.raises(
+        MemoryStoreSchemaError, match="unsupported Memory schema version: 7"
+    ):
+        SQLiteMemoryStoreAdapter(path)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert (
+            connection.execute(
+                "SELECT consolidation_state FROM episodes WHERE episode_id='preserve-me'"
+            ).fetchone()[0]
+            == "pending"
+        )
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall() == [("episodes",)]
 
 
 def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> None:
@@ -422,9 +457,10 @@ def test_claim_and_retry_batch_keep_source_episode_on_failure() -> None:
         assert store.get_episode("episode-1").content_text == "包含香菜"
         assert (
             store.connection.execute(
-                "SELECT consolidation_state FROM episodes WHERE episode_id='episode-1'"
+                "SELECT state FROM memory_maintenance WHERE stage='consolidation' "
+                "AND target_id='episode-1'"
             ).fetchone()[0]
-            == "consolidated"
+            == "completed"
         )
 
 
@@ -443,7 +479,8 @@ def test_source_first_consolidation_without_model_stays_retryable() -> None:
         assert store.connection.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0
         assert (
             store.connection.execute(
-                "SELECT consolidation_state FROM episodes WHERE episode_id='episode-no-model'"
+                "SELECT state FROM memory_maintenance WHERE stage='consolidation' "
+                "AND target_id='episode-no-model'"
             ).fetchone()[0]
             == "failed"
         )
@@ -474,17 +511,19 @@ def test_expired_lease_is_reclaimable_and_failure_is_scheduled() -> None:
         claimed = store.claim_episodes(limit=1, owner="dead-worker", lease_seconds=1)
         assert claimed
         store.connection.execute(
-            "UPDATE episodes SET lease_until='1970-01-01T00:00:00+00:00' WHERE episode_id='episode-1'"
+            "UPDATE memory_maintenance SET lease_until='1970-01-01T00:00:00+00:00' "
+            "WHERE stage='consolidation' AND target_id='episode-1'"
         )
         store.connection.commit()
         assert store.recover_expired_leases() == 1
         assert store.mark_episode_failed("episode-1", "temporary") is True
         row = store.connection.execute(
-            "SELECT consolidation_state, next_attempt_at, metadata_json FROM episodes WHERE episode_id='episode-1'"
+            "SELECT state, next_attempt_at, last_error FROM memory_maintenance "
+            "WHERE stage='consolidation' AND target_id='episode-1'"
         ).fetchone()
         assert row[0] == "failed"
         assert row[1]
-        assert "temporary" in row[2]
+        assert row[2] == "temporary"
 
 
 def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
@@ -492,19 +531,19 @@ def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
         source = ClosedEpisode("episode-fenced", "fenced-key", "2026-01-01", "内容")
         store.record_episode(source)
         first = store.claim_episodes(limit=1, owner="worker-a", lease_seconds=1)[0]
-        assert first.metadata["_memory_claim_owner"] == "worker-a"
-        assert first.metadata["_memory_claim_attempt"] == 1
+        assert first.owner == "worker-a"
+        assert first.attempt == 1
 
         store.connection.execute(
-            "UPDATE episodes SET lease_until='1970-01-01T00:00:00+00:00' "
-            "WHERE episode_id=?",
+            "UPDATE memory_maintenance SET lease_until='1970-01-01T00:00:00+00:00' "
+            "WHERE stage='consolidation' AND target_id=?",
             (source.episode_id,),
         )
         store.connection.commit()
         assert store.recover_expired_leases() == 1
         second = store.claim_episodes(limit=1, owner="worker-b", lease_seconds=120)[0]
-        assert second.metadata["_memory_claim_attempt"] == 2
-        stored = store.get_episode(source.episode_id)
+        assert second.attempt == 2
+        stored = second.episode
 
         with pytest.raises(ValueError, match="stale consolidation claim"):
             store.apply_consolidation(
@@ -520,8 +559,8 @@ def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
                             source_sha256=stored.content_sha256,
                         ),
                     ),
-                    claim_owner=str(first.metadata["_memory_claim_owner"]),
-                    claim_attempt=int(first.metadata["_memory_claim_attempt"]),
+                    claim_owner=first.owner,
+                    claim_attempt=first.attempt,
                 )
             )
         assert (
@@ -534,8 +573,8 @@ def test_stale_consolidation_claim_cannot_publish_or_fail_an_episode() -> None:
             is False
         )
         assert store.connection.execute(
-            "SELECT consolidation_state, lease_owner, consolidation_attempts "
-            "FROM episodes WHERE episode_id=?",
+            "SELECT state, lease_owner, attempts FROM memory_maintenance "
+            "WHERE stage='consolidation' AND target_id=?",
             (source.episode_id,),
         ).fetchone()[:2] == ("processing", "worker-b")
 
@@ -581,7 +620,8 @@ def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
         assert result.status == "failed"
         assert store.get_episode("episode-model-failure").content_text == "我叫小林"
         row = store.connection.execute(
-            "SELECT consolidation_state FROM episodes WHERE episode_id=?",
+            "SELECT state FROM memory_maintenance WHERE stage='consolidation' "
+            "AND target_id=?",
             ("episode-model-failure",),
         ).fetchone()
         assert row[0] == "failed"
@@ -817,7 +857,15 @@ def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() ->
 
 def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
-        store.record_episode(ClosedEpisode("episode-1", "k1", "2026-01-01", "香菜资料"))
+        store.record_episode(
+            ClosedEpisode(
+                "episode-1",
+                "k1",
+                "2026-01-01",
+                "香菜资料",
+                metadata={"aliases": ["芫荽"], "retrieval_terms": ["星河算学"]},
+            )
+        )
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-1",
@@ -834,6 +882,14 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
         store.rebuild_text_indexes()
         assert store.search_text("芫荽", top_k=5)[0][0] == "food"
         assert store.search_text("可食用", top_k=5)[0][0] == "food"
+        assert "episode-1" in {
+            item[0] for item in store.search_text("星河算学", top_k=5)
+        }
+        assert store.archive_episode("episode-1")
+        indexed_text = store.connection.execute(
+            "SELECT searchable_text FROM episodes_fts WHERE episode_id='episode-1'"
+        ).fetchone()[0]
+        assert "星河算学" in indexed_text
 
 
 def test_node_property_search_finds_a_person_without_a_name() -> None:

@@ -1135,6 +1135,7 @@ class GenesisCompiler:
             result.append(
                 EpisodeSeed(
                     seed_id=theme.theme_id,
+                    event_kind=theme.event_kind,
                     content=content,
                     source="personal_memory",
                     source_ref=f"episode:{theme.theme_id}",

@@ -578,14 +578,17 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 episode_scope_params.append(str(self.elfie_id))
             episode = self.conn.execute(
                 "SELECT e.episode_id, e.content_sha256, e.source_version, "
-                "e.occurred_from, "
-                "e.projection_revision, e.projection_source_sha256, "
-                "e.consolidation_state, e.lease_owner, e.lease_until, "
-                "e.consolidation_attempts "
-                "FROM episodes AS e WHERE e.episode_id=? AND "
+                "e.occurred_from, mm.state AS maintenance_state, "
+                "mm.source_version AS maintenance_source_version, "
+                "mm.source_hash AS maintenance_source_hash, "
+                "mm.projection_revision, mm.lease_owner, mm.lease_until, mm.attempts "
+                "FROM episodes AS e LEFT JOIN memory_maintenance AS mm "
+                "ON mm.elfie_id=? AND mm.stage='consolidation' "
+                "AND mm.target_id=e.episode_id WHERE e.episode_id=? AND "
                 + episode_visibility
                 + episode_scope,
                 [
+                    str(getattr(self, "elfie_id", None) or ""),
                     projection.episode_id,
                     *episode_visibility_params,
                     *episode_scope_params,
@@ -593,20 +596,21 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             ).fetchone()
             if episode is None:
                 raise ValueError(f"unknown Episode: {projection.episode_id}")
+            if episode["maintenance_state"] is None:
+                raise ValueError("Episode has no consolidation maintenance record")
             if (projection.claim_owner is None) != (projection.claim_attempt is None):
                 raise ValueError(
                     "claim_owner and claim_attempt must be supplied together"
                 )
             if (
-                str(episode["consolidation_state"]) == "processing"
+                str(episode["maintenance_state"]) == "processing"
                 and projection.claim_owner is None
             ):
                 raise ValueError("processing Episode requires a consolidation claim")
             if projection.claim_owner is not None:
                 if (
                     str(episode["lease_owner"] or "") != projection.claim_owner
-                    or int(episode["consolidation_attempts"] or 0)
-                    != projection.claim_attempt
+                    or int(episode["attempts"] or 0) != projection.claim_attempt
                     or episode["lease_until"] is None
                     or str(episode["lease_until"]) <= utc_now()
                 ):
@@ -619,6 +623,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 and projection.source_version != episode["source_version"]
             ):
                 raise ValueError("projection source version is stale")
+            if projection.claim_owner is not None and (
+                episode["maintenance_source_version"] != episode["source_version"]
+                or episode["maintenance_source_hash"] != expected_hash
+            ):
+                raise ValueError("consolidation claim is bound to a stale source")
             # Bind omitted provenance fields to the current source so a
             # first attempt and a retry that supplies the explicit hash/version
             # resolve to the same deterministic projection revision.
@@ -642,7 +651,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             projection_revision = computed_revision
             if (
                 episode["projection_revision"] == projection_revision
-                and episode["projection_source_sha256"] == expected_hash
+                and episode["maintenance_source_version"] == episode["source_version"]
+                and episode["maintenance_source_hash"] == expected_hash
+                and str(episode["maintenance_state"]) == "completed"
             ):
                 return ConsolidationReceipt(
                     episode_id=projection.episode_id,
@@ -1033,51 +1044,32 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         now,
                     )
 
-                consolidation_sql = """UPDATE episodes SET consolidation_state='consolidated',
-                           lease_owner=NULL, lease_until=NULL, next_attempt_at=NULL,
-                           updated_at=? WHERE episode_id=?"""
-                consolidation_params: list[object] = [now, projection.episode_id]
-                if getattr(self, "elfie_id", None) is not None:
-                    consolidation_sql += (
-                        " AND json_extract(metadata_json, '$.elfie_id')=?"
-                    )
-                    consolidation_params.append(str(self.elfie_id))
-                if projection.claim_owner is not None:
-                    consolidation_sql += (
-                        " AND consolidation_state='processing'"
-                        " AND lease_owner=?"
-                        " AND consolidation_attempts=?"
-                        " AND lease_until>?"
-                    )
-                    consolidation_params.extend(
-                        (projection.claim_owner, projection.claim_attempt, now)
-                    )
+                consolidation_sql = """UPDATE memory_maintenance
+                       SET state='completed', source_version=?, source_hash=?,
+                           projection_revision=?, lease_owner=NULL, lease_until=NULL,
+                           next_attempt_at=NULL, last_error=NULL, updated_at=?
+                     WHERE elfie_id=? AND stage='consolidation' AND target_id=?
+                       AND ((? IS NULL AND state<>'processing') OR
+                            (state='processing' AND lease_owner=? AND attempts=?
+                             AND lease_until>?))"""
+                consolidation_params: list[object] = [
+                    episode["source_version"],
+                    expected_hash,
+                    projection_revision,
+                    now,
+                    str(getattr(self, "elfie_id", None) or ""),
+                    projection.episode_id,
+                    projection.claim_owner,
+                    projection.claim_owner,
+                    projection.claim_attempt,
+                    now,
+                ]
                 consolidation_cursor = self.conn.execute(
                     consolidation_sql,
                     consolidation_params,
                 )
                 if consolidation_cursor.rowcount != 1:
                     raise ValueError("stale consolidation claim")
-                self.conn.execute(
-                    """UPDATE episodes SET projection_revision=?,
-                           projection_source_sha256=content_sha256,
-                           updated_at=? WHERE episode_id=?"""
-                    + (
-                        " AND json_extract(metadata_json, '$.elfie_id')=?"
-                        if getattr(self, "elfie_id", None) is not None
-                        else ""
-                    ),
-                    (
-                        projection_revision,
-                        now,
-                        projection.episode_id,
-                        *(
-                            (str(self.elfie_id),)
-                            if getattr(self, "elfie_id", None) is not None
-                            else ()
-                        ),
-                    ),
-                )
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)

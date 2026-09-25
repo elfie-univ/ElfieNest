@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
+from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS, EpisodeEventKind
 from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.profile import (
     AppearanceGenome,
@@ -74,6 +75,7 @@ class EpisodeSeed:
     """One ordered, source-grounded pre-arrival personal experience."""
 
     seed_id: str
+    event_kind: EpisodeEventKind
     content: str = ""
     source: str = "personal_memory"
     source_ref: str = "approved-seed:elfaria"
@@ -541,6 +543,8 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
 def _validate_episode_seed(seed: EpisodeSeed) -> None:
     if not seed.seed_id.strip() or not seed.content.strip():
         raise GenesisValidationError("EpisodeSeed 的 ID 和内容不能为空")
+    if seed.event_kind not in EPISODE_EVENT_KINDS or seed.event_kind == "unclassified":
+        raise GenesisValidationError("EpisodeSeed.event_kind 必须是有依据的经历类型")
     if (
         isinstance(seed.version, bool)
         or not isinstance(seed.version, int)

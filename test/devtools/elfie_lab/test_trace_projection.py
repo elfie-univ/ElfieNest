@@ -1478,7 +1478,7 @@ def test_context_workspace_projects_the_persisted_checkpoint_without_current_inp
             }
         ],
         "pending_closed_episode_payloads": [
-            '{"episode_id":"episode-1","event_kind":"interaction","occurred_from":"2026-09-07T09:00:00+00:00","content_text":"待写入经历","summary_text":"待写入摘要","source_event_ids":["prior-event"]}'
+            '{"episode_id":"episode-1","event_kind":"conversation","occurred_from":"2026-09-07T09:00:00+00:00","content_text":"待写入经历","summary_text":"待写入摘要","source_event_ids":["prior-event"]}'
         ],
     }
     trace = build_observability_trace(
