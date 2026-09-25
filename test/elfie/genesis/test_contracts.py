@@ -255,7 +255,7 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
 
 
 def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
-    compilation = _compilation("visit-opportunity", seed=4, stage="mature", age_years=8)
+    compilation = _compilation("visit-opportunity", seed=7, stage="mature", age_years=8)
     records = compilation.life_context.mobility.opportunity_records
     episodes = {
         episode.seed_id: episode

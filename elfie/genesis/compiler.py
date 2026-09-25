@@ -1555,21 +1555,80 @@ class GenesisCompiler:
                     birth_order=index + 1,
                 )
 
-        friend_count = 1 + int(
-            random.Random(
-                self._domain_seed(request.appearance_seed, "friend-count")
-            ).random()
-            >= 0.5
+        # Friends are selected from actual contact opportunities represented by
+        # the published relationship archetypes.  The draw is per candidate,
+        # so adding another archetype cannot re-roll or duplicate an existing
+        # person.  Keep at most two important friends and force one only when
+        # a selected episode has a real friend participant requirement.
+        openness = min(
+            1.0, max(0.0, (context.identity.personality_anchor[0] + 2.0) / 4.0)
         )
-        for index in range(friend_count):
-            rule = friend_rules[index % len(friend_rules)]
+        extraversion = min(
+            1.0, max(0.0, (context.identity.personality_anchor[2] + 2.0) / 4.0)
+        )
+        theme_min_age = {
+            theme.theme_id: theme.min_age_years for theme in self._source.episode_themes
+        }
+        required_friend = any("friend" in theme.required_roles for theme in themes)
+        friend_candidates: list[tuple[RelationshipArchetype, float]] = []
+        for rule in friend_rules:
+            relevant_ages = [
+                theme_min_age[theme_id]
+                for theme_id in rule.episode_theme_ids
+                if theme_id in theme_min_age
+            ]
+            minimum_age = min(relevant_ages, default=1)
+            contact_years = max(1, main_age - minimum_age + 1)
+            frequency = 0.5 + 0.5 * min(1.0, contact_years / 4.0)
+            purpose_match = 0.5 + 0.5 * openness
+            contact_strength = (
+                0.8
+                * contact_years
+                * frequency
+                * purpose_match
+                * (0.8 + 0.4 * extraversion)
+                * rule.weight
+            )
+            probability = 1.0 - math.exp(-contact_strength)
+            draw = random.Random(
+                self._domain_seed(
+                    request.appearance_seed, f"friend-contact:{rule.archetype_id}"
+                )
+            ).random()
+            if draw < probability:
+                friend_candidates.append((rule, contact_strength))
+        if required_friend and not friend_candidates:
+            eligible_rules = tuple(
+                rule
+                for rule in friend_rules
+                if any(theme_id in theme_min_age for theme_id in rule.episode_theme_ids)
+            )
+            if not eligible_rules:
+                raise GenesisError("协作经历没有可用的好友关系原型")
+            fallback = max(
+                eligible_rules,
+                key=lambda rule: (
+                    rule.weight,
+                    rule.importance,
+                    rule.archetype_id,
+                ),
+            )
+            friend_candidates.append((fallback, 0.0))
+        selected_friend_rules = sorted(
+            friend_candidates,
+            key=lambda item: (-item[1], item[0].archetype_id),
+        )[:2]
+        for index, (rule, contact_strength) in enumerate(selected_friend_rules):
             person_id = f"friend-{index + 1}"
             add_family_member(
                 person_id=person_id,
                 role="friend",
                 person_gender="female" if index % 2 else "male",
                 age_years=max(1, main_age - (index % 2)),
-                importance=0.45 if index == 0 else 0.35,
+                importance=min(
+                    0.65,
+                    max(0.35, rule.importance * (0.65 + 0.1 * contact_strength)),
+                ),
                 shared_fact="我们曾在共同生活或共同活动中相识。",
                 rule=rule,
             )
@@ -2305,6 +2364,7 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "family-child-count": "people",
         "family-partner": "people",
         "friend-count": "people",
+        "friend-contact": "people",
         "visit-opportunity": "places",
         "visit-count": "places",
         "visit-member": "places",
