@@ -11,6 +11,7 @@ from infrastructure.persistence.configuration.documents import (
 )
 from infrastructure.persistence.configuration.world import (
     GenesisSourcePackageError,
+    _generation_policy,
     _validate_package,
     load_genesis_source_package,
 )
@@ -138,6 +139,29 @@ def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
     assert package.place("myelle_region").aliases == ("A1", "A2")
 
 
+def test_generation_policy_consumes_family_values_from_program() -> None:
+    policy = _generation_policy(
+        {
+            "policy": {
+                "version": "test-policy",
+                "family": {
+                    "child_count_distribution": {"1": 0.2, "4": 0.8},
+                    "partner_min_age_years": 5,
+                    "partner_annual_probability": 0.4,
+                    "max_children": 4,
+                },
+            },
+            "household": {"biological_parent_min_age_gap_local_years": 6},
+        }
+    )
+
+    assert policy.family_child_count_distribution == ((1, 0.2), (4, 0.8))
+    assert policy.family_parent_min_age_gap_years == 6
+    assert policy.family_partner_min_age_years == 5
+    assert policy.family_partner_annual_probability == 0.4
+    assert policy.family_max_children == 4
+
+
 def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     package = load_genesis_source_package()
 
@@ -168,6 +192,8 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     )
     assert package.generation_policy.family_parent_min_age_gap_years == 3
     assert package.generation_policy.family_partner_annual_probability == 0.25
+    assert package.generation_policy.family_partner_min_age_years == 3
+    assert package.generation_policy.family_max_children == 3
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

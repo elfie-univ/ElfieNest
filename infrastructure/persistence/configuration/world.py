@@ -257,6 +257,23 @@ def _name_rules(value: Mapping[str, Any]) -> NameRules:
 def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
     raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
+    raw_family = _mapping(raw_policy.get("family", {}))
+    raw_household = _mapping(value.get("household", {}))
+    raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
+    child_distribution = tuple(
+        sorted(
+            (
+                (
+                    int(child_count),
+                    _number_value(
+                        weight, f"family.child_count_distribution.{child_count}"
+                    ),
+                )
+                for child_count, weight in raw_child_distribution.items()
+            ),
+            key=lambda item: item[0],
+        )
+    )
     return GenerationPolicy(
         policy_version=_optional_text(raw_policy, "version", "generation-policy.v1"),
         seed_algorithm=_optional_text(
@@ -272,6 +289,21 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         candidate_total_backtracks=_optional_int(
             raw_backtracking, "total_backtracks", 64
         ),
+        family_child_count_distribution=child_distribution
+        or GenerationPolicy().family_child_count_distribution,
+        family_parent_min_age_gap_years=_optional_int(
+            raw_household,
+            "biological_parent_min_age_gap_local_years",
+            3,
+        ),
+        family_partner_min_age_years=_optional_int(
+            raw_family, "partner_min_age_years", 3
+        ),
+        family_partner_annual_probability=_number_value(
+            raw_family.get("partner_annual_probability", 0.25),
+            "family.partner_annual_probability",
+        ),
+        family_max_children=_optional_int(raw_family, "max_children", 3),
     )
 
 
@@ -573,6 +605,24 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("candidate_options_per_choice 必须为正整数")
     if policy.candidate_total_backtracks < 0:
         raise ValueError("candidate_total_backtracks 不能为负数")
+    if policy.family_parent_min_age_gap_years < 1:
+        raise ValueError("family_parent_min_age_gap_years 必须为正整数")
+    if policy.family_partner_min_age_years < 1:
+        raise ValueError("family_partner_min_age_years 必须为正整数")
+    if not 0.0 <= policy.family_partner_annual_probability <= 1.0:
+        raise ValueError("family_partner_annual_probability 必须在 [0, 1] 内")
+    if policy.family_max_children < 1:
+        raise ValueError("family_max_children 必须为正整数")
+    child_counts = [count for count, _ in policy.family_child_count_distribution]
+    if not child_counts or len(child_counts) != len(set(child_counts)):
+        raise ValueError("family_child_count_distribution 必须包含唯一子女数")
+    if any(
+        count < 1 or weight < 0.0
+        for count, weight in policy.family_child_count_distribution
+    ):
+        raise ValueError("family_child_count_distribution 的值无效")
+    if sum(weight for _, weight in policy.family_child_count_distribution) <= 0.0:
+        raise ValueError("family_child_count_distribution 权重不能全为零")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]
