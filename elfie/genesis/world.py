@@ -206,6 +206,18 @@ class GeographyNetwork:
         return None
 
 
+@dataclass(frozen=True)
+class GeographyAccessRule:
+    """A source-declared permission boundary for one public place."""
+
+    rule_id: str
+    place_id: str
+    requires: tuple[str, ...] = ()
+    ordinary_travel_allowed: bool = True
+    observation_only: bool = False
+    landing_is_island: bool = False
+
+
 def _ordered_edge(left: str, right: str) -> tuple[str, str]:
     return tuple(sorted((left, right)))  # type: ignore[return-value]
 
@@ -474,6 +486,7 @@ class GenesisSourcePackage:
     routes: tuple[GenesisRoute, ...] = ()
     geography_network: GeographyNetwork = field(default_factory=GeographyNetwork)
     place_relations: tuple[WorldPlaceRelation, ...] = ()
+    access_rules: tuple[GeographyAccessRule, ...] = ()
     spatial_population: SpatialPopulationModel = field(
         default_factory=SpatialPopulationModel
     )
@@ -522,6 +535,7 @@ __all__ = (
     "EpisodeTheme",
     "GenesisRoute",
     "GeographyNetwork",
+    "GeographyAccessRule",
     "GenesisSourcePackage",
     "GenerationPolicy",
     "LifeArchetypeRule",

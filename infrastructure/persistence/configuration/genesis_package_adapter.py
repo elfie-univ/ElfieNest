@@ -14,6 +14,7 @@ from elfie.genesis.world import (
     GenerationPolicy,
     GenesisRoute,
     GenesisSourcePackage,
+    GeographyAccessRule,
     GeographyNetwork,
     KnowledgeCondition,
     LifeArchetypeRule,
@@ -61,6 +62,7 @@ def decode_genesis_package(
         for item in _array(geography, "places")
     ) + _region_places(geography)
     place_relations = _place_relations(geography)
+    access_rules = _access_rules(world)
     events = tuple(
         _event(item)
         for item in _array(_mapping(rules["events"], "rules.events"), "templates")
@@ -131,6 +133,7 @@ def decode_genesis_package(
         routes=_routes(geography),
         geography_network=_geography_network(geography),
         place_relations=place_relations,
+        access_rules=access_rules,
         spatial_population=_population(geography),
         name_rules=_name_rules(rules),
         generation_policy=GenerationPolicy(
@@ -393,6 +396,23 @@ def _place_relations(
                 relation=relation,
                 object_id=object_id,
                 source_ref=f"knowledge/geography.yaml#place_relations:{subject_id}:{relation}:{object_id}",
+            )
+        )
+    return tuple(result)
+
+
+def _access_rules(world: Mapping[str, Any]) -> tuple[GeographyAccessRule, ...]:
+    result: list[GeographyAccessRule] = []
+    for raw in _array(world, "access_rules"):
+        item = _mapping(raw, "geography access rule")
+        result.append(
+            GeographyAccessRule(
+                rule_id=_text(item, "id"),
+                place_id=_text(item, "place_ref"),
+                requires=_strings(item, "requires", default=()),
+                ordinary_travel_allowed=bool(item.get("ordinary_travel_allowed", True)),
+                observation_only=bool(item.get("observation_only", False)),
+                landing_is_island=bool(item.get("landing_is_island", False)),
             )
         )
     return tuple(result)

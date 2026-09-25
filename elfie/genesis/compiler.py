@@ -1978,6 +1978,9 @@ class GenesisCompiler:
         return tuple(result)
 
     def _place_access(self, place_id: str) -> str:
+        for rule in self._source.access_rules:
+            if rule.place_id == place_id and rule.observation_only:
+                return "observation_only"
         place = self._place(place_id)
         if place is None:
             return ""

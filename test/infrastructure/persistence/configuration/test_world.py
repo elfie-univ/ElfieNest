@@ -47,6 +47,14 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert mixed_region["birth_eligible"] == "true"
     assert len(package.place_relations) == 7
     assert {
+        (rule.rule_id, rule.place_id, rule.observation_only)
+        for rule in package.access_rules
+    } == {
+        ("earthbound_entry", "earthbound_station", False),
+        ("island_entry", "lakeheart_isle", False),
+        ("cloudcrown_entry", "cloudcrown_city", True),
+    }
+    assert {
         item.opportunity_id for item in package.generation_policy.visit_opportunities
     } == {
         "town_center",

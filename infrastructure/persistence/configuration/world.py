@@ -545,6 +545,14 @@ def _validate_catalogs(
                 f"RelationshipArchetype {relationship_rule.archetype_id} 引用了未定义经历主题"
             )
 
+    access_rule_ids = [rule.rule_id for rule in package.access_rules]
+    if len(access_rule_ids) != len(set(access_rule_ids)):
+        raise ValueError("GeographyAccessRule ID 必须唯一")
+    place_ids = {place.place_id for place in package.places}
+    for rule in package.access_rules:
+        if rule.place_id not in place_ids:
+            raise ValueError(f"GeographyAccessRule {rule.rule_id} 引用了未定义地点")
+
     if not package.episode_themes:
         raise ValueError("published Genesis 资料包必须包含 EpisodeThemeCatalog")
     if len(theme_ids) != len(package.episode_themes):
