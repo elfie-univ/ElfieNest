@@ -91,6 +91,7 @@ def decode_genesis_package(
         importance_policy["role_baselines"], "rules.policy.importance.role_baselines"
     )
     household = _mapping(rules["household"], "rules.household")
+    visits_policy = _mapping(policy["visits"], "rules.policy.visits")
     visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
         policy["reproducibility"], "rules.policy.reproducibility"
@@ -207,6 +208,7 @@ def decode_genesis_package(
             ),
             friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
             friend_max_count=_integer(importance_policy, "friend_max_count"),
+            visit_sampler_version=_text(visits_policy, "sampler_version"),
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(

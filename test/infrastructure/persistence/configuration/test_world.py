@@ -205,6 +205,10 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.friend_layer_decay_lambda == 0.65
     assert package.generation_policy.friend_contact_beta == 0.8
     assert package.generation_policy.friend_max_count == 2
+    assert (
+        package.generation_policy.visit_sampler_version
+        == "visits-poisson-age-distance.v1"
+    )
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

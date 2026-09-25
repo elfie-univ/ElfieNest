@@ -260,6 +260,7 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_family = _mapping(raw_policy.get("family", {}))
     raw_importance = _mapping(raw_policy.get("importance", {}))
     raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
+    raw_visits = _mapping(raw_policy.get("visits", {}))
     raw_household = _mapping(value.get("household", {}))
     raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
     child_distribution = tuple(
@@ -332,6 +333,9 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
             "importance.friend_contact_beta",
         ),
         friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
+        visit_sampler_version=_optional_text(
+            raw_visits, "sampler_version", "visits-poisson-age-distance.v1"
+        ),
     )
 
 
@@ -665,6 +669,8 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("friend_contact_beta 不能为负数")
     if policy.friend_max_count < 1:
         raise ValueError("friend_max_count 必须为正整数")
+    if not policy.visit_sampler_version.strip():
+        raise ValueError("visit_sampler_version 不能为空")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]

@@ -374,6 +374,10 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
         for episode in episodes.values()
     )
     assert all(episode.purposes for episode in episodes.values())
+    assert all(
+        episode.source_version == "genesis-visit:visits-poisson-age-distance.v1"
+        for episode in episodes.values()
+    )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
     station_only = _compilation("station-only")
     assert "earthbound_station" in station_only.life_context.mobility.visited_place_ids

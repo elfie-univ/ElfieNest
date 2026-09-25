@@ -2112,7 +2112,9 @@ class GenesisCompiler:
                     ),
                     source="personal_memory",
                     source_ref=f"visit-opportunity:{opportunity_id}",
-                    source_version="genesis-visit.v0.1",
+                    source_version=(
+                        f"genesis-visit:{self._source.generation_policy.visit_sampler_version}"
+                    ),
                     scope="elfie",
                     topic="biography.visits",
                     aliases=(opportunity_id, purpose),
