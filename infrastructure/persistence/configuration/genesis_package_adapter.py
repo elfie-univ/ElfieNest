@@ -92,6 +92,18 @@ def decode_genesis_package(
     )
     household = _mapping(rules["household"], "rules.household")
     visits_policy = _mapping(policy["visits"], "rules.policy.visits")
+    personality_multipliers = _mapping(
+        visits_policy["personality_multipliers"],
+        "rules.policy.visits.personality_multipliers",
+    )
+    social_multiplier = _mapping(
+        personality_multipliers["social"],
+        "rules.policy.visits.personality_multipliers.social",
+    )
+    curiosity_multiplier = _mapping(
+        personality_multipliers["curiosity"],
+        "rules.policy.visits.personality_multipliers.curiosity",
+    )
     visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
         policy["reproducibility"], "rules.policy.reproducibility"
@@ -209,6 +221,10 @@ def decode_genesis_package(
             friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
             friend_max_count=_integer(importance_policy, "friend_max_count"),
             visit_sampler_version=_text(visits_policy, "sampler_version"),
+            visit_social_multiplier_base=_number(social_multiplier, "base"),
+            visit_social_multiplier_slope=_number(social_multiplier, "slope"),
+            visit_curiosity_multiplier_base=_number(curiosity_multiplier, "base"),
+            visit_curiosity_multiplier_slope=_number(curiosity_multiplier, "slope"),
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(

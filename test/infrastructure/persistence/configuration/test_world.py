@@ -214,6 +214,10 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
         package.generation_policy.visit_sampler_version
         == "visits-poisson-age-distance.v1"
     )
+    assert package.generation_policy.visit_social_multiplier_base == 0.8
+    assert package.generation_policy.visit_social_multiplier_slope == 0.4
+    assert package.generation_policy.visit_curiosity_multiplier_base == 0.8
+    assert package.generation_policy.visit_curiosity_multiplier_slope == 0.4
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

@@ -261,6 +261,9 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_importance = _mapping(raw_policy.get("importance", {}))
     raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
     raw_visits = _mapping(raw_policy.get("visits", {}))
+    raw_visit_personality = _mapping(raw_visits.get("personality_multipliers", {}))
+    raw_visit_social = _mapping(raw_visit_personality.get("social", {}))
+    raw_visit_curiosity = _mapping(raw_visit_personality.get("curiosity", {}))
     raw_household = _mapping(value.get("household", {}))
     raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
     child_distribution = tuple(
@@ -335,6 +338,22 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
         visit_sampler_version=_optional_text(
             raw_visits, "sampler_version", "visits-poisson-age-distance.v1"
+        ),
+        visit_social_multiplier_base=_number_value(
+            raw_visit_social.get("base", 0.8),
+            "visits.personality_multipliers.social.base",
+        ),
+        visit_social_multiplier_slope=_number_value(
+            raw_visit_social.get("slope", 0.4),
+            "visits.personality_multipliers.social.slope",
+        ),
+        visit_curiosity_multiplier_base=_number_value(
+            raw_visit_curiosity.get("base", 0.8),
+            "visits.personality_multipliers.curiosity.base",
+        ),
+        visit_curiosity_multiplier_slope=_number_value(
+            raw_visit_curiosity.get("slope", 0.4),
+            "visits.personality_multipliers.curiosity.slope",
         ),
     )
 
@@ -671,6 +690,16 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("friend_max_count 必须为正整数")
     if not policy.visit_sampler_version.strip():
         raise ValueError("visit_sampler_version 不能为空")
+    if any(
+        value < 0.0
+        for value in (
+            policy.visit_social_multiplier_base,
+            policy.visit_social_multiplier_slope,
+            policy.visit_curiosity_multiplier_base,
+            policy.visit_curiosity_multiplier_slope,
+        )
+    ):
+        raise ValueError("访问人格倍率参数不能为负数")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]

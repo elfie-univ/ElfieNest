@@ -810,8 +810,16 @@ class GenesisCompiler:
                 0, request.age_years_at_adoption - opportunity.minimum_age_years + 1
             )
             age_feasibility = min(1.0, available_years / 4.0)
-            personality_multiplier = 0.55 + 0.45 * extraversion
-            curiosity_multiplier = 0.65 + 0.35 * openness
+            personality_multiplier = (
+                self._source.generation_policy.visit_social_multiplier_base
+                + self._source.generation_policy.visit_social_multiplier_slope
+                * extraversion
+            )
+            curiosity_multiplier = (
+                self._source.generation_policy.visit_curiosity_multiplier_base
+                + self._source.generation_policy.visit_curiosity_multiplier_slope
+                * openness
+            )
             attraction = opportunity.species_multiplier_for(
                 _species_label(request.species_id)
             ) * opportunity.region_multiplier_for(region_id)

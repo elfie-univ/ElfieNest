@@ -369,6 +369,10 @@ class GenerationPolicy:
     friend_contact_beta: float = 0.8
     friend_max_count: int = 2
     visit_sampler_version: str = "visits-poisson-age-distance.v1"
+    visit_social_multiplier_base: float = 0.8
+    visit_social_multiplier_slope: float = 0.4
+    visit_curiosity_multiplier_base: float = 0.8
+    visit_curiosity_multiplier_slope: float = 0.4
     visit_opportunities: tuple[VisitOpportunityRule, ...] = ()
 
     def candidate_stage_weight(self, stage: str) -> float:
