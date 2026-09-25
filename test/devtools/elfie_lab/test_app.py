@@ -1,8 +1,14 @@
 from fastapi.testclient import TestClient
 
 import devtools.elfie_lab.app as elfie_lab_app
+import devtools.elfie_lab.storage as elfie_lab_storage
 from devtools.elfie_lab.app import create_app
 from devtools.memory_audit import MemoryInspectionStaleError
+from elfie.genesis import legal_candidate_age_range, stage_for_age
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 
 from .food_test_helpers import seed_mock_food
 
@@ -263,16 +269,56 @@ def test_create_elfie_basic_randomizes_unset_advanced_values(tmp_path, client_fo
     response = client.post("/api/elfies", json=payload)
 
     assert response.status_code == 201
-    assert 2 <= response.json()["profile"]["age_years"] <= 20
+    age = int(response.json()["profile"]["age_years"])
+    catalog = load_and_configure_species_catalog()
+    species = catalog.definition("dog", adoptable_only=True)
+    life_stage = stage_for_age("dog", age, catalog)
+    minimum, maximum = legal_candidate_age_range(
+        species.genesis,
+        life_stage,
+        load_genesis_source_package().generation_policy,
+    )
+    assert minimum <= age <= maximum
     assert all(
         0 <= value <= 1 for value in response.json()["profile"]["big_five"].values()
     )
 
 
+def test_create_elfie_default_age_uses_stage_prior_and_lifespan_reserve(
+    tmp_path, client_for, monkeypatch
+):
+    class LastStageAndAge:
+        def random(self):
+            return 0.99
+
+        def choice(self, values):
+            return values[-1]
+
+        def uniform(self, lower, upper):
+            return (lower + upper) / 2
+
+    monkeypatch.setattr(elfie_lab_storage.secrets, "SystemRandom", LastStageAndAge)
+    monkeypatch.setattr(elfie_lab_storage.secrets, "choice", lambda values: values[-1])
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload("老年边界测试", "dog")
+    payload.pop("age_years")
+
+    response = client.post("/api/elfies", json=payload)
+
+    assert response.status_code == 201
+    profile = response.json()["profile"]
+    assert profile["age_years"] == 16
+
+
 def test_create_elfie_rejects_invalid_advanced_values(tmp_path, client_for):
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
     payload = complete_elfie_payload()
-    for changes in ({"age_years": 1}, {"gender": "any"}, {"big_five": {"openness": 2}}):
+    for changes in (
+        {"age_years": 1},
+        {"age_years": 17},
+        {"gender": "any"},
+        {"big_five": {"openness": 2}},
+    ):
         response = client.post("/api/elfies", json={**payload, **changes})
         assert response.status_code == 422
 

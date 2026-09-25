@@ -26,7 +26,9 @@ from elfie.genesis import (
     GenesisCompileInput,
     GenesisCompiler,
     GenesisPersonality,
+    legal_candidate_age_range,
     stage_for_age,
+    weighted_candidate_stage,
 )
 from elfie.genesis.appearance import generate_appearance, signature, visible_key
 from elfie.genesis.personality import profile as genesis_personality_profile
@@ -100,13 +102,7 @@ class ElfieLabStorage:
         if not clean_name:
             raise ValueError("精灵名称不能为空")
         if age_years is None:
-            generation = self._catalog.definition(
-                species_id, adoptable_only=True
-            ).genesis
-            if generation is None:
-                raise ValueError("物种缺少 Genesis 年龄配置")
-            maximum = max(upper for _, upper in generation.stage_ranges.values())
-            age_years = secrets.choice(tuple(range(2, maximum + 1)))
+            age_years = self._sample_candidate_age(species_id)
         if (
             isinstance(age_years, bool)
             or not isinstance(age_years, (int, float))
@@ -116,6 +112,17 @@ class ElfieLabStorage:
             or age_years > 100
         ):
             raise ValueError("精灵年龄必须是 2 到 100 岁之间的整数")
+        definition = self._catalog.definition(species_id, adoptable_only=True)
+        if definition.genesis is None:
+            raise ValueError("物种缺少 Genesis 年龄配置")
+        life_stage = stage_for_age(species_id, int(age_years), self._catalog)
+        minimum, maximum = legal_candidate_age_range(
+            definition.genesis,
+            life_stage,
+            self._source_package.generation_policy,
+        )
+        if not minimum <= age_years <= maximum:
+            raise ValueError("精灵年龄必须符合阶段范围并保留生命终点前的四年")
         if gender is None:
             gender = secrets.choice(("male", "female"))
         if gender not in {"male", "female"}:
@@ -166,6 +173,24 @@ class ElfieLabStorage:
         self._save_character_profile(spec, selected_big_five, gender=gender)
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         return spec
+
+    def _sample_candidate_age(self, species_id: str) -> int:
+        definition = self._catalog.definition(species_id, adoptable_only=True)
+        if definition.genesis is None:
+            raise ValueError("物种缺少 Genesis 年龄配置")
+        policy = self._source_package.generation_policy
+        stages = ("youth", "young_adult", "mature", "elder")
+        age_ranges = {
+            stage: legal_candidate_age_range(definition.genesis, stage, policy)
+            for stage in stages
+        }
+        legal_stages = tuple(
+            stage for stage in stages if age_ranges[stage][0] <= age_ranges[stage][1]
+        )
+        chooser = secrets.SystemRandom()
+        stage = weighted_candidate_stage(legal_stages, policy, chooser.random())
+        minimum, maximum = age_ranges[stage]
+        return chooser.choice(tuple(range(minimum, maximum + 1)))
 
     def update_big_five(
         self,

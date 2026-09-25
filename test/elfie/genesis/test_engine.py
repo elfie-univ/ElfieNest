@@ -9,9 +9,15 @@ from elfie.genesis import (
     GenesisAppearanceIntent,
     GenesisEngine,
     GenesisError,
+    legal_candidate_age_range,
+    weighted_candidate_stage,
 )
 from elfie.genesis.appearance import generate_appearance
 from elfie.genesis.world import GenerationPolicy
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 
 
 def intent() -> GenesisAppearanceIntent:
@@ -22,6 +28,22 @@ def intent() -> GenesisAppearanceIntent:
         signature="any",
         priority="face",
     )
+
+
+def test_candidate_age_sampling_uses_program_weights_and_lifespan_reserve() -> None:
+    policy = load_genesis_source_package().generation_policy
+    legal_stages = ("youth", "young_adult", "mature", "elder")
+    catalog = load_and_configure_species_catalog()
+    dog = catalog.definition("dog", adoptable_only=True)
+
+    assert weighted_candidate_stage(legal_stages, policy, 0.74) == "young_adult"
+    assert weighted_candidate_stage(legal_stages, policy, 0.75) == "mature"
+    assert weighted_candidate_stage(legal_stages, policy, 0.99) == "elder"
+    assert legal_candidate_age_range(
+        dog.genesis,
+        "elder",
+        policy,
+    ) == (15, 16)
 
 
 def test_species_do_not_assign_personality_and_stage_is_a_small_prior() -> None:

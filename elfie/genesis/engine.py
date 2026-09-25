@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import unicodedata
 from typing import Sequence
 
-from elfie.profile import SpeciesCatalog, get_species_definition
+from elfie.profile import (
+    SpeciesCatalog,
+    SpeciesGenesisProfile,
+    get_species_definition,
+)
 
 from .appearance import (
     appearance_fit,
@@ -40,6 +45,59 @@ from .world import GenerationPolicy
 
 _STAGES = ("youth", "young_adult", "mature", "elder")
 _GENDERS = ("male", "female")
+
+
+def legal_candidate_age_range(
+    genesis: SpeciesGenesisProfile,
+    stage: str,
+    generation_policy: GenerationPolicy,
+) -> tuple[int, int]:
+    """Return one stage's legal ages after applying candidate and lifespan limits."""
+
+    if stage not in _STAGES:
+        raise GenesisError(f"不支持的候选生命阶段: {stage}")
+    minimum, maximum = genesis.stage_ranges[stage]
+    minimum = max(minimum, generation_policy.candidate_minimum_age_years)
+    stage_index = _STAGES.index(stage)
+    if stage_index:
+        previous_maximum = genesis.stage_ranges[_STAGES[stage_index - 1]][1]
+        minimum = max(minimum, previous_maximum + 1)
+    maximum = min(
+        maximum,
+        genesis.terminal_age_years - generation_policy.candidate_age_reserve_years,
+    )
+    return minimum, maximum
+
+
+def weighted_candidate_stage(
+    legal_stages: Sequence[str],
+    generation_policy: GenerationPolicy,
+    draw: float,
+) -> str:
+    """Choose a legal stage with the published prior using a unit interval draw."""
+
+    if not legal_stages:
+        raise GenesisError("没有符合赴地年龄规则的候选生命阶段")
+    if (
+        isinstance(draw, bool)
+        or not isinstance(draw, (int, float))
+        or not math.isfinite(float(draw))
+        or not 0 <= draw < 1
+    ):
+        raise GenesisError("候选年龄阶段抽样值必须位于 [0, 1)")
+    choices = tuple(
+        (stage, generation_policy.candidate_stage_weight(stage))
+        for stage in legal_stages
+        if generation_policy.candidate_stage_weight(stage) > 0.0
+    )
+    if not choices:
+        choices = tuple((stage, 1.0) for stage in legal_stages)
+    remaining = float(draw) * sum(weight for _, weight in choices)
+    for stage, weight in choices:
+        remaining -= weight
+        if remaining < 0.0:
+            return stage
+    return choices[-1][0]
 
 
 class GenesisEngine:
@@ -369,30 +427,15 @@ class GenesisEngine:
     ) -> str:
         if requested != "any":
             return requested
-        choices = tuple(
-            (stage, self._generation_policy.candidate_stage_weight(stage))
-            for stage in legal_stages
-            if self._generation_policy.candidate_stage_weight(stage) > 0.0
-        )
-        if not choices:
-            choices = tuple((stage, 1.0) for stage in legal_stages)
-        total = sum(weight for _, weight in choices)
-        draw = (
-            random.Random(
-                self._labeled_seed(
-                    seed,
-                    "age",
-                    f"batch:{batch}:role:{role}:stage",
-                    legacy_parts=(seed, batch, role, 92),
-                )
-            ).random()
-            * total
-        )
-        for stage, weight in choices:
-            draw -= weight
-            if draw < 0.0:
-                return stage
-        return choices[-1][0]
+        draw = random.Random(
+            self._labeled_seed(
+                seed,
+                "age",
+                f"batch:{batch}:role:{role}:stage",
+                legacy_parts=(seed, batch, role, 92),
+            )
+        ).random()
+        return weighted_candidate_stage(legal_stages, self._generation_policy, draw)
 
     def _choose_gender(self, seed: int, batch: int, role: int, requested: str) -> str:
         if requested != "any":
@@ -475,20 +518,11 @@ class GenesisEngine:
     def _legal_age_range(self, definition, stage: str) -> tuple[int, int]:
         if definition.genesis is None:
             raise GenesisError(f"物种 {definition.species_id!r} 缺少 Genesis 配置")
-        minimum, maximum = definition.genesis.stage_ranges[stage]
-        minimum = max(minimum, self._generation_policy.candidate_minimum_age_years)
-        stage_index = _STAGES.index(stage)
-        if stage_index:
-            previous_maximum = definition.genesis.stage_ranges[
-                _STAGES[stage_index - 1]
-            ][1]
-            minimum = max(minimum, previous_maximum + 1)
-        maximum = min(
-            maximum,
-            definition.genesis.terminal_age_years
-            - self._generation_policy.candidate_age_reserve_years,
+        return legal_candidate_age_range(
+            definition.genesis,
+            stage,
+            self._generation_policy,
         )
-        return minimum, maximum
 
     def _validate_request(
         self,
