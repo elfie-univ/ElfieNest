@@ -178,6 +178,15 @@ def test_publication_state_machine_commits_only_after_publishing(
         schema_version=1,
         adopted_at=record.created_at,
     )
+    materialized = adapter.materialize(record.admission_id, publication)
+    assert materialized.state == "publishing"
+    with get_db(db_path) as connection:
+        pending = connection.execute(
+            "SELECT status FROM elfies WHERE elfie_id=?",
+            (reservation.elfie_id,),
+        ).fetchone()
+    assert pending is not None and pending["status"] == "offline"
+
     committed = adapter.commit(record.admission_id, publication)
     assert committed.state == "committed"
     current = adapter.get(record.admission_id)

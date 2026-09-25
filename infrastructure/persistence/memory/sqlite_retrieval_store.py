@@ -914,12 +914,12 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 namespace_clause = " AND json_extract(metadata_json, '$.elfie_id')=?"
                 namespace_params.append(str(self.elfie_id))
             where = " AND " + " AND ".join(time_clauses) if time_clauses else ""
-            rows = self.conn.execute(
+            direct_rows = self.conn.execute(
                 f"""SELECT episode_id, occurred_from, occurred_to,
                            occurrence_precision, life_stage, temporal_label,
                            content_text, summary_text, detail_level, importance,
                            half_life_days, last_reinforced_at, updated_at,
-                           source_event_ids_json
+                           source_event_ids_json, metadata_json
                      FROM episodes
                      WHERE episode_id IN ({placeholders})
                        AND lifecycle='active'
@@ -928,15 +928,93 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                      ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?""",
                 list(episode_ids) + namespace_params + time_params + [fetch_limit],
             ).fetchall()
+            topic_buckets = tuple(
+                sorted(
+                    {
+                        str(metadata.get("topic_bucket"))
+                        for row in direct_rows
+                        for metadata in (_json_object(row["metadata_json"]),)
+                        if metadata.get("knowledge_id")
+                        and str(metadata.get("topic_bucket", "")).strip()
+                    }
+                )
+            )
+            if topic_buckets:
+                bucket_placeholders = ",".join("?" for _ in topic_buckets)
+                topic_rows = self.conn.execute(
+                    f"""SELECT episode_id, occurred_from, occurred_to,
+                               occurrence_precision, life_stage, temporal_label,
+                               content_text, summary_text, detail_level, importance,
+                               half_life_days, last_reinforced_at, updated_at,
+                               source_event_ids_json, metadata_json
+                          FROM episodes
+                         WHERE lifecycle='active'
+                           AND {_episode_recall_eligibility("episodes")}
+                           AND json_extract(episodes.metadata_json, '$.knowledge_id') IS NOT NULL
+                           AND json_extract(episodes.metadata_json, '$.topic_bucket')
+                               IN ({bucket_placeholders})
+                           {namespace_clause}{where}
+                         ORDER BY json_extract(episodes.metadata_json, '$.topic_member_index'),
+                                  occurred_from IS NULL, occurred_from, episode_id
+                         LIMIT ?""",
+                    list(topic_buckets)
+                    + namespace_params
+                    + time_params
+                    + [max(64, min(512, request.episode_limit * 8))],
+                ).fetchall()
+                direct_ids = {str(row["episode_id"]) for row in direct_rows}
+                rows = tuple(
+                    list(direct_rows)
+                    + [
+                        row
+                        for row in topic_rows
+                        if str(row["episode_id"]) not in direct_ids
+                    ]
+                )
+            else:
+                rows = tuple(direct_rows)
         result: list[RecallEpisode] = []
+        row_metadata = {
+            str(row["episode_id"]): _json_object(row["metadata_json"]) for row in rows
+        }
+        topic_anchors: dict[str, float] = {}
+        topic_available: dict[str, int] = defaultdict(int)
+        for row in rows:
+            metadata = row_metadata[str(row["episode_id"])]
+            bucket = str(metadata.get("topic_bucket", "")).strip()
+            if not bucket or not metadata.get("knowledge_id"):
+                continue
+            topic_available[bucket] += 1
+            topic_anchors[bucket] = max(
+                topic_anchors.get(bucket, 0.0),
+                max(
+                    (
+                        float(direct_scores.get(str(candidate["episode_id"]), 0.0))
+                        for candidate in rows
+                        if str(
+                            row_metadata[str(candidate["episode_id"])].get(
+                                "topic_bucket", ""
+                            )
+                        )
+                        == bucket
+                        and str(candidate["episode_id"]) in direct_scores
+                    ),
+                    default=0.25,
+                ),
+            )
         for row in rows:
             episode_id = str(row["episode_id"])
+            metadata = row_metadata[episode_id]
+            topic_bucket = str(metadata.get("topic_bucket", "")).strip() or None
             excerpt = str(row["summary_text"] or row["content_text"])
             half_life_days = float(row["half_life_days"] or 2.0)
             anchor = row["last_reinforced_at"] or row["updated_at"] or now
             freshness = MemoryScorePolicy.freshness(now, str(anchor), half_life_days)
+            relevance = direct_scores.get(episode_id)
+            if relevance is None and topic_bucket is not None:
+                relevance = max(0.10, topic_anchors.get(topic_bucket, 0.25) * 0.80)
             score = MemoryScorePolicy.recall_score(
-                relevance=direct_scores.get(episode_id, 0.0),
+                relevance=relevance or 0.0,
                 freshness=freshness,
                 importance=float(row["importance"]),
                 confidence=None,
@@ -965,6 +1043,17 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     source_event_ids=tuple(
                         str(value) for value in _json_list(row["source_event_ids_json"])
                     ),
+                    topic_bucket=topic_bucket,
+                    topic_member_index=(
+                        int(metadata["topic_member_index"])
+                        if isinstance(metadata.get("topic_member_index"), int)
+                        else None
+                    ),
+                    topic_member_count=(
+                        topic_available.get(topic_bucket, 0)
+                        if topic_bucket is not None
+                        else 0
+                    ),
                 )
             )
         ordered = sorted(
@@ -978,9 +1067,34 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 item.episode_id,
             ),
         )
-        return tuple(ordered[: request.episode_limit]), len(
-            ordered
-        ) > request.episode_limit
+        limited = list(ordered[: request.episode_limit])
+        returned_by_topic: dict[str, int] = defaultdict(int)
+        for item in limited:
+            if item.topic_bucket is not None:
+                returned_by_topic[item.topic_bucket] += 1
+        materialized = [
+            replace(
+                item,
+                topic_omitted_count=(
+                    max(
+                        0,
+                        topic_available[item.topic_bucket]
+                        - returned_by_topic[item.topic_bucket],
+                    )
+                    if item.topic_bucket is not None
+                    else 0
+                ),
+                topic_continuation=(
+                    f"topic:{item.topic_bucket}"
+                    if item.topic_bucket is not None
+                    and topic_available[item.topic_bucket]
+                    > returned_by_topic[item.topic_bucket]
+                    else None
+                ),
+            )
+            for item in limited
+        ]
+        return tuple(materialized), len(ordered) > request.episode_limit
 
     @staticmethod
     def _conflicts(
@@ -1148,6 +1262,11 @@ def _bound_bundle(bundle: RecallBundle, character_limit: int) -> RecallBundle:
                 freshness=episode.freshness,
                 half_life_days=episode.half_life_days,
                 source_event_ids=episode.source_event_ids,
+                topic_bucket=episode.topic_bucket,
+                topic_member_index=episode.topic_member_index,
+                topic_member_count=episode.topic_member_count,
+                topic_omitted_count=episode.topic_omitted_count,
+                topic_continuation=episode.topic_continuation,
             )
         )
     truncated = (
@@ -1320,6 +1439,16 @@ def _json_list(value: object) -> list[object]:
     except (TypeError, ValueError):
         return []
     return result if isinstance(result, list) else []
+
+
+def _json_object(value: object) -> dict[str, object]:
+    if not isinstance(value, str):
+        return {}
+    try:
+        result = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    return result if isinstance(result, dict) else {}
 
 
 def _episode_facet_conditions_for_alias(

@@ -145,6 +145,25 @@ class AdmissionStore:
         self.records[admission_id] = record
         return record
 
+    def materialize(
+        self, admission_id: str, publication: AdmissionPublication
+    ) -> AdmissionRecord:
+        self.events.append("database:materialize")
+        record = self.records[admission_id]
+        if record.state == "committed":
+            return record
+        assert record.state == "publishing"
+        record = replace(
+            record,
+            manifest_id=publication.manifest_id,
+            content_hash=publication.content_hash,
+            output_ids_hash=publication.output_ids_hash,
+            compiler_version=publication.compiler_version,
+            schema_version=publication.schema_version,
+        )
+        self.records[admission_id] = record
+        return record
+
     def abort(self, admission_id: str, *, error_code: str) -> AdmissionRecord:
         self.events.append("database:abort")
         record = self.records[admission_id]
@@ -277,6 +296,16 @@ class Residents:
         self.registered.remove(elfie_id)
 
 
+class NestAdmission:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.finalized: list[tuple[str, str]] = []
+
+    def finalize_admission(self, admission_id: str, elfie_id: str) -> None:
+        self.events.append("nest:finalize")
+        self.finalized.append((admission_id, elfie_id))
+
+
 class CountingCompiler:
     def __init__(self, compiler: GenesisCompiler) -> None:
         self.compiler = compiler
@@ -345,6 +374,7 @@ def test_admission_commits_before_runtime_registration_and_retries_idempotently(
     store = AdmissionStore(events)
     workspace = Workspace(events)
     residents = Residents(events)
+    nest = NestAdmission(events)
     adoption = AdoptionService(Policy(), AdoptionPersistence())
     principal = AccountPrincipal(7, "alice", "user", "chat")
     candidate_set_id, candidate_id = _accepted(adoption, principal)
@@ -355,6 +385,7 @@ def test_admission_commits_before_runtime_registration_and_retries_idempotently(
         residents,
         _compiler(),
         admission_store=store,
+        nest=nest,
     )
 
     result = service.admit(
@@ -366,6 +397,11 @@ def test_admission_commits_before_runtime_registration_and_retries_idempotently(
     assert result.runtime_status == "registered"
     assert residents.registered == [result.elfie_id]
     assert store.records[next(iter(store.records))].state == "committed"
+    assert nest.finalized == [
+        (next(iter(store.records)), result.elfie_id),
+    ]
+    assert events.index("database:materialize") < events.index("nest:finalize")
+    assert events.index("nest:finalize") < events.index("database:commit")
     assert events.index("database:commit") < events.index("runtime")
 
     repeated = service.admit(

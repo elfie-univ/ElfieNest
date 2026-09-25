@@ -22,6 +22,7 @@ from elfie.public import (
     GenesisCandidate,
     GenesisCandidateReveal,
     GenesisCompiler,
+    GenesisEngine,
     GenesisSourcePackage,
     ReasoningConstitution,
 )
@@ -135,6 +136,11 @@ def build_adoption_services(
 
         return load_genesis_source_package(ontology=ontology)
 
+    genesis = GenesisEngine(
+        catalog=catalog,
+        generation_policy=load_source().generation_policy,
+    )
+
     class LazyCandidateReveal:
         def __init__(self) -> None:
             self._adapter: GenesisCandidateReveal | None = None
@@ -150,6 +156,7 @@ def build_adoption_services(
         portraits=portraits,
         candidate_reveal=LazyCandidateReveal(),
         catalog=catalog,
+        genesis=genesis,
         species_presentation=BundledSpeciesPresentationAdapter(catalog=catalog),
         species_runtime=species_runtime,
     )
@@ -204,6 +211,7 @@ def build_adoption_services(
             nest_session,
             build_genesis_compiler,
             admission_store=adoption_persistence,
+            nest=nest_session,
         ),
     )
 

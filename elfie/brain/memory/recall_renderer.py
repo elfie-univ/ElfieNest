@@ -137,6 +137,11 @@ def _append_episodes(lines: list[str], episodes: Iterable[RecallEpisode]) -> Non
             f"- id={episode.episode_id}; occurred={episode.occurred_from}"
             + (f"..{episode.occurred_to}" if episode.occurred_to else "")
             + f"; detail={episode.detail_level}; excerpt={episode.excerpt}"
+            + (
+                f"; topic={episode.topic_bucket}; omitted={episode.topic_omitted_count}"
+                if episode.topic_bucket is not None
+                else ""
+            )
         )
 
 

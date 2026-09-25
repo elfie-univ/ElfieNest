@@ -39,7 +39,11 @@ from .contracts import (
     SelfModelSeed,
     validate_genesis_bundle,
 )
-from .engine import GenesisEngine
+from .engine import (
+    GenesisEngine,
+    legal_candidate_age_range,
+    weighted_candidate_stage,
+)
 from .envelope import (
     GenesisCompileEnvelope,
     GenesisCompileEnvelopeError,
@@ -72,6 +76,8 @@ __all__ = (
     "GenesisBundle",
     "GenesisCandidate",
     "GenesisEngine",
+    "legal_candidate_age_range",
+    "weighted_candidate_stage",
     "GenesisError",
     "GenesisCompileEnvelope",
     "GenesisCompileEnvelopeError",

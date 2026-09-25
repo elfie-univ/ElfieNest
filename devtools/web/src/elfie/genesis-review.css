@@ -1,0 +1,180 @@
+.genesis-review-modal .ant-modal-body {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+}
+
+.genesis-review-body {
+  color: #2f4940;
+}
+
+.genesis-review-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.genesis-review-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #d8e7df;
+  border-radius: 10px;
+  background: #f5faf7;
+}
+
+.genesis-review-summary strong {
+  color: #157b5b;
+  font-size: 20px;
+}
+
+.genesis-review-summary span,
+.genesis-review-controls small {
+  color: #74877f;
+  font-size: 12px;
+}
+
+.genesis-review-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+
+.genesis-review-controls .ant-input-affix-wrapper {
+  max-width: 390px;
+  margin-left: auto;
+}
+
+.genesis-review-list,
+.genesis-review-records {
+  display: grid;
+  gap: 8px;
+  max-height: 55vh;
+  overflow: auto;
+  padding: 2px 4px 2px 0;
+}
+
+.genesis-review-card,
+.genesis-review-life {
+  border: 1px solid #dce8e2;
+  border-radius: 9px;
+  background: #fbfdfc;
+}
+
+.genesis-review-card > summary,
+.genesis-review-life > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.genesis-review-card > summary::-webkit-details-marker,
+.genesis-review-life > summary::-webkit-details-marker {
+  display: none;
+}
+
+.genesis-review-card > summary::before,
+.genesis-review-life > summary::before {
+  content: "＋";
+  color: #18845f;
+}
+
+.genesis-review-card[open] > summary::before,
+.genesis-review-life[open] > summary::before {
+  content: "−";
+}
+
+.genesis-review-card > summary > strong {
+  color: #305148;
+}
+
+.genesis-review-card > summary > span {
+  margin-right: auto;
+  color: #778981;
+}
+
+.genesis-review-card-body {
+  padding: 4px 16px 14px 34px;
+  border-top: 1px solid #e7efeb;
+}
+
+.genesis-review-card-body p {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.genesis-review-card-body dl {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.35fr) minmax(0, 1fr);
+  gap: 7px 12px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.genesis-review-card-body dt {
+  color: #74877f;
+}
+
+.genesis-review-card-body dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.genesis-review-records pre,
+.genesis-review-life pre,
+.genesis-review-body > .ant-tabs pre {
+  overflow: auto;
+  max-height: 48vh;
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid #e7efeb;
+  background: #f6faf8;
+  color: #41574f;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.genesis-review-body h3 {
+  margin: 16px 0 8px;
+  color: #34584a;
+  font-size: 14px;
+}
+
+.genesis-review-life {
+  margin-top: 10px;
+}
+
+.genesis-review-empty {
+  padding: 22px;
+  color: #7a8b84;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .genesis-review-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .genesis-review-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .genesis-review-controls .ant-input-affix-wrapper {
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .genesis-review-card-body dl {
+    grid-template-columns: 1fr;
+  }
+}

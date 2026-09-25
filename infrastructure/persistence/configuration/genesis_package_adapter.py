@@ -15,6 +15,8 @@ from elfie.genesis.world import (
     GenerationPolicy,
     GenesisRoute,
     GenesisSourcePackage,
+    GeographyAccessRule,
+    GeographyNetwork,
     KnowledgeCondition,
     LifeArchetypeRule,
     NameRules,
@@ -22,6 +24,7 @@ from elfie.genesis.world import (
     SourcePackageManifest,
     SpatialPopulationCell,
     SpatialPopulationModel,
+    VisitOpportunityRule,
     WorldKnowledgeFact,
     WorldPlace,
     WorldPlaceRelation,
@@ -49,6 +52,7 @@ def decode_genesis_package(
     geography = _member(package_root, "knowledge/geography.yaml")
     rules = _mapping(program["rules"], "rules")
     world = _mapping(rules["world"], "rules.world")
+    world_calendar = _mapping(world["calendar"], "rules.world.calendar")
     knowledge = tuple(_knowledge(item) for item in _array(knowledge_doc, "knowledge"))
     region_aliases = _geographic_place_regions(geography)
     if _text(world, "place_registry_ref") != "knowledge/geography.yaml#places":
@@ -63,6 +67,7 @@ def decode_genesis_package(
         for item in _array(geography, "places")
     ) + _region_places(geography)
     place_relations = _place_relations(geography)
+    access_rules = _access_rules(world)
     events = tuple(
         _event(item)
         for item in _array(_mapping(rules["events"], "rules.events"), "templates")
@@ -71,7 +76,47 @@ def decode_genesis_package(
     after_arrival = _strings(arrival, "knowledge_after_arrival", default=())
     policy = _mapping(rules["policy"], "rules.policy")
     policy_episodes = _mapping(policy["episodes"], "rules.policy.episodes")
+    candidate_rules = _mapping(policy["candidates"], "rules.policy.candidates")
+    backtracking = _mapping(policy["backtracking"], "rules.policy.backtracking")
+    age_policy = _mapping(
+        candidate_rules["age_policy"], "rules.policy.candidates.age_policy"
+    )
+    stage_weights = _mapping(
+        age_policy["stage_weights"],
+        "rules.policy.candidates.age_policy.stage_weights",
+    )
     policy_knowledge = _mapping(policy["knowledge"], "rules.policy.knowledge")
+    family_policy = _mapping(policy["family"], "rules.policy.family")
+    lifespan_policy = _mapping(
+        family_policy["lifespan"], "rules.policy.family.lifespan"
+    )
+    child_distribution = _mapping(
+        family_policy["child_count_distribution"],
+        "rules.policy.family.child_count_distribution",
+    )
+    importance_policy = _mapping(policy["importance"], "rules.policy.importance")
+    importance_baselines = _mapping(
+        importance_policy["role_baselines"], "rules.policy.importance.role_baselines"
+    )
+    household = _mapping(rules["household"], "rules.household")
+    visits_policy = _mapping(policy["visits"], "rules.policy.visits")
+    personality_multipliers = _mapping(
+        visits_policy["personality_multipliers"],
+        "rules.policy.visits.personality_multipliers",
+    )
+    social_multiplier = _mapping(
+        personality_multipliers["social"],
+        "rules.policy.visits.personality_multipliers.social",
+    )
+    curiosity_multiplier = _mapping(
+        personality_multipliers["curiosity"],
+        "rules.policy.visits.personality_multipliers.curiosity",
+    )
+    risk_multiplier = _mapping(
+        personality_multipliers["risk"],
+        "rules.policy.visits.personality_multipliers.risk",
+    )
+    visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
         policy["reproducibility"], "rules.policy.reproducibility"
     )
@@ -115,7 +160,12 @@ def decode_genesis_package(
         unknown_boundaries=(),
         manifest=manifest,
         routes=_routes(geography),
+        geography_network=_geography_network(
+            geography,
+            days_per_local_year=_integer(world_calendar, "days_per_local_year"),
+        ),
         place_relations=place_relations,
+        access_rules=access_rules,
         spatial_population=_population(geography),
         name_rules=_name_rules(rules),
         generation_policy=GenerationPolicy(
@@ -123,6 +173,83 @@ def decode_genesis_package(
             seed_algorithm=_text(reproducibility, "algorithm"),
             normal_episode_minimum=_integer(policy_episodes, "normal_minimum"),
             medium_knowledge_probability=medium_probability,
+            candidate_proposal_count=_integer(
+                candidate_rules, "existing_engine_proposals_per_role"
+            ),
+            candidate_options_per_choice=_integer(backtracking, "options_per_choice"),
+            candidate_total_backtracks=_integer(backtracking, "total_backtracks"),
+            candidate_minimum_age_years=_integer(
+                candidate_rules, "integer_age_minimum"
+            ),
+            candidate_age_reserve_years=_integer(age_policy, "terminal_reserve_years"),
+            candidate_stage_weights=tuple(
+                (
+                    stage,
+                    _bounded_probability(
+                        stage_weights,
+                        stage,
+                        "rules.policy.candidates.age_policy.stage_weights",
+                    ),
+                )
+                for stage in ("youth", "young_adult", "mature", "elder")
+            ),
+            family_child_count_distribution=tuple(
+                (
+                    child_count,
+                    _bounded_probability(
+                        child_distribution,
+                        str(child_count),
+                        "rules.policy.family.child_count_distribution",
+                    ),
+                )
+                for child_count in (1, 2, 3)
+            ),
+            family_parent_min_age_gap_years=_integer(
+                household, "biological_parent_min_age_gap_local_years"
+            ),
+            family_partner_min_age_years=_integer(
+                family_policy, "partner_min_age_years"
+            ),
+            family_partner_annual_probability=_bounded_probability(
+                family_policy,
+                "partner_annual_probability",
+                "rules.policy.family",
+            ),
+            family_max_children=_integer(family_policy, "max_children"),
+            family_lifespan_cdf_power=_integer(lifespan_policy, "cdf_power"),
+            family_lifespan_sampler_version=_text(lifespan_policy, "sampler_version"),
+            relationship_importance_baselines=tuple(
+                (
+                    str(role),
+                    _bounded_probability(
+                        importance_baselines,
+                        str(role),
+                        "rules.policy.importance.role_baselines",
+                    ),
+                )
+                for role in sorted(importance_baselines)
+            ),
+            relationship_layer_decay_lambda=_number(
+                importance_policy, "relationship_layer_decay_lambda"
+            ),
+            friend_layer_decay_lambda=_number(
+                importance_policy, "friend_layer_decay_lambda"
+            ),
+            friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
+            friend_max_count=_integer(importance_policy, "friend_max_count"),
+            visit_sampler_version=_text(visits_policy, "sampler_version"),
+            visit_repeat_count_power=_number(visits_policy, "repeat_count_power"),
+            visit_social_multiplier_base=_number(social_multiplier, "base"),
+            visit_social_multiplier_slope=_number(social_multiplier, "slope"),
+            visit_curiosity_multiplier_base=_number(curiosity_multiplier, "base"),
+            visit_curiosity_multiplier_slope=_number(curiosity_multiplier, "slope"),
+            visit_risk_multiplier_base=_number(risk_multiplier, "base"),
+            visit_risk_openness_slope=_number(risk_multiplier, "openness_slope"),
+            visit_risk_neuroticism_slope=_number(risk_multiplier, "neuroticism_slope"),
+            visit_cross_region_lifetime_fraction=_number(
+                visits_policy, "cross_region_lifetime_fraction"
+            ),
+            visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
             eligible_life_stages=("youth", "young_adult", "mature", "elder"),
@@ -169,7 +296,7 @@ def _knowledge(raw: Any) -> WorldKnowledgeFact:
         version=1,
         statement=_text(item, "description"),
         scope="resident",
-        topic=fact_id.split("-", maxsplit=1)[0],
+        topic=_text(item, "topic"),
         aliases=(),
         retrieval_terms=(fact_id,),
         level=level,
@@ -217,6 +344,13 @@ def _geography_place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPla
     elif place_id == "skyreach_square":
         kind = "settlement_shared_space"
     label = _text(item, "name")
+    metadata = []
+    access = _text(item, "access", required=False)
+    if access:
+        metadata.append(("access", access))
+    range_semantics = _text(item, "range_semantics", required=False)
+    if range_semantics:
+        metadata.append(("range_semantics", range_semantics))
     return WorldPlace(
         place_id=place_id,
         version=1,
@@ -226,6 +360,7 @@ def _geography_place(raw: Any, region_aliases: tuple[str, ...] = ()) -> WorldPla
         aliases=region_aliases,
         description=_text(item, "description", required=False) or label,
         status="active",
+        metadata=tuple(metadata),
     )
 
 
@@ -258,6 +393,62 @@ def _routes(geography: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
     return tuple(result)
 
 
+def _geography_network(
+    geography: Mapping[str, Any], *, days_per_local_year: int = 196
+) -> GeographyNetwork:
+    """Project the reviewed grid/path rules for Genesis feasibility checks."""
+
+    grid = _mapping(geography["grid"], "grid")
+    raw_matrix = _array(grid, "region_matrix")
+    if any(not isinstance(row, list) for row in raw_matrix):
+        raise TypeError("region_matrix 的每一行必须是数组")
+    region_matrix = tuple(tuple(str(value) for value in row) for row in raw_matrix)
+    network = _mapping(geography["network"], "network")
+    raw_paths = _array(network, "land_backbone_paths")
+    if any(not isinstance(path, list) for path in raw_paths):
+        raise TypeError("land_backbone_paths 的每一条路径必须是数组")
+    land_backbone_paths = tuple(
+        tuple(str(value).strip() for value in path) for path in raw_paths
+    )
+    water = _mapping(network["water"], "network.water")
+    water_edges = tuple(
+        (
+            _text(_mapping(edge, "water edge"), "from"),
+            _text(_mapping(edge, "water edge"), "to"),
+            _integer(_mapping(edge, "water edge"), "water_grid_hops"),
+        )
+        for edge in _array(water, "grid_hop_edges")
+    )
+    ferry_nodes = tuple(_strings(water, "ferry_nodes"))
+    island_destinations = tuple(
+        (
+            _text(_mapping(destination, "island destination"), "place_id"),
+            _text(_mapping(destination, "island destination"), "cell"),
+            _text(_mapping(destination, "island destination"), "from_ferry"),
+            _integer(_mapping(destination, "island destination"), "water_grid_hops"),
+        )
+        for destination in _array(water, "island_destinations")
+    )
+    place_cells: list[tuple[str, str]] = []
+    for raw_place in _array(geography, "places"):
+        place = _mapping(raw_place, "geographic place")
+        cell = _text(place, "cell", required=False)
+        if cell:
+            place_cells.append((_text(place, "id"), cell))
+    travel_policy = _mapping(geography["travel_policy"], "travel_policy")
+    return GeographyNetwork(
+        region_matrix=region_matrix,
+        land_backbone_paths=land_backbone_paths,
+        water_grid_hop_edges=water_edges,
+        island_destinations=island_destinations,
+        ferry_nodes=ferry_nodes,
+        place_cells=tuple(sorted(place_cells)),
+        land_days_per_grid_hop=_integer(travel_policy, "land_days_per_grid_hop"),
+        water_days_per_grid_hop=_integer(travel_policy, "water_days_per_grid_hop"),
+        days_per_local_year=days_per_local_year,
+    )
+
+
 def _place_relations(
     geography: Mapping[str, Any],
 ) -> tuple[WorldPlaceRelation, ...]:
@@ -273,6 +464,23 @@ def _place_relations(
                 relation=relation,
                 object_id=object_id,
                 source_ref=f"knowledge/geography.yaml#place_relations:{subject_id}:{relation}:{object_id}",
+            )
+        )
+    return tuple(result)
+
+
+def _access_rules(world: Mapping[str, Any]) -> tuple[GeographyAccessRule, ...]:
+    result: list[GeographyAccessRule] = []
+    for raw in _array(world, "access_rules"):
+        item = _mapping(raw, "geography access rule")
+        result.append(
+            GeographyAccessRule(
+                rule_id=_text(item, "id"),
+                place_id=_text(item, "place_ref"),
+                requires=_strings(item, "requires", default=()),
+                ordinary_travel_allowed=bool(item.get("ordinary_travel_allowed", True)),
+                observation_only=bool(item.get("observation_only", False)),
+                landing_is_island=bool(item.get("landing_is_island", False)),
             )
         )
     return tuple(result)
@@ -306,17 +514,45 @@ def _population(geography: Mapping[str, Any]) -> SpatialPopulationModel:
 def _region_places(geography: Mapping[str, Any]) -> tuple[WorldPlace, ...]:
     regions = _mapping(geography["regions"], "regions")
     return tuple(
-        WorldPlace(
-            place_id=str(region_id),
-            version=1,
-            label=_text(_mapping(raw, f"regions.{region_id}"), "name"),
-            kind="geographic_region",
-            parent_id=_text(_mapping(raw, f"regions.{region_id}"), "parent_place_id"),
-            aliases=(),
-            description=_text(_mapping(raw, f"regions.{region_id}"), "name"),
-            status="active",
-        )
+        _region_place(region_id, _mapping(raw, f"regions.{region_id}"))
         for region_id, raw in sorted(regions.items())
+    )
+
+
+def _region_place(region_id: str, raw: Mapping[str, Any]) -> WorldPlace:
+    label = _text(raw, "name")
+    terrain = _text(raw, "terrain", required=False)
+    macro_region = _text(raw, "macro_region", required=False)
+    allowed_species = _strings(raw, "allowed_species", default=())
+    habitable = bool(raw.get("habitable", False))
+    birth_eligible = bool(raw.get("birth_eligible", False))
+    description_parts = [label]
+    if terrain:
+        description_parts.append(f"地貌：{terrain}")
+    if allowed_species:
+        description_parts.append(f"居住物种：{'、'.join(allowed_species)}")
+    description_parts.append("可出生" if birth_eligible else "不可作为出生地")
+    metadata = tuple(
+        sorted(
+            (
+                ("terrain", terrain),
+                ("macro_region", macro_region),
+                ("resident_species", "、".join(allowed_species)),
+                ("habitable", "true" if habitable else "false"),
+                ("birth_eligible", "true" if birth_eligible else "false"),
+            )
+        )
+    )
+    return WorldPlace(
+        place_id=str(region_id),
+        version=1,
+        label=label,
+        kind="geographic_region",
+        parent_id=_text(raw, "parent_place_id"),
+        aliases=(),
+        description="；".join(description_parts),
+        status="active",
+        metadata=metadata,
     )
 
 
@@ -398,6 +634,98 @@ def _relationship_archetypes(
     return tuple(result)
 
 
+def _visit_opportunities(
+    policy: Mapping[str, Any],
+) -> tuple[VisitOpportunityRule, ...]:
+    group = _mapping(policy["visits"], "rules.policy.visits")
+    result: list[VisitOpportunityRule] = []
+    for raw in _array(group, "opportunities"):
+        item = _mapping(raw, "visit opportunity")
+        member_probabilities = _mapping(
+            item.get("member_probabilities", {}),
+            "visit opportunity member probabilities",
+        )
+        purpose_weights = _mapping(
+            item.get("purpose_weights", {}), "visit opportunity purpose weights"
+        )
+        species_multipliers = _mapping(
+            item.get("species_multipliers", {}), "visit opportunity species multipliers"
+        )
+        region_multipliers = _mapping(
+            item.get("region_multipliers", {}), "visit opportunity region multipliers"
+        )
+        regional_probabilities = _mapping(
+            item.get("base_visit_probabilities_by_region", {}),
+            "visit opportunity base probabilities by region",
+        )
+        personality_factors = _mapping(
+            item.get("personality_factor_by_purpose", {}),
+            "visit opportunity personality factors",
+        )
+        result.append(
+            VisitOpportunityRule(
+                opportunity_id=_text(item, "id"),
+                place_ids=_strings(item, "place_ids"),
+                base_visit_probability=_bounded_probability(
+                    item,
+                    "base_visit_probability",
+                    "rules.policy.visits.opportunities",
+                ),
+                home_regions=_strings(item, "home_regions", default=()),
+                base_visit_probabilities_by_region=tuple(
+                    (
+                        str(region_id),
+                        _bounded_probability(
+                            regional_probabilities,
+                            str(region_id),
+                            "visit opportunity base probabilities by region",
+                        ),
+                    )
+                    for region_id in sorted(regional_probabilities)
+                ),
+                minimum_age_years=_integer(item, "minimum_age_years"),
+                purpose=_text(item, "purpose"),
+                stay_days=_integer(item, "stay_days"),
+                max_repeat_count=_integer(item, "max_repeat_count"),
+                member_probability=_bounded_probability(
+                    item, "member_probability", "rules.policy.visits.opportunities"
+                ),
+                member_probabilities=tuple(
+                    (
+                        str(place_id),
+                        _bounded_probability(
+                            member_probabilities,
+                            str(place_id),
+                            "visit opportunity member probabilities",
+                        ),
+                    )
+                    for place_id in sorted(member_probabilities)
+                ),
+                purpose_weights=tuple(
+                    (str(purpose), _number(purpose_weights, str(purpose)))
+                    for purpose in sorted(purpose_weights)
+                ),
+                personality_factor_by_purpose=tuple(
+                    (str(purpose), str(factor))
+                    for purpose, factor in sorted(personality_factors.items())
+                ),
+                species_multipliers=tuple(
+                    (str(species_id), _number(species_multipliers, str(species_id)))
+                    for species_id in sorted(species_multipliers)
+                ),
+                region_multipliers=tuple(
+                    (str(region_id), _number(region_multipliers, str(region_id)))
+                    for region_id in sorted(region_multipliers)
+                ),
+                requires_opportunity_id=_text(
+                    item, "requires_opportunity_id", required=False
+                ),
+                distance_decay_days=_number(item, "distance_decay_days"),
+            )
+        )
+    return tuple(result)
+
+
 def _episode_themes(
     rules: Mapping[str, Any], ontology: MemoryOntologySnapshot
 ) -> tuple[EpisodeTheme, ...]:
@@ -447,6 +775,13 @@ def _probability(raw: Mapping[str, Any]) -> float:
     if denominator <= 0 or not 0 <= numerator <= denominator:
         raise ValueError("mastery probability 无效")
     return numerator / denominator
+
+
+def _bounded_probability(value: Mapping[str, Any], key: str, label: str) -> float:
+    result = _number(value, key)
+    if not 0.0 <= result <= 1.0:
+        raise ValueError(f"{label}.{key} 必须在 [0, 1] 内")
+    return result
 
 
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:

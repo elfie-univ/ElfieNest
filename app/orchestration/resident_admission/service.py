@@ -40,6 +40,7 @@ from .models import (
 )
 from .ports import (
     ElfieConstructionPort,
+    ResidentAdmissionNestPort,
     ResidentAdmissionPortError,
     ResidentAdmissionStorePort,
     ResidentSessionPort,
@@ -93,6 +94,7 @@ class ResidentAdmissionService:
         compiler: GenesisCompilerProvider,
         *,
         admission_store: ResidentAdmissionStorePort,
+        nest: ResidentAdmissionNestPort | None = None,
     ) -> None:
         self._adoption = adoption
         self._workspace = workspace
@@ -100,6 +102,7 @@ class ResidentAdmissionService:
         self._residents = residents
         self._compiler = compiler
         self._admission_store = admission_store
+        self._nest = nest
         self._admission_lock = threading.RLock()
 
     def admit(
@@ -236,6 +239,11 @@ class ResidentAdmissionService:
                 output_ids_hash=current.output_ids_hash,
             )
             self._workspace.publish(current.elfie_id)
+            current = self._admission_store.materialize(
+                current.admission_id,
+                _publication_from_record(current),
+            )
+            self._finalize_nest(current)
             current = self._admission_store.commit(
                 current.admission_id,
                 _publication_from_record(current),
@@ -345,6 +353,11 @@ class ResidentAdmissionService:
                 output_ids_hash=current.output_ids_hash,
             )
             self._workspace.publish(current.elfie_id)
+            current = self._admission_store.materialize(
+                current.admission_id,
+                _publication_from_record(current),
+            )
+            self._finalize_nest(current)
             current = self._admission_store.commit(
                 current.admission_id,
                 _publication_from_record(current),
@@ -442,6 +455,11 @@ class ResidentAdmissionService:
             persistence_status="committed",
             runtime_status=runtime_status,
         )
+
+    def _finalize_nest(self, record: AdmissionRecord) -> None:
+        if self._nest is None:
+            return
+        self._nest.finalize_admission(record.admission_id, record.elfie_id)
 
     def _latest(self, record: AdmissionRecord) -> AdmissionRecord:
         try:

@@ -14,6 +14,7 @@ from infrastructure.persistence.configuration.documents import (
 )
 from infrastructure.persistence.configuration.world import (
     GenesisSourcePackageError,
+    _generation_policy,
     _validate_package,
     load_genesis_source_package,
 )
@@ -23,7 +24,13 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v4"
+    assert package.package_version == "elfaria-genesis.v9"
+    assert package.geography_network.days_per_local_year == 196
+    assert package.generation_policy.family_lifespan_cdf_power == 6
+    assert (
+        package.generation_policy.family_lifespan_sampler_version
+        == "conditioned-lifespan-cdf.v1"
+    )
     assert package.manifest.status == "published"
     assert len(package.manifest.member_ids) == 18
     assert len(package.knowledge) == 160
@@ -32,8 +39,90 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert "Saevi、Tovren 和 Myelle" in package.knowledge[0].statement
     assert len(package.story_events) == 16
     assert len(package.routes) == 16
+    assert package.geography_network.land_days_per_grid_hop == 2
+    assert package.geography_network.water_days_per_grid_hop == 3
+    assert package.geography_network.cell_for_place("earthbound_station") == "R4C3"
+    assert len(package.geography_network.land_backbone_paths) == 16
+    assert package.geography_network.island_destinations == (
+        ("lakeheart_isle", "R1C7", "R0C7", 1),
+    )
+    assert package.geography_network.shortest_land_path("R4C3", "R1C7") is None
+    assert package.geography_network.shortest_land_path("R4C3", "R0C7")[-1] == "R0C7"
     assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert package.place("mistyville_center").parent_id == "central_mixed"
+    assert package.place("central_mixed").parent_id == "mistyville"
+    mixed_region = dict(package.place("D").metadata)
+    assert mixed_region["terrain"] == "mixed_settlement"
+    assert mixed_region["resident_species"] == "Saevi、Tovren、Myelle"
+    assert mixed_region["birth_eligible"] == "true"
     assert len(package.place_relations) == 7
+    assert {
+        (rule.rule_id, rule.place_id, rule.observation_only)
+        for rule in package.access_rules
+    } == {
+        ("earthbound_entry", "earthbound_station", False),
+        ("island_entry", "lakeheart_isle", False),
+        ("cloudcrown_entry", "cloudcrown_city", True),
+    }
+    station_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "earthbound_entry"
+    )
+    assert station_rule.requires == (
+        "scheduled_transition_or_authorized_visit",
+        "valid_entry_permission",
+    )
+    cloudcrown_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "cloudcrown_entry"
+    )
+    assert cloudcrown_rule.ordinary_travel_allowed is False
+    assert {
+        item.opportunity_id for item in package.generation_policy.visit_opportunities
+    } == {
+        "local_forest_center",
+        "other_forest_center",
+        "local_plain_center",
+        "other_plain_center",
+        "local_mountain_center",
+        "other_mountain_center",
+        "town_center",
+        "mixed_center",
+        "forest_attraction",
+        "plain_attraction",
+        "mountain_attraction",
+        "lake_group",
+        "underground_exploration",
+    }
+    town = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "town_center"
+    )
+    assert "earthbound_station" not in town.place_ids
+    assert town.member_probability_for("mistyville_center") == 1.0
+    assert town.home_regions == ("A1", "A2", "B", "C1", "C2", "C3")
+    assert town.base_visit_probability_for("B") == 0.8
+    assert town.purpose_options() == (
+        ("探亲交往", 1.0),
+        ("观光", 1.0),
+        ("赶集交换", 1.0),
+    )
+    assert town.distance_decay_days == 4.0
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "forest_attraction"
+        ).distance_decay_days
+        == 12.0
+    )
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "underground_exploration"
+        ).base_visit_probability
+        == 0.0
+    )
     assert {
         (item.subject_id, item.relation, item.object_id)
         for item in package.place_relations
@@ -100,6 +189,35 @@ def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
     assert package.place("myelle_region").aliases == ("A1", "A2")
 
 
+def test_generation_policy_consumes_family_values_from_program() -> None:
+    policy = _generation_policy(
+        {
+            "policy": {
+                "version": "test-policy",
+                "family": {
+                    "child_count_distribution": {"1": 0.2, "4": 0.8},
+                    "partner_min_age_years": 5,
+                    "partner_annual_probability": 0.4,
+                    "max_children": 4,
+                    "lifespan": {
+                        "cdf_power": 4,
+                        "sampler_version": "conditioned-lifespan-cdf.v1",
+                    },
+                },
+            },
+            "household": {"biological_parent_min_age_gap_local_years": 6},
+        }
+    )
+
+    assert policy.family_child_count_distribution == ((1, 0.2), (4, 0.8))
+    assert policy.family_parent_min_age_gap_years == 6
+    assert policy.family_partner_min_age_years == 5
+    assert policy.family_partner_annual_probability == 0.4
+    assert policy.family_max_children == 4
+    assert policy.family_lifespan_cdf_power == 4
+    assert policy.family_lifespan_sampler_version == "conditioned-lifespan-cdf.v1"
+
+
 def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     package = load_genesis_source_package()
 
@@ -107,11 +225,69 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert myelle_landscape.conditions[0].kind == "place"
     assert myelle_landscape.conditions[0].value("id") == "myelle_region"
     assert myelle_landscape.conditions[0].value("contact") == "residence"
+    assert package.fact("B-03-02").topic == "B-03"
     assert package.fact("B-04-02").conditions[0].kind == "route"
     assert package.fact("B-04-02").conditions[0].value("status") == "traversed"
     assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
     assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
+    assert package.generation_policy.candidate_proposal_count == 96
+    assert package.generation_policy.candidate_options_per_choice == 8
+    assert package.generation_policy.candidate_total_backtracks == 64
     assert package.generation_policy.medium_knowledge_probability == 0.5
+    assert package.generation_policy.candidate_age_reserve_years == 4
+    assert package.generation_policy.candidate_stage_weights == (
+        ("youth", 0.0),
+        ("young_adult", 0.75),
+        ("mature", 0.2),
+        ("elder", 0.05),
+    )
+    assert package.generation_policy.family_child_count_distribution == (
+        (1, 0.4),
+        (2, 0.45),
+        (3, 0.15),
+    )
+    assert package.generation_policy.family_parent_min_age_gap_years == 3
+    assert package.generation_policy.family_partner_annual_probability == 0.25
+    assert package.generation_policy.family_partner_min_age_years == 3
+    assert package.generation_policy.family_max_children == 3
+    assert package.generation_policy.relationship_importance_baselines == (
+        ("core", 0.75),
+        ("direct_acquaintance", 0.25),
+        ("friend", 0.35),
+        ("sibling", 0.65),
+        ("teacher", 0.45),
+    )
+    assert package.generation_policy.relationship_layer_decay_lambda == 0.9
+    assert package.generation_policy.friend_layer_decay_lambda == 0.65
+    assert package.generation_policy.friend_contact_beta == 0.8
+    assert package.generation_policy.friend_max_count == 2
+    assert (
+        package.generation_policy.visit_sampler_version
+        == "visits-zero-heavy-power-count.v1"
+    )
+    assert package.generation_policy.visit_repeat_count_power == 23.0
+    assert package.generation_policy.visit_cross_region_lifetime_fraction == 0.1
+    assert package.generation_policy.visit_social_multiplier_base == 0.8
+    assert package.generation_policy.visit_social_multiplier_slope == 0.4
+    assert package.generation_policy.visit_curiosity_multiplier_base == 0.8
+    assert package.generation_policy.visit_curiosity_multiplier_slope == 0.4
+    assert package.generation_policy.visit_risk_multiplier_base == 0.8
+    assert package.generation_policy.visit_risk_openness_slope == 0.4
+    assert package.generation_policy.visit_risk_neuroticism_slope == -0.2
+    forest = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "forest_attraction"
+    )
+    assert forest.base_visit_probability_for("B") == 0.45
+    assert forest.species_multiplier_for("Saevi") == 1.3
+    assert forest.species_multiplier_for("Tovren") == 1.0
+    lake = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "lake_group"
+    )
+    assert lake.member_probability_for("lakeheart_isle") == 0.15
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

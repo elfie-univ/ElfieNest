@@ -25,6 +25,7 @@ function renderSidebar(session: ElfieSession | null): string {
     onCreate={doNothing}
     onDelete={doNothing}
     onEditPersonality={doNothing}
+    onOpenGenesisReview={doNothing}
     onOpenSelfhood={doNothing}
     onFood={doNothing}
     onMenu={doNothing}
@@ -63,6 +64,7 @@ describe("Elfie memory visualization SSR boundary", () => {
     const markup = renderSidebar(session);
     expect(markup).toContain("修改");
     expect(markup).toContain("Selfhood");
+    expect(markup).toContain("生成审查");
     expect(markup).toContain("4 岁 · 成年");
     expect(markup).toContain("雌性");
     expect(markup).toContain("东部森林");

@@ -25,24 +25,30 @@ from .test_contracts import _compilation
 
 def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> None:
     compilation = _compilation("00000101")
+    early_home = next(
+        episode
+        for episode in compilation.bundle.episode_seeds
+        if episode.theme_id == "early-home"
+    )
+    assert "我在家中长大" in early_home.content
+    assert "我的家在我的住处" not in early_home.content
     arrival = next(
         episode
         for episode in compilation.bundle.episode_seeds
         if episode.theme_id == "arrival-nest"
     )
-    expected_event_kinds = {
-        "early-home": "outing",
-        "learning-path": "learning",
-        "shared-space-choice": "activity",
-        "craft-practice": "learning",
-        "rain-route": "outing",
-        "departure-decision": "life_event",
-        "arrival-nest": "life_event",
+    assert {episode.event_kind for episode in compilation.bundle.episode_seeds} <= {
+        "activity",
+        "conversation",
+        "learning",
+        "life_event",
+        "observation",
+        "outing",
+        "reflection",
+        "unclassified",
     }
-    assert all(
-        expected_event_kinds[episode.theme_id] == episode.event_kind
-        for episode in compilation.bundle.episode_seeds
-    )
+    assert early_home.event_kind == "outing"
+    assert arrival.event_kind == "life_event"
     assert arrival.place_ids == ("elfie_nest",)
     arrival_base = next(
         place
@@ -84,8 +90,20 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         assert submission is not None
         assert submission.manifest_id == compilation.bundle.manifest.manifest_id
         assert len(submission.expected_ids_hash) == 64
-        rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
-        assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
+        friend_seed = next(
+            episode
+            for episode in compilation.bundle.episode_seeds
+            if episode.theme_id == "shared-space-choice"
+        )
+        friend_episode = storage.get_episode(
+            f"genesis:episode:00000101:{safe_component(friend_seed.seed_id)}"
+        )
+        assert friend_episode is not None
+        assert "相识" in friend_episode.content_text
+        related = storage.recall(RecallRequest(text="相识", lexical_limit=10))
+        assert any(
+            item.episode_id == friend_episode.episode_id for item in related.episodes
+        )
 
         identity_seed = next(
             seed

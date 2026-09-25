@@ -9,12 +9,14 @@ import secrets
 import shutil
 import sqlite3
 import tempfile
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 from uuid import uuid4
 
 from devtools.elfie_lab.schemas import ElfieSpec, derive_life_stage
 from elfie.brain.selfhood import (
+    SelfhoodSystem,
     derive_personality,
 )
 from elfie.genesis import (
@@ -25,7 +27,9 @@ from elfie.genesis import (
     GenesisCompileInput,
     GenesisCompiler,
     GenesisPersonality,
+    legal_candidate_age_range,
     stage_for_age,
+    weighted_candidate_stage,
 )
 from elfie.genesis.appearance import generate_appearance, signature, visible_key
 from elfie.genesis.personality import profile as genesis_personality_profile
@@ -63,12 +67,15 @@ class ElfieLabStorage:
         )
         self.elfies_dir = self.root / "elfies"
         self.sessions_dir = self.root / "sessions"
+        self.genesis_reviews_dir = self.root / "genesis_reviews"
         self.elfies_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.genesis_reviews_dir.mkdir(parents=True, exist_ok=True)
         self.ontology = load_memory_ontology_snapshot(data_home=self.root)
         self._catalog = load_and_configure_species_catalog()
+        self._source_package = load_genesis_source_package(ontology=self.ontology)
         self._genesis = GenesisCompiler(
-            load_genesis_source_package(ontology=self.ontology),
+            self._source_package,
             catalog=self._catalog,
         )
 
@@ -100,13 +107,7 @@ class ElfieLabStorage:
         if not clean_name:
             raise ValueError("精灵名称不能为空")
         if age_years is None:
-            generation = self._catalog.definition(
-                species_id, adoptable_only=True
-            ).genesis
-            if generation is None:
-                raise ValueError("物种缺少 Genesis 年龄配置")
-            maximum = max(upper for _, upper in generation.stage_ranges.values())
-            age_years = secrets.choice(tuple(range(2, maximum + 1)))
+            age_years = self._sample_candidate_age(species_id)
         if (
             isinstance(age_years, bool)
             or not isinstance(age_years, (int, float))
@@ -116,6 +117,17 @@ class ElfieLabStorage:
             or age_years > 100
         ):
             raise ValueError("精灵年龄必须是 2 到 100 岁之间的整数")
+        definition = self._catalog.definition(species_id, adoptable_only=True)
+        if definition.genesis is None:
+            raise ValueError("物种缺少 Genesis 年龄配置")
+        life_stage = stage_for_age(species_id, int(age_years), self._catalog)
+        minimum, maximum = legal_candidate_age_range(
+            definition.genesis,
+            life_stage,
+            self._source_package.generation_policy,
+        )
+        if not minimum <= age_years <= maximum:
+            raise ValueError("精灵年龄必须符合阶段范围并保留生命终点前的四年")
         if gender is None:
             gender = secrets.choice(("male", "female"))
         if gender not in {"male", "female"}:
@@ -166,6 +178,24 @@ class ElfieLabStorage:
         self._save_character_profile(spec, selected_big_five, gender=gender)
         self._write_json(self.profile_path(spec.elfie_id), spec.to_dict())
         return spec
+
+    def _sample_candidate_age(self, species_id: str) -> int:
+        definition = self._catalog.definition(species_id, adoptable_only=True)
+        if definition.genesis is None:
+            raise ValueError("物种缺少 Genesis 年龄配置")
+        policy = self._source_package.generation_policy
+        stages = ("youth", "young_adult", "mature", "elder")
+        age_ranges = {
+            stage: legal_candidate_age_range(definition.genesis, stage, policy)
+            for stage in stages
+        }
+        legal_stages = tuple(
+            stage for stage in stages if age_ranges[stage][0] <= age_ranges[stage][1]
+        )
+        chooser = secrets.SystemRandom()
+        stage = weighted_candidate_stage(legal_stages, policy, chooser.random())
+        minimum, maximum = age_ranges[stage]
+        return chooser.choice(tuple(range(minimum, maximum + 1)))
 
     def update_big_five(
         self,
@@ -226,6 +256,18 @@ class ElfieLabStorage:
         path = self.elfies_dir / elfie_id / "memory" / "knowledge.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
+
+    def genesis_review_path(self, elfie_id: str) -> Path:
+        self._validate_id(elfie_id)
+        return self.genesis_reviews_dir / f"{elfie_id}.json"
+
+    def get_genesis_review(self, elfie_id: str) -> Dict[str, Any]:
+        if not self.profile_path(elfie_id).is_file():
+            raise KeyError(f"测试精灵不存在: {elfie_id}")
+        path = self.genesis_review_path(elfie_id)
+        if not path.is_file():
+            raise FileNotFoundError(f"该精灵没有同次 Genesis 审查记录: {elfie_id}")
+        return self._read_json(path)
 
     def activity_path(self, elfie_id: str) -> Path:
         """Return the durable Activity store path for one Lab Elfie."""
@@ -383,6 +425,135 @@ class ElfieLabStorage:
         workspace.stage(compilation)
         workspace.publish(spec.elfie_id)
         workspace.finalize(spec.elfie_id)
+        self._write_json(
+            self.genesis_review_path(spec.elfie_id),
+            self._genesis_review_payload(compilation),
+        )
+
+    def _genesis_review_payload(self, compilation: Any) -> Dict[str, Any]:
+        """Keep the same-run creation decisions in Lab-only review storage."""
+        plan = compilation.plan
+        bundle = plan.bundle
+        traces = {item.knowledge_id: item for item in plan.decision_trace}
+        selected = {item.knowledge_id: item for item in plan.knowledge_entries}
+        knowledge: list[dict[str, object]] = []
+        for fact in self._source_package.knowledge:
+            entry = selected.get(fact.fact_id)
+            trace = traces.get(fact.fact_id)
+            decision = trace.decision if trace is not None else "not_selected"
+            reason = (
+                trace.reason if trace is not None else "编译器未提供该单元的选择理由"
+            )
+            if (
+                entry is not None
+                and trace is not None
+                and trace.decision
+                in {
+                    "not_eligible",
+                    "not_yet_eligible",
+                    "not_mastered",
+                }
+            ):
+                decision = "selected_by_prerequisite_closure"
+                reason = "由已选知识的前置知识闭包补入，最终纳入个人知识"
+            knowledge.append(
+                {
+                    "knowledge_id": fact.fact_id,
+                    "source_text": fact.statement,
+                    "topic": fact.topic,
+                    "scope": fact.scope,
+                    "level": fact.level,
+                    "certainty": fact.certainty,
+                    "status": fact.status,
+                    "mastery_difficulty": fact.mastery_difficulty,
+                    "eligibility": list(fact.eligibility),
+                    "acquisition_channels": list(fact.acquisition_channels),
+                    "conditions": [
+                        {
+                            "kind": condition.kind,
+                            "attributes": dict(condition.attributes),
+                        }
+                        for condition in fact.conditions
+                    ],
+                    "prerequisite_ids": list(fact.prerequisite_ids),
+                    "selected": entry is not None,
+                    "decision": decision,
+                    "reason": reason,
+                    "access": trace.access if trace is not None else "unknown",
+                    "exposure": trace.exposure if trace is not None else "unknown",
+                    "selected_text": entry.source_statement
+                    if entry is not None
+                    else None,
+                    "mastery_level": entry.mastery_level if entry is not None else None,
+                    "acquired_age_years": (
+                        entry.acquired_age_years if entry is not None else None
+                    ),
+                    "acquired_via": entry.acquired_via if entry is not None else None,
+                }
+            )
+        mobility = plan.life_context.mobility
+        return {
+            "schema_version": 1,
+            "source": {
+                "package_id": self._source_package.manifest.package_id,
+                "package_version": self._source_package.manifest.package_version,
+                "content_sha256": self._source_package.manifest.content_sha256,
+                "policy_version": self._source_package.generation_policy.policy_version,
+                "compiler_version": self._genesis.compiler_version,
+            },
+            "summary": {
+                "knowledge_unit_count": len(knowledge),
+                "selected_knowledge_count": len(selected),
+                "not_selected_knowledge_count": len(knowledge) - len(selected),
+                "conditional_knowledge_count": sum(
+                    bool(item["conditions"]) for item in knowledge
+                ),
+                "episode_count": len(bundle.episode_seeds),
+                "relationship_count": len(bundle.relationship_seeds),
+                "place_count": len(bundle.place_seeds),
+                "place_relation_count": len(bundle.place_relation_seeds),
+                "travel_path_count": len(mobility.travel_paths),
+            },
+            "knowledge": knowledge,
+            "life": {
+                "identity": {
+                    "species_id": plan.life_context.identity.species_id,
+                    "gender": plan.life_context.identity.gender,
+                    "life_stage": plan.life_context.identity.life_stage,
+                    "age_years_at_adoption": plan.life_context.identity.age_years_at_adoption,
+                    "adoption_anchor_at": plan.life_context.identity.adoption_anchor_at,
+                },
+                "origin": _jsonable(plan.life_context.origin),
+                "household": _jsonable(plan.life_context.household),
+                "learning": _jsonable(plan.life_context.learning),
+                "vocation": _jsonable(plan.life_context.vocation),
+                "mobility": _jsonable(mobility),
+                "travel_paths": _jsonable(mobility.travel_paths),
+                "earth_transition": _jsonable(plan.life_context.earth_transition),
+            },
+            "episodes": _jsonable(bundle.episode_seeds),
+            "relationships": _jsonable(bundle.relationship_seeds),
+            "places": _jsonable(bundle.place_seeds),
+            "place_relations": _jsonable(bundle.place_relation_seeds),
+            "outputs": {
+                "profile": {
+                    "age_years": plan.profile.identity.origin.age_years,
+                    "gender": plan.profile.identity.gender,
+                    "origin_place_id": plan.profile.identity.origin.origin_place_id,
+                    "origin_place_label": plan.profile.identity.origin.origin_place_label,
+                },
+                "selfhood": _jsonable(bundle.selfhood_state),
+                "selfhood_projection": _jsonable(
+                    SelfhoodSystem(
+                        initial_at=bundle.selfhood_state.committed_at,
+                        initial=bundle.selfhood_state,
+                    ).prompt_projection()
+                ),
+                "knowledge": _jsonable(bundle.knowledge_seeds),
+                "output_ids": list(bundle.manifest.output_ids),
+                "content_hash": bundle.manifest.content_hash,
+            },
+        }
 
     @staticmethod
     def _default_big_five() -> Dict[str, object]:
@@ -453,3 +624,21 @@ def _new_final_elfie_id(elfies_dir: Path) -> str:
         candidate = f"{uuid4().int % 100_000_000:08d}"
         if not (elfies_dir / candidate).exists():
             return candidate
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert typed creation evidence into JSON without stringifying objects."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(mode="json")
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(item) for item in value]
+    if hasattr(value, "value") and isinstance(value.value, (str, int, float)):
+        return value.value
+    raise TypeError(f"无法安全序列化 Genesis 审查值: {type(value).__name__}")

@@ -118,6 +118,32 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert policy["episodes"]["fixed_maximum"] is False
     assert "maximum" not in policy["episodes"]
     assert "episode_count" not in policy
+    visits = policy["visits"]
+    assert visits["source_ref"] == "generation#11.3"
+    assert {opportunity["id"] for opportunity in visits["opportunities"]} == {
+        "local_forest_center",
+        "other_forest_center",
+        "local_plain_center",
+        "other_plain_center",
+        "local_mountain_center",
+        "other_mountain_center",
+        "town_center",
+        "mixed_center",
+        "forest_attraction",
+        "plain_attraction",
+        "mountain_attraction",
+        "lake_group",
+        "underground_exploration",
+    }
+    town = next(item for item in visits["opportunities"] if item["id"] == "town_center")
+    lake = next(item for item in visits["opportunities"] if item["id"] == "lake_group")
+    assert "earthbound_station" not in town["place_ids"]
+    assert town["base_visit_probability"] == 0.8
+    assert town["home_regions"] == ["A1", "A2", "B", "C1", "C2", "C3"]
+    assert lake["max_repeat_count"] == 64
+    assert visits["sampler_version"] == "visits-zero-heavy-power-count.v1"
+    assert visits["repeat_count_power"] == 23.0
+    assert visits["cross_region_lifetime_fraction"] == 0.1
     reproducibility = policy["reproducibility"]
     assert reproducibility["algorithm"] == "sha256-domain-v1"
     assert reproducibility["canonical_input_order"] == [
@@ -291,6 +317,8 @@ def test_registered_knowledge_is_still_the_existing_160_unit_projection() -> Non
     )
     rows = knowledge["knowledge"]
     assert len(rows) == len({row["id"] for row in rows}) == 160
+    assert all(isinstance(row.get("topic"), str) and row["topic"] for row in rows)
+    assert next(row for row in rows if row["id"] == "A-01-02")["topic"] == "A-01"
     source = ROOT.parent / knowledge["source"]["path"]
     assert (
         hashlib.sha256(source.read_bytes()).hexdigest() == knowledge["source"]["sha256"]
@@ -461,6 +489,29 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
         assert policy["excluded_stages"] == []
         assert policy["age_restriction"] == "strictly_greater_than_one_local_year"
         assert set(generation["stage_ranges"]) == expected_stages
+
+    candidates = program["rules"]["policy"]["candidates"]
+    assert candidates["age_policy"] == {
+        "terminal_reserve_years": 4,
+        "stage_weights": {
+            "youth": 0.0,
+            "young_adult": 0.75,
+            "mature": 0.2,
+            "elder": 0.05,
+        },
+        "source_ref": "generation#11.1",
+    }
+    assert program["rules"]["policy"]["family"] == {
+        "child_count_distribution": {"1": 0.4, "2": 0.45, "3": 0.15},
+        "partner_min_age_years": 3,
+        "partner_annual_probability": 0.25,
+        "max_children": 3,
+        "lifespan": {
+            "cdf_power": 6,
+            "sampler_version": "conditioned-lifespan-cdf.v1",
+        },
+        "source_ref": "generation#11.1",
+    }
 
 
 def test_geography_model_is_complete_and_distances_are_route_based() -> None:

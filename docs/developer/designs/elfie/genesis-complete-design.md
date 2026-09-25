@@ -243,7 +243,7 @@ Validate these counterexamples in package validation, Genesis, final owners, Adm
 | One loading path, in-place Genesis/Admission evolution, required governance and focused acceptance | Do not claim implementation; see 6.3 |
 | Stage duration, P95/failure rate, timeout/retry intervals and waiting/cancellation experience | Do not promise unmeasured latency |
 
-Existing geography and basic rule packages feed creation. New section-6.5 strategies and `elfaria-generation-rules` §11 parameters still require compilation and implementation. Updating source digests does not activate those strategies.
+The published Program v8 compiles the currently bound subset of section-6.5 policy: candidate age/budget, family child-count and lifespan parameters, relationship importance, and visit probability, attraction, personality, youth-care feasibility, a full-local-year hard ceiling, a 10% lifetime cross-region travel cap and the zero-heavy repeat-count sampler. The annual ceiling does not yet subtract specific learning/work time. Remaining unbound policy and end-to-end evidence stay in ELF-019; updating source digests does not activate them.
 
 ### 5.3 Completion evidence
 
@@ -352,12 +352,13 @@ source:
   sha256: <source-digest>
 knowledge:
   - id: <stable-id>
+    topic: <reviewed-small-topic>
     description: <complete resident-facing fact>
     eligibility: <optional declarative rule>
     mastery_difficulty: <optional difficulty>
 ~~~
 
-Each resident-content unit maps to one record, including unlabeled lists/paragraphs. `description` preserves the complete original text. Normalize line breaks, list markers and label prefixes only, without changing wording, facts or epistemic boundaries. Do not add titles, topic groups, empty properties, generated defaults or partial content.
+Each resident-content unit maps to one record, including unlabeled lists/paragraphs. `topic` is an explicit reviewed organization field; it never changes the source fact. `description` preserves the complete original text. Normalize line breaks, list markers and label prefixes only, without changing wording, facts or epistemic boundaries. Do not add titles or topic prose to `description`, empty properties, generated defaults or partial content.
 
 | Human-readable label | Machine representation |
 | --- | --- |
@@ -371,7 +372,7 @@ Each resident-content unit maps to one record, including unlabeled lists/paragra
 
 #### 6.4.3 Required rules and data
 
-Values and applicable conditions come from `elfaria-generation-rules`. Register existing rules separately from newly accepted parameters; uncompiled material is not published coverage. Every rule needs a stable ID, provenance/version, availability, units and verifiable references.
+Values and applicable conditions come from `elfaria-generation-rules`. Register existing rules separately from newly accepted parameters; only values bound by the published Program and consumed by a typed Genesis input are active, while uncompiled material is not published coverage. Every rule needs a stable ID, provenance/version, availability, units and verifiable references.
 
 | Collection | Required content |
 | --- | --- |
@@ -420,7 +421,7 @@ Catalog maps technical species IDs to formal names. Source publication does not 
 
 ### 6.5 Individual-generation algorithms and final handoff
 
-This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from `elfaria-generation-rules` §11. They are accepted targets, not claims of active production policies.
+This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from `elfaria-generation-rules` §11. Program v8 activates only the subset listed in 6.3; values without a Program binding and typed consumer remain target policy and are tracked in ELF-019.
 
 #### 6.5.1 Candidates, names and invitations
 
@@ -519,21 +520,23 @@ Ordinary center visits allocate opportunity among feasible market/exchange, rela
 
 Cultural attraction maps Saevi family culture to Firstroot Tree, Tovren to Riverturn Hill/Riverturn Bend, and Myelle to the Skymirror Lake mountain group. This changes visit tendency only; species grants neither belief nor knowledge. Mixed-area residents retain their personal cultural background while distance is calculated separately. Riverturn Hill/Riverturn Bend forms a plain-attraction group using the source's plain-attraction row, sampled separately from the lake group.
 
-Accumulate over residence/life periods:
+For each opportunity, calculate one bounded visit probability:
 
-`Λ=Σ[annual base rate×available years×age-related mobility feasibility×personality multiplier×cultural attraction×exp(−round-trip travel days/τ)]`
+`p=base probability×distance factor×region factor×species factor×age factor×personality factor`, with every factor in `[0,1]`.
 
-`opportunity count~Poisson(Λ)`; `probability of at least one opportunity=1−exp(−Λ)`.
+Use one draw for whether the place was visited and, if so, one draw for its repeat count:
 
-Count is the sampled result; do not independently sample “ever visited.” Age contributes through available years and feasibility, without another age probability. Deduct time occupied by learning/work. Care-supported childhood travel can be feasible; partially available periods contribute proportionally. One center uses one base rate. Split the total among purposes rather than assigning every purpose the full rate. Use the primary-purpose personality multiplier and a separate species-cultural attraction multiplier, without repeatedly multiplying all traits.
+`N=0 if U_visit≥p; otherwise N=ceil(K×U_count^m)`
 
-Allocate sampled opportunities across periods by their contribution to Λ, then choose starts within available intervals; do not cluster everything at current age. Only after route, access, care and scheduling checks does an opportunity become a visit. Record unreachable/overlong opportunities as unrealized rather than retrying until success. Trips record start/end, multiple purposes, companions, actual edges, travel days, stay and contact level.
+`U_visit,U_count~Uniform(0,1)`, `K` is the configured feasible repeat cap, and `m` is the configured repeat-count power. The power puts most positive counts near one and leaves a thin tail toward `K`; it replaces the Poisson count. The age factor is the share of the protagonist's current age spent in eligible travel years. Distance uses `exp(−round-trip travel days/τ)`. Normalize personality, species and region factors to `[0,1]`; do not multiply by years as though years were another probability. A multi-purpose outing still counts once.
+
+Assign the sampled visits across eligible ages, then validate route, access, care and available days. Only valid trips become visits; retain infeasible draws as unrealized rather than retrying until success. Trips record start/end, multiple purposes, companions, actual edges, travel days, stay and contact level.
 
 Count valid trips; one multi-purpose town trip counts once. Repeated routines may be grouped with counts and periods preserved. Optional cross-region tourism has a time cap. Relocation, long study and mandatory departure are separate but still conflict-checked.
 
 | Place group | Within-opportunity handling |
 | --- | --- |
-| Town center | Execute the primary purpose; draw each incidental public point once using `q=1−exp(−r×available sightseeing days)`, then check activity/travel time; interiors require eligibility |
+| Town center | Sample the center trip count first; incidental public points are attached to at most one of those trips, then check activity/travel time; interiors require eligibility |
 | Lake | Reach shore first, then draw a Lakeheart Isle opportunity and check ferry/stay; do not skip the prerequisite |
 | Skymirror Lake mountain group | Skymirror Lake, Cloudfall Falls and distant Cloudcrown City may share one actual viewpoint, subject to visibility; no Cloudcrown City entry |
 | Underground | Entrance observation is distinct from entry; entering needs activity window, training, permission and dedicated route |
@@ -584,7 +587,7 @@ Personal knowledge retains atomic facts organized into reviewed small-topic buck
 
 Generation may submit bounded topic groups through the existing APSO entrance with explicit member boundaries. Memory must preserve fact-level evidence and topic membership. Split oversized groups at whole-member boundaries under configured limits; never truncate text, substitute summaries or redraw eligibility. Grouping cannot turn legends, uncertainty or conditions into certain facts, or backdate later knowledge into earlier experiences.
 
-On a member hit, Recall expands relevant acquired siblings within its budget, deduplicating and retaining provenance. Return the whole group when it fits; otherwise return relevant complete members plus an omitted-member count/continuation reference. A hit does not guarantee unlimited context. Lab defaults to grouped reading with expandable eligibility, provenance and evidence per member. Acceptance covers cross-member questions, large-group splitting, unacquired-member isolation, temporal filtering, idempotency and source-free reopen. Current per-unit writes with chapter-only topics do not yet meet this target.
+On a member hit, Recall expands relevant acquired siblings within its budget, deduplicating and retaining provenance. Return the whole group when it fits; otherwise return relevant complete members plus an omitted-member count/continuation reference. A hit does not guarantee unlimited context. Lab defaults to grouped reading with expandable eligibility, provenance and evidence per member. The current source-first implementation keeps one complete Episode per fact and records the declared bucket and member order; Recall expands only those acquired siblings and reports omissions without concatenating or truncating facts. Acceptance still covers large-group splitting, unacquired-member isolation, temporal filtering, idempotency and source-free reopen.
 
 #### 6.5.9 Detailed stories, Selfhood and introduction
 
@@ -644,7 +647,7 @@ InitializationManifest records expected owners, output IDs/counts/digests and ch
 
 Candidate, age, appearance, personality, naming, birth, family, learning, vocation, relocation/travel, person, event and knowledge IDs use separate domains. Knowledge uses `attempt_id=0`; backtracking rechecks eligibility without rerolling mastery. Prohibit process-randomized hashes, unordered iteration and shared advancing global random streams.
 
-Sort discrete choices by stable ID. Use nonnegative integer cumulative weights with `W∈[1,2^64−1]`. Accept digest integers below `2^256−(2^256 mod W)` before modulo W; otherwise increment only that draw counter, within its finite budget. Fixed probabilities use reviewed integer numerator/denominator through the same method; handle zero/one directly. Reject invalid/all-zero weights at publication. Section-6.5 exponentials, conditional lifespans and Poisson sampling additionally bind precision, probability quantization and sampler versions with fixed test vectors. Unpinned library defaults are forbidden. Activate semantic policy and deterministic implementation only after joint validation.
+Sort discrete choices by stable ID. Use nonnegative integer cumulative weights with `W∈[1,2^64−1]`. Accept digest integers below `2^256−(2^256 mod W)` before modulo W; otherwise increment only that draw counter, within its finite budget. Fixed probabilities use reviewed integer numerator/denominator through the same method; handle zero/one directly. Reject invalid/all-zero weights at publication. Section-6.5 exponential factors, conditional lifespans and power-based repeat sampling additionally bind precision, probability quantization and sampler versions with fixed test vectors. Unpinned library defaults are forbidden. Activate semantic policy and deterministic implementation only after joint validation.
 
 Canonical semantic digests use NFC, sorted object keys, ID-sorted sets, ordered timelines, declared integer precision/units and timezone/time precision, rejecting NaN/Infinity. Include frozen identity, learning/event business state and occurrence time. Exclude only the digest itself, nonsemantic task status/technical completion time, durations spent computing, machine paths, logs and model wording. Distinguish event time from database-write time. Name source-byte, semantic-content, model-projection and final-file digests separately. Model projections bind an immutable Plan and cannot affect IDs/facts.
 

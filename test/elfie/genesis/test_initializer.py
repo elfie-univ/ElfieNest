@@ -15,11 +15,15 @@ from elfie.genesis import (
     GenesisValidationError,
     genesis_content_hash,
 )
-from elfie.genesis.serialization import safe_component
+from elfie.genesis.serialization import (
+    EPISODE_NODE_PREFIX,
+    SELF_NODE_PREFIX,
+    safe_component,
+)
 from infrastructure.persistence.configuration.world import load_genesis_source_package
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
-from .test_contracts import _bundle
+from .test_contracts import _bundle, _compilation
 
 
 class _GenesisKnowledgeProposal:
@@ -110,7 +114,7 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         )
         assert (
             storage.get_graph_node(person_id).properties["relationship_label"]
-            == "family"
+            == "parent"
         )
         assert storage.get_graph_node(person_id).node_type == "elfie"
         assert storage.get_graph_node(person_id).properties["entity_type"] == "elfie"
@@ -140,15 +144,13 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert storage.get_graph_node(person_id).importance == pytest.approx(0.37)
         assert storage.conn.execute(
             """SELECT importance FROM assertions
-                WHERE predicate='kin_of'
-                  AND ((subject_node_id='genesis:self:genesis-check'
-                        AND object_node_id=?)
-                    OR (subject_node_id=?
-                        AND object_node_id='genesis:self:genesis-check'))""",
-            (person_id, person_id),
+                WHERE subject_node_id='genesis:self:genesis-check'
+                  AND predicate='child_of'
+                  AND object_node_id=?""",
+            (person_id,),
         ).fetchone()[0] == pytest.approx(0.37)
         assert any(
-            assertion.predicate == "kin_of"
+            assertion.predicate == "child_of"
             for assertion in storage.list_graph_assertions(limit=100)
             if {assertion.subject_id, assertion.object_node_id}
             == {"genesis:self:genesis-check", person_id}
@@ -253,7 +255,12 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             "genesis:episode:genesis-check:departure-decision"
         )
         assert route_episode is not None
-        assert "earthbound_road" in route_episode.metadata["route_ids"]
+        departure_seed = next(
+            episode
+            for episode in bundle.episode_seeds
+            if episode.seed_id == "departure-decision"
+        )
+        assert route_episode.metadata["route_ids"] == list(departure_seed.route_ids)
         assert not storage.list_graph_nodes(limit=1000, privacy_scope=None) or not any(
             node.node_type == "event" for node in storage.list_graph_nodes(limit=1000)
         )
@@ -285,6 +292,11 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             assert episode.content_text == seed.content
             assert episode.metadata["knowledge_id"] == seed.seed_id
             assert episode.metadata["topic"] == seed.topic
+            assert episode.metadata["topic_bucket"] == seed.topic
+            assert seed.seed_id in episode.metadata["topic_member_ids"]
+            assert episode.metadata["topic_member_count"] == len(
+                episode.metadata["topic_member_ids"]
+            )
         assert not [
             node
             for node in storage.list_graph_nodes(limit=1000)
@@ -327,6 +339,110 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             evidence.source_id == elfaria_episode_id
             for evidence in storage.list_memory_evidence(limit=5000)
         )
+
+
+def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
+    bundle = _compilation("visit-memory", seed=4, stage="mature", age_years=8).bundle
+    expected_visit_ids = {
+        f"genesis:episode:visit-memory:{safe_component(episode.seed_id)}"
+        for episode in bundle.episode_seeds
+        if episode.seed_id.startswith("visit:")
+    }
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+
+        parent = next(
+            item for item in bundle.relationship_seeds if item.role == "parent"
+        )
+        parent_target = parent.object_id or parent.person_id
+        parent_node = storage.get_graph_node(
+            f"genesis:person:visit-memory:{safe_component(parent_target)}"
+        )
+        assert parent_node is not None
+        assert parent_node.properties["child_birth_orders"] == [
+            {"person_id": person_id, "birth_order": order}
+            for person_id, order in parent.child_birth_orders
+        ]
+        self_node = storage.get_graph_node(f"{SELF_NODE_PREFIX}visit-memory")
+        assert self_node is not None
+        assert (
+            self_node.properties["family_birth_order"]
+            == dict(parent.child_birth_orders)["self"]
+        )
+        assert self_node.properties["family_child_count"] == len(
+            parent.child_birth_orders
+        )
+
+        visit_episodes = [
+            episode
+            for episode in storage.list_episodes(limit=1000)
+            if episode.episode_id in expected_visit_ids
+        ]
+        assert visit_episodes
+        metadata = visit_episodes[0].metadata
+        assert metadata["visit_count"] >= 1
+        assert metadata["travel_days"] >= 0
+        assert metadata["stay_days"] >= 1
+        assert len(metadata["visit_age_years"]) == metadata["visit_count"]
+        assert metadata["purposes"]
+        predicates = {
+            assertion.predicate
+            for assertion in storage.list_graph_assertions(limit=5000)
+        }
+        assert {"child_of", "kin_of"} <= predicates
+
+
+def test_genesis_commit_persists_deceased_family_and_known_death_episode() -> None:
+    compilation = _compilation(
+        "family-death-memory",
+        stage="elder",
+        age_years=11,
+        seed=7,
+    )
+    bundle = compilation.bundle
+    parents = tuple(
+        relationship
+        for relationship in bundle.relationship_seeds
+        if relationship.role == "parent"
+    )
+    death_episodes = tuple(
+        episode
+        for episode in bundle.episode_seeds
+        if episode.theme_id == "family-event:death"
+    )
+
+    assert all(relationship.life_status == "deceased" for relationship in parents)
+    assert {episode.person_ids[0] for episode in death_episodes} == {
+        relationship.person_id for relationship in parents
+    }
+
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        assert GenesisMemoryCommitter().commit(bundle, storage).status == "committed"
+
+        for relationship in parents:
+            target = relationship.object_id or relationship.person_id
+            person_node_id = (
+                f"genesis:person:family-death-memory:{safe_component(target)}"
+            )
+            properties = storage.get_graph_node(person_node_id).properties
+            assert properties["life_status"] == "deceased"
+            assert properties["death_age_years_at_genesis"] == (
+                relationship.death_age_years_at_genesis
+            )
+            assert properties["death_event_age_years"] == (
+                relationship.death_event_age_years
+            )
+
+        for episode in death_episodes:
+            episode_id = (
+                f"{EPISODE_NODE_PREFIX}family-death-memory:"
+                f"{safe_component(episode.seed_id)}"
+            )
+            stored = storage.get_episode(episode_id)
+            assert stored is not None
+            assert stored.content_text == episode.content
+            assert stored.metadata["age_years_at_event"] == episode.age_years_at_event
 
 
 def test_genesis_rejects_a_second_manifest_for_the_same_elfie() -> None:

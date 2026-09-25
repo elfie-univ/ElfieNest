@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v4
+program_version: elfaria-genesis.v9
 status: published
 sources:
   world:
@@ -13,7 +13,7 @@ sources:
     sha256: 4b1ae835737ecded773cb572ad8ab8e069447b7183134ee80010148470bad8be
   generation:
     path: docs/.internal/elfaria/elfaria-generation-rules.md
-    sha256: f028e4eea136df832495be4b6338c140a3bd158cd817666c8951610fa588a9b0
+    sha256: ac42ef28199df96c4ea9a6b5a178e445389fc50b6fe1f71582342ab340683743
   geography:
     path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
     sha256: 5230fc53793cac33f4771b35b690c1cab6c3878cb5929751e15b0b0e79f4d838
@@ -22,14 +22,14 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v4
+  package_version: elfaria-genesis.v9
   status: published
   members:
   - path: knowledge/elfaria.yaml
     kind: resident_knowledge
-    version: elfaria-resident-knowledge.v9
+    version: elfaria-resident-knowledge.v10
     status: published
-    sha256: 78d8497f28e61eb78b808d6c1818051a2d3622316709f0c9c23d1aadc266f9ab
+    sha256: 21da0a3911872b9d787423b58161fb767b66a90e74ae5052eaf74c7ecd8d0131
   - path: knowledge/geography.yaml
     kind: geography_knowledge
     version: elfaria-geography.v12
@@ -119,12 +119,12 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 36d28cf7a7fc143a6e599f99aa4fc4b671856c9fe70bfcae86736584351e4d34
+  content_sha256: d78b3b4db2524b79bb8de65117b06e3b709a90fb24532dd12b3cba74e844a18f
 coverage:
   status: complete
   resident_source_ref: resident
   knowledge_member: knowledge/elfaria.yaml
-  knowledge_version: elfaria-resident-knowledge.v9
+  knowledge_version: elfaria-resident-knowledge.v10
   projected_units: 160
   body_projection: preserved_from_verified_build_draft
   stable_source_anchors: 160_explicit_knowledge_unit_anchors
@@ -1007,7 +1007,7 @@ rules:
     - E-08-02
     - E-08-03
   policy:
-    id: genesis-policy.v4
+    id: genesis-policy.v6
     source_ref: generation#5
     reproducibility:
       id: genesis-randomness.v1
@@ -1031,7 +1031,7 @@ rules:
         source: accepted_genesis_reservation
         bytes: 32
         retained_after_commit: false
-      domain_policy_version: genesis-policy.v4
+      domain_policy_version: genesis-policy.v6
       stable_id_order: lexical_utf8
       draw_counter_start: 0
       integer_sampling: rejection_sampling
@@ -1072,8 +1072,287 @@ rules:
       budget_status: confirmed
       existing_engine_proposals_per_role: 96
       change_existing_engine: false
+      age_policy:
+        terminal_reserve_years: 4
+        stage_weights:
+          youth: 0.0
+          young_adult: 0.75
+          mature: 0.2
+          elder: 0.05
+        source_ref: generation#11.1
       attempt_limit_rule: maximum 12 complete-candidate attempts per five-candidate batch; internal appearance proposals are excluded
       partial_batch_policy: report_incomplete; do_not_present_as_full_batch
+    family:
+      child_count_distribution:
+        '1': 0.4
+        '2': 0.45
+        '3': 0.15
+      partner_min_age_years: 3
+      partner_annual_probability: 0.25
+      max_children: 3
+      lifespan:
+        cdf_power: 6
+        sampler_version: conditioned-lifespan-cdf.v1
+      source_ref: generation#11.1
+    importance:
+      source_ref: generation#11.2
+      role_baselines:
+        core: 0.75
+        sibling: 0.65
+        friend: 0.35
+        teacher: 0.45
+        direct_acquaintance: 0.25
+      relationship_layer_decay_lambda: 0.9
+      friend_layer_decay_lambda: 0.65
+      friend_contact_beta: 0.8
+      friend_max_count: 2
+    visits:
+      source_ref: generation#11.3
+      sampler_version: visits-zero-heavy-power-count.v1
+      repeat_count_power: 23.0
+      cross_region_lifetime_fraction: 0.1
+      personality_multipliers:
+        social:
+          base: 0.8
+          slope: 0.4
+        curiosity:
+          base: 0.8
+          slope: 0.4
+        risk:
+          base: 0.8
+          openness_slope: 0.4
+          neuroticism_slope: -0.2
+      opportunities:
+      - id: local_forest_center
+        home_regions: [B]
+        place_ids: [saevi_tribal_center]
+        base_visit_probability: 0.6
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 4
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: other_forest_center
+        home_regions: [A1, A2, C1, C2, C3, D]
+        place_ids: [saevi_tribal_center]
+        base_visit_probability: 0.15
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: local_plain_center
+        home_regions: [C1, C2, C3]
+        place_ids: [tovren_tribal_center]
+        base_visit_probability: 0.6
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 4
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: other_plain_center
+        home_regions: [A1, A2, B, D]
+        place_ids: [tovren_tribal_center]
+        base_visit_probability: 0.15
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: local_mountain_center
+        home_regions: [A1, A2]
+        place_ids: [myelle_tribal_center]
+        base_visit_probability: 0.6
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 4
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: other_mountain_center
+        home_regions: [B, C1, C2, C3, D]
+        place_ids: [myelle_tribal_center]
+        base_visit_probability: 0.15
+        minimum_age_years: 2
+        purpose: 拜访交换
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        personality_factor_by_purpose:
+          拜访交换: social
+      - id: town_center
+        home_regions: [A1, A2, B, C1, C2, C3]
+        place_ids:
+        - mistyville_center
+        - skyreach_square
+        - skyreach_tree
+        - elder_council_hall
+        - learning_healing_hall
+        - hundred_trades_street
+        - hundred_trades_south_end
+        base_visit_probability: 0.8
+        minimum_age_years: 2
+        purpose: market_social_sightseeing
+        purpose_weights:
+          赶集交换: 1.0
+          探亲交往: 1.0
+          观光: 1.0
+        personality_factor_by_purpose:
+          赶集交换: social
+          探亲交往: social
+          观光: curiosity
+        distance_decay_days: 4
+        stay_days: 1
+        max_repeat_count: 100
+        member_probability: 0.55
+        member_probabilities:
+          mistyville_center: 1.0
+          skyreach_square: 0.85
+          skyreach_tree: 0.75
+          elder_council_hall: 0.35
+          learning_healing_hall: 0.3
+          hundred_trades_street: 0.65
+          hundred_trades_south_end: 0.5
+      - id: mixed_center
+        home_regions: [D]
+        place_ids:
+        - mistyville_center
+        - skyreach_square
+        - skyreach_tree
+        - elder_council_hall
+        - learning_healing_hall
+        - hundred_trades_street
+        - hundred_trades_south_end
+        base_visit_probability: 0.6
+        minimum_age_years: 2
+        purpose: market_social_sightseeing
+        purpose_weights:
+          赶集交换: 1.0
+          探亲交往: 1.0
+          观光: 1.0
+        personality_factor_by_purpose:
+          赶集交换: social
+          探亲交往: social
+          观光: curiosity
+        distance_decay_days: 4
+        stay_days: 1
+        max_repeat_count: 100
+        member_probability: 0.55
+        member_probabilities:
+          mistyville_center: 1.0
+          skyreach_square: 0.85
+          skyreach_tree: 0.75
+          elder_council_hall: 0.35
+          learning_healing_hall: 0.3
+          hundred_trades_street: 0.65
+          hundred_trades_south_end: 0.5
+      - id: forest_attraction
+        place_ids: [firstroot_tree]
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
+          A1: 0.10
+          A2: 0.10
+          B: 0.45
+          C1: 0.12
+          C2: 0.12
+          C3: 0.12
+          D: 0.20
+        minimum_age_years: 2
+        purpose: cultural_sightseeing
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 1.0
+        species_multipliers: {Saevi: 1.3, Tovren: 1.0, Myelle: 1.0}
+      - id: plain_attraction
+        place_ids: [riverturn_hill, riverturn_bend]
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
+          A1: 0.12
+          A2: 0.12
+          B: 0.12
+          C1: 0.45
+          C2: 0.45
+          C3: 0.45
+          D: 0.20
+        minimum_age_years: 2
+        purpose: cultural_sightseeing
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 0.75
+        species_multipliers: {Saevi: 1.0, Tovren: 1.3, Myelle: 1.0}
+      - id: mountain_attraction
+        place_ids: [skymirror_lake, cloudfall_falls, cloudcrown_city]
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
+          A1: 0.45
+          A2: 0.45
+          B: 0.10
+          C1: 0.15
+          C2: 0.15
+          C3: 0.15
+          D: 0.20
+        minimum_age_years: 3
+        purpose: mountain_sightseeing
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 0.85
+        member_probabilities:
+          skymirror_lake: 1.0
+          cloudfall_falls: 0.85
+          cloudcrown_city: 0.45
+        species_multipliers: {Saevi: 1.0, Tovren: 1.0, Myelle: 1.3}
+      - id: lake_group
+        place_ids: [clearheart_lake, lake_shore, lakeheart_isle]
+        base_visit_probability: 0.45
+        base_visit_probabilities_by_region:
+          A1: 0.12
+          A2: 0.12
+          B: 0.12
+          C1: 0.45
+          C2: 0.45
+          C3: 0.45
+          D: 0.20
+        minimum_age_years: 3
+        purpose: lake_sightseeing
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 64
+        member_probability: 0.7
+        member_probabilities:
+          clearheart_lake: 1.0
+          lake_shore: 1.0
+          lakeheart_isle: 0.15
+        species_multipliers:
+          Saevi: 1.0
+          Tovren: 1.0
+          Myelle: 1.0
+      - id: underground_exploration
+        place_ids: [undercity_gate, undercity]
+        base_visit_probability: 0.0
+        minimum_age_years: 3
+        purpose: authorized_underground_activity
+        distance_decay_days: 12
+        stay_days: 1
+        max_repeat_count: 1
+        member_probability: 0.0
     backtracking:
       options_per_choice: 8
       total_backtracks: 64

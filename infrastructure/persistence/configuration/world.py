@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -160,6 +161,7 @@ def _place(raw: Any) -> WorldPlace:
         aliases=_texts(value, "aliases"),
         description=_text(value, "description"),
         status=_status(value, "status"),
+        metadata=_metadata(value.get("metadata", {})),
     )
 
 
@@ -275,12 +277,127 @@ def _name_rules(value: Mapping[str, Any]) -> NameRules:
 
 def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
+    raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
+    raw_family = _mapping(raw_policy.get("family", {}))
+    raw_lifespan = _mapping(raw_family.get("lifespan", {}))
+    raw_importance = _mapping(raw_policy.get("importance", {}))
+    raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
+    raw_visits = _mapping(raw_policy.get("visits", {}))
+    raw_visit_personality = _mapping(raw_visits.get("personality_multipliers", {}))
+    raw_visit_social = _mapping(raw_visit_personality.get("social", {}))
+    raw_visit_curiosity = _mapping(raw_visit_personality.get("curiosity", {}))
+    raw_visit_risk = _mapping(raw_visit_personality.get("risk", {}))
+    raw_household = _mapping(value.get("household", {}))
+    raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
+    child_distribution = tuple(
+        sorted(
+            (
+                (
+                    int(child_count),
+                    _number_value(
+                        weight, f"family.child_count_distribution.{child_count}"
+                    ),
+                )
+                for child_count, weight in raw_child_distribution.items()
+            ),
+            key=lambda item: item[0],
+        )
+    )
     return GenerationPolicy(
         policy_version=_optional_text(raw_policy, "version", "generation-policy.v1"),
         seed_algorithm=_optional_text(
             raw_policy, "seed_algorithm", "blake2b-labeled-v1"
         ),
         normal_episode_minimum=_optional_int(raw_policy, "normal_episode_minimum", 5),
+        candidate_proposal_count=_optional_int(
+            raw_policy, "candidate_proposal_count", 96
+        ),
+        candidate_options_per_choice=_optional_int(
+            raw_backtracking, "options_per_choice", 8
+        ),
+        candidate_total_backtracks=_optional_int(
+            raw_backtracking, "total_backtracks", 64
+        ),
+        family_child_count_distribution=child_distribution
+        or GenerationPolicy().family_child_count_distribution,
+        family_parent_min_age_gap_years=_optional_int(
+            raw_household,
+            "biological_parent_min_age_gap_local_years",
+            3,
+        ),
+        family_partner_min_age_years=_optional_int(
+            raw_family, "partner_min_age_years", 3
+        ),
+        family_partner_annual_probability=_number_value(
+            raw_family.get("partner_annual_probability", 0.25),
+            "family.partner_annual_probability",
+        ),
+        family_max_children=_optional_int(raw_family, "max_children", 3),
+        family_lifespan_cdf_power=_optional_int(raw_lifespan, "cdf_power", 6),
+        family_lifespan_sampler_version=_optional_text(
+            raw_lifespan, "sampler_version", "conditioned-lifespan-cdf.v1"
+        ),
+        relationship_importance_baselines=tuple(
+            sorted(
+                (
+                    str(role),
+                    _number_value(
+                        weight,
+                        f"importance.role_baselines.{role}",
+                    ),
+                )
+                for role, weight in raw_importance_baselines.items()
+            )
+        )
+        or GenerationPolicy().relationship_importance_baselines,
+        relationship_layer_decay_lambda=_number_value(
+            raw_importance.get("relationship_layer_decay_lambda", 0.9),
+            "importance.relationship_layer_decay_lambda",
+        ),
+        friend_layer_decay_lambda=_number_value(
+            raw_importance.get("friend_layer_decay_lambda", 0.65),
+            "importance.friend_layer_decay_lambda",
+        ),
+        friend_contact_beta=_number_value(
+            raw_importance.get("friend_contact_beta", 0.8),
+            "importance.friend_contact_beta",
+        ),
+        friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
+        visit_sampler_version=_optional_text(
+            raw_visits, "sampler_version", "visits-zero-heavy-power-count.v1"
+        ),
+        visit_repeat_count_power=_number_value(
+            raw_visits.get("repeat_count_power", 23.0),
+            "visits.repeat_count_power",
+        ),
+        visit_social_multiplier_base=_number_value(
+            raw_visit_social.get("base", 0.8),
+            "visits.personality_multipliers.social.base",
+        ),
+        visit_social_multiplier_slope=_number_value(
+            raw_visit_social.get("slope", 0.4),
+            "visits.personality_multipliers.social.slope",
+        ),
+        visit_curiosity_multiplier_base=_number_value(
+            raw_visit_curiosity.get("base", 0.8),
+            "visits.personality_multipliers.curiosity.base",
+        ),
+        visit_curiosity_multiplier_slope=_number_value(
+            raw_visit_curiosity.get("slope", 0.4),
+            "visits.personality_multipliers.curiosity.slope",
+        ),
+        visit_risk_multiplier_base=_number_value(
+            raw_visit_risk.get("base", 0.8),
+            "visits.personality_multipliers.risk.base",
+        ),
+        visit_risk_openness_slope=_signed_number_value(
+            raw_visit_risk.get("openness_slope", 0.4),
+            "visits.personality_multipliers.risk.openness_slope",
+        ),
+        visit_risk_neuroticism_slope=_signed_number_value(
+            raw_visit_risk.get("neuroticism_slope", -0.2),
+            "visits.personality_multipliers.risk.neuroticism_slope",
+        ),
     )
 
 
@@ -488,6 +605,17 @@ def _validate_package(
     for route in package.routes:
         if route.from_place_id not in place_ids or route.to_place_id not in place_ids:
             raise ValueError(f"route {route.route_id} 引用了未定义地点")
+    for opportunity in package.generation_policy.visit_opportunities:
+        if any(place_id not in place_ids for place_id in opportunity.place_ids):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义地点"
+            )
+    home_regions = {cell.region_id for cell in package.spatial_population.cells}
+    for opportunity in package.generation_policy.visit_opportunities:
+        if set(opportunity.home_regions) - home_regions:
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义居住区"
+            )
     relation_keys = {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in package.place_relations
@@ -559,6 +687,14 @@ def _validate_catalogs(
                 f"RelationshipArchetype {relationship_rule.archetype_id} 引用了未定义经历主题"
             )
 
+    access_rule_ids = [rule.rule_id for rule in package.access_rules]
+    if len(access_rule_ids) != len(set(access_rule_ids)):
+        raise ValueError("GeographyAccessRule ID 必须唯一")
+    place_ids = {place.place_id for place in package.places}
+    for rule in package.access_rules:
+        if rule.place_id not in place_ids:
+            raise ValueError(f"GeographyAccessRule {rule.rule_id} 引用了未定义地点")
+
     if not package.episode_themes:
         raise ValueError("published Genesis 资料包必须包含 EpisodeThemeCatalog")
     if len(theme_ids) != len(package.episode_themes):
@@ -573,6 +709,89 @@ def _validate_catalogs(
 def _validate_policy(policy: GenerationPolicy) -> None:
     if policy.normal_episode_minimum < 1:
         raise ValueError("normal_episode_minimum 必须为正整数")
+    if policy.candidate_proposal_count < 1:
+        raise ValueError("candidate_proposal_count 必须为正整数")
+    if policy.candidate_options_per_choice < 1:
+        raise ValueError("candidate_options_per_choice 必须为正整数")
+    if policy.candidate_total_backtracks < 0:
+        raise ValueError("candidate_total_backtracks 不能为负数")
+    if policy.family_parent_min_age_gap_years < 1:
+        raise ValueError("family_parent_min_age_gap_years 必须为正整数")
+    if policy.family_partner_min_age_years < 1:
+        raise ValueError("family_partner_min_age_years 必须为正整数")
+    if not 0.0 <= policy.family_partner_annual_probability <= 1.0:
+        raise ValueError("family_partner_annual_probability 必须在 [0, 1] 内")
+    if policy.family_max_children < 1:
+        raise ValueError("family_max_children 必须为正整数")
+    child_counts = [count for count, _ in policy.family_child_count_distribution]
+    if not child_counts or len(child_counts) != len(set(child_counts)):
+        raise ValueError("family_child_count_distribution 必须包含唯一子女数")
+    if any(
+        count < 1 or weight < 0.0
+        for count, weight in policy.family_child_count_distribution
+    ):
+        raise ValueError("family_child_count_distribution 的值无效")
+    if sum(weight for _, weight in policy.family_child_count_distribution) <= 0.0:
+        raise ValueError("family_child_count_distribution 权重不能全为零")
+    baselines = dict(policy.relationship_importance_baselines)
+    required_baselines = {"core", "sibling", "friend", "teacher", "direct_acquaintance"}
+    if not required_baselines <= baselines.keys():
+        raise ValueError("relationship_importance_baselines 缺少角色基线")
+    if any(not 0.0 <= value <= 1.0 for value in baselines.values()):
+        raise ValueError("relationship_importance_baselines 的值无效")
+    if policy.relationship_layer_decay_lambda < 0.0:
+        raise ValueError("relationship_layer_decay_lambda 不能为负数")
+    if policy.friend_layer_decay_lambda < 0.0:
+        raise ValueError("friend_layer_decay_lambda 不能为负数")
+    if policy.friend_contact_beta < 0.0:
+        raise ValueError("friend_contact_beta 不能为负数")
+    if policy.friend_max_count < 1:
+        raise ValueError("friend_max_count 必须为正整数")
+    if not policy.visit_sampler_version.strip():
+        raise ValueError("visit_sampler_version 不能为空")
+    if (
+        not math.isfinite(policy.visit_repeat_count_power)
+        or policy.visit_repeat_count_power <= 0.0
+    ):
+        raise ValueError("visit_repeat_count_power 必须是有限正数")
+    if not 0.0 <= policy.visit_cross_region_lifetime_fraction <= 1.0:
+        raise ValueError("visit_cross_region_lifetime_fraction 必须在 [0, 1] 内")
+    if (
+        isinstance(policy.family_lifespan_cdf_power, bool)
+        or not isinstance(policy.family_lifespan_cdf_power, int)
+        or not 1 <= policy.family_lifespan_cdf_power <= 64
+    ):
+        raise ValueError("条件寿命 CDF 幂指数必须是 1 到 64 的整数")
+    if policy.family_lifespan_sampler_version != "conditioned-lifespan-cdf.v1":
+        raise ValueError("不支持的条件寿命抽样版本")
+    if any(
+        not math.isfinite(value) or value < 0.0
+        for value in (
+            policy.visit_social_multiplier_base,
+            policy.visit_social_multiplier_slope,
+            policy.visit_curiosity_multiplier_base,
+            policy.visit_curiosity_multiplier_slope,
+            policy.visit_risk_multiplier_base,
+        )
+    ):
+        raise ValueError("访问人格倍率参数不能为负数")
+    if not math.isfinite(policy.visit_risk_openness_slope) or not math.isfinite(
+        policy.visit_risk_neuroticism_slope
+    ):
+        raise ValueError("风险人格倍率参数必须有限")
+    opportunity_ids = [
+        opportunity.opportunity_id for opportunity in policy.visit_opportunities
+    ]
+    if len(opportunity_ids) != len(set(opportunity_ids)):
+        raise ValueError("VisitOpportunityRule ID 必须唯一")
+    opportunity_id_set = set(opportunity_ids)
+    for opportunity in policy.visit_opportunities:
+        if opportunity.requires_opportunity_id and (
+            opportunity.requires_opportunity_id not in opportunity_id_set
+        ):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 的前置机会未定义"
+            )
 
 
 def _document_hash(document: Mapping[str, Any]) -> str:
@@ -653,6 +872,15 @@ def _number_value(value: Any, key: str) -> float:
     return result
 
 
+def _signed_number_value(value: Any, key: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} 必须是数字")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{key} 必须是有限数字")
+    return result
+
+
 def _optional_float(document: Mapping[str, Any], key: str, *, default: float) -> float:
     value = document.get(key, default)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -687,6 +915,31 @@ def _variant_pairs(value: Any) -> tuple[tuple[str, str], ...]:
             raise ValueError("statement_variants 必须是非空字符串映射")
         result.append((key, item.strip()))
     return tuple(result)
+
+
+def _metadata(value: Any) -> tuple[tuple[str, str], ...]:
+    """Decode optional public place attributes without accepting nested data."""
+
+    if value in ({}, None):
+        return ()
+    if not isinstance(value, Mapping):
+        raise TypeError("metadata 必须是对象")
+    result: list[tuple[str, str]] = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("metadata key 必须是非空字符串")
+        if isinstance(item, bool):
+            rendered = "true" if item else "false"
+        elif isinstance(item, (str, int, float)):
+            rendered = str(item)
+        elif isinstance(item, (list, tuple)) and all(
+            isinstance(member, str) and member.strip() for member in item
+        ):
+            rendered = ",".join(str(member).strip() for member in item)
+        else:
+            raise TypeError("metadata value 必须是标量或字符串数组")
+        result.append((key.strip(), rendered))
+    return tuple(sorted(result))
 
 
 def _int_pair(

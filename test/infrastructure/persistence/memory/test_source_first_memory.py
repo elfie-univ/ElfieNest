@@ -733,6 +733,43 @@ def test_recall_respects_graph_limits_and_renderer_preserves_provenance() -> Non
         assert "episode-1" in rendered or "a-1" in rendered or len(bundle.episodes) == 0
 
 
+def test_recall_expands_only_acquired_genesis_topic_siblings() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        for index, content in enumerate(
+            ("Elfaria 是精灵的家园。", "Solara 是白昼的太阳。"), start=1
+        ):
+            store.record_episode(
+                ClosedEpisode(
+                    episode_id=f"knowledge-{index}",
+                    idempotency_key=f"knowledge-key-{index}",
+                    occurred_from=None,
+                    occurrence_precision="unknown",
+                    content_text=content,
+                    metadata={
+                        "knowledge_id": f"A-01-{index:02d}",
+                        "topic_bucket": "A-01",
+                        "topic_member_index": index - 1,
+                        "topic_member_count": 2,
+                    },
+                )
+            )
+
+        full = store.recall(RecallRequest(text="太阳", episode_limit=4))
+        assert {item.episode_id for item in full.episodes} == {
+            "knowledge-1",
+            "knowledge-2",
+        }
+        assert all(item.topic_bucket == "A-01" for item in full.episodes)
+        assert all(item.topic_member_count == 2 for item in full.episodes)
+        assert all(item.topic_omitted_count == 0 for item in full.episodes)
+
+        bounded = store.recall(RecallRequest(text="太阳", episode_limit=1))
+        assert len(bounded.episodes) == 1
+        assert bounded.episodes[0].topic_omitted_count == 1
+        assert bounded.episodes[0].topic_continuation == "topic:A-01"
+        assert bounded.limits.truncated is True
+
+
 def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> None:
     with SQLiteMemoryStoreAdapter.in_memory() as store:
         store.record_episode(

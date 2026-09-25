@@ -251,13 +251,9 @@ class SQLiteAdoptionAdapter:
         admission_id: str,
         publication: AdmissionPublication,
     ) -> AdmissionRecord:
-        """Publish ownership and mark the Admission committed.
+        """Activate a publishing record after all owner confirmations."""
 
-        The final workspace has already been atomically renamed by the caller.
-        If a process stops between that rename and this method, the same call
-        completes the relation without compiling or replacing files.
-        """
-
+        self.materialize(admission_id, publication)
         try:
             with app_sqlite_connection(self._db_path) as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -283,17 +279,10 @@ class SQLiteAdoptionAdapter:
                     (row["elfie_id"],),
                 ).fetchone()
                 if existing_elfie is None:
-                    connection.execute(
-                        """INSERT INTO elfies(
-                               elfie_id, owner_user_id, adopted_at, status
-                           ) VALUES (?, ?, ?, 'offline')""",
-                        (
-                            row["elfie_id"],
-                            row["owner_user_id"],
-                            publication.adopted_at,
-                        ),
+                    raise AdoptionPortError(
+                        "Admission owner must be materialized before activation"
                     )
-                elif int(existing_elfie["owner_user_id"]) != int(row["owner_user_id"]):
+                if int(existing_elfie["owner_user_id"]) != int(row["owner_user_id"]):
                     raise AdoptionPortError("Elfie ownership conflicts with Admission")
 
                 committed_at = _utc_now()
@@ -327,10 +316,67 @@ class SQLiteAdoptionAdapter:
                 return _record(updated)
         except AdoptionPortError:
             raise
+        except sqlite3.Error as error:
+            raise AdoptionPortError("unable to commit Admission") from error
+
+    def materialize(
+        self,
+        admission_id: str,
+        publication: AdmissionPublication,
+    ) -> AdmissionRecord:
+        """Persist Adoption's final Elfie row while keeping activation pending."""
+
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM resident_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                if row is None:
+                    raise AdoptionPortError("Admission record not found")
+                current = cast(AdmissionState, str(row["state"]))
+                if current == "committed":
+                    _verify_publication(row, publication)
+                    connection.commit()
+                    return _record(row)
+                if current != "publishing":
+                    raise AdoptionPortError(
+                        f"Admission cannot materialize from state {current}"
+                    )
+                _validate_publication(publication)
+                _verify_row_publication(row, publication)
+                existing_elfie = connection.execute(
+                    "SELECT owner_user_id FROM elfies WHERE elfie_id=?",
+                    (row["elfie_id"],),
+                ).fetchone()
+                if existing_elfie is None:
+                    connection.execute(
+                        """INSERT INTO elfies(
+                               elfie_id, owner_user_id, adopted_at, status
+                           ) VALUES (?, ?, ?, 'offline')""",
+                        (
+                            row["elfie_id"],
+                            row["owner_user_id"],
+                            publication.adopted_at,
+                        ),
+                    )
+                elif int(existing_elfie["owner_user_id"]) != int(row["owner_user_id"]):
+                    raise AdoptionPortError("Elfie ownership conflicts with Admission")
+                connection.commit()
+                updated = connection.execute(
+                    "SELECT * FROM resident_admissions WHERE admission_id=?",
+                    (admission_id,),
+                ).fetchone()
+                if updated is None:  # pragma: no cover
+                    raise AdoptionPortError("Admission record disappeared")
+                return _record(updated)
+        except AdoptionPortError:
+            raise
         except sqlite3.IntegrityError as error:
             raise AdoptionPortError("unable to publish Elfie ownership") from error
         except sqlite3.Error as error:
-            raise AdoptionPortError("unable to commit Admission") from error
+            raise AdoptionPortError("unable to materialize Admission owner") from error
 
     def abort(self, admission_id: str, *, error_code: str) -> AdmissionRecord:
         """Close a pre-commit record and release its reserved capacity."""

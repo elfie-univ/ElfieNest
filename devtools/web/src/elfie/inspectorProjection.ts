@@ -97,6 +97,17 @@ const attributeLabels: Record<string, string> = {
   is_self: "当前精灵",
   is_owner: "主人标记",
   age_years_at_genesis: "创世年龄",
+  knowledge_id: "知识 ID",
+  topic_bucket: "知识主题桶",
+  topic_member_position: "主题成员顺序",
+  topic_member_ids: "主题成员",
+  mastery: "掌握状态",
+  eligibility: "获得条件",
+  acquired_via: "获得方式",
+  acquired_stage: "获得阶段",
+  acquired_age_years: "获得年龄",
+  recall_eligible: "允许召回",
+  initial_confidence: "初始置信度",
   life_stage: "生命阶段",
   vocation_id: "职业线索",
   competency_ids: "能力线索",
@@ -111,7 +122,9 @@ const attributeLabels: Record<string, string> = {
 
 const attributeOrder = [
   "is_self", "species_name", "species", "species_id", "kind", "place_kind", "object_kind",
-  "display_name", "life_stage", "age_years_at_genesis", "relation_role", "vocation_id", "competency_ids",
+  "display_name", "life_stage", "age_years_at_genesis", "knowledge_id", "topic_bucket", "topic_member_position",
+  "topic_member_ids", "mastery", "eligibility", "acquired_via", "acquired_stage", "acquired_age_years", "recall_eligible", "initial_confidence",
+  "relation_role", "vocation_id", "competency_ids",
   "familiarity", "trust_score", "visibility", "parent_id", "shared_facts", "unknown_facts",
 ];
 
@@ -465,6 +478,27 @@ export function projectEpisodeDetail(
   // no summary was generated instead of displaying the body as a substitute.
   header.summary = "";
   header.status = episodeMaintenanceLabel(episode);
+  const topicBucket = typeof metadata.topic_bucket === "string" ? metadata.topic_bucket : "";
+  const topicMemberIndex = typeof metadata.topic_member_index === "number" ? metadata.topic_member_index : null;
+  const topicMemberCount = typeof metadata.topic_member_count === "number" ? metadata.topic_member_count : null;
+  const knowledgeFields = topicBucket ? [
+    field("knowledge_id", metadata.knowledge_id ?? episode.knowledge_id, "episode", "知识 ID"),
+    field("topic_bucket", topicBucket, "episode", "知识主题桶"),
+    field(
+      "topic_member_position",
+      topicMemberIndex == null || topicMemberCount == null ? null : `${topicMemberIndex + 1} / ${topicMemberCount}`,
+      "episode",
+      "主题成员顺序",
+    ),
+    field("topic_member_ids", metadata.topic_member_ids, "episode", "主题成员"),
+    field("mastery", metadata.mastery, "episode", "掌握状态"),
+    field("eligibility", metadata.eligibility, "episode", "获得条件"),
+    field("acquired_via", metadata.acquired_via, "episode", "获得方式"),
+    field("acquired_stage", metadata.acquired_stage, "episode", "获得阶段"),
+    field("acquired_age_years", metadata.acquired_age_years, "episode", "获得年龄"),
+    field("recall_eligible", metadata.recall_eligible, "episode", "允许召回"),
+    field("initial_confidence", metadata.initial_confidence, "episode", "初始置信度"),
+  ] : [];
   return {
     kind: "episode",
     header,
@@ -485,6 +519,7 @@ export function projectEpisodeDetail(
       field("detail_level", episodeDetailLevelLabels[String(episode.detail_level ?? "")] ?? "内容细致级别未记录", "episode", "内容细致级别"),
       field("emotion", episode.emotion, "episode", "情绪"),
       field("emotion_intensity", episode.emotion_intensity, "episode", "情绪强度"),
+      ...knowledgeFields,
     ],
     connections: [
       ...[...nodeIds].map((id) => {

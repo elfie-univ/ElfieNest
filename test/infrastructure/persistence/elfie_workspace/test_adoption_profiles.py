@@ -92,10 +92,19 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
             )
         )
         assert elfie.selfhood_snapshot().species_name
-        assert memory.count_episodes() == len(compilation.bundle.knowledge_seeds) + 5
+        assert memory.count_episodes() == len(compilation.bundle.knowledge_seeds) + len(
+            compilation.bundle.episode_seeds
+        )
         assert memory.count_graph_nodes("person") == 1
         assert memory.count_graph_nodes("group") == 1
-        assert memory.count_graph_nodes("elfie") == 12
+        assert (
+            memory.count_graph_nodes("elfie")
+            == sum(
+                relationship.object_kind == "elfie"
+                for relationship in compilation.bundle.relationship_seeds
+            )
+            + 1
+        )
         assert memory.get_graph_node("genesis:self:00000001") is not None
         assert memory.get_graph_node("genesis:self-model:00000001") is not None
         assert memory.get_graph_node("genesis:receipt:00000001") is None

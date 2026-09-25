@@ -189,6 +189,11 @@ def _recall_episode(raw: Mapping[str, object]) -> RecallEpisode:
         temporal_label=_optional_text(raw.get("temporal_label")),
         importance=_as_float(raw.get("importance", 0.5)),
         source_event_ids=_string_tuple(raw.get("source_event_ids", ())),
+        topic_bucket=_optional_text(raw.get("topic_bucket")),
+        topic_member_index=_optional_int(raw.get("topic_member_index")),
+        topic_member_count=_as_int(raw.get("topic_member_count", 0)),
+        topic_omitted_count=_as_int(raw.get("topic_omitted_count", 0)),
+        topic_continuation=_optional_text(raw.get("topic_continuation")),
     )
 
 

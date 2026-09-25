@@ -144,6 +144,36 @@ describe("Inspector projection", () => {
     expect(projected.content).toBe("这段经历只有正文，没有生成标题。");
   });
 
+  it("把 Genesis 知识主题桶和选择信息提升到 Episode 语义字段", () => {
+    const projected = projectEpisodeDetail({
+      episode_id: "knowledge-episode",
+      content_text: "完整的知识原文。",
+      event_kind: "learning",
+      metadata: {
+        knowledge_id: "B-03-02",
+        topic_bucket: "B-03",
+        topic_member_ids: ["B-03-01", "B-03-02", "B-03-03"],
+        topic_member_index: 1,
+        topic_member_count: 3,
+        mastery: "full",
+        eligibility: ["居住在森林区域"],
+        acquired_via: "source_eligibility",
+        acquired_stage: "young_adult",
+        acquired_age_years: 4,
+        recall_eligible: true,
+        initial_confidence: 0.92,
+      },
+    }, { assertions: [], evidence: [], nodeById: nodes });
+
+    const fields = new Map(projected.fields.map((field) => [field.key, field.value]));
+    expect(fields.get("topic_bucket")).toBe("B-03");
+    expect(fields.get("topic_member_position")).toBe("2 / 3");
+    expect(fields.get("topic_member_ids")).toContain("B-03-01");
+    expect(fields.get("mastery")).toBe("full");
+    expect(fields.get("eligibility")).toBe("居住在森林区域");
+    expect(fields.get("acquired_age_years")).toBe("4");
+  });
+
   it("把 Evidence 首屏定位到摘录和支持 Assertion", () => {
     const projected = projectEvidenceDetail(
       { evidence_id: "ev-1", source_id: "episode-1", excerpt: "Ari 和 Ena 是朋友。", modality: "text" },

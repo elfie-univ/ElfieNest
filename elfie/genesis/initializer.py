@@ -31,7 +31,12 @@ from elfie.brain.memory.predicates import (
     relation_importance,
 )
 
-from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
+from .contracts import (
+    GenesisBundle,
+    GenesisValidationError,
+    KnowledgeSeed,
+    validate_genesis_bundle,
+)
 from .serialization import (
     EPISODE_NODE_PREFIX,
     PERSON_NODE_PREFIX,
@@ -198,6 +203,36 @@ class GenesisMemoryCommitter:
         if selfhood is None or not selfhood.complete:
             raise GenesisValidationError("Genesis SelfhoodState 不完整")
         identity_core = selfhood.identity_core
+        parent_seed = next(
+            (
+                relationship
+                for relationship in bundle.relationship_seeds
+                if relationship.role == "parent"
+                and any(
+                    person_id == "self"
+                    for person_id, _ in relationship.child_birth_orders
+                )
+            ),
+            None,
+        )
+        self_birth_order = (
+            next(
+                order
+                for person_id, order in parent_seed.child_birth_orders
+                if person_id == "self"
+            )
+            if parent_seed is not None
+            else None
+        )
+        family_child_count = (
+            len(parent_seed.child_birth_orders) if parent_seed is not None else None
+        )
+        self_description = selfhood.self_description
+        if self_birth_order is not None and family_child_count is not None:
+            self_description = (
+                f"{self_description} 家庭排行第{self_birth_order}，"
+                f"父母共有{family_child_count}名子女。"
+            )
 
         self._upsert_node(
             storage,
@@ -205,7 +240,7 @@ class GenesisMemoryCommitter:
                 node_id=self_id,
                 node_type="elfie",
                 canonical_label=profile.identity.display_name,
-                description=selfhood.self_description,
+                description=self_description,
                 scope=scope,
                 status="active",
                 confidence=1.0,
@@ -220,6 +255,8 @@ class GenesisMemoryCommitter:
                     "species_name": identity_core.species_name or "",
                     "is_self": True,
                     "relationship_label": "self",
+                    "family_birth_order": self_birth_order,
+                    "family_child_count": family_child_count,
                 },
             ),
         )
@@ -247,6 +284,35 @@ class GenesisMemoryCommitter:
                     else "",
                     f"年龄：{relationship.age_years_at_genesis}岁"
                     if relationship.age_years_at_genesis is not None
+                    and relationship.life_status == "alive"
+                    else "",
+                    f"关系形成于：{relationship.relationship_start_age}岁"
+                    if relationship.relationship_start_age is not None
+                    else "",
+                    f"出生排行：第{relationship.birth_order}位"
+                    if relationship.birth_order is not None
+                    else "",
+                    "子女排行："
+                    + "、".join(
+                        f"{person_id}第{order}位"
+                        for person_id, order in relationship.child_birth_orders
+                    )
+                    if relationship.child_birth_orders
+                    else "",
+                    f"享年：{relationship.death_age_years_at_genesis}岁"
+                    if relationship.death_age_years_at_genesis is not None
+                    else "",
+                    f"出生时我{relationship.birth_event_age_years}岁"
+                    if relationship.birth_event_age_years is not None
+                    else "",
+                    f"离世时我{relationship.death_event_age_years}岁"
+                    if relationship.death_event_age_years is not None
+                    else "",
+                    f"照护者：{', '.join(relationship.caregiver_person_ids)}"
+                    if relationship.caregiver_person_ids
+                    else "",
+                    f"照护对象：{', '.join(relationship.care_recipient_person_ids)}"
+                    if relationship.care_recipient_person_ids
                     else "",
                     f"职业线索：{relationship.vocation_id}"
                     if relationship.vocation_id
@@ -283,6 +349,22 @@ class GenesisMemoryCommitter:
                         ),
                         "person_species_id": relationship.person_species_id,
                         "age_years_at_genesis": relationship.age_years_at_genesis,
+                        "relationship_start_age": relationship.relationship_start_age,
+                        "birth_order": relationship.birth_order,
+                        "child_birth_orders": [
+                            {"person_id": person_id, "birth_order": order}
+                            for person_id, order in relationship.child_birth_orders
+                        ],
+                        "person_gender": relationship.person_gender,
+                        "life_status": relationship.life_status,
+                        "death_age_years_at_genesis": relationship.death_age_years_at_genesis,
+                        "birth_event_age_years": relationship.birth_event_age_years,
+                        "death_event_age_years": relationship.death_event_age_years,
+                        "related_person_ids": list(relationship.related_person_ids),
+                        "caregiver_person_ids": list(relationship.caregiver_person_ids),
+                        "care_recipient_person_ids": list(
+                            relationship.care_recipient_person_ids
+                        ),
                         "vocation_id": relationship.vocation_id,
                         "competency_ids": list(relationship.competency_ids),
                         "eligible_episode_theme_ids": list(
@@ -311,8 +393,16 @@ class GenesisMemoryCommitter:
         # to the nightly Consolidator.  This makes the source auditable and
         # prevents Genesis from turning every published fact into a pre-baked
         # graph star.
+        knowledge_by_topic: dict[str, list[KnowledgeSeed]] = {}
+        for knowledge in bundle.knowledge_seeds:
+            knowledge_by_topic.setdefault(knowledge.topic, []).append(knowledge)
+        knowledge_topic_members = {
+            topic: tuple(item.seed_id for item in members)
+            for topic, members in knowledge_by_topic.items()
+        }
         for knowledge in bundle.knowledge_seeds:
             episode_id = _knowledge_episode_id(safe_elfie, knowledge.seed_id)
+            topic_members = knowledge_topic_members.get(knowledge.topic, ())
             storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
@@ -341,6 +431,10 @@ class GenesisMemoryCommitter:
                         "knowledge_id": knowledge.seed_id,
                         "scope": knowledge.scope,
                         "topic": knowledge.topic,
+                        "topic_bucket": knowledge.topic,
+                        "topic_member_ids": list(topic_members),
+                        "topic_member_index": topic_members.index(knowledge.seed_id),
+                        "topic_member_count": len(topic_members),
                         "aliases": list(knowledge.aliases),
                         "retrieval_terms": list(knowledge.retrieval_terms),
                         "certainty": knowledge.certainty,
@@ -358,6 +452,7 @@ class GenesisMemoryCommitter:
                         "recall_eligible": bool(knowledge.recall_eligible),
                         "confidence_class": knowledge.confidence_class,
                         "initial_confidence": knowledge.initial_confidence,
+                        "acquired_age_years": knowledge.acquired_age_years,
                     },
                 )
             )
@@ -415,12 +510,19 @@ class GenesisMemoryCommitter:
                         "feeling": seed.feeling,
                         "impact": seed.impact,
                         "place_ids": list(seed.place_ids),
+                        "observed_place_ids": list(seed.observed_place_ids),
                         "route_ids": list(seed.route_ids),
                         "person_ids": list(seed.person_ids),
+                        "visit_count": seed.visit_count,
+                        "travel_days": seed.travel_days,
+                        "stay_days": seed.stay_days,
+                        "visit_age_years": list(seed.visit_age_years),
+                        "purposes": list(seed.purposes),
                         "predecessor_ids": list(seed.predecessor_ids),
                         "related_ids": list(seed.related_ids),
                         "causal_links": list(seed.causal_links),
                         "theme_id": seed.theme_id,
+                        "age_years_at_event": seed.age_years_at_event,
                         "sequence_index": sequence_index,
                     },
                 )
@@ -461,6 +563,45 @@ class GenesisMemoryCommitter:
                     EvidenceInput(
                         evidence_id=(
                             f"genesis:evidence:episode-place:{safe_elfie}:"
+                            f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
+                        ),
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=seed.content,
+                        source_version=seed.source_version,
+                        captured_at=now,
+                    ),
+                )
+            for place_id in seed.observed_place_ids:
+                place_node = place_node_ids.get(place_id)
+                if place_node is None:
+                    raise GenesisValidationError(
+                        f"EpisodeSeed 引用的观察地点没有生成节点: {place_id}"
+                    )
+                place_seed = next(
+                    place for place in bundle.place_seeds if place.place_id == place_id
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        self_id,
+                        "witnessed",
+                        object_node_id=place_node,
+                        context=relation_context(
+                            ontology,
+                            "genesis_episode_place",
+                            predicate="witnessed",
+                            role="observed",
+                        ),
+                        epistemic_status="known",
+                        confidence=1.0,
+                        importance=relation_importance(
+                            ontology, "witnessed", place_seed.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=(
+                            f"genesis:evidence:episode-observed-place:{safe_elfie}:"
                             f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
                         ),
                         source_type="episode",
@@ -539,6 +680,14 @@ class GenesisMemoryCommitter:
             )
 
         output_node_ids = tuple(node_ids)
+        self._write_person_links(
+            bundle,
+            storage,
+            person_node_ids,
+            self_id,
+            now,
+            ontology,
+        )
         if output_node_ids != tuple(manifest.output_ids):
             raise GenesisValidationError("Genesis 实际输出 ID 与 Manifest 声明不一致")
         return GenesisCommitReceipt(
@@ -552,6 +701,66 @@ class GenesisMemoryCommitter:
             schema_version=manifest.schema_version,
             committed_at=now,
         )
+
+    def _write_person_links(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        person_node_ids: dict[str, str],
+        self_id: str,
+        now: str,
+        ontology: MemoryOntologySnapshot,
+    ) -> None:
+        """Persist the bounded family graph edges without creating new people."""
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        resolved = {"self": self_id, **person_node_ids}
+        seen: set[tuple[str, str]] = set()
+        for relationship in bundle.relationship_seeds:
+            source = resolved.get(relationship.person_id)
+            if source is None:
+                continue
+            for target_key in relationship.related_person_ids:
+                target = resolved.get(target_key)
+                if target is None or target == source:
+                    continue
+                pair = tuple(sorted((source, target)))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                evidence_id = (
+                    f"genesis:evidence:person-link:{safe_elfie}:"
+                    f"{safe_component(relationship.person_id)}:{safe_component(target_key)}"
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        pair[0],
+                        "kin_of",
+                        object_node_id=pair[1],
+                        context=relation_context(
+                            ontology,
+                            "genesis_family_graph",
+                            predicate="kin_of",
+                        ),
+                        epistemic_status="known",
+                        confidence=max(relationship.initial_trust, 0.5),
+                        importance=relation_importance(
+                            ontology, "kin_of", relationship.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=evidence_id,
+                        source_type="seed",
+                        source_id=relationship.source_ref,
+                        excerpt=(
+                            f"{relationship.display_name} 与 {target_key} "
+                            "属于同一已验证家庭或核心关系图。"
+                        ),
+                        source_version=relationship.source_version,
+                        captured_at=now,
+                    ),
+                )
 
     @staticmethod
     def _upsert_node(storage: MemoryStorePort, node: NodeInput) -> None:
@@ -604,6 +813,7 @@ class GenesisMemoryCommitter:
                         "visibility": place.visibility,
                         "source_ref": place.source_ref,
                         "aliases": list(place.aliases),
+                        "metadata": dict(place.metadata),
                     },
                 ),
             )
@@ -730,6 +940,12 @@ def _relationship_predicate(role: str) -> str:
 
     role_map = {
         "family": "kin_of",
+        "parent": "child_of",
+        "child": "parent_of",
+        "sibling": "sibling_of",
+        "grandparent": "kin_of",
+        "aunt_uncle": "kin_of",
+        "partner": "kin_of",
         "friend": "friend_of",
         "teacher": "student_of",
         "learning_keeper": "student_of",

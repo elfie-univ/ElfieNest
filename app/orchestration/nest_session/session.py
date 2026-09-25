@@ -191,6 +191,41 @@ class NestSession:
             self._runtime_sync.mark_actor_catalog_dirty()
             logger.info("精灵 '%s' 已进入 Nest", elfie_id)
 
+    def finalize_admission(self, admission_id: str, elfie_id: str) -> None:
+        """Persist the Nest resident/home before Admission activation.
+
+        Admission has already materialized the final ``elfies`` row, but the
+        Elfie instance is intentionally not registered with Runtime yet.  A
+        repeated recovery call reuses the existing resident/home assignment.
+        """
+
+        with self._lifecycle_lock:
+            if self._state_store is None:
+                raise NestStateStoreError(
+                    "Nest state store is required for Resident Admission"
+                )
+            previous = self.nest.export_snapshot()
+            try:
+                self.nest.register_resident(elfie_id)
+                if self.nest.home_anchor_id(elfie_id) is None:
+                    self.nest.admit_resident(elfie_id)
+                self._state_store.save_snapshot(self.nest.export_snapshot())
+            except (
+                NestStateStoreError,
+                NoHomeAvailableError,
+                ReconciliationRequiredError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ):
+                self.nest.restore_snapshot(previous)
+                raise
+            logger.info(
+                "Admission %s confirmed Nest home for Elfie '%s'",
+                admission_id,
+                elfie_id,
+            )
+
     @property
     def lifecycle_state(self) -> SessionLifecycleState:
         with self._lifecycle_lock:
