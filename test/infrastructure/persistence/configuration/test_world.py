@@ -194,6 +194,17 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.family_partner_annual_probability == 0.25
     assert package.generation_policy.family_partner_min_age_years == 3
     assert package.generation_policy.family_max_children == 3
+    assert package.generation_policy.relationship_importance_baselines == (
+        ("core", 0.75),
+        ("direct_acquaintance", 0.25),
+        ("friend", 0.35),
+        ("sibling", 0.65),
+        ("teacher", 0.45),
+    )
+    assert package.generation_policy.relationship_layer_decay_lambda == 0.9
+    assert package.generation_policy.friend_layer_decay_lambda == 0.65
+    assert package.generation_policy.friend_contact_beta == 0.8
+    assert package.generation_policy.friend_max_count == 2
     assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
     assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
         "E-08-02",

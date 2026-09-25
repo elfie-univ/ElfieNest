@@ -344,12 +344,35 @@ class GenerationPolicy:
     family_partner_min_age_years: int = 3
     family_partner_annual_probability: float = 0.25
     family_max_children: int = 3
+    relationship_importance_baselines: tuple[tuple[str, float], ...] = (
+        ("core", 0.75),
+        ("sibling", 0.65),
+        ("friend", 0.35),
+        ("teacher", 0.45),
+        ("direct_acquaintance", 0.25),
+    )
+    relationship_layer_decay_lambda: float = 0.9
+    friend_layer_decay_lambda: float = 0.65
+    friend_contact_beta: float = 0.8
+    friend_max_count: int = 2
     visit_opportunities: tuple[VisitOpportunityRule, ...] = ()
 
     def candidate_stage_weight(self, stage: str) -> float:
         """Return the configured default-selection weight for one life stage."""
 
         return dict(self.candidate_stage_weights).get(stage, 0.0)
+
+    def relationship_importance(self, role: str, fallback: float) -> float:
+        """Return the configured baseline for a relationship role."""
+
+        key = (
+            "core"
+            if role in {"parent", "partner", "child"}
+            else role
+            if role in {"sibling", "friend", "teacher"}
+            else "direct_acquaintance"
+        )
+        return dict(self.relationship_importance_baselines).get(key, fallback)
 
 
 @dataclass(frozen=True)

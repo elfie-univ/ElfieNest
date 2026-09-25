@@ -1540,7 +1540,14 @@ class GenesisCompiler:
         main_age = context.identity.age_years_at_adoption
         parent_gap = self._source.generation_policy.family_parent_min_age_gap_years
         max_children = self._source.generation_policy.family_max_children
-        family_importance = family_rule.importance
+        policy = self._source.generation_policy
+        family_importance = policy.relationship_importance(
+            "parent", family_rule.importance
+        )
+        sibling_importance = policy.relationship_importance(
+            "sibling", family_rule.importance
+        )
+        relationship_decay = math.exp(-policy.relationship_layer_decay_lambda)
 
         def draw_child_target(stable_id: str) -> int:
             return _weighted_integer(
@@ -1608,7 +1615,7 @@ class GenesisCompiler:
                 role="sibling",
                 person_gender="male" if sibling_index % 2 else "female",
                 age_years=sibling_age,
-                importance=family_importance * 0.68,
+                importance=sibling_importance,
                 shared_fact="我们是同一对父母的子女，曾共享家庭生活。",
                 birth_order=order,
             )
@@ -1643,7 +1650,7 @@ class GenesisCompiler:
                 role="grandparent",
                 person_gender="female",
                 age_years=parent_age + parent_gap + 1,
-                importance=family_importance * 0.5,
+                importance=family_importance * relationship_decay,
                 shared_fact="她是我父母一方的父母，我通过家庭关系知道她。",
             )
             add_family_member(
@@ -1651,7 +1658,7 @@ class GenesisCompiler:
                 role="grandparent",
                 person_gender="male",
                 age_years=parent_age + parent_gap + 2,
-                importance=family_importance * 0.5,
+                importance=family_importance * relationship_decay,
                 shared_fact="他是我父母一方的父母，我通过家庭关系知道他。",
             )
             grandparent_target = _weighted_integer(
@@ -1677,7 +1684,7 @@ class GenesisCompiler:
                     role="aunt_uncle",
                     person_gender="female" if len(aunt_ids) % 2 == 0 else "male",
                     age_years=aunt_age,
-                    importance=family_importance * 0.34,
+                    importance=sibling_importance * relationship_decay,
                     shared_fact="这是我父母一方的兄弟姐妹，属于已知的旁系亲属。",
                     birth_order=order,
                 )
@@ -1705,7 +1712,6 @@ class GenesisCompiler:
 
         partner_id: str | None = None
         partner_start_age: int | None = None
-        policy = self._source.generation_policy
         if main_age >= policy.family_partner_min_age_years:
             years = main_age - policy.family_partner_min_age_years + 1
             chance = 1.0 - (1.0 - policy.family_partner_annual_probability) ** years
@@ -1731,7 +1737,7 @@ class GenesisCompiler:
                     role="partner",
                     person_gender=partner_gender,
                     age_years=max(policy.family_partner_min_age_years, main_age - 1),
-                    importance=family_importance * 0.79,
+                    importance=family_importance,
                     shared_fact="这是我的伴侣，我们共同承担生活。",
                 )
                 result[-1] = replace(
@@ -1762,7 +1768,7 @@ class GenesisCompiler:
                     role="child",
                     person_gender="female" if index % 2 else "male",
                     age_years=max(0, main_age - birth_age),
-                    importance=family_importance * 0.79,
+                    importance=family_importance,
                     shared_fact="这是我的子女，我们之间有家庭照护关系。",
                     birth_order=index + 1,
                     caregiver_person_ids=("self",),
@@ -1795,7 +1801,7 @@ class GenesisCompiler:
             frequency = 0.5 + 0.5 * min(1.0, contact_years / 4.0)
             purpose_match = 0.5 + 0.5 * openness
             contact_strength = (
-                0.8
+                policy.friend_contact_beta
                 * contact_years
                 * frequency
                 * purpose_match
@@ -1830,18 +1836,24 @@ class GenesisCompiler:
         selected_friend_rules = sorted(
             friend_candidates,
             key=lambda item: (-item[1], item[0].archetype_id),
-        )[:2]
+        )[: policy.friend_max_count]
         for index, (rule, contact_strength) in enumerate(selected_friend_rules):
             person_id = f"friend-{index + 1}"
+            friend_baseline = policy.relationship_importance("friend", rule.importance)
+            friend_importance = min(
+                1.0,
+                friend_baseline
+                + (1.0 - friend_baseline)
+                * (
+                    1.0 - math.exp(-policy.friend_layer_decay_lambda * contact_strength)
+                ),
+            )
             add_family_member(
                 person_id=person_id,
                 role="friend",
                 person_gender="female" if index % 2 else "male",
                 age_years=max(1, main_age - (index % 2)),
-                importance=min(
-                    0.65,
-                    max(0.35, rule.importance * (0.65 + 0.1 * contact_strength)),
-                ),
+                importance=friend_importance,
                 shared_fact="我们曾在共同生活或共同活动中相识。",
                 rule=rule,
             )
@@ -1883,7 +1895,9 @@ class GenesisCompiler:
                     object_kind=object_kind,
                     direction=f"elfie_to_{object_kind}",
                     familiarity=rule.familiarity,
-                    importance=rule.importance,
+                    importance=policy.relationship_importance(
+                        rule.role, rule.importance
+                    ),
                     aliases=(display_name, rule.role),
                     retrieval_terms=(rule.role, person_id, person_species_id),
                     episode_ids=(),

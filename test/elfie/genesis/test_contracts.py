@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 import pytest
@@ -590,3 +591,34 @@ def test_genesis_rejects_an_unavailable_required_arrival_fact() -> None:
 
     with pytest.raises(GenesisError, match="赴地必修知识"):
         _compilation("unavailable-arrival-fact", source=invalid_source)
+
+
+def test_relationship_importance_policy_is_consumed_by_family_compiler() -> None:
+    source = load_genesis_source_package()
+    policy = replace(
+        source.generation_policy,
+        relationship_importance_baselines=(
+            ("core", 0.61),
+            ("direct_acquaintance", 0.21),
+            ("friend", 0.31),
+            ("sibling", 0.52),
+            ("teacher", 0.41),
+        ),
+        relationship_layer_decay_lambda=0.7,
+    )
+    compilation = _compilation(
+        "configured-importance",
+        source=replace(source, generation_policy=policy),
+        stage="mature",
+        age_years=6,
+    )
+    relationships = compilation.bundle.relationship_seeds
+    parents = [item for item in relationships if item.role == "parent"]
+    siblings = [item for item in relationships if item.role == "sibling"]
+    grandparents = [item for item in relationships if item.role == "grandparent"]
+
+    assert parents and all(item.importance == pytest.approx(0.61) for item in parents)
+    assert siblings and all(item.importance == pytest.approx(0.52) for item in siblings)
+    assert grandparents and all(
+        item.importance == pytest.approx(0.61 * math.exp(-0.7)) for item in grandparents
+    )

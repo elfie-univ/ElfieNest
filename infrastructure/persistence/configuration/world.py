@@ -258,6 +258,8 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
     raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
     raw_family = _mapping(raw_policy.get("family", {}))
+    raw_importance = _mapping(raw_policy.get("importance", {}))
+    raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
     raw_household = _mapping(value.get("household", {}))
     raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
     child_distribution = tuple(
@@ -304,6 +306,32 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
             "family.partner_annual_probability",
         ),
         family_max_children=_optional_int(raw_family, "max_children", 3),
+        relationship_importance_baselines=tuple(
+            sorted(
+                (
+                    str(role),
+                    _number_value(
+                        weight,
+                        f"importance.role_baselines.{role}",
+                    ),
+                )
+                for role, weight in raw_importance_baselines.items()
+            )
+        )
+        or GenerationPolicy().relationship_importance_baselines,
+        relationship_layer_decay_lambda=_number_value(
+            raw_importance.get("relationship_layer_decay_lambda", 0.9),
+            "importance.relationship_layer_decay_lambda",
+        ),
+        friend_layer_decay_lambda=_number_value(
+            raw_importance.get("friend_layer_decay_lambda", 0.65),
+            "importance.friend_layer_decay_lambda",
+        ),
+        friend_contact_beta=_number_value(
+            raw_importance.get("friend_contact_beta", 0.8),
+            "importance.friend_contact_beta",
+        ),
+        friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
     )
 
 
@@ -623,6 +651,20 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("family_child_count_distribution 的值无效")
     if sum(weight for _, weight in policy.family_child_count_distribution) <= 0.0:
         raise ValueError("family_child_count_distribution 权重不能全为零")
+    baselines = dict(policy.relationship_importance_baselines)
+    required_baselines = {"core", "sibling", "friend", "teacher", "direct_acquaintance"}
+    if not required_baselines <= baselines.keys():
+        raise ValueError("relationship_importance_baselines 缺少角色基线")
+    if any(not 0.0 <= value <= 1.0 for value in baselines.values()):
+        raise ValueError("relationship_importance_baselines 的值无效")
+    if policy.relationship_layer_decay_lambda < 0.0:
+        raise ValueError("relationship_layer_decay_lambda 不能为负数")
+    if policy.friend_layer_decay_lambda < 0.0:
+        raise ValueError("friend_layer_decay_lambda 不能为负数")
+    if policy.friend_contact_beta < 0.0:
+        raise ValueError("friend_contact_beta 不能为负数")
+    if policy.friend_max_count < 1:
+        raise ValueError("friend_max_count 必须为正整数")
     opportunity_ids = [
         opportunity.opportunity_id for opportunity in policy.visit_opportunities
     ]

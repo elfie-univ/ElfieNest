@@ -119,7 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 6d965530292c4c9e71e39b04d9d73ac7d83c00304eb17fde18772eae293eaa12
+  content_sha256: 0e513d401c01cc3d063fa480809c1ad006b52aae8874648bf4051a3e3417856e
 coverage:
   status: complete
   resident_source_ref: resident
@@ -1084,6 +1084,18 @@ rules:
       partner_annual_probability: 0.25
       max_children: 3
       source_ref: generation#11.1
+    importance:
+      source_ref: generation#11.2
+      role_baselines:
+        core: 0.75
+        sibling: 0.65
+        friend: 0.35
+        teacher: 0.45
+        direct_acquaintance: 0.25
+      relationship_layer_decay_lambda: 0.9
+      friend_layer_decay_lambda: 0.65
+      friend_contact_beta: 0.8
+      friend_max_count: 2
     visits:
       source_ref: generation#11.2
       opportunities:

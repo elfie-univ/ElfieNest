@@ -86,6 +86,10 @@ def decode_genesis_package(
         family_policy["child_count_distribution"],
         "rules.policy.family.child_count_distribution",
     )
+    importance_policy = _mapping(policy["importance"], "rules.policy.importance")
+    importance_baselines = _mapping(
+        importance_policy["role_baselines"], "rules.policy.importance.role_baselines"
+    )
     household = _mapping(rules["household"], "rules.household")
     visit_opportunities = _visit_opportunities(policy)
     reproducibility = _mapping(
@@ -184,6 +188,25 @@ def decode_genesis_package(
                 "rules.policy.family",
             ),
             family_max_children=_integer(family_policy, "max_children"),
+            relationship_importance_baselines=tuple(
+                (
+                    str(role),
+                    _bounded_probability(
+                        importance_baselines,
+                        str(role),
+                        "rules.policy.importance.role_baselines",
+                    ),
+                )
+                for role in sorted(importance_baselines)
+            ),
+            relationship_layer_decay_lambda=_number(
+                importance_policy, "relationship_layer_decay_lambda"
+            ),
+            friend_layer_decay_lambda=_number(
+                importance_policy, "friend_layer_decay_lambda"
+            ),
+            friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
+            friend_max_count=_integer(importance_policy, "friend_max_count"),
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
