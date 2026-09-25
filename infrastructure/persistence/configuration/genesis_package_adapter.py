@@ -48,6 +48,7 @@ def decode_genesis_package(
     geography = _member(package_root, "knowledge/geography.yaml")
     rules = _mapping(program["rules"], "rules")
     world = _mapping(rules["world"], "rules.world")
+    world_calendar = _mapping(world["calendar"], "rules.world.calendar")
     knowledge = tuple(_knowledge(item) for item in _array(knowledge_doc, "knowledge"))
     region_aliases = _geographic_place_regions(geography)
     if _text(world, "place_registry_ref") != "knowledge/geography.yaml#places":
@@ -155,7 +156,10 @@ def decode_genesis_package(
         unknown_boundaries=(),
         manifest=manifest,
         routes=_routes(geography),
-        geography_network=_geography_network(geography),
+        geography_network=_geography_network(
+            geography,
+            days_per_local_year=_integer(world_calendar, "days_per_local_year"),
+        ),
         place_relations=place_relations,
         access_rules=access_rules,
         spatial_population=_population(geography),
@@ -237,6 +241,9 @@ def decode_genesis_package(
             visit_risk_multiplier_base=_number(risk_multiplier, "base"),
             visit_risk_openness_slope=_number(risk_multiplier, "openness_slope"),
             visit_risk_neuroticism_slope=_number(risk_multiplier, "neuroticism_slope"),
+            visit_cross_region_lifetime_fraction=_number(
+                visits_policy, "cross_region_lifetime_fraction"
+            ),
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
@@ -381,7 +388,9 @@ def _routes(geography: Mapping[str, Any]) -> tuple[GenesisRoute, ...]:
     return tuple(result)
 
 
-def _geography_network(geography: Mapping[str, Any]) -> GeographyNetwork:
+def _geography_network(
+    geography: Mapping[str, Any], *, days_per_local_year: int = 196
+) -> GeographyNetwork:
     """Project the reviewed grid/path rules for Genesis feasibility checks."""
 
     grid = _mapping(geography["grid"], "grid")
@@ -431,6 +440,7 @@ def _geography_network(geography: Mapping[str, Any]) -> GeographyNetwork:
         place_cells=tuple(sorted(place_cells)),
         land_days_per_grid_hop=_integer(travel_policy, "land_days_per_grid_hop"),
         water_days_per_grid_hop=_integer(travel_policy, "water_days_per_grid_hop"),
+        days_per_local_year=days_per_local_year,
     )
 
 

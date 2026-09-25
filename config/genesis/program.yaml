@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v5
+program_version: elfaria-genesis.v6
 status: published
 sources:
   world:
@@ -22,7 +22,7 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v5
+  package_version: elfaria-genesis.v6
   status: published
   members:
   - path: knowledge/elfaria.yaml
@@ -119,7 +119,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: a2575a2de5139efdfd3996a2f65f0499f3f0a716554d6be6f822887037c763dc
+  content_sha256: 5208710f5ed41c00a255d24992e4a6f5d9c56b7cf7bcee4e0d7dd531e203f8b5
 coverage:
   status: complete
   resident_source_ref: resident
@@ -1000,7 +1000,7 @@ rules:
     - E-08-02
     - E-08-03
   policy:
-    id: genesis-policy.v5
+    id: genesis-policy.v6
     source_ref: generation#5
     reproducibility:
       id: genesis-randomness.v1
@@ -1024,7 +1024,7 @@ rules:
         source: accepted_genesis_reservation
         bytes: 32
         retained_after_commit: false
-      domain_policy_version: genesis-policy.v5
+      domain_policy_version: genesis-policy.v6
       stable_id_order: lexical_utf8
       draw_counter_start: 0
       integer_sampling: rejection_sampling
@@ -1101,7 +1101,8 @@ rules:
       friend_max_count: 2
     visits:
       source_ref: generation#11.2
-      sampler_version: visits-poisson-age-distance.v2
+      sampler_version: visits-poisson-age-distance.v3
+      cross_region_lifetime_fraction: 0.1
       personality_multipliers:
         social:
           base: 0.8

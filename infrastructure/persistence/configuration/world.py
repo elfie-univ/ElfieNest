@@ -715,6 +715,8 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("friend_max_count 必须为正整数")
     if not policy.visit_sampler_version.strip():
         raise ValueError("visit_sampler_version 不能为空")
+    if not 0.0 <= policy.visit_cross_region_lifetime_fraction <= 1.0:
+        raise ValueError("visit_cross_region_lifetime_fraction 必须在 [0, 1] 内")
     if (
         isinstance(policy.family_lifespan_cdf_power, bool)
         or not isinstance(policy.family_lifespan_cdf_power, int)

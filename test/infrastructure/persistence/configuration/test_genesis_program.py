@@ -139,7 +139,8 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert "earthbound_station" not in town["place_ids"]
     assert town["annual_rate"] == 0.8
     assert town["home_regions"] == ["A1", "A2", "B", "C1", "C2", "C3"]
-    assert visits["sampler_version"] == "visits-poisson-age-distance.v2"
+    assert visits["sampler_version"] == "visits-poisson-age-distance.v3"
+    assert visits["cross_region_lifetime_fraction"] == 0.1
     reproducibility = policy["reproducibility"]
     assert reproducibility["algorithm"] == "sha256-domain-v1"
     assert reproducibility["canonical_input_order"] == [

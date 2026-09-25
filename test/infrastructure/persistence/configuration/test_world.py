@@ -21,7 +21,8 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v5"
+    assert package.package_version == "elfaria-genesis.v6"
+    assert package.geography_network.days_per_local_year == 196
     assert package.generation_policy.family_lifespan_cdf_power == 6
     assert (
         package.generation_policy.family_lifespan_sampler_version
@@ -232,8 +233,9 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.friend_max_count == 2
     assert (
         package.generation_policy.visit_sampler_version
-        == "visits-poisson-age-distance.v2"
+        == "visits-poisson-age-distance.v3"
     )
+    assert package.generation_policy.visit_cross_region_lifetime_fraction == 0.1
     assert package.generation_policy.visit_social_multiplier_base == 0.8
     assert package.generation_policy.visit_social_multiplier_slope == 0.4
     assert package.generation_policy.visit_curiosity_multiplier_base == 0.8

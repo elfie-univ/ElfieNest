@@ -148,6 +148,11 @@ class GeographyNetwork:
     place_cells: tuple[tuple[str, str], ...] = ()
     land_days_per_grid_hop: int = 2
     water_days_per_grid_hop: int = 3
+    days_per_local_year: int = 196
+
+    def __post_init__(self) -> None:
+        if self.days_per_local_year < 1:
+            raise ValueError("geography calendar days_per_local_year must be positive")
 
     @property
     def _land_edges(self) -> frozenset[tuple[str, str]]:
@@ -402,6 +407,7 @@ class GenerationPolicy:
     visit_risk_multiplier_base: float = 0.8
     visit_risk_openness_slope: float = 0.4
     visit_risk_neuroticism_slope: float = -0.2
+    visit_cross_region_lifetime_fraction: float = 0.1
     visit_opportunities: tuple[VisitOpportunityRule, ...] = ()
 
     def candidate_stage_weight(self, stage: str) -> float:

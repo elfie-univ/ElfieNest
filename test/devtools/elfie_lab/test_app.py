@@ -193,6 +193,59 @@ def test_create_elfie_uses_explicit_advanced_candidate_values(
     assert (
         "我的稳定相处与表达方式" in profile["selfhood_projection"]["adaptive_self_text"]
     )
+    review_response = client.get(f"/api/elfies/{profile['elfie_id']}/genesis-review")
+    assert review_response.status_code == 200
+    review = review_response.json()
+    assert review["schema_version"] == 1
+    assert review["summary"]["knowledge_unit_count"] == len(
+        app.state.storage._source_package.knowledge
+    )
+    assert (
+        review["summary"]["selected_knowledge_count"]
+        + review["summary"]["not_selected_knowledge_count"]
+        == review["summary"]["knowledge_unit_count"]
+    )
+    assert len(review["knowledge"]) == review["summary"]["knowledge_unit_count"]
+    assert all(item["source_text"] and item["decision"] for item in review["knowledge"])
+    assert review["knowledge"][0]["source_text"] == (
+        app.state.storage._source_package.knowledge[0].statement
+    )
+    source_by_id = {
+        fact.fact_id: fact for fact in app.state.storage._source_package.knowledge
+    }
+    review_by_id = {item["knowledge_id"]: item for item in review["knowledge"]}
+    assert set(review_by_id) == set(source_by_id)
+    assert all(
+        review_by_id[fact_id]["source_text"] == fact.statement
+        for fact_id, fact in source_by_id.items()
+    )
+    guaranteed_common = [
+        item
+        for item in review["knowledge"]
+        if not item["conditions"]
+        and not item["mastery_difficulty"]
+        and item["status"] == "active"
+        and item["level"] != "unknown"
+        and item["access"] == "available"
+    ]
+    assert guaranteed_common
+    assert all(item["selected"] for item in guaranteed_common)
+    assert all(
+        item["selected_text"] == item["source_text"]
+        for item in review["knowledge"]
+        if item["selected"]
+    )
+    assert review["episodes"]
+    assert review["life"]["travel_paths"]
+    assert review["outputs"]["knowledge"]
+    assert (
+        len(review["outputs"]["knowledge"])
+        == review["summary"]["selected_knowledge_count"]
+    )
+    assert review["outputs"]["selfhood"]
+    assert review["places"]
+    assert review["place_relations"]
+    assert app.state.storage.genesis_review_path(profile["elfie_id"]).is_file()
     assert len(captured) == 1
     assert captured[0].gender == "male"
     assert captured[0].candidate is not None
@@ -465,6 +518,7 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     ]
     bundle = next((data_dir / "trash").iterdir())
     assert (bundle / "elfies" / deleted_id / "profile.json").is_file()
+    assert (bundle / "genesis_reviews" / deleted_id).is_file()
     assert (bundle / "media" / deleted_id / "sample.txt").is_file()
     assert (bundle / "evaluations" / deleted_id / "evaluation_sample.json").is_file()
     assert (bundle / "manifest.json").is_file()
@@ -593,4 +647,5 @@ def test_delete_elfie_reports_recycle_failure_and_restores_source(tmp_path):
         assert response.status_code == 500
         assert "删除失败" in response.json()["detail"]
         assert (data_dir / "elfies" / elfie_id / "profile.json").is_file()
+        assert (data_dir / "genesis_reviews" / f"{elfie_id}.json").is_file()
         assert client.get(f"/api/elfies/{elfie_id}").status_code == 200

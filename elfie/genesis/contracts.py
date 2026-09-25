@@ -96,6 +96,7 @@ class EpisodeSeed:
     route_ids: tuple[str, ...] = ()
     person_ids: tuple[str, ...] = ()
     visit_count: int = 1
+    travel_days: int = 0
     stay_days: int = 1
     visit_age_years: tuple[int, ...] = ()
     purposes: tuple[str, ...] = ()
@@ -676,6 +677,12 @@ def _validate_episode_seed(seed: EpisodeSeed) -> None:
     _validate_text_collection(seed.purposes, "EpisodeSeed.purposes")
     if seed.visit_count < 1 or seed.stay_days < 1:
         raise GenesisValidationError("EpisodeSeed 的访问次数和停留时长必须为正")
+    if (
+        isinstance(seed.travel_days, bool)
+        or not isinstance(seed.travel_days, int)
+        or seed.travel_days < 0
+    ):
+        raise GenesisValidationError("EpisodeSeed.travel_days 必须为非负整数")
     if any(
         isinstance(age, bool) or not isinstance(age, int) or age < 1
         for age in seed.visit_age_years

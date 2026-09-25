@@ -243,7 +243,7 @@ Validate these counterexamples in package validation, Genesis, final owners, Adm
 | One loading path, in-place Genesis/Admission evolution, required governance and focused acceptance | Do not claim implementation; see 6.3 |
 | Stage duration, P95/failure rate, timeout/retry intervals and waiting/cancellation experience | Do not promise unmeasured latency |
 
-The published Program v5 compiles the currently bound subset of section-6.5 policy: candidate age/budget, family child-count and lifespan parameters, relationship importance, and visit rates, attraction, personality and Poisson sampling. Other source values do not become active merely because their digest is present. Remaining unbound policy and end-to-end evidence stay in ELF-019; updating source digests does not activate them.
+The published Program v6 compiles the currently bound subset of section-6.5 policy: candidate age/budget, family child-count and lifespan parameters, relationship importance, and visit rates, attraction, personality, youth-care feasibility, a full-local-year hard ceiling, a 10% lifetime cross-region travel cap and Poisson sampling. The annual ceiling does not yet subtract specific learning/work time. Remaining unbound policy and end-to-end evidence stay in ELF-019; updating source digests does not activate them.
 
 ### 5.3 Completion evidence
 
@@ -421,7 +421,7 @@ Catalog maps technical species IDs to formal names. Source publication does not 
 
 ### 6.5 Individual-generation algorithms and final handoff
 
-This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from `elfaria-generation-rules` §11. Program v5 activates only the subset listed in 6.3; values without a Program binding and typed consumer remain target policy and are tracked in ELF-019.
+This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from `elfaria-generation-rules` §11. Program v6 activates only the subset listed in 6.3; values without a Program binding and typed consumer remain target policy and are tracked in ELF-019.
 
 #### 6.5.1 Candidates, names and invitations
 

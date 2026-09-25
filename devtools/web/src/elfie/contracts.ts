@@ -153,6 +153,47 @@ export const sessionSchema = z.object({
   turns: z.array(turnSchema),
 }).passthrough();
 
+export const genesisReviewSchema = z.object({
+  schema_version: z.literal(1),
+  source: z.object({
+    package_id: z.string(), package_version: z.string(), content_sha256: z.string(),
+    policy_version: z.string(), compiler_version: z.string(),
+  }).passthrough(),
+  summary: z.object({
+    knowledge_unit_count: z.number().int(), selected_knowledge_count: z.number().int(),
+    not_selected_knowledge_count: z.number().int(), conditional_knowledge_count: z.number().int(),
+    episode_count: z.number().int(), relationship_count: z.number().int(), place_count: z.number().int(),
+    place_relation_count: z.number().int(), travel_path_count: z.number().int(),
+  }).passthrough(),
+  knowledge: z.array(z.object({
+    knowledge_id: z.string(), source_text: z.string(), topic: z.string(), scope: z.string(),
+    level: z.string(), certainty: z.string(), status: z.string(),
+    mastery_difficulty: z.string(), eligibility: z.array(z.string()),
+    acquisition_channels: z.array(z.string()),
+    conditions: z.array(z.object({ kind: z.string(), attributes: z.record(z.string(), z.string()) }).passthrough()),
+    prerequisite_ids: z.array(z.string()), selected: z.boolean(), decision: z.string(), reason: z.string(),
+    access: z.string(), exposure: z.string(), selected_text: z.string().nullable(),
+    mastery_level: z.string().nullable(), acquired_age_years: z.number().nullable(), acquired_via: z.string().nullable(),
+  }).passthrough()),
+  life: z.object({
+    identity: z.record(z.string(), z.unknown()), origin: z.record(z.string(), z.unknown()),
+    household: z.record(z.string(), z.unknown()), learning: z.record(z.string(), z.unknown()),
+    vocation: z.record(z.string(), z.unknown()), mobility: z.record(z.string(), z.unknown()),
+    travel_paths: z.array(z.tuple([z.string(), z.array(z.string()), z.number()])),
+    earth_transition: z.record(z.string(), z.unknown()),
+  }).passthrough(),
+  episodes: z.array(z.record(z.string(), z.unknown())),
+  relationships: z.array(z.record(z.string(), z.unknown())),
+  places: z.array(z.record(z.string(), z.unknown())),
+  place_relations: z.array(z.record(z.string(), z.unknown())),
+  outputs: z.object({
+    profile: z.record(z.string(), z.unknown()), selfhood: z.unknown(),
+    knowledge: z.array(z.record(z.string(), z.unknown())),
+    output_ids: z.array(z.string()), content_hash: z.string(),
+  }).passthrough(),
+}).passthrough();
+export type GenesisReview = z.infer<typeof genesisReviewSchema>;
+
 export const foodsSchema = z.object({
   items: z.array(z.object({
     key: z.string(),

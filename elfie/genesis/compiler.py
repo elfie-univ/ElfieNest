@@ -176,6 +176,9 @@ class LifeContextMobility:
     visit_age_years: tuple[tuple[str, tuple[int, ...]], ...] = ()
     observed_place_ids: tuple[str, ...] = ()
     opportunity_records: tuple[tuple[str, tuple[str, ...], int, str, int], ...] = ()
+    opportunity_route_ids: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    opportunity_travel_days: tuple[tuple[str, int], ...] = ()
+    unmade_opportunity_records: tuple[tuple[str, int, str], ...] = ()
     # Internal legal-path evidence.  Cells and costs remain transient Genesis
     # data; only the reviewed route IDs are carried into Memory Episodes.
     travel_paths: tuple[tuple[str, tuple[str, ...], int], ...] = ()
@@ -340,13 +343,15 @@ class GenesisCompiler:
         self._validate_candidate(request, candidate)
         species = self._species(request.species_id)
         context = self._life_context(request, candidate)
-        profile = self._profile(request, candidate, context)
         relationships = self._relationships(request, context)
+        context = self._personal_mobility(request, candidate, context, relationships)
+        profile = self._profile(request, candidate, context)
         episodes = (
             *self._episodes(request, context, relationships),
             *self._family_episodes(request, context, relationships),
             *self._visit_episodes(context),
         )
+        episodes = self._order_life_episodes(episodes)
         knowledge_entries, traces = self._knowledge(
             context,
             request.species_id,
@@ -558,56 +563,6 @@ class GenesisCompiler:
         # completed activity exists.  The departure station is the one
         # mandatory trip in the pre-arrival route.
         mandatory_visited = _unique((waystation,) if waystation else ())
-        optional_visits = self._sample_visit_opportunities(
-            request,
-            candidate,
-            region_id=cell.region_id,
-            birth_cell_id=cell.cell_id,
-        )
-        visit_counts_by_place: dict[str, int] = dict.fromkeys(mandatory_visited, 1)
-        visit_purposes_by_place: dict[str, set[str]] = {}
-        visit_stay_by_place: dict[str, int] = {}
-        observed_place_ids = _unique(
-            place_id
-            for _, place_ids, _ in optional_visits
-            for place_id in place_ids
-            if self._place_access(place_id) == "observation_only"
-        )
-        visit_age_years = tuple(
-            (
-                opportunity.opportunity_id,
-                self._schedule_visit_ages(
-                    request,
-                    opportunity,
-                    count,
-                ),
-            )
-            for opportunity, _, count in optional_visits
-        )
-        for opportunity, place_ids, count in optional_visits:
-            for place_id in place_ids:
-                if self._place_access(place_id) == "observation_only":
-                    continue
-                visit_counts_by_place[place_id] = (
-                    visit_counts_by_place.get(place_id, 0) + count
-                )
-                visit_purposes_by_place.setdefault(place_id, set()).add(
-                    opportunity.purpose
-                )
-                visit_stay_by_place[place_id] = max(
-                    visit_stay_by_place.get(place_id, 0), opportunity.stay_days
-                )
-        visited = _unique(
-            (
-                *mandatory_visited,
-                *(
-                    place_id
-                    for _, ids, _ in optional_visits
-                    for place_id in ids
-                    if self._place_access(place_id) != "observation_only"
-                ),
-            )
-        )
         # Admission supplies the real creation anchor.  The deterministic
         # fallback keeps direct compilation free of wall-clock nondeterminism.
         anchor = request.adoption_anchor_at or f"genesis-anchor:{request.elfie_id}"
@@ -644,39 +599,19 @@ class GenesisCompiler:
             proficiency_band=life_rule.proficiency_band,
             workplace_place_id=life_rule.workplace_place_id,
         )
-        # A named route is familiar only when both of its reviewed endpoints
-        # are part of the lived projection. The mandatory final segment to the
-        # Earthbound Station is therefore retained as ``earthbound_road``;
-        # using that facility does not imply a town-center visit.
+        station_path = self._land_path_to_place(cell.cell_id, waystation)
+        station_route_ids = self._registered_routes_on_path(station_path)
+        square_station_route = _route_between(source, square, waystation)
+        # The station is mandatory, but the named square-to-station route is
+        # familiar only when the resident's actual home-to-station path
+        # traverses that registered segment.
         mobility = LifeContextMobility(
-            visited_place_ids=visited,
-            familiar_route_ids=_unique(
-                (
-                    *_routes_for_places(source, visited),
-                    _route_between(source, square, waystation),
-                )
-            ),
-            visit_counts=tuple(sorted(visit_counts_by_place.items())),
-            visit_purposes=tuple(
-                (place_id, ",".join(sorted(purposes)))
-                for place_id, purposes in sorted(visit_purposes_by_place.items())
-            ),
-            visit_stay_days=tuple(sorted(visit_stay_by_place.items())),
-            visit_age_years=visit_age_years,
-            observed_place_ids=observed_place_ids,
-            opportunity_records=tuple(
-                (
-                    opportunity.opportunity_id,
-                    place_ids,
-                    count,
-                    opportunity.purpose,
-                    opportunity.stay_days,
-                )
-                for opportunity, place_ids, count in optional_visits
-            ),
+            visited_place_ids=mandatory_visited,
+            familiar_route_ids=station_route_ids,
+            visit_counts=tuple((place_id, 1) for place_id in mandatory_visited),
             travel_paths=self._travel_paths(
                 context_origin_cell=cell.cell_id,
-                visited_place_ids=visited,
+                visited_place_ids=mandatory_visited,
                 station_place_id=waystation,
             ),
         )
@@ -686,7 +621,11 @@ class GenesisCompiler:
         transition = LifeContextEarthTransition(
             preparation_duration_local_days=preparation_days,
             departure_place_id=waystation or public_home,
-            route_id=_route_between(source, square, waystation),
+            route_id=(
+                square_station_route
+                if square_station_route in station_route_ids
+                else ""
+            ),
             earth_household_ref=request.owner_reference,
             invitation_accepted=request.invitation_accepted,
         )
@@ -702,6 +641,380 @@ class GenesisCompiler:
             content_hash="",
         )
         return replace(provisional, content_hash=_content_hash(provisional))
+
+    def _land_path_to_place(
+        self, context_origin_cell: str, place_id: str
+    ) -> tuple[str, ...]:
+        network = self._source.geography_network
+        start = _cell_label_from_population_id(context_origin_cell)
+        destination = network.cell_for_place(place_id)
+        path = network.shortest_land_path(start, destination or "")
+        if path is None:
+            raise GenesisError(f"出生地到必需地点不存在合法陆路: {start} -> {place_id}")
+        return path
+
+    def _registered_routes_on_path(self, path: tuple[str, ...]) -> tuple[str, ...]:
+        """Return named route aliases whose complete reviewed path was traversed."""
+
+        network = self._source.geography_network
+        result: list[str] = []
+        for route in sorted(self._source.routes, key=lambda item: item.route_id):
+            start = network.cell_for_place(route.from_place_id)
+            destination = network.cell_for_place(route.to_place_id)
+            segment = network.shortest_land_path(start or "", destination or "")
+            if segment is None or len(segment) < 2 or len(segment) > len(path):
+                continue
+            reverse_segment = tuple(reversed(segment))
+            if any(
+                path[index : index + len(segment)] in {segment, reverse_segment}
+                for index in range(len(path) - len(segment) + 1)
+            ):
+                result.append(route.route_id)
+        return tuple(result)
+
+    def _personal_mobility(
+        self,
+        request: GenesisCompileInput,
+        candidate: GenesisCandidate,
+        context: LifeContext,
+        relationships: tuple[RelationshipSeed, ...],
+    ) -> LifeContext:
+        """Schedule sampled visits against care, route and local-calendar limits."""
+
+        origin = context.origin
+        sampled = self._sample_visit_opportunities(
+            request,
+            candidate,
+            region_id=origin.birth_region_id,
+            birth_cell_id=origin.birth_cell_id,
+            relationships=relationships,
+        )
+        days_per_year = self._source.geography_network.days_per_local_year
+        eligible_life_ages = self._visit_activity_ages(
+            request, relationships, minimum_age_years=2
+        )
+        remaining_days = dict.fromkeys(eligible_life_ages, days_per_year)
+        cross_region_days = math.floor(
+            days_per_year
+            * len(eligible_life_ages)
+            * self._source.generation_policy.visit_cross_region_lifetime_fraction
+        )
+        attempts: list[tuple[int, str, int, tuple[str, ...], VisitOpportunityRule]] = []
+        unmade: dict[tuple[str, str], int] = {}
+        trip_metrics: dict[str, tuple[int, int, tuple[str, ...]] | None] = {}
+        for opportunity, place_ids, count, eligible_ages in sampled:
+            metrics = self._opportunity_trip_metrics(
+                origin.birth_cell_id, place_ids, opportunity.stay_days
+            )
+            trip_metrics[opportunity.opportunity_id] = metrics
+            if metrics is None:
+                unmade[(opportunity.opportunity_id, "不存在完整合法路程")] = count
+                continue
+            ages = self._schedule_visit_ages(
+                request, opportunity, count, eligible_ages=eligible_ages
+            )
+            for index, age in enumerate(ages):
+                priority = self._domain_seed(
+                    request.appearance_seed,
+                    f"visit-schedule:{opportunity.opportunity_id}:{index}",
+                )
+                attempts.append(
+                    (priority, opportunity.opportunity_id, age, place_ids, opportunity)
+                )
+
+        attempts.sort(key=lambda item: (item[0], item[1], item[2]))
+        actual_ages: dict[str, list[int]] = {}
+        actual_rules: dict[str, tuple[VisitOpportunityRule, tuple[str, ...]]] = {}
+        for _, opportunity_id, age, place_ids, opportunity in attempts:
+            metrics = trip_metrics.get(opportunity_id)
+            if metrics is None:
+                reason = "不存在完整合法路程"
+            elif remaining_days.get(age, 0) < metrics[1]:
+                reason = "超过该年龄年度历法上限"
+            else:
+                is_cross_region = self._visit_crosses_macro_region(
+                    origin.birth_cell_id, place_ids
+                )
+                if is_cross_region and cross_region_days < metrics[1]:
+                    reason = "超过终生跨区旅行时长上限"
+                else:
+                    remaining_days[age] -= metrics[1]
+                    if is_cross_region:
+                        cross_region_days -= metrics[1]
+                    actual_ages.setdefault(opportunity_id, []).append(age)
+                    actual_rules[opportunity_id] = (opportunity, place_ids)
+                    continue
+            key = (opportunity_id, reason)
+            unmade[key] = unmade.get(key, 0) + 1
+
+        base = context.mobility
+        visit_counts = dict(base.visit_counts)
+        purposes: dict[str, set[str]] = {}
+        stay_by_place: dict[str, int] = {}
+        observed: list[str] = []
+        opportunity_records: list[tuple[str, tuple[str, ...], int, str, int]] = []
+        opportunity_route_ids: dict[str, tuple[str, ...]] = {}
+        opportunity_travel_days: dict[str, int] = {}
+        visited: list[str] = list(base.visited_place_ids)
+        for opportunity_id, ages in sorted(actual_ages.items()):
+            if not ages:
+                continue
+            opportunity, place_ids = actual_rules[opportunity_id]
+            count = len(ages)
+            opportunity_records.append(
+                (
+                    opportunity_id,
+                    place_ids,
+                    count,
+                    opportunity.purpose,
+                    opportunity.stay_days,
+                )
+            )
+            metrics = trip_metrics[opportunity_id]
+            assert metrics is not None
+            opportunity_travel_days[opportunity_id] = metrics[0]
+            opportunity_route_ids[opportunity_id] = metrics[2]
+            for place_id in place_ids:
+                if self._place_access(place_id) == "observation_only":
+                    observed.append(place_id)
+                    continue
+                visited.append(place_id)
+                visit_counts[place_id] = visit_counts.get(place_id, 0) + count
+                purposes.setdefault(place_id, set()).add(opportunity.purpose)
+                stay_by_place[place_id] = max(
+                    stay_by_place.get(place_id, 0), opportunity.stay_days
+                )
+        visited_ids = _unique(visited)
+        familiar_routes = _unique(
+            (
+                *base.familiar_route_ids,
+                *(
+                    route_id
+                    for route_ids in opportunity_route_ids.values()
+                    for route_id in route_ids
+                ),
+            )
+        )
+        mobility = replace(
+            base,
+            visited_place_ids=visited_ids,
+            familiar_route_ids=familiar_routes,
+            visit_counts=tuple(sorted(visit_counts.items())),
+            visit_purposes=tuple(
+                (place_id, ",".join(sorted(values)))
+                for place_id, values in sorted(purposes.items())
+            ),
+            visit_stay_days=tuple(sorted(stay_by_place.items())),
+            visit_age_years=tuple(
+                (opportunity_id, tuple(sorted(ages)))
+                for opportunity_id, ages in sorted(actual_ages.items())
+                if ages
+            ),
+            observed_place_ids=_unique((*base.observed_place_ids, *observed)),
+            opportunity_records=tuple(opportunity_records),
+            opportunity_route_ids=tuple(sorted(opportunity_route_ids.items())),
+            opportunity_travel_days=tuple(sorted(opportunity_travel_days.items())),
+            unmade_opportunity_records=tuple(
+                (opportunity_id, count, reason)
+                for (opportunity_id, reason), count in sorted(unmade.items())
+            ),
+            travel_paths=self._travel_paths(
+                context_origin_cell=origin.birth_cell_id,
+                visited_place_ids=visited_ids,
+                station_place_id=context.earth_transition.departure_place_id,
+            ),
+        )
+        provisional = replace(context, mobility=mobility, content_hash="")
+        return replace(provisional, content_hash=_content_hash(provisional))
+
+    def _visit_activity_ages(
+        self,
+        request: GenesisCompileInput,
+        relationships: tuple[RelationshipSeed, ...],
+        *,
+        minimum_age_years: int,
+    ) -> tuple[int, ...]:
+        ages = []
+        for age in range(max(2, minimum_age_years), request.age_years_at_adoption + 1):
+            if stage_for_age(request.species_id, age, self._catalog) == "youth":
+                if not any(
+                    relation.role in {"parent", "caregiver"}
+                    and "self" in relation.care_recipient_person_ids
+                    and (
+                        relation.life_status == "alive"
+                        or (
+                            relation.death_event_age_years is not None
+                            and age < relation.death_event_age_years
+                        )
+                    )
+                    for relation in relationships
+                ):
+                    continue
+            ages.append(age)
+        return tuple(ages)
+
+    def _opportunity_trip_days(
+        self,
+        birth_cell_id: str,
+        place_ids: tuple[str, ...],
+        stay_days: int,
+    ) -> int | None:
+        metrics = self._opportunity_trip_metrics(birth_cell_id, place_ids, stay_days)
+        return metrics[1] if metrics is not None else None
+
+    def _opportunity_trip_metrics(
+        self,
+        birth_cell_id: str,
+        place_ids: tuple[str, ...],
+        stay_days: int,
+    ) -> tuple[int, int, tuple[str, ...]] | None:
+        """Plan an ordered, legal round trip and retain only routes it traverses."""
+
+        origin = _cell_label_from_population_id(birth_cell_id)
+        current = origin
+        stops = tuple(
+            place_id
+            for place_id in place_ids
+            if self._place_access(place_id) != "observation_only"
+        )
+        if not stops:
+            return None
+
+        travel_days = 0
+        route_ids: list[str] = []
+        for place_id in stops:
+            anchors = self._travel_cells_for_place(place_id)
+            legs = tuple((cell, self._travel_leg(current, cell)) for cell in anchors)
+            reachable = tuple((cell, leg) for cell, leg in legs if leg is not None)
+            if not reachable:
+                return None
+            destination, leg = min(
+                reachable,
+                key=lambda item: (item[1][1], item[0]),
+            )
+            path, days = leg
+            travel_days += days
+            route_ids.extend(self._registered_routes_on_path(path))
+            current = destination
+
+        return_leg = self._travel_leg(current, origin)
+        if return_leg is None:
+            return None
+        return_path, return_days = return_leg
+        travel_days += return_days
+        route_ids.extend(self._registered_routes_on_path(return_path))
+        # Named in-town links may share a sampling cell, so the cell path alone
+        # cannot prove them. Endpoints selected in this same trip are evidence.
+        route_ids.extend(_routes_for_places(self._source, stops))
+        return travel_days, travel_days + stay_days, _unique(route_ids)
+
+    def _travel_cells_for_place(self, place_id: str) -> tuple[str, ...]:
+        network = self._source.geography_network
+        direct = network.cell_for_place(place_id)
+        if direct:
+            return (direct,)
+        cells: set[str] = set()
+        pending = [place_id]
+        seen: set[str] = set()
+        while pending:
+            current = pending.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            for child in self._source.places:
+                if child.parent_id != current:
+                    continue
+                cell = network.cell_for_place(child.place_id)
+                if cell:
+                    cells.add(cell)
+                else:
+                    pending.append(child.place_id)
+        return tuple(sorted(cells))
+
+    def _travel_leg(
+        self, start: str, destination: str
+    ) -> tuple[tuple[str, ...], int] | None:
+        network = self._source.geography_network
+        land = network.shortest_land_path(start, destination)
+        if land is not None:
+            return land, (len(land) - 1) * network.land_days_per_grid_hop
+
+        island_by_cell = {
+            island_cell: (ferry_cell, water_hops)
+            for _, island_cell, ferry_cell, water_hops in network.island_destinations
+        }
+        if destination in island_by_cell:
+            ferry_cell, water_hops = island_by_cell[destination]
+            land_path = network.shortest_land_path(start, ferry_cell)
+            if land_path is not None:
+                return (
+                    (*land_path, destination),
+                    (len(land_path) - 1) * network.land_days_per_grid_hop
+                    + water_hops * network.water_days_per_grid_hop,
+                )
+        if start in island_by_cell:
+            ferry_cell, water_hops = island_by_cell[start]
+            land_path = network.shortest_land_path(ferry_cell, destination)
+            if land_path is not None:
+                return (
+                    (start, *land_path),
+                    water_hops * network.water_days_per_grid_hop
+                    + (len(land_path) - 1) * network.land_days_per_grid_hop,
+                )
+        return None
+
+    def _visit_crosses_macro_region(
+        self, birth_cell_id: str, place_ids: tuple[str, ...]
+    ) -> bool:
+        home_region = self._region_for_cell(
+            _cell_label_from_population_id(birth_cell_id)
+        )
+        home_place = self._place(home_region)
+        home_macro = dict(home_place.metadata).get("macro_region", home_region)
+        for place_id in place_ids:
+            regions: set[str] = set()
+            pending = [place_id]
+            seen: set[str] = set()
+            while pending:
+                current = pending.pop()
+                if current in seen:
+                    continue
+                seen.add(current)
+                place = self._place(current)
+                if place is None:
+                    continue
+                regions.update(place.aliases)
+                cell = self._source.geography_network.cell_for_place(current)
+                if cell:
+                    regions.add(self._region_for_cell(cell))
+                pending.extend(
+                    item.place_id
+                    for item in self._source.places
+                    if item.parent_id == current
+                )
+            for region_id in regions:
+                region_place = self._place(region_id)
+                macro = (
+                    dict(region_place.metadata).get("macro_region", region_id)
+                    if region_place is not None
+                    else region_id
+                )
+                if macro != home_macro:
+                    return True
+        return False
+
+    def _region_for_cell(self, cell_id: str) -> str:
+        if not (cell_id.startswith("R") and "C" in cell_id):
+            raise GenesisError(f"地理网格坐标格式无效: {cell_id}")
+        row_text, column_text = cell_id[1:].split("C", 1)
+        if not row_text.isdigit() or not column_text.isdigit():
+            raise GenesisError(f"地理网格坐标格式无效: {cell_id}")
+        matrix = self._source.geography_network.region_matrix
+        row, column = int(row_text), int(column_text)
+        try:
+            return matrix[row][column]
+        except IndexError as error:
+            raise GenesisError(f"地理网格坐标超出范围: {cell_id}") from error
 
     def _travel_paths(
         self,
@@ -779,14 +1092,17 @@ class GenesisCompiler:
         *,
         region_id: str,
         birth_cell_id: str,
-    ) -> tuple[tuple[VisitOpportunityRule, tuple[str, ...], int], ...]:
+        relationships: tuple[RelationshipSeed, ...],
+    ) -> tuple[tuple[VisitOpportunityRule, tuple[str, ...], int, tuple[int, ...]], ...]:
         """Sample bounded visit groups without implying town or restricted access."""
 
         latent = candidate.personality.candidate.latent
         openness = min(1.0, max(0.0, (latent[0] + 2.0) / 4.0))
         neuroticism = min(1.0, max(0.0, (latent[1] + 2.0) / 4.0))
         extraversion = min(1.0, max(0.0, (latent[2] + 2.0) / 4.0))
-        opportunities: list[tuple[VisitOpportunityRule, tuple[str, ...], int]] = []
+        opportunities: list[
+            tuple[VisitOpportunityRule, tuple[str, ...], int, tuple[int, ...]]
+        ] = []
         selected: set[str] = set()
         place_ids = {place.place_id for place in self._source.places}
         for opportunity in self._source.generation_policy.visit_opportunities:
@@ -801,9 +1117,13 @@ class GenesisCompiler:
             annual_rate = opportunity.annual_rate_for(region_id)
             if annual_rate <= 0.0:
                 continue
-            available_years = max(
-                0, request.age_years_at_adoption - opportunity.minimum_age_years + 1
+            eligible_ages = self._visit_activity_ages(
+                request,
+                relationships,
+                minimum_age_years=opportunity.minimum_age_years,
             )
+            if not eligible_ages:
+                continue
             social_multiplier = (
                 self._source.generation_policy.visit_social_multiplier_base
                 + self._source.generation_policy.visit_social_multiplier_slope
@@ -848,7 +1168,7 @@ class GenesisCompiler:
             )
             expected = (
                 annual_rate
-                * available_years
+                * len(eligible_ages)
                 * personality_multiplier
                 * attraction
                 * distance_multiplier
@@ -892,7 +1212,12 @@ class GenesisCompiler:
                 continue
             selected.add(opportunity.opportunity_id)
             opportunities.append(
-                (replace(opportunity, purpose=purpose), tuple(selected_places), count)
+                (
+                    replace(opportunity, purpose=purpose),
+                    tuple(selected_places),
+                    count,
+                    eligible_ages,
+                )
             )
         return tuple(opportunities)
 
@@ -901,14 +1226,13 @@ class GenesisCompiler:
         request: GenesisCompileInput,
         opportunity: VisitOpportunityRule,
         count: int,
+        *,
+        eligible_ages: tuple[int, ...],
     ) -> tuple[int, ...]:
-        """Place repeated visits on a stable, age-bounded personal timeline."""
+        """Allocate opportunities by equal per-year contribution, with replacement."""
 
-        first_age = max(1, opportunity.minimum_age_years)
-        last_age = request.age_years_at_adoption
-        if first_age > last_age:
+        if not eligible_ages:
             return ()
-        available = list(range(first_age, last_age + 1))
         ages: list[int] = []
         for index in range(count):
             draw = random.Random(
@@ -917,13 +1241,7 @@ class GenesisCompiler:
                     f"visit-age:{opportunity.opportunity_id}:{index}",
                 )
             )
-            # Prefer distinct years while possible, then allow repeated visits
-            # in one year once the opportunity has more occurrences than years.
-            if available:
-                selected = available.pop(draw.randrange(len(available)))
-            else:
-                selected = draw.randint(first_age, last_age)
-            ages.append(selected)
+            ages.append(eligible_ages[draw.randrange(len(eligible_ages))])
         return tuple(sorted(ages))
 
     def _opportunity_distance_days(
@@ -1483,6 +1801,7 @@ class GenesisCompiler:
             importance: float,
             shared_fact: str,
             birth_order: int | None = None,
+            relationship_start_age: int | None = None,
             rule: RelationshipArchetype = family_rule,
             caregiver_person_ids: tuple[str, ...] = (),
             care_recipient_person_ids: tuple[str, ...] = (),
@@ -1559,6 +1878,7 @@ class GenesisCompiler:
                         max(0, age_years) if life_status == "alive" else None
                     ),
                     birth_order=birth_order,
+                    relationship_start_age=relationship_start_age,
                     person_gender=person_gender,
                     life_status=life_status,
                     death_age_years_at_genesis=recorded_death_age,
@@ -2012,6 +2332,9 @@ class GenesisCompiler:
                 ),
                 default=1,
             )
+            friend_contact_age += random.Random(
+                self._domain_seed(request.appearance_seed, f"friend-age:{person_id}")
+            ).randrange(max(1, main_age - friend_contact_age + 1))
             add_family_member(
                 person_id=person_id,
                 role="friend",
@@ -2022,6 +2345,7 @@ class GenesisCompiler:
                 ),
                 importance=friend_importance,
                 shared_fact="我们曾在共同生活或共同活动中相识。",
+                relationship_start_age=friend_contact_age,
                 rule=rule,
             )
 
@@ -2055,6 +2379,11 @@ class GenesisCompiler:
                 ),
                 default=1,
             )
+            contact_age += random.Random(
+                self._domain_seed(
+                    request.appearance_seed, f"relationship-age:{person_id}"
+                )
+            ).randrange(max(1, main_age - contact_age + 1))
             minimum_survival_age = max(0, person_age - (main_age - contact_age))
             death_age = _sample_conditioned_death_age(
                 terminal_age=self._species(
@@ -2118,6 +2447,7 @@ class GenesisCompiler:
                     death_age_years_at_genesis=recorded_death_age,
                     birth_event_age_years=birth_event_age,
                     death_event_age_years=death_event_age,
+                    relationship_start_age=contact_age,
                     competency_ids=rule.competency_ids,
                     eligible_episode_theme_ids=rule.episode_theme_ids,
                 )
@@ -2290,8 +2620,11 @@ class GenesisCompiler:
                 for place_id in place_ids
                 if self._place_access(place_id) == "observation_only"
             )
-            route_ids = _routes_for_places(
-                self._source, (*visited_place_ids, *observed_place_ids)
+            route_ids = dict(context.mobility.opportunity_route_ids).get(
+                opportunity_id, ()
+            )
+            travel_days = dict(context.mobility.opportunity_travel_days).get(
+                opportunity_id, 0
             )
             visit_age_years = dict(context.mobility.visit_age_years).get(
                 opportunity_id, ()
@@ -2315,7 +2648,7 @@ class GenesisCompiler:
                             if observed_place_ids
                             else ""
                         )
-                        + f"这次出行停留约{stay_days}天，累计访问{visit_count}次，发生在{age_label}。"
+                        + f"每次往返路程约{travel_days}天、停留约{stay_days}天，累计访问{visit_count}次，发生在{age_label}。"
                     ),
                     source="personal_memory",
                     source_ref=f"visit-opportunity:{opportunity_id}",
@@ -2340,11 +2673,11 @@ class GenesisCompiler:
                     emotion_intensity=0.55,
                     importance=min(1.0, 0.55 + 0.08 * visit_count),
                     theme_id="visit-opportunity",
-                    age_years_at_event=min(
-                        context.identity.age_years_at_adoption,
-                        max(2, context.identity.age_years_at_adoption // 2),
-                    ),
+                    age_years_at_event=min(visit_age_years)
+                    if visit_age_years
+                    else None,
                     visit_count=visit_count,
+                    travel_days=travel_days,
                     stay_days=stay_days,
                     visit_age_years=visit_age_years,
                     purposes=(purpose,),
@@ -2495,146 +2828,217 @@ class GenesisCompiler:
         context: LifeContext,
         relationships: tuple[RelationshipSeed, ...],
     ) -> tuple[EpisodeSeed, ...]:
-        selected = self._selected_episode_themes(request, context)
-        count = len(selected)
-
         result: list[EpisodeSeed] = []
-        for index, theme in enumerate(selected):
-            person_ids = self._people_for_theme(theme, relationships, request)
-            place_ids = self._places_for_theme(theme, context, request)
-            route_ids = (
-                context.mobility.familiar_route_ids
-                if theme.theme_id in {"departure-decision", "arrival-nest"}
-                else _routes_for_places(self._source, place_ids)
+        caregivers = tuple(
+            item
+            for item in relationships
+            if item.role in {"parent", "caregiver"}
+            and "self" in item.care_recipient_person_ids
+        )
+        if caregivers:
+            caregiver_ids = tuple(item.person_id for item in caregivers)
+            caregiver_names = "、".join(item.display_name for item in caregivers)
+            result.append(
+                EpisodeSeed(
+                    seed_id="early-home",
+                    content=(
+                        f"我幼年时由{caregiver_names}承担早期照护，"
+                        f"我的家在{self._label(context.origin.childhood_home_place_id)}。"
+                    ),
+                    source_ref="genesis:family-care",
+                    source_version="genesis-family-episode.v0.3",
+                    topic="biography.family",
+                    aliases=("幼年", "家庭照护"),
+                    retrieval_terms=("家庭", "照护", "家"),
+                    temporal_label="幼年时期（具体年龄未知）",
+                    life_stage=stage_for_age(request.species_id, 1, self._catalog),
+                    place_ids=(context.origin.childhood_home_place_id,),
+                    person_ids=caregiver_ids,
+                    result=f"我的早期照护者是{caregiver_names}。",
+                    feeling="我记得家庭照护是我早期生活的一部分。",
+                    impact="这段照护关系构成了我早期的家庭生活。",
+                    emotional_tone="belonging",
+                    emotion_intensity=0.8,
+                    importance=0.85,
+                    theme_id="early-home",
+                )
             )
-            event_age = max(
-                theme.min_age_years,
-                min(
-                    context.identity.age_years_at_adoption,
-                    (context.identity.age_years_at_adoption * (index + 1) + count)
-                    // (count + 1),
-                ),
+
+        for relationship in relationships:
+            if relationship.relationship_start_age is None:
+                continue
+            if relationship.role in {
+                "parent",
+                "sibling",
+                "partner",
+                "child",
+                "grandparent",
+                "aunt_uncle",
+            }:
+                continue
+            event_age = relationship.relationship_start_age
+            if event_age > context.identity.age_years_at_adoption:
+                raise GenesisError("关系相识年龄不能晚于当前年龄")
+            place_id = (
+                relationship.home_place_id or context.origin.predeparture_home_place_id
             )
-            event_stage = stage_for_age(request.species_id, event_age, self._catalog)
-            labels = "、".join(
-                self._source.earth_home_name
-                if theme.theme_id == "arrival-nest"
-                and place_id == request.arrival_base_id
-                else self._label(place_id)
-                for place_id in place_ids
-            )
-            content = (
-                f"我在{labels}尝试{theme.goal}。起初{theme.obstacle}；"
-                f"后来{theme.outcome}。这让我记住：{theme.impact}"
-            )
-            temporal_label = (
-                "抵达地球时"
-                if theme.theme_id == "arrival-nest"
-                or set(theme.place_kinds) & {"earth_gateway_station", "earth_home"}
-                else "抵达前"
+            role_label = {
+                "friend": "朋友",
+                "teacher": "师长",
+                "neighbor": "邻居",
+                "route_keeper": "路线同行者",
+                "learning_keeper": "学习伙伴",
+                "elder": "长者",
+            }.get(relationship.role, relationship.role)
+            shared_fact = (
+                relationship.shared_facts[0]
+                if relationship.shared_facts
+                else f"我与{relationship.display_name}建立了{role_label}关系。"
             )
             result.append(
                 EpisodeSeed(
-                    seed_id=theme.theme_id,
-                    content=content,
-                    source="personal_memory",
-                    source_ref=f"episode:{theme.theme_id}",
-                    source_version="genesis-episode.v0.2",
-                    scope="elfie",
-                    topic=f"biography.{theme.theme_id}",
-                    aliases=(theme.label,),
-                    retrieval_terms=(theme.label, "经历"),
-                    certainty="high",
-                    temporal_label=temporal_label,
-                    life_stage=event_stage,
-                    place_ids=place_ids,
-                    route_ids=route_ids,
-                    person_ids=person_ids,
-                    result=theme.outcome,
-                    feeling=(
-                        f"我对这段{theme.label}经历有清楚的感受，"
-                        "但不会把感受当作额外事实。"
+                    seed_id=f"relationship-start:{relationship.person_id}",
+                    content=(
+                        f"我在{event_age}岁左右于{self._label(place_id)}附近"
+                        f"与{relationship.display_name}相识。{shared_fact}"
                     ),
-                    impact=theme.impact,
-                    predecessor_ids=(result[-1].seed_id,) if result else (),
-                    causal_links=(f"{result[-1].seed_id} -> {theme.theme_id}",)
-                    if result
-                    else (),
-                    related_ids=theme.required_knowledge_ids,
-                    emotional_tone=theme.emotional_tone,
-                    emotion_intensity=min(1.0, theme.weight),
-                    importance=min(1.0, max(0.5, theme.weight)),
-                    theme_id=theme.theme_id,
+                    source_ref=relationship.source_ref,
+                    source_version="genesis-relationship-episode.v0.3",
+                    topic="biography.relationships",
+                    aliases=(relationship.display_name, role_label),
+                    retrieval_terms=("相识", role_label, relationship.display_name),
+                    temporal_label=f"{event_age}岁时",
+                    life_stage=stage_for_age(
+                        request.species_id, event_age, self._catalog
+                    ),
+                    place_ids=(place_id,),
+                    person_ids=(relationship.person_id,),
+                    result=shared_fact,
+                    feeling="我记得这段相识，不把对方未分享的经历当成已知。",
+                    impact=f"我从这次相识开始认识{relationship.display_name}。",
+                    emotional_tone="belonging",
+                    importance=min(1.0, relationship.importance),
+                    theme_id=(
+                        "shared-space-choice"
+                        if relationship.role == "friend"
+                        else f"relationship-start:{relationship.role}"
+                    ),
                     age_years_at_event=event_age,
                 )
             )
+
+        station_id = context.earth_transition.departure_place_id
+        travel_paths = {
+            path_id: (cells, days)
+            for path_id, cells, days in context.mobility.travel_paths
+        }
+        station_path, travel_days = travel_paths.get(
+            "birth_to_earthbound_station", ((), 0)
+        )
+        station_route_ids = self._registered_routes_on_path(station_path)
+        preparation_days = context.earth_transition.preparation_duration_local_days
+        result.append(
+            EpisodeSeed(
+                seed_id="predeparture-training",
+                content=(
+                    f"出发前，我在{self._label(station_id)}完成了"
+                    f"{preparation_days}个本地日的赴地准备。"
+                ),
+                source_ref="earth-arrival:preparation-duration",
+                source_version="genesis-transition-episode.v0.3",
+                topic="biography.departure",
+                aliases=("赴地准备", "出发培训"),
+                retrieval_terms=("赴地", "准备", "培训"),
+                temporal_label="离开故乡前（具体年龄未知）",
+                life_stage="pre_arrival",
+                place_ids=(station_id,),
+                stay_days=preparation_days,
+                purposes=("赴地准备",),
+                result=f"完成了{preparation_days}个本地日的赴地准备。",
+                feeling="我记得这是离开故乡前的一次正式准备。",
+                impact="这次准备发生在离开故乡之前。",
+                emotional_tone="resolve",
+                importance=0.9,
+                theme_id="predeparture-training",
+            )
+        )
+        home_id = context.origin.predeparture_home_place_id
+        result.append(
+            EpisodeSeed(
+                seed_id="departure-decision",
+                content=(
+                    f"完成赴地准备后，我从{self._label(home_id)}出发，"
+                    f"沿实际路线到达{self._label(station_id)}，参加赴地计划。"
+                ),
+                source_ref="earth-arrival:mandatory-station-trip",
+                source_version="genesis-transition-episode.v0.3",
+                topic="biography.departure",
+                aliases=("赴地", "离开故乡", "赴地基站"),
+                retrieval_terms=("赴地", "基站", "路线", *station_route_ids),
+                temporal_label="赴地准备与离开故乡（具体年龄未知）",
+                life_stage="pre_arrival",
+                place_ids=_unique((home_id, station_id)),
+                route_ids=station_route_ids,
+                travel_days=travel_days,
+                purposes=("赴地",),
+                result=f"我从故乡抵达{self._label(station_id)}并参加赴地计划。",
+                feeling="我记得这是一段实际走过的赴地行程。",
+                impact="这次行程把故乡生活与赴地计划连接起来。",
+                predecessor_ids=("predeparture-training",),
+                emotional_tone="resolve",
+                importance=0.94,
+                theme_id="departure-decision",
+            )
+        )
+        arrival_age = context.identity.age_years_at_adoption
+        owner_person_id = f"owner-person-{request.owner_reference}"
+        owner_group_id = f"owner-{request.owner_reference}"
+        result.append(
+            EpisodeSeed(
+                seed_id="arrival-nest",
+                content=(
+                    f"我在{arrival_age}岁时来到{self._source.earth_home_name}，"
+                    "开始与领养家庭共同生活。"
+                ),
+                source_ref="adoption:accepted",
+                source_version="genesis-transition-episode.v0.3",
+                topic="biography.arrival",
+                aliases=("抵达新家", "领养", "到家"),
+                retrieval_terms=("领养家庭", "新家", self._source.earth_home_name),
+                temporal_label="领养抵达时",
+                life_stage=context.identity.life_stage,
+                place_ids=(request.arrival_base_id,),
+                person_ids=(owner_person_id, owner_group_id),
+                result="抵达领养家庭并开始共同生活。",
+                feeling="我记得这是新生活开始的时点。",
+                impact="从此，我与领养家庭开始真实相处。",
+                predecessor_ids=("departure-decision",),
+                emotional_tone="wonder",
+                importance=1.0,
+                theme_id="arrival-nest",
+                age_years_at_event=arrival_age,
+            )
+        )
         return tuple(result)
 
-    def _people_for_theme(
-        self,
-        theme: EpisodeTheme,
-        relationships: tuple[RelationshipSeed, ...],
-        request: GenesisCompileInput,
-    ) -> tuple[str, ...]:
-        selected: list[str] = []
-        for role in theme.required_roles:
-            for relationship in relationships:
-                role_matches = (
-                    relationship.role in {"parent", "sibling", "partner", "child"}
-                    if role == "family"
-                    else relationship.role == role
-                )
-                if not role_matches:
-                    continue
-                if relationship.eligible_episode_theme_ids and (
-                    theme.theme_id not in relationship.eligible_episode_theme_ids
-                ):
-                    continue
-                selected.append(relationship.person_id)
-                break
-            else:
-                raise GenesisError(
-                    f"经历 {theme.theme_id} 缺少真实可用的人物关系: {role}"
-                )
-        if theme.theme_id == "arrival-nest":
-            selected.append(f"owner-person-{request.owner_reference}")
-            selected.append(f"owner-{request.owner_reference}")
-        return _unique(selected)
+    @staticmethod
+    def _order_life_episodes(
+        episodes: tuple[EpisodeSeed, ...],
+    ) -> tuple[EpisodeSeed, ...]:
+        """Order factual life points; unknown transition ages stay unguessed."""
 
-    def _places_for_theme(
-        self,
-        theme: EpisodeTheme,
-        context: LifeContext,
-        request: GenesisCompileInput,
-    ) -> tuple[str, ...]:
-        if theme.theme_id == "arrival-nest":
-            return (request.arrival_base_id,)
-        if "private_home" in theme.place_kinds:
-            return (context.origin.childhood_home_place_id,)
-        if set(theme.place_kinds) & {"earth_gateway_station", "earth_home"}:
-            # Arrival is an explicitly observed transition: the accepted
-            # resident can remember the gateway and the Earth home even though
-            # neither belongs to the pre-arrival mobility list.
-            selected = [
-                place.place_id
-                for place in sorted(self._source.places, key=lambda item: item.place_id)
-                if place.kind in theme.place_kinds
-            ]
-            if selected:
-                return _unique(selected)
-        visited = set(context.mobility.visited_place_ids)
-        selected = [
-            place.place_id
-            for place in sorted(self._source.places, key=lambda item: item.place_id)
-            if place.place_id in visited and place.kind in theme.place_kinds
-        ]
-        if not selected:
-            # A resident may only remember places represented in its own
-            # observed/visited projection.  The world package is not an
-            # implicit personal map, so never promote an unvisited place just
-            # because its kind matches the episode theme.
-            selected = [context.origin.predeparture_home_place_id]
-        return _unique(selected)
+        def order(episode: EpisodeSeed) -> tuple[int, int, str]:
+            if episode.theme_id == "early-home":
+                return 0, 0, episode.seed_id
+            if episode.theme_id == "predeparture-training":
+                return 2, 0, episode.seed_id
+            if episode.theme_id == "departure-decision":
+                return 2, 1, episode.seed_id
+            if episode.theme_id == "arrival-nest":
+                return 3, 0, episode.seed_id
+            return 1, episode.age_years_at_event or 0, episode.seed_id
+
+        return tuple(sorted(episodes, key=order))
 
     @staticmethod
     def _attach_relationship_episodes(
@@ -3074,11 +3478,14 @@ def _seed_domain_and_id(label: str) -> tuple[str, str]:
         "lifespan": "people",
         "friend-count": "people",
         "friend-contact": "people",
+        "friend-age": "people",
+        "relationship-age": "people",
         "visit-opportunity": "journey",
         "visit-age": "journey",
         "visit-count": "journey",
         "visit-member": "journey",
         "visit-purpose": "journey",
+        "visit-schedule": "journey",
         "person-species": "people",
         "names": "naming",
         "knowledge": "knowledge",

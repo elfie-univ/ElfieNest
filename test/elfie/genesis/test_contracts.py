@@ -123,25 +123,93 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
         for relation in source.place_relations
     }
     assert "skyreach_square" not in compilation.life_context.mobility.visited_place_ids
-    assert "earthbound_road" in compilation.life_context.mobility.familiar_route_ids
-    assert compilation.life_context.earth_transition.route_id == "earthbound_road"
     travel_paths = {
         path_id: (cells, days)
         for path_id, cells, days in compilation.life_context.mobility.travel_paths
     }
     station_path, station_days = travel_paths["birth_to_earthbound_station"]
+    station_route = next(
+        route for route in source.routes if route.route_id == "earthbound_road"
+    )
+    route_path = source.geography_network.shortest_land_path(
+        source.geography_network.cell_for_place(station_route.from_place_id) or "",
+        source.geography_network.cell_for_place(station_route.to_place_id) or "",
+    )
+    assert route_path is not None
+    reverse_route_path = tuple(reversed(route_path))
+    station_route_traversed = any(
+        station_path[index : index + len(route_path)]
+        in {route_path, reverse_route_path}
+        for index in range(len(station_path) - len(route_path) + 1)
+    )
+    assert (
+        "earthbound_road" in compilation.life_context.mobility.familiar_route_ids
+    ) is station_route_traversed
+    assert compilation.life_context.earth_transition.route_id == (
+        "earthbound_road" if station_route_traversed else ""
+    )
     assert station_path[0].startswith("R") and station_path[-1] == "R4C3"
     assert station_days == (len(station_path) - 1) * 2
     assert len(station_path) > 1
     place_importance = {seed.place_id: seed.importance for seed in bundle.place_seeds}
     assert place_importance["earthbound_station"] > place_importance["skyreach_square"]
     assert place_importance[f"private:{compilation.life_context.elfie_id}:home"] == 0.9
-    assert all(
-        episode.route_ids
+    departure_episode = next(
+        episode
         for episode in bundle.episode_seeds
-        if episode.theme_id in {"departure-decision", "arrival-nest"}
+        if episode.theme_id == "departure-decision"
     )
+    arrival_episode = next(
+        episode
+        for episode in bundle.episode_seeds
+        if episode.theme_id == "arrival-nest"
+    )
+    assert departure_episode.route_ids == (
+        GenesisCompiler(source)._registered_routes_on_path(station_path)
+    )
+    assert arrival_episode.route_ids == ()
     assert bundle.manifest.output_ids
+
+
+def test_station_route_familiarity_depends_on_the_registered_path() -> None:
+    source = load_genesis_source_package()
+    compiler = GenesisCompiler(source)
+
+    assert compiler._registered_routes_on_path(("R5C4",)) == ()
+
+    route_flags = {
+        "earthbound_road"
+        in compiler._registered_routes_on_path(
+            compiler._land_path_to_place(cell.cell_id, "earthbound_station")
+        )
+        for cell in source.spatial_population.cells
+    }
+
+    assert route_flags == {False, True}
+
+
+def test_trip_budget_includes_the_ferry_round_trip_to_lakeheart_isle() -> None:
+    source = load_genesis_source_package()
+    compiler = GenesisCompiler(source)
+    opportunity = next(
+        item
+        for item in source.generation_policy.visit_opportunities
+        if item.opportunity_id == "lake_group"
+    )
+    birth_cell = next(
+        cell.cell_id
+        for cell in source.spatial_population.cells
+        if cell.region_id == "C1"
+    )
+
+    metrics = compiler._opportunity_trip_metrics(
+        birth_cell, opportunity.place_ids, opportunity.stay_days
+    )
+
+    assert metrics is not None
+    travel_days, total_days, _ = metrics
+    assert travel_days >= 2 * source.geography_network.water_days_per_grid_hop
+    assert total_days == travel_days + opportunity.stay_days
 
 
 def test_compiler_rejects_age_inside_terminal_reserve() -> None:
@@ -301,7 +369,19 @@ def test_child_birth_year_subsets_are_sampled_without_replacement_and_uniformly(
     assert max(counts.values()) - min(counts.values()) < 100
 
 
-def test_each_parent_union_draws_its_own_child_target() -> None:
+def test_each_parent_union_draws_its_own_child_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_domain_seed = GenesisCompiler._domain_seed
+
+    def controlled_family_seed(self, seed: int, label: str) -> int:
+        if label == "family-child-count:parents":
+            return 0  # Uniformly selects three children.
+        if label == "family-child-count:partner":
+            return 1  # Uniformly selects one child.
+        return original_domain_seed(self, seed, label)
+
+    monkeypatch.setattr(GenesisCompiler, "_domain_seed", controlled_family_seed)
     source = load_genesis_source_package()
     source = replace(
         source,
@@ -524,6 +604,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert set(episodes) == {f"visit:{record[0]}" for record in records}
     assert all(episode.visit_count >= 1 for episode in episodes.values())
     assert all(episode.stay_days >= 1 for episode in episodes.values())
+    assert all(episode.travel_days >= 0 for episode in episodes.values())
     assert all(
         len(episode.visit_age_years) == episode.visit_count
         for episode in episodes.values()
@@ -531,6 +612,43 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert all(
         all(1 <= age <= 8 for age in episode.visit_age_years)
         for episode in episodes.values()
+    )
+    assert all(
+        episode.age_years_at_event == min(episode.visit_age_years)
+        for episode in episodes.values()
+    )
+    compiler = GenesisCompiler(source, catalog=load_and_configure_species_catalog())
+    visit_ages = dict(compilation.life_context.mobility.visit_age_years)
+    remaining_by_age: dict[int, int] = {}
+    cross_region_days = 0
+    for opportunity_id, place_ids, count, _, stay_days in records:
+        trip_days = compiler._opportunity_trip_days(
+            compilation.life_context.origin.birth_cell_id, place_ids, stay_days
+        )
+        assert trip_days is not None
+        episode = episodes[f"visit:{opportunity_id}"]
+        metrics = compiler._opportunity_trip_metrics(
+            compilation.life_context.origin.birth_cell_id, place_ids, stay_days
+        )
+        assert metrics is not None
+        assert episode.travel_days == metrics[0]
+        assert set(episode.route_ids) == set(metrics[2])
+        ages = visit_ages[opportunity_id]
+        assert len(ages) == count
+        for age in ages:
+            remaining_by_age[age] = remaining_by_age.get(age, 0) + trip_days
+        if compiler._visit_crosses_macro_region(
+            compilation.life_context.origin.birth_cell_id, place_ids
+        ):
+            cross_region_days += count * trip_days
+    assert all(
+        used <= source.geography_network.days_per_local_year
+        for used in remaining_by_age.values()
+    )
+    assert cross_region_days <= (
+        source.geography_network.days_per_local_year
+        * (8 - 1)
+        * source.generation_policy.visit_cross_region_lifetime_fraction
     )
     assert all(episode.purposes for episode in episodes.values())
     town_episode = episodes.get("visit:town_center")
@@ -550,7 +668,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     )
     assert repeat_town.purposes == town_episode.purposes
     assert all(
-        episode.source_version == "genesis-visit:visits-poisson-age-distance.v2"
+        episode.source_version == "genesis-visit:visits-poisson-age-distance.v3"
         for episode in episodes.values()
     )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
@@ -559,6 +677,44 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     assert (
         "mistyville_center" not in station_only.life_context.mobility.visited_place_ids
     )
+
+    constrained_source = replace(
+        source,
+        geography_network=replace(
+            source.geography_network,
+            days_per_local_year=5,
+        ),
+    )
+    constrained = _compilation(
+        "visit-opportunity-constrained",
+        seed=7,
+        stage="mature",
+        age_years=8,
+        source=constrained_source,
+    )
+    assert constrained.life_context.mobility.unmade_opportunity_records
+    town_requested_count = sum(
+        record[2]
+        for record in constrained.life_context.mobility.opportunity_records
+        if record[0] == "town_center"
+    ) + sum(
+        count
+        for opportunity_id, count, _ in constrained.life_context.mobility.unmade_opportunity_records
+        if opportunity_id == "town_center"
+    )
+    town_actual_count = sum(
+        record[2]
+        for record in constrained.life_context.mobility.opportunity_records
+        if record[0] == "town_center"
+    )
+    assert 0 < town_actual_count < town_requested_count
+    assert any(
+        opportunity_id == "town_center" and "历法上限" in reason
+        for opportunity_id, _, reason in constrained.life_context.mobility.unmade_opportunity_records
+    )
+    constrained_visit_ages = dict(constrained.life_context.mobility.visit_age_years)
+    town_ages = constrained_visit_ages.get("town_center", ())
+    assert all(town_ages.count(age) <= 1 for age in set(town_ages))
 
 
 def test_visit_opportunity_count_follows_capped_poisson_distribution() -> None:
@@ -802,8 +958,57 @@ def test_age_is_directly_mapped_to_the_requested_earth_year() -> None:
     assert compilation.life_context.identity.age_years_at_adoption == 6
     assert compilation.profile.identity.origin.age_years == 6
     assert all(
-        episode.age_years_at_event is not None and episode.age_years_at_event <= 6
+        episode.age_years_at_event is None or 1 <= episode.age_years_at_event <= 6
         for episode in compilation.bundle.episode_seeds
+    )
+    assert (
+        next(
+            episode
+            for episode in compilation.bundle.episode_seeds
+            if episode.theme_id == "departure-decision"
+        ).age_years_at_event
+        is None
+    )
+    assert (
+        next(
+            episode
+            for episode in compilation.bundle.episode_seeds
+            if episode.theme_id == "arrival-nest"
+        ).age_years_at_event
+        == 6
+    )
+
+
+def test_transition_episodes_use_actual_facts_without_template_events() -> None:
+    compilation = _compilation("transition-episodes", stage="mature", age_years=6)
+    source = load_genesis_source_package()
+    episodes = compilation.bundle.episode_seeds
+    departure = next(item for item in episodes if item.theme_id == "departure-decision")
+    training = next(
+        item for item in episodes if item.theme_id == "predeparture-training"
+    )
+    arrival = next(item for item in episodes if item.theme_id == "arrival-nest")
+    travel_paths = {
+        path_id: (cells, days)
+        for path_id, cells, days in compilation.life_context.mobility.travel_paths
+    }
+
+    assert departure.age_years_at_event is None
+    assert departure.temporal_label == "赴地准备与离开故乡（具体年龄未知）"
+    assert training.stay_days == 3
+    assert "earthbound_station" in departure.place_ids
+    assert departure.travel_days == travel_paths["birth_to_earthbound_station"][1]
+    assert arrival.age_years_at_event == 6
+    assert arrival.place_ids == ("elfie_nest",)
+    assert arrival.person_ids
+    assert all(
+        not any(
+            prompt in episode.content
+            for theme in source.episode_themes
+            for prompt in (theme.goal, theme.obstacle, theme.outcome)
+            if prompt
+        )
+        for episode in episodes
     )
 
 

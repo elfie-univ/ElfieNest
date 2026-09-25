@@ -239,7 +239,12 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             "genesis:episode:genesis-check:departure-decision"
         )
         assert route_episode is not None
-        assert "earthbound_road" in route_episode.metadata["route_ids"]
+        departure_seed = next(
+            episode
+            for episode in bundle.episode_seeds
+            if episode.seed_id == "departure-decision"
+        )
+        assert route_episode.metadata["route_ids"] == list(departure_seed.route_ids)
         assert not storage.list_graph_nodes(limit=1000, privacy_scope=None) or not any(
             node.node_type == "event" for node in storage.list_graph_nodes(limit=1000)
         )
@@ -361,6 +366,7 @@ def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
         assert visit_episodes
         metadata = visit_episodes[0].metadata
         assert metadata["visit_count"] >= 1
+        assert metadata["travel_days"] >= 0
         assert metadata["stay_days"] >= 1
         assert len(metadata["visit_age_years"]) == metadata["visit_count"]
         assert metadata["purposes"]

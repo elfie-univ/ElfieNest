@@ -528,6 +528,7 @@ class GenesisMemoryCommitter:
                         "route_ids": list(seed.route_ids),
                         "person_ids": list(seed.person_ids),
                         "visit_count": seed.visit_count,
+                        "travel_days": seed.travel_days,
                         "stay_days": seed.stay_days,
                         "visit_age_years": list(seed.visit_age_years),
                         "purposes": list(seed.purposes),

@@ -67,8 +67,16 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         assert marker.properties["output_ids"] == list(
             compilation.bundle.manifest.output_ids
         )
-        rare = storage.recall(RecallRequest(text="重新约定", lexical_limit=10))
-        assert any("shared-space-choice" in item.episode_id for item in rare.episodes)
+        friend_seed = next(
+            episode
+            for episode in compilation.bundle.episode_seeds
+            if episode.theme_id == "shared-space-choice"
+        )
+        friend_episode = storage.get_episode(
+            f"genesis:episode:00000101:{safe_component(friend_seed.seed_id)}"
+        )
+        assert friend_episode is not None
+        assert "相识" in friend_episode.content_text
 
         identity_seed = next(
             seed
