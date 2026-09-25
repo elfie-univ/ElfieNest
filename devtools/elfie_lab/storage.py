@@ -43,6 +43,9 @@ from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlSelfhoodSeedAdapter,
 )
 from infrastructure.persistence.layout.data_home import get_elfie_developer_home
+from infrastructure.persistence.memory.ontology_loader import (
+    load_memory_ontology_snapshot,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -62,9 +65,10 @@ class ElfieLabStorage:
         self.sessions_dir = self.root / "sessions"
         self.elfies_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.ontology = load_memory_ontology_snapshot(data_home=self.root)
         self._catalog = load_and_configure_species_catalog()
         self._genesis = GenesisCompiler(
-            load_genesis_source_package(),
+            load_genesis_source_package(ontology=self.ontology),
             catalog=self._catalog,
         )
 

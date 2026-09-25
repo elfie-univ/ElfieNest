@@ -17,6 +17,7 @@ from .memory_records import (
     GenesisSubmissionReceipt,
     MaintenanceReceipt,
     MaintenanceRequest,
+    MemoryInspectionSnapshot,
     NodeInput,
     QualifiedReinforcementReceipt,
     RecallAssertion,
@@ -96,6 +97,10 @@ class MemoryStorePort(Protocol):
         privacy_scope: str | None = None,
         now: str | None = None,
     ) -> RecallNode | None: ...
+
+    def get_self_model_graph(
+        self, stance_predicates: tuple[str, ...]
+    ) -> MemoryInspectionSnapshot: ...
 
     def list_graph_assertions(
         self, limit: int = 800, *, privacy_scope: str | None = None

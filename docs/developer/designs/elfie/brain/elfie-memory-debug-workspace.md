@@ -55,16 +55,18 @@ Episode, a Node/Assertion, or both; it does not need to return raw upstream conv
 Every Node and Assertion must be traceable through Evidence to its source Episode or approved seed. Lifecycle,
 importance, retention, confidence, conflict, and supersedes remain distinct fields.
 
-The graph uses the Memory taxonomy rather than a second UI taxonomy. Entity nodes are rendered
-with the canonical leaf types `elfie`, `person`, `group`, `place` and `object`; `event` is an
-optional reusable event identity admitted only when an Episode explicitly describes an event that
-other records need to reference, not a per-Episode projection or third semantic layer; `knowledge` carries `knowledge_kind` (`fact`, `concept`, `pattern`,
-`guideline` or `belief`); and `self_model` is shown only in the self/world understanding views.
-The current Elfie is the real `elfie` Node with an `is_self` marker. A visual center anchor may
-refer to that Node, but it has no independent identity or source.
+The graph uses the injected Memory ontology rather than a second UI taxonomy. Its five registered
+groups and leaf types are Social relations (`elfie`, `person`, `group`), Entities (`organism`,
+`object`, `material`), Space geography (`cosmic_entity`, `place`), Events (`event`) and General
+knowledge (`concept`, `claim`, `theory_or_model`, `principle_or_law`, `pattern`,
+`rule_or_guideline`, `method_or_procedure`, `viewpoint`). `type_group` is derived from the active
+leaf type and is never stored on a Node. A claim is an ordinary general-knowledge Node, without a
+dedicated payload/table. Event Nodes remain optional reusable identities, not per-Episode or
+execution-process records. The self-model is a derived sixth graph slice selected from registered
+outgoing stance Assertions on the real `elfie` Node; it is not a Node type or a virtual anchor.
 
-The normal relation view includes entity-to-entity Assertions and their source links. The normal
-knowledge view includes knowledge-to-knowledge Assertions and their source links. Generic `about`,
+The graph views include registered, source-grounded Assertions and their source links according to
+the Memory slice projection. Generic `about`,
 `knows`, `knows_boundary` and `related_to` edges are not generated; a concept relation must use a
 registered, source-grounded predicate. Every graph edge exposes its Assertion
 identity and can open the attached Evidence and Episode; a projection that drops that identity is
@@ -93,8 +95,9 @@ second fact source from raw rows. Every selection uses the same compact order:
 5. **Technical details:** IDs, hashes, policy versions, raw qualifiers and projection metadata in a
    collapsed section.
 
-Node detail uses the registered attribute groups for `elfie`/`person`, `group`, `place`, `object`,
-`knowledge`, `event` and `self_model`. Assertion detail shows one readable sentence, endpoint roles,
+Node detail uses the attributes registered for its leaf type. The derived group label comes from the
+same ontology; the self-model slice links back to its real Nodes and Assertions rather than exposing
+a synthetic Node. Assertion detail shows one readable sentence, endpoint roles,
 direction or symmetry, valid time, polarity, epistemic status, importance, confidence, conflicts
 and Evidence. Episode detail shows a non-empty `summary_text` as a concise, read-only display
 headline, then the complete original content, time and precision, provenance, experience type,
@@ -150,7 +153,15 @@ The central canvas contains:
 2. a Node/Assertion knowledge graph;
 3. counts and current filter/highlight status.
 
-The default view is the whole knowledge base. Filtering dims unrelated content by default instead of deleting all context. The graph supports pan, zoom, node dragging, selection, related highlighting, long-label truncation with full detail on the right, and level-of-detail behavior for large libraries. 2D/2.5D/3D is an implementation choice; the graph must not become a Godot physics authority.
+The default view is the whole knowledge base. The ontology-backed type-group and leaf-type selectors
+are linked: choosing a group limits leaf options to that group, choosing a leaf selects its group,
+and changing to an incompatible group clears the leaf selection. These selectors filter circular
+Node glyphs only; Assertions are reprojected only when their visible endpoints remain available.
+They affect this graph projection only, never Recall candidates, ranking, result lists or Elfie Lab
+context. Other graph filters retain their separately defined behavior. The graph supports pan, zoom,
+node dragging, selection, related highlighting, long-label truncation with full detail on the right,
+and level-of-detail behavior for large libraries. 2D/2.5D/3D is an implementation choice; the graph
+must not become a Godot physics authority.
 
 During Recall, the default graph still shows the whole knowledge base: positively scored returned
 Nodes and endpoints of returned Assertions are emphasized, unrelated content is dimmed, and

@@ -37,6 +37,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
     conn: sqlite3.Connection
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        self.ontology.validate_episode_type(episode.event_kind)
         configured_elfie = getattr(self, "elfie_id", None)
         if configured_elfie is not None:
             supplied_elfie = episode.metadata.get("elfie_id")
@@ -300,7 +301,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         elfie_id = str(getattr(self, "elfie_id", None) or "")
         with self._lock:
             scope = ""
-            params: list[object] = [elfie_id, now, now]
+            params: list[object] = [elfie_id, now, now, self.ontology.revision]
             if getattr(self, "elfie_id", None) is not None:
                 scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
                 params.append(str(self.elfie_id))
@@ -319,7 +320,8 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                      AND (mm.source_version IS NOT e.source_version
                           OR mm.source_hash IS NOT e.content_sha256
                           OR mm.next_attempt_at IS NULL
-                          OR mm.next_attempt_at <= ?)
+                          OR mm.next_attempt_at <= ?
+                          OR mm.ontology_revision IS NOT ?)
                      AND (mm.state<>'processing' OR mm.lease_until IS NULL
                           OR mm.lease_until <= ?)"""
                 + scope
@@ -349,7 +351,12 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             owns = self._begin_write_transaction()
             try:
                 scope = ""
-                select_params: list[object] = [elfie_id, now_text, now_text]
+                select_params: list[object] = [
+                    elfie_id,
+                    now_text,
+                    now_text,
+                    self.ontology.revision,
+                ]
                 if getattr(self, "elfie_id", None) is not None:
                     scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
                     select_params.append(str(self.elfie_id))
@@ -372,7 +379,8 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                               OR mm.source_hash IS NOT e.content_sha256)
                          AND (mm.source_version IS NOT e.source_version
                               OR mm.source_hash IS NOT e.content_sha256
-                              OR mm.next_attempt_at IS NULL OR mm.next_attempt_at <= ?)
+                              OR mm.next_attempt_at IS NULL OR mm.next_attempt_at <= ?
+                              OR mm.ontology_revision IS NOT ?)
                          AND (mm.lease_until IS NULL OR mm.lease_until <= ?)"""
                     + scope
                     + " AND "
@@ -393,6 +401,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                               SET state='processing', attempts=attempts+1,
                                   next_attempt_at=NULL, lease_owner=?, lease_until=?,
                                   source_version=?, source_hash=?, projection_revision=NULL,
+                                  ontology_revision=NULL,
                                   last_error=NULL, updated_at=?
                             WHERE elfie_id=? AND stage='consolidation' AND target_id=?
                               AND attempts=? AND (lease_until IS NULL OR lease_until<=?)""",
@@ -451,7 +460,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         with self._lock:
             rows = self.conn.execute(
                 f"""SELECT target_id, state, source_version, source_hash,
-                           projection_revision, attempts, next_attempt_at,
+                           projection_revision, ontology_revision, attempts, next_attempt_at,
                            last_error, updated_at
                       FROM memory_maintenance
                      WHERE elfie_id=? AND stage='consolidation'
@@ -466,6 +475,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 source_version=row["source_version"],
                 source_sha256=row["source_hash"],
                 projection_revision=row["projection_revision"],
+                ontology_revision=row["ontology_revision"],
                 attempts=int(row["attempts"] or 0),
                 next_attempt_at=row["next_attempt_at"],
                 last_error=row["last_error"],

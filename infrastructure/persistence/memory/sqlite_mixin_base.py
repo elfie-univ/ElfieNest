@@ -30,6 +30,7 @@ from elfie.brain.memory.memory_records import (
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.memory.score_policy import ImportanceEvent
 
 
@@ -39,6 +40,7 @@ class SQLiteMemoryMixinBase:
     conn: sqlite3.Connection
     _lock: RLock
     elfie_id: str | None
+    ontology: MemoryOntologySnapshot
     _active_genesis_submission_id: str | None
     _transaction_depth: int
 

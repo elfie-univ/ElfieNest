@@ -200,7 +200,7 @@ def test_standalone_world_knowledge_keeps_source_and_precedes_graph_noise() -> N
     statement = "Elfaria 一年有 196 个本地日。"
     knowledge = RecallNode(
         "genesis:knowledge:elfie:year",
-        "knowledge",
+        "concept",
         statement,
         statement + "\n[历法/common/known]\n本地日",
         0.99,

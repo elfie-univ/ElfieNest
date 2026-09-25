@@ -27,7 +27,7 @@ def test_knowledge_node_keeps_one_short_title_and_sourced_context() -> None:
             "nodes": [
                 {
                     "title": "情绪共鸣与身体状态",
-                    "type": "knowledge",
+                    "type": "concept",
                     "context": content,
                     "reusable_knowledge": True,
                 }
@@ -52,7 +52,7 @@ def test_knowledge_node_keeps_one_short_title_and_sourced_context() -> None:
         assert receipt.status == "completed"
         nodes = store.list_graph_nodes(limit=10)
         assert len(nodes) == 1
-        assert nodes[0].node_type == "knowledge"
+        assert nodes[0].node_type == "concept"
         assert nodes[0].label == "情绪共鸣与身体状态"
         assert nodes[0].description == content
         description = store.connection.execute(
@@ -69,7 +69,7 @@ def test_full_sentence_cannot_become_knowledge_title() -> None:
             "nodes": [
                 {
                     "label": content,
-                    "type": "knowledge",
+                    "type": "concept",
                     "description": content,
                     "reusable_knowledge": True,
                 }

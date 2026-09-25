@@ -26,7 +26,11 @@ type AuditRecord = Record<string, unknown>;
 type SnapshotMetadata = { snapshot_id: string; generated_at: string; consistency: string; source: string; schema_version: number; semantic_revision: number | null; semantic_revision_status?: string; read_consistency_token?: string };
 type RecallCandidate = { candidate_id: string; candidate_kind: string; score: number; matched_terms: string[]; query_terms?: string[]; source?: string; rank?: number | null; kept: boolean; exclusion_reason?: string | null };
 type RecallSelection = { recall_id?: string | null; candidate_boundary: string; candidates: RecallCandidate[]; summaries: AuditRecord[]; returned_ids: { nodes: string[]; assertions: string[]; episodes: string[]; evidence: string[] } };
-type AuditReport = { database: string; elfie_id: string; snapshot: SnapshotMetadata & { coverage?: string; read_limit?: number; filters_applied?: boolean; next_cursor?: string | null }; counts: Record<string, number>; loaded_counts: Record<string, number>; matched_counts: Record<string, number>; focus_node_ids?: string[]; coverage: { status: string; truncated: Record<string, boolean>; filters_applied: boolean; read_limit: number }; pagination?: { page_size: number; next_cursor: string | null; cursor: string | null }; node_type_counts: Record<string, number>; predicate_counts: Record<string, number>; checks: { checks: Array<{ status: string; name: string; detail?: string }> }; data: { nodes: AuditItem[]; context_nodes?: AuditItem[]; assertions: AuditRecord[]; episodes: AuditRecord[]; evidence: AuditRecord[] } };
+type OntologyGroup = { group_id: string; label: string; color: string; order: number };
+type OntologyNodeType = { node_type: string; label: string; group_id: string; color: string; status: string; count: number };
+type OntologyPredicate = { predicate: string; label: string; symmetric: boolean; inverse: string | null; status: string; count: number };
+type OntologyCatalog = { revision: string; type_groups: OntologyGroup[]; node_types: OntologyNodeType[]; predicates: OntologyPredicate[]; predicate_aliases: Record<string, string> };
+type AuditReport = { database: string; elfie_id: string; snapshot: SnapshotMetadata & { coverage?: string; read_limit?: number; filters_applied?: boolean; next_cursor?: string | null }; counts: Record<string, number>; loaded_counts: Record<string, number>; matched_counts: Record<string, number>; focus_node_ids?: string[]; coverage: { status: string; truncated: Record<string, boolean>; filters_applied: boolean; read_limit: number }; pagination?: { page_size: number; next_cursor: string | null; cursor: string | null }; node_type_counts: Record<string, number>; predicate_counts: Record<string, number>; ontology?: OntologyCatalog; checks: { checks: Array<{ status: string; name: string; detail?: string }> }; data: { nodes: AuditItem[]; context_nodes?: AuditItem[]; assertions: AuditRecord[]; episodes: AuditRecord[]; evidence: AuditRecord[] } };
 type RecallReport = { elapsed_ms: number; snapshot: SnapshotMetadata; request?: AuditRecord; counts: Record<string, number | boolean>; bundle: { focus_nodes: AuditItem[]; assertions: AuditRecord[]; episodes: AuditRecord[]; evidence: AuditRecord[]; conflicts?: AuditRecord[]; limits?: AuditRecord }; selection: RecallSelection; rendered: string };
 type PreviewReport = { operation: { operation_id: string; elapsed_ms: number; status: string; mode: string; sandbox: boolean; production_mutated: boolean; cleanup: string }; input: { episode_id: string; content_chars: number; summary: string | null }; before: { counts: Record<string, number> }; after: { counts: Record<string, number> }; changes: { added_ids: Record<string, string[]>; affected: Record<string, AuditRecord[]> }; receipt: AuditRecord; error: { type: string; message: string } | null };
 type ConsolidationReport = { success: boolean; triggered: boolean; candidate_id?: string | null; turn_id?: string | null; status?: string; before?: AuditRecord | null; after?: AuditRecord | null; knowledge_created?: number; consolidated_count?: number };
@@ -55,12 +59,12 @@ export type MemoryDebugWorkspaceProps = Readonly<{
   readonly embedded?: boolean;
   readonly onClose?: () => void;
 }>;
-type GraphNodeSeed = { id: string; kind: string; label: string };
-type GraphNode = { id: string; kind: string; label: string; x: number; y: number; radius?: number };
+type GraphNodeSeed = { id: string; kind: string; label: string; color?: string; typeLabel?: string };
+type GraphNode = { id: string; kind: string; label: string; color?: string; typeLabel?: string; x: number; y: number; radius?: number };
 type GraphEdge = { id: string; source: string; target: string; label: string; predicate?: string; kind: string; evidenceIds?: string[]; symmetric?: boolean; importance?: number };
 type Graph3DNode = GraphNodeSeed & { val: number; degree: number; originalId?: string; preview?: boolean; x?: number; y?: number; z?: number };
 type Graph3DLink = GraphEdge;
-type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; nodeTypes?: ReadonlySet<string> | undefined; predicateTypes?: ReadonlySet<string> | undefined; includeNodeIds?: ReadonlySet<string> | undefined; includeAssertionIds?: ReadonlySet<string> | undefined };
+type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; nodeGroup?: string | undefined; nodeTypes?: ReadonlySet<string> | undefined; predicateTypes?: ReadonlySet<string> | undefined; includeNodeIds?: ReadonlySet<string> | undefined; includeAssertionIds?: ReadonlySet<string> | undefined };
 type GraphLayout = { nodes: GraphNode[]; edges: GraphEdge[]; lod: "force" | "overview" };
 type ReadPhase = "loading" | "partial" | "ready" | "empty" | "stale" | "error";
 
@@ -68,8 +72,30 @@ export function isMemoryDebugSearchMode(tab: Tab, leftPanelOpen: boolean): boole
   return tab === "recall" && leftPanelOpen;
 }
 
-export function isMemoryDebugSemanticNodeType(nodeType: string | undefined): boolean {
-  return nodeType !== "genesis_commit_receipt";
+export function isMemoryDebugSemanticNodeType(nodeType: string | undefined, report?: AuditReport | null): boolean {
+  return Boolean(nodeType && report?.ontology?.node_types.some((item) => item.node_type === nodeType && item.status === "active"));
+}
+
+export function selectMemoryNodeGroup(
+  groupId: string,
+  selectedTypes: readonly string[],
+  nodeTypes: readonly OntologyNodeType[],
+): { groupId: string; nodeTypes: string[] } {
+  if (!groupId) return { groupId: "", nodeTypes: [] };
+  const compatible = new Set(nodeTypes.filter((item) => item.group_id === groupId).map((item) => item.node_type));
+  return { groupId, nodeTypes: selectedTypes.filter((nodeType) => compatible.has(nodeType)) };
+}
+
+export function selectMemoryNodeTypes(
+  selectedTypes: readonly string[],
+  currentGroup: string,
+  nodeTypes: readonly OntologyNodeType[],
+): { groupId: string; nodeTypes: string[] } {
+  if (!selectedTypes.length) return { groupId: currentGroup, nodeTypes: [] };
+  const lastSelected = nodeTypes.find((item) => item.node_type === selectedTypes[selectedTypes.length - 1]);
+  const groupId = currentGroup || lastSelected?.group_id || "";
+  const compatible = new Set(nodeTypes.filter((item) => item.group_id === groupId).map((item) => item.node_type));
+  return { groupId, nodeTypes: selectedTypes.filter((nodeType) => compatible.has(nodeType)) };
 }
 
 function normalizedGraphScore(value: number | undefined): number {
@@ -87,14 +113,16 @@ export function graphLinkWidth(importance: number | undefined): number {
   return 1.2 + normalizedGraphScore(importance) * 3;
 }
 
-const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", literal: "字面值" };
-const graphTypeColors: Record<string, string> = { person: "#b892ff", group: "#d5a85f", knowledge: "#42d6a4", place: "#5bb9ff", object: "#7db277", event: "#ffc857", elfie: "#ff8f6b", self_model: "#8da9c4", literal: "#a7b7c4" };
 const DIMMED_LINK_COLOR = "rgba(107, 133, 151, 0.16)";
-const NON_SEMANTIC_LEGACY_PREDICATES = new Set(["about", "knows", "knows_boundary", "related_to"]);
 
-function graphNodeColor(kind: string): string { return graphTypeColors[kind] ?? "#8da9c4"; }
+function graphNodeColor(kind: string, report?: AuditReport | null): string {
+  return report?.ontology?.node_types.find((item) => item.node_type === kind)?.color ?? (kind === "literal" ? "#a7b7c4" : "#8da9c4");
+}
 
-function nodeLabel(node: AuditItem): string { const kind = node.node_type ?? "unknown"; return labels[kind] ?? kind; }
+function nodeTypeLabel(kind: string, report?: AuditReport | null): string {
+  return report?.ontology?.node_types.find((item) => item.node_type === kind)?.label ?? kind;
+}
+function nodeLabel(node: AuditItem, report?: AuditReport | null): string { return nodeTypeLabel(node.node_type ?? "unknown", report); }
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character); }
 function normalizeNode(node: AuditItem & { node_id?: string }): AuditItem { return { ...node, id: node.id || node.node_id || "" }; }
 function recordArray(record: AuditRecord | null, key: string): AuditRecord[] { const value = record?.[key]; return Array.isArray(value) ? value.filter((item): item is AuditRecord => typeof item === "object" && item !== null && !Array.isArray(item)) : []; }
@@ -103,49 +131,31 @@ function recordNumber(record: AuditRecord | null, key: string): number | null { 
 function recordBoolean(record: AuditRecord | null, key: string): boolean | null { const value = record?.[key]; return typeof value === "boolean" ? value : null; }
 function recordStringArray(record: AuditRecord | null, key: string): string[] { const value = record?.[key]; return Array.isArray(value) ? value.map(String).filter(Boolean) : []; }
 function recordLifecycle(record: AuditItem): string { return String(record.status ?? record.properties?.lifecycle ?? record.properties?.status ?? "unknown"); }
-const relationLabels: Record<string, string> = {
-  owner_of: "主人",
-  owned_by: "归属于",
-  member_of: "成员",
-  kin_of: "家人（具体关系未知）",
-  friend_of: "朋友",
-  classmate_of: "同学",
-  colleague_of: "同事",
-  neighbor_of: "邻居",
-  acquaintance_of: "认识",
-  parent_of: "父母",
-  child_of: "子女",
-  sibling_of: "兄弟姐妹",
-  student_of: "学生",
-  teacher_of: "老师",
-  guided_by: "由其引导",
-  // Legacy rows are read-only compatibility data and are normalized for the
-  // detail surface without becoming new semantic vocabulary.
-  family: "家人（具体关系未知）",
-  friend: "朋友",
-  owner: "归属于",
-  acquaintance: "认识",
-};
-const relationAliases: Record<string, string> = { family: "kin_of", friend: "friend_of", owner: "owned_by", acquaintance: "acquaintance_of" };
-const symmetricRelationKinds = new Set(["kin_of", "friend_of", "classmate_of", "colleague_of", "neighbor_of", "acquaintance_of", "sibling_of", "near", "related_to"]);
-function relationIsSymmetric(kind: string): boolean { return symmetricRelationKinds.has(relationAliases[kind] ?? kind); }
-function relationKindFromRecord(record: AuditRecord | null, fallback = "关系"): string {
+function relationIsSymmetric(kind: string, report?: AuditReport | null): boolean {
+  const canonical = report?.ontology?.predicate_aliases[kind] ?? kind;
+  return report?.ontology?.predicates.find((item) => item.predicate === canonical)?.symmetric ?? false;
+}
+function relationKindFromRecord(record: AuditRecord | null, fallback = "关系", report?: AuditReport | null): string {
   const predicate = recordText(record, "predicate", fallback);
-  if (predicate !== "relationship") return relationAliases[predicate] ?? predicate;
+  const aliases = report?.ontology?.predicate_aliases ?? {};
+  if (predicate !== "relationship") return aliases[predicate] ?? predicate;
   const qualifiers = record?.qualifiers;
   if (qualifiers && typeof qualifiers === "object" && !Array.isArray(qualifiers)) {
     const context = (qualifiers as Record<string, unknown>).context;
     if (typeof context === "string") {
       const role = context.split(":").pop()?.trim();
-      if (role) return relationAliases[role] ?? role;
+      if (role) return aliases[role] ?? role;
     }
   }
   return predicate;
 }
-export function relationDisplayLabel(kind: string): string { return relationLabels[kind] ?? kind; }
-export function relationSentence(source: string, target: string, kind: string, sourceKind?: string, targetKind?: string): string {
-  const normalizedKind = relationAliases[kind] ?? kind;
-  const label = relationDisplayLabel(normalizedKind);
+export function relationDisplayLabel(kind: string, report?: AuditReport | null): string {
+  const canonical = report?.ontology?.predicate_aliases[kind] ?? kind;
+  return report?.ontology?.predicates.find((item) => item.predicate === canonical)?.label ?? canonical;
+}
+export function relationSentence(source: string, target: string, kind: string, sourceKind?: string, targetKind?: string, report?: AuditReport | null): string {
+  const normalizedKind = report?.ontology?.predicate_aliases[kind] ?? kind;
+  const label = relationDisplayLabel(normalizedKind, report);
   if (normalizedKind === "friend_of") return `${source} 和 ${target} 是朋友`;
   if (normalizedKind === "kin_of") return `${source} 和 ${target} 是家人（具体关系未知）`;
   if (normalizedKind === "classmate_of") return `${source} 和 ${target} 是同学`;
@@ -268,8 +278,19 @@ function InspectorSources({
   })}</div>;
 }
 
-export function MemoryDebugLegend({ layoutLocked }: { layoutLocked: boolean }): React.JSX.Element {
-  return <div className="memory-debug-legend-v2" aria-label="图例"><span className="memory-debug-type-key person-key">人物</span><span className="memory-debug-type-key elfie-key">精灵</span><span className="memory-debug-type-key group-key">群体/家庭</span><span className="memory-debug-type-key knowledge-key">知识</span><span className="memory-debug-type-key place-key">地点</span><span className="episode-key">Episode</span><span className="assertion-key">关系</span><span className="evidence-key">来源</span><span className="memory-debug-scale-key">点大小=重要度 · 关系线宽=重要度</span><span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击节点/关系查看右侧详情</span></div>;
+export function MemoryDebugLegend({ layoutLocked, ontology }: { layoutLocked: boolean; ontology?: OntologyCatalog | undefined }): React.JSX.Element {
+  const visibleNodeTypes = (ontology?.node_types ?? []).filter(
+    (nodeType) => nodeType.status === "active" && nodeType.count > 0,
+  );
+
+  return <div className="memory-debug-legend-v2" aria-label="图例">
+    {visibleNodeTypes.map((nodeType) => <span className="memory-debug-type-key" key={nodeType.node_type} style={{ color: nodeType.color }}>{nodeType.label}</span>)}
+    <span className="episode-key">Episode</span>
+    <span className="assertion-key">关系</span>
+    <span className="evidence-key">来源</span>
+    <span className="memory-debug-scale-key">点大小=重要度 · 关系线宽=重要度</span>
+    <span className="memory-debug-legend-hint">{layoutLocked ? "节点位置已锁定 · 按住左键拖动画布旋转 · 滚轮缩放" : "节点可拖拽 · 按住左键拖动节点调整位置"} · 悬停只查看 · 点击节点/关系查看右侧详情</span>
+  </div>;
 }
 
 function endpointId(endpoint: unknown): string {
@@ -488,6 +509,8 @@ export function layoutMemoryDebugGraph(projection: { nodes: GraphNodeSeed[]; edg
         id: item.id,
         kind: item.kind,
         label: item.label,
+        ...(item.color ? { color: item.color } : {}),
+        ...(item.typeLabel ? { typeLabel: item.typeLabel } : {}),
         x: 25 + (index % columns) * xStep,
         y: 25 + Math.floor(index / columns) * yStep,
         radius: 5.5,
@@ -516,7 +539,7 @@ export function layoutMemoryDebugGraph(projection: { nodes: GraphNodeSeed[]; edg
     });
     nodes.forEach((item) => { const point = positions.get(item.id); const shift = delta.get(item.id); if (!point || !shift) return; point.x = Math.max(35, Math.min(1005, point.x + shift.x)); point.y = Math.max(80, Math.min(690, point.y + shift.y)); });
   }
-  return { lod: "force", edges, nodes: nodes.map((item) => ({ id: item.id, kind: item.kind, label: item.label, x: positions.get(item.id)!.x, y: positions.get(item.id)!.y })) };
+  return { lod: "force", edges, nodes: nodes.map((item) => ({ id: item.id, kind: item.kind, label: item.label, ...(item.color ? { color: item.color } : {}), ...(item.typeLabel ? { typeLabel: item.typeLabel } : {}), x: positions.get(item.id)!.x, y: positions.get(item.id)!.y })) };
 }
 
 type MemoryDebugGraphFallbackProps = {
@@ -567,18 +590,6 @@ function MemoryDebugGraphFallback({
   const nodesById = new Map(graphData.nodes.map((node) => [node.id, node]));
   const linksById = new Map(graphData.links.map((link) => [link.id, link]));
   const positions = new Map(layout.nodes.map((node) => [node.id, node]));
-  const nodePalette: Record<string, string> = {
-    person: "#b892ff",
-    group: "#d5a85f",
-    knowledge: "#42d6a4",
-    place: "#5bb9ff",
-    object: "#7db277",
-    event: "#ffc857",
-    elfie: "#ff8f6b",
-    self_model: "#8da9c4",
-    literal: "#a7b7c4",
-  };
-
   return <div className="memory-debug-graph-fallback">
     <div className="memory-debug-graph-fallback-notice" role="status">
       <strong>当前浏览器未提供 WebGL，已切换到 2D 诊断视图</strong>
@@ -612,10 +623,10 @@ function MemoryDebugGraphFallback({
         const highlighted = highlightedNodeIds.has(node.id);
         const dimmed = hasTransientHighlight && !selected && !highlighted;
         const radius = Math.max(4, Math.min(15, graphNode.val * 1.5));
-        const fill = graphNode.preview ? "#ff9d57" : selected ? "#fff" : nodePalette[graphNode.kind] ?? "#8da9c4";
+        const fill = graphNode.preview ? "#ff9d57" : selected ? "#fff" : graphNode.color ?? "#8da9c4";
         return <g className={`memory-debug-2d-node ${selected ? "is-selected" : ""} ${highlighted ? "is-highlighted" : ""} ${dimmed ? "is-dimmed" : ""}`} key={node.id} onClick={() => onNodeClick(graphNode)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onNodeClick(graphNode); } }}>
           <circle cx={node.x} cy={node.y} r={radius} fill={fill} stroke={highlighted || selected ? "#fff" : "rgba(210,231,243,.7)"} strokeWidth={selected ? 3.5 : highlighted ? 2.5 : 1} />
-          <text className="memory-debug-2d-node-kind" x={node.x} y={node.y - radius - 5} textAnchor="middle">{graphNode.kind}</text>
+          <text className="memory-debug-2d-node-kind" x={node.x} y={node.y - radius - 5} textAnchor="middle">{graphNode.typeLabel ?? graphNode.kind}</text>
           <text className="memory-debug-2d-node-label" x={node.x} y={node.y + radius + 14} textAnchor="middle">{shortGraphLabel(graphNode.label)}</text>
           <title>{graphNode.label}</title>
         </g>;
@@ -626,24 +637,40 @@ function MemoryDebugGraphFallback({
 
 export function projectMemoryDebugGraph(report: AuditReport | null, filters: GraphFilters = {}): { nodes: GraphNodeSeed[]; edges: GraphEdge[] } {
   const assertions = report?.data.assertions ?? [];
+  const typeById = new Map((report?.ontology?.node_types ?? []).map((item) => [item.node_type, item]));
   const nodes = (report?.data.nodes ?? []).filter((item) => {
-    if (!isMemoryDebugSemanticNodeType(item.node_type)) return false;
+    if (!isMemoryDebugSemanticNodeType(item.node_type, report)) return false;
     if (filters.includeNodeIds && !filters.includeNodeIds.has(item.id)) return false;
     if (filters.nodeTypes && !filters.nodeTypes.has(item.node_type ?? "node")) return false;
+    if (filters.nodeGroup && typeById.get(item.node_type ?? "")?.group_id !== filters.nodeGroup) return false;
     if (filters.lifecycle && filters.lifecycle !== "all" && recordLifecycle(item) !== filters.lifecycle) return false;
     if (filters.minConfidence != null && (typeof item.confidence !== "number" || item.confidence < filters.minConfidence)) return false;
     return true;
   });
   const nodeIds = new Set(nodes.map((item) => item.id));
-  const projectedNodes: GraphNodeSeed[] = nodes.map((item) => ({ id: item.id, kind: item.node_type ?? "node", label: item.label }));
+  const projectedNodes: GraphNodeSeed[] = nodes.map((item) => {
+    const type = typeById.get(item.node_type ?? "");
+    return {
+      id: item.id,
+      kind: item.node_type ?? "node",
+      label: item.label,
+      ...(type ? { color: type.color, typeLabel: type.label } : {}),
+    };
+  });
   const literalNodes = new Map<string, GraphNodeSeed>();
+  const predicateAliases = report?.ontology?.predicate_aliases ?? {};
+  const activePredicates = new Set((report?.ontology?.predicates ?? [])
+    .filter((item) => item.status === "active")
+    .map((item) => item.predicate));
   const evidenceIds = new Set((report?.data.evidence ?? []).map((item) => String(item.evidence_id)));
   const edges: GraphEdge[] = [];
   assertions.forEach((item) => {
     const assertionId = String(item.assertion_id);
     if (filters.includeAssertionIds && !filters.includeAssertionIds.has(assertionId)) return;
-    const predicate = String(item.predicate ?? "关系");
-    if (NON_SEMANTIC_LEGACY_PREDICATES.has(predicate)) return;
+    const rawPredicate = String(item.predicate ?? "关系");
+    const predicate = predicateAliases[rawPredicate] ?? rawPredicate;
+    if (!activePredicates.has(predicate)) return;
+    if (!Array.isArray(item.evidence_ids) || item.evidence_ids.length === 0) return;
     if (filters.predicateTypes && !filters.predicateTypes.has(predicate)) return;
     if (filters.minConfidence != null && (typeof item.confidence !== "number" || item.confidence < filters.minConfidence)) return;
     const source = item.subject_id == null ? "" : String(item.subject_id);
@@ -663,11 +690,11 @@ export function projectMemoryDebugGraph(report: AuditReport | null, filters: Gra
       id: assertionId,
       source,
       target,
-      label: relationDisplayLabel(relationKindFromRecord(item, predicate)),
+      label: relationDisplayLabel(relationKindFromRecord(item, predicate, report), report),
       predicate,
       kind: "assertion",
       evidenceIds: assertionEvidence,
-      symmetric: relationIsSymmetric(relationKindFromRecord(item, predicate)),
+      symmetric: relationIsSymmetric(relationKindFromRecord(item, predicate, report), report),
       ...(importance == null ? {} : { importance }),
     });
   });
@@ -692,6 +719,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const [leftPanelOpen, setLeftPanelOpen] = useState(Boolean(initialRecall));
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedTypeGroup, setSelectedTypeGroup] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedPredicates, setSelectedPredicates] = useState<string[]>([]);
   const [lifecycleFilter, setLifecycleFilter] = useState("all");
@@ -822,7 +850,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       if (cursor || !merged) throw new Error("Memory 分页未能在 100 批内收敛");
       setReport(merged);
       setFilterContextNodeIds(new Set([...contextIds].filter((id) => !new Set(merged?.focus_node_ids ?? []).has(id))));
-      setSelectedId((current) => current && merged?.data.nodes.some((node) => node.id === current && isMemoryDebugSemanticNodeType(node.node_type)) ? current : "");
+      setSelectedId((current) => current && merged?.data.nodes.some((node) => node.id === current && isMemoryDebugSemanticNodeType(node.node_type, merged)) ? current : "");
       setSelectedEdgeId((current) => current && merged?.data.assertions.some((item) => String(item.assertion_id) === current) ? current : "");
       setSelectedEvidenceId((current) => current && merged?.data.evidence.some((item) => String(item.evidence_id) === current) ? current : "");
       setReadPhase(merged.counts.nodes === 0 && merged.counts.episodes === 0 && merged.counts.assertions === 0 && merged.counts.evidence === 0 ? "empty" : "ready");
@@ -855,7 +883,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     return () => observer.disconnect();
   }, [report?.snapshot.snapshot_id]);
 
-  const selected = report?.data.nodes.find((node) => node.id === selectedId && isMemoryDebugSemanticNodeType(node.node_type)) ?? null;
+  const selected = report?.data.nodes.find((node) => node.id === selectedId && isMemoryDebugSemanticNodeType(node.node_type, report)) ?? null;
   const visibleAssertions = report?.data.assertions ?? [];
   const localConfidence = confidenceFilter === "0.5" ? .5 : confidenceFilter === "0.8" ? .8 : undefined;
   const selectedEpisodeNodeIds = new Set<string>();
@@ -904,6 +932,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     const projection = projectMemoryDebugGraph(report, {
       lifecycle: lifecycleFilter,
       minConfidence: localConfidence,
+      nodeGroup: selectedTypeGroup || undefined,
       nodeTypes: selectedTypes.length ? new Set(selectedTypes) : undefined,
       predicateTypes: selectedPredicates.length ? new Set(selectedPredicates) : undefined,
       ...recallProjection,
@@ -921,7 +950,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       return { ...item, degree: nodeDegree, val: graphNodeValue(importance) };
     });
     return { nodes, edges: projection.edges };
-  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypes, showOnlyRecallResults]);
+  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypeGroup, selectedTypes, showOnlyRecallResults]);
   const graphNodeIds = useMemo(() => new Set(graph.nodes.map((node) => node.id)), [graph.nodes]);
   const previewNodeKey = (id: string): string => previewNodeIds.has(id) || !graphNodeIds.has(id) ? `preview:${id}` : id;
   const previewGraphNodes = useMemo(() => (preview?.changes.affected.nodes ?? []).map((item) => {
@@ -932,6 +961,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       originalId,
       kind: String(item.node_type ?? "node"),
       label: String(item.label ?? item.node_id),
+      typeLabel: nodeTypeLabel(String(item.node_type ?? "unknown"), report),
       degree: 1,
       val: graphNodeValue(typeof item.importance === "number" ? item.importance : undefined),
       preview: id !== originalId,
@@ -941,13 +971,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     id: `preview:${String(item.assertion_id)}`,
     source: previewNodeKey(String(item.subject_id)),
     target: previewNodeKey(String(item.object_node_id ?? "")),
-    label: relationDisplayLabel(relationKindFromRecord(item, String(item.predicate ?? "关系"))),
+    label: relationDisplayLabel(relationKindFromRecord(item, String(item.predicate ?? "关系"), report), report),
     predicate: String(item.predicate ?? "关系"),
     kind: "preview-assertion",
     evidenceIds: Array.isArray(item.evidence_ids) ? item.evidence_ids.map(String) : [],
-    symmetric: relationIsSymmetric(relationKindFromRecord(item, String(item.predicate ?? "关系"))),
+    symmetric: relationIsSymmetric(relationKindFromRecord(item, String(item.predicate ?? "关系"), report), report),
     importance: typeof item.importance === "number" ? item.importance : undefined,
-  })).filter((edge) => edge.target !== "preview:"), [graphNodeIds, preview, previewNodeIds]);
+  })).filter((edge) => edge.target !== "preview:"), [graphNodeIds, preview, previewNodeIds, report]);
   const graphData: { nodes: Graph3DNode[]; links: Graph3DLink[] } = useMemo(() => ({
     nodes: [...graph.nodes, ...previewGraphNodes],
     // react-force-graph mutates link.source/link.target into node objects while
@@ -969,9 +999,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     recallView ? recalledEpisodeIds : undefined,
   ), [lifecycleFilter, recallView, report]);
   const hasLocalFilters = Boolean(
-    selectedTypes.length || selectedPredicates.length || lifecycleFilter !== "all" || confidenceFilter !== "all",
+    selectedTypeGroup !== "" || selectedTypes.length || selectedPredicates.length || lifecycleFilter !== "all" || confidenceFilter !== "all",
   );
   const activeFilterCount = [
+    selectedTypeGroup !== "",
     ...selectedTypes.map(() => true),
     ...selectedPredicates.map(() => true),
     lifecycleFilter !== "all",
@@ -1046,10 +1077,11 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   }
 
   function nodeLabelObject(node: Graph3DNode): Sprite {
-    const text = shortGraphLabel(node.label, node.kind === "knowledge" ? 6 : 12);
+    const isGeneralKnowledge = report?.ontology?.node_types.some((item) => item.node_type === node.kind && item.group_id === "general_knowledge") ?? false;
+    const text = shortGraphLabel(node.label, isGeneralKnowledge ? 6 : 12);
     const showPersistentLabel = selectedTypes.length > 0
       || graphData.nodes.length <= 60
-      || node.kind !== "knowledge"
+      || !isGeneralKnowledge
       || selectedId === node.id;
     if (!showPersistentLabel) {
       const sprite = new Sprite();
@@ -1132,6 +1164,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   }
 
   function clearFilters(): void {
+    setSelectedTypeGroup("");
     setSelectedTypes([]);
     setSelectedPredicates([]);
     setLifecycleFilter("all");
@@ -1303,8 +1336,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const selectedEdgeTargetId = selectedEdge ? endpointId(selectedEdge.target) : "";
   const selectedEdgeEvidence = selectedEdge ? (selectedEdge.evidenceIds ?? []).map((id) => report?.data.evidence.find((item) => String(item.evidence_id) === id)).filter(Boolean) : [];
   const selectedEdgeRecord = visibleAssertions.find((item) => String(item.assertion_id) === selectedEdgeId) ?? null;
-  const selectedEdgeRelationKind = relationKindFromRecord(selectedEdgeRecord, selectedEdge?.predicate ?? selectedEdge?.label ?? "关系");
-  const selectedEdgeIsSymmetric = relationIsSymmetric(selectedEdgeRelationKind);
+  const selectedEdgeRelationKind = relationKindFromRecord(selectedEdgeRecord, selectedEdge?.predicate ?? selectedEdge?.label ?? "关系", report);
+  const selectedEdgeIsSymmetric = relationIsSymmetric(selectedEdgeRelationKind, report);
   const selectedNodeAssertions = selected ? visibleAssertions.filter((item) => String(item.subject_id) === selected.id || String(item.object_node_id) === selected.id) : [];
   const selectedNodeEvidence = [...new Map(selectedNodeAssertions.flatMap((item) => (Array.isArray(item.evidence_ids) ? item.evidence_ids : []).map(String)).map((id) => [id, report?.data.evidence.find((item) => String(item.evidence_id) === id)]).filter((entry): entry is [string, AuditRecord] => entry[1] != null))].map(([, item]) => item);
   const selectedEpisodeSourceRefs = recordArray(selectedEpisode, "source_refs");
@@ -1315,16 +1348,17 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     nodeById: inspectorNodeById,
     evidenceById: inspectorEvidenceById,
     episodes: report?.data.episodes ?? [],
-    relationKind: relationKindFromRecord,
-    relationLabel: relationDisplayLabel,
-    relationSentence,
+    relationKind: (record: AuditRecord | null, fallback?: string) => relationKindFromRecord(record, fallback, report),
+    relationLabel: (kind: string) => relationDisplayLabel(kind, report),
+    relationSentence: (source: string, target: string, kind: string, sourceKind?: string, targetKind?: string) => relationSentence(source, target, kind, sourceKind, targetKind, report),
+    nodeTypeLabel: (kind: string | undefined) => nodeTypeLabel(kind ?? "unknown", report),
   };
   const selectedNodeProjection = selected ? projectNodeDetail(selected, { ...inspectorRelationInput, assertions: visibleAssertions }) : null;
   const selectedAssertionProjection = selectedEdgeRecord
     ? projectAssertionDetail({ ...selectedEdgeRecord, symmetric: selectedEdgeIsSymmetric }, inspectorRelationInput)
     : null;
   const selectedEpisodeProjection = selectedEpisode
-    ? projectEpisodeDetail(selectedEpisode, { assertions: visibleAssertions, evidence: report?.data.evidence ?? [], nodeById: inspectorNodeById })
+    ? projectEpisodeDetail(selectedEpisode, { assertions: visibleAssertions, evidence: report?.data.evidence ?? [], nodeById: inspectorNodeById, nodeTypeLabel: inspectorRelationInput.nodeTypeLabel })
     : null;
   const selectedEvidenceProjection = selectedEvidence
     ? projectEvidenceDetail(selectedEvidence, visibleAssertions, inspectorEpisodeById)
@@ -1341,19 +1375,26 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     ...previewNodeIds,
     ...previewAssertionNodeIds,
   ]);
-  const typeFilterOrder = ["elfie", "event", "group", "knowledge", "person", "place", "object", "self_model", "literal"];
-  const typeFilterOptions = Object.entries(report?.node_type_counts ?? {})
-    .filter(([kind]) => isMemoryDebugSemanticNodeType(kind))
-    .sort(([left], [right]) => (typeFilterOrder.indexOf(left) === -1 ? 999 : typeFilterOrder.indexOf(left)) - (typeFilterOrder.indexOf(right) === -1 ? 999 : typeFilterOrder.indexOf(right)) || left.localeCompare(right));
-  const predicateFilterOptions = Object.entries(report?.predicate_counts ?? {})
-    .sort(([left], [right]) => left.localeCompare(right));
-  const typeFilterSelectOptions = typeFilterOptions.map(([kind, count]) => ({
-    value: kind,
-    label: <span className="memory-debug-filter-option"><i style={{ background: graphNodeColor(kind) }} />{labels[kind] ?? kind}<b>{count}</b></span>,
+  const typeFilterOptions = (report?.ontology?.node_types ?? [])
+    .filter((item) => item.status === "active")
+    .map((item) => ({ ...item, count: report?.node_type_counts[item.node_type] ?? 0 }));
+  const groupFilterOptions = (report?.ontology?.type_groups ?? []).map((group) => ({
+    value: group.group_id,
+    label: <span className="memory-debug-filter-option"><i style={{ background: group.color }} />{group.label}<b>{typeFilterOptions.filter((item) => item.group_id === group.group_id).reduce((sum, item) => sum + item.count, 0)}</b></span>,
   }));
-  const predicateFilterSelectOptions = predicateFilterOptions.map(([predicate, count]) => ({
-    value: predicate,
-    label: <span className="memory-debug-filter-option"><span>{predicate}</span><b>{count}</b></span>,
+  const visibleTypeOptions = selectedTypeGroup
+    ? typeFilterOptions.filter((item) => item.group_id === selectedTypeGroup)
+    : typeFilterOptions;
+  const typeFilterSelectOptions = visibleTypeOptions.map((item) => ({
+    value: item.node_type,
+    label: <span className="memory-debug-filter-option"><i style={{ background: item.color }} />{item.label}<b>{item.count}</b></span>,
+  }));
+  const predicateFilterOptions = (report?.ontology?.predicates ?? [])
+    .filter((item) => item.status === "active" && (report?.predicate_counts[item.predicate] ?? 0) > 0)
+    .map((item) => ({ ...item, count: report?.predicate_counts[item.predicate] ?? 0 }));
+  const predicateFilterSelectOptions = predicateFilterOptions.map((item) => ({
+    value: item.predicate,
+    label: <span className="memory-debug-filter-option"><span>{item.label} · {item.predicate}</span><b>{item.count}</b></span>,
   }));
   const coverageLabel = readPhase === "loading" && !report
     ? "正在读取"
@@ -1506,7 +1547,16 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       {filterOpen && <section className="memory-debug-filter-popover" aria-label="过滤记忆图">
         <div className="memory-debug-filter-head"><div><strong>过滤条件</strong><span>这里只筛选当前图谱；文字检索使用顶部搜索框。枚举字段支持多选。</span></div><button type="button" aria-label="关闭过滤" onClick={() => setFilterOpen(false)}>×</button></div>
         <div className="memory-debug-filter-grid">
-          <label>节点类型（可多选）<Select aria-label="节点类型" mode="multiple" allowClear maxTagCount="responsive" onChange={(values: string[]) => setSelectedTypes(values)} options={typeFilterSelectOptions} placeholder="全部节点类型" popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={selectedTypes} /></label>
+          <label>类型组<Select aria-label="类型组" allowClear onChange={(value: string) => {
+            const next = selectMemoryNodeGroup(value ?? "", selectedTypes, report?.ontology?.node_types ?? []);
+            setSelectedTypeGroup(next.groupId);
+            setSelectedTypes(next.nodeTypes);
+          }} options={groupFilterOptions} placeholder="全部类型组" popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={selectedTypeGroup || null} /></label>
+          <label>节点类型（同组可多选）<Select aria-label="节点类型" mode="multiple" allowClear maxTagCount="responsive" onChange={(values: string[]) => {
+            const next = selectMemoryNodeTypes(values, selectedTypeGroup, report?.ontology?.node_types ?? []);
+            setSelectedTypeGroup(next.groupId);
+            setSelectedTypes(next.nodeTypes);
+          }} options={typeFilterSelectOptions} placeholder="全部节点类型" popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={selectedTypes} /></label>
           <label>关系类型（可多选）<Select aria-label="关系类型" mode="multiple" allowClear maxTagCount="responsive" onChange={(values: string[]) => setSelectedPredicates(values)} options={predicateFilterSelectOptions} placeholder="全部关系类型" popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={selectedPredicates} /></label>
           <label>生命周期<Select aria-label="生命周期" onChange={(value: string) => setLifecycleFilter(value || "all")} options={[{ label: "全部", value: "all" }, { label: "活动 active", value: "active" }, { label: "已归档 archived", value: "archived" }, { label: "已遗忘 forgotten", value: "forgotten" }, { label: "未知 unknown", value: "unknown" }]} popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={lifecycleFilter} /></label>
           <label>最低置信度<Select aria-label="最低置信度" onChange={(value: string) => setConfidenceFilter(value || "all")} options={[{ label: "全部", value: "all" }, { label: "≥ 50%", value: "0.5" }, { label: "≥ 80%", value: "0.8" }]} popupClassName="memory-debug-filter-select-dropdown" popupMatchSelectWidth={false} value={confidenceFilter} /></label>
@@ -1562,9 +1612,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
                 const isHighlighted = isSelected || isReturned || isAffected || isRelated || highlightedNodeIds.has(nodeId);
                 if (hasTransientHighlight && !isHighlighted) return "rgba(97, 123, 143, 0.22)";
                 if (node.preview) return "#ff9d57";
-                return graphNodeColor(node.kind);
+                return node.color ?? graphNodeColor(node.kind, report);
               }}
-              nodeLabel={(node) => `<strong>${escapeHtml(node.label)}</strong><br/><small>${escapeHtml(node.kind)} · ${node.degree} 条关系${node.preview ? " · 隔离预演" : ""}</small>`}
+              nodeLabel={(node) => `<strong>${escapeHtml(node.label)}</strong><br/><small>${escapeHtml(node.typeLabel ?? nodeTypeLabel(node.kind, report))} · ${node.degree} 条关系${node.preview ? " · 隔离预演" : ""}</small>`}
               nodeThreeObject={nodeLabelObject}
               nodeThreeObjectExtend
               linkLabel={(link) => `<strong>Assertion</strong><br/>${escapeHtml(link.label)}${link.evidenceIds?.length ? `<br/><small>${link.evidenceIds.length} 条 Evidence</small>` : ""}`}
@@ -1634,7 +1684,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               return <g key={nodeId} className="memory-debug-trace-hit" role={evidenceId ? "button" : undefined} tabIndex={evidenceId ? 0 : undefined} aria-label={evidenceId ? `查看 Evidence ${evidenceId}` : "Evidence trace"} onClick={() => { if (evidenceId) showEvidence(evidenceId); }} onKeyDown={(event) => { if (evidenceId && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); showEvidence(evidenceId); } }}><title>{selectedEpisodeEvidence.map((evidence) => String(evidence.evidence_id)).join(" · ") || "Evidence trace"}</title><path className="memory-debug-trace-hit-line" d={path} /><path className="memory-debug-trace-line" d={path} /><circle className="memory-debug-trace-dot" cx={point.x} cy={point.y} r="4" /></g>;
             })}
           </svg>}
-          <MemoryDebugLegend layoutLocked={layoutLocked} />
+          <MemoryDebugLegend layoutLocked={layoutLocked} ontology={report?.ontology} />
         </>}
       <footer className="memory-debug-footer">当前视图：{graph.nodes.filter((node) => !["episode", "evidence"].includes(node.kind)).length} Node · {graph.edges.filter((edge) => edge.kind === "assertion").length} Assertion · {visibleEpisodes.length} Episode · {loadedEvidenceCount} Evidence　|　全库：{totalNodeCount} Node · {report?.counts.assertions ?? 0} Assertion · {report?.counts.episodes ?? 0} Episode · {totalEvidenceCount} Evidence</footer>
 
@@ -1712,16 +1762,16 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               <div><span>证据</span><strong>{recallView.bundle.evidence.length}</strong><small>可追溯来源</small></div>
             </div>
             <h4>相关节点 · {recalledFocusNodeGroups.ranked.length}</h4>
-            {recalledFocusNodeGroups.ranked.length ? recalledFocusNodeGroups.ranked.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance == null ? "未提供" : node.relevance.toFixed(2)}</small></span></button>) : <p className="memory-debug-empty-result">没有带正相关度的节点结果。</p>}
+            {recalledFocusNodeGroups.ranked.length ? recalledFocusNodeGroups.ranked.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{nodeTypeLabel(node.node_type ?? "unknown", report)} · 相关度 {node.relevance == null ? "未提供" : node.relevance.toFixed(2)}</small></span></button>) : <p className="memory-debug-empty-result">没有带正相关度的节点结果。</p>}
           {recalledFocusNodeGroups.zeroScore.length > 0 && <>
             <h4>零分节点 · {recalledFocusNodeGroups.zeroScore.length}</h4>
             <p className="memory-debug-context-note">Recall 回执包含这些节点，但相关度为 0；它们不计作节点命中。若同时是命中关系的端点，图中仍会按关系结果标出。</p>
-            {recalledFocusNodeGroups.zeroScore.slice(0, 8).map((node, index) => <button className="memory-debug-result memory-debug-zero-score-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度 {node.relevance?.toFixed(2)}</small></span></button>)}
+            {recalledFocusNodeGroups.zeroScore.slice(0, 8).map((node, index) => <button className="memory-debug-result memory-debug-zero-score-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + index + 1}</b><span>{node.label}<small>{nodeTypeLabel(node.node_type ?? "unknown", report)} · 相关度 {node.relevance?.toFixed(2)}</small></span></button>)}
           </>}
           {recalledFocusNodeGroups.unscored.length > 0 && <>
             <h4>未评分节点 · {recalledFocusNodeGroups.unscored.length}</h4>
             <p className="memory-debug-context-note">这些节点由 Recall 返回，但回执没有提供相关度；保留结果，不据此推断相关性强弱。</p>
-            {recalledFocusNodeGroups.unscored.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + recalledFocusNodeGroups.zeroScore.length + index + 1}</b><span>{node.label}<small>{labels[node.node_type ?? ""] ?? node.node_type ?? "unknown"} · 相关度未提供</small></span></button>)}
+            {recalledFocusNodeGroups.unscored.slice(0, 8).map((node, index) => <button className="memory-debug-result" key={node.id} onClick={() => showItem(node.id)}><b>{recalledFocusNodeGroups.ranked.length + recalledFocusNodeGroups.zeroScore.length + index + 1}</b><span>{node.label}<small>{nodeTypeLabel(node.node_type ?? "unknown", report)} · 相关度未提供</small></span></button>)}
           </>}
             <h4>命中的 Episode · {recallView.bundle.episodes.length}</h4>
             {recallView.bundle.episodes.length ? recallView.bundle.episodes.slice(0, 5).map((episode, index) => {
@@ -1734,8 +1784,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               const assertionId = recordText(assertion, "assertion_id", `assertion-${index + 1}`);
               const source = report?.data.nodes.find((node) => node.id === String(assertion.subject_id ?? ""));
               const target = report?.data.nodes.find((node) => node.id === String(assertion.object_node_id ?? ""));
-              const kind = relationKindFromRecord(assertion, recordText(assertion, "predicate", "关系"));
-              const sentence = source && target ? relationSentence(source.label, target.label, kind, source.node_type, target.node_type) : `${recordText(assertion, "subject_id")} → ${recordText(assertion, "object_node_id", recordText(assertion, "object_literal"))} · ${relationDisplayLabel(kind)}`;
+              const kind = relationKindFromRecord(assertion, recordText(assertion, "predicate", "关系"), report);
+              const sentence = source && target ? relationSentence(source.label, target.label, kind, source.node_type, target.node_type, report) : `${recordText(assertion, "subject_id")} → ${recordText(assertion, "object_node_id", recordText(assertion, "object_literal"))} · ${relationDisplayLabel(kind, report)}`;
               return <button className="memory-debug-result" key={assertionId} onClick={() => showAssertion(assertionId)}><b>{index + 1}</b><span>{sentence}<small>关系 · 重要度 {recordNumber(assertion, "importance") == null ? "—" : `${Math.round((recordNumber(assertion, "importance") ?? 0) * 100)}%`}</small></span></button>;
             }) : <p className="memory-debug-empty-result">没有可显示的关系边。</p>}
             <details className="memory-debug-raw-details memory-debug-recall-technical"><summary>查看检索过程（一次 Recall 的解释链）</summary>

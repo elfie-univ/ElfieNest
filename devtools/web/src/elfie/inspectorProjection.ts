@@ -85,18 +85,6 @@ export type EvidenceInspectorDetail = {
 
 export type InspectorDetail = NodeInspectorDetail | AssertionInspectorDetail | EpisodeInspectorDetail | EvidenceInspectorDetail;
 
-export const inspectorTypeLabels: Record<string, string> = {
-  elfie: "精灵",
-  person: "人物",
-  group: "群体/家庭",
-  place: "地点",
-  object: "物体",
-  knowledge: "知识",
-  event: "事件",
-  self_model: "自我模型",
-  literal: "字面值",
-};
-
 const attributeLabels: Record<string, string> = {
   display_name: "显示名",
   aliases: "别名",
@@ -105,7 +93,6 @@ const attributeLabels: Record<string, string> = {
   species_name: "物种",
   place_kind: "地点类型",
   object_kind: "物体类型",
-  knowledge_kind: "知识类型",
   kind: "类型",
   is_self: "当前精灵",
   is_owner: "主人标记",
@@ -123,7 +110,7 @@ const attributeLabels: Record<string, string> = {
 };
 
 const attributeOrder = [
-  "is_self", "species_name", "species", "species_id", "kind", "place_kind", "object_kind", "knowledge_kind",
+  "is_self", "species_name", "species", "species_id", "kind", "place_kind", "object_kind",
   "display_name", "life_stage", "age_years_at_genesis", "relation_role", "vocation_id", "competency_ids",
   "familiarity", "trust_score", "visibility", "parent_id", "shared_facts", "unknown_facts",
 ];
@@ -139,7 +126,7 @@ const technicalPropertyKeys = new Set([
 ]);
 
 export function inspectorTypeLabel(kind: string | undefined): string {
-  return inspectorTypeLabels[kind ?? ""] ?? kind ?? "未知类型";
+  return kind ?? "未知类型";
 }
 
 export function inspectorAttributeLabel(key: string): string {
@@ -291,6 +278,7 @@ export type RelationProjectionInput = {
   relationKind: (record: InspectorRecord) => string;
   relationLabel: (kind: string) => string;
   relationSentence: (source: string, target: string, kind: string, sourceKind?: string, targetKind?: string) => string;
+  nodeTypeLabel?: (nodeType: string | undefined) => string;
   selectedNodeId?: string;
 };
 
@@ -411,7 +399,7 @@ export function projectNodeDetail(
   const projected = projectVisibleNodeProperties(node);
   return {
     kind: "node",
-    header: headerFor(node, inspectorTypeLabel(node.node_type), node.label, node.description ?? ""),
+    header: headerFor(node, input.nodeTypeLabel?.(node.node_type) ?? inspectorTypeLabel(node.node_type), node.label, node.description ?? ""),
     fields: projected.fields,
     connections: projectRelationConnections({ ...input, selectedNodeId: node.id }),
     sources: projectNodeSources(node, input.episodes),
@@ -451,7 +439,7 @@ export function projectAssertionDetail(
 
 export function projectEpisodeDetail(
   episode: InspectorRecord,
-  input: { assertions: InspectorRecord[]; evidence: InspectorRecord[]; nodeById: ReadonlyMap<string, InspectorNode> },
+  input: { assertions: InspectorRecord[]; evidence: InspectorRecord[]; nodeById: ReadonlyMap<string, InspectorNode>; nodeTypeLabel?: (nodeType: string | undefined) => string },
 ): EpisodeInspectorDetail {
   const episodeId = recordId(episode, "episode_id");
   const evidence = input.evidence.filter((item) => String(item.source_id ?? "") === episodeId);
@@ -501,7 +489,7 @@ export function projectEpisodeDetail(
     connections: [
       ...[...nodeIds].map((id) => {
         const node = input.nodeById.get(id);
-        const nodeKind = inspectorTypeLabel(node?.node_type);
+        const nodeKind = input.nodeTypeLabel?.(node?.node_type) ?? inspectorTypeLabel(node?.node_type);
         return { id, label: `相关${nodeKind}`, detail: node?.label ?? id, importance: null, confidence: node?.confidence ?? null, kind: "attribute" as const };
       }),
       ...affectedAssertions.map((item) => ({ id: String(item.assertion_id), label: "受影响 Assertion", detail: String(item.predicate ?? "关系"), importance: score(item.importance), confidence: score(item.confidence), kind: "relation" as const })),

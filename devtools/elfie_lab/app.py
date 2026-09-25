@@ -249,7 +249,9 @@ def create_app(
         cursor: Optional[str] = None,
     ) -> dict[str, object]:
         selected, database = _memory_database(elfie_id)
-        with _read_only_store(database, elfie_id=selected) as store:
+        with _read_only_store(
+            database, elfie_id=selected, ontology=storage.ontology
+        ) as store:
             try:
                 return build_inspection_report(
                     store,
@@ -292,7 +294,9 @@ def create_app(
             neighbors_per_node=6,
             character_limit=12000,
         )
-        with _read_only_store(database, elfie_id=selected) as store:
+        with _read_only_store(
+            database, elfie_id=selected, ontology=storage.ontology
+        ) as store:
             return build_recall_report(store, recall_request)
 
     class MemoryEpisodePreviewRequest(BaseModel):
@@ -311,7 +315,9 @@ def create_app(
                 detail="当前只支持 deterministic_local 隔离预演",
             )
         selected, database = _memory_database(request.elfie_id)
-        with _sandbox_store(database, elfie_id=selected) as store:
+        with _sandbox_store(
+            database, elfie_id=selected, ontology=storage.ontology
+        ) as store:
             return build_add_episode_preview(
                 store,
                 content_text=request.content_text,

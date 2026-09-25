@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
 from elfie.genesis.world import (
     CoverageLink,
@@ -51,8 +51,19 @@ class GenesisSourcePackageError(ConfigDocumentError):
 class BundledGenesisSource:
     """Decode and validate the one published Genesis source package."""
 
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(
+        self,
+        root: Path | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
+    ) -> None:
         self.root = resolve_bundled_config_root(root)
+        if ontology is None:
+            from infrastructure.persistence.memory.ontology_loader import (
+                load_core_memory_ontology,
+            )
+
+            ontology = load_core_memory_ontology(config_root=self.root)
+        self.ontology = ontology
 
     def load(self) -> GenesisSourcePackage:
         try:
@@ -64,20 +75,28 @@ class BundledGenesisSource:
         try:
             from .genesis_package_adapter import decode_genesis_package
 
-            package = decode_genesis_package(loaded.document, loaded.path)
+            package = decode_genesis_package(
+                loaded.document, loaded.path, ontology=self.ontology
+            )
             _validate_package(package, loaded.document)
             return package
         except (TypeError, ValueError, KeyError) as error:
             raise GenesisSourcePackageError(f"Genesis 资料包无效: {error}") from error
 
 
-def load_genesis_source_package(*, root: Path | None = None) -> GenesisSourcePackage:
+def load_genesis_source_package(
+    *,
+    root: Path | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
+) -> GenesisSourcePackage:
     """Load the published package through the registered config boundary."""
 
-    return BundledGenesisSource(root).load()
+    return BundledGenesisSource(root, ontology).load()
 
 
-def _package(document: Mapping[str, Any]) -> GenesisSourcePackage:
+def _package(
+    document: Mapping[str, Any], ontology: MemoryOntologySnapshot
+) -> GenesisSourcePackage:
     region = _mapping(document["known_region"])
     relation = _mapping(document["earth_relation"])
     package_meta = _mapping(document.get("genesis", {}))
@@ -126,7 +145,7 @@ def _package(document: Mapping[str, Any]) -> GenesisSourcePackage:
         coverage_manifest=_coverage_manifest(package_meta),
         life_archetypes=_life_archetypes(package_meta),
         relationship_archetypes=_relationship_archetypes(package_meta),
-        episode_themes=_episode_themes(package_meta),
+        episode_themes=_episode_themes(package_meta, ontology),
     )
 
 
@@ -364,7 +383,9 @@ def _relationship_archetypes(
     return tuple(result)
 
 
-def _episode_themes(value: Mapping[str, Any]) -> tuple[EpisodeTheme, ...]:
+def _episode_themes(
+    value: Mapping[str, Any], ontology: MemoryOntologySnapshot
+) -> tuple[EpisodeTheme, ...]:
     raw_themes = value.get("episode_themes", [])
     if not isinstance(raw_themes, list):
         raise TypeError("genesis.episode_themes 必须是数组")
@@ -372,8 +393,12 @@ def _episode_themes(value: Mapping[str, Any]) -> tuple[EpisodeTheme, ...]:
     for raw in raw_themes:
         item = _mapping(raw)
         event_kind = _text(item, "event_kind")
-        if event_kind not in EPISODE_EVENT_KINDS or event_kind == "unclassified":
-            raise ValueError(f"EpisodeTheme {item.get('id')} event_kind 无效")
+        try:
+            ontology.validate_episode_type(event_kind)
+        except ValueError as error:
+            raise ValueError(
+                f"EpisodeTheme {item.get('id')} event_kind 无效: {event_kind}"
+            ) from error
         required = item.get("required", False)
         if not isinstance(required, bool):
             raise TypeError("episode theme required 必须是布尔值")

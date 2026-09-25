@@ -61,7 +61,7 @@ def _seeded_memory() -> MemorySystem:
     store.upsert_node_record(
         NodeInput(
             node_id="genesis:knowledge:elfie-1:0",
-            node_type="knowledge",
+            node_type="concept",
             canonical_label="我来自 Elfaria。",
             description="我来自 Elfaria。",
             properties={
@@ -166,7 +166,7 @@ def test_relationship_importance_uses_entity_metadata_not_retrieval_score() -> N
     store.upsert_node_record(
         NodeInput(
             node_id="person:owner-1",
-            node_type="entity",
+            node_type="person",
             canonical_label="主人",
             properties={
                 "person_id": "owner-1",
@@ -192,7 +192,7 @@ def test_relationship_importance_rejects_an_ambiguous_owner_fallback() -> None:
         store.upsert_node_record(
             NodeInput(
                 node_id=f"person:{person_id}",
-                node_type="entity",
+                node_type="person",
                 canonical_label=person_id,
                 properties={
                     "person_id": person_id,

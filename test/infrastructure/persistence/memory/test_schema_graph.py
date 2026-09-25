@@ -32,7 +32,7 @@ def _projection(store: SQLiteMemoryStoreAdapter) -> None:
             episode_id="episode-1",
             nodes=(
                 NodeInput("owner", "person", "主人"),
-                NodeInput("food", "food", "香菜"),
+                NodeInput("food", "organism", "香菜"),
             ),
             mentions=(MentionInput("episode-1", "主人", "owner", "resolved"),),
             evidence=(

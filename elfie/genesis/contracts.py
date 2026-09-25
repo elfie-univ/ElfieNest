@@ -11,7 +11,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS, EpisodeEventKind
+from elfie.brain.memory.memory_records import EpisodeEventKind
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.profile import (
     AppearanceGenome,
@@ -443,9 +444,18 @@ class GenesisBundle:
             )
 
 
-def validate_genesis_bundle(bundle: GenesisBundle) -> GenesisBundle:
+def validate_genesis_bundle(
+    bundle: GenesisBundle,
+    ontology: MemoryOntologySnapshot | None = None,
+) -> GenesisBundle:
     """Validate and return the same immutable bundle for fluent hand-off code."""
     bundle.validate()
+    if ontology is not None:
+        try:
+            for seed in bundle.episode_seeds:
+                ontology.validate_episode_type(seed.event_kind)
+        except ValueError as error:
+            raise GenesisValidationError(f"EpisodeSeed.event_kind: {error}") from error
     return bundle
 
 
@@ -543,8 +553,8 @@ def _validate_relationship_seed(seed: RelationshipSeed) -> None:
 def _validate_episode_seed(seed: EpisodeSeed) -> None:
     if not seed.seed_id.strip() or not seed.content.strip():
         raise GenesisValidationError("EpisodeSeed 的 ID 和内容不能为空")
-    if seed.event_kind not in EPISODE_EVENT_KINDS or seed.event_kind == "unclassified":
-        raise GenesisValidationError("EpisodeSeed.event_kind 必须是有依据的经历类型")
+    if not seed.event_kind.strip():
+        raise GenesisValidationError("EpisodeSeed.event_kind 不能为空")
     if (
         isinstance(seed.version, bool)
         or not isinstance(seed.version, int)

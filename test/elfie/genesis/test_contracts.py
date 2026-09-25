@@ -13,10 +13,12 @@ from elfie.genesis import (
     genesis_content_hash,
 )
 from elfie.genesis.compiler import stage_for_age
+from elfie.genesis.contracts import validate_genesis_bundle
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
 from infrastructure.persistence.configuration.world import load_genesis_source_package
+from infrastructure.persistence.memory.ontology_loader import load_core_memory_ontology
 
 
 def _compilation(
@@ -136,7 +138,7 @@ def test_genesis_episode_seed_rejects_process_names_as_experience_types() -> Non
     )
 
     with pytest.raises(GenesisValidationError, match="EpisodeSeed.event_kind"):
-        invalid_bundle.validate()
+        validate_genesis_bundle(invalid_bundle, load_core_memory_ontology())
 
 
 def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:

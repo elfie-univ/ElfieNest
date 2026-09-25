@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.10
+**契约版本：** 1.13
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-08
+**修订日期：** 2026-09-25
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -15,8 +15,9 @@
 > 和回执作用域校验；版本 1.9 分离标准流程 Skill 文档与可执行 Tool 定义，并增加只读内置
 > Skill 加载边界。版本 1.10 记录统一强类型的观测表面：一个由装配注入、Brain 自有的
 > `BrainObservationSink` Port、带边界自有命名 payload 模块的共享 `BrainObservation`
-> 封套，以及先守卫再构造的零成本规则。尚未
-> 落地的差距继续记录在各自聚焦的一致性台账中。
+> 封套，以及先守卫再构造的零成本规则。版本 1.11 冻结第一阶段 Memory Recall 排序：静态、有来源的
+> `importance` 不参与 Recall 排序；反馈强化、类型先验/来源历史排序和综合/自适应评分暂缓。尚未
+> 落地的差距继续记录在各自聚焦的一致性台账中。版本 1.12 冻结五个 Node 类型组、第一阶段六个切片和产品数据根级全局扩展注册表。版本 1.13 明确 `claim` 是通用知识组中的普通叶类型，没有专属载荷、表或 Evidence 模型；所有语义类型共用同一 Node 与 Assertion 契约。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -54,9 +55,10 @@ Memory 的关系规则属于 Brain 边界。关系谓词只能来自一份带版
 对称社交关系（`friend_of`、`kin_of`、`sibling_of` 等）只保存一条规范 Assertion，再
 派生反向视图；有方向的关系（`parent_of`、`owned_by`、`student_of` 等）保留两端角色。
 来源没有说明具体亲属关系时允许使用粗粒度 `kin_of`；没有边表示未知，共同出现不能证明
-社交关系。同一对端点可以并存多条关系。Assertion 的 `importance` 只用于召回和维护时的
-显著性，与 `confidence` 分开，不能仅沿图邻接传播。注册表类型先验和有界的来源历史信号
-可以让明确的童年朋友排在普通邻居之前，但不能合并这两条事实。
+社交关系。同一对端点可以并存多条关系。Assertion 的 `importance` 是静态、有来源的准入元数据，
+与 `confidence` 分开；经过注册的准入/生命周期规则可以使用它，但第一阶段 Recall 不用它排序，
+也不沿图邻接传播。Recall 使用确定性匹配和稳定决胜。反馈强化、类型先验或来源历史排序、分数折叠、
+综合/自适应排序都需要后续单独评审设计。
 
 Memory 只有两层语义。`ClosedEpisode` 是已经加工好的完整话题、故事或学习单元，是普通的
 文本记忆结果；它可以聚合多轮对话，但不是原始聊天日志或原始媒体。`Node`/`Assertion` 是
@@ -70,6 +72,8 @@ Assertion。Evidence 把这两层关联到支持它们的 Episode。上游原始
 Episode 没有标题字段：原始正文是主要的显示和检索文本。已有的 `summary_text` 只能作为可选元数据。
 Consolidation 不为每个 Episode 自动创建 event Node，也不生成通用的 `about`、`knows`、
 `knows_boundary` 或 `related_to` 边。
+
+Claim 是通用知识组中的普通 `node_type=claim`，沿用通用 Node 身份、属性和来源规则，不拥有类型化专属载荷、表或 Evidence 模型。Assertion 是边，不能成为另一条关系的端点。五个 Node 类型组是社会关系、实体、空间地理、事件和通用知识：各自先选 Node，再保留两端都属于所选 Node 集合的所有带来源、已注册 Assertion。自我模型是第一阶段第六个切片：先选出现有 Elfie Node 为主语的带来源出边，且谓词限于 `believes`、`doubts`、`rejects`、`prefers`、`values`、`has_goal`、`has_trait`、`has_skill` 和 `has_habit`；收集涉及的 Node，再保留这些 Node 之间全部带来源、已注册的 Assertion。当前设计不创建虚拟我 Node。最后执行跨组关系提取，为主类型组不同的已选 Node 提取明确有来源的 Assertion。生成 Memory 自我模型视图属于当前设计；用它更新 Selfhood、Orientation 或其他所有者才是未来工作。核心本体由评审后的 YAML 定义；动态扩展在每个产品数据根下使用一份共享的安装级全局注册表，不为每只 Elfie/每个工作区各存一份。完整类型和谓词表见[Memory 架构设计](../designs/elfie/brain/elfie-memory-architecture)。
 
 知识 Node 的准入比普通文本捕获更严格：`canonical_label` 必须是一个有原文依据的短标题（最多 40 个字符，
 不能是完整 Episode），完整且有原文依据的解释保存为 kind 为 `context` 的 Node description。模型只有明确给出

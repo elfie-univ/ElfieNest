@@ -16,7 +16,6 @@ from typing import Any, Iterable, cast
 from .contracts import GenesisBundle
 
 SELF_NODE_PREFIX = "genesis:self:"
-SELF_MODEL_PREFIX = "genesis:self-model:"
 KNOWLEDGE_NODE_PREFIX = "genesis:knowledge:"
 PLACE_NODE_PREFIX = "genesis:place:"
 PERSON_NODE_PREFIX = "genesis:person:"
@@ -61,10 +60,7 @@ def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:
     profile = bundle.profile_draft.profile
     elfie_id = profile.identity.elfie_id
     safe_elfie = safe_component(elfie_id)
-    output: list[str] = [
-        f"{SELF_NODE_PREFIX}{safe_elfie}",
-        f"{SELF_MODEL_PREFIX}{safe_elfie}",
-    ]
+    output: list[str] = [f"{SELF_NODE_PREFIX}{safe_elfie}"]
     output.extend(
         f"{PLACE_NODE_PREFIX}{safe_elfie}:{safe_component(place.place_id)}"
         for place in bundle.place_seeds
@@ -129,7 +125,6 @@ __all__ = (
     "KNOWLEDGE_NODE_PREFIX",
     "PERSON_NODE_PREFIX",
     "PLACE_NODE_PREFIX",
-    "SELF_MODEL_PREFIX",
     "SELF_NODE_PREFIX",
     "genesis_content_hash",
     "output_ids_hash",

@@ -29,18 +29,16 @@ from elfie.brain.memory.memory_records import (
     EvidenceInput,
     MentionInput,
     NodeInput,
-    memory_knowledge_kind,
-    resolve_memory_node_type,
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.model_food import MemoryModelPort, ask_memory_model
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.memory.predicates import (
-    NON_SEMANTIC_LEGACY_PREDICATES,
     relation_context,
     relation_importance,
     relation_spec,
-    resolve_predicate,
 )
+from elfie.brain.memory.slices import project_memory_slices
 
 logger = logging.getLogger("elfie.brain.memory.consolidation")
 
@@ -62,8 +60,14 @@ class MemoryConsolidator:
         self,
         storage: MemoryStorePort,
         elfie_id: str | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ):
         self.storage = storage
+        self.ontology = ontology or getattr(storage, "ontology", None)
+        if not isinstance(self.ontology, MemoryOntologySnapshot):
+            raise TypeError(
+                "MemoryConsolidator requires an injected Memory ontology snapshot"
+            )
         self._llm_calls_this_cycle = 0
         self.elfie_id = elfie_id
 
@@ -203,7 +207,7 @@ class MemoryConsolidator:
             required=True,
         )
         if model_projection is not None:
-            return model_projection
+            return self._project_slices(model_projection)
 
         assertions: list[AssertionInput] = []
         aliases: list[AliasInput] = []
@@ -252,21 +256,57 @@ class MemoryConsolidator:
             mentions,
             assertions,
             scope=(f"elfie:{self.elfie_id}" if self.elfie_id else "elfie"),
+            ontology=self.ontology,
         )
-        return ConsolidationProjection(
-            episode_id=episode.episode_id,
-            nodes=tuple(nodes),
-            aliases=tuple(aliases),
-            mentions=tuple(mentions),
-            assertions=tuple(assertions),
-            evidence=(evidence,),
-            source_version=episode.source_version,
-            source_sha256=episode.content_sha256
-            or hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest(),
+        return self._project_slices(
+            ConsolidationProjection(
+                episode_id=episode.episode_id,
+                nodes=tuple(nodes),
+                aliases=tuple(aliases),
+                mentions=tuple(mentions),
+                assertions=tuple(assertions),
+                evidence=(evidence,),
+                source_version=episode.source_version,
+                source_sha256=episode.content_sha256
+                or hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest(),
+                ontology_revision=self.ontology.revision,
+            )
         )
 
-    @staticmethod
+    def _project_slices(
+        self, projection: ConsolidationProjection
+    ) -> ConsolidationProjection:
+        """Run the five type-first and edge-first slices before the existing UoW."""
+        self_model_graph = self.storage.get_self_model_graph(
+            self.ontology.self_stance_predicates
+        )
+        self_model_anchor = next(
+            (
+                node.node_id
+                for node in projection.nodes
+                if node.node_type == "elfie" and node.properties.get("is_self") is True
+            ),
+            None,
+        )
+        slices = project_memory_slices(
+            projection.nodes,
+            projection.assertions,
+            self.ontology,
+            self_node_id=self_model_anchor,
+            self_model_graph=self_model_graph,
+        )
+        # Slices are read projections only. Their union is normalized back into
+        # the same single source-first write projection; no slice or technical
+        # Node is persisted independently.
+        return replace(
+            projection,
+            nodes=slices.write_nodes,
+            assertions=slices.write_assertions,
+            ontology_revision=self.ontology.revision,
+        )
+
     def _append_deterministic_owner_claims(
+        self,
         content: str,
         episode_id: str,
         evidence_id: str,
@@ -312,6 +352,7 @@ class MemoryConsolidator:
         )
 
         def add_claim(predicate: str, value: str, start: int) -> None:
+            predicate = self.ontology.resolve_predicate(predicate)
             value = value.strip().strip("，。！？,.!?；;")
             if not value or len(value) > 64:
                 return
@@ -324,7 +365,7 @@ class MemoryConsolidator:
                     viewpoint="owner",
                     context="correction" if correction else "owner_claim",
                     confidence=0.95,
-                    importance=0.9,
+                    importance=relation_importance(self.ontology, predicate),
                     evidence_ids=(evidence_id,),
                     assertion_id=_projection_id("claim:", episode_id, predicate, value),
                 )
@@ -369,8 +410,8 @@ class MemoryConsolidator:
             if match is not None:
                 add_claim(predicate, match.group(1), match.start(1))
 
-    @staticmethod
     def _append_deterministic_entity_facts(
+        self,
         content: str,
         episode_id: str,
         evidence_id: str,
@@ -379,6 +420,7 @@ class MemoryConsolidator:
         mentions: list[MentionInput],
         assertions: list[AssertionInput],
         *,
+        ontology: MemoryOntologySnapshot,
         scope: str = "elfie",
     ) -> None:
         """Capture explicitly named entities, aliases and relationships.
@@ -462,9 +504,10 @@ class MemoryConsolidator:
             specificity: str,
             role: str,
             *,
-            symmetric: bool,
             source: str,
         ) -> None:
+            predicate = ontology.resolve_predicate(predicate)
+            symmetric = ontology.predicate_spec(predicate).symmetric
             left_id = add_elfie(left, left_start)
             right_id = add_elfie(right, right_start)
             if symmetric:
@@ -491,13 +534,15 @@ class MemoryConsolidator:
                     object_node_id=object_id,
                     epistemic_status="reported",
                     context=relation_context(
+                        ontology,
                         source,
-                        symmetric=symmetric,
+                        predicate=predicate,
                         specificity=specificity,
                         role=role,
                     ),
                     confidence=0.95,
                     importance=relation_importance(
+                        ontology,
                         predicate,
                         0.94 if specificity == "childhood_companion" else None,
                     ),
@@ -518,7 +563,6 @@ class MemoryConsolidator:
                 predicate,
                 specificity,
                 match.group("role"),
-                symmetric=True,
                 source="explicit_pairwise_relation",
             )
 
@@ -532,7 +576,6 @@ class MemoryConsolidator:
                 predicate,
                 specificity,
                 match.group("role"),
-                symmetric=False,
                 source="explicit_directed_relation",
             )
 
@@ -617,15 +660,17 @@ class MemoryConsolidator:
             "从下面这条已经闭合的 Elfie Episode 提取候选记忆。只能返回 JSON 对象，"
             "不要 Markdown。所有节点标题、mentions.surface_text、assertions 的"
             "subject_ref/object_ref 必须是原文中出现的短语；不要补写原文没有的事实。"
-            "knowledge 节点必须提供唯一的短标题 title（不超过40字，不能是完整句子），"
-            "并把完整解释放在 context，且只有可复用知识才设置 reusable_knowledge:true；"
-            "普通事实只保留在 Episode。旧格式也可用 label 作为短标题，但完整句子不能作为标题。"
+            "节点 type 必须使用下方注册表中的叶类型，不能输出类型组名或自定义类型。"
+            "通用知识节点应使用有意义的短标题 title（不超过40字，不能是完整句子），"
+            "并把有来源依据的完整解释放在 context；不要额外输出与叶类型重复的子分类字段。"
+            "旧格式也可用 label 作为短标题，但完整句子不能作为标题。"
             "不要为每条 Episode 自动创建 event 节点；只有可被其他记录复用的明确事件才可将"
-            "type设为event并同时给出reusable_event:true。不要生成about、knows、knows_boundary或related_to。"
+            "type设为event并同时给出reusable_event:true。关系必须使用注册表中的规范谓词，不能自创同义关系。"
             "结构：{nodes:[{title,label,type,context,description,aliases,reusable_knowledge,reusable_event}],"
             "mentions:[{surface_text,label,role}],assertions:[{subject_ref,predicate,object_ref,"
             "object_literal,polarity,epistemic_status,viewpoint,context,confidence,"
             "importance_event}]}\n"
+            f"注册叶类型：{', '.join(spec.node_type for spec in self.ontology.active_node_types())}\n"
             f"Episode：{episode.content_text}"
         )
         try:
@@ -689,31 +734,19 @@ class MemoryConsolidator:
             if label not in content:
                 raise ValueError("model node label is not grounded in Episode")
             proposed_type = _model_text(item.get("type")) or "concept"
-            type_spec = resolve_memory_node_type(proposed_type)
+            type_spec = self.ontology.validate_node_type(proposed_type)
             node_type = proposed_type
             node_properties: dict[str, Any] = {}
             description_kind = "description"
-            if type_spec.domain == "knowledge":
-                node_type = "knowledge"
-                if item.get("reusable_knowledge") is not True:
-                    raise ValueError(
-                        "knowledge node proposals require reusable_knowledge=true"
-                    )
-                node_properties["knowledge_kind"] = str(
-                    item.get("knowledge_kind") or memory_knowledge_kind(proposed_type)
-                )
+            is_general_knowledge = type_spec.group_id == "general_knowledge"
+            is_event = type_spec.group_id == "events"
+            if is_general_knowledge:
                 label = _validate_knowledge_title(label, content)
                 description_kind = "context"
-            elif type_spec.domain == "entity":
-                node_type = type_spec.kind
-            elif type_spec.domain == "event":
-                node_type = "event"
-            elif type_spec.domain == "technical":
-                raise ValueError("technical node types are not valid model proposals")
             # Reusable semantic anchors share identity across Episodes. An
             # event is admitted only when the proposal explicitly marks it as
             # reusable; an ordinary Episode remains the source unit.
-            if type_spec.domain == "event" and item.get("reusable_event") is not True:
+            if is_event and item.get("reusable_event") is not True:
                 raise ValueError("event node proposals require reusable_event=true")
             node_id = _projection_id("node:", node_type, "elfie", label)
             labels_to_ids[label] = node_id
@@ -722,20 +755,18 @@ class MemoryConsolidator:
             # knowledge proposal omits context, the complete Episode is the
             # auditable fallback rather than another model-invented summary.
             raw_description = _model_text(
-                item.get("context")
-                if type_spec.domain == "knowledge"
-                else item.get("description")
+                item.get("context") if is_general_knowledge else item.get("description")
             )
-            if raw_description is None and type_spec.domain == "knowledge":
+            if raw_description is None and is_general_knowledge:
                 raw_description = _model_text(item.get("description"))
-            if raw_description is None and type_spec.domain == "knowledge":
+            if raw_description is None and is_general_knowledge:
                 raw_description = content
             grounded_description = (
                 raw_description
                 if raw_description and raw_description in content
                 else None
             )
-            if type_spec.domain == "knowledge" and grounded_description is None:
+            if is_general_knowledge and grounded_description is None:
                 raise ValueError("knowledge context must be grounded in Episode")
             if raw_label and raw_label != label and raw_label in content:
                 # Preserve references emitted in the legacy label field while
@@ -839,18 +870,16 @@ class MemoryConsolidator:
                 object_node_id = labels_to_ids[object_ref]
             else:
                 object_node_id = None
-            predicate = resolve_predicate(_required_model_text(item, "predicate"))
-            if predicate in NON_SEMANTIC_LEGACY_PREDICATES:
-                raise ValueError(
-                    f"model predicate is legacy/non-semantic and cannot be written: {predicate}"
-                )
+            predicate = self.ontology.resolve_predicate(
+                _required_model_text(item, "predicate")
+            )
             importance_event = _model_importance_event(item.get("importance_event"))
             if "importance" in item:
                 raise ValueError(
                     "model importance must be expressed as importance_event"
                 )
             subject_id = labels_to_ids[subject_ref]
-            relation = relation_spec(predicate)
+            relation = relation_spec(self.ontology, predicate)
             if (
                 relation is not None
                 and relation.symmetric
@@ -870,6 +899,7 @@ class MemoryConsolidator:
                     continue
                 symmetric_assertions.add(symmetric_key)
             relation_baseline = relation_importance(
+                self.ontology,
                 predicate,
                 None if relation is not None else episode.importance,
             )
@@ -926,6 +956,7 @@ class MemoryConsolidator:
             + hashlib.sha256(episode.content_text.encode("utf-8")).hexdigest()[:16],
             source_version=episode.source_version,
             source_sha256=episode.content_sha256,
+            ontology_revision=self.ontology.revision,
         )
 
     @staticmethod
@@ -933,15 +964,15 @@ class MemoryConsolidator:
         dictionary = {
             "主人": "person",
             "长老": "person",
-            "地球": "place",
+            "地球": "cosmic_entity",
             "精灵巢": "place",
             "花园": "place",
             "厨房": "place",
             "香菜": "object",
             "鱼味": "object",
             "鸡肉": "object",
-            "猫": "elfie",
-            "狗": "elfie",
+            "猫": "organism",
+            "狗": "organism",
         }
         found: list[tuple[str, str, int]] = []
         for label, kind in dictionary.items():

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Literal, Mapping, Optional, Tuple, Union
 
+from elfie.brain.memory.ontology import MemoryOntologySnapshot, NodeTypeSpec
+
 JsonValue = Union[
     None,
     bool,
@@ -34,26 +36,7 @@ _RECALL_LIMIT_MAX = {
 
 AttributionKind = Literal["observed", "told", "inferred", "felt"]
 OccurrencePrecision = Literal["exact", "range", "unknown"]
-EpisodeEventKind = Literal[
-    "conversation",
-    "activity",
-    "outing",
-    "learning",
-    "life_event",
-    "observation",
-    "reflection",
-    "unclassified",
-]
-EPISODE_EVENT_KINDS: Tuple[EpisodeEventKind, ...] = (
-    "conversation",
-    "activity",
-    "outing",
-    "learning",
-    "life_event",
-    "observation",
-    "reflection",
-    "unclassified",
-)
+EpisodeEventKind = str
 EpisodeMaintenanceState = Literal[
     "pending", "processing", "completed", "failed", "skipped"
 ]
@@ -66,96 +49,18 @@ RetentionProfile = Literal[
     "genesis",
 ]
 
-NodeDomain = Literal["entity", "event", "knowledge", "self_model", "technical"]
-KnowledgeKind = Literal["fact", "concept", "pattern", "guideline", "belief"]
+
+def resolve_memory_node_type(
+    node_type: str,
+    ontology: MemoryOntologySnapshot,
+) -> NodeTypeSpec:
+    """Resolve a writable leaf only through the injected ontology snapshot."""
+    return ontology.validate_node_type(node_type)
 
 
-@dataclass(frozen=True)
-class MemoryNodeTypeSpec:
-    """Registered semantic meaning for one persisted ``node_type`` value.
-
-    The store keeps a flat leaf value for compatibility with existing indexes and
-    filters.  ``domain`` is the stable top-level taxonomy used by projections;
-    ``kind`` records a registered subtype or technical classification.
-    """
-
-    domain: NodeDomain
-    kind: str
-    canonical: bool = True
-    visible: bool = True
-
-
-_MEMORY_NODE_TYPE_REGISTRY: dict[str, MemoryNodeTypeSpec] = {
-    # Canonical v1 entity leaves.
-    "elfie": MemoryNodeTypeSpec("entity", "elfie"),
-    "person": MemoryNodeTypeSpec("entity", "person"),
-    "group": MemoryNodeTypeSpec("entity", "group"),
-    "place": MemoryNodeTypeSpec("entity", "place"),
-    "object": MemoryNodeTypeSpec("entity", "object"),
-    # Canonical non-entity leaves.
-    "event": MemoryNodeTypeSpec("event", "event"),
-    "knowledge": MemoryNodeTypeSpec("knowledge", "fact"),
-    "self_model": MemoryNodeTypeSpec("self_model", "self_model"),
-    # Registered subtypes retained by the current source-first fixtures.  They
-    # have a stable domain and can be normalized in a later data rebuild.
-    "entity": MemoryNodeTypeSpec("entity", "entity", canonical=False),
-    "food": MemoryNodeTypeSpec("entity", "object", canonical=False),
-    "facility": MemoryNodeTypeSpec("entity", "place", canonical=False),
-    "planet": MemoryNodeTypeSpec("entity", "place", canonical=False),
-    "animal": MemoryNodeTypeSpec("entity", "elfie", canonical=False),
-    "pet": MemoryNodeTypeSpec("entity", "elfie", canonical=False),
-    "episodic": MemoryNodeTypeSpec("event", "event", canonical=False),
-    "concept": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
-    "claim": MemoryNodeTypeSpec("knowledge", "fact", canonical=False),
-    "theory": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
-    "law": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
-    "pattern": MemoryNodeTypeSpec("knowledge", "pattern", canonical=False),
-    "emotion": MemoryNodeTypeSpec("knowledge", "concept", canonical=False),
-    "preference": MemoryNodeTypeSpec("knowledge", "belief", canonical=False),
-    # Historical rows are recognized for read-only inspection. New Genesis
-    # submissions record completion in the transaction ledger, never as Nodes.
-    "genesis_commit_receipt": MemoryNodeTypeSpec(
-        "technical", "genesis_commit_receipt", canonical=False, visible=False
-    ),
-    "literal": MemoryNodeTypeSpec("technical", "literal", visible=False),
-}
-
-MEMORY_NODE_TYPE_REGISTRY = dict(_MEMORY_NODE_TYPE_REGISTRY)
-
-
-def resolve_memory_node_type(node_type: str) -> MemoryNodeTypeSpec:
-    """Return the registered semantic specification for a node type."""
-
-    key = node_type.strip().lower()
-    if not key:
-        raise ValueError("node_type must not be blank")
-    try:
-        return _MEMORY_NODE_TYPE_REGISTRY[key]
-    except KeyError as error:
-        raise ValueError(f"unsupported Memory node_type: {node_type}") from error
-
-
-def memory_node_domain(node_type: str) -> NodeDomain:
-    """Return the stable top-level domain for a registered node type."""
-
-    return resolve_memory_node_type(node_type).domain
-
-
-def memory_knowledge_kind(
-    node_type: str, properties: Mapping[str, JsonValue] | None = None
-) -> KnowledgeKind | str:
-    """Return the registered or explicitly declared knowledge subtype."""
-
-    spec = resolve_memory_node_type(node_type)
-    if spec.domain != "knowledge":
-        raise ValueError(f"{node_type} is not a knowledge node type")
-    declared = (properties or {}).get("knowledge_kind")
-    if declared is None:
-        return spec.kind
-    kind = str(declared).strip().lower()
-    if kind not in {"fact", "concept", "pattern", "guideline", "belief"}:
-        raise ValueError(f"unsupported knowledge_kind: {declared}")
-    return kind  # type: ignore[return-value]
+def memory_node_group(node_type: str, ontology: MemoryOntologySnapshot) -> str:
+    """Derive the one primary group from the registered leaf type."""
+    return ontology.group_for_node_type(node_type)
 
 
 @dataclass(frozen=True)
@@ -255,8 +160,8 @@ class ClosedEpisode:
             _timestamp_key(self.occurred_from)
         if not self.content_text.strip():
             raise ValueError("content_text must not be blank")
-        if self.event_kind not in EPISODE_EVENT_KINDS:
-            raise ValueError(f"unsupported Episode event_kind: {self.event_kind}")
+        if not self.event_kind.strip():
+            raise ValueError("event_kind must not be blank")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
         if not 0.0 <= self.initial_importance <= 1.0:
@@ -341,6 +246,7 @@ class EpisodeMaintenanceStatus:
     source_version: Optional[str]
     source_sha256: Optional[str]
     projection_revision: Optional[str]
+    ontology_revision: Optional[str]
     attempts: int
     next_attempt_at: Optional[str]
     last_error: Optional[str]
@@ -493,17 +399,6 @@ class NodeInput:
     def __post_init__(self) -> None:
         if not self.node_id.strip() or not self.node_type.strip():
             raise ValueError("node_id and node_type must not be blank")
-        node_type_spec = resolve_memory_node_type(self.node_type)
-        if (
-            node_type_spec.domain == "technical"
-            and node_type_spec.kind == "genesis_commit_receipt"
-        ):
-            raise ValueError(
-                "Genesis submission receipts belong in the Memory transaction "
-                "ledger, not graph Nodes"
-            )
-        if memory_node_domain(self.node_type) == "knowledge":
-            memory_knowledge_kind(self.node_type, self.properties)
         if not self.canonical_label.strip():
             raise ValueError("canonical_label must not be blank")
         if not self.scope.strip():
@@ -658,7 +553,7 @@ class AssertionInput:
     half_life_days: float = 30.0
     retention_profile: RetentionProfile = "semantic"
     object_literal_type: Optional[str] = None
-    predicate_registry_version: str = "memory.predicates.v2"
+    predicate_registry_version: str = "memory.ontology.v1"
     policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
     # Optional policy event emitted by Consolidation.  It is intentionally a
@@ -827,6 +722,7 @@ class ConsolidationProjection:
     source_version: Optional[str] = None
     source_sha256: Optional[str] = None
     projection_revision: Optional[str] = None
+    ontology_revision: Optional[str] = None
     # Operational fencing for a claimed Episode.  These fields are never part
     # of the semantic projection hash and are omitted for direct/import writes.
     claim_owner: Optional[str] = None
@@ -844,6 +740,8 @@ class ConsolidationProjection:
             and not self.projection_revision.strip()
         ):
             raise ValueError("projection_revision must not be blank when supplied")
+        if self.ontology_revision is not None and not self.ontology_revision.strip():
+            raise ValueError("ontology_revision must not be blank when supplied")
         if self.claim_owner is not None and not self.claim_owner.strip():
             raise ValueError("claim_owner must not be blank when supplied")
         if self.claim_attempt is not None and self.claim_attempt < 1:

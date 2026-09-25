@@ -5,6 +5,9 @@ from __future__ import annotations
 import pytest
 
 from elfie.brain.memory.memory_records import ClosedEpisode
+from infrastructure.persistence.memory.sqlite_memory_store import (
+    SQLiteMemoryStoreAdapter,
+)
 
 
 def _episode(event_kind: str) -> ClosedEpisode:
@@ -31,7 +34,8 @@ def _episode(event_kind: str) -> ClosedEpisode:
     ),
 )
 def test_episode_accepts_only_registered_experience_kinds(event_kind: str) -> None:
-    assert _episode(event_kind).event_kind == event_kind
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        assert store.record_episode(_episode(event_kind)).episode_id == "episode-kind"
 
 
 @pytest.mark.parametrize(
@@ -49,5 +53,6 @@ def test_episode_accepts_only_registered_experience_kinds(event_kind: str) -> No
 def test_episode_rejects_source_and_process_labels_as_experience_kinds(
     event_kind: str,
 ) -> None:
-    with pytest.raises(ValueError, match="unsupported Episode event_kind"):
-        _episode(event_kind)
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        with pytest.raises(ValueError, match="unsupported Episode event_kind"):
+            store.record_episode(_episode(event_kind))

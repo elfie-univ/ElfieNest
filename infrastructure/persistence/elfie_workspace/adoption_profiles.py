@@ -21,6 +21,7 @@ from app.orchestration.resident_admission import (
     AdmissionPublication,
     ResidentAdmissionPortError,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.selfhood.contracts import (
     SelfhoodState,
     normalize_selfhood_mapping,
@@ -44,6 +45,9 @@ from infrastructure.persistence.layout.data_layout import (
     final_root_layout,
 )
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.ontology_loader import (
+    load_memory_ontology_snapshot,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _MARKER_FORMAT_VERSION = 1
@@ -70,17 +74,24 @@ class FinalElfieWorkspaceAdapter:
         data_home: Path | None = None,
         *,
         db_path: str | Path | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> None:
         if (data_home is None) == (db_path is None):
             raise ValueError("select exactly one workspace root source")
         self._data_home = data_home
         self._db_path = db_path
+        self._ontology = ontology
 
     @classmethod
-    def from_database_path(cls, db_path: str | Path) -> FinalElfieWorkspaceAdapter:
+    def from_database_path(
+        cls,
+        db_path: str | Path,
+        *,
+        ontology: MemoryOntologySnapshot | None = None,
+    ) -> FinalElfieWorkspaceAdapter:
         """Construct an adapter whose data root follows the Nest database."""
 
-        return cls(db_path=db_path)
+        return cls(db_path=db_path, ontology=ontology)
 
     def _selected_data_home(self) -> Path:
         if self._db_path is not None:
@@ -88,6 +99,13 @@ class FinalElfieWorkspaceAdapter:
         if self._data_home is None:  # pragma: no cover - constructor invariant
             raise RuntimeError("workspace root source is unavailable")
         return Path(self._data_home).expanduser()
+
+    def _memory_ontology(self) -> MemoryOntologySnapshot:
+        if self._ontology is None:
+            self._ontology = load_memory_ontology_snapshot(
+                data_home=self._selected_data_home()
+            )
+        return self._ontology
 
     def stage(self, compilation: GenesisCompilation) -> str:
         """Write one validated compilation below the hidden staging root.
@@ -155,8 +173,11 @@ class FinalElfieWorkspaceAdapter:
             with SQLiteMemoryStoreAdapter(
                 layout.knowledge_database,
                 elfie_id=elfie_id,
+                ontology=self._memory_ontology(),
             ) as memory_store:
-                GenesisMemoryCommitter().commit(compilation.bundle, memory_store)
+                GenesisMemoryCommitter(self._memory_ontology()).commit(
+                    compilation.bundle, memory_store
+                )
 
             _write_marker(
                 layout.genesis_stage_marker, _compilation_metadata(compilation)
@@ -450,6 +471,7 @@ class FinalElfieWorkspaceAdapter:
         with SQLiteMemoryStoreAdapter(
             layout.knowledge_database,
             elfie_id=str(marker["elfie_id"]),
+            ontology=self._memory_ontology(),
         ) as memory:
             marker_output_ids = _string_list(
                 marker.get("output_ids"), "Genesis output inventory"

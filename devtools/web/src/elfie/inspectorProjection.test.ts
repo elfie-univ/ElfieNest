@@ -24,6 +24,7 @@ const relationInput = {
   relationKind: (record: Record<string, unknown>) => String(record.predicate ?? "relation"),
   relationLabel: (kind: string) => kind === "friend_of" ? "朋友" : kind,
   relationSentence: (source: string, target: string, kind: string) => kind === "friend_of" ? `${source} 和 ${target} 是朋友` : `${source} → ${target}`,
+  nodeTypeLabel: (nodeType: string | undefined) => ({ elfie: "精灵", person: "人物" })[nodeType ?? ""] ?? nodeType ?? "未知类型",
 };
 
 describe("Inspector projection", () => {
@@ -48,6 +49,7 @@ describe("Inspector projection", () => {
 
     expect(projected.connections.map((item) => item.id)).toEqual(["friend", "neighbor"]);
     expect(projected.connections[0]!.detail).toContain("朋友");
+    expect(projected.header.semanticType).toBe("精灵");
   });
 
   it("从地点元数据和 Episode 原文提供可反向打开的故事来源", () => {

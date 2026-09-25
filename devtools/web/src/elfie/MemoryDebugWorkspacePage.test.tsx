@@ -1,7 +1,36 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeCardTooltip, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryDebugWorkspacePage, episodeCardTooltip, episodeTraceSourcePoint, filterMemoryDebugEpisodes, formatEpisodeTime, graphLinkArrowLength, graphLinkColor, graphLinkWidth, graphNavigationActive, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, projectMemoryDebugGraph, recallGraphNodeHitIds, recallGraphProjectionFilters, relationDisplayLabel, relationSentence, selectMemoryNodeGroup, selectMemoryNodeTypes, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+
+const graphOntology = {
+  revision: "memory.ontology.v1+registry:0",
+  type_groups: [
+    { group_id: "social_relations", label: "社会关系", color: "#ff8f6b", order: 1 },
+    { group_id: "entities", label: "实体", color: "#7db277", order: 2 },
+    { group_id: "space_geography", label: "空间地理", color: "#5bb9ff", order: 3 },
+    { group_id: "events", label: "事件", color: "#ffc857", order: 4 },
+    { group_id: "general_knowledge", label: "通用知识", color: "#42d6a4", order: 5 },
+  ],
+  node_types: [
+    { node_type: "elfie", label: "精灵", group_id: "social_relations", color: "#ff8f6b", status: "active", count: 4 },
+    { node_type: "person", label: "人物", group_id: "social_relations", color: "#b892ff", status: "active", count: 1 },
+    { node_type: "group", label: "群体/家庭", group_id: "social_relations", color: "#d5a85f", status: "active", count: 1 },
+    { node_type: "object", label: "物体", group_id: "entities", color: "#7db277", status: "active", count: 0 },
+    { node_type: "place", label: "地点", group_id: "space_geography", color: "#5bb9ff", status: "active", count: 49 },
+    { node_type: "event", label: "事件", group_id: "events", color: "#ffc857", status: "active", count: 0 },
+    { node_type: "concept", label: "概念", group_id: "general_knowledge", color: "#42d6a4", status: "active", count: 0 },
+    { node_type: "claim", label: "命题", group_id: "general_knowledge", color: "#42d6a4", status: "active", count: 0 },
+    { node_type: "candidate_pattern", label: "候选模式", group_id: "general_knowledge", color: "#42d6a4", status: "candidate", count: 1 },
+  ],
+  predicates: ["friend_of", "located_in", "supports", "prefers", "implies", "parent_of", "child_of", "kin_of", "owned_by", "owner_of"]
+    .map((predicate) => ({ predicate, label: predicate === "friend_of" ? "朋友" : predicate, symmetric: predicate === "friend_of" || predicate === "kin_of", inverse: predicate === "parent_of" ? "child_of" : predicate === "child_of" ? "parent_of" : null, status: "active", count: 0 })),
+  predicate_aliases: { friend: "friend_of", owner: "owned_by" },
+};
+
+function graphReport(data: { nodes: Array<Record<string, unknown>>; assertions: Array<Record<string, unknown>>; evidence: Array<Record<string, unknown>> }): Parameters<typeof projectMemoryDebugGraph>[0] {
+  return { ontology: graphOntology, data } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+}
 
 describe("记忆调试工作台", () => {
   it("要求相机只在按住拖动时旋转，并使用更稳定的 Orbit 控制", () => {
@@ -153,37 +182,35 @@ describe("记忆调试工作台", () => {
   });
 
   it("把有方向的 Assertion 显示成可读关系语义", () => {
-    expect(relationDisplayLabel("friend")).toBe("朋友");
-    expect(relationSentence("Ari", "Ena", "friend")).toBe("Ari 和 Ena 是朋友");
-    expect(relationSentence("Ari", "Kio", "kin_of")).toBe("Ari 和 Kio 是家人（具体关系未知）");
-    expect(relationSentence("Ari", "Ena", "parent_of")).toBe("Ari 是 Ena 的父母");
-    expect(relationSentence("精灵", "主人", "owner", "elfie", "person")).toBe("主人 是 精灵 的主人");
+    const report = graphReport({ nodes: [], assertions: [], evidence: [] });
+    expect(relationDisplayLabel("friend", report)).toBe("朋友");
+    expect(relationSentence("Ari", "Ena", "friend", undefined, undefined, report)).toBe("Ari 和 Ena 是朋友");
+    expect(relationSentence("Ari", "Kio", "kin_of", undefined, undefined, report)).toBe("Ari 和 Kio 是家人（具体关系未知）");
+    expect(relationSentence("Ari", "Ena", "parent_of", undefined, undefined, report)).toBe("Ari 是 Ena 的父母");
+    expect(relationSentence("精灵", "主人", "owner", "elfie", "person", report)).toBe("主人 是 精灵 的主人");
 
-    const graph = projectMemoryDebugGraph({
-      data: {
+    const graph = projectMemoryDebugGraph(graphReport({
         nodes: [
           { id: "ari", node_type: "elfie", label: "Ari" },
           { id: "ena", node_type: "elfie", label: "Ena" },
         ],
-        assertions: [{ assertion_id: "friend-1", subject_id: "ari", object_node_id: "ena", predicate: "friend" }],
-        evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
-    expect(graph.edges[0]).toMatchObject({ label: "朋友", predicate: "friend", symmetric: true });
+        assertions: [{ assertion_id: "friend-1", subject_id: "ari", object_node_id: "ena", predicate: "friend", evidence_ids: ["evidence-friend"] }],
+        evidence: [{ evidence_id: "evidence-friend" }],
+      }));
+    expect(graph.edges[0]).toMatchObject({ label: "朋友", predicate: "friend_of", symmetric: true });
   });
 
   it("不把历史 Genesis 提交回执投影成记忆图节点", () => {
-    expect(isMemoryDebugSemanticNodeType("genesis_commit_receipt")).toBe(false);
-    const graph = projectMemoryDebugGraph({
-      data: {
+    const report = graphReport({
         nodes: [
           { id: "genesis:receipt:elfie-a", node_type: "genesis_commit_receipt", label: "初始化回执" },
           { id: "person-a", node_type: "person", label: "家人" },
         ],
         assertions: [],
         evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+      });
+    expect(isMemoryDebugSemanticNodeType("genesis_commit_receipt", report)).toBe(false);
+    const graph = projectMemoryDebugGraph(report);
 
     expect(graph.nodes.map((node) => node.id)).toEqual(["person-a"]);
   });
@@ -201,23 +228,32 @@ describe("记忆调试工作台", () => {
     expect(graphLinkWidth(.8)).toBeGreaterThan(graphLinkWidth(.2));
     expect(graphLinkWidth(undefined)).toBe(graphLinkWidth(.5));
 
-    const graph = projectMemoryDebugGraph({
-      data: {
+    const graph = projectMemoryDebugGraph(graphReport({
         nodes: [{ id: "a", node_type: "person", label: "甲" }, { id: "b", node_type: "person", label: "乙" }],
-        assertions: [{ assertion_id: "relation-1", subject_id: "a", object_node_id: "b", predicate: "friend_of", importance: .82 }],
-        evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+        assertions: [{ assertion_id: "relation-1", subject_id: "a", object_node_id: "b", predicate: "friend_of", importance: .82, evidence_ids: ["ev-1"] }],
+        evidence: [{ evidence_id: "ev-1" }],
+      }));
 
     expect(graph.edges[0]).toMatchObject({ importance: .82 });
   });
 
-  it("把操作提示并入图例，不再用横向遮挡层盖住图面", () => {
-    const markup = renderToStaticMarkup(<MemoryDebugLegend layoutLocked />);
+  it("图例展示实际存在的叶节点类型及其类型色，不把类型组当成节点类型", () => {
+    const markup = renderToStaticMarkup(<MemoryDebugLegend layoutLocked ontology={graphOntology} />);
 
     expect(markup).not.toContain('class="memory-debug-3d-hint"');
     expect(markup).toContain('memory-debug-legend-hint');
     expect(markup).toContain('<span class="episode-key">Episode</span>');
+    expect(markup).toContain("精灵");
+    expect(markup).toContain("人物");
+    expect(markup).toContain("群体/家庭");
+    expect(markup).toContain("地点");
+    expect(markup).toContain('style="color:#ff8f6b"');
+    expect(markup).not.toContain("社会关系");
+    expect(markup).not.toContain("通用知识");
+    expect(markup).not.toContain("事件");
+    expect(markup).not.toContain("概念");
+    expect(markup).not.toContain("候选模式");
+    expect(markup).not.toContain("自我模型");
     expect(markup).toContain("点大小=重要度 · 关系线宽=重要度");
   });
 
@@ -229,8 +265,7 @@ describe("记忆调试工作台", () => {
   });
 
   it("把 literal Assertion 映射为可点击的字面值端点，并保留 Evidence 关联", () => {
-    const report = {
-      data: {
+    const report = graphReport({
         nodes: [{ id: "elfie", node_type: "elfie", label: "艾菲" }],
         assertions: [{
           assertion_id: "assertion-literal",
@@ -240,8 +275,7 @@ describe("记忆调试工作台", () => {
           evidence_ids: ["evidence-literal"],
         }],
         evidence: [{ evidence_id: "evidence-literal" }],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+      });
 
     const graph = projectMemoryDebugGraph(report);
 
@@ -256,35 +290,33 @@ describe("记忆调试工作台", () => {
   });
 
   it("按真实 ID 排序图投影，保证分页合并后的布局稳定", () => {
-    const report = {
-      data: {
+    const report = graphReport({
         nodes: [
-          { id: "node-z", node_type: "knowledge", label: "Z" },
-          { id: "node-a", node_type: "knowledge", label: "A" },
+          { id: "node-z", node_type: "concept", label: "Z" },
+          { id: "node-a", node_type: "concept", label: "A" },
         ],
         assertions: [],
         evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+      });
 
-    expect(projectMemoryDebugGraph(report).nodes.map((node) => node.id)).toEqual(["node-a", "node-z"]);
+    const projected = projectMemoryDebugGraph(report);
+    expect(projected.nodes.map((node) => node.id)).toEqual(["node-a", "node-z"]);
+    expect(projected.nodes[0]).toMatchObject({ typeLabel: "概念", color: "#42d6a4" });
   });
 
   it("组合应用生命周期和置信度筛选，不把 Evidence 伪装成节点", () => {
-    const report = {
-      data: {
+    const report = graphReport({
         nodes: [
-          { id: "node-a", node_type: "knowledge", label: "A", confidence: .92, properties: { status: "active", source_id: "seed-1" } },
-          { id: "node-b", node_type: "knowledge", label: "B", confidence: .84, properties: { status: "active", source_id: "seed-1" } },
-          { id: "node-c", node_type: "knowledge", label: "C", confidence: .95, properties: { status: "archived", source_id: "other" } },
+          { id: "node-a", node_type: "concept", label: "A", confidence: .92, properties: { status: "active", source_id: "seed-1" } },
+          { id: "node-b", node_type: "concept", label: "B", confidence: .84, properties: { status: "active", source_id: "seed-1" } },
+          { id: "node-c", node_type: "concept", label: "C", confidence: .95, properties: { status: "archived", source_id: "other" } },
         ],
         assertions: [
           { assertion_id: "assertion-keep", subject_id: "node-a", object_node_id: "node-b", predicate: "supports", confidence: .88, evidence_ids: ["evidence-1"] },
-          { assertion_id: "assertion-low", subject_id: "node-a", object_node_id: "node-b", predicate: "weak", confidence: .3, evidence_ids: ["evidence-1"] },
+          { assertion_id: "assertion-low", subject_id: "node-a", object_node_id: "node-b", predicate: "friend_of", confidence: .3, evidence_ids: ["evidence-1"] },
         ],
         evidence: [{ evidence_id: "evidence-1" }],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+      });
 
     const graph = projectMemoryDebugGraph(report, { lifecycle: "active", minConfidence: .8 });
 
@@ -293,19 +325,17 @@ describe("记忆调试工作台", () => {
   });
 
   it("按枚举关系类型过滤 Assertion 边", () => {
-    const report = {
-      data: {
+    const report = graphReport({
         nodes: [
           { id: "node-a", node_type: "person", label: "甲" },
           { id: "node-b", node_type: "person", label: "乙" },
         ],
         assertions: [
-          { assertion_id: "assertion-friend", subject_id: "node-a", object_node_id: "node-b", predicate: "friend_of" },
-          { assertion_id: "assertion-supports", subject_id: "node-a", object_node_id: "node-b", predicate: "supports" },
+          { assertion_id: "assertion-friend", subject_id: "node-a", object_node_id: "node-b", predicate: "friend_of", evidence_ids: ["ev-1"] },
+          { assertion_id: "assertion-supports", subject_id: "node-a", object_node_id: "node-b", predicate: "supports", evidence_ids: ["ev-1"] },
         ],
-        evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+        evidence: [{ evidence_id: "ev-1" }],
+      });
 
     const graph = projectMemoryDebugGraph(report, { predicateTypes: new Set(["friend_of"]) });
 
@@ -314,36 +344,64 @@ describe("记忆调试工作台", () => {
   });
 
   it("不把旧的 about/knows 边重新显示成语义关系", () => {
-    const graph = projectMemoryDebugGraph({
-      data: {
-        nodes: [{ id: "self", node_type: "elfie", label: "艾菲" }, { id: "knowledge", node_type: "knowledge", label: "规律" }],
-        assertions: [{ assertion_id: "legacy-about", subject_id: "self", object_node_id: "knowledge", predicate: "about" }],
+    const graph = projectMemoryDebugGraph(graphReport({
+        nodes: [{ id: "self", node_type: "elfie", label: "艾菲" }, { id: "knowledge", node_type: "concept", label: "规律" }],
+        assertions: [{ assertion_id: "legacy-about", subject_id: "self", object_node_id: "knowledge", predicate: "about", evidence_ids: ["ev-1"] }],
         evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0]);
+      }));
 
     expect(graph.edges).toEqual([]);
   });
 
   it("支持在同一个过滤面板中组合多个节点类型", () => {
-    const report = {
-      data: {
+    const report = graphReport({
         nodes: [
           { id: "person-1", node_type: "person", label: "甲" },
+          { id: "person-2", node_type: "person", label: "乙" },
           { id: "place-1", node_type: "place", label: "地点" },
-          { id: "knowledge-1", node_type: "knowledge", label: "知识" },
         ],
         assertions: [
-          { assertion_id: "person-place", subject_id: "person-1", object_node_id: "place-1", predicate: "去过" },
-          { assertion_id: "person-knowledge", subject_id: "person-1", object_node_id: "knowledge-1", predicate: "知道" },
+          { assertion_id: "person-place", subject_id: "person-1", object_node_id: "place-1", predicate: "located_in", evidence_ids: ["ev-1"] },
+          { assertion_id: "person-person", subject_id: "person-1", object_node_id: "person-2", predicate: "friend_of", evidence_ids: ["ev-1"] },
         ],
-        evidence: [],
-      },
-    } as unknown as Parameters<typeof projectMemoryDebugGraph>[0];
+        evidence: [{ evidence_id: "ev-1" }],
+      });
 
     const graph = projectMemoryDebugGraph(report, { nodeTypes: new Set(["person", "place"]) });
 
-    expect(graph.nodes.map((node) => node.id)).toEqual(["person-1", "place-1"]);
-    expect(graph.edges.map((edge) => edge.id)).toEqual(["person-place"]);
+    expect(graph.nodes.map((node) => node.id)).toEqual(["person-1", "person-2", "place-1"]);
+    expect(graph.edges.map((edge) => edge.id)).toEqual(["person-person", "person-place"]);
+  });
+
+  it("类型组和节点类型联动，筛选只改变图节点并按端点重投影边", () => {
+    const nodeTypes = graphOntology.node_types;
+    expect(selectMemoryNodeGroup("space_geography", ["person"], nodeTypes)).toEqual({
+      groupId: "space_geography",
+      nodeTypes: [],
+    });
+    expect(selectMemoryNodeTypes(["person"], "", nodeTypes)).toEqual({
+      groupId: "social_relations",
+      nodeTypes: ["person"],
+    });
+    expect(selectMemoryNodeTypes([], "social_relations", nodeTypes)).toEqual({
+      groupId: "social_relations",
+      nodeTypes: [],
+    });
+
+    const report = graphReport({
+      nodes: [
+        { id: "person-1", node_type: "person", label: "甲" },
+        { id: "person-2", node_type: "person", label: "乙" },
+        { id: "place-1", node_type: "place", label: "地点" },
+      ],
+      assertions: [
+        { assertion_id: "person-place", subject_id: "person-1", object_node_id: "place-1", predicate: "located_in", evidence_ids: ["ev-1"] },
+        { assertion_id: "person-person", subject_id: "person-1", object_node_id: "person-2", predicate: "friend_of", evidence_ids: ["ev-1"] },
+      ],
+      evidence: [{ evidence_id: "ev-1" }],
+    });
+    const projected = projectMemoryDebugGraph(report, { nodeGroup: "social_relations" });
+    expect(projected.nodes.map((node) => node.id)).toEqual(["person-1", "person-2"]);
+    expect(projected.edges.map((edge) => edge.id)).toEqual(["person-person"]);
   });
 });

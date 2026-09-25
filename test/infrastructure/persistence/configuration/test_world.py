@@ -51,6 +51,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
 def test_genesis_source_rejects_unregistered_experience_kinds(tmp_path: Path) -> None:
     config_root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root() / "genesis", config_root / "genesis")
+    shutil.copytree(resolve_bundled_config_root() / "memory", config_root / "memory")
     program_path = config_root / "genesis" / "program.yaml"
     document = yaml.safe_load(program_path.read_text(encoding="utf-8"))
     document["rules"]["episode_themes"]["themes"][0]["event_kind"] = "reset"

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Final, Mapping, Tuple
 
 from infrastructure.persistence.configuration.species import load_species_catalog
+from infrastructure.persistence.memory.ontology_loader import load_core_memory_ontology
 from scripts.internal.build import package_python_core
 
 REQUIRED_WEB_FILES: Final[Tuple[str, ...]] = (
@@ -36,6 +37,7 @@ REQUIRED_CONFIG_FILES: Final[Tuple[str, ...]] = (
     "config/brain/emotion-expressions.yaml",
     "config/brain/emotion-dynamics.yaml",
     "config/nest/defaults.yaml",
+    "config/memory/ontology.yaml",
     "config/genesis/program.yaml",
     "config/genesis/species/catalog.yaml",
 )
@@ -80,6 +82,7 @@ def validate_release_resources(resources: Path) -> None:
         )
     try:
         load_species_catalog(root=resources / "config")
+        load_core_memory_ontology(config_root=resources / "config")
     except (OSError, ValueError, RuntimeError) as error:
         raise ReleaseResourceManifestError(
             "release-manifest-species-config-invalid"

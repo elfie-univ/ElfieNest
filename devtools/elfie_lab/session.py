@@ -91,7 +91,7 @@ class ElfieLabSession:
             self._memory_store_factory = lambda: memory_store
         else:
             self._memory_store_factory = lambda: SQLiteMemoryStoreAdapter(
-                storage.memory_path(spec.elfie_id)
+                storage.memory_path(spec.elfie_id), ontology=storage.ontology
             )
         self._observation_sink = observation_sink
         # The Brain must see exactly one sink: forward to the caller's sink
@@ -114,6 +114,7 @@ class ElfieLabSession:
                     load_reasoning_constitution()
                 ),
                 memory_store=self._memory_store_factory(),
+                memory_ontology=storage.ontology,
                 activity_store=SQLiteActivityStoreAdapter(
                     storage.activity_path(spec.elfie_id)
                 ),
@@ -406,6 +407,7 @@ class ElfieLabSession:
                         load_reasoning_constitution()
                     ),
                     memory_store=self._memory_store_factory(),
+                    memory_ontology=self.storage.ontology,
                     activity_store=SQLiteActivityStoreAdapter(
                         self.storage.activity_path(self.spec.elfie_id)
                     ),

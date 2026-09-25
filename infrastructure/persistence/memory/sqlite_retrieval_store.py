@@ -319,7 +319,10 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     0.05,
                     len(query_normalized) / max(1, len(label_normalized)) * 0.05,
                 )
-            if kind == "knowledge":
+            if (
+                kind != "episodic"
+                and self.ontology.group_for_node_type(kind) == "general_knowledge"
+            ):
                 score += 0.05
             previous_score = scored.get(identifier)
             scored[identifier] = max(previous_score or 0.0, score)

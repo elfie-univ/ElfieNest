@@ -4,7 +4,7 @@
 >
 > 范围：持久化的主观经历、有来源的个人知识和确定性召回。不定义 Event Workspace 或 Reasoning Context Workspace，也不定义其他模块的状态。
 >
-> 契约对齐：2026-09-25，ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
+> 契约对齐：Brain 契约 1.12（2026-09-25）、ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
 
 > 设计关系：**所属模块：**Elfie / Brain / Memory；**上级设计：**[Brain 十系统架构](./elfie-brain-ten-system-architecture.md)；
 > **下级设计：**无；**规范性契约：**[Brain 契约](../../../contracts/brain.md)；**当前架构：**[认知信息流](../../../architecture/cognitive-flow.md)；
@@ -21,8 +21,9 @@ Memory 为一只精灵提供持久、有来源的个人记忆。它保留一个�
 语义模型只有两层：
 
 1. **Episode**：进入 Memory 前已经准备好的、完整且有边界的话题、故事或学习单元。
-2. **Node–Assertion**：从 Episode 和批准的 Genesis 输入中提取出的读书笔记与知识关系图，
-   可以包含实体、明确关系、可复用知识和模式。
+2. **Node–Assertion**：从 Episode 投影出的知识笔记与关系图。每条 Genesis 语义种子都先
+   物化为带来源的 Episode；明确提供的身份/关系骨架随后可以直接提交，但 Evidence 必须回指
+   该 Episode。图谱可以包含类型化实体、明确关系、可复用知识和模式。
 
 Recall 会联合搜索这两层。问题询问关系或抽象规律时，可以直接返回图谱结果；需要完整话题
 语境时再返回 Episode。Evidence 解释结果如何得到。原始聊天日志、视频和其他上游材料不在
@@ -53,9 +54,9 @@ Memory 拥有的全部语义状态都是持久状态。Memory 不负责组织回
 对于在线 Memory 模型，输入只有两种：
 
 - 普通运行时：已经代表一个话题、故事或学习单元的完整、已闭合 `ClosedEpisode`；
-- 一次性初始化：完整、有版本的 `ApprovedSeedSource`。
+- 一次性初始化：完整、有版本的 `ApprovedSeedSource`，但它只作为临时输入资料包。
 
-每个持久化 Assertion 都必须指向一个 Episode 或批准种子的 Evidence。模型提案、摘要、缓存或没有来源的 Profile 值都不是证据。运行时学习始终先写 Episode。Genesis 会先把每条 KnowledgeSeed 和 EpisodeSeed 完整存成 Episode；创建时只有有明确来源的身份和关系骨架可以直接提交，知识和经历派生的图谱事实交给后续 Consolidation。
+每个持久化 Node 和 Assertion 都遵循同一通用来源契约，并可追溯到已持久化 Episode 及其来源片段/定位。Genesis 资料包或 Seed 不能成为删除之后仍依赖的图谱事实来源：语义内容必须先物化为 Episode，才能直接提交身份/关系骨架或由 Consolidation 投影知识。资料包 ID/版本/hash 只能作为有界操作元数据保留；Evidence 不得依赖已删除的 Manifest。模型提案、摘要、缓存或无来源 Profile 值都不是证据。执行、重置、初始化和抽取记录属于操作数据，不是语义 Node 或 Episode。
 
 ## 2. 持久记忆模型
 
@@ -105,59 +106,37 @@ Reasoning Context Workspace 中的 `Topic` 就是这个上游边界和聚合线�
 ### 2.2 Personal Knowledge Graph
 
 图谱是精灵自己、带来源的主观理解，不是客观万能数据库，也不会静默导入模型常识。它是从
-Episode、批准的种子来源及其 Evidence 中整理出的高层知识笔记，可以重建和对账，也可以作为
+Episode 及其 Evidence 中整理出的高层知识笔记，可以重建和对账，也可以作为
 独立的 Recall 结果：关系、可复用事实或 Pattern 可以直接回答问题，不必先返回完整 Episode。
 投影修订号标识它对应的 Episode 来源版本。
 
-#### 2.2.1 节点与领域切片
+#### 2.2.1 节点与类型组
 
-领域切片（也称类型组）是注册表定义的语义视图，不是 Node 类型本身，也不是第二套存储。每个规范
-Node 只有一个主叶类型，并属于一个主切片。跨切片事实引用同一个规范 Node ID，不复制对象到多个切片。
+类型组是注册表定义的语义类别；切片是基于类型组构造的读取/筛选投影，两者相关但不等价。注册表为每个叶子 Node 类型指定唯一主类型组；切片是派生视图，不是 Node 类型或第二套存储。每个规范 Node 只有一个主叶类型，因此只有一个主类型组。跨组事实引用同一个规范 Node ID，不复制对象，也不赋予多个主类型/类型组。
 
-主切片决定 Node 的归属和默认类型筛选；但一个切片投影可以把其他切片的 Node 作为上下文端点或 Claim 内容组件
-带入视图，不改变它的主类型，也不复制实体。例如地球仍是空间切片中的 `celestial_body`；通用知识里关于地球
-运转的 Claim 可以引用同一个地球 Node 作为上下文。
+主类型组决定 Node 的语义归属和默认筛选；一个组投影仍可把其他组的 Node 作为上下文端点带入视图，不改变其主类型，也不复制实体。例如地球仍是空间地理组中的 `cosmic_entity`；通用知识里的 Node 可以通过普通 Assertion 引用同一个地球 Node。`type_group` 由已注册的 `node_type` 派生，不在每个 Node 上重复写入；筛选可以选择类型组、叶子类型或两者。
 
-| 领域切片 | 核心 Node 类型 | 边界 |
+| 类型组 | 核心 Node 类型 | 边界 |
 | --- | --- | --- |
 | 社会关系 | `elfie`、`person`、`group` | `group` 包括家庭、团队、组织和社区；家庭/团队是群体子类型或属性，父母/朋友/成员是关系或角色。 |
 | 实体 | `organism`、`object`、`material` | 人和精灵仍属于社会关系；物件组成、来源和用途通过关系表达。 |
-| 空间 | `cosmic_extent`、`celestial_body`、`place` | 宇宙/星系及地球/行星都是空间锚点。`place` 统一覆盖地区、城镇、住所和房间，以尺度与包含层级表达；没有明确语义需要时，不再拆分地区/地点/房间。 |
-| 事件 | `event` | 可复用的发生事件可以成为 Node。Episode 是个人有来源的经历/记录，不会自动成为 Event Node。参与、目击、获知等用带来源关系表达。 |
-| 通用知识 | `concept`、`claim`、`theory_or_model`、`principle_or_law`、`pattern`、`rule_or_guideline`、`method_or_procedure`、`viewpoint` | 类型表达语义形态，不表达学科。哲学及其他学科复用这些类型并附领域分类；时间等抽象内容是 `concept`，事件发生时间则是限定信息。可复用、有名称的世界观可为 `viewpoint`，单条命题是 `claim`。 |
+| 空间地理 | `cosmic_entity`、`place` | `cosmic_entity` 覆盖宇宙尺度空间和天体（宇宙、星系、恒星、行星、卫星）；`place` 覆盖地区、城镇、住所和房间。两者用明确的包含等空间关系表达层次；没有明确语义需要时，不拆分地区/地点/房间，也不另设宇宙范围类型。 |
+| 事件 | `event` | 可被指称的公共、历史或可复用事件可以成为 Event Node。Episode 是个人有来源的经历/记录，不会自动成为 Event Node；执行、初始化和抽取过程绝不是事件 Node。参与、目击、获知等用带来源关系表达。 |
+| 通用知识 | `concept`、`claim`、`theory_or_model`、`principle_or_law`、`pattern`、`rule_or_guideline`、`method_or_procedure`、`viewpoint` | 类型表达语义形态，不表达学科。哲学及其他学科复用这些类型并附领域分类；`fact`、`belief` 等不是独立 Node 类型。时间等抽象内容是 `concept`，事件发生时间则是限定信息。可复用、有名称的世界观可为 `viewpoint`，可独立引用的命题可用普通 `claim` Node。 |
 
-`claim` 是可被引用的命题 Node；`fact` 是认识状态判断，不是独立 Node 类型。`belief` 是主体指向
-Claim Node 的立场关系，不是知识子类型。当命题本身要被相信、怀疑、支持、反驳、推导、版本化或附加
-条件时，必须使用 Claim Node。没有高阶关系需要引用的普通简单关系仍可直接保存为 Assertion。
+`claim` 是通用知识组中的普通叶类型，沿用 Node 身份、属性、来源和 Evidence 规则，不拥有专属载荷、表或 Evidence 模型；文中的 Claim ID 只是普通 Node ID。`fact`、`belief` 等词不构成额外 Node 类型或存储层。可复用命题可按需要表示为普通 `claim` Node，并通过已注册 Assertion 表达其关系、条件和立场；没有独立引用需求的简单关系仍可直接保存为 Assertion。
 
 初始化/重置/重新播种执行、抽取任务、进度、失败及执行审计记录，都属于对应工作流或运行控制记录的所有者。
-它们不是语义 Node、Assertion 或 Episode，不进入图遍历和 Recall。Memory 只可保留自身写入流程所必需、有界且
-不可召回的检查点、租约和幂等收据。
+它们不是语义 Node、Assertion 或 Episode，不进入图遍历和 Recall。尤其不存在 `technical` 类型组或
+`genesis_commit_receipt` Node 类型；Memory 只可保留自身写入流程所必需、有界且不可召回的检查点、租约和幂等收据。
 
-自我模型不是第六个 Node 类型组，也不持久化 `self_model` Node。本设计确定：有来源的自我立场 Assertion
-直接以现有 Elfie Node 为主体，不另建独立的“虚拟我”Node。自我模型是这些 Assertion 及其引用的 Claim Node
-或其他已注册语义 Node 派生出的视图。视图属于 Elfie 的认知视角；筛选依据是注册的立场谓词，必要时再使用
-Assertion 的视角/上下文，而不是 Elfie Node 的全部邻接边，因此不会把社交关系带进自我模型。使用 Elfie Node
-作为图关系主体，不等于把实体个体、不可变 Profile 和被建模的自我理解当成同一概念。只有当“虚拟的我”必须在
-其他命题或关系中作为可寻址对象时，才重新评估独立端点，并为它与 Elfie 定义显式语义关系。
+自我模型是第一阶段的第六个切片，但不是第六个 Node 类型组，也不创建 `self_model` Node。它是同一图谱上按边选取的投影：先选出现有 Elfie Node 为主语的带来源出边，且谓词只能是 `believes`、`doubts`、`rejects`、`prefers`、`values`、`has_goal`、`has_trait`、`has_skill` 或 `has_habit`；收集 Elfie 锚点及这些 Assertion 两端的所有 Node；随后保留端点都在该节点集合内的全部带来源、已注册 Assertion。不得递归加入更多 Node。这样会带入相关的知识点间关系，但不会把所有连到 Elfie 的社交边带进来。切片仍以现有 Elfie Node 为锚点；当前设计不创建虚拟我 Node。生成 Memory 自我模型视图属于第一阶段；基于该视图更新 Selfhood、Orientation 或其他所有者，是另一个未来能力，本设计暂不包含。
 
-Node 具有稳定身份、规范 `node_type`、唯一注册主切片、域派生类型元数据、规范名称、作用域、状态、
-`importance`、`retention_profile`、`half_life_days`、`confidence` 和有界结构化属性。类型注册表是域、
-允许子类型、默认视图和来源要求的唯一权威；任意非空字符串都不能成为规范语义类型。别名、带来源描述和
-面向用户的属性都属于 Node 的可检索表面。外貌、性格、物种等描述 Node 自身的属性仍保持为属性，不会
-为了可检索而强行转成 Assertion。广义和具体概念通过 `part_of`、`subtype_of`、`generalizes` 等类型关系
-连接。不把每个词都拆成 Node；只规范化可复用语义单元，完整措辞仍保留在描述或 Episode 中。
+Node 具有稳定身份、规范 `node_type`、注册表派生的 `type_group`、规范名称、作用域、身份解析状态、独立的生命周期状态和有界结构化属性。类型注册表是类型组、允许类型、属性、端点用途和来源要求的唯一权威；任意非空字符串都不能成为规范语义类型。身份解析状态与 Memory 生命周期分离：提及可以是 resolved/ambiguous/unresolved，已存 Node 可以是 candidate/canonical；生命周期为 active/archived/forgotten。别名、带来源描述和面向用户的属性都属于 Node 的可检索表面。外貌、性格、物种等描述 Node 自身的属性仍保持为属性，不会为了可检索而强行转成 Assertion。广义和具体概念通过 `part_of`、`subtype_of`、`generalizes` 等类型关系连接。不把每个词都拆成 Node；只规范化可复用语义单元，完整措辞仍保留在描述或 Episode 中。
 
-可复用知识 Node 的规范名称是有原文依据的短标题（最多 40 个字符）。Claim Node 自身拥有类型化命题载荷，
-包含规范化主语、谓词、宾语/值、适用条件和作用域/时间限定；标题或普通描述本身不能代替命题。若载荷引用
-规范 Node，该引用是 Claim 内容中的类型化组成部分，不是可遍历的图边。为显示生成的主语-谓词-宾语边只是该载荷
-的投影，不能再持久化一条重复的 Assertion。普通一次性措辞继续通过来源 Episode 检索，本地确定性回退提取器
-不会把它提升成 Claim Node。
+可复用知识 Node 的规范名称应有原文依据并保持简洁。`claim` Node 与其他知识 Node 一样，使用普通标签、描述、属性和来源规则；它没有规范化三元组等专属载荷。Node 间引用通过已注册 Assertion 表达，不在 Node 内容中另设隐藏端点。普通一次性措辞继续通过来源 Episode 检索，本地确定性回退提取器不会仅因一段文字就把它提升为可复用知识 Node。
 
-物理存储仍只有一套 `nodes`/`assertions`/`evidence` 基础。各领域切片都是这套基础上的只读投影。Claim Node
-使用同一 Node 身份空间，可以成为普通 Assertion 的对象，例如 `Elfie --believes--> Claim`。每个 Node 和
-Assertion 都必须从自身来源 Evidence 追溯到 Episode 或批准的 Genesis 输入。当前精灵这样的展示锚点只能引用
-真实 `elfie` Node，不能再生成第二个来源记录。
+物理语义存储仍只有一套 `nodes`/`assertions`/`evidence` 基础。`claim` 是通用知识组里的普通 Node 类型，不是独立实体、专属载荷或语义层；六个切片都是这套基础上的只读投影。它可以成为普通已注册 Assertion 的端点，例如 `Elfie --believes--> claim Node`。所有类型共用同一 Node 身份和来源契约；当前精灵这样的展示锚点只能引用现有 `elfie` Node，不能再生成第二个来源记录。
 
 #### 2.2.1.1 类型化属性与存储归属
 
@@ -196,36 +175,34 @@ Assertion 有稳定记录 ID，可以包含 Node 或带类型字面量作为对�
 上下文、有效期、冲突组、`importance`、`retention_profile`、`half_life_days` 和 `confidence`。在当前
 Node 到 Node 的关系形式中，Assertion 不是另一条边的端点。
 
-当命题本身必须成为其他关系的目标时，将其内容表示为一等 `claim` Node。例如：
+当一条可复用命题需要独立寻址，或需要成为其他关系的端点时，可以使用普通 `claim` Node。例如：
 
 ```text
-Claim C42：努力 --在条件 C 下--> 提高达成结果的可能性
-Elfie --believes（坚信程度=强）--> Claim C42
+Node C42（`node_type=claim`）：努力可以提高结果达成的可能性
+Elfie --believes（`conviction=strong`）--> Node C42
 ```
 
-`Claim C42` 是可以被相信、怀疑、支持、反驳或推导关系指向的点；`believes` 才是 Assertion 边。Claim
-身份和类型化命题载荷以 Claim Node 为唯一权威。为显示其主语-谓词-宾语内容而绘制的简洁关系边是派生视图，
-不能再保存一条重复的 active Assertion。命题内容的 Evidence 与“Elfie 持有此立场”的 Assertion Evidence
-分开：证明 Elfie 相信某事，不等于证明命题为真。坚信程度、Claim 的命题可信度、以及提取出该立场的 Assertion
-可信度三者各自独立。
+Node C42 是可以被其他已注册关系引用的普通知识 Node；`believes` 是连接两个 Node 的普通 Assertion。Node 内容不以专属命题载荷保存，关系也不复制为隐藏内容边。`conviction` 可以是 `believes` 谓词允许的限定信息；Assertion 的 `confidence` 表示这条带来源关系本身的证据支持，而不是主体的坚信程度或命题真值。模型/抽取 confidence 是临时提案信号，不是持久语义分数。Node 身份 confidence 属于解析时使用的具体别名/描述/提及观测，不属于规范 Node。
 
-对于社会关系亲密度、信任度等领域专属程度，使用带类型的 Assertion 限定信息；`importance` 是召回和维护使用
-的默认边显著性。没有某条关系表示“尚未记录”，不表示“明确为假”。
+对于社会关系亲密度、信任度等领域专属程度，使用带类型的 Assertion 限定信息。`importance` 是静态准入元数据，
+注册的准入/生命周期规则可以读取，但不用于 Recall 排序。没有某条关系表示“尚未记录”，不表示“明确为假”。
 
 #### 2.2.2.1 关系注册表、方向和并存
 
-核心类型组、Node 类型、谓词、端点约束、方向、对称/逆关系、限定信息和来源要求由经过评审、带版本的 YAML 注册表定义。Infrastructure 加载随包发布的核心注册表，并注入不可变的类型化视图；领域代码不直接读取 YAML。数据库扩展层可以在不修改核心文件的情况下添加有明确作用域的类型或谓词，但不能覆盖核心含义。每条扩展记录都要声明所属作用域、状态（`candidate`、`active` 或 `deprecated`）、端点约束、方向/对称性、必需限定信息、来源策略和注册表修订号；只有 `active` 项可用于规范化写入。Node 类型比谓词更严格，因为它还会改变筛选、属性和投影。稳定扩展只能通过评审后的 YAML 版本升级进入核心。出现频率本身不构成晋升理由：重复实例强化的是数据；只有出现了明确、可复用的新语义才值得新增类型或谓词。
+核心类型组、叶子 Node 类型、Episode 经历类型、谓词、端点约束、方向、对称/逆关系、类型化限定信息和来源要求由经过评审、带版本的 YAML 注册表定义（初始目标：`config/memory/ontology.yaml`）。第 2.2.1 和 2.2.2.1 节列出的类型组与词汇是首阶段注册表种子，不允许模型生成未注册值。Infrastructure 加载并校验它，再注入不可变的类型化快照；领域代码不直接读取 YAML。后续可由一个全局共享的数据库扩展注册表增加 `candidate`、`active` 或 `deprecated` 类型/谓词；它在同一产品数据根下由所有 Elfie 和工作区共用，不按 Elfie 或工作区分片，也不复制到各自的 `knowledge.sqlite`。Candidate 不能写成规范事实，扩展不能覆盖核心含义，active 项必须通过相同端点、方向、限定信息和来源校验。动态注册是受控的全局词汇扩展，不是模型自行注册。Node 类型比谓词更严格，因为它还会改变筛选、属性和投影。稳定扩展只能通过评审后的 YAML/版本升级进入核心。注册表新版本不能静默改变既有键的含义；语义改变必须使用新键或明确评审的重分类规则。出现频率本身不构成晋升理由：重复实例只是数据；只有明确、可复用的新语义才值得新增类型或谓词。
 
-语义关系只能使用注册表中的规范谓词。首批关系族如下：
+语义关系只能使用注册表中的规范谓词。下表仅列代表性示例；完整词汇和约束以 `config/memory/ontology.yaml` 为准：
 
 | 关系族 | 规范谓词 | 方向规则 |
 | --- | --- | --- |
-| 亲属 | `parent_of`、`child_of`、`sibling_of`、`grandparent_of`、`grandchild_of`、`aunt_uncle_of`、`niece_nephew_of`、`cousin_of`、`spouse_of`、`partner_of`、`kin_of` | 父母/子女、姻亲角色有方向并声明逆谓词；兄弟姐妹、堂表亲、粗粒度 `kin_of`、配偶/伴侣对称。时间变化的结合关系保留有效期。 |
-| 社交与角色 | `friend_of`、`classmate_of`、`colleague_of`、`neighbor_of`、`acquaintance_of`、`guardian_of`、`mentor_of`、`teacher_of`、`student_of`、`member_of`、`has_member` | 同辈关系对称；照料、教学、指导和成员归属有方向。 |
-| 实体 | `part_of`、`has_part`、`composed_of`、`made_from`、`derived_from`、`produced_by`、`used_for`、`uses`、`owns`、`owned_by` | 有方向，只在注册时声明逆谓词；不能从空间邻近推断组成、材料来源或用途。 |
-| 空间 | `contains`、`within`、`adjacent_to`、`reachable_from`、`reachable_to`、`located_in`、`route_to` | 包含和可达有方向；相邻对称。距离、通行时间、条件和路径选项是限定信息，不是 Node 类型。 |
-| 事件 | `participates_in`、`witnessed`、`learned_about`、`occurred_at`、`before`、`after`、`causes`、`helped`、`involves` | 有方向并受时间限定；参与者、目击者和获知者角色不同。 |
-| 知识与自我立场 | `subtype_of`、`contains`、`prerequisite_for`、`implies`、`supports`、`contradicts`、`derived_from`、`applies_when`、`believes`、`doubts`、`rejects`、`prefers`、`values`、`has_goal`、`has_trait`、`has_skill`、`has_habit` | 方向和端点类型显式注册。自我立场谓词指向 Claim 或已注册语义 Node；不能用泛化 `knows`/`about` 代替。 |
+| 亲属 | `parent_of`、`child_of`、`sibling_of`、`kin_of` | 方向、对称性和逆谓词逐项注册；粗粒度 `kin_of` 只用于来源没有说明具体亲属角色的情况。 |
+| 社交与角色 | `friend_of`、`classmate_of`、`colleague_of`、`neighbor_of`、`acquaintance_of`、`guardian_of`、`guarded_by`、`mentor_of`、`mentored_by`、`teacher_of`、`student_of`、`member_of`、`has_member` | 同辈关系按注册约束表达；照料、教学、指导和成员归属保留端点角色。 |
+| 实体 | `part_of`、`has_part`、`composed_of`、`made_from`、`produced_by`、`uses`、`used_for`、`owns`、`owned_by` | 有方向，只在注册时声明逆谓词；不能从空间邻近推断组成、材料来源或用途。 |
+| 空间地理 | `spatially_contains`、`within`、`adjacent_to`、`reachable_from`、`reachable_to`、`located_in`、`route_to` | 包含、位置、可达和路径有方向；相邻对称。距离、通行时间、路径 ID/备选路线和条件是空间 Assertion 上的类型化限定信息，不是 Node 类型。`spatially_contains` 用于 `cosmic_entity` 和 `place` 的空间层级，不与概念包含混淆。 |
+| 事件 | `participates_in`、`witnessed`、`learned_about`、`occurred_at`、`before`、`after`、`causes`、`caused_by`、`helped`、`involves` | 有方向并受时间限定；参与者、目击者和获知者角色不同。 |
+| 知识与自我立场 | `subtype_of`、`has_subtype`、`includes_concept`、`prerequisite_for`、`implies`、`supports`、`contradicts`、`derived_from`、`applies_when`、`believes`、`doubts`、`rejects`、`prefers`、`values`、`has_goal`、`has_trait`、`has_skill`、`has_habit` | 方向、允许的端点组/类型和来源要求显式注册。立场谓词可指向 `claim` 或其他已注册知识 Node；不能用泛化 `knows`/`about` 代替。这些注册立场 Assertion 是第一阶段自我模型切片的入口。 |
+
+注册表将方向定义为 subject → object，并为每个谓词声明允许的端点类型、对称行为或精确逆谓词。核心方向示例包括：`parent_of`（父→子）、`member_of`（成员→群体）、`part_of`（部件→整体）、`spatially_contains`（容器→被包含地点）、`reachable_to`/`route_to`（起点→终点）、`located_in`（实体→地点）、`occurred_at`（事件→地点）和 `believes`（主体→知识 Node）。反向表达只能来自显式注册的逆谓词或派生对称视图。`adjacent_to` 和 `contradicts` 对称。路径 Assertion 拥有类型化距离、预计通行时间、路径/备选路线标识和条件；普通时间筛选作用于 Episode 的发生时间，关系有效期仍是 Assertion 限定信息。
 
 普通二元关系持久化为一条 `(subject, predicate, object)` Assertion。对称关系只保存一条规范
 Assertion，从任一端都可遍历；反向页面视图是派生结果，不创建第二条事实。有方向的谓词只有在注册表
@@ -240,11 +217,11 @@ Assertion，从任一端都可遍历；反向页面视图是派生结果，不�
 
 #### 2.2.3 Evidence
 
-Evidence 是一级来源关联。它标识 Episode 或 `ApprovedSeedSource`、Episode 内的摘录/片段或
-可选的上游媒体定位、模态、捕获时间、说话者/视角和抽取运行。Evidence 可以支持或反驳 Claim 的命题内容，
-也可以记录某条自我立场 Assertion 的来源；二者语义不同，不能混为一谈。
+Evidence 是一级来源关联。它标识已持久化 Episode 和 Episode 内的摘录/片段（及可选的上游媒体定位）、模态、
+捕获时间、说话者/视角和抽取运行。Genesis Manifest 或 Seed 可以作为有界来源元数据，但在资料包删除后
+不能作为唯一来源目标。所有 Node 类型共用这一来源关联模型，不为 `claim` 建立独立 Evidence 所有权或解释规则。
 
-Claim 或 Assertion 都可以关联多条独立 Evidence；重复写入同一来源关联必须幂等。即使描述被压缩或模型提案被丢弃，Evidence 仍然保留。
+Assertion 可以关联多条独立 Evidence；重复写入同一来源关联必须幂等。即使描述被压缩或模型提案被丢弃，Evidence 仍然保留。
 
 #### 2.2.4 Aliases、Descriptions、Episode Mentions
 
@@ -254,60 +231,30 @@ Claim 或 Assertion 都可以关联多条独立 Evidence；重复写入同一来
 
 首版实现限制每个 Episode 的语义提及数量（默认 128 条）并报告溢出；已持久化的 Episode 正文不能被静默截断。
 
-#### 2.2.5 冲突、视角和 Claim Node
+#### 2.2.5 冲突、视角和知识 Node
 
-当命题的内容或作用域不同，相互矛盾或依赖视角的命题保留为不同 Claim Node，并用有来源的 `contradicts` 关系连接；同一个规范 Claim 上互相冲突的 Evidence 仍分别保留极性、认识状态、有效时间和视角。规范化只合并身份，不合并分歧。没有来源的 Claim 或 Assertion 都不能准入。具名的哲学立场可为可复用的 `viewpoint` Node；具体哲学陈述仍是通用知识切片中的 Claim，不另外创建“哲学”切片。
+当知识内容或作用域不同，相互矛盾或依赖视角的内容保留为不同普通知识 Node 或 Assertion，并按需用有来源的 `contradicts` 关系连接。规范化只合并身份，不合并分歧。所有类型都遵循同一来源准入规则。具名的哲学立场可为可复用的 `viewpoint` Node；具体陈述使用通用知识组中的相应叶类型，不另外创建“哲学”切片。
 
 ### 2.3 分数和生命周期状态
 
 #### 2.3.1 importance
 
-`importance`（`I`）表示 Episode、Node 或 Assertion 对精灵的持久语义重要性，范围为 `[0, 1]`。它不是鲜度、熟悉度、Evidence 数量或检索频率，自然时间永远不改变它。合格语义事件把 `I` 向策略拥有的目标 `T_I` 移动：
-
-```text
-raise 且 T_I > I：I' = I + eta * (T_I - I)
-lower 且 T_I < I：I' = I + eta * (T_I - I)
-```
-
-`memory.v3` 事件类别是普通 `routine` `(T_I=.35, eta=.10)`、有意义 `meaningful` `(.60, .20)`、重大 `major` `(.85, .35)` 和核心 `core` `(1.0, .50)`。可审计的重新评价使用普通降低 `(.30, .25)`、重大降低 `(.10, .50)` 或解除 `(0, 1)`。模型可以提出事件类别，但不能选择 `T_I` 或 `eta`。Node 与 Assertion 的重要性各自独立，不能沿图邻接传播。
-
-关系的 `importance` 是召回和维护时的显著性，不是真实性；事实支持质量仍由 `confidence`
-表示。关系写入先取得注册表的类型先验，再按有来源的证据强度、独立共同经历次数、最近性、
-持续时间、情绪/后果显著性和精灵明确纠正进行有界调整；低质量的重复共同出现不能把
-`neighbor_of` 变成 `friend_of`。可采用透明的初始权重：类型先验 `.35`、证据强度 `.25`、
-独立频次 `.15`、最近性 `.10`、持续时间/共同历史 `.10`、情绪/后果 `.05`，最终限制在
-`[0,1]`。Genesis 可以提供带来源的初始显著性，但仍须经过关系注册表。因此明确的朋友或
-童年玩伴可以排在普通邻居之前，同时两条关系都保留、分别有证据。
-
-更新按 `(event_id, target_kind, target_id)` 幂等。同一 ClosedEpisode 内同一目标、方向和类别的重复信号只结算一次。跨 Episode 时，提高和降低方向分别进入按事件时间排列、由窗口首个事件锚定的 24 小时窗口；每个方向/窗口只结算最高类别。相反方向仍是两次独立重估，并按事件时间折叠。收据保留来源、发生时间和策略版本；迟到事件按 `(occurred_at, event_id)` 重放，因此到达顺序不会改变结果。过期、长期未使用、召回失败和冲突 Evidence 都不会在缺少独立语义重估事件时降低 `importance`。
+`importance` 是附着于 Episode、Node 或 Assertion 的可选、有界来源准入显著性。它不是 confidence、真实性、鲜度或检索频率。第一阶段只允许显式带来源输入或固定注册表默认值；不根据使用/结果反馈增强，不做重复使用强化、24 小时分数折叠或沿图邻接传播。反馈驱动的更新策略延期到独立的后续设计。
 
 #### 2.3.2 Retention 与 freshness
 
-每个 Episode、Node 和 Assertion 都保存 `retention_profile`、`half_life_days`（`H > 0`）、`last_reinforced_at` 和 Retention 策略版本。`H` 是 freshness 从 `1` 降到 `.5` 所需时间，不是剩余天数；仅仅经过时间不会改变 `H`。当前 `freshness`（`F`）只派生、不持久化：
+每个 Episode、Node 和 Assertion 在准入时获得注册的 `retention_profile` 和策略拥有的 `half_life_days`（`H > 0`）。`H` 是 freshness 从 `1` 降到 `.5` 所需时间，不是剩余天数。使用、召回、结果或反馈都不会改变 `H` 和准入时间锚点。当前 `freshness`（`F`）只派生、不持久化：
 
 ```text
-t = max(0, now - last_reinforced_at)
+t = max(0, now - retention_anchor)
 F(t) = 2^(-t / H)
 ```
 
-因此 `F(0)=1`、`F(H)=.5`、`F(2H)=.25`。Memory 只拥有一套带版本的准入策略，根据记录种类、已注册的 Node 类型或 Assertion predicate、经授权的来源类别及有界显著性信号，解析出策略拥有的 `retention_profile` 和初始半衰期 `H0`；调用方和模型不能选择任意数值。初始 profile 为：短暂细节 `transient` `.5` 天、普通运行时 Episode `ordinary` `2` 天、显著 Episode `salient` `9` 天、可复用语义 Node/Assertion `semantic` `30` 天、Pattern/规律 `pattern` `60` 天、稳定人物/身份/长期关系 `stable_identity` `365` 天、经授权 Genesis `genesis` `3650` 天。event/context Node 以及 `involves`、`temporal`、`felt` 等情景 Assertion 跟随来源 Episode profile。同一记录种类同时命中多个条件时，按 `genesis > stable_identity > pattern > semantic > salient > ordinary > transient` 确定性选择。持久化最终 profile、策略版本和准入原因。强烈且有来源的情绪、感官或后果显著性可以把运行时 Episode 提升到 `salient`，但不能自动提高 importance 或 confidence。强化只改变 `H`，保留 profile 作为准入来源；带来源的重新学习才可以重新解析 profile 和 `H0`。所有经授权的 Genesis 记录都选择 `genesis`：其十年数值是半衰期（十年后 `F=.5`），不是归档截止期；归档和遗忘由 Lifecycle 独立决定。`H` 的全局上限为 `36500` 天。
-
-记录只有在产生带来源的合格结果或直接学习事件后才能强化：此前的准确使用被明确确认有用/正确、使用它的行动成功、一次隐藏来源的主动复习被独立验证成功，或新的独立 Evidence 通过正常 Consolidation 路径直接再次覆盖这条精确记录。失败检索后的权威重新呈现遵循下文单独的重学规则，不获得成功使用乘数。聊天回答仅仅完成不等于得到确认。候选生成、进入 RecallBundle/Prompt、图邻接、情绪/感官命中、维护、模型自称成功以及失败/拒绝/结果未知都不合格。强化公式在 `0 < F <= 1` 上连续，不含 Lifecycle 阈值。archived/forgotten 记录不能进入 Recall；只有新的权威来源 Evidence 才能重新学习未 forgotten 的归档记录，且不使用成功回忆乘数。一个唯一合格事件执行：
-
-```text
-difficulty = 1 - F
-multiplier = 1 + 2 * difficulty = 3 - 2F
-H' = min(36500, H * multiplier)
-last_reinforced_at = event.occurred_at
-```
-
-倍数在 `F=1` 时为 `1`，在半衰期 `F=.5` 时为 `2`，并在 `F` 趋近零时趋近硬上限 `3`。初版带版本的调度校准采用 `p_success(F)=F`，因此按成功率加权的相对收益是 `G(F)=p_success(F)*(multiplier-1)=2F(1-F)`，它在 `.5` 有唯一最大值 `G(.5)=.5`。所以半衰期是默认的高效复习目标，但不是强化资格的硬阈值。`G` 只是派生的调度/评测代理量，不持久化，也不参与第二次强化计算。后续可在新策略版本中用实测校准替换 `p_success`，但不得静默改写已存 `H`。Importance 可以决定稀缺主动复习机会优先给谁，但不能改变该公式或直接改变 `H`。
-
-更新按目标串行且幂等；合格的 active 记录恢复 freshness 为一。archived/forgotten 不进入 Recall；未 forgotten 的归档记录只能通过新的权威来源 Evidence 重新学习，不因成功 Recall 而激活。收据按事件时间重放；强化资格按 `event.occurred_at` 时的状态计算，因此维护时机不能改变结果。收据时间统一使用权威 UTC：超过有界未来时钟偏差的事件直接拒绝，小幅负读取时差钳制到零；缺少原始发生时间时不能用处理时间代替。失败召回且没有权威反馈时，`H` 和强化锚点都不变。失败召回后获得权威再暴露属于重新学习：写入新 Episode/Evidence，使用正常写侧身份解析器对 archived/forgotten 指纹做有界查找——不是普通 Recall，也不是第二个 Retriever——复用已解析的 Node/Assertion 身份，将 `H` 设为 `max(当前 H, 新解析 H0)` 并重置锚点，但不应用成功召回倍数。现实世界中重复发生的事件是新 Episode，不是改写旧 Episode。纠正走带来源的 Evidence/冲突路径，可以在降低 confidence 的同时恢复清晰度；superseded Assertion 必须有带来源的撤销才能重新激活，不能因为再次被提到就自动复活。
+因此 `F(0)=1`、`F(H)=.5`、`F(2H)=.25`。一套带版本的准入策略按记录种类、已注册 Node 类型或 Assertion predicate、来源类别和静态显著性，解析策略拥有的 profile 与半衰期；调用方和模型不能选择任意数值。Profile 可以区分短暂细节、普通/显著 Episode、可复用语义记录、稳定身份和授权 Genesis 数据。Pattern 专用 Retention 在 Pattern 生成能力实现前不启用。持久化最终 profile、策略版本和准入原因。Lifecycle 独立负责压缩、归档和遗忘；新的权威 Evidence 可以按独立验证的写侧规则重新解析未 forgotten 的归档身份，但 Recall 本身不能改变 Retention。反馈强化和自适应调度延期。
 
 #### 2.3.3 confidence
 
-`confidence`（`C`）只存在于 Node 和 Assertion。Node 的值表示身份解析可靠性，Assertion 的值表示命题可靠性。Episode 保留明确的归因和来源，但没有 confidence 分数。时间、重要性、召回和 Retention 强化都不改变 `C`。
+规范 Node 不持久化通用 confidence 标量。身份解析 confidence 属于具体来源观测（提及、别名或描述），只用于解析该观测；未解析/candidate 不是 Node 生命周期状态。Assertion 的 `confidence`（`C`）是支持这条精确关系记录的 Evidence 派生值，不是主体相信程度或命题真值。`believes` 上的 `conviction` 限定信息表示主体多大程度持有该立场。模型/抽取 confidence 是临时信号，不能持久化为语义事实。Episode 也没有 confidence 分数。
 
 策略依据完整的唯一 Evidence 集合重算 `C`，而不是按到达顺序增减：
 
@@ -316,17 +263,17 @@ C = (prior_weight * initial_confidence + sum(support_weight))
     / (prior_weight + sum(support_weight) + sum(conflict_weight))
 ```
 
-Evidence 权重来自带版本的来源策略；重复 ID 不计数。相关来源共享 `independence_key`，同一个 `(independence_key, stance)` 组只采用最高来源权重，而支持和冲突仍是不同立场；`context` Evidence 不改变 `C`。Assertion confidence 使用自身 `assertion_evidence`；Node confidence 使用别名、描述和提及所关联的唯一、有来源身份观测，永远不接收相邻 Assertion 传播来的分数。纠正时保留旧的低可信/superseded Assertion，创建修正后的 Assertion 并连接历史。新冲突 Evidence 可以在强化 Retention 的同时降低 confidence；清楚记得旧信念不等于它是真的。
+Evidence 权重来自带版本的来源策略；重复 ID 不计数。相关来源共享 `independence_key`，同一个 `(independence_key, stance)` 组只采用最高来源权重，而支持和冲突仍是不同立场；`context` Evidence 不改变 `C`。Assertion 支持 confidence 使用自己的 `assertion_evidence`，不会沿相邻 Assertion 传播。身份观测 confidence 保留在解析用的具体别名、描述或提及上。纠正时保留旧 Assertion 及其 Evidence，并增加有来源的新版本/冲突关系；记得过去信念不等于它为真。
 
-每个 Node/Assertion 的带来源准入会建立不可变的 `initial_confidence`、`prior_weight` 和 confidence 策略版本元数据；它们只是重放输入，不是额外动态分数。创建来源已经由该先验表示，不能再次进入 support 总和。Genesis 可以提供经过批准的初始 confidence；普通运行时准入的先验由固定来源可靠性类别给出，模型不能提交任意浮点值。策略升级必须显式带版本重算，不能在重开数据库时静默改分。
+每条 Assertion 的带来源准入会建立不可变的 `initial_confidence`、`prior_weight` 和 confidence 策略版本元数据；它们只是重放输入，不是额外动态分数。创建来源已经由该先验表示，不能再次进入 support 总和。普通运行时先验由固定来源可靠性类别给出，模型不能提交任意浮点值。策略升级必须显式带版本重算，不能在重开数据库时静默改分。
 
 #### 2.3.4 Lifecycle eligibility（不新增分数）
 
-时间和 `H` 产生 `F`，`F` 驱动 Lifecycle eligibility。带版本的 Lifecycle 策略独占压缩、归档和遗忘阈值；强化不含这些阈值，Recall 只消费生命周期状态，不重新定义阈值。Lifecycle 不降低 `F`，也不改变 `I`、`H` 或 `C`。子级别名、描述和提及跟随父记录/来源依赖。设计不持久化 freshness 或综合召回分数。
+时间与固定准入半衰期产生 `F`，`F` 驱动 Lifecycle eligibility。带版本的 Lifecycle 策略独占压缩、归档和遗忘阈值；Lifecycle 不改变 importance、confidence 或 Retention 时间锚点。子级别名、描述和提及跟随父记录/来源依赖。Recall 使用显式筛选、确定性的内容/图谱匹配和稳定决胜；第一阶段不按 `importance`、类型先验、来源历史、freshness、confidence、反馈或综合分数排序。Freshness 和 rank 不持久化。
 
 #### 2.3.5 detail level
 
-`detail_level` 只表示 Episode 内容细度：`full`、`compressed` 或 `digest`。Episode 的 `lifecycle` 表示 `active`、`archived` 或 `forgotten`。归档是状态转换，不是第四种内容细度；归档的 Episode 仍可保留 full、compressed 或 digest 表示。Assertion lifecycle 可以是 `active`、`superseded`、`archived` 或 `forgotten`，但维护不能删除它的最后可审计 Evidence。历史 `life_stage` 表示经历发生时精灵所处的成长阶段；`temporal_label` 表示相对时期（例如 `before_arrival`）。二者都不是 `Lifecycle Stage`、`lifecycle` 或 `detail_level`。对 Node 而言，身份可用性由 `status` 和合并状态控制；维护可以归档低鲜度 Node，但不能改变它的重要性，也不能删除仍被 Assertion 引用的规范 Node。
+`detail_level` 只表示 Episode 内容细度：`full`、`compressed` 或 `digest`。Episode 和 Node 的 `lifecycle` 表示 `active`、`archived` 或 `forgotten`；Assertion lifecycle 还可以是 `superseded`。身份解析是独立轴：提及可为 `resolved`、`ambiguous` 或 `unresolved`，已存 Node 可为 `candidate` 或 `canonical`。合并 Node 保留显式合并目标，不用生命周期值表示。归档是状态转换，不是内容细度；归档 Episode 仍可保留 full、compressed 或 digest。维护不能删除活跃语义事实的最后可审计 Evidence，或删除仍被 Assertion 引用的规范 Node。
 
 ## 3. 运行流程
 
@@ -341,7 +288,7 @@ Workspace 闭合 ClosedEpisode ── 捕获事务 ──► 完整 Episode + �
                                                ▼
                                         Memory Maintenance
                                         ├─ Consolidation Stage
-                                        │  Episode ► 图谱投影 + 分数更新
+                                        │  Episode ► 类型化图谱投影
                                         └─ Lifecycle Stage
                                            到期记录 ► freshness 驱动的细节/生命周期策略
 
@@ -352,17 +299,17 @@ Genesis 是一次性的侧入口。普通路径不会从不完整事件写入图
 
 ### 3.1 Genesis 初始化
 
-`ApprovedSeedSource` 是创建期不可变、有版本并带哈希的值。临时 `GenesisMemorySubmission` 只接收三类种子：`KnowledgeSeed[]`（已掌握的世界/知识，每条都物化为完整来源 Episode）、`EpisodeSeed[]`（个体过去，每条都物化为完整 Episode）和 `RelationshipSeed[]`（关联 Episode 或创建 Evidence 的类型化关系 Assertion）。不存在第四类传记或关系记忆：传记就是 Episode 的物化，关系就是有明确来源的 RelationshipSeed 投影。领养初始化必须为主人建立独立的 `person` Node；“领养家庭”是可并存的 `group` Node，不能用别名代替主人或把家庭标成 `person`。知识和经历派生的 Node/Assertion 延后到 Consolidation；身份和关系骨架因为是明确的创建输入，可以直接提交。最终输出带 Memory 自有创建 Evidence，不带资料包绑定或重放 Seed。
+`ApprovedSeedSource` 是创建期不可变、有版本并带哈希的值。临时 `GenesisMemorySubmission` 只接收三类种子：`KnowledgeSeed[]`、`EpisodeSeed[]` 和 `RelationshipSeed[]`。每条 Seed 的语义内容都物化成完整、持久的来源 Episode；关系 Assertion 可以根据明确创建输入直接提交，但其 Evidence 必须指向该 Episode 及来源片段。Episode 记录的是被播种的内容，不是初始化/重置操作或作业回执。经历类型和发生时间只有在内容支持时才填写；否则使用注册的 `unclassified` 和未知时间。不存在第四类传记或关系记忆：传记由 Episode 表达，关系由有明确来源的 RelationshipSeed 投影表达。领养初始化必须为主人建立独立的 `person` Node；“领养家庭”是可并存的 `group` Node，不能用别名代替主人或把家庭标成 `person`。知识和经历派生的 Node/Assertion 延后到 Consolidation；身份和关系骨架因为是明确的创建输入，可以直接提交。最终输出带 Episode-backed Evidence，不依赖已删除的资料包绑定或重放 Seed。
 
 Genesis 使用“单次提交”完成合同。一次 Genesis submission 是调用方交给 Memory、准备在一次原子提交中写入的完整、不可变 Memory 输出集合。Genesis 可以调用 Memory 任意多次；提交次数、大小、顺序、分组、调度以及这些提交代表核心知识还是扩展知识、前台还是夜间任务，都由 Genesis 决定，Memory 不负责决定。即使多个 submission 属于同一次更高层 Genesis 操作，每个 submission 也必须有自己的稳定提交/幂等身份和内容哈希。
 
 对于一次有效 submission，所有预期的权威记录和子记录——身份/关系 Node 与 Assertion、来源 Episode、创建 Evidence——以及本次 submission 的完成标记，必须作为一个完整单元持久化并可见。知识和经历派生的图谱投影有意不在创建原子集合内，而由后续可重试的 Consolidation 产生。原子性就是“只接受当前提交”：写入前完成校验；Unit of Work 要么提交所有输出和标记，要么一个都不提交。失败调用只能返回失败或可重试结果，绝不能返回 `committed`。相同 submission 身份和哈希重放必须幂等；同一身份换用不同哈希必须拒绝。后续 submission 失败不能回滚先前已经成功提交的 submission。
 
-Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只在仍未发布的创建工作区内暴露已完成 submission，最终工作区是否可见由 App admission 决定；Memory 不报告整个 Genesis 操作是否完成。已提交 Elfie 不提供 Genesis 重新初始化入口；获批迁移或真实学习事件只能操作最终 owner 状态。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 接受显式的 Episode/Node/Assertion 初始 `importance` 和 Node/Assertion `confidence`；它的授权准入统一选择 `genesis` profile，使 Genesis 产生的每条语义记录都获得 `retention_profile=genesis` 和 `half_life_days=3650`。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
+Genesis 调用方负责批次划分、顺序、重试时机以及何时发布领养结果。Memory 只在仍未发布的创建工作区内暴露已完成 submission，最终工作区是否可见由 App admission 决定；Memory 不报告整个 Genesis 操作是否完成。已提交 Elfie 不提供 Genesis 重新初始化入口；获批迁移或真实学习事件只能操作最终 owner 状态。跨所有者领养发布由其自身契约定义，本文不假装存在跨存储的单一事务。Genesis 只接受带来源的初始 `importance` 和注册保留策略；不接受 Node 总体 confidence 或模型任意 confidence。其授权准入统一选择 `genesis` profile，使 Genesis 产生的每条语义记录都获得 `retention_profile=genesis` 和 `half_life_days=3650`。它不模拟对话，也不靠情绪强度制造重要性。普通运行时调用方禁止直接投影图谱。
 
 Genesis 对每只 Elfie 的准入按串行方式执行。完成标记是 Genesis 行的唯一可见性闸门：标记出现前，读取和维护都不能使用该 submission 的任何行。Genesis 可以接受只包含部分批准种子类别的一次完整 submission，不要求每次 submission 都包含所有种子类别，也不会推断调用方的批次策略。
 
-最终创建成功提交或终止失败后，`ApprovedSeedSource`、submission Payload、资料包绑定和生成 Seed 全部删除。Memory 数据库只保留最终 Episode、Node、Assertion、Evidence，以及自身原子合同所需的最小 submission 完成/幂等标记；该标记不能重建 submission，也绝不进入 Recall。
+最终创建成功提交或终止失败后，`ApprovedSeedSource`、submission Payload、资料包绑定和生成 Seed 全部删除。Memory 数据库只保留最终 Episode、Node、Assertion、Evidence，以及自身原子合同所需的最小 submission 完成/幂等标记；该标记不能重建 submission，也绝不进入 Recall。它是运行审计状态，不是 Node、Assertion 或 Episode。
 
 Genesis 不会把提交或初始化流程本身变成 Episode 经历。种子来源保留在来源引用/Evidence 中，经历类型描述
 被学习或实际发生的内容；只有来源能支持时才写入取得/发生时间。Bundle 创建时间和提交时间是运行时间戳，
@@ -382,14 +329,14 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 
 #### 3.3.1 Consolidation Stage
 
-处理 Maintenance 运行状态中、针对当前来源版本/内容哈希尚无成功回执（包括之前尝试失败）的完整 Episode。Consolidation 有六个逻辑提取职责：五个领域提取器（社会关系、实体、空间、事件、通用知识），加一个自我模型投影器。共享的跨切片整合与关系提取负责连接各模块输出；它们仍属于同一个 Consolidation 阶段，不是新的 Memory 所有者、数据库，也不要求拆成独立模型调用。
+处理 Maintenance 运行状态中、针对当前来源版本/内容哈希尚无成功回执（包括之前尝试失败）的完整 Episode。第一阶段依次运行六个切片投影，再执行独立的跨组关系提取。前五个是节点优先的领域投影，对应五个注册类型组：社会关系、实体、空间地理、事件和通用知识。第六个是边优先的自我模型切片：以已注册的立场谓词选出 Assertion，再取其涉及的 Node，并保留这些 Node 之间的全部边。最后的跨组关系处理连接主类型组不同的已选 Node。它们都属于同一个 Consolidation 阶段，不是新的 Memory 所有者或数据库，也不要求拆成独立模型调用。自我模型切片属于第一阶段；基于其结果更新 Selfhood/Orientation 或其他所有者才是未来能力。事件提取只为有来源、可独立指称的事件建立 `event` Node；不为每条 Episode 或执行过程建立事件 Node。
 
-1. 各领域提取器只识别本切片中重要/可复用的 Node、有明确来源的关系和可复用知识；其他措辞留在 Episode 或未解析提及中。
-2. 共享解析器跨切片规范化身份、别名和共指，然后校验端点类型、注册谓词和来源 Evidence。它可以提取来源明确的跨切片关系，但不能从共同出现推断关系或编造事实。
-3. 自我模型投影器先选出属于该 Elfie 认知视角、且有来源的立场 Assertion（例如 `believes`、`prefers`、`values`、`has_goal`、`has_trait`），再纳入这些边所指向的 Claim/语义 Node，以及解释这些立场所必需且有界的 Claim 间关系、条件和 Evidence。它不抓取所有邻接边，不创建 `self_model` Node，也不添加泛化的 `knows`/`about` 边。带 Evidence 的结果分别作为 Selfhood 和 Orientation 的更新提案交给各自所有者；两者独立决定是否及如何更新。Memory 不直接写入任一所有者的状态。
-4. 合并相容 Assertion，保留独立 Evidence；表达分歧时不合并内容或视角不同的 Claim。
-5. 根据唯一 Evidence 重算 Node/Assertion `confidence`，只产生合格且有来源的 importance 事件，并且只强化被新独立 Evidence 直接再次涉及的准确记录。
-6. 使用现有 Consolidation Unit of Work 一次提交所有校验通过的输出，并在 Maintenance 运行回执中记录来源/投影修订号和注册表修订号，键为 Episode ID、来源版本和内容哈希；不能写到 Episode 事实行。可选的跨切片统计只是派生诊断，不创建 Node 或 Assertion。
+1. 五个领域投影先选出重要/可复用的规范 Node。完成规范化后，保留图谱中该切片选中 Node 集合内部所有两端均为这些 Node、且有来源并通过注册校验的 Assertion，包括已有边和跨组边；不得再按谓词族做第二轮过滤，把已选 Node 之间的有效边丢掉。带类型字面量的属性 Assertion 按其注册属性/来源规则处理，不视为两个 Node 之间的边。
+2. 自我模型投影先选出现有 Elfie Node 为主语、且谓词属于上述九种注册自我立场关系的带来源出边；再选入 Elfie 锚点和这些 Assertion 的 Node 端点，并保留图谱中该集合内部所有带来源、已注册的 Assertion。不能递归扩展新 Node，也不创建虚拟我 Node。
+3. 共享解析器跨六个切片规范化 Node 身份、别名和共指，然后校验端点类型、注册谓词和来源 Evidence。最后的跨组步骤提取并校验主类型组不同的已选 Node 之间所有有明确来源的关系；不能从共同出现推断关系，也不能编造 Node。
+4. 只合并相同的规范事实并汇总各自 Evidence；不同谓词、方向、时间、作用域、视角以及相互冲突的 Claim/Assertion 都要保留。
+5. 根据唯一 Evidence 派生 Assertion 支持度；信念 conviction 保留在注册的 `believes` 限定信息中。不重算 Node 总体 confidence，也不产生反馈驱动的 importance/Retention 事件。
+6. 使用现有 Consolidation Unit of Work 一次提交所有校验通过的输出，并在 Maintenance 运行回执中记录来源/投影修订号和全局注册表修订号，键为 Episode ID、来源版本和内容哈希；不能写到 Episode 事实行。跨组关系结果是持久 Assertion，不只是统计。
 
 谓词来自有版本的词汇表。未知谓词在校验前只能保持为未解析候选，不能静默提升为事实。仅
 共同出现不能成为关系。局部属性保留为 Node 属性或类型化字面量，只有具有独立复用价值时才
@@ -399,7 +346,7 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 
 #### 3.3.2 Lifecycle Stage
 
-对任何 `lifecycle` 为 active 的 Episode/Assertion，或 `status` 为 active 且没有规范合并目标的 Node，只要派生 freshness 到达阈值，就执行第 6.3 节带版本的转换，不受捕获日期限制，并且不修改 `importance`、`retention_profile`、`half_life_days`、`confidence` 或 `last_reinforced_at`。这些阈值是 Lifecycle 运行参数，不是强化或 Recall 常量。
+对任何 active Episode、Node 或 Assertion，只要派生 freshness 到达阈值，就执行第 6.3 节带版本的转换，并且不修改 `importance`、`retention_profile`、`half_life_days` 或 Evidence。Node 身份解析状态和 `merged_into` 都不是生命周期状态。这些阈值是 Lifecycle 运行参数，不是反馈或 Recall 常量。
 
 当前来源版本没有成功投影的 Episode 必须保留足够完整来源。自动遗忘只做逻辑标记并保留最小 digest、哈希和来源链；物理删除不属于 `memory.v3`。低 confidence 不是删除理由。旧记录由计算出的 `next_review_at` 发现，单条不安全目标不会阻塞其他有界记录。
 
@@ -416,10 +363,10 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 
 #### 3.4.2 Local / Graph Search
 
-从文本命中或提供的 Node/Claim ID 开始，沿有界的带类型路径扩展到相关人物、地点、概念、
+从文本命中或提供的 Node ID（Claim 也使用其 Node ID）开始，沿有界的带类型路径扩展到相关人物、地点、概念、
 情绪、事件和相关 Episode。遍历维护已访问集合，同一路径不重复访问同一 Node，并返回明确
 路径；跳数、邻居数和结果数都是硬上限。人物、时间、地点、历史情绪、主题和原因条件只约束
-或排序同一批候选。
+同一批候选，不引入反馈学习排序。
 
 #### 3.4.3 Global Search（后续能力）
 
@@ -429,13 +376,11 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 #### 3.4.4 RecallBundle
 
 最小路径是 Basic/Text → Episode 和/或 Node–Assertion 候选 → 有界 Local/Graph 扩展 → 在需要
-完整语境时选择 Episode/Evidence。排序前先执行隐私和 namespace 过滤。普通 Recall 只返回
-active 记录；archived 和 forgotten 记录均不是 Recall 候选，即使查询明确要求历史文本或精确 ID 也不例外。
-单独、显式的维护/审计检查不属于 Recall，也不能把这些记录放入 `RecallBundle`。查询相关性 `R` 综合
-文本/语义匹配、图路径及请求的时间/facet；Memory 再派生 `A=.65F+.35I`。合格的 Node/Assertion 使用
-`R*A*(.25+.75C)`，active Episode 使用 `R*A`；superseded/冲突 Assertion 进入独立的 `R*A` 通道，
-避免低 confidence 隐藏历史。各记录类型有自己的有界配额和稳定 ID 决胜规则；`H` 已经决定 `F`，不能重复计分。
-单纯命中不构成强化；归档记录只能通过 Lifecycle 规则下新的权威来源 Evidence 重新学习，Recall 本身不能重新激活或强化。
+完整语境时选择 Episode/Evidence。排序/选取前先执行隐私和 namespace 过滤。普通 Recall 只返回
+active 记录；archived 和 forgotten 记录均不是候选，即使查询明确要求历史文本或精确 ID 也不例外。
+单独、显式的维护/审计检查不属于 Recall，也不能把这些记录放入 `RecallBundle`。匹配使用确定性的
+词法/图谱相关性、显式类型组/叶类型和 Episode 时间筛选、有界分类型结果数及稳定 ID 决胜规则；
+不按显著性、类型先验或来源历史排序。Recall 不会强化或修改记录。
 
 ### 3.5 延期的 Memory Abstraction Loop
 
@@ -465,7 +410,7 @@ Node + Assertion → 夜间图上聚合 → 模型提案 + 确定性校验
 
 ### 4.2 Recall
 
-`RecallRequest` 可以指定文本、种子 Node/Claim ID、节点类型、关系白名单、时间范围、人物/地点/历史情绪/主题/原因条件、检索模式和数量限制；不能携带 SQL 或图查询语言。
+`RecallRequest` 可以指定文本、种子 Node ID（Claim 也使用其 Node ID）、类型组、叶子 Node 类型、关系白名单、Episode 发生时间范围、人物/地点/历史情绪/主题/原因条件、检索模式和数量限制。时间范围筛 Episode 的有来源发生时间（并显式处理未知时间），不筛没有发生时间概念的 Node；关系自身有效区间作为 Assertion 限定信息筛选。Node 类型组和叶子类型是主要类型过滤条件；不能携带 SQL 或图查询语言。
 
 Memory Port 绑定单只 Elfie 的命名空间；请求不能扩大这个作用域。
 
@@ -475,8 +420,8 @@ Memory Port 绑定单只 Elfie 的命名空间；请求不能扩大这个作用�
 
 ```text
 RecallBundle {
-  focus_nodes: [{id, type, label, description, relevance,
-                 importance, freshness, confidence}],
+  focus_nodes: [{id, type_group, type, label, description, relevance,
+                 importance, freshness}],
   assertions: [{id, subject, predicate, object, qualifiers, status,
                 relevance, importance, freshness, confidence, evidence_ids}],
   paths: [{node_ids, assertion_ids, hop_count}],
@@ -492,13 +437,9 @@ RecallBundle {
 Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程，
 使用它的上层负责组织叙述。Recall 不需要返回上游原始聊天或媒体。
 
-### 4.3 合格使用与结果反馈
+### 4.3 延期的反馈与自适应排序
 
-已完成的回答、行动或叙事首先只能记录有界使用提案，其中包含发生时间、准确 Memory 记录 ID，以及这些记录所支撑的 claim/行动/叙事片段。模型返回的引用只是提案：确定性代码只接受本轮实际提供、绑定同一 Elfie 命名空间和 Recall context revision 的 ID，并限制每个结果的数量。使用提案不是强化事件。
-
-只有出现权威结果后才能发出类型化强化收据：用户明确确认、确定性行动成功、主动复习完成或新的独立 Evidence。收据包含稳定事件 ID、原始使用/复习发生时间、准确目标、结果种类以及持久结果/来源引用。模型不能证明自己的成功。拒绝、失败或结果未知不产生通用强化；纠正可以改为产生冲突 Evidence。
-
-权威结果必须先提交，再投递反馈。Memory 原子且幂等地消费收据；稳定事件 ID 保证结果存储与 Memory 之间崩溃后可以重试而不会重复强化。收据只强化准确的已接受目标，永远不强化图邻居。
+第一阶段不接收使用/结果反馈收据，不根据反馈增强 importance/Retention，不学习自适应排序公式，也不按 importance、类型先验、来源历史、freshness、confidence 或综合分数给 Recall 排序。反馈采集、结果权威、耐久收据投递、自适应调度与排序留给单独的后续设计。普通确定性文本/图谱相关性、显式筛选、Lifecycle 准入和稳定决胜仍受支持；它们不是排序学习或反馈学习。
 
 ### 4.4 Memory Maintenance
 
@@ -516,31 +457,29 @@ Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整�
 
 ### 5.1 持久事实表与运行控制表
 
-SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只 Elfie 的命名空间，调用方不能查询其他 Elfie 的行。下表同时包含语义事实表，以及明确标注的运行控制/注册表状态；只有语义事实行构成被记住的图谱和来源权威。JSON 列只存有界元数据，不能隐藏图边或来源链。
+SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只 Elfie 的命名空间，调用方不能查询其他 Elfie 的行。下表只列出每只 Elfie 独有的语义事实表和运行控制状态；全局本体扩展存于单独的共享注册表数据库，不重复进入这些库。JSON 列只存有界元数据，不能隐藏图边或来源链。
 
 | 表 | 必须承担的职责 |
 | --- | --- |
-| `episodes` | 完整的加工后 Episode 正文、可选且有来源依据的 `summary_text` 概括（不是独立标题，也不替代正文）、注册经历类型 `event_kind`、发生时间范围（未知时可为空）及精度、历史 `life_stage`/`temporal_label`、独立写入时间、带认识归因的上下文/媒体/上游引用、隐私范围和版本、`importance`、`retention_profile`、`half_life_days`、强化/生命周期元数据、`detail_level`、Memory `lifecycle`、幂等键和内容哈希。Episode 没有标题、来源标签、整理进度、成功投影回执或 confidence 字段。 |
+| `episodes` | 完整的加工后 Episode 正文、可选且有来源依据的 `summary_text` 概括（不是独立标题，也不替代正文）、注册经历类型 `event_kind`、发生时间范围（未知时可为空）及精度、历史 `life_stage`/`temporal_label`、独立写入时间、带认识归因的上下文/媒体/上游引用、隐私范围和版本、静态准入 `importance`、准入 `retention_profile`/`half_life_days`、`detail_level`、Memory `lifecycle`、幂等键和内容哈希。Episode 没有标题、来源标签、整理进度、成功投影回执或 confidence 字段。 |
 | `memory_maintenance` | Episode 整理与生命周期维护的运行状态：pending/processing/completed/failed/skipped 状态、尝试次数、重试时间、租约 owner/到期时间、错误与检查点，以及将回执绑定到确切 Episode 来源的版本/哈希和投影修订号。它不是语义 Node 或 Episode 字段。 |
-| `nodes` | 规范身份、类型/名称、作用域/状态、有界摘要和结构化属性、`importance`、`retention_profile`、`half_life_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据和合并指针。`claim` 类型本身是可寻址的语义 Node，不是 Assertion 行。 |
-| `claim_contents` | 每个 Claim Node 独占一份类型化命题载荷：规范化主语、注册谓词、宾语/值、条件及作用域/时间限定。可选 Node 引用是经过校验的内容角色，不是可遍历图边；载荷不可藏在任意 JSON 中，也不得重复存成 active Assertion。 |
+| `nodes` | 规范身份、注册叶子类型（类型组从注册表派生）、名称、作用域、身份解析状态、独立的 `lifecycle`（`active`/`archived`/`forgotten`）、有界摘要和结构化属性、静态准入重要性/保留策略和合并指针。不存 Node 总体 confidence 或反馈强化分数。`claim` 类型本身是可寻址语义 Node，不是 Assertion 行。 |
 | `node_aliases` | 多条带作用域的别名及其来源和可信度。 |
 | `node_descriptions` | 多条按语言/种类区分的描述、内容哈希和来源关联。 |
 | `episode_mentions` | Episode 到 Node 的提及、角色/片段以及已解析/歧义/未解析状态。 |
-| `assertions` | 主体、谓词、Node 或显式带类型的字面量对象（type/value/unit）、限定信息、极性、认识状态、视角/上下文、有效期、`importance`、`retention_profile`、`half_life_days`、`confidence`、不可变 confidence 先验/策略来源、强化/生命周期元数据、冲突组、生命周期状态和指纹。 |
-| `evidence` | Episode 或种子来源的定位、来源版本、摘录/媒体片段、模态、说话者/视角、捕获时间、`independence_key`、来源可靠性类别/策略版本和抽取元数据。 |
+| `assertions` | 主体、谓词、Node 或显式带类型的字面量对象（type/value/unit）、注册的类型化限定信息、极性、认识状态、视角/上下文、有效期、可选静态准入重要性、`retention_profile`、`half_life_days`、由 Evidence 派生的支持 confidence、冲突组、生命周期状态和指纹。`conviction` 属于 `believes` 限定信息，不属于支持 confidence。 |
+| `evidence` | 必须包含 Episode ID/片段、来源版本、可选上游媒体定位、模态、说话者/视角、捕获时间、`independence_key`、来源可靠性类别/策略版本和抽取元数据。Genesis 包身份可以作为来源元数据，但不能替代 Episode 来源。 |
 | `assertion_evidence` | Assertion/Evidence 多对多立场：`supports`、`contradicts` 或 `context`。 |
-| `claim_evidence` | Claim Node/Evidence 多对多立场，描述命题本身的 `supports`、`contradicts` 或 `context`；它与支持主体 `believes` Assertion 的 Evidence 不同。 |
-| `registry_extensions` | 受控的类型/谓词增量注册及其作用域、生命周期和修订号；属于运行词汇状态，不进入 Recall。 |
-| 分数事件收据 | Adapter 私有、不可召回、带来源的 importance 及合格使用/retention 事件，用于幂等、聚合和按事件时间重放；它是权威策略输入/审计状态，不是语义记忆类型，也不是被记住命题的第二来源。 |
+
+评审后的核心 YAML（`config/memory/ontology.yaml`）是全局共享的安装资源。动态扩展存放于一个应用全局注册表数据库 `${ELFIE_HOME}/memory/ontology.sqlite`，路径经 `infrastructure.persistence.layout.data_home` 解析；同一产品数据根下所有 Elfie 工作区共享同一注册表及修订号。该文件不复制到 `elfies/<elfie_id>/memory/knowledge.sqlite`，也不放入 Nest 的 `nest.db`。Developer Tools 隔离数据根继续遵循现有数据根隔离契约。
 
 这些维度复用 Episode 已有的存储概念：`summary_text`、`event_kind`、发生时间/精度和持久来源引用/Evidence。
 当前来源版本的投影成功回执保存在 Maintenance 运行状态中，按 Episode ID/来源版本/内容哈希关联。不新增独立标题、来源标签或整理进度列。`event_kind` 从任意非空字符串收紧为
 经过评审的经历类型注册键；只有来源确实支持时，`summary_text` 才能作为展示概括。这是持久化值契约变化：
-Memory schema v8 强制校验注册的 `event_kind`，并在任何修改前拒绝 v7 数据库；不为旧值做 migration 或回退解释。
+当前实现基线为 schema v9：节点与谓词语义由注入的本体快照校验；启动时在任何写入前拒绝 v8 数据库并报告准确路径，不自动迁移、回退或删除。通用 Node 身份、生命周期和来源片段约束仍是独立的一致性残余，不属于本轮类型体系实现。`claim` 不新增专属载荷或表。
 整理进度来自 Episode 事实行之外、由所属流程负责的运行状态投影。
 
-每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion，也不是重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。每条 Genesis 产出的行都带有 submission 身份；缺少对应完成标记的行对读取者不可见。可重试或中断的 submission 不是已初始化的 Memory，不能被召回；它的运行控制状态可以从不可变输入重建。完成标记记录（或校验）每类输出的预期 ID/数量，使对账不只检查 Node 是否存在。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。这些记录不形成第二个可变事实源。`importance` 和 Node/Assertion `confidence` 是语义分数；`retention_profile` 和 `half_life_days` 是持久策略状态，freshness 和查询 rank 只派生。Evidence 行及其立场仍是权威支持记录。
+每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion、Episode 或重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。可重试或中断的 submission 是运行状态，不是可召回记忆。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。`importance` 是静态准入值；Assertion 支持 confidence 由 Evidence 派生；`retention_profile` 和 `half_life_days` 是准入策略状态，freshness 和查询匹配顺序只派生。
 
 ### 5.2 派生索引和缓存
 
@@ -549,14 +488,14 @@ Episode `aliases`/`retrieval_terms`、名称、Node 别名、带来源描述和�
 Episode 检索提示只改善搜索，不是 Episode 正文、内容概括或第二份语义事实。技术 ID、提交元数据、来源 ID 以及保留/评分字段不
 进入普通属性搜索文本。本设计不要求独立的语义 Segment 层；以后为异常大的 Episode 做内部切片也只是
 可重建的索引细节。向量索引（若启用）属于后续优化，不是首版前置条件，同样是派生物。
-必需查询索引覆盖 lifecycle/status 与 `next_review_at`、按 Episode/来源修订/时间/哈希检索 Maintenance 投影回执、Node 规范
-名称/类型/状态、别名、描述、按 Node/Episode 的提及、Assertion 两端、冲突/替代、Evidence 来源/
-independence key、`assertion_evidence` 两个方向及唯一分数事件收据。Recall 先获得有界索引候选集，
-只对候选派生 freshness/rank，不能扫描全库计算。运行租约、重试次数和检查点是有界控制状态，不返回
+必需查询索引覆盖 lifecycle 与 `next_review_at`、按 Episode/来源修订/时间/哈希检索 Maintenance 投影回执、Node 规范
+名称/类型/生命周期、别名、描述、按 Node/Episode 的提及、Assertion 两端、冲突/替代、Evidence 来源/
+independence key、`assertion_evidence` 两个方向及 Node/Assertion 通用来源查询。Recall 先获得有界索引候选集，
+只对候选派生 freshness/匹配顺序，不能扫描全库计算。运行租约、重试次数和检查点是有界控制状态，不返回
 Recall。非空投影回执仍绑定 Episode 来源版本/内容哈希。每个索引都服务于有界查询并声明重建
 来源；首版继续使用内嵌关系库，不以专用图数据库为前置条件。
 
-分数收据也必须控制运行增长。在带版本的迟到安全窗口内保留可完整重放的收据；当来源 Outcome/Evidence 已持久化、目标水位之前的本地 outbox 事件全部结算且安全窗口结束后，importance 收据压成每方向/窗口最高类别，reinforcement 收据折成保留策略版本、折叠状态、事件数量/哈希和最后事件时间的检查点。早于已结算水位的收据进入可观察的 reconciliation 状态并被拒绝，不能静默改分或改用处理时间。该压缩只作用于评分控制收据，不作用于语义 Episode、Evidence 或冲突历史。
+使用/结果反馈收据、分数折叠和自适应排序不是首版 schema 或 Recall 契约要求。当前 `memory.v3` 实现中若已有这类记录，它们是单独追踪的实现/设计偏差，不能成为类型组或关系注册表工作的依赖。
 
 内存只保留有界的热点 Node、邻接页、近期邻域和索引页。缓存未命中时重新读取持久行，不等于记忆丢失；媒体按需加载。
 
@@ -568,7 +507,7 @@ Recall。非空投影回执仍绑定 Episode 来源版本/内容哈希。每个�
 
 ### 5.4 事务和 Unit of Work
 
-Genesis 按第 3.1 节的完成保证执行：先校验一次完整 submission，再打开限定在本次 submission 范围内的事务，在同一提交中写入全部 Memory 输出（Node、Assertion、Evidence、Episode 及其子记录）和本次标记，并在对账确认完整集合后才返回成功。提交失败不构成完成状态；同一不可变 submission 保持未发布，并可使用相同身份和哈希重试。此前成功的 submission 不因后续失败回滚。普通捕获把完整 Episode 和来源引用一起提交；其派生文本索引可以在同一事务更新，也可以在提交后重建。维护在事务外校验模型提案，再在一个短 Unit of Work 中提交图谱变更、Evidence 关联、分数更新、生命周期和绑定来源版本的投影回执。回执属于 Maintenance 运行状态，不属于 Episode 事实行；派生索引只能在事实提交成功后更新或重建，不能决定事实包是否完成。事务内不能调用模型或网络。
+Genesis 按第 3.1 节的完成保证执行：先校验一次完整 submission，再打开限定在本次 submission 范围内的事务，在同一提交中写入全部 Memory 输出（Node、Assertion、Episode-backed Evidence、Episode 及其子记录）和本次标记，并在对账确认完整集合后才返回成功。提交失败不构成完成状态；同一不可变 submission 保持未发布，并可使用相同身份和哈希重试。此前成功的 submission 不因后续失败回滚。普通捕获把完整 Episode 和来源引用一起提交；其派生文本索引可以在同一事务更新，也可以在提交后重建。维护在事务外校验模型提案，再在一个短 Unit of Work 中提交类型化图谱变更、Evidence 关联、生命周期和绑定来源版本的投影回执。回执属于 Maintenance 运行状态，不属于 Episode 事实行；派生索引只能在事实提交成功后更新或重建，不能决定事实包是否完成。事务内不能调用模型或网络。
 
 SQLite 使用 `PRAGMA user_version`、外键、WAL、有界忙等待和一个串行化写入者。派生索引必须能从权威表确定性重建。
 
@@ -607,12 +546,12 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ## 7. 不可破坏的不变量
 
-1. Episode 在抽取前已经是完整、加工好的话题/故事单元；Genesis 内容在投影前完整存在于批准来源。
-2. 每个持久 Assertion 都有 Episode 或种子 Evidence；模型输出本身永远不是事实。
+1. Episode 在抽取前已经是完整、加工好的话题/故事单元；Genesis 语义输入在投影前已经作为完整 Episode 持久化。
+2. 每个持久 Node 和每条 Assertion 的 Evidence 都能追溯到已持久化 Episode 和来源片段；模型输出或临时 Seed Manifest 本身永远不是事实来源。
 3. 规范化合并身份，不合并相互矛盾的视角或无关实体。
 4. 冲突 Assertion 保留极性、时间、视角和来源。
 5. 图谱知识、向量和分数不能丢失 Episode/Evidence 来源链，也不能静默变成客观真理。
-6. Episode 和 Node–Assertion 是 Memory 唯一的语义层。类型化 Claim 载荷属于 Claim Node 内容，不是第三层；`believes` 等关系可以指向 Claim Node，而 Assertion 本身不能成为关系端点。
+6. Episode 和 Node–Assertion 是 Memory 唯一的语义层。`claim` 是普通 Node 叶类型，不引入专属载荷或第三层；`believes` 等已注册关系可以指向该 Node，而 Assertion 本身不能成为关系端点。
 7. 实时状态、计划、承诺、权限和行动由其所有者负责。
 8. Memory 不直接读取 Profile、Communication 历史或世界运行时状态。
 9. Genesis 直接投影只限批准的 submission，不能变成运行时 CRUD。
@@ -627,7 +566,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.2 图谱来源链
 
-验证提及解析、规范化、Assertion/Evidence 关联、Claim 载荷校验、Claim/Evidence 立场，以及独立描述和冲突保留。必须包含 `Elfie --believes--> Claim` 可解析到 Claim Node 的夹具，并证明“Elfie 相信该命题”的 Evidence 不会被误当成命题为真的证据。门槛：每个夹具 Claim 和 Assertion 都有可解析来源；无来源提案被拒绝。
+验证注册类型组/叶子类型选择、Assertion/Evidence 关联、独立描述和冲突保留。必须包含 `Elfie --believes--> Node(type=claim)` 经普通 Node/Assertion 路径校验且保留允许的 `conviction` 限定信息的夹具；不得要求 Claim 专属载荷或 Evidence。门槛：未知类型、谓词和不满足通用来源要求的提案被拒绝；通用 Node 身份/生命周期/来源缺口继续由 Conformance 单独跟踪。
 
 ### 8.3 混合检索
 
@@ -635,7 +574,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.4 Importance、Retention、confidence 和冲突
 
-验证目标上限式 importance 更新及 24 小时聚合、事件时间重放、检查点压缩等价性和水位前迟到事件拒绝、冻结 freshness 向量、强化倍数单调且满足 `M(1)=1`、`M(.5)=2`、`lim(F→0+)M(F)=3`、`2F(1-F)` 在 `.5` 取最大值、active-only Recall 并排除 archived/forgotten、失败回忆与带来源重学、与 Evidence 到达顺序无关的 Node/Assertion confidence、每个带版本 Lifecycle 边界，以及 Episode 不含 confidence。时间和 Lifecycle 不能修改 importance、retention 或 confidence；单纯成为 Recall 候选不能强化；冲突 Evidence 仍可见，并可以通过带来源的重新评价恢复清晰度，同时降低 confidence。
+验证固定准入的 importance/Retention 值、freshness 派生、active-only Recall 并排除 archived/forgotten、只对 Episode 发生时间应用显式时间筛选、与 Evidence 到达顺序无关的 Assertion 支持 confidence、`conviction` 分离和每个带版本 Lifecycle 边界。Node lifecycle 不能改变提及解析状态；单纯使用/反馈不能修改 importance 或 Retention；不存 Node 总体 confidence 或综合反馈排序分数。冲突 Evidence 仍保留各自来源和立场。
 
 ### 8.5 性能和容量
 
@@ -655,16 +594,15 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 9.2 分数、复查和生命周期
 
-- `importance` 和 Node/Assertion `confidence` 是持久化语义分数；`retention_profile` 和 `half_life_days` 是持久策略状态。Episode 没有 confidence；freshness、按成功率加权的复习收益和综合召回 rank 只派生、不持久化。不再保留 `support_score`。
-- Importance 根据幂等、带来源、已聚合的语义事件收据按事件时间折叠；confidence 根据全部唯一 Evidence/独立性组重算；成功使用的 Retention 根据幂等、按目标的合格结果/复习收据及 `H'=H*(3-2F)` 全局封顶公式折叠。回忆失败不变；权威重新暴露使用独立的带来源重学规则。重试或维护不能重复增加贡献。
-- Episode、Node 和 Assertion 保存 `retention_profile`、`half_life_days`、强化/复查时间和策略版本。Lifecycle 独占带版本的压缩、归档和遗忘阈值。普通 Recall 只使用 active 记录，archived 和 forgotten 均不进入任何 Recall 通道；显式维护/审计检查是单独能力，不是 Recall。新且权威的 Evidence 可按带来源重学规则重新学习非 forgotten 的 archived 记录；检索本身绝不重新激活或强化。强化保持连续且无阈值。
-- 生命周期转换受保护且按顺序执行：当前来源没有成功投影时先保留来源；再允许 `full` → `compressed` → `digest`，单独归档；只有通过 freshness、importance、驻留期和来源/Evidence 依赖检查后才能逻辑遗忘。遗忘不能删除 active Assertion 的最后可审计 Evidence。
+- `importance` 是静态、带来源的准入值；第一阶段没有使用/结果反馈或自适应显著性更新。Assertion 支持 confidence 从 Evidence 派生；规范 Node 没有通用 confidence。`conviction` 是 `believes` Assertion 上独立注册的限定信息。Episode 没有 confidence。
+- Episode、Node 和 Assertion 在准入时获得注册的 `retention_profile`/`half_life_days`。Freshness 由固定时间锚点派生；反馈、检索和重复使用都不延长 Retention。普通 Recall 排除 archived/forgotten。显式维护/审计检查不属于 Recall；只有新的权威 Episode-backed Evidence 可按带来源规则重新激活未 forgotten 身份。
+- 生命周期转换受保护且按顺序执行：当前来源没有成功投影时先保留来源；再允许 `full` → `compressed` → `digest`，单独归档；只有通过 freshness、静态 importance、驻留期和来源/Evidence 依赖检查后才能逻辑遗忘。遗忘不能删除 active Assertion 的最后可审计 Evidence。
 - Consolidation 租约、重试次数、检查点、来源版本投影回执和被拒绝的提案属于权威事实之外的运行控制数据。一个有界的 Memory Maintenance Unit of Work 拥有写事务；普通捕获和 Genesis submission 仍是独立操作。
 
 ### 9.3 投影和 predicate 校验
 
-- 领域切片、规范 Node 类型、Episode 经历类型、predicate、端点/方向规则、限定信息和来源要求以经过评审、带版本的 YAML 核心注册表为准。Infrastructure 加载并注入类型化快照；领域代码不得直接读取 YAML。新增 Episode 类型必须评审并更新注册表版本；来源标签和操作名称不能注册为经历类型。
-- 数据库扩展注册表可以添加有作用域的 `candidate`、`active`、`deprecated` 类型/谓词。Candidate 不能用于规范写入；扩展不得覆盖核心定义，并必须通过端点、方向/对称性、限定信息和来源策略校验。Node 类型比谓词需要更严格的审查；扩展晋升核心必须评审并升级 YAML 版本，出现频率本身不是晋升条件。
+- 五个类型组、规范叶子 Node 类型、Episode 经历类型、predicate、端点/方向规则、限定信息和来源要求以经过评审、带版本的 YAML 核心注册表为准。Infrastructure 加载并注入类型化快照；领域代码不得直接读取 YAML。新增 Episode 类型必须评审并更新注册表版本；来源标签和操作名称不能注册为经历类型。
+- 一个数据库扩展注册表由同一产品数据根下所有 Elfie/工作区全局共享；它不属于、也不复制到各 Elfie 的 Memory 数据库。该表可以容纳 `candidate`、`active`、`deprecated` 类型/谓词。Candidate 不能用于规范写入；扩展不得覆盖核心定义，并必须通过端点、方向/对称性、限定信息和来源策略校验。Node 类型比谓词需要更严格的审查；扩展晋升核心必须评审并升级 YAML 版本，出现频率本身不是晋升条件。唯一持久位置经现有应用 data-home resolver 解析，与 `nest.db` 和各 Elfie 的 `knowledge.sqlite` 分离。
 - 每次成功投影都记录合并后的注册表修订号。未知或未激活类型/谓词只能作为有界候选，不得静默晋升为事实。
 - 无效模型提案只能保留为有界诊断/重试数据，不能插入为 active Assertion；registry 或来源校验改变后才可重试。
 - Maintenance 运行状态在成功投影后记录 `(episode_id, source_version, source_hash, projection_revision)`。缺失或过期的回执表示当前来源仍需投影；重试不能创建第二个 Episode，且回执不能存放在 Episode 行。
@@ -673,19 +611,19 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 ### 9.4 Recall 语义
 
 - Facet 是正向约束：不同 facet 类别之间使用 AND，同一类别内的值使用 OR；缺少 facet 信息不能变成负事实。历史情绪读取 Episode 的带归因来源，不能读取实时 Emotion 状态。
-- 排序按记录种类确定：先派生查询相关性 `R` 和 freshness `F`，active Node/Assertion 使用 `R*(.65F+.35I)*(.25+.75C)`，active Episode 和冲突通道使用 `R*(.65F+.35I)`。archived 和 forgotten 不参加 Recall 排序。结果按种类分开并用稳定 ID 决胜；策略分量都有界且带版本。
-- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
+- 第一阶段 Recall 使用显式隐私、生命周期、类型组/叶子类型和时间筛选，再执行有界词法/图谱相关性及稳定确定性决胜。不按 importance、类型先验、来源历史、freshness、confidence 或反馈排序。archived 和 forgotten 记录排除在外。
+- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在候选选择前完成。
 - 初始模式只有 Basic/Text 和 Local/Graph。Global/community 与向量检索仍是后续的派生能力，初始契约不宣称支持。
 
 ### 9.5 全新 schema 和兼容边界
 
-- Schema 变更使用全新的目标 schema 和显式版本检查。Episode `event_kind`/`summary_text` 值契约收紧后，即使不增加 Episode 列，也必须建立新的 schema 版本边界；旧库必须在初始化修改它之前被拒绝。0.5 前不存在 importer、回退读取器或双写。
+- 当前 SQLite schema 为 v9。它按注入的注册本体验证 Node 类型与谓词，并在任何写入前拒绝 v8 库，错误包含准确数据路径；不自动迁移、回退读取、迁移或双写。通用 Node 身份/生命周期/来源约束作为独立 Conformance 残余。
 - reset-required 结果必须指出精确数据库路径，并指导操作者备份后显式重建数据根。应用程序不得自动删除、覆盖或静默修复被拒绝的数据库。
-- 当前 schema 包含 source-first Episode、Node、Assertion、Evidence、Node 所有的 Claim 内容，以及有界运行/注册表表。Claim 载荷可通过 Claim Node 寻址，但不是额外图边或第三语义层。旧实体/事件表、旧边、`support_score` 和 `source_type='legacy'` 都不是可接受输入。
+- 每只 Elfie 的目标 schema 包含 source-first Episode、普通 Node、Assertion、Evidence 和有界的本地运行表；动态本体扩展存于单独的一份安装级全局注册表数据库。`claim` 只是普通 Node 叶类型，不增加载荷表。执行回执不是图谱 Node。旧实体/事件表、旧边、`support_score` 和 `source_type='legacy'` 都不是可接受输入。
 
 ### 9.6 验证和可观测性
 
 - 每条写入路径都要覆盖提交点前后的故障注入，包括并发重复提交、哈希不匹配、重启、租约过期和未提交行不可见。
-- Maintenance 和 Recall 测试覆盖幂等分数更新、来源保护、facet 语义、supersedes/冲突可见性、命名空间/隐私隔离和硬截断限制。全新库测试覆盖旧/混合 schema 不修改拒绝、新 schema 创建和复开。
+- Maintenance 和 Recall 测试覆盖来源保护、类型组/类型及 Episode 时间 facet 语义、supersedes/冲突可见性、命名空间/隐私隔离和硬截断限制。全新库测试覆盖旧/混合 schema 不修改拒绝、新 schema 创建和复开。反馈强化和综合排序测试延期到该后续能力获批之后。
 - 性能证据记录冷/热初始化、每个 Unit of Work 耗时、SQLite 锁等待、行数、重试延迟和 Recall p95。现有代表性 Recall 目标仍为 p95 ≤ 150 ms；Genesis 是否分批由启动实测决定，不由本 Memory 契约决定。
 - 每次 schema 或事务变更后，重新运行持久化盘点、聚焦的 Adapter/契约测试、质量检查和 `git diff --check`；并按 `target`、`inventory`、`references`、`verification`、`residuals` 更新 Conformance 台账。

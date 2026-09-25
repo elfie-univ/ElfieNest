@@ -4,16 +4,17 @@ import "./memory-audit.css";
 
 type Tab = "detail" | "add" | "recall";
 type AuditItem = { id: string; node_type?: string; label: string; description?: string | null; confidence?: number | null; properties?: Record<string, unknown>; relevance?: number };
-type AuditReport = { database: string; elfie_id: string; counts: Record<string, number>; node_type_counts: Record<string, number>; predicate_counts: Record<string, number>; checks: { checks: Array<{ status: string; name: string; detail?: string }> }; data: { nodes: AuditItem[]; assertions: Array<Record<string, unknown>>; episodes: Array<Record<string, unknown>>; evidence: Array<Record<string, unknown>> } };
+type OntologyCatalog = { type_groups: Array<{ group_id: string; label: string; color: string }>; node_types: Array<{ node_type: string; label: string; group_id: string; color: string; status: string }>; predicates: Array<{ predicate: string; status: string }> };
+type AuditReport = { database: string; elfie_id: string; counts: Record<string, number>; node_type_counts: Record<string, number>; predicate_counts: Record<string, number>; ontology?: OntologyCatalog; checks: { checks: Array<{ status: string; name: string; detail?: string }> }; data: { nodes: AuditItem[]; assertions: Array<Record<string, unknown>>; episodes: Array<Record<string, unknown>>; evidence: Array<Record<string, unknown>> } };
 type RecallReport = { elapsed_ms: number; counts: Record<string, number | boolean>; bundle: { focus_nodes: AuditItem[]; assertions: Array<Record<string, unknown>>; episodes: Array<Record<string, unknown>>; evidence: Array<Record<string, unknown>> }; rendered: string };
 type GraphNode = { id: string; kind: string; label: string; x: number; y: number };
 type GraphEdge = { id: string; source: string; target: string; label: string; kind: string; evidenceIds?: string[] };
 
-const labels: Record<string, string> = { person: "人物", group: "群体/家庭", knowledge: "知识", place: "地点", object: "物体", event: "事件", elfie: "精灵", self_model: "自我模型", genesis_commit_receipt: "初始化回执", literal: "字面值" };
-const colors: Record<string, string> = { person: "#7a5aa6", group: "#8b6b3f", knowledge: "#277b5e", place: "#3b7195", object: "#6d8f62", event: "#a06b18", elfie: "#b55f3d", self_model: "#516f8b", genesis_commit_receipt: "#80735f", literal: "#718078" };
-const NON_SEMANTIC_LEGACY_PREDICATES = new Set(["about", "knows", "knows_boundary", "related_to"]);
+function nodeType(report: AuditReport | null, kind: string): OntologyCatalog["node_types"][number] | undefined { return report?.ontology?.node_types.find((item) => item.node_type === kind); }
+function nodeTypeLabel(report: AuditReport | null, kind: string): string { return nodeType(report, kind)?.label ?? kind; }
+function nodeTypeColor(report: AuditReport | null, kind: string): string { return nodeType(report, kind)?.color ?? "#8da9c4"; }
 
-function nodeLabel(node: AuditItem): string { const kind = node.node_type ?? "unknown"; return labels[kind] ?? kind; }
+function nodeLabel(node: AuditItem, report: AuditReport | null): string { return nodeTypeLabel(report, node.node_type ?? "unknown"); }
 function graphLabel(value: string, limit = 12): string { return value.length > limit ? `${value.slice(0, limit)}…` : value; }
 function normalizeNode(node: AuditItem & { node_id?: string }): AuditItem { return { ...node, id: node.id || node.node_id || "" }; }
 
@@ -55,8 +56,9 @@ export function MemoryAuditPage(): React.JSX.Element {
     if (!nodes.length) return { nodes: [] as GraphNode[], edges: [] as GraphEdge[] };
     const nodeIds = new Set(nodes.map((item) => item.id));
     const edges: GraphEdge[] = [];
+    const activePredicates = new Set((report?.ontology?.predicates ?? []).filter((item) => item.status === "active").map((item) => item.predicate));
     assertions.forEach((item) => {
-      if (NON_SEMANTIC_LEGACY_PREDICATES.has(String(item.predicate ?? ""))) return;
+      if (!activePredicates.has(String(item.predicate ?? ""))) return;
       const assertionId = String(item.assertion_id);
       const assertionEvidence = (Array.isArray(item.evidence_ids) ? item.evidence_ids : []).map(String).filter((id) => evidenceIds.has(id));
       if (item.subject_id && item.object_node_id && nodeIds.has(String(item.subject_id)) && nodeIds.has(String(item.object_node_id))) edges.push({ id: assertionId, source: String(item.subject_id), target: String(item.object_node_id), label: String(item.predicate ?? "关系"), kind: "assertion", evidenceIds: assertionEvidence });
@@ -95,7 +97,7 @@ export function MemoryAuditPage(): React.JSX.Element {
     </header>
 
     <section className="memory-audit-toolbar">
-      <label>节点类型<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">全部</option>{Object.entries(report?.node_type_counts ?? {}).map(([kind, count]) => <option key={kind} value={kind}>{labels[kind] ?? kind} ({count})</option>)}</select></label>
+      <label>节点类型<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">全部</option>{Object.entries(report?.node_type_counts ?? {}).map(([kind, count]) => <option key={kind} value={kind}>{nodeTypeLabel(report, kind)} ({count})</option>)}</select></label>
       <label>名称或描述<input value={contains} onChange={(event) => setContains(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadReport(); }} placeholder="输入后回车过滤" /></label>
       <button onClick={() => void loadReport()}>刷新</button>
     </section>
@@ -108,19 +110,19 @@ export function MemoryAuditPage(): React.JSX.Element {
           <svg className="memory-audit-svg" viewBox="0 0 1040 720" role="img" aria-label="Episode、Evidence 与 Node 关系网络">
             <defs><marker id="memory-audit-arrow-v2" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="3.5"><path d="M0,0 L8,3.5 L0,7 Z" /></marker></defs>
             {graph.edges.map((edge) => { const source = graphNodeById.get(edge.source); const target = graphNodeById.get(edge.target); if (!source || !target) return null; return <g className={`memory-audit-svg-edge ${edge.kind} ${selectedEdgeId === edge.id ? "is-selected" : ""}`} key={edge.id} onClick={() => { setSelectedEdgeId(edge.id); setSelectedId(""); setTab("detail"); }} role="button" tabIndex={0}><line markerEnd="url(#memory-audit-arrow-v2)" x1={source.x} x2={target.x} y1={source.y + 22} y2={target.y - 22} /><text x={(source.x + target.x) / 2} y={(source.y + target.y) / 2 - 6}>{edge.label}</text><title>{edge.label}</title></g>; })}
-            {graph.nodes.map((node) => <g className={`memory-audit-svg-node ${node.kind} ${selectedId === node.id ? "is-selected" : ""}`} key={node.id} onClick={() => { setSelectedEdgeId(""); const item = report?.data.nodes.find((candidate) => candidate.id === node.id); if (item) showItem(item.id); else setMessage(node.label); }} role="button" tabIndex={0}>
-              <circle cx={node.x} cy={node.y} r="22" />
+            {graph.nodes.map((node) => <g className={`memory-audit-svg-node ${selectedId === node.id ? "is-selected" : ""}`} key={node.id} onClick={() => { setSelectedEdgeId(""); const item = report?.data.nodes.find((candidate) => candidate.id === node.id); if (item) showItem(item.id); else setMessage(node.label); }} role="button" tabIndex={0}>
+              <circle cx={node.x} cy={node.y} r="22" fill={nodeTypeColor(report, node.kind)} />
               <text className="memory-audit-svg-node-label" x={node.x} y={node.y + 4} textAnchor="middle">{graphLabel(node.label, 8)}</text><title>{node.label}</title>
             </g>)}
           </svg>
-          <div className="memory-audit-legend-v2"><span className="assertion-key">关系边 Assertion</span><span className="person-key">人物</span><span className="elfie-key">精灵</span><span className="group-key">群体/家庭</span><span className="knowledge-key">知识</span><span className="place-key">地点</span></div>
+          <div className="memory-audit-legend-v2"><span className="assertion-key">关系边 Assertion</span>{(report?.ontology?.type_groups ?? []).map((group) => <span className="node-group-key" key={group.group_id} style={{ color: group.color }}>{group.label}</span>)}</div>
         </div>}
         <footer className="memory-audit-footer">当前画布：{graph.nodes.filter((node) => !["episode", "evidence"].includes(node.kind)).length} 个 Node · {graph.edges.filter((edge) => edge.kind === "assertion").length} 条关系边　|　全库：{report?.counts.nodes ?? 0} 节点 · {report?.counts.assertions ?? 0} 关系 · {report?.counts.episodes ?? 0} Episode</footer>
       </div>
 
       <aside className="memory-audit-side">
         <nav className="memory-audit-tabs">{([["detail", "详情"], ["add", "添加 Episode"], ["recall", "检索"]] as const).map(([value, text]) => <button className={tab === value ? "is-active" : ""} key={value} onClick={() => setTab(value)}>{text}</button>)}</nav>
-        {tab === "detail" && <div className="memory-audit-panel"><h2>当前选择</h2>{selectedEdge ? <><span className="memory-audit-type memory-audit-relation-type">关系边</span><h3>{selectedEdge.label}</h3><p>这条边表示两个 Node 之间的 Assertion。</p><h4>证明 Evidence</h4>{selectedEdgeEvidence.length ? selectedEdgeEvidence.map((item) => <blockquote className="memory-audit-edge-evidence" key={String(item?.evidence_id)}>{String(item?.evidence_id)}<br />{String(item?.excerpt ?? "")}</blockquote>) : <p>这条关系没有关联 Evidence。</p>}</> : selected ? <><span className="memory-audit-type" style={{ background: colors[selected.node_type ?? ""] }}>{nodeLabel(selected)}</span><h3>{selected.label}</h3><p>{selected.description || "没有描述"}</p><dl><dt>置信度</dt><dd>{selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`}</dd><dt>关系</dt><dd>{visibleAssertions.filter((item) => item.subject_id === selected.id || item.object_node_id === selected.id).length}</dd></dl><h4>属性</h4><pre>{JSON.stringify(selected.properties ?? {}, null, 2)}</pre></> : <p>点击 Node 或关系边查看详情。</p>}</div>}
+        {tab === "detail" && <div className="memory-audit-panel"><h2>当前选择</h2>{selectedEdge ? <><span className="memory-audit-type memory-audit-relation-type">关系边</span><h3>{selectedEdge.label}</h3><p>这条边表示两个 Node 之间的 Assertion。</p><h4>证明 Evidence</h4>{selectedEdgeEvidence.length ? selectedEdgeEvidence.map((item) => <blockquote className="memory-audit-edge-evidence" key={String(item?.evidence_id)}>{String(item?.evidence_id)}<br />{String(item?.excerpt ?? "")}</blockquote>) : <p>这条关系没有关联 Evidence。</p>}</> : selected ? <><span className="memory-audit-type" style={{ background: nodeTypeColor(report, selected.node_type ?? "") }}>{nodeLabel(selected, report)}</span><h3>{selected.label}</h3><p>{selected.description || "没有描述"}</p><dl><dt>置信度</dt><dd>{selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`}</dd><dt>关系</dt><dd>{visibleAssertions.filter((item) => item.subject_id === selected.id || item.object_node_id === selected.id).length}</dd></dl><h4>属性</h4><pre>{JSON.stringify(selected.properties ?? {}, null, 2)}</pre></> : <p>点击 Node 或关系边查看详情。</p>}</div>}
         {tab === "add" && <div className="memory-audit-panel"><h2>添加完整 Episode</h2><p>输入一段有上下文、有头尾的完整故事，用于接入记忆整理流程。</p><textarea value={episodeText} onChange={(event) => setEpisodeText(event.target.value)} placeholder="例如：今天……" rows={9} /><button className="primary" onClick={() => setMessage("当前版本只展示输入；真实写入必须经过 Memory candidate 和 consolidation 链路。")}>开始整理</button><p className="memory-audit-muted">页面不会绕过生产写入链，也不会伪造已经写入的结果。</p></div>}
         {tab === "recall" && <div className="memory-audit-panel"><h2>检索记忆</h2><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void runRecall(); }} placeholder="输入问题或关键词" /><button className="primary" onClick={() => void runRecall()}>执行真实检索</button>{recall && <><div className="memory-audit-result-meta">{recall.elapsed_ms}ms · {recall.counts.focus_nodes} 个节点 · {recall.counts.evidence} 条证据</div>{recall.bundle.focus_nodes.map((node, index) => <button className="memory-audit-result" key={node.id} onClick={() => showItem(node.id)}><b>{index + 1}</b><span>{node.label}<small>{node.node_type ?? "unknown"} · relevance {node.relevance ?? "—"}</small></span></button>)}<pre className="memory-audit-rendered">{recall.rendered}</pre></>}</div>}
       </aside>

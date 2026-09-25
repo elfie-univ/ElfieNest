@@ -13,7 +13,11 @@ from typing import Final, Iterator
 
 from elfie.brain.memory.memory_records import GenesisSubmissionReceipt
 from elfie.brain.memory.memory_store import GenesisSubmissionConflict
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.observation import BrainObservationSink
+from infrastructure.persistence.memory.ontology_loader import (
+    load_core_memory_ontology,
+)
 from infrastructure.persistence.memory.schema import (
     INDEX_SQL,
     KNOWLEDGE_TABLES,
@@ -87,8 +91,10 @@ class SQLiteMemoryStoreAdapter(
         db_path: str | Path,
         elfie_id: str | None = None,
         observation_sink: BrainObservationSink | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> None:
         self._db_path = self._parse_path(db_path)
+        self.ontology = ontology or load_core_memory_ontology()
         if elfie_id is not None and not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
         self.elfie_id = elfie_id
@@ -113,9 +119,15 @@ class SQLiteMemoryStoreAdapter(
         cls,
         elfie_id: str | None = None,
         observation_sink: BrainObservationSink | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> SQLiteMemoryStoreAdapter:
         """Create an isolated in-memory store for tests and explicit tooling."""
-        return cls(":memory:", elfie_id=elfie_id, observation_sink=observation_sink)
+        return cls(
+            ":memory:",
+            elfie_id=elfie_id,
+            observation_sink=observation_sink,
+            ontology=ontology,
+        )
 
     def bind_observation_sink(self, sink: BrainObservationSink | None) -> None:
         """Attach the recall-selection observation sink exactly once."""
@@ -748,21 +760,29 @@ class SQLiteMemoryStoreAdapter(
         current_version = self.schema_version
         if current_version not in (0, SCHEMA_VERSION):
             raise MemoryStoreSchemaError(
-                f"unsupported Memory schema version: {current_version}"
+                f"unsupported Memory schema version: {current_version}; "
+                f"expected {SCHEMA_VERSION}: {self._db_path}"
             )
         if user_tables and current_version == 0:
             raise MemoryStoreSchemaError(
-                "partially initialized Memory database has no schema version"
+                f"partially initialized Memory database has no schema version: "
+                f"{self._db_path}"
             )
         unknown = user_tables - target_tables
         if unknown:
             raise MemoryStoreSchemaError(
-                "Memory database contains unknown tables: " + ", ".join(sorted(unknown))
+                "Memory database contains unknown tables at "
+                + str(self._db_path)
+                + ": "
+                + ", ".join(sorted(unknown))
             )
         if current_version == SCHEMA_VERSION and user_tables != target_tables:
             missing = ", ".join(sorted(target_tables - user_tables))
             raise MemoryStoreSchemaError(
-                "Memory schema version is current but tables are missing: " + missing
+                "Memory schema version is current but tables are missing at "
+                + str(self._db_path)
+                + ": "
+                + missing
             )
         try:
             self.conn.execute("PRAGMA busy_timeout=2000")

@@ -34,7 +34,7 @@ class _GenesisKnowledgeProposal:
                         {
                             "title": "Elfaria",
                             "label": "Elfaria",
-                            "type": "knowledge",
+                            "type": "concept",
                             "context": "Elfaria 是精灵生活的星球",
                             "reusable_knowledge": True,
                         }
@@ -140,15 +140,18 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert storage.get_graph_node(person_id).importance == pytest.approx(0.37)
         assert storage.conn.execute(
             """SELECT importance FROM assertions
-                WHERE subject_node_id='genesis:self:genesis-check'
-                  AND predicate='kin_of'
-                  AND object_node_id=?""",
-            (person_id,),
+                WHERE predicate='kin_of'
+                  AND ((subject_node_id='genesis:self:genesis-check'
+                        AND object_node_id=?)
+                    OR (subject_node_id=?
+                        AND object_node_id='genesis:self:genesis-check'))""",
+            (person_id, person_id),
         ).fetchone()[0] == pytest.approx(0.37)
         assert any(
             assertion.predicate == "kin_of"
             for assertion in storage.list_graph_assertions(limit=100)
-            if assertion.subject_id == "genesis:self:genesis-check"
+            if {assertion.subject_id, assertion.object_node_id}
+            == {"genesis:self:genesis-check", person_id}
         )
         place_edges = [
             assertion
@@ -285,7 +288,7 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
         assert not [
             node
             for node in storage.list_graph_nodes(limit=1000)
-            if node.node_type == "knowledge"
+            if node.node_type == "concept"
         ]
         assert not [
             node
@@ -317,9 +320,9 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
         elfaria = next(
             node
             for node in storage.list_graph_nodes(limit=2000)
-            if node.label == "Elfaria" and node.node_type == "knowledge"
+            if node.label == "Elfaria" and node.node_type == "concept"
         )
-        assert elfaria.node_type == "knowledge"
+        assert elfaria.node_type == "concept"
         assert any(
             evidence.source_id == elfaria_episode_id
             for evidence in storage.list_memory_evidence(limit=5000)
@@ -355,12 +358,16 @@ def test_genesis_rejects_a_second_idempotency_identity_for_the_same_elfie() -> N
 
 
 def test_genesis_submission_receipt_is_not_a_writable_graph_node() -> None:
-    with pytest.raises(ValueError, match="transaction ledger, not graph Nodes"):
-        NodeInput(
-            node_id="genesis:receipt:genesis-check",
-            node_type="genesis_commit_receipt",
-            canonical_label="Genesis commit receipt",
-        )
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        with pytest.raises(ValueError, match="unsupported Memory node_type"):
+            storage.upsert_node_record(
+                NodeInput(
+                    node_id="genesis:receipt:genesis-check",
+                    node_type="genesis_commit_receipt",
+                    canonical_label="Genesis commit receipt",
+                )
+            )
+        assert storage.get_graph_node("genesis:receipt:genesis-check") is None
 
 
 def test_genesis_submission_receipt_accepts_opaque_submission_identity() -> None:

@@ -20,6 +20,13 @@ def _copy_genesis_config(resources: Path) -> None:
     )
 
 
+def _copy_memory_ontology(resources: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    destination = resources / "config" / "memory" / "ontology.yaml"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(project_root / "config" / "memory" / "ontology.yaml", destination)
+
+
 def test_manifest_validation_rejects_a_manifest_that_omits_required_godot_files(
     tmp_path: Path,
 ) -> None:
@@ -103,6 +110,13 @@ def test_manifest_validation_accepts_runtime_without_a_bundled_ollama_binary(
             "sha256": hashlib.sha256(data).hexdigest(),
         }
     _copy_genesis_config(resources)
+    _copy_memory_ontology(resources)
+    ontology_path = resources / "config" / "memory" / "ontology.yaml"
+    ontology_data = ontology_path.read_bytes()
+    files["config/memory/ontology.yaml"] = {
+        "size": len(ontology_data),
+        "sha256": hashlib.sha256(ontology_data).hexdigest(),
+    }
     for path in sorted((resources / "config" / "genesis").rglob("*")):
         if path.is_file():
             relative = path.relative_to(resources).as_posix()

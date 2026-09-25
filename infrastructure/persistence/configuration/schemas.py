@@ -12,7 +12,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
 
-from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS
 from infrastructure.persistence.configuration.documents import ConfigDocumentId
 
 
@@ -58,6 +57,15 @@ def validate_registered_document(
         try:
             validate_genesis_program(document, path)
         except (ValueError, OSError) as exc:
+            raise ConfigSchemaError(f"{label}: {exc}") from exc
+    elif document_id is ConfigDocumentId.MEMORY_ONTOLOGY:
+        from infrastructure.persistence.memory.ontology_loader import (
+            parse_memory_ontology_document,
+        )
+
+        try:
+            parse_memory_ontology_document(document)
+        except (TypeError, ValueError) as exc:
             raise ConfigSchemaError(f"{label}: {exc}") from exc
     elif document_id is ConfigDocumentId.MODEL_CATALOG:
         _validate_model_catalog_shape(document, label)
@@ -1358,13 +1366,6 @@ def _validate_episode_themes(value: Any, label: str) -> None:
             "impact",
         ):
             _string(item[field], f"{item_label}.{field}")
-        if (
-            item["event_kind"] not in EPISODE_EVENT_KINDS
-            or item["event_kind"] == "unclassified"
-        ):
-            raise ConfigSchemaError(
-                f"{item_label}.event_kind 不是可用于 Genesis 的经历类型"
-            )
         for field in (
             "life_stages",
             "required_roles",

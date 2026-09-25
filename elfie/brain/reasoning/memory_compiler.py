@@ -192,11 +192,7 @@ def compile_recall_bundle(
         if node_id is not None
     }
     for node in bundle.focus_nodes:
-        if (
-            node.node_type != "knowledge"
-            or node.node_id in assertion_node_ids
-            or node.relevance <= 0.0
-        ):
+        if node.node_id in assertion_node_ids or node.relevance <= 0.0:
             continue
         rendered = _render_node(node)
         cost = estimate_prompt_tokens(rendered)
@@ -556,23 +552,20 @@ def _render_packet(
 
 
 def _render_node(node: RecallNode) -> str:
-    if node.node_type == "knowledge":
-        source_ref = node.properties.get("source_ref")
-        description = (
-            f"；来源：{_safe(source_ref)}"
-            if isinstance(source_ref, str) and source_ref
-            else ""
-        )
-    else:
-        description = (
-            f"；说明：{_safe(node.description, 240)}" if node.description else ""
-        )
+    source_ref = node.properties.get("source_ref")
+    detail = (
+        f"；来源：{_safe(source_ref)}"
+        if isinstance(source_ref, str) and source_ref
+        else f"；说明：{_safe(node.description, 240)}"
+        if node.description
+        else ""
+    )
     return (
         f'<NODE id="{_safe_attr(node.node_id)}">\n'
         f"节点：{_safe(node.label)}；类型：{_safe(node.node_type)}"
         f"；相关性：{node.relevance:.3f}；重要性：{node.importance:.3f}"
         f"；置信度：{node.confidence:.3f}"
-        f"{description}\n"
+        f"{detail}\n"
         "</NODE>"
     )
 

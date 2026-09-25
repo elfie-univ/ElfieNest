@@ -121,6 +121,8 @@ def test_default_app_uses_elfie_lab_root_and_keeps_production_isolated(
 
     expected_root = elfie_data / "runtime"
     assert app.state.storage.root == elfie_data
+    assert app.state.storage.ontology.registry_revision == 0
+    assert (elfie_data / "memory" / "ontology.sqlite").is_file()
     assert app.state.model_execution.root == expected_root.resolve()
     assert (expected_root / "nest.db").exists()
     assert client.get("/api/runtime/status").json()["scope"] == "override"
@@ -144,6 +146,8 @@ def test_app_accepts_existing_lab_storage_with_independent_runtime_root(
 
     assert client.get("/api/health").json()["status"] == "ok"
     assert app.state.storage.root == lab_root
+    assert app.state.storage.ontology.registry_revision == 0
+    assert (lab_root / "memory" / "ontology.sqlite").is_file()
     assert app.state.model_execution.root == (lab_root / "runtime").resolve()
     assert (lab_root / "runtime" / "nest.db").is_file()
 

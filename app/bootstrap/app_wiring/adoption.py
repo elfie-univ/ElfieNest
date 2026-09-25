@@ -59,7 +59,11 @@ from infrastructure.persistence.elfie_workspace.brain_state import (
     YamlEnergyLimitsAdapter,
     YamlSelfhoodSeedAdapter,
 )
+from infrastructure.persistence.layout.data_home import data_home_from_db_path
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.ontology_loader import (
+    load_memory_ontology_snapshot,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.platform import (
     ElfieFactoryAdapter,
@@ -123,12 +127,13 @@ def build_adoption_services(
         db_path,
         nest_config=nest_config or load_nest_config(),
     )
+    ontology = load_memory_ontology_snapshot(data_home=data_home_from_db_path(db_path))
 
     @lru_cache(maxsize=1)
     def load_source() -> GenesisSourcePackage:
         """Keep the published source lazy and shared by both Genesis paths."""
 
-        return load_genesis_source_package()
+        return load_genesis_source_package(ontology=ontology)
 
     class LazyCandidateReveal:
         def __init__(self) -> None:
@@ -166,7 +171,7 @@ def build_adoption_services(
         adoption=adoption,
         resident_admission=ResidentAdmissionService(
             adoption,
-            FinalElfieWorkspaceAdapter.from_database_path(db_path),
+            FinalElfieWorkspaceAdapter.from_database_path(db_path, ontology=ontology),
             ElfieFactoryAdapter(
                 ElfieFactory(),
                 body_factory,
@@ -174,6 +179,7 @@ def build_adoption_services(
                 lambda workspace: SQLiteMemoryStoreAdapter(
                     Path(workspace) / "memory" / "knowledge.sqlite",
                     elfie_id=Path(workspace).name,
+                    ontology=ontology,
                 ),
                 lambda workspace: SQLiteActivityStoreAdapter(
                     Path(workspace) / "activity" / "activity.sqlite"
@@ -193,6 +199,7 @@ def build_adoption_services(
                     load_reasoning_constitution()
                 ),
                 skill_catalog=BundledSkillCatalog(),
+                memory_ontology=ontology,
             ),
             nest_session,
             build_genesis_compiler,

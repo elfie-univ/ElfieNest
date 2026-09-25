@@ -1,33 +1,50 @@
-"""Tests for the frozen Memory node taxonomy."""
+"""The injected ontology is the sole source of Memory node classification."""
 
 import pytest
 
-from elfie.brain.memory import (
-    NodeInput,
-    memory_knowledge_kind,
-    memory_node_domain,
-    resolve_memory_node_type,
-)
+from elfie.brain.memory.memory_records import NodeInput, memory_node_group
+from elfie.brain.memory.ontology import MemoryOntologyError
+from infrastructure.persistence.memory.ontology_loader import load_core_memory_ontology
 
 
-def test_entity_leaf_types_share_entity_domain_without_collapsing_identity() -> None:
-    assert memory_node_domain("elfie") == "entity"
-    assert memory_node_domain("person") == "entity"
-    assert memory_node_domain("group") == "entity"
-    assert resolve_memory_node_type("elfie").kind == "elfie"
-    assert resolve_memory_node_type("person").kind == "person"
-    assert resolve_memory_node_type("group").kind == "group"
+def test_core_ontology_exposes_the_five_reviewed_groups_and_leaf_types() -> None:
+    ontology = load_core_memory_ontology()
+
+    assert {
+        group.group_id: tuple(
+            item.node_type for item in ontology.active_node_types(group.group_id)
+        )
+        for group in ontology.type_groups
+    } == {
+        "social_relations": ("elfie", "person", "group"),
+        "entities": ("organism", "object", "material"),
+        "space_geography": ("cosmic_entity", "place"),
+        "events": ("event",),
+        "general_knowledge": (
+            "concept",
+            "claim",
+            "theory_or_model",
+            "principle_or_law",
+            "pattern",
+            "rule_or_guideline",
+            "method_or_procedure",
+            "viewpoint",
+        ),
+    }
 
 
-def test_knowledge_subtype_is_explicit_and_pattern_is_not_a_top_level_domain() -> None:
-    assert memory_node_domain("knowledge") == "knowledge"
-    assert (
-        memory_knowledge_kind("knowledge", {"knowledge_kind": "pattern"}) == "pattern"
-    )
-    assert memory_node_domain("pattern") == "knowledge"
-    assert memory_knowledge_kind("pattern") == "pattern"
+def test_group_is_derived_from_registered_leaf_type_not_stored_on_node() -> None:
+    ontology = load_core_memory_ontology()
+    node = NodeInput("person-1", "person", "林")
+
+    assert memory_node_group(node.node_type, ontology) == "social_relations"
+    assert not hasattr(node, "type_group")
 
 
-def test_node_input_rejects_unregistered_semantic_type() -> None:
-    with pytest.raises(ValueError, match="unsupported Memory node_type"):
-        NodeInput("unknown", "made_up_type", "未知")
+def test_unsupported_and_non_active_types_cannot_be_selected_for_writes() -> None:
+    ontology = load_core_memory_ontology()
+
+    with pytest.raises(MemoryOntologyError, match="unsupported Memory node_type"):
+        memory_node_group("self_model", ontology)
+    with pytest.raises(MemoryOntologyError, match="unsupported Memory node_type"):
+        ontology.validate_node_type("made_up_type")

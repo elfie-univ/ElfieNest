@@ -38,6 +38,7 @@ from elfie.brain.memory.memory_records import (
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.observation import BrainObservation
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import SCHEMA_VERSION
@@ -372,11 +373,13 @@ def _inspection_checks(
     *,
     integrity: Mapping[str, Any],
     nodes: Sequence[RecallNode],
+    active_node_types: Iterable[str],
     assertions: Sequence[RecallAssertion],
     episodes: Sequence[ClosedEpisode],
     maintenance_statuses: Mapping[str, EpisodeMaintenanceStatus],
     confidence_threshold: float,
 ) -> dict[str, Any]:
+    active_node_type_ids = frozenset(active_node_types)
     node_ids = {node.node_id for node in nodes}
     orphan_assertions = [
         {
@@ -398,17 +401,7 @@ def _inspection_checks(
             "node_type": node.node_type,
         }
         for node in nodes
-        if node.node_type
-        in {
-            "elfie",
-            "event",
-            "knowledge",
-            "person",
-            "group",
-            "place",
-            "object",
-            "self_model",
-        }
+        if node.node_type in active_node_type_ids
         if not node.description or not node.description.strip()
     ]
     low_confidence_nodes = [
@@ -753,6 +746,45 @@ def build_inspection_report(
         "node_type_counts": dict(
             sorted(Counter(node.node_type for node in all_nodes).items())
         ),
+        "ontology": {
+            "revision": store.ontology.revision,
+            "type_groups": [
+                {
+                    "group_id": item.group_id,
+                    "label": item.label,
+                    "color": item.color,
+                    "order": item.order,
+                }
+                for item in store.ontology.type_groups
+            ],
+            "node_types": [
+                {
+                    "node_type": item.node_type,
+                    "label": item.label,
+                    "group_id": item.group_id,
+                    "color": item.color,
+                    "status": item.status,
+                    "count": Counter(node.node_type for node in all_nodes).get(
+                        item.node_type, 0
+                    ),
+                }
+                for item in store.ontology.node_types
+            ],
+            "predicates": [
+                {
+                    "predicate": item.predicate,
+                    "label": item.label,
+                    "symmetric": item.symmetric,
+                    "inverse": item.inverse,
+                    "status": item.status,
+                    "count": Counter(
+                        assertion.predicate for assertion in all_assertions
+                    ).get(item.predicate, 0),
+                }
+                for item in store.ontology.predicates
+            ],
+            "predicate_aliases": dict(store.ontology.predicate_aliases),
+        },
         "predicate_counts": dict(
             sorted(Counter(assertion.predicate for assertion in all_assertions).items())
         ),
@@ -762,6 +794,9 @@ def build_inspection_report(
         "checks": _inspection_checks(
             integrity=integrity,
             nodes=all_nodes,
+            active_node_types=(
+                spec.node_type for spec in store.ontology.active_node_types()
+            ),
             assertions=all_assertions,
             episodes=all_episodes,
             maintenance_statuses=maintenance_statuses,
@@ -1030,6 +1065,7 @@ def _read_only_store(
     database: Path,
     *,
     elfie_id: str | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
 ) -> Iterator[SQLiteMemoryStoreAdapter]:
     """Open a temporary adapter copy while keeping the source database read-only."""
     source_path = database.expanduser().resolve()
@@ -1044,7 +1080,9 @@ def _read_only_store(
         with sqlite3.connect(source_uri, uri=True) as source:
             with sqlite3.connect(str(target_path)) as target:
                 source.backup(target)
-        with SQLiteMemoryStoreAdapter(target_path, elfie_id=elfie_id) as store:
+        with SQLiteMemoryStoreAdapter(
+            target_path, elfie_id=elfie_id, ontology=ontology
+        ) as store:
             yield store
 
 
@@ -1053,6 +1091,7 @@ def _sandbox_store(
     database: Path,
     *,
     elfie_id: str | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
 ) -> Iterator[SQLiteMemoryStoreAdapter]:
     """Open an explicitly disposable writable copy for developer previews."""
     source_path = database.expanduser().resolve()
@@ -1064,7 +1103,9 @@ def _sandbox_store(
         with sqlite3.connect(source_uri, uri=True) as source:
             with sqlite3.connect(str(target_path)) as target:
                 source.backup(target)
-        with SQLiteMemoryStoreAdapter(target_path, elfie_id=elfie_id) as store:
+        with SQLiteMemoryStoreAdapter(
+            target_path, elfie_id=elfie_id, ontology=ontology
+        ) as store:
             yield store
 
 

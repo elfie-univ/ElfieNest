@@ -51,7 +51,7 @@ def _seed_graph(store: SQLiteMemoryStoreAdapter) -> None:
     store.upsert_node_record(
         NodeInput(
             "knowledge-1",
-            "knowledge",
+            "concept",
             "喜欢散步",
             description="一条知识",
             properties=dict(owner),
@@ -60,7 +60,7 @@ def _seed_graph(store: SQLiteMemoryStoreAdapter) -> None:
     store.record_sourced_assertion(
         AssertionInput(
             subject_id="elfie",
-            predicate="knows",
+            predicate="learned_about",
             object_node_id="knowledge-1",
             evidence_ids=("evidence-1",),
             assertion_id="assertion-1",
@@ -132,7 +132,7 @@ def _seed_other_elfie(store: SQLiteMemoryStoreAdapter) -> None:
     store.upsert_node_record(
         NodeInput(
             "other-knowledge",
-            "knowledge",
+            "concept",
             "另一条知识",
             properties={"elfie_id": "elfie-b"},
         )
@@ -140,7 +140,7 @@ def _seed_other_elfie(store: SQLiteMemoryStoreAdapter) -> None:
     store.record_sourced_assertion(
         AssertionInput(
             subject_id="other-elfie",
-            predicate="knows",
+            predicate="learned_about",
             object_node_id="other-knowledge",
             evidence_ids=("evidence-other-elfie",),
             assertion_id="assertion-other-elfie",
@@ -226,6 +226,21 @@ def test_empty_inspection_is_complete_zero_state_not_read_failure() -> None:
         not report["data"][key]
         for key in ("episodes", "nodes", "assertions", "evidence")
     )
+
+
+def test_description_check_uses_active_registry_node_types() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-ontology-check") as store:
+        store.upsert_node_record(
+            NodeInput("viewpoint-1", "viewpoint", "观点", description="")
+        )
+        report = build_inspection_report(store, database="memory.sqlite")
+
+    missing = next(
+        item
+        for item in report["checks"]["checks"]
+        if item["name"] == "empty_descriptions"
+    )
+    assert missing["count"] == 1
 
 
 def test_inspection_projects_episode_consolidation_progress_separately() -> None:
@@ -347,7 +362,7 @@ def test_inspection_cursor_pages_large_graph_without_dangling_edges() -> None:
                 nodes=tuple(
                     NodeInput(
                         f"large-node-{index:04d}",
-                        "knowledge",
+                        "concept",
                         f"分页知识 {index}",
                     )
                     for index in range(node_count)
@@ -364,7 +379,7 @@ def test_inspection_cursor_pages_large_graph_without_dangling_edges() -> None:
                 assertions=tuple(
                     AssertionInput(
                         "large-node-0000",
-                        "related_to",
+                        "relationship",
                         object_node_id=f"large-node-{index:04d}",
                         evidence_ids=(f"large-evidence-{index:04d}",),
                         assertion_id=f"large-assertion-{index:04d}",
@@ -432,7 +447,7 @@ def test_inspection_cursor_rejects_mixed_consistency_and_marks_revision_unavaila
         cursor = first["pagination"]["next_cursor"]
         assert cursor
 
-        store.upsert_node_record(NodeInput("stale-node", "knowledge", "读中发生的变化"))
+        store.upsert_node_record(NodeInput("stale-node", "concept", "读中发生的变化"))
 
         with pytest.raises(MemoryInspectionStaleError):
             build_inspection_report(
@@ -496,7 +511,7 @@ def test_recall_report_keeps_paths_and_evidence() -> None:
                 episode_id="episode-1",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("food", "food", "香菜"),
+                    NodeInput("food", "organism", "香菜"),
                 ),
                 evidence=(
                     EvidenceInput(

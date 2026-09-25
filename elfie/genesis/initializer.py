@@ -25,10 +25,10 @@ from elfie.brain.memory.memory_store import (
     GenesisSubmissionConflict,
     MemoryStorePort,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.memory.predicates import (
     relation_context,
     relation_importance,
-    relation_spec,
 )
 
 from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
@@ -36,7 +36,6 @@ from .serialization import (
     EPISODE_NODE_PREFIX,
     PERSON_NODE_PREFIX,
     PLACE_NODE_PREFIX,
-    SELF_MODEL_PREFIX,
     SELF_NODE_PREFIX,
     genesis_content_hash,
     output_ids_hash,
@@ -63,6 +62,9 @@ class GenesisCommitReceipt:
 class GenesisMemoryCommitter:
     """Materialize a typed bundle through one atomic Memory submission."""
 
+    def __init__(self, ontology: MemoryOntologySnapshot | None = None) -> None:
+        self._ontology = ontology
+
     def commit(
         self, bundle: GenesisBundle, storage: MemoryStorePort
     ) -> GenesisCommitReceipt:
@@ -86,6 +88,10 @@ class GenesisMemoryCommitter:
         get_submission = getattr(storage, "get_genesis_submission", None)
         if not callable(submission) or not callable(get_submission):
             raise TypeError("Genesis requires source-first Memory storage")
+        ontology = self._ontology or getattr(storage, "ontology", None)
+        if not isinstance(ontology, MemoryOntologySnapshot):
+            raise TypeError("Genesis requires the injected Memory ontology snapshot")
+        validate_genesis_bundle(bundle, ontology)
 
         existing_submission = get_submission(key_digest)
         if existing_submission is not None:
@@ -103,7 +109,7 @@ class GenesisMemoryCommitter:
             ) as accepted:
                 result = (
                     self._commit_bundle(
-                        bundle, storage, now, key_digest, inventory_hash
+                        bundle, storage, now, key_digest, inventory_hash, ontology
                     )
                     if accepted
                     else None
@@ -177,6 +183,7 @@ class GenesisMemoryCommitter:
         now: str,
         key_digest: str,
         inventory_hash: str,
+        ontology: MemoryOntologySnapshot,
     ) -> GenesisCommitReceipt:
         profile = bundle.profile_draft.profile
         elfie_id = profile.identity.elfie_id
@@ -187,7 +194,6 @@ class GenesisMemoryCommitter:
         node_ids: list[str] = []
 
         self_id = f"{SELF_NODE_PREFIX}{safe_elfie}"
-        self_model_id = f"{SELF_MODEL_PREFIX}{safe_elfie}"
         selfhood = bundle.selfhood_state
         if selfhood is None or not selfhood.complete:
             raise GenesisValidationError("Genesis SelfhoodState 不完整")
@@ -219,48 +225,17 @@ class GenesisMemoryCommitter:
         )
         node_ids.append(self_id)
 
-        self._upsert_node(
-            storage,
-            NodeInput(
-                node_id=self_model_id,
-                node_type="self_model",
-                canonical_label=bundle.self_model_seed.identity_summary,
-                description=bundle.self_model_seed.identity_summary,
-                scope=scope,
-                status="active",
-                confidence=1.0,
-                importance=1.0,
-                retention_profile="stable",
-                properties={
-                    "entity_type": "self_model",
-                    "recall_eligible": False,
-                    "known_facts": list(bundle.self_model_seed.known_facts),
-                    "unknown_facts": list(bundle.self_model_seed.unknown_facts),
-                    "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
-                    "species_knowledge": list(bundle.self_model_seed.species_knowledge),
-                    "skills": list(bundle.self_model_seed.skills),
-                    "habits": list(bundle.self_model_seed.habits),
-                    "preferences": list(bundle.self_model_seed.preferences),
-                    "emotional_triggers": list(
-                        bundle.self_model_seed.emotional_triggers
-                    ),
-                    "current_goal": bundle.self_model_seed.current_goal,
-                    "earth_adaptation": list(bundle.self_model_seed.earth_adaptation),
-                },
-            ),
-        )
-        node_ids.append(self_model_id)
-
         place_node_ids = self._write_places(bundle, storage, scope, now)
         node_ids.extend(place_node_ids.values())
-        self._write_place_hierarchy(bundle, storage, place_node_ids, now)
-        self._write_place_relations(bundle, storage, place_node_ids, now)
+        self._write_place_hierarchy(bundle, storage, place_node_ids, now, ontology)
+        self._write_place_relations(bundle, storage, place_node_ids, now, ontology)
 
         person_node_ids: dict[str, str] = {}
         for relationship in bundle.relationship_seeds:
             target_key = relationship.object_id or relationship.person_id
             person_id = f"{PERSON_NODE_PREFIX}{safe_elfie}:{safe_component(target_key)}"
-            target_node_type = _relationship_node_type(relationship.object_kind)
+            target_node_type = relationship.object_kind
+            ontology.validate_node_type(target_node_type)
             person_node_ids[target_key] = person_id
             person_node_ids[relationship.person_id] = person_id
             description = "；".join(
@@ -472,11 +447,16 @@ class GenesisMemoryCommitter:
                         "visits",
                         object_node_id=place_node,
                         context=relation_context(
-                            "genesis_episode_place", symmetric=False, role="visited"
+                            ontology,
+                            "genesis_episode_place",
+                            predicate="visits",
+                            role="visited",
                         ),
                         epistemic_status="known",
                         confidence=1.0,
-                        importance=relation_importance("visits", place_seed.importance),
+                        importance=relation_importance(
+                            ontology, "visits", place_seed.importance
+                        ),
                     ),
                     EvidenceInput(
                         evidence_id=(
@@ -521,7 +501,7 @@ class GenesisMemoryCommitter:
                 f"{safe_component(relationship.stable_relationship_id)}"
             )
             relation_predicate = _relationship_predicate(relationship.role)
-            relation_semantics = relation_spec(relation_predicate)
+            ontology.predicate_spec(relation_predicate)
             self._record_assertion(
                 storage,
                 AssertionInput(
@@ -529,12 +509,9 @@ class GenesisMemoryCommitter:
                     relation_predicate,
                     object_node_id=target_node,
                     context=relation_context(
+                        ontology,
                         "genesis_relationship",
-                        symmetric=(
-                            relation_semantics.symmetric
-                            if relation_semantics is not None
-                            else False
-                        ),
+                        predicate=relation_predicate,
                         specificity=(
                             "unspecified" if relation_predicate == "kin_of" else None
                         ),
@@ -545,7 +522,7 @@ class GenesisMemoryCommitter:
                     ),
                     confidence=max(relationship.initial_trust, 0.5),
                     importance=relation_importance(
-                        relation_predicate, relationship.importance
+                        ontology, relation_predicate, relationship.importance
                     ),
                 ),
                 EvidenceInput(
@@ -638,6 +615,7 @@ class GenesisMemoryCommitter:
         storage: MemoryStorePort,
         place_node_ids: dict[str, str],
         now: str,
+        ontology: MemoryOntologySnapshot,
     ) -> None:
         """Persist the explicit place seed hierarchy as typed graph facts.
 
@@ -666,11 +644,13 @@ class GenesisMemoryCommitter:
                     "located_in",
                     object_node_id=parent_node,
                     context=relation_context(
-                        "genesis_place_hierarchy", symmetric=False
+                        ontology,
+                        "genesis_place_hierarchy",
+                        predicate="located_in",
                     ),
                     epistemic_status="known",
                     confidence=1.0,
-                    importance=relation_importance("located_in"),
+                    importance=relation_importance(ontology, "located_in"),
                 ),
                 EvidenceInput(
                     evidence_id=evidence_id,
@@ -688,6 +668,7 @@ class GenesisMemoryCommitter:
         storage: MemoryStorePort,
         place_node_ids: dict[str, str],
         now: str,
+        ontology: MemoryOntologySnapshot,
     ) -> None:
         """Persist the reviewed non-hierarchical public geography relations."""
 
@@ -695,11 +676,12 @@ class GenesisMemoryCommitter:
         for relation in bundle.place_relation_seeds:
             subject_node = place_node_ids[relation.subject_id]
             object_node = place_node_ids[relation.object_id]
-            relation_semantics = relation_spec(relation.relation)
-            if relation_semantics is None:
+            try:
+                ontology.predicate_spec(relation.relation)
+            except ValueError as error:
                 raise GenesisValidationError(
                     f"地点关系没有注册语义: {relation.relation}"
-                )
+                ) from error
             evidence_id = (
                 f"genesis:evidence:place-relation:{safe_elfie}:"
                 f"{safe_component(relation.subject_id)}:"
@@ -712,14 +694,15 @@ class GenesisMemoryCommitter:
                     relation.relation,
                     object_node_id=object_node,
                     context=relation_context(
+                        ontology,
                         "genesis_place_relation",
-                        symmetric=relation_semantics.symmetric,
+                        predicate=relation.relation,
                         role=relation.relation,
                     ),
                     epistemic_status="known",
                     confidence=1.0,
                     importance=relation_importance(
-                        relation.relation, relation.importance
+                        ontology, relation.relation, relation.importance
                     ),
                 ),
                 EvidenceInput(
@@ -740,23 +723,6 @@ def _knowledge_episode_id(safe_elfie: str, seed_id: str) -> str:
     """Return the stable Episode ID for one Genesis knowledge statement."""
 
     return f"{EPISODE_NODE_PREFIX}{safe_elfie}:knowledge:{safe_component(seed_id)}"
-
-
-def _relationship_node_type(object_kind: str) -> str:
-    """Map the typed relationship target to the graph's node category."""
-
-    node_type_by_kind = {
-        "person": "person",
-        "elfie": "elfie",
-        "place": "place",
-        "group": "group",
-    }
-    try:
-        return node_type_by_kind[object_kind]
-    except KeyError as exc:
-        raise GenesisValidationError(
-            f"RelationshipSeed.object_kind 无法映射为节点类型: {object_kind}"
-        ) from exc
 
 
 def _relationship_predicate(role: str) -> str:

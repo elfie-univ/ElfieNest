@@ -76,15 +76,16 @@ Memory Debug Workspace 是给开发者使用的记忆调试工作台，不是面
 RecallBundle 是一次搜索的输出，不是图上的第三类永久节点。Recall 可以返回 Episode、Node/Assertion
 或两者，不需要返回上游原始聊天或媒体。
 
-工作台直接使用 Memory 的类型体系，不再建立第二套 UI 类型体系。实体节点使用规范的
-`elfie`、`person`、`group`、`place` 和 `object`；`event` 只在 Episode 明确描述了需要被其他记录
-引用的可复用事件身份时创建，不是每个 Episode 的投影，也不是第三个语义层；`knowledge`
-携带 `knowledge_kind`（`fact`、`concept`、`pattern`、`guideline` 或 `belief`）；`self_model`
-只在自我/世界理解视图中显示。当前精灵是带 `is_self` 标记的真实 `elfie` Node。可视化中心
-锚点只能引用它，不能产生一个没有来源的第二个 Node。
+工作台直接使用注入的 Memory 本体，不再建立第二套 UI 类型体系。五个注册类型组及其叶类型为：
+社会关系（`elfie`、`person`、`group`）、实体（`organism`、`object`、`material`）、空间地理
+（`cosmic_entity`、`place`）、事件（`event`）和通用知识（`concept`、`claim`、`theory_or_model`、
+`principle_or_law`、`pattern`、`rule_or_guideline`、`method_or_procedure`、`viewpoint`）。
+`type_group` 从活动叶类型派生，不存入 Node。Claim 是普通通用知识 Node，不带专属载荷或表。
+事件 Node 只表示可复用事件，不表示每条 Episode 或执行过程。自我模型是由真实 `elfie` Node
+上的已注册出向立场 Assertion 派生出的第六个图谱切片，不是 Node 类型或虚拟锚点。
 
-普通关系视图显示实体之间的 Assertion 及其来源；知识视图显示知识之间的 Assertion 及其来源。
-系统不生成通用的 `about`、`knows`、`knows_boundary` 或 `related_to` 边；概念关系必须使用
+图谱视图按 Memory 切片投影显示已注册、有来源的 Assertion 及其来源。系统不生成通用的
+`about`、`knows`、`knows_boundary` 或 `related_to` 边；概念关系必须使用
 已注册且有来源依据的谓词。每条图谱边都必须携带 Assertion 身份，并能打开关联的 Evidence 和 Episode；丢掉
 该身份的投影不符合工作台契约。
 
@@ -105,8 +106,8 @@ RecallBundle 是一次搜索的输出，不是图上的第三类永久节点。R
 4. **来源：** Episode、Evidence、摘录、时间、视角、归因和媒体引用；
 5. **技术详情：** ID、hash、策略版本、原始 qualifiers 和投影元数据放入折叠区。
 
-Node 详情按注册属性分组支持 `elfie`/`person`、`group`、`place`、`object`、`knowledge`、`event` 和
-`self_model`。Assertion 详情只呈现一次可读关系句，同时呈现两端角色、方向或对称性、有效时间、极性、
+Node 详情按叶类型使用注册属性；类型组名称来自同一本体。自我模型切片链接到实际 Node 和 Assertion，
+不显示合成 Node。Assertion 详情只呈现一次可读关系句，同时呈现两端角色、方向或对称性、有效时间、极性、
 认识状态、重要度、置信度、冲突和 Evidence。Episode 详情先显示非空 `summary_text` 作为简短、只读的展示标题，
 再显示完整原文、时间及精度、来源归因、经历类型、整理进度、内容细致级别、参与者/地点/上下文和受影响的
 Node 与 Assertion；摘要缺失时可用正文截取作为卡片标题，但不能新增可编辑标题字段，也不能以摘要替代正文。
@@ -174,7 +175,11 @@ Episode 来源带保持在顶栏下方的原位置并可横向滚动。左右面
 2. 全局知识图：显示 Node 和 Assertion。Evidence 用连接线、边标记或详情关联表示。
 3. 状态栏：显示节点数、关系数、Episode 数、Evidence 数，以及当前过滤、选中和操作状态。
 
-默认打开页面时展示整个知识库，不展示初始化过程，也不默认只显示某次搜索结果。开发者可以通过类型、生命周期、时间、来源、置信度和操作范围过滤；过滤默认采用“弱化不相关内容”，而不是立即删除全部上下文。
+默认打开页面时展示整个知识库，不展示初始化过程，也不默认只显示某次搜索结果。类型组和叶类型筛选由
+本体驱动并联动：选定类型组后只显示该组叶类型，选择叶类型会自动选中所属类型组，切换到不兼容组时清除
+叶类型选择。这两个选择只筛选图中的圆形 Node，Assertion 仅在其可见端点仍存在时重新投影；不会改变 Recall
+候选、排序、结果列表或 Elfie Lab 上下文。其他图谱过滤沿各自职责工作。图谱过滤不创建第二套类型分类，
+也不把筛选状态写入 Memory。
 
 Recall 运行后仍默认显示完整知识库：正相关度的返回节点和命中关系的端点被强调，无关内容弱化；零分节点不算节点命中，但若它同时是命中关系的端点，仍按关系结果显示。Recall 返回但没有相关度的节点仍单独作为“未评分”结果显示，界面不得伪造分数。Episode 来源带只显示 RecallBundle 中返回的 Episode；切换完整图谱或搜索结果子图都不会把未命中的 Episode 加回来。
 
@@ -264,6 +269,7 @@ selection:
   kind: episode | node | assertion | evidence | operation-step | none
   id: string | null
 filters:
+  node_group: null
   node_types: []
   lifecycle: []
   time_range: null

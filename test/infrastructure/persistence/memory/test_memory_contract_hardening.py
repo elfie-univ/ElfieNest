@@ -171,7 +171,7 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
                 assertions=(
                     AssertionInput(
                         "subject",
-                        "knows",
+                        "is",
                         object_literal="fact",
                         confidence=0.95,
                         importance=0.1,
@@ -249,7 +249,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             episode_id="episode-score-1",
             nodes=(
                 NodeInput("owner", "person", "主人", importance=0.4),
-                NodeInput("food", "food", "香菜", importance=0.4),
+                NodeInput("food", "organism", "香菜", importance=0.4),
             ),
             evidence=(EvidenceInput("score-evidence-1", "episode", "episode-score-1"),),
             assertions=(
@@ -276,7 +276,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             episode_id="episode-score-2",
             nodes=(
                 NodeInput("owner-2", "person", "主人"),
-                NodeInput("food-2", "food", "香菜"),
+                NodeInput("food-2", "organism", "香菜"),
             ),
             evidence=(EvidenceInput("score-evidence-2", "episode", "episode-score-2"),),
             assertions=(
@@ -323,7 +323,7 @@ def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
                 episode_id="episode-rank",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("food", "food", "香菜"),
+                    NodeInput("food", "organism", "香菜"),
                     NodeInput("place", "place", "厨房"),
                 ),
                 evidence=(EvidenceInput("rank-evidence", "episode", "episode-rank"),),
@@ -584,7 +584,7 @@ def test_typed_literal_type_is_part_of_assertion_identity() -> None:
                     assertions=(
                         AssertionInput(
                             "typed-subject",
-                            "knows",
+                            "is",
                             object_literal="2026-01-01",
                             object_literal_type=literal_type,
                             evidence_ids=(evidence_id,),
@@ -594,9 +594,7 @@ def test_typed_literal_type_is_part_of_assertion_identity() -> None:
                     nodes=(NodeInput("typed-subject", "person", "主人"),),
                 )
             )
-        claims = store.graph_assertions_for(
-            ("typed-subject",), relation_types=("knows",)
-        )
+        claims = store.graph_assertions_for(("typed-subject",), relation_types=("is",))
         assert {claim.assertion_id for claim in claims} == {
             "typed-claim-date",
             "typed-claim-text",
@@ -619,11 +617,11 @@ def test_bound_adapters_cannot_read_another_elfies_graph_or_evidence(
             )
         )
         first.upsert_node_record(NodeInput("a-node", "person", "主人"))
-        first.upsert_node_record(NodeInput("b-node", "animal", "小狐"))
+        first.upsert_node_record(NodeInput("b-node", "organism", "小狐"))
         first.record_sourced_assertion(
             AssertionInput(
                 "a-node",
-                "knows",
+                "relationship",
                 object_node_id="b-node",
                 assertion_id="namespace-claim",
                 evidence_ids=("namespace-evidence",),
@@ -801,11 +799,11 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
                     NodeInput("self", "elfie", "Lumi"),
                     NodeInput(
                         "internal-self-model",
-                        "self_model",
+                        "concept",
                         "internal projection",
                         properties={"recall_eligible": False},
                     ),
-                    NodeInput("visible-fact", "knowledge", "来自 Elfaria"),
+                    NodeInput("visible-fact", "concept", "来自 Elfaria"),
                 ),
                 evidence=(
                     EvidenceInput(
@@ -817,14 +815,14 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
                 assertions=(
                     AssertionInput(
                         "self",
-                        "about",
+                        "references",
                         object_node_id="internal-self-model",
                         evidence_ids=("recall-visibility-evidence",),
                         assertion_id="internal-self-model-claim",
                     ),
                     AssertionInput(
                         "self",
-                        "about",
+                        "references",
                         object_node_id="visible-fact",
                         evidence_ids=("recall-visibility-evidence",),
                         assertion_id="visible-fact-claim",
@@ -912,7 +910,7 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
         def ask_with_food(self, **_kwargs: object) -> str:
             return (
                 '{"nodes":[{"label":"主人","type":"person"},'
-                '{"label":"香菜","type":"food"}],"mentions":[],'
+                '{"label":"香菜","type":"organism"}],"mentions":[],'
                 '"assertions":[{"subject_ref":"主人","predicate":"likes",'
                 '"object_ref":"香菜","confidence":0.8,"importance_event":"major"}]}'
             )
@@ -995,7 +993,7 @@ def test_fresh_memory_is_not_immediately_due_for_lifecycle() -> None:
         store.record_sourced_assertion(
             AssertionInput(
                 "fresh-node",
-                "about",
+                "references",
                 object_literal="fresh source",
                 evidence_ids=("fresh-evidence",),
             ),
@@ -1456,7 +1454,7 @@ def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_ar
                 assertions=(
                     AssertionInput(
                         "lifecycle-forget-node",
-                        "knows",
+                        "is",
                         object_literal="低重要性来源",
                         evidence_ids=("lifecycle-forget-evidence",),
                     ),

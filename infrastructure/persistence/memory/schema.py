@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 8
+SCHEMA_VERSION: Final[int] = 9
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -42,10 +42,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         content_text TEXT NOT NULL CHECK (length(trim(content_text)) > 0),
         summary_text TEXT,
         event_kind TEXT NOT NULL DEFAULT 'unclassified'
-            CHECK (event_kind IN (
-                'conversation', 'activity', 'outing', 'learning', 'life_event',
-                'observation', 'reflection', 'unclassified'
-            )),
+            CHECK (length(trim(event_kind)) > 0),
         source_refs_json TEXT NOT NULL DEFAULT '[]'
             CHECK (json_valid(source_refs_json)),
         media_refs_json TEXT NOT NULL DEFAULT '[]'
@@ -216,7 +213,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
                 ('transient', 'ordinary', 'salient', 'semantic', 'stable', 'genesis')),
         conflict_group TEXT,
         supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
-        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v2'
+        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.ontology.v1'
             CHECK (length(trim(predicate_registry_version)) > 0),
         policy_version TEXT NOT NULL DEFAULT 'memory.v3'
             CHECK (length(trim(policy_version)) > 0),
@@ -308,6 +305,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         source_version TEXT,
         source_hash TEXT CHECK (source_hash IS NULL OR length(source_hash) = 64),
         projection_revision TEXT,
+        ontology_revision TEXT,
         checkpoint_json TEXT NOT NULL DEFAULT '{}'
             CHECK (json_valid(checkpoint_json)),
         updated_at TEXT NOT NULL,
@@ -433,7 +431,7 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",
     "CREATE INDEX IF NOT EXISTS idx_genesis_submission_elfie ON memory_genesis_submissions(elfie_id, manifest_id)",
     "CREATE INDEX IF NOT EXISTS idx_maintenance_due ON memory_maintenance(elfie_id, stage, state, next_attempt_at)",
-    "CREATE INDEX IF NOT EXISTS idx_maintenance_projection ON memory_maintenance(elfie_id, stage, target_id, source_version, source_hash, projection_revision)",
+    "CREATE INDEX IF NOT EXISTS idx_maintenance_projection ON memory_maintenance(elfie_id, stage, target_id, source_version, source_hash, projection_revision, ontology_revision)",
     "CREATE INDEX IF NOT EXISTS idx_diagnostics_episode ON projection_diagnostics(elfie_id, episode_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_importance_events_target ON memory_importance_events(elfie_id, target_kind, target_id, occurred_at)",
     "CREATE INDEX IF NOT EXISTS idx_retention_receipts_target ON memory_retention_receipts(elfie_id, target_kind, target_id, occurred_at)",

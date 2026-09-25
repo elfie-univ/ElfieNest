@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.10
+**Contract version:** 1.13
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-08
+**Revised:** 2026-09-25
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -21,7 +21,14 @@
 > load boundary. Version 1.10 records the unified typed observation surface: one
 > Brain-owned `BrainObservationSink` Port injected by assembly, the shared
 > `BrainObservation` envelope with boundary-owned named payload modules, and the
-> guard-before-construct zero-cost rule. Remaining
+> guard-before-construct zero-cost rule. Version 1.11 freezes phase-one Memory
+> Recall ordering: static sourced `importance` is not a Recall ranking signal;
+> feedback reinforcement, type-prior/history ranking and composite/adaptive
+> scores are deferred. Version 1.12 froze the five Node-type groups and the
+> six phase-one slices with a product-root-global extension registry. Version
+> 1.13 clarifies that `claim` is an ordinary general-knowledge leaf type with
+> no dedicated payload, table or Evidence model; all semantic types use the
+> same Node and Assertion contracts. Remaining
 > implementation gaps stay in their scoped conformance registers.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
@@ -67,10 +74,11 @@ type. Assertions are sourced propositions: symmetric social relations (`friend_o
 view, while directed relations (`parent_of`, `owned_by`, `student_of`, and similar predicates)
 retain endpoint roles. A coarse `kin_of` is allowed when the source does not identify the exact
 kinship; absence of an edge is unknown, and co-occurrence is not evidence of a social relation.
-Multiple relations between the same endpoints coexist. Assertion `importance` ranks salience for
-recall and maintenance; it is separate from `confidence` and must not be propagated merely by
-graph adjacency. The registry-owned type prior and bounded sourced-history signals may rank an
-explicit childhood friend above a routine neighbor without collapsing either fact.
+Multiple relations between the same endpoints coexist. Assertion `importance` is static, sourced
+admission metadata, separate from `confidence`; registered lifecycle/admission rules may inspect it,
+but phase-one Recall does not use it to rank results or propagate it through graph adjacency. Recall
+uses deterministic matching and stable tie-breaking. Feedback reinforcement, type-prior or sourced-
+history ranking, score folding and composite/adaptive ranking require a later reviewed design.
 
 Memory has exactly two semantic layers. A `ClosedEpisode` is an already-processed, complete topic,
 story or learning unit and is the normal text-memory result; it may aggregate multiple turns, but
@@ -89,6 +97,21 @@ an unusually large Episode is an implementation detail, not a third semantic Mem
 An Episode has no title field: its original content is the primary display and retrieval text. Any
 legacy `summary_text` is optional metadata only. Consolidation does not create an event Node for
 every Episode and does not generate generic `about`, `knows`, `knows_boundary` or `related_to` edges.
+
+`claim` is an ordinary `node_type` in the general-knowledge group, with the same Node identity,
+properties, source and Evidence rules as every other leaf type; it has no dedicated payload, table or
+Evidence model. An Assertion is an edge, never an endpoint. The five Node-type groups are Social relations, Entities, Space geography, Events
+and General knowledge. They produce Node-first slices: select Nodes, then preserve every sourced,
+registered Assertion whose Node endpoints are both selected. Self-model is the sixth phase-one slice:
+select sourced outgoing `believes`, `doubts`, `rejects`, `prefers`, `values`, `has_goal`, `has_trait`,
+`has_skill` and `has_habit` Assertions whose subject is the existing Elfie Node, collect their Node endpoints,
+then preserve all sourced, registered Assertions among the selected Nodes. The current design does
+not create a virtual-self Node. A final cross-group pass extracts explicitly sourced Assertions
+between selected Nodes with different primary groups. Producing this Memory self-model view is current
+behavior; using it to update Selfhood, Orientation or other owners is future work. Core ontology is
+reviewed YAML; additive dynamic extensions have one shared installation-global registry per resolved
+product data root, not one registry per Elfie/workspace. See the [Memory architecture](../designs/elfie/brain/elfie-memory-architecture)
+for the complete type and predicate vocabulary.
 
 Knowledge Node admission is stricter than ordinary text capture: `canonical_label` is one
 source-grounded short title (at most 40 characters and never a complete Episode), while the full

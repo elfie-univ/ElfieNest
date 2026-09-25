@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
-from elfie.brain.memory.memory_records import EPISODE_EVENT_KINDS
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
 from elfie.genesis.world import (
     CoverageManifest,
@@ -38,7 +38,10 @@ _PLACE_KIND_ALIASES = {
 
 
 def decode_genesis_package(
-    program: Mapping[str, Any], program_path: Path
+    program: Mapping[str, Any],
+    program_path: Path,
+    *,
+    ontology: MemoryOntologySnapshot,
 ) -> GenesisSourcePackage:
     """Project the already integrity-checked package into existing domain types."""
     package_root = program_path.parent
@@ -133,7 +136,7 @@ def decode_genesis_package(
         ),
         life_archetypes=_life_archetypes(rules),
         relationship_archetypes=_relationship_archetypes(rules),
-        episode_themes=_episode_themes(rules),
+        episode_themes=_episode_themes(rules, ontology),
     )
 
 
@@ -395,14 +398,20 @@ def _relationship_archetypes(
     return tuple(result)
 
 
-def _episode_themes(rules: Mapping[str, Any]) -> tuple[EpisodeTheme, ...]:
+def _episode_themes(
+    rules: Mapping[str, Any], ontology: MemoryOntologySnapshot
+) -> tuple[EpisodeTheme, ...]:
     group = _mapping(rules["episode_themes"], "rules.episode_themes")
     result = []
     for raw in _array(group, "themes"):
         item = _mapping(raw, "episode theme")
         event_kind = _text(item, "event_kind")
-        if event_kind not in EPISODE_EVENT_KINDS or event_kind == "unclassified":
-            raise ValueError(f"EpisodeTheme {item.get('id')} event_kind 无效")
+        try:
+            ontology.validate_episode_type(event_kind)
+        except ValueError as error:
+            raise ValueError(
+                f"EpisodeTheme {item.get('id')} event_kind 无效: {event_kind}"
+            ) from error
         result.append(
             EpisodeTheme(
                 theme_id=_text(item, "id"),

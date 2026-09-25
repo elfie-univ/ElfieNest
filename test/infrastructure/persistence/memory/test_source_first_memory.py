@@ -186,7 +186,7 @@ def test_consolidation_is_source_grounded_and_retrieval_is_hybrid() -> None:
                 episode_id="episode-1",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("coriander", "food", "香菜"),
+                    NodeInput("coriander", "organism", "香菜"),
                 ),
                 aliases=(AliasInput("coriander", "芫荽", evidence_id="ev-1"),),
                 evidence=(
@@ -289,7 +289,7 @@ def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> No
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-1",
-                nodes=(NodeInput("food-1", "food", "香菜"),),
+                nodes=(NodeInput("food-1", "organism", "香菜"),),
                 evidence=(
                     EvidenceInput(
                         "evidence-1", "episode", "episode-1", excerpt="主人喜欢香菜"
@@ -300,7 +300,7 @@ def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> No
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-2",
-                nodes=(NodeInput("food-2", "food", "香菜"),),
+                nodes=(NodeInput("food-2", "organism", "香菜"),),
                 aliases=(AliasInput("food-2", "芫荽", evidence_id="evidence-2"),),
                 evidence=(
                     EvidenceInput(
@@ -310,7 +310,7 @@ def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> No
             )
         )
         rows = store.connection.execute(
-            "SELECT node_id FROM nodes WHERE node_type='food' AND canonical_label='香菜'"
+            "SELECT node_id FROM nodes WHERE node_type='organism' AND canonical_label='香菜'"
         ).fetchall()
         assert [row[0] for row in rows] == ["food-1"]
         assert store.find_graph_nodes("芫荽")[0].node_id == "food-1"
@@ -323,7 +323,7 @@ def test_alias_resolution_keeps_the_existing_canonical_label() -> None:
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-1",
-                nodes=(NodeInput("food-1", "food", "香菜"),),
+                nodes=(NodeInput("food-1", "organism", "香菜"),),
                 aliases=(AliasInput("food-1", "芫荽", evidence_id="ev-1"),),
                 evidence=(
                     EvidenceInput("ev-1", "episode", "episode-1", excerpt="香菜资料"),
@@ -333,7 +333,7 @@ def test_alias_resolution_keeps_the_existing_canonical_label() -> None:
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-2",
-                nodes=(NodeInput("food-2", "food", "芫荽"),),
+                nodes=(NodeInput("food-2", "organism", "芫荽"),),
                 aliases=(AliasInput("food-2", "芫荽", evidence_id="ev-2"),),
                 evidence=(
                     EvidenceInput("ev-2", "episode", "episode-2", excerpt="芫荽资料"),
@@ -341,7 +341,7 @@ def test_alias_resolution_keeps_the_existing_canonical_label() -> None:
             )
         )
         row = store.connection.execute(
-            "SELECT node_id, canonical_label FROM nodes WHERE node_type='food' AND merged_into IS NULL"
+            "SELECT node_id, canonical_label FROM nodes WHERE node_type='organism' AND merged_into IS NULL"
         ).fetchone()
         assert tuple(row) == ("food-1", "香菜")
         assert store.find_graph_nodes("芫荽")[0].label == "香菜"
@@ -424,7 +424,7 @@ def test_merge_retargets_mentions_and_folds_qualified_assertions() -> None:
                 assertions=(
                     AssertionInput(
                         "a",
-                        "knows",
+                        "relationship",
                         object_node_id="b",
                         evidence_ids=("ev",),
                         assertion_id="claim",
@@ -630,7 +630,7 @@ def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
 def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
     proposal = (
         '{"nodes":[{"label":"主人","type":"person"},'
-        '{"label":"香菜","type":"food","aliases":["芫荽"]}],'
+        '{"label":"香菜","type":"organism","aliases":["芫荽"]}],'
         '"mentions":[{"surface_text":"主人","label":"主人"},'
         '{"surface_text":"香菜","label":"香菜"}],'
         '"assertions":[{"subject_ref":"主人","predicate":"likes",'
@@ -683,7 +683,7 @@ def test_recall_respects_graph_limits_and_renderer_preserves_provenance() -> Non
                 episode_id="episode-1",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("food", "food", "香菜"),
+                    NodeInput("food", "organism", "香菜"),
                     NodeInput("meal", "concept", "晚餐"),
                 ),
                 mentions=(MentionInput("episode-1", "主人", "owner", "resolved"),),
@@ -702,7 +702,7 @@ def test_recall_respects_graph_limits_and_renderer_preserves_provenance() -> Non
                     ),
                     AssertionInput(
                         "food",
-                        "used_in",
+                        "uses",
                         object_node_id="meal",
                         evidence_ids=("ev-1",),
                         assertion_id="a-2",
@@ -743,7 +743,7 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
                 episode_id="episode-1",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("fox", "animal", "小狐"),
+                    NodeInput("fox", "organism", "小狐"),
                 ),
                 evidence=(
                     EvidenceInput(
@@ -753,7 +753,7 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
                 assertions=(
                     AssertionInput(
                         "owner",
-                        "knows",
+                        "relationship",
                         object_node_id="fox",
                         evidence_ids=("ev-1",),
                         assertion_id="knows",
@@ -764,17 +764,19 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("owner",),
-                node_types=("animal",),
-                relation_types=("knows",),
+                node_types=("organism",),
+                relation_types=("relationship",),
                 mode="local",
                 hop_limit=1,
             )
         )
         assert [node.label for node in bundle.focus_nodes] == ["小狐"]
-        assert [assertion.predicate for assertion in bundle.assertions] == ["knows"]
+        assert [assertion.predicate for assertion in bundle.assertions] == [
+            "relationship"
+        ]
 
 
-def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() -> None:
+def test_recall_uses_registered_genesis_knowledge_links_and_social_edges() -> None:
     self_id = "genesis:self:legacy"
     knowledge_ids = tuple(
         f"genesis:knowledge:legacy:fact-{index}" for index in range(16)
@@ -797,7 +799,7 @@ def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() ->
                     *(
                         NodeInput(
                             node_id,
-                            "knowledge",
+                            "concept",
                             "Elfaria 一年有 196 个本地日。"
                             if index == 0
                             else f"其他世界知识 {index}",
@@ -812,7 +814,7 @@ def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() ->
                     *(
                         AssertionInput(
                             self_id,
-                            "knows",
+                            "learned_about",
                             object_node_id=node_id,
                             importance=0.9,
                             evidence_ids=("source",),
@@ -832,25 +834,29 @@ def test_recall_skips_legacy_genesis_knowledge_links_but_keeps_social_edges() ->
 
         world = store.recall(RecallRequest(text="196 个本地日"))
         assert knowledge_ids[0] in {node.node_id for node in world.focus_nodes}
-        assert self_id not in {node.node_id for node in world.focus_nodes}
-        assert not any(
-            assertion.predicate in {"knows", "knows_boundary"}
-            for assertion in world.assertions
+        assert self_id in {node.node_id for node in world.focus_nodes}
+        assert any(
+            assertion.predicate == "learned_about" for assertion in world.assertions
         )
 
-        social = store.recall(RecallRequest(seed_node_ids=(self_id,), hop_limit=1))
+        social = store.recall(
+            RecallRequest(
+                seed_node_ids=(self_id,),
+                relation_types=("relationship",),
+                mode="local",
+                hop_limit=1,
+                assertion_limit=32,
+                neighbors_per_node=32,
+            )
+        )
         assert any(
             assertion.predicate == "relationship" for assertion in social.assertions
-        )
-        assert not any(
-            assertion.predicate in {"knows", "knows_boundary"}
-            for assertion in social.assertions
-        )
+        ), [assertion.predicate for assertion in social.assertions]
 
         chat = store.recall(RecallRequest(text="蓝色"))
         assert "episode-chat" in {episode.episode_id for episode in chat.episodes}
         assert any(
-            assertion.predicate == "knows"
+            assertion.predicate == "learned_about"
             for assertion in store.list_graph_assertions(limit=100)
         )
 
@@ -869,7 +875,7 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
         store.apply_consolidation(
             ConsolidationProjection(
                 episode_id="episode-1",
-                nodes=(NodeInput("food", "food", "香菜"),),
+                nodes=(NodeInput("food", "organism", "香菜"),),
                 aliases=(AliasInput("food", "芫荽", evidence_id="ev"),),
                 descriptions=(
                     DescriptionInput("food", "一种可食用的香草", evidence_id="ev"),
@@ -929,7 +935,7 @@ def test_recall_prioritizes_a_direct_label_over_broad_distractors() -> None:
         store.upsert_node_record(
             NodeInput(
                 node_id="known-region",
-                node_type="knowledge",
+                node_type="concept",
                 canonical_label="当前可确认的生活区域是迷雾镇（Mistyville）。",
                 description="迷雾镇是这只 Elfie 已知的生活区域。",
             )
@@ -990,7 +996,7 @@ def test_conflicting_qualified_claims_remain_visible_with_their_sources() -> Non
                     episode_id=episode_id,
                     nodes=(
                         NodeInput("owner", "person", "主人"),
-                        NodeInput("food", "food", "香菜"),
+                        NodeInput("food", "organism", "香菜"),
                     ),
                     evidence=(
                         EvidenceInput(evidence_id, "episode", episode_id, excerpt=text),
@@ -1045,7 +1051,7 @@ def test_seed_graph_recall_honors_episode_time_window() -> None:
                     assertions=(
                         AssertionInput(
                             "owner",
-                            "knows",
+                            "is",
                             object_node_id=f"person-{person}",
                             evidence_ids=(f"evidence-{person}",),
                         ),

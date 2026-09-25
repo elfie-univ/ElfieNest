@@ -74,7 +74,7 @@ def test_admission_profile_owns_initial_half_life_and_is_persisted() -> None:
         store.record_sourced_assertion(
             AssertionInput(
                 "profile-node",
-                "about",
+                "references",
                 object_literal="semantic fact",
                 half_life_days=365.0,
                 retention_profile="semantic",
@@ -158,7 +158,7 @@ def test_relation_evidence_does_not_propagate_node_confidence_or_retention() -> 
                 episode_id=episode.episode_id,
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("food", "food", "香菜"),
+                    NodeInput("food", "organism", "香菜"),
                 ),
                 evidence=(
                     EvidenceInput(
@@ -575,7 +575,7 @@ def test_authoritative_evidence_relearns_archived_identity_without_multiplier() 
         assertion_id = store.record_sourced_assertion(
             AssertionInput(
                 "cold-node",
-                "about",
+                "references",
                 object_literal="权威事实",
                 assertion_id="cold-assertion",
                 importance=0.6,
@@ -715,7 +715,7 @@ def test_genesis_submission_forces_ten_year_retention_for_all_memory_records() -
             store.upsert_node_record(
                 NodeInput(
                     node_id="genesis-node",
-                    node_type="knowledge",
+                    node_type="concept",
                     canonical_label="Genesis core fact",
                     confidence=1.0,
                 )
@@ -723,7 +723,7 @@ def test_genesis_submission_forces_ten_year_retention_for_all_memory_records() -
             store.record_sourced_assertion(
                 AssertionInput(
                     "genesis-node",
-                    "about",
+                    "references",
                     object_literal="Genesis core fact",
                     confidence=1.0,
                 ),
@@ -766,7 +766,7 @@ def test_genesis_seed_evidence_is_admission_prior_not_duplicate_confidence_suppo
             store.upsert_node_record(
                 NodeInput(
                     node_id="genesis-confidence-node",
-                    node_type="knowledge",
+                    node_type="concept",
                     canonical_label="带先验的知识",
                     confidence=0.75,
                 )
@@ -774,7 +774,7 @@ def test_genesis_seed_evidence_is_admission_prior_not_duplicate_confidence_suppo
             store.record_sourced_assertion(
                 AssertionInput(
                     "genesis-confidence-node",
-                    "about",
+                    "references",
                     object_literal="带先验的知识",
                     confidence=0.75,
                 ),

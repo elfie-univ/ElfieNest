@@ -17,6 +17,7 @@ from elfie.brain.memory.memory_records import (
     ConsolidationReceipt,
     DescriptionInput,
     EvidenceInput,
+    MemoryInspectionSnapshot,
     MentionInput,
     NodeInput,
     QualifiedReinforcementReceipt,
@@ -25,11 +26,7 @@ from elfie.brain.memory.memory_records import (
     RecallNode,
     RetentionProfile,
 )
-from elfie.brain.memory.predicates import (
-    PREDICATE_REGISTRY_VERSION,
-    UnknownPredicateError,
-    resolve_predicate,
-)
+from elfie.brain.memory.predicates import resolve_predicate
 from elfie.brain.memory.score_policy import (
     EvidenceContribution,
     ImportanceEvent,
@@ -48,7 +45,6 @@ from .sqlite_utils import (
     utc_now,
 )
 
-_NON_CANONICAL_NODE_TYPES = frozenset({"event", "episode", "claim"})
 _MAX_EPISODE_MENTIONS = 128
 _SCORE_COMPACTION_MAX_TARGETS = 256
 _SCORE_COMPACTION_SAFETY_DAYS = 2.0
@@ -581,7 +577,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 "e.occurred_from, mm.state AS maintenance_state, "
                 "mm.source_version AS maintenance_source_version, "
                 "mm.source_hash AS maintenance_source_hash, "
-                "mm.projection_revision, mm.lease_owner, mm.lease_until, mm.attempts "
+                "mm.projection_revision, mm.ontology_revision, "
+                "mm.lease_owner, mm.lease_until, mm.attempts "
                 "FROM episodes AS e LEFT JOIN memory_maintenance AS mm "
                 "ON mm.elfie_id=? AND mm.stage='consolidation' "
                 "AND mm.target_id=e.episode_id WHERE e.episode_id=? AND "
@@ -639,7 +636,14 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     else episode["source_version"]
                 ),
                 source_sha256=expected_hash,
+                ontology_revision=(
+                    projection.ontology_revision
+                    if projection.ontology_revision is not None
+                    else self.ontology.revision
+                ),
             )
+            if projection.ontology_revision != self.ontology.revision:
+                raise ValueError("consolidation ontology revision is stale")
             computed_revision = _projection_revision(projection)
             if (
                 projection.projection_revision is not None
@@ -653,6 +657,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 episode["projection_revision"] == projection_revision
                 and episode["maintenance_source_version"] == episode["source_version"]
                 and episode["maintenance_source_hash"] == expected_hash
+                and episode["ontology_revision"] == self.ontology.revision
                 and str(episode["maintenance_state"]) == "completed"
             ):
                 return ConsolidationReceipt(
@@ -801,10 +806,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     existing_mention_keys.add(key)
 
                 for assertion in projection.assertions:
-                    try:
-                        canonical_predicate = resolve_predicate(assertion.predicate)
-                    except UnknownPredicateError:
-                        raise
+                    canonical_predicate = resolve_predicate(
+                        self.ontology, assertion.predicate
+                    )
                     if not assertion.evidence_ids:
                         raise ValueError(
                             "durable assertions require at least one evidence ID"
@@ -855,7 +859,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                         retention_profile=assertion.retention_profile,
                         importance_event_class=assertion.importance_event_class,
                         object_literal_type=assertion.object_literal_type,
-                        predicate_registry_version=PREDICATE_REGISTRY_VERSION,
+                        predicate_registry_version=self.ontology.revision,
                         policy_version=assertion.policy_version,
                         genesis_submission_id=assertion.genesis_submission_id,
                     )
@@ -1046,7 +1050,8 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
 
                 consolidation_sql = """UPDATE memory_maintenance
                        SET state='completed', source_version=?, source_hash=?,
-                           projection_revision=?, lease_owner=NULL, lease_until=NULL,
+                           projection_revision=?, ontology_revision=?,
+                           lease_owner=NULL, lease_until=NULL,
                            next_attempt_at=NULL, last_error=NULL, updated_at=?
                      WHERE elfie_id=? AND stage='consolidation' AND target_id=?
                        AND ((? IS NULL AND state<>'processing') OR
@@ -1056,6 +1061,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     episode["source_version"],
                     expected_hash,
                     projection_revision,
+                    projection.ontology_revision,
                     now,
                     str(getattr(self, "elfie_id", None) or ""),
                     projection.episode_id,
@@ -1274,6 +1280,142 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         if row is None:
             return None
         return _row_to_recall_node(row, now=now or utc_now())
+
+    def get_self_model_graph(
+        self, stance_predicates: tuple[str, ...]
+    ) -> MemoryInspectionSnapshot:
+        """Read this Elfie's existing anchor and its one-hop stance view."""
+        elfie_id = getattr(self, "elfie_id", None)
+        predicates = tuple(dict.fromkeys(stance_predicates))
+        if elfie_id is None or not predicates:
+            return MemoryInspectionSnapshot()
+        node_visibility, node_visibility_params = self._genesis_visibility("n")
+        with self._lock:
+            anchor_rows = self.conn.execute(
+                """SELECT n.node_id, n.node_type, n.canonical_label, n.description,
+                          n.confidence, n.importance, n.half_life_days,
+                          n.last_reinforced_at, n.updated_at, n.properties_json
+                     FROM nodes AS n
+                    WHERE n.node_type='elfie'
+                      AND json_extract(n.properties_json, '$.is_self')=1
+                      AND json_extract(n.properties_json, '$.elfie_id')=?
+                      AND n.status IN ('active', 'candidate', 'unresolved')
+                      AND n.merged_into IS NULL
+                      AND """
+                + node_visibility
+                + " ORDER BY n.node_id LIMIT 2",
+                [str(elfie_id), *node_visibility_params],
+            ).fetchall()
+        if not anchor_rows:
+            return MemoryInspectionSnapshot()
+        if len(anchor_rows) != 1:
+            raise ValueError(
+                f"Elfie Memory must have exactly one self anchor for {elfie_id!r}"
+            )
+        anchor = _row_to_recall_node(anchor_rows[0])
+        seed_rows = self._self_model_assertion_rows(
+            subject_ids=(anchor.node_id,),
+            object_ids=None,
+            predicates=predicates,
+        )
+        seed_assertions = tuple(
+            _row_to_assertion(row)
+            for row in seed_rows
+            if row["object_node_id"] is not None
+        )
+        selected_ids = {anchor.node_id}
+        selected_ids.update(
+            assertion.object_node_id
+            for assertion in seed_assertions
+            if assertion.object_node_id is not None and assertion.evidence_ids
+        )
+        selected_nodes = [anchor]
+        for node_id in sorted(selected_ids - {anchor.node_id}):
+            node = self.get_graph_node(node_id)
+            if node is not None:
+                selected_nodes.append(node)
+        selected_ids = {node.node_id for node in selected_nodes}
+        assertion_rows = self._self_model_assertion_rows(
+            subject_ids=tuple(sorted(selected_ids)),
+            object_ids=tuple(sorted(selected_ids)),
+        )
+        assertions = tuple(
+            _row_to_assertion(row)
+            for row in assertion_rows
+            if row["object_node_id"] is not None
+            and str(row["subject_node_id"]) in selected_ids
+            and str(row["object_node_id"]) in selected_ids
+        )
+        return MemoryInspectionSnapshot(
+            nodes=tuple(selected_nodes), assertions=assertions
+        )
+
+    def _self_model_assertion_rows(
+        self,
+        *,
+        subject_ids: tuple[str, ...],
+        object_ids: tuple[str, ...] | None,
+        predicates: tuple[str, ...] = (),
+    ) -> tuple[sqlite3.Row, ...]:
+        if not subject_ids or object_ids == ():
+            return ()
+        assertion_visibility, visibility_params = self._genesis_visibility("a")
+        subject_chunks = tuple(
+            subject_ids[index : index + 300]
+            for index in range(0, len(subject_ids), 300)
+        )
+        object_chunks = (
+            tuple(
+                object_ids[index : index + 300]
+                for index in range(0, len(object_ids), 300)
+            )
+            if object_ids is not None
+            else ((),)
+        )
+        rows_by_id: dict[str, sqlite3.Row] = {}
+        predicate_clause = (
+            " AND a.predicate IN (" + ",".join("?" for _ in predicates) + ")"
+            if predicates
+            else ""
+        )
+        for subjects in subject_chunks:
+            for objects in object_chunks:
+                subject_clause = ",".join("?" for _ in subjects)
+                object_clause = (
+                    " AND a.object_node_id IN (" + ",".join("?" for _ in objects) + ")"
+                    if object_ids is not None
+                    else " AND a.object_node_id IS NOT NULL"
+                )
+                params: list[object] = [*subjects]
+                if object_ids is not None:
+                    params.extend(objects)
+                params.extend(visibility_params)
+                params.extend(predicates)
+                with self._lock:
+                    rows = self.conn.execute(
+                        """SELECT a.*,
+                                  COALESCE((SELECT group_concat(evidence_id, ',')
+                                              FROM (SELECT ae.evidence_id
+                                                      FROM assertion_evidence AS ae
+                                                     WHERE ae.assertion_id=a.assertion_id
+                                                     ORDER BY ae.evidence_id)), '')
+                                      AS evidence_ids_csv
+                             FROM assertions AS a
+                            WHERE a.lifecycle IN ('active', 'superseded')
+                              AND a.subject_node_id IN ("""
+                        + subject_clause
+                        + ")"
+                        + object_clause
+                        + " AND EXISTS (SELECT 1 FROM assertion_evidence AS ae "
+                        "WHERE ae.assertion_id=a.assertion_id) AND "
+                        + assertion_visibility
+                        + predicate_clause
+                        + " ORDER BY a.assertion_id",
+                        params,
+                    ).fetchall()
+                for row in rows:
+                    rows_by_id.setdefault(str(row["assertion_id"]), row)
+        return tuple(rows_by_id[key] for key in sorted(rows_by_id))
 
     def list_graph_nodes(
         self, limit: int = 100, *, privacy_scope: str | None = None
@@ -2034,7 +2176,9 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                     )
                 self._insert_evidence(evidence, now)
                 canonical_assertion = replace(
-                    assertion, predicate=resolve_predicate(assertion.predicate)
+                    assertion,
+                    predicate=resolve_predicate(self.ontology, assertion.predicate),
+                    predicate_registry_version=self.ontology.revision,
                 )
                 assertion_was_existing = (
                     self.conn.execute(
@@ -2113,74 +2257,72 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
             return requested, True
 
         normalized = normalize_text(node.canonical_label)
-        if node.node_type not in _NON_CANONICAL_NODE_TYPES:
-            namespace_clause = ""
-            namespace_params: tuple[object, ...] = ()
-            if getattr(self, "elfie_id", None) is not None:
-                namespace_clause = (
-                    " AND json_extract(n.properties_json, '$.elfie_id')=?"
-                )
-                namespace_params = (str(self.elfie_id),)
-            rows = self.conn.execute(
-                """SELECT n.node_id FROM nodes AS n
-                   WHERE normalized_label=? AND node_type=? AND scope=?
-                     AND status <> 'forgotten' AND merged_into IS NULL
-                     """
-                + namespace_clause
-                + """
-                   ORDER BY node_id LIMIT 2""",
-                (normalized, node.node_type, node.scope, *namespace_params),
-            ).fetchall()
-            alias_rows = self.conn.execute(
-                """SELECT DISTINCT n.node_id FROM node_aliases AS a
-                   JOIN nodes AS n ON n.node_id=a.node_id
-                  WHERE a.normalized_alias=? AND a.scope=?
-                    AND n.node_type=? AND n.status <> 'forgotten'
-                    AND n.merged_into IS NULL
-                    """
-                + namespace_clause
-                + """
-                  ORDER BY n.node_id LIMIT 2""",
-                (normalized, node.scope, node.node_type, *namespace_params),
-            ).fetchall()
-            candidates = {str(row[0]) for row in rows}
-            candidates.update(str(row[0]) for row in alias_rows)
-            if len(candidates) == 1:
-                resolved = next(iter(candidates))
-                existing = self.conn.execute(
-                    "SELECT canonical_label FROM nodes WHERE node_id=?", (resolved,)
-                ).fetchone()
-                canonical_label = (
-                    str(existing["canonical_label"])
-                    if existing is not None
-                    else node.canonical_label
-                )
-                self._upsert_node(
-                    NodeInput(
-                        node_id=resolved,
-                        node_type=node.node_type,
-                        canonical_label=canonical_label,
-                        description=node.description,
-                        scope=node.scope,
-                        status=node.status,
-                        confidence=node.confidence,
-                        initial_confidence=node.initial_confidence,
-                        prior_weight=node.prior_weight,
-                        importance=node.importance,
-                        initial_importance=node.initial_importance,
-                        half_life_days=node.half_life_days,
-                        retention_profile=node.retention_profile,
-                        importance_event_class=node.importance_event_class,
-                        properties=node.properties,
-                    ),
-                    now,
-                )
-                return resolved, True
+        namespace_clause = ""
+        namespace_params: tuple[object, ...] = ()
+        if getattr(self, "elfie_id", None) is not None:
+            namespace_clause = " AND json_extract(n.properties_json, '$.elfie_id')=?"
+            namespace_params = (str(self.elfie_id),)
+        rows = self.conn.execute(
+            """SELECT n.node_id FROM nodes AS n
+               WHERE normalized_label=? AND node_type=? AND scope=?
+                 AND status <> 'forgotten' AND merged_into IS NULL
+                 """
+            + namespace_clause
+            + """
+               ORDER BY node_id LIMIT 2""",
+            (normalized, node.node_type, node.scope, *namespace_params),
+        ).fetchall()
+        alias_rows = self.conn.execute(
+            """SELECT DISTINCT n.node_id FROM node_aliases AS a
+               JOIN nodes AS n ON n.node_id=a.node_id
+              WHERE a.normalized_alias=? AND a.scope=?
+                AND n.node_type=? AND n.status <> 'forgotten'
+                AND n.merged_into IS NULL
+                """
+            + namespace_clause
+            + """
+              ORDER BY n.node_id LIMIT 2""",
+            (normalized, node.scope, node.node_type, *namespace_params),
+        ).fetchall()
+        candidates = {str(row[0]) for row in rows}
+        candidates.update(str(row[0]) for row in alias_rows)
+        if len(candidates) == 1:
+            resolved = next(iter(candidates))
+            existing = self.conn.execute(
+                "SELECT canonical_label FROM nodes WHERE node_id=?", (resolved,)
+            ).fetchone()
+            canonical_label = (
+                str(existing["canonical_label"])
+                if existing is not None
+                else node.canonical_label
+            )
+            self._upsert_node(
+                NodeInput(
+                    node_id=resolved,
+                    node_type=node.node_type,
+                    canonical_label=canonical_label,
+                    description=node.description,
+                    scope=node.scope,
+                    status=node.status,
+                    confidence=node.confidence,
+                    initial_confidence=node.initial_confidence,
+                    prior_weight=node.prior_weight,
+                    importance=node.importance,
+                    initial_importance=node.initial_importance,
+                    half_life_days=node.half_life_days,
+                    retention_profile=node.retention_profile,
+                    importance_event_class=node.importance_event_class,
+                    properties=node.properties,
+                ),
+                now,
+            )
+            return resolved, True
 
         self._upsert_node(node, now)
         return node.node_id, False
 
     def _upsert_node(self, node: NodeInput, now: str) -> None:
+        self.ontology.validate_node_type(node.node_type)
         label = node.canonical_label.strip()
         if not label:
             raise ValueError("node label must not be blank")
@@ -2729,14 +2871,72 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         )
 
     def _insert_assertion(self, assertion: AssertionInput, now: str) -> str:
-        canonical_predicate = resolve_predicate(assertion.predicate)
-        if canonical_predicate != assertion.predicate:
-            assertion = replace(assertion, predicate=canonical_predicate)
-        if assertion.predicate_registry_version != PREDICATE_REGISTRY_VERSION:
-            raise ValueError(
-                "assertion predicate registry version is not supported: "
-                + assertion.predicate_registry_version
+        canonical_predicate = resolve_predicate(self.ontology, assertion.predicate)
+        endpoint_ids = tuple(
+            dict.fromkeys(
+                node_id
+                for node_id in (assertion.subject_id, assertion.object_node_id)
+                if node_id is not None
             )
+        )
+        placeholders = ",".join("?" for _ in endpoint_ids)
+        endpoint_rows = self.conn.execute(
+            "SELECT node_id, node_type FROM nodes WHERE node_id IN ("
+            + placeholders
+            + ")",
+            endpoint_ids,
+        ).fetchall()
+        endpoint_types = {
+            str(row["node_id"]): str(row["node_type"]) for row in endpoint_rows
+        }
+        subject_type = endpoint_types.get(assertion.subject_id)
+        if subject_type is None:
+            raise ValueError(f"unknown assertion subject: {assertion.subject_id}")
+        object_type = (
+            None
+            if assertion.object_node_id is None
+            else endpoint_types.get(assertion.object_node_id)
+        )
+        if assertion.object_node_id is not None and object_type is None:
+            raise ValueError(f"unknown assertion object: {assertion.object_node_id}")
+        qualifiers = tuple(
+            name
+            for name, value in (
+                ("context", assertion.context),
+                ("viewpoint", assertion.viewpoint),
+                ("valid_from", assertion.valid_from),
+                ("valid_to", assertion.valid_to),
+                ("object_unit", assertion.object_unit),
+                ("object_literal_type", assertion.object_literal_type),
+                ("polarity", assertion.polarity),
+                ("epistemic_status", assertion.epistemic_status),
+                ("confidence", assertion.confidence),
+                ("importance", assertion.importance),
+            )
+            if value is not None
+        )
+        relation = self.ontology.validate_assertion(
+            predicate=canonical_predicate,
+            subject_type=subject_type,
+            object_type=object_type,
+            object_is_literal=assertion.object_node_id is None,
+            qualifiers=qualifiers,
+            has_source=bool(assertion.evidence_ids),
+        )
+        if relation.symmetric and assertion.object_node_id is not None:
+            subject_id, object_node_id = sorted(
+                (assertion.subject_id, assertion.object_node_id)
+            )
+            assertion = replace(
+                assertion,
+                subject_id=subject_id,
+                object_node_id=object_node_id,
+            )
+        assertion = replace(
+            assertion,
+            predicate=canonical_predicate,
+            predicate_registry_version=self.ontology.revision,
+        )
         configured_elfie = getattr(self, "elfie_id", None)
         if configured_elfie is not None:
             node_ids = tuple(
@@ -4272,6 +4472,7 @@ def _projection_revision(projection: ConsolidationProjection) -> str:
         "episode_id": projection.episode_id,
         "source_version": projection.source_version,
         "source_sha256": projection.source_sha256,
+        "ontology_revision": projection.ontology_revision,
         "nodes": [
             {
                 "node_id": node.node_id,
