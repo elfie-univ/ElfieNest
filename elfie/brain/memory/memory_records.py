@@ -25,8 +25,6 @@ JsonValue = Union[
 _RECALL_LIMIT_MAX = {
     "lexical_limit": 200,
     "seed_limit": 64,
-    "hop_limit": 4,
-    "neighbors_per_node": 64,
     "node_limit": 400,
     "assertion_limit": 800,
     "episode_limit": 80,
@@ -48,6 +46,7 @@ RetentionProfile = Literal[
     "stable",
     "genesis",
 ]
+RecallRole = Literal["primary", "support"]
 
 
 def resolve_memory_node_type(
@@ -854,7 +853,7 @@ class MaintenanceReceipt:
 
 @dataclass(frozen=True)
 class RecallRequest:
-    """Bounded semantic query accepted by the Memory Port."""
+    """Bounded Query, Sense and hard filters accepted by the Memory Port."""
 
     text: str = ""
     # Ephemeral observation correlation only.  It is never persisted as a
@@ -863,13 +862,14 @@ class RecallRequest:
     seed_node_ids: Tuple[str, ...] = ()
     node_types: Tuple[str, ...] = ()
     relation_types: Tuple[str, ...] = ()
+    record_kinds: Tuple[Literal["episode", "node", "assertion"], ...] = ()
+    sense: Optional[RecallSense] = None
+    kinship: Optional[KinshipQuery] = None
+    minimum_importance: Optional[float] = None
     occurred_from: Optional[str] = None
     occurred_to: Optional[str] = None
-    mode: Literal["basic", "local", "basic_local"] = "basic_local"
     lexical_limit: int = 20
     seed_limit: int = 8
-    hop_limit: int = 2
-    neighbors_per_node: int = 12
     node_limit: int = 40
     assertion_limit: int = 80
     episode_limit: int = 8
@@ -887,8 +887,6 @@ class RecallRequest:
         for name in (
             "lexical_limit",
             "seed_limit",
-            "hop_limit",
-            "neighbors_per_node",
             "node_limit",
             "assertion_limit",
             "episode_limit",
@@ -901,8 +899,6 @@ class RecallRequest:
                 raise ValueError(
                     f"{name} exceeds the safe maximum {_RECALL_LIMIT_MAX[name]}"
                 )
-        if self.mode not in {"basic", "local", "basic_local"}:
-            raise ValueError("unsupported recall mode")
         if self.occurred_from is not None and self.occurred_to is not None:
             if _timestamp_key(self.occurred_to) < _timestamp_key(self.occurred_from):
                 raise ValueError("occurred_to must not precede occurred_from")
@@ -910,6 +906,7 @@ class RecallRequest:
             "seed_node_ids",
             "node_types",
             "relation_types",
+            "record_kinds",
             "person_node_ids",
             "place_node_ids",
             "emotion_labels",
@@ -922,6 +919,48 @@ class RecallRequest:
             raise ValueError("privacy_scope must not be blank when supplied")
         if self.recall_id is not None and not self.recall_id.strip():
             raise ValueError("recall_id must not be blank when supplied")
+        if (
+            self.minimum_importance is not None
+            and not 0.0 <= self.minimum_importance <= 1.0
+        ):
+            raise ValueError("minimum_importance must be between 0 and 1")
+
+
+@dataclass(frozen=True)
+class RecallSense:
+    """One reliable, current affect cue for associative Episode retrieval."""
+
+    emotion_label: str
+    intensity: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        if self.emotion_label not in {
+            "happiness",
+            "sadness",
+            "anger",
+            "fear",
+            "surprise",
+            "disgust",
+        }:
+            raise ValueError("unsupported canonical recall emotion")
+        if self.intensity is not None and not 0.0 <= self.intensity <= 1.0:
+            raise ValueError("recall emotion intensity must be between 0 and 1")
+
+
+@dataclass(frozen=True)
+class KinshipQuery:
+    """A supported one-hop family lookup, never a general graph-language plan."""
+
+    relation: Literal["parents", "children", "siblings"]
+    anchor_node_id: Optional[str] = None
+    anchor_name: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if (self.anchor_node_id is None) == (self.anchor_name is None):
+            raise ValueError("kinship requires exactly one anchor ID or name")
+        for value in (self.anchor_node_id, self.anchor_name):
+            if value is not None and not value.strip():
+                raise ValueError("kinship anchor must not be blank")
 
 
 @dataclass(frozen=True)
@@ -935,6 +974,7 @@ class RecallNode:
     confidence: float = 0.5
     freshness: float = 1.0
     half_life_days: float = 30.0
+    role: RecallRole = "primary"
     # Bounded, read-only properties are useful to authorized diagnostics and
     # presentation projections (for example a relationship ring).  They are
     # never used as a second fact source by Recall or Reasoning.
@@ -972,6 +1012,7 @@ class RecallAssertion:
     confidence: float = 0.5
     freshness: float = 1.0
     half_life_days: float = 30.0
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -979,6 +1020,7 @@ class RecallPath:
     node_ids: Tuple[str, ...]
     assertion_ids: Tuple[str, ...]
     hop_count: int
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -989,6 +1031,9 @@ class RecallEpisode:
     excerpt: str
     detail_level: str
     relevance: float
+    # Keep the complete source excerpt available for matching/context while
+    # carrying the persisted display synopsis separately when one exists.
+    summary_text: Optional[str] = None
     occurrence_precision: OccurrencePrecision = "exact"
     life_stage: Optional[str] = None
     temporal_label: Optional[str] = None
@@ -1005,6 +1050,7 @@ class RecallEpisode:
     topic_member_count: int = 0
     topic_omitted_count: int = 0
     topic_continuation: Optional[str] = None
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -1055,6 +1101,8 @@ class RecallBundle:
     # to bind an explicit-use proposal to the Recall snapshot that supplied
     # its IDs; it is not a score and never enters ranking.
     recall_revision: int = 0
+    status: Literal["complete", "partial", "ambiguous", "unsupported"] = "complete"
+    notices: Tuple[str, ...] = ()
     limits: RecallLimits = field(
         default_factory=lambda: RecallLimits(requested={}, returned={})
     )
@@ -1076,6 +1124,7 @@ __all__ = [
     "MaintenanceReceipt",
     "MaintenanceRequest",
     "MemoryUseProposal",
+    "KinshipQuery",
     "QualifiedReinforcementReceipt",
     "DescriptionInput",
     "EpisodeReceipt",
@@ -1095,6 +1144,7 @@ __all__ = [
     "JsonValue",
     "RecallPath",
     "RecallRequest",
+    "RecallSense",
     "SourceReference",
     "AttributionKind",
     "OccurrencePrecision",

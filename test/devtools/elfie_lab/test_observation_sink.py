@@ -39,6 +39,7 @@ def test_lab_session_forwards_single_observation_sink(tmp_path):
     assert turn["result"]["success"] is True
     assert len(events) >= 1
     assert kinds <= {
+        "observation",
         "turn_opened",
         "recall_started",
         "recall_result",

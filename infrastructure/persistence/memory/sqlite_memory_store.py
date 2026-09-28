@@ -19,6 +19,8 @@ from infrastructure.persistence.memory.ontology_loader import (
     load_core_memory_ontology,
 )
 from infrastructure.persistence.memory.schema import (
+    FTS_AUXILIARY_TABLES,
+    FTS_SHADOW_TABLES,
     INDEX_SQL,
     KNOWLEDGE_TABLES,
     SCHEMA_SQL,
@@ -35,7 +37,11 @@ from infrastructure.persistence.memory.sqlite_lifecycle_store import (
 from infrastructure.persistence.memory.sqlite_retrieval_store import (
     SQLiteRecallStoreMixin,
 )
-from infrastructure.persistence.memory.sqlite_utils import json_object, utc_now
+from infrastructure.persistence.memory.sqlite_utils import (
+    json_object,
+    normalized_tokens,
+    utc_now,
+)
 from infrastructure.persistence.nest_db.sqlite_connection import (
     UnsafeSQLitePathError,
     connect_app_sqlite,
@@ -611,7 +617,8 @@ class SQLiteMemoryStoreAdapter(
         with self._lock:
             owns = self._begin_write_transaction()
             try:
-                self.conn.execute("DELETE FROM episodes_fts")
+                self.conn.execute("DELETE FROM memory_search_fts")
+                self.conn.execute("DELETE FROM memory_search_fts_map")
                 episode_rows = self.conn.execute(
                     "SELECT episode_id, content_text, summary_text, metadata_json "
                     "FROM episodes ORDER BY episode_id"
@@ -623,19 +630,68 @@ class SQLiteMemoryStoreAdapter(
                         row["summary_text"],
                         json_object(row["metadata_json"]),
                     )
-                self.conn.execute("DELETE FROM nodes_fts")
                 self._refresh_all_text_projections()
+                self._refresh_all_assertion_text_projections()
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)
                 raise
-            episodes = int(
-                self.conn.execute("SELECT COUNT(*) FROM episodes_fts").fetchone()[0]
+            counts = {
+                str(row[0]): int(row[1])
+                for row in self.conn.execute(
+                    "SELECT record_kind, COUNT(*) FROM memory_search_fts "
+                    "GROUP BY record_kind"
+                ).fetchall()
+            }
+        return {
+            "episodes": counts.get("episode", 0),
+            "nodes": counts.get("node", 0),
+            "assertions": counts.get("assertion", 0),
+        }
+
+    def _upsert_search_document(
+        self, record_kind: str, record_id: str, searchable_text: str
+    ) -> None:
+        """Replace one rebuildable FTS5 document using its indexed integer ID."""
+        tokens = normalized_tokens(searchable_text)
+        row = self.conn.execute(
+            "SELECT fts_rowid FROM memory_search_fts_map "
+            "WHERE record_kind=? AND record_id=?",
+            (record_kind, record_id),
+        ).fetchone()
+        fts_rowid = int(row[0]) if row is not None else None
+        if not tokens:
+            if fts_rowid is not None:
+                self.conn.execute(
+                    "DELETE FROM memory_search_fts WHERE rowid=?", (fts_rowid,)
+                )
+                self.conn.execute(
+                    "DELETE FROM memory_search_fts_map WHERE fts_rowid=?",
+                    (fts_rowid,),
+                )
+            return
+        if fts_rowid is None:
+            self.conn.execute(
+                "INSERT INTO memory_search_fts_map(record_kind, record_id) "
+                "VALUES (?, ?)",
+                (record_kind, record_id),
             )
-            nodes = int(
-                self.conn.execute("SELECT COUNT(*) FROM nodes_fts").fetchone()[0]
+            row = self.conn.execute(
+                "SELECT fts_rowid FROM memory_search_fts_map "
+                "WHERE record_kind=? AND record_id=?",
+                (record_kind, record_id),
+            ).fetchone()
+            fts_rowid = int(row[0])
+        else:
+            self.conn.execute(
+                "DELETE FROM memory_search_fts WHERE rowid=?", (fts_rowid,)
             )
-        return {"episodes": episodes, "nodes": nodes}
+        self.conn.execute(
+            """INSERT INTO memory_search_fts(
+                   rowid, record_kind, record_id, searchable_text, normalized_text
+               ) VALUES (?, ?, ?, ?, ?)""",
+            (fts_rowid, record_kind, record_id, searchable_text, " ".join(tokens)),
+        )
 
     def integrity_report(self) -> dict[str, int | bool]:
         """Return deterministic source/graph counts used by migration gates."""
@@ -756,7 +812,12 @@ class SQLiteMemoryStoreAdapter(
                 "legacy or mixed Memory database detected; back it up and rebuild an explicit fresh target"
             )
         user_tables = existing - {"sqlite_sequence"}
-        target_tables = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
+        target_tables = (
+            set(KNOWLEDGE_TABLES)
+            | {"memory_search_fts"}
+            | set(FTS_SHADOW_TABLES)
+            | set(FTS_AUXILIARY_TABLES)
+        )
         current_version = self.schema_version
         if current_version not in (0, SCHEMA_VERSION):
             raise MemoryStoreSchemaError(

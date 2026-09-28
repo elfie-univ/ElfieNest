@@ -228,6 +228,19 @@ def test_empty_inspection_is_complete_zero_state_not_read_failure() -> None:
     )
 
 
+def test_inspection_exposes_registry_self_stance_for_graph_filter() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-self-filter") as store:
+        report = build_inspection_report(store, database="memory.sqlite")
+        expected = set(store.ontology.self_stance_predicates)
+    actual = {
+        item["predicate"]
+        for item in report["ontology"]["predicates"]
+        if item["status"] == "active" and item["self_stance"]
+    }
+    assert actual == expected
+    assert actual
+
+
 def test_description_check_uses_active_registry_node_types() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-ontology-check") as store:
         store.upsert_node_record(
@@ -535,7 +548,7 @@ def test_recall_report_keeps_paths_and_evidence() -> None:
 
         report = build_recall_report(
             store,
-            RecallRequest(text="香菜", mode="basic_local"),
+            RecallRequest(text="香菜"),
         )
 
     assert report["counts"]["focus_nodes"] >= 1

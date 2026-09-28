@@ -138,7 +138,7 @@ def build_adoption_services(
 
     genesis = GenesisEngine(
         catalog=catalog,
-        generation_policy=load_source().generation_policy,
+        generation_policy_loader=lambda: load_source().generation_policy,
     )
 
     class LazyCandidateReveal:

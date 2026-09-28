@@ -93,8 +93,10 @@ def test_new_port_and_model_modules_cannot_use_any() -> None:
     assert offenders == set()
 
 
-def test_registered_api_routes_do_not_duplicate_method_and_path() -> None:
-    application = create_app(db_path=":memory:")
+def test_registered_api_routes_do_not_duplicate_method_and_path(
+    tmp_path: Path,
+) -> None:
+    application = create_app(db_path=str(tmp_path / "nest.db"))
     owners: DefaultDict[Tuple[str, str], List[str]] = defaultdict(list)
     for route in application.routes:
         if not isinstance(route, APIRoute):

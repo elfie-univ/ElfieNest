@@ -775,6 +775,7 @@ def build_inspection_report(
                     "predicate": item.predicate,
                     "label": item.label,
                     "symmetric": item.symmetric,
+                    "self_stance": item.self_stance,
                     "inverse": item.inverse,
                     "status": item.status,
                     "count": Counter(
@@ -1403,12 +1404,16 @@ def _parser() -> argparse.ArgumentParser:
     recall_parser.add_argument("--elfie-id", default=None)
     recall_parser.add_argument("--query", required=True)
     recall_parser.add_argument(
-        "--mode", choices=("basic", "local", "basic_local"), default="basic_local"
+        "--record-kind",
+        action="append",
+        choices=("episode", "node", "assertion"),
+        default=[],
     )
     recall_parser.add_argument("--node-type", action="append", default=[])
     recall_parser.add_argument("--relation-type", action="append", default=[])
     recall_parser.add_argument("--occurred-from", default=None)
     recall_parser.add_argument("--occurred-to", default=None)
+    recall_parser.add_argument("--minimum-importance", type=float, default=None)
     recall_parser.add_argument("--limit", type=int, default=20)
     recall_parser.add_argument("--character-limit", type=int, default=12000)
     recall_parser.add_argument("--output-dir", type=Path, default=None)
@@ -1449,11 +1454,12 @@ def _run_recall(args: argparse.Namespace) -> int:
     limit = min(args.limit, 200)
     request = RecallRequest(
         text=args.query,
-        mode=args.mode,
+        record_kinds=tuple(args.record_kind),
         node_types=_csv_values(args.node_type),
         relation_types=_csv_values(args.relation_type),
         occurred_from=args.occurred_from,
         occurred_to=args.occurred_to,
+        minimum_importance=args.minimum_importance,
         lexical_limit=limit,
         seed_limit=min(limit, 20),
         node_limit=limit,

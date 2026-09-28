@@ -11,7 +11,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from elfie.brain.memory.memory_records import EpisodeEventKind
+from elfie.brain.memory.memory_records import (
+    AssertionInput,
+    EpisodeEventKind,
+    NodeInput,
+)
 from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.selfhood.contracts import SelfhoodState
 from elfie.profile import (
@@ -43,6 +47,9 @@ class KnowledgeSeed:
 
     seed_id: str
     content: str = ""
+    # Deterministic, source-grounded display synopsis produced during Genesis
+    # compilation; it never replaces or truncates ``content``.
+    summary_text: str = ""
     source: str = "genesis_source"
     source_ref: str = "source-package"
     source_version: str = "genesis-source.v1"
@@ -70,6 +77,8 @@ class KnowledgeSeed:
     initial_confidence: float = 1.0
     recall_eligible: bool = True
     acquired_age_years: int | None = None
+    graph_nodes: tuple[NodeInput, ...] = ()
+    graph_assertions: tuple[AssertionInput, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -216,7 +225,7 @@ class InitializationManifest:
 class PlaceSeed:
     """A resident-visible place projection selected by Genesis.
 
-    Geometry, population weights and route costs never cross this boundary.
+    Geometry and population weights never cross this boundary.
     Private places are namespaced by the owning Elfie and are only used by
     that Elfie's personal Memory.
     """
@@ -233,6 +242,7 @@ class PlaceSeed:
     # graph stays complete; repeated visits only change this local importance.
     importance: float = 0.35
     metadata: tuple[tuple[str, str], ...] = ()
+    node_type: Literal["place", "cosmic_entity"] = "place"
 
 
 @dataclass(frozen=True)
@@ -244,6 +254,7 @@ class PlaceRelationSeed:
     object_id: str
     source_ref: str = ""
     importance: float = 0.8
+    qualifiers: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -270,6 +281,7 @@ class GenesisBundle:
     episode_seeds: tuple[EpisodeSeed, ...] = ()
     place_seeds: tuple[PlaceSeed, ...] = ()
     place_relation_seeds: tuple[PlaceRelationSeed, ...] = ()
+    knowledge_episode_max_chars: int = 4000
 
     def validate(self) -> None:
         """Reject an incomplete or over-powered creation package.
@@ -335,8 +347,30 @@ class GenesisBundle:
             "Genesis seed_id",
         )
 
+        if (
+            type(self.knowledge_episode_max_chars) is not int
+            or self.knowledge_episode_max_chars < 1
+        ):
+            raise GenesisValidationError("knowledge_episode_max_chars 必须为正整数")
+        graph_nodes: dict[str, NodeInput] = {}
         for seed in self.knowledge_seeds:
             _validate_knowledge_seed(seed)
+            for node in seed.graph_nodes:
+                if not node.node_id or not node.canonical_label.strip():
+                    raise GenesisValidationError("知识图节点的身份不能为空")
+                if node.properties.get("entity_level") not in {"kind", "instance"}:
+                    raise GenesisValidationError("知识图节点必须区分 kind 和 instance")
+                if node.node_id in graph_nodes and node != graph_nodes[node.node_id]:
+                    raise GenesisValidationError("知识图节点同一 ID 的定义冲突")
+                graph_nodes[node.node_id] = node
+        for seed in self.knowledge_seeds:
+            for edge in seed.graph_assertions:
+                if edge.subject_id not in graph_nodes or (
+                    edge.object_node_id and edge.object_node_id not in graph_nodes
+                ):
+                    raise GenesisValidationError("知识图关系端点未被个人知识取得")
+                if (edge.object_node_id is None) == (edge.object_literal is None):
+                    raise GenesisValidationError("知识图关系必须有且仅有一个对象")
         episode_ids = {seed.seed_id for seed in self.episode_seeds}
         for index, episode in enumerate(self.episode_seeds):
             _validate_episode_seed(episode)
@@ -355,16 +389,12 @@ class GenesisBundle:
                 or not place.kind.strip()
             ):
                 raise GenesisValidationError("PlaceSeed 的 ID、名称和类型不能为空")
+            if place.node_type not in {"place", "cosmic_entity"}:
+                raise GenesisValidationError("PlaceSeed.node_type 无效")
             if place.visibility not in ("public", "private"):
                 raise GenesisValidationError("PlaceSeed.visibility 无效")
-            if (
-                place.parent_id
-                and place.parent_id not in place_ids
-                and place.parent_id != "earth"
-            ):
-                raise GenesisValidationError(
-                    "PlaceSeed.parent_id 必须引用本次地点或 earth"
-                )
+            if place.parent_id and place.parent_id not in place_ids:
+                raise GenesisValidationError("PlaceSeed.parent_id 必须引用本次地点")
             _validate_text_collection(place.aliases, "PlaceSeed.aliases")
             if not 0.0 <= place.importance <= 1.0:
                 raise GenesisValidationError("PlaceSeed.importance 必须在 [0, 1] 内")
@@ -488,6 +518,27 @@ def validate_genesis_bundle(
                 ontology.validate_episode_type(seed.event_kind)
         except ValueError as error:
             raise GenesisValidationError(f"EpisodeSeed.event_kind: {error}") from error
+        try:
+            nodes = {
+                node.node_id: node
+                for seed in bundle.knowledge_seeds
+                for node in seed.graph_nodes
+            }
+            for node in nodes.values():
+                ontology.validate_node_type(node.node_type)
+            for seed in bundle.knowledge_seeds:
+                for edge in seed.graph_assertions:
+                    ontology.validate_assertion(
+                        predicate=edge.predicate,
+                        subject_type=nodes[edge.subject_id].node_type,
+                        object_type=nodes[edge.object_node_id].node_type
+                        if edge.object_node_id
+                        else None,
+                        object_is_literal=edge.object_node_id is None,
+                        has_source=True,
+                    )
+        except ValueError as error:
+            raise GenesisValidationError(f"Genesis ontology: {error}") from error
     return bundle
 
 

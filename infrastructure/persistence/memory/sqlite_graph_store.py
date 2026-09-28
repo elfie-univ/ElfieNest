@@ -38,6 +38,7 @@ from .sqlite_utils import (
     bounded_score,
     canonical_json,
     content_hash,
+    fts_match_expression,
     json_object,
     normalize_text,
     searchable_node_property_text,
@@ -1449,12 +1450,18 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         self, query: str, limit: int = 20, *, privacy_scope: str | None = None
     ) -> tuple[RecallNode, ...]:
         normalized = normalize_text(query)
-        if not normalized:
+        match = fts_match_expression(query)
+        if not normalized or not match:
             return ()
-        like = f"%{normalized}%"
         with self._lock:
             scope = ""
-            params: list[object] = [normalized, normalized, like, like]
+            params: list[object] = [
+                match,
+                normalized,
+                normalized,
+                normalized,
+                normalized,
+            ]
             if getattr(self, "elfie_id", None) is not None:
                 scope = " AND json_extract(n.properties_json, '$.elfie_id')=?"
                 params.append(str(self.elfie_id))
@@ -1463,28 +1470,27 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 params.append(privacy_scope)
             visibility, visibility_params = self._genesis_visibility("n")
             params.extend(visibility_params)
-            params.extend([like, like, like, like])
             params.append(max(0, limit))
             rows = self.conn.execute(
-                """SELECT DISTINCT n.node_id, n.node_type, n.canonical_label,
+                """WITH matched_nodes AS (
+                       SELECT record_id, bm25(memory_search_fts) AS rank
+                         FROM memory_search_fts
+                        WHERE memory_search_fts MATCH ? AND record_kind='node'
+                   )
+                   SELECT DISTINCT n.node_id, n.node_type, n.canonical_label,
                           n.description, n.confidence, n.importance, n.half_life_days,
                           n.last_reinforced_at, n.updated_at, n.properties_json,
                           CASE WHEN n.normalized_label=? OR a.normalized_alias=? THEN 1.0
-                               WHEN n.normalized_label LIKE ? THEN 0.8
-                               WHEN a.normalized_alias LIKE ? THEN 0.75
+                               WHEN instr(n.normalized_label, ?) > 0 THEN 0.8
+                               WHEN instr(a.normalized_alias, ?) > 0 THEN 0.75
                                ELSE 0.5 END AS score
-                     FROM nodes AS n
+                     FROM nodes AS n JOIN matched_nodes AS mn ON mn.record_id=n.node_id
                      LEFT JOIN node_aliases AS a ON a.node_id=n.node_id
-                     LEFT JOIN nodes_fts AS nf ON nf.node_id=n.node_id
                     WHERE n.status IN ('active', 'candidate', 'unresolved') AND n.merged_into IS NULL"""
                 + scope
                 + " AND "
                 + visibility
-                + """
-                      AND (n.normalized_label LIKE ? OR a.normalized_alias LIKE ?
-                           OR lower(COALESCE(n.description,'')) LIKE ?
-                           OR lower(COALESCE(nf.searchable_text,'')) LIKE ?)
-                    ORDER BY score DESC, n.node_id LIMIT ?""",
+                + " ORDER BY score DESC, mn.rank, n.node_id LIMIT ?",
                 params,
             ).fetchall()
         now = utc_now()
@@ -1498,6 +1504,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         *,
         relation_types: Iterable[str] = (),
         limit: int = 80,
+        minimum_importance: float | None = None,
         occurred_from: str | None = None,
         occurred_to: str | None = None,
         person_node_ids: Iterable[str] = (),
@@ -1570,6 +1577,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 " AND a.predicate IN (" + ",".join("?" for _ in relations) + ")"
             )
             common_params.extend(relations)
+        importance_clause = ""
+        if minimum_importance is not None:
+            importance_clause = " AND a.importance>=?"
+            common_params.append(minimum_importance)
         recall_eligibility_clause = ""
         if recall_eligible_only:
             recall_eligibility_clause = """
@@ -1676,6 +1687,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                           {namespace_clause}
                           {recall_eligibility_clause}
                           {relation_clause}
+                          {importance_clause}
                           {time_clause}
                         ORDER BY CASE WHEN a.lifecycle='active' THEN 0 ELSE 1 END,
                                  a.importance DESC, a.confidence DESC, a.assertion_id
@@ -1701,6 +1713,65 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 ),
             )[:limit]
         )
+
+    def get_graph_assertions_by_ids(
+        self,
+        assertion_ids: Iterable[str],
+        *,
+        privacy_scope: str | None = None,
+    ) -> tuple[RecallAssertion, ...]:
+        """Rehydrate exact FTS assertion hits without a second candidate cap."""
+        ids = tuple(
+            dict.fromkeys(identifier for identifier in assertion_ids if identifier)
+        )
+        if not ids:
+            return ()
+        placeholders = ",".join("?" for _ in ids)
+        assertion_visibility, visibility_params = self._genesis_visibility("a")
+        endpoint_clauses = ["s.node_id=a.subject_node_id"]
+        endpoint_params: list[object] = []
+        if getattr(self, "elfie_id", None) is not None:
+            endpoint_clauses.append("json_extract(s.properties_json, '$.elfie_id')=?")
+            endpoint_params.append(str(self.elfie_id))
+        if privacy_scope is not None:
+            endpoint_clauses.append("s.privacy_scope=?")
+            endpoint_params.append(privacy_scope)
+        object_clauses = ["o.node_id=a.object_node_id"]
+        object_params: list[object] = []
+        if getattr(self, "elfie_id", None) is not None:
+            object_clauses.append("json_extract(o.properties_json, '$.elfie_id')=?")
+            object_params.append(str(self.elfie_id))
+        if privacy_scope is not None:
+            object_clauses.append("o.privacy_scope=?")
+            object_params.append(privacy_scope)
+        with self._lock:
+            rows = self.conn.execute(
+                f"""SELECT a.*,
+                           COALESCE((SELECT group_concat(evidence_id, ',')
+                                       FROM (SELECT ae.evidence_id
+                                               FROM assertion_evidence AS ae
+                                              WHERE ae.assertion_id=a.assertion_id
+                                              ORDER BY ae.evidence_id)), '')
+                               AS evidence_ids_csv
+                      FROM assertions AS a
+                     WHERE a.assertion_id IN ({placeholders})
+                       AND a.lifecycle IN ('active', 'superseded')
+                       AND {assertion_visibility}
+                       AND EXISTS (SELECT 1 FROM nodes AS s WHERE """
+                + " AND ".join(endpoint_clauses)
+                + ") AND (a.object_node_id IS NULL OR EXISTS (SELECT 1 FROM nodes AS o WHERE "
+                + " AND ".join(object_clauses)
+                + "))"
+                + " AND EXISTS (SELECT 1 FROM nodes AS rs WHERE rs.node_id=a.subject_node_id "
+                + "AND COALESCE(json_extract(rs.properties_json, '$.recall_eligible'), 1)<>0)"
+                + " AND (a.object_node_id IS NULL OR EXISTS (SELECT 1 FROM nodes AS ro "
+                + "WHERE ro.node_id=a.object_node_id "
+                + "AND COALESCE(json_extract(ro.properties_json, '$.recall_eligible'), 1)<>0))"
+                + " ORDER BY a.assertion_id",
+                [*ids, *visibility_params, *endpoint_params, *object_params],
+            ).fetchall()
+        current_now = utc_now()
+        return tuple(_row_to_assertion(row, now=current_now) for row in rows)
 
     def list_graph_assertions(
         self, limit: int = 800, *, privacy_scope: str | None = None
@@ -2234,6 +2305,11 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 raise ValueError(
                     f"node ID is already bound to another identity: {node.node_id}"
                 )
+            existing_level = json.loads(str(existing["properties_json"])).get(
+                "entity_level"
+            )
+            if existing_level != node.properties.get("entity_level"):
+                raise ValueError("node ID is already bound to another entity level")
             self._upsert_node(
                 NodeInput(
                     node_id=requested,
@@ -2262,6 +2338,10 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         if getattr(self, "elfie_id", None) is not None:
             namespace_clause = " AND json_extract(n.properties_json, '$.elfie_id')=?"
             namespace_params = (str(self.elfie_id),)
+        namespace_clause += (
+            " AND json_extract(n.properties_json, '$.entity_level') IS ?"
+        )
+        namespace_params += (node.properties.get("entity_level"),)
         rows = self.conn.execute(
             """SELECT n.node_id FROM nodes AS n
                WHERE normalized_label=? AND node_type=? AND scope=?
@@ -2864,10 +2944,59 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
                 (node_id,),
             ).fetchall()
         )
-        self.conn.execute(
-            """INSERT INTO nodes_fts(node_id, searchable_text) VALUES (?, ?)
-               ON CONFLICT(node_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-            (node_id, "\n".join(value for value in values if value)),
+        self._upsert_search_document(
+            "node", node_id, "\n".join(value for value in values if value)
+        )
+
+    def _refresh_all_assertion_text_projections(self) -> None:
+        """Rebuild assertion wording from graph endpoints and stored qualifiers."""
+        for row in self.conn.execute(
+            "SELECT assertion_id FROM assertions ORDER BY assertion_id"
+        ).fetchall():
+            self._refresh_assertion_text_projection(str(row[0]))
+
+    def _refresh_assertion_text_projection(self, assertion_id: str) -> None:
+        row = self.conn.execute(
+            """SELECT a.predicate, a.object_literal_json, a.object_unit,
+                      a.object_literal_type, a.polarity, a.epistemic_status,
+                      a.viewpoint, a.context, a.valid_from, a.valid_to,
+                      s.canonical_label AS subject_label,
+                      o.canonical_label AS object_label
+                 FROM assertions AS a
+                 JOIN nodes AS s ON s.node_id=a.subject_node_id
+                 LEFT JOIN nodes AS o ON o.node_id=a.object_node_id
+                WHERE a.assertion_id=?""",
+            (assertion_id,),
+        ).fetchone()
+        if row is None:
+            return
+        predicate = str(row["predicate"])
+        predicate_spec = next(
+            (item for item in self.ontology.predicates if item.predicate == predicate),
+            None,
+        )
+        object_value = row["object_label"]
+        if object_value is None and row["object_literal_json"] is not None:
+            try:
+                object_value = json.loads(str(row["object_literal_json"]))
+            except (TypeError, ValueError):
+                object_value = None
+        values = [
+            str(row["subject_label"]),
+            predicate,
+            predicate_spec.label if predicate_spec is not None else "",
+            "" if object_value is None else str(object_value),
+            str(row["object_unit"] or ""),
+            str(row["object_literal_type"] or ""),
+            str(row["polarity"] or ""),
+            str(row["epistemic_status"] or ""),
+            str(row["viewpoint"] or ""),
+            str(row["context"] or ""),
+            str(row["valid_from"] or ""),
+            str(row["valid_to"] or ""),
+        ]
+        self._upsert_search_document(
+            "assertion", assertion_id, "\n".join(value for value in values if value)
         )
 
     def _insert_assertion(self, assertion: AssertionInput, now: str) -> str:
@@ -3140,6 +3269,7 @@ class SQLiteGraphStoreMixin(SQLiteMemoryMixinBase):
         if row is None:
             raise RuntimeError("assertion write did not return an ID")
         stored_assertion_id = str(row["assertion_id"])
+        self._refresh_assertion_text_projection(stored_assertion_id)
         if existing_by_fingerprint is None:
             self._record_importance_event_locked(
                 ImportanceEvent(

@@ -19,9 +19,12 @@ from elfie.brain.memory.memory_records import (
     ConsolidationRequest,
     DescriptionInput,
     EvidenceInput,
+    KinshipQuery,
     MentionInput,
     NodeInput,
     RecallRequest,
+    RecallSense,
+    SourceReference,
 )
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.recall_renderer import render_recall_bundle
@@ -29,7 +32,6 @@ from elfie.message_types import EventId
 from infrastructure.persistence.memory import (
     EpisodeIdempotencyError,
     MemoryStoreResetRequired,
-    MemoryStoreSchemaError,
     SQLiteMemoryStoreAdapter,
 )
 
@@ -96,6 +98,82 @@ def test_recall_drops_incidental_question_word_matches() -> None:
 
         assert [item[0] for item in lexical] == ["preference"]
         assert [episode.episode_id for episode in recalled.episodes] == ["preference"]
+
+
+def test_recall_uses_term_coverage_and_rejects_a_single_incidental_term() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("full", "full-key", "2026-08-26", "主人喜欢香菜")
+        )
+        store.record_episode(
+            ClosedEpisode("partial", "partial-key", "2026-08-26", "主人曾经吃过香菜")
+        )
+        store.record_episode(
+            ClosedEpisode("incidental", "incidental-key", "2026-08-26", "主人去公园")
+        )
+
+        hits = store.search_text("主人喜欢香菜", top_k=10)
+
+        assert [identifier for identifier, _score in hits] == ["full", "partial"]
+        assert hits[0][1] == 1.0
+        assert 0.34 <= hits[1][1] < hits[0][1]
+
+
+def test_query_sense_only_reranks_the_fixed_query_candidate_pool() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode(
+                "a-cake",
+                "a-cake-key",
+                "2026-08-26",
+                "蛋糕修复完成",
+                source_refs=(SourceReference("cake-source-a"),),
+                emotion="happiness",
+                emotion_intensity=0.8,
+                attribution="felt",
+            )
+        )
+        store.record_episode(
+            ClosedEpisode(
+                "z-cake",
+                "z-cake-key",
+                "2026-08-26",
+                "蛋糕修复完成",
+                source_refs=(SourceReference("cake-source-z"),),
+                emotion="sadness",
+                emotion_intensity=0.8,
+                attribution="felt",
+            )
+        )
+        store.record_episode(
+            ClosedEpisode(
+                "sad-trip",
+                "sad-trip-key",
+                "2026-08-26",
+                "海边旅行很难过",
+                source_refs=(SourceReference("trip-source"),),
+                emotion="sadness",
+                emotion_intensity=0.8,
+                attribution="felt",
+            )
+        )
+
+        query_only = store._search_fts_candidates("蛋糕修复", 2)
+        query_and_sense = store._search_fts_candidates(
+            "蛋糕修复",
+            2,
+            request=RecallRequest(
+                text="蛋糕修复",
+                sense=RecallSense(emotion_label="sadness", intensity=0.8),
+            ),
+        )
+
+        assert {hit.record_id for hit in query_only.hits} == {"a-cake", "z-cake"}
+        assert {hit.record_id for hit in query_and_sense.hits} == {
+            hit.record_id for hit in query_only.hits
+        }
+        assert query_and_sense.hits[0].record_id == "z-cake"
+        assert "sad-trip" not in {hit.record_id for hit in query_and_sense.hits}
 
 
 def test_host_failure_notice_is_not_recallable_from_legacy_episode() -> None:
@@ -206,13 +284,184 @@ def test_consolidation_is_source_grounded_and_retrieval_is_hybrid() -> None:
                 ),
             )
         )
-        bundle = store.recall(
-            RecallRequest(text="芫荽", hop_limit=1, character_limit=1000)
-        )
+        bundle = store.recall(RecallRequest(text="芫荽", character_limit=1000))
         assert bundle.episodes[0].episode_id == "episode-1"
         assert bundle.assertions[0].evidence_ids == ("ev-1",)
         assert bundle.evidence[0].source_id == "episode-1"
         assert len(bundle.episodes[0].excerpt) <= 1000
+
+
+def test_direct_kinship_preserves_paths_for_both_parent_predicate_directions() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("family", "family-key", "2026-08-26", "已确认亲子关系。")
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="family",
+                nodes=(
+                    NodeInput("parent", "person", "妈妈"),
+                    NodeInput("child", "person", "主人"),
+                ),
+                evidence=(
+                    EvidenceInput(
+                        "family-evidence",
+                        "episode",
+                        "family",
+                        excerpt="已确认亲子关系。",
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "parent",
+                        "parent_of",
+                        object_node_id="child",
+                        evidence_ids=("family-evidence",),
+                        assertion_id="parent-of-child",
+                    ),
+                    AssertionInput(
+                        "child",
+                        "child_of",
+                        object_node_id="parent",
+                        evidence_ids=("family-evidence",),
+                        assertion_id="child-of-parent",
+                    ),
+                ),
+            )
+        )
+
+        parents = store.recall(
+            RecallRequest(
+                kinship=KinshipQuery(relation="parents", anchor_node_id="child")
+            )
+        )
+        children = store.recall(
+            RecallRequest(
+                kinship=KinshipQuery(relation="children", anchor_node_id="parent")
+            )
+        )
+
+        expected_paths = {
+            ("parent", "child", "parent-of-child"),
+            ("child", "parent", "child-of-parent"),
+        }
+        assert {
+            (path.node_ids[0], path.node_ids[1], path.assertion_ids[0])
+            for path in parents.paths
+        } == expected_paths
+        assert {
+            (path.node_ids[0], path.node_ids[1], path.assertion_ids[0])
+            for path in children.paths
+        } == expected_paths
+
+
+def test_direct_kinship_resolves_unique_names_and_symmetric_siblings() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("family", "family-key", "2026-08-26", "已确认兄妹关系。")
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="family",
+                nodes=(
+                    NodeInput("owner", "person", "主人"),
+                    NodeInput("sibling", "person", "小明"),
+                ),
+                evidence=(
+                    EvidenceInput(
+                        "sibling-evidence",
+                        "episode",
+                        "family",
+                        excerpt="已确认兄妹关系。",
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "sibling",
+                        "sibling_of",
+                        object_node_id="owner",
+                        evidence_ids=("sibling-evidence",),
+                        assertion_id="sibling-edge",
+                    ),
+                ),
+            )
+        )
+
+        unique_name = store.recall(
+            RecallRequest(kinship=KinshipQuery(relation="siblings", anchor_name="主人"))
+        )
+        assert unique_name.status == "complete"
+        assert {node.node_id for node in unique_name.focus_nodes} == {
+            "owner",
+            "sibling",
+        }
+        assert unique_name.paths[0].node_ids == ("owner", "sibling")
+
+        store.upsert_node_record(NodeInput("duplicate-owner", "person", "主人"))
+        ambiguous = store.recall(
+            RecallRequest(kinship=KinshipQuery(relation="siblings", anchor_name="主人"))
+        )
+        assert ambiguous.status == "ambiguous"
+        assert ambiguous.notices == ("kinship_anchor_ambiguous",)
+
+        missing = store.recall(
+            RecallRequest(
+                kinship=KinshipQuery(relation="siblings", anchor_node_id="missing")
+            )
+        )
+        assert missing.status == "partial"
+        assert missing.notices == ("kinship_anchor_not_found",)
+
+
+def test_direct_kinship_does_not_turn_missing_or_negative_edges_into_paths() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.record_episode(
+            ClosedEpisode("family", "family-key", "2026-08-26", "未确认父母关系。")
+        )
+        store.apply_consolidation(
+            ConsolidationProjection(
+                episode_id="family",
+                nodes=(
+                    NodeInput("owner", "person", "主人"),
+                    NodeInput("parent", "person", "妈妈"),
+                ),
+                evidence=(
+                    EvidenceInput(
+                        "family-evidence",
+                        "episode",
+                        "family",
+                        excerpt="未确认父母关系。",
+                    ),
+                ),
+                assertions=(
+                    AssertionInput(
+                        "parent",
+                        "parent_of",
+                        object_node_id="owner",
+                        polarity="negative",
+                        evidence_ids=("family-evidence",),
+                        assertion_id="negative-parent-edge",
+                    ),
+                ),
+            )
+        )
+
+        absent = store.recall(
+            RecallRequest(
+                kinship=KinshipQuery(relation="parents", anchor_node_id="parent")
+            )
+        )
+        assert absent.status == "partial"
+        assert absent.notices == ("no_recorded_kinship_edge_absence_not_established",)
+
+        negative = store.recall(
+            RecallRequest(
+                kinship=KinshipQuery(relation="parents", anchor_node_id="owner")
+            )
+        )
+        assert negative.assertions
+        assert negative.assertions[0].qualifiers["polarity"] == "negative"
+        assert negative.paths == ()
 
 
 def test_legacy_or_mixed_store_requires_explicit_reset_without_mutation(
@@ -231,48 +480,6 @@ def test_legacy_or_mixed_store_requires_explicit_reset_without_mutation(
 
     with sqlite3.connect(path) as connection:
         assert connection.execute("SELECT name FROM entities").fetchone()[0] == "旧记录"
-
-
-def test_unsupported_version_requires_explicit_fresh_store(tmp_path: Path) -> None:
-    path = tmp_path / "knowledge.sqlite"
-    with sqlite3.connect(path) as connection:
-        connection.execute("PRAGMA user_version=4")
-        connection.commit()
-
-    with pytest.raises(
-        MemoryStoreSchemaError, match="unsupported Memory schema version"
-    ):
-        SQLiteMemoryStoreAdapter(path)
-
-
-def test_v7_memory_store_is_rejected_without_mutating_its_contents(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "knowledge.sqlite"
-    with sqlite3.connect(path) as connection:
-        connection.execute(
-            "CREATE TABLE episodes(episode_id TEXT PRIMARY KEY, consolidation_state TEXT)"
-        )
-        connection.execute("INSERT INTO episodes VALUES ('preserve-me', 'pending')")
-        connection.execute("PRAGMA user_version=7")
-        connection.commit()
-
-    with pytest.raises(
-        MemoryStoreSchemaError, match="unsupported Memory schema version: 7"
-    ):
-        SQLiteMemoryStoreAdapter(path)
-
-    with sqlite3.connect(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
-        assert (
-            connection.execute(
-                "SELECT consolidation_state FROM episodes WHERE episode_id='preserve-me'"
-            ).fetchone()[0]
-            == "pending"
-        )
-        assert connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        ).fetchall() == [("episodes",)]
 
 
 def test_projection_reuses_unambiguous_semantic_identity_across_episodes() -> None:
@@ -630,7 +837,7 @@ def test_model_failure_keeps_episode_retryable_and_source_intact() -> None:
 def test_model_projection_is_grounded_and_uses_global_semantic_ids() -> None:
     proposal = (
         '{"nodes":[{"label":"主人","type":"person"},'
-        '{"label":"香菜","type":"organism","aliases":["芫荽"]}],'
+        '{"label":"香菜","type":"organism","entity_level":"kind","aliases":["芫荽"]}],'
         '"mentions":[{"surface_text":"主人","label":"主人"},'
         '{"surface_text":"香菜","label":"香菜"}],'
         '"assertions":[{"subject_ref":"主人","predicate":"likes",'
@@ -713,7 +920,6 @@ def test_recall_respects_graph_limits_and_renderer_preserves_provenance() -> Non
         bundle = store.recall(
             RecallRequest(
                 text="主人",
-                hop_limit=2,
                 node_limit=2,
                 assertion_limit=1,
                 episode_limit=1,
@@ -803,8 +1009,6 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
                 seed_node_ids=("owner",),
                 node_types=("organism",),
                 relation_types=("relationship",),
-                mode="local",
-                hop_limit=1,
             )
         )
         assert [node.label for node in bundle.focus_nodes] == ["小狐"]
@@ -880,10 +1084,7 @@ def test_recall_uses_registered_genesis_knowledge_links_and_social_edges() -> No
             RecallRequest(
                 seed_node_ids=(self_id,),
                 relation_types=("relationship",),
-                mode="local",
-                hop_limit=1,
                 assertion_limit=32,
-                neighbors_per_node=32,
             )
         )
         assert any(
@@ -930,9 +1131,40 @@ def test_rebuild_indexes_recreates_alias_and_description_search_text() -> None:
         }
         assert store.archive_episode("episode-1")
         indexed_text = store.connection.execute(
-            "SELECT searchable_text FROM episodes_fts WHERE episode_id='episode-1'"
+            "SELECT searchable_text FROM memory_search_fts "
+            "WHERE record_kind='episode' AND record_id='episode-1'"
         ).fetchone()[0]
         assert "星河算学" in indexed_text
+
+
+def test_search_document_replacement_uses_stable_fts_row_mapping() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        store.upsert_node_record(NodeInput("food", "organism", "香菜"))
+        row = store.connection.execute(
+            "SELECT fts_rowid FROM memory_search_fts_map "
+            "WHERE record_kind='node' AND record_id='food'"
+        ).fetchone()
+        assert row is not None
+        original_rowid = int(row[0])
+
+        store.upsert_node_record(
+            NodeInput("food", "organism", "香菜", description="可食用香草")
+        )
+
+        replacement = store.connection.execute(
+            "SELECT fts_rowid FROM memory_search_fts_map "
+            "WHERE record_kind='node' AND record_id='food'"
+        ).fetchone()
+        assert replacement is not None
+        assert int(replacement[0]) == original_rowid
+        assert store.search_text("可食用香草", top_k=5)[0][0] == "food"
+        assert (
+            store.connection.execute(
+                "SELECT COUNT(*) FROM memory_search_fts WHERE rowid=?",
+                (original_rowid,),
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def test_node_property_search_finds_a_person_without_a_name() -> None:
@@ -1049,7 +1281,7 @@ def test_conflicting_qualified_claims_remain_visible_with_their_sources() -> Non
                     ),
                 )
             )
-        bundle = store.recall(RecallRequest(seed_node_ids=("owner",), mode="basic"))
+        bundle = store.recall(RecallRequest(seed_node_ids=("owner",)))
         assert {item.qualifiers["polarity"] for item in bundle.assertions} == {
             "positive",
             "negative",
@@ -1098,7 +1330,6 @@ def test_seed_graph_recall_honors_episode_time_window() -> None:
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("owner",),
-                mode="basic",
                 occurred_from="2026-01-15",
                 occurred_to="2026-02-15",
             )
@@ -1168,7 +1399,7 @@ def test_correction_supersedes_active_assertion_and_preserves_old_evidence() -> 
             ("claim-old", "superseded", None),
         ]
         bundle = store.recall(
-            RecallRequest(seed_node_ids=("owner",), mode="basic", assertion_limit=8)
+            RecallRequest(seed_node_ids=("owner",), assertion_limit=8)
         )
         assert any(item.assertion_id == "claim-new" for item in bundle.assertions)
 
@@ -1211,3 +1442,34 @@ def test_natural_name_correction_forms_a_supersedes_chain() -> None:
         new = next(row for row in rows if row[1] == '"小周"')
         assert old[1:] == ('"小林"', "superseded", None)
         assert new[1:] == ('"小周"', "active", old[0])
+
+
+def test_entity_kind_and_instance_never_merge_by_shared_label() -> None:
+    with SQLiteMemoryStoreAdapter.in_memory() as store:
+        for index, level in enumerate(("kind", "instance", "kind")):
+            episode_id = f"level-{index}"
+            store.record_episode(
+                ClosedEpisode(episode_id, episode_id, "2026-09-26", "灯的知识")
+            )
+            store.apply_consolidation(
+                ConsolidationProjection(
+                    episode_id=episode_id,
+                    nodes=(
+                        NodeInput(
+                            f"lamp-{index}",
+                            "object",
+                            "灯",
+                            properties={"entity_level": level},
+                        ),
+                    ),
+                    evidence=(
+                        EvidenceInput(
+                            f"ev-{index}", "episode", episode_id, excerpt="灯的知识"
+                        ),
+                    ),
+                )
+            )
+        assert {node.node_id for node in store.list_graph_nodes(limit=10)} == {
+            "lamp-0",
+            "lamp-1",
+        }

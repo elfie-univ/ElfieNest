@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.13
+**契约版本：** 1.15
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-25
+**修订日期：** 2026-09-26
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -18,6 +18,9 @@
 > 封套，以及先守卫再构造的零成本规则。版本 1.11 冻结第一阶段 Memory Recall 排序：静态、有来源的
 > `importance` 不参与 Recall 排序；反馈强化、类型先验/来源历史排序和综合/自适应评分暂缓。尚未
 > 落地的差距继续记录在各自聚焦的一致性台账中。版本 1.12 冻结五个 Node 类型组、第一阶段六个切片和产品数据根级全局扩展注册表。版本 1.13 明确 `claim` 是通用知识组中的普通叶类型，没有专属载荷、表或 Evidence 模型；所有语义类型共用同一 Node 与 Assertion 契约。
+
+> 版本 1.14 冻结基于已有数据的 Recall 切片：文本查找、情绪联想和直接亲属关系，使用 Query/Sense/Filters，返回有界且有来源的内容。
+> 版本 1.15 明确按来源准入情绪、确定性检索排序，以及 DIRECT 在预算内一次只读 Recall 的例外。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -59,6 +62,23 @@ Memory 的关系规则属于 Brain 边界。关系谓词只能来自一份带版
 与 `confidence` 分开；经过注册的准入/生命周期规则可以使用它，但第一阶段 Recall 不用它排序，
 也不沿图邻接传播。Recall 使用确定性匹配和稳定决胜。反馈强化、类型先验或来源历史排序、分数折叠、
 综合/自适应排序都需要后续单独评审设计。
+
+首个 Recall 增量使用 Query、Sense、Filters 和有界 limits，不再以独立 mode 选择检索行为。
+Query 查已有文本/身份；Sense 首先匹配有来源的历史情绪；Query + Sense 要求 Query 相关，情绪只作软辅助。
+显式图请求首版仅在定位人物锚点后查询注册的直接父母/子女/兄弟姐妹关系，不要求任意路径语言、亲属推导或
+Recall 内模型调用。不支持的输入、歧义身份、缺失/否定/冲突关系不能变成编造的答案。
+
+流程为并行候选召回、身份合并去重、过滤、相关性选择和最小来源组装，允许空结果。
+Namespace/隐私/active 生命周期门覆盖命中与辅助内容；必要来源与额外命中区分，部分/不可用结果明确报告。
+每只 Elfie 的 SQLite 仍是事实库，持久倒排文本索引和结构化查询索引是可重建派生物，不是第二 authority。
+向量及更丰富的场景/图推理须由后续数据支撑的切片引入。Reasoning 拥有时机、线索准入和上下文预算，不要求每步必调。
+[Memory 设计](../designs/elfie/brain/elfie-memory-architecture)细化收敛后的目标，
+[Memory 台账](../conformance/elfie-memory)的 MEM-019–MEM-023 跟踪实现。
+
+初始自动 Recall 至多使用一个当前 active 情绪线索，不把用户原话作为 Query。Sense 只接受来源明确的
+自身情绪及规范 Emotion 标签；任意故事基调和缺失历史不映射、不补造。文本候选使用统一 FTS 语料库，
+依次按精确身份档位、查询词覆盖率、可选情绪决胜、BM25 和稳定 ID 排序。情绪只在 Query 准入后的
+同档位同覆盖率候选间决胜，不放行无关命中。最低覆盖率与候选上限须在索引切换前通过聚焦样本冻结。
 
 Memory 只有两层语义。`ClosedEpisode` 是已经加工好的完整话题、故事或学习单元，是普通的
 文本记忆结果；它可以聚合多轮对话，但不是原始聊天日志或原始媒体。`Node`/`Assertion` 是
@@ -298,6 +318,11 @@ Receipt 后才能删除 pending handoff。
 选择的 Reasoning 深度；它们不改变 Memory 可用性或硬权限。Food 只选择请求模型角色和回退
 路线，不定义认知模式，也不携带另一套模式 allow-list。Skill、Tool 和 Worker 是彼此独立的
 阶段能力门。
+
+DIRECT 默认一次模型调用结束。当宿主能在 Energy/截止时间内预留最终回答预算时，首个模型可以请求
+一次只读 Recall，随后再调用一次模型生成最终草稿；最终 schema 禁止再次 Recall。不切换深度、不创建
+计划、不增加外部 Tool 权限。无预算时 schema 不提供 Recall，模型按已有证据回答或澄清。所有结果仍绑定
+同一 Run 的 Memory revision。当前只允许一次模型调用的守卫差距由 MEM-023 跟踪。
 
 一个 `ReasoningRun` 可以包含多个 Cognitive Step，以及多次 Model、Skill、Tool 和
 Observation 循环。它必须有明确预算、截止时间、取消状态和完成条件。Tool Observation

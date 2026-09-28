@@ -138,6 +138,12 @@ def normalized_tokens(value: str) -> list[str]:
     return [token for token in tokens if token]
 
 
+def fts_match_expression(value: str) -> str:
+    """Build a literal OR query; caller still binds it as an SQL parameter."""
+    terms = list(dict.fromkeys(normalized_tokens(value)))
+    return " OR ".join('"' + term.replace('"', '""') + '"' for term in terms)
+
+
 def safe_json_mapping(value: Mapping[str, object] | None) -> dict[str, Any]:
     return dict(value or {})
 
@@ -146,6 +152,7 @@ __all__ = [
     "bounded_score",
     "canonical_json",
     "content_hash",
+    "fts_match_expression",
     "json_list",
     "json_object",
     "normalize_text",

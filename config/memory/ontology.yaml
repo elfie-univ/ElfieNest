@@ -471,7 +471,7 @@ predicates:
     symmetric: false
     inverse: null
     object_literal: false
-    qualifiers: [context, viewpoint, valid_from, valid_to, distance, travel_time, path, conditions]
+    qualifiers: [context, viewpoint, valid_from, valid_to, object_unit, object_literal_type, polarity, epistemic_status, confidence, importance, distance, travel_time, path, conditions]
     source_required: true
     salience: 0.48
   near:
@@ -578,7 +578,7 @@ predicates:
   witnessed:
     label: 见证
     subject_groups: [social_relations, entities]
-    object_groups: [events]
+    object_groups: [events, space_geography]
     symmetric: false
     inverse: null
     object_literal: false

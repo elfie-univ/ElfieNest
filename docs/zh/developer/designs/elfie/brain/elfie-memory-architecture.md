@@ -4,7 +4,7 @@
 >
 > 范围：持久化的主观经历、有来源的个人知识和确定性召回。不定义 Event Workspace 或 Reasoning Context Workspace，也不定义其他模块的状态。
 >
-> 契约对齐：Brain 契约 1.12（2026-09-25）、ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
+> 契约对齐：Brain 契约 1.15（2026-09-26）、ADR-0033 与 Elfie 2.3。创建输入和完整 Genesis Manifest 都是临时数据；Memory 只保留自己的最终记录、Evidence 与原子完成标记。
 
 > 设计关系：**所属模块：**Elfie / Brain / Memory；**上级设计：**[Brain 十系统架构](./elfie-brain-ten-system-architecture.md)；
 > **下级设计：**无；**规范性契约：**[Brain 契约](../../../contracts/brain.md)；**当前架构：**[认知信息流](../../../architecture/cognitive-flow.md)；
@@ -352,97 +352,116 @@ Developer Tools 显示的单条 Episode 整理进度，是从所属 Maintenance 
 
 ### 3.4 Hybrid Recall
 
-Recall 是确定性的 Memory 操作，不调用模型。它服务两个相关目的：(1) 将当前情境联想到有用的
-过去经历；(2) 找回能回答问题或帮助完成任务的既往经验和图谱知识。Brain/Reasoning 决定是否、
-何时调用 Recall；Memory 不要求每轮开始时必调，也不假设固定的推理轮次安排。
+Recall 为当前情境联想过去经历，也为回答问题、解决任务找回经验和知识。它是只读的确定性 Memory 操作，不调用生成式模型，不强化或改变记录；Brain/Reasoning 决定是否调用和如何使用结果。
 
-概念流程分五步：Query 与 Sense 独立生成候选，可以并行；二者结果取并集，不要求同时匹配；随后
-合并去重、施加全局过滤与各类结果限额，最后组装类型化结果。命名空间和隐私访问门在存储边界强制
-执行；实现可以把符合条件的过滤下推到分支优化，但观察到的结果必须等价于对候选并集合并后过滤。
+**先固定结构，再按已有数据逐场景完善。** 本节是收敛后的首版目标，不表示已经实现。当前记录已有 Episode 正文、情绪标签/强度，以及 Node/Assertion 和亲属谓词；字段存在不证明已积累足够的真实个体数据，也不证明检索有效。不以假想场景为理由建设通用推理器。
 
-#### 3.4.1 Recall 输入与调用时机
+#### 3.4.1 首版范围与输入语义
 
-请求有三个语义输入：可选 `Query`、可选 `Sense`、可选 `Filters`，另可接受有界结果数量限制。Query 和 Sense 至少提供一个。
-Query 用于已知的话题、实体、措辞或明确关系问题。Sense 是当前场景的稀疏特征签名；即使没有有用
-关键词，也可用于联想召回。Filters 是作用于两条分支结果的硬约束。调用方判断检索的预期价值是否
-足以支撑一次调用；问候或其他低信息输入可以不触发 Recall，明确指向过去事件的说法或依赖已有知识
-的问题通常值得调用。
+| 输入 | 首版场景 | 返回原则 |
+| --- | --- | --- |
+| Query | 用名字、关键词或故事细节找已有经历/知识 | 返回与目标相关的 Episode、Node 或 Assertion |
+| Sense | 用已有历史情绪数据做联想 | 返回少量情绪匹配的 Episode；无可靠匹配可为空 |
+| Query + Sense | 带情绪线索查某个问题的经历/知识 | Query 决定是否相关，情绪只辅助选择，不放入仅情绪相似的无关经历 |
+| Query 含 graph plan | 查某人的父母、子女或已记录的兄弟姐妹 | 定位人物后查支持的直接关系，返回关系路径与必要来源 |
 
-Memory Port 只接收已经可用的上下文，不自行读取实时 Orientation、Emotion、传感器、Profile 或对话
-历史。调用方可以提供情绪、地点、感知、人物/物品或活动的精简摘要。信号较弱或缺失时应省略，不要
-把它表示为反向匹配。工具/行动结果之后的第二次调用可以把该结果作为 Query 和/或 Sense；接口相同，
-不是另一种搜索模式。
+接口保持 Query、Sense、Filters 三类输入及有界 limits，不增加模式或 AND/OR 参数。候选可以取并集，但不是无条件返回并集。Query/Sense 至少一个非空；独立的问答检索与自发联想可以分两次调用，并由上游分别标注、共用预算。
 
-Recall 从 Query 或 Sense 候选开始，可执行有界的带类型图遍历并返回明确路径。普通 `claim` Node 与其他注册 Node 类型使用相同路径。人物、地点、历史情绪、主题和原因 facet 约束候选；facet 缺失表示未知，不是负匹配。最小路径为身份/词法检索 → Episode 和/或 Node–Assertion 候选 → 有界 Local/Graph 扩展 → 按需选取 Episode/Evidence。候选选择前执行 namespace/隐私检查。普通 Recall 只返回 active 记录；archived 和 forgotten 永不成为候选，包括明确要求历史文本或精确 ID 的查询。单独的维护/审计检查不属于 Recall，不能把这些记录加入 `RecallBundle`。检索不会强化或修改记录。
+模型调用前，有可靠显著情绪时可做 Sense-only；没有明确目标时不强行把问候或整段原话塞入 Query。模型发现缺失事实或工具结果需要历史经验时，再提出聚焦 Query。“上次”指什么先由上游上下文解析，Memory 不自行读对话历史，也不负责判断任意自然语言意图。是否首轮调用、是否补充调用不固定；同一 Run 的结果仍绑定同一 Memory 修订。
 
-#### 3.4.2 Query 分支
+#### 3.4.2 五步流程
 
-Query 分支有三条互补路径，由请求决定如何使用：
+首版调用规则：模型前只从 `freshness=current` 的 EmotionSnapshot 提取至多一个 Sense，选已有 active 通道中强度最高者，同强度按通道名稳定决胜；没有 active 通道则跳过初始检索。Demo 复用 Emotion 已有激活边界，不把它宣称为已验证的心理学阈值。初始 Query 不再由用户原话或意图正则生成。首个模型可直接回答，也可发出一次携带受支持 Query/Sense/Filters 的结构化 `RecallMemory`；指代由已有上下文解析，“上次”目标仍不明时澄清，不编造目标。
 
-1. **身份与精确词解析。** 优先解析调用方提供的稳定 ID、规范名称和作用域内别名。适用于已知的人、地点、物品和概念；别名有歧义时必须保留歧义，不能静默选中某个 Node。
-2. **倒排词法检索。** 在 Episode、Node 和 Assertion 的可重建文本投影上检索。使用词法排序（例如 BM25），规范名称/别名、精确短语和罕见词应比宽泛的正文命中权重更高。Node 文档包括获准的名称、别名、带来源描述和面向用户的属性；Assertion 文档把有方向的主体—谓词—对象、限定信息和有用的来源措辞组织成文本；Episode 文档使用保留的正文/细节和获准元数据。这样可以从名字、短语、属性、故事细节或关系措辞找回记忆，不扫描原始 Communication 日志。
-3. **稠密语义检索（分阶段能力）。** 后续经评测的向量通道可从同一三种记录中召回释义或语义相似措辞。它是补充候选来源，不替代词法检索；“RAG”描述先检索再生成的模式，本身不是检索算法。Embedding 和向量索引始终是带版本、可重建的派生数据；初始契约不要求向量后端。
+`DIRECT` 默认一次模型调用。Energy/截止时间准入能预留第二次调用时，开放一次只读 Recall 并保留最终回答预算：模型 → Recall observation → 最终草稿，最多两次模型调用、一次按需 Recall；最终 schema 排除再次 Recall。初始 Sense 与按需 Recall 共用上下文预算和固定 Memory revision，不切换深度、不创建计划、不扩大外部 Tool 权限。预算不足时从模型 schema 去掉 Recall 动作，允许诚实回答或澄清。`DELIBERATE` 保留已有有界循环，可在收到工具结果 observation 后发起聚焦 Recall。这是对当前 DIRECT 守卫的规划例外，尚非运行事实。
 
-明确的多跳关系问题应在 Query 中使用可选的类型化 `GraphQueryPlan`，不能寄望自然语言关键词匹配自动推断路径。计划给出锚点（`self`、稳定 Node ID 或实体提及）、有序的注册谓词及方向、可选的注册端点/类型条件，以及有界的结果投影/基数。调用方或已经运行中的 Reasoning 模型可以把自然语言转换为该计划；Memory 确定性校验并执行，不调用模型。没有计划时，自由文本走普通检索，并且只允许按意图做下文所述的小范围上下文扩展。不接受 SQL、任意谓词或无界图查询语言。
+保留 Query 和 Sense 两条并行候选路。图执行在 Query 锚点定位后；过滤、排序和结果关联是后续独立步骤。
 
-`QuerySpec.text`、seed ID 和 `graph_plan` 在 Query 内各自可选。若同时提供多个，则对其候选结果取并集并去重，不隐式要求 AND。图查询锚点应明确给出，或从精简的实体提及中解析；不能把整句自然语言关系问题当作精确路径表达式。
+```mermaid
+flowchart TB
+  subgraph SEARCH["1. 并行召回"]
+    direction LR
+    subgraph QUERY["Query"]
+      Q["文本 / ID / 人物锚点"] --> I["身份解析 + 词法检索"]
+      I --> G["内部汇集同记录命中依据"]
+      G --> P{"有支持的亲属查询"}
+      P -->|否| QC["普通候选"]
+      P -->|是| K["定位人物 → 查直接亲属关系"]
+      K --> QC
+    end
+    subgraph SENSE["Sense"]
+      S["已准入的情绪线索"] --> E["匹配历史情绪标签 / 强度"]
+      E --> SC["经历候选"]
+    end
+  end
+  subgraph MERGE["2. 合并去重"]
+    M["候选并集；同 ID 合并依据，不合成记忆"]
+  end
+  QC --> M
+  SC --> M
+  M --> F["3. 过滤：访问规则、调用方条件、有效匹配"]
+  F --> R["4. 排序选择：Query 优先 / 情绪匹配；少量有用结果"]
+  R --> A["5. 关联组装：必要属性、关系、摘录和证据"]
+  A --> O["消费方渲染为模型可读文本"]
+  style MERGE stroke-dasharray: 5 5
+```
 
-例如：“我所有的兄弟姐妹”可以沿注册的 sibling 关系，或受限的共同父母路径遍历；“我爸爸的阿姨的女儿”需要有序亲属关系路径，如果已存关系或角色限定不足以确定一个人，就必须返回歧义；“桌子是什么做的”以桌子为锚点，沿注册的 `made_of` 关系找到对象。路径缺失表示“未记录/未解析”，不表示该关系为假。缺少角色、性别、方向或时间限定时，Recall 不能臆造。
+Namespace、隐私和 active 生命周期规则在每次读取时强制，包括锚点、遍历与辅助内容，不推迟到图中的第 3 步。适用的过滤可提前下推；数量和耗时预算限制各步，耗尽须说明，不能伪装成完整搜索或没有记忆。
 
-#### 3.4.3 Sense 分支
+#### 3.4.3 Query 与简单亲属查询
 
-Sense 是调用方提供的稀疏 `SceneCue`，不是第二个自然语言 Query，也不是搜索所有当前信号的指令。它可以包含：
+普通 Query 先复用稳定 ID、规范名称、别名和已有可搜索文本；目标是持久倒排词法检索（BM25 类），而非仅靠 `LIKE`。Episode 搜正文/有来源概括，Node 搜名称/描述/获准属性，Assertion 搜有向关系措辞及限定信息。命中回读权威记录，不能把索引文本当成另一份事实。中文短词、别名和无关词的效果先在小样本中比较。向量检索保留为后续通道，不是首版 demo 的前置条件。
 
-- 带归因的情绪标签和强度；
-- 当前地点或环境锚点；
-- 显著的人物、物品、活动或角色；
-- 精简的感知/身体感觉摘要，例如看到、听到或感受到的内容。
+分支内部只按同记录汇集匹配依据，不建设多层融合器。精确 ID 可直接定位；歧义名字不能静默选一个人。普通精确记录读取与文本搜索分别演示，首版不定义任意 ID 与文本组合的复杂语义。
 
-调用方只纳入足够显著/可靠的线索（尤其是有辨识度的场景信号）；阈值和有意的随机候选生成策略由
-调用方负责，不设成 Memory 的通用阈值。Memory 将可用线索与历史 Episode 场景/上下文投影比较，并可通过
-图谱解析人物、地点和物品锚点。只组合两侧都实际存在的维度：历史情绪或地点缺失表示未知，不是冲突。
-显式提供的线索可通过匹配 facet 贡献查询相关性；这不是隐藏的显著性先验，只有调用方明确请求对应 facet 时才成为硬过滤条件。
-环境/感官自由文本可走词法检索；结构化场景 facet 可用索引精确/范围匹配。稠密场景相似度需经过评测后再加入。
+图查询先做一个可验证的亲属切片：锚点是明确人物 ID 或能唯一解析的人名，支持注册的 `parent_of`、`child_of`、`sibling_of` 直接查询，正确处理方向、逆关系及对称关系。调用方只看到这个切片支持的含义和谓词，不让模型猜整张图的边；自然语言到请求的转换由上游负责，Memory 只执行已支持的请求。
 
-Sense 内部可以走三路候选并集：(1) 实体/地点锚点经精确名称/别名解析，再反向查 Episode 提及/地点关联；
-(2) 情绪通道比较注册情绪类别和强度，优先类别重叠、归一化强度距离较小的记录；(3) 感知/环境措辞在
-历史 Episode 场景上下文中做词法检索。情绪标签通过带版本的词汇表归一化；类别相似度只能使用注册表中
-明确的关系；强度相似度按归一化到 `[0,1]` 后的 `1 - |当前强度 - 历史强度|` 计算（任一强度缺失时只用
-类别匹配）。各通道确定性融合并保留线索来源。缺失维度既不计分，也不扣分。
-调用方可以为独特/高强度线索请求较小的 Episode 配额；更宽泛的场景联想则请求更大的配额。这只是结果
-数量限制，不表示其他记忆不存在。
+只把符合该场景的正向、未被替代且生命周期 active 的关系用于直接答案；否定、冲突、时间限定或身份不明时，不硬给确定结论，保留已知状态或提示未解析。返回匹配边、端点及必要 Evidence，不追加无关邻居。直接关系缺失表示“未记录”，不表示没有亲属；“全部”只指该直接查询预算内的结果，截断必须说明。
 
-#### 3.4.4 合并、图扩展与过滤
+共同父母推导兄弟姐妹、多跳亲属链、材料/因果/空间推理、字面量图终点及任意图计划暂不承诺。普通文本仍可找到这些已有知识；这不等于支持其结构化推理。
 
-合并是 Query 与 Sense 候选的并集。只对相同 `(record_kind, record_id)` 的记录去重；合并各通道支持度，同时保留
-每个命中来源、命中字段/场景线索和图路径。若不同 Assertion 的时间、极性、视角、限定信息或 Evidence
-不同，即使端点相同也不能合并。不可比较的分支排序使用带版本的确定性排序融合规则（例如 RRF），只允许很小且
-有界的共同命中加成；不能假定词法、向量和场景原始分数使用相同标尺。最终顺序只反映查询相关性和显式请求的
-facet。Importance、freshness、confidence、来源历史和类型先验不参与 Recall 排序。各类型分别限额，避免某种数量巨大的记录挤掉其他类型。
+#### 3.4.4 Sense：先把情绪联想做好
 
-需要区分两种图操作：
+首版只使用已有且归因可靠的情绪标签和强度。上游从当前状态中选择值得触发的线索；Memory 比较历史 Episode，不自行读取 Emotion/Orientation，不凭检索结果补造历史情绪。归因不清或字段缺失时不猜测。
 
-- **显式路径执行**：回答由 `GraphQueryPlan` 表达的关系问题。只沿计划中的有序注册谓词和方向遍历，返回真实 Assertion 路径和端点记录，并限制最多 4 步、每个扩展 Node 最多 12 个邻居以及最终结果数。有效路径和注册端点约束决定候选是否符合；Importance 和 freshness 均不得改变路径资格，也不能弥补缺失边。多个有效路径按请求的投影/基数、查询相关性和稳定 ID 次序决胜。明确的人/属性问题通常为 0–1 跳；只有请求明确要求时才返回两跳“朋友的朋友”，不默认扩展。地点包含、物品组成/材料、因果知识和亲属关系各自使用注册的关系语义。没有匹配 Assertion 时不合成事实。
-- **附带上下文扩展**：用少量直接相关邻居、关联 Episode 或 Evidence 丰富 Query/Sense 命中。它不能替代路径答案，也不能递归淹没图谱。扩展限定关系白名单和上限；人物、地点或物品通常最多一跳，只有意图明确要求才加深遍历。
+先用同类情绪匹配，双方强度都有时比较接近程度；没有历史强度时只表示标签匹配，不声称“高度强度相似”。触发强度、匹配门槛和数量从实际样本调，不现在发明复杂情绪距离或心理模型。情绪很强不等于任何同类经历都值得返回，弱匹配和重复内容允许被舍弃。
 
-候选合并后，对所有结果类型一致应用调用方过滤：允许的结果种类（`Episode`、`Node`、`Assertion`）、注册类型组和叶 Node 类型、注册 Predicate 与属性、Episode 场景 facet（包括历史情绪、地点、活动、话题和原因）、人物/地点/实体锚点，以及可选的显式 importance 下限。不同 facet 家族之间使用 AND，同一家族中的多个值使用 OR。facet 数据缺失表示未知，不是负事实。importance 下限只是调用方请求的硬过滤条件，不是排序分数。Episode 时间过滤只作用于有来源的 Episode 发生时间（显式处理未知时间）；Assertion 自身的有效时间作为其限定信息筛选，Episode 时间不作用于没有时间概念的 Node。普通 Recall 只包含符合策略的 active 记录；archived 和 forgotten 由不可放宽的生命周期访问门排除。相关的 superseded/冲突 Assertion 可保留，并明确展示状态和 Evidence。Namespace、隐私和生命周期访问门不能被调用方过滤放宽。
+一条经历只返回一次，不合成新记忆。有 Query 时，候选还须与 Query 相关；例如查蛋糕补救时保留有用的蛋糕经历，不因悲伤返回无关旅行。仅 Sense 时按已有情绪匹配选少量经历，不保证凑满。
 
-#### 3.4.5 类型化结果组装
+地点、实体、活动、环境/感官联合匹配及场景直接联想知识保留扩展方向，暂不新增多路配额、最强维度公式或场景 schema。以后每加入一类可靠历史数据，再增加一条可验证通道，仍沿用候选合并与去重。
 
-根据实际命中的主要记录组装 `Episode`、`Node` 或 `Assertion`；关联记录是辅助上下文，不能取代主要命中：
+情绪数据按来源准入。当前状态使用六个 `EmotionType`，Episode emotion 却是自由文本；Genesis 写入 `emotional_tone`（包括 belonging/curiosity/trust/resolve/wonder），普通对话闭合当前不写情绪。Episode 的 `attribution=observed` 或存在强度不能证明它记录的是自己的情绪。首版只接受标签属于六类、且来源明确表示精灵自身情绪的记录；其他标签保留为来源数据，暂不参与自动 Sense 匹配。不把故事基调映射成情绪通道，也不回填历史。优先使用有来源样本，缺少时明确使用合成夹具；没有合格真实历史则真实数据质量继续 open。未来对话情绪的捕获属于独立写侧切片。
 
-- Episode 包含有界摘录或摘要、发生时间范围/精度、相关场景，以及解释命中的参与者/地点/物品 Node 和所需 Assertion/Evidence。
-- Node 包含规范名称和类型、简短的带来源描述、选中的面向用户属性、相关直接 Assertion，以及少量（通常一两个）支撑 Episode/Evidence。
-- Assertion 包含有向三元组或类型化字面量、限定信息、时间/极性/视角/状态/confidence、直接来源 Evidence，以及保留的冲突/替代关系。
+首版确定性准入条件复用已有字段：`attribution=felt`、规范情绪标签、可用来源引用同时满足；生产端须用 felt 明确表示精灵自身体验。检索不从正文推断归因，不把 observed 改解释为 felt。夹具显式提供这些值，单纯标签碰巧一致不能准入。
 
-类型化 `RecallBundle` 保留路径、来源链、命中通道/线索、冲突和明确截断。确定性 renderer 可以把同一 bundle 投影
-为面向模型的紧凑分段自由文本；必须保留不确定性和来源区别，不能编造叙述，也不能调用模型。结果数量限制在
-渲染前生效。单纯检索命中不是强化；生命周期转换及任何未来的重新激活都必须通过单独获准且有来源支撑的操作完成。
+#### 3.4.5 合并、过滤与排序
 
-#### 3.4.6 Global Search（后续能力）
+- **合并：**按 `(record_kind, record_id)` 去重并保留命中来源；不同时间、极性、视角的 Assertion 不折叠。图结果按真实路径组织。
+- **过滤：**先支持记录种类/已注册类型、已有 Episode 发生时间与情绪条件，以及明确请求的 importance 下限；所有通道同样受约束。未支持的条件明确拒绝，不能默默忽略。
+- **排序：**文本检索用可解释的词法匹配；Sense-only 用情绪匹配；二者都有时 Query 优先，情绪只在相关程度接近时辅助；图查询先满足关系条件，再稳定排序。
+- **选择：**只返回预算内的有用结果，可以为空；不建设全通道统一大分数，不直接相加不同标尺分数，不按 importance、freshness、confidence 或反馈加权。
 
-全局主题/社区检索和 Pattern/社区聚合推迟到图谱具有代表性密度且检索需求经评测后再做。图谱摘要或 Pattern
-可以成为直接 Recall 结果，但必须能追溯到 Assertion 和 Episode，不能成为新的事实源。
+Filters 同类多值取 OR、不同条件取 AND；类型只约束适用对象。Episode 时间按有来源的发生范围与请求范围相交判断，未知时间默认排除，可显式允许；无时间概念的 Node 不套 Episode 时间。若只想找经历，应明确指定记录种类。“最近一次/最早一次”的额外排序、复杂属性布尔条件和任意历史关系时间查询待有场景再加。
+
+具体权重、阈值与预算不在这里预定；实现时用同一小样本比较候选、最终输出和旧行为，形成一个能解释、能复现的简单规则。不能把“排第一”当作“足够相关”，也不宣称不用模型就能判断任意答案是否完整。
+
+首版实现使用每精灵一个 FTS5 语料库，覆盖 Episode、Node 和 Assertion；命中 ID 都回读权威记录。文档和 Query 共用中文单字/二元组合预分词；词法 Query 优先使用不同的二字词，只有没有有效二字词时才回退到单字。当前会忽略这些偶然问句词：`什么`、`一个`、`问题`、`记得`、`之前`、`以前`、`说过`、`好吗`。规范化 Node 名称/别名精确匹配优先于普通候选；普通候选至少覆盖 0.34 的有效不同 Query 词，无有效 Query 词时返回空。每种记录的 FTS 候选池上限为 `max(512, min(4096, top_k * 64))`，超过上限会报告截断。排序依次为精确名称档位、词覆盖率降序、可选 Sense 决胜、BM25 升序、`(record_kind, record_id)` 升序。Query+Sense 先固定与 Query-only 相同的 top-k 候选池；Sense 不能放行或挤走 Query 候选，只能在相同文本档位与覆盖率内决胜。不相加原始分数，也不增加类型先验。这些阈值只是 demo 首版基线，不代表已经在真实个体数据上证明相关性质量。
+
+当前 Sense-only 只匹配来源齐全、`attribution=felt` 且规范情绪标签相同的 Episode，最多返回一条；只有输入和历史强度都存在时才比较强度，差值大于 0.25 会排除。历史强度缺失仍只算标签命中，当前强度缺失则不进行强度比较。当前 Bridge 至多从 current 快照中选取最强的 active 规范情绪，不从用户原话生成 Query。图答案按关系资格和端点/Assertion ID 稳定排序，忽略 Sense 排序，来源 Episode 仅作支撑。候选池被截断时报告 partial。真实数据到位后可校准首版常量，但不能改变 Query 优先语义。
+
+#### 3.4.6 结果关联与输出
+
+选中后只沿已存关联补足理解所需内容：Episode 带摘录、时间及有关参与者；Node 带名称、描述、相关属性；Assertion 带主体、谓词、对象、限定信息与 Evidence。图查询只带命中关系路径与来源，不再额外搜索其他故事。
+
+主要命中与必要来源分开标记。类型/时间过滤选择主要结果，不应剪断解释它的必要关系或证据；范围外来源注明出处，不冒充额外命中。所有辅助内容仍受 namespace、隐私和生命周期规则约束。证据不足、冲突、歧义和截断如实表达，不填补缺失事实。
+
+返回有界类型化 bundle，由消费方确定性渲染为紧凑文本；保留匹配原因、必要属性/关系和来源，不只列名字。先使用简单的数量和文本预算，避免一条经历与其派生知识反复占满上下文；不建设复杂自动摘要和上下文优化器。
+
+#### 3.4.7 后续扩展的进入条件
+
+每项扩展先有数据和问题，再有算法：明确一个真实或来源可追踪的场景，检查字段/关系是否齐全，给出预期命中与不应命中，复用现有接口做最小切片，比较效果后再纳入常规能力。合成 demo 只证明流程和边界，不证明真实个体效果。
+
+向量通道、多维 Sense、通用图路径、场景知识适用性、复杂过滤/时间排序、自动反馈调权和 Global/community 检索均不是本轮首版要求。这里保留方向，不为它们冻结额外字段、查询语言或通用评分公式。
 
 ### 3.5 延期的 Memory Abstraction Loop
 
@@ -472,83 +491,23 @@ Node + Assertion → 夜间图上聚合 → 模型提案 + 确定性校验
 
 ### 4.2 Recall
 
-概念接口为 `Recall(request: RecallRequest) -> RecallBundle`。它是只读查询契约，由调用方决定何时调用。
-Query、Sense 和 Filters 是三个语义输入；Query/Sense 各自可选，但至少要提供其中一个。也接受有界结果数量限制：
+概念接口保持 `Recall(Query?, Sense?, Filters?, limits?) -> RecallBundle`。这里定义语义职责，不再冻结另一套详细协议 schema；实现获准切片时沿用现有类型化访问路径，不要求新建 API 框架。
 
-```text
-RecallRequest {
-  query?: QuerySpec,
-  sense?: SceneCue,
-  filters?: RecallFilters,
-  limits?: RecallLimits
-}
+| 部分 | 首版支持含义 |
+| --- | --- |
+| Query | 文本或精确记录 ID；保留 graph plan 位置，首版用于支持的直接亲属查询 |
+| Sense | 归因已知的当前情绪标签及可选强度 |
+| Filters | 记录种类、注册 Node 类型/类型组、有来源的 Episode 时间（含未知时间策略）、历史情绪及显式 importance 下限 |
+| limits | 有界候选/图/结果数量及文本/耗时预算；不是必须凑满的数量 |
+| RecallBundle | 主要记录或关系路径、必要辅助内容/证据、匹配原因、不确定性及截断 |
 
-QuerySpec {
-  text?: string,
-  seed_ids?: [NodeId | AssertionId | EpisodeId],
-  graph_plan?: GraphQueryPlan
-}
+亲属计划只需人物锚点和一个支持的关系请求。对调用方解释方向及逆/对称关系，只执行注册表与本切片都支持的谓词；不要求调用方生成任意路径、端点程序或通用图语言。不支持的请求明确拒绝。普通 ID 读取与图锚点是不同用途。
 
-GraphQueryPlan {
-  anchor: self | node_id | entity_mention,
-  steps: [{predicate, direction, registered_qualifiers?}],
-  endpoint_constraints?: {node_types?, registered_properties?, exclude_anchor?},
-  projection: endpoint | path | both,
-  cardinality: one | all
-}
+Query + Sense 遵循 §3.4.1，不设 AND/OR 开关。Memory 绑定一只 Elfie 的命名空间；空输入、无效类型及不支持的过滤不静默放宽。Filters 选择主要结果，必要来源按 §3.4.6 处理；隐私及生命周期门不可放宽。
 
-SceneCue {
-  affect?: [{label, intensity?, confidence?}],
-  place_or_environment?: [...],
-  salient_entities_or_activity?: [...],
-  perception_summary?: string
-}
+复用类型化 bundle 中的 Episode、Node、Assertion、path 和 Evidence。确保选中的 Node 属性/描述、有向关系、限定信息及来源在渲染中保留；区分主要命中与辅助记录，不提前冻结大套诊断 schema。已有 importance/freshness/Assertion confidence 元数据不参与排序。
 
-RecallFilters {
-  kinds?: [Episode | Node | Assertion],
-  type_groups?: [registered_type_group...],
-  node_types?: [registered_leaf_type...],
-  predicates?: [...],
-  episode_time_range?: {from?, to?, unknown_time?},
-  entity_ids?: [...],
-  registered_property_constraints?: [...],
-  episode_facets?: {historical_affect?, place_ids?, activity?, topic?, cause?},
-  minimum_importance?: number
-}
-```
-
-以上是语义示例，不是冻结的编程语言 schema。类型组从注册叶 Node 类型派生；类型组、叶类型、Predicate
-和属性条件都必须通过注入的注册表校验。Episode 时间只筛有来源的 Episode 发生时间；Assertion 有效期是
-限定信息，不是 Episode 时间。Filter 对合并后的候选一致生效。隐私、namespace 和 active 生命周期访问门由
-内部强制，不能通过请求放宽。调用方不能传 SQL、任意图查询语言或无限制属性路径。
-
-Memory Port 绑定单只 Elfie 的命名空间；请求不能扩大这个作用域。
-
-默认硬上限为：每分支 20 个词法命中、8 个种子记录、显式图路径最多 4 步、附带上下文最多 2 跳、每个扩展 Node 12 个邻居、40 个 Node、80 个 Assertion、8 个 Episode、24 条 Evidence 和 12,000 个渲染字符。调用方可以请求更低上限，不能突破 Memory 上限。显式路径上限允许“我爸爸的阿姨的女儿”这类请求，同时保持附带扩展更浅。
-
-输出是有界的 `RecallBundle`：
-
-```text
-RecallBundle {
-  focus_nodes: [{id, type_group, type, label, description, relevance,
-                 importance, freshness}],
-  assertions: [{id, subject, predicate, object, qualifiers, status,
-                relevance, importance, freshness, confidence, evidence_ids}],
-  paths: [{node_ids, assertion_ids, hop_count}],
-  episodes: [{id, time_range, life_stage, temporal_label, excerpt,
-              detail_level, relevance, importance, freshness, source_event_ids}],
-  evidence: [{id, source_type, source_id, source_version,
-              span_or_locator, stance}],
-  conflicts: [{assertion_ids, reason}],
-  match_provenance: [{record_kind, record_id, channels, matched_fields,
-                      scene_facets, assertion_path_ids}],
-  limits: {requested, returned, truncated}
-}
-```
-
-Node–Assertion 提供高浓度结构和可复用知识，Episode 提供完整话题语境，Evidence 解释推导过程。
-消费端的确定性 renderer 可以把类型化 bundle 投影为面向 LLM 的紧凑、带标签自由文本；这不是第二份答案，
-也不是模型生成摘要。消费它的上层仍负责决定回复或行动。Recall 不需要返回上游原始聊天或媒体。
+区分没有合格命中、输入未解析/歧义、部分/截断结果与检索不可用。“全部亲属”的部分结果不能宣称穷尽。消费方无需再次调用模型即可渲染为紧凑、忠实文本，最终回复或行动仍由上层决定；原始对话/媒体不是额外 Memory 检索层。
 
 ### 4.3 延期的反馈与自适应排序
 
@@ -589,45 +548,32 @@ SQLite 是第一种物理实现。一个 Memory Adapter/数据库只绑定一只
 这些维度复用 Episode 已有的存储概念：`summary_text`、`event_kind`、发生时间/精度和持久来源引用/Evidence。
 当前来源版本的投影成功回执保存在 Maintenance 运行状态中，按 Episode ID/来源版本/内容哈希关联。不新增独立标题、来源标签或整理进度列。`event_kind` 从任意非空字符串收紧为
 经过评审的经历类型注册键；只有来源确实支持时，`summary_text` 才能作为展示概括。这是持久化值契约变化：
-当前实现基线为 schema v9：节点与谓词语义由注入的本体快照校验；启动时在任何写入前拒绝 v8 数据库并报告准确路径，不自动迁移、回退或删除。通用 Node 身份、生命周期和来源片段约束仍是独立的一致性残余，不属于本轮类型体系实现。`claim` 不新增专属载荷或表。
+当前实现基线为 schema v1：节点与谓词语义由注入的本体快照校验，并使用一张可重建的 FTS5 投影索引 Episode、Node 和 Assertion，另有索引化的 FTS row-ID 映射；启动时在任何写入前拒绝非 v1 数据库并报告准确路径，不自动迁移、回退或删除。通用 Node 身份、生命周期和来源片段约束仍是独立的一致性残余，不属于本轮类型体系实现。`claim` 不新增专属载荷或表。
 整理进度来自 Episode 事实行之外、由所属流程负责的运行状态投影。
 
 每次 Genesis submission 的 ID/版本/哈希及完成标记是 Memory Adapter 所有的持久化包元数据，不是语义 Node/Assertion、Episode 或重试队列。完成标记位于同一个 Memory SQLite 数据库中，并与本次 submission 在同一事务提交；其物理元数据记录/表名由 Adapter 私有决定，不增加语义记忆表。只有所有预期 Memory 行（包括子记录）准备好并完成本次提交后才能写入完成标记。可重试或中断的 submission 是运行状态，不是可召回记忆。派生的 FTS/向量索引和内存缓存不属于事实包完成检查，只能在完整提交后重建。`importance` 是静态准入值；Assertion 支持 confidence 由 Evidence 派生；`retention_profile` 和 `half_life_days` 是准入策略状态，freshness 和查询匹配顺序只派生。
 
 ### 5.2 派生索引和缓存
 
-每只 Elfie 的 Memory SQLite 数据库拥有自己的可重建搜索投影；不存在全用户共享索引，也不要求在应用内存
-中装载所有用户的索引。初始倒排索引设计是一个按 `(record_kind, record_id)` 标识逻辑记录的
-`recall_documents` 投影。它索引获准的 Episode 正文/内容概括和检索提示、规范 Node 名称、作用域别名、带来源
-描述和获准的面向用户属性，以及渲染后的 Assertion 三元组/限定信息。Episode 检索提示属于索引元数据，不是
-Episode 正文、内容概括或第二份语义事实。持久化 SQLite FTS5 索引（若随附运行时不含 FTS5，则使用等效的
-SQLite 倒排索引）对这些文档排序。对象是 Episode、Node 和 Assertion，不是原始对话日志。字段权重应使精确
-名称/别名、罕见词和有方向的关系措辞高于宽泛的 Episode 正文。中文分词/规范化必须带版本并经过评测（分词后
-词项和/或合适的字符级回退）；只匹配空格分隔词语的索引不满足搜索契约。技术 ID、提交元数据、来源 ID 和
-保留/评分字段不属于普通可搜索文本。
+结构化 Episode/Node/Assertion 仍是权威记录。自由文本是派生搜索文档，不替代数据库格式，也不是第三层语义记忆。每只 Elfie 的 SQLite 拥有持久索引，不要求共享全用户搜索库、外部搜索服务或完整常驻内存索引。
 
-搜索文档是派生索引投影，不是另一层语义 Memory 或事实源。它保留来源记录 kind/ID 和来源修订，以便命中后
-连接回权威 Episode、Node 或 Assertion 及其 Evidence。更新必须幂等并绑定已提交的来源修订。可行时在来源事务
-中同步更新文本投影/索引；若提交后重建，必须暴露修订/延迟状态，并从权威行重建。索引缺失/过期可以确定性
-恢复，不能删除或替代来源事实。不需要独立语义 Segment 表；异常 Episode 的内部切片也只是可重建的检索细节。
+当前实现在现有 ID/名称/别名及关系索引之外，为每只 Elfie 使用一张 SQLite FTS5/BM25 索引表 `memory_search_fts`。文档保留记录 kind/ID，内容是获准的 Episode 正文/概括、Node 名称/描述/可搜索属性及渲染后的 Assertion 措辞；命中后按 ID 回读权威记录。另有小型普通 B-tree 表 `memory_search_fts_map`，把 `(record_kind, record_id)` 映射到 FTS rowid，使更新/删除走索引查找而非扫描 FTS 全表。技术 ID、hash、维护状态不作为普通正文。
 
-稠密向量是后续评测通道。若加入，Embedding 和向量条目按记录/命名空间持久化模型、分词器和来源修订信息，
-仍是可重建派生物；初始契约不选择 ANN 引擎，也不要求外部搜索服务。有限的 SQLite 页/索引缓存可以驻留内存，
-但不会把全库或完整索引装入应用内存。
+持久化 Adapter 在同一事务中根据已提交事实维护 FTS 派生文档和 row-ID 映射，更新/重建幂等；索引缺失可重建，不改变来源。命中后回读权威记录，复查 namespace、生命周期、Filters 和 Run 来源修订；旧索引不能复活不合格事实，部分/不可用检索如实报告。名称/别名变化应使依赖它的关系文档失效；运行投影回执留在 Maintenance 状态，不放回 Episode 事实。
 
-常规 B-tree 索引服务于频繁查询的结构化过滤和关联：lifecycle/status 与 `next_review_at`、Episode 投影
-修订/时间/哈希及选定的发生时间字段、Node 规范名称/类型/状态、Episode `aliases`/`retrieval_terms`、Node
-别名 `(normalized_alias, scope)`、描述 `(node_id, language, kind)`、按 Node/Episode 的提及、Assertion 主客体/
-谓词、冲突/替代、Evidence 来源/independence key、`assertion_evidence` 两个方向及 Node/Assertion 来源查询。
-可查询的场景 facet（例如带归因的历史情绪/强度和地点）必须使用类型化列或可重建的 facet 投影，不能只藏在不透明
-JSON 中。B-tree 只为高选择性/高频过滤维度添加；给所有属性建索引会增加磁盘、写入和维护成本。Recall 先获得
-有界候选集，只对候选派生查询相关性，不按 freshness 或其他生命周期/评分值排序，也不扫描全库。运行租约、重试
-次数和检查点是有界控制状态，不返回 Recall。成功投影修订仍绑定 Episode 来源版本/内容哈希。每种派生索引都
-声明其权威重建来源。首版继续使用内嵌关系库，不以专用图数据库为前置条件。
+B-tree 只服务已有且确有需要的过滤/关联：发生时间、已有情绪 facet、类型、别名、Episode 提及及 Assertion/Evidence 双向查询。同表多个索引正常，不给所有假想场景属性建索引。内存只保留有界热点页/记录，不加载所有精灵的完整索引。
 
-使用/结果反馈收据、分数折叠和自适应排序不是首版 schema 或 Recall 契约要求。当前 `memory.v3` 实现中若已有这类记录，它们是单独追踪的实现/设计偏差，不能成为类型组或关系注册表工作的依赖。
+Embedding/向量索引和更丰富的场景投影仍是后续派生能力。有数据且证实检索需要后，再选择后端、查询向量生成边界及维护细节；它们仍须保持命名空间、来源和可重建性，不成为第二事实源。
 
-内存只保留有界的热点 Node、邻接页、近期邻域和索引页。缓存未命中时重新读取持久行，不等于记忆丢失；媒体按需加载。
+#### 5.2.1 可直接采用的技术方案
+
+SQLite [FTS5](https://www.sqlite.org/fts5.html) 通过持久全文虚拟表 `memory_search_fts`、绑定的字面 MATCH 查询和 BM25 排序实现全文检索，不是给正文列普通 CREATE INDEX。Adapter 在同一写入边界维护来源派生文档和 `(record_kind, record_id)` 到 rowid 的普通 B-tree 映射，两者都能从权威表重建。映射不可省略：FTS 中的元数据列未建索引，不能用它们反复定位并替换文档。不需要部署 Elasticsearch。FTS5 已在开发运行时验证，打包平台能力仍是独立验收门。
+
+中文文档和 Query 需使用相同规范化；默认 tokenizer 不保证中文词语分割，trigram 全文查询少于三个字符不命中。先验证短名字和两字词，再选分词/字符单位。FTS5 BM25 越小越靠前，不是概率，也不能直接当绝对相关性门槛。
+
+[sqlite-vec](https://alexgarcia.xyz/sqlite-vec/) 是现成 SQLite 向量搜索扩展，提供 [Python 加载方式](https://alexgarcia.xyz/sqlite-vec/python.html)和 [KNN 查询](https://alexgarcia.xyz/sqlite-vec/features/knn.html)。这证明有可选接入路径，不表示已经批准依赖或验证发行环境。Embedding 需另行产生，文档和查询须保持一致；采用前验证扩展加载、固定 Python 兼容性、发行平台、维度/版本变化及资源成本。不能因支持 KNN 就承诺 ANN 规模性能。
+
+实施顺序和本机 FTS5 探针见 [Memory 执行台账](../../../conformance/elfie-memory.md)，它们不等于产品或跨平台验收。
 
 ### 5.3 约束、唯一性和冲突保留
 
@@ -700,7 +646,17 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.3 混合检索
 
-重放：罕见词和别名；中文短语/字符变体；释义（用于后续稠密检索门）；强历史情绪与地点线索场景；线索缺失/未知；时间和 importance 过滤；仅 Query、仅 Sense、Query+Sense 并集；跨 Episode、Node、Assertion 的人物/地点/物品/知识命中；一跳兄弟姐妹/材料问题；三步亲属路径；有歧义和缺失的图路径；隐私/状态排除；保留通道来源的去重；以及每种记录类型的结果组装/截断。初始倒排索引和类型化 facet 行为要与延期向量门分别验证，同时验证有界附带图扩展、显式路径精确度、RecallBundle 来源链和渲染文本忠实度。初始目标仍为罕见词 recall@5 ≥ 0.90，关系路径 precision = 1.00。
+先从已有记录选一小组可重放案例。缺失数据和安全边界可用合成夹具演示，但必须标为 demo，不能声称已经证明真实精灵个体效果。
+
+| 切片 | 最少案例 | 检查内容 |
+| --- | --- | --- |
+| 文本 | 已知名字/别名、中文故事细节、知识属性、无关 Query | 检查应命中/不应命中与渲染事实；同一数据比较现有查找和拟采用的词法方法 |
+| 情绪 | 同情绪的相近/不同强度、缺失强度、弱/无关匹配 | 当前强情绪不放入所有经历；不虚构强度/归因；允许空结果 |
+| Query + 情绪 | 情绪不同但有用的蛋糕补救经历、同情绪的无关旅行 | Query 相关性优先，情绪只辅助 |
+| 直接亲属 | 父母/子女方向、已记录兄弟姐妹、未知人物、缺失/否定/冲突关系 | 返回实际路径及来源，不推导缺失关系，不把受限结果说成全部 |
+| 公共边界 | 类型/时间过滤、重复命中、非 active/隐私记录、索引不可用、小输出预算 | 保留资格、证据和诚实的部分/空状态 |
+
+不仅检查候选 ID，也检查最终文本；调用成功、存在 Top-1 不是质量验收。正例须找回预期答案，反例不能注入噪声，全部返回空不能通过。不能从少量自造例子冻结全局 precision/recall 指标或通用阈值。更广泛的排序、规模和真实使用结论须有代表性数据；后续每路新增能力各自对应明确的新场景评测。
 
 ### 8.4 Importance、Retention、confidence 和冲突
 
@@ -708,7 +664,7 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 8.5 性能和容量
 
-测量两个维护阶段、有界内存、增长/保留行为，以及代表性 10,000 Episode / 50,000 Node / 200,000 Assertion 数据集上仅数据库 Basic + Local 的 p95 ≤ 150 ms。耐久性门还必须证明旧版或混合数据库会在不修改文件的情况下被拒绝，并且全新数据库能够重建和复开。
+测量两个维护阶段、有界内存、增长/保留行为，以及代表性 10,000 Episode / 50,000 Node / 200,000 Assertion 数据集上仅数据库身份/词法检索与有界局部扩展的 p95 ≤ 150 ms。这些是测量操作，不是调用方选择的检索模式。耐久性门还必须证明旧版或混合数据库会在不修改文件的情况下被拒绝，并且全新数据库能够重建和复开。
 
 ## 9. 已确定的实现决策
 
@@ -740,16 +696,15 @@ Episodes、Nodes、Assertions 和 Evidence 在重启后仍存在。维护以运�
 
 ### 9.4 Recall 语义
 
-- Facet 是正向约束：不同 facet 类别之间使用 AND，同一类别内的值使用 OR；缺少 facet 信息不能变成负事实。历史情绪读取 Episode 的带归因来源，不能读取实时 Emotion 状态。
-- 第一阶段 Recall 使用显式隐私、生命周期、类型组/叶子类型和时间筛选，再执行有界词法/图谱相关性及稳定确定性决胜。不按 importance、类型先验、来源历史、freshness、confidence 或反馈排序。archived 和 forgotten 记录排除在外。
-- Query 和 Sense 是独立候选分支，合并时取并集。去重键是 `(record_kind, record_id)`；融合重复支持但不折叠不同 Assertion。不可比较的分支分数使用确定性排序融合（RRF 或带版本的等价算法），保留命中来源，只允许有界的共同命中加成。对合并候选统一应用调用方过滤；是否为效率而将其下推，不改变语义。
-- 优先返回 active Assertion，但相关的 `superseded` 和冲突 Assertion 仍保留，并明确返回状态和 Evidence。隐私与命名空间过滤在排序前完成。
-- 显式图路径是 Query 下的类型化子路由，只执行注册 Predicate，不是第四种顶层输入，也不是通用图查询语言。显式路径有独立于浅层附带上下文扩展的步骤/分支上限。Assertion 缺失不是负事实；角色/身份解析歧义必须明确保留。
-- 初始检索契约包括精确/别名解析、持久倒排词法检索、类型化场景 facet，以及对 Episode、Node、Assertion 的有界 Local/Graph 遍历。稠密向量相似度是经评测后再接入的派生通道；宽泛 Global/community 检索也延期。“混合”不意味着首版必须有向量引擎或模型调用。
+- §3.4 固定五步结构，§4.2 保留 Query/Sense/Filters，不设模式开关；首版切片是文本查找、情绪联想和支持的直接亲属查询，不是通用图/场景引擎。
+- Query + Sense 仍为定向检索；合并身份、保留匹配依据，不合成不同记忆，不用弱匹配凑配额。
+- Filters 一致生效；隐私、namespace、active 生命周期门覆盖辅助内容。必要来源与额外命中区分。
+- 确定性匹配和稳定决胜不使用 importance、freshness、confidence 或反馈加权；否定、冲突、缺失关系和歧义身份不能变成确定图答案。
+- 索引是权威记录的持久可重建投影；更多通道与算法由数据支撑的切片引入，不先造 schema 或公式。
 
 ### 9.5 全新 schema 和兼容边界
 
-- 当前 SQLite schema 为 v9。它按注入的注册本体验证 Node 类型与谓词，并在任何写入前拒绝 v8 库，错误包含准确数据路径；不自动迁移、回退读取、迁移或双写。通用 Node 身份/生命周期/来源约束作为独立 Conformance 残余。
+- 当前 SQLite schema 为 v1。它按注入的注册本体验证 Node 类型与谓词，维护可重建的 `memory_search_fts` 投影索引和 row-ID 映射，并在任何写入前拒绝非 v1 库，错误包含准确数据路径；不自动迁移、回退读取或双写。通用 Node 身份/生命周期/来源约束作为独立 Conformance 残余。
 - reset-required 结果必须指出精确数据库路径，并指导操作者备份后显式重建数据根。应用程序不得自动删除、覆盖或静默修复被拒绝的数据库。
 - 每只 Elfie 的目标 schema 包含 source-first Episode、普通 Node、Assertion、Evidence 和有界的本地运行表；动态本体扩展存于单独的一份安装级全局注册表数据库。`claim` 只是普通 Node 叶类型，不增加载荷表。执行回执不是图谱 Node。旧实体/事件表、旧边、`support_score` 和 `source_type='legacy'` 都不是可接受输入。
 

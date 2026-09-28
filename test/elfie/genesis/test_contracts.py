@@ -96,6 +96,12 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     facts = {fact.fact_id: fact.statement for fact in source.knowledge}
     assert all(seed.content == facts[seed.seed_id] for seed in bundle.knowledge_seeds)
     assert all(
+        seed.summary_text
+        and seed.summary_text.rstrip("…") in seed.content
+        and len(seed.summary_text) <= 120
+        for seed in bundle.knowledge_seeds
+    )
+    assert all(
         seed.acquired_age_years is not None
         and 1
         <= seed.acquired_age_years
@@ -114,16 +120,17 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert bundle.relationship_seeds[-2].role == "owner"
     assert bundle.relationship_seeds[-1].object_kind == "group"
     assert (
-        len(bundle.place_seeds) == 49
-    )  # 46 published places (including regions) + world/private home + Earth home
+        len(bundle.place_seeds) == 51
+    )  # Published places + Elfaria/private home + Earth/owner home/ElfieNest
     assert {place.place_id for place in source.places} <= {
         seed.place_id for seed in bundle.place_seeds
     }
-    assert len(bundle.place_relation_seeds) == 7
+    assert sum(seed.relation != "route_to" for seed in bundle.place_relation_seeds) == 7
 
     assert {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in bundle.place_relation_seeds
+        if relation.relation != "route_to"
     } == {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in source.place_relations
@@ -1084,7 +1091,7 @@ def test_transition_episodes_use_actual_facts_without_template_events() -> None:
     }
 
     assert departure.age_years_at_event is None
-    assert departure.temporal_label == "赴地准备与离开故乡（具体年龄未知）"
+    assert departure.temporal_label.startswith("赴地准备后、抵达新家前")
     assert training.stay_days == 3
     assert "earthbound_station" in departure.place_ids
     assert departure.travel_days == travel_paths["birth_to_earthbound_station"][1]

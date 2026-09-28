@@ -9,7 +9,11 @@ from elfie.brain.memory.memory_records import ClosedEpisode, RecallRequest
 from elfie.diagnostics import ElfieDiagnostics
 from elfie.factory import ElfieAssembly
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
+from infrastructure.persistence.memory.schema import (
+    FTS_AUXILIARY_TABLES,
+    FTS_SHADOW_TABLES,
+    KNOWLEDGE_TABLES,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 
@@ -55,10 +59,12 @@ def test_factory_workspace_uses_only_final_knowledge_database(tmp_path: Path) ->
 
     db_path = workspace / "memory" / "knowledge.sqlite"
     assert db_path.is_file()
-    assert _user_tables(db_path) == set(KNOWLEDGE_TABLES) | {
-        "episodes_fts",
-        "nodes_fts",
-    }
+    assert _user_tables(db_path) == (
+        set(KNOWLEDGE_TABLES)
+        | {"memory_search_fts"}
+        | set(FTS_SHADOW_TABLES)
+        | set(FTS_AUXILIARY_TABLES)
+    )
     assert not list(workspace.rglob("graph_memory.db"))
     ElfieDiagnostics(elfie).memory.storage.close()
 
@@ -133,9 +139,7 @@ def test_encoded_entity_edge_retrieves_episode_from_sqlite(tmp_path: Path) -> No
             stimulus="completed-owner-interaction",
         )
     )
-    bundle = memory.recall(
-        RecallRequest(text="主人", mode="basic_local", episode_limit=5)
-    )
+    bundle = memory.recall(RecallRequest(text="主人", episode_limit=5))
 
     assert receipt.episode_id
     assert [item.episode_id for item in bundle.episodes] == [receipt.episode_id]

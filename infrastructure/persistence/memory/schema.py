@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 9
+SCHEMA_VERSION: Final[int] = 1
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -385,17 +385,34 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS episodes_fts (
-        episode_id TEXT PRIMARY KEY NOT NULL REFERENCES episodes(episode_id) ON DELETE CASCADE,
-        searchable_text TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS memory_search_fts_map (
+        fts_rowid INTEGER PRIMARY KEY,
+        record_kind TEXT NOT NULL CHECK (record_kind IN ('episode', 'node', 'assertion')),
+        record_id TEXT NOT NULL CHECK (length(trim(record_id)) > 0),
+        UNIQUE (record_kind, record_id)
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS nodes_fts (
-        node_id TEXT PRIMARY KEY NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
-        searchable_text TEXT NOT NULL
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
+        record_kind UNINDEXED,
+        record_id UNINDEXED,
+        searchable_text UNINDEXED,
+        normalized_text,
+        tokenize='unicode61'
     )
     """,
+)
+
+FTS_AUXILIARY_TABLES: Final[frozenset[str]] = frozenset({"memory_search_fts_map"})
+
+FTS_SHADOW_TABLES: Final[frozenset[str]] = frozenset(
+    {
+        "memory_search_fts_config",
+        "memory_search_fts_content",
+        "memory_search_fts_data",
+        "memory_search_fts_docsize",
+        "memory_search_fts_idx",
+    }
 )
 
 INDEX_SQL: Final[tuple[str, ...]] = (
@@ -439,4 +456,11 @@ INDEX_SQL: Final[tuple[str, ...]] = (
 )
 
 
-__all__ = ["INDEX_SQL", "KNOWLEDGE_TABLES", "SCHEMA_SQL", "SCHEMA_VERSION"]
+__all__ = [
+    "FTS_SHADOW_TABLES",
+    "FTS_AUXILIARY_TABLES",
+    "INDEX_SQL",
+    "KNOWLEDGE_TABLES",
+    "SCHEMA_SQL",
+    "SCHEMA_VERSION",
+]

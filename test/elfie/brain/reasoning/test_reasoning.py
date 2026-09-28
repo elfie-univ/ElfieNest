@@ -9,7 +9,7 @@ from elfie.brain.activity.system import (
     ActivityPreflightResult,
     ActivityPreflightStatus,
 )
-from elfie.brain.memory.memory_records import RecallBundle, RecallNode
+from elfie.brain.memory.memory_records import RecallBundle, RecallNode, RecallRequest
 from elfie.brain.reasoning.decision_decoder import (
     DecisionDecodeSeed,
     DecisionPlanDecoder,
@@ -450,6 +450,47 @@ def test_direct_cognitive_action_finishes_in_one_model_call_without_tools() -> N
     assert result.plan is None
 
 
+def test_direct_model_may_recall_once_when_two_call_budget_is_reserved() -> None:
+    class RecordingMemorySession:
+        pinned_revision = 7
+
+        def __init__(self) -> None:
+            self.requests: list[RecallRequest] = []
+
+        def recall(self, request: RecallRequest) -> MemoryRecallResult:
+            self.requests.append(request)
+            return MemoryRecallResult(
+                status="recalled",
+                query=request.text,
+                pinned_revision=self.pinned_revision,
+                bundle=RecallBundle(recall_revision=self.pinned_revision),
+            )
+
+    session = RecordingMemorySession()
+    runtime = SequenceCognitiveRuntime(
+        {
+            "type": "recall_memory",
+            "query": "上次一起做的是什么？",
+            "reason": "需要找到指代的历史事件",
+        },
+        {"type": "answer", "content": "我找到了相关的历史线索。"},
+    )
+
+    result = ReasoningRun(
+        model_port=runtime,
+        decoder=DecisionPlanDecoder(),
+        budget=ReasoningBudget(max_steps=4, max_model_calls=2, max_tool_calls=0),
+    ).run(_owner_cognitive_task(memory_session=session, memory_revision=7))
+
+    assert result.status is ReasoningStatus.COMPLETED
+    assert result.model_calls == 2
+    assert result.tool_calls == 0
+    assert session.requests == [RecallRequest(text="上次一起做的是什么？")]
+    assert runtime.calls[0].response_schema.name == "CognitiveAction"
+    assert runtime.calls[1].response_schema.name == "FinalCognitiveAction"
+    assert "RecallMemory is no longer available" in runtime.calls[1].user_prompt
+
+
 def test_deliberate_first_pass_finishes_without_creating_a_plan() -> None:
     runtime = SequenceCognitiveRuntime(
         {"type": "answer", "content": "这一轮可以直接回答。"}
@@ -485,13 +526,13 @@ def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> No
         pinned_revision = 7
 
         def __init__(self) -> None:
-            self.queries: list[str] = []
+            self.queries: list[RecallRequest] = []
 
-        def recall(self, query: str) -> MemoryRecallResult:
-            self.queries.append(query)
+        def recall(self, request: RecallRequest) -> MemoryRecallResult:
+            self.queries.append(request)
             return MemoryRecallResult(
                 status="recalled",
-                query=query,
+                query=request.text,
                 pinned_revision=self.pinned_revision,
                 bundle=bundle,
             )
@@ -544,7 +585,7 @@ def test_deliberate_recall_rebuilds_context_and_uses_one_pinned_revision() -> No
     assert result.status is ReasoningStatus.COMPLETED
     assert result.model_calls == 2
     assert result.tool_calls == 0
-    assert session.queries == ["主人纠正后的颜色偏好"]
+    assert session.queries == [RecallRequest(text="主人纠正后的颜色偏好")]
     assert observed[0] == ()
     assert len(observed[1]) == 1
     assert observed[1][0].revision == 7
@@ -593,10 +634,10 @@ def test_deliberate_loop_stops_when_the_model_only_requests_more_recall() -> Non
     class EmptyMemorySession:
         pinned_revision = 3
 
-        def recall(self, query: str) -> MemoryRecallResult:
+        def recall(self, request: RecallRequest) -> MemoryRecallResult:
             return MemoryRecallResult(
                 status="recalled",
-                query=query,
+                query=request.text,
                 pinned_revision=3,
                 bundle=RecallBundle(recall_revision=3),
             )
@@ -652,18 +693,18 @@ def test_deliberate_plan_expands_budget_before_finalizing_after_recall_cap() -> 
         def __init__(self) -> None:
             self.calls = 0
 
-        def recall(self, query: str) -> MemoryRecallResult:
+        def recall(self, request: RecallRequest) -> MemoryRecallResult:
             self.calls += 1
             if self.calls == 1:
                 return MemoryRecallResult(
                     status="recalled",
-                    query=query,
+                    query=request.text,
                     pinned_revision=self.pinned_revision,
                     bundle=RecallBundle(recall_revision=self.pinned_revision),
                 )
             return MemoryRecallResult(
                 status="budget_exhausted",
-                query=query,
+                query=request.text,
                 pinned_revision=self.pinned_revision,
                 reason="on_demand_recall_budget_exhausted",
             )

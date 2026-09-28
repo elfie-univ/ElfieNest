@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v9
+program_version: elfaria-genesis.v10
 status: published
 sources:
   world:
@@ -22,14 +22,14 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v9
+  package_version: elfaria-genesis.v10
   status: published
   members:
   - path: knowledge/elfaria.yaml
     kind: resident_knowledge
-    version: elfaria-resident-knowledge.v10
+    version: elfaria-resident-knowledge.v11
     status: published
-    sha256: 21da0a3911872b9d787423b58161fb767b66a90e74ae5052eaf74c7ecd8d0131
+    sha256: 1e244aa419ae58f7bf729569d19525e9dc37e0b621aa17e17ee35afc45937d14
   - path: knowledge/geography.yaml
     kind: geography_knowledge
     version: elfaria-geography.v12
@@ -119,12 +119,12 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: d78b3b4db2524b79bb8de65117b06e3b709a90fb24532dd12b3cba74e844a18f
+  content_sha256: 7d098f2ab001d689d5ddc79085245dc2eacfb36cb873003f606d721098467624
 coverage:
   status: complete
   resident_source_ref: resident
   knowledge_member: knowledge/elfaria.yaml
-  knowledge_version: elfaria-resident-knowledge.v10
+  knowledge_version: elfaria-resident-knowledge.v11
   projected_units: 160
   body_projection: preserved_from_verified_build_draft
   stable_source_anchors: 160_explicit_knowledge_unit_anchors
@@ -617,7 +617,7 @@ rules:
       - outcome
       goal: 熟悉家附近的生活路径
       id: early-home
-      event_kind: outing
+      event_kind: life_event
       impact: 遇到陌生地方时会先寻找熟悉的回去路线
       label: 归属
       life_stages:
@@ -990,6 +990,8 @@ rules:
       qualification_evidence:
       - apprenticeship_completed
   arrival:
+    earth_label: 地球
+    owner_home_label: 主人家
     id: earth-arrival-preparation.v2
     source_ref: generation#4
     model: one_short_preparation_training
@@ -1357,6 +1359,7 @@ rules:
       options_per_choice: 8
       total_backtracks: 64
     knowledge:
+      episode_max_chars: 4000
       supported_difficulties: [medium]
       unknown_difficulty: reject_publication
       mastery_probabilities:

@@ -161,19 +161,20 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
 
     memory = trace["memory"]
     assert memory["status"] == "recalled"
-    assert memory["query"] == "你还记得吗？"
+    assert memory["query"] == "上次聊了什么"
     assert memory["revision"] == 42
-    assert memory["selection"]["candidates"][0]["candidate_id"] == "episode:1"
-    assert memory["selection"]["summaries"][0]["kept"] == 1
+    assert memory["selection"] == {
+        "recall_id": None,
+        "candidate_boundary": "scored_candidates_only",
+        "candidates": [],
+        "summaries": [],
+    }
     assert memory["returned_points"] == [
-        {"kind": "focus_node", "id": "node:1", "evidence": "node:1"},
         {
             "kind": "assertion",
-            "id": "assertion:memory-1",
-            "evidence": "assertion:memory-1",
-        },
-        {"kind": "episode", "id": "episode:1", "evidence": "episode:1"},
-        {"kind": "evidence", "id": "evidence:1", "evidence": "evidence:1"},
+            "id": "assertion:memory-2",
+            "evidence": "assertion:memory-2",
+        }
     ]
     assert memory["selected"] == [
         {
@@ -203,7 +204,19 @@ def test_memory_projection_is_rebuilt_from_raw_observation_events():
     baseline = trace["chain"][2]["baseline_memory"]
     assert baseline["status"] == "recalled"
     assert baseline["revision"] == 42
-    assert baseline["returned_points"] == memory["returned_points"]
+    assert baseline["selection"]["candidates"][0]["candidate_id"] == "episode:1"
+    assert baseline["selection"]["summaries"][0]["kept"] == 1
+    assert baseline["returned_points"] == [
+        {"kind": "focus_node", "id": "node:1", "evidence": "node:1"},
+        {
+            "kind": "assertion",
+            "id": "assertion:memory-1",
+            "evidence": "assertion:memory-1",
+        },
+        {"kind": "episode", "id": "episode:1", "evidence": "episode:1"},
+        {"kind": "evidence", "id": "evidence:1", "evidence": "evidence:1"},
+    ]
+    assert baseline["returned_points"] != memory["returned_points"]
     assert baseline["selection"]["recall_id"] == "recall-1"
     assert baseline["evidence_basis"] == "brain_observations.reasoning.memory_bridge"
 
@@ -378,7 +391,7 @@ def test_skipped_recall_projects_an_explicit_no_hit_without_error():
                 query="你好",
                 status="skipped",
                 pinned_revision=1,
-                reason="baseline_recall_not_relevant",
+                reason="baseline_recall_not_requested",
                 bundle=MemoryRecallBundleObservation(recall_revision=1),
             ),
         ),
@@ -400,7 +413,7 @@ def test_skipped_recall_projects_an_explicit_no_hit_without_error():
     memory = trace["memory"]
     assert memory["status"] == "skipped"
     assert memory["query"] == "你好"
-    assert memory["reason"] == "baseline_recall_not_relevant"
+    assert memory["reason"] == "baseline_recall_not_requested"
     assert memory["revision"] == 1
     assert memory["returned_points"] == []
     assert memory["returned_evidence"] == ""

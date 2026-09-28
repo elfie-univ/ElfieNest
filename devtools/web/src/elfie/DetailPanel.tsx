@@ -1720,7 +1720,7 @@ function SetupNode({ node, mountOpenIds, onOpenMemoryDebug }: Readonly<{
   const onDemand = list(baseline.on_demand).map(record);
   const baselineStatus = statusOf(baseline.status);
   const baselineReason = String(baseline.reason ?? baseline.skip_reason ?? "");
-  const normalMemorySkip = baselineStatus === "skipped" && baselineReason === "baseline_recall_not_relevant";
+  const normalMemorySkip = baselineStatus === "skipped" && baselineReason === "baseline_recall_not_requested";
   const overview: JsonRecord = {
     processing_mode: setupProcessingMode(output),
     depth: output.depth,

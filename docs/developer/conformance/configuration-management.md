@@ -6,7 +6,7 @@
 > authorize new scattered configuration or product behavior.
 
 **State:** closed (CFG-006; v0.2 structural rows remain closed)
-**Closure state:** closed
+**Closure state:** ready
 
 ## Genesis preparation gap
 

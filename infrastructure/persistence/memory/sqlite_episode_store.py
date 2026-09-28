@@ -760,11 +760,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         searchable = "\n".join(
             value for value in (content, summary or "", *metadata_terms) if value
         )
-        self.conn.execute(
-            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
-               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-            (episode_id, searchable),
-        )
+        self._upsert_search_document("episode", episode_id, searchable)
 
 
 def _source_to_dict(ref: SourceReference) -> dict[str, Optional[str]]:

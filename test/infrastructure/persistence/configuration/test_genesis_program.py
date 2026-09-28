@@ -241,7 +241,7 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
         "arrival-nest",
     }
     assert {item["id"]: item["event_kind"] for item in episodes["themes"]} == {
-        "early-home": "outing",
+        "early-home": "life_event",
         "learning-path": "learning",
         "shared-space-choice": "activity",
         "craft-practice": "learning",

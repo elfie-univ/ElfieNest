@@ -16,6 +16,7 @@ from elfie.genesis import (
     GenesisError,
     GenesisMemoryCommitter,
 )
+from elfie.genesis.engine import legal_candidate_age_range
 from elfie.genesis.selection import derive_seed
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -52,7 +53,11 @@ def _compilation(
     definition = catalog.definition(species_id, adoptable_only=True)
     if definition.genesis is None:
         raise RuntimeError(f"物种 {species_id} 缺少 Genesis 配置")
-    age_years = definition.genesis.stage_ranges[stage][0]
+    age_years, _ = legal_candidate_age_range(
+        definition.genesis,
+        stage,
+        compiler._source.generation_policy,  # noqa: SLF001 - same compiler source
+    )
     last_error: GenesisError | None = None
     for attempt in range(_MAX_COMPILATION_ATTEMPTS):
         master_seed = seed if attempt == 0 else derive_seed(seed, 1, attempt, 0)
@@ -97,7 +102,7 @@ def _query_variants(fact: Any) -> Iterable[str]:
 
 def _eligible_for_species(fact: Any, species_id: str) -> bool:
     eligibility = set(getattr(fact, "eligibility", ()))
-    return "all" in eligibility or species_id in eligibility
+    return not eligibility or "all" in eligibility or species_id in eligibility
 
 
 def _query_cases_for_species(

@@ -17,12 +17,14 @@ def test_frozen_e1_fixture_compiles_through_typed_genesis_source() -> None:
     assert len(bundle.knowledge_seeds) >= 30
     assert [episode.seed_id for episode in bundle.episode_seeds] == [
         "early-home",
-        "learning-path",
-        "shared-space-choice",
+        "relationship-start:friend-1",
+        "family-event:sibling_birth:family-sibling-2",
+        "relationship-start:friend-2",
+        "predeparture-training",
         "departure-decision",
         "arrival-nest",
     ]
-    assert len(bundle.relationship_seeds) == 13
+    assert len(bundle.relationship_seeds) == 12
     assert all(seed.source == "genesis_source" for seed in bundle.knowledge_seeds)
     assert all(
         seed.source_ref.startswith("resident-knowledge:")

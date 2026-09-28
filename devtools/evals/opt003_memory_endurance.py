@@ -36,7 +36,7 @@ from elfie.brain.memory import (
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
-SCENARIO_SET = "opt003-memory-endurance.v2"
+SCENARIO_SET = "opt003-memory-endurance.v4"
 DEFAULT_OUTPUT = ROOT / "build" / "evaluations" / "stage1-chat" / "opt003-current"
 DEFAULT_COUNTS = {
     "episodes": 10_000,
@@ -190,7 +190,7 @@ def _seed_fixture(
             store.record_sourced_assertion(
                 AssertionInput(
                     subject_id=subject_id,
-                    predicate="knows",
+                    predicate="relationship",
                     object_node_id=object_id,
                     assertion_id=f"opt003-assertion-{index}",
                     confidence=0.8,
@@ -330,7 +330,7 @@ def _lifecycle_smoke() -> Dict[str, Any]:
                 assertions=(
                     AssertionInput(
                         "opt003-lifecycle-node",
-                        "knows",
+                        "references",
                         object_literal="lifecycle",
                         evidence_ids=("opt003-lifecycle-evidence",),
                     ),
@@ -420,11 +420,10 @@ def run(
             assertions=assertions,
         )
         integrity = store.integrity_report()
-        basic = _measure_recall(
+        query_recall = _measure_recall(
             store,
             RecallRequest(
                 text="opt003 experience 123",
-                mode="basic",
                 lexical_limit=20,
                 seed_limit=8,
                 node_limit=40,
@@ -433,14 +432,10 @@ def run(
             ),
             repetitions=repetitions,
         )
-        local = _measure_recall(
+        direct_seed_recall = _measure_recall(
             store,
             RecallRequest(
-                text="opt003 concept 123",
                 seed_node_ids=("opt003-node-123",),
-                mode="local",
-                hop_limit=2,
-                neighbors_per_node=8,
                 node_limit=20,
                 assertion_limit=20,
                 episode_limit=4,
@@ -478,8 +473,10 @@ def run(
         )
         and restart_integrity == integrity,
         "all_assertions_grounded": bool(integrity.get("all_assertions_grounded")),
-        "basic_recall_p95_under_budget": basic["p95_ms"] <= RECALL_P95_BUDGET_MS,
-        "local_recall_p95_under_budget": local["p95_ms"] <= RECALL_P95_BUDGET_MS,
+        "query_recall_p95_under_budget": query_recall["p95_ms"] <= RECALL_P95_BUDGET_MS,
+        "direct_seed_recall_p95_under_budget": (
+            direct_seed_recall["p95_ms"] <= RECALL_P95_BUDGET_MS
+        ),
         "idempotent_retry": retry["status"] == "duplicate",
         "restart_reopens_same_facts": restart_integrity == integrity,
         "lifecycle_forgets_only_after_archive": lifecycle["stages"]
@@ -510,7 +507,7 @@ def run(
         "seed": seed,
         "integrity": integrity,
         "restart_integrity": restart_integrity,
-        "recall": {"basic": basic, "local": local},
+        "recall": {"query": query_recall, "direct_seed": direct_seed_recall},
         "unit_of_work": uow,
         "retry": retry,
         "lock_wait": lock_wait,
@@ -525,8 +522,8 @@ def run(
         "residuals": [],
     }
     if (
-        not checks["basic_recall_p95_under_budget"]
-        or not checks["local_recall_p95_under_budget"]
+        not checks["query_recall_p95_under_budget"]
+        or not checks["direct_seed_recall_p95_under_budget"]
     ):
         report["residuals"].append(
             f"Recall p95 目标为 <= {RECALL_P95_BUDGET_MS:.0f}ms，需在当前机器继续优化。"

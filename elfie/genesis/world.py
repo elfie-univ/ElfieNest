@@ -13,7 +13,11 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-from elfie.brain.memory.memory_records import EpisodeEventKind
+from elfie.brain.memory.memory_records import (
+    AssertionInput,
+    EpisodeEventKind,
+    NodeInput,
+)
 
 from .contracts import KnowledgeLevel, MemoryCertainty
 
@@ -371,6 +375,7 @@ class GenerationPolicy:
     policy_version: str = "generation-policy.v1"
     seed_algorithm: str = "blake2b-labeled-v1"
     normal_episode_minimum: int = 5
+    knowledge_episode_max_chars: int = 4000
     medium_knowledge_probability: float = 0.5
     candidate_proposal_count: int = 96
     candidate_options_per_choice: int = 8
@@ -449,6 +454,8 @@ class EarthArrivalRules:
     required_knowledge_ids: tuple[str, ...] = ()
     post_arrival_knowledge_ids: tuple[str, ...] = ()
     preparation_duration_local_days: int = 3
+    earth_label: str = "地球"
+    owner_home_label: str = "主人家"
 
     def allows(self, species_id: str, life_stage: str) -> bool:
         return (
@@ -486,6 +493,8 @@ class WorldKnowledgeFact:
     exposure_weight: float = 0.5
     mastery_difficulty: str = ""
     conditions: tuple[KnowledgeCondition, ...] = ()
+    graph_nodes: tuple[NodeInput, ...] = ()
+    graph_assertions: tuple[AssertionInput, ...] = ()
 
     def variant(self, key: str) -> str | None:
         if key == "full":

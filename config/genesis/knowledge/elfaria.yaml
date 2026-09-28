@@ -1,7 +1,7 @@
 document_kind: resident_knowledge
 schema_version: 2
 knowledge_id: elfaria
-knowledge_version: elfaria-resident-knowledge.v10
+knowledge_version: elfaria-resident-knowledge.v11
 status: published
 source:
   path: docs/.internal/elfaria/elfaria-resident-knowledge.md
@@ -364,10 +364,32 @@ knowledge:
     description: |-
       镇中心地图及其赴地道路用于表达通天广场、长老院、学疗院、百业街、地下城门、镇中心外赴地跃迁基站、主要道路和河道的相对位置；知道这张图的相对关系，不等于知道每条支路、每间住宅或设施的内部状态。
   - id: C-01
+    graph_nodes:
+      - {id: intelligent_life, type: organism, label: 陆地智慧生命, level: kind}
+      - {id: saevi, type: organism, label: Saevi, level: kind}
+      - {id: tovren, type: organism, label: Tovren, level: kind}
+      - {id: myelle, type: organism, label: Myelle, level: kind}
+      - {id: ordinary_plants, type: organism, label: 普通植物, level: kind}
+      - {id: companion_plants, type: organism, label: 有意识伴生植物, level: kind}
+      - {id: aquatic_animals, type: organism, label: 水生动物, level: kind}
+    graph_assertions:
+      - {subject: saevi, predicate: subtype_of, object: intelligent_life}
+      - {subject: tovren, predicate: subtype_of, object: intelligent_life}
+      - {subject: myelle, predicate: subtype_of, object: intelligent_life}
     topic: C-01
     description: |-
       三种陆地智慧生命是 Saevi、Tovren 和 Myelle，彼此能交流并共同生活；还有普通植物、有意识伴生植物和水生动物。三种智慧生命都可以学习共同语言、地球语言和地球工具。
   - id: C-01-02
+    graph_nodes:
+      - {id: ordinary_plants, type: organism, label: 普通植物, level: kind}
+      - {id: wood, type: material, label: 木材, level: kind}
+      - {id: fiber, type: material, label: 纤维, level: kind}
+      - {id: resin, type: material, label: 树脂, level: kind}
+    graph_assertions:
+      - {subject: wood, predicate: produced_by, object: ordinary_plants}
+      - {subject: fiber, predicate: produced_by, object: ordinary_plants}
+      - {subject: resin, predicate: produced_by, object: ordinary_plants}
+      - {subject: ordinary_plants, predicate: used_for, literal: 提供遮蔽和稳定水岸}
     topic: C-01
     description: |-
       普通植物不会与居民交谈。它们提供遮蔽、稳定水岸，也提供木材、纤维、树脂、树洞和居住结构；有些产出少量高浓度补充物，有些能中继通信。普通树木并不都能中继。
@@ -511,10 +533,20 @@ knowledge:
     description: |-
       家庭和地方中继能帮助已建立的联系传得更远，公共公告另有公开频道；中继不能绕过认签和隐私边界。
   - id: D-01-07
+    graph_nodes:
+      - {id: purple_ore, type: material, label: 紫色共振矿石, level: kind}
+      - {id: relay_tree, type: organism, label: 中继树, level: kind}
+    graph_assertions:
+      - {subject: purple_ore, predicate: used_for, literal: 重要公共建筑增强信号}
+      - {subject: relay_tree, predicate: used_for, literal: 普通家庭中继通信}
     topic: D-01
     description: |-
       长老院、学疗院等重要公共建筑使用山地出产的紫色共振矿石增强信号；普通家庭主要使用中继树。居民可以知道这种公开差异，矿石适配、节点连接、噪声判断和故障处理属于中继维护者的专业知识。
   - id: D-01-08
+    graph_nodes:
+      - {id: relay_facility, type: object, label: 中继设施, level: kind}
+    graph_assertions:
+      - {subject: relay_facility, predicate: used_for, literal: 联系地球}
     topic: D-01
     description: |-
       普通 Aethersense 不能直接跨世界，联系地球必须经过专门的中继设施。
@@ -658,6 +690,14 @@ knowledge:
             status: completed
             scope: deep_underground
   - id: E-02-09
+    graph_nodes:
+      - {id: translucent_material, type: material, label: 半透明材料, level: kind}
+      - {id: fiber, type: material, label: 纤维, level: kind}
+      - {id: resin, type: material, label: 树脂, level: kind}
+    graph_assertions:
+      - {subject: translucent_material, predicate: made_from, object: fiber}
+      - {subject: translucent_material, predicate: made_from, object: resin}
+      - {subject: translucent_material, predicate: used_for, literal: 制作器物}
     topic: E-02
     description: |-
       植物树脂与纤维能加工成半透明材料，用于制作器物；各家按手艺经验加工和适配，没有全域统一的做法与规格。
@@ -787,6 +827,15 @@ knowledge:
     description: |-
       深层开门期与归返庆随探索开放和参与者归来举行，公开样本、记录和经验；地下城历史上也曾举办寻路、耐力和取物竞赛。赴地出发与归返按实际事件举行，不另设固定日期。
   - id: E-06
+    graph_nodes:
+      - {id: mistyville_formation, type: event, label: 形成迷雾镇中心, level: instance}
+      - {id: saevi, type: organism, label: Saevi, level: kind}
+      - {id: tovren, type: organism, label: Tovren, level: kind}
+      - {id: myelle, type: organism, label: Myelle, level: kind}
+    graph_assertions:
+      - {subject: mistyville_formation, predicate: involves, object: saevi}
+      - {subject: mistyville_formation, predicate: involves, object: tovren}
+      - {subject: mistyville_formation, predicate: involves, object: myelle}
     topic: E-06
     description: |-
       共同历史的公共骨架是：三种智慧生命各自建立部落，后来化解地盘和水源冲突，形成迷雾镇中心；此后中继植物、深层探索、返程标记和情绪保存方法改变了共同生活。共同体记住八位英雄及其主要贡献：

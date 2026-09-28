@@ -48,6 +48,17 @@ const knowledgeRelationLabels: Readonly<Record<string, string>> = {
   revises: "修正",
 };
 
+function relationshipNodeShape(
+  kind: string | undefined,
+  isSelf: boolean,
+): "self" | "elfie" | "human" | "group" | "place" | "object" {
+  if (isSelf || kind === "self") return "self";
+  if (kind === "elfie") return "elfie";
+  if (kind === "person" || kind === "human") return "human";
+  if (kind === "group" || kind === "place" || kind === "object") return kind;
+  return "object";
+}
+
 export function RelationshipGraph({ graph }: Readonly<{ graph: Memory["relations"] }>): React.JSX.Element {
   const nodes = layoutRelationship(graph.nodes);
   const positions = new Map(nodes.map((node) => [node.id, node]));
@@ -69,7 +80,7 @@ export function RelationshipGraph({ graph }: Readonly<{ graph: Memory["relations
         {nodes.map((node) => {
           const isSelf = node.is_self === true || node.kind === "self";
           const isElfie = node.kind === "elfie";
-          const shape = isSelf ? "self" : isElfie ? "elfie" : ["group", "place", "object"].includes(node.kind ?? "") ? node.kind : "human";
+          const shape = relationshipNodeShape(node.kind, isSelf);
           return <g className={`memory-node ${shape}`} data-memory-node={node.id} data-node-shape={shape} key={node.id}>
             {isElfie
               ? <rect height={node.size * 1.7} rx="7" width={node.size * 2.5} x={node.x - node.size * 1.25} y={node.y - node.size * 0.85} />

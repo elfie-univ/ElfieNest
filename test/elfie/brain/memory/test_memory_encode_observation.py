@@ -159,9 +159,7 @@ def test_use_proposal_and_reinforcement_emit_outcome_events() -> None:
             "episode-garden", "garden-key", NOW.isoformat(), "今天去花园散步。"
         )
     )
-    bundle = memory.recall(
-        RecallRequest(text="花园", mode="basic_local", episode_limit=5)
-    )
+    bundle = memory.recall(RecallRequest(text="花园", episode_limit=5))
     proposal = MemoryUseProposal(
         proposal_id="proposal-1",
         recall_revision=bundle.recall_revision,

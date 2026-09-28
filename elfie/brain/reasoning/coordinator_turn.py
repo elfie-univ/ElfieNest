@@ -344,6 +344,7 @@ class ReasoningRunController:
             reasoning_depth,
             effective_tools=effective_tools,
             structured_owner_reply=structured_owner_reply,
+            fast_owner_reply=fast_owner_reply,
         )
         budget_duration_ms = (
             round((perf_counter() - budget_started) * 1000.0, 2)
@@ -399,8 +400,14 @@ class ReasoningRunController:
                 memory_recall_status=memory_turn.session.baseline_result.status,
                 memory_recall_reason=memory_turn.session.baseline_result.reason,
                 recall_memory_allowed=(
-                    response_mode is ModelResponseMode.DIRECT_REPLY
-                    and reasoning_depth is ReasoningDepth.DELIBERATE
+                    (
+                        response_mode is ModelResponseMode.DIRECT_REPLY
+                        and reasoning_budget.max_model_calls >= 2
+                    )
+                    or (
+                        response_mode is ModelResponseMode.DECISION_PLAN
+                        and reasoning_depth is ReasoningDepth.DELIBERATE
+                    )
                 ),
                 persistent_activity_allowed=(
                     response_mode is ModelResponseMode.DECISION_PLAN
@@ -882,13 +889,14 @@ class ReasoningRunController:
             return 1536
         return 2048
 
-    @staticmethod
     def _reasoning_budget(
+        self,
         homeostasis: EnergySnapshot,
         reasoning_depth: ReasoningDepth,
         *,
         effective_tools: tuple[str, ...] = (),
         structured_owner_reply: bool = False,
+        fast_owner_reply: bool = False,
     ) -> ReasoningBudget:
         """Map Energy mode to staged model admission.
 
@@ -904,14 +912,22 @@ class ReasoningRunController:
         )
         step_limit = 3 if reasoning_depth is ReasoningDepth.DIRECT else None
         if reasoning_depth is ReasoningDepth.DIRECT:
-            deadline = 5.0 if homeostasis.cognitive_mode == "emergency" else 12.0
+            deadline = min(
+                self._hard_timeout,
+                5.0 if homeostasis.cognitive_mode == "emergency" else 12.0,
+            )
+            recall_headroom = (
+                fast_owner_reply
+                and structured_owner_reply
+                and homeostasis.cognitive_mode in {"normal", "long"}
+                and deadline >= 8.0
+            )
             return ReasoningBudget(
-                # Owner-facing fast turns are one provider call: the same
-                # structured response carries reply text and semantic emotion
-                # effects.  A second call would reintroduce the split
-                # correction path this contract is intended to remove.
-                max_steps=step_limit,
-                max_model_calls=1,
+                # Reserve one extra call only when the Energy mode and the
+                # absolute Turn deadline leave room for Recall plus a final
+                # answer. Recall never grants Tool permission.
+                max_steps=4 if recall_headroom else step_limit,
+                max_model_calls=2 if recall_headroom else 1,
                 max_planned_model_calls=None,
                 max_tool_calls=0,
                 deadline_seconds=deadline,

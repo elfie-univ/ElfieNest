@@ -39,6 +39,42 @@ def test_create_app_installs_the_bundled_species_catalog(
     ) == frozenset({"dog", "fox"})
 
 
+def test_memory_recall_accepts_scene_without_text(tmp_path, client_for, monkeypatch):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    elfie_id = client.post("/api/elfies", json=complete_elfie_payload()).json()[
+        "elfie_id"
+    ]
+    requests = []
+
+    def capture(store, request):
+        requests.append(request)
+        return {"ok": True}
+
+    monkeypatch.setattr(elfie_lab_app, "build_recall_report", capture)
+    for scene in (
+        {"place_node_ids": ["place-1"]},
+        {"sense": {"emotion_label": "happiness", "intensity": 0.6}},
+    ):
+        response = client.post(
+            "/api/memory-audit/recall",
+            json={
+                "elfie_id": elfie_id,
+                "query": "",
+                **scene,
+            },
+        )
+        assert response.status_code == 200, response.text
+    assert requests[0].text == ""
+    assert requests[0].seed_node_ids == ("place-1",)
+    assert requests[0].place_node_ids == ("place-1",)
+    assert requests[1].sense.emotion_label == "happiness"
+    assert requests[1].sense.intensity == 0.6
+    assert (
+        client.post("/api/memory-audit/recall", json={"query": " "}).status_code == 422
+    )
+
+
 def test_memory_episode_preview_is_sandboxed(tmp_path, client_for):
     app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
     client = client_for(app)

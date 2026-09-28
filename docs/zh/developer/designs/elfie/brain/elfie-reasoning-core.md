@@ -126,10 +126,8 @@ Run 开头拼一次 Prompt 后不断字符串追加。逻辑优先级如下：
 Memory 不是可选“辅助模式”，而是 Reasoning 的常驻认知能力：
 
 1. Turn 开始时先把以前已经闭合但尚未确认的 `ClosedEpisode` 做幂等交接；
-2. 然后固定 `memory_revision` 并执行基础 Recall 门控；只有当前消息、人物、活跃话题、指代或
-   显式纠正确实提供历史检索意图时才查询，否则结果可以明确为 `skipped` 或空；
-3. 如果 `DELIBERATE` Agent Loop 发现未知人物、指代、冲突或缺少关键知识，可发出类型化
-   `RecallMemory` Action；
+2. 然后固定 `memory_revision` 并执行基础 Recall 门控：至多用一个 current active 情绪做 Sense-only，否则跳过；需要时由首次模型提出聚焦 Query，不自动将用户原话作为查询（Memory 设计 §3.4.2）；
+3. 准入的动作 schema 允许时，Agent Loop 发现未知人物、指代、冲突或缺少关键知识，可发出类型化 `RecallMemory`；DIRECT 仅允许预算内的一次 Recall → 最终回答；
 4. Memory Bridge 对相同查询去重，限制次数和字符/Token 预算，并拒绝把不同 revision 的结果混在同一 Run；
 5. Recall 结果作为 `MemoryObservation` 回到 Context Workspace，再由 Context Engine 重建下一次上下文；
 6. Run 只形成带来源的 Memory 使用记录、`ClosedEpisode` 或类型化候选；Memory 自己校验和持久提交。
@@ -144,14 +142,13 @@ Run Controller 生成一个不可变 `RunEnvelope`，至少包含 Turn/Scope、�
 
 推理深度只分两类：
 
-- `DIRECT`：事实充分、风险低、无需额外探索的普通对话；只使用模型调用前的基础 Recall，并且
-  固定为一次认知模型步骤；
+- `DIRECT`：低风险普通对话，默认一次认知模型步骤；Brain 1.15 在宿主预留预算时允许模型请求一次只读 Recall，再用第二次步骤生成最终回答；
 - `DELIBERATE`：存在歧义、冲突、复杂解释、重要纠正或需要额外 Memory 取证；允许 `1..N` 次
   有界认知步骤和按需 Recall。
 
 上游电路可以提供显著性、紧急度和任务类型提示；Run Controller 再结合当前请求复杂度、风险、
 Energy、截止时间和可用模型能力作最终选择。模式和能力正交：P0 的两种深度都允许基础
-Memory Recall，只有 `DELIBERATE` 允许按需 Recall，两者都不允许 Skill/Tool。
+Memory Recall；`DELIBERATE` 沿用已有按需预算，DIRECT 使用上述一次 Recall 例外，两者均不因此获得 Skill/Tool 权限。
 
 Food 路由遵循既有模型契约：优先使用精灵已选 Food，没有选择时才使用常用粮；推理深度与
 模型角色正交，两种深度默认请求 `primary`。Run Controller 只有在任务风险、复杂度、模型能力
@@ -163,12 +160,11 @@ Food 路由遵循既有模型契约：优先使用精灵已选 Food，没有选�
 
 P0 使用统一但关闭工具能力的有界循环。唯一权威控制流见第 5 节；每次认知迭代都由
 Context Engine 重新生成 `ModelContext`，模型产生一个强类型 Cognitive Action，Host 再把
-Recall、修正意见或格式修复转成结构化 Observation。只有 `DELIBERATE` 且通过预算、截止时间和
-取消检查后，Observation 才能触发下一次迭代。
+Recall、修正意见或格式修复转成结构化 Observation。通过预算、截止时间和取消检查后，DELIBERATE 可继续迭代；DIRECT 仅允许一次 Recall observation 触发最终回答步骤。
 
 模型输出的是强类型 Cognitive Action，不是自由文本控制命令。P0 Action 集只包含
-`RecallMemory`、`AnswerDraft`、`ClarificationDraft` 和 `NoOpDraft`，其中 `RecallMemory` 只对
-`DELIBERATE` 开放。后续可以在同一联合类型上增加 `LoadSkill`、`CallTool`，但不能改变一个
+`RecallMemory`、`AnswerDraft`、`ClarificationDraft` 和 `NoOpDraft`，其中 `RecallMemory` 对 DELIBERATE 和预算准入的首次 DIRECT 步骤开放，DIRECT 最终步骤不开放。
+后续可以在同一联合类型上增加 `LoadSkill`、`CallTool`，但不能改变一个
 Turn、一个 Context Workspace、一个最终决定的骨架。
 
 用户可见回复始终是 `AnswerDraft` 或 `ClarificationDraft` 内的普通文本；强类型约束的是 Host
@@ -276,7 +272,7 @@ flowchart TB
     CW -.->|when an episode closes: candidates for validation and durable commit| MEM
 ```
 
-`DIRECT` 固定 `N=1`，不会进入控制回边；`DELIBERATE` 可以在第一次调用后直接完成，也可以因
+`DIRECT` 默认 `N=1`，唯一允许的第二步是消费一次 Recall observation 并使用仅含最终草稿的 schema；宿主须先预留 Energy/截止时间预算，否则不暴露 Recall 动作。`DELIBERATE` 可以在第一次调用后直接完成，也可以因
 按需 Recall、格式修复、证据不足或修正沿
 `Observation → Guard → Agent Loop → Context Engine` 回边进入下一次迭代。所有重新进入 Model
 调用的控制回边都必须经过同一个 Guard，不能绕开
@@ -294,7 +290,7 @@ Prompt 上下文。
 ## 6. 单 Turn 内循环与终止位置
 
 第 5 节主图已经完整表达循环，这里只固定它的语义：一个 Turn 只创建一个 `ReasoningRun`；
-`DIRECT` 的认知迭代次数固定为 `1`，`DELIBERATE` 为 `1..N`。P0 中只有 `DELIBERATE` 的
+`DIRECT` 默认一次认知迭代，唯一的第二步消费一次 Recall observation，并使用仅含最终草稿的 schema；宿主须先预留 Energy/截止时间预算，否则不暴露 Recall。`DELIBERATE` 为 `1..N`。P0 中 DELIBERATE 的
 `RecallMemory`、无效输出修复或 Judge 要求修正形成的结构化 Observation，才可能在 Guard
 允许后开始下一次迭代。Judge 接受草稿，或 Guard 因预算、截止、取消及不可恢复失败而停止时，
 Run 形成唯一 `TurnDecision` 并结束。
@@ -372,7 +368,7 @@ Run Controller、Action/Observation 和 Completion 接口，不改变所有权�
 2. 下一 Turn 使用代词或省略表达，Context Workspace 能从最近上下文正确续接。
 3. 长对话触发压缩后，当前话题、纠正和未解决事项仍可用，摘要能追溯到原消息。
 4. 主人明确纠正旧事实；重启后再次询问，Recall 使用新事实并保留冲突/纠正来源。
-5. 普通 `DIRECT` 只执行一次认知模型步骤；需要更多个人历史的请求进入 `DELIBERATE` 并发起一次有界 Recall，不混入另一个 Memory revision。
+5. 无 active 情绪的 `DIRECT` 问候只调用一次模型且不检索。历史依赖问题可在预留预算内发起一次 Recall，再生成最终回答，不改变深度或 Memory revision；指代不明则澄清，最终步骤不暴露第二次 Recall。Brain 1.15 的规划例外见 Memory 设计 §3.4.2，实现差距见 MEM-023。
 6. 一个较复杂但无需工具的问题进入 `DELIBERATE`，在预算内完成或提出必要澄清，而不是无限循环。
 7. 发送失败、模型失败、Memory 不可用和预算耗尽分别产生真实可观察结果，均不伪造成功。
 8. 两个会话并发时，消息、摘要、Recall、回复与 Receipt 不串线；每个 Turn 仍可读取有界全局注意/Activity 投影，但不能读取另一会话原文。

@@ -93,6 +93,21 @@ describe("dense memory boundary", () => {
     // Then: malformed data is rejected rather than leaking inward.
     expect(parsed.success).toBe(false);
   });
+
+  it("preserves ontology node types emitted by the memory projection", () => {
+    // Given: graph nodes typed by the active Memory ontology.
+    const kinds = ["organism", "material", "event", "cosmic_entity"];
+
+    // When: the API cognition payload crosses the frontend boundary.
+    const parsed = memoryCognitionSchema.parse({
+      relations: {
+        nodes: kinds.map((kind, index) => ({ id: `node-${index}`, label: kind, kind })),
+      },
+    });
+
+    // Then: valid ontology types survive parsing unchanged.
+    expect(parsed.relations.nodes.map((node) => node.kind)).toEqual(kinds);
+  });
 });
 
 describe("relationship double-ring layout", () => {

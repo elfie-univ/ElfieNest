@@ -25,11 +25,13 @@ def test_nervous_system_owns_processing_components() -> None:
 
 
 def test_elfie_owns_one_canonical_nervous_system() -> None:
+    memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
             elfie_id="elfie-nervous", display_name="神经精灵", species_id="fox", seed=1
         ),
-        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        memory_store=memory_store,
+        memory_ontology=memory_store.ontology,
     )
 
     assert ElfieDiagnostics(elfie).nervous_system.speech_actuator is not None

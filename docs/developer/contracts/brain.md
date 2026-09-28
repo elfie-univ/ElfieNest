@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.13
+**Contract version:** 1.15
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-25
+**Revised:** 2026-09-26
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -29,7 +29,11 @@
 > 1.13 clarifies that `claim` is an ordinary general-knowledge leaf type with
 > no dedicated payload, table or Evidence model; all semantic types use the
 > same Node and Assertion contracts. Remaining
-> implementation gaps stay in their scoped conformance registers.
+> implementation gaps stay in their scoped conformance registers. Version 1.14
+> freezes the data-backed Recall slices: text lookup, emotional association and
+> direct kinship, with Query/Sense/Filters and bounded sourced output. Version 1.15
+> fixes source-aware emotion admission, deterministic retrieval ordering and the
+> budgeted one-Recall exception for DIRECT.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -79,6 +83,31 @@ admission metadata, separate from `confidence`; registered lifecycle/admission r
 but phase-one Recall does not use it to rank results or propagate it through graph adjacency. Recall
 uses deterministic matching and stable tie-breaking. Feedback reinforcement, type-prior or sourced-
 history ranking, score folding and composite/adaptive ranking require a later reviewed design.
+
+The first Recall increment uses Query, Sense and Filters plus bounded limits, not a separate
+retrieval-mode switch. Query searches existing text/identity; Sense initially matches sourced
+historical emotion; Query + Sense requires Query relevance with emotion as soft assistance.
+An explicit graph request initially supports only direct registered parent/child/sibling relations
+after resolving a person anchor. No arbitrary path language, inferred kinship or model call inside
+Recall is required. Unsupported input, ambiguous identity, missing/negative/conflicting relations
+must not become fabricated answers.
+
+The flow is parallel candidate retrieval, identity merge/deduplication, filtering, relevance-based
+selection and minimal sourced assembly. Empty results are valid. Namespace/privacy/active-lifecycle
+gates apply to hits and support; necessary provenance remains distinct from additional hits, and
+partial/unavailable results are explicit. Per-Elfie SQLite remains the fact store; persistent
+inverted text indexes and structured lookup indexes are rebuildable derivatives, not a second
+authority. Vectors and richer scene/graph reasoning require a later data-backed slice. Reasoning
+owns timing, cue admission and context budget; these rules do not mandate Recall on every step.
+The [Memory design](../designs/elfie/brain/elfie-memory-architecture) specifies the narrowed target;
+MEM-019–MEM-023 in the [Memory register](../conformance/elfie-memory) track its implementation.
+
+Initial automatic Recall uses at most one current active emotion cue and no raw-message Query.
+Only explicitly sourced self-emotion with a canonical Emotion label qualifies for Sense; arbitrary
+story tones and missing history are not mapped or fabricated. Text candidates use one FTS corpus,
+exact identity tier and query-term coverage, then optional emotion tie-breaking, BM25 and stable IDs.
+Emotion only breaks equal-tier/equal-coverage ties after Query admission; it never admits unrelated hits.
+Minimum coverage and candidate bounds are frozen by focused examples before index rollout.
 
 Memory has exactly two semantic layers. A `ClosedEpisode` is an already-processed, complete topic,
 story or learning unit and is the normal text-memory result; it may aggregate multiple turns, but
@@ -426,6 +455,13 @@ They do not change Memory availability or hard permissions. Food selects the
 requested model role and fallback route; it does not define cognitive modes or
 carry a separate allow-list of modes. Skill, Tool and Worker remain independent
 stage-gated capabilities.
+
+DIRECT normally ends after one model call. When the host can reserve final-answer headroom within
+Energy/deadline limits, the first model may request one read-only Recall followed by one final model
+call. Its final schema disallows another Recall. This does not switch depth, create a plan or grant
+external Tool permissions. Without headroom the schema omits Recall; the model answers from available
+evidence or clarifies. All results stay on the Run's pinned Memory revision. The current one-call-only
+guard remains an implementation gap tracked by MEM-023.
 
 A `ReasoningRun` may contain multiple cognitive steps and multiple Model,
 Skill, Tool and Observation cycles. It has an explicit budget, deadline,

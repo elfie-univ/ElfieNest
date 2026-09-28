@@ -212,11 +212,12 @@ class MemoryConsolidator:
         assertions: list[AssertionInput] = []
         aliases: list[AliasInput] = []
         labels = self._labels_from_content(episode.content_text)
+        scope = f"elfie:{self.elfie_id}" if self.elfie_id else "elfie"
         for label, node_type, start in labels:
             node_id = (
                 "node:"
                 + hashlib.sha256(
-                    f"elfie|{node_type}|{label.casefold()}".encode()
+                    f"{scope}|{node_type}|{label.casefold()}".encode()
                 ).hexdigest()[:24]
             )
             nodes.append(
@@ -224,6 +225,11 @@ class MemoryConsolidator:
                     node_id=node_id,
                     node_type=node_type,
                     canonical_label=label,
+                    scope=scope,
+                    properties={"entity_level": "instance"}
+                    if self.ontology.validate_node_type(node_type).group_id
+                    == "space_geography"
+                    else {},
                     confidence=0.75,
                 )
             )
@@ -666,7 +672,8 @@ class MemoryConsolidator:
             "旧格式也可用 label 作为短标题，但完整句子不能作为标题。"
             "不要为每条 Episode 自动创建 event 节点；只有可被其他记录复用的明确事件才可将"
             "type设为event并同时给出reusable_event:true。关系必须使用注册表中的规范谓词，不能自创同义关系。"
-            "结构：{nodes:[{title,label,type,context,description,aliases,reusable_knowledge,reusable_event}],"
+            "实体组节点必须给出entity_level:kind（种类）或instance（具体个体），不要将两者合并。"
+            "结构：{nodes:[{title,label,type,entity_level,context,description,aliases,reusable_knowledge,reusable_event}],"
             "mentions:[{surface_text,label,role}],assertions:[{subject_ref,predicate,object_ref,"
             "object_literal,polarity,epistemic_status,viewpoint,context,confidence,"
             "importance_event}]}\n"
@@ -748,7 +755,25 @@ class MemoryConsolidator:
             # reusable; an ordinary Episode remains the source unit.
             if is_event and item.get("reusable_event") is not True:
                 raise ValueError("event node proposals require reusable_event=true")
-            node_id = _projection_id("node:", node_type, "elfie", label)
+            scope = f"elfie:{self.elfie_id}" if self.elfie_id else "elfie"
+            entity_level = _model_text(item.get("entity_level"))
+            if type_spec.group_id == "entities":
+                if entity_level not in {"kind", "instance"}:
+                    raise ValueError(
+                        "entity node requires entity_level=kind or instance"
+                    )
+            elif (
+                type_spec.group_id in {"space_geography", "events"}
+                and entity_level is None
+            ):
+                entity_level = "instance"
+            if entity_level is not None:
+                if entity_level not in {"kind", "instance"}:
+                    raise ValueError("invalid entity_level")
+                node_properties["entity_level"] = entity_level
+            node_id = _projection_id(
+                "node:", node_type, scope, label, entity_level or ""
+            )
             labels_to_ids[label] = node_id
             # Keep the source explanation on the Node as context/description;
             # the canonical label remains the short title above.  When a
@@ -782,6 +807,7 @@ class MemoryConsolidator:
                     node_id=node_id,
                     node_type=node_type,
                     canonical_label=label,
+                    scope=scope,
                     description=grounded_description,
                     properties=node_properties,
                     confidence=_model_score(item.get("confidence"), 0.6),
@@ -804,6 +830,7 @@ class MemoryConsolidator:
                             _alias_input(
                                 node_id=node_id,
                                 alias=alias,
+                                scope=scope,
                                 evidence_id=evidence_id,
                                 confidence=_model_score(item.get("confidence"), 0.6),
                             )
@@ -963,7 +990,6 @@ class MemoryConsolidator:
     def _labels_from_content(content: str) -> list[tuple[str, str, int]]:
         dictionary = {
             "主人": "person",
-            "长老": "person",
             "地球": "cosmic_entity",
             "精灵巢": "place",
             "花园": "place",
@@ -1085,11 +1111,17 @@ def _projection_id(prefix: str, *parts: str) -> str:
 
 
 def _alias_input(
-    *, node_id: str, alias: str, evidence_id: str, confidence: float
+    *,
+    node_id: str,
+    alias: str,
+    evidence_id: str,
+    confidence: float,
+    scope: str = "elfie",
 ) -> AliasInput:
     return AliasInput(
         node_id=node_id,
         alias=alias,
+        scope=scope,
         evidence_id=evidence_id,
         confidence=confidence,
     )

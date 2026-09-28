@@ -18,6 +18,9 @@ from elfie.genesis import (
 from elfie.genesis.serialization import (
     EPISODE_NODE_PREFIX,
     SELF_NODE_PREFIX,
+    knowledge_group_id,
+    knowledge_groups,
+    knowledge_summary_text,
     safe_component,
 )
 from infrastructure.persistence.configuration.world import load_genesis_source_package
@@ -31,30 +34,24 @@ class _GenesisKnowledgeProposal:
 
     def ask_with_food(self, **kwargs: object) -> str:
         prompt = str(kwargs.get("prompt", ""))
-        if "Elfaria" in prompt and "星球" in prompt:
-            return json.dumps(
+        nodes = []
+        if "Elfaria 是精灵生活的星球" in prompt:
+            nodes.append(
                 {
-                    "nodes": [
-                        {
-                            "title": "Elfaria",
-                            "label": "Elfaria",
-                            "type": "concept",
-                            "context": "Elfaria 是精灵生活的星球",
-                            "reusable_knowledge": True,
-                        }
-                    ],
-                    "mentions": [
-                        {
-                            "surface_text": "Elfaria",
-                            "label": "Elfaria",
-                            "role": "concept",
-                        }
-                    ],
-                    "assertions": [],
-                },
-                ensure_ascii=False,
+                    "title": "Elfaria",
+                    "type": "cosmic_entity",
+                    "entity_level": "instance",
+                }
             )
-        return '{"nodes":[],"mentions":[],"assertions":[]}'
+        if "木材" in prompt:
+            nodes.append({"title": "木材", "type": "material", "entity_level": "kind"})
+        if "形成迷雾镇中心" in prompt:
+            nodes.append(
+                {"title": "形成迷雾镇中心", "type": "event", "reusable_event": True}
+            )
+        return json.dumps(
+            {"nodes": nodes, "mentions": [], "assertions": []}, ensure_ascii=False
+        )
 
 
 def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None:
@@ -92,7 +89,7 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert submission.content_sha256 == bundle.manifest.content_hash
         assert len(submission.expected_ids_hash) == 64
         assert submission.committed_at
-        assert storage.count_episodes() == len(bundle.knowledge_seeds) + len(
+        assert storage.count_episodes() == len(knowledge_groups(bundle)) + len(
             bundle.episode_seeds
         )
         assert (
@@ -194,7 +191,9 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         assert storage.conn.execute(
             "SELECT COUNT(*) FROM nodes "
             "WHERE json_extract(properties_json, '$.entity_type')='place'"
-        ).fetchone()[0] == len(bundle.place_seeds)
+        ).fetchone()[0] == sum(
+            place.node_type == "place" for place in bundle.place_seeds
+        )
         station_node = storage.get_graph_node(
             "genesis:place:genesis-check:earthbound_station"
         )
@@ -217,7 +216,9 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
                 "public_entrance_to",
             }
         }
-        assert len(relation_assertions) == len(bundle.place_relation_seeds)
+        assert len(relation_assertions) == sum(
+            seed.relation != "route_to" for seed in bundle.place_relation_seeds
+        )
         assert all(
             assertion.evidence_ids
             for assertion in storage.list_graph_assertions(limit=5000)
@@ -250,7 +251,7 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
         )
         assert storage.conn.execute(
             "SELECT COUNT(*) FROM episodes WHERE episode_id LIKE 'genesis:episode:%'"
-        ).fetchone()[0] == len(bundle.knowledge_seeds) + len(bundle.episode_seeds)
+        ).fetchone()[0] == len(knowledge_groups(bundle)) + len(bundle.episode_seeds)
         route_episode = storage.get_episode(
             "genesis:episode:genesis-check:departure-decision"
         )
@@ -261,7 +262,7 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
             if episode.seed_id == "departure-decision"
         )
         assert route_episode.metadata["route_ids"] == list(departure_seed.route_ids)
-        assert not storage.list_graph_nodes(limit=1000, privacy_scope=None) or not any(
+        assert any(
             node.node_type == "event" for node in storage.list_graph_nodes(limit=1000)
         )
 
@@ -275,38 +276,40 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
         for seed in bundle.knowledge_seeds
         if "Elfaria 是精灵生活的星球" in seed.content
     )
-    elfaria_episode_id = (
-        "genesis:episode:genesis-check:knowledge:"
-        f"{safe_component(elfaria_source.seed_id)}"
+    elfaria_episode_id = next(
+        knowledge_group_id("genesis-check", members)
+        for members in knowledge_groups(bundle)
+        if elfaria_source in members
     )
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         GenesisMemoryCommitter().commit(bundle, storage)
 
-        for seed in bundle.knowledge_seeds:
-            episode = storage.get_episode(
-                "genesis:episode:genesis-check:knowledge:"
-                f"{safe_component(seed.seed_id)}"
-            )
+        for members in knowledge_groups(bundle):
+            episode = storage.get_episode(knowledge_group_id("genesis-check", members))
             assert episode is not None
-            assert episode.content_text == seed.content
-            assert episode.metadata["knowledge_id"] == seed.seed_id
-            assert episode.metadata["topic"] == seed.topic
-            assert episode.metadata["topic_bucket"] == seed.topic
-            assert seed.seed_id in episode.metadata["topic_member_ids"]
-            assert episode.metadata["topic_member_count"] == len(
-                episode.metadata["topic_member_ids"]
-            )
-        assert not [
-            node
-            for node in storage.list_graph_nodes(limit=1000)
-            if node.node_type == "concept"
-        ]
-        assert not [
-            node
-            for node in storage.list_graph_nodes(limit=1000)
-            if node.node_type == "event"
-        ]
+            assert episode.metadata["topic"] == members[0].topic
+            assert episode.metadata["topic_member_ids"] == [
+                seed.seed_id for seed in members
+            ]
+            assert all(seed.content in episode.content_text for seed in members)
+        initial_elfaria_ids = {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label == "Elfaria"
+        }
+        assert len(initial_elfaria_ids) == 1
+        initial_skeleton = {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label in {"木材", "形成迷雾镇中心"}
+        }
+        assert len(initial_skeleton) == 2
+        initial_earth_ids = {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label == "地球"
+        }
         assert not any(
             assertion.predicate in {"knows", "knows_boundary"}
             for assertion in storage.list_graph_assertions(limit=5000)
@@ -326,15 +329,34 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
             ConsolidationRequest(max_episodes=200),
             model_port=_GenesisKnowledgeProposal(),
         )
-        assert len(batch.consolidated_episode_ids) == len(bundle.knowledge_seeds) + len(
-            bundle.episode_seeds
-        )
+        assert len(batch.consolidated_episode_ids) == len(
+            knowledge_groups(bundle)
+        ) + len(bundle.episode_seeds)
         elfaria = next(
             node
             for node in storage.list_graph_nodes(limit=2000)
-            if node.label == "Elfaria" and node.node_type == "concept"
+            if node.label == "Elfaria" and node.node_type == "cosmic_entity"
         )
-        assert elfaria.node_type == "concept"
+        assert elfaria.node_type == "cosmic_entity"
+        assert {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label == "地球"
+        } == initial_earth_ids
+        assert not any(
+            node.label == "长老" and node.node_type == "person"
+            for node in storage.list_graph_nodes(limit=2000)
+        )
+        assert {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label in {"木材", "形成迷雾镇中心"}
+        } == initial_skeleton
+        assert {
+            node.node_id
+            for node in storage.list_graph_nodes(limit=2000)
+            if node.label == "Elfaria"
+        } == initial_elfaria_ids
         assert any(
             evidence.source_id == elfaria_episode_id
             for evidence in storage.list_memory_evidence(limit=5000)
@@ -342,7 +364,7 @@ def test_genesis_keeps_knowledge_as_source_episodes_until_nightly_consolidation(
 
 
 def test_genesis_commit_preserves_visit_counts_and_family_links() -> None:
-    bundle = _compilation("visit-memory", seed=4, stage="mature", age_years=8).bundle
+    bundle = _compilation("visit-memory", seed=5, stage="mature", age_years=8).bundle
     expected_visit_ids = {
         f"genesis:episode:visit-memory:{safe_component(episode.seed_id)}"
         for episode in bundle.episode_seeds
@@ -498,3 +520,156 @@ def test_genesis_submission_receipt_accepts_opaque_submission_identity() -> None
     )
 
     assert receipt.submission_id == "genesis-submission-1"
+
+
+def test_initialization_has_sourced_entity_and_home_skeleton() -> None:
+    bundle = _bundle()
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+        nodes = {node.node_id: node for node in storage.list_graph_nodes(limit=5000)}
+        earth = nodes["genesis:place:genesis-check:earth"]
+        assert earth.node_type == "cosmic_entity"
+        assert nodes["genesis:place:genesis-check:elfaria"].node_type == "cosmic_entity"
+        assert any(node.node_type == "organism" for node in nodes.values())
+        assert any(node.node_type == "material" for node in nodes.values())
+        edges = storage.list_graph_assertions(limit=5000)
+        nest_id = "genesis:place:genesis-check:elfie_nest"
+        home = next(
+            node
+            for node in nodes.values()
+            if node.properties.get("kind") == "owner_home"
+        )
+        assert any(
+            edge.subject_id == nest_id and edge.object_node_id == home.node_id
+            for edge in edges
+        )
+        assert any(
+            edge.subject_id == home.node_id and edge.object_node_id == earth.node_id
+            for edge in edges
+        )
+        assert all(edge.evidence_ids for edge in edges)
+
+
+def test_initial_knowledge_groups_preserve_complete_members_and_relative_time() -> None:
+    bundle = _bundle()
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+        episodes = storage.list_episodes(limit=5000)
+        groups = [
+            episode for episode in episodes if episode.metadata.get("knowledge_members")
+        ]
+        assert 0 < len(groups) < len(bundle.knowledge_seeds)
+        members = {
+            member["seed_id"]: (episode, member)
+            for episode in groups
+            for member in episode.metadata["knowledge_members"]
+        }
+        assert set(members) == {seed.seed_id for seed in bundle.knowledge_seeds}
+        for seed in bundle.knowledge_seeds:
+            episode, member = members[seed.seed_id]
+            assert (
+                episode.content_text[member["span_start"] : member["span_end"]]
+                == seed.content
+            )
+            first_member = episode.metadata["knowledge_members"][0]
+            first_seed = next(
+                item
+                for item in bundle.knowledge_seeds
+                if item.seed_id == first_member["seed_id"]
+            )
+            assert episode.summary_text == (
+                first_seed.summary_text or knowledge_summary_text(first_seed.content)
+            )
+            assert episode.summary_text
+            assert episode.summary_text.rstrip("…") in first_seed.content
+            assert f"[{seed.seed_id} | " not in episode.content_text
+            assert member["epistemic_kind"] == seed.epistemic_kind
+            assert member["acquired_age_years"] == seed.acquired_age_years
+            assert episode.event_kind == "learning"
+        personal = [
+            episode
+            for episode in episodes
+            if not episode.metadata.get("knowledge_members")
+        ]
+        assert all(episode.metadata.get("genesis_time") for episode in personal)
+        assert all(episode.temporal_label for episode in personal)
+
+
+def test_grouping_separates_acquisition_and_splits_only_between_whole_members() -> None:
+    bundle = _bundle()
+    base = bundle.knowledge_seeds[0]
+    facts = tuple(
+        replace(
+            base,
+            seed_id=f"test-{index}",
+            topic="shared",
+            content="完整正文" * 12,
+            acquired_age_years=1 if index < 3 else 2,
+            recall_eligible=index != 4,
+            graph_nodes=(),
+            graph_assertions=(),
+        )
+        for index in range(5)
+    )
+    grouped = knowledge_groups(
+        replace(bundle, knowledge_seeds=facts, knowledge_episode_max_chars=180)
+    )
+    assert [seed.seed_id for group in grouped for seed in group] == [
+        seed.seed_id for seed in facts
+    ]
+    assert len(grouped) >= 3
+    assert all(
+        len({(seed.acquired_age_years, seed.recall_eligible) for seed in group}) == 1
+        for group in grouped
+    )
+    # One indivisible long source is retained in full rather than truncated.
+    oversized = replace(facts[0], content="原文" * 200)
+    assert knowledge_groups(
+        replace(bundle, knowledge_seeds=(oversized,), knowledge_episode_max_chars=100)
+    ) == ((oversized,),)
+
+
+def test_initial_routes_and_residence_keep_unknown_distance_distinct_from_time() -> (
+    None
+):
+    compilation = _compilation()
+    bundle = compilation.bundle
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(bundle, storage)
+        edges = storage.list_graph_assertions(limit=5000)
+        routes = [edge for edge in edges if edge.predicate == "route_to"]
+        assert routes
+        for route in routes:
+            context = json.loads(route.qualifiers["context"])
+            assert context["distance"] == "unknown"
+            assert "km" not in context
+            if context["travel_days"] != "unknown":
+                assert int(context["travel_days"]) > 0
+                assert context["travel_unit"] == "local_day"
+        assert any(
+            edge.subject_id.endswith(":elfaria")
+            and edge.object_node_id.endswith(":earth")
+            for edge in routes
+        )
+        residence = {
+            (edge.subject_id, edge.object_node_id)
+            for edge in edges
+            if edge.predicate == "lives_in"
+        }
+        assert (
+            "genesis:self:genesis-check",
+            "genesis:place:genesis-check:elfie_nest",
+        ) in residence
+        assert (
+            "genesis:person:genesis-check:owner-person-genesis-owner",
+            "genesis:place:genesis-check:private-genesis-owner-earth-home",
+        ) in residence
+        arrival = storage.get_episode("genesis:episode:genesis-check:arrival-nest")
+        assert arrival.occurred_from == "2026-08-12T00:00:00+00:00"
+        assert arrival.occurrence_precision == "exact"
+        training = storage.get_episode(
+            "genesis:episode:genesis-check:predeparture-training"
+        )
+        assert training.occurred_from is None
+        assert training.metadata["genesis_time"]["relation"] == "before"
+        assert training.metadata["genesis_time"]["stay_local_days"] > 0

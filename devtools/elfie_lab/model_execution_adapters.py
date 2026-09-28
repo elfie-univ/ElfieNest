@@ -106,20 +106,7 @@ class MockModelExecutionAgent:
     config = MockConfig()
 
     def ask(self, prompt: str, energy: float, task_complexity: int) -> str:
-        match = re.search(
-            r"(?:^|\n)CURRENT_MESSAGE:\s*\n(?P<message>.*?)(?:\n\n|$)",
-            prompt,
-            re.DOTALL,
-        )
-        if match is None:
-            match = re.search(r"【主人发送的信息】:\s*(.+?)\n\n", prompt, re.DOTALL)
-        message = (
-            match.group("message").strip()
-            if match and "message" in match.groupdict()
-            else match.group(1).strip()
-            if match
-            else "这件事"
-        )
+        message = _mock_current_message(prompt)
         if len(message) > 28:
             message = message[:28] + "…"
         return f"我有好好听到你说\u201c{message}\u201d哒。"
@@ -171,7 +158,7 @@ class TracingModelExecutionAgent:
             )
         speech = self.inner.ask(request.user_prompt, energy=100.0, task_complexity=2)
         text = (
-            _mock_cognitive_action_json(speech)
+            _mock_cognitive_action_json(request, speech)
             if request.response_mode is ModelResponseMode.DIRECT_REPLY
             else _mock_decision_json(request, speech)
         )
@@ -215,8 +202,40 @@ def _mock_memory_projection_json() -> str:
     )
 
 
-def _mock_cognitive_action_json(speech: str) -> str:
+def _mock_current_message(prompt: str) -> str:
+    match = re.search(
+        r"(?:^|\n)CURRENT_MESSAGE:\s*\n(?P<message>.*?)(?:\n\n|$)",
+        prompt,
+        re.DOTALL,
+    )
+    if match is None:
+        match = re.search(r"【主人发送的信息】:\s*(.+?)\n\n", prompt, re.DOTALL)
+    if match is None:
+        return "这件事"
+    return (
+        match.group("message").strip()
+        if "message" in match.groupdict()
+        else match.group(1).strip()
+    )
+
+
+def _mock_cognitive_action_json(request: ModelGenerationRequest, speech: str) -> str:
     """Return the current P0 owner-chat action shape for the offline adapter."""
+    message = _mock_current_message(request.user_prompt)
+    if (
+        request.response_schema is not None
+        and request.response_schema.name == "CognitiveAction"
+        and "RecallMemory ('recall_memory') may request" in request.system_prompt
+        and ("记得" in message or "remember" in message.casefold())
+    ):
+        return json.dumps(
+            {
+                "type": "recall_memory",
+                "query": message,
+                "reason": "主人明确请求回忆相关历史",
+            },
+            ensure_ascii=False,
+        )
     return json.dumps(
         {"type": "answer", "content": speech},
         ensure_ascii=False,

@@ -35,6 +35,9 @@ def render_recall_bundle(
     if limit < 1:
         return ""
     lines: list[str] = ["[MEMORY_DATA]"]
+    if bundle.status != "complete" or bundle.notices:
+        lines.append(f"STATUS: {bundle.status}")
+        lines.extend(f"NOTICE: {notice}" for notice in bundle.notices)
     _append_sources(lines, bundle)
     _append_nodes(lines, bundle.focus_nodes)
     _append_assertions(lines, bundle.assertions)
@@ -72,7 +75,7 @@ def _append_nodes(lines: list[str], nodes: Iterable[RecallNode]) -> None:
     for node in values:
         description = f" — {node.description}" if node.description else ""
         lines.append(
-            f"- id={node.node_id}; type={node.node_type}; label={node.label}; "
+            f"- role={node.role}; id={node.node_id}; type={node.node_type}; label={node.label}; "
             f"relevance={node.relevance:.3f}{description}"
         )
 
@@ -108,7 +111,7 @@ def _append_assertions(lines: list[str], assertions: Iterable[RecallAssertion]) 
             f"{key}={value}" for key, value in sorted(assertion.qualifiers.items())
         )
         lines.append(
-            f"- id={assertion.assertion_id}; {assertion.subject_id} "
+            f"- role={assertion.role}; id={assertion.assertion_id}; {assertion.subject_id} "
             f"--{assertion.predicate}--> {obj}; status={assertion.status}; "
             f"evidence={','.join(assertion.evidence_ids)}"
             + (f"; qualifiers={qualifiers}" if qualifiers else "")
@@ -122,7 +125,8 @@ def _append_paths(lines: list[str], paths: Iterable[RecallPath]) -> None:
     lines.append("PATHS:")
     for path in values:
         lines.append(
-            f"- nodes={' -> '.join(path.node_ids)}; assertions={','.join(path.assertion_ids)}; "
+            f"- role={path.role}; nodes={' -> '.join(path.node_ids)}; "
+            f"assertions={','.join(path.assertion_ids)}; "
             f"hops={path.hop_count}"
         )
 
@@ -134,7 +138,7 @@ def _append_episodes(lines: list[str], episodes: Iterable[RecallEpisode]) -> Non
     lines.append("EPISODES:")
     for episode in values:
         lines.append(
-            f"- id={episode.episode_id}; occurred={episode.occurred_from}"
+            f"- role={episode.role}; id={episode.episode_id}; occurred={episode.occurred_from}"
             + (f"..{episode.occurred_to}" if episode.occurred_to else "")
             + f"; detail={episode.detail_level}; excerpt={episode.excerpt}"
             + (

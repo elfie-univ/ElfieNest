@@ -8,7 +8,7 @@ from typing import Tuple
 
 import pytest
 
-from elfie.brain.memory.memory_records import RecallBundle
+from elfie.brain.memory.memory_records import RecallBundle, RecallRequest
 from elfie.brain.observation import BrainObservation, ObservationStatus
 from elfie.brain.reasoning.agent_loop_observations import (
     AgentLoopActionObservation,
@@ -58,10 +58,10 @@ class _CollectorSink:
 class _PinnedMemorySession:
     pinned_revision = 7
 
-    def recall(self, query: str) -> MemoryRecallResult:
+    def recall(self, request: RecallRequest) -> MemoryRecallResult:
         return MemoryRecallResult(
             status="recalled",
-            query=query,
+            query=request.text,
             pinned_revision=self.pinned_revision,
             bundle=RecallBundle(recall_revision=self.pinned_revision),
         )

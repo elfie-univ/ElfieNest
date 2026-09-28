@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+from elfie.brain.memory.memory_records import AssertionInput, NodeInput
 from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
 from elfie.genesis.world import (
@@ -169,6 +170,7 @@ def decode_genesis_package(
         spatial_population=_population(geography),
         name_rules=_name_rules(rules),
         generation_policy=GenerationPolicy(
+            knowledge_episode_max_chars=_integer(policy_knowledge, "episode_max_chars"),
             policy_version=_text(reproducibility, "domain_policy_version"),
             seed_algorithm=_text(reproducibility, "algorithm"),
             normal_episode_minimum=_integer(policy_episodes, "normal_minimum"),
@@ -252,6 +254,8 @@ def decode_genesis_package(
             visit_opportunities=visit_opportunities,
         ),
         earth_arrival_rules=EarthArrivalRules(
+            earth_label=_text(arrival, "earth_label"),
+            owner_home_label=_text(arrival, "owner_home_label"),
             eligible_life_stages=("youth", "young_adult", "mature", "elder"),
             required_knowledge_ids=("E-08",),
             post_arrival_knowledge_ids=after_arrival,
@@ -307,6 +311,26 @@ def _knowledge(raw: Any) -> WorldKnowledgeFact:
         eligibility=tuple(condition.kind for condition in conditions),
         mastery_difficulty=difficulty,
         conditions=conditions,
+        graph_nodes=tuple(
+            NodeInput(
+                node_id=_text(node, "id"),
+                node_type=_text(node, "type"),
+                canonical_label=_text(node, "label"),
+                scope="elfie",
+                properties={"entity_level": _text(node, "level")},
+            )
+            for node in item.get("graph_nodes", ())
+        ),
+        graph_assertions=tuple(
+            AssertionInput(
+                subject_id=_text(edge, "subject"),
+                predicate=_text(edge, "predicate"),
+                object_node_id=edge.get("object"),
+                object_literal=edge.get("literal"),
+                context=f"resident-knowledge:{fact_id}",
+            )
+            for edge in item.get("graph_assertions", ())
+        ),
     )
 
 

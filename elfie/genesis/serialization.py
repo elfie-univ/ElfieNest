@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import asdict, is_dataclass
 from typing import Any, Iterable, cast
 
-from .contracts import GenesisBundle
+from .contracts import GenesisBundle, KnowledgeSeed
 
 SELF_NODE_PREFIX = "genesis:self:"
 KNOWLEDGE_NODE_PREFIX = "genesis:knowledge:"
@@ -21,6 +22,70 @@ PLACE_NODE_PREFIX = "genesis:place:"
 PERSON_NODE_PREFIX = "genesis:person:"
 EPISODE_NODE_PREFIX = "genesis:episode:"
 EVENT_NODE_PREFIX = "genesis:event:"
+ENTITY_NODE_PREFIX = "genesis:entity:"
+
+
+def knowledge_groups(bundle: GenesisBundle) -> tuple[tuple[KnowledgeSeed, ...], ...]:
+    """Group admitted facts without mixing acquisition boundaries or truncating members."""
+    buckets: dict[tuple[str, int | None, str, bool], list[KnowledgeSeed]] = {}
+    for seed in bundle.knowledge_seeds:
+        key = (
+            seed.topic,
+            seed.acquired_age_years,
+            seed.acquired_stage,
+            seed.recall_eligible,
+        )
+        buckets.setdefault(key, []).append(seed)
+    groups: list[tuple[KnowledgeSeed, ...]] = []
+    for members in buckets.values():
+        current: list[KnowledgeSeed] = []
+        size = 0
+        for seed in members:
+            # Keep the authored member whole when deciding the group boundary.
+            length = len(knowledge_member_text(seed)) + 2
+            if current and size + length > bundle.knowledge_episode_max_chars:
+                groups.append(tuple(current))
+                current, size = [], 0
+            current.append(seed)
+            size += length
+        if current:
+            groups.append(tuple(current))
+    return tuple(groups)
+
+
+def knowledge_member_text(seed: KnowledgeSeed) -> str:
+    """Return the authored source text for a knowledge member.
+
+    Provenance, certainty, and mastery are durable metadata on the Episode and
+    its ``knowledge_members`` entries.  They are not part of the readable
+    source body, so the serializer must not frame them into ``content_text``.
+    """
+
+    return seed.content
+
+
+def knowledge_summary_text(content: str, max_chars: int = 120) -> str:
+    """Create a bounded synopsis from the authored first sentence.
+
+    Genesis does not invent a new fact for a display title.  It derives the
+    synopsis from the source body, while retaining the complete body as the
+    Episode content.  The helper is deterministic so retries produce the same
+    semantic output without a model call or a second source of truth.
+    """
+
+    normalized = " ".join(content.split())
+    if not normalized:
+        return ""
+    match = re.search(r"[。！？.!?]", normalized)
+    synopsis = normalized[: match.end()] if match else normalized
+    characters = list(synopsis)
+    if len(characters) <= max_chars:
+        return synopsis
+    return "".join(characters[: max_chars - 1]) + "…"
+
+
+def knowledge_group_id(safe_elfie: str, members: tuple[KnowledgeSeed, ...]) -> str:
+    return f"{EPISODE_NODE_PREFIX}{safe_elfie}:knowledge:{safe_component(members[0].topic)}:{safe_component(members[0].seed_id)}"
 
 
 def safe_component(value: str) -> str:
@@ -44,6 +109,7 @@ def genesis_content_hash(bundle: GenesisBundle) -> str:
         "relationships": [_jsonable(item) for item in bundle.relationship_seeds],
         "places": [_jsonable(item) for item in bundle.place_seeds],
         "place_relations": [_jsonable(item) for item in bundle.place_relation_seeds],
+        "knowledge_episode_max_chars": bundle.knowledge_episode_max_chars,
     }
     encoded = json.dumps(
         payload,
@@ -74,12 +140,16 @@ def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:
         seen_targets.add(target)
         output.append(f"{PERSON_NODE_PREFIX}{safe_elfie}:{safe_component(target)}")
 
-    # Knowledge is admitted as complete source Episodes.  The graph Node is a
-    # later Consolidation product, so it must not appear in the Genesis output
-    # inventory (or become visible before the nightly pass).
+    # Full knowledge groups and their authored, source-backed graph skeleton
+    # are published together; later consolidation may enrich those identities.
     output.extend(
-        f"{EPISODE_NODE_PREFIX}{safe_elfie}:knowledge:{safe_component(seed.seed_id)}"
-        for seed in bundle.knowledge_seeds
+        knowledge_group_id(safe_elfie, group) for group in knowledge_groups(bundle)
+    )
+    output.extend(
+        f"{ENTITY_NODE_PREFIX}{safe_elfie}:{safe_component(node_id)}"
+        for node_id in dict.fromkeys(
+            node.node_id for seed in bundle.knowledge_seeds for node in seed.graph_nodes
+        )
     )
     for episode in bundle.episode_seeds:
         safe_seed = safe_component(episode.seed_id)

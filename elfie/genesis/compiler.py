@@ -55,6 +55,7 @@ from .contracts import (
 from .engine import GenesisEngine
 from .serialization import (
     genesis_content_hash,
+    knowledge_summary_text,
     output_ids_hash,
     planned_genesis_output_ids,
 )
@@ -292,7 +293,7 @@ class GenesisCompilation:
 class GenesisCompiler:
     """Own all deterministic life-semantic choices for a creation transaction."""
 
-    compiler_version = "genesis-compiler.v0.2"
+    compiler_version = "genesis-compiler.v0.3"
 
     def __init__(
         self,
@@ -3027,7 +3028,7 @@ class GenesisCompiler:
                 topic="biography.departure",
                 aliases=("赴地准备", "出发培训"),
                 retrieval_terms=("赴地", "准备", "培训"),
-                temporal_label="离开故乡前（具体年龄未知）",
+                temporal_label=f"抵达新家前的赴地准备，持续{preparation_days}个本地日",
                 life_stage="pre_arrival",
                 place_ids=(station_id,),
                 stay_days=preparation_days,
@@ -3054,7 +3055,11 @@ class GenesisCompiler:
                 topic="biography.departure",
                 aliases=("赴地", "离开故乡", "赴地基站"),
                 retrieval_terms=("赴地", "基站", "路线", *station_route_ids),
-                temporal_label="赴地准备与离开故乡（具体年龄未知）",
+                temporal_label=(
+                    f"赴地准备后、抵达新家前，行程{travel_days}个本地日"
+                    if travel_days
+                    else "赴地准备后、抵达新家前；局部行程时长未知"
+                ),
                 life_stage="pre_arrival",
                 place_ids=_unique((home_id, station_id)),
                 route_ids=station_route_ids,
@@ -3078,14 +3083,16 @@ class GenesisCompiler:
                 event_kind=self._episode_event_kind("arrival-nest", "life_event"),
                 content=(
                     f"我在{arrival_age}岁时来到{self._source.earth_home_name}，"
-                    "开始与领养家庭共同生活。"
+                    f"它位于地球的{self._source.earth_arrival_rules.owner_home_label}里，主人住在这个家中。"
+                    f"我住进{self._source.earth_home_name}，开始与领养家庭共同生活。"
                 ),
                 source_ref="adoption:accepted",
                 source_version="genesis-transition-episode.v0.3",
                 topic="biography.arrival",
                 aliases=("抵达新家", "领养", "到家"),
                 retrieval_terms=("领养家庭", "新家", self._source.earth_home_name),
-                temporal_label="领养抵达时",
+                temporal_label=f"{arrival_age}岁时领养抵达",
+                occurred_from=request.adoption_anchor_at or None,
                 life_stage=context.identity.life_stage,
                 place_ids=(request.arrival_base_id,),
                 person_ids=(owner_person_id, owner_group_id),
@@ -3244,10 +3251,10 @@ class GenesisCompiler:
                 "不知道时说明不知道。",
             ),
             species_knowledge=tuple(species.common_knowledge),
-            skills=("区分亲历、听闻和未确认信息", "在陌生事物前先观察和询问"),
-            habits=("先确认边界，再靠近陌生事物",),
-            preferences=("逐步熟悉的新环境",),
-            emotional_triggers=("被要求把猜测说成事实",),
+            skills=(),
+            habits=(),
+            preferences=(),
+            emotional_triggers=(),
             current_goal="在 ElfieNest 里通过真实相处逐步学习地球生活。",
             earth_adaptation=("地球设备需要通过真实接触逐步学习。",),
         )
@@ -3273,7 +3280,8 @@ class GenesisCompiler:
             knowledge_seeds=knowledge_seeds,
             episode_seeds=episodes,
             place_seeds=self._place_seeds(context, request),
-            place_relation_seeds=self._place_relation_seeds(),
+            place_relation_seeds=self._place_relation_seeds(context, request),
+            knowledge_episode_max_chars=self._source.generation_policy.knowledge_episode_max_chars,
         )
         content_hash = genesis_content_hash(bundle)
         output_ids = planned_genesis_output_ids(bundle)
@@ -3322,10 +3330,31 @@ class GenesisCompiler:
             PlaceSeed(
                 place_id=self._source.world_id,
                 label=self._source.display_name,
-                kind="home_world",
+                kind="planet",
+                node_type="cosmic_entity",
                 aliases=(self._source.display_name,),
                 source_ref=f"place:{self._source.world_id}",
                 importance=0.35,
+            )
+        )
+        append(
+            PlaceSeed(
+                place_id="earth",
+                label=self._source.earth_arrival_rules.earth_label,
+                kind="planet",
+                node_type="cosmic_entity",
+                source_ref="knowledge/elfaria.yaml#E-08",
+            )
+        )
+        owner_home_id = f"private:{request.owner_reference}:earth-home"
+        append(
+            PlaceSeed(
+                place_id=owner_home_id,
+                label=self._source.earth_arrival_rules.owner_home_label,
+                kind="owner_home",
+                parent_id="earth",
+                visibility="private",
+                source_ref="genesis:accepted-household",
             )
         )
         append(
@@ -3392,7 +3421,9 @@ class GenesisCompiler:
                     place_id=place.place_id,
                     label=place.label,
                     kind=place.kind,
-                    parent_id=place.parent_id,
+                    parent_id=owner_home_id
+                    if place.place_id == request.arrival_base_id
+                    else place.parent_id,
                     aliases=place.aliases,
                     description=place.description,
                     source_ref=f"place:{place.place_id}",
@@ -3406,6 +3437,7 @@ class GenesisCompiler:
                     place_id=request.arrival_base_id,
                     label=self._source.earth_home_name,
                     kind="earth_home",
+                    parent_id=owner_home_id,
                     description=self._source.earth_home_role,
                     source_ref="genesis:accepted-arrival-base",
                     importance=0.9,
@@ -3413,8 +3445,10 @@ class GenesisCompiler:
             )
         return tuple(result)
 
-    def _place_relation_seeds(self) -> tuple[PlaceRelationSeed, ...]:
-        return tuple(
+    def _place_relation_seeds(
+        self, context: LifeContext, request: GenesisCompileInput
+    ) -> tuple[PlaceRelationSeed, ...]:
+        relations = tuple(
             PlaceRelationSeed(
                 subject_id=relation.subject_id,
                 relation=relation.relation,
@@ -3423,6 +3457,67 @@ class GenesisCompiler:
             )
             for relation in self._source.place_relations
         )
+        network = self._source.geography_network
+        route_relations = []
+        for route in self._source.routes:
+            if route.route_id not in context.mobility.familiar_route_ids:
+                continue
+            start = network.cell_for_place(route.from_place_id)
+            end = network.cell_for_place(route.to_place_id)
+            leg = (
+                self._travel_leg(start, end) if start and end and start != end else None
+            )
+            route_relations.append(
+                PlaceRelationSeed(
+                    subject_id=route.from_place_id,
+                    relation="route_to",
+                    object_id=route.to_place_id,
+                    source_ref=f"knowledge/geography.yaml#route_aliases:{route.route_id}",
+                    qualifiers=(
+                        ("route_id", route.route_id),
+                        ("distance", "unknown"),
+                        ("travel_unit", "local_day"),
+                        ("travel_days", str(leg[1]) if leg else "unknown"),
+                        (
+                            "mode",
+                            "land"
+                            if start and end and network.shortest_land_path(start, end)
+                            else "mixed_or_unknown",
+                        ),
+                        ("conditions", "；".join(route.access_conditions)),
+                    ),
+                )
+            )
+        route_relations.append(
+            PlaceRelationSeed(
+                subject_id=context.earth_transition.departure_place_id,
+                relation="route_to",
+                object_id=request.arrival_base_id,
+                source_ref="knowledge/elfaria.yaml#E-08",
+                qualifiers=(
+                    ("mode", "cross_world_transfer"),
+                    ("distance", "unknown"),
+                    ("travel_days", "unknown"),
+                    ("conditions", "自愿同意、登记与专门安排；通道能力有限且不稳定"),
+                ),
+            )
+        )
+        route_relations.append(
+            PlaceRelationSeed(
+                subject_id=self._source.world_id,
+                relation="route_to",
+                object_id="earth",
+                source_ref="knowledge/elfaria.yaml#E-08",
+                qualifiers=(
+                    ("mode", "cross_world_transfer"),
+                    ("distance", "unknown"),
+                    ("travel_days", "unknown"),
+                    ("via", context.earth_transition.departure_place_id),
+                    ("conditions", "需通过赴地计划与专门通道"),
+                ),
+            )
+        )
+        return relations + tuple(route_relations)
 
     def _generated_names(
         self, request: GenesisCompileInput, count: int
@@ -3808,6 +3903,7 @@ def _knowledge_seed(
     return KnowledgeSeed(
         seed_id=entry.knowledge_id,
         content=entry.source_statement,
+        summary_text=knowledge_summary_text(entry.source_statement),
         source="genesis_source",
         source_ref=f"resident-knowledge:{fact.fact_id}",
         source_version=f"resident-knowledge-v{fact.version}",
@@ -3832,6 +3928,12 @@ def _knowledge_seed(
         initial_confidence=entry.initial_confidence,
         recall_eligible=entry.recall_eligible,
         acquired_age_years=entry.acquired_age_years,
+        graph_nodes=fact.graph_nodes
+        if mastery == "known" and entry.recall_eligible
+        else (),
+        graph_assertions=fact.graph_assertions
+        if mastery == "known" and entry.recall_eligible
+        else (),
     )
 
 

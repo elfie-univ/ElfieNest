@@ -10,7 +10,11 @@ from elfie.genesis import (
     GenesisValidationError,
     genesis_content_hash,
 )
-from elfie.genesis.serialization import safe_component
+from elfie.genesis.serialization import (
+    knowledge_group_id,
+    knowledge_groups,
+    safe_component,
+)
 from infrastructure.persistence.elfie_workspace.adoption_profiles import (
     FinalElfieWorkspaceAdapter,
 )
@@ -47,7 +51,7 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         "reflection",
         "unclassified",
     }
-    assert early_home.event_kind == "outing"
+    assert early_home.event_kind == "life_event"
     assert arrival.event_kind == "life_event"
     assert arrival.place_ids == ("elfie_nest",)
     arrival_base = next(
@@ -67,9 +71,14 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
     assert selfhood["identity_core"]["elfie_id"] == "00000101"
 
     memory_path = workspace / "memory" / "knowledge.sqlite"
-    expected_episode_count = len(compilation.bundle.knowledge_seeds) + len(
+    expected_episode_count = len(knowledge_groups(compilation.bundle)) + len(
         compilation.bundle.episode_seeds
     )
+    member_episodes = {
+        seed.seed_id: knowledge_group_id("00000101", group)
+        for group in knowledge_groups(compilation.bundle)
+        for seed in group
+    }
     expected_relationship_node_counts = {
         kind: sum(
             relationship.object_kind == kind
@@ -110,24 +119,21 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
             for seed in compilation.bundle.knowledge_seeds
             if "Elfaria 是精灵生活的星球" in seed.content
         )
-        knowledge_episode = storage.get_episode(
-            "genesis:episode:00000101:knowledge:"
-            f"{safe_component(identity_seed.seed_id)}"
-        )
+        knowledge_episode = storage.get_episode(member_episodes[identity_seed.seed_id])
         assert knowledge_episode is not None
-        assert knowledge_episode.summary_text is None
+        assert knowledge_episode.summary_text == identity_seed.summary_text
+        assert knowledge_episode.summary_text
         search_seed = next(
             seed
             for seed in compilation.bundle.knowledge_seeds
             if seed.aliases or seed.retrieval_terms
         )
         search_term = (search_seed.aliases or search_seed.retrieval_terms)[0]
-        search_episode = storage.get_episode(
-            f"genesis:episode:00000101:knowledge:{safe_component(search_seed.seed_id)}"
-        )
+        search_episode = storage.get_episode(member_episodes[search_seed.seed_id])
         assert search_episode is not None
         indexed_text = storage.connection.execute(
-            "SELECT searchable_text FROM episodes_fts WHERE episode_id=?",
+            "SELECT searchable_text FROM memory_search_fts "
+            "WHERE record_kind='episode' AND record_id=?",
             (search_episode.episode_id,),
         ).fetchone()[0]
         assert search_seed.content in indexed_text
@@ -135,12 +141,12 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         identity = storage.recall(
             RecallRequest(text="Elfaria 是精灵生活的星球", lexical_limit=10)
         )
-        assert any(
-            item.episode_id.endswith(
-                f":knowledge:{safe_component(identity_seed.seed_id)}"
-            )
+        identity_result = next(
+            item
             for item in identity.episodes
+            if item.episode_id == member_episodes[identity_seed.seed_id]
         )
+        assert identity_result.summary_text == identity_seed.summary_text
         assert not any(
             assertion.predicate in {"knows", "knows_boundary"}
             for assertion in identity.assertions
@@ -153,9 +159,7 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
         )
         unknown = storage.recall(RecallRequest(text="完整星球地图", lexical_limit=10))
         assert any(
-            item.episode_id.endswith(
-                f":knowledge:{safe_component(unknown_seed.seed_id)}"
-            )
+            item.episode_id == member_episodes[unknown_seed.seed_id]
             and "完整星球地图" in item.excerpt
             for item in unknown.episodes
         )
@@ -194,8 +198,7 @@ def test_typed_genesis_propagates_importance_to_nodes_and_assertions() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="00000104") as storage:
         GenesisMemoryCommitter().commit(customized, storage)
         knowledge_episode = storage.get_episode(
-            "genesis:episode:00000104:knowledge:"
-            f"{safe_component(customized.knowledge_seeds[0].seed_id)}"
+            knowledge_group_id("00000104", knowledge_groups(customized)[0])
         )
         assert knowledge_episode is not None
         assert knowledge_episode.importance == pytest.approx(0.91)

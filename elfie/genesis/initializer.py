@@ -9,7 +9,8 @@ semantic choices have already been made by :mod:`elfie.genesis.compiler`.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, replace
+import json
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -34,15 +35,19 @@ from elfie.brain.memory.predicates import (
 from .contracts import (
     GenesisBundle,
     GenesisValidationError,
-    KnowledgeSeed,
     validate_genesis_bundle,
 )
 from .serialization import (
+    ENTITY_NODE_PREFIX,
     EPISODE_NODE_PREFIX,
     PERSON_NODE_PREFIX,
     PLACE_NODE_PREFIX,
     SELF_NODE_PREFIX,
     genesis_content_hash,
+    knowledge_group_id,
+    knowledge_groups,
+    knowledge_member_text,
+    knowledge_summary_text,
     output_ids_hash,
     planned_genesis_output_ids,
     safe_component,
@@ -388,75 +393,147 @@ class GenesisMemoryCommitter:
             if person_id not in node_ids:
                 node_ids.append(person_id)
 
-        # Knowledge is the source material for the later graph pass.  Keep the
-        # complete statement in an Episode and leave Node/Assertion extraction
-        # to the nightly Consolidator.  This makes the source auditable and
-        # prevents Genesis from turning every published fact into a pre-baked
-        # graph star.
-        knowledge_by_topic: dict[str, list[KnowledgeSeed]] = {}
-        for knowledge in bundle.knowledge_seeds:
-            knowledge_by_topic.setdefault(knowledge.topic, []).append(knowledge)
-        knowledge_topic_members = {
-            topic: tuple(item.seed_id for item in members)
-            for topic, members in knowledge_by_topic.items()
-        }
-        for knowledge in bundle.knowledge_seeds:
-            episode_id = _knowledge_episode_id(safe_elfie, knowledge.seed_id)
-            topic_members = knowledge_topic_members.get(knowledge.topic, ())
+        # Each topic chunk is a complete source Episode. Member spans preserve
+        # the exact reviewed fact and its independent acquisition/provenance.
+        groups = knowledge_groups(bundle)
+        knowledge_sources: dict[str, tuple[str, int, int]] = {}
+        for group_index, members in enumerate(groups):
+            episode_id = knowledge_group_id(safe_elfie, members)
+            sections: list[str] = []
+            member_metadata: list[dict] = []
+            cursor = 0
+            for seed in members:
+                section = knowledge_member_text(seed)
+                start = cursor
+                end = start + len(seed.content)
+                properties = asdict(seed)
+                properties.pop("graph_nodes")
+                properties.pop("graph_assertions")
+                properties.update(span_start=start, span_end=end)
+                member_metadata.append(properties)
+                knowledge_sources[seed.seed_id] = (episode_id, start, end)
+                sections.append(section)
+                cursor += len(section) + 2
+            first = members[0]
+            acquired_age = first.acquired_age_years
             storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
-                    idempotency_key=f"{manifest_id}:knowledge:{knowledge.seed_id}",
+                    idempotency_key=f"{manifest_id}:knowledge:{group_index}",
                     occurred_from=None,
                     occurrence_precision="unknown",
-                    content_text=knowledge.content,
-                    summary_text=None,
+                    content_text="\n\n".join(sections),
+                    summary_text=first.summary_text
+                    or knowledge_summary_text(first.content),
                     event_kind="learning",
-                    source_refs=(
+                    source_refs=tuple(
                         SourceReference(
-                            source_id=knowledge.source_ref,
-                            source_kind=knowledge.source,
-                            locator=knowledge.seed_id,
-                            source_version=knowledge.source_version,
-                        ),
+                            source_id=seed.source_ref,
+                            source_kind=seed.source,
+                            locator=seed.seed_id,
+                            source_version=seed.source_version,
+                        )
+                        for seed in members
                     ),
-                    source_event_ids=(),
-                    source_version=knowledge.source_version,
-                    importance=knowledge.importance,
-                    initial_importance=knowledge.importance,
+                    source_version=bundle.manifest.compiler_version,
+                    importance=max(seed.importance for seed in members),
+                    initial_importance=max(seed.importance for seed in members),
                     retention_profile="genesis",
                     attribution="told",
+                    life_stage=first.acquired_stage or None,
+                    temporal_label=f"{acquired_age}岁时获得的知识"
+                    if acquired_age is not None
+                    else "获得时间未知",
                     metadata={
-                        "seed_id": knowledge.seed_id,
-                        "knowledge_id": knowledge.seed_id,
-                        "scope": knowledge.scope,
-                        "topic": knowledge.topic,
-                        "topic_bucket": knowledge.topic,
-                        "topic_member_ids": list(topic_members),
-                        "topic_member_index": topic_members.index(knowledge.seed_id),
-                        "topic_member_count": len(topic_members),
-                        "aliases": list(knowledge.aliases),
-                        "retrieval_terms": list(knowledge.retrieval_terms),
-                        "certainty": knowledge.certainty,
-                        "level": knowledge.level,
-                        "mastery": knowledge.mastery,
-                        "status": knowledge.status,
-                        "eligibility": list(knowledge.eligibility),
-                        "related_ids": list(knowledge.related_ids),
-                        "prerequisite_ids": list(knowledge.prerequisite_ids),
-                        "acquired_via": knowledge.acquired_via,
-                        "acquired_stage": knowledge.acquired_stage,
-                        "consultable_target_ids": list(
-                            knowledge.consultable_target_ids
+                        "knowledge_id": f"topic:{first.topic}:{first.seed_id}",
+                        "topic": first.topic,
+                        "topic_bucket": first.topic,
+                        "topic_member_ids": [seed.seed_id for seed in members],
+                        "topic_member_index": group_index,
+                        "topic_member_count": len(members),
+                        "knowledge_members": member_metadata,
+                        "aliases": list(
+                            dict.fromkeys(
+                                alias for seed in members for alias in seed.aliases
+                            )
                         ),
-                        "recall_eligible": bool(knowledge.recall_eligible),
-                        "confidence_class": knowledge.confidence_class,
-                        "initial_confidence": knowledge.initial_confidence,
-                        "acquired_age_years": knowledge.acquired_age_years,
+                        "retrieval_terms": list(
+                            dict.fromkeys(
+                                term
+                                for seed in members
+                                for term in seed.retrieval_terms
+                            )
+                        ),
+                        "recall_eligible": first.recall_eligible,
+                        "acquired_age_years": acquired_age,
+                        "genesis_time": {
+                            "calendar": "elfaria_age",
+                            "age_from": acquired_age,
+                            "age_to": acquired_age + 1
+                            if acquired_age is not None
+                            else None,
+                        },
                     },
                 )
             )
             node_ids.append(episode_id)
+
+        graph_ids = {
+            node.node_id: f"{ENTITY_NODE_PREFIX}{safe_elfie}:{safe_component(node.node_id)}"
+            for seed in bundle.knowledge_seeds
+            for node in seed.graph_nodes
+        }
+        for seed in bundle.knowledge_seeds:
+            for node in seed.graph_nodes:
+                node_id = graph_ids[node.node_id]
+                if node_id not in node_ids:
+                    self._upsert_node(
+                        storage,
+                        replace(
+                            node,
+                            node_id=node_id,
+                            scope=scope,
+                            confidence=seed.initial_confidence,
+                            importance=seed.importance,
+                            retention_profile="genesis",
+                            properties={
+                                **node.properties,
+                                "source_episode_ids": [
+                                    knowledge_sources[member.seed_id][0]
+                                    for member in bundle.knowledge_seeds
+                                    if any(
+                                        item.node_id == node.node_id
+                                        for item in member.graph_nodes
+                                    )
+                                ],
+                            },
+                        ),
+                    )
+                    node_ids.append(node_id)
+        for seed in bundle.knowledge_seeds:
+            episode_id, start, end = knowledge_sources[seed.seed_id]
+            for index, edge in enumerate(seed.graph_assertions):
+                self._record_assertion(
+                    storage,
+                    replace(
+                        edge,
+                        subject_id=graph_ids[edge.subject_id],
+                        object_node_id=graph_ids[edge.object_node_id]
+                        if edge.object_node_id
+                        else None,
+                        confidence=seed.initial_confidence,
+                    ),
+                    EvidenceInput(
+                        evidence_id=f"genesis:evidence:entity:{safe_elfie}:{safe_component(seed.seed_id)}:{index}",
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=seed.content,
+                        span_start=start,
+                        span_end=end,
+                        source_version=bundle.manifest.compiler_version,
+                        attribution="told",
+                    ),
+                )
 
         episode_source_ids: dict[str, str] = {}
         episode_source_versions: dict[str, str] = {}
@@ -524,6 +601,28 @@ class GenesisMemoryCommitter:
                         "theme_id": seed.theme_id,
                         "age_years_at_event": seed.age_years_at_event,
                         "sequence_index": sequence_index,
+                        "genesis_time": {
+                            "calendar": "elfaria_age",
+                            "age_from": seed.age_years_at_event,
+                            "age_to": seed.age_years_at_event + 1
+                            if seed.age_years_at_event is not None
+                            else None,
+                            "relative_to": "arrival-nest",
+                            "relation": "at"
+                            if seed.seed_id == "arrival-nest"
+                            else "before",
+                            "precision": "age_year"
+                            if seed.age_years_at_event is not None
+                            else "relative",
+                            "travel_local_days": seed.travel_days or None,
+                            "stay_local_days": seed.stay_days
+                            if seed.theme_id == "predeparture-training"
+                            or seed.seed_id.startswith("visit:")
+                            else None,
+                            "life_stage": seed.life_stage,
+                            "sequence_index": sequence_index,
+                            "predecessor_ids": list(seed.predecessor_ids),
+                        },
                     },
                 )
             )
@@ -679,6 +778,36 @@ class GenesisMemoryCommitter:
                 ),
             )
 
+        arrival_episode = episode_source_ids.get("arrival-nest")
+        owner_home = next(
+            (place for place in bundle.place_seeds if place.kind == "owner_home"), None
+        )
+        nest = next(
+            (place for place in bundle.place_seeds if place.kind == "earth_home"), None
+        )
+        if arrival_episode and owner_home and nest:
+            residents = [(self_id, nest.place_id)]
+            residents.extend(
+                (person_node_ids[relationship.person_id], owner_home.place_id)
+                for relationship in bundle.relationship_seeds
+                if relationship.role == "owner" and relationship.object_kind == "person"
+            )
+            for resident_id, place_id in residents:
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        resident_id, "lives_in", object_node_id=place_node_ids[place_id]
+                    ),
+                    EvidenceInput(
+                        evidence_id=f"genesis:evidence:residence:{resident_id}",
+                        source_type="episode",
+                        source_id=arrival_episode,
+                        excerpt=storage.get_episode(arrival_episode).content_text,
+                        source_version=episode_source_versions["arrival-nest"],
+                        captured_at=now,
+                    ),
+                )
+
         output_node_ids = tuple(node_ids)
         self._write_person_links(
             bundle,
@@ -798,7 +927,7 @@ class GenesisMemoryCommitter:
                 storage,
                 NodeInput(
                     node_id=node_id,
-                    node_type="place",
+                    node_type=place.node_type,
                     canonical_label=place.label,
                     description=place.description or None,
                     scope=scope,
@@ -806,7 +935,8 @@ class GenesisMemoryCommitter:
                     confidence=1.0,
                     importance=place.importance,
                     properties={
-                        "entity_type": "place",
+                        "entity_level": "instance",
+                        "entity_type": place.node_type,
                         "place_id": place.place_id,
                         "kind": place.kind,
                         "parent_id": place.parent_id,
@@ -833,8 +963,8 @@ class GenesisMemoryCommitter:
         it only in node properties makes the hierarchy invisible to graph
         traversal and reverse lookup, so materialize the bounded child →
         parent relation when both endpoints are part of this submission.
-        External roots such as ``earth`` remain properties until their own
-        world node is introduced; Genesis must not invent a placeholder node.
+        Planet roots, including Earth, are explicit typed seeds; every
+        nonempty parent has been validated within the same submission.
         """
 
         safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
@@ -903,7 +1033,11 @@ class GenesisMemoryCommitter:
                     subject_node,
                     relation.relation,
                     object_node_id=object_node,
-                    context=relation_context(
+                    context=json.dumps(
+                        dict(relation.qualifiers), ensure_ascii=False, sort_keys=True
+                    )
+                    if relation.qualifiers
+                    else relation_context(
                         ontology,
                         "genesis_place_relation",
                         predicate=relation.relation,
@@ -927,12 +1061,6 @@ class GenesisMemoryCommitter:
                     captured_at=now,
                 ),
             )
-
-
-def _knowledge_episode_id(safe_elfie: str, seed_id: str) -> str:
-    """Return the stable Episode ID for one Genesis knowledge statement."""
-
-    return f"{EPISODE_NODE_PREFIX}{safe_elfie}:knowledge:{safe_component(seed_id)}"
 
 
 def _relationship_predicate(role: str) -> str:

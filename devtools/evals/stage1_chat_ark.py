@@ -48,6 +48,7 @@ from elfie.genesis import (
     GenesisCompiler,
     GenesisMemoryCommitter,
 )
+from elfie.genesis.engine import legal_candidate_age_range
 from elfie.message_types import (
     ActorId,
     ActorRef,
@@ -427,7 +428,11 @@ def _build_bundle(
     definition = catalog.definition(species_id, adoptable_only=True)
     if definition.genesis is None:
         raise ValueError(f"物种 {species_id} 缺少 Genesis 配置")
-    age_years = definition.genesis.stage_ranges["youth"][0]
+    age_years, _ = legal_candidate_age_range(
+        definition.genesis,
+        "youth",
+        source.generation_policy,
+    )
     return (
         GenesisCompiler(source, catalog=catalog)
         .compile(

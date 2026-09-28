@@ -192,7 +192,7 @@ def test_target_has_rebuildable_text_projections_not_legacy_tables() -> None:
             )
         }
         assert {"episodes", "nodes", "assertions", "evidence"}.issubset(tables)
-        assert {"episodes_fts", "nodes_fts"}.issubset(tables)
+        assert {"memory_search_fts", "memory_search_fts_config"}.issubset(tables)
         assert not tables.intersection(
             {"entities", "entity_edges", "people", "events", "memory_notes"}
         )

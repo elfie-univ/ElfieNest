@@ -44,7 +44,7 @@ from devtools.memory_audit import (
     build_recall_report,
 )
 from devtools.web_host import LabShell, frontend_shell
-from elfie.brain.memory import RecallRequest
+from elfie.brain.memory import RecallRequest, RecallSense
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -274,24 +274,47 @@ def create_app(
 
     class MemoryRecallRequest(BaseModel):
         elfie_id: Optional[str] = None
-        query: str = Field(min_length=1, max_length=2000)
-        mode: Literal["basic", "local", "basic_local"] = "basic_local"
+        query: str = Field(default="", max_length=2000)
+        place_node_ids: List[str] = Field(default_factory=list, max_length=16)
+        sense: Optional[RecallSense] = None
+        record_kinds: List[Literal["episode", "node", "assertion"]] = Field(
+            default_factory=list, max_length=3
+        )
+        node_types: List[str] = Field(default_factory=list, max_length=16)
+        relation_types: List[str] = Field(default_factory=list, max_length=32)
+        occurred_from: Optional[str] = None
+        occurred_to: Optional[str] = None
+        minimum_importance: Optional[float] = Field(default=None, ge=0, le=1)
         limit: int = Field(default=8, ge=1, le=200)
 
     @app.post("/api/memory-audit/recall")
     def recall_memory(request: MemoryRecallRequest) -> dict[str, object]:
+        if (
+            not request.query.strip()
+            and not request.place_node_ids
+            and request.sense is None
+        ):
+            raise HTTPException(
+                status_code=422, detail="请输入搜索文本，或选择场景地点、情绪"
+            )
         selected, database = _memory_database(request.elfie_id)
         recall_request = RecallRequest(
             text=request.query,
-            mode=request.mode,
+            seed_node_ids=tuple(request.place_node_ids),
+            place_node_ids=tuple(request.place_node_ids),
+            sense=request.sense,
+            record_kinds=tuple(request.record_kinds),
+            node_types=tuple(request.node_types),
+            relation_types=tuple(request.relation_types),
+            occurred_from=request.occurred_from,
+            occurred_to=request.occurred_to,
+            minimum_importance=request.minimum_importance,
             lexical_limit=request.limit,
             seed_limit=min(request.limit, 6),
             node_limit=request.limit,
             assertion_limit=min(request.limit, 12),
             episode_limit=min(request.limit, 5),
             evidence_limit=min(request.limit, 8),
-            hop_limit=1,
-            neighbors_per_node=6,
             character_limit=12000,
         )
         with _read_only_store(

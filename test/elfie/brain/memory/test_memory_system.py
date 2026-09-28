@@ -73,9 +73,7 @@ def test_typed_recall_returns_episode_and_provenance() -> None:
     episode_id = "episode-garden"
     memory.record_closed_episode(_episode(episode_id, "今天去花园散步。", 0.7))
 
-    bundle = memory.recall(
-        RecallRequest(text="花园", mode="basic_local", episode_limit=5)
-    )
+    bundle = memory.recall(RecallRequest(text="花园", episode_limit=5))
 
     assert [episode.episode_id for episode in bundle.episodes] == [episode_id]
     assert bundle.episodes[0].excerpt == "今天去花园散步。"
@@ -96,7 +94,7 @@ def test_typed_recall_context_uses_stable_renderer() -> None:
     memory = _new_memory()
     memory.record_closed_episode(_episode("episode-candy", "主人给我一颗糖。", 0.8))
 
-    rendered = memory.render_recall(RecallRequest(text="糖", mode="basic_local"))
+    rendered = memory.render_recall(RecallRequest(text="糖"))
 
     assert rendered.startswith("[MEMORY_DATA]")
     assert "主人给我一颗糖。" in rendered

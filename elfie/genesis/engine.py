@@ -7,7 +7,7 @@ import json
 import math
 import random
 import unicodedata
-from typing import Sequence
+from typing import Callable, Sequence
 
 from elfie.profile import (
     SpeciesCatalog,
@@ -113,9 +113,24 @@ class GenesisEngine:
         self,
         catalog: SpeciesCatalog | None = None,
         generation_policy: GenerationPolicy | None = None,
+        generation_policy_loader: Callable[[], GenerationPolicy] | None = None,
     ) -> None:
+        if generation_policy is not None and generation_policy_loader is not None:
+            raise ValueError(
+                "GenesisEngine 不能同时提供 generation_policy 和其 lazy loader"
+            )
         self._catalog = catalog
-        self._generation_policy = generation_policy or GenerationPolicy()
+        self._generation_policy = generation_policy
+        self._generation_policy_loader = generation_policy_loader
+
+    @property
+    def _policy(self) -> GenerationPolicy:
+        if self._generation_policy is None:
+            loader = self._generation_policy_loader
+            self._generation_policy = (
+                loader() if loader is not None else GenerationPolicy()
+            )
+        return self._generation_policy
 
     def generate_batch(
         self,
@@ -146,9 +161,7 @@ class GenesisEngine:
             role: [] for role in CANDIDATE_ROLES
         }
         for role_index, role in enumerate(CANDIDATE_ROLES):
-            for proposal_index in range(
-                self._generation_policy.candidate_proposal_count
-            ):
+            for proposal_index in range(self._policy.candidate_proposal_count):
                 seed = self._labeled_seed(
                     master_seed,
                     "candidate",
@@ -218,8 +231,8 @@ class GenesisEngine:
         same source inputs produce the same result.
         """
 
-        options_per_choice = self._generation_policy.candidate_options_per_choice
-        max_backtracks = self._generation_policy.candidate_total_backtracks
+        options_per_choice = self._policy.candidate_options_per_choice
+        max_backtracks = self._policy.candidate_total_backtracks
         backtracks = 0
 
         def search(
@@ -435,7 +448,7 @@ class GenesisEngine:
                 legacy_parts=(seed, batch, role, 92),
             )
         ).random()
-        return weighted_candidate_stage(legal_stages, self._generation_policy, draw)
+        return weighted_candidate_stage(legal_stages, self._policy, draw)
 
     def _choose_gender(self, seed: int, batch: int, role: int, requested: str) -> str:
         if requested != "any":
@@ -458,7 +471,7 @@ class GenesisEngine:
     ) -> int:
         """Derive candidate randomness from the published Genesis policy."""
 
-        algorithm = self._generation_policy.seed_algorithm
+        algorithm = self._policy.seed_algorithm
         if algorithm == "blake2b-labeled-v1":
             return derive_seed(*legacy_parts)
         if algorithm != "sha256-domain-v1":
@@ -473,7 +486,7 @@ class GenesisEngine:
             "algorithm_version": algorithm,
             "attempt_id": 0,
             "domain": unicodedata.normalize("NFC", domain),
-            "domain_policy_version": self._generation_policy.policy_version,
+            "domain_policy_version": self._policy.policy_version,
             "draw_counter": 0,
             "master_seed": f"{seed:064x}",
             "stable_object_or_slot_id": unicodedata.normalize("NFC", stable_id),
@@ -521,7 +534,7 @@ class GenesisEngine:
         return legal_candidate_age_range(
             definition.genesis,
             stage,
-            self._generation_policy,
+            self._policy,
         )
 
     def _validate_request(

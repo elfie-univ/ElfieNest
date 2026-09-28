@@ -126,6 +126,14 @@ class SQLiteMemoryMixinBase:
     ) -> None:
         raise NotImplementedError
 
+    def _upsert_search_document(
+        self, record_kind: str, record_id: str, searchable_text: str
+    ) -> None:
+        raise NotImplementedError
+
+    def _refresh_all_assertion_text_projections(self) -> None:
+        raise NotImplementedError
+
     def search_text(
         self,
         query: str,
@@ -165,6 +173,14 @@ class SQLiteMemoryMixinBase:
         include_unknown_time: bool = False,
         recall_eligible_only: bool = False,
         now: str | None = None,
+    ) -> tuple[RecallAssertion, ...]:
+        raise NotImplementedError
+
+    def get_graph_assertions_by_ids(
+        self,
+        assertion_ids: Iterable[str],
+        *,
+        privacy_scope: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 

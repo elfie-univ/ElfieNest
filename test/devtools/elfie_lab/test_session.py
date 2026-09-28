@@ -147,7 +147,7 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         "brain_observations.reasoning.memory_bridge"
     )
     assert setup["baseline_memory"]["status"] == "skipped"
-    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_relevant"
+    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_requested"
     assert all("used_by" not in owner for owner in setup["owner_snapshots"])
     assert all(
         owner["evidence_basis"] == "reasoning.run_controller.context_frozen"

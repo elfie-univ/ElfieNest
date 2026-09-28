@@ -29,7 +29,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
         focus_nodes=(
             RecallNode("n1", "person", "主人", "对话中的主人", 0.99, 0.9, 0.95),
             RecallNode("n2", "object", "乌龙茶", None, 0.98, 0.8, 0.9),
-            RecallNode("n3", "object", "咖啡", None, 0.7, 0.4, 0.6),
+            RecallNode("n3", "object", "咖啡", None, 0.7, 0.4, 0.6, role="support"),
         ),
         assertions=(
             RecallAssertion(
@@ -57,9 +57,10 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 relevance=0.8,
                 importance=0.7,
                 confidence=0.8,
+                role="support",
             ),
         ),
-        paths=(RecallPath(("n1", "n2"), ("a1",), 1),),
+        paths=(RecallPath(("n1", "n2"), ("a1",), 1, role="primary"),),
         episodes=(
             RecallEpisode(
                 episode_id="ep1",
@@ -68,6 +69,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 excerpt=excerpt,
                 detail_level="full",
                 relevance=0.99,
+                summary_text="晚饭后喝茶",
                 importance=0.9,
                 source_event_ids=("event-1",),
             ),
@@ -80,6 +82,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 relevance=0.8,
                 importance=0.7,
                 source_event_ids=("event-2",),
+                role="support",
             ),
         ),
         evidence=(
@@ -151,6 +154,14 @@ def test_compact_packets_keep_bounded_source_evidence() -> None:
     assert "n1 --likes--> n2" in compiled.content
     assert "证据原文 e1" in compiled.content
     assert "<EPISODE" not in compiled.content
+
+
+def test_model_context_keeps_primary_hits_distinct_from_supporting_records() -> None:
+    compiled = compile_recall_bundle(_bundle(), max_tokens=1200)
+
+    assert '<FACT id="a1">' in compiled.content
+    assert '<FACT id="a2" role="support">' in compiled.content
+    assert '<EPISODE id="ep2" role="support">' in compiled.content
 
 
 def test_minimal_packets_keep_top_fact_addressable_in_small_budget() -> None:

@@ -295,8 +295,8 @@ def test_direct_turn_emits_reserve_mode_budget_and_trim_events() -> None:
     assert len(budgets) == 1
     budget_payload = budgets[0].payload
     assert isinstance(budget_payload, ReasoningBudgetFrozenObservation)
-    assert budget_payload.max_steps == 3
-    assert budget_payload.max_model_calls == 1
+    assert budget_payload.max_steps == 4
+    assert budget_payload.max_model_calls == 2
     assert budget_payload.max_planned_model_calls is None
     assert budget_payload.max_tool_calls == 0
     assert budget_payload.deadline_seconds == 12.0

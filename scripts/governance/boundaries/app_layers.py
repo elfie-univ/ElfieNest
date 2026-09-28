@@ -8,6 +8,7 @@ import runpy
 import sys
 from collections import defaultdict
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import DefaultDict, Dict, FrozenSet, Iterator, List, Optional, Set, Tuple
 
 from fastapi.routing import APIRoute
@@ -575,21 +576,29 @@ def _scan_unversioned_product_routes(
 ) -> None:
     from app.bootstrap import create_app
 
-    application = create_app(db_path=":memory:")
-    for route in application.routes:
-        if isinstance(route, APIRoute):
-            if not route.path.startswith("/api/") and not route.include_in_schema:
-                continue
-            if route.path.startswith("/api/v1/"):
-                continue
-            if route.path in PUBLIC_UNVERSIONED_HTTP_EXCEPTIONS:
-                continue
-            for method in sorted(route.methods or set()):
-                violations["unversioned_product_routes"].add(f"{method} {route.path}")
-        elif isinstance(route, WebSocketRoute):
-            if route.path.startswith("/api/v1/ws/"):
-                continue
-            violations["unversioned_product_routes"].add(f"WS {route.path}")
+    # Product composition rejects SQLite's process-local ``:memory:``
+    # sentinel. The scanner still needs an isolated database, so use a
+    # disposable file-root instead of weakening the production contract.
+    with TemporaryDirectory(
+        prefix="elfienest-app-route-scan-", dir="/private/tmp"
+    ) as raw_root:
+        application = create_app(db_path=str(Path(raw_root) / "nest.db"))
+        for route in application.routes:
+            if isinstance(route, APIRoute):
+                if not route.path.startswith("/api/") and not route.include_in_schema:
+                    continue
+                if route.path.startswith("/api/v1/"):
+                    continue
+                if route.path in PUBLIC_UNVERSIONED_HTTP_EXCEPTIONS:
+                    continue
+                for method in sorted(route.methods or set()):
+                    violations["unversioned_product_routes"].add(
+                        f"{method} {route.path}"
+                    )
+            elif isinstance(route, WebSocketRoute):
+                if route.path.startswith("/api/v1/ws/"):
+                    continue
+                violations["unversioned_product_routes"].add(f"WS {route.path}")
 
 
 def collect_app_layer_violations() -> Dict[str, FrozenSet[str]]:

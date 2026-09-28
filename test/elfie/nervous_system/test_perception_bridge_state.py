@@ -69,6 +69,7 @@ def test_humidity_and_illuminance_changes_publish_without_temperature_change() -
 
 def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
     # Given: an Elfie binds one body and then switches to another.
+    memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
             elfie_id="elfie-body-switch",
@@ -76,7 +77,8 @@ def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
             species_id="fox",
             seed=2,
         ),
-        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        memory_store=memory_store,
+        memory_ontology=memory_store.ontology,
     )
     old_body = HeadlessBody(body_id="old-body")
     current_body = HeadlessBody(body_id="current-body")
@@ -106,6 +108,7 @@ def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
 
 
 def test_stale_current_body_generation_is_rejected_after_switch() -> None:
+    memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
             elfie_id="elfie-generation-guard",
@@ -113,7 +116,8 @@ def test_stale_current_body_generation_is_rejected_after_switch() -> None:
             species_id="fox",
             seed=4,
         ),
-        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        memory_store=memory_store,
+        memory_ontology=memory_store.ontology,
     )
     first = HeadlessBody(body_id="first-generation")
     second = HeadlessBody(body_id="second-generation")

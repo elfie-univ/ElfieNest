@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Literal
 
 import pytest
 
@@ -308,7 +307,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
         assert tuple(replay) == (after[0], after[1])
 
 
-def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
+def test_recall_does_not_expand_beyond_the_direct_seed_relation() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
             ClosedEpisode(
@@ -351,16 +350,11 @@ def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("owner",),
-                mode="local",
-                hop_limit=2,
                 assertion_limit=8,
             )
         )
 
-        assert [item.assertion_id for item in bundle.assertions[:2]] == [
-            "direct-claim",
-            "second-hop-claim",
-        ]
+        assert [item.assertion_id for item in bundle.assertions] == ["direct-claim"]
 
 
 def test_genesis_submission_is_atomic_marker_gated_and_retryable(
@@ -779,10 +773,7 @@ def test_recall_privacy_scope_filters_sources_and_graph_nodes() -> None:
         )
 
 
-@pytest.mark.parametrize("mode", ("basic", "basic_local"))
-def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
-    mode: Literal["basic", "basic_local"],
-) -> None:
+def test_recall_excludes_assertions_pointing_to_ineligible_nodes() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
             ClosedEpisode(
@@ -834,8 +825,6 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("self",),
-                mode=mode,
-                hop_limit=1,
                 assertion_limit=8,
             )
         )
@@ -845,10 +834,7 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
         }
         focus_ids = {item.node_id for item in bundle.focus_nodes}
         assert "internal-self-model" not in focus_ids
-        if mode == "basic_local":
-            assert focus_ids == {"self", "visible-fact"}
-        else:
-            assert focus_ids == {"self"}
+        assert focus_ids == {"self", "visible-fact"}
 
 
 def test_recall_keeps_superseded_claims_after_an_explicit_correction() -> None:
@@ -909,8 +895,10 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
     class MaintenanceModel:
         def ask_with_food(self, **_kwargs: object) -> str:
             return (
-                '{"nodes":[{"label":"主人","type":"person"},'
-                '{"label":"香菜","type":"organism"}],"mentions":[],'
+                '{"nodes":[{"label":"主人","type":"person",'
+                '"entity_level":"instance"},'
+                '{"label":"香菜","type":"organism","entity_level":"kind"}],'
+                '"mentions":[],'
                 '"assertions":[{"subject_ref":"主人","predicate":"likes",'
                 '"object_ref":"香菜","confidence":0.8,"importance_event":"major"}]}'
             )

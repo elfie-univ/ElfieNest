@@ -64,7 +64,7 @@ describe("Elfie memory visualization SSR boundary", () => {
     const markup = renderSidebar(session);
     expect(markup).toContain("修改");
     expect(markup).toContain("Selfhood");
-    expect(markup).toContain("生成审查");
+    expect(markup).not.toContain("生成审查");
     expect(markup).toContain("4 岁 · 成年");
     expect(markup).toContain("雌性");
     expect(markup).toContain("东部森林");
@@ -241,6 +241,19 @@ describe("dense memory visualization semantics", () => {
     expect(markup).toContain('class="memory-node self"');
     expect(markup).toContain('data-memory-node="family"');
     expect(markup).toContain('class="memory-node group"');
+  });
+
+  it("renders ontology-backed non-person node types with a neutral object shape", () => {
+    // Given: a valid Memory ontology type that is not a person/group/place/Elfie.
+    const graph = memoryCognitionSchema.parse({
+      relations: { nodes: [{ id: "tree", label: "中继树", kind: "organism" }] },
+    }).relations;
+
+    // When: the relationship graph is rendered.
+    const markup = renderToStaticMarkup(<RelationshipGraph graph={graph} />);
+
+    // Then: unknown semantic types do not get mislabeled as people.
+    expect(markup).toContain('data-node-shape="object"');
   });
 
   it("ignores dangling links and renders honest empty states", () => {
