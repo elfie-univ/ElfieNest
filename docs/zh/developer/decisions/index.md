@@ -43,3 +43,5 @@
 - [ADR-0036：标准流程 Skill 与强类型可执行 Tool](./0036-standard-skills-and-typed-tools)
 - [ADR-0037：单一类型化 Brain 观测表面与唯一 sink Port](./0037-brain-observation-surface)
 - [ADR-0038：Memory Debug Workspace 是只读的 Brain 开发者投影](./0038-memory-debug-workspace-projection)
+- [ADR-0039：注册 Genesis 准备资料包，不激活运行](./0039-genesis-preparation-package)
+- [ADR-0040：Genesis 源资料先发布，创建链后激活](./0040-genesis-source-publication-before-activation)

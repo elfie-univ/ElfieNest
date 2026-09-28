@@ -1,7 +1,7 @@
 # Species asset package contract
 
-Status: normative, version 3<br>
-Revised: 2026-09-01<br>
+Status: normative, version 4<br>
+Revised: 2026-09-24<br>
 Decision: [ADR-0033](../decisions/0033-one-time-genesis-and-final-owner-isolation)
 
 This contract defines when a species is a usable ElfieNest runtime species. A
@@ -11,8 +11,8 @@ Godot asset package are present and their validators accept them.
 
 ## Configuration package
 
-The single registration file is `config/species/catalog.yaml`. Each entry names
-one package under `config/species/<package>/` and declares a stable technical
+The species catalog is a manifest member at `config/genesis/species/catalog.yaml`.
+Each entry names one package under `config/genesis/species/<package>/` and declares a stable technical
 `species_id`, canon ID, display names, status (`draft`, `published`, or
 `retired`), ordering, and definition version. The package contains:
 

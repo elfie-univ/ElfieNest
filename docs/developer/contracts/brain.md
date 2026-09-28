@@ -1,8 +1,8 @@
 # Elfie Brain internal architecture contract
 
-**Contract version:** 1.10
+**Contract version:** 1.15
 **Adopted:** 2026-08-12
-**Revised:** 2026-09-08
+**Revised:** 2026-09-26
 **Scope:** `elfie/brain/` and the private cognitive coordination of one Elfie
 
 > **Normative target.** This contract defines how one continuous Elfie admits
@@ -21,8 +21,19 @@
 > load boundary. Version 1.10 records the unified typed observation surface: one
 > Brain-owned `BrainObservationSink` Port injected by assembly, the shared
 > `BrainObservation` envelope with boundary-owned named payload modules, and the
-> guard-before-construct zero-cost rule. Remaining
-> implementation gaps stay in their scoped conformance registers.
+> guard-before-construct zero-cost rule. Version 1.11 freezes phase-one Memory
+> Recall ordering: static sourced `importance` is not a Recall ranking signal;
+> feedback reinforcement, type-prior/history ranking and composite/adaptive
+> scores are deferred. Version 1.12 froze the five Node-type groups and the
+> six phase-one slices with a product-root-global extension registry. Version
+> 1.13 clarifies that `claim` is an ordinary general-knowledge leaf type with
+> no dedicated payload, table or Evidence model; all semantic types use the
+> same Node and Assertion contracts. Remaining
+> implementation gaps stay in their scoped conformance registers. Version 1.14
+> freezes the data-backed Recall slices: text lookup, emotional association and
+> direct kinship, with Query/Sense/Filters and bounded sourced output. Version 1.15
+> fixes source-aware emotion admission, deterministic retrieval ordering and the
+> budgeted one-Recall exception for DIRECT.
 
 The [Elfie internal architecture contract](./elfie) remains authoritative for
 Profile, Brain, NervousSystem, Body, Communication and Genesis ownership. This
@@ -59,6 +70,93 @@ owners, not a requirement for ten processes, databases or empty packages.
 | 8 | Reasoning Core | `Reasoning Context Workspace`, context assembly, bounded Model/Skill/Tool loop, observations, verification, inhibition, completion judgment and one `TurnDecision` | one settled decision plus internal state candidates | wait across Turns, let another system own its transient context, claim execution success, or bypass deterministic policy |
 | 9 | Persistent Activity | validated goals and work that survive the current Turn; steps, conditions, scheduling, pause/resume/cancel, retry, idempotency and receipts | preflight results, state events and bounded Activity triggers | become a second Brain or directly perform open-ended external actions |
 | 10 | Cognitive Consolidation | interruptible sleep/idle review of memories, activities, emotion trajectories and outcomes under a no-external-side-effect scope | validated state candidates or a later Activity trigger | directly message, move, create Activity, expand permission or rewrite authoritative state |
+
+Memory relation rules are part of the Brain boundary. Relation predicates come from one versioned
+registry. `elfie` and `person` are distinct entity node types; a relationship word is never a node
+type. Assertions are sourced propositions: symmetric social relations (`friend_of`, `kin_of`,
+`sibling_of`, and similar predicates) have one canonical stored assertion and a derived reverse
+view, while directed relations (`parent_of`, `owned_by`, `student_of`, and similar predicates)
+retain endpoint roles. A coarse `kin_of` is allowed when the source does not identify the exact
+kinship; absence of an edge is unknown, and co-occurrence is not evidence of a social relation.
+Multiple relations between the same endpoints coexist. Assertion `importance` is static, sourced
+admission metadata, separate from `confidence`; registered lifecycle/admission rules may inspect it,
+but phase-one Recall does not use it to rank results or propagate it through graph adjacency. Recall
+uses deterministic matching and stable tie-breaking. Feedback reinforcement, type-prior or sourced-
+history ranking, score folding and composite/adaptive ranking require a later reviewed design.
+
+The first Recall increment uses Query, Sense and Filters plus bounded limits, not a separate
+retrieval-mode switch. Query searches existing text/identity; Sense initially matches sourced
+historical emotion; Query + Sense requires Query relevance with emotion as soft assistance.
+An explicit graph request initially supports only direct registered parent/child/sibling relations
+after resolving a person anchor. No arbitrary path language, inferred kinship or model call inside
+Recall is required. Unsupported input, ambiguous identity, missing/negative/conflicting relations
+must not become fabricated answers.
+
+The flow is parallel candidate retrieval, identity merge/deduplication, filtering, relevance-based
+selection and minimal sourced assembly. Empty results are valid. Namespace/privacy/active-lifecycle
+gates apply to hits and support; necessary provenance remains distinct from additional hits, and
+partial/unavailable results are explicit. Per-Elfie SQLite remains the fact store; persistent
+inverted text indexes and structured lookup indexes are rebuildable derivatives, not a second
+authority. Vectors and richer scene/graph reasoning require a later data-backed slice. Reasoning
+owns timing, cue admission and context budget; these rules do not mandate Recall on every step.
+The [Memory design](../designs/elfie/brain/elfie-memory-architecture) specifies the narrowed target;
+MEM-019–MEM-023 in the [Memory register](../conformance/elfie-memory) track its implementation.
+
+Initial automatic Recall uses at most one current active emotion cue and no raw-message Query.
+Only explicitly sourced self-emotion with a canonical Emotion label qualifies for Sense; arbitrary
+story tones and missing history are not mapped or fabricated. Text candidates use one FTS corpus,
+exact identity tier and query-term coverage, then optional emotion tie-breaking, BM25 and stable IDs.
+Emotion only breaks equal-tier/equal-coverage ties after Query admission; it never admits unrelated hits.
+Minimum coverage and candidate bounds are frozen by focused examples before index rollout.
+
+Memory has exactly two semantic layers. A `ClosedEpisode` is an already-processed, complete topic,
+story or learning unit and is the normal text-memory result; it may aggregate multiple turns, but
+it is not the raw communication log or raw media. `Node`/`Assertion` is the higher-level note and
+relationship graph derived from Episodes. Genesis may additionally commit the explicitly sourced
+identity and relationship skeleton needed at creation time; its KnowledgeSeed and EpisodeSeed
+content is stored as complete Episodes first and is eligible for the same later Consolidation.
+Its relationships, reusable knowledge and Patterns may be returned directly by Recall. Node
+properties are also searchable: intrinsic attributes such as appearance, personality and species
+remain structured properties, while a rebuildable lexical projection makes their user-visible
+values available as candidates even when the canonical name is unknown. Technical IDs and
+provenance metadata are not ordinary property-search text, and an intrinsic property does not need
+an Assertion solely for retrieval. Evidence links both layers to the Episode that supports them.
+Raw upstream material is outside the normal Memory Recall contract; any internal slice used to index
+an unusually large Episode is an implementation detail, not a third semantic Memory layer.
+An Episode has no title field: its original content is the primary display and retrieval text. Any
+legacy `summary_text` is optional metadata only. Consolidation does not create an event Node for
+every Episode and does not generate generic `about`, `knows`, `knows_boundary` or `related_to` edges.
+
+`claim` is an ordinary `node_type` in the general-knowledge group, with the same Node identity,
+properties, source and Evidence rules as every other leaf type; it has no dedicated payload, table or
+Evidence model. An Assertion is an edge, never an endpoint. The five Node-type groups are Social relations, Entities, Space geography, Events
+and General knowledge. They produce Node-first slices: select Nodes, then preserve every sourced,
+registered Assertion whose Node endpoints are both selected. Self-model is the sixth phase-one slice:
+select sourced outgoing `believes`, `doubts`, `rejects`, `prefers`, `values`, `has_goal`, `has_trait`,
+`has_skill` and `has_habit` Assertions whose subject is the existing Elfie Node, collect their Node endpoints,
+then preserve all sourced, registered Assertions among the selected Nodes. The current design does
+not create a virtual-self Node. A final cross-group pass extracts explicitly sourced Assertions
+between selected Nodes with different primary groups. Producing this Memory self-model view is current
+behavior; using it to update Selfhood, Orientation or other owners is future work. Core ontology is
+reviewed YAML; additive dynamic extensions have one shared installation-global registry per resolved
+product data root, not one registry per Elfie/workspace. See the [Memory architecture](../designs/elfie/brain/elfie-memory-architecture)
+for the complete type and predicate vocabulary.
+
+Knowledge Node admission is stricter than ordinary text capture: `canonical_label` is one
+source-grounded short title (at most 40 characters and never a complete Episode), while the full
+source-grounded explanation is stored as the Node description with kind `context`. A model proposal
+must explicitly set `reusable_knowledge=true`; ordinary facts stay in the Episode and the local
+fallback extractor never promotes knowledge by keyword or quotation alone. A rejected proposal
+leaves the Episode retryable rather than writing a long or invented graph label.
+
+Memory attributes have one registry-owned storage class per key: stable identity or structural values
+are validated Node properties; sourced human-readable prose belongs to Node descriptions; temporal,
+multi-valued, conflicting, independently evidenced or relational values are Attribute Assertions.
+`properties_json` is a bounded projection of the first class and approved search values, never a bag
+of technical metadata or a duplicate Assertion. Developer Tools may project these records through a
+typed read-only Inspector (`NodeDetail`, `AssertionDetail`, `EpisodeDetail`, `EvidenceDetail`) with a
+shared header, primary content, connections, source and collapsed technical details. This projection
+does not change the Memory/Recall API or create another fact source.
 
 Context assembly, Turn settlement, decision governance, routing, Journal,
 Checkpoint and receipt reconciliation are mandatory mechanisms serving these
@@ -357,6 +455,13 @@ They do not change Memory availability or hard permissions. Food selects the
 requested model role and fallback route; it does not define cognitive modes or
 carry a separate allow-list of modes. Skill, Tool and Worker remain independent
 stage-gated capabilities.
+
+DIRECT normally ends after one model call. When the host can reserve final-answer headroom within
+Energy/deadline limits, the first model may request one read-only Recall followed by one final model
+call. Its final schema disallows another Recall. This does not switch depth, create a plan or grant
+external Tool permissions. Without headroom the schema omits Recall; the model answers from available
+evidence or clarifies. All results stay on the Run's pinned Memory revision. The current one-call-only
+guard remains an implementation gap tracked by MEM-023.
 
 A `ReasoningRun` may contain multiple cognitive steps and multiple Model,
 Skill, Tool and Observation cycles. It has an explicit budget, deadline,

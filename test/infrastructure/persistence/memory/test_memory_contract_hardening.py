@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Literal
 
 import pytest
 
@@ -171,7 +170,7 @@ def test_importance_and_confidence_are_separate_and_lifecycle_protects_sources()
                 assertions=(
                     AssertionInput(
                         "subject",
-                        "knows",
+                        "is",
                         object_literal="fact",
                         confidence=0.95,
                         importance=0.1,
@@ -249,7 +248,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             episode_id="episode-score-1",
             nodes=(
                 NodeInput("owner", "person", "主人", importance=0.4),
-                NodeInput("food", "food", "香菜", importance=0.4),
+                NodeInput("food", "organism", "香菜", importance=0.4),
             ),
             evidence=(EvidenceInput("score-evidence-1", "episode", "episode-score-1"),),
             assertions=(
@@ -276,7 +275,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
             episode_id="episode-score-2",
             nodes=(
                 NodeInput("owner-2", "person", "主人"),
-                NodeInput("food-2", "food", "香菜"),
+                NodeInput("food-2", "organism", "香菜"),
             ),
             evidence=(EvidenceInput("score-evidence-2", "episode", "episode-score-2"),),
             assertions=(
@@ -308,7 +307,7 @@ def test_distinct_evidence_reinforces_a_claim_once_and_replay_is_idempotent() ->
         assert tuple(replay) == (after[0], after[1])
 
 
-def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
+def test_recall_does_not_expand_beyond_the_direct_seed_relation() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
             ClosedEpisode(
@@ -323,7 +322,7 @@ def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
                 episode_id="episode-rank",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("food", "food", "香菜"),
+                    NodeInput("food", "organism", "香菜"),
                     NodeInput("place", "place", "厨房"),
                 ),
                 evidence=(EvidenceInput("rank-evidence", "episode", "episode-rank"),),
@@ -351,16 +350,11 @@ def test_recall_ranks_direct_match_before_stronger_second_hop() -> None:
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("owner",),
-                mode="local",
-                hop_limit=2,
                 assertion_limit=8,
             )
         )
 
-        assert [item.assertion_id for item in bundle.assertions[:2]] == [
-            "direct-claim",
-            "second-hop-claim",
-        ]
+        assert [item.assertion_id for item in bundle.assertions] == ["direct-claim"]
 
 
 def test_genesis_submission_is_atomic_marker_gated_and_retryable(
@@ -424,6 +418,25 @@ def test_genesis_submission_is_atomic_marker_gated_and_retryable(
             ).fetchall()
         }
         assert tags == {submission_id}
+
+        with pytest.raises(ValueError, match="already belongs to another submission"):
+            with first.genesis_submission(
+                submission_id="genesis-submission-retry-key",
+                manifest_id="manifest-1",
+                source_version="genesis.v1",
+                content_sha256=content_hash,
+                expected_ids=(episode.episode_id, node.node_id),
+            ):
+                pass
+        tags_after_rejection = {
+            row[0]
+            for row in first.connection.execute(
+                "SELECT genesis_submission_id FROM episodes WHERE episode_id=? "
+                "UNION ALL SELECT genesis_submission_id FROM nodes WHERE node_id=?",
+                (episode.episode_id, node.node_id),
+            ).fetchall()
+        }
+        assert tags_after_rejection == {submission_id}
 
         with first.genesis_submission(
             submission_id=submission_id,
@@ -565,7 +578,7 @@ def test_typed_literal_type_is_part_of_assertion_identity() -> None:
                     assertions=(
                         AssertionInput(
                             "typed-subject",
-                            "knows",
+                            "is",
                             object_literal="2026-01-01",
                             object_literal_type=literal_type,
                             evidence_ids=(evidence_id,),
@@ -575,9 +588,7 @@ def test_typed_literal_type_is_part_of_assertion_identity() -> None:
                     nodes=(NodeInput("typed-subject", "person", "主人"),),
                 )
             )
-        claims = store.graph_assertions_for(
-            ("typed-subject",), relation_types=("knows",)
-        )
+        claims = store.graph_assertions_for(("typed-subject",), relation_types=("is",))
         assert {claim.assertion_id for claim in claims} == {
             "typed-claim-date",
             "typed-claim-text",
@@ -600,11 +611,11 @@ def test_bound_adapters_cannot_read_another_elfies_graph_or_evidence(
             )
         )
         first.upsert_node_record(NodeInput("a-node", "person", "主人"))
-        first.upsert_node_record(NodeInput("b-node", "animal", "小狐"))
+        first.upsert_node_record(NodeInput("b-node", "organism", "小狐"))
         first.record_sourced_assertion(
             AssertionInput(
                 "a-node",
-                "knows",
+                "relationship",
                 object_node_id="b-node",
                 assertion_id="namespace-claim",
                 evidence_ids=("namespace-evidence",),
@@ -762,10 +773,7 @@ def test_recall_privacy_scope_filters_sources_and_graph_nodes() -> None:
         )
 
 
-@pytest.mark.parametrize("mode", ("basic", "basic_local"))
-def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
-    mode: Literal["basic", "basic_local"],
-) -> None:
+def test_recall_excludes_assertions_pointing_to_ineligible_nodes() -> None:
     with SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-a") as store:
         store.record_episode(
             ClosedEpisode(
@@ -782,11 +790,11 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
                     NodeInput("self", "elfie", "Lumi"),
                     NodeInput(
                         "internal-self-model",
-                        "self_model",
+                        "concept",
                         "internal projection",
                         properties={"recall_eligible": False},
                     ),
-                    NodeInput("visible-fact", "knowledge", "来自 Elfaria"),
+                    NodeInput("visible-fact", "concept", "来自 Elfaria"),
                 ),
                 evidence=(
                     EvidenceInput(
@@ -798,14 +806,14 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
                 assertions=(
                     AssertionInput(
                         "self",
-                        "about",
+                        "references",
                         object_node_id="internal-self-model",
                         evidence_ids=("recall-visibility-evidence",),
                         assertion_id="internal-self-model-claim",
                     ),
                     AssertionInput(
                         "self",
-                        "about",
+                        "references",
                         object_node_id="visible-fact",
                         evidence_ids=("recall-visibility-evidence",),
                         assertion_id="visible-fact-claim",
@@ -817,8 +825,6 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
         bundle = store.recall(
             RecallRequest(
                 seed_node_ids=("self",),
-                mode=mode,
-                hop_limit=1,
                 assertion_limit=8,
             )
         )
@@ -828,10 +834,7 @@ def test_recall_excludes_assertions_pointing_to_ineligible_nodes(
         }
         focus_ids = {item.node_id for item in bundle.focus_nodes}
         assert "internal-self-model" not in focus_ids
-        if mode == "basic_local":
-            assert focus_ids == {"self", "visible-fact"}
-        else:
-            assert focus_ids == {"self"}
+        assert focus_ids == {"self", "visible-fact"}
 
 
 def test_recall_keeps_superseded_claims_after_an_explicit_correction() -> None:
@@ -892,8 +895,10 @@ def test_memory_maintenance_exposes_ordered_consolidation_counts() -> None:
     class MaintenanceModel:
         def ask_with_food(self, **_kwargs: object) -> str:
             return (
-                '{"nodes":[{"label":"主人","type":"person"},'
-                '{"label":"香菜","type":"food"}],"mentions":[],'
+                '{"nodes":[{"label":"主人","type":"person",'
+                '"entity_level":"instance"},'
+                '{"label":"香菜","type":"organism","entity_level":"kind"}],'
+                '"mentions":[],'
                 '"assertions":[{"subject_ref":"主人","predicate":"likes",'
                 '"object_ref":"香菜","confidence":0.8,"importance_event":"major"}]}'
             )
@@ -921,7 +926,8 @@ def test_memory_maintenance_uses_one_budget_across_both_stages() -> None:
     class MaintenanceModel:
         def ask_with_food(self, **_kwargs: object) -> str:
             return (
-                '{"nodes":[{"label":"待投影来源","type":"concept"}],'
+                '{"nodes":[{"label":"待投影来源","type":"concept",'
+                '"reusable_knowledge":true}],'
                 '"mentions":[],"assertions":[]}'
             )
 
@@ -975,7 +981,7 @@ def test_fresh_memory_is_not_immediately_due_for_lifecycle() -> None:
         store.record_sourced_assertion(
             AssertionInput(
                 "fresh-node",
-                "about",
+                "references",
                 object_literal="fresh source",
                 evidence_ids=("fresh-evidence",),
             ),
@@ -1145,8 +1151,14 @@ def test_failed_lifecycle_target_remains_retryable_with_the_prior_checkpoint(
                 )
             )
         store.connection.execute(
-            "UPDATE episodes SET projection_revision='fixture', "
-            "projection_source_sha256=content_sha256"
+            """UPDATE memory_maintenance AS mm
+                  SET state='completed',
+                      source_version=(SELECT source_version FROM episodes AS e
+                                      WHERE e.episode_id=mm.target_id),
+                      source_hash=(SELECT content_sha256 FROM episodes AS e
+                                   WHERE e.episode_id=mm.target_id),
+                      projection_revision='fixture'
+                WHERE stage='consolidation'"""
         )
         store.connection.commit()
 
@@ -1192,8 +1204,14 @@ def test_lifecycle_checkpoint_does_not_skip_failure_before_later_success(
                 )
             )
         store.connection.execute(
-            "UPDATE episodes SET projection_revision='fixture', "
-            "projection_source_sha256=content_sha256"
+            """UPDATE memory_maintenance AS mm
+                  SET state='completed',
+                      source_version=(SELECT source_version FROM episodes AS e
+                                      WHERE e.episode_id=mm.target_id),
+                      source_hash=(SELECT content_sha256 FROM episodes AS e
+                                   WHERE e.episode_id=mm.target_id),
+                      projection_revision='fixture'
+                WHERE stage='consolidation'"""
         )
         store.connection.commit()
 
@@ -1424,7 +1442,7 @@ def test_lifecycle_forgets_archived_low_importance_episode_after_dependencies_ar
                 assertions=(
                     AssertionInput(
                         "lifecycle-forget-node",
-                        "knows",
+                        "is",
                         object_literal="低重要性来源",
                         evidence_ids=("lifecycle-forget-evidence",),
                     ),

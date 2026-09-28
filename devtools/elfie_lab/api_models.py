@@ -5,18 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class CreateElfieRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=60)
-    species_id: Literal["dog", "fox"]
-    age_years: float = Field(gt=0.0, le=100.0)
-    description: str = Field(min_length=1, max_length=240)
-    appearance_description: str = Field(min_length=1, max_length=1000)
-    personality_description: str = Field(default="", max_length=1000)
-
-
-class BigFiveUpdateRequest(BaseModel):
+class BigFiveValues(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     openness: float = Field(ge=0.0, le=1.0)
@@ -24,6 +13,23 @@ class BigFiveUpdateRequest(BaseModel):
     extraversion: float = Field(ge=0.0, le=1.0)
     agreeableness: float = Field(ge=0.0, le=1.0)
     neuroticism: float = Field(ge=0.0, le=1.0)
+
+
+class CreateElfieRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=60)
+    species_id: Literal["dog", "fox"]
+    age_years: Optional[int] = Field(default=None, ge=2, le=100)
+    gender: Optional[Literal["male", "female"]] = None
+    big_five: Optional[BigFiveValues] = None
+    description: str = Field(min_length=1, max_length=240)
+    appearance_description: str = Field(min_length=1, max_length=1000)
+    personality_description: str = Field(default="", max_length=1000)
+
+
+class BigFiveUpdateRequest(BigFiveValues):
+    pass
 
 
 class ConfigureFoodRequest(BaseModel):
@@ -188,6 +194,17 @@ class TurnRequest(BaseModel):
         return self
 
 
+class ManualConsolidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    food_key: str = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def normalize_food_key(self) -> "ManualConsolidationRequest":
+        self.food_key = self.food_key.strip().lower()
+        return self
+
+
 class PortraitRequest(BaseModel):
     data_url: str = Field(min_length=32, max_length=7_000_000)
 
@@ -281,4 +298,5 @@ __all__ = (
     "PortraitRequest",
     "ProbeOllamaRequest",
     "TurnRequest",
+    "ManualConsolidationRequest",
 )

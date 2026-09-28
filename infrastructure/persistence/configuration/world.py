@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
 from elfie.genesis.world import (
     CoverageLink,
@@ -50,8 +52,19 @@ class GenesisSourcePackageError(ConfigDocumentError):
 class BundledGenesisSource:
     """Decode and validate the one published Genesis source package."""
 
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(
+        self,
+        root: Path | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
+    ) -> None:
         self.root = resolve_bundled_config_root(root)
+        if ontology is None:
+            from infrastructure.persistence.memory.ontology_loader import (
+                load_core_memory_ontology,
+            )
+
+            ontology = load_core_memory_ontology(config_root=self.root)
+        self.ontology = ontology
 
     def load(self) -> GenesisSourcePackage:
         try:
@@ -61,20 +74,30 @@ class BundledGenesisSource:
         except (ConfigDocumentError, ConfigStoreError) as error:
             raise GenesisSourcePackageError(str(error)) from error
         try:
-            package = _package(loaded.document)
+            from .genesis_package_adapter import decode_genesis_package
+
+            package = decode_genesis_package(
+                loaded.document, loaded.path, ontology=self.ontology
+            )
             _validate_package(package, loaded.document)
             return package
         except (TypeError, ValueError, KeyError) as error:
             raise GenesisSourcePackageError(f"Genesis 资料包无效: {error}") from error
 
 
-def load_genesis_source_package(*, root: Path | None = None) -> GenesisSourcePackage:
+def load_genesis_source_package(
+    *,
+    root: Path | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
+) -> GenesisSourcePackage:
     """Load the published package through the registered config boundary."""
 
-    return BundledGenesisSource(root).load()
+    return BundledGenesisSource(root, ontology).load()
 
 
-def _package(document: Mapping[str, Any]) -> GenesisSourcePackage:
+def _package(
+    document: Mapping[str, Any], ontology: MemoryOntologySnapshot
+) -> GenesisSourcePackage:
     region = _mapping(document["known_region"])
     relation = _mapping(document["earth_relation"])
     package_meta = _mapping(document.get("genesis", {}))
@@ -123,7 +146,7 @@ def _package(document: Mapping[str, Any]) -> GenesisSourcePackage:
         coverage_manifest=_coverage_manifest(package_meta),
         life_archetypes=_life_archetypes(package_meta),
         relationship_archetypes=_relationship_archetypes(package_meta),
-        episode_themes=_episode_themes(package_meta),
+        episode_themes=_episode_themes(package_meta, ontology),
     )
 
 
@@ -138,6 +161,7 @@ def _place(raw: Any) -> WorldPlace:
         aliases=_texts(value, "aliases"),
         description=_text(value, "description"),
         status=_status(value, "status"),
+        metadata=_metadata(value.get("metadata", {})),
     )
 
 
@@ -219,6 +243,7 @@ def _population(value: Mapping[str, Any]) -> SpatialPopulationModel:
         cells.append(
             SpatialPopulationCell(
                 cell_id=_text(item, "id"),
+                region_id=_text(item, "place_id"),
                 place_id=_text(item, "place_id"),
                 species_ids=species_ids,
                 weight=_number(item, "weight"),
@@ -253,18 +278,126 @@ def _name_rules(value: Mapping[str, Any]) -> NameRules:
 
 def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
+    raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
+    raw_family = _mapping(raw_policy.get("family", {}))
+    raw_lifespan = _mapping(raw_family.get("lifespan", {}))
+    raw_importance = _mapping(raw_policy.get("importance", {}))
+    raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
+    raw_visits = _mapping(raw_policy.get("visits", {}))
+    raw_visit_personality = _mapping(raw_visits.get("personality_multipliers", {}))
+    raw_visit_social = _mapping(raw_visit_personality.get("social", {}))
+    raw_visit_curiosity = _mapping(raw_visit_personality.get("curiosity", {}))
+    raw_visit_risk = _mapping(raw_visit_personality.get("risk", {}))
+    raw_household = _mapping(value.get("household", {}))
+    raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
+    child_distribution = tuple(
+        sorted(
+            (
+                (
+                    int(child_count),
+                    _number_value(
+                        weight, f"family.child_count_distribution.{child_count}"
+                    ),
+                )
+                for child_count, weight in raw_child_distribution.items()
+            ),
+            key=lambda item: item[0],
+        )
+    )
     return GenerationPolicy(
         policy_version=_optional_text(raw_policy, "version", "generation-policy.v1"),
         seed_algorithm=_optional_text(
             raw_policy, "seed_algorithm", "blake2b-labeled-v1"
         ),
-        relationship_count=_int_pair(raw_policy, "relationship_count", (10, 20)),
-        episode_count=_int_pair(raw_policy, "episode_count", (3, 5)),
-        salient_relationship_count=_int_pair(
-            raw_policy, "salient_relationship_count", (3, 5)
+        normal_episode_minimum=_optional_int(raw_policy, "normal_episode_minimum", 5),
+        candidate_proposal_count=_optional_int(
+            raw_policy, "candidate_proposal_count", 96
         ),
-        repeated_relationship_count=_int_pair(
-            raw_policy, "repeated_relationship_count", (1, 2)
+        candidate_options_per_choice=_optional_int(
+            raw_backtracking, "options_per_choice", 8
+        ),
+        candidate_total_backtracks=_optional_int(
+            raw_backtracking, "total_backtracks", 64
+        ),
+        family_child_count_distribution=child_distribution
+        or GenerationPolicy().family_child_count_distribution,
+        family_parent_min_age_gap_years=_optional_int(
+            raw_household,
+            "biological_parent_min_age_gap_local_years",
+            3,
+        ),
+        family_partner_min_age_years=_optional_int(
+            raw_family, "partner_min_age_years", 3
+        ),
+        family_partner_annual_probability=_number_value(
+            raw_family.get("partner_annual_probability", 0.25),
+            "family.partner_annual_probability",
+        ),
+        family_max_children=_optional_int(raw_family, "max_children", 3),
+        family_lifespan_cdf_power=_optional_int(raw_lifespan, "cdf_power", 6),
+        family_lifespan_sampler_version=_optional_text(
+            raw_lifespan, "sampler_version", "conditioned-lifespan-cdf.v1"
+        ),
+        relationship_importance_baselines=tuple(
+            sorted(
+                (
+                    str(role),
+                    _number_value(
+                        weight,
+                        f"importance.role_baselines.{role}",
+                    ),
+                )
+                for role, weight in raw_importance_baselines.items()
+            )
+        )
+        or GenerationPolicy().relationship_importance_baselines,
+        relationship_layer_decay_lambda=_number_value(
+            raw_importance.get("relationship_layer_decay_lambda", 0.9),
+            "importance.relationship_layer_decay_lambda",
+        ),
+        friend_layer_decay_lambda=_number_value(
+            raw_importance.get("friend_layer_decay_lambda", 0.65),
+            "importance.friend_layer_decay_lambda",
+        ),
+        friend_contact_beta=_number_value(
+            raw_importance.get("friend_contact_beta", 0.8),
+            "importance.friend_contact_beta",
+        ),
+        friend_max_count=_optional_int(raw_importance, "friend_max_count", 2),
+        visit_sampler_version=_optional_text(
+            raw_visits, "sampler_version", "visits-zero-heavy-power-count.v1"
+        ),
+        visit_repeat_count_power=_number_value(
+            raw_visits.get("repeat_count_power", 23.0),
+            "visits.repeat_count_power",
+        ),
+        visit_social_multiplier_base=_number_value(
+            raw_visit_social.get("base", 0.8),
+            "visits.personality_multipliers.social.base",
+        ),
+        visit_social_multiplier_slope=_number_value(
+            raw_visit_social.get("slope", 0.4),
+            "visits.personality_multipliers.social.slope",
+        ),
+        visit_curiosity_multiplier_base=_number_value(
+            raw_visit_curiosity.get("base", 0.8),
+            "visits.personality_multipliers.curiosity.base",
+        ),
+        visit_curiosity_multiplier_slope=_number_value(
+            raw_visit_curiosity.get("slope", 0.4),
+            "visits.personality_multipliers.curiosity.slope",
+        ),
+        visit_risk_multiplier_base=_number_value(
+            raw_visit_risk.get("base", 0.8),
+            "visits.personality_multipliers.risk.base",
+        ),
+        visit_risk_openness_slope=_signed_number_value(
+            raw_visit_risk.get("openness_slope", 0.4),
+            "visits.personality_multipliers.risk.openness_slope",
+        ),
+        visit_risk_neuroticism_slope=_signed_number_value(
+            raw_visit_risk.get("neuroticism_slope", -0.2),
+            "visits.personality_multipliers.risk.neuroticism_slope",
         ),
     )
 
@@ -279,7 +412,9 @@ def _arrival_rules(value: Mapping[str, Any]) -> EarthArrivalRules:
             default=("youth", "young_adult", "mature", "elder"),
         ),
         required_knowledge_ids=_texts(raw, "required_knowledge_ids", default=()),
-        required_module_ids=_texts(raw, "required_module_ids", default=()),
+        preparation_duration_local_days=_optional_int(
+            raw, "preparation_duration_local_days", 3
+        ),
     )
 
 
@@ -366,19 +501,29 @@ def _relationship_archetypes(
     return tuple(result)
 
 
-def _episode_themes(value: Mapping[str, Any]) -> tuple[EpisodeTheme, ...]:
+def _episode_themes(
+    value: Mapping[str, Any], ontology: MemoryOntologySnapshot
+) -> tuple[EpisodeTheme, ...]:
     raw_themes = value.get("episode_themes", [])
     if not isinstance(raw_themes, list):
         raise TypeError("genesis.episode_themes 必须是数组")
     result = []
     for raw in raw_themes:
         item = _mapping(raw)
+        event_kind = _text(item, "event_kind")
+        try:
+            ontology.validate_episode_type(event_kind)
+        except ValueError as error:
+            raise ValueError(
+                f"EpisodeTheme {item.get('id')} event_kind 无效: {event_kind}"
+            ) from error
         required = item.get("required", False)
         if not isinstance(required, bool):
             raise TypeError("episode theme required 必须是布尔值")
         result.append(
             EpisodeTheme(
                 theme_id=_text(item, "id"),
+                event_kind=cast(Any, event_kind),
                 label=_text(item, "label"),
                 weight=_number(item, "weight"),
                 life_stages=_texts(item, "life_stages"),
@@ -407,15 +552,10 @@ def _validate_package(
         raise ValueError("资料包版本必须为正整数")
     if not package.is_published:
         raise ValueError("只有 published Genesis 资料包可以用于创建")
-    if package.manifest.package_version != _text(document, "package_version"):
+    if package.manifest.package_version != _text(document, "program_version"):
         raise ValueError("资料包版本与源文档版本不一致")
     if package.manifest.schema_version != package.schema_version:
         raise ValueError("资料包 manifest schema_version 不一致")
-    if package.manifest.content_sha256:
-        expected = _document_hash(document)
-        if package.manifest.content_sha256.lower() != expected:
-            raise ValueError("资料包内容摘要不一致")
-
     place_ids = {place.place_id for place in package.places}
     if len(place_ids) != len(package.places):
         raise ValueError("place ID 必须唯一")
@@ -425,6 +565,18 @@ def _validate_package(
             raise ValueError(f"地点 {place.place_id} 的 parent_id 未定义")
         if place.parent_id == place.place_id:
             raise ValueError(f"地点 {place.place_id} 不能以自身为父节点")
+    for place in package.places:
+        seen: set[str] = set()
+        current = place
+        while current.parent_id in place_ids:
+            if current.place_id in seen:
+                raise ValueError(f"地点层级存在环: {place.place_id}")
+            seen.add(current.place_id)
+            current = next(
+                candidate
+                for candidate in package.places
+                if candidate.place_id == current.parent_id
+            )
 
     event_ids = {event.event_id for event in package.story_events}
     if len(event_ids) != len(package.story_events):
@@ -454,6 +606,28 @@ def _validate_package(
     for route in package.routes:
         if route.from_place_id not in place_ids or route.to_place_id not in place_ids:
             raise ValueError(f"route {route.route_id} 引用了未定义地点")
+    for opportunity in package.generation_policy.visit_opportunities:
+        if any(place_id not in place_ids for place_id in opportunity.place_ids):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义地点"
+            )
+    home_regions = {cell.region_id for cell in package.spatial_population.cells}
+    for opportunity in package.generation_policy.visit_opportunities:
+        if set(opportunity.home_regions) - home_regions:
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 引用了未定义居住区"
+            )
+    relation_keys = {
+        (relation.subject_id, relation.relation, relation.object_id)
+        for relation in package.place_relations
+    }
+    if len(relation_keys) != len(package.place_relations):
+        raise ValueError("地点关系必须唯一")
+    for relation in package.place_relations:
+        if relation.subject_id not in place_ids or relation.object_id not in place_ids:
+            raise ValueError(f"place relation {relation.relation} 引用了未定义地点")
+        if not relation.relation.strip() or not relation.source_ref.strip():
+            raise ValueError("地点关系必须有 relation 和 source_ref")
     for cell in package.spatial_population.cells:
         if cell.place_id not in place_ids:
             raise ValueError(f"population cell {cell.cell_id} 引用了未定义地点")
@@ -462,11 +636,8 @@ def _validate_package(
     for fact_id in package.earth_arrival_rules.required_knowledge_ids:
         if fact_id not in fact_ids:
             raise ValueError(f"赴地规则引用了未定义知识 {fact_id}")
-    required_modules = package.earth_arrival_rules.required_module_ids
-    if "earth_program" not in required_modules:
-        raise ValueError("赴地规则必须包含 earth_program 必修培训")
-    if len(required_modules) != len(set(required_modules)):
-        raise ValueError("赴地必修培训模块 ID 必须唯一")
+    if package.earth_arrival_rules.preparation_duration_local_days < 1:
+        raise ValueError("赴地准备天数必须为正整数")
     _validate_policy(package.generation_policy)
     _validate_catalogs(package, place_ids, fact_ids)
 
@@ -481,25 +652,11 @@ def _validate_catalogs(
     coverage = package.coverage_manifest
     if not coverage.creator_source_ref or not coverage.resident_source_ref:
         raise ValueError("published Genesis 资料包必须声明 CoverageManifest 来源")
-    if not coverage.links:
-        raise ValueError("published Genesis 资料包必须声明 CoverageManifest")
-    upstream_ids = [link.upstream_id for link in coverage.links]
-    if len(upstream_ids) != len(set(upstream_ids)):
-        raise ValueError("CoverageManifest upstream ID 必须唯一")
-    resident_ids = [
-        resident_id for link in coverage.links for resident_id in link.resident_fact_ids
-    ]
-    if len(resident_ids) != len(set(resident_ids)):
-        raise ValueError("CoverageManifest resident fact ID 必须唯一")
-    if set(resident_ids) != fact_ids:
-        raise ValueError("CoverageManifest 未完整覆盖 resident knowledge")
-    for link in coverage.links:
-        if link.disposition == "mapped" and not link.resident_fact_ids:
-            raise ValueError(f"CoverageManifest {link.upstream_id} 缺少映射知识")
-        if link.disposition != "mapped" and not link.rationale.strip():
-            raise ValueError(
-                f"CoverageManifest {link.upstream_id} 缺少 deferred/excluded 理由"
-            )
+    # The new source package's signed member inventory and source_coverage
+    # section are validated by genesis_program.py; the legacy per-fact
+    # CoverageManifest representation does not exist in this package format.
+    if not coverage.creator_source_ref or not coverage.resident_source_ref:
+        raise ValueError("published Genesis 资料包必须声明来源")
 
     if not package.life_archetypes:
         raise ValueError("published Genesis 资料包必须包含 LifeArchetypeRules")
@@ -512,7 +669,7 @@ def _validate_catalogs(
                 raise ValueError(
                     f"LifeArchetypeRule {rule.archetype_id} 引用了未定义地点"
                 )
-        if not rule.species_ids or not rule.life_stages or not rule.vocation_id:
+        if not rule.species_ids or not rule.life_stages:
             raise ValueError(f"LifeArchetypeRule {rule.archetype_id} 条件不完整")
 
     if not package.relationship_archetypes:
@@ -531,6 +688,16 @@ def _validate_catalogs(
                 f"RelationshipArchetype {relationship_rule.archetype_id} 引用了未定义经历主题"
             )
 
+    access_rule_ids = [rule.rule_id for rule in package.access_rules]
+    if len(access_rule_ids) != len(set(access_rule_ids)):
+        raise ValueError("GeographyAccessRule ID 必须唯一")
+    place_ids = {place.place_id for place in package.places}
+    for access_rule in package.access_rules:
+        if access_rule.place_id not in place_ids:
+            raise ValueError(
+                f"GeographyAccessRule {access_rule.rule_id} 引用了未定义地点"
+            )
+
     if not package.episode_themes:
         raise ValueError("published Genesis 资料包必须包含 EpisodeThemeCatalog")
     if len(theme_ids) != len(package.episode_themes):
@@ -543,15 +710,91 @@ def _validate_catalogs(
 
 
 def _validate_policy(policy: GenerationPolicy) -> None:
-    for name in (
-        "relationship_count",
-        "episode_count",
-        "salient_relationship_count",
-        "repeated_relationship_count",
+    if policy.normal_episode_minimum < 1:
+        raise ValueError("normal_episode_minimum 必须为正整数")
+    if policy.candidate_proposal_count < 1:
+        raise ValueError("candidate_proposal_count 必须为正整数")
+    if policy.candidate_options_per_choice < 1:
+        raise ValueError("candidate_options_per_choice 必须为正整数")
+    if policy.candidate_total_backtracks < 0:
+        raise ValueError("candidate_total_backtracks 不能为负数")
+    if policy.family_parent_min_age_gap_years < 1:
+        raise ValueError("family_parent_min_age_gap_years 必须为正整数")
+    if policy.family_partner_min_age_years < 1:
+        raise ValueError("family_partner_min_age_years 必须为正整数")
+    if not 0.0 <= policy.family_partner_annual_probability <= 1.0:
+        raise ValueError("family_partner_annual_probability 必须在 [0, 1] 内")
+    if policy.family_max_children < 1:
+        raise ValueError("family_max_children 必须为正整数")
+    child_counts = [count for count, _ in policy.family_child_count_distribution]
+    if not child_counts or len(child_counts) != len(set(child_counts)):
+        raise ValueError("family_child_count_distribution 必须包含唯一子女数")
+    if any(
+        count < 1 or weight < 0.0
+        for count, weight in policy.family_child_count_distribution
     ):
-        minimum, maximum = getattr(policy, name)
-        if minimum < 0 or maximum < minimum:
-            raise ValueError(f"{name} 范围无效")
+        raise ValueError("family_child_count_distribution 的值无效")
+    if sum(weight for _, weight in policy.family_child_count_distribution) <= 0.0:
+        raise ValueError("family_child_count_distribution 权重不能全为零")
+    baselines = dict(policy.relationship_importance_baselines)
+    required_baselines = {"core", "sibling", "friend", "teacher", "direct_acquaintance"}
+    if not required_baselines <= baselines.keys():
+        raise ValueError("relationship_importance_baselines 缺少角色基线")
+    if any(not 0.0 <= value <= 1.0 for value in baselines.values()):
+        raise ValueError("relationship_importance_baselines 的值无效")
+    if policy.relationship_layer_decay_lambda < 0.0:
+        raise ValueError("relationship_layer_decay_lambda 不能为负数")
+    if policy.friend_layer_decay_lambda < 0.0:
+        raise ValueError("friend_layer_decay_lambda 不能为负数")
+    if policy.friend_contact_beta < 0.0:
+        raise ValueError("friend_contact_beta 不能为负数")
+    if policy.friend_max_count < 1:
+        raise ValueError("friend_max_count 必须为正整数")
+    if not policy.visit_sampler_version.strip():
+        raise ValueError("visit_sampler_version 不能为空")
+    if (
+        not math.isfinite(policy.visit_repeat_count_power)
+        or policy.visit_repeat_count_power <= 0.0
+    ):
+        raise ValueError("visit_repeat_count_power 必须是有限正数")
+    if not 0.0 <= policy.visit_cross_region_lifetime_fraction <= 1.0:
+        raise ValueError("visit_cross_region_lifetime_fraction 必须在 [0, 1] 内")
+    if (
+        isinstance(policy.family_lifespan_cdf_power, bool)
+        or not isinstance(policy.family_lifespan_cdf_power, int)
+        or not 1 <= policy.family_lifespan_cdf_power <= 64
+    ):
+        raise ValueError("条件寿命 CDF 幂指数必须是 1 到 64 的整数")
+    if policy.family_lifespan_sampler_version != "conditioned-lifespan-cdf.v1":
+        raise ValueError("不支持的条件寿命抽样版本")
+    if any(
+        not math.isfinite(value) or value < 0.0
+        for value in (
+            policy.visit_social_multiplier_base,
+            policy.visit_social_multiplier_slope,
+            policy.visit_curiosity_multiplier_base,
+            policy.visit_curiosity_multiplier_slope,
+            policy.visit_risk_multiplier_base,
+        )
+    ):
+        raise ValueError("访问人格倍率参数不能为负数")
+    if not math.isfinite(policy.visit_risk_openness_slope) or not math.isfinite(
+        policy.visit_risk_neuroticism_slope
+    ):
+        raise ValueError("风险人格倍率参数必须有限")
+    opportunity_ids = [
+        opportunity.opportunity_id for opportunity in policy.visit_opportunities
+    ]
+    if len(opportunity_ids) != len(set(opportunity_ids)):
+        raise ValueError("VisitOpportunityRule ID 必须唯一")
+    opportunity_id_set = set(opportunity_ids)
+    for opportunity in policy.visit_opportunities:
+        if opportunity.requires_opportunity_id and (
+            opportunity.requires_opportunity_id not in opportunity_id_set
+        ):
+            raise ValueError(
+                f"VisitOpportunityRule {opportunity.opportunity_id} 的前置机会未定义"
+            )
 
 
 def _document_hash(document: Mapping[str, Any]) -> str:
@@ -632,6 +875,15 @@ def _number_value(value: Any, key: str) -> float:
     return result
 
 
+def _signed_number_value(value: Any, key: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} 必须是数字")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{key} 必须是有限数字")
+    return result
+
+
 def _optional_float(document: Mapping[str, Any], key: str, *, default: float) -> float:
     value = document.get(key, default)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -666,6 +918,31 @@ def _variant_pairs(value: Any) -> tuple[tuple[str, str], ...]:
             raise ValueError("statement_variants 必须是非空字符串映射")
         result.append((key, item.strip()))
     return tuple(result)
+
+
+def _metadata(value: Any) -> tuple[tuple[str, str], ...]:
+    """Decode optional public place attributes without accepting nested data."""
+
+    if value in ({}, None):
+        return ()
+    if not isinstance(value, Mapping):
+        raise TypeError("metadata 必须是对象")
+    result: list[tuple[str, str]] = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("metadata key 必须是非空字符串")
+        if isinstance(item, bool):
+            rendered = "true" if item else "false"
+        elif isinstance(item, (str, int, float)):
+            rendered = str(item)
+        elif isinstance(item, (list, tuple)) and all(
+            isinstance(member, str) and member.strip() for member in item
+        ):
+            rendered = ",".join(str(member).strip() for member in item)
+        else:
+            raise TypeError("metadata value 必须是标量或字符串数组")
+        result.append((key.strip(), rendered))
+    return tuple(sorted(result))
 
 
 def _int_pair(

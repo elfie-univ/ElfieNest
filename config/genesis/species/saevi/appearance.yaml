@@ -1,0 +1,757 @@
+document_kind: appearance_profile
+schema_version: 1
+profile_version: 3
+supported_controls:
+- stature
+- build
+- signature
+control_options:
+  stature:
+  - small
+  - standard
+  - tall
+  - any
+  build:
+  - slim
+  - standard
+  - round
+  - any
+  face:
+  - soft
+  - balanced
+  - defined
+  - any
+  signature:
+  - warm
+  - marked
+  - any
+control_ranges:
+  stature:
+    minimum: 0.82
+    base: 1.0
+    maximum: 1.18
+  build:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  face:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+  signature:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+stature_scale:
+  minimum: 0.82
+  base: 1.0
+  maximum: 1.18
+build_scale:
+  minimum: 0.9
+  base: 1.0
+  maximum: 1.1
+build_weights:
+  body_fat: 0.55
+  frame_size: 0.3
+  muscularity: 0.15
+  local_bias: 0.0
+proportion_scales:
+  HeadScale:
+    minimum: 0.91
+    base: 1.0
+    maximum: 1.09
+  NeckLength:
+    minimum: 0.86
+    base: 1.0
+    maximum: 1.14
+  ArmLength:
+    minimum: 0.91
+    base: 1.0
+    maximum: 1.09
+  LegLength:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  ShoulderWidth:
+    minimum: 0.91
+    base: 1.0
+    maximum: 1.09
+  HandScale:
+    minimum: 0.91
+    base: 1.0
+    maximum: 1.09
+  PawScale:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.1
+  TailLength:
+    minimum: 0.86
+    base: 1.0
+    maximum: 1.14
+  EyeScale:
+    minimum: 0.91
+    base: 1.0
+    maximum: 1.09
+  EyeSpacing:
+    minimum: 0.95
+    base: 1.0
+    maximum: 1.05
+  EyeHeight:
+    minimum: 0.96
+    base: 1.0
+    maximum: 1.04
+shape_correlations:
+  Body_ChestFullness:
+    body_fat: 0.48
+    frame_size: 0.22
+    muscularity: 0.18
+    local_bias: 0.3
+  Body_WaistWidth:
+    body_fat: 0.68
+    frame_size: 0.16
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_BellyDepth:
+    body_fat: 0.88
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_HipWidth:
+    body_fat: 0.62
+    frame_size: 0.24
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_HipDepth:
+    body_fat: 0.7
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.25
+  Body_ArmThickness:
+    body_fat: 0.72
+    frame_size: 0.18
+    muscularity: 0.16
+    local_bias: 0.25
+  Body_LegThickness:
+    body_fat: 0.76
+    frame_size: 0.18
+    muscularity: 0.16
+    local_bias: 0.2
+  Body_NeckThickness:
+    body_fat: 0.66
+    frame_size: 0.18
+    muscularity: 0.0
+    local_bias: 0.2
+  Body_PawFullness:
+    body_fat: 0.44
+    frame_size: 0.2
+    muscularity: 0.0
+    local_bias: 0.3
+  Face_CheekFullness:
+    body_fat: 0.62
+    frame_size: 0.14
+    muscularity: 0.0
+    local_bias: 0.3
+  Face_LowerFullness:
+    body_fat: 0.6
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.28
+palettes:
+- ivory
+- cream
+- champagne
+- golden
+- orange_red
+- fox_red
+- chestnut
+- sable_brown
+- silver_gray
+- smoky_black
+batch_palette_order:
+- ivory
+- golden
+- orange_red
+- fox_red
+- silver_gray
+- cream
+- champagne
+- chestnut
+- sable_brown
+- smoky_black
+patterns:
+- classic
+pattern_color_slots:
+  classic: 1
+pattern_layouts:
+  classic:
+  - classic
+markings:
+- none
+- crescent
+- s_glyph
+- double_spiral
+- constellation
+- comet
+- alien_rune
+- diamond
+- star
+- lightning
+- wave
+- halo
+- blush
+- freckles
+- heart
+- mole
+marking_placements:
+- none
+- forehead_center
+- forehead_left
+- forehead_right
+- cheek_pair
+- chest
+- belly_center
+eye_colors:
+- amber
+- brown
+- green
+- blue_gray
+nose_colors:
+- black
+- dark_brown
+- charcoal
+distributions:
+  ear_droop:
+    mean: 0.18
+    standard_deviation: 0.17
+    minimum: 0.0
+    maximum: 1.0
+species_traits:
+- black_leg_coverage
+- tail_tip_coverage
+- cheek_ruff_bias
+max_region_accents: 2
+max_marks: 1
+max_forehead_marks: 1
+region_rules:
+  head_tuft:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.82
+  forehead_mark_zone:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0.0
+  ear_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.76
+  ear_tip_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.78
+  cheek_fluff:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0.0
+  chest_tuft:
+    mode: color-or-mark
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.72
+  belly_center:
+    mode: mark-only
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0.0
+  forearm_paw_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.76
+  elbow_cuff_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.76
+  lower_leg_foot_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.76
+  knee_cuff_pair:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.76
+  tail_tip:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.8
+  tail_underside:
+    mode: color-only
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+    allowed_grades:
+    - L1
+    - L2
+    - D1
+    - D2
+    source_mid_luma: 0.56
+    default_intensity: 0.8
+region_recipes:
+  base:
+    accents: []
+  head_tuft_golden:
+    accents:
+    - region_id: head_tuft
+      color_id: golden
+      grade_id: L1
+      intensity: 0.82
+  ear_tip_silver:
+    accents:
+    - region_id: ear_tip_pair
+      color_id: silver_gray
+      grade_id: D1
+      intensity: 0.78
+  forearm_sable:
+    accents:
+    - region_id: forearm_paw_pair
+      color_id: sable_brown
+      grade_id: D1
+      intensity: 0.76
+  chest_champagne:
+    accents:
+    - region_id: chest_tuft
+      color_id: champagne
+      grade_id: L1
+      intensity: 0.72
+  head_and_ear:
+    accents:
+    - region_id: head_tuft
+      color_id: ivory
+      grade_id: L1
+      intensity: 0.8
+    - region_id: ear_tip_pair
+      color_id: fox_red
+      grade_id: D1
+      intensity: 0.72
+  paws_and_tail:
+    accents:
+    - region_id: forearm_paw_pair
+      color_id: smoky_black
+      grade_id: D2
+      intensity: 0.72
+    - region_id: tail_tip
+      color_id: ivory
+      grade_id: L2
+      intensity: 0.76
+  ear_and_chest:
+    accents:
+    - region_id: ear_pair
+      color_id: cream
+      grade_id: L1
+      intensity: 0.74
+    - region_id: chest_tuft
+      color_id: golden
+      grade_id: L1
+      intensity: 0.7
+  tuft_and_tail:
+    accents:
+    - region_id: head_tuft
+      color_id: orange_red
+      grade_id: L1
+      intensity: 0.8
+    - region_id: tail_tip
+      color_id: ivory
+      grade_id: L2
+      intensity: 0.74
+region_recipe_order:
+- base
+- head_tuft_golden
+- ear_tip_silver
+- forearm_sable
+- chest_champagne
+- head_and_ear
+- paws_and_tail
+- ear_and_chest
+- tuft_and_tail
+batch_recipe_order:
+- base
+- head_tuft_golden
+- ear_tip_silver
+- forearm_sable
+- chest_champagne
+- head_and_ear
+- paws_and_tail
+- ear_and_chest
+- tuft_and_tail
+batch_marking_order:
+- none
+- crescent
+- none
+- blush
+- none
+- heart
+- none
+- freckles
+- none
+- s_glyph
+marking_rules:
+  none:
+    placements:
+    - none
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - orange_red
+    - fox_red
+    - chestnut
+    - sable_brown
+    - silver_gray
+    - smoky_black
+  crescent:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  s_glyph:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  double_spiral:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  constellation:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  comet:
+    placements:
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  alien_rune:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  diamond:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  star:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  lightning:
+    placements:
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  wave:
+    placements:
+    - forehead_center
+    - forehead_left
+    - forehead_right
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  halo:
+    placements:
+    - forehead_center
+    allowed_colors:
+    - ivory
+    - cream
+    - champagne
+    - golden
+    - silver_gray
+    - smoky_black
+  blush:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - cream
+    - champagne
+    - golden
+  freckles:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - chestnut
+    - sable_brown
+    - smoky_black
+  heart:
+    placements:
+    - chest
+    - belly_center
+    allowed_colors:
+    - cream
+    - champagne
+    - golden
+  mole:
+    placements:
+    - cheek_pair
+    allowed_colors:
+    - chestnut
+    - sable_brown
+    - smoky_black
+status: published
+source_refs:
+- species#genesis-appearance-boundaries
+parameter_provenance:
+  source_path: config/species/fox/appearance.yaml
+  source_sha256: f04879a23ab7929907c08fa1ecfc00582a80ab67f027941547aa8bb93792a301
+  status: inherited_configuration_not_new_biological_facts
+  inherited_numeric_parameters_recalibrated: false
+  unsupported_values_are_not_generation_options: true
+  new_unsourced_parameters: author_review_required
+runtime_capabilities:
+  inspection: static_source_and_glb_only
+  model_file: godot_project/characters/fox/fox.glb
+  scene_file: godot_project/characters/fox/fox.tscn
+  manifest_file: godot_project/characters/fox/species_manifest.json
+  adapter_file: godot_project/runtime/actor/actor_appearance.gd
+  required_assets_present: true
+  render_validation_this_revision: not_run
+  author_render_acceptance: accepted_without_recheck
+  control_support:
+    stature: aggregate_height_scale
+    build: aggregate_width_depth_scale_only
+    signature: palette_pattern_region_color_and_safe_marking_only
+  bone_scale_bindings: [HeadScale, NeckLength, ArmLength, LegLength, HandScale, PawScale, TailLength]
+  model_morph_target_count: 0
+  blend_shape_bindings: []
+  unsupported_controls: [face, signature.ears]
+  unavailable_fields: [shape_correlations, proportion_scales.ShoulderWidth,
+    proportion_scales.EyeScale, proportion_scales.EyeSpacing, proportion_scales.EyeHeight,
+    distributions.ear_droop, eye_colors, nose_colors]
+  unsupported_behavior:
+  - 局部胖瘦、肌肉和完整脸型 Morph；配置系数与 source 造型原型不等于正式模型支持。
+  - 耳形替换、独立眼鼻改色和无绑定比例控制不能生成可见差异承诺。
+  material_support: 只使用正式清单 material_parameters 的值及本文件更窄的区域/安全标记约束。
+  require_material_option_in_manifest: true
+  life_stage_visual_validation: accepted_by_author_without_recheck
+  missing_binding_or_asset: reject_candidate_without_reroll
+  presentation_image_proves_runtime_readiness: false

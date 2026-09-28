@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from typing import Protocol
+from typing import Literal, Protocol
 
 from .memory_records import (
     AssertionInput,
+    ClaimedEpisode,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
+    EpisodeMaintenanceStatus,
     EpisodeReceipt,
     EvidenceInput,
+    GenesisSubmissionReceipt,
     MaintenanceReceipt,
     MaintenanceRequest,
+    MemoryInspectionSnapshot,
     NodeInput,
     QualifiedReinforcementReceipt,
     RecallAssertion,
@@ -22,6 +26,18 @@ from .memory_records import (
     RecallRequest,
 )
 from .score_policy import ImportanceEvent
+
+
+class GenesisSubmissionConflict(ValueError):
+    """A committed Memory submission conflicts with a new Genesis write."""
+
+    def __init__(
+        self,
+        kind: Literal["identity", "manifest", "output_ids", "output_owner"],
+        message: str,
+    ) -> None:
+        self.kind = kind
+        super().__init__(message)
 
 
 class MemoryStorePort(Protocol):
@@ -82,6 +98,10 @@ class MemoryStorePort(Protocol):
         now: str | None = None,
     ) -> RecallNode | None: ...
 
+    def get_self_model_graph(
+        self, stance_predicates: tuple[str, ...]
+    ) -> MemoryInspectionSnapshot: ...
+
     def list_graph_assertions(
         self, limit: int = 800, *, privacy_scope: str | None = None
     ) -> tuple[RecallAssertion, ...]: ...
@@ -96,7 +116,11 @@ class MemoryStorePort(Protocol):
         *,
         owner: str = "memory-worker",
         lease_seconds: int = 120,
-    ) -> tuple[ClosedEpisode, ...]: ...
+    ) -> tuple[ClaimedEpisode, ...]: ...
+
+    def list_episode_maintenance_statuses(
+        self, episode_ids: tuple[str, ...]
+    ) -> tuple[EpisodeMaintenanceStatus, ...]: ...
 
     def mark_episode_failed(
         self,
@@ -139,5 +163,9 @@ class MemoryStorePort(Protocol):
         elfie_id: str | None = None,
     ) -> AbstractContextManager[bool]: ...
 
+    def get_genesis_submission(
+        self, submission_id: str
+    ) -> GenesisSubmissionReceipt | None: ...
 
-__all__ = ["MemoryStorePort"]
+
+__all__ = ["GenesisSubmissionConflict", "MemoryStorePort"]

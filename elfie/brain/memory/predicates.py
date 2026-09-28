@@ -1,81 +1,77 @@
-"""Versioned predicate vocabulary for source-grounded Memory assertions."""
+"""Small operations on the injected Memory ontology predicate vocabulary."""
 
 from __future__ import annotations
 
-from typing import Final, Mapping
-
-PREDICATE_REGISTRY_VERSION: Final[str] = "memory.predicates.v1"
-
-# Keep the first registry deliberately small and explicit.  A new relation is
-# added by versioning this registry; model output is never allowed to create a
-# new active predicate implicitly.
-PREDICATES: Final[frozenset[str]] = frozenset(
-    {
-        "about",
-        "at",
-        "causal",
-        "causes",
-        "caused_by",
-        "acquaintance",
-        "emotional",
-        "experienced",
-        "felt",
-        "family",
-        "generalizes",
-        "has_condition",
-        "implies",
-        "involves",
-        "influences",
-        "is",
-        "knows",
-        "knows_boundary",
-        "likes",
-        "dislikes",
-        "part_of",
-        "prefers",
-        "preferred_name",
-        "relationship",
-        "references",
-        "related_to",
-        "subtype_of",
-        "supports",
-        "temporal",
-        "used_in",
-        "friend",
-        "owner",
-    }
+from elfie.brain.memory.ontology import (
+    MemoryOntologyError,
+    MemoryOntologySnapshot,
+    PredicateSpec,
 )
 
-ALIASES: Final[Mapping[str, str]] = {
-    "causal": "causes",
-    "cause": "causes",
-    "dislike": "dislikes",
-    "favorite": "prefers",
-    "involved_in": "involves",
-    "like": "likes",
-    "relates_to": "related_to",
-}
+
+class UnknownPredicateError(MemoryOntologyError):
+    """A proposal used a predicate outside the active ontology snapshot."""
 
 
-class UnknownPredicateError(ValueError):
-    """A proposal used a predicate outside the versioned vocabulary."""
+def resolve_predicate(ontology: MemoryOntologySnapshot, value: str) -> str:
+    """Resolve an alias or canonical predicate from the injected snapshot."""
+    try:
+        return ontology.resolve_predicate(value)
+    except MemoryOntologyError as error:
+        raise UnknownPredicateError(str(error)) from error
 
 
-def resolve_predicate(value: str) -> str:
-    """Return the canonical predicate or raise a deterministic validation error."""
-    normalized = "_".join(value.strip().casefold().replace("-", "_").split())
-    normalized = ALIASES.get(normalized, normalized)
-    if normalized not in PREDICATES:
-        raise UnknownPredicateError(
-            f"unknown predicate for registry {PREDICATE_REGISTRY_VERSION}: {value}"
-        )
-    return normalized
+def relation_spec(
+    ontology: MemoryOntologySnapshot,
+    predicate: str,
+) -> PredicateSpec | None:
+    """Return active registered relation semantics, or None for read display."""
+    try:
+        return ontology.predicate_spec(predicate)
+    except MemoryOntologyError:
+        return None
 
 
-__all__ = [
-    "ALIASES",
-    "PREDICATE_REGISTRY_VERSION",
-    "PREDICATES",
+def relation_importance(
+    ontology: MemoryOntologySnapshot,
+    predicate: str,
+    supplied: float | None = None,
+) -> float:
+    """Use registry salience unless a sourced explicit value is supplied."""
+    spec = ontology.predicate_spec(predicate)
+    if supplied is None:
+        return spec.salience
+    return min(1.0, max(0.0, float(supplied)))
+
+
+def relation_context(
+    ontology: MemoryOntologySnapshot,
+    source: str,
+    *,
+    predicate: str,
+    specificity: str | None = None,
+    role: str | None = None,
+) -> str:
+    """Produce the bounded relationship qualifier using registered direction."""
+    if not source.strip():
+        raise ValueError("relationship context source must not be blank")
+    semantics = ontology.predicate_spec(predicate)
+    values = [
+        "relation",
+        source.strip(),
+        f"symmetry={'symmetric' if semantics.symmetric else 'directed'}",
+    ]
+    if specificity:
+        values.append(f"specificity={specificity.strip()}")
+    if role:
+        values.append(f"role={role.strip()}")
+    return "|".join(values)
+
+
+__all__ = (
     "UnknownPredicateError",
+    "relation_context",
+    "relation_importance",
+    "relation_spec",
     "resolve_predicate",
-]
+)

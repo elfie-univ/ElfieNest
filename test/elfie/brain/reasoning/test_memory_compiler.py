@@ -29,7 +29,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
         focus_nodes=(
             RecallNode("n1", "person", "主人", "对话中的主人", 0.99, 0.9, 0.95),
             RecallNode("n2", "object", "乌龙茶", None, 0.98, 0.8, 0.9),
-            RecallNode("n3", "object", "咖啡", None, 0.7, 0.4, 0.6),
+            RecallNode("n3", "object", "咖啡", None, 0.7, 0.4, 0.6, role="support"),
         ),
         assertions=(
             RecallAssertion(
@@ -57,9 +57,10 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 relevance=0.8,
                 importance=0.7,
                 confidence=0.8,
+                role="support",
             ),
         ),
-        paths=(RecallPath(("n1", "n2"), ("a1",), 1),),
+        paths=(RecallPath(("n1", "n2"), ("a1",), 1, role="primary"),),
         episodes=(
             RecallEpisode(
                 episode_id="ep1",
@@ -68,6 +69,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 excerpt=excerpt,
                 detail_level="full",
                 relevance=0.99,
+                summary_text="晚饭后喝茶",
                 importance=0.9,
                 source_event_ids=("event-1",),
             ),
@@ -80,6 +82,7 @@ def _bundle(*, long_evidence: bool = False) -> RecallBundle:
                 relevance=0.8,
                 importance=0.7,
                 source_event_ids=("event-2",),
+                role="support",
             ),
         ),
         evidence=(
@@ -153,6 +156,14 @@ def test_compact_packets_keep_bounded_source_evidence() -> None:
     assert "<EPISODE" not in compiled.content
 
 
+def test_model_context_keeps_primary_hits_distinct_from_supporting_records() -> None:
+    compiled = compile_recall_bundle(_bundle(), max_tokens=1200)
+
+    assert '<FACT id="a1">' in compiled.content
+    assert '<FACT id="a2" role="support">' in compiled.content
+    assert '<EPISODE id="ep2" role="support">' in compiled.content
+
+
 def test_minimal_packets_keep_top_fact_addressable_in_small_budget() -> None:
     compiled = compile_recall_bundle(_bundle(), max_tokens=240)
 
@@ -193,6 +204,32 @@ def test_orphan_conversation_episode_survives_p0_memory_budget() -> None:
     # not fit; checking only the final answer would miss this regression.
     assert "episode:topic:owner:blue-fact" in compiled.episode_ids
     assert "主人说：请记住，我喜欢蓝色。" in compiled.content
+
+
+def test_standalone_world_knowledge_keeps_source_and_precedes_graph_noise() -> None:
+    base = _bundle()
+    statement = "Elfaria 一年有 196 个本地日。"
+    knowledge = RecallNode(
+        "genesis:knowledge:elfie:year",
+        "concept",
+        statement,
+        statement + "\n[历法/common/known]\n本地日",
+        0.99,
+        properties={"source_ref": "resident-knowledge:nature.light_cycle"},
+    )
+    compiled = compile_recall_bundle(
+        RecallBundle(
+            focus_nodes=base.focus_nodes + (knowledge,),
+            assertions=base.assertions,
+            evidence=base.evidence,
+        ),
+        max_tokens=290,
+    )
+
+    assert '<NODE id="genesis:knowledge:elfie:year">' in compiled.content
+    assert statement in compiled.content
+    assert compiled.content.count(statement) == 1
+    assert "resident-knowledge:nature.light_cycle" in compiled.content
 
 
 def test_memory_excerpts_are_escaped_as_data() -> None:

@@ -44,3 +44,5 @@ The current contract always states the enforceable rule.
 - [ADR-0036: Standard procedural Skills and typed executable Tools](./0036-standard-skills-and-typed-tools)
 - [ADR-0037: One typed brain observation surface with a single sink Port](./0037-brain-observation-surface)
 - [ADR-0038: Memory Debug Workspace is a read-only Brain developer projection](./0038-memory-debug-workspace-projection)
+- [ADR-0039: Register the Genesis preparation package without activating it](./0039-genesis-preparation-package)
+- [ADR-0040: Publish Genesis sources before activating creation](./0040-genesis-source-publication-before-activation)

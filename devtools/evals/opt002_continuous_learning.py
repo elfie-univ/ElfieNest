@@ -304,9 +304,11 @@ def _scenario_entities_aliases_and_ambiguity() -> Dict[str, Any]:
                 ConsolidationProjection(
                     episode_id=episode_id,
                     nodes=(NodeInput(node_id, "person", label),),
-                    aliases=(AliasInput(node_id, "小名", evidence_id=evidence_id),),
+                    aliases=(AliasInput(node_id, "候选别名", evidence_id=evidence_id),),
                     mentions=(
-                        MentionInput(episode_id, "小名", resolution_state="ambiguous"),
+                        MentionInput(
+                            episode_id, "候选别名", resolution_state="ambiguous"
+                        ),
                     ),
                     evidence=(
                         EvidenceInput(
@@ -318,7 +320,7 @@ def _scenario_entities_aliases_and_ambiguity() -> Dict[str, Any]:
                     ),
                 )
             )
-        ambiguous = store.find_graph_nodes("小名")
+        ambiguous = store.find_graph_nodes("候选别名")
         return _result(
             "entities-aliases-ambiguity",
             {
@@ -345,9 +347,7 @@ def _scenario_owner_correction_and_restart(path: Path) -> Dict[str, Any]:
     reopened = SQLiteMemoryStoreAdapter(path)
     owner = reopened.find_graph_nodes("主人")
     bundle = reopened.recall(
-        RecallRequest(
-            seed_node_ids=(owner[0].node_id,), mode="basic", assertion_limit=8
-        )
+        RecallRequest(seed_node_ids=(owner[0].node_id,), assertion_limit=8)
     )
     active_values = {
         str(item.object_literal)
@@ -389,7 +389,7 @@ def _scenario_conflicts() -> Dict[str, Any]:
                     episode_id=episode_id,
                     nodes=(
                         NodeInput("owner", "person", "主人"),
-                        NodeInput("food", "food", "香菜"),
+                        NodeInput("food", "organism", "香菜"),
                     ),
                     evidence=(
                         EvidenceInput(evidence_id, "episode", episode_id, excerpt=text),
@@ -405,7 +405,7 @@ def _scenario_conflicts() -> Dict[str, Any]:
                     ),
                 )
             )
-        bundle = store.recall(RecallRequest(seed_node_ids=("owner",), mode="basic"))
+        bundle = store.recall(RecallRequest(seed_node_ids=("owner",)))
         polarities = {item.qualifiers.get("polarity") for item in bundle.assertions}
         return _result(
             "conflicting-claims",

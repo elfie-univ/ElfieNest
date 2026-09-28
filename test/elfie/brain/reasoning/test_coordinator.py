@@ -560,7 +560,7 @@ def test_owner_conversation_stays_fast_when_energy_allows_long_reasoning() -> No
         assert len(request.user_prompt) < 2000
         assert "CURRENT_MESSAGE" in request.user_prompt
         assert coordinator._inflight is not None
-        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 1
+        assert coordinator._inflight.task.reasoning_budget.max_model_calls == 2
         assert coordinator._inflight.task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()
@@ -1008,7 +1008,7 @@ def test_owner_keywords_do_not_select_deliberate_budget() -> None:
         assert coordinator._inflight is not None
         task = coordinator._inflight.task
         assert task.reasoning_depth.value == "direct"
-        assert task.reasoning_budget.max_model_calls == 1
+        assert task.reasoning_budget.max_model_calls == 2
         assert task.reasoning_budget.max_tool_calls == 0
     finally:
         runtime.release.set()

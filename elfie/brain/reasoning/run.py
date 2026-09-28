@@ -20,6 +20,7 @@ from pydantic import Field, JsonValue
 
 from elfie.brain.activity.preflight import ActivityPreflightPort
 from elfie.brain.activity.system import ActivityPreflightStatus
+from elfie.brain.memory.memory_records import KinshipQuery, RecallRequest, RecallSense
 from elfie.brain.observation import (
     BrainObservation,
     BrainObservationSink,
@@ -659,6 +660,11 @@ class ReasoningRun:
                         generation=generation,
                         capabilities=capabilities,
                         allowed_memory_references=tuple(memory_reference_ids),
+                        allow_recall_memory=(
+                            current_request.response_schema is None
+                            or current_request.response_schema.name
+                            != "FinalCognitiveAction"
+                        ),
                     )
                     action = action_decode.action
                     if action is None:
@@ -708,10 +714,16 @@ class ReasoningRun:
                     )
 
                     if isinstance(action, RecallMemory):
-                        if (
+                        recall_is_allowed = getattr(
+                            task, "reasoning_depth", ReasoningDepth.DIRECT
+                        ) is ReasoningDepth.DELIBERATE or (
                             getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
-                            is not ReasoningDepth.DELIBERATE
-                        ):
+                            is ReasoningDepth.DIRECT
+                            and model_calls == 1
+                            and active_model_limit >= 2
+                            and tool_calls == 0
+                        )
+                        if not recall_is_allowed:
                             self._emit_guard(
                                 task=task,
                                 fired=(
@@ -733,9 +745,14 @@ class ReasoningRun:
                                 ReasoningStatus.SAFE_NOOP,
                                 "recall_memory_not_allowed_in_direct",
                             )
-                        if reasoning_plan is None and any(
-                            observation.kind in {"memory", "revision"}
-                            for observation in run_observations
+                        if (
+                            getattr(task, "reasoning_depth", ReasoningDepth.DIRECT)
+                            is ReasoningDepth.DELIBERATE
+                            and reasoning_plan is None
+                            and any(
+                                observation.kind in {"memory", "revision"}
+                                for observation in run_observations
+                            )
                         ):
                             # One Recall followed by an answer stays plan-free.
                             # A second dependent Recall is the first reliable
@@ -753,7 +770,39 @@ class ReasoningRun:
                             recall_revision = getattr(task, "memory_recall_revision", 0)
                             recall_bundle = None
                         else:
-                            recall_result = memory_session.recall(action.query)
+                            recall_request = RecallRequest(
+                                text=action.query or "",
+                                sense=(
+                                    RecallSense(
+                                        emotion_label=action.sense_emotion.value,
+                                        intensity=action.sense_intensity,
+                                    )
+                                    if action.sense_emotion is not None
+                                    else None
+                                ),
+                                kinship=(
+                                    KinshipQuery(
+                                        relation=action.kinship_relation,
+                                        anchor_node_id=action.kinship_anchor_node_id,
+                                        anchor_name=action.kinship_anchor_name,
+                                    )
+                                    if action.kinship_relation is not None
+                                    else None
+                                ),
+                                record_kinds=action.record_kinds,
+                                node_types=action.node_types,
+                                relation_types=action.relation_types,
+                                occurred_from=action.occurred_from,
+                                occurred_to=action.occurred_to,
+                                minimum_importance=action.minimum_importance,
+                                person_node_ids=action.person_node_ids,
+                                place_node_ids=action.place_node_ids,
+                                emotion_labels=action.emotion_labels,
+                                topic_labels=action.topic_labels,
+                                cause_labels=action.cause_labels,
+                                include_unknown_time=action.include_unknown_time,
+                            )
+                            recall_result = memory_session.recall(recall_request)
                             recall_status = recall_result.status
                             recall_reason = recall_result.reason
                             recall_revision = recall_result.pinned_revision
@@ -772,7 +821,10 @@ class ReasoningRun:
                         else:
                             recall_content = ""
                         observation_content = (
-                            f"query={action.query}; reason={action.reason}; "
+                            f"query={action.query or '(none)'}; "
+                            f"sense={action.sense_emotion.value if action.sense_emotion else '(none)'}; "
+                            f"kinship={action.kinship_relation or '(none)'}; "
+                            f"reason={action.reason}; "
                             f"result={recall_content or 'no additional memory evidence'}; "
                             f"detail={recall_reason or 'none'}"
                         )
@@ -1534,9 +1586,18 @@ class ReasoningRun:
         capabilities: ModelGenerationCapabilities | None = None,
         allow_deliberate_tools: bool = False,
     ) -> ModelGenerationRequest:
-        del final_schema
         direct_reply = self._is_fast_owner_reply(base)
         response_schema = base.response_schema
+        if direct_reply and final_schema and not allow_deliberate_tools:
+            response_schema = JsonSchemaDocument(
+                name="FinalCognitiveAction",
+                document=DecisionPlanDecoder.final_cognitive_action_schema(),
+            )
+            user_prompt = (
+                user_prompt
+                + "\nRecallMemory is no longer available in this final step. "
+                "Return an AnswerDraft, ClarificationDraft or NoOpDraft."
+            )
         native_tools = (
             allow_deliberate_tools
             and capabilities is not None

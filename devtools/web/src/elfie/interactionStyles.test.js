@@ -38,4 +38,10 @@ describe("Elfie Lab interaction styles", () => {
     expect(timelineSource).not.toContain('className="process-line"');
     expect(legacyStyles).toContain("--panel-right: clamp(400px, 24vw, 480px);");
   });
+
+  it("keeps the switcher opaque and its delete action identifiable", () => {
+    expect(antdStyles).toMatch(/\.elfie-switcher\.ant-btn\s*\{[^}]*background: var\(--surface-elevated\) !important;/);
+    expect(sidebarSource).toContain('import { DeleteOutlined } from "@ant-design/icons";');
+    expect(sidebarSource).toContain('<DeleteOutlined aria-hidden="true" />');
+  });
 });

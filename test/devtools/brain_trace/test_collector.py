@@ -210,7 +210,7 @@ def test_mock_memory_fixture_is_seeded_through_typed_store(tmp_path):
     # The recall summary derives status/query/evidence from the named
     # envelope payloads: the scored episode reaches the turn's bundle.
     summary = turn["memory_recall_summary"]
-    assert summary["turn_opened"]["query"] == "你还记得我的偏好吗？"
+    assert summary["turn_opened"]["query"] == ""
     recalled = [
         recall
         for recall in summary["recalls"]

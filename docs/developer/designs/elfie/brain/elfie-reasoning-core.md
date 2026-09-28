@@ -151,8 +151,8 @@ Memory is not an optional "assisted mode"; it is an always-available Reasoning
 capability:
 
 1. At Turn start, idempotently hand off any previously closed, unacknowledged `ClosedEpisode`.
-2. Pin `memory_revision` and apply the baseline Recall gate. Query only when the current message, people, active topic, references or explicit corrections express a real historical-retrieval intent; otherwise the result may explicitly be `skipped` or empty.
-3. If the `DELIBERATE` Agent Loop discovers an unknown person, reference, conflict or missing critical knowledge, it may emit a typed `RecallMemory` Action.
+2. Pin `memory_revision` and apply the baseline Recall gate: at most one current active emotion cue for Sense-only, otherwise skipped. The first model supplies a focused Query when needed; raw messages do not automatically become queries (Memory design §3.4.2).
+3. When the admitted action schema permits it, an Agent Loop that discovers an unknown person, reference, conflict or missing critical knowledge may emit a typed `RecallMemory` Action. DIRECT is limited to its one budgeted Recall-to-final-answer continuation.
 4. Memory Bridge deduplicates equivalent queries, bounds request count and character/token cost, and rejects mixed revisions within one Run.
 5. A Recall result returns to Context Workspace as `MemoryObservation`; Context Engine then rebuilds the next context.
 6. The Run produces only sourced Memory-use records, `ClosedEpisode` objects or typed candidates; Memory validates and durably commits them.
@@ -170,14 +170,14 @@ model/step/Recall budgets, deadline and cancellation state.
 
 Reasoning depth has only two values:
 
-- `DIRECT` — sufficient facts, low risk and no additional exploration; uses only pre-model baseline Recall and is fixed to one cognitive model step.
+- `DIRECT` — ordinary low-risk dialogue, normally one cognitive model step; Brain 1.15 permits one model-requested read-only Recall and a final second step when the host reserves headroom.
 - `DELIBERATE` — ambiguity, conflicts, a complex explanation, an important correction or additional Memory evidence; allows `1..N` bounded cognitive steps and on-demand Recall.
 
 Upstream circuits may supply salience, urgency and task-kind hints. Run
 Controller combines those constraints with request complexity, risk, Energy,
 deadline and available model capability to choose the final depth. Mode and
-capability are orthogonal: both P0 depths may use baseline Memory Recall, only
-`DELIBERATE` may use on-demand Recall, and neither may use a Skill or Tool.
+capability are orthogonal: both P0 depths may use baseline Memory Recall;
+`DELIBERATE` uses its existing on-demand budget, while DIRECT has the single-Recall exception above; neither P0 depth gains Skill or Tool permission from Recall.
 
 Food routing follows the existing model contract: use the Elfie's selected main
 Food, or Common Food only when no selection exists. Reasoning depth and model
@@ -195,13 +195,11 @@ P0 uses the common bounded loop with tool capability disabled. Section 5 is the
 sole authoritative control flow. Before every cognitive iteration, Context
 Engine rebuilds `ModelContext`; the model emits one typed Cognitive Action; the
 Host turns Recall, revision feedback or format repair into a structured
-Observation. An Observation may trigger another iteration only for
-`DELIBERATE` and after budget, deadline and cancellation checks pass.
+Observation. After budget, deadline and cancellation checks, DELIBERATE observations may trigger another iteration; DIRECT permits only its one Recall-to-final-answer continuation.
 
 The model emits a typed Cognitive Action, not a free-text control command. The
 P0 Action set contains only `RecallMemory`, `AnswerDraft`,
-`ClarificationDraft` and `NoOpDraft`; `RecallMemory` is available only to
-`DELIBERATE`. Later stages may add `LoadSkill` and `CallTool` to the same union
+`ClarificationDraft` and `NoOpDraft`; `RecallMemory` is available to DELIBERATE and the budget-admitted first DIRECT step, never its final step. Later stages may add `LoadSkill` and `CallTool` to the same union
 without changing the one-Turn, one-Context-Workspace, one-final-decision
 skeleton.
 
@@ -341,8 +339,8 @@ Loop nor owns Prompt context.
 ## 6. The inner loop and its termination point
 
 Section 5 already expresses the complete loop; this section fixes only its
-semantics. One Turn creates exactly one `ReasoningRun`. `DIRECT` has exactly one
-cognitive iteration; `DELIBERATE` has `1..N`. In P0, only a `DELIBERATE`
+semantics. One Turn creates exactly one `ReasoningRun`. `DIRECT` normally has one
+cognitive iteration; its only second iteration consumes a single Recall observation and uses a final-only schema. The host must reserve Energy/deadline headroom before exposing that action; otherwise it is omitted. `DELIBERATE` has `1..N`. In P0, a `DELIBERATE`
 structured Observation produced by `RecallMemory`, invalid output repair or a
 Judge-requested revision may begin another iteration after the Guard permits
 it. When Judge accepts a draft, or the Guard stops for budget, deadline,
@@ -432,7 +430,7 @@ ownership skeleton.
 2. The next Turn uses a pronoun or omission and Context Workspace continues from the recent dialogue correctly.
 3. After long dialogue triggers compaction, current topic, corrections and unresolved items remain usable and each summary traces back to original messages.
 4. The owner explicitly corrects an old fact; after restart, Recall uses the corrected fact while preserving conflict/correction provenance.
-5. An ordinary `DIRECT` request performs one cognitive model step; a request that needs more personal history enters `DELIBERATE` and performs one bounded Recall without mixing another Memory revision.
+5. A `DIRECT` greeting with no active emotion performs one cognitive model step without Recall. A history-dependent question may request one budgeted Recall and one final answer without changing depth or Memory revision; an unresolved reference requires clarification. No second Recall is exposed. See Memory design §3.4.2 for the planned Brain 1.15 exception and MEM-023 for its implementation gap.
 6. A complex question that needs no tool enters `DELIBERATE` and finishes or asks a necessary clarification within budget rather than looping forever.
 7. Delivery failure, model failure, Memory unavailability and budget exhaustion produce distinct observable outcomes and never fabricate success.
 8. With two conversations in flight, messages, summaries, Recall, replies and Receipts never cross scopes; each Turn may still read a bounded global attention/Activity projection, but never the other conversation's raw text.

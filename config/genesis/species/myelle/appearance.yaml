@@ -1,0 +1,215 @@
+document_kind: appearance_profile
+schema_version: 1
+profile_version: 2
+supported_controls: []
+control_options:
+  stature:
+  - small
+  - standard
+  - tall
+  - any
+  build:
+  - slim
+  - standard
+  - round
+  - any
+  face:
+  - soft
+  - balanced
+  - defined
+  - any
+  signature:
+  - warm
+  - marked
+  - any
+control_ranges:
+  stature:
+    minimum: 0.88
+    base: 0.98
+    maximum: 1.08
+  build:
+    minimum: 0.86
+    base: 0.96
+    maximum: 1.08
+  face:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+  signature:
+    minimum: -1.0
+    base: 0.0
+    maximum: 1.0
+stature_scale:
+  minimum: 0.88
+  base: 0.98
+  maximum: 1.08
+build_scale:
+  minimum: 0.86
+  base: 0.96
+  maximum: 1.08
+build_weights:
+  body_fat: 0.36
+  frame_size: 0.24
+  muscularity: 0.18
+  local_bias: 0.0
+proportion_scales:
+  HeadScale:
+    minimum: 0.92
+    base: 1.0
+    maximum: 1.1
+  NeckLength:
+    minimum: 0.88
+    base: 1.0
+    maximum: 1.12
+  ArmLength:
+    minimum: 0.92
+    base: 1.0
+    maximum: 1.08
+  LegLength:
+    minimum: 0.92
+    base: 1.0
+    maximum: 1.12
+  ShoulderWidth:
+    minimum: 0.88
+    base: 0.98
+    maximum: 1.08
+  HandScale:
+    minimum: 0.88
+    base: 0.98
+    maximum: 1.08
+  PawScale:
+    minimum: 0.86
+    base: 0.96
+    maximum: 1.06
+  TailLength:
+    minimum: 0.9
+    base: 1.0
+    maximum: 1.14
+  EyeScale:
+    minimum: 0.94
+    base: 1.04
+    maximum: 1.14
+  EyeSpacing:
+    minimum: 0.94
+    base: 1.0
+    maximum: 1.06
+  EyeHeight:
+    minimum: 0.96
+    base: 1.0
+    maximum: 1.04
+shape_correlations:
+  Body_ChestFullness:
+    body_fat: 0.38
+    frame_size: 0.24
+    muscularity: 0.18
+    local_bias: 0.28
+  Body_WaistWidth:
+    body_fat: 0.52
+    frame_size: 0.16
+    muscularity: 0.0
+    local_bias: 0.24
+  Body_BellyDepth:
+    body_fat: 0.68
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.24
+  Body_HipWidth:
+    body_fat: 0.48
+    frame_size: 0.22
+    muscularity: 0.0
+    local_bias: 0.24
+  Body_HipDepth:
+    body_fat: 0.56
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.24
+  Body_ArmThickness:
+    body_fat: 0.52
+    frame_size: 0.18
+    muscularity: 0.22
+    local_bias: 0.24
+  Body_LegThickness:
+    body_fat: 0.58
+    frame_size: 0.18
+    muscularity: 0.22
+    local_bias: 0.2
+  Body_NeckThickness:
+    body_fat: 0.48
+    frame_size: 0.18
+    muscularity: 0.0
+    local_bias: 0.2
+  Body_PawFullness:
+    body_fat: 0.34
+    frame_size: 0.18
+    muscularity: 0.0
+    local_bias: 0.28
+  Face_CheekFullness:
+    body_fat: 0.5
+    frame_size: 0.12
+    muscularity: 0.0
+    local_bias: 0.28
+  Face_LowerFullness:
+    body_fat: 0.42
+    frame_size: 0.0
+    muscularity: 0.0
+    local_bias: 0.26
+palettes:
+- black
+- white
+- cream
+- ginger
+- gray
+- calico
+- tuxedo
+patterns:
+- solid
+- tabby
+- bicolor
+- calico
+- tuxedo
+eye_colors:
+- green
+- amber
+- blue
+- hazel
+- blue_gray
+nose_colors:
+- pink
+- black
+- dark_brown
+- charcoal
+distributions:
+  ear_droop:
+    mean: 0.1
+    standard_deviation: 0.17
+    minimum: 0.0
+    maximum: 1.0
+species_traits:
+- whisker_sensitivity_bias
+- ear_focus_bias
+- tail_balance_bias
+status: published
+source_refs:
+- species#genesis-appearance-boundaries
+parameter_provenance:
+  source_path: config/species/myelle/appearance.yaml
+  source_sha256: 3c92ecc887f2f82d9d71e27ef88d072f413ddf2663e884ca0d58ae08217c4487
+  status: inherited_configuration_not_new_biological_facts
+  inherited_numeric_parameters_recalibrated: false
+  unsupported_values_are_not_generation_options: true
+  new_unsourced_parameters: author_review_required
+runtime_capabilities:
+  inspection: static_repository_inventory_only
+  required_assets_present: false
+  missing_assets: [character_scene, character_model, species_manifest]
+  presentation_assets: concept_drafts_pending_author_review
+  control_support: {}
+  bone_scale_bindings: []
+  blend_shape_bindings: []
+  unsupported_controls: [stature, build, face, signature]
+  render_validation_this_revision: blocked_missing_assets
+  life_stage_visual_validation: author_review_required
+  missing_binding_or_asset: reject_candidate_without_reroll
+  presentation_image_proves_runtime_readiness: false
+  authoring_options_only: true
+  reason: Myelle 只有物种与外貌草案，没有 cat 正式角色包；其他物种模型不能代替。

@@ -811,7 +811,7 @@ class ReasoningContextWorkspace:
                 occurred_to=end.isoformat(),
                 occurrence_precision="range",
                 content_text=content,
-                event_kind="conversation_episode",
+                event_kind="conversation",
                 source_refs=tuple(
                     SourceReference(
                         source_id=str(event_id),

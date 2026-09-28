@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -22,6 +21,7 @@ from elfie.brain.memory.memory_records import (
     MemoryUseProposal,
     RecallBundle,
     RecallRequest,
+    RecallSense,
 )
 from elfie.brain.observation import (
     BrainObservation,
@@ -36,7 +36,7 @@ from elfie.brain.reasoning.observation_payloads import (
     MemoryStateObservation,
     MemoryTurnOpened,
 )
-from elfie.brain.workspace.contracts import SocialPayload, TurnFrame
+from elfie.brain.workspace.contracts import TurnFrame
 from elfie.message_types import EventId, UTCDateTime
 
 MemoryRecallStatus = Literal[
@@ -52,6 +52,41 @@ _RECALL_COMPLETED_STATUSES = frozenset({"recalled", "skipped"})
 _RECALL_SKIPPED_STATUSES = frozenset({"duplicate", "budget_exhausted"})
 
 
+def _has_recall_input(request: RecallRequest) -> bool:
+    return bool(
+        request.text.strip()
+        or request.seed_node_ids
+        or request.sense is not None
+        or request.kinship is not None
+    )
+
+
+def _request_cache_key(request: RecallRequest) -> RecallRequest:
+    """Normalize only Query whitespace/case; retain every typed filter."""
+    return replace(
+        request,
+        text=" ".join(request.text.casefold().split()),
+        recall_id=None,
+    )
+
+
+def _initial_sense_request(emotion: EmotionSnapshot) -> RecallRequest | None:
+    """Use only the strongest active canonical emotion from a current snapshot."""
+    if emotion.freshness != "current" or not emotion.active:
+        return None
+    strongest = max(
+        emotion.active,
+        key=lambda item: (item.intensity, item.name.value),
+    )
+    return ReasoningMemoryBridge._request(
+        sense=RecallSense(
+            emotion_label=strongest.name.value,
+            intensity=strongest.intensity,
+        ),
+        episode_limit=1,
+    )
+
+
 def _recall_observation_status(status: str) -> ObservationStatus:
     """Map one Memory recall status onto the envelope lifecycle state.
 
@@ -65,17 +100,6 @@ def _recall_observation_status(status: str) -> ObservationStatus:
     if status in _RECALL_SKIPPED_STATUSES:
         return ObservationStatus.skipped
     return ObservationStatus.degraded
-
-
-_RECALL_INTENT = re.compile(
-    r"(?:母星|家乡星球|恒星|伊洛拉|雨季|旱季|本地日|迷雾镇|Elfaria|"
-    r"记得|之前|上次|以前|历史|回忆|偏好|喜欢|不喜欢|习惯|"
-    r"纠正|更正|其实|冲突|矛盾|那个|这件事|这回事|他(?:说|是)|"
-    r"她(?:说|是)|它(?:是|呢)|来自哪里|认识|我们.{0,12}(?:说过|聊过)|"
-    r"remember|previous(?:ly)?|last\s+time|history|prefer|like|dislike|"
-    r"correct|conflict|that\s+(?:one|thing)|who\s+is)",
-    flags=re.IGNORECASE,
-)
 
 
 @dataclass(frozen=True)
@@ -98,7 +122,7 @@ class MemoryRecallSessionPort(Protocol):
     @property
     def baseline_result(self) -> MemoryRecallResult: ...
 
-    def recall(self, query: str) -> MemoryRecallResult: ...
+    def recall(self, request: RecallRequest) -> MemoryRecallResult: ...
 
 
 @dataclass(frozen=True)
@@ -125,7 +149,7 @@ class ReasoningMemorySession:
         self._pinned_revision = pinned_revision
         self._max_on_demand_recalls = max_on_demand_recalls
         self._on_demand_recalls = 0
-        self._results: OrderedDict[str, MemoryRecallResult] = OrderedDict()
+        self._results: OrderedDict[RecallRequest, MemoryRecallResult] = OrderedDict()
         self._lock = RLock()
         self._baseline_result = MemoryRecallResult(
             status="skipped",
@@ -143,23 +167,23 @@ class ReasoningMemorySession:
     def baseline_result(self) -> MemoryRecallResult:
         return self._baseline_result
 
-    def set_baseline(self, result: MemoryRecallResult) -> None:
+    def set_baseline(
+        self, result: MemoryRecallResult, request: RecallRequest | None = None
+    ) -> None:
         """Bind the single baseline result before the Run becomes visible."""
         with self._lock:
             self._baseline_result = result
-            normalized = self._normalize(result.query)
-            if normalized:
-                self._results[normalized] = result
+            if request is not None:
+                self._results[_request_cache_key(request)] = result
 
-    def recall(self, query: str) -> MemoryRecallResult:
+    def recall(self, request: RecallRequest) -> MemoryRecallResult:
         """Perform at most one unique on-demand Recall for P0."""
-        normalized = self._normalize(query)
-        if not normalized:
+        if not _has_recall_input(request):
             result = MemoryRecallResult(
                 status="unavailable",
-                query=query,
+                query=request.text,
                 pinned_revision=self._pinned_revision,
-                reason="blank_recall_query",
+                reason="empty_recall_request",
             )
             self._bridge._emit_recall_result(
                 frame_id=self._frame_id,
@@ -168,11 +192,12 @@ class ReasoningMemorySession:
             )
             return result
         with self._lock:
-            previous = self._results.get(normalized)
+            cache_key = _request_cache_key(request)
+            previous = self._results.get(cache_key)
             if previous is not None:
                 result = MemoryRecallResult(
                     status="duplicate",
-                    query=query,
+                    query=request.text,
                     pinned_revision=self._pinned_revision,
                     bundle=previous.bundle,
                     reason="query_already_recalled_in_run",
@@ -186,7 +211,7 @@ class ReasoningMemorySession:
             if self._on_demand_recalls >= self._max_on_demand_recalls:
                 result = MemoryRecallResult(
                     status="budget_exhausted",
-                    query=query,
+                    query=request.text,
                     pinned_revision=self._pinned_revision,
                     reason="on_demand_recall_budget_exhausted",
                 )
@@ -198,19 +223,15 @@ class ReasoningMemorySession:
                 return result
             self._on_demand_recalls += 1
         result = self._bridge._recall_at_revision(  # noqa: SLF001 - owned session
-            query,
+            request,
             pinned_revision=self._pinned_revision,
             frame_id=self._frame_id,
         )
         with self._lock:
-            self._results[normalized] = result
+            self._results[cache_key] = result
         if result.bundle is not None:
             self._bridge.remember_additional_bundle(self._frame_id, result.bundle)
         return result
-
-    @staticmethod
-    def _normalize(query: str) -> str:
-        return " ".join(query.casefold().split())
 
 
 class ReasoningMemoryBridge:
@@ -237,12 +258,9 @@ class ReasoningMemoryBridge:
         captured_at: UTCDateTime,
     ) -> ReasoningMemoryTurn:
         """Pin one revision, gate baseline Recall, and return the Run session."""
-        del emotion
-        query = "\n".join(
-            event.payload.content
-            for event in frame.events
-            if isinstance(event.payload, SocialPayload)
-        ).strip()
+        # First-stage Recall is deliberately Sense-only. The owner message is
+        # left for the model to interpret; Memory never guesses its intent.
+        query = ""
         sink = self._sink
         pin_started = perf_counter() if sink is not None else 0.0
         try:
@@ -271,9 +289,10 @@ class ReasoningMemoryBridge:
             frame_id=frame.frame_id,
             pinned_revision=pinned_revision,
         )
-        if query and self.should_recall(query):
+        baseline_request = _initial_sense_request(emotion)
+        if baseline_request is not None:
             baseline = self._recall_at_revision(
-                query,
+                baseline_request,
                 pinned_revision=pinned_revision,
                 frame_id=frame.frame_id,
             )
@@ -283,14 +302,14 @@ class ReasoningMemoryBridge:
                 query=query,
                 pinned_revision=pinned_revision,
                 bundle=RecallBundle(recall_revision=pinned_revision),
-                reason="baseline_recall_not_relevant",
+                reason="baseline_recall_not_requested",
             )
             self._emit_recall_result(
                 frame_id=frame.frame_id,
                 result=baseline,
                 duration_ms=0.0,
             )
-        session.set_baseline(baseline)
+        session.set_baseline(baseline, request=baseline_request)
         bundle = baseline.bundle or RecallBundle(recall_revision=pinned_revision)
         self._remember_bundle(frame.frame_id, bundle)
         return ReasoningMemoryTurn(
@@ -304,24 +323,19 @@ class ReasoningMemoryBridge:
             session=session,
         )
 
-    @staticmethod
-    def should_recall(query: str) -> bool:
-        """Skip greetings/small talk that carry no historical retrieval intent."""
-        return _RECALL_INTENT.search(query) is not None
-
     def _recall_at_revision(
         self,
-        query: str,
+        request: RecallRequest,
         *,
         pinned_revision: int,
         frame_id: EventId | None = None,
     ) -> MemoryRecallResult:
         recall_id = f"reasoning-recall:{uuid4().hex}"
-        request = replace(self._request(query), recall_id=recall_id)
+        request = replace(request, recall_id=recall_id)
         self._emit_recall_started(
             recall_id=recall_id,
             frame_id=frame_id,
-            query=query,
+            query=request.text,
             pinned_revision=pinned_revision,
             request=request,
         )
@@ -341,7 +355,7 @@ class ReasoningMemoryBridge:
                 if self._memory.revision != pinned_revision:
                     result = MemoryRecallResult(
                         status="stale",
-                        query=query,
+                        query=request.text,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_before_recall",
                     )
@@ -359,7 +373,7 @@ class ReasoningMemoryBridge:
                 ):
                     result = MemoryRecallResult(
                         status="stale",
-                        query=query,
+                        query=request.text,
                         pinned_revision=pinned_revision,
                         reason="memory_revision_changed_during_recall",
                     )
@@ -373,7 +387,7 @@ class ReasoningMemoryBridge:
         except Exception as error:  # noqa: BLE001 - typed degradation boundary
             result = MemoryRecallResult(
                 status="unavailable",
-                query=query,
+                query=request.text,
                 pinned_revision=pinned_revision,
                 reason=f"memory_unavailable:{type(error).__name__}",
             )
@@ -386,7 +400,7 @@ class ReasoningMemoryBridge:
             return result
         result = MemoryRecallResult(
             status="recalled",
-            query=query,
+            query=request.text,
             pinned_revision=pinned_revision,
             bundle=bundle,
         )
@@ -471,7 +485,30 @@ class ReasoningMemoryBridge:
                     query=query,
                     pinned_revision=pinned_revision,
                     request=MemoryRecallRequestObservation(
-                        mode=request.mode,
+                        has_query=bool(request.text.strip()),
+                        sense_emotion=(
+                            request.sense.emotion_label
+                            if request.sense is not None
+                            else None
+                        ),
+                        kinship_relation=(
+                            request.kinship.relation
+                            if request.kinship is not None
+                            else None
+                        ),
+                        record_kinds=request.record_kinds,
+                        has_filters=bool(
+                            request.node_types
+                            or request.relation_types
+                            or request.occurred_from
+                            or request.occurred_to
+                            or request.minimum_importance is not None
+                            or request.person_node_ids
+                            or request.place_node_ids
+                            or request.emotion_labels
+                            or request.topic_labels
+                            or request.cause_labels
+                        ),
                         seed_limit=request.seed_limit,
                         node_limit=request.node_limit,
                         assertion_limit=request.assertion_limit,
@@ -541,14 +578,19 @@ class ReasoningMemoryBridge:
         )
 
     @staticmethod
-    def _request(query: str) -> RecallRequest:
+    def _request(
+        *,
+        text: str = "",
+        sense: RecallSense | None = None,
+        episode_limit: int = 8,
+    ) -> RecallRequest:
         return RecallRequest(
-            text=query,
-            mode="basic_local",
+            text=text,
+            sense=sense,
             seed_limit=8,
             node_limit=32,
             assertion_limit=48,
-            episode_limit=8,
+            episode_limit=episode_limit,
             evidence_limit=16,
             character_limit=6000,
         )

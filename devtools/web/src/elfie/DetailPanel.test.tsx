@@ -809,7 +809,7 @@ describe("Elfie Lab Turn Inspector", () => {
             }],
             pending_memory: [{
               status: "待写入 Memory",
-              event_kind: "interaction",
+              event_kind: "conversation",
               occurred_from: "2026-09-07T09:00:00+00:00",
               occurred_to: "2026-09-07T09:01:00+00:00",
               content_text: "待记忆经历",

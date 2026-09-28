@@ -47,8 +47,14 @@ from infrastructure.persistence.elfie_workspace.brain_state import (
 from infrastructure.persistence.elfie_workspace.elfies import (
     SQLiteElfiesProjectionAdapter,
 )
-from infrastructure.persistence.layout.data_home import get_elfie_config_dir
+from infrastructure.persistence.layout.data_home import (
+    data_home_from_db_path,
+    get_elfie_config_dir,
+)
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.ontology_loader import (
+    load_memory_ontology_snapshot,
+)
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from infrastructure.skills import BundledSkillCatalog
@@ -197,6 +203,9 @@ def restore_registered_elfies(
     # establish that catalog before invoking ElfieFactory.
     load_and_configure_species_catalog()
     factory = ElfieFactory()
+    memory_ontology = load_memory_ontology_snapshot(
+        data_home=data_home_from_db_path(db_path)
+    )
     restored: list[RestoredElfie] = []
     failures: list[ElfieRestoreFailure] = []
     for row in SQLiteElfiesProjectionAdapter(db_path).list_directory():
@@ -207,6 +216,7 @@ def restore_registered_elfies(
             memory_store = SQLiteMemoryStoreAdapter(
                 config_dir / "memory" / "knowledge.sqlite",
                 elfie_id=row.elfie_id,
+                ontology=memory_ontology,
             )
             elfie = factory.restore(
                 ElfieAssembly(
@@ -217,6 +227,7 @@ def restore_registered_elfies(
                     emotion_expression_config=emotion_expression_config,
                     emotion_dynamics_config=emotion_dynamics_config,
                     memory_store=memory_store,
+                    memory_ontology=memory_ontology,
                     activity_store=SQLiteActivityStoreAdapter(
                         config_dir / "activity" / "activity.sqlite"
                     ),

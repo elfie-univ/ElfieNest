@@ -60,6 +60,7 @@ def ensure_bundle(*, pnpm_command: str | None = None) -> Path:
             WEB_SOURCE / "node_modules" / ".bin" / "tsc",
             WEB_SOURCE / "node_modules" / "antd" / "package.json",
             WEB_SOURCE / "node_modules" / "@ant-design" / "icons" / "package.json",
+            WEB_SOURCE / "node_modules" / "react-force-graph-3d" / "package.json",
         )
     )
     if not dependencies_ready:

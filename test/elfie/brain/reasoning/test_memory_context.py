@@ -8,13 +8,16 @@ from threading import Lock
 from typing import List, Tuple
 from unittest.mock import patch
 
-from elfie.brain.emotion.contracts import EmotionSnapshot
+from elfie.brain.emotion.contracts import EmotionSnapshot, EmotionValue
+from elfie.brain.emotion.emotion_types import EmotionType
 from elfie.brain.memory.memory_records import (
     AssertionInput,
     ClosedEpisode,
     ConsolidationProjection,
     EvidenceInput,
     NodeInput,
+    RecallRequest,
+    SourceReference,
 )
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.observation import BrainObservation, ObservationStatus
@@ -61,7 +64,7 @@ def _seeded_memory() -> MemorySystem:
     store.upsert_node_record(
         NodeInput(
             node_id="genesis:knowledge:elfie-1:0",
-            node_type="knowledge",
+            node_type="concept",
             canonical_label="我来自 Elfaria。",
             description="我来自 Elfaria。",
             properties={
@@ -145,7 +148,10 @@ def test_memory_context_returns_real_recalled_nodes_with_provenance() -> None:
     )
 
     context = turn.context
-    bundle = context.recall
+    assert context.recall.focus_nodes == ()
+    recall = turn.session.recall(RecallRequest(text="Elfaria"))
+    assert recall.bundle is not None
+    bundle = recall.bundle
     assert context.recall_revision == memory.revision
     assert bundle.recall_revision == memory.revision
     assert len(bundle.focus_nodes) == 1
@@ -166,7 +172,7 @@ def test_relationship_importance_uses_entity_metadata_not_retrieval_score() -> N
     store.upsert_node_record(
         NodeInput(
             node_id="person:owner-1",
-            node_type="entity",
+            node_type="person",
             canonical_label="主人",
             properties={
                 "person_id": "owner-1",
@@ -192,7 +198,7 @@ def test_relationship_importance_rejects_an_ambiguous_owner_fallback() -> None:
         store.upsert_node_record(
             NodeInput(
                 node_id=f"person:{person_id}",
-                node_type="entity",
+                node_type="person",
                 canonical_label=person_id,
                 properties={
                     "person_id": person_id,
@@ -222,13 +228,84 @@ def test_smalltalk_skips_baseline_recall_without_hiding_the_status() -> None:
         )
 
     assert turn.session.baseline_result.status == "skipped"
-    assert turn.session.baseline_result.reason == "baseline_recall_not_relevant"
+    assert turn.session.baseline_result.reason == "baseline_recall_not_requested"
     assert turn.context.recall_revision == memory.revision
     recall.assert_not_called()
 
 
-def test_direct_mother_star_question_requests_baseline_recall() -> None:
-    assert ReasoningMemoryBridge.should_recall("你的母星是什么？")
+def test_current_salient_emotion_is_the_only_baseline_recall_input() -> None:
+    emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=2).model_copy(
+        update={
+            "active": (EmotionValue(name=EmotionType.SADNESS, intensity=0.91),),
+            "primary": EmotionType.SADNESS,
+        }
+    )
+    sink = _CollectorSink()
+    turn = ReasoningMemoryBridge(_seeded_memory(), observation_sink=sink).open_turn(
+        _owner_frame("你好呀"), emotion, NOW
+    )
+
+    assert turn.session.baseline_result.status == "recalled"
+    assert turn.session.baseline_result.query == ""
+    started = next(
+        event.payload for event in sink.snapshot() if event.kind == "recall_started"
+    )
+    assert isinstance(started, MemoryRecallStarted)
+    assert started.query == ""
+    assert started.request.has_query is False
+    assert started.request.sense_emotion == "sadness"
+
+
+def test_sense_baseline_returns_only_sourced_self_attributed_emotion() -> None:
+    memory = MemorySystem(
+        SQLiteMemoryStoreAdapter.in_memory(elfie_id="elfie-1"),
+        elfie_id="elfie-1",
+        initial_at=NOW,
+    )
+    memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="felt-sadness",
+            idempotency_key="felt-sadness",
+            occurred_from=NOW.isoformat(),
+            content_text="那天因为分别而难过。",
+            source_refs=(SourceReference("emotion-event-1"),),
+            emotion="sadness",
+            emotion_intensity=0.88,
+            attribution="felt",
+        )
+    )
+    current = EmotionSnapshot.inactive(captured_at=NOW, revision=2).model_copy(
+        update={
+            "active": (EmotionValue(name=EmotionType.SADNESS, intensity=0.91),),
+            "primary": EmotionType.SADNESS,
+        }
+    )
+
+    turn = ReasoningMemoryBridge(memory).open_turn(_owner_frame("你好呀"), current, NOW)
+
+    assert [episode.episode_id for episode in turn.context.recall.episodes] == [
+        "felt-sadness"
+    ]
+
+
+def test_stale_or_unknown_emotion_does_not_trigger_baseline_recall() -> None:
+    memory = _seeded_memory()
+    current = EmotionSnapshot.inactive(captured_at=NOW, revision=2).model_copy(
+        update={
+            "active": (EmotionValue(name=EmotionType.FEAR, intensity=0.96),),
+            "primary": EmotionType.FEAR,
+            "freshness": "stale",
+        }
+    )
+
+    with patch.object(memory, "recall", wraps=memory.recall) as recall:
+        turn = ReasoningMemoryBridge(memory).open_turn(
+            _owner_frame("你好呀"), current, NOW
+        )
+
+    assert turn.session.baseline_result.status == "skipped"
+    assert turn.session.baseline_result.reason == "baseline_recall_not_requested"
+    recall.assert_not_called()
 
 
 def test_on_demand_recall_is_deduplicated_and_rejects_a_new_revision() -> None:
@@ -241,8 +318,8 @@ def test_on_demand_recall_is_deduplicated_and_rejects_a_new_revision() -> None:
     inactive = EmotionSnapshot.inactive(captured_at=NOW, revision=1)
     turn = bridge.open_turn(_owner_frame("你好呀"), inactive, NOW)
 
-    first = turn.session.recall("主人以前喜欢什么？")
-    duplicate = turn.session.recall("  主人以前喜欢什么？  ")
+    first = turn.session.recall(RecallRequest(text="主人以前喜欢什么？"))
+    duplicate = turn.session.recall(RecallRequest(text="  主人以前喜欢什么？  "))
 
     assert first.status == "recalled"
     assert first.bundle is not None
@@ -261,7 +338,7 @@ def test_on_demand_recall_is_deduplicated_and_rejects_a_new_revision() -> None:
         )
     )
 
-    stale = stale_turn.session.recall("主人纠正后的偏好是什么？")
+    stale = stale_turn.session.recall(RecallRequest(text="主人纠正后的偏好是什么？"))
     assert stale.status == "stale"
     assert stale.bundle is None
     assert stale.reason == "memory_revision_changed_before_recall"
@@ -279,9 +356,15 @@ def test_memory_failure_is_an_explicit_unavailable_recall_result() -> None:
             del request
             raise OSError("memory offline")
 
+    emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=1).model_copy(
+        update={
+            "active": (EmotionValue(name=EmotionType.FEAR, intensity=0.95),),
+            "primary": EmotionType.FEAR,
+        }
+    )
     turn = ReasoningMemoryBridge(UnavailableMemory()).open_turn(  # type: ignore[arg-type]
-        _owner_frame("你还记得我喜欢什么吗？"),
-        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
+        _owner_frame("你好呀"),
+        emotion,
         NOW,
     )
 
@@ -370,9 +453,11 @@ def test_restart_recall_keeps_the_corrected_fact_and_both_sources(
             EmotionSnapshot.inactive(captured_at=NOW, revision=1),
             NOW,
         )
-        bundle = turn.context.recall
+        recall = turn.session.recall(RecallRequest(text="主人"))
+        assert recall.bundle is not None
+        bundle = recall.bundle
 
-        assert turn.session.baseline_result.status == "recalled"
+        assert turn.session.baseline_result.status == "skipped"
         claims = {item.assertion_id: item for item in bundle.assertions}
         assert claims["claim-new-name"].status == "active"
         assert claims["claim-new-name"].object_literal == "小周"
@@ -391,9 +476,15 @@ def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
     bridge = ReasoningMemoryBridge(memory, observation_sink=sink)
     state = memory.snapshot(NOW)
 
+    emotion = EmotionSnapshot.inactive(captured_at=NOW, revision=1).model_copy(
+        update={
+            "active": (EmotionValue(name=EmotionType.HAPPINESS, intensity=0.87),),
+            "primary": EmotionType.HAPPINESS,
+        }
+    )
     turn = bridge.open_turn(
         _owner_frame("你来自哪里？"),
-        EmotionSnapshot.inactive(captured_at=NOW, revision=1),
+        emotion,
         NOW,
     )
     events = sink.snapshot()
@@ -412,7 +503,7 @@ def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
     assert opened.cause_event_ids == ("owner-event-1",)
     assert opened.duration_ms is not None
     assert opened.captured_at.tzinfo is timezone.utc
-    assert opened.payload.query == "你来自哪里？"
+    assert opened.payload.query == ""
     assert opened.payload.pinned_revision == memory.revision
     assert opened.payload.state.revision == state.revision
     assert opened.payload.state.episodic_count == state.episodic_count
@@ -421,32 +512,34 @@ def test_one_turn_emits_three_typed_memory_bridge_observations() -> None:
 
     started = events[1]
     assert isinstance(started.payload, MemoryRecallStarted)
-    assert started.payload.query == "你来自哪里？"
+    assert started.payload.query == ""
     assert started.payload.pinned_revision == memory.revision
-    assert started.payload.request.mode == "basic_local"
+    assert started.payload.request.has_query is False
+    assert started.payload.request.sense_emotion == "happiness"
+    assert started.payload.request.kinship_relation is None
     assert started.payload.request.seed_limit == 8
     assert started.payload.request.node_limit == 32
     assert started.payload.request.assertion_limit == 48
-    assert started.payload.request.episode_limit == 8
+    assert started.payload.request.episode_limit == 1
     assert started.payload.request.evidence_limit == 16
     assert started.payload.request.character_limit == 6000
 
     result = events[2]
     assert isinstance(result.payload, MemoryRecallResultObservation)
-    assert result.payload.query == "你来自哪里？"
+    assert result.payload.query == ""
     assert result.payload.status == "recalled"
     assert result.payload.pinned_revision == memory.revision
     assert result.payload.reason is None
     bundle = result.payload.bundle
     assert bundle is not None
     assert bundle.recall_revision == memory.revision
-    assert bundle.focus_node_ids == ("genesis:knowledge:elfie-1:0",)
+    assert bundle.focus_node_ids == ()
     recalled = turn.context.recall
     assert bundle.assertion_ids == tuple(
         item.assertion_id for item in recalled.assertions
     )
     assert bundle.episode_ids == ()
-    assert bundle.evidence_ids == ("genesis:evidence:elfie-1:0",)
+    assert bundle.evidence_ids == ()
     assert bundle.path_count == len(recalled.paths)
     assert bundle.conflict_count == len(recalled.conflicts)
 
@@ -475,9 +568,9 @@ def test_smalltalk_turn_emits_completed_envelope_with_skipped_payload() -> None:
     assert result.duration_ms is not None
     assert isinstance(result.payload, MemoryRecallResultObservation)
     assert result.payload.status == "skipped"
-    assert result.payload.query == "你好呀"
+    assert result.payload.query == ""
     assert result.payload.pinned_revision == memory.revision
-    assert result.payload.reason == "baseline_recall_not_relevant"
+    assert result.payload.reason == "baseline_recall_not_requested"
     assert result.payload.bundle is not None
     assert result.payload.bundle.recall_revision == memory.revision
     assert result.payload.bundle.focus_node_ids == ()

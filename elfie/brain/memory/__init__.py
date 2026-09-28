@@ -21,6 +21,7 @@ from elfie.brain.memory.memory_records import (
     DescriptionInput,
     EpisodeReceipt,
     EvidenceInput,
+    KinshipQuery,
     MaintenanceReceipt,
     MaintenanceRequest,
     MediaReference,
@@ -39,14 +40,27 @@ from elfie.brain.memory.memory_records import (
     RecallNode,
     RecallPath,
     RecallRequest,
+    RecallSense,
     SourceReference,
+    memory_node_group,
+    resolve_memory_node_type,
 )
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
 from elfie.brain.memory.model_food import ModelPortMemoryAdapter
+from elfie.brain.memory.ontology import (
+    EpisodeTypeSpec,
+    MemoryOntologyError,
+    MemoryOntologySnapshot,
+    NodeTypeGroup,
+    NodeTypeSpec,
+    PredicateSpec,
+)
 from elfie.brain.memory.predicates import (
-    PREDICATE_REGISTRY_VERSION,
     UnknownPredicateError,
+    relation_context,
+    relation_importance,
+    relation_spec,
     resolve_predicate,
 )
 from elfie.brain.memory.recall_renderer import render_recall_bundle
@@ -93,10 +107,17 @@ __all__ = [
     "MentionInput",
     "MaintenanceReceipt",
     "MaintenanceRequest",
+    "KinshipQuery",
     "MemoryInspectionSnapshot",
     "MemoryUseProposal",
     "QualifiedReinforcementReceipt",
     "NodeInput",
+    "NodeTypeGroup",
+    "NodeTypeSpec",
+    "EpisodeTypeSpec",
+    "PredicateSpec",
+    "MemoryOntologySnapshot",
+    "MemoryOntologyError",
     "OccurrencePrecision",
     "RecallAssertion",
     "RecallBundle",
@@ -107,9 +128,14 @@ __all__ = [
     "RecallNode",
     "RecallPath",
     "RecallRequest",
+    "RecallSense",
     "SourceReference",
-    "PREDICATE_REGISTRY_VERSION",
+    "memory_node_group",
+    "resolve_memory_node_type",
     "UnknownPredicateError",
+    "relation_context",
+    "relation_importance",
+    "relation_spec",
     "resolve_predicate",
     "render_recall_bundle",
 ]

@@ -97,6 +97,29 @@
   .food-editor-form .modal-actions { grid-column: 1; }
 }
 .trait-editor { display: grid; gap: 14px; }
+
+.selfhood-output { display: grid; gap: 18px; }
+.selfhood-output h3 { margin: 0 0 10px; color: var(--text-primary); font-size: 13px; }
+.selfhood-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.selfhood-toolbar p { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.selfhood-projection,
+.selfhood-state { padding: 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-inset); }
+.selfhood-projection pre { max-height: 320px; margin: 0; padding: 14px; overflow: auto; border-radius: 8px; background: var(--surface-elevated); color: var(--text-primary); font-family: inherit; font-size: 12px; line-height: 1.75; white-space: pre-wrap; }
+.selfhood-projection small { display: block; margin-top: 8px; color: var(--text-secondary); }
+.selfhood-state dl { display: grid; grid-template-columns: 90px 1fr; gap: 7px 14px; margin: 0 0 14px; }
+.selfhood-state dt { color: var(--text-secondary); }
+.selfhood-state dd { margin: 0; color: var(--text-primary); }
+.selfhood-state h3:not(:first-child) { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+.selfhood-big-five { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.selfhood-big-five > div { min-width: 0; padding: 8px; border-radius: 7px; background: var(--surface-elevated); text-align: center; }
+.selfhood-big-five span, .selfhood-big-five strong { display: block; }
+.selfhood-big-five span { color: var(--text-secondary); font-size: 10px; }
+.selfhood-big-five strong { margin-top: 4px; color: var(--text-primary); font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+.selfhood-state-group { display: grid; grid-template-columns: 90px 1fr; gap: 14px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
+.selfhood-state-group > strong { color: var(--text-secondary); font-size: 12px; }
+.selfhood-state-group > span { display: flex; flex-wrap: wrap; gap: 6px; }
+.selfhood-state-group i { padding: 3px 8px; border-radius: 999px; background: var(--surface-elevated); color: var(--text-primary); font-size: 11px; font-style: normal; }
+.selfhood-state-group em { color: var(--text-secondary); font-size: 11px; font-style: normal; }
 .trait-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 38px; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 11px; }
 .trait-row input { width: 100%; accent-color: var(--accent-primary); }
 .trait-row output { color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }

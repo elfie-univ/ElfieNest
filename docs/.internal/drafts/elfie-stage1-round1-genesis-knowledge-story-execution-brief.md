@@ -7,7 +7,7 @@
 > 目标是让新领养的 Elfie 从第一次聊天开始，就拥有可探索、可追问、可溯源的异星知识、个人过去和关系骨架。
 >
 > 现行创建边界以 ADR-0033、Elfie 2.3、Brain 1.5 与
-> [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 为准。本文旧有 Canon、Manifest、Profile
+> [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准。本文旧有 Canon、Manifest、Profile
 > 来源字段和提交后重放措辞只说明当时实现，不能覆盖现行契约。
 
 ## 1. 用户目标

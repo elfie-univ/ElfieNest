@@ -122,7 +122,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.neuroticism == 0.2
     assert result.appearance is not None
     assert result.appearance.species_id == "fox"
-    assert result.appearance.profile_version == 2
+    assert result.appearance.profile_version == 3
 
 
 def test_portrait_reader_returns_only_the_saved_png_view(tmp_path: Path) -> None:
@@ -165,7 +165,7 @@ def test_cognition_reader_is_read_only_and_returns_typed_records(
                 occurred_from="2026-08-01T00:00:00Z",
                 content_text="被 Alice 领养",
                 importance=0.95,
-                event_kind="adoption",
+                event_kind="life_event",
                 metadata={
                     "major_event": True,
                     "title": "被领养",

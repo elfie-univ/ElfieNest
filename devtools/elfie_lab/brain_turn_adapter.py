@@ -210,6 +210,42 @@ class BrainTurnAdapter:
             self._elfie.turn_reasoning(outcome.turn_id),
         )
 
+    def run_manual_consolidation(
+        self,
+        model_execution: ModelPort,
+    ) -> tuple[
+        str | None,
+        TurnOutcome | None,
+        TurnDecision | None,
+        tuple[ExecutionReceipt, ...],
+        ReasoningRunResult | None,
+    ]:
+        """Run one explicit consolidation through the normal Activity Turn."""
+        self._runtime.select(model_execution)
+        previous_count = len(self._elfie.turn_outcomes())
+        # A restored Lab session may have an owner timestamp from before the
+        # facade clock was anchored to wall time. Queue a tiny pulse first so
+        # the owner thread and Emotion/Homeostasis share the same epoch.
+        self._elfie.advance_clock(0.001)
+        candidate_id = self._elfie.request_consolidation()
+        if candidate_id is None:
+            return None, None, None, (), None
+        outcome = self._wait_for_submitted_events(
+            (candidate_id,), previous_count=previous_count
+        )
+        if self._elfie.turn_decision(outcome.turn_id) is not None:
+            self._elfie.wait_for_output(
+                outcome.turn_id,
+                timeout=_TURN_WAIT_TIMEOUT_SECONDS,
+            )
+        return (
+            str(candidate_id),
+            outcome,
+            self._elfie.turn_decision(outcome.turn_id),
+            self._elfie.execution_receipts(outcome.turn_id),
+            self._elfie.turn_reasoning(outcome.turn_id),
+        )
+
     def _wait_for_submitted_events(
         self,
         event_ids: tuple[EventId, ...],

@@ -136,7 +136,13 @@ class RecycleStore:
 
     @staticmethod
     def _prune_empty_bundle(bundle: Path) -> None:
-        for category in ("evaluations", "media", "sessions", "elfies"):
+        for category in (
+            "evaluations",
+            "media",
+            "sessions",
+            "genesis_reviews",
+            "elfies",
+        ):
             category_dir = bundle / category
             if category_dir.is_dir() and not any(category_dir.iterdir()):
                 category_dir.rmdir()
@@ -146,6 +152,7 @@ class RecycleStore:
     def _sources(self, elfie_id: str) -> Tuple[Tuple[str, Path], ...]:
         return (
             ("elfies", self.root / "elfies" / elfie_id),
+            ("genesis_reviews", self.root / "genesis_reviews" / f"{elfie_id}.json"),
             ("sessions", self.root / "sessions" / elfie_id),
             ("media", self.root / "media" / elfie_id),
             ("evaluations", self.root / "evaluations" / elfie_id),

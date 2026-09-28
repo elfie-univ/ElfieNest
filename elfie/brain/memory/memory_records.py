@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Literal, Mapping, Optional, Tuple, Union
 
+from elfie.brain.memory.ontology import MemoryOntologySnapshot, NodeTypeSpec
+
 JsonValue = Union[
     None,
     bool,
@@ -23,8 +25,6 @@ JsonValue = Union[
 _RECALL_LIMIT_MAX = {
     "lexical_limit": 200,
     "seed_limit": 64,
-    "hop_limit": 4,
-    "neighbors_per_node": 64,
     "node_limit": 400,
     "assertion_limit": 800,
     "episode_limit": 80,
@@ -34,6 +34,10 @@ _RECALL_LIMIT_MAX = {
 
 AttributionKind = Literal["observed", "told", "inferred", "felt"]
 OccurrencePrecision = Literal["exact", "range", "unknown"]
+EpisodeEventKind = str
+EpisodeMaintenanceState = Literal[
+    "pending", "processing", "completed", "failed", "skipped"
+]
 RetentionProfile = Literal[
     "transient",
     "ordinary",
@@ -42,6 +46,20 @@ RetentionProfile = Literal[
     "stable",
     "genesis",
 ]
+RecallRole = Literal["primary", "support"]
+
+
+def resolve_memory_node_type(
+    node_type: str,
+    ontology: MemoryOntologySnapshot,
+) -> NodeTypeSpec:
+    """Resolve a writable leaf only through the injected ontology snapshot."""
+    return ontology.validate_node_type(node_type)
+
+
+def memory_node_group(node_type: str, ontology: MemoryOntologySnapshot) -> str:
+    """Derive the one primary group from the registered leaf type."""
+    return ontology.group_for_node_type(node_type)
 
 
 @dataclass(frozen=True)
@@ -96,7 +114,7 @@ class ClosedEpisode:
     content_text: str
     occurred_to: Optional[str] = None
     summary_text: Optional[str] = None
-    event_kind: str = "interaction"
+    event_kind: EpisodeEventKind = "unclassified"
     source_refs: Tuple[SourceReference, ...] = ()
     media_refs: Tuple[MediaReference, ...] = ()
     source_event_ids: Tuple[str, ...] = ()
@@ -118,8 +136,6 @@ class ClosedEpisode:
     attribution: AttributionKind = "observed"
     privacy_scope: str = "private"
     source_version: Optional[str] = None
-    projection_revision: Optional[str] = None
-    projection_source_sha256: Optional[str] = None
     last_reinforced_at: Optional[str] = None
     last_reviewed_at: Optional[str] = None
     next_review_at: Optional[str] = None
@@ -143,6 +159,8 @@ class ClosedEpisode:
             _timestamp_key(self.occurred_from)
         if not self.content_text.strip():
             raise ValueError("content_text must not be blank")
+        if not self.event_kind.strip():
+            raise ValueError("event_kind must not be blank")
         if not 0.0 <= self.importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
         if not 0.0 <= self.initial_importance <= 1.0:
@@ -194,20 +212,44 @@ class ClosedEpisode:
             raise ValueError("privacy_scope must not be blank")
         for label, value in (
             ("source_version", self.source_version),
-            ("projection_revision", self.projection_revision),
-            ("projection_source_sha256", self.projection_source_sha256),
             ("policy_version", self.policy_version),
             ("genesis_submission_id", self.genesis_submission_id),
         ):
             if value is not None and not value.strip():
                 raise ValueError(f"{label} must not be blank when supplied")
-        if (
-            self.projection_source_sha256 is not None
-            and len(self.projection_source_sha256) != 64
-        ):
-            raise ValueError("projection_source_sha256 must be a 64-character digest")
         if self.content_sha256 is not None and len(self.content_sha256) != 64:
             raise ValueError("content_sha256 must be a 64-character digest")
+
+
+@dataclass(frozen=True)
+class ClaimedEpisode:
+    """An Episode paired with its ephemeral, storage-issued work lease."""
+
+    episode: ClosedEpisode
+    owner: str
+    attempt: int
+
+    def __post_init__(self) -> None:
+        if not self.owner.strip():
+            raise ValueError("claim owner must not be blank")
+        if self.attempt < 1:
+            raise ValueError("claim attempt must be positive")
+
+
+@dataclass(frozen=True)
+class EpisodeMaintenanceStatus:
+    """Read-only operational progress for an Episode's consolidation work."""
+
+    episode_id: str
+    state: EpisodeMaintenanceState
+    source_version: Optional[str]
+    source_sha256: Optional[str]
+    projection_revision: Optional[str]
+    ontology_revision: Optional[str]
+    attempts: int
+    next_attempt_at: Optional[str]
+    last_error: Optional[str]
+    updated_at: str
 
 
 @dataclass(frozen=True)
@@ -218,6 +260,42 @@ class EpisodeReceipt:
     idempotency_key: str
     status: Literal["committed", "duplicate"]
     content_sha256: str
+
+
+@dataclass(frozen=True)
+class GenesisSubmissionReceipt:
+    """Technical acknowledgement of one committed Memory submission.
+
+    This is a projection of the Memory transaction ledger, not a graph Node or
+    a record of the wider Genesis/Admission workflow.
+    """
+
+    elfie_id: str
+    submission_id: str
+    manifest_id: str
+    source_version: str
+    content_sha256: str
+    expected_ids_hash: str
+    committed_at: str
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("elfie_id", self.elfie_id),
+            ("submission_id", self.submission_id),
+            ("manifest_id", self.manifest_id),
+            ("source_version", self.source_version),
+        ):
+            if not value.strip():
+                raise ValueError(f"{name} must not be blank")
+        for name, value in (
+            ("content_sha256", self.content_sha256),
+            ("expected_ids_hash", self.expected_ids_hash),
+        ):
+            if len(value) != 64 or any(
+                character not in "0123456789abcdefABCDEF" for character in value
+            ):
+                raise ValueError(f"{name} must be a SHA-256 digest")
+        _timestamp_key(self.committed_at)
 
 
 @dataclass(frozen=True)
@@ -474,7 +552,7 @@ class AssertionInput:
     half_life_days: float = 30.0
     retention_profile: RetentionProfile = "semantic"
     object_literal_type: Optional[str] = None
-    predicate_registry_version: str = "memory.predicates.v1"
+    predicate_registry_version: str = "memory.ontology.v1"
     policy_version: str = "memory.v3"
     genesis_submission_id: Optional[str] = None
     # Optional policy event emitted by Consolidation.  It is intentionally a
@@ -643,6 +721,7 @@ class ConsolidationProjection:
     source_version: Optional[str] = None
     source_sha256: Optional[str] = None
     projection_revision: Optional[str] = None
+    ontology_revision: Optional[str] = None
     # Operational fencing for a claimed Episode.  These fields are never part
     # of the semantic projection hash and are omitted for direct/import writes.
     claim_owner: Optional[str] = None
@@ -660,6 +739,8 @@ class ConsolidationProjection:
             and not self.projection_revision.strip()
         ):
             raise ValueError("projection_revision must not be blank when supplied")
+        if self.ontology_revision is not None and not self.ontology_revision.strip():
+            raise ValueError("ontology_revision must not be blank when supplied")
         if self.claim_owner is not None and not self.claim_owner.strip():
             raise ValueError("claim_owner must not be blank when supplied")
         if self.claim_attempt is not None and self.claim_attempt < 1:
@@ -772,7 +853,7 @@ class MaintenanceReceipt:
 
 @dataclass(frozen=True)
 class RecallRequest:
-    """Bounded semantic query accepted by the Memory Port."""
+    """Bounded Query, Sense and hard filters accepted by the Memory Port."""
 
     text: str = ""
     # Ephemeral observation correlation only.  It is never persisted as a
@@ -781,13 +862,14 @@ class RecallRequest:
     seed_node_ids: Tuple[str, ...] = ()
     node_types: Tuple[str, ...] = ()
     relation_types: Tuple[str, ...] = ()
+    record_kinds: Tuple[Literal["episode", "node", "assertion"], ...] = ()
+    sense: Optional[RecallSense] = None
+    kinship: Optional[KinshipQuery] = None
+    minimum_importance: Optional[float] = None
     occurred_from: Optional[str] = None
     occurred_to: Optional[str] = None
-    mode: Literal["basic", "local", "basic_local"] = "basic_local"
     lexical_limit: int = 20
     seed_limit: int = 8
-    hop_limit: int = 2
-    neighbors_per_node: int = 12
     node_limit: int = 40
     assertion_limit: int = 80
     episode_limit: int = 8
@@ -805,8 +887,6 @@ class RecallRequest:
         for name in (
             "lexical_limit",
             "seed_limit",
-            "hop_limit",
-            "neighbors_per_node",
             "node_limit",
             "assertion_limit",
             "episode_limit",
@@ -819,8 +899,6 @@ class RecallRequest:
                 raise ValueError(
                     f"{name} exceeds the safe maximum {_RECALL_LIMIT_MAX[name]}"
                 )
-        if self.mode not in {"basic", "local", "basic_local"}:
-            raise ValueError("unsupported recall mode")
         if self.occurred_from is not None and self.occurred_to is not None:
             if _timestamp_key(self.occurred_to) < _timestamp_key(self.occurred_from):
                 raise ValueError("occurred_to must not precede occurred_from")
@@ -828,6 +906,7 @@ class RecallRequest:
             "seed_node_ids",
             "node_types",
             "relation_types",
+            "record_kinds",
             "person_node_ids",
             "place_node_ids",
             "emotion_labels",
@@ -840,6 +919,48 @@ class RecallRequest:
             raise ValueError("privacy_scope must not be blank when supplied")
         if self.recall_id is not None and not self.recall_id.strip():
             raise ValueError("recall_id must not be blank when supplied")
+        if (
+            self.minimum_importance is not None
+            and not 0.0 <= self.minimum_importance <= 1.0
+        ):
+            raise ValueError("minimum_importance must be between 0 and 1")
+
+
+@dataclass(frozen=True)
+class RecallSense:
+    """One reliable, current affect cue for associative Episode retrieval."""
+
+    emotion_label: str
+    intensity: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        if self.emotion_label not in {
+            "happiness",
+            "sadness",
+            "anger",
+            "fear",
+            "surprise",
+            "disgust",
+        }:
+            raise ValueError("unsupported canonical recall emotion")
+        if self.intensity is not None and not 0.0 <= self.intensity <= 1.0:
+            raise ValueError("recall emotion intensity must be between 0 and 1")
+
+
+@dataclass(frozen=True)
+class KinshipQuery:
+    """A supported one-hop family lookup, never a general graph-language plan."""
+
+    relation: Literal["parents", "children", "siblings"]
+    anchor_node_id: Optional[str] = None
+    anchor_name: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if (self.anchor_node_id is None) == (self.anchor_name is None):
+            raise ValueError("kinship requires exactly one anchor ID or name")
+        for value in (self.anchor_node_id, self.anchor_name):
+            if value is not None and not value.strip():
+                raise ValueError("kinship anchor must not be blank")
 
 
 @dataclass(frozen=True)
@@ -853,6 +974,7 @@ class RecallNode:
     confidence: float = 0.5
     freshness: float = 1.0
     half_life_days: float = 30.0
+    role: RecallRole = "primary"
     # Bounded, read-only properties are useful to authorized diagnostics and
     # presentation projections (for example a relationship ring).  They are
     # never used as a second fact source by Recall or Reasoning.
@@ -890,6 +1012,7 @@ class RecallAssertion:
     confidence: float = 0.5
     freshness: float = 1.0
     half_life_days: float = 30.0
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -897,6 +1020,7 @@ class RecallPath:
     node_ids: Tuple[str, ...]
     assertion_ids: Tuple[str, ...]
     hop_count: int
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -907,6 +1031,9 @@ class RecallEpisode:
     excerpt: str
     detail_level: str
     relevance: float
+    # Keep the complete source excerpt available for matching/context while
+    # carrying the persisted display synopsis separately when one exists.
+    summary_text: Optional[str] = None
     occurrence_precision: OccurrencePrecision = "exact"
     life_stage: Optional[str] = None
     temporal_label: Optional[str] = None
@@ -914,6 +1041,16 @@ class RecallEpisode:
     freshness: float = 1.0
     half_life_days: float = 2.0
     source_event_ids: Tuple[str, ...] = ()
+    # Genesis knowledge remains source-first and fact-level, while Recall may
+    # expand acquired siblings from the same reviewed topic bucket.  These
+    # fields make that expansion inspectable without concatenating or
+    # truncating the underlying Episodes.
+    topic_bucket: Optional[str] = None
+    topic_member_index: Optional[int] = None
+    topic_member_count: int = 0
+    topic_omitted_count: int = 0
+    topic_continuation: Optional[str] = None
+    role: RecallRole = "primary"
 
 
 @dataclass(frozen=True)
@@ -964,6 +1101,8 @@ class RecallBundle:
     # to bind an explicit-use proposal to the Recall snapshot that supplied
     # its IDs; it is not a score and never enters ranking.
     recall_revision: int = 0
+    status: Literal["complete", "partial", "ambiguous", "unsupported"] = "complete"
+    notices: Tuple[str, ...] = ()
     limits: RecallLimits = field(
         default_factory=lambda: RecallLimits(requested={}, returned={})
     )
@@ -985,9 +1124,11 @@ __all__ = [
     "MaintenanceReceipt",
     "MaintenanceRequest",
     "MemoryUseProposal",
+    "KinshipQuery",
     "QualifiedReinforcementReceipt",
     "DescriptionInput",
     "EpisodeReceipt",
+    "GenesisSubmissionReceipt",
     "EvidenceInput",
     "MediaReference",
     "MentionInput",
@@ -1003,6 +1144,7 @@ __all__ = [
     "JsonValue",
     "RecallPath",
     "RecallRequest",
+    "RecallSense",
     "SourceReference",
     "AttributionKind",
     "OccurrencePrecision",

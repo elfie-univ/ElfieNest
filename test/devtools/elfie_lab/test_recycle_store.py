@@ -18,6 +18,9 @@ def test_recycle_moves_all_data_into_manifested_bundle(tmp_path):
     elfie_id = "elfie_recycle"
     for category in ("elfies", "sessions", "media", "evaluations"):
         _write_source(tmp_path, category, elfie_id, f"{category}.txt")
+    review_source = tmp_path / "genesis_reviews" / f"{elfie_id}.json"
+    review_source.parent.mkdir(parents=True)
+    review_source.write_text("{}", encoding="utf-8")
 
     # When
     result = RecycleStore(tmp_path).recycle(elfie_id)
@@ -25,6 +28,7 @@ def test_recycle_moves_all_data_into_manifested_bundle(tmp_path):
     # Then
     assert result.moved_sources == (
         f"elfies/{elfie_id}",
+        f"genesis_reviews/{elfie_id}",
         f"sessions/{elfie_id}",
         f"media/{elfie_id}",
         f"evaluations/{elfie_id}",
@@ -35,6 +39,8 @@ def test_recycle_moves_all_data_into_manifested_bundle(tmp_path):
     for category in ("elfies", "sessions", "media", "evaluations"):
         assert not (tmp_path / category / elfie_id).exists()
         assert (result.bundle_dir / category / elfie_id / f"{category}.txt").is_file()
+    assert not review_source.exists()
+    assert (result.bundle_dir / "genesis_reviews" / elfie_id).read_text() == "{}"
 
 
 def test_recycle_rolls_back_every_completed_move_when_later_move_fails(tmp_path):

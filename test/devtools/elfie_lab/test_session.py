@@ -147,7 +147,7 @@ def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
         "brain_observations.reasoning.memory_bridge"
     )
     assert setup["baseline_memory"]["status"] == "skipped"
-    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_relevant"
+    assert setup["baseline_memory"]["reason"] == "baseline_recall_not_requested"
     assert all("used_by" not in owner for owner in setup["owner_snapshots"])
     assert all(
         owner["evidence_basis"] == "reasoning.run_controller.context_frozen"
@@ -311,6 +311,8 @@ def test_consolidation_consolidates_memory_without_external_actions(
                 importance=importance,
             )
         )
+    consolidation_batch = memory.pending_consolidation_ids()
+    assert {"lab-offline-0", "lab-offline-1"}.issubset(consolidation_batch)
     ElfieDiagnostics(session.elfie).energy.is_sleeping = True
     ElfieDiagnostics(session.elfie).energy.fatigue = 90.0
 
@@ -331,19 +333,47 @@ def test_consolidation_consolidates_memory_without_external_actions(
     assert session.snapshot()["activity_count"] == 0
     offline = session.snapshot()["cognitive_consolidation"]
     assert offline["status"] == "satisfied"
-    assert offline["last_consolidated_count"] == 2
+    assert offline["last_consolidated_count"] == len(consolidation_batch)
     assert offline["last_knowledge_created"] >= 1
-    # The consolidation pass has projected both Episodes.  A lifecycle-only
-    # wake-up may still be pending for the same maintenance owner; it is not a
-    # second projection queue and must remain visible to the scheduler.
-    assert ElfieDiagnostics(session.elfie).memory.pending_consolidation_ids() == (
-        "maintenance:lifecycle",
-    )
+    # One bounded pass projects the captured batch. Any remaining Genesis
+    # material stays visible to the same maintenance owner for a later pass.
+    remaining = memory.pending_consolidation_ids()
+    assert set(consolidation_batch).isdisjoint(remaining)
+    assert {"lab-offline-0", "lab-offline-1"}.isdisjoint(remaining)
 
     # And: the satisfaction window suppresses a duplicate night-work turn.
     session.elfie.advance_clock(1.0)
     session.elfie._brain_runtime.coordinator.synchronize(2)
     assert len(session.elfie.turn_outcomes()) == 1
+
+
+def test_manual_consolidation_runs_while_awake_without_creating_an_episode(
+    tmp_path, session_factory
+):
+    storage = ElfieLabStorage(str(tmp_path))
+    spec = storage.create_elfie("手动整理")
+    session = session_factory(spec, storage)
+    memory = ElfieDiagnostics(session.elfie).memory
+    memory.record_closed_episode(
+        ClosedEpisode(
+            episode_id="manual-episode-1",
+            idempotency_key="manual-episode-1",
+            occurred_from=(datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+            content_text="主人在花园陪我散步",
+            emotion="happy",
+            emotion_intensity=0.8,
+            importance=0.8,
+        )
+    )
+
+    result = session.run_manual_consolidation("mock")
+
+    assert result["triggered"] is True
+    assert result["success"] is True
+    assert result["candidate_id"].startswith("consolidation:")
+    assert result["consolidated_count"] > 0
+    assert len(session.turns) == 0
+    assert session.snapshot()["cognitive_consolidation"]["status"] == "satisfied"
 
 
 def test_state_injection_is_visible_and_persistent(tmp_path, session_factory):

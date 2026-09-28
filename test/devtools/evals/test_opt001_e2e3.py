@@ -26,13 +26,21 @@ def test_opt001_e2_queries_are_scoped_to_species_and_cover_the_gate() -> None:
         fact.fact_id
         for fact in world.knowledge
         if fact.status == "active"
-        and ("all" in fact.eligibility or "fox" in fact.eligibility)
+        and (
+            not fact.eligibility
+            or "all" in fact.eligibility
+            or "fox" in fact.eligibility
+        )
     }
     eligible_dog_ids = {
         fact.fact_id
         for fact in world.knowledge
         if fact.status == "active"
-        and ("all" in fact.eligibility or "dog" in fact.eligibility)
+        and (
+            not fact.eligibility
+            or "all" in fact.eligibility
+            or "dog" in fact.eligibility
+        )
     }
     fox_ids = {fact.fact_id for fact, _ in fox_cases}
     dog_ids = {fact.fact_id for fact, _ in dog_cases}

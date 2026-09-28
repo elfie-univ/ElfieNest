@@ -156,6 +156,7 @@ export default defineConfig({
                           ]
                         },
                         { text: "Elfie top-level module design", link: "/developer/designs/elfie/elfie-top-level-module-design" },
+                        { text: "Genesis complete design", link: "/developer/designs/elfie/genesis-complete-design" },
                         {
                           text: "Embodiment",
                           collapsed: true,
@@ -343,6 +344,7 @@ export default defineConfig({
                           ]
                         },
                         { text: "Elfie 顶级模块设计", link: "/zh/developer/designs/elfie/elfie-top-level-module-design" },
+                        { text: "Genesis 完整设计", link: "/zh/developer/designs/elfie/genesis-complete-design" },
                         {
                           text: "Embodiment",
                           collapsed: true,

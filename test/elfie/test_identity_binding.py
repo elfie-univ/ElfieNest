@@ -14,11 +14,13 @@ from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 def test_identity_rebind_reassembles_workspace_and_nervous_perception() -> None:
     # Given: an Elfie assembled under a provisional identity.
     body = HeadlessBody(body_id="identity-body")
+    memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
             elfie_id="provisional", display_name="临时精灵", species_id="fox", seed=4
         ),
-        memory_store=SQLiteMemoryStoreAdapter.in_memory(),
+        memory_store=memory_store,
+        memory_ontology=memory_store.ontology,
         body=body,
     )
     old_workspace = ElfieDiagnostics(elfie).workspace

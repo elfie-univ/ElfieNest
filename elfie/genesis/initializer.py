@@ -9,34 +9,46 @@ semantic choices have already been made by :mod:`elfie.genesis.compiler`.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
 
 from elfie.brain.memory.memory_records import (
-    AliasInput,
     AssertionInput,
     ClosedEpisode,
-    ConsolidationProjection,
-    DescriptionInput,
     EvidenceInput,
-    MentionInput,
+    GenesisSubmissionReceipt,
+    JsonValue,
     NodeInput,
     SourceReference,
 )
-from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.memory_store import (
+    GenesisSubmissionConflict,
+    MemoryStorePort,
+)
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
+from elfie.brain.memory.predicates import (
+    relation_context,
+    relation_importance,
+)
 
-from .contracts import GenesisBundle, GenesisValidationError, validate_genesis_bundle
+from .contracts import (
+    GenesisBundle,
+    GenesisValidationError,
+    validate_genesis_bundle,
+)
 from .serialization import (
+    ENTITY_NODE_PREFIX,
     EPISODE_NODE_PREFIX,
-    EVENT_NODE_PREFIX,
-    GENESIS_RECEIPT_PREFIX,
-    KNOWLEDGE_NODE_PREFIX,
     PERSON_NODE_PREFIX,
     PLACE_NODE_PREFIX,
-    SELF_MODEL_PREFIX,
     SELF_NODE_PREFIX,
     genesis_content_hash,
+    knowledge_group_id,
+    knowledge_groups,
+    knowledge_member_text,
+    knowledge_summary_text,
     output_ids_hash,
     planned_genesis_output_ids,
     safe_component,
@@ -61,6 +73,9 @@ class GenesisCommitReceipt:
 class GenesisMemoryCommitter:
     """Materialize a typed bundle through one atomic Memory submission."""
 
+    def __init__(self, ontology: MemoryOntologySnapshot | None = None) -> None:
+        self._ontology = ontology
+
     def commit(
         self, bundle: GenesisBundle, storage: MemoryStorePort
     ) -> GenesisCommitReceipt:
@@ -78,77 +93,98 @@ class GenesisMemoryCommitter:
 
         profile = bundle.profile_draft.profile
         elfie_id = profile.identity.elfie_id
-        marker_id = f"{GENESIS_RECEIPT_PREFIX}{elfie_id}"
         key_digest = _idempotency_key_digest(bundle.manifest.idempotency_key)
         inventory_hash = output_ids_hash(expected_ids)
         submission = getattr(storage, "genesis_submission", None)
-        if not callable(submission):
+        get_submission = getattr(storage, "get_genesis_submission", None)
+        if not callable(submission) or not callable(get_submission):
             raise TypeError("Genesis requires source-first Memory storage")
+        ontology = self._ontology or getattr(storage, "ontology", None)
+        if not isinstance(ontology, MemoryOntologySnapshot):
+            raise TypeError("Genesis requires the injected Memory ontology snapshot")
+        validate_genesis_bundle(bundle, ontology)
 
-        existing_marker = storage.get_graph_node(marker_id)
-        if existing_marker is not None:
-            self._verify_existing_marker(existing_marker, bundle)
-            return GenesisCommitReceipt(
-                manifest_id=bundle.manifest.manifest_id,
-                status="duplicate",
-                node_ids=_marker_node_ids(existing_marker),
-                idempotency_key_digest=key_digest,
-                content_hash=bundle.manifest.content_hash,
-                output_ids_hash=inventory_hash,
-                compiler_version=bundle.manifest.compiler_version,
-                schema_version=bundle.manifest.schema_version,
-                committed_at=str(existing_marker.properties.get("committed_at", "")),
-            )
+        existing_submission = get_submission(key_digest)
+        if existing_submission is not None:
+            self._verify_existing_submission(existing_submission, bundle, key_digest)
 
         now = datetime.now(timezone.utc).isoformat()
-        with submission(
-            submission_id=key_digest,
-            manifest_id=bundle.manifest.manifest_id,
-            source_version=bundle.manifest.compiler_version,
-            content_sha256=bundle.manifest.content_hash,
-            expected_ids=expected_ids,
-            elfie_id=elfie_id,
-        ) as accepted:
-            if not accepted:
-                marker = storage.get_graph_node(marker_id)
-                if marker is None:
-                    raise GenesisValidationError(
-                        "Genesis submission was marked duplicate without a completion marker"
+        try:
+            with submission(
+                submission_id=key_digest,
+                manifest_id=bundle.manifest.manifest_id,
+                source_version=bundle.manifest.compiler_version,
+                content_sha256=bundle.manifest.content_hash,
+                expected_ids=expected_ids,
+                elfie_id=elfie_id,
+            ) as accepted:
+                result = (
+                    self._commit_bundle(
+                        bundle, storage, now, key_digest, inventory_hash, ontology
                     )
-                return GenesisCommitReceipt(
-                    manifest_id=bundle.manifest.manifest_id,
-                    status="duplicate",
-                    node_ids=_marker_node_ids(marker),
-                    idempotency_key_digest=key_digest,
-                    content_hash=bundle.manifest.content_hash,
-                    output_ids_hash=inventory_hash,
-                    compiler_version=bundle.manifest.compiler_version,
-                    schema_version=bundle.manifest.schema_version,
-                    committed_at=str(marker.properties.get("committed_at", "")),
+                    if accepted
+                    else None
                 )
-            return self._commit_bundle(bundle, storage, now, key_digest, inventory_hash)
+        except GenesisSubmissionConflict as error:
+            if error.kind == "manifest":
+                raise GenesisValidationError(
+                    "该 Elfie 已经用另一个 Genesis manifest 初始化，不能覆盖已有生命起点"
+                ) from error
+            if error.kind == "output_owner":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 输出已归属另一个提交，不能用新幂等身份覆盖"
+                ) from error
+            if error.kind == "output_ids":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 输出清单与已提交版本不一致"
+                ) from error
+            if error.kind == "identity":
+                raise GenesisValidationError(
+                    "该 Elfie 的 Genesis 幂等身份与已提交版本不一致"
+                ) from error
+            raise
+
+        committed_submission = get_submission(key_digest)
+        if committed_submission is None:
+            raise GenesisValidationError(
+                "Memory 已结束 Genesis 提交，但事务账本中没有完成回执"
+            )
+        self._verify_existing_submission(committed_submission, bundle, key_digest)
+        if result is not None:
+            return replace(result, committed_at=committed_submission.committed_at)
+        return GenesisCommitReceipt(
+            manifest_id=bundle.manifest.manifest_id,
+            status="duplicate",
+            node_ids=expected_ids,
+            idempotency_key_digest=key_digest,
+            content_hash=bundle.manifest.content_hash,
+            output_ids_hash=inventory_hash,
+            compiler_version=bundle.manifest.compiler_version,
+            schema_version=bundle.manifest.schema_version,
+            committed_at=committed_submission.committed_at,
+        )
 
     @staticmethod
-    def _verify_existing_marker(marker, bundle: GenesisBundle) -> None:
-        properties = marker.properties
-        if properties.get("manifest_id") != bundle.manifest.manifest_id:
+    def _verify_existing_submission(
+        receipt: GenesisSubmissionReceipt,
+        bundle: GenesisBundle,
+        submission_id: str,
+    ) -> None:
+        if receipt.submission_id != submission_id:
+            raise GenesisValidationError("Genesis 提交回执的幂等身份不一致")
+        if receipt.elfie_id != bundle.profile_draft.profile.identity.elfie_id:
+            raise GenesisValidationError("Genesis 提交回执属于另一只精灵")
+        if receipt.manifest_id != bundle.manifest.manifest_id:
             raise GenesisValidationError(
                 "该 Elfie 已经用另一个 Genesis manifest 初始化，不能覆盖已有生命起点"
             )
-        if properties.get("content_hash") != bundle.manifest.content_hash:
+        if receipt.content_sha256 != bundle.manifest.content_hash:
             raise GenesisValidationError(
                 "该 Elfie 的 Genesis manifest 内容与已提交版本不一致"
             )
-        expected_digest = _idempotency_key_digest(bundle.manifest.idempotency_key)
-        if properties.get("idempotency_key_digest") != expected_digest:
+        if receipt.source_version != bundle.manifest.compiler_version:
             raise GenesisValidationError(
-                "该 Elfie 的 Genesis 幂等身份与已提交版本不一致"
-            )
-        if properties.get("output_ids_hash") != output_ids_hash(
-            bundle.manifest.output_ids
-        ):
-            raise GenesisValidationError(
-                "该 Elfie 的 Genesis 输出清单与已提交版本不一致"
+                "该 Elfie 的 Genesis 编译器版本与已提交版本不一致"
             )
 
     def _commit_bundle(
@@ -158,6 +194,7 @@ class GenesisMemoryCommitter:
         now: str,
         key_digest: str,
         inventory_hash: str,
+        ontology: MemoryOntologySnapshot,
     ) -> GenesisCommitReceipt:
         profile = bundle.profile_draft.profile
         elfie_id = profile.identity.elfie_id
@@ -168,11 +205,40 @@ class GenesisMemoryCommitter:
         node_ids: list[str] = []
 
         self_id = f"{SELF_NODE_PREFIX}{safe_elfie}"
-        self_model_id = f"{SELF_MODEL_PREFIX}{safe_elfie}"
         selfhood = bundle.selfhood_state
         if selfhood is None or not selfhood.complete:
             raise GenesisValidationError("Genesis SelfhoodState 不完整")
         identity_core = selfhood.identity_core
+        parent_seed = next(
+            (
+                relationship
+                for relationship in bundle.relationship_seeds
+                if relationship.role == "parent"
+                and any(
+                    person_id == "self"
+                    for person_id, _ in relationship.child_birth_orders
+                )
+            ),
+            None,
+        )
+        self_birth_order = (
+            next(
+                order
+                for person_id, order in parent_seed.child_birth_orders
+                if person_id == "self"
+            )
+            if parent_seed is not None
+            else None
+        )
+        family_child_count = (
+            len(parent_seed.child_birth_orders) if parent_seed is not None else None
+        )
+        self_description = selfhood.self_description
+        if self_birth_order is not None and family_child_count is not None:
+            self_description = (
+                f"{self_description} 家庭排行第{self_birth_order}，"
+                f"父母共有{family_child_count}名子女。"
+            )
 
         self._upsert_node(
             storage,
@@ -180,7 +246,7 @@ class GenesisMemoryCommitter:
                 node_id=self_id,
                 node_type="elfie",
                 canonical_label=profile.identity.display_name,
-                description=selfhood.self_description,
+                description=self_description,
                 scope=scope,
                 status="active",
                 confidence=1.0,
@@ -195,76 +261,26 @@ class GenesisMemoryCommitter:
                     "species_name": identity_core.species_name or "",
                     "is_self": True,
                     "relationship_label": "self",
+                    "family_birth_order": self_birth_order,
+                    "family_child_count": family_child_count,
                 },
             ),
         )
         node_ids.append(self_id)
 
-        self._upsert_node(
-            storage,
-            NodeInput(
-                node_id=self_model_id,
-                node_type="self_model",
-                canonical_label=bundle.self_model_seed.identity_summary,
-                description=bundle.self_model_seed.identity_summary,
-                scope=scope,
-                status="active",
-                confidence=1.0,
-                importance=1.0,
-                retention_profile="stable",
-                properties={
-                    "entity_type": "self_model",
-                    "recall_eligible": False,
-                    "known_facts": list(bundle.self_model_seed.known_facts),
-                    "unknown_facts": list(bundle.self_model_seed.unknown_facts),
-                    "knowledge_scope": list(bundle.self_model_seed.knowledge_scope),
-                    "species_knowledge": list(bundle.self_model_seed.species_knowledge),
-                    "skills": list(bundle.self_model_seed.skills),
-                    "habits": list(bundle.self_model_seed.habits),
-                    "preferences": list(bundle.self_model_seed.preferences),
-                    "emotional_triggers": list(
-                        bundle.self_model_seed.emotional_triggers
-                    ),
-                    "current_goal": bundle.self_model_seed.current_goal,
-                    "earth_adaptation": list(bundle.self_model_seed.earth_adaptation),
-                },
-            ),
-        )
-        node_ids.append(self_model_id)
-        self._record_assertion(
-            storage,
-            AssertionInput(
-                self_id,
-                "about",
-                object_node_id=self_model_id,
-                confidence=1.0,
-                importance=1.0,
-            ),
-            EvidenceInput(
-                evidence_id=f"genesis:evidence:self-model:{safe_elfie}",
-                source_type="seed",
-                source_id=self_model_id,
-                excerpt=bundle.self_model_seed.identity_summary,
-                source_version=manifest.compiler_version,
-                captured_at=now,
-            ),
-        )
-
-        place_node_ids, place_labels, place_projection = self._write_places(
-            bundle, storage, scope, now
-        )
+        place_node_ids = self._write_places(bundle, storage, scope, now)
         node_ids.extend(place_node_ids.values())
+        self._write_place_hierarchy(bundle, storage, place_node_ids, now, ontology)
+        self._write_place_relations(bundle, storage, place_node_ids, now, ontology)
 
         person_node_ids: dict[str, str] = {}
-        person_labels: dict[str, str] = {}
-        person_projection: list[AliasInput | DescriptionInput | EvidenceInput] = []
         for relationship in bundle.relationship_seeds:
             target_key = relationship.object_id or relationship.person_id
             person_id = f"{PERSON_NODE_PREFIX}{safe_elfie}:{safe_component(target_key)}"
+            target_node_type = relationship.object_kind
+            ontology.validate_node_type(target_node_type)
             person_node_ids[target_key] = person_id
             person_node_ids[relationship.person_id] = person_id
-            person_labels[target_key] = relationship.display_name
-            person_labels[relationship.person_id] = relationship.display_name
             description = "；".join(
                 item
                 for item in (
@@ -274,6 +290,35 @@ class GenesisMemoryCommitter:
                     else "",
                     f"年龄：{relationship.age_years_at_genesis}岁"
                     if relationship.age_years_at_genesis is not None
+                    and relationship.life_status == "alive"
+                    else "",
+                    f"关系形成于：{relationship.relationship_start_age}岁"
+                    if relationship.relationship_start_age is not None
+                    else "",
+                    f"出生排行：第{relationship.birth_order}位"
+                    if relationship.birth_order is not None
+                    else "",
+                    "子女排行："
+                    + "、".join(
+                        f"{person_id}第{order}位"
+                        for person_id, order in relationship.child_birth_orders
+                    )
+                    if relationship.child_birth_orders
+                    else "",
+                    f"享年：{relationship.death_age_years_at_genesis}岁"
+                    if relationship.death_age_years_at_genesis is not None
+                    else "",
+                    f"出生时我{relationship.birth_event_age_years}岁"
+                    if relationship.birth_event_age_years is not None
+                    else "",
+                    f"离世时我{relationship.death_event_age_years}岁"
+                    if relationship.death_event_age_years is not None
+                    else "",
+                    f"照护者：{', '.join(relationship.caregiver_person_ids)}"
+                    if relationship.caregiver_person_ids
+                    else "",
+                    f"照护对象：{', '.join(relationship.care_recipient_person_ids)}"
+                    if relationship.care_recipient_person_ids
                     else "",
                     f"职业线索：{relationship.vocation_id}"
                     if relationship.vocation_id
@@ -290,7 +335,7 @@ class GenesisMemoryCommitter:
                 storage,
                 NodeInput(
                     node_id=person_id,
-                    node_type="person",
+                    node_type=target_node_type,
                     canonical_label=relationship.display_name,
                     description=description or None,
                     scope=scope,
@@ -298,12 +343,34 @@ class GenesisMemoryCommitter:
                     confidence=max(relationship.initial_trust, 0.5),
                     importance=relationship.importance,
                     properties={
-                        "entity_type": "person",
+                        "entity_type": target_node_type,
+                        "object_kind": relationship.object_kind,
                         "person_id": relationship.person_id,
                         "relationship_id": relationship.stable_relationship_id,
                         "relationship_label": relationship.role,
+                        "species_id": (
+                            relationship.person_species_id
+                            if relationship.object_kind == "elfie"
+                            else ""
+                        ),
                         "person_species_id": relationship.person_species_id,
                         "age_years_at_genesis": relationship.age_years_at_genesis,
+                        "relationship_start_age": relationship.relationship_start_age,
+                        "birth_order": relationship.birth_order,
+                        "child_birth_orders": [
+                            {"person_id": person_id, "birth_order": order}
+                            for person_id, order in relationship.child_birth_orders
+                        ],
+                        "person_gender": relationship.person_gender,
+                        "life_status": relationship.life_status,
+                        "death_age_years_at_genesis": relationship.death_age_years_at_genesis,
+                        "birth_event_age_years": relationship.birth_event_age_years,
+                        "death_event_age_years": relationship.death_event_age_years,
+                        "related_person_ids": list(relationship.related_person_ids),
+                        "caregiver_person_ids": list(relationship.caregiver_person_ids),
+                        "care_recipient_person_ids": list(
+                            relationship.care_recipient_person_ids
+                        ),
                         "vocation_id": relationship.vocation_id,
                         "competency_ids": list(relationship.competency_ids),
                         "eligible_episode_theme_ids": list(
@@ -312,452 +379,339 @@ class GenesisMemoryCommitter:
                         "direction": relationship.direction,
                         "familiarity": relationship.familiarity,
                         "trust_score": relationship.initial_trust,
-                        "is_owner": relationship.role == "earth_household",
+                        "is_owner": relationship.role in {"owner", "earth_household"},
                         "shared_facts": list(relationship.shared_facts),
                         "unknown_facts": list(relationship.unknown_facts),
+                        "aliases": list(
+                            dict.fromkeys(
+                                (*relationship.aliases, *relationship.retrieval_terms)
+                            )
+                        ),
                         "episode_ids": list(relationship.episode_ids),
                     },
                 ),
             )
             if person_id not in node_ids:
                 node_ids.append(person_id)
-            for alias_index, alias in enumerate(
-                dict.fromkeys((*relationship.aliases, *relationship.retrieval_terms))
-            ):
-                evidence_id = (
-                    f"genesis:evidence:person-alias:{safe_elfie}:"
-                    f"{safe_component(relationship.stable_relationship_id)}:{alias_index}"
-                )
-                person_projection.extend(
-                    (
-                        AliasInput(
-                            node_id=person_id,
-                            alias=alias,
-                            scope=scope,
-                            evidence_id=evidence_id,
-                            confidence=max(relationship.initial_trust, 0.5),
-                        ),
-                        EvidenceInput(
-                            evidence_id=evidence_id,
-                            source_type="seed",
-                            source_id=relationship.source_ref,
-                            excerpt=alias,
-                            source_version=relationship.source_version,
-                            captured_at=now,
-                        ),
-                    )
-                )
-            if description:
-                evidence_id = (
-                    f"genesis:evidence:person-description:{safe_elfie}:"
-                    f"{safe_component(relationship.stable_relationship_id)}"
-                )
-                person_projection.extend(
-                    (
-                        DescriptionInput(
-                            node_id=person_id,
-                            text=description,
-                            language="zh",
-                            kind="genesis_relationship",
-                            evidence_id=evidence_id,
-                            confidence=max(relationship.initial_trust, 0.5),
-                        ),
-                        EvidenceInput(
-                            evidence_id=evidence_id,
-                            source_type="seed",
-                            source_id=relationship.source_ref,
-                            excerpt=description,
-                            source_version=relationship.source_version,
-                            captured_at=now,
-                        ),
-                    )
-                )
 
-        knowledge_projection: list[AliasInput | DescriptionInput | EvidenceInput] = []
-        for knowledge in bundle.knowledge_seeds:
-            knowledge_id = f"{KNOWLEDGE_NODE_PREFIX}{safe_elfie}:{safe_component(knowledge.seed_id)}"
-            confidence = knowledge.initial_confidence
-            recall_eligible = bool(knowledge.recall_eligible)
-            epistemic_status: Literal["known", "believed", "uncertain", "reported"] = (
-                "known"
-                if knowledge.mastery == "known"
-                else "uncertain"
-                if knowledge.status == "unknown-boundary"
-                or knowledge.mastery == "heard"
-                else "believed"
-            )
-            predicate = (
-                "knows_boundary" if knowledge.status == "unknown-boundary" else "knows"
-            )
-            evidence_base_id = (
-                f"genesis:evidence:knowledge:{safe_elfie}:"
-                f"{safe_component(knowledge.seed_id)}"
-            )
-            assertion_evidence_id = f"{evidence_base_id}:assertion"
-            searchable = "\n".join(
-                (
-                    knowledge.content,
-                    f"[{knowledge.topic}/{knowledge.level}/{knowledge.mastery}]",
-                    *knowledge.aliases,
-                    *knowledge.retrieval_terms,
+        # Each topic chunk is a complete source Episode. Member spans preserve
+        # the exact reviewed fact and its independent acquisition/provenance.
+        groups = knowledge_groups(bundle)
+        knowledge_sources: dict[str, tuple[str, int, int]] = {}
+        for group_index, members in enumerate(groups):
+            episode_id = knowledge_group_id(safe_elfie, members)
+            sections: list[str] = []
+            member_metadata: list[dict[str, JsonValue]] = []
+            cursor = 0
+            for seed in members:
+                section = knowledge_member_text(seed)
+                start = cursor
+                end = start + len(seed.content)
+                properties = cast(dict[str, JsonValue], asdict(seed))
+                properties.pop("graph_nodes")
+                properties.pop("graph_assertions")
+                properties.update(span_start=start, span_end=end)
+                member_metadata.append(properties)
+                knowledge_sources[seed.seed_id] = (episode_id, start, end)
+                sections.append(section)
+                cursor += len(section) + 2
+            first = members[0]
+            acquired_age = first.acquired_age_years
+            storage.record_episode(
+                ClosedEpisode(
+                    episode_id=episode_id,
+                    idempotency_key=f"{manifest_id}:knowledge:{group_index}",
+                    occurred_from=None,
+                    occurrence_precision="unknown",
+                    content_text="\n\n".join(sections),
+                    summary_text=first.summary_text
+                    or knowledge_summary_text(first.content),
+                    event_kind="learning",
+                    source_refs=tuple(
+                        SourceReference(
+                            source_id=seed.source_ref,
+                            source_kind=seed.source,
+                            locator=seed.seed_id,
+                            source_version=seed.source_version,
+                        )
+                        for seed in members
+                    ),
+                    source_version=bundle.manifest.compiler_version,
+                    importance=max(seed.importance for seed in members),
+                    initial_importance=max(seed.importance for seed in members),
+                    retention_profile="genesis",
+                    attribution="told",
+                    life_stage=first.acquired_stage or None,
+                    temporal_label=f"{acquired_age}岁时获得的知识"
+                    if acquired_age is not None
+                    else "获得时间未知",
+                    metadata={
+                        "knowledge_id": f"topic:{first.topic}:{first.seed_id}",
+                        "topic": first.topic,
+                        "topic_bucket": first.topic,
+                        "topic_member_ids": [seed.seed_id for seed in members],
+                        "topic_member_index": group_index,
+                        "topic_member_count": len(members),
+                        "knowledge_members": cast(JsonValue, member_metadata),
+                        "aliases": list(
+                            dict.fromkeys(
+                                alias for seed in members for alias in seed.aliases
+                            )
+                        ),
+                        "retrieval_terms": list(
+                            dict.fromkeys(
+                                term
+                                for seed in members
+                                for term in seed.retrieval_terms
+                            )
+                        ),
+                        "recall_eligible": first.recall_eligible,
+                        "acquired_age_years": acquired_age,
+                        "genesis_time": {
+                            "calendar": "elfaria_age",
+                            "age_from": acquired_age,
+                            "age_to": acquired_age + 1
+                            if acquired_age is not None
+                            else None,
+                        },
+                    },
                 )
             )
-            self._upsert_node(
-                storage,
-                NodeInput(
-                    node_id=knowledge_id,
-                    node_type="knowledge",
-                    canonical_label=knowledge.content,
-                    description=searchable,
-                    scope=scope,
-                    status="active" if recall_eligible else "unresolved",
-                    confidence=confidence,
-                    importance=knowledge.importance,
-                    properties={
-                        "entity_type": "knowledge",
-                        "knowledge_id": knowledge.seed_id,
-                        "source_kind": knowledge.source,
-                        "source_ref": knowledge.source_ref,
-                        "source_version": knowledge.source_version,
-                        "certainty": knowledge.certainty,
-                        "level": knowledge.level,
-                        "mastery": knowledge.mastery,
-                        "status": knowledge.status,
-                        "scope": knowledge.scope,
-                        "topic": knowledge.topic,
-                        "eligibility": list(knowledge.eligibility),
-                        "related_ids": list(knowledge.related_ids),
-                        "prerequisite_ids": list(knowledge.prerequisite_ids),
-                        "acquired_via": knowledge.acquired_via,
-                        "acquired_stage": knowledge.acquired_stage,
-                        "consultable_target_ids": list(
-                            knowledge.consultable_target_ids
-                        ),
-                        "recall_eligible": recall_eligible,
-                    },
-                ),
-            )
-            node_ids.append(knowledge_id)
-            for alias_index, alias in enumerate(
-                dict.fromkeys((*knowledge.aliases, *knowledge.retrieval_terms))
-            ):
-                alias_evidence_id = f"{evidence_base_id}:alias:{alias_index}"
-                knowledge_projection.extend(
-                    (
-                        AliasInput(
-                            node_id=knowledge_id,
-                            alias=alias,
+            node_ids.append(episode_id)
+
+        graph_ids = {
+            node.node_id: f"{ENTITY_NODE_PREFIX}{safe_elfie}:{safe_component(node.node_id)}"
+            for seed in bundle.knowledge_seeds
+            for node in seed.graph_nodes
+        }
+        for seed in bundle.knowledge_seeds:
+            for node in seed.graph_nodes:
+                node_id = graph_ids[node.node_id]
+                if node_id not in node_ids:
+                    self._upsert_node(
+                        storage,
+                        replace(
+                            node,
+                            node_id=node_id,
                             scope=scope,
-                            evidence_id=alias_evidence_id,
-                            confidence=confidence,
-                        ),
-                        EvidenceInput(
-                            evidence_id=alias_evidence_id,
-                            source_type="seed",
-                            source_id=knowledge.source_ref,
-                            excerpt=alias,
-                            source_version=knowledge.source_version,
-                            captured_at=now,
+                            confidence=seed.initial_confidence,
+                            importance=seed.importance,
+                            retention_profile="genesis",
+                            properties={
+                                **node.properties,
+                                "source_episode_ids": [
+                                    knowledge_sources[member.seed_id][0]
+                                    for member in bundle.knowledge_seeds
+                                    if any(
+                                        item.node_id == node.node_id
+                                        for item in member.graph_nodes
+                                    )
+                                ],
+                            },
                         ),
                     )
-                )
-            description_evidence_id = f"{evidence_base_id}:description"
-            knowledge_projection.extend(
-                (
-                    DescriptionInput(
-                        node_id=knowledge_id,
-                        text=searchable,
-                        language="zh",
-                        kind="genesis_knowledge",
-                        evidence_id=description_evidence_id,
-                        confidence=confidence,
+                    node_ids.append(node_id)
+        for seed in bundle.knowledge_seeds:
+            episode_id, start, end = knowledge_sources[seed.seed_id]
+            for index, edge in enumerate(seed.graph_assertions):
+                self._record_assertion(
+                    storage,
+                    replace(
+                        edge,
+                        subject_id=graph_ids[edge.subject_id],
+                        object_node_id=graph_ids[edge.object_node_id]
+                        if edge.object_node_id
+                        else None,
+                        confidence=seed.initial_confidence,
                     ),
                     EvidenceInput(
-                        evidence_id=description_evidence_id,
-                        source_type="seed",
-                        source_id=knowledge.source_ref,
-                        excerpt=knowledge.content,
-                        source_version=knowledge.source_version,
-                        captured_at=now,
+                        evidence_id=f"genesis:evidence:entity:{safe_elfie}:{safe_component(seed.seed_id)}:{index}",
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=seed.content,
+                        span_start=start,
+                        span_end=end,
+                        source_version=bundle.manifest.compiler_version,
+                        attribution="told",
                     ),
                 )
-            )
-            self._record_assertion(
-                storage,
-                AssertionInput(
-                    self_id,
-                    predicate,
-                    object_node_id=knowledge_id,
-                    epistemic_status=epistemic_status,
-                    confidence=confidence,
-                    importance=knowledge.importance,
-                    evidence_ids=(assertion_evidence_id,),
-                ),
-                EvidenceInput(
-                    evidence_id=assertion_evidence_id,
-                    source_type="seed",
-                    source_id=knowledge.source_ref,
-                    excerpt=knowledge.content,
-                    source_version=knowledge.source_version,
-                    captured_at=now,
-                ),
-            )
 
-        episode_node_ids: dict[str, str] = {}
         episode_source_ids: dict[str, str] = {}
         episode_source_versions: dict[str, str] = {}
-        for sequence_index, seed in enumerate(bundle.episode_seeds):
-            episode_id = (
-                f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_component(seed.seed_id)}"
-            )
-            event_id = f"{EVENT_NODE_PREFIX}{safe_elfie}:{safe_component(seed.seed_id)}"
-            episode_node_ids[seed.seed_id] = event_id
-            episode_source_ids[seed.seed_id] = episode_id
-            episode_source_versions[seed.seed_id] = seed.source_version
-            if seed.occurred_from is None and seed.occurred_to is not None:
+        for sequence_index, episode_seed in enumerate(bundle.episode_seeds):
+            episode_id = f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_component(episode_seed.seed_id)}"
+            episode_source_ids[episode_seed.seed_id] = episode_id
+            episode_source_versions[episode_seed.seed_id] = episode_seed.source_version
+            if (
+                episode_seed.occurred_from is None
+                and episode_seed.occurred_to is not None
+            ):
                 raise GenesisValidationError(
                     "EpisodeSeed.occurred_to 不能在缺少 occurred_from 时单独提供"
                 )
             precision: Literal["exact", "range", "unknown"] = (
                 "unknown"
-                if seed.occurred_from is None
+                if episode_seed.occurred_from is None
                 else "range"
-                if seed.occurred_to is not None
+                if episode_seed.occurred_to is not None
                 else "exact"
             )
             source_ref = SourceReference(
-                source_id=seed.source_ref,
-                source_kind=seed.source,
-                locator=seed.seed_id,
-                source_version=seed.source_version,
+                source_id=episode_seed.source_ref,
+                source_kind=episode_seed.source,
+                locator=episode_seed.seed_id,
+                source_version=episode_seed.source_version,
             )
-            receipt = storage.record_episode(
+            storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
-                    idempotency_key=f"{manifest_id}:episode:{seed.seed_id}",
-                    occurred_from=seed.occurred_from,
-                    occurred_to=seed.occurred_to,
+                    idempotency_key=f"{manifest_id}:episode:{episode_seed.seed_id}",
+                    occurred_from=episode_seed.occurred_from,
+                    occurred_to=episode_seed.occurred_to,
                     occurrence_precision=precision,
-                    content_text=seed.content,
-                    summary_text=seed.result or seed.impact or seed.content[:240],
-                    event_kind="genesis_personal_episode",
+                    content_text=episode_seed.content,
+                    summary_text=episode_seed.result or episode_seed.impact or None,
+                    event_kind=episode_seed.event_kind,
                     source_refs=(source_ref,),
-                    source_event_ids=(event_id,),
-                    source_version=seed.source_version,
-                    importance=seed.importance,
-                    initial_importance=seed.importance,
+                    source_event_ids=(),
+                    source_version=episode_seed.source_version,
+                    importance=episode_seed.importance,
+                    initial_importance=episode_seed.importance,
                     retention_profile="genesis",
-                    emotion=seed.emotional_tone,
-                    emotion_intensity=seed.emotion_intensity,
-                    life_stage=seed.life_stage,
-                    temporal_label=seed.temporal_label,
+                    emotion=episode_seed.emotional_tone,
+                    emotion_intensity=episode_seed.emotion_intensity,
+                    life_stage=episode_seed.life_stage,
+                    temporal_label=episode_seed.temporal_label,
                     attribution="observed",
                     metadata={
-                        "seed_id": seed.seed_id,
-                        "result": seed.result,
-                        "feeling": seed.feeling,
-                        "impact": seed.impact,
-                        "place_ids": list(seed.place_ids),
-                        "person_ids": list(seed.person_ids),
-                        "predecessor_ids": list(seed.predecessor_ids),
-                        "related_ids": list(seed.related_ids),
+                        "seed_id": episode_seed.seed_id,
+                        "result": episode_seed.result,
+                        "feeling": episode_seed.feeling,
+                        "impact": episode_seed.impact,
+                        "place_ids": list(episode_seed.place_ids),
+                        "observed_place_ids": list(episode_seed.observed_place_ids),
+                        "route_ids": list(episode_seed.route_ids),
+                        "person_ids": list(episode_seed.person_ids),
+                        "visit_count": episode_seed.visit_count,
+                        "travel_days": episode_seed.travel_days,
+                        "stay_days": episode_seed.stay_days,
+                        "visit_age_years": list(episode_seed.visit_age_years),
+                        "purposes": list(episode_seed.purposes),
+                        "predecessor_ids": list(episode_seed.predecessor_ids),
+                        "related_ids": list(episode_seed.related_ids),
+                        "causal_links": list(episode_seed.causal_links),
+                        "theme_id": episode_seed.theme_id,
+                        "age_years_at_event": episode_seed.age_years_at_event,
                         "sequence_index": sequence_index,
+                        "genesis_time": {
+                            "calendar": "elfaria_age",
+                            "age_from": episode_seed.age_years_at_event,
+                            "age_to": episode_seed.age_years_at_event + 1
+                            if episode_seed.age_years_at_event is not None
+                            else None,
+                            "relative_to": "arrival-nest",
+                            "relation": "at"
+                            if episode_seed.seed_id == "arrival-nest"
+                            else "before",
+                            "precision": "age_year"
+                            if episode_seed.age_years_at_event is not None
+                            else "relative",
+                            "travel_local_days": episode_seed.travel_days or None,
+                            "stay_local_days": episode_seed.stay_days
+                            if episode_seed.theme_id == "predeparture-training"
+                            or episode_seed.seed_id.startswith("visit:")
+                            else None,
+                            "life_stage": episode_seed.life_stage,
+                            "sequence_index": sequence_index,
+                            "predecessor_ids": list(episode_seed.predecessor_ids),
+                        },
                     },
                 )
             )
-            evidence_id = (
-                f"genesis:evidence:episode:{safe_elfie}:{safe_component(seed.seed_id)}"
-            )
-            mentions: list[MentionInput] = [
-                MentionInput(
-                    episode_id=episode_id,
-                    surface_text=seed.content[:120],
-                    node_id=event_id,
-                    resolution_state="resolved",
-                    role="event",
-                    confidence=1.0,
-                )
-            ]
-            assertions: list[AssertionInput] = [
-                AssertionInput(
-                    event_id,
-                    "involves",
-                    object_node_id=self_id,
-                    confidence=1.0,
-                    importance=seed.importance,
-                    evidence_ids=(evidence_id,),
-                ),
-                AssertionInput(
-                    self_id,
-                    "experienced",
-                    object_node_id=event_id,
-                    confidence=1.0,
-                    importance=seed.importance,
-                    evidence_ids=(evidence_id,),
-                ),
-            ]
-            for place_key in seed.place_ids:
-                place_node = place_node_ids.get(place_key)
-                if place_node is None:
-                    continue
-                mentions.append(
-                    MentionInput(
-                        episode_id=episode_id,
-                        surface_text=place_labels.get(place_key, place_key),
-                        node_id=place_node,
-                        resolution_state="resolved",
-                        role="place",
-                        confidence=1.0,
-                    )
-                )
-                assertions.append(
-                    AssertionInput(
-                        event_id,
-                        "at",
-                        object_node_id=place_node,
-                        confidence=1.0,
-                        importance=seed.importance,
-                        evidence_ids=(evidence_id,),
-                    )
-                )
-            for person_key in seed.person_ids:
-                person_node = person_node_ids.get(person_key)
-                if person_node is None:
-                    continue
-                mentions.append(
-                    MentionInput(
-                        episode_id=episode_id,
-                        surface_text=person_labels.get(person_key, person_key),
-                        node_id=person_node,
-                        resolution_state="resolved",
-                        role="person",
-                        confidence=1.0,
-                    )
-                )
-                assertions.append(
-                    AssertionInput(
-                        event_id,
-                        "involves",
-                        object_node_id=person_node,
-                        confidence=1.0,
-                        importance=seed.importance,
-                        evidence_ids=(evidence_id,),
-                    )
-                )
-            if seed.impact:
-                assertions.append(
-                    AssertionInput(
-                        event_id,
-                        "influences",
-                        object_node_id=self_id,
-                        context=seed.impact,
-                        confidence=1.0,
-                        importance=seed.importance,
-                        evidence_ids=(evidence_id,),
-                    )
-                )
-            for predecessor_id in seed.predecessor_ids:
-                predecessor_event = episode_node_ids.get(predecessor_id)
-                if predecessor_event is not None:
-                    assertions.append(
-                        AssertionInput(
-                            predecessor_event,
-                            "causes",
-                            object_node_id=event_id,
-                            confidence=1.0,
-                            importance=seed.importance,
-                            evidence_ids=(evidence_id,),
-                        )
-                    )
-            aliases = tuple(
-                AliasInput(
-                    node_id=event_id,
-                    alias=alias,
-                    scope=scope,
-                    evidence_id=evidence_id,
-                    confidence=1.0,
-                )
-                for alias in dict.fromkeys((*seed.aliases, *seed.retrieval_terms))
-            )
-            description = "；".join(
-                item for item in (seed.result, seed.feeling, seed.impact) if item
-            )
-            storage.apply_consolidation(
-                ConsolidationProjection(
-                    episode_id=episode_id,
-                    nodes=(
-                        NodeInput(
-                            node_id=event_id,
-                            node_type="event",
-                            canonical_label=seed.content[:120],
-                            description=description or seed.content,
-                            scope=scope,
-                            confidence=1.0,
-                            importance=seed.importance,
-                            retention_profile="genesis",
-                            properties={
-                                "seed_id": seed.seed_id,
-                                "temporal_label": seed.temporal_label,
-                                "life_stage": seed.life_stage,
-                                "source_ref": seed.source_ref,
-                                "source_version": seed.source_version,
-                                "result": seed.result,
-                                "feeling": seed.feeling,
-                                "impact": seed.impact,
-                                "sequence_index": sequence_index,
-                            },
-                        ),
-                    ),
-                    aliases=aliases,
-                    mentions=tuple(mentions),
-                    assertions=tuple(assertions),
-                    evidence=(
-                        EvidenceInput(
-                            evidence_id=evidence_id,
-                            source_type="episode",
-                            source_id=episode_id,
-                            excerpt=seed.content,
-                            source_version=seed.source_version,
-                            source_sha256=receipt.content_sha256,
-                            captured_at=now,
-                        ),
-                    ),
-                )
-            )
-            node_ids.extend((episode_id, event_id))
+            node_ids.append(episode_id)
 
-        # Alias and description indexes are attached to the first real source
-        # Episode; no synthetic source record is introduced for an index.
-        projection_values = (
-            *place_projection,
-            *person_projection,
-            *knowledge_projection,
-        )
-        if projection_values and bundle.episode_seeds:
-            first_episode_id = (
-                f"{EPISODE_NODE_PREFIX}{safe_elfie}:"
-                f"{safe_component(bundle.episode_seeds[0].seed_id)}"
-            )
-            storage.apply_consolidation(
-                ConsolidationProjection(
-                    episode_id=first_episode_id,
-                    aliases=tuple(
-                        item
-                        for item in projection_values
-                        if isinstance(item, AliasInput)
+            # Keep actual episode locations queryable in the initial graph as
+            # well as in the Episode payload.  The Episode remains the source
+            # of truth for wording, route metadata and chronology; this typed
+            # edge is only the evidenced personal contact projection.
+            for place_id in episode_seed.place_ids:
+                place_node = place_node_ids.get(place_id)
+                if place_node is None:
+                    raise GenesisValidationError(
+                        f"EpisodeSeed 引用的地点没有生成节点: {place_id}"
+                    )
+                place_seed = next(
+                    place for place in bundle.place_seeds if place.place_id == place_id
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        self_id,
+                        "visits",
+                        object_node_id=place_node,
+                        context=relation_context(
+                            ontology,
+                            "genesis_episode_place",
+                            predicate="visits",
+                            role="visited",
+                        ),
+                        epistemic_status="known",
+                        confidence=1.0,
+                        importance=relation_importance(
+                            ontology, "visits", place_seed.importance
+                        ),
                     ),
-                    descriptions=tuple(
-                        item
-                        for item in projection_values
-                        if isinstance(item, DescriptionInput)
-                    ),
-                    evidence=tuple(
-                        item
-                        for item in projection_values
-                        if isinstance(item, EvidenceInput)
+                    EvidenceInput(
+                        evidence_id=(
+                            f"genesis:evidence:episode-place:{safe_elfie}:"
+                            f"{safe_component(episode_seed.seed_id)}:{safe_component(place_id)}"
+                        ),
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=episode_seed.content,
+                        source_version=episode_seed.source_version,
+                        captured_at=now,
                     ),
                 )
-            )
+            for place_id in episode_seed.observed_place_ids:
+                place_node = place_node_ids.get(place_id)
+                if place_node is None:
+                    raise GenesisValidationError(
+                        f"EpisodeSeed 引用的观察地点没有生成节点: {place_id}"
+                    )
+                place_seed = next(
+                    place for place in bundle.place_seeds if place.place_id == place_id
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        self_id,
+                        "witnessed",
+                        object_node_id=place_node,
+                        context=relation_context(
+                            ontology,
+                            "genesis_episode_place",
+                            predicate="witnessed",
+                            role="observed",
+                        ),
+                        epistemic_status="known",
+                        confidence=1.0,
+                        importance=relation_importance(
+                            ontology, "witnessed", place_seed.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=(
+                            f"genesis:evidence:episode-observed-place:{safe_elfie}:"
+                            f"{safe_component(episode_seed.seed_id)}:{safe_component(place_id)}"
+                        ),
+                        source_type="episode",
+                        source_id=episode_id,
+                        excerpt=episode_seed.content,
+                        source_version=episode_seed.source_version,
+                        captured_at=now,
+                    ),
+                )
 
         for relationship in bundle.relationship_seeds:
             target_key = relationship.object_id or relationship.person_id
@@ -788,18 +742,30 @@ class GenesisMemoryCommitter:
                 f"genesis:evidence:relationship:{safe_elfie}:"
                 f"{safe_component(relationship.stable_relationship_id)}"
             )
+            relation_predicate = _relationship_predicate(relationship.role)
+            ontology.predicate_spec(relation_predicate)
             self._record_assertion(
                 storage,
                 AssertionInput(
                     self_id,
-                    "relationship",
+                    relation_predicate,
                     object_node_id=target_node,
-                    context=f"{relationship.direction}:{relationship.role}",
+                    context=relation_context(
+                        ontology,
+                        "genesis_relationship",
+                        predicate=relation_predicate,
+                        specificity=(
+                            "unspecified" if relation_predicate == "kin_of" else None
+                        ),
+                        role=relationship.role,
+                    ),
                     epistemic_status=(
                         "known" if relationship.certainty == "high" else "believed"
                     ),
                     confidence=max(relationship.initial_trust, 0.5),
-                    importance=relationship.importance,
+                    importance=relation_importance(
+                        ontology, relation_predicate, relationship.importance
+                    ),
                 ),
                 EvidenceInput(
                     evidence_id=relation_evidence_id,
@@ -814,37 +780,52 @@ class GenesisMemoryCommitter:
                 ),
             )
 
-        marker_id = f"{GENESIS_RECEIPT_PREFIX}{elfie_id}"
-        output_node_ids = (*node_ids, marker_id)
+        arrival_episode = episode_source_ids.get("arrival-nest")
+        owner_home = next(
+            (place for place in bundle.place_seeds if place.kind == "owner_home"), None
+        )
+        nest = next(
+            (place for place in bundle.place_seeds if place.kind == "earth_home"), None
+        )
+        if arrival_episode and owner_home and nest:
+            arrival_source = storage.get_episode(arrival_episode)
+            if arrival_source is None:
+                raise GenesisValidationError(
+                    "Genesis arrival Episode 已注册但无法读取其来源"
+                )
+            residents = [(self_id, nest.place_id)]
+            residents.extend(
+                (person_node_ids[relationship.person_id], owner_home.place_id)
+                for relationship in bundle.relationship_seeds
+                if relationship.role == "owner" and relationship.object_kind == "person"
+            )
+            for resident_id, place_id in residents:
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        resident_id, "lives_in", object_node_id=place_node_ids[place_id]
+                    ),
+                    EvidenceInput(
+                        evidence_id=f"genesis:evidence:residence:{resident_id}",
+                        source_type="episode",
+                        source_id=arrival_episode,
+                        excerpt=arrival_source.content_text,
+                        source_version=episode_source_versions["arrival-nest"],
+                        captured_at=now,
+                    ),
+                )
+
+        output_node_ids = tuple(node_ids)
+        self._write_person_links(
+            bundle,
+            storage,
+            person_node_ids,
+            self_id,
+            now,
+            ontology,
+        )
         if output_node_ids != tuple(manifest.output_ids):
             raise GenesisValidationError("Genesis 实际输出 ID 与 Manifest 声明不一致")
-        self._upsert_node(
-            storage,
-            NodeInput(
-                node_id=marker_id,
-                node_type="genesis_commit_receipt",
-                canonical_label="Genesis commit receipt",
-                scope=scope,
-                status="active",
-                confidence=1.0,
-                importance=0.0,
-                retention_profile="stable",
-                properties={
-                    "genesis_kind": "commit_receipt",
-                    "manifest_id": manifest_id,
-                    "compiler_version": manifest.compiler_version,
-                    "schema_version": manifest.schema_version,
-                    "content_hash": manifest.content_hash,
-                    "idempotency_key_digest": key_digest,
-                    "output_ids_hash": inventory_hash,
-                    "status": "committed",
-                    "recall_eligible": False,
-                    "node_ids": list(output_node_ids),
-                    "output_ids": list(manifest.output_ids),
-                    "committed_at": now,
-                },
-            ),
-        )
         return GenesisCommitReceipt(
             manifest_id=manifest_id,
             status="committed",
@@ -856,6 +837,66 @@ class GenesisMemoryCommitter:
             schema_version=manifest.schema_version,
             committed_at=now,
         )
+
+    def _write_person_links(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        person_node_ids: dict[str, str],
+        self_id: str,
+        now: str,
+        ontology: MemoryOntologySnapshot,
+    ) -> None:
+        """Persist the bounded family graph edges without creating new people."""
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        resolved = {"self": self_id, **person_node_ids}
+        seen: set[tuple[str, str]] = set()
+        for relationship in bundle.relationship_seeds:
+            source = resolved.get(relationship.person_id)
+            if source is None:
+                continue
+            for target_key in relationship.related_person_ids:
+                target = resolved.get(target_key)
+                if target is None or target == source:
+                    continue
+                pair: tuple[str, str] = (min(source, target), max(source, target))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                evidence_id = (
+                    f"genesis:evidence:person-link:{safe_elfie}:"
+                    f"{safe_component(relationship.person_id)}:{safe_component(target_key)}"
+                )
+                self._record_assertion(
+                    storage,
+                    AssertionInput(
+                        pair[0],
+                        "kin_of",
+                        object_node_id=pair[1],
+                        context=relation_context(
+                            ontology,
+                            "genesis_family_graph",
+                            predicate="kin_of",
+                        ),
+                        epistemic_status="known",
+                        confidence=max(relationship.initial_trust, 0.5),
+                        importance=relation_importance(
+                            ontology, "kin_of", relationship.importance
+                        ),
+                    ),
+                    EvidenceInput(
+                        evidence_id=evidence_id,
+                        source_type="seed",
+                        source_id=relationship.source_ref,
+                        excerpt=(
+                            f"{relationship.display_name} 与 {target_key} "
+                            "属于同一已验证家庭或核心关系图。"
+                        ),
+                        source_version=relationship.source_version,
+                        captured_at=now,
+                    ),
+                )
 
     @staticmethod
     def _upsert_node(storage: MemoryStorePort, node: NodeInput) -> None:
@@ -881,117 +922,184 @@ class GenesisMemoryCommitter:
         storage: MemoryStorePort,
         scope: str,
         now: str,
-    ) -> tuple[
-        dict[str, str],
-        dict[str, str],
-        list[AliasInput | DescriptionInput | EvidenceInput],
-    ]:
+    ) -> dict[str, str]:
         safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
         place_node_ids: dict[str, str] = {}
-        place_labels: dict[str, str] = {}
-        projection: list[AliasInput | DescriptionInput | EvidenceInput] = []
-        self_id = f"{SELF_NODE_PREFIX}{safe_elfie}"
         for place in bundle.place_seeds:
             node_id = (
                 f"{PLACE_NODE_PREFIX}{safe_elfie}:{safe_component(place.place_id)}"
             )
             place_node_ids[place.place_id] = node_id
-            place_labels[place.place_id] = place.label
             self._upsert_node(
                 storage,
                 NodeInput(
                     node_id=node_id,
-                    node_type="place",
+                    node_type=place.node_type,
                     canonical_label=place.label,
                     description=place.description or None,
                     scope=scope,
                     status="active",
                     confidence=1.0,
-                    importance=0.8,
+                    importance=place.importance,
                     properties={
-                        "entity_type": "place",
+                        "entity_level": "instance",
+                        "entity_type": place.node_type,
                         "place_id": place.place_id,
                         "kind": place.kind,
                         "parent_id": place.parent_id,
                         "visibility": place.visibility,
                         "source_ref": place.source_ref,
+                        "aliases": list(place.aliases),
+                        "metadata": dict(place.metadata),
                     },
                 ),
             )
+        return place_node_ids
+
+    def _write_place_hierarchy(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        place_node_ids: dict[str, str],
+        now: str,
+        ontology: MemoryOntologySnapshot,
+    ) -> None:
+        """Persist the explicit place seed hierarchy as typed graph facts.
+
+        ``PlaceSeed.parent_id`` is already an approved Genesis fact.  Keeping
+        it only in node properties makes the hierarchy invisible to graph
+        traversal and reverse lookup, so materialize the bounded child →
+        parent relation when both endpoints are part of this submission.
+        Planet roots, including Earth, are explicit typed seeds; every
+        nonempty parent has been validated within the same submission.
+        """
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        for place in bundle.place_seeds:
+            parent_node = place_node_ids.get(place.parent_id)
+            child_node = place_node_ids.get(place.place_id)
+            if child_node is None or parent_node is None:
+                continue
             evidence_id = (
-                f"genesis:evidence:place:{safe_elfie}:{safe_component(place.place_id)}"
+                f"genesis:evidence:place-hierarchy:{safe_elfie}:"
+                f"{safe_component(place.place_id)}"
             )
             self._record_assertion(
                 storage,
                 AssertionInput(
-                    self_id,
-                    "about",
-                    object_node_id=node_id,
+                    child_node,
+                    "located_in",
+                    object_node_id=parent_node,
+                    context=relation_context(
+                        ontology,
+                        "genesis_place_hierarchy",
+                        predicate="located_in",
+                    ),
+                    epistemic_status="known",
                     confidence=1.0,
-                    importance=0.8,
+                    importance=relation_importance(ontology, "located_in"),
                 ),
                 EvidenceInput(
                     evidence_id=evidence_id,
                     source_type="seed",
-                    source_id=place.source_ref or place.place_id,
-                    excerpt=place.label,
+                    source_id=place.source_ref or f"place:{place.place_id}",
+                    excerpt=f"{place.label} 位于 {next((item.label for item in bundle.place_seeds if item.place_id == place.parent_id), place.parent_id)}。",
                     source_version=bundle.manifest.compiler_version,
                     captured_at=now,
                 ),
             )
-            for index, alias in enumerate(dict.fromkeys(place.aliases)):
-                alias_evidence_id = f"{evidence_id}:alias:{index}"
-                projection.extend(
-                    (
-                        AliasInput(
-                            node_id=node_id,
-                            alias=alias,
-                            scope=scope,
-                            evidence_id=alias_evidence_id,
-                            confidence=1.0,
-                        ),
-                        EvidenceInput(
-                            evidence_id=alias_evidence_id,
-                            source_type="seed",
-                            source_id=place.source_ref or place.place_id,
-                            excerpt=alias,
-                            source_version=bundle.manifest.compiler_version,
-                            captured_at=now,
-                        ),
+
+    def _write_place_relations(
+        self,
+        bundle: GenesisBundle,
+        storage: MemoryStorePort,
+        place_node_ids: dict[str, str],
+        now: str,
+        ontology: MemoryOntologySnapshot,
+    ) -> None:
+        """Persist the reviewed non-hierarchical public geography relations."""
+
+        safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
+        for relation in bundle.place_relation_seeds:
+            subject_node = place_node_ids[relation.subject_id]
+            object_node = place_node_ids[relation.object_id]
+            try:
+                ontology.predicate_spec(relation.relation)
+            except ValueError as error:
+                raise GenesisValidationError(
+                    f"地点关系没有注册语义: {relation.relation}"
+                ) from error
+            evidence_id = (
+                f"genesis:evidence:place-relation:{safe_elfie}:"
+                f"{safe_component(relation.subject_id)}:"
+                f"{safe_component(relation.relation)}:{safe_component(relation.object_id)}"
+            )
+            self._record_assertion(
+                storage,
+                AssertionInput(
+                    subject_node,
+                    relation.relation,
+                    object_node_id=object_node,
+                    context=json.dumps(
+                        dict(relation.qualifiers), ensure_ascii=False, sort_keys=True
                     )
-                )
-            if place.description:
-                description_evidence_id = f"{evidence_id}:description"
-                projection.extend(
-                    (
-                        DescriptionInput(
-                            node_id=node_id,
-                            text=place.description,
-                            language="zh",
-                            kind="genesis_place",
-                            evidence_id=description_evidence_id,
-                            confidence=1.0,
-                        ),
-                        EvidenceInput(
-                            evidence_id=description_evidence_id,
-                            source_type="seed",
-                            source_id=place.source_ref or place.place_id,
-                            excerpt=place.description,
-                            source_version=bundle.manifest.compiler_version,
-                            captured_at=now,
-                        ),
-                    )
-                )
-        return place_node_ids, place_labels, projection
+                    if relation.qualifiers
+                    else relation_context(
+                        ontology,
+                        "genesis_place_relation",
+                        predicate=relation.relation,
+                        role=relation.relation,
+                    ),
+                    epistemic_status="known",
+                    confidence=1.0,
+                    importance=relation_importance(
+                        ontology, relation.relation, relation.importance
+                    ),
+                ),
+                EvidenceInput(
+                    evidence_id=evidence_id,
+                    source_type="seed",
+                    source_id=relation.source_ref,
+                    excerpt=(
+                        f"{relation.subject_id} {relation.relation} "
+                        f"{relation.object_id}。"
+                    ),
+                    source_version=bundle.manifest.compiler_version,
+                    captured_at=now,
+                ),
+            )
 
 
-def _marker_node_ids(marker) -> tuple[str, ...]:
-    if marker is None:
-        return ()
-    raw = marker.properties.get("node_ids", ())
-    if isinstance(raw, (list, tuple)):
-        return tuple(str(value) for value in raw)
-    return ()
+def _relationship_predicate(role: str) -> str:
+    """Map a Genesis relationship role to one registered semantic predicate."""
+
+    role_map = {
+        "family": "kin_of",
+        "parent": "child_of",
+        "child": "parent_of",
+        "sibling": "sibling_of",
+        "grandparent": "kin_of",
+        "aunt_uncle": "kin_of",
+        "partner": "kin_of",
+        "friend": "friend_of",
+        "teacher": "student_of",
+        "learning_keeper": "student_of",
+        "neighbor": "neighbor_of",
+        "owner": "owned_by",
+        "earth_household": "member_of",
+        "mentor": "mentored_by",
+        "route_keeper": "guided_by",
+        "departure_guide": "guided_by",
+        "program_contact": "acquaintance_of",
+        "earth_contact": "acquaintance_of",
+        "elder": "acquaintance_of",
+    }
+    try:
+        return role_map[role]
+    except KeyError as exc:
+        raise GenesisValidationError(
+            f"Genesis relationship role 未注册，拒绝生成通用关系: {role}"
+        ) from exc
 
 
 def _idempotency_key_digest(value: str) -> str:

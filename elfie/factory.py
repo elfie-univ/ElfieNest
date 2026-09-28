@@ -9,6 +9,7 @@ from elfie.body.port import BodyPort
 from elfie.brain.activity.system import ActivityStorePort
 from elfie.brain.journal import BrainJournalPort
 from elfie.brain.memory.memory_store import MemoryStorePort
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -27,6 +28,7 @@ class ElfieAssembly:
 
     profile: ElfieProfile
     memory_store: MemoryStorePort
+    memory_ontology: MemoryOntologySnapshot | None = None
     selfhood_seed: Mapping[str, object] | None = None
     reasoning_constitution: ReasoningConstitution | None = None
     energy_limits: Mapping[str, object] | None = None
@@ -59,9 +61,17 @@ class ElfieFactory:
     def assemble(self, assembly: ElfieAssembly) -> Elfie:
         """Build one complete, not-yet-started Elfie from typed dependencies."""
         assembly.profile.validate()
+        memory_ontology = assembly.memory_ontology or getattr(
+            assembly.memory_store, "ontology", None
+        )
+        if not isinstance(memory_ontology, MemoryOntologySnapshot):
+            raise TypeError(
+                "Elfie assembly requires an injected Memory ontology snapshot"
+            )
         elfie = Elfie(
             character_profile=assembly.profile,
             memory_store=assembly.memory_store,
+            memory_ontology=memory_ontology,
             selfhood_seed=assembly.selfhood_seed,
             reasoning_constitution=assembly.reasoning_constitution,
             energy_limits=assembly.energy_limits,

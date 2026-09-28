@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Mapping, Optional, Tuple, cast
+from typing import Annotated, Any, Literal, Mapping, Optional, Tuple, cast
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 from pydantic_core import PydanticCustomError
@@ -18,6 +18,7 @@ from elfie.brain.memory.memory_records import (
     RecallLimits,
     RecallNode,
     RecallPath,
+    RecallRole,
 )
 from elfie.message_types import EventId, FrozenContractModel, UTCDateTime
 
@@ -118,6 +119,15 @@ class MemoryContext(FrozenContractModel):
                     _recall_conflict(cast(Mapping[str, object], item))
                     for item in cast(tuple[object, ...], raw.get("conflicts", ()))
                 ),
+                status=cast(
+                    Literal["complete", "partial", "ambiguous", "unsupported"],
+                    raw.get("status", "complete"),
+                ),
+                notices=tuple(
+                    str(item)
+                    for item in cast(tuple[object, ...], raw.get("notices", ()))
+                ),
+                recall_revision=int(cast(Any, raw.get("recall_revision", 0))),
                 limits=_recall_limits(
                     cast(Mapping[str, object], raw.get("limits", {}))
                 ),
@@ -146,6 +156,7 @@ def _recall_node(raw: Mapping[str, object]) -> RecallNode:
         importance=_as_float(raw.get("importance", 0.5)),
         confidence=_as_float(raw.get("confidence", 0.5)),
         properties=cast(Mapping[str, JsonValue], raw.get("properties", {})),
+        role=cast(RecallRole, raw.get("role", "primary")),
     )
 
 
@@ -162,6 +173,7 @@ def _recall_assertion(raw: Mapping[str, object]) -> RecallAssertion:
         relevance=_as_float(raw["relevance"]),
         importance=_as_float(raw.get("importance", 0.5)),
         confidence=_as_float(raw.get("confidence", 0.5)),
+        role=cast(RecallRole, raw.get("role", "primary")),
     )
 
 
@@ -170,6 +182,7 @@ def _recall_path(raw: Mapping[str, object]) -> RecallPath:
         node_ids=_string_tuple(raw.get("node_ids", ())),
         assertion_ids=_string_tuple(raw.get("assertion_ids", ())),
         hop_count=_as_int(raw["hop_count"]),
+        role=cast(RecallRole, raw.get("role", "primary")),
     )
 
 
@@ -179,6 +192,7 @@ def _recall_episode(raw: Mapping[str, object]) -> RecallEpisode:
         occurred_from=_optional_text(raw.get("occurred_from")),
         occurred_to=_optional_text(raw.get("occurred_to")),
         excerpt=str(raw["excerpt"]),
+        summary_text=_optional_text(raw.get("summary_text")),
         detail_level=str(raw["detail_level"]),
         relevance=_as_float(raw["relevance"]),
         occurrence_precision=cast(
@@ -189,6 +203,12 @@ def _recall_episode(raw: Mapping[str, object]) -> RecallEpisode:
         temporal_label=_optional_text(raw.get("temporal_label")),
         importance=_as_float(raw.get("importance", 0.5)),
         source_event_ids=_string_tuple(raw.get("source_event_ids", ())),
+        topic_bucket=_optional_text(raw.get("topic_bucket")),
+        topic_member_index=_optional_int(raw.get("topic_member_index")),
+        topic_member_count=_as_int(raw.get("topic_member_count", 0)),
+        topic_omitted_count=_as_int(raw.get("topic_omitted_count", 0)),
+        topic_continuation=_optional_text(raw.get("topic_continuation")),
+        role=cast(RecallRole, raw.get("role", "primary")),
     )
 
 

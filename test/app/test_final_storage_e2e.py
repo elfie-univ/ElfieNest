@@ -31,7 +31,11 @@ from infrastructure.persistence.elfie_workspace.embodiment import (
 )
 from infrastructure.persistence.layout.data_home import get_config_path
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
-from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES
+from infrastructure.persistence.memory.schema import (
+    FTS_AUXILIARY_TABLES,
+    FTS_SHADOW_TABLES,
+    KNOWLEDGE_TABLES,
+)
 from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.nest_db.store import get_db, init_db
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
@@ -124,7 +128,7 @@ def test_fresh_root_survives_adoption_chat_memory_and_restart(tmp_path: Path) ->
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
     assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
         KNOWLEDGE_TABLES
-    ) | {"episodes_fts", "nodes_fts"}
+    ) | {"memory_search_fts"} | set(FTS_SHADOW_TABLES) | set(FTS_AUXILIARY_TABLES)
     assert not any(data_home.rglob("history_v2.sqlite"))
     assert not any(data_home.rglob("graph_memory.db"))
     assert not (data_home / "users").exists()
@@ -236,7 +240,7 @@ def test_full_product_chain_uses_one_explicit_final_root(
     assert _tables(workspace / "conversations" / "history.sqlite") == _HISTORY_TABLES
     assert _tables(workspace / "memory" / "knowledge.sqlite") == set(
         KNOWLEDGE_TABLES
-    ) | {"episodes_fts", "nodes_fts"}
+    ) | {"memory_search_fts"} | set(FTS_SHADOW_TABLES) | set(FTS_AUXILIARY_TABLES)
 
 
 def test_committed_resident_starts_without_genesis_source(
@@ -251,7 +255,7 @@ def test_committed_resident_starts_without_genesis_source(
     owner_id = create_test_owner(str(db_path))
     adopt_test_elfie(str(db_path), owner_id, name="断源后仍在的精灵")
 
-    def fail_source_load():
+    def fail_source_load(**_kwargs):
         raise AssertionError("committed restore loaded the Genesis source package")
 
     monkeypatch.setattr(

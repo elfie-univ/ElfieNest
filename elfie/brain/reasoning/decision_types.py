@@ -181,11 +181,61 @@ class CognitiveDraft(FrozenContractModel):
 
 
 class RecallMemory(FrozenContractModel):
-    """Request one bounded, host-executed Recall inside a DELIBERATE Run."""
+    """Request one bounded, host-executed read-only Memory Recall."""
 
     type: Literal["recall_memory"]
-    query: _NonBlankText
+    query: Optional[_NonBlankText] = None
     reason: _NonBlankText
+    sense_emotion: Optional[EmotionType] = None
+    sense_intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    kinship_relation: Optional[Literal["parents", "children", "siblings"]] = None
+    kinship_anchor_node_id: Optional[_NonBlankText] = None
+    kinship_anchor_name: Optional[_NonBlankText] = None
+    record_kinds: Annotated[
+        Tuple[Literal["episode", "node", "assertion"], ...], Field(max_length=3)
+    ] = ()
+    node_types: Annotated[Tuple[_NonBlankText, ...], Field(max_length=16)] = ()
+    relation_types: Annotated[Tuple[_NonBlankText, ...], Field(max_length=32)] = ()
+    occurred_from: Optional[_NonBlankText] = None
+    occurred_to: Optional[_NonBlankText] = None
+    minimum_importance: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    person_node_ids: Annotated[Tuple[_NonBlankText, ...], Field(max_length=16)] = ()
+    place_node_ids: Annotated[Tuple[_NonBlankText, ...], Field(max_length=16)] = ()
+    emotion_labels: Annotated[Tuple[_NonBlankText, ...], Field(max_length=8)] = ()
+    topic_labels: Annotated[Tuple[_NonBlankText, ...], Field(max_length=16)] = ()
+    cause_labels: Annotated[Tuple[_NonBlankText, ...], Field(max_length=16)] = ()
+    include_unknown_time: bool = False
+
+    @model_validator(mode="after")
+    def validate_recall_intent(self) -> RecallMemory:
+        has_kinship_part = any(
+            value is not None
+            for value in (
+                self.kinship_relation,
+                self.kinship_anchor_node_id,
+                self.kinship_anchor_name,
+            )
+        )
+        if has_kinship_part and (
+            self.kinship_relation is None
+            or (self.kinship_anchor_node_id is None)
+            == (self.kinship_anchor_name is None)
+        ):
+            raise PydanticCustomError(
+                "invalid_recall_kinship",
+                "kinship requires one relation and exactly one anchor ID or name",
+            )
+        if self.sense_intensity is not None and self.sense_emotion is None:
+            raise PydanticCustomError(
+                "recall_intensity_without_emotion",
+                "sense intensity requires a canonical emotion label",
+            )
+        if not (self.query or self.sense_emotion or self.kinship_relation):
+            raise PydanticCustomError(
+                "missing_recall_intent",
+                "RecallMemory requires Query, Sense or a supported kinship request",
+            )
+        return self
 
 
 class AnswerDraft(CognitiveDraft):
@@ -212,6 +262,11 @@ class NoOpDraft(CognitiveDraft):
 
 CognitiveAction: TypeAlias = Annotated[
     Union[RecallMemory, AnswerDraft, ClarificationDraft, NoOpDraft],
+    Field(discriminator="type"),
+]
+
+FinalCognitiveAction: TypeAlias = Annotated[
+    Union[AnswerDraft, ClarificationDraft, NoOpDraft],
     Field(discriminator="type"),
 ]
 
@@ -455,6 +510,7 @@ __all__ = (
     "CapabilityIntent",
     "ClarificationDraft",
     "CognitiveAction",
+    "FinalCognitiveAction",
     "CognitiveDraft",
     "DecisionIntent",
     "DecisionPlan",

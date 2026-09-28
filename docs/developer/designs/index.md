@@ -18,6 +18,7 @@ only when an owner has multiple documents. This page is a catalog, not another p
   - [Provider and endpoint-model availability](./provider-model-availability): curated model loading,
     serving-core scope, evidence and health projections.
 - Elfie designs:
+  - [Genesis complete design](./elfie/genesis-complete-design): source preparation, five creation gates, life generation and final-owner admission.
   - [Elfie top-level module design](./elfie/elfie-top-level-module-design): one complete Elfie's
     module ownership, life systems and boundaries.
   - Brain parent and systems:

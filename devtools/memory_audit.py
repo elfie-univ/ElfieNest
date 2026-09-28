@@ -33,10 +33,12 @@ from elfie.brain.memory import MemorySystem, RecallRequest, render_recall_bundle
 from elfie.brain.memory.memory_records import (
     ClosedEpisode,
     ConsolidationRequest,
+    EpisodeMaintenanceStatus,
     RecallAssertion,
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.observation import BrainObservation
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 from infrastructure.persistence.memory.schema import SCHEMA_VERSION
@@ -371,10 +373,13 @@ def _inspection_checks(
     *,
     integrity: Mapping[str, Any],
     nodes: Sequence[RecallNode],
+    active_node_types: Iterable[str],
     assertions: Sequence[RecallAssertion],
     episodes: Sequence[ClosedEpisode],
+    maintenance_statuses: Mapping[str, EpisodeMaintenanceStatus],
     confidence_threshold: float,
 ) -> dict[str, Any]:
+    active_node_type_ids = frozenset(active_node_types)
     node_ids = {node.node_id for node in nodes}
     orphan_assertions = [
         {
@@ -396,8 +401,7 @@ def _inspection_checks(
             "node_type": node.node_type,
         }
         for node in nodes
-        if node.node_type
-        in {"elfie", "event", "knowledge", "person", "place", "self_model"}
+        if node.node_type in active_node_type_ids
         if not node.description or not node.description.strip()
     ]
     low_confidence_nodes = [
@@ -418,7 +422,9 @@ def _inspection_checks(
     pending_ids = [
         episode.episode_id
         for episode in episodes
-        if episode.projection_revision is None
+        if not _has_current_projection(
+            episode, maintenance_statuses.get(episode.episode_id)
+        )
     ]
 
     checks = [
@@ -479,12 +485,12 @@ def _inspection_checks(
             else "这些标签可能是同名实体的自动消歧结果，需要人工确认",
         },
         {
-            "name": "episodes_without_projection_revision",
+            "name": "episodes_without_current_projection",
             "status": "pass" if not pending_ids else "review",
             "count": len(pending_ids),
-            "detail": "所有 Episode 都有整理版本"
+            "detail": "所有 Episode 都有当前来源的整理回执"
             if not pending_ids
-            else "这些 Episode 还没有 projection_revision",
+            else "这些 Episode 尚无匹配当前来源的整理回执",
         },
     ]
     return {
@@ -495,8 +501,52 @@ def _inspection_checks(
         "low_confidence_nodes": low_confidence_nodes,
         "duplicate_labels": duplicate_labels,
         "possible_disambiguated_labels": possible_disambiguated_labels,
-        "episodes_without_projection_revision": pending_ids,
+        "episodes_without_current_projection": pending_ids,
     }
+
+
+def _has_current_projection(
+    episode: ClosedEpisode, status: EpisodeMaintenanceStatus | None
+) -> bool:
+    return bool(
+        status is not None
+        and status.state == "completed"
+        and status.source_version == episode.source_version
+        and status.source_sha256 == episode.content_sha256
+        and status.projection_revision
+    )
+
+
+def _episode_maintenance_projection(
+    episode: ClosedEpisode, status: EpisodeMaintenanceStatus | None
+) -> dict[str, Any]:
+    if (
+        status is None
+        or status.source_version != episode.source_version
+        or status.source_sha256 != episode.content_sha256
+        or (status.state == "completed" and not status.projection_revision)
+    ):
+        return {"state": "unknown", "attempts": None, "updated_at": None}
+    return {
+        "state": status.state,
+        "attempts": status.attempts,
+        "updated_at": status.updated_at,
+        "next_attempt_at": status.next_attempt_at,
+    }
+
+
+def _load_episode_maintenance_statuses(
+    store: SQLiteMemoryStoreAdapter,
+    episodes: Sequence[ClosedEpisode],
+) -> dict[str, EpisodeMaintenanceStatus]:
+    statuses: dict[str, EpisodeMaintenanceStatus] = {}
+    episode_ids = tuple(episode.episode_id for episode in episodes)
+    for offset in range(0, len(episode_ids), 800):
+        for status in store.list_episode_maintenance_statuses(
+            episode_ids[offset : offset + 800]
+        ):
+            statuses[status.episode_id] = status
+    return statuses
 
 
 def build_inspection_report(
@@ -524,6 +574,7 @@ def build_inspection_report(
             "Memory 在分页期间发生变化；当前读取边界已过期，请重新加载"
         )
     all_episodes = store.list_episodes(limit=MAX_READ_LIMIT, include_forgotten=True)
+    maintenance_statuses = _load_episode_maintenance_statuses(store, all_episodes)
     all_nodes = store.list_graph_nodes(limit=MAX_READ_LIMIT)
     all_assertions = store.list_graph_assertions(limit=MAX_READ_LIMIT)
     all_evidence = store.list_memory_evidence(limit=MAX_READ_LIMIT)
@@ -649,6 +700,14 @@ def build_inspection_report(
     episode_source_counts = Counter(
         _episode_source(episode) or "<none>" for episode in all_episodes
     )
+    projected_episodes = []
+    for episode in page_episodes:
+        projected = _plain(episode)
+        projected["maintenance"] = _episode_maintenance_projection(
+            episode, maintenance_statuses.get(episode.episode_id)
+        )
+        projected_episodes.append(projected)
+
     report: dict[str, Any] = {
         "format": "elfienest.memory-audit.v1",
         "generated_at": generated_at,
@@ -687,6 +746,46 @@ def build_inspection_report(
         "node_type_counts": dict(
             sorted(Counter(node.node_type for node in all_nodes).items())
         ),
+        "ontology": {
+            "revision": store.ontology.revision,
+            "type_groups": [
+                {
+                    "group_id": item.group_id,
+                    "label": item.label,
+                    "color": item.color,
+                    "order": item.order,
+                }
+                for item in store.ontology.type_groups
+            ],
+            "node_types": [
+                {
+                    "node_type": item.node_type,
+                    "label": item.label,
+                    "group_id": item.group_id,
+                    "color": item.color,
+                    "status": item.status,
+                    "count": Counter(node.node_type for node in all_nodes).get(
+                        item.node_type, 0
+                    ),
+                }
+                for item in store.ontology.node_types
+            ],
+            "predicates": [
+                {
+                    "predicate": item.predicate,
+                    "label": item.label,
+                    "symmetric": item.symmetric,
+                    "self_stance": item.self_stance,
+                    "inverse": item.inverse,
+                    "status": item.status,
+                    "count": Counter(
+                        assertion.predicate for assertion in all_assertions
+                    ).get(item.predicate, 0),
+                }
+                for item in store.ontology.predicates
+            ],
+            "predicate_aliases": dict(store.ontology.predicate_aliases),
+        },
         "predicate_counts": dict(
             sorted(Counter(assertion.predicate for assertion in all_assertions).items())
         ),
@@ -696,15 +795,19 @@ def build_inspection_report(
         "checks": _inspection_checks(
             integrity=integrity,
             nodes=all_nodes,
+            active_node_types=(
+                spec.node_type for spec in store.ontology.active_node_types()
+            ),
             assertions=all_assertions,
             episodes=all_episodes,
+            maintenance_statuses=maintenance_statuses,
             confidence_threshold=confidence_threshold,
         ),
         "data": {
             "nodes": [_plain(node) for node in page_nodes],
             "context_nodes": [_plain(node) for node in context_nodes],
             "assertions": [_plain(assertion) for assertion in page_assertions],
-            "episodes": [_plain(episode) for episode in page_episodes],
+            "episodes": projected_episodes,
             "evidence": [_plain(item) for item in page_evidence],
         },
     }
@@ -963,6 +1066,7 @@ def _read_only_store(
     database: Path,
     *,
     elfie_id: str | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
 ) -> Iterator[SQLiteMemoryStoreAdapter]:
     """Open a temporary adapter copy while keeping the source database read-only."""
     source_path = database.expanduser().resolve()
@@ -977,7 +1081,9 @@ def _read_only_store(
         with sqlite3.connect(source_uri, uri=True) as source:
             with sqlite3.connect(str(target_path)) as target:
                 source.backup(target)
-        with SQLiteMemoryStoreAdapter(target_path, elfie_id=elfie_id) as store:
+        with SQLiteMemoryStoreAdapter(
+            target_path, elfie_id=elfie_id, ontology=ontology
+        ) as store:
             yield store
 
 
@@ -986,6 +1092,7 @@ def _sandbox_store(
     database: Path,
     *,
     elfie_id: str | None = None,
+    ontology: MemoryOntologySnapshot | None = None,
 ) -> Iterator[SQLiteMemoryStoreAdapter]:
     """Open an explicitly disposable writable copy for developer previews."""
     source_path = database.expanduser().resolve()
@@ -997,7 +1104,9 @@ def _sandbox_store(
         with sqlite3.connect(source_uri, uri=True) as source:
             with sqlite3.connect(str(target_path)) as target:
                 source.backup(target)
-        with SQLiteMemoryStoreAdapter(target_path, elfie_id=elfie_id) as store:
+        with SQLiteMemoryStoreAdapter(
+            target_path, elfie_id=elfie_id, ontology=ontology
+        ) as store:
             yield store
 
 
@@ -1163,7 +1272,7 @@ def build_add_episode_preview(
         summary_text=summary_text.strip()
         if summary_text and summary_text.strip()
         else None,
-        event_kind="developer_preview",
+        event_kind="unclassified",
         metadata={"developer_preview": True, "operation_id": operation_id},
     )
     status = "failed"
@@ -1295,12 +1404,16 @@ def _parser() -> argparse.ArgumentParser:
     recall_parser.add_argument("--elfie-id", default=None)
     recall_parser.add_argument("--query", required=True)
     recall_parser.add_argument(
-        "--mode", choices=("basic", "local", "basic_local"), default="basic_local"
+        "--record-kind",
+        action="append",
+        choices=("episode", "node", "assertion"),
+        default=[],
     )
     recall_parser.add_argument("--node-type", action="append", default=[])
     recall_parser.add_argument("--relation-type", action="append", default=[])
     recall_parser.add_argument("--occurred-from", default=None)
     recall_parser.add_argument("--occurred-to", default=None)
+    recall_parser.add_argument("--minimum-importance", type=float, default=None)
     recall_parser.add_argument("--limit", type=int, default=20)
     recall_parser.add_argument("--character-limit", type=int, default=12000)
     recall_parser.add_argument("--output-dir", type=Path, default=None)
@@ -1341,11 +1454,12 @@ def _run_recall(args: argparse.Namespace) -> int:
     limit = min(args.limit, 200)
     request = RecallRequest(
         text=args.query,
-        mode=args.mode,
+        record_kinds=tuple(args.record_kind),
         node_types=_csv_values(args.node_type),
         relation_types=_csv_values(args.relation_type),
         occurred_from=args.occurred_from,
         occurred_to=args.occurred_to,
+        minimum_importance=args.minimum_importance,
         lexical_limit=limit,
         seed_limit=min(limit, 20),
         node_limit=limit,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-SCHEMA_VERSION: Final[int] = 7
+SCHEMA_VERSION: Final[int] = 1
 
 KNOWLEDGE_TABLES: Final[tuple[str, ...]] = (
     "episodes",
@@ -41,7 +41,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
             CHECK (occurrence_precision IN ('exact', 'range', 'unknown')),
         content_text TEXT NOT NULL CHECK (length(trim(content_text)) > 0),
         summary_text TEXT,
-        event_kind TEXT NOT NULL DEFAULT 'interaction'
+        event_kind TEXT NOT NULL DEFAULT 'unclassified'
             CHECK (length(trim(event_kind)) > 0),
         source_refs_json TEXT NOT NULL DEFAULT '[]'
             CHECK (json_valid(source_refs_json)),
@@ -70,17 +70,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
             CHECK (detail_level IN ('full', 'compressed', 'digest', 'incomplete')),
         lifecycle TEXT NOT NULL DEFAULT 'active'
             CHECK (lifecycle IN ('active', 'archived', 'forgotten')),
-        consolidation_state TEXT NOT NULL DEFAULT 'pending'
-            CHECK (consolidation_state IN ('pending', 'processing', 'consolidated', 'failed')),
-        consolidation_attempts INTEGER NOT NULL DEFAULT 0
-            CHECK (consolidation_attempts >= 0),
-        next_attempt_at TEXT,
-        lease_owner TEXT,
-        lease_until TEXT,
         content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
-        projection_revision TEXT,
-        projection_source_sha256 TEXT
-            CHECK (projection_source_sha256 IS NULL OR length(projection_source_sha256) = 64),
         last_reinforced_at TEXT,
         last_reviewed_at TEXT,
         next_review_at TEXT,
@@ -223,7 +213,7 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
                 ('transient', 'ordinary', 'salient', 'semantic', 'stable', 'genesis')),
         conflict_group TEXT,
         supersedes_assertion_id TEXT REFERENCES assertions(assertion_id) ON DELETE RESTRICT,
-        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.predicates.v1'
+        predicate_registry_version TEXT NOT NULL DEFAULT 'memory.ontology.v1'
             CHECK (length(trim(predicate_registry_version)) > 0),
         policy_version TEXT NOT NULL DEFAULT 'memory.v3'
             CHECK (length(trim(policy_version)) > 0),
@@ -312,6 +302,10 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
         lease_owner TEXT,
         lease_until TEXT,
         last_error TEXT,
+        source_version TEXT,
+        source_hash TEXT CHECK (source_hash IS NULL OR length(source_hash) = 64),
+        projection_revision TEXT,
+        ontology_revision TEXT,
         checkpoint_json TEXT NOT NULL DEFAULT '{}'
             CHECK (json_valid(checkpoint_json)),
         updated_at TEXT NOT NULL,
@@ -391,26 +385,42 @@ SCHEMA_SQL: Final[tuple[str, ...]] = (
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS episodes_fts (
-        episode_id TEXT PRIMARY KEY NOT NULL REFERENCES episodes(episode_id) ON DELETE CASCADE,
-        searchable_text TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS memory_search_fts_map (
+        fts_rowid INTEGER PRIMARY KEY,
+        record_kind TEXT NOT NULL CHECK (record_kind IN ('episode', 'node', 'assertion')),
+        record_id TEXT NOT NULL CHECK (length(trim(record_id)) > 0),
+        UNIQUE (record_kind, record_id)
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS nodes_fts (
-        node_id TEXT PRIMARY KEY NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
-        searchable_text TEXT NOT NULL
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
+        record_kind UNINDEXED,
+        record_id UNINDEXED,
+        searchable_text UNINDEXED,
+        normalized_text,
+        tokenize='unicode61'
     )
     """,
 )
 
+FTS_AUXILIARY_TABLES: Final[frozenset[str]] = frozenset({"memory_search_fts_map"})
+
+FTS_SHADOW_TABLES: Final[frozenset[str]] = frozenset(
+    {
+        "memory_search_fts_config",
+        "memory_search_fts_content",
+        "memory_search_fts_data",
+        "memory_search_fts_docsize",
+        "memory_search_fts_idx",
+    }
+)
+
 INDEX_SQL: Final[tuple[str, ...]] = (
-    "CREATE INDEX IF NOT EXISTS idx_episodes_lifecycle_attempt ON episodes(lifecycle, consolidation_state, next_attempt_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_lifecycle ON episodes(lifecycle, next_review_at)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_time ON episodes(occurred_from, occurred_to, occurrence_precision)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_hash ON episodes(content_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_review ON episodes(lifecycle, next_review_at, importance)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_retention ON episodes(lifecycle, half_life_days, last_reinforced_at)",
-    "CREATE INDEX IF NOT EXISTS idx_episodes_projection ON episodes(projection_revision, projection_source_sha256)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_stage ON episodes(life_stage, temporal_label)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_label_type ON nodes(normalized_label, node_type, status)",
     "CREATE INDEX IF NOT EXISTS idx_nodes_merged_into ON nodes(merged_into)",
@@ -438,6 +448,7 @@ INDEX_SQL: Final[tuple[str, ...]] = (
     "CREATE INDEX IF NOT EXISTS idx_assertion_evidence_evidence ON assertion_evidence(evidence_id)",
     "CREATE INDEX IF NOT EXISTS idx_genesis_submission_elfie ON memory_genesis_submissions(elfie_id, manifest_id)",
     "CREATE INDEX IF NOT EXISTS idx_maintenance_due ON memory_maintenance(elfie_id, stage, state, next_attempt_at)",
+    "CREATE INDEX IF NOT EXISTS idx_maintenance_projection ON memory_maintenance(elfie_id, stage, target_id, source_version, source_hash, projection_revision, ontology_revision)",
     "CREATE INDEX IF NOT EXISTS idx_diagnostics_episode ON projection_diagnostics(elfie_id, episode_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_importance_events_target ON memory_importance_events(elfie_id, target_kind, target_id, occurred_at)",
     "CREATE INDEX IF NOT EXISTS idx_retention_receipts_target ON memory_retention_receipts(elfie_id, target_kind, target_id, occurred_at)",
@@ -445,4 +456,11 @@ INDEX_SQL: Final[tuple[str, ...]] = (
 )
 
 
-__all__ = ["INDEX_SQL", "KNOWLEDGE_TABLES", "SCHEMA_SQL", "SCHEMA_VERSION"]
+__all__ = [
+    "FTS_SHADOW_TABLES",
+    "FTS_AUXILIARY_TABLES",
+    "INDEX_SQL",
+    "KNOWLEDGE_TABLES",
+    "SCHEMA_SQL",
+    "SCHEMA_VERSION",
+]

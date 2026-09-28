@@ -112,7 +112,7 @@ when missing or when the Godot source has changed, never recompiled otherwise.
 macOS auto-discovers standard Godot install locations; only set `--godot` or
 `GODOT_BIN` when auto-discovery fails or multiple versions coexist. Each
 browser launch uses a fresh local URL so that stale workspace page caches do
-not shadow the new UI. Bed, temporary fox / dog, random walk, pause, resume and
+not shadow the new UI. Bed, temporary character, random walk, pause, resume and
 reset all act only on the in-memory state of this one Lab process.
 
 The three pages share the React + TypeScript + Vite source in

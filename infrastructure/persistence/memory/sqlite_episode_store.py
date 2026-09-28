@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional, cast
+from typing import Any, Mapping, Optional, cast
 
 from elfie.brain.memory.memory_records import (
+    ClaimedEpisode,
     ClosedEpisode,
+    EpisodeMaintenanceStatus,
     EpisodeReceipt,
     MediaReference,
     OccurrencePrecision,
@@ -36,6 +37,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
     conn: sqlite3.Connection
 
     def record_episode(self, episode: ClosedEpisode) -> EpisodeReceipt:
+        self.ontology.validate_episode_type(episode.event_kind)
         configured_elfie = getattr(self, "elfie_id", None)
         if configured_elfie is not None:
             supplied_elfie = episode.metadata.get("elfie_id")
@@ -150,7 +152,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         privacy_scope, source_version, importance, initial_importance,
                         half_life_days, retention_profile,
                         detail_level,
-                        content_sha256, projection_revision, projection_source_sha256,
+                        content_sha256,
                         last_reinforced_at, last_reviewed_at, next_review_at,
                         lifecycle_changed_at, policy_version, genesis_submission_id, metadata_json,
                         created_at, updated_at
@@ -158,7 +160,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?
+                        ?, ?
                     )""",
                     (
                         episode.episode_id,
@@ -188,8 +190,6 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         retention_profile,
                         episode.detail_level,
                         digest,
-                        episode.projection_revision,
-                        episode.projection_source_sha256,
                         anchor,
                         episode.last_reviewed_at,
                         next_review_at,
@@ -198,6 +198,22 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                         genesis_submission_id,
                         canonical_json(metadata),
                         now,
+                        now,
+                    ),
+                )
+                elfie_id = str(configured_elfie or "")
+                self.conn.execute(
+                    """INSERT INTO memory_maintenance(
+                           work_id, elfie_id, stage, target_id, state, attempts,
+                           source_version, source_hash, updated_at
+                       ) VALUES (?, ?, 'consolidation', ?, 'pending', 0, ?, ?, ?)
+                       ON CONFLICT(elfie_id, stage, target_id) DO NOTHING""",
+                    (
+                        f"{elfie_id}:consolidation:{episode.episode_id}",
+                        elfie_id,
+                        episode.episode_id,
+                        episode.source_version,
+                        digest,
                         now,
                     ),
                 )
@@ -282,26 +298,37 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         if limit < 1:
             return ()
         now = utc_now()
+        elfie_id = str(getattr(self, "elfie_id", None) or "")
         with self._lock:
             scope = ""
-            params: list[object] = [now, limit]
+            params: list[object] = [elfie_id, now, now, self.ontology.revision]
             if getattr(self, "elfie_id", None) is not None:
                 scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
-                params = [now, str(self.elfie_id), limit]
+                params.append(str(self.elfie_id))
             visibility, visibility_params = self._genesis_visibility("e")
-            params[-1:-1] = visibility_params
+            params.extend(visibility_params)
             rows = self.conn.execute(
                 """SELECT e.* FROM episodes AS e
+                   JOIN memory_maintenance AS mm
+                     ON mm.elfie_id=? AND mm.stage='consolidation'
+                    AND mm.target_id=e.episode_id
                    WHERE e.lifecycle='active'
-                     AND e.consolidation_state IN ('pending', 'failed')
-                     AND (e.projection_revision IS NULL OR e.projection_source_sha256 IS NULL
-                          OR e.projection_source_sha256 <> e.content_sha256)
-                     AND (e.next_attempt_at IS NULL OR e.next_attempt_at <= ?)"""
+                     AND (mm.state IN ('pending', 'failed')
+                          OR mm.projection_revision IS NULL
+                          OR mm.source_version IS NOT e.source_version
+                          OR mm.source_hash IS NOT e.content_sha256)
+                     AND (mm.source_version IS NOT e.source_version
+                          OR mm.source_hash IS NOT e.content_sha256
+                          OR mm.next_attempt_at IS NULL
+                          OR mm.next_attempt_at <= ?
+                          OR mm.ontology_revision IS NOT ?)
+                     AND (mm.state<>'processing' OR mm.lease_until IS NULL
+                          OR mm.lease_until <= ?)"""
                 + scope
                 + " AND "
                 + visibility
-                + " ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?",
-                params,
+                + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
+                [*params, limit],
             ).fetchall()
         return tuple(_row_to_episode(row) for row in rows)
 
@@ -311,7 +338,7 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         *,
         owner: str = "memory-worker",
         lease_seconds: int = 120,
-    ) -> tuple[ClosedEpisode, ...]:
+    ) -> tuple[ClaimedEpisode, ...]:
         if limit < 1:
             return ()
         now = datetime.now(timezone.utc)
@@ -319,11 +346,17 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         lease_until = (now + timedelta(seconds=max(1, lease_seconds))).isoformat(
             timespec="milliseconds"
         )
+        elfie_id = str(getattr(self, "elfie_id", None) or "")
         with self._lock:
             owns = self._begin_write_transaction()
             try:
                 scope = ""
-                select_params: list[object] = [now_text, now_text]
+                select_params: list[object] = [
+                    elfie_id,
+                    now_text,
+                    now_text,
+                    self.ontology.revision,
+                ]
                 if getattr(self, "elfie_id", None) is not None:
                     scope = " AND json_extract(e.metadata_json, '$.elfie_id')=?"
                     select_params.append(str(self.elfie_id))
@@ -331,55 +364,74 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 select_params.extend(visibility_params)
                 select_params.append(limit)
                 rows = self.conn.execute(
-                    """SELECT e.episode_id, e.consolidation_attempts FROM episodes AS e
+                    """SELECT e.episode_id, e.source_version, e.content_sha256,
+                              mm.attempts, mm.source_version AS work_source_version,
+                              mm.source_hash AS work_source_hash,
+                              mm.projection_revision
+                         FROM episodes AS e
+                         JOIN memory_maintenance AS mm
+                           ON mm.elfie_id=? AND mm.stage='consolidation'
+                          AND mm.target_id=e.episode_id
                        WHERE e.lifecycle='active'
-                         AND e.consolidation_state IN ('pending', 'failed')
-                         AND (e.projection_revision IS NULL OR e.projection_source_sha256 IS NULL
-                              OR e.projection_source_sha256 <> e.content_sha256)
-                         AND (e.next_attempt_at IS NULL OR e.next_attempt_at <= ?)
-                         AND (e.lease_until IS NULL OR e.lease_until < ?)"""
+                         AND (mm.state IN ('pending', 'failed')
+                              OR mm.projection_revision IS NULL
+                              OR mm.source_version IS NOT e.source_version
+                              OR mm.source_hash IS NOT e.content_sha256)
+                         AND (mm.source_version IS NOT e.source_version
+                              OR mm.source_hash IS NOT e.content_sha256
+                              OR mm.next_attempt_at IS NULL OR mm.next_attempt_at <= ?
+                              OR mm.ontology_revision IS NOT ?)
+                         AND (mm.lease_until IS NULL OR mm.lease_until <= ?)"""
                     + scope
                     + " AND "
                     + visibility
-                    + " ORDER BY occurred_from IS NULL, occurred_from, episode_id LIMIT ?",
+                    + " ORDER BY e.occurred_from IS NULL, e.occurred_from, e.episode_id LIMIT ?",
                     select_params,
                 ).fetchall()
                 episode_attempts = {
-                    str(row["episode_id"]): int(row["consolidation_attempts"] or 0) + 1
+                    str(row["episode_id"]): int(row["attempts"] or 0) + 1
                     for row in rows
                 }
-                episode_ids = list(episode_attempts)
-                for episode_id in episode_ids:
-                    self.conn.execute(
-                        """UPDATE episodes SET consolidation_state='processing',
-                               lease_owner=?, lease_until=?,
-                               consolidation_attempts=consolidation_attempts+1,
-                               updated_at=? WHERE episode_id=?""",
-                        (owner, lease_until, now_text, episode_id),
+                claimed_rows: list[tuple[str, int]] = []
+                for row in rows:
+                    episode_id = str(row["episode_id"])
+                    attempt = episode_attempts[episode_id]
+                    cursor = self.conn.execute(
+                        """UPDATE memory_maintenance
+                              SET state='processing', attempts=attempts+1,
+                                  next_attempt_at=NULL, lease_owner=?, lease_until=?,
+                                  source_version=?, source_hash=?, projection_revision=NULL,
+                                  ontology_revision=NULL,
+                                  last_error=NULL, updated_at=?
+                            WHERE elfie_id=? AND stage='consolidation' AND target_id=?
+                              AND attempts=? AND (lease_until IS NULL OR lease_until<=?)""",
+                        (
+                            owner,
+                            lease_until,
+                            row["source_version"],
+                            row["content_sha256"],
+                            now_text,
+                            elfie_id,
+                            episode_id,
+                            attempt - 1,
+                            now_text,
+                        ),
                     )
+                    if cursor.rowcount == 1:
+                        claimed_rows.append((episode_id, attempt))
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)
                 raise
-        claimed: list[ClosedEpisode] = []
-        for episode_id in episode_ids:
+        claimed: list[ClaimedEpisode] = []
+        for episode_id, attempt in claimed_rows:
             episode = self.get_episode(episode_id)
             if episode is None:
                 continue
             claimed.append(
-                replace(
-                    episode,
-                    metadata={
-                        **dict(episode.metadata),
-                        "_memory_claim_owner": owner,
-                        "_memory_claim_attempt": episode_attempts[episode_id],
-                    },
-                )
+                ClaimedEpisode(episode=episode, owner=owner, attempt=attempt)
             )
         return tuple(claimed)
-
-    def mark_episode_consolidated(self, episode_id: str) -> bool:
-        return self._update_episode_state(episode_id, "consolidated", None)
 
     def mark_episode_failed(
         self,
@@ -395,6 +447,41 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             error,
             owner=owner,
             attempt=attempt,
+        )
+
+    def list_episode_maintenance_statuses(
+        self, episode_ids: tuple[str, ...]
+    ) -> tuple[EpisodeMaintenanceStatus, ...]:
+        ids = tuple(dict.fromkeys(value for value in episode_ids if value.strip()))
+        if not ids:
+            return ()
+        placeholders = ", ".join("?" for _ in ids)
+        elfie_id = str(getattr(self, "elfie_id", None) or "")
+        with self._lock:
+            rows = self.conn.execute(
+                f"""SELECT target_id, state, source_version, source_hash,
+                           projection_revision, ontology_revision, attempts, next_attempt_at,
+                           last_error, updated_at
+                      FROM memory_maintenance
+                     WHERE elfie_id=? AND stage='consolidation'
+                       AND target_id IN ({placeholders})
+                     ORDER BY target_id""",
+                (elfie_id, *ids),
+            ).fetchall()
+        return tuple(
+            EpisodeMaintenanceStatus(
+                episode_id=str(row["target_id"]),
+                state=str(row["state"]),  # type: ignore[arg-type]
+                source_version=row["source_version"],
+                source_sha256=row["source_hash"],
+                projection_revision=row["projection_revision"],
+                ontology_revision=row["ontology_revision"],
+                attempts=int(row["attempts"] or 0),
+                next_attempt_at=row["next_attempt_at"],
+                last_error=row["last_error"],
+                updated_at=str(row["updated_at"]),
+            )
+            for row in rows
         )
 
     def archive_episode(self, episode_id: str, summary_text: str | None = None) -> bool:
@@ -448,22 +535,19 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         with self._lock:
             owns = self._begin_write_transaction()
             try:
-                scope = ""
-                params: list[object] = [now, now, now]
-                if getattr(self, "elfie_id", None) is not None:
-                    scope = " AND json_extract(metadata_json, '$.elfie_id')=?"
-                    params.append(str(self.elfie_id))
-                visibility, visibility_params = self._genesis_visibility("episodes")
-                params.extend(visibility_params)
                 cursor = self.conn.execute(
-                    """UPDATE episodes SET consolidation_state='failed', lease_owner=NULL,
-                           lease_until=NULL, next_attempt_at=?, updated_at=?
-                       WHERE consolidation_state='processing'
-                         AND (lease_until IS NULL OR lease_until < ?)"""
-                    + scope
-                    + " AND "
-                    + visibility,
-                    params,
+                    """UPDATE memory_maintenance SET state='failed', lease_owner=NULL,
+                           lease_until=NULL, next_attempt_at=?, last_error=?, updated_at=?
+                       WHERE stage='consolidation' AND state='processing'
+                         AND (lease_until IS NULL OR lease_until < ?)
+                         AND elfie_id=?""",
+                    (
+                        now,
+                        "consolidation lease expired",
+                        now,
+                        now,
+                        str(getattr(self, "elfie_id", None) or ""),
+                    ),
                 )
                 self._commit_write_transaction(owns)
             except Exception:
@@ -482,8 +566,10 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             visibility, visibility_params = self._genesis_visibility("e")
             select_params.extend(visibility_params)
             row = self.conn.execute(
-                """SELECT e.content_sha256, e.projection_revision,
-                          e.projection_source_sha256,
+                """SELECT e.content_sha256, e.source_version,
+                          mm.source_version AS projection_source_version,
+                          mm.projection_revision,
+                          mm.source_hash AS projection_source_sha256,
                           (SELECT COUNT(*) FROM evidence AS ev
                              WHERE ev.source_type='episode' AND ev.source_id=e.episode_id)
                              AS evidence_count,
@@ -492,16 +578,21 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                                AND (ev.source_sha256 IS NULL
                                     OR ev.source_sha256 <> e.content_sha256))
                              AS ungrounded_evidence_count
-                     FROM episodes AS e WHERE e.episode_id=?"""
+                     FROM episodes AS e
+                     LEFT JOIN memory_maintenance AS mm
+                       ON mm.elfie_id=? AND mm.stage='consolidation'
+                      AND mm.target_id=e.episode_id
+                    WHERE e.episode_id=?"""
                 + scope
                 + " AND "
                 + visibility,
-                select_params,
+                [str(getattr(self, "elfie_id", None) or ""), *select_params],
             ).fetchone()
             if row is None:
                 return False
             if (
                 row["projection_revision"] is None
+                or row["projection_source_version"] != row["source_version"]
                 or row["projection_source_sha256"] != row["content_sha256"]
                 or int(row["evidence_count"] or 0) < 1
                 or int(row["ungrounded_evidence_count"] or 0) > 0
@@ -566,35 +657,37 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
             visibility, visibility_params = self._genesis_visibility("e")
             select_params.extend(visibility_params)
             metadata_row = self.conn.execute(
-                "SELECT e.metadata_json, e.consolidation_attempts, "
-                "e.consolidation_state, e.lease_owner, e.lease_until "
-                "FROM episodes AS e WHERE e.episode_id=?"
+                "SELECT mm.attempts, mm.state, mm.lease_owner, mm.lease_until "
+                "FROM episodes AS e JOIN memory_maintenance AS mm "
+                "ON mm.elfie_id=? AND mm.stage='consolidation' "
+                "AND mm.target_id=e.episode_id WHERE e.episode_id=?"
                 + scope
                 + " AND "
                 + visibility,
-                select_params,
+                [str(getattr(self, "elfie_id", None) or ""), *select_params],
             ).fetchone()
             if metadata_row is None:
                 return False
             if owner is not None:
                 if (
-                    str(metadata_row["consolidation_state"]) != "processing"
+                    str(metadata_row["state"]) != "processing"
                     or str(metadata_row["lease_owner"] or "") != owner
-                    or int(metadata_row["consolidation_attempts"] or 0) != attempt
+                    or int(metadata_row["attempts"] or 0) != attempt
                     or metadata_row["lease_until"] is None
                     or str(metadata_row["lease_until"]) <= utc_now()
                 ):
                     # A worker that lost its lease must not overwrite the
                     # retry state written by a newer claimant.
                     return False
-            metadata = json_object(metadata_row["metadata_json"])
-            if error:
-                metadata["last_error"] = error
-            else:
-                metadata.pop("last_error", None)
-            attempts = int(metadata_row["consolidation_attempts"] or 0)
+            elif (
+                str(metadata_row["state"]) == "processing"
+                and metadata_row["lease_until"] is not None
+                and str(metadata_row["lease_until"]) > utc_now()
+            ):
+                return False
+            attempts = int(metadata_row["attempts"] or 0)
             retry_at = None
-            if state != "consolidated":
+            if state != "completed":
                 delay = min(3600, 2 ** min(attempts, 10))
                 retry_at = (
                     datetime.now(timezone.utc) + timedelta(seconds=delay)
@@ -605,25 +698,33 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
                 update_params: list[object] = [
                     state,
                     retry_at,
-                    canonical_json(metadata),
+                    error,
                     utc_now(),
+                    str(getattr(self, "elfie_id", None) or ""),
                     episode_id,
                 ]
                 if getattr(self, "elfie_id", None) is not None:
-                    update_scope = " AND json_extract(metadata_json, '$.elfie_id')=?"
+                    update_scope = " AND EXISTS (SELECT 1 FROM episodes AS e "
+                    update_scope += (
+                        "WHERE e.episode_id=memory_maintenance.target_id "
+                        "AND json_extract(e.metadata_json, '$.elfie_id')=?)"
+                    )
                     update_params.append(str(self.elfie_id))
                 if owner is not None:
                     update_scope += (
-                        " AND consolidation_state='processing'"
+                        " AND state='processing'"
                         " AND lease_owner=?"
-                        " AND consolidation_attempts=?"
+                        " AND attempts=?"
                         " AND lease_until>?"
                     )
                     update_params.extend((owner, attempt, utc_now()))
+                else:
+                    update_scope += " AND (state<>'processing' OR lease_until<=?)"
+                    update_params.append(utc_now())
                 cursor = self.conn.execute(
-                    """UPDATE episodes SET consolidation_state=?, lease_owner=NULL,
-                           lease_until=NULL, next_attempt_at=?, metadata_json=?, updated_at=?
-                       WHERE episode_id=?"""
+                    """UPDATE memory_maintenance SET state=?, next_attempt_at=?,
+                           last_error=?, lease_owner=NULL, lease_until=NULL, updated_at=?
+                       WHERE elfie_id=? AND stage='consolidation' AND target_id=?"""
                     + update_scope,
                     update_params,
                 )
@@ -635,26 +736,31 @@ class SQLiteEpisodeStoreMixin(SQLiteMemoryMixinBase):
         return changed
 
     def _upsert_episode_fts(self, episode_id: str, episode: ClosedEpisode) -> None:
-        searchable = "\n".join(
-            value
-            for value in (episode.content_text, episode.summary_text or "")
-            if value
-        )
-        self.conn.execute(
-            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
-               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-            (episode_id, searchable),
+        self._upsert_episode_fts_from_values(
+            episode_id,
+            episode.content_text,
+            episode.summary_text,
+            episode.metadata,
         )
 
     def _upsert_episode_fts_from_values(
-        self, episode_id: str, content: str, summary: str | None
+        self,
+        episode_id: str,
+        content: str,
+        summary: str | None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> None:
-        searchable = "\n".join(value for value in (content, summary or "") if value)
-        self.conn.execute(
-            """INSERT INTO episodes_fts(episode_id, searchable_text) VALUES (?, ?)
-               ON CONFLICT(episode_id) DO UPDATE SET searchable_text=excluded.searchable_text""",
-            (episode_id, searchable),
+        if metadata is None:
+            row = self.conn.execute(
+                "SELECT metadata_json FROM episodes WHERE episode_id=?",
+                (episode_id,),
+            ).fetchone()
+            metadata = json_object(row[0]) if row is not None else {}
+        metadata_terms = _episode_metadata_search_terms(metadata)
+        searchable = "\n".join(
+            value for value in (content, summary or "", *metadata_terms) if value
         )
+        self._upsert_search_document("episode", episode_id, searchable)
 
 
 def _source_to_dict(ref: SourceReference) -> dict[str, Optional[str]]:
@@ -665,6 +771,19 @@ def _source_to_dict(ref: SourceReference) -> dict[str, Optional[str]]:
         "source_version": ref.source_version,
         "source_sha256": ref.source_sha256,
     }
+
+
+def _episode_metadata_search_terms(metadata: Mapping[str, Any]) -> tuple[str, ...]:
+    terms: list[str] = []
+    for key in ("aliases", "retrieval_terms"):
+        values = metadata.get(key)
+        if not isinstance(values, (list, tuple)):
+            continue
+        for value in values:
+            term = str(value).strip()
+            if term and term not in terms:
+                terms.append(term)
+    return tuple(terms)
 
 
 def _media_to_dict(ref: MediaReference) -> dict[str, Any]:
@@ -749,8 +868,6 @@ def _row_to_episode(row: sqlite3.Row) -> ClosedEpisode:
         attribution=str(row["attribution"] or "observed"),  # type: ignore[arg-type]
         privacy_scope=str(row["privacy_scope"] or "private"),
         source_version=row["source_version"],
-        projection_revision=row["projection_revision"],
-        projection_source_sha256=row["projection_source_sha256"],
         last_reinforced_at=row["last_reinforced_at"],
         last_reviewed_at=row["last_reviewed_at"],
         next_review_at=row["next_review_at"],

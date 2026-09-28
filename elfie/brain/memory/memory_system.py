@@ -54,6 +54,7 @@ from .memory_records import (
 )
 from .memory_store import MemoryStorePort
 from .model_food import MemoryModelPort
+from .ontology import MemoryOntologySnapshot
 from .recall_renderer import render_recall_bundle
 
 logger = logging.getLogger("elfie.brain.memory.memory_system")
@@ -85,9 +86,16 @@ class MemorySystem:
         clock: Callable[[], datetime] | None = None,
         initial_at: datetime | None = None,
         observation_sink: BrainObservationSink | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ):
         """初始化 typed Memory 主线；具体存储由 Bootstrap 注入。"""
         self.storage = storage
+        candidate = ontology or getattr(storage, "ontology", None)
+        if not isinstance(candidate, MemoryOntologySnapshot):
+            raise TypeError(
+                "MemorySystem requires an injected Memory ontology snapshot"
+            )
+        self.ontology: MemoryOntologySnapshot = candidate
         del personality_data
         if not all(
             callable(getattr(storage, name, None))
@@ -132,7 +140,11 @@ class MemorySystem:
         self._committed_episode_candidate_order: deque[EventId] = deque(maxlen=2048)
         self._use_proposals: dict[str, MemoryUseProposal] = {}
         self._use_proposal_order: deque[str] = deque(maxlen=2048)
-        self.consolidator = MemoryConsolidator(self.storage, elfie_id=elfie_id)
+        self.consolidator = MemoryConsolidator(
+            self.storage,
+            elfie_id=elfie_id,
+            ontology=self.ontology,
+        )
         if observation_sink is not None:
             self.bind_observation_sink(observation_sink)
 
@@ -330,10 +342,14 @@ class MemorySystem:
         normalized_actor = actor_id.strip()
         if not normalized_actor:
             return None
+        social_types = {
+            spec.node_type
+            for spec in self.ontology.active_node_types("social_relations")
+        }
         entities = tuple(
             node
             for node in self.storage.list_graph_nodes(limit=1000)
-            if node.node_type == "entity"
+            if node.node_type in social_types
         )
         exact = tuple(
             node
@@ -608,7 +624,7 @@ class MemorySystem:
             idempotency_key=str(candidate.candidate_id),
             occurred_from=candidate.created_at.isoformat(),
             content_text=candidate.content,
-            event_kind="completed_interaction",
+            event_kind="conversation",
             source_event_ids=tuple(str(value) for value in candidate.source_event_ids),
             importance=max(0.0, min(1.0, intensity)),
             emotion=candidate.emotion,

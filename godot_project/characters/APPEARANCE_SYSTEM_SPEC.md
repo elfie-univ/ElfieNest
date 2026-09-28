@@ -24,7 +24,7 @@ Blender 中建立语义区域、骨骼比例、Shape Key、毛色遮罩和极值
 - 大多数随机个体比例协调，极端或局部特殊体型只占少数。
 - 正面头像中也能区分不同精灵，不能只依靠身高或衣服。
 - 公共动画的骨骼名称和层级保持稳定。
-- 狗、狐狸、猫、兔等物种共享参数语义，但分别配置范围和模型映射。
+- 不同物种共享参数语义，但分别配置范围和模型映射。
 
 当前不要求：
 
@@ -158,7 +158,7 @@ face_softness_z  = 0.65 * body_fat_z + 0.30 * cheek_fullness_bias
 neck_softness_z  = 0.70 * body_fat_z + 0.20 * neck_thickness_bias
 ```
 
-系数属于物种配置，不硬编码在公共生成器中。狗、狐狸、猫可以使用不同的
+系数属于物种配置，不硬编码在公共生成器中。不同物种可以使用不同的
 脂肪分布灵敏度。
 
 骨架和肌肉同样参与部分轮廓：
@@ -334,8 +334,8 @@ pupil             瞳孔
 | `eye_color_id` | 枚举 | 物种允许的眼睛色板 |
 | `nose_color_id` | 枚举 | 鼻子色板 |
 
-狐狸可提供 `red`、`golden`、`cross`、`silver`、`melanistic`、`pale` 等色板；
-狗可提供 `black`、`white`、`cream`、`golden`、`red_brown`、`chocolate`、
+Saevi 可提供 `red`、`golden`、`cross`、`silver`、`melanistic`、`pale` 等色板；
+Tovren 可提供 `black`、`white`、`cream`、`golden`、`red_brown`、`chocolate`、
 `gray` 等色板。色板还必须规定哪些主色、副色和花纹组合合法。
 
 ### 9.3 花纹参数
@@ -775,12 +775,12 @@ forehead_height + muzzle_height <= usable_face_height
 身份 Shape Key 是持续存在的基础外貌；眨眼、说话、开心等表情 Shape Key
 在它们之上叠加，不能互相覆盖。
 
-## 17. 狗和狐狸升级顺序
+## 17. Saevi 和 Tovren 升级顺序
 
-当前 dog 和 fox GLB 已有蒙皮骨架，但还没有 morph target。建议先只升级狐狸，
+当前 dog 和 fox GLB 已有蒙皮骨架，但还没有 morph target。建议先只升级 Saevi，
 完成以下最小闭环：
 
-### 第一阶段：狐狸最小可辨识母版
+### 第一阶段：Saevi 最小可辨识母版
 
 - 保留公共 Mixamo 骨架层级。
 - 修正尾巴为 3 至 5 节骨链。
@@ -789,10 +789,10 @@ forehead_height + muzzle_height <= usable_face_height
 - 制作 12 个高辨识度脸部 Shape Key。
 - 制作耳朵大小、倾斜和轻微不对称控制。
 - 制作主色、副色、眼周、耳尖、脚掌和尾尖遮罩。
-- 提供至少 4 个狐狸色板和 3 个花纹。
+- 提供至少 4 个 Saevi 色板和 3 个花纹。
 - 导出 GLB，并确认 morph target 名称完整。
 
-### 第二阶段：狐狸自动生成验证
+### 第二阶段：Saevi 自动生成验证
 
 - 实现物种配置和外貌应用器。
 - 固定相机生成 50 至 100 个正面头像和全身图。
@@ -800,11 +800,11 @@ forehead_height + muzzle_height <= usable_face_height
 - 调整参数范围、相关系数和修正 Shape Key。
 - 通过后冻结 `fox profile_version = 1`。
 
-### 第三阶段：迁移到狗
+### 第三阶段：迁移到 Tovren
 
-- 狗使用相同公共参数名。
-- 根据狗的网格重新制作 Shape Key，不能复制狐狸顶点数据。
-- 建立狗自己的范围、脂肪影响系数、色板和花纹。
+- Tovren 使用相同公共参数名。
+- 根据 Tovren 的网格重新制作 Shape Key，不能复制 Saevi 顶点数据。
+- 建立 Tovren 自己的范围、脂肪影响系数、色板和花纹。
 - 使用同一生成器和验收流程验证。
 
 ## 18. Blender 交付验收
@@ -824,7 +824,7 @@ forehead_height + muzzle_height <= usable_face_height
 
 ## 19. 第一版参数规模
 
-完整公共协议约有 70 至 80 个可持久化字段；狐狸第一版只需启用其中 45 至
+完整公共协议约有 70 至 80 个可持久化字段；Saevi 第一版只需启用其中 45 至
 55 个。字段数量不等于需要同样数量的人工 Shape Key：
 
 ```text
@@ -837,7 +837,7 @@ forehead_height + muzzle_height <= usable_face_height
 自动修正参数       不持久化    -> 6 至 10 个 corrective Shape Key
 ```
 
-不要求首个狐狸版本一次实现全部字段。公共协议可以先完整定义，物种配置只
+不要求首个 Saevi 版本一次实现全部字段。公共协议可以先完整定义，物种配置只
 启用已经制作和验收的参数。这样后续增加 Shape Key 时不需要重新设计数据
 结构。
 

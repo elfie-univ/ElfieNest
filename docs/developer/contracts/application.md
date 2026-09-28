@@ -1,8 +1,8 @@
 # Application architecture contract
 
-**Contract version:** 1.11
+**Contract version:** 1.12
 **Adopted:** 2026-08-15
-**Revised:** 2026-09-01
+**Revised:** 2026-09-24
 **Scope:** `app/` and App-owned adapters in root `infrastructure/`
 
 > **Normative target.** This document is the long-term architecture authority
@@ -110,8 +110,9 @@ The Feature owners are:
 
 ### Species availability, Genesis and adoption
 
-The immutable published Genesis source registry is the only release authority
-for which species can be created. Infrastructure validates the package and
+The immutable Genesis source registry is the only release authority for which
+species can be created, but source publication and production activation are
+separate. Infrastructure validates the package and
 exposes two separate typed views: a creation projection joining species rules
 with the world source for `elfie/genesis/`, and a runtime asset projection for
 Godot/presentation assembly. Adoption consumes only a typed availability
@@ -119,11 +120,13 @@ projection for options and eligibility. Profile receives only final generated
 dossier fields; neither `elfie/profile` nor mutable App settings owns a second
 species/world Canon.
 
-A species is available when its registry entry is enabled and every referenced
-package/resource passes validation. Adding a complete published entry makes the
-species available to existing installations without an administrator write or
-per-Nest approval. This changes only future candidates and creations; it never
-refreshes an existing Elfie's Profile, Selfhood or Memory.
+A species is available only when its entry belongs to the single activated
+creation package and its creation rules, life feasibility and referenced runtime
+assets pass validation. Publishing a source entry alone cannot make it available.
+After the verified single-path activation, an eligible enabled species becomes
+available to existing installations without an administrator write or per-Nest
+approval. This changes only future candidates and creations; it never refreshes
+an existing Elfie's Profile, Selfhood or Memory.
 
 `configuration/settings` owns mutable global rules such as quotas and
 personality preset switches. It must not expose, persist or enforce a species
@@ -131,9 +134,10 @@ allowlist such as `allowed_species_ids`; settings changes cannot remove or add
 species. A staged rollout, if ever required, must be designed as a separate
 explicit release contract rather than reusing an administrator settings field.
 
-The acceptance invariant is: with an unchanged existing settings document,
-adding a valid enabled species to the published source registry causes
-`GET /api/v1/me/adoption` to list it and candidate creation for it to succeed.
+The acceptance invariant is: with unchanged settings, a published but inactive
+species is not listed; after activation and per-species validation, an eligible
+species is listed by `GET /api/v1/me/adoption` and candidate creation succeeds.
+An incomplete species such as a draft runtime role is never offered.
 
 Accepted creation has one ownership path:
 
@@ -152,6 +156,12 @@ successful commit or terminal abort, the original questionnaire/selections,
 `LifeContext`, plan and generation seeds are removed. App keeps only the actual
 adoption/ownership relation and a bounded technical transaction result; it does
 not keep enough semantic input to regenerate the Elfie.
+
+The admitted result is product-visible only after final-owner outputs reopen,
+Adoption ownership/quota and Nest resident/bed confirmations all succeed for the
+same reservation. A published file tree or an Adoption relation alone is not a
+completed adoption. Runtime registration follows that commit and may recover
+independently; an unfinished Admission must not appear as a resident.
 
 The Orchestration workflows are:
 

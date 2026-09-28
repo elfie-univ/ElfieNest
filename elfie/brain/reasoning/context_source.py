@@ -573,6 +573,19 @@ class BrainContextProvider:
                 blocked=blocked,
             )
 
+    def request_manual_consolidation(
+        self,
+        *,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[CognitiveConsolidationCandidate]:
+        """Request one explicit Lab consolidation without faking sleep."""
+        with self._state_lock:
+            return self._consolidation.request_manual(
+                now=now,
+                blocked=blocked,
+            )
+
     def settle_consolidation(
         self,
         candidate_id: EventId,

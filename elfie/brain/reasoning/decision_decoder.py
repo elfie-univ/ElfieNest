@@ -19,6 +19,7 @@ from elfie.brain.reasoning.decision_types import (
     CognitiveAction,
     DecisionIntent,
     DecisionPlan,
+    FinalCognitiveAction,
     MemoryUseReference,
     MessageIntent,
     NoOpDraft,
@@ -44,6 +45,9 @@ _FENCED_JSON_PATTERN = re.compile(
     flags=re.IGNORECASE | re.DOTALL,
 )
 _COGNITIVE_ACTION_ADAPTER: TypeAdapter[CognitiveAction] = TypeAdapter(CognitiveAction)
+_FINAL_COGNITIVE_ACTION_ADAPTER: TypeAdapter[FinalCognitiveAction] = TypeAdapter(
+    FinalCognitiveAction
+)
 
 
 @unique
@@ -199,6 +203,7 @@ class DecisionPlanDecoder:
         generation: ModelGenerationResult,
         capabilities: ModelGenerationCapabilities,
         allowed_memory_references: Tuple[Tuple[str, str], ...] = (),
+        allow_recall_memory: bool = True,
     ) -> CognitiveActionDecodeResult:
         """Decode the P0 control union; only plain text may become an answer."""
         selected_mode = self._mode(capabilities, generation.selected_mode)
@@ -217,7 +222,12 @@ class DecisionPlanDecoder:
             if fenced is not None:
                 candidate = fenced.group("body").strip()
             try:
-                action = _COGNITIVE_ACTION_ADAPTER.validate_json(candidate)
+                adapter = (
+                    _COGNITIVE_ACTION_ADAPTER
+                    if allow_recall_memory
+                    else _FINAL_COGNITIVE_ACTION_ADAPTER
+                )
+                action = adapter.validate_json(candidate)
                 action = self._normalize_action_memory_references(
                     action,
                     allowed_memory_references=allowed_memory_references,
@@ -307,6 +317,13 @@ class DecisionPlanDecoder:
     def cognitive_action_schema() -> Mapping[str, JsonValue]:
         """Return the single P0 cognitive-action schema used by every step."""
         return cast(Mapping[str, JsonValue], _COGNITIVE_ACTION_ADAPTER.json_schema())
+
+    @staticmethod
+    def final_cognitive_action_schema() -> Mapping[str, JsonValue]:
+        """Return the final-draft schema without another Recall action."""
+        return cast(
+            Mapping[str, JsonValue], _FINAL_COGNITIVE_ACTION_ADAPTER.json_schema()
+        )
 
     @staticmethod
     def _normalize_action_memory_references(

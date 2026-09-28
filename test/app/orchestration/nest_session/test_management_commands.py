@@ -147,6 +147,24 @@ def test_home_assignment_survives_ticks_and_session_restart() -> None:
     assert restarted.nest.home_anchor_id("00000001") == "dorm-01/bed-02"
 
 
+def test_admission_finalization_assigns_home_before_runtime_registration() -> None:
+    store = RecordingNestStateStore()
+    store.snapshot = NestSnapshot(
+        desired_bed_count=4,
+        elapsed_seconds=0.0,
+        catalog=_persisted_catalog(),
+        residents=(),
+    )
+    engine = ElfieNestEngine(FakeWorldRuntime(), state_store=store)
+
+    engine.session.finalize_admission("admission-1", "00000001")
+    engine.session.finalize_admission("admission-1", "00000001")
+
+    assert engine.nest.home_anchor_id("00000001") == "dorm-01/bed-01"
+    assert engine.session.elfie_items_snapshot() == ()
+    assert store.snapshot.residents[0].home_anchor_id == "dorm-01/bed-01"
+
+
 def _manifest_event(*, revision: int, bed_count: int) -> WorldEvent:
     return WorldEvent(
         event_id=f"manifest-{revision}",

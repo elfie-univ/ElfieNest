@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from elfie.brain.memory.memory_records import RecallRequest
-from elfie.genesis import GenesisCompileInput, GenesisCompiler, GenesisError
+from elfie.genesis import (
+    GenesisCompileInput,
+    GenesisCompiler,
+    GenesisError,
+    GenesisMemoryCommitter,
+)
+from elfie.genesis.engine import legal_candidate_age_range
 from elfie.genesis.selection import derive_seed
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
@@ -47,7 +53,11 @@ def _compilation(
     definition = catalog.definition(species_id, adoptable_only=True)
     if definition.genesis is None:
         raise RuntimeError(f"物种 {species_id} 缺少 Genesis 配置")
-    age_years = definition.genesis.stage_ranges[stage][0]
+    age_years, _ = legal_candidate_age_range(
+        definition.genesis,
+        stage,
+        compiler._source.generation_policy,  # noqa: SLF001 - same compiler source
+    )
     last_error: GenesisError | None = None
     for attempt in range(_MAX_COMPILATION_ATTEMPTS):
         master_seed = seed if attempt == 0 else derive_seed(seed, 1, attempt, 0)
@@ -92,7 +102,7 @@ def _query_variants(fact: Any) -> Iterable[str]:
 
 def _eligible_for_species(fact: Any, species_id: str) -> bool:
     eligibility = set(getattr(fact, "eligibility", ()))
-    return "all" in eligibility or species_id in eligibility
+    return not eligibility or "all" in eligibility or species_id in eligibility
 
 
 def _query_cases_for_species(
@@ -180,16 +190,26 @@ def run(output: Path) -> dict[str, Any]:
                     workspace = Path(adapter.publish(elfie_id))
                     memory_path = workspace / "memory" / "knowledge.sqlite"
                     try:
-                        with SQLiteMemoryStoreAdapter(memory_path) as storage:
+                        with SQLiteMemoryStoreAdapter(
+                            memory_path, elfie_id=elfie_id
+                        ) as storage:
                             episode_count = storage.count_episodes()
                             person_count = storage.count_graph_nodes("person")
-                            marker = storage.get_graph_node(
-                                f"genesis:receipt:{elfie_id}"
+                            elfie_count = storage.count_graph_nodes("elfie")
+                            group_count = storage.count_graph_nodes("group")
+                            receipt = GenesisMemoryCommitter().commit(
+                                compilation.bundle, storage
                             )
                             valid_graph = (
                                 episode_count == 5
-                                and person_count == 13
-                                and marker is not None
+                                and person_count == 1
+                                and elfie_count == 12
+                                and group_count == 1
+                                and receipt.status == "duplicate"
+                                and storage.get_graph_node(
+                                    f"genesis:receipt:{elfie_id}"
+                                )
+                                is None
                             )
                             if not valid_graph:
                                 failures.append(f"E3:{species_id}:{stage}:{seed}:graph")
@@ -234,13 +254,19 @@ def run(output: Path) -> dict[str, Any]:
                                     failures.append(
                                         f"E2:unknown:{species_id}:{fact.fact_id}"
                                     )
-                            with SQLiteMemoryStoreAdapter(memory_path) as reopened:
+                            with SQLiteMemoryStoreAdapter(
+                                memory_path, elfie_id=elfie_id
+                            ) as reopened:
+                                reopened_receipt = GenesisMemoryCommitter().commit(
+                                    compilation.bundle, reopened
+                                )
                                 restart_ok = (
                                     reopened.count_episodes() == 5
+                                    and reopened_receipt.status == "duplicate"
                                     and reopened.get_graph_node(
                                         f"genesis:receipt:{elfie_id}"
                                     )
-                                    is not None
+                                    is None
                                 )
                             if not restart_ok:
                                 failures.append(

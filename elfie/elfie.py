@@ -14,6 +14,7 @@ from elfie.brain.energy.energy import EnergySystem
 from elfie.brain.journal import BrainJournalPort, InMemoryBrainJournal
 from elfie.brain.memory.memory_store import MemoryStorePort
 from elfie.brain.memory.memory_system import MemorySystem
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -40,6 +41,7 @@ class Elfie(ElfieFacadeOperations):
         *,
         character_profile: ElfieProfile,
         memory_store: MemoryStorePort,
+        memory_ontology: MemoryOntologySnapshot,
         selfhood_seed: Mapping[str, object] | None = None,
         reasoning_constitution: ReasoningConstitution | None = None,
         energy_limits: Mapping[str, object] | None = None,
@@ -85,6 +87,7 @@ class Elfie(ElfieFacadeOperations):
         self._memory = MemorySystem(
             elfie_id=self._profile.identity.elfie_id,
             storage=memory_store,
+            ontology=memory_ontology,
             clock=lambda: self.cognitive_datetime,
             initial_at=self.cognitive_datetime,
         )

@@ -162,6 +162,11 @@ class FinalRootLayout:
         return self.data_home / "nest.db"
 
     @property
+    def memory_ontology_database(self) -> Path:
+        """One additive Memory ontology registry shared under this data root."""
+        return self.data_home / "memory" / "ontology.sqlite"
+
+    @property
     def providers_config(self) -> Path:
         return self.data_home / "configs" / "providers.yaml"
 
@@ -252,6 +257,7 @@ def _root_directories(layout: FinalRootLayout) -> tuple[Path, ...]:
         root / "assets",
         root / "assets" / "users",
         root / "elfies",
+        root / "memory",
         root / "runtime",
         layout.runtime_locks,
         root / "logs",

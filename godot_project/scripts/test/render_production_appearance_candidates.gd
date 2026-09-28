@@ -21,6 +21,12 @@ const ANGLES: Array[Dictionary] = [
 	{"id": "back", "position": Vector3(0.0, 0.96, -3.85)},
 ]
 
+const LIFE_STAGE_ANGLES: Array[Dictionary] = [
+	{"id": "front", "position": Vector3(0.0, 0.96, 3.85)},
+	{"id": "three_quarter", "position": Vector3(2.55, 1.00, 3.05)},
+	{"id": "side", "position": Vector3(3.85, 0.98, 0.0)},
+]
+
 const DOG_VARIANTS: Array[Dictionary] = [
 	{
 		"id": "dog-01-gray-tuft-ear-crescent",
@@ -170,6 +176,7 @@ const FOX_VARIANTS: Array[Dictionary] = [
 var _output_dir := DEFAULT_OUTPUT_DIR
 var _species_filter := ""
 var _candidate_limit := 5
+var _life_stage_payload: Dictionary = {}
 
 
 func _init() -> void:
@@ -177,6 +184,20 @@ func _init() -> void:
 	if not configured_output.is_empty():
 		_output_dir = configured_output
 	_species_filter = OS.get_environment("APPEARANCE_CANDIDATE_SPECIES")
+	var life_stage_payload_path := OS.get_environment("APPEARANCE_LIFE_STAGE_PAYLOAD")
+	if not life_stage_payload_path.is_empty():
+		var payload_file := FileAccess.open(life_stage_payload_path, FileAccess.READ)
+		if payload_file == null:
+			push_error("Unable to read APPEARANCE_LIFE_STAGE_PAYLOAD")
+			quit(1)
+			return
+		var parsed_payload: Variant = JSON.parse_string(payload_file.get_as_text())
+		payload_file.close()
+		if not parsed_payload is Dictionary:
+			push_error("APPEARANCE_LIFE_STAGE_PAYLOAD must contain a JSON object")
+			quit(1)
+			return
+		_life_stage_payload = parsed_payload as Dictionary
 	var configured_limit := OS.get_environment("APPEARANCE_CANDIDATE_LIMIT")
 	if not configured_limit.is_empty():
 		_candidate_limit = clampi(int(configured_limit), 1, 5)
@@ -200,6 +221,11 @@ func _render() -> void:
 		return
 	_join_vertical(plates).save_png("%s/formal-candidates-4views.png" % _output_dir)
 	_write_catalog()
+	if _life_stage_payload.size() > 0:
+		if _species_filter.is_empty() or _species_filter == "dog":
+			await _write_life_stage_plate("dog", DOG_SCENE)
+		if _species_filter.is_empty() or _species_filter == "fox":
+			await _write_life_stage_plate("fox", FOX_SCENE)
 	print("APPEARANCE_FORMAL_3D_OUTPUT: %s" % _output_dir)
 	print(
 		"APPEARANCE_FORMAL_3D_CANDIDATES: species=%s count=%d views=front,three_quarter,side,back"
@@ -233,6 +259,67 @@ func _render_species(
 			cells.append(image)
 		rows.append(_join_horizontal(cells))
 	return _join_vertical(rows)
+
+
+func _write_life_stage_plate(species_id: String, scene: PackedScene) -> void:
+	var stage_rows: Variant = _life_stage_payload.get(species_id, [])
+	if not stage_rows is Array or (stage_rows as Array).is_empty():
+		push_error("Life-stage payload missing stages for %s" % species_id)
+		return
+	var rows: Array[Image] = []
+	for stage_value: Variant in stage_rows as Array:
+		if not stage_value is Dictionary:
+			push_error("Invalid life-stage entry for %s" % species_id)
+			return
+		var stage := stage_value as Dictionary
+		var stage_id := String(stage.get("stage", ""))
+		var age_years := int(stage.get("age_years", -1))
+		var cells: Array[Image] = []
+		for angle: Dictionary in LIFE_STAGE_ANGLES:
+			var view_id := String(angle["id"])
+			var image := await _render_actor(
+				species_id,
+				scene,
+				stage,
+				angle["position"] as Vector3,
+			)
+			image.save_png(
+				"%s/%s-stage-%s-age-%02d-%s.png"
+				% [_output_dir, species_id, stage_id, age_years, view_id]
+			)
+			cells.append(image)
+		rows.append(_join_horizontal(cells))
+	_join_vertical(rows).save_png("%s/%s-life-stage-appearance.png" % [_output_dir, species_id])
+	_write_life_stage_catalog(species_id, stage_rows as Array)
+
+
+func _write_life_stage_catalog(species_id: String, stage_rows: Array) -> void:
+	var catalog := FileAccess.open(
+		"%s/%s-life-stage-appearance.json" % [_output_dir, species_id],
+		FileAccess.WRITE,
+	)
+	if catalog == null:
+		push_error("Unable to write life-stage catalog for %s" % species_id)
+		return
+	var stage_order: Array[String] = []
+	var ages_and_stages: Array[Dictionary] = []
+	for stage_value: Variant in stage_rows:
+		if not stage_value is Dictionary:
+			continue
+		var stage := stage_value as Dictionary
+		stage_order.append(String(stage.get("stage", "")))
+		ages_and_stages.append(
+			{"stage": stage.get("stage"), "age_years": stage.get("age_years")}
+		)
+	var catalog_document := {
+		"schema": "appearance-life-stage-render.v1",
+		"source": "GenesisEngine.generate_appearance -> AppearanceResolver.resolve_genome -> ElfieActor.configure",
+		"views_per_stage": ["front", "three_quarter", "side"],
+		"stage_order": stage_order,
+		"ages_and_stages": ages_and_stages,
+	}
+	catalog.store_string(JSON.stringify(catalog_document, "\t"))
+	catalog.close()
 
 
 func _render_actor(
@@ -275,10 +362,11 @@ func _render_actor(
 	actor.install_shared_animations = false
 	world.add_child(actor)
 	await process_frame
+	var appearance_payload: Dictionary = variant.get("appearance", _appearance_payload(variant))
 	actor.configure(
-		"formal-%s-%s" % [species_id, String(variant["id"])],
+		"formal-%s-%s" % [species_id, String(variant.get("id", "life-stage"))],
 		Vector3.ZERO,
-		_appearance_payload(variant),
+		appearance_payload,
 	)
 
 	for _frame_index in range(5):

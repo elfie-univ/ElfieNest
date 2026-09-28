@@ -13,9 +13,19 @@ from infrastructure.persistence.memory import (
     MemoryStorePathError,
     SQLiteMemoryStoreAdapter,
 )
-from infrastructure.persistence.memory.schema import KNOWLEDGE_TABLES, SCHEMA_VERSION
+from infrastructure.persistence.memory.schema import (
+    FTS_AUXILIARY_TABLES,
+    FTS_SHADOW_TABLES,
+    KNOWLEDGE_TABLES,
+    SCHEMA_VERSION,
+)
 
-EXPECTED_TABLES = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
+EXPECTED_TABLES = (
+    set(KNOWLEDGE_TABLES)
+    | {"memory_search_fts"}
+    | set(FTS_SHADOW_TABLES)
+    | set(FTS_AUXILIARY_TABLES)
+)
 
 
 def test_creates_target_tables_and_private_database(tmp_path: Path) -> None:

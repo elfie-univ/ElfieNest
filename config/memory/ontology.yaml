@@ -1,0 +1,989 @@
+version: 1
+core_revision: memory.ontology.v1
+
+type_groups:
+  - id: social_relations
+    label: 社会关系
+    color: "#ff8f6b"
+    order: 1
+  - id: entities
+    label: 实体
+    color: "#7db277"
+    order: 2
+  - id: space_geography
+    label: 空间地理
+    color: "#5bb9ff"
+    order: 3
+  - id: events
+    label: 事件
+    color: "#ffc857"
+    order: 4
+  - id: general_knowledge
+    label: 通用知识
+    color: "#42d6a4"
+    order: 5
+
+node_types:
+  - { id: elfie, label: 精灵, group: social_relations, color: "#ff8f6b" }
+  - { id: person, label: 人物, group: social_relations, color: "#b892ff" }
+  - { id: group, label: 群体/家庭, group: social_relations, color: "#d5a85f" }
+  - { id: organism, label: 生物, group: entities, color: "#7db277" }
+  - { id: object, label: 物体, group: entities, color: "#7db277" }
+  - { id: material, label: 材料, group: entities, color: "#91bd8b" }
+  - { id: cosmic_entity, label: 天体/宇宙实体, group: space_geography, color: "#5bb9ff" }
+  - { id: place, label: 地点, group: space_geography, color: "#5bb9ff" }
+  - { id: event, label: 事件, group: events, color: "#ffc857" }
+  - { id: concept, label: 概念, group: general_knowledge, color: "#42d6a4" }
+  - { id: claim, label: 命题, group: general_knowledge, color: "#42d6a4" }
+  - { id: theory_or_model, label: 理论/模型, group: general_knowledge, color: "#37bf94" }
+  - { id: principle_or_law, label: 原理/定律, group: general_knowledge, color: "#37bf94" }
+  - { id: pattern, label: 模式, group: general_knowledge, color: "#37bf94" }
+  - { id: rule_or_guideline, label: 规则/指南, group: general_knowledge, color: "#37bf94" }
+  - { id: method_or_procedure, label: 方法/流程, group: general_knowledge, color: "#37bf94" }
+  - { id: viewpoint, label: 观点, group: general_knowledge, color: "#37bf94" }
+
+episode_types:
+  - { id: conversation, label: 聊天讨论 }
+  - { id: activity, label: 活动 }
+  - { id: outing, label: 外出游玩 }
+  - { id: learning, label: 学习成长 }
+  - { id: life_event, label: 生活经历 }
+  - { id: observation, label: 观察 }
+  - { id: reflection, label: 反思 }
+  - { id: unclassified, label: 未分类 }
+
+common_qualifiers: &common_qualifiers
+  - context
+  - viewpoint
+  - valid_from
+  - valid_to
+  - object_unit
+  - object_literal_type
+  - polarity
+  - epistemic_status
+  - confidence
+  - importance
+
+predicate_aliases:
+  causal: causes
+  cause: causes
+  family: kin_of
+  kin: kin_of
+  friend: friend_of
+  acquaintance: acquaintance_of
+  owner: owned_by
+  like: likes
+  dislike: dislikes
+  favorite: prefers
+  involved_in: involves
+
+# Every predicate is an explicit directed subject -> object contract. Empty
+# endpoint lists mean that the endpoint may be any active registered Node type.
+predicates:
+  parent_of:
+    label: 父母
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: child_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.95
+  child_of:
+    label: 子女
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: parent_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.95
+  sibling_of:
+    label: 兄弟姐妹
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.82
+  kin_of:
+    label: 家人（具体关系未知）
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.78
+  friend_of:
+    label: 朋友
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.82
+  classmate_of:
+    label: 同学
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.58
+  colleague_of:
+    label: 同事
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.52
+  neighbor_of:
+    label: 邻居
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.35
+  acquaintance_of:
+    label: 认识
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.28
+  guardian_of:
+    label: 监护
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: guarded_by
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.88
+  guarded_by:
+    label: 受监护
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: guardian_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.88
+  mentor_of:
+    label: 指导
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: mentored_by
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.72
+  mentored_by:
+    label: 受指导
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: mentor_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.72
+  guided_by:
+    label: 受引导
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: guides
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  guides:
+    label: 引导
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: guided_by
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  teacher_of:
+    label: 教学
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: student_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.68
+  student_of:
+    label: 学生
+    subject_groups: [social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: teacher_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.68
+  member_of:
+    label: 成员
+    subject_groups: [social_relations]
+    object_types: [group]
+    symmetric: false
+    inverse: has_member
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  has_member:
+    label: 拥有成员
+    subject_types: [group]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: member_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+
+  part_of:
+    label: 属于
+    subject_groups: [entities, space_geography]
+    object_groups: [entities, space_geography]
+    symmetric: false
+    inverse: has_part
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  has_part:
+    label: 包含部分
+    subject_groups: [entities, space_geography]
+    object_groups: [entities, space_geography]
+    symmetric: false
+    inverse: part_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  composed_of:
+    label: 由其组成
+    subject_groups: [entities]
+    object_groups: [entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  made_from:
+    label: 由其制成
+    subject_groups: [entities]
+    object_groups: [entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  produced_by:
+    label: 由其产生
+    subject_groups: [entities, events]
+    object_groups: [entities, social_relations]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  owns:
+    label: 拥有
+    subject_groups: [social_relations]
+    object_groups: [entities, social_relations]
+    symmetric: false
+    inverse: owned_by
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  owned_by:
+    label: 归属于
+    subject_groups: [entities, social_relations]
+    object_groups: [social_relations]
+    symmetric: false
+    inverse: owns
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.92
+  uses:
+    label: 使用
+    subject_groups: [social_relations, entities, events]
+    object_groups: [entities, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.4
+  used_for:
+    label: 用于
+    subject_groups: [entities, general_knowledge]
+    object_groups: [events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+
+  located_in:
+    label: 位于
+    subject_groups: [social_relations, entities, space_geography, events]
+    object_types: [place, cosmic_entity]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  lives_in:
+    label: 居住于
+    subject_groups: [social_relations]
+    subject_types: [organism]
+    object_types: [place]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.65
+  visits:
+    label: 访问
+    subject_groups: [social_relations]
+    subject_types: [organism]
+    object_types: [place]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.38
+  studies_at:
+    label: 就读/学习于
+    subject_groups: [social_relations]
+    object_types: [place, group]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.48
+  works_at:
+    label: 工作于
+    subject_groups: [social_relations]
+    object_types: [place, group]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.48
+  spatially_contains:
+    label: 空间包含
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.65
+  within:
+    label: 位于范围内
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  adjacent_to:
+    label: 相邻
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.42
+  reachable_from:
+    label: 可从其抵达
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: reachable_to
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  reachable_to:
+    label: 可抵达
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: reachable_from
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  route_to:
+    label: 通往
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: [context, viewpoint, valid_from, valid_to, object_unit, object_literal_type, polarity, epistemic_status, confidence, importance, distance, travel_time, path, conditions]
+    source_required: true
+    salience: 0.48
+  near:
+    label: 靠近
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.32
+  at:
+    label: 在
+    subject_groups: [social_relations, entities, events]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  at_center_of:
+    label: 位于中心
+    subject_groups: [space_geography, entities]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  coordinate_origin_of:
+    label: 坐标原点
+    subject_groups: [space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  suspended_above:
+    label: 悬浮于上方
+    subject_groups: [space_geography, entities]
+    object_groups: [space_geography, entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  outflow_from:
+    label: 发源于
+    subject_groups: [space_geography, entities]
+    object_groups: [space_geography, entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  open_arc_below:
+    label: 位于下方开放弧湾
+    subject_groups: [space_geography, entities]
+    object_groups: [space_geography, entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  in_center_of:
+    label: 位于中心水域
+    subject_groups: [space_geography, entities]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  public_entrance_to:
+    label: 通往公共入口
+    subject_groups: [entities, space_geography]
+    object_groups: [space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.72
+
+  participates_in:
+    label: 参与
+    subject_groups: [social_relations, entities]
+    object_groups: [events]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  witnessed:
+    label: 见证
+    subject_groups: [social_relations, entities]
+    object_groups: [events, space_geography]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  learned_about:
+    label: 学习了
+    subject_groups: [social_relations]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.55
+  occurred_at:
+    label: 发生于
+    subject_groups: [events]
+    object_types: [place, cosmic_entity]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  before:
+    label: 早于
+    subject_groups: [events]
+    object_groups: [events]
+    symmetric: false
+    inverse: after
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  after:
+    label: 晚于
+    subject_groups: [events]
+    object_groups: [events]
+    symmetric: false
+    inverse: before
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  causes:
+    label: 导致
+    subject_groups: [events, general_knowledge, entities]
+    object_groups: [events, general_knowledge, entities]
+    symmetric: false
+    inverse: caused_by
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.7
+  caused_by:
+    label: 由其导致
+    subject_groups: [events, general_knowledge, entities]
+    object_groups: [events, general_knowledge, entities]
+    symmetric: false
+    inverse: causes
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.7
+  helped:
+    label: 帮助
+    subject_groups: [social_relations, entities]
+    object_groups: [social_relations, entities, events]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  involves:
+    label: 涉及
+    subject_groups: [events]
+    object_groups: [social_relations, entities, space_geography, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+
+  subtype_of:
+    label: 是其子类
+    subject_groups: [general_knowledge, entities, space_geography]
+    object_groups: [general_knowledge, entities, space_geography]
+    symmetric: false
+    inverse: has_subtype
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  has_subtype:
+    label: 拥有子类
+    subject_groups: [general_knowledge, entities, space_geography]
+    object_groups: [general_knowledge, entities, space_geography]
+    symmetric: false
+    inverse: subtype_of
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  includes_concept:
+    label: 包含概念
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  prerequisite_for:
+    label: 是其前置条件
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  generalizes:
+    label: 概括
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: specializes
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  specializes:
+    label: 具体化
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: generalizes
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  implies:
+    label: 蕴含
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  supports:
+    label: 支持
+    subject_groups: [general_knowledge, events, entities]
+    object_groups: [general_knowledge, events, entities]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  contradicts:
+    label: 矛盾
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge]
+    symmetric: true
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.62
+  applies_when:
+    label: 适用于条件
+    subject_groups: [general_knowledge]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  derived_from:
+    label: 来源于
+    subject_groups: [general_knowledge, entities, events]
+    object_groups: [general_knowledge, entities, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  believes:
+    label: 相信
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  doubts:
+    label: 怀疑
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  rejects:
+    label: 不接受
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  prefers:
+    label: 偏好
+    subject_types: [elfie]
+    object_groups: [general_knowledge, entities]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_unit, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  values:
+    label: 重视
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  has_goal:
+    label: 目标
+    subject_types: [elfie]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  has_trait:
+    label: 特质
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  has_skill:
+    label: 技能
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+  has_habit:
+    label: 习惯
+    subject_types: [elfie]
+    object_groups: [general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: [context, viewpoint, valid_from, valid_to, conviction, object_literal_type, polarity, epistemic_status, confidence, importance]
+    source_required: true
+    salience: 0.5
+    self_stance: true
+
+  likes:
+    label: 喜欢
+    subject_groups: [social_relations]
+    object_groups: [entities, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  dislikes:
+    label: 不喜欢
+    subject_groups: [social_relations]
+    object_groups: [entities, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  emotional:
+    label: 情绪相关
+    subject_groups: [social_relations, events]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  felt:
+    label: 感受到
+    subject_groups: [social_relations, events]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+
+  is:
+    label: 是
+    subject_groups: [social_relations, entities, space_geography, events, general_knowledge]
+    object_groups: [social_relations, entities, space_geography, events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  has_condition:
+    label: 具有条件
+    subject_groups: [social_relations, entities, events, general_knowledge]
+    object_groups: [general_knowledge, events]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  influences:
+    label: 影响
+    subject_groups: [social_relations, entities, events, general_knowledge]
+    object_groups: [social_relations, entities, events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.5
+  preferred_name:
+    label: 称为
+    subject_groups: [social_relations, entities, space_geography, general_knowledge]
+    object_groups: []
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.45
+  references:
+    label: 引用
+    subject_groups: [social_relations, entities, events, general_knowledge]
+    object_groups: [entities, events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.4
+  temporal:
+    label: 时间关系
+    subject_groups: [events, general_knowledge]
+    object_groups: [events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: true
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.4
+  relationship:
+    label: 关系
+    subject_groups: [social_relations, entities, space_geography, events, general_knowledge]
+    object_groups: [social_relations, entities, space_geography, events, general_knowledge]
+    symmetric: false
+    inverse: null
+    object_literal: false
+    qualifiers: *common_qualifiers
+    source_required: true
+    salience: 0.3

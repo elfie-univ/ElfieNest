@@ -58,7 +58,7 @@ class FailingOwnerReplyRuntime(StableOwnerReplyRuntime):
         raise RuntimeError("model unavailable")
 
 
-def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
+def test_stage1_chat_delivers_one_reply_without_implicit_memory_recall() -> None:
     profile = create_visual_profile(
         elfie_id="genesis-check",
         display_name="Lumi",
@@ -102,12 +102,12 @@ def test_stage1_chat_reads_genesis_memory_and_delivers_one_reply() -> None:
         elfie.wait_for_output(outcome.turn_id, timeout=1.0)
 
         assert len(runtime.requests) == 1
-        assert "RELEVANT_MEMORY" in runtime.requests[0].user_prompt
         assert (
-            "genesis:knowledge:genesis-check:world-identity"
+            "MEMORY_RECALL_STATUS:\n"
+            "status=skipped; revision=0; reason=baseline_recall_not_requested"
             in runtime.requests[0].user_prompt
         )
-        assert "Elfie 的母星名为 Elfaria。" in runtime.requests[0].user_prompt
+        assert "RELEVANT_MEMORY:" not in runtime.requests[0].user_prompt
         assert len(channel.sent) == 1
         assert channel.sent[0].parts[0].text == "我来自 Elfaria。"
     finally:

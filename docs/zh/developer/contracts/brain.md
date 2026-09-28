@@ -1,8 +1,8 @@
 # Elfie Brain 内部架构契约
 
-**契约版本：** 1.10
+**契约版本：** 1.15
 **采用日期：** 2026-08-12
-**修订日期：** 2026-09-08
+**修订日期：** 2026-09-26
 **适用范围：** `elfie/brain/` 和单只 Elfie 的私有认知协调
 
 > **规范性目标。** 本契约定义同一只持续存在的 Elfie 如何接纳事件、维护心智状态、
@@ -15,8 +15,12 @@
 > 和回执作用域校验；版本 1.9 分离标准流程 Skill 文档与可执行 Tool 定义，并增加只读内置
 > Skill 加载边界。版本 1.10 记录统一强类型的观测表面：一个由装配注入、Brain 自有的
 > `BrainObservationSink` Port、带边界自有命名 payload 模块的共享 `BrainObservation`
-> 封套，以及先守卫再构造的零成本规则。尚未
-> 落地的差距继续记录在各自聚焦的一致性台账中。
+> 封套，以及先守卫再构造的零成本规则。版本 1.11 冻结第一阶段 Memory Recall 排序：静态、有来源的
+> `importance` 不参与 Recall 排序；反馈强化、类型先验/来源历史排序和综合/自适应评分暂缓。尚未
+> 落地的差距继续记录在各自聚焦的一致性台账中。版本 1.12 冻结五个 Node 类型组、第一阶段六个切片和产品数据根级全局扩展注册表。版本 1.13 明确 `claim` 是通用知识组中的普通叶类型，没有专属载荷、表或 Evidence 模型；所有语义类型共用同一 Node 与 Assertion 契约。
+
+> 版本 1.14 冻结基于已有数据的 Recall 切片：文本查找、情绪联想和直接亲属关系，使用 Query/Sense/Filters，返回有界且有来源的内容。
+> 版本 1.15 明确按来源准入情绪、确定性检索排序，以及 DIRECT 在预算内一次只读 Recall 的例外。
 
 [Elfie 内部架构契约](./elfie)仍然是 Profile、Brain、NervousSystem、Body、
 Communication 和 Genesis 所有权的上位权威。本契约只细化 Brain 内部，不增加第三条
@@ -48,6 +52,60 @@ Brain 服务的是一只持续、自主、具身的智慧体，而不是一次�
 | 8 | 思考中枢 | `Reasoning Context Workspace`、上下文组装、有界 Model/Skill/Tool 循环、Observation、验证、抑制、完成判断和一个 `TurnDecision` | 一个已结算决定及内部状态候选 | 跨 Turn 等待、让其他系统拥有其短期上下文、宣称执行成功或绕过确定性策略 |
 | 9 | 跨回合活动 | 经过校验且跨当前 Turn 存续的 Goal 和工作；Step、条件、调度、暂停/恢复/取消、重试、幂等和回执 | Preflight 结果、状态事件和有界 Activity Trigger | 成为第二个 Brain 或直接执行开放式外部行动 |
 | 10 | 心智整理 | 在无外部副作用 Scope 中可中断地整理睡眠/空闲期记忆、Activity、情绪轨迹和结果 | 已校验状态候选或未来 Activity Trigger | 直接发消息、移动、创建 Activity、扩权或改写权威状态 |
+
+Memory 的关系规则属于 Brain 边界。关系谓词只能来自一份带版本的注册表。`elfie` 和
+`person` 是不同的实体节点类型；关系词不能成为节点类型。Assertion 是带来源的命题：
+对称社交关系（`friend_of`、`kin_of`、`sibling_of` 等）只保存一条规范 Assertion，再
+派生反向视图；有方向的关系（`parent_of`、`owned_by`、`student_of` 等）保留两端角色。
+来源没有说明具体亲属关系时允许使用粗粒度 `kin_of`；没有边表示未知，共同出现不能证明
+社交关系。同一对端点可以并存多条关系。Assertion 的 `importance` 是静态、有来源的准入元数据，
+与 `confidence` 分开；经过注册的准入/生命周期规则可以使用它，但第一阶段 Recall 不用它排序，
+也不沿图邻接传播。Recall 使用确定性匹配和稳定决胜。反馈强化、类型先验或来源历史排序、分数折叠、
+综合/自适应排序都需要后续单独评审设计。
+
+首个 Recall 增量使用 Query、Sense、Filters 和有界 limits，不再以独立 mode 选择检索行为。
+Query 查已有文本/身份；Sense 首先匹配有来源的历史情绪；Query + Sense 要求 Query 相关，情绪只作软辅助。
+显式图请求首版仅在定位人物锚点后查询注册的直接父母/子女/兄弟姐妹关系，不要求任意路径语言、亲属推导或
+Recall 内模型调用。不支持的输入、歧义身份、缺失/否定/冲突关系不能变成编造的答案。
+
+流程为并行候选召回、身份合并去重、过滤、相关性选择和最小来源组装，允许空结果。
+Namespace/隐私/active 生命周期门覆盖命中与辅助内容；必要来源与额外命中区分，部分/不可用结果明确报告。
+每只 Elfie 的 SQLite 仍是事实库，持久倒排文本索引和结构化查询索引是可重建派生物，不是第二 authority。
+向量及更丰富的场景/图推理须由后续数据支撑的切片引入。Reasoning 拥有时机、线索准入和上下文预算，不要求每步必调。
+[Memory 设计](../designs/elfie/brain/elfie-memory-architecture)细化收敛后的目标，
+[Memory 台账](../conformance/elfie-memory)的 MEM-019–MEM-023 跟踪实现。
+
+初始自动 Recall 至多使用一个当前 active 情绪线索，不把用户原话作为 Query。Sense 只接受来源明确的
+自身情绪及规范 Emotion 标签；任意故事基调和缺失历史不映射、不补造。文本候选使用统一 FTS 语料库，
+依次按精确身份档位、查询词覆盖率、可选情绪决胜、BM25 和稳定 ID 排序。情绪只在 Query 准入后的
+同档位同覆盖率候选间决胜，不放行无关命中。最低覆盖率与候选上限须在索引切换前通过聚焦样本冻结。
+
+Memory 只有两层语义。`ClosedEpisode` 是已经加工好的完整话题、故事或学习单元，是普通的
+文本记忆结果；它可以聚合多轮对话，但不是原始聊天日志或原始媒体。`Node`/`Assertion` 是
+基于 Episode 整理出的高层笔记与关系图。Genesis 只在创建时直接提交有明确来源的身份和关系
+骨架；它的 KnowledgeSeed 与 EpisodeSeed 内容先完整存成 Episode，再参加同一套后续整理。
+其中的关系、可复用知识和 Pattern 可以直接作为 Recall 结果。Node 属性也可以检索：外貌、性格、物种
+等描述自身的属性仍以结构化属性保存，再通过可重建的词法投影把面向用户的值作为候选，即使忘记规范
+名称也能找到节点。技术 ID 和来源元数据不进入普通属性搜索文本，属性也不需要为了检索而强行变成
+Assertion。Evidence 把这两层关联到支持它们的 Episode。上游原始材料不属于普通 Memory Recall 契约；
+为了给异常大的 Episode 建索引而使用的内部切片只是实现细节，不是第三个语义 Memory 层。
+Episode 没有标题字段：原始正文是主要的显示和检索文本。已有的 `summary_text` 只能作为可选元数据。
+Consolidation 不为每个 Episode 自动创建 event Node，也不生成通用的 `about`、`knows`、
+`knows_boundary` 或 `related_to` 边。
+
+Claim 是通用知识组中的普通 `node_type=claim`，沿用通用 Node 身份、属性和来源规则，不拥有类型化专属载荷、表或 Evidence 模型。Assertion 是边，不能成为另一条关系的端点。五个 Node 类型组是社会关系、实体、空间地理、事件和通用知识：各自先选 Node，再保留两端都属于所选 Node 集合的所有带来源、已注册 Assertion。自我模型是第一阶段第六个切片：先选出现有 Elfie Node 为主语的带来源出边，且谓词限于 `believes`、`doubts`、`rejects`、`prefers`、`values`、`has_goal`、`has_trait`、`has_skill` 和 `has_habit`；收集涉及的 Node，再保留这些 Node 之间全部带来源、已注册的 Assertion。当前设计不创建虚拟我 Node。最后执行跨组关系提取，为主类型组不同的已选 Node 提取明确有来源的 Assertion。生成 Memory 自我模型视图属于当前设计；用它更新 Selfhood、Orientation 或其他所有者才是未来工作。核心本体由评审后的 YAML 定义；动态扩展在每个产品数据根下使用一份共享的安装级全局注册表，不为每只 Elfie/每个工作区各存一份。完整类型和谓词表见[Memory 架构设计](../designs/elfie/brain/elfie-memory-architecture)。
+
+知识 Node 的准入比普通文本捕获更严格：`canonical_label` 必须是一个有原文依据的短标题（最多 40 个字符，
+不能是完整 Episode），完整且有原文依据的解释保存为 kind 为 `context` 的 Node description。模型只有明确给出
+`reusable_knowledge=true` 时才能提升知识 Node；普通事实继续保留在 Episode 中，本地回退提取器不会仅凭关键词或
+引号内容提升知识。提案被拒绝时 Episode 保持可重试，不写入长句或模型臆造的图谱标签。
+
+Memory 属性由注册表为每个 key 指定唯一存储类别：稳定身份或结构分类值是经过校验的 Node property；有来源的
+人类可读文字属于 Node description；随时间变化、多值、有冲突、需要独立证据或本身是关系的值属于 Attribute
+Assertion。`properties_json` 只是第一类属性和获准搜索值的有界投影，不能成为技术元数据的杂物箱，也不能
+复制 Assertion。Developer Tools 可以通过类型化的只读 Inspector（`NodeDetail`、`AssertionDetail`、
+`EpisodeDetail`、`EvidenceDetail`）投影这些记录，统一使用页首、主要内容、关联、来源和折叠技术详情；该投影
+不改变 Memory/Recall API，也不创建第二个事实源。
 
 上下文组装、Turn 结算、决策治理、路由、Journal、Checkpoint 和回执对账是服务这些
 所有者的必需机制，不是额外平级心智系统。
@@ -260,6 +318,11 @@ Receipt 后才能删除 pending handoff。
 选择的 Reasoning 深度；它们不改变 Memory 可用性或硬权限。Food 只选择请求模型角色和回退
 路线，不定义认知模式，也不携带另一套模式 allow-list。Skill、Tool 和 Worker 是彼此独立的
 阶段能力门。
+
+DIRECT 默认一次模型调用结束。当宿主能在 Energy/截止时间内预留最终回答预算时，首个模型可以请求
+一次只读 Recall，随后再调用一次模型生成最终草稿；最终 schema 禁止再次 Recall。不切换深度、不创建
+计划、不增加外部 Tool 权限。无预算时 schema 不提供 Recall，模型按已有证据回答或澄清。所有结果仍绑定
+同一 Run 的 Memory revision。当前只允许一次模型调用的守卫差距由 MEM-023 跟踪。
 
 一个 `ReasoningRun` 可以包含多个 Cognitive Step，以及多次 Model、Skill、Tool 和
 Observation 循环。它必须有明确预算、截止时间、取消状态和完成条件。Tool Observation

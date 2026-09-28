@@ -21,6 +21,7 @@ from app.orchestration.resident_admission import (
     AdmissionPublication,
     ResidentAdmissionPortError,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.selfhood.contracts import (
     SelfhoodState,
     normalize_selfhood_mapping,
@@ -44,6 +45,9 @@ from infrastructure.persistence.layout.data_layout import (
     final_root_layout,
 )
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
+from infrastructure.persistence.memory.ontology_loader import (
+    load_memory_ontology_snapshot,
+)
 from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 
 _MARKER_FORMAT_VERSION = 1
@@ -70,17 +74,24 @@ class FinalElfieWorkspaceAdapter:
         data_home: Path | None = None,
         *,
         db_path: str | Path | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> None:
         if (data_home is None) == (db_path is None):
             raise ValueError("select exactly one workspace root source")
         self._data_home = data_home
         self._db_path = db_path
+        self._ontology = ontology
 
     @classmethod
-    def from_database_path(cls, db_path: str | Path) -> FinalElfieWorkspaceAdapter:
+    def from_database_path(
+        cls,
+        db_path: str | Path,
+        *,
+        ontology: MemoryOntologySnapshot | None = None,
+    ) -> FinalElfieWorkspaceAdapter:
         """Construct an adapter whose data root follows the Nest database."""
 
-        return cls(db_path=db_path)
+        return cls(db_path=db_path, ontology=ontology)
 
     def _selected_data_home(self) -> Path:
         if self._db_path is not None:
@@ -88,6 +99,13 @@ class FinalElfieWorkspaceAdapter:
         if self._data_home is None:  # pragma: no cover - constructor invariant
             raise RuntimeError("workspace root source is unavailable")
         return Path(self._data_home).expanduser()
+
+    def _memory_ontology(self) -> MemoryOntologySnapshot:
+        if self._ontology is None:
+            self._ontology = load_memory_ontology_snapshot(
+                data_home=self._selected_data_home()
+            )
+        return self._ontology
 
     def stage(self, compilation: GenesisCompilation) -> str:
         """Write one validated compilation below the hidden staging root.
@@ -155,8 +173,11 @@ class FinalElfieWorkspaceAdapter:
             with SQLiteMemoryStoreAdapter(
                 layout.knowledge_database,
                 elfie_id=elfie_id,
+                ontology=self._memory_ontology(),
             ) as memory_store:
-                GenesisMemoryCommitter().commit(compilation.bundle, memory_store)
+                GenesisMemoryCommitter(self._memory_ontology()).commit(
+                    compilation.bundle, memory_store
+                )
 
             _write_marker(
                 layout.genesis_stage_marker, _compilation_metadata(compilation)
@@ -450,55 +471,39 @@ class FinalElfieWorkspaceAdapter:
         with SQLiteMemoryStoreAdapter(
             layout.knowledge_database,
             elfie_id=str(marker["elfie_id"]),
+            ontology=self._memory_ontology(),
         ) as memory:
-            marker_node = memory.get_graph_node(f"genesis:receipt:{marker['elfie_id']}")
-            if marker_node is None:
-                raise ValueError("Genesis Memory completion marker is missing")
-            properties = marker_node.properties
-            for key in (
-                "manifest_id",
-                "content_hash",
-                "output_ids_hash",
-                "compiler_version",
-                "schema_version",
-                "idempotency_key_digest",
-            ):
-                if properties.get(key) != marker[key]:
-                    raise ValueError(f"Memory completion marker {key} is inconsistent")
-            memory_output_ids = _string_list(
-                properties.get("output_ids"), "Memory output inventory"
-            )
             marker_output_ids = _string_list(
                 marker.get("output_ids"), "Genesis output inventory"
             )
-            if memory_output_ids != marker_output_ids:
-                raise ValueError("Memory output inventory is inconsistent")
-            missing_outputs = [
-                str(identifier)
-                for identifier in marker_output_ids
-                if memory.get_graph_node(str(identifier)) is None
-                and memory.get_episode(str(identifier)) is None
-            ]
+            if output_ids_hash(marker_output_ids) != marker["output_ids_hash"]:
+                raise ValueError("Genesis output inventory digest is inconsistent")
+            missing_outputs: list[str] = []
+            for identifier in marker_output_ids:
+                value = str(identifier)
+                if memory.get_graph_node(value) is not None:
+                    continue
+                episode = memory.get_episode(value)
+                if episode is None or episode.lifecycle == "forgotten":
+                    missing_outputs.append(value)
             if missing_outputs:
                 raise ValueError(
                     "Genesis output inventory contains missing records: "
                     + ", ".join(missing_outputs[:8])
                 )
-            submission = memory.conn.execute(
-                """SELECT manifest_id, source_version, content_sha256,
-                                  expected_ids_hash
-                   FROM memory_genesis_submissions
-                   WHERE elfie_id=? AND submission_id=?""",
-                (str(marker["elfie_id"]), str(marker["idempotency_key_digest"])),
-            ).fetchone()
+            submission = memory.get_genesis_submission(
+                str(marker["idempotency_key_digest"])
+            )
             if submission is None:
                 raise ValueError("Genesis Memory submission receipt is missing")
             if (
-                str(submission["manifest_id"]) != str(marker["manifest_id"])
-                or str(submission["source_version"]) != str(marker["compiler_version"])
-                or str(submission["content_sha256"]) != str(marker["content_hash"])
-                or str(submission["expected_ids_hash"])
-                != _memory_output_ids_hash(marker["output_ids"])
+                submission.elfie_id != str(marker["elfie_id"])
+                or submission.submission_id != str(marker["idempotency_key_digest"])
+                or submission.manifest_id != str(marker["manifest_id"])
+                or submission.source_version != str(marker["compiler_version"])
+                or submission.content_sha256 != str(marker["content_hash"])
+                or submission.expected_ids_hash
+                != _memory_output_ids_hash(marker.get("output_ids"))
             ):
                 raise ValueError("Genesis Memory submission receipt is inconsistent")
         return marker

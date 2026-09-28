@@ -78,8 +78,8 @@ orchestration/
 
 ## Genesis 创建事务边界
 
-- 已发布世界/物种资料先形成只供创建使用的强类型投影；物种包另行形成供 Godot/展示装配
-  使用的运行时资产投影。两种投影不得合并成万能目录，也都不得写入 Profile。
+- 已发布世界/物种资料的创建期强类型投影只有经过生产激活才可用于领养；物种包另行形成
+  供 Godot/展示装配使用的运行时资产投影。两种投影不得合并成万能目录，也都不得写入 Profile。
 - `features/adoption` 只拥有候选、临时用户选择和领养关系；`orchestration/resident_admission`
   只协调一次创建事务；生命语义编译只属于 `elfie/genesis/`；Infrastructure 只加载、校验
   和保存调用方已经形成的强类型值。

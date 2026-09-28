@@ -11,13 +11,15 @@ from __future__ import annotations
 import sqlite3
 from contextlib import AbstractContextManager
 from threading import RLock
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from elfie.brain.memory.memory_records import (
     AssertionInput,
+    ClaimedEpisode,
     ClosedEpisode,
     ConsolidationProjection,
     ConsolidationReceipt,
+    EpisodeMaintenanceStatus,
     EpisodeReceipt,
     EvidenceInput,
     MaintenanceReceipt,
@@ -28,6 +30,7 @@ from elfie.brain.memory.memory_records import (
     RecallEvidence,
     RecallNode,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.memory.score_policy import ImportanceEvent
 
 
@@ -37,6 +40,7 @@ class SQLiteMemoryMixinBase:
     conn: sqlite3.Connection
     _lock: RLock
     elfie_id: str | None
+    ontology: MemoryOntologySnapshot
     _active_genesis_submission_id: str | None
     _transaction_depth: int
 
@@ -114,8 +118,20 @@ class SQLiteMemoryMixinBase:
         raise NotImplementedError
 
     def _upsert_episode_fts_from_values(
-        self, episode_id: str, content: str, summary: str | None
+        self,
+        episode_id: str,
+        content: str,
+        summary: str | None,
+        metadata: Mapping[str, object] | None = None,
     ) -> None:
+        raise NotImplementedError
+
+    def _upsert_search_document(
+        self, record_kind: str, record_id: str, searchable_text: str
+    ) -> None:
+        raise NotImplementedError
+
+    def _refresh_all_assertion_text_projections(self) -> None:
         raise NotImplementedError
 
     def search_text(
@@ -146,6 +162,7 @@ class SQLiteMemoryMixinBase:
         *,
         relation_types: Iterable[str] = (),
         limit: int = 80,
+        minimum_importance: float | None = None,
         occurred_from: str | None = None,
         occurred_to: str | None = None,
         person_node_ids: Iterable[str] = (),
@@ -157,6 +174,14 @@ class SQLiteMemoryMixinBase:
         include_unknown_time: bool = False,
         recall_eligible_only: bool = False,
         now: str | None = None,
+    ) -> tuple[RecallAssertion, ...]:
+        raise NotImplementedError
+
+    def get_graph_assertions_by_ids(
+        self,
+        assertion_ids: Iterable[str],
+        *,
+        privacy_scope: str | None = None,
     ) -> tuple[RecallAssertion, ...]:
         raise NotImplementedError
 
@@ -175,7 +200,12 @@ class SQLiteMemoryMixinBase:
         *,
         owner: str = "memory-worker",
         lease_seconds: int = 120,
-    ) -> tuple[ClosedEpisode, ...]:
+    ) -> tuple[ClaimedEpisode, ...]:
+        raise NotImplementedError
+
+    def list_episode_maintenance_statuses(
+        self, episode_ids: tuple[str, ...]
+    ) -> tuple[EpisodeMaintenanceStatus, ...]:
         raise NotImplementedError
 
     def pending_episodes(self, limit: int = 8) -> tuple[ClosedEpisode, ...]:

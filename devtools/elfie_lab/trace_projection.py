@@ -912,6 +912,8 @@ def _memory_view(
     on_demand_events = recall_results[1:]
     opened = turn_opened.payload if turn_opened is not None else None
     baseline = baseline_event.payload if baseline_event is not None else None
+    effective_event = on_demand_events[-1] if on_demand_events else baseline_event
+    effective = effective_event.payload if effective_event is not None else None
 
     status = "unavailable"
     query = ""
@@ -919,15 +921,15 @@ def _memory_view(
     reason: Optional[str] = None
     recall_id: Optional[str] = None
     points: List[Dict[str, Any]] = []
-    if baseline is not None:
-        bundle = baseline.bundle
-        status = baseline.status
-        query = opened.query if opened is not None else baseline.query
-        recall_id = getattr(baseline, "recall_id", None)
+    if effective is not None:
+        bundle = effective.bundle
+        status = effective.status
+        query = effective.query
+        recall_id = getattr(effective, "recall_id", None)
         revision = (
-            bundle.recall_revision if bundle is not None else baseline.pinned_revision
+            bundle.recall_revision if bundle is not None else effective.pinned_revision
         )
-        reason = baseline.reason
+        reason = effective.reason
         points = _bundle_points(bundle)
     elif opened is not None:
         query = opened.query
@@ -953,15 +955,37 @@ def _memory_view(
             "on_demand": [_event_dump(event) for event in on_demand_events],
         },
     }
+    baseline_bundle = baseline.bundle if baseline is not None else None
     baseline_memory = {
-        "status": status,
-        "query": query,
-        "revision": revision,
-        "reason": reason,
+        "status": baseline.status if baseline is not None else "unavailable",
+        "query": (
+            baseline.query
+            if baseline is not None
+            else opened.query
+            if opened is not None
+            else ""
+        ),
+        "revision": (
+            baseline_bundle.recall_revision
+            if baseline_bundle is not None
+            else baseline.pinned_revision
+            if baseline is not None
+            else opened.pinned_revision
+            if opened is not None
+            else None
+        ),
+        "reason": baseline.reason if baseline is not None else None,
         "returned_evidence": "",
-        "returned_points": points,
-        "recall_id": recall_id,
-        "selection": _recall_selection_details(observations, recall_id=recall_id),
+        "returned_points": _bundle_points(baseline_bundle),
+        "recall_id": (
+            getattr(baseline, "recall_id", None) if baseline is not None else None
+        ),
+        "selection": _recall_selection_details(
+            observations,
+            recall_id=(
+                getattr(baseline, "recall_id", None) if baseline is not None else None
+            ),
+        ),
         "on_demand": [
             _on_demand_entry(event, observations) for event in on_demand_events
         ],

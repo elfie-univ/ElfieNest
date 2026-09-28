@@ -201,7 +201,7 @@ func _capture_browser_canvas() -> String:
 	# the browser to read the canvas after two animation frames, then retrieve
 	# that completed image from the next few Godot frames.
 	var portrait_width := 512
-	var portrait_height := 768
+	var portrait_height := 512
 	JavaScriptBridge.eval(
 		"(() => {"
 		+ " window.__elfieLabCaptureData = '';"
@@ -218,8 +218,11 @@ func _capture_browser_canvas() -> String:
 		+ " if (context) {"
 		+ " context.imageSmoothingEnabled = true;"
 		+ " context.imageSmoothingQuality = 'high';"
-		+ " context.drawImage(canvas, 0, 0, target.width, target.height);"
-		+ " window.__elfieLabCaptureData = target.toDataURL('image/jpeg', 0.9);"
+		+ " const side = Math.min(canvas.width, canvas.height);"
+		+ " const x = (canvas.width - side) / 2;"
+		+ " const y = (canvas.height - side) / 2;"
+		+ " context.drawImage(canvas, x, y, side, side, 0, 0, target.width, target.height);"
+		+ " window.__elfieLabCaptureData = target.toDataURL('image/png');"
 		+ " }"
 		+ " }"
 		+ " catch (_) { window.__elfieLabCaptureData = ''; }"
@@ -237,7 +240,7 @@ func _capture_browser_canvas() -> String:
 	if not raw_data_url is String:
 		return ""
 	var data_url := String(raw_data_url)
-	return data_url if data_url.begins_with("data:image/jpeg;base64,") else ""
+	return data_url if data_url.begins_with("data:image/png;base64,") else ""
 
 
 func _post_lab_message(event_name: String, payload: Dictionary) -> void:

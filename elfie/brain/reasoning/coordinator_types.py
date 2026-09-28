@@ -24,6 +24,13 @@ class PerceptionControl:
 
 
 @dataclass(frozen=True)
+class ManualConsolidationControl:
+    """Request one explicit consolidation candidate from the owner thread."""
+
+    result: Future[Optional[EventId]]
+
+
+@dataclass(frozen=True)
 class WorkerDoneControl:
     turn_id: TurnId
     future: Future[ReasoningTurnResult]
@@ -41,6 +48,7 @@ class StopControl:
 
 ControlMessage: TypeAlias = Union[
     BrainClockPulse,
+    ManualConsolidationControl,
     PerceptionControl,
     WorkerDoneControl,
     BarrierControl,
@@ -78,6 +86,7 @@ __all__ = (
     "ControlMessage",
     "FrameAffectTxn",
     "InFlightTurn",
+    "ManualConsolidationControl",
     "PerceptionControl",
     "StopControl",
     "WorkerDoneControl",

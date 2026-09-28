@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -14,6 +15,7 @@ from elfie.genesis import (
     GenesisCompiler,
     GenesisEngine,
 )
+from elfie.genesis.serialization import knowledge_groups
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -91,11 +93,26 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
             )
         )
         assert elfie.selfhood_snapshot().species_name
-        assert memory.count_episodes() == 5
-        assert memory.count_graph_nodes("person") == 13
+        assert memory.count_episodes() == len(
+            knowledge_groups(compilation.bundle)
+        ) + len(compilation.bundle.episode_seeds)
+        assert memory.count_graph_nodes("person") == 1
+        assert memory.count_graph_nodes("group") == 1
+        assert (
+            memory.count_graph_nodes("elfie")
+            == sum(
+                relationship.object_kind == "elfie"
+                for relationship in compilation.bundle.relationship_seeds
+            )
+            + 1
+        )
         assert memory.get_graph_node("genesis:self:00000001") is not None
-        assert memory.get_graph_node("genesis:self-model:00000001") is not None
-        assert memory.get_graph_node("genesis:receipt:00000001") is not None
+        assert memory.get_graph_node("genesis:self-model:00000001") is None
+        assert memory.get_graph_node("genesis:receipt:00000001") is None
+        submission_id = hashlib.sha256(
+            compilation.bundle.manifest.idempotency_key.strip().encode("utf-8")
+        ).hexdigest()
+        assert memory.get_genesis_submission(submission_id) is not None
 
     adapter.finalize("00000001")
     assert not (published / ".genesis-stage.json").exists()
@@ -275,7 +292,7 @@ def test_workspace_reopen_rejects_a_missing_declared_output(
             if ":knowledge:" in identifier
         )
         memory.conn.execute(
-            "UPDATE nodes SET status='forgotten' WHERE node_id=?",
+            "UPDATE episodes SET lifecycle='forgotten' WHERE episode_id=?",
             (knowledge_id,),
         )
         memory.conn.commit()

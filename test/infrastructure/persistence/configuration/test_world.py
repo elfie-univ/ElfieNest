@@ -1,178 +1,346 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import yaml
 
+from infrastructure.persistence.configuration.documents import (
+    resolve_bundled_config_root,
+)
 from infrastructure.persistence.configuration.world import (
     GenesisSourcePackageError,
-    _document_hash,
+    _generation_policy,
+    _validate_package,
     load_genesis_source_package,
 )
 
 
-def _copy_world_config(root: Path) -> Path:
-    source = Path(__file__).resolve().parents[4] / "config" / "world" / "elfaria.yaml"
-    target = root / "world" / "elfaria.yaml"
-    target.parent.mkdir(parents=True)
-    target.write_bytes(source.read_bytes())
-    return target
-
-
-def test_genesis_source_package_loads_the_bounded_first_version() -> None:
+def test_genesis_source_package_loads_the_published_version_bound_bundle() -> None:
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.known_region_id == "mistyville"
-    assert {place.place_id for place in package.places} >= {
-        "mistyville_square",
-        "mistyville_homes",
-        "mistyville_learning_house",
-        "mistyville_waystation",
-        "earth_gateway_station",
-        "elfie_nest",
-    }
-    assert {event.event_id for event in package.story_events} >= {
-        "story_signal",
-        "story_confirmation",
-        "story_station",
-        "story_program",
-        "story_arrival",
-    }
-    topics = {fact.topic for fact in package.knowledge}
+    assert package.package_version == "elfaria-genesis.v10"
+    assert package.geography_network.days_per_local_year == 196
+    assert package.generation_policy.family_lifespan_cdf_power == 6
+    assert (
+        package.generation_policy.family_lifespan_sampler_version
+        == "conditioned-lifespan-cdf.v1"
+    )
+    assert package.manifest.status == "published"
+    assert len(package.manifest.member_ids) == 18
+    assert len(package.knowledge) == 160
+    assert package.knowledge[0].fact_id == "A-01"
+    assert package.knowledge[0].source_ref == "knowledge/elfaria.yaml#A-01"
+    assert "Saevi、Tovren 和 Myelle" in package.knowledge[0].statement
+    assert len(package.story_events) == 16
+    assert len(package.routes) == 16
+    assert package.geography_network.land_days_per_grid_hop == 2
+    assert package.geography_network.water_days_per_grid_hop == 3
+    assert package.geography_network.cell_for_place("earthbound_station") == "R4C3"
+    assert len(package.geography_network.land_backbone_paths) == 16
+    assert package.geography_network.island_destinations == (
+        ("lakeheart_isle", "R1C7", "R0C7", 1),
+    )
+    assert package.geography_network.shortest_land_path("R4C3", "R1C7") is None
+    assert package.geography_network.shortest_land_path("R4C3", "R0C7")[-1] == "R0C7"
+    assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert package.place("mistyville_center").parent_id == "central_mixed"
+    assert package.place("central_mixed").parent_id == "mistyville"
+    mixed_region = dict(package.place("D").metadata)
+    assert mixed_region["terrain"] == "mixed_settlement"
+    assert mixed_region["resident_species"] == "Saevi、Tovren、Myelle"
+    assert mixed_region["birth_eligible"] == "true"
+    assert len(package.place_relations) == 7
     assert {
-        "world_identity",
-        "nature_and_physics",
-        "geography",
-        "species_and_body",
-        "society_and_civilization",
-        "history_and_culture",
-        "earth_and_arrival",
-        "knowledge_boundary",
-    } <= topics
-    assert any(fact.status == "unknown-boundary" for fact in package.knowledge)
-
-
-def test_genesis_source_package_publishes_resident_weather_facts() -> None:
-    package = load_genesis_source_package()
-
-    light_cycle = package.fact("nature.light_cycle")
-    seasons = package.fact("nature.seasons")
-    water_cycle = package.fact("nature.water_cycle")
-
-    assert "Solara" in light_cycle.statement
-    assert "伊洛拉" not in light_cycle.statement
-    assert "196 个本地日" in light_cycle.statement
-    assert light_cycle.level == "common"
-    assert light_cycle.status == "active"
-    assert "雨季" in seasons.statement
-    assert "旱季" in seasons.statement
-    assert seasons.level == "common"
-    assert seasons.status == "active"
-    assert "降雨" in water_cycle.statement
-    assert "可以出现气象雾" in seasons.statement
-    assert "不会出现霜、雪" in seasons.statement
-    assert "其他地区" in seasons.statement
-    assert "蒸发" not in water_cycle.statement
-    assert "凝结" not in water_cycle.statement
-    assert water_cycle.level == "common"
-    assert water_cycle.status == "active"
-    assert all(
-        "Canon" not in fact.statement for fact in (light_cycle, seasons, water_cycle)
+        (rule.rule_id, rule.place_id, rule.observation_only)
+        for rule in package.access_rules
+    } == {
+        ("earthbound_entry", "earthbound_station", False),
+        ("island_entry", "lakeheart_isle", False),
+        ("cloudcrown_entry", "cloudcrown_city", True),
+    }
+    station_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "earthbound_entry"
     )
-
-
-def test_genesis_source_package_source_refs_resolve_to_fact_ids() -> None:
-    package = load_genesis_source_package()
-    fact_ids = {fact.fact_id for fact in package.knowledge}
-
-    source_ids = {
-        fact.source_ref.split("#", maxsplit=1)[1] for fact in package.knowledge
+    assert station_rule.requires == (
+        "scheduled_transition_or_authorized_visit",
+        "valid_entry_permission",
+    )
+    cloudcrown_rule = next(
+        rule for rule in package.access_rules if rule.rule_id == "cloudcrown_entry"
+    )
+    assert cloudcrown_rule.ordinary_travel_allowed is False
+    assert {
+        item.opportunity_id for item in package.generation_policy.visit_opportunities
+    } == {
+        "local_forest_center",
+        "other_forest_center",
+        "local_plain_center",
+        "other_plain_center",
+        "local_mountain_center",
+        "other_mountain_center",
+        "town_center",
+        "mixed_center",
+        "forest_attraction",
+        "plain_attraction",
+        "mountain_attraction",
+        "lake_group",
+        "underground_exploration",
+    }
+    town = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "town_center"
+    )
+    assert "earthbound_station" not in town.place_ids
+    assert town.member_probability_for("mistyville_center") == 1.0
+    assert town.home_regions == ("A1", "A2", "B", "C1", "C2", "C3")
+    assert town.base_visit_probability_for("B") == 0.8
+    assert town.purpose_options() == (
+        ("探亲交往", 1.0),
+        ("观光", 1.0),
+        ("赶集交换", 1.0),
+    )
+    assert town.distance_decay_days == 4.0
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "forest_attraction"
+        ).distance_decay_days
+        == 12.0
+    )
+    assert (
+        next(
+            item
+            for item in package.generation_policy.visit_opportunities
+            if item.opportunity_id == "underground_exploration"
+        ).base_visit_probability
+        == 0.0
+    )
+    assert {
+        (item.subject_id, item.relation, item.object_id)
+        for item in package.place_relations
+    } == {
+        ("skyreach_tree", "at_center_of", "skyreach_square"),
+        ("skyreach_square", "coordinate_origin_of", "mistyville_center"),
+        ("cloudcrown_city", "suspended_above", "skymirror_lake"),
+        ("cloudfall_falls", "outflow_from", "skymirror_lake"),
+        ("riverturn_bend", "open_arc_below", "riverturn_hill"),
+        ("lakeheart_isle", "in_center_of", "clearheart_lake"),
+        ("undercity_gate", "public_entrance_to", "undercity"),
     }
 
-    assert all(
-        fact.source_ref.startswith("canon:elfaria-world.v0.1#")
-        for fact in package.knowledge
+
+def test_genesis_source_rejects_unregistered_experience_kinds(tmp_path: Path) -> None:
+    config_root = tmp_path / "config"
+    shutil.copytree(resolve_bundled_config_root() / "genesis", config_root / "genesis")
+    shutil.copytree(resolve_bundled_config_root() / "memory", config_root / "memory")
+    program_path = config_root / "genesis" / "program.yaml"
+    document = yaml.safe_load(program_path.read_text(encoding="utf-8"))
+    document["rules"]["episode_themes"]["themes"][0]["event_kind"] = "reset"
+    canonical = dict(document)
+    manifest = dict(document["manifest"])
+    manifest.pop("content_sha256")
+    canonical["manifest"] = manifest
+    document["manifest"]["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            canonical,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    program_path.write_text(
+        yaml.safe_dump(document, allow_unicode=True), encoding="utf-8"
     )
-    assert source_ids == fact_ids
+
+    with pytest.raises(GenesisSourcePackageError, match="event_kind 无效"):
+        load_genesis_source_package(root=config_root)
 
 
-def test_genesis_source_package_publishes_complete_generation_catalogs() -> None:
+def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
+    package = load_genesis_source_package()
+    cells = package.spatial_population.cells
+
+    assert len(cells) == 83
+    assert all(cell.weight == 1.0 for cell in cells)
+    assert {cell.region_id for cell in cells} == {
+        "A1",
+        "A2",
+        "B",
+        "C1",
+        "C2",
+        "C3",
+        "D",
+    }
+    assert {
+        species_id
+        for cell in cells
+        if cell.region_id == "D"
+        for species_id in cell.species_ids
+    } == {"fox", "dog", "cat"}
+    assert all(cell.species_ids == ("fox",) for cell in cells if cell.region_id == "B")
+    assert package.place("myelle_region").aliases == ("A1", "A2")
+
+
+def test_generation_policy_consumes_family_values_from_program() -> None:
+    policy = _generation_policy(
+        {
+            "policy": {
+                "version": "test-policy",
+                "family": {
+                    "child_count_distribution": {"1": 0.2, "4": 0.8},
+                    "partner_min_age_years": 5,
+                    "partner_annual_probability": 0.4,
+                    "max_children": 4,
+                    "lifespan": {
+                        "cdf_power": 4,
+                        "sampler_version": "conditioned-lifespan-cdf.v1",
+                    },
+                },
+            },
+            "household": {"biological_parent_min_age_gap_local_years": 6},
+        }
+    )
+
+    assert policy.family_child_count_distribution == ((1, 0.2), (4, 0.8))
+    assert policy.family_parent_min_age_gap_years == 6
+    assert policy.family_partner_min_age_years == 5
+    assert policy.family_partner_annual_probability == 0.4
+    assert policy.family_max_children == 4
+    assert policy.family_lifespan_cdf_power == 4
+    assert policy.family_lifespan_sampler_version == "conditioned-lifespan-cdf.v1"
+
+
+def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     package = load_genesis_source_package()
 
-    fact_ids = {fact.fact_id for fact in package.knowledge}
-    mapped_ids = [
-        resident_id
-        for link in package.coverage_manifest.links
-        for resident_id in link.resident_fact_ids
-    ]
-
-    assert package.coverage_manifest.creator_source_ref
-    assert package.coverage_manifest.resident_source_ref
-    assert len(mapped_ids) == len(fact_ids)
-    assert set(mapped_ids) == fact_ids
-    assert len(mapped_ids) == len(set(mapped_ids))
-    assert package.life_archetypes
-    assert package.relationship_archetypes
-    assert package.episode_themes
-    assert package.routes
-
-
-def test_genesis_source_package_rejects_incomplete_coverage_manifest(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    links = document["genesis"]["coverage_manifest"]["links"]
-    document["genesis"]["coverage_manifest"]["links"] = links[:-1]
-    document["genesis"]["content_sha256"] = _document_hash(document)
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
+    myelle_landscape = package.fact("B-02-02")
+    assert myelle_landscape.conditions[0].kind == "place"
+    assert myelle_landscape.conditions[0].value("id") == "myelle_region"
+    assert myelle_landscape.conditions[0].value("contact") == "residence"
+    assert package.fact("B-03-02").topic == "B-03"
+    assert package.fact("B-04-02").conditions[0].kind == "route"
+    assert package.fact("B-04-02").conditions[0].value("status") == "traversed"
+    assert package.fact("E-08-02").conditions[0].value("id") == "earth_arrival"
+    assert package.generation_policy.seed_algorithm == "sha256-domain-v1"
+    assert package.generation_policy.candidate_proposal_count == 96
+    assert package.generation_policy.candidate_options_per_choice == 8
+    assert package.generation_policy.candidate_total_backtracks == 64
+    assert package.generation_policy.medium_knowledge_probability == 0.5
+    assert package.generation_policy.candidate_age_reserve_years == 4
+    assert package.generation_policy.candidate_stage_weights == (
+        ("youth", 0.0),
+        ("young_adult", 0.75),
+        ("mature", 0.2),
+        ("elder", 0.05),
+    )
+    assert package.generation_policy.family_child_count_distribution == (
+        (1, 0.4),
+        (2, 0.45),
+        (3, 0.15),
+    )
+    assert package.generation_policy.family_parent_min_age_gap_years == 3
+    assert package.generation_policy.family_partner_annual_probability == 0.25
+    assert package.generation_policy.family_partner_min_age_years == 3
+    assert package.generation_policy.family_max_children == 3
+    assert package.generation_policy.relationship_importance_baselines == (
+        ("core", 0.75),
+        ("direct_acquaintance", 0.25),
+        ("friend", 0.35),
+        ("sibling", 0.65),
+        ("teacher", 0.45),
+    )
+    assert package.generation_policy.relationship_layer_decay_lambda == 0.9
+    assert package.generation_policy.friend_layer_decay_lambda == 0.65
+    assert package.generation_policy.friend_contact_beta == 0.8
+    assert package.generation_policy.friend_max_count == 2
+    assert (
+        package.generation_policy.visit_sampler_version
+        == "visits-zero-heavy-power-count.v1"
+    )
+    assert package.generation_policy.visit_repeat_count_power == 23.0
+    assert package.generation_policy.visit_cross_region_lifetime_fraction == 0.1
+    assert package.generation_policy.visit_social_multiplier_base == 0.8
+    assert package.generation_policy.visit_social_multiplier_slope == 0.4
+    assert package.generation_policy.visit_curiosity_multiplier_base == 0.8
+    assert package.generation_policy.visit_curiosity_multiplier_slope == 0.4
+    assert package.generation_policy.visit_risk_multiplier_base == 0.8
+    assert package.generation_policy.visit_risk_openness_slope == 0.4
+    assert package.generation_policy.visit_risk_neuroticism_slope == -0.2
+    forest = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "forest_attraction"
+    )
+    assert forest.base_visit_probability_for("B") == 0.45
+    assert forest.species_multiplier_for("Saevi") == 1.3
+    assert forest.species_multiplier_for("Tovren") == 1.0
+    lake = next(
+        item
+        for item in package.generation_policy.visit_opportunities
+        if item.opportunity_id == "lake_group"
+    )
+    assert lake.member_probability_for("lakeheart_isle") == 0.15
+    assert package.earth_arrival_rules.required_knowledge_ids == ("E-08",)
+    assert package.earth_arrival_rules.post_arrival_knowledge_ids == (
+        "E-08-02",
+        "E-08-03",
     )
 
-    with pytest.raises(GenesisSourcePackageError, match="CoverageManifest"):
-        load_genesis_source_package(root=tmp_path)
 
-
-def test_genesis_source_package_rejects_a_modified_core_fact(tmp_path: Path) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["earth_relation"]["earth_home_name"] = "另一个基地"
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
+def test_genesis_source_package_rejects_a_tampered_member(tmp_path: Path) -> None:
+    root = tmp_path / "config"
+    shutil.copytree(resolve_bundled_config_root(), root)
+    member = root / "genesis" / "knowledge" / "elfaria.yaml"
+    member.write_text(
+        member.read_text(encoding="utf-8") + "# tampered\n", encoding="utf-8"
     )
 
     with pytest.raises(GenesisSourcePackageError):
-        load_genesis_source_package(root=tmp_path)
+        load_genesis_source_package(root=root)
 
 
-def test_genesis_source_package_rejects_an_unknown_place_reference(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["knowledge"][0]["related_ids"] = ["not-a-place"]
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
+def test_genesis_source_package_rejects_parent_cycles() -> None:
+    package = load_genesis_source_package()
+    station = package.place("earthbound_station")
+    center = package.place("mistyville_center")
+    places = tuple(
+        replace(
+            place,
+            parent_id=(
+                "mistyville_center"
+                if place.place_id == station.place_id
+                else "earthbound_station"
+                if place.place_id == center.place_id
+                else place.parent_id
+            ),
+        )
+        for place in package.places
     )
+    tampered = replace(package, places=places)
 
-    with pytest.raises(GenesisSourcePackageError):
-        load_genesis_source_package(root=tmp_path)
+    with pytest.raises(ValueError, match="地点层级存在环"):
+        _validate_package(tampered, {"program_version": package.package_version})
 
 
-def test_genesis_source_package_preserves_optional_knowledge_importance(
-    tmp_path: Path,
-) -> None:
-    path = _copy_world_config(tmp_path)
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["knowledge"][0]["importance"] = 0.91
-    path.write_text(
-        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
-
-    package = load_genesis_source_package(root=tmp_path)
-
-    assert package.knowledge[0].importance == 0.91
+def test_public_geography_has_five_districts_and_separate_town_facilities() -> None:
+    package = load_genesis_source_package()
+    assert {p.place_id for p in package.places if p.parent_id == "mistyville"} == {
+        "north_mountain",
+        "east_forest",
+        "south_plain",
+        "central_mixed",
+        "clearheart_lake",
+    }
+    assert package.place("mistyville_center").parent_id == "central_mixed"
+    assert package.place("earthbound_station").parent_id == "central_mixed"
+    assert package.place("D").parent_id == "central_mixed"
+    assert package.place("X").parent_id == "elfaria"
+    assert "混住" in package.place("central_mixed").description

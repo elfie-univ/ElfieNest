@@ -86,6 +86,12 @@ class ResidentAdmissionStorePort(Protocol):
         publication: AdmissionPublication,
     ) -> AdmissionRecord: ...
 
+    def materialize(
+        self,
+        admission_id: str,
+        publication: AdmissionPublication,
+    ) -> AdmissionRecord: ...
+
     def abort(self, admission_id: str, *, error_code: str) -> AdmissionRecord: ...
 
     def mark_runtime_registered(self, admission_id: str) -> AdmissionRecord: ...
@@ -101,9 +107,16 @@ class ResidentSessionPort(Protocol):
     def remove_elfie(self, elfie_id: str) -> None: ...
 
 
+class ResidentAdmissionNestPort(Protocol):
+    """Confirm the durable Nest home before Admission activation."""
+
+    def finalize_admission(self, admission_id: str, elfie_id: str) -> None: ...
+
+
 __all__ = (
     "ElfieConstructionPort",
     "ResidentAdmissionPortError",
+    "ResidentAdmissionNestPort",
     "ResidentAdmissionStorePort",
     "ResidentSessionPort",
     "ResidentWorkspacePort",

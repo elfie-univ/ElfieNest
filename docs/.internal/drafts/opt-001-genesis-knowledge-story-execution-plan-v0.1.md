@@ -6,14 +6,14 @@
 >
 > **历史边界：** 本文是已关闭 OPT-001 的执行与证据快照，不是现行 Genesis 设计。本文中的
 > 长期 Manifest、Profile 来源字段、旧 worktree 路径和提交后重放写法已被 ADR-0033、Elfie 2.3、
-> Brain 1.5 与 [Genesis v0.2](./genesis-core-kernel-design-v0.2.md) 取代；后续实现不得复制这些旧边界。
+> Brain 1.5 与 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 取代；后续实现不得复制这些旧边界。
 
 当前 worktree 另有本地 `16547111`（OPT-002 连续学习提交，领先 origin 一步）；它不是本计划范围，必须保留但不纳入 OPT-001 的变更或验收。实现前以目标基线与当前提交分别做差异盘点，不得混入或反向修改该提交。
 
 <<<<<<<< HEAD:docs/.internal/elfaria/opt-001-genesis-knowledge-story-execution-plan-v0.1.md
-本计划把已保存的 [Genesis 核心设计](genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
+本计划对应的旧核心设计已退役，历史版本见 Git；后续实现以 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准，本文只保留当时的执行顺序。
 ========
-本计划把已保存的 [Genesis 核心设计](./genesis-core-kernel-design-v0.1.md)落成执行顺序；旧阶段总计划中的历史 SHA 不覆盖本基线。
+本计划对应的旧核心设计已退役，历史版本见 Git；后续实现以 [Genesis 正式设计](../../zh/developer/designs/elfie/genesis-complete-design.md) 为准，本文只保留当时的执行顺序。
 >>>>>>>> origin/main:docs/.internal/drafts/opt-001-genesis-knowledge-story-execution-plan-v0.1.md
 
 本次修订补回实施所需的字段、引用、时间、导入、读取和评测契约；不增加新的世界设定。第一版按本计划的最小垂直切片落地；后续只处理本文件列出的验收残余，不在本阶段发散。
@@ -28,7 +28,7 @@
 | Genesis 有通用 `MemorySeed`、`SelfModelSeed` 和标记，但不是三类 Seed 合同 | 没有 `KnowledgeSeed[]`、结构化 3–5 Episode、可引用的 Relationship 图 | 扩展现有 Genesis，不另造存储 |
 | 领养适配器只生成五条泛化记忆和一个主人关系；历史时间写成 `now` | 没有家乡、重复人物、因果链、赴地经历、历史时间/写入时间分离 | 用真实人生图替换泛化卡片 |
 | Reasoning 可读 `RecallBundle` | 来源链和未知边界需要独立证明；Prompt 不应重复丰富世界事实 | 已通过 Memory 召回断言，并移除 Prompt 中重复的 Selfhood 身份事实 |
-| Elfaria Canon v0.1 只确认 Elfaria、迷雾镇和有限边界；Saevi/灵狐、Tovren/灵犬 published，Myelle/灵猫 draft | 旧 E1 fixture 使用未入 Canon 的“雾谷”等词，不能作为 OPT-001 证据 | 已将 E1 fixture 冻结为 `stage1-e1.v2` 并走正式 typed Genesis；不把未批准故事默认为 Canon |
+| Elfaria Canon v0.1 只确认 Elfaria、迷雾镇和有限边界；Saevi、Tovren published，Myelle draft | 旧 E1 fixture 使用未入 Canon 的“雾谷”等词，不能作为 OPT-001 证据 | 已将 E1 fixture 冻结为 `stage1-e1.v2` 并走正式 typed Genesis；不把未批准故事默认为 Canon |
 
 现有 E1/Memory 证据只能证明基础链路，不能证明 OPT-001 的知识密度或传记完成；`MEM-008` 的 owner review 也不替代本批验收。
 
@@ -78,7 +78,7 @@ World Canon 的叙事层级固定为：`Elfaria(world) → 已知区域/迷雾�
 1. 世界身份、已知范围及与地球的关系；
 2. 物理/自然、时间、昼夜、季节、生态和生命规律；
 3. 星球—区域—地点层级、迷雾镇地图/设施/生活空间、分散居住/交往边界及三物种共居解释；
-4. Saevi/灵狐、Tovren/灵犬、Myelle/灵猫的共同身体、感知、需求和常识；
+4. Saevi、Tovren、Myelle 的共同身体、感知、需求和常识；
 5. 家庭、族群、长老、礼仪、信任、劳动、教育、经济和知识传播；
 6. 历史、语言/价值、食物、日常和文化；
 7. 跨世界信号、赴地计划、地球差异和适应边界；

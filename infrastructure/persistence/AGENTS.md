@@ -19,6 +19,9 @@
 - `${ELFIE_HOME}/configs/` 是唯一可写全局配置根；仓库 `config/` 和安装态
   `resources/config/` 只读。首次运行只创建目录，不复制默认文档；用户写入使用同目录
   原子替换，读取不得顺手修复、迁移或覆盖用户文件。
+- `config/genesis/program.yaml` 是已注册的源资料包入口；显式校验成员与摘要，不整目录放行。
+  源资料 published 不等于领养激活；现有生产创建链在强类型消费者及语义验收完成前不切换、
+  不双读或回退；语义校验与生成仍归 Genesis。
 - 每只精灵使用稳定 `elfie_id` 的 `elfies/<elfie_id>/` 工作区；聊天唯一事实源为
   `conversations/history.sqlite`。名称不能参与目录寻址。
 - 不创建 `users/` 聊天目录，不在 Nest 根保留新的聊天副本；禁止创建、读取、写入或

@@ -14,6 +14,7 @@ export type WeightedNode = {
   readonly label: string;
   readonly weight?: number;
   readonly kind?: string | undefined;
+  readonly is_self?: boolean | undefined;
 };
 
 export type DirectedLink = {
@@ -113,7 +114,7 @@ export function layoutRelationship<Node extends WeightedNode>(
   nodes: readonly Node[],
 ): readonly PositionedNode<Node, "center" | "inner" | "outer">[] {
   const ordered = sortedUnique(nodes);
-  const self = ordered.find((node) => node.kind === "self");
+  const self = ordered.find((node) => node.is_self === true || node.kind === "self");
   const others = ordered.filter((node) => node.id !== self?.id).slice(0, self ? MAX_NODES - 1 : MAX_NODES);
   const positioned: PositionedNode<Node, "center" | "inner" | "outer">[] = self
     ? [{ ...self, x: 170, y: 150, size: nodeSize(self.weight), ring: "center" }]

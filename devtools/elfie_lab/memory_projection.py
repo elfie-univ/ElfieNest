@@ -12,15 +12,10 @@ from elfie.brain.memory.memory_records import (
     RecallAssertion,
     RecallNode,
 )
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 
 MAX_ITEMS = 20
 MAX_RELATION_LINKS = 32
-RELATION_LABELS: Dict[str, str] = {
-    "owner": "主人",
-    "family": "家人",
-    "friend": "朋友",
-    "acquaintance": "认识",
-}
 RINGS: Tuple[Tuple[str, str], ...] = (
     ("self", "自我"),
     ("family", "家人"),
@@ -50,6 +45,8 @@ class MemoryCognitionPayload(TypedDict):
 
 
 class ProjectionMemory(Protocol):
+    ontology: MemoryOntologySnapshot
+
     def memory_inspection_snapshot(
         self,
         *,
@@ -69,15 +66,16 @@ def build_memory_cognition(
         node_limit=1000,
         assertion_limit=800,
     )
+    ontology = memory.ontology
     return {
-        **_build_typed_memory_cognition(memory, elfie_name, snapshot),
+        **_build_typed_memory_cognition(memory, snapshot, ontology),
     }
 
 
 def _build_typed_memory_cognition(
     memory: ProjectionMemory,
-    elfie_name: str,
     snapshot: MemoryInspectionSnapshot,
+    ontology: MemoryOntologySnapshot,
 ) -> MemoryCognitionPayload:
     """Build the Lab payload from the typed Memory inspection boundary."""
     episodes = snapshot.episodes
@@ -87,10 +85,10 @@ def _build_typed_memory_cognition(
         "",
     )
     relation_nodes, relation_links = _typed_relation_graph(
-        nodes, snapshot.assertions, elfie_name
+        nodes, snapshot.assertions, ontology
     )
     knowledge_nodes, knowledge_links = _typed_knowledge_graph(
-        nodes, snapshot.assertions
+        nodes, snapshot.assertions, ontology
     )
     return {
         "topics": build_topics(episodes, MAX_ITEMS),
@@ -129,81 +127,120 @@ def _node_metadata(node: RecallNode) -> Dict[str, Any]:
 def _typed_relation_graph(
     nodes: Sequence[RecallNode],
     assertions: Sequence[RecallAssertion],
-    elfie_name: str,
+    ontology: MemoryOntologySnapshot,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    selected = _rank_nodes(
-        [
-            node
-            for node in nodes
-            if node.node_type in {"entity", "person", "elfie", "pet", "animal", "group"}
-        ]
-    )[: MAX_ITEMS - 1]
+    entity_nodes = [
+        node
+        for node in nodes
+        if _node_group(node, ontology)
+        in {"social_relations", "entities", "space_geography"}
+    ]
+    entity_ids = {node.node_id for node in entity_nodes}
+    relation_salience: dict[str, float] = {}
+    explicit_relation_endpoints: set[str] = set()
+    for assertion in assertions:
+        semantics = _registered_predicate(assertion, ontology)
+        if semantics is None:
+            continue
+        source = assertion.subject_id
+        target = assertion.object_node_id
+        if source not in entity_ids or target not in entity_ids:
+            continue
+        salience = _weight(assertion.importance, 0.5)
+        relation_salience[source] = max(relation_salience.get(source, 0.0), salience)
+        relation_salience[target] = max(relation_salience.get(target, 0.0), salience)
+        context = assertion.qualifiers.get("context")
+        if isinstance(context, str) and "explicit_pairwise_relation" in context:
+            explicit_relation_endpoints.update((source, target))
+    self_node = next(
+        (node for node in entity_nodes if node.properties.get("is_self") is True),
+        None,
+    )
+    # Keep relationship endpoints visible before filling the bounded view with
+    # otherwise isolated high-importance places or objects. Otherwise a low-
+    # salience neighbor could disappear merely because Genesis supplied many
+    # unrelated world anchors, making the relationship graph look incomplete.
+    selected = sorted(
+        entity_nodes,
+        key=lambda node: (
+            -int(node.node_id in explicit_relation_endpoints),
+            -int(node.node_id in relation_salience),
+            -relation_salience.get(node.node_id, 0.0),
+            -_weight(_node_metadata(node).get("importance"), 0.55),
+            node.label,
+            node.node_id,
+        ),
+    )[:MAX_ITEMS]
+    if self_node is not None and self_node not in selected:
+        selected = [self_node, *selected[: MAX_ITEMS - 1]]
     node_ids = {node.node_id for node in selected}
     rendered_nodes = [
-        {"id": "self", "label": elfie_name, "kind": "self", "weight": 1.0}
-    ]
-    rendered_nodes.extend(
         {
             "id": node.node_id,
             "label": node.label[:24],
-            "kind": _entity_kind(node),
+            "kind": node.node_type,
+            "is_self": node.properties.get("is_self") is True,
             "weight": _weight(_node_metadata(node).get("importance"), 0.55),
         }
         for node in selected
-    )
-    links: list[dict[str, Any]] = []
-    for node in selected:
-        metadata = _node_metadata(node)
-        relationship = metadata.get("relationship") or metadata.get(
-            "relationship_label"
-        )
-        relation_kind = metadata.get("relation_kind") or metadata.get(
-            "relationship_key"
-        )
-        if isinstance(relationship, str) and relationship.strip():
-            links.append(
-                {
-                    "source": "self",
-                    "target": node.node_id,
-                    "label": relationship.strip(),
-                    "relation_kind": str(relation_kind or "relationship"),
-                    "weight": _weight(metadata.get("importance"), 0.55),
-                }
-            )
+    ]
+    links_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     for assertion in assertions:
         source = assertion.subject_id
         target = assertion.object_node_id
         if source not in node_ids or target not in node_ids:
             continue
-        links.append(
-            {
-                "source": source,
-                "target": target,
-                "label": RELATION_LABELS.get(assertion.predicate, assertion.predicate),
-                "relation_kind": assertion.predicate,
-                "weight": _weight(assertion.importance, 0.5),
-            }
+        relation_kind = _relation_kind(assertion, ontology)
+        semantics = _registered_predicate(assertion, ontology)
+        if semantics is None:
+            continue
+        try:
+            display_semantics = ontology.predicate_spec(relation_kind)
+        except ValueError:
+            display_semantics = semantics
+        endpoints = tuple(sorted((source, target)))
+        key = (
+            relation_kind,
+            endpoints[0] if semantics.symmetric else source,
+            endpoints[1] if semantics.symmetric else target,
         )
-    return rendered_nodes, sorted(links, key=_link_key)[:MAX_RELATION_LINKS]
+        candidate = {
+            "id": assertion.assertion_id,
+            "source": source,
+            "target": target,
+            "label": display_semantics.label,
+            "predicate": assertion.predicate,
+            "relation_kind": relation_kind,
+            "symmetric": semantics.symmetric,
+            "weight": _weight(assertion.importance, 0.5),
+            "confidence": _weight(assertion.confidence, 0.5),
+            "evidence_ids": list(assertion.evidence_ids),
+        }
+        prior = links_by_key.get(key)
+        if prior is None or (
+            candidate["weight"],
+            candidate["confidence"],
+            candidate["id"],
+        ) > (prior["weight"], prior["confidence"], prior["id"]):
+            links_by_key[key] = candidate
+    return rendered_nodes, sorted(links_by_key.values(), key=_link_key)[
+        :MAX_RELATION_LINKS
+    ]
 
 
 def _typed_knowledge_graph(
     nodes: Sequence[RecallNode],
     assertions: Sequence[RecallAssertion],
+    ontology: MemoryOntologySnapshot,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     selected = _rank_nodes(
-        [
-            node
-            for node in nodes
-            if node.node_type
-            in {"knowledge", "pattern", "claim", "concept", "theory", "law"}
-        ]
+        [node for node in nodes if _node_group(node, ontology) == "general_knowledge"]
     )[:MAX_ITEMS]
     rendered_nodes = [
         {
             "id": node.node_id,
             "label": node.label[:48],
-            "kind": _knowledge_kind(node),
+            "kind": node.node_type,
             "weight": _weight(_node_metadata(node).get("importance"), 0.55),
             "confidence": _weight(
                 _node_metadata(node).get("confidence"),
@@ -214,24 +251,20 @@ def _typed_knowledge_graph(
         for node in selected
     ]
     node_ids = {node.node_id for node in selected}
-    relation_kinds = {
-        "derived_from": "derived_from",
-        "about": "derived_from",
-        "supports": "supports",
-        "implies": "supports",
-        "conflicts": "conflicts",
-        "revises": "revises",
-    }
     links = [
         {
+            "id": assertion.assertion_id,
             "source": assertion.subject_id,
             "target": assertion.object_node_id,
-            "label": assertion.predicate,
-            "relation_kind": relation_kinds.get(assertion.predicate, "supports"),
+            "label": _predicate_label(assertion, ontology),
+            "relation_kind": assertion.predicate,
             "weight": _weight(assertion.importance, 0.5),
+            "evidence_ids": list(assertion.evidence_ids),
         }
         for assertion in assertions
-        if assertion.subject_id in node_ids and assertion.object_node_id in node_ids
+        if _registered_predicate(assertion, ontology) is not None
+        and assertion.subject_id in node_ids
+        and assertion.object_node_id in node_ids
     ]
     return rendered_nodes, sorted(links, key=_link_key)[:MAX_ITEMS]
 
@@ -299,19 +332,30 @@ def _important_events(episodes: Sequence[ClosedEpisode]) -> List[Dict[str, Any]]
     return events
 
 
-def _entity_kind(node: RecallNode) -> str:
-    declared = str(_node_metadata(node).get("entity_type", "")).lower()
-    if declared in {"elfie", "pet", "animal"}:
-        return "elfie"
-    return "human"
+def _node_group(node: RecallNode, ontology: MemoryOntologySnapshot) -> str | None:
+    try:
+        return ontology.group_for_node_type(node.node_type)
+    except ValueError:
+        return None
 
 
-def _knowledge_kind(node: RecallNode) -> str:
-    if node.node_type == "pattern":
-        return "pattern"
-    if _node_metadata(node).get("kind") == "belief":
-        return "belief"
-    return "knowledge"
+def _registered_predicate(
+    assertion: RecallAssertion,
+    ontology: MemoryOntologySnapshot,
+):
+    if not assertion.evidence_ids:
+        return None
+    try:
+        return ontology.predicate_spec(assertion.predicate)
+    except ValueError:
+        return None
+
+
+def _predicate_label(
+    assertion: RecallAssertion, ontology: MemoryOntologySnapshot
+) -> str:
+    semantics = _registered_predicate(assertion, ontology)
+    return semantics.label if semantics is not None else assertion.predicate
 
 
 def _source_event_ids(node: RecallNode) -> List[str]:
@@ -322,11 +366,36 @@ def _source_event_ids(node: RecallNode) -> List[str]:
     return [value for value in values if isinstance(value, str)][:MAX_ITEMS]
 
 
+def _relation_kind(assertion: RecallAssertion, ontology: MemoryOntologySnapshot) -> str:
+    """Use a sourced relationship role for display while retaining the predicate."""
+
+    try:
+        canonical = ontology.resolve_predicate(assertion.predicate)
+    except ValueError:
+        canonical = assertion.predicate
+    if canonical != "relationship":
+        return canonical
+    context = assertion.qualifiers.get("context")
+    if isinstance(context, str) and ":" in context:
+        role = context.rsplit(":", 1)[-1].strip()
+        if role:
+            return {
+                "family": "kin_of",
+                "friend": "friend_of",
+                "owner": "owned_by",
+                "acquaintance": "acquaintance_of",
+            }.get(role, role)
+    return assertion.predicate
+
+
 def _link_key(link: Dict[str, Any]) -> Tuple[str, str, str]:
     return str(link["source"]), str(link["target"]), str(link["label"])
 
 
-def _world_model(summary: str, candidates: Sequence[RecallNode]) -> WorldModelPayload:
+def _world_model(
+    summary: str,
+    candidates: Sequence[RecallNode],
+) -> WorldModelPayload:
     ranked = _rank_nodes(candidates)[:MAX_ITEMS]
     rings: List[Dict[str, Any]] = []
     for key, label in RINGS:
@@ -334,9 +403,7 @@ def _world_model(summary: str, candidates: Sequence[RecallNode]) -> WorldModelPa
             {
                 "id": node.node_id,
                 "label": node.label[:48],
-                "kind": _knowledge_kind(node)
-                if node.node_type != "entity"
-                else _entity_kind(node),
+                "kind": node.node_type,
                 "weight": _weight(_node_metadata(node).get("importance"), 0.55),
             }
             for node in ranked

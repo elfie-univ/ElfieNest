@@ -1,6 +1,6 @@
 # 外观实验——第一阶段：材质换色
 
-**状态：** 狐狸和狗均已完成验证，并已接入正式3D材质链路。
+**状态：** Saevi 和 Tovren均已完成验证，并已接入正式3D材质链路。
 
 **日期：** 2026-08-17
 
@@ -17,7 +17,7 @@
 
 ## 实验方法
 
-实验直接使用 Godot 中原始的狐狸和狗场景及其烘焙好的毛发源贴图，没有重生成模型，
+实验直接使用 Godot 中原始的Saevi 和 Tovren场景及其烘焙好的毛发源贴图，没有重生成模型，
 也没有调用图片生成服务。
 
 临时着色器对比了四种情况：
@@ -31,23 +31,23 @@
 
 - 采样真实的原始毛发贴图，而不是叠一层半透明遮罩或灰色蒙版；
 - 把目标颜色当作毛发中间色，在有界范围内迁移明暗；
-- 用原始贴图的明度和中性色特征保护浅色区域，因为狗的浅色毛并不是纯白；
+- 用原始贴图的明度和中性色特征保护浅色区域，因为Tovren 的浅色毛并不是纯白；
 - 保留爪子、耳缘等深色区域；
 - 不再叠加一层宽泛的灯光，避免之前的灰蒙蒙效果。
 
 ## 视觉证据
 
-### 狐狸
+### Saevi
 
-![狐狸方法对比](../../../../public/assets/appearance-experiments/phase-1/fox-method-comparison.png)
+![Saevi 方法对比](../../../../public/assets/appearance-experiments/phase-1/fox-method-comparison.png)
 
-![狐狸最终颜色](../../../../public/assets/appearance-experiments/phase-1/fox-final-color-comparison.png)
+![Saevi 最终颜色](../../../../public/assets/appearance-experiments/phase-1/fox-final-color-comparison.png)
 
-### 狗
+### Tovren
 
-![狗方法对比](../../../../public/assets/appearance-experiments/phase-1/dog-method-comparison.png)
+![Tovren 方法对比](../../../../public/assets/appearance-experiments/phase-1/dog-method-comparison.png)
 
-![狗最终颜色](../../../../public/assets/appearance-experiments/phase-1/dog-final-color-comparison.png)
+![Tovren 最终颜色](../../../../public/assets/appearance-experiments/phase-1/dog-final-color-comparison.png)
 
 ### 十色库复核
 
@@ -55,9 +55,9 @@
 过深的颜色会压低眼睛和鼻子的辨识度，相近的棕色放在同一批五个候选里差异不够明显。
 第二轮把最深色调整为烟炭/烟黑，并保留原始毛发的明暗和细节迁移。
 
-![狗十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/dog-10-color-3views.png)
+![Tovren 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/dog-10-color-3views.png)
 
-![狐狸十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/fox-10-color-3views.png)
+![Saevi 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/fox-10-color-3views.png)
 
 精确色值、算法引用以及被替代的直连着色器实验见
 [`palette-review-v1-final.json`](../../../../public/assets/appearance-experiments/phase-1/palette-review-v1-final.json)。
@@ -66,7 +66,7 @@
 
 ## 审查结果
 
-| 检查项 | 狐狸 | 狗 | 结果 |
+| 检查项 | Saevi | Tovren | 结果 |
 | --- | --- | --- | --- |
 | 物种识别和轮廓保持不变 | 通过 | 通过 | 不需要改 GLB 或形状 |
 | 毛色产生明显差异 | 通过 | 通过 | 银灰、奶油、深棕可区分 |
@@ -74,8 +74,8 @@
 | 毛流和毛发纹理保留 | 通过 | 通过 | 最终候选没有塑料感或大面积灰雾 |
 | 只做全局换色是否可接受 | 不通过 | 不通过 | 会破坏独立的浅色/深色区域 |
 
-本次产品视角评分是受控截图下的人工估计，不是自动化质量指标：狐狸约 **8.8/10**，
-狗约 **8.4/10**。与 AI 参考图的剩余差距，主要来自 GLB 原有的毛发密度和烘焙细节上限；
+本次产品视角评分是受控截图下的人工估计，不是自动化质量指标：Saevi 约 **8.8/10**，
+Tovren 约 **8.4/10**。与 AI 参考图的剩余差距，主要来自 GLB 原有的毛发密度和烘焙细节上限；
 本实验没有改变几何，也没有删除原始毛发纹理。
 
 ## 阶段结论

@@ -191,6 +191,62 @@ class CognitiveConsolidationSystem:
             )
             return self._pending_candidate
 
+    def request_manual(
+        self,
+        *,
+        now: UTCDateTime,
+        blocked: bool,
+    ) -> Optional[CognitiveConsolidationCandidate]:
+        """Admit one explicit developer request without changing sleep state.
+
+        This is intentionally a narrow test/observability seam. It still uses
+        the same pending Episode boundary and receipt-backed ``settle`` path as
+        the night scheduler, but it does not create a user Episode or pretend
+        that the Elfie has fallen asleep.
+        """
+        with self._lock:
+            self._ensure_time(now)
+            self._last_updated_at = now
+            if self._pending_candidate is not None:
+                self._status = "cooldown"
+                self._revision += 1
+                return None
+            if blocked:
+                self._status = "blocked"
+                self._revision += 1
+                return None
+            try:
+                pending = tuple(self._pending_episode_ids(self._max_episodes))
+            except Exception:
+                self._status = "blocked"
+                self._revision += 1
+                return None
+            if not pending:
+                self._status = (
+                    "satisfied"
+                    if self._satisfaction_until is not None
+                    and now < self._satisfaction_until
+                    else "ready"
+                )
+                self._revision += 1
+                return None
+
+            self._revision += 1
+            candidate_id = EventId(f"consolidation:{self._revision}")
+            self._last_trigger_id = candidate_id
+            self._cooldown_until = now + timedelta(seconds=self._cooldown_seconds)
+            self._status = "cooldown"
+            self._pending_candidate = CognitiveConsolidationCandidate(
+                candidate_id=candidate_id,
+                goal="整理近期经历，提炼稳定记忆；本轮只允许更新记忆，不产生外部动作",
+                episode_ids=pending,
+                created_at=now,
+                cause_event_ids=(
+                    EventId(f"manual-consolidation:{now.timestamp():.6f}"),
+                ),
+            )
+            return self._pending_candidate
+
     def settle(
         self,
         candidate_id: EventId,

@@ -1,8 +1,14 @@
 from fastapi.testclient import TestClient
 
 import devtools.elfie_lab.app as elfie_lab_app
+import devtools.elfie_lab.storage as elfie_lab_storage
 from devtools.elfie_lab.app import create_app
 from devtools.memory_audit import MemoryInspectionStaleError
+from elfie.genesis import legal_candidate_age_range, stage_for_age
+from infrastructure.persistence.configuration.species import (
+    load_and_configure_species_catalog,
+)
+from infrastructure.persistence.configuration.world import load_genesis_source_package
 
 from .food_test_helpers import seed_mock_food
 
@@ -31,6 +37,42 @@ def test_create_app_installs_the_bundled_species_catalog(
     assert frozenset(
         species_registry.current_species_catalog().supported_species
     ) == frozenset({"dog", "fox"})
+
+
+def test_memory_recall_accepts_scene_without_text(tmp_path, client_for, monkeypatch):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    elfie_id = client.post("/api/elfies", json=complete_elfie_payload()).json()[
+        "elfie_id"
+    ]
+    requests = []
+
+    def capture(store, request):
+        requests.append(request)
+        return {"ok": True}
+
+    monkeypatch.setattr(elfie_lab_app, "build_recall_report", capture)
+    for scene in (
+        {"place_node_ids": ["place-1"]},
+        {"sense": {"emotion_label": "happiness", "intensity": 0.6}},
+    ):
+        response = client.post(
+            "/api/memory-audit/recall",
+            json={
+                "elfie_id": elfie_id,
+                "query": "",
+                **scene,
+            },
+        )
+        assert response.status_code == 200, response.text
+    assert requests[0].text == ""
+    assert requests[0].seed_node_ids == ("place-1",)
+    assert requests[0].place_node_ids == ("place-1",)
+    assert requests[1].sense.emotion_label == "happiness"
+    assert requests[1].sense.intensity == 0.6
+    assert (
+        client.post("/api/memory-audit/recall", json={"query": " "}).status_code == 422
+    )
 
 
 def test_memory_episode_preview_is_sandboxed(tmp_path, client_for):
@@ -104,12 +146,12 @@ def test_memory_inspect_accepts_node_type_filter_and_keeps_graph_context(
 
     response = client.get(
         "/api/memory-audit/inspect",
-        params=[("node_type", "person")],
+        params=[("node_type", "group")],
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["filters"]["node_types"] == ["person"]
+    assert payload["filters"]["node_types"] == ["group"]
     assert payload["coverage"]["filters_applied"] is True
     assert payload["matched_counts"]["nodes"] > 0
     assert payload["counts"]["graph_nodes"] >= payload["matched_counts"]["nodes"]
@@ -131,7 +173,6 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
         for field in (
             "name",
             "species_id",
-            "age_years",
             "description",
             "appearance_description",
         )
@@ -150,6 +191,173 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
     assert created.status_code == 201
     assert created.json()["profile"]["age_years"] == 2.0
     assert created.json()["profile"]["life_stage"] == "青年"
+
+
+def test_create_elfie_uses_explicit_advanced_candidate_values(
+    tmp_path, client_for, monkeypatch
+):
+    app = create_app(str(tmp_path / "data"), str(tmp_path / "runtime"))
+    client = client_for(app)
+    captured = []
+    compile_candidate = app.state.storage._genesis.compile
+
+    def capture_candidate(request):
+        captured.append(request)
+        return compile_candidate(request)
+
+    monkeypatch.setattr(app.state.storage._genesis, "compile", capture_candidate)
+    traits = {
+        "openness": 0.12,
+        "conscientiousness": 0.34,
+        "extraversion": 0.56,
+        "agreeableness": 0.78,
+        "neuroticism": 0.9,
+    }
+    response = client.post(
+        "/api/elfies",
+        json={
+            **complete_elfie_payload("高级精灵", "fox"),
+            "age_years": 6,
+            "gender": "male",
+            "big_five": traits,
+        },
+    )
+
+    assert response.status_code == 201
+    profile = response.json()["profile"]
+    assert profile["age_years"] == 6
+    assert profile["gender"] == "male"
+    assert profile["origin_place_label"]
+    assert profile["big_five"] == traits
+    assert profile["selfhood_projection"]["identity_core_text"].startswith(
+        "我是 〈高级精灵〉"
+    )
+    assert (
+        "我的稳定相处与表达方式" in profile["selfhood_projection"]["adaptive_self_text"]
+    )
+    review_response = client.get(f"/api/elfies/{profile['elfie_id']}/genesis-review")
+    assert review_response.status_code == 200
+    review = review_response.json()
+    assert review["schema_version"] == 1
+    assert review["summary"]["knowledge_unit_count"] == len(
+        app.state.storage._source_package.knowledge
+    )
+    assert (
+        review["summary"]["selected_knowledge_count"]
+        + review["summary"]["not_selected_knowledge_count"]
+        == review["summary"]["knowledge_unit_count"]
+    )
+    assert len(review["knowledge"]) == review["summary"]["knowledge_unit_count"]
+    assert all(item["source_text"] and item["decision"] for item in review["knowledge"])
+    assert review["knowledge"][0]["source_text"] == (
+        app.state.storage._source_package.knowledge[0].statement
+    )
+    source_by_id = {
+        fact.fact_id: fact for fact in app.state.storage._source_package.knowledge
+    }
+    review_by_id = {item["knowledge_id"]: item for item in review["knowledge"]}
+    assert set(review_by_id) == set(source_by_id)
+    assert all(
+        review_by_id[fact_id]["source_text"] == fact.statement
+        for fact_id, fact in source_by_id.items()
+    )
+    guaranteed_common = [
+        item
+        for item in review["knowledge"]
+        if not item["conditions"]
+        and not item["mastery_difficulty"]
+        and item["status"] == "active"
+        and item["level"] != "unknown"
+        and item["access"] == "available"
+    ]
+    assert guaranteed_common
+    assert all(item["selected"] for item in guaranteed_common)
+    assert all(
+        item["selected_text"] == item["source_text"]
+        for item in review["knowledge"]
+        if item["selected"]
+    )
+    assert review["episodes"]
+    assert review["life"]["travel_paths"]
+    assert review["outputs"]["knowledge"]
+    assert (
+        len(review["outputs"]["knowledge"])
+        == review["summary"]["selected_knowledge_count"]
+    )
+    assert review["outputs"]["selfhood"]
+    assert review["outputs"]["selfhood_projection"] == profile["selfhood_projection"]
+    assert review["places"]
+    assert review["place_relations"]
+    assert app.state.storage.genesis_review_path(profile["elfie_id"]).is_file()
+    assert len(captured) == 1
+    assert captured[0].gender == "male"
+    assert captured[0].candidate is not None
+    assert captured[0].candidate.gender == "male"
+    assert captured[0].candidate.age_years == 6
+    assert captured[0].candidate.personality.candidate.latent == tuple(
+        4 * value - 2 for value in traits.values()
+    )
+
+
+def test_create_elfie_basic_randomizes_unset_advanced_values(tmp_path, client_for):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload("基础精灵", "dog")
+    payload.pop("age_years")
+    response = client.post("/api/elfies", json=payload)
+
+    assert response.status_code == 201
+    age = int(response.json()["profile"]["age_years"])
+    catalog = load_and_configure_species_catalog()
+    species = catalog.definition("dog", adoptable_only=True)
+    life_stage = stage_for_age("dog", age, catalog)
+    minimum, maximum = legal_candidate_age_range(
+        species.genesis,
+        life_stage,
+        load_genesis_source_package().generation_policy,
+    )
+    assert minimum <= age <= maximum
+    assert all(
+        0 <= value <= 1 for value in response.json()["profile"]["big_five"].values()
+    )
+
+
+def test_create_elfie_default_age_uses_stage_prior_and_lifespan_reserve(
+    tmp_path, client_for, monkeypatch
+):
+    class LastStageAndAge:
+        def random(self):
+            return 0.99
+
+        def choice(self, values):
+            return values[-1]
+
+        def uniform(self, lower, upper):
+            return (lower + upper) / 2
+
+    monkeypatch.setattr(elfie_lab_storage.secrets, "SystemRandom", LastStageAndAge)
+    monkeypatch.setattr(elfie_lab_storage.secrets, "choice", lambda values: values[-1])
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload("老年边界测试", "dog")
+    payload.pop("age_years")
+
+    response = client.post("/api/elfies", json=payload)
+
+    assert response.status_code == 201
+    profile = response.json()["profile"]
+    assert profile["age_years"] == 16
+
+
+def test_create_elfie_rejects_invalid_advanced_values(tmp_path, client_for):
+    client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
+    payload = complete_elfie_payload()
+    for changes in (
+        {"age_years": 1},
+        {"age_years": 17},
+        {"gender": "any"},
+        {"big_five": {"openness": 2}},
+    ):
+        response = client.post("/api/elfies", json={**payload, **changes})
+        assert response.status_code == 422
 
 
 def test_update_big_five_refreshes_current_session_profile(tmp_path, client_for):
@@ -238,6 +446,29 @@ def test_app_create_elfie_and_chat(tmp_path, client_for):
 
     restored = client.get(f"/api/elfies/{elfie_id}")
     assert len(restored.json()["turns"]) == 1
+
+
+def test_app_manual_consolidation_route_validates_food_and_returns_receipt(
+    tmp_path, client_for
+):
+    runtime_dir = tmp_path / "runtime"
+    seed_mock_food(runtime_dir)
+    app = create_app(str(tmp_path / "data"), str(runtime_dir))
+    client = client_for(app)
+    elfie_id = client.post(
+        "/api/elfies", json=complete_elfie_payload("手动整理路由")
+    ).json()["elfie_id"]
+    response = client.post(
+        f"/api/elfies/{elfie_id}/consolidation",
+        json={"food_key": "mock"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["triggered"] is True
+    assert payload["candidate_id"].startswith("consolidation:")
+    assert payload["consolidated_count"] > 0
 
 
 def test_create_elfie_uses_random_personality_and_preserves_appearance_text(
@@ -370,9 +601,31 @@ def test_delete_elfie_recycles_data_and_selects_next_elfie(tmp_path, client_for)
     ]
     bundle = next((data_dir / "trash").iterdir())
     assert (bundle / "elfies" / deleted_id / "profile.json").is_file()
+    assert (bundle / "genesis_reviews" / deleted_id).is_file()
     assert (bundle / "media" / deleted_id / "sample.txt").is_file()
     assert (bundle / "evaluations" / deleted_id / "evaluation_sample.json").is_file()
     assert (bundle / "manifest.json").is_file()
+
+
+def test_delete_elfie_recycles_unloadable_legacy_profile(tmp_path, client_for):
+    import yaml
+
+    data_dir = tmp_path / "data"
+    client = client_for(create_app(str(data_dir), str(tmp_path / "runtime")))
+    elfie_id = client.post(
+        "/api/elfies", json=complete_elfie_payload("旧版精灵")
+    ).json()["elfie_id"]
+    profile_path = data_dir / "elfies" / elfie_id / "profile" / "profile.yaml"
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    profile["provenance"] = {"generator_version": "retired"}
+    profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
+
+    response = client.delete(f"/api/elfies/{elfie_id}")
+
+    assert response.status_code == 200
+    assert client.get("/api/elfies").json()["items"] == []
+    bundle = next((data_dir / "trash").iterdir())
+    assert (bundle / "elfies" / elfie_id / "profile" / "profile.yaml").is_file()
 
 
 def test_delete_elfie_returns_not_found_when_absent(tmp_path, client_for):
@@ -477,4 +730,5 @@ def test_delete_elfie_reports_recycle_failure_and_restores_source(tmp_path):
         assert response.status_code == 500
         assert "删除失败" in response.json()["detail"]
         assert (data_dir / "elfies" / elfie_id / "profile.json").is_file()
+        assert (data_dir / "genesis_reviews" / f"{elfie_id}.json").is_file()
         assert client.get(f"/api/elfies/{elfie_id}").status_code == 200

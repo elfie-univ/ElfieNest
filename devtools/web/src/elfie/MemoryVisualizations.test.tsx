@@ -25,6 +25,8 @@ function renderSidebar(session: ElfieSession | null): string {
     onCreate={doNothing}
     onDelete={doNothing}
     onEditPersonality={doNothing}
+    onOpenGenesisReview={doNothing}
+    onOpenSelfhood={doNothing}
     onFood={doNothing}
     onMenu={doNothing}
     onNewFood={doNothing}
@@ -46,6 +48,26 @@ describe("Elfie memory visualization SSR boundary", () => {
     // Then: the established empty-state outcome remains available.
     expect(markup).toContain("创建第一只");
     expect(markup).not.toContain("本地开发环境");
+  });
+
+  it("offers the Selfhood module beside the Big Five panel", () => {
+    const session = sessionSchema.parse({
+      elfie_id: "elfie-1",
+      profile: {
+        elfie_id: "elfie-1", name: "艾菲", species_id: "fox", age_years: 4, life_stage: "成年", gender: "female", origin_place_label: "东部森林", big_five: { openness: .5, conscientiousness: .5, extraversion: .5, agreeableness: .5, neuroticism: .5 }, appearance: {},
+        selfhood_projection: { revision: 1, captured_at: "2026-01-01T00:00:00Z", identity_core_text: "我是艾菲", adaptive_self_text: "保持好奇" },
+      },
+      current_state: { energy: 100, fatigue: 0, primary_emotion: "calm", is_sleeping: false },
+      turns: [],
+    });
+
+    const markup = renderSidebar(session);
+    expect(markup).toContain("修改");
+    expect(markup).toContain("Selfhood");
+    expect(markup).not.toContain("生成审查");
+    expect(markup).toContain("4 岁 · 成年");
+    expect(markup).toContain("雌性");
+    expect(markup).toContain("东部森林");
   });
 });
 
@@ -196,6 +218,42 @@ describe("dense memory visualization semantics", () => {
     expect(knowledge).toContain('data-knowledge-relation="conflicts">冲突');
     expect(knowledge).toContain('data-knowledge-relation="revises">修正');
     expect(relationship).toContain("…");
+  });
+
+  it("centers the real elfie node without changing its canonical leaf type", () => {
+    // Given: the backend's canonical Elfie node with an explicit self marker.
+    const canonical = memoryCognitionSchema.parse({
+      relations: {
+        nodes: [
+          { id: "elfie-self", label: "艾菲", kind: "elfie", is_self: true, weight: 1 },
+          { id: "family", label: "领养家庭", kind: "group", weight: 0.9 },
+        ],
+        links: [{ source: "elfie-self", target: "family", label: "属于", relation_kind: "owner", weight: 0.9 }],
+      },
+    });
+
+    // When
+    const markup = renderToStaticMarkup(<RelationshipGraph graph={canonical.relations} />);
+
+    // Then: the actual Elfie remains an Elfie node and is the visual center.
+    expect(markup).toContain('data-memory-node="elfie-self"');
+    expect(markup).toContain('data-node-shape="self"');
+    expect(markup).toContain('class="memory-node self"');
+    expect(markup).toContain('data-memory-node="family"');
+    expect(markup).toContain('class="memory-node group"');
+  });
+
+  it("renders ontology-backed non-person node types with a neutral object shape", () => {
+    // Given: a valid Memory ontology type that is not a person/group/place/Elfie.
+    const graph = memoryCognitionSchema.parse({
+      relations: { nodes: [{ id: "tree", label: "中继树", kind: "organism" }] },
+    }).relations;
+
+    // When: the relationship graph is rendered.
+    const markup = renderToStaticMarkup(<RelationshipGraph graph={graph} />);
+
+    // Then: unknown semantic types do not get mislabeled as people.
+    expect(markup).toContain('data-node-shape="object"');
   });
 
   it("ignores dangling links and renders honest empty states", () => {

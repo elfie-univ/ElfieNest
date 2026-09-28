@@ -93,8 +93,10 @@ def test_new_port_and_model_modules_cannot_use_any() -> None:
     assert offenders == set()
 
 
-def test_registered_api_routes_do_not_duplicate_method_and_path() -> None:
-    application = create_app(db_path=":memory:")
+def test_registered_api_routes_do_not_duplicate_method_and_path(
+    tmp_path: Path,
+) -> None:
+    application = create_app(db_path=str(tmp_path / "nest.db"))
     owners: DefaultDict[Tuple[str, str], List[str]] = defaultdict(list)
     for route in application.routes:
         if not isinstance(route, APIRoute):
@@ -173,12 +175,12 @@ def test_application_contract_has_bilingual_authority_markers() -> None:
     chinese_contract = (
         PROJECT_ROOT / "docs/zh/developer/contracts/application.md"
     ).read_text(encoding="utf-8")
-    assert "**Contract version:** 1.11" in english_contract
-    assert "**契约版本：** 1.11" in chinese_contract
+    assert "**Contract version:** 1.12" in english_contract
+    assert "**契约版本：** 1.12" in chinese_contract
     assert "[service lifecycle contract](service-lifecycle)" in english_contract
     assert "[服务生命周期契约](service-lifecycle)" in chinese_contract
-    assert "immutable published Genesis source registry" in english_contract
-    assert "不可变的已发布 Genesis 资料注册表" in chinese_contract
+    assert "source publication and production activation are" in english_contract
+    assert "源资料发布" in chinese_contract
     assert "must not expose, persist or enforce a species" in english_contract
     assert "不得暴露、持久化或" in chinese_contract
     assert "successful commit or terminal abort" in english_contract

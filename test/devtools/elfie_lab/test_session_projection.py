@@ -27,7 +27,10 @@ def projection_subject():
             ),
         )
 
-    memory = SimpleNamespace(memory_inspection_snapshot=inspection_snapshot)
+    memory = SimpleNamespace(
+        memory_inspection_snapshot=inspection_snapshot,
+        ontology=storage.ontology,
+    )
     yield (
         SimpleNamespace(_memory=memory),
         ElfieSpec(elfie_id="test", name="艾菲"),
@@ -61,14 +64,20 @@ def test_low_data_projection_preserves_existing_payload_shape(tmp_path) -> None:
     # projection keeps the same public payload shape while exposing those
     # initial experiences and world knowledge instead of an empty memory.
     assert projection["topics"]
-    assert len(projection["important_events"]) == 5
+    # Genesis now seeds more than five episodes; the projection keeps the
+    # public shape while applying the bounded MAX_ITEMS view.
+    assert 0 < len(projection["important_events"]) <= 20
     assert all(
         set(event)
         == {"id", "content", "timestamp", "emotion", "importance", "people", "changed"}
         for event in projection["important_events"]
     )
     assert projection["relations"]["nodes"]
-    assert projection["knowledge"]["nodes"]
+    # The text-first Genesis seed keeps world knowledge in Episodes until a
+    # sourced concept graph is available; the public knowledge payload still
+    # exposes its stable empty graph shape.
+    assert projection["knowledge"]["nodes"] == []
+    assert projection["knowledge"]["links"] == []
     assert all(not ring["nodes"] for ring in projection["world_model"]["rings"])
 
 
@@ -79,14 +88,14 @@ def test_projection_caps_collections_and_is_deterministic(projection_subject) ->
         add_node(
             storage,
             f"entity_{index:02d}",
-            "entity",
+            "person",
             f"人物{index:02d}",
             {"importance": index / 24, "entity_type": "human"},
         )
         add_node(
             storage,
             f"knowledge_{index:02d}",
-            "knowledge",
+            "concept",
             f"知识{index:02d}",
             {"importance": index / 24},
         )
@@ -123,14 +132,14 @@ def test_projection_normalizes_malformed_numeric_metadata(projection_subject) ->
         add_node(
             storage,
             f"entity_{index}",
-            "entity",
+            "person",
             f"人物{index}",
             {"importance": raw_weight, "entity_type": "human"},
         )
         add_node(
             storage,
             f"knowledge_{index}",
-            "knowledge",
+            "concept",
             f"知识{index}",
             {"importance": raw_weight, "confidence": raw_weight},
         )
@@ -161,23 +170,22 @@ def test_projection_normalizes_malformed_numeric_metadata(projection_subject) ->
 def test_knowledge_links_preserve_stored_direction(projection_subject) -> None:
     # Given
     elfie, spec, storage = projection_subject
-    add_node(storage, "premise", "knowledge", "天空有云")
-    add_node(storage, "conclusion", "knowledge", "可能会下雨")
+    add_node(storage, "premise", "concept", "天空有云")
+    add_node(storage, "conclusion", "concept", "可能会下雨")
     add_edge(storage, "premise", "conclusion", "supports", 0.8)
 
     # When
     links = _memory_cognition_projection(elfie, spec)["knowledge"]["links"]
 
     # Then
-    assert links == [
-        {
-            "source": "premise",
-            "target": "conclusion",
-            "label": "supports",
-            "relation_kind": "supports",
-            "weight": 0.8,
-        }
-    ]
+    assert len(links) == 1
+    assert links[0]["source"] == "premise"
+    assert links[0]["target"] == "conclusion"
+    assert links[0]["label"] == "支持"
+    assert links[0]["relation_kind"] == "supports"
+    assert links[0]["weight"] == 0.8
+    assert str(links[0]["id"]).startswith("assertion:")
+    assert links[0]["evidence_ids"]
 
 
 def test_self_relation_requires_and_uses_explicit_entity_metadata(
@@ -185,38 +193,72 @@ def test_self_relation_requires_and_uses_explicit_entity_metadata(
 ) -> None:
     # Given
     elfie, spec, storage = projection_subject
-    add_node(storage, "owner", "entity", "小真", {"entity_type": "human"})
+    add_node(
+        storage,
+        "self-node",
+        "elfie",
+        "艾菲",
+        {"entity_type": "elfie", "is_self": True},
+    )
+    add_node(storage, "owner", "person", "小真", {"entity_type": "human"})
     add_node(
         storage,
         "friend",
-        "entity",
+        "elfie",
         "阿沐",
         {
             "entity_type": "elfie",
-            "relationship": "朋友",
-            "relation_kind": "friend",
             "importance": 0.9,
         },
     )
+    add_edge(storage, "self-node", "friend", "friend", 0.9)
 
     # When
     relations = _memory_cognition_projection(elfie, spec)["relations"]
 
     # Then
-    assert relations["links"] == [
-        {
-            "source": "self",
-            "target": "friend",
-            "label": "朋友",
-            "relation_kind": "friend",
-            "weight": 0.9,
-        }
-    ]
-    assert {node["id"]: node["kind"] for node in relations["nodes"]} == {
-        "self": "self",
-        "friend": "elfie",
-        "owner": "human",
+    assert len(relations["links"]) == 1
+    assert {relations["links"][0]["source"], relations["links"][0]["target"]} == {
+        "self-node",
+        "friend",
     }
+    assert relations["links"][0]["label"] == "朋友"
+    assert relations["links"][0]["evidence_ids"]
+    assert (
+        next(node for node in relations["nodes"] if node["id"] == "self-node")[
+            "is_self"
+        ]
+        is True
+    )
+    assert {node["id"]: node["kind"] for node in relations["nodes"]} == {
+        "self-node": "elfie",
+        "friend": "elfie",
+        "owner": "person",
+    }
+
+
+def test_relationship_predicate_uses_sourced_role_for_display(
+    projection_subject,
+) -> None:
+    # Given
+    elfie, spec, storage = projection_subject
+    add_node(storage, "self-node", "elfie", "艾菲", {"is_self": True})
+    add_node(storage, "friend", "elfie", "阿沐")
+    add_edge(
+        storage,
+        "self-node",
+        "friend",
+        "relationship",
+        context="elfie_to_elfie:friend",
+    )
+
+    # When
+    links = _memory_cognition_projection(elfie, spec)["relations"]["links"]
+
+    # Then
+    assert links[0]["predicate"] == "relationship"
+    assert links[0]["relation_kind"] == "friend_of"
+    assert links[0]["label"] == "朋友"
 
 
 def test_relationship_projection_keeps_self_and_cross_entity_links(
@@ -224,19 +266,25 @@ def test_relationship_projection_keeps_self_and_cross_entity_links(
 ) -> None:
     # Given
     elfie, spec, storage = projection_subject
+    add_node(
+        storage,
+        "self-node",
+        "elfie",
+        "艾菲",
+        {"entity_type": "elfie", "is_self": True, "importance": 1.0},
+    )
     for index in range(19):
         add_node(
             storage,
             f"entity_{index:02d}",
-            "entity",
+            "person",
             f"人物{index:02d}",
             {
                 "entity_type": "human",
-                "relationship": "认识",
-                "relation_kind": "acquaintance",
                 "importance": 1 - index / 20,
             },
         )
+        add_edge(storage, "self-node", f"entity_{index:02d}", "acquaintance", 0.8)
     for index in range(12):
         add_edge(
             storage,
@@ -251,12 +299,58 @@ def test_relationship_projection_keeps_self_and_cross_entity_links(
 
     # Then
     assert len(links) == 31
-    assert sum(link["source"] == "self" for link in links) == 19
-    assert sum(link["source"] != "self" for link in links) == 12
-    assert {link["label"] for link in links if link["source"] != "self"} == {
-        "家人",
+    assert {
+        link["label"]
+        for link in links
+        if link["source"] != "self-node" and link["target"] != "self-node"
+    } == {
+        "家人（具体关系未知）",
         "朋友",
     }
+    assert (
+        sum(
+            link["source"] == "self-node" or link["target"] == "self-node"
+            for link in links
+        )
+        == 19
+    )
+
+
+def test_explicit_pairwise_endpoints_survive_the_bounded_relation_view(
+    projection_subject,
+) -> None:
+    # Given
+    elfie, spec, storage = projection_subject
+    for index in range(20):
+        add_node(
+            storage,
+            f"world-{index:02d}",
+            "place",
+            f"世界锚点{index:02d}",
+            {"importance": 0.9},
+        )
+    add_node(storage, "childhood-a", "elfie", "Ari", {"importance": 0.1})
+    add_node(storage, "childhood-b", "elfie", "Ena", {"importance": 0.1})
+    add_edge(
+        storage,
+        "childhood-a",
+        "childhood-b",
+        "friend_of",
+        0.1,
+        context="relation|explicit_pairwise_relation|symmetry=symmetric|specificity=childhood_companion",
+    )
+
+    # When
+    relations = _memory_cognition_projection(elfie, spec)["relations"]
+
+    # Then
+    assert {node["label"] for node in relations["nodes"]} >= {"Ari", "Ena"}
+    assert any(
+        link["label"] == "朋友"
+        and link["symmetric"] is True
+        and {link["source"], link["target"]} == {"childhood-a", "childhood-b"}
+        for link in relations["links"]
+    )
 
 
 def test_important_event_uses_importance_then_intensity_fallback(
@@ -370,7 +464,7 @@ def test_world_model_caps_nodes_globally_across_rings(projection_subject) -> Non
         add_node(
             storage,
             f"world_{index:02d}",
-            "knowledge",
+            "concept",
             f"世界认知{index:02d}",
             {"world_ring": ring_kinds[index % 5], "importance": index / 24},
         )
@@ -391,18 +485,18 @@ def test_world_model_has_fixed_five_rings_without_fabricated_nodes(
     add_node(
         storage,
         "world",
-        "knowledge",
+        "concept",
         "世界仍在展开。",
         {"core_key": "world"},
     )
     add_node(
         storage,
         "home_rule",
-        "knowledge",
+        "concept",
         "回家后先擦脚",
         {"world_ring": "nest", "importance": 0.8},
     )
-    add_node(storage, "unclassified", "knowledge", "雨水会打湿毛发")
+    add_node(storage, "unclassified", "concept", "雨水会打湿毛发")
 
     # When
     projection = _memory_cognition_projection(elfie, spec)
@@ -422,7 +516,7 @@ def test_world_model_has_fixed_five_rings_without_fabricated_nodes(
         {
             "id": "home_rule",
             "label": "回家后先擦脚",
-            "kind": "knowledge",
+            "kind": "concept",
             "weight": 0.8,
         }
     ]

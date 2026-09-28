@@ -56,14 +56,13 @@ class MemoryTurnOpened(FrozenContractModel):
 
 
 class MemoryRecallRequestObservation(FrozenContractModel):
-    """Bound fields of the ``RecallRequest`` the bridge pinned (sample C-2).
+    """Semantic input summary and resource bounds for one Recall request."""
 
-    Mirrors the seven bounds ``ReasoningMemoryBridge._request`` sets on the
-    typed ``RecallRequest``; the request's remaining inherited defaults are
-    outside the sample's ``request`` granularity and stay unrecorded.
-    """
-
-    mode: str
+    has_query: bool
+    sense_emotion: Optional[str] = None
+    kinship_relation: Optional[str] = None
+    record_kinds: Tuple[str, ...] = ()
+    has_filters: bool = False
     seed_limit: int = Field(ge=0)
     node_limit: int = Field(ge=0)
     assertion_limit: int = Field(ge=0)

@@ -4,7 +4,7 @@
 > [Elfie internal architecture contract](../contracts/elfie). It records the
 > evidence for closed slices and the exact current gaps without weakening the target. Rows
 > ELF-001 through ELF-009 record the Ports/Adapters migration; ELF-010 onward
-> records the life-system work adopted by the current contract version 2.5.
+> records the life-system work adopted by the current contract version 2.6.
 
 ## Conformance closure
 
@@ -29,7 +29,35 @@
 | ELF-017 | P0 | closed | Orientation and Selfhood are independent authorities. The generic continuity checkpoint contains Energy, Memory, Motivation, Cognitive Consolidation and conversation state, but deliberately excludes Selfhood and Orientation; Selfhood restores from its own sole durable document, Orientation is re-sourced, and short-lived Emotion returns to its personality-derived baseline on sleep or restart. | Focused state, settlement and cross-module recovery tests cover explicit ownership, source/version rules, separate durable-owner restore, process-local Emotion restart, stale checkpoint rejection and single-message resistance for personality and norms. | target=ELF-017 continuous life state and ADR-0030/0031; inventory=Brain state owners, Selfhood store and continuity; references=checkpoint/settlement guards; verification=state and cross-module recovery tests; residuals=none |
 | ELF-018 | P0 | open | The three Brain domains and dynamic catalog path are implemented; the real Godot room now proves movement, terminal Body feedback, targeted hearing, semantic vision, touch and proprioceptive position under the stage-one Brain-owned Mock mode. | Keep exactly `Communication`/`Embodied`/`Activity`; keep `ACCEPTED`/`STARTED` in the ledger; publish one terminal embodied outcome plus compatible body facts through EventWorkspace; separately evidence live model-driven control. Hearing/vision/touch/position scenarios are now evidenced. | target=ADR-0033 and Brain/Elfie/System/Nest-Godot contracts v1.7/2.4/1.10/1.2; inventory=Brain workspace/decision types, Body/NervousSystem, Godot Adapter/Transport/Gateway and vertical-slice plan; references=dynamic capability catalog, scoped receipt payloads, Brain-owned Mock controller and real-room E2E harness; verification=relevant Python regression 825/825, architecture suite 229/229, real Godot room E2E `build/e2e/brain-godot-live` with scene manifest, `world_ready`, actual movement, `speech_reach`, `visual_observation`, targeted Body inputs and terminal outcomes, plus compile/lint; residuals=external physical body, v2 async submission/receipt stream and live model-driven embodied control remain open |
 
+## Genesis v1 gap
+
+| ID | Severity | Status | Current deviation | Closure gate | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| ELF-019 | P0 | open | The published `config/genesis/` package is now the sole creation source and the old production paths are removed (CFG-006 closed). Remaining gaps are end-to-end life feasibility, accepted-input/version binding, complete personal knowledge/relationship/Episode/Selfhood projection, and Nest-backed admission confirmation. Durable Genesis publication currently precedes runtime registration; runtime recovery is separate. | Close the remaining semantic and admission gates below on the existing single creation path. Preserve source-free restore, the activated package binding, and final-owner authority; do not add a second source path. | target=Elfie 2.6, Application 1.12, Configuration 1.7, ADR-0033/0040; inventory=Bootstrap source, Adoption candidate/session, Genesis compiler/initializer, Memory, Admission, Nest and UI; references=`config/genesis/program.yaml`, ADR-0033/0040, `app_wiring/adoption.py`, `compiler.py`, `initializer.py`, `resident_admission/service.py`; verification=focused characterization, package/feasibility, five-gate semantic, Memory Recall and interrupted-admission checks; residuals=the six remaining closure slices below. |
+
 **Closure state:** open
+
+## Accepted Genesis design alignment
+
+The [Genesis complete design](../designs/elfie/genesis-complete-design.md), version 1.0,
+is the sole maintained detailed design. ELF-019 remains **open**. Its existing closure
+slices also cover the following accepted targets; these rows are not new independent registers.
+
+| Target within ELF-019 | Inventory and references | Verification required | Residual |
+| --- | --- | --- | --- |
+| Versioned individual policy | Generation source `generation#11`; Program rules and typed Genesis consumer | Compile role/importance, purpose, culture/species attraction, visit gates and numeric sampler versions; validate references and distributions | Program v8 binds candidate age/budget, family child-count and lifespan policy, relationship importance, region-specific base visit probabilities, cultural/species attraction, purpose-specific social/curiosity/risk axes, and a zero-heavy repeat-count sampler with configured power and cap, plus youth-care feasibility, a 196-day local-calendar ceiling and a 10% lifetime cross-region travel cap. Focused tests verify package decoding, the large zero mass and steep positive-count tail, conditioned-lifespan CDF, equal-weight legal birth-year subsets and constrained visit scheduling; full cross-product calibration, fixed sampler vectors and remaining unbound source values stay open |
+| Candidate age and family graph | Candidate registry; Genesis life construction; design 3.1 and 6.5.3 | Respect selected stage and four-year lifetime margin; shared parent child sets, anchored protagonist, bounded expansion, legal births/ranks, life status and care | Parent/partner unions draw one bounded target and choose distinct legal birth years without replacement; both parents persist the same child/rank set including the protagonist's rank on the self node. Parent age/life-stage gates constrain birth years, elder parents do not force a grandparent branch, and conditioned lifespan drives current status and known death Episodes. Lab default age selection now uses the same Program stage prior and four-year terminal reserve, with fixed-boundary and explicit-age tests. Full life-stage care and population calibration remain open |
+| Contacts, trips and chronology | Genesis life/plan generation; design 6.5.4–6.5.7 | Stable friendship draws, no recursive family expansion, no opportunity double counting; route/permission/time checks, repeated visits and stays, personal-knowledge filtering | Friend candidates use deterministic cumulative contact strength with age, personality and archetype weighting, capped at two and forced only for a required friend role. Visit opportunities use one probability draw and a separate zero-heavy repeat-count draw; probability combines the configured base and normalized distance, region, species, age and purpose-personality factors. A sampled group count bounds its primary place, while incidental group places are added once to a selected trip. Trips are assigned to eligible age-years and checked against route cost plus stay, the local-calendar ceiling and the cross-region cap; each visit Episode stores travel days and only route aliases supported by that trip. Work/school time is not deducted because the published inputs define no usable-day schedule; full distribution calibration, fixed sampler vectors, permission-specific activity evidence, town-resident calibration and end-to-end acceptance remain open |
+| Earthbound station source consistency | Geography station parent plus resident units B-03, B-03-02, B-06-09, B-06-17 and E-08 | Station is an independent facility in the territory, not a town-center visit; split mixed-condition units with stable old/new mapping, synchronize source/compiled conditions and digests; outside-center departure gains no center knowledge | Source/Markdown, geography member and Program references are aligned; Program v8 keeps place/route registries and typed Program access rules. Mandatory station travel is computed from the actual home cell; `earthbound_road` is familiar and attached to departure only when its complete registered segment is traversed. The initial station/town graph assertion is verified locally. End-to-end admission and Recall evidence remain under the public-geography slice |
+| Public geography, stories and knowledge | Resident baseline units listed in design 6.5.5; plan and Memory input | Every required known place/relation and unconditional unit is materialized; every actual visit and required life event has evidence; full text and event-time eligibility survive story rendering | The current slice persists published place nodes with hierarchy and semantic region attributes, reviewed spatial relations, evidence-backed `visits`/`witnessed` edges, route IDs and travel-day/visit-age metadata, family rank and child-count facts, known post-birth family milestones/deaths, and acquired-knowledge evidence age. The published route model has endpoints and grid-hop rules but no reviewed named intermediate waypoints; no intermediate landmark can be inferred safely. Program's 16 `rules.events.templates` currently decode to ID-only placeholders, and the compiler does not consume their prerequisite rules. Current Episodes are grounded chronology/route summaries; detailed story selection and coverage remain open alongside visit and Recall evidence |
+| Final owners and Lab | Selfhood/Memory submissions; Lab owner projections; design 5.4 and 6.5.10 | Inspect Profile origin/age/sex, stored Selfhood plus assembled output, episodes/people/places/knowledge and selected/rejected reasons through one creation | The Lab now stores a same-compile review record outside the Elfie workspace: all source knowledge text, conditions/difficulty, selected state and decision/reason, source/policy/compiler bindings, LifeContext mobility, and the submitted Profile/Selfhood/Memory seeds. It also derives the official Selfhood prompt projection and reveals its two text blocks on demand while keeping structured state as the default. The Memory panel opens a review modal with selected/unselected filtering and source-vs-submitted text; its graph remains the persisted-memory inspection surface. API, recycle and focused frontend tests cover the path. ELF-019 stays open: Lab still uses its local compiler/workspace path rather than the real Adoption→Admission→Nest path; named intermediate route waypoints are absent from source; crash/concurrency and Admission-to-Nest evidence remain unverified |
+
+This implementation slice updates visit probability and repeat-count sampling in Program v8
+and retains travel-day details in Episode metadata. It does not change source-world facts, database
+tables or admission status. Existing source inconsistencies are explicit activation
+gates, not permission to weaken eligibility. Closure still requires the target,
+inventory, references, verification and residuals evidence required by this register.
+
 
 ## Machine coverage
 
@@ -43,8 +71,9 @@ slices.
 
 The earlier Ports/Adapters and life-system rows retain their evidence. The v0.2
 Profile and Genesis ownership gaps in ELF-010 and ELF-013 are closed for the
-current implementation; embodied-control gaps in ELF-018, real-workspace migration and external
-model/embodiment acceptance remain separate gates. Contract 2.5 reuses these boundaries and
+current implementation; the full Genesis v1 behavior remains open in ELF-019.
+Embodied-control gaps in ELF-018, real-workspace migration and external
+model/embodiment acceptance remain separate gates. Contract 2.6 reuses these boundaries and
 existing baselines; it does not create a second legacy baseline. This register is not a second runtime
 authority or permission to add compatibility fields.
 
@@ -74,7 +103,90 @@ the old path, then close only the matching row.
 6. bounded Motivation and Cognitive Consolidation close ELF-015;
 7. Genesis now closes ELF-013 for the v0.2 structural slice: semantic compilation is in `elfie/genesis`, creation inputs are transaction-only, and final-owner/source-isolation evidence exists.
 
-The detailed execution plan is a separate implementation artifact. It may split
-these rows into smaller acceptance slices but cannot reorder Motivation ahead of
-Activity, remove one-body authority, add compatibility storage or redefine the
-owners fixed by the contract.
+## Genesis v1 closure order
+
+The Genesis v1 closure order is recorded below. CFG-006 is now closed; the
+remaining items describe separate open implementation gates:
+
+1. **Typed source and product cutover (`CFG-006`; closed).** The published
+   `config/genesis/program.yaml` manifest and its 18 members feed the typed
+   creation and availability views. Adoption and Genesis use this single source;
+   old production config files are removed, and Myelle remains excluded as
+   draft. Check: package integrity, closed inventory, release-manifest coverage
+   and persisted Adoption/Memory E2E.
+2. **Geography and life-feasibility primitives (`elfie/genesis`).** Use the 100
+   cells, 83 birth-eligible cells, allowed species regions, 16 ordered land chains,
+   local same-subregion adjacency and the four registered ferry ports from that
+   view. Expose legal paths and travel
+   days (two per land edge, three per water edge), not invented straight lines.
+   Check: known routes, ordinary ferry access to the lake island, blocked
+   land crossing, inaccessible Cloudcrown and unregistered dungeon access, plus
+   feasible birth/guardian/learning/arrival witnesses for eligible stages.
+3. **Candidate gate (`Adoption`, `GenesisEngine`).** Validate hard choices and
+   supported age/appearance; generate five distinct candidates where feasible
+   within 12 complete-candidate attempts per batch (the existing 96 internal
+   appearance proposals are not extra attempts), each with a life witness before
+   display. The five questionnaire answers affect personality only.
+   Preserve the existing 1–3 invitations and deterministic reply semantics.
+   Check: five-way diversity, age ≥2, impossible-choice explanation, no
+   unproven candidate display and no Myelle option while draft.
+4. **Acceptance freeze (`Adoption`, Admission reservation).** Atomically bind
+   the accepted candidate/name, package/policy/compiler revisions, seed, time
+   anchor and idempotency key in a private durable envelope. Validate the name
+   as data, including Unicode/control/reserved-character rules. Published replies
+   never change, and restart or candidate TTL cannot regenerate an accepted
+   identity. Check: duplicate/changed clicks, expiry, package revocation and
+   restart all preserve or reject the *same* reservation.
+5. **LifeContext (`elfie/genesis/compiler.py`).** Choose an allowed region
+   uniformly, then a birth cell uniformly within it; build private home,
+   age-valid care, one real apprenticeship when applicable, work and actual
+   journeys in chronological order. Actual visit is distinct from reachability;
+   arrival needs consent, age ≥2 and the simple three-local-day preparation.
+   Check: boundary cells, missing guardian/teacher/route and youth cases fail
+   cleanly; every selected route and event slot is time/space-valid.
+6. **Personal plan (`elfie/genesis`, Selfhood).** Evaluate the four declared
+   knowledge condition leaves against evidence at the time of acquisition;
+   draw difficulty once and keep the entire resident paragraph or none. Build
+   actual people/relationships, necessary complete Episodes (normally at least
+   five, with the youth exception and no padding), personal life facts and
+   closed Selfhood mapping without quotas or generic personality fallback.
+   Model wording may only project fixed facts. Check: no self-supporting
+   knowledge/event, no invented stranger,
+   youth episode exception, no discarded life fact or unknown mapping.
+7. **Bundle, Memory and determinism (`elfie/genesis/initializer.py`).** Jointly
+   validate identity/age, timeline, routes, relationships, knowledge, Selfhood
+   and final-owner references; use versioned canonical SHA-256 domains and
+   bounded dependency-aware backtracking. Submit only knowledge, relationships
+   and episodes through Memory's existing atomic source-first entry; index
+   objects to their actual evidence, not the first Episode by default. Check:
+   fixed vectors, retry equivalence, failure atomicity, source-free reopen and
+   Recall with no unearned facts or technical markers.
+8. **Admission transaction (`resident_admission`, Adoption, Nest).** Extend the
+   current durable state machine with a real Nest bed reservation/confirmation,
+   execution fencing, package-revocation ordering, compensation and status/
+   cancellation. `committed` is the activation fence only after all three owner
+   results; Runtime connection follows it. Check: concurrency, duplicate calls,
+   each crash window, cancellation before/after publication and no partially
+   visible resident.
+Each slice first characterizes the existing path and then changes only its
+owner. No fallback, dual-read period, new life generator or Profile/Canon runtime
+dependency is permitted. The closed ELF-013 structural slice stays closed;
+ELF-019 remains open until its remaining generation and admission evidence exists.
+CFG-006 is closed in the [configuration-management register](configuration-management).
+Migration of existing real workspaces and Myelle role-asset completion are
+separate scopes; neither is hidden inside Genesis v1 cutover.
+
+
+### Review and execution acceptance additions
+
+ELF-019 tracks implementation and acceptance gaps; open does not mean the detailed design is unfinished. Close individual slices with evidence, then the whole row only when all targets pass. CFG-006 closes the single creation-source entry, not content correctness or complete consumption. Existing single-source, Genesis-decision and Memory-ownership contracts apply without another interface.
+
+| Order / existing owner | Concrete task | Acceptance and current state |
+| --- | --- | --- |
+| 1 / geography source, member and configuration Adapter | One place/route registry, five-district hierarchy, descriptions and private hometown attachment | Source, YAML and parent projection corrected; check exactly five direct districts, peer center/station, no cycles and external regions outside town. The typed package now also carries the reviewed land backbone, ferry edges, island landing and local-day policy; internal sampling codes still need public Memory filtering and full description coverage |
+| 2 / Program and Genesis compiler | Compile frozen parameters into typed inputs; consume districts, roads and age/family/visit policies | Every parameter has provenance, a consumer and boundary cases; missing inputs block publication/generation, without hidden defaults. The compiler rejects a birthplace without a legal route to the station and records deterministic path/day evidence; the shared family graph, legal child years, ranks, conditioned life status and known death Episodes now have focused evidence. Full life-stage care/coverage, permissions, complete visit chronology and bounded backtracking remain open |
+| 3 / resident compilation and Genesis | Declare small-topic membership; select eligible units before organizing full text, preserving time and atomic boundaries | The resident member now declares an explicit small-topic bucket. Genesis writes the selected member IDs, order and complete source text into each source Episode; eligibility still runs before this organization. Full cross-version package coverage remains an acceptance gate |
+| 4 / Memory and Recall | Submit bounded groups through existing APSO, retain fact evidence, expand acquired topic siblings after retrieval | Source-first APSO input remains one complete Episode per fact. Recall now expands only acquired siblings in the same declared bucket, honors the existing time/namespace filters, and exposes omitted members plus a continuation reference. Large-group and end-to-end source-free acceptance remain open |
+| 5 / Lab and Admission | Inspect geography, full life history and grouped knowledge through the same generator; complete existing admission gates | Lab grouped knowledge detail is implemented. Admission now follows materialize → Nest confirmation → `committed`, with Runtime registration after activation. Real Nest reservation, crash/concurrency and end-to-end same-path acceptance remain open; UI display or package validation cannot prove completion |
+
+Preserve Bootstrap → Adoption → Genesis → final owners → Admission, version bindings, relationship/episode evidence and source-free restore. Extend existing owners in dependency order. Geography corrections and the first knowledge-organization slice are implemented; full Genesis-v1 semantic and retrieval acceptance remains open. Unverified runtime/retrieval effects remain open. Remaining numeric policies, size limits and topic mappings enter the versioned package and require real consumers.

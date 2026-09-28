@@ -48,6 +48,7 @@ class ConfigDocumentId(str, Enum):
     NEST_DEFAULTS = "nest_defaults"
     SPECIES_CATALOG = "species_catalog"
     GENESIS_SOURCE_PACKAGE = "genesis_source_package"
+    MEMORY_ONTOLOGY = "memory_ontology"
     RUNTIME_SETTINGS = "runtime_settings"
     PROVIDER_CONNECTIONS = "provider_connections"
     TOOL_SETTINGS = "tool_settings"
@@ -214,7 +215,7 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
     ),
     ConfigDocumentId.SPECIES_CATALOG: ConfigDocumentSpec(
         ConfigDocumentId.SPECIES_CATALOG,
-        "species/catalog.yaml",
+        "genesis/species/catalog.yaml",
         None,
         1,
         ConfigPolicy.BUNDLED_ONLY,
@@ -227,13 +228,26 @@ CONFIG_DOCUMENTS: Mapping[ConfigDocumentId, ConfigDocumentSpec] = {
     ),
     ConfigDocumentId.GENESIS_SOURCE_PACKAGE: ConfigDocumentSpec(
         ConfigDocumentId.GENESIS_SOURCE_PACKAGE,
-        "world/elfaria.yaml",
+        "genesis/program.yaml",
         None,
         1,
         ConfigPolicy.BUNDLED_ONLY,
         "elfie.genesis",
         True,
-        "genesis-source-package-v1",
+        "genesis-program-v1",
+        "immutable-bundled",
+        "bootstrap",
+        "fail-closed",
+    ),
+    ConfigDocumentId.MEMORY_ONTOLOGY: ConfigDocumentSpec(
+        ConfigDocumentId.MEMORY_ONTOLOGY,
+        "memory/ontology.yaml",
+        None,
+        1,
+        ConfigPolicy.BUNDLED_ONLY,
+        "elfie.brain.memory",
+        True,
+        "memory-ontology-v1",
         "immutable-bundled",
         "bootstrap",
         "fail-closed",

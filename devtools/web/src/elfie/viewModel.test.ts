@@ -6,6 +6,7 @@ import {
   detailTitle,
   formatSignedDelta,
   latestSuccessfulFoodKey,
+  randomCreationValues,
   selectReadyFoodAfterLoad,
   selectElfieIdAfterLoad,
 } from "./viewModel";
@@ -24,13 +25,27 @@ describe("Elfie Lab view model", () => {
   });
 
   it("rejects non-positive and non-numeric adoption ages before sending", () => {
-    expect(creationAgeError("0")).toBe("年龄必须是 1 到 20 岁之间的整数");
-    expect(creationAgeError("-1")).toBe("年龄必须是 1 到 20 岁之间的整数");
-    expect(creationAgeError("not-a-number")).toBe("年龄必须是 1 到 20 岁之间的整数");
-    expect(creationAgeError("2.5")).toBe("年龄必须是 1 到 20 岁之间的整数");
-    expect(creationAgeError("23")).toBe("年龄必须是 1 到 20 岁之间的整数");
+    expect(creationAgeError("0")).toBe("年龄必须是 2 到 20 岁之间的整数");
+    expect(creationAgeError("-1")).toBe("年龄必须是 2 到 20 岁之间的整数");
+    expect(creationAgeError("1")).toBe("年龄必须是 2 到 20 岁之间的整数");
+    expect(creationAgeError("not-a-number")).toBe("年龄必须是 2 到 20 岁之间的整数");
+    expect(creationAgeError("2.5")).toBe("年龄必须是 2 到 20 岁之间的整数");
+    expect(creationAgeError("23")).toBe("年龄必须是 2 到 20 岁之间的整数");
     expect(creationAgeError("15", "fox")).toBeNull();
-    expect(creationAgeError("16", "fox")).toBe("年龄必须是 1 到 15 岁之间的整数");
+    expect(creationAgeError("16", "fox")).toBe("年龄必须是 2 到 15 岁之间的整数");
+  });
+
+  it("prepares concrete creation values before advanced controls are opened", () => {
+    const low = randomCreationValues("dog", () => 0);
+    const high = randomCreationValues("fox", () => 0.999999);
+    expect(low).toEqual({
+      age: 2,
+      gender: "female",
+      bigFive: { openness: 0.2, conscientiousness: 0.2, extraversion: 0.2, agreeableness: 0.2, neuroticism: 0.2 },
+    });
+    expect(high.age).toBe(15);
+    expect(high.gender).toBe("male");
+    expect(Object.values(high.bigFive)).toEqual([0.8, 0.8, 0.8, 0.8, 0.8]);
   });
 
   it("ignores a second creation submission until the first one finishes", () => {

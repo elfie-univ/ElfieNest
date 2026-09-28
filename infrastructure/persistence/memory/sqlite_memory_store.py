@@ -11,8 +11,16 @@ from threading import Lock, RLock
 from types import TracebackType
 from typing import Final, Iterator
 
+from elfie.brain.memory.memory_records import GenesisSubmissionReceipt
+from elfie.brain.memory.memory_store import GenesisSubmissionConflict
+from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.brain.observation import BrainObservationSink
+from infrastructure.persistence.memory.ontology_loader import (
+    load_core_memory_ontology,
+)
 from infrastructure.persistence.memory.schema import (
+    FTS_AUXILIARY_TABLES,
+    FTS_SHADOW_TABLES,
     INDEX_SQL,
     KNOWLEDGE_TABLES,
     SCHEMA_SQL,
@@ -29,7 +37,11 @@ from infrastructure.persistence.memory.sqlite_lifecycle_store import (
 from infrastructure.persistence.memory.sqlite_retrieval_store import (
     SQLiteRecallStoreMixin,
 )
-from infrastructure.persistence.memory.sqlite_utils import utc_now
+from infrastructure.persistence.memory.sqlite_utils import (
+    json_object,
+    normalized_tokens,
+    utc_now,
+)
 from infrastructure.persistence.nest_db.sqlite_connection import (
     UnsafeSQLitePathError,
     connect_app_sqlite,
@@ -85,8 +97,10 @@ class SQLiteMemoryStoreAdapter(
         db_path: str | Path,
         elfie_id: str | None = None,
         observation_sink: BrainObservationSink | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> None:
         self._db_path = self._parse_path(db_path)
+        self.ontology = ontology or load_core_memory_ontology()
         if elfie_id is not None and not elfie_id.strip():
             raise ValueError("elfie_id must not be blank")
         self.elfie_id = elfie_id
@@ -111,9 +125,15 @@ class SQLiteMemoryStoreAdapter(
         cls,
         elfie_id: str | None = None,
         observation_sink: BrainObservationSink | None = None,
+        ontology: MemoryOntologySnapshot | None = None,
     ) -> SQLiteMemoryStoreAdapter:
         """Create an isolated in-memory store for tests and explicit tooling."""
-        return cls(":memory:", elfie_id=elfie_id, observation_sink=observation_sink)
+        return cls(
+            ":memory:",
+            elfie_id=elfie_id,
+            observation_sink=observation_sink,
+            ontology=ontology,
+        )
 
     def bind_observation_sink(self, sink: BrainObservationSink | None) -> None:
         """Attach the recall-selection observation sink exactly once."""
@@ -251,15 +271,17 @@ class SQLiteMemoryStoreAdapter(
             ).fetchone()
             if existing is not None:
                 if str(existing["content_sha256"]) != content_sha256:
-                    raise ValueError(
-                        "Genesis submission identity was reused with a different hash"
+                    raise GenesisSubmissionConflict(
+                        "identity",
+                        "Genesis submission identity was reused with a different hash",
                     )
                 if (
                     str(existing["manifest_id"]) != manifest_id
                     or str(existing["source_version"]) != source_version
                 ):
-                    raise ValueError(
-                        "Genesis submission identity was reused with different metadata"
+                    raise GenesisSubmissionConflict(
+                        "identity",
+                        "Genesis submission identity was reused with different metadata",
                     )
                 if expected_ids:
                     expected_ids_hash = hashlib.sha256(
@@ -268,8 +290,9 @@ class SQLiteMemoryStoreAdapter(
                         )
                     ).hexdigest()
                     if str(existing["expected_ids_hash"]) != expected_ids_hash:
-                        raise ValueError(
-                            "Genesis submission identity was reused with different output IDs"
+                        raise GenesisSubmissionConflict(
+                            "output_ids",
+                            "Genesis submission identity was reused with different output IDs",
                         )
                 yield False
                 return
@@ -282,11 +305,42 @@ class SQLiteMemoryStoreAdapter(
                     (str(self.elfie_id), manifest_id),
                 ).fetchone()
                 if prior_manifest is not None:
-                    raise ValueError(
-                        "an Elfie cannot accept a different Genesis manifest"
+                    raise GenesisSubmissionConflict(
+                        "manifest",
+                        "an Elfie cannot accept a different Genesis manifest",
+                    )
+                identity_tables = (
+                    ("nodes", "node_id"),
+                    ("episodes", "episode_id"),
+                    ("node_aliases", "alias_id"),
+                    ("node_descriptions", "description_id"),
+                    ("episode_mentions", "mention_id"),
+                    ("assertions", "assertion_id"),
+                    ("evidence", "evidence_id"),
+                )
+                reused_output_ids: list[str] = []
+                for identifier in expected_ids:
+                    for table, column in identity_tables:
+                        owner = self.conn.execute(
+                            f"SELECT genesis_submission_id FROM {table} "
+                            f"WHERE {column}=?",
+                            (identifier,),
+                        ).fetchone()
+                        if (
+                            owner is not None
+                            and owner[0] is not None
+                            and str(owner[0]) != submission_id
+                        ):
+                            reused_output_ids.append(identifier)
+                            break
+                if reused_output_ids:
+                    raise GenesisSubmissionConflict(
+                        "output_owner",
+                        "Genesis output ID already belongs to another submission: "
+                        + ", ".join(reused_output_ids[:8]),
                     )
                 # A second adapter may have waited on SQLite's writer lock
-                # after the optimistic pre-check above. Re-check the marker
+                # after the optimistic pre-check above. Re-check the ledger
                 # inside the transaction so a concurrent exact retry returns
                 # the same idempotent result instead of surfacing a UNIQUE
                 # violation.
@@ -299,15 +353,17 @@ class SQLiteMemoryStoreAdapter(
                 ).fetchone()
                 if committed is not None:
                     if str(committed["content_sha256"]) != content_sha256:
-                        raise ValueError(
-                            "Genesis submission identity was reused with a different hash"
+                        raise GenesisSubmissionConflict(
+                            "identity",
+                            "Genesis submission identity was reused with a different hash",
                         )
                     if (
                         str(committed["manifest_id"]) != manifest_id
                         or str(committed["source_version"]) != source_version
                     ):
-                        raise ValueError(
-                            "Genesis submission identity was reused with different metadata"
+                        raise GenesisSubmissionConflict(
+                            "identity",
+                            "Genesis submission identity was reused with different metadata",
                         )
                     if expected_ids:
                         expected_ids_hash = hashlib.sha256(
@@ -316,8 +372,9 @@ class SQLiteMemoryStoreAdapter(
                             )
                         ).hexdigest()
                         if str(committed["expected_ids_hash"]) != expected_ids_hash:
-                            raise ValueError(
-                                "Genesis submission identity was reused with different output IDs"
+                            raise GenesisSubmissionConflict(
+                                "output_ids",
+                                "Genesis submission identity was reused with different output IDs",
                             )
                     self._commit_write_transaction(owns)
                     yield False
@@ -325,15 +382,6 @@ class SQLiteMemoryStoreAdapter(
                 self._active_genesis_submission_id = submission_id
                 yield True
                 if expected_ids:
-                    identity_tables = (
-                        ("nodes", "node_id"),
-                        ("episodes", "episode_id"),
-                        ("node_aliases", "alias_id"),
-                        ("node_descriptions", "description_id"),
-                        ("episode_mentions", "mention_id"),
-                        ("assertions", "assertion_id"),
-                        ("evidence", "evidence_id"),
-                    )
                     missing = [
                         identifier
                         for identifier in expected_ids
@@ -403,19 +451,40 @@ class SQLiteMemoryStoreAdapter(
     def genesis_submission_status(
         self, submission_id: str, content_sha256: str
     ) -> bool:
-        if self.elfie_id is None:
+        receipt = self.get_genesis_submission(submission_id)
+        if receipt is None:
             return False
-        row = self.conn.execute(
-            "SELECT content_sha256 FROM memory_genesis_submissions WHERE elfie_id=? AND submission_id=?",
-            (str(self.elfie_id), submission_id),
-        ).fetchone()
-        if row is None:
-            return False
-        if str(row["content_sha256"]) != content_sha256:
+        if receipt.content_sha256 != content_sha256:
             raise ValueError(
                 "Genesis submission identity was reused with a different hash"
             )
         return True
+
+    def get_genesis_submission(
+        self, submission_id: str
+    ) -> GenesisSubmissionReceipt | None:
+        if not submission_id.strip():
+            raise ValueError("Genesis submission ID must not be blank")
+        if self.elfie_id is None:
+            return None
+        row = self.conn.execute(
+            """SELECT elfie_id, submission_id, manifest_id, source_version,
+                      content_sha256, expected_ids_hash, committed_at
+               FROM memory_genesis_submissions
+               WHERE elfie_id=? AND submission_id=?""",
+            (str(self.elfie_id), submission_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return GenesisSubmissionReceipt(
+            elfie_id=str(row["elfie_id"]),
+            submission_id=str(row["submission_id"]),
+            manifest_id=str(row["manifest_id"]),
+            source_version=str(row["source_version"]),
+            content_sha256=str(row["content_sha256"]),
+            expected_ids_hash=str(row["expected_ids_hash"]),
+            committed_at=str(row["committed_at"]),
+        )
 
     def __enter__(self) -> SQLiteMemoryStoreAdapter:
         return self
@@ -521,6 +590,13 @@ class SQLiteMemoryStoreAdapter(
                 (),
             ),
             (
+                "SELECT target_id, state, source_version, source_hash, "
+                "projection_revision, attempts, updated_at "
+                "FROM memory_maintenance WHERE elfie_id=? "
+                "AND stage='consolidation' ORDER BY target_id",
+                (str(getattr(self, "elfie_id", None) or ""),),
+            ),
+            (
                 "SELECT assertion_id, evidence_id, stance, created_at "
                 "FROM assertion_evidence ORDER BY assertion_id, evidence_id",
                 (),
@@ -541,36 +617,81 @@ class SQLiteMemoryStoreAdapter(
         with self._lock:
             owns = self._begin_write_transaction()
             try:
-                self.conn.execute("DELETE FROM episodes_fts")
-                self.conn.execute(
-                    """INSERT INTO episodes_fts(episode_id, searchable_text)
-                       SELECT episode_id, content_text || CASE
-                           WHEN summary_text IS NULL THEN '' ELSE char(10) || summary_text END
-                         FROM episodes"""
-                )
-                self.conn.execute("DELETE FROM nodes_fts")
-                self.conn.execute(
-                    """INSERT INTO nodes_fts(node_id, searchable_text)
-                       SELECT n.node_id,
-                              n.canonical_label
-                              || CASE WHEN n.description IS NULL THEN '' ELSE char(10) || n.description END
-                              || COALESCE((SELECT char(10) || group_concat(a.alias, char(10))
-                                             FROM node_aliases AS a WHERE a.node_id=n.node_id), '')
-                              || COALESCE((SELECT char(10) || group_concat(d.text, char(10))
-                                             FROM node_descriptions AS d WHERE d.node_id=n.node_id), '')
-                         FROM nodes AS n"""
-                )
+                self.conn.execute("DELETE FROM memory_search_fts")
+                self.conn.execute("DELETE FROM memory_search_fts_map")
+                episode_rows = self.conn.execute(
+                    "SELECT episode_id, content_text, summary_text, metadata_json "
+                    "FROM episodes ORDER BY episode_id"
+                ).fetchall()
+                for row in episode_rows:
+                    self._upsert_episode_fts_from_values(
+                        str(row["episode_id"]),
+                        str(row["content_text"]),
+                        row["summary_text"],
+                        json_object(row["metadata_json"]),
+                    )
+                self._refresh_all_text_projections()
+                self._refresh_all_assertion_text_projections()
                 self._commit_write_transaction(owns)
             except Exception:
                 self._rollback_write_transaction(owns)
                 raise
-            episodes = int(
-                self.conn.execute("SELECT COUNT(*) FROM episodes_fts").fetchone()[0]
+            counts = {
+                str(row[0]): int(row[1])
+                for row in self.conn.execute(
+                    "SELECT record_kind, COUNT(*) FROM memory_search_fts "
+                    "GROUP BY record_kind"
+                ).fetchall()
+            }
+        return {
+            "episodes": counts.get("episode", 0),
+            "nodes": counts.get("node", 0),
+            "assertions": counts.get("assertion", 0),
+        }
+
+    def _upsert_search_document(
+        self, record_kind: str, record_id: str, searchable_text: str
+    ) -> None:
+        """Replace one rebuildable FTS5 document using its indexed integer ID."""
+        tokens = normalized_tokens(searchable_text)
+        row = self.conn.execute(
+            "SELECT fts_rowid FROM memory_search_fts_map "
+            "WHERE record_kind=? AND record_id=?",
+            (record_kind, record_id),
+        ).fetchone()
+        fts_rowid = int(row[0]) if row is not None else None
+        if not tokens:
+            if fts_rowid is not None:
+                self.conn.execute(
+                    "DELETE FROM memory_search_fts WHERE rowid=?", (fts_rowid,)
+                )
+                self.conn.execute(
+                    "DELETE FROM memory_search_fts_map WHERE fts_rowid=?",
+                    (fts_rowid,),
+                )
+            return
+        if fts_rowid is None:
+            self.conn.execute(
+                "INSERT INTO memory_search_fts_map(record_kind, record_id) "
+                "VALUES (?, ?)",
+                (record_kind, record_id),
             )
-            nodes = int(
-                self.conn.execute("SELECT COUNT(*) FROM nodes_fts").fetchone()[0]
+            row = self.conn.execute(
+                "SELECT fts_rowid FROM memory_search_fts_map "
+                "WHERE record_kind=? AND record_id=?",
+                (record_kind, record_id),
+            ).fetchone()
+            fts_rowid = int(row[0])
+        else:
+            self.conn.execute(
+                "DELETE FROM memory_search_fts WHERE rowid=?", (fts_rowid,)
             )
-        return {"episodes": episodes, "nodes": nodes}
+        self.conn.execute(
+            """INSERT INTO memory_search_fts(
+                   rowid, record_kind, record_id, searchable_text, normalized_text
+               ) VALUES (?, ?, ?, ?, ?)""",
+            (fts_rowid, record_kind, record_id, searchable_text, " ".join(tokens)),
+        )
 
     def integrity_report(self) -> dict[str, int | bool]:
         """Return deterministic source/graph counts used by migration gates."""
@@ -691,25 +812,38 @@ class SQLiteMemoryStoreAdapter(
                 "legacy or mixed Memory database detected; back it up and rebuild an explicit fresh target"
             )
         user_tables = existing - {"sqlite_sequence"}
-        target_tables = set(KNOWLEDGE_TABLES) | {"episodes_fts", "nodes_fts"}
+        target_tables = (
+            set(KNOWLEDGE_TABLES)
+            | {"memory_search_fts"}
+            | set(FTS_SHADOW_TABLES)
+            | set(FTS_AUXILIARY_TABLES)
+        )
         current_version = self.schema_version
         if current_version not in (0, SCHEMA_VERSION):
             raise MemoryStoreSchemaError(
-                f"unsupported Memory schema version: {current_version}"
+                f"unsupported Memory schema version: {current_version}; "
+                f"expected {SCHEMA_VERSION}: {self._db_path}"
             )
         if user_tables and current_version == 0:
             raise MemoryStoreSchemaError(
-                "partially initialized Memory database has no schema version"
+                f"partially initialized Memory database has no schema version: "
+                f"{self._db_path}"
             )
         unknown = user_tables - target_tables
         if unknown:
             raise MemoryStoreSchemaError(
-                "Memory database contains unknown tables: " + ", ".join(sorted(unknown))
+                "Memory database contains unknown tables at "
+                + str(self._db_path)
+                + ": "
+                + ", ".join(sorted(unknown))
             )
         if current_version == SCHEMA_VERSION and user_tables != target_tables:
             missing = ", ".join(sorted(target_tables - user_tables))
             raise MemoryStoreSchemaError(
-                "Memory schema version is current but tables are missing: " + missing
+                "Memory schema version is current but tables are missing at "
+                + str(self._db_path)
+                + ": "
+                + missing
             )
         try:
             self.conn.execute("PRAGMA busy_timeout=2000")

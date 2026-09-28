@@ -64,8 +64,11 @@ def test_session_turn_projects_memory_block_from_raw_events(tmp_path):
     # Provenance: the projection's values are copied from the raw envelopes.
     baseline_event = memory_view["raw"]["baseline"]
     assert baseline_event["kind"] == "recall_result"
-    assert baseline_event["payload"]["query"] == memory_view["query"]
-    assert baseline_event["payload"]["status"] == memory_view["status"]
+    assert baseline_event["payload"]["query"] == ""
+    on_demand = memory_view["raw"]["on_demand"]
+    assert on_demand
+    assert on_demand[-1]["payload"]["query"] == memory_view["query"]
+    assert on_demand[-1]["payload"]["status"] == memory_view["status"]
 
     captured = collector.snapshot()
     assert any(event.kind == "recall_result" for event in captured)
@@ -84,7 +87,7 @@ def test_session_turn_without_recall_intent_projects_skipped_no_hit(tmp_path):
     assert turn["result"]["success"] is True
     memory_view = turn["trace"]["stages"]["observability"]["memory"]
     assert memory_view["status"] == "skipped"
-    assert memory_view["reason"] == "baseline_recall_not_relevant"
+    assert memory_view["reason"] == "baseline_recall_not_requested"
     assert memory_view["returned_points"] == []
     assert memory_view["selected"] == []
 
