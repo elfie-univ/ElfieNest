@@ -12,13 +12,14 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
 
 from elfie.brain.memory.memory_records import (
     AssertionInput,
     ClosedEpisode,
     EvidenceInput,
     GenesisSubmissionReceipt,
+    JsonValue,
     NodeInput,
     SourceReference,
 )
@@ -400,13 +401,13 @@ class GenesisMemoryCommitter:
         for group_index, members in enumerate(groups):
             episode_id = knowledge_group_id(safe_elfie, members)
             sections: list[str] = []
-            member_metadata: list[dict] = []
+            member_metadata: list[dict[str, JsonValue]] = []
             cursor = 0
             for seed in members:
                 section = knowledge_member_text(seed)
                 start = cursor
                 end = start + len(seed.content)
-                properties = asdict(seed)
+                properties = cast(dict[str, JsonValue], asdict(seed))
                 properties.pop("graph_nodes")
                 properties.pop("graph_assertions")
                 properties.update(span_start=start, span_end=end)
@@ -451,7 +452,7 @@ class GenesisMemoryCommitter:
                         "topic_member_ids": [seed.seed_id for seed in members],
                         "topic_member_index": group_index,
                         "topic_member_count": len(members),
-                        "knowledge_members": member_metadata,
+                        "knowledge_members": cast(JsonValue, member_metadata),
                         "aliases": list(
                             dict.fromkeys(
                                 alias for seed in members for alias in seed.aliases
@@ -537,91 +538,92 @@ class GenesisMemoryCommitter:
 
         episode_source_ids: dict[str, str] = {}
         episode_source_versions: dict[str, str] = {}
-        for sequence_index, seed in enumerate(bundle.episode_seeds):
-            episode_id = (
-                f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_component(seed.seed_id)}"
-            )
-            episode_source_ids[seed.seed_id] = episode_id
-            episode_source_versions[seed.seed_id] = seed.source_version
-            if seed.occurred_from is None and seed.occurred_to is not None:
+        for sequence_index, episode_seed in enumerate(bundle.episode_seeds):
+            episode_id = f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_component(episode_seed.seed_id)}"
+            episode_source_ids[episode_seed.seed_id] = episode_id
+            episode_source_versions[episode_seed.seed_id] = episode_seed.source_version
+            if (
+                episode_seed.occurred_from is None
+                and episode_seed.occurred_to is not None
+            ):
                 raise GenesisValidationError(
                     "EpisodeSeed.occurred_to 不能在缺少 occurred_from 时单独提供"
                 )
             precision: Literal["exact", "range", "unknown"] = (
                 "unknown"
-                if seed.occurred_from is None
+                if episode_seed.occurred_from is None
                 else "range"
-                if seed.occurred_to is not None
+                if episode_seed.occurred_to is not None
                 else "exact"
             )
             source_ref = SourceReference(
-                source_id=seed.source_ref,
-                source_kind=seed.source,
-                locator=seed.seed_id,
-                source_version=seed.source_version,
+                source_id=episode_seed.source_ref,
+                source_kind=episode_seed.source,
+                locator=episode_seed.seed_id,
+                source_version=episode_seed.source_version,
             )
             storage.record_episode(
                 ClosedEpisode(
                     episode_id=episode_id,
-                    idempotency_key=f"{manifest_id}:episode:{seed.seed_id}",
-                    occurred_from=seed.occurred_from,
-                    occurred_to=seed.occurred_to,
+                    idempotency_key=f"{manifest_id}:episode:{episode_seed.seed_id}",
+                    occurred_from=episode_seed.occurred_from,
+                    occurred_to=episode_seed.occurred_to,
                     occurrence_precision=precision,
-                    content_text=seed.content,
-                    summary_text=seed.result or seed.impact or None,
-                    event_kind=seed.event_kind,
+                    content_text=episode_seed.content,
+                    summary_text=episode_seed.result or episode_seed.impact or None,
+                    event_kind=episode_seed.event_kind,
                     source_refs=(source_ref,),
                     source_event_ids=(),
-                    source_version=seed.source_version,
-                    importance=seed.importance,
-                    initial_importance=seed.importance,
+                    source_version=episode_seed.source_version,
+                    importance=episode_seed.importance,
+                    initial_importance=episode_seed.importance,
                     retention_profile="genesis",
-                    emotion=seed.emotional_tone,
-                    emotion_intensity=seed.emotion_intensity,
-                    life_stage=seed.life_stage,
-                    temporal_label=seed.temporal_label,
+                    emotion=episode_seed.emotional_tone,
+                    emotion_intensity=episode_seed.emotion_intensity,
+                    life_stage=episode_seed.life_stage,
+                    temporal_label=episode_seed.temporal_label,
                     attribution="observed",
                     metadata={
-                        "seed_id": seed.seed_id,
-                        "result": seed.result,
-                        "feeling": seed.feeling,
-                        "impact": seed.impact,
-                        "place_ids": list(seed.place_ids),
-                        "observed_place_ids": list(seed.observed_place_ids),
-                        "route_ids": list(seed.route_ids),
-                        "person_ids": list(seed.person_ids),
-                        "visit_count": seed.visit_count,
-                        "travel_days": seed.travel_days,
-                        "stay_days": seed.stay_days,
-                        "visit_age_years": list(seed.visit_age_years),
-                        "purposes": list(seed.purposes),
-                        "predecessor_ids": list(seed.predecessor_ids),
-                        "related_ids": list(seed.related_ids),
-                        "causal_links": list(seed.causal_links),
-                        "theme_id": seed.theme_id,
-                        "age_years_at_event": seed.age_years_at_event,
+                        "seed_id": episode_seed.seed_id,
+                        "result": episode_seed.result,
+                        "feeling": episode_seed.feeling,
+                        "impact": episode_seed.impact,
+                        "place_ids": list(episode_seed.place_ids),
+                        "observed_place_ids": list(episode_seed.observed_place_ids),
+                        "route_ids": list(episode_seed.route_ids),
+                        "person_ids": list(episode_seed.person_ids),
+                        "visit_count": episode_seed.visit_count,
+                        "travel_days": episode_seed.travel_days,
+                        "stay_days": episode_seed.stay_days,
+                        "visit_age_years": list(episode_seed.visit_age_years),
+                        "purposes": list(episode_seed.purposes),
+                        "predecessor_ids": list(episode_seed.predecessor_ids),
+                        "related_ids": list(episode_seed.related_ids),
+                        "causal_links": list(episode_seed.causal_links),
+                        "theme_id": episode_seed.theme_id,
+                        "age_years_at_event": episode_seed.age_years_at_event,
                         "sequence_index": sequence_index,
                         "genesis_time": {
                             "calendar": "elfaria_age",
-                            "age_from": seed.age_years_at_event,
-                            "age_to": seed.age_years_at_event + 1
-                            if seed.age_years_at_event is not None
+                            "age_from": episode_seed.age_years_at_event,
+                            "age_to": episode_seed.age_years_at_event + 1
+                            if episode_seed.age_years_at_event is not None
                             else None,
                             "relative_to": "arrival-nest",
                             "relation": "at"
-                            if seed.seed_id == "arrival-nest"
+                            if episode_seed.seed_id == "arrival-nest"
                             else "before",
                             "precision": "age_year"
-                            if seed.age_years_at_event is not None
+                            if episode_seed.age_years_at_event is not None
                             else "relative",
-                            "travel_local_days": seed.travel_days or None,
-                            "stay_local_days": seed.stay_days
-                            if seed.theme_id == "predeparture-training"
-                            or seed.seed_id.startswith("visit:")
+                            "travel_local_days": episode_seed.travel_days or None,
+                            "stay_local_days": episode_seed.stay_days
+                            if episode_seed.theme_id == "predeparture-training"
+                            or episode_seed.seed_id.startswith("visit:")
                             else None,
-                            "life_stage": seed.life_stage,
+                            "life_stage": episode_seed.life_stage,
                             "sequence_index": sequence_index,
-                            "predecessor_ids": list(seed.predecessor_ids),
+                            "predecessor_ids": list(episode_seed.predecessor_ids),
                         },
                     },
                 )
@@ -632,7 +634,7 @@ class GenesisMemoryCommitter:
             # well as in the Episode payload.  The Episode remains the source
             # of truth for wording, route metadata and chronology; this typed
             # edge is only the evidenced personal contact projection.
-            for place_id in seed.place_ids:
+            for place_id in episode_seed.place_ids:
                 place_node = place_node_ids.get(place_id)
                 if place_node is None:
                     raise GenesisValidationError(
@@ -662,16 +664,16 @@ class GenesisMemoryCommitter:
                     EvidenceInput(
                         evidence_id=(
                             f"genesis:evidence:episode-place:{safe_elfie}:"
-                            f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
+                            f"{safe_component(episode_seed.seed_id)}:{safe_component(place_id)}"
                         ),
                         source_type="episode",
                         source_id=episode_id,
-                        excerpt=seed.content,
-                        source_version=seed.source_version,
+                        excerpt=episode_seed.content,
+                        source_version=episode_seed.source_version,
                         captured_at=now,
                     ),
                 )
-            for place_id in seed.observed_place_ids:
+            for place_id in episode_seed.observed_place_ids:
                 place_node = place_node_ids.get(place_id)
                 if place_node is None:
                     raise GenesisValidationError(
@@ -701,12 +703,12 @@ class GenesisMemoryCommitter:
                     EvidenceInput(
                         evidence_id=(
                             f"genesis:evidence:episode-observed-place:{safe_elfie}:"
-                            f"{safe_component(seed.seed_id)}:{safe_component(place_id)}"
+                            f"{safe_component(episode_seed.seed_id)}:{safe_component(place_id)}"
                         ),
                         source_type="episode",
                         source_id=episode_id,
-                        excerpt=seed.content,
-                        source_version=seed.source_version,
+                        excerpt=episode_seed.content,
+                        source_version=episode_seed.source_version,
                         captured_at=now,
                     ),
                 )
@@ -786,6 +788,11 @@ class GenesisMemoryCommitter:
             (place for place in bundle.place_seeds if place.kind == "earth_home"), None
         )
         if arrival_episode and owner_home and nest:
+            arrival_source = storage.get_episode(arrival_episode)
+            if arrival_source is None:
+                raise GenesisValidationError(
+                    "Genesis arrival Episode 已注册但无法读取其来源"
+                )
             residents = [(self_id, nest.place_id)]
             residents.extend(
                 (person_node_ids[relationship.person_id], owner_home.place_id)
@@ -802,7 +809,7 @@ class GenesisMemoryCommitter:
                         evidence_id=f"genesis:evidence:residence:{resident_id}",
                         source_type="episode",
                         source_id=arrival_episode,
-                        excerpt=storage.get_episode(arrival_episode).content_text,
+                        excerpt=arrival_source.content_text,
                         source_version=episode_source_versions["arrival-nest"],
                         captured_at=now,
                     ),
@@ -853,7 +860,7 @@ class GenesisMemoryCommitter:
                 target = resolved.get(target_key)
                 if target is None or target == source:
                     continue
-                pair = tuple(sorted((source, target)))
+                pair: tuple[str, str] = (min(source, target), max(source, target))
                 if pair in seen:
                     continue
                 seen.add(pair)

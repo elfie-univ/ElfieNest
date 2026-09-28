@@ -90,11 +90,12 @@ class MemorySystem:
     ):
         """初始化 typed Memory 主线；具体存储由 Bootstrap 注入。"""
         self.storage = storage
-        self.ontology = ontology or getattr(storage, "ontology", None)
-        if not isinstance(self.ontology, MemoryOntologySnapshot):
+        candidate = ontology or getattr(storage, "ontology", None)
+        if not isinstance(candidate, MemoryOntologySnapshot):
             raise TypeError(
                 "MemorySystem requires an injected Memory ontology snapshot"
             )
+        self.ontology: MemoryOntologySnapshot = candidate
         del personality_data
         if not all(
             callable(getattr(storage, name, None))

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Mapping, Optional, Tuple, cast
+from typing import Annotated, Any, Literal, Mapping, Optional, Tuple, cast
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 from pydantic_core import PydanticCustomError
@@ -127,7 +127,7 @@ class MemoryContext(FrozenContractModel):
                     str(item)
                     for item in cast(tuple[object, ...], raw.get("notices", ()))
                 ),
-                recall_revision=int(raw.get("recall_revision", 0)),
+                recall_revision=int(cast(Any, raw.get("recall_revision", 0))),
                 limits=_recall_limits(
                     cast(Mapping[str, object], raw.get("limits", {}))
                 ),

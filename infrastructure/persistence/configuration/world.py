@@ -243,6 +243,7 @@ def _population(value: Mapping[str, Any]) -> SpatialPopulationModel:
         cells.append(
             SpatialPopulationCell(
                 cell_id=_text(item, "id"),
+                region_id=_text(item, "place_id"),
                 place_id=_text(item, "place_id"),
                 species_ids=species_ids,
                 weight=_number(item, "weight"),
@@ -691,9 +692,11 @@ def _validate_catalogs(
     if len(access_rule_ids) != len(set(access_rule_ids)):
         raise ValueError("GeographyAccessRule ID 必须唯一")
     place_ids = {place.place_id for place in package.places}
-    for rule in package.access_rules:
-        if rule.place_id not in place_ids:
-            raise ValueError(f"GeographyAccessRule {rule.rule_id} 引用了未定义地点")
+    for access_rule in package.access_rules:
+        if access_rule.place_id not in place_ids:
+            raise ValueError(
+                f"GeographyAccessRule {access_rule.rule_id} 引用了未定义地点"
+            )
 
     if not package.episode_themes:
         raise ValueError("published Genesis 资料包必须包含 EpisodeThemeCatalog")

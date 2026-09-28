@@ -125,29 +125,29 @@ def parse_memory_ontology_document(
     )
     _require_unique((key for key, _ in aliases), "predicate aliases")
 
-    node_types = list(core_types)
-    episode_types = list(core_episode_types)
-    predicates = list(core_predicates)
+    node_types: list[NodeTypeSpec] = list(core_types)
+    episode_types: list[EpisodeTypeSpec] = list(core_episode_types)
+    predicates: list[PredicateSpec] = list(core_predicates)
     core_node_ids = {item.node_type for item in core_types}
     core_episode_ids = {item.event_kind for item in core_episode_types}
     core_predicate_ids = {item.predicate for item in core_predicates}
     for kind, key, status, definition in extensions:
         if kind == "node_type":
-            spec = _parse_node_type(definition, core=False, status=status)
-            if spec.node_type != key or key in core_node_ids:
+            node_spec = _parse_node_type(definition, core=False, status=status)
+            if node_spec.node_type != key or key in core_node_ids:
                 raise MemoryOntologyError(
                     f"extension shadows or mismatches core node type: {key}"
                 )
-            node_types.append(spec)
+            node_types.append(node_spec)
         elif kind == "episode_type":
-            spec = _parse_episode_type(definition, core=False, status=status)
-            if spec.event_kind != key or key in core_episode_ids:
+            episode_spec = _parse_episode_type(definition, core=False, status=status)
+            if episode_spec.event_kind != key or key in core_episode_ids:
                 raise MemoryOntologyError(
                     f"extension shadows or mismatches core Episode type: {key}"
                 )
-            episode_types.append(spec)
+            episode_types.append(episode_spec)
         elif kind == "predicate":
-            spec = _parse_predicate(
+            predicate_spec = _parse_predicate(
                 key,
                 definition,
                 common_qualifiers=common_qualifiers,
@@ -156,7 +156,7 @@ def parse_memory_ontology_document(
             )
             if key in core_predicate_ids:
                 raise MemoryOntologyError(f"extension shadows core predicate: {key}")
-            predicates.append(spec)
+            predicates.append(predicate_spec)
         else:
             raise MemoryOntologyError(f"unknown ontology extension kind: {kind}")
 
@@ -311,48 +311,57 @@ def _validate_predicates(
     group_ids = {item.group_id for item in groups}
     type_by_id = {item.node_type: item for item in node_types}
     predicate_by_id = {item.predicate: item for item in predicates}
-    for spec in node_types:
-        if spec.group_id not in group_ids:
+    for node_spec in node_types:
+        if node_spec.group_id not in group_ids:
             raise MemoryOntologyError(
-                f"node type {spec.node_type!r} references unknown group {spec.group_id!r}"
+                f"node type {node_spec.node_type!r} references unknown group {node_spec.group_id!r}"
             )
-    for spec in predicates:
-        for group_id in (*spec.subject_groups, *spec.object_groups):
+    for predicate_spec in predicates:
+        for group_id in (
+            *predicate_spec.subject_groups,
+            *predicate_spec.object_groups,
+        ):
             if group_id not in group_ids:
                 raise MemoryOntologyError(
-                    f"predicate {spec.predicate!r} references unknown group {group_id!r}"
+                    f"predicate {predicate_spec.predicate!r} references unknown group {group_id!r}"
                 )
-        for node_type in (*spec.subject_types, *spec.object_types):
+        for node_type in (
+            *predicate_spec.subject_types,
+            *predicate_spec.object_types,
+        ):
             if node_type not in type_by_id:
                 raise MemoryOntologyError(
-                    f"predicate {spec.predicate!r} references unknown node type {node_type!r}"
+                    f"predicate {predicate_spec.predicate!r} references unknown node type {node_type!r}"
                 )
-        if spec.status == "active":
+        if predicate_spec.status == "active":
             referenced_types = tuple(
                 type_by_id[node_type]
-                for node_type in (*spec.subject_types, *spec.object_types)
+                for node_type in (
+                    *predicate_spec.subject_types,
+                    *predicate_spec.object_types,
+                )
             )
             if any(item.status != "active" for item in referenced_types):
                 raise MemoryOntologyError(
-                    f"active predicate {spec.predicate!r} references a non-active Node type"
+                    f"active predicate {predicate_spec.predicate!r} references a non-active Node type"
                 )
-        if spec.self_stance and "elfie" not in spec.subject_types:
+        if predicate_spec.self_stance and "elfie" not in predicate_spec.subject_types:
             raise MemoryOntologyError(
-                f"self-stance predicate {spec.predicate!r} must allow the Elfie subject"
+                f"self-stance predicate {predicate_spec.predicate!r} must allow the Elfie subject"
             )
-        if spec.inverse is not None:
-            reverse = predicate_by_id.get(spec.inverse)
-            if reverse is None or reverse.inverse != spec.predicate:
+        if predicate_spec.inverse is not None:
+            reverse = predicate_by_id.get(predicate_spec.inverse)
+            if reverse is None or reverse.inverse != predicate_spec.predicate:
                 raise MemoryOntologyError(
-                    f"predicate inverse must be reciprocal: {spec.predicate} <-> {spec.inverse}"
+                    f"predicate inverse must be reciprocal: {predicate_spec.predicate} <-> {predicate_spec.inverse}"
                 )
-            if spec.symmetric or reverse.symmetric:
+            if predicate_spec.symmetric or reverse.symmetric:
                 raise MemoryOntologyError(
                     "symmetric predicates cannot also declare inverses"
                 )
-            if spec.status == "active" and reverse.status != "active":
+            if predicate_spec.status == "active" and reverse.status != "active":
                 raise MemoryOntologyError(
-                    f"active predicate {spec.predicate!r} references a non-active inverse"
+                    f"active predicate {predicate_spec.predicate!r} references a non-active inverse"
                 )
 
 

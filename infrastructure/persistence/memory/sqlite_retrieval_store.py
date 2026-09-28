@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import Lock
 from time import perf_counter
-from typing import Iterable, Mapping, cast
+from typing import Iterable, Literal, Mapping, cast
 
 from elfie.brain.memory.memory_records import (
     KinshipQuery,
@@ -290,7 +290,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     "n.merged_into IS NULL",
                     "COALESCE(json_extract(n.properties_json, '$.recall_eligible'), 1) <> 0",
                 ]
-                node_params = []
+                node_params: list[object] = []
                 if getattr(self, "elfie_id", None) is not None:
                     node_conditions.append(
                         "json_extract(n.properties_json, '$.elfie_id')=?"
@@ -768,13 +768,15 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                 ).fetchall()
             anchor_ids = tuple(str(row[0]) for row in rows)
             if len(anchor_ids) != 1:
-                status = "ambiguous" if anchor_ids else "partial"
+                kinship_status: Literal[
+                    "complete", "partial", "ambiguous", "unsupported"
+                ] = "ambiguous" if anchor_ids else "partial"
                 notice = (
                     "kinship_anchor_ambiguous"
                     if anchor_ids
                     else "kinship_anchor_not_found"
                 )
-                return RecallBundle(status=status, notices=(notice,))
+                return RecallBundle(status=kinship_status, notices=(notice,))
             anchor_id = anchor_ids[0]
         if anchor_id is None:
             return RecallBundle(status="partial", notices=("kinship_anchor_not_found",))
@@ -911,7 +913,9 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         conflicts = self._conflicts(assertions_tuple)
         truncated = any((assertions_truncated, evidence_truncated, episodes_truncated))
         notices: tuple[str, ...] = ()
-        status = "partial" if truncated else "complete"
+        status: Literal["complete", "partial", "ambiguous", "unsupported"] = (
+            "partial" if truncated else "complete"
+        )
         if not selected:
             status = "partial"
             notices = ("no_recorded_kinship_edge_absence_not_established",)
@@ -1188,11 +1192,11 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
         # Query results may attach only the endpoints of selected direct facts;
         # general language never turns into an arbitrary graph walk.
         for assertion in assertions.values():
-            for node_id in (assertion.subject_id, assertion.object_node_id):
-                if node_id is None:
+            for endpoint_id in (assertion.subject_id, assertion.object_node_id):
+                if endpoint_id is None:
                     continue
                 node = self.get_graph_node(
-                    node_id, privacy_scope=request.privacy_scope, now=now
+                    endpoint_id, privacy_scope=request.privacy_scope, now=now
                 )
                 if node is not None and _recall_eligible(node):
                     if not allowed_types or node.node_type in allowed_types:
@@ -1638,6 +1642,7 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
             relevance = direct_scores.get(episode_id)
             if relevance is None and topic_bucket is not None:
                 relevance = max(0.10, topic_anchors.get(topic_bucket, 0.25) * 0.80)
+            topic_member_index = metadata.get("topic_member_index")
             result.append(
                 RecallEpisode(
                     episode_id=episode_id,
@@ -1665,8 +1670,8 @@ class SQLiteRecallStoreMixin(SQLiteMemoryMixinBase):
                     ),
                     topic_bucket=topic_bucket,
                     topic_member_index=(
-                        int(metadata["topic_member_index"])
-                        if isinstance(metadata.get("topic_member_index"), int)
+                        int(topic_member_index)
+                        if isinstance(topic_member_index, int)
                         else None
                     ),
                     topic_member_count=(

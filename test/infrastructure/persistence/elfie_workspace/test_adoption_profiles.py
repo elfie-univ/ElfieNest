@@ -15,6 +15,7 @@ from elfie.genesis import (
     GenesisCompiler,
     GenesisEngine,
 )
+from elfie.genesis.serialization import knowledge_groups
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -92,9 +93,9 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
             )
         )
         assert elfie.selfhood_snapshot().species_name
-        assert memory.count_episodes() == len(compilation.bundle.knowledge_seeds) + len(
-            compilation.bundle.episode_seeds
-        )
+        assert memory.count_episodes() == len(
+            knowledge_groups(compilation.bundle)
+        ) + len(compilation.bundle.episode_seeds)
         assert memory.count_graph_nodes("person") == 1
         assert memory.count_graph_nodes("group") == 1
         assert (
@@ -106,7 +107,7 @@ def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
             + 1
         )
         assert memory.get_graph_node("genesis:self:00000001") is not None
-        assert memory.get_graph_node("genesis:self-model:00000001") is not None
+        assert memory.get_graph_node("genesis:self-model:00000001") is None
         assert memory.get_graph_node("genesis:receipt:00000001") is None
         submission_id = hashlib.sha256(
             compilation.bundle.manifest.idempotency_key.strip().encode("utf-8")

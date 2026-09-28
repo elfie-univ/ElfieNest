@@ -145,6 +145,7 @@ def test_ensure_elfie_home_creates_structure(monkeypatch, tmp_path):
         Path("configs/credentials/oauth"),
         Path("elfies"),
         Path("logs"),
+        Path("memory"),
         Path("reports"),
         Path("reports/model-validations"),
         Path("reports/runtime-validations"),

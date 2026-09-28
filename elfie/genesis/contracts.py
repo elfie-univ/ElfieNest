@@ -526,8 +526,8 @@ def validate_genesis_bundle(
             }
             for node in nodes.values():
                 ontology.validate_node_type(node.node_type)
-            for seed in bundle.knowledge_seeds:
-                for edge in seed.graph_assertions:
+            for knowledge_seed in bundle.knowledge_seeds:
+                for edge in knowledge_seed.graph_assertions:
                     ontology.validate_assertion(
                         predicate=edge.predicate,
                         subject_type=nodes[edge.subject_id].node_type,

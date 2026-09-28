@@ -712,10 +712,10 @@ class GenesisCompiler:
             if metrics is None:
                 unmade[(opportunity.opportunity_id, "不存在完整合法路程")] = count
                 continue
-            ages = self._schedule_visit_ages(
+            scheduled_ages = self._schedule_visit_ages(
                 request, opportunity, count, eligible_ages=eligible_ages
             )
-            for index, age in enumerate(ages):
+            for index, age in enumerate(scheduled_ages):
                 priority = self._domain_seed(
                     request.appearance_seed,
                     f"visit-schedule:{opportunity.opportunity_id}:{index}",
@@ -979,7 +979,11 @@ class GenesisCompiler:
             _cell_label_from_population_id(birth_cell_id)
         )
         home_place = self._place(home_region)
-        home_macro = dict(home_place.metadata).get("macro_region", home_region)
+        home_macro = (
+            dict(home_place.metadata).get("macro_region", home_region)
+            if home_place is not None
+            else home_region
+        )
         for place_id in place_ids:
             regions: set[str] = set()
             pending = [place_id]
@@ -1879,8 +1883,8 @@ class GenesisCompiler:
             )
             life_status = "deceased" if age_years >= death_age else "alive"
             recorded_death_age = death_age if life_status == "deceased" else None
-            birth_event_age = main_age - age_years
-            if not 1 <= birth_event_age <= main_age:
+            birth_event_age: int | None = main_age - age_years
+            if birth_event_age is not None and not 1 <= birth_event_age <= main_age:
                 birth_event_age = None
             death_event_age = (
                 main_age - (age_years - death_age)
@@ -2427,7 +2431,7 @@ class GenesisCompiler:
             pool = names_by_species[person_species_id]
             display_name = pool[name_index % len(pool)]
             name_counters[person_species_id] = name_index + 1
-            object_kind = "elfie"
+            object_kind: Literal["person", "elfie", "place", "group"] = "elfie"
             terminal_age = self._species(request.species_id).genesis.terminal_age_years
             person_age = min(terminal_age - 1, max(1, main_age + index))
             contact_age = min(
@@ -2456,8 +2460,8 @@ class GenesisCompiler:
             )
             life_status = "deceased" if person_age >= death_age else "alive"
             recorded_death_age = death_age if life_status == "deceased" else None
-            birth_event_age = main_age - person_age
-            if not 1 <= birth_event_age <= main_age:
+            birth_event_age: int | None = main_age - person_age
+            if birth_event_age is not None and not 1 <= birth_event_age <= main_age:
                 birth_event_age = None
             death_event_age = (
                 main_age - (person_age - death_age)

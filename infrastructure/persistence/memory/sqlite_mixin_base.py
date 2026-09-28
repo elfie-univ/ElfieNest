@@ -162,6 +162,7 @@ class SQLiteMemoryMixinBase:
         *,
         relation_types: Iterable[str] = (),
         limit: int = 80,
+        minimum_importance: float | None = None,
         occurred_from: str | None = None,
         occurred_to: str | None = None,
         person_node_ids: Iterable[str] = (),

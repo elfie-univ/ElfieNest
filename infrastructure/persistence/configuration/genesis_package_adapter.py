@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from elfie.brain.memory.memory_records import AssertionInput, NodeInput
 from elfie.brain.memory.ontology import MemoryOntologySnapshot
-from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
+from elfie.genesis.contracts import KnowledgeLevel
 from elfie.genesis.world import (
     CoverageManifest,
     EarthArrivalRules,
@@ -304,7 +304,7 @@ def _knowledge(raw: Any) -> WorldKnowledgeFact:
         aliases=(),
         retrieval_terms=(fact_id,),
         level=level,
-        certainty=cast(MemoryCertainty, "medium" if difficulty else "high"),
+        certainty="medium" if difficulty else "high",
         status="active",
         source_ref=f"knowledge/elfaria.yaml#{fact_id}",
         related_ids=(),

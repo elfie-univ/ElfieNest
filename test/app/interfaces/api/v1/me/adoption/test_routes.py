@@ -193,32 +193,35 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         }
         assert relationship_nodes[0].properties["vocation_id"] == ""
         episodes = memory.list_episodes(limit=1000)
-        assert (
-            sum(
-                episode.event_kind == "genesis_personal_episode" for episode in episodes
-            )
-            >= 5
-        )
-        knowledge_episodes = tuple(
+        personal_episodes = tuple(
             episode
             for episode in episodes
-            if episode.event_kind == "genesis_knowledge_episode"
+            if not episode.metadata.get("knowledge_members")
         )
-        assert len(knowledge_episodes) >= 100
+        assert len(personal_episodes) >= 5
+        knowledge_episodes = tuple(
+            episode for episode in episodes if episode.metadata.get("knowledge_members")
+        )
+        assert knowledge_episodes
         knowledge_by_id = {
-            episode.metadata["knowledge_id"]: episode for episode in knowledge_episodes
+            member["seed_id"]: (episode, member)
+            for episode in knowledge_episodes
+            for member in episode.metadata["knowledge_members"]
         }
         assert "E-08-02" in knowledge_by_id
         assert "E-08-03" in knowledge_by_id
-        assert "B-04-02" not in knowledge_by_id
-        for knowledge_id, episode in knowledge_by_id.items():
+        assert "B-04-02" in knowledge_by_id
+        for knowledge_id, (episode, _member) in knowledge_by_id.items():
             assert isinstance(knowledge_id, str)
             fact = source_facts[knowledge_id]
-            assert episode.content_text == fact.statement
-            assert episode.source_refs[0].source_id == (
-                f"resident-knowledge:{knowledge_id}"
+            assert fact.statement in episode.content_text
+            source_ref = next(
+                reference
+                for reference in episode.source_refs
+                if reference.locator == knowledge_id
             )
-            assert episode.source_version == (f"resident-knowledge-v{fact.version}")
+            assert source_ref.source_id == (f"resident-knowledge:{knowledge_id}")
+            assert source_ref.source_version == f"resident-knowledge-v{fact.version}"
     assert not workspace.genesis_compile_envelope.exists()
     assert not workspace.genesis_stage_marker.exists()
 

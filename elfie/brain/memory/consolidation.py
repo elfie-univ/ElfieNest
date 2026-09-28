@@ -63,11 +63,12 @@ class MemoryConsolidator:
         ontology: MemoryOntologySnapshot | None = None,
     ):
         self.storage = storage
-        self.ontology = ontology or getattr(storage, "ontology", None)
-        if not isinstance(self.ontology, MemoryOntologySnapshot):
+        candidate = ontology or getattr(storage, "ontology", None)
+        if not isinstance(candidate, MemoryOntologySnapshot):
             raise TypeError(
                 "MemoryConsolidator requires an injected Memory ontology snapshot"
             )
+        self.ontology: MemoryOntologySnapshot = candidate
         self._llm_calls_this_cycle = 0
         self.elfie_id = elfie_id
 

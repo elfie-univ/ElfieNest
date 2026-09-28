@@ -8,7 +8,7 @@ import runpy
 import sys
 from collections import defaultdict
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, gettempdir
 from typing import DefaultDict, Dict, FrozenSet, Iterator, List, Optional, Set, Tuple
 
 from fastapi.routing import APIRoute
@@ -580,7 +580,7 @@ def _scan_unversioned_product_routes(
     # sentinel. The scanner still needs an isolated database, so use a
     # disposable file-root instead of weakening the production contract.
     with TemporaryDirectory(
-        prefix="elfienest-app-route-scan-", dir="/private/tmp"
+        prefix="elfienest-app-route-scan-", dir=str(Path(gettempdir()).resolve())
     ) as raw_root:
         application = create_app(db_path=str(Path(raw_root) / "nest.db"))
         for route in application.routes:
