@@ -128,7 +128,15 @@ def build_adoption_services(
         db_path,
         nest_config=nest_config or load_nest_config(),
     )
-    ontology = load_memory_ontology_snapshot(data_home=data_home_from_db_path(db_path))
+    if db_path == ":memory:":
+        # The immutable architecture scanner builds an ephemeral App with the
+        # SQLite process-local sentinel. It has no product data root, so use
+        # only the bundled core ontology and avoid creating a registry there.
+        ontology = load_memory_ontology_snapshot(include_extensions=False)
+    else:
+        ontology = load_memory_ontology_snapshot(
+            data_home=data_home_from_db_path(db_path)
+        )
 
     @lru_cache(maxsize=1)
     def load_source() -> GenesisSourcePackage:
