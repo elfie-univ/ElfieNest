@@ -170,13 +170,24 @@ const episodeAttributionLabels: Record<string, string> = { observed: "亲历或�
 const episodeDetailLevelLabels: Record<string, string> = { full: "完整", compressed: "压缩", digest: "摘要", incomplete: "不完整" };
 const episodeSourceKindLabels: Record<string, string> = { conversation: "对话", genesis_source: "Genesis 知识资料", personal_memory: "个人经历资料", adoption_decision: "领养来源" };
 
+// Older Genesis builds embedded member provenance in the readable Episode body.
+// Keep this narrow: only the exact four-field knowledge envelope is a display
+// concern; arbitrary bracketed authored text must remain untouched.
+const knowledgeMemberHeaderPattern = /^\[[^\]\r\n|]+\s*\|\s*[^\]\r\n|]+\s*\|\s*[^\]\r\n|]+\s*\|\s*[^\]\r\n]+\]\s*\n?/gm;
+
+export function stripKnowledgeMemberHeaders(value: string): string {
+  return value.replace(knowledgeMemberHeaderPattern, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function episodeCardDisplayTitle(episode: InspectorRecord): string {
-  const summary = String(episode.summary_text ?? "").trim();
+  const summary = stripKnowledgeMemberHeaders(String(episode.summary_text ?? ""));
   if (summary) return summary;
-  const content = String(episode.content_text ?? "").trim();
+  const content = stripKnowledgeMemberHeaders(String(episode.content_text ?? ""));
   if (!content) return "";
-  const characters = Array.from(content);
-  return characters.length > 180 ? `${characters.slice(0, 179).join("")}…` : content;
+  const sentenceEnd = content.search(/[。！？.!?]/);
+  const headline = sentenceEnd >= 0 ? content.slice(0, sentenceEnd + 1).trim() : content;
+  const characters = Array.from(headline);
+  return characters.length > 180 ? `${characters.slice(0, 179).join("")}…` : headline;
 }
 
 export function episodeEventKindLabel(value: unknown): string {
@@ -252,7 +263,7 @@ function recordId(record: InspectorRecord, key: string): string {
 }
 
 function excerptOf(record: InspectorRecord): string {
-  return String(record.excerpt ?? record.summary_text ?? record.content_text ?? "");
+  return stripKnowledgeMemberHeaders(String(record.excerpt ?? record.summary_text ?? record.content_text ?? ""));
 }
 
 function sourceFor(record: InspectorRecord, kind: string, fallback = "来源未记录"): InspectorSource {
@@ -468,14 +479,14 @@ export function projectEpisodeDetail(
   const sourceRefs = Array.isArray(episode.source_refs)
     ? episode.source_refs.filter((item): item is InspectorRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item))
     : [];
-  const body = String(episode.content_text ?? "没有来源内容");
-  const summary = String(episode.summary_text ?? "").trim();
+  const body = stripKnowledgeMemberHeaders(String(episode.content_text ?? "没有来源内容"));
+  const displayTitle = episodeCardDisplayTitle({ ...episode, content_text: body });
   const maintenance = episode.maintenance && typeof episode.maintenance === "object" && !Array.isArray(episode.maintenance)
     ? episode.maintenance as InspectorRecord
     : {};
-  const header = headerFor(episode, "经历", summary, "");
-  // Episode summary is independent from its content. Keep this slot empty when
-  // no summary was generated instead of displaying the body as a substitute.
+  const header = headerFor(episode, "经历", displayTitle, "");
+  // Episode has no independent title field.  Genesis/consolidation may persist
+  // a grounded summary_text; only legacy rows use the content-derived fallback.
   header.summary = "";
   header.status = episodeMaintenanceLabel(episode);
   const topicBucket = typeof metadata.topic_bucket === "string" ? metadata.topic_bucket : "";

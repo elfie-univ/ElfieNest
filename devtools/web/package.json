@@ -16,6 +16,7 @@
     "@ant-design/icons": "5.6.1",
     "@vitejs/plugin-react": "latest",
     "antd": "5.27.6",
+    "dayjs": "1.11.23",
     "ky": "^2.0.2",
     "react": "latest",
     "react-dom": "latest",

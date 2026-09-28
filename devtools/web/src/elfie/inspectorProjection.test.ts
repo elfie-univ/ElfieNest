@@ -10,6 +10,7 @@ import {
   projectNodeDetail,
   projectNodeSources,
   projectVisibleNodeProperties,
+  stripKnowledgeMemberHeaders,
   type InspectorNode,
 } from "./inspectorProjection";
 
@@ -119,6 +120,10 @@ describe("Inspector projection", () => {
 
     expect(episodeCardDisplayTitle({ summary_text: "  摘要标题  ", content_text: "正文" })).toBe("摘要标题");
     expect(episodeCardDisplayTitle({ summary_text: " ", content_text: "正文" })).toBe("正文");
+    expect(stripKnowledgeMemberHeaders("[B-05 | known | high | documented]\n居民主要在地表生活。\n\n[B-05-02 | known | high | documented]\n深处入口需要许可。"))
+      .toBe("居民主要在地表生活。\n\n深处入口需要许可。");
+    expect(episodeCardDisplayTitle({ content_text: "[B-05 | known | high | documented]\n居民主要在地表生活。深处入口需要许可。" }))
+      .toBe("居民主要在地表生活。");
     expect(episodeCardDisplayTitle({ content_text: "正文".repeat(100) })).toBe(`${"正文".repeat(89)}正…`);
     expect(episodeCardDisplayTitle({ episode_id: "empty", summary_text: "", content_text: "" })).toBe("");
     expect(episodeEventKindLabel("conversation")).toBe("对话交流");
@@ -139,7 +144,7 @@ describe("Inspector projection", () => {
       content_text: "这段经历只有正文，没有生成标题。",
     }, { assertions: [], evidence: [], nodeById: nodes });
 
-    expect(projected.header.label).toBe("");
+    expect(projected.header.label).toBe("这段经历只有正文，没有生成标题。");
     expect(projected.header.summary).toBe("");
     expect(projected.content).toBe("这段经历只有正文，没有生成标题。");
   });
