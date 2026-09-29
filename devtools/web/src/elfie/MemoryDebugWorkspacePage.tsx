@@ -6,7 +6,7 @@ import zhCN from "antd/es/locale/zh_CN";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/zh-cn.js";
 import type { ForceGraphMethods } from "react-force-graph-3d";
-import { CanvasTexture, ConeGeometry, CylinderGeometry, Group, Mesh, MeshLambertMaterial, Sprite, SpriteMaterial, Vector3 } from "three";
+import { CanvasTexture, Group, Sprite, SpriteMaterial, Vector3 } from "three";
 import "./memory-debug-workspace.css";
 
 dayjs.locale("zh-cn");
@@ -75,6 +75,7 @@ type GraphEdge = GraphAssertionEdge & {
 };
 type Graph3DNode = GraphNodeSeed & { val: number; degree: number; originalId?: string; preview?: boolean; x?: number; y?: number; z?: number };
 type Graph3DLink = GraphEdge;
+type GraphNodeOverlay = { signature: string; group: Group; labelSprite?: Sprite };
 type GraphFilters = { lifecycle?: string; minConfidence?: number | undefined; nodeGroup?: string | undefined; nodeTypes?: ReadonlySet<string> | undefined; predicateTypes?: ReadonlySet<string> | undefined; includeNodeIds?: ReadonlySet<string> | undefined; includeAssertionIds?: ReadonlySet<string> | undefined };
 type ReadPhase = "loading" | "partial" | "ready" | "empty" | "stale" | "error";
 type SceneEmotion = "happiness" | "sadness" | "anger" | "fear" | "surprise" | "disgust";
@@ -146,11 +147,69 @@ const GRAPH_NODE_MAX_RADIUS = 7.2;
 const GRAPH_LINK_MIN_WIDTH = 0.55;
 const GRAPH_LINK_MAX_WIDTH = 2.4;
 const GRAPH_ARROW_LENGTH = 10;
-const GRAPH_LINK_OVERLAY_RENDER_ORDER = 12;
+const GRAPH_NODE_LABEL_OPACITY = .94;
+const GRAPH_NODE_LABEL_RENDER_ORDER = 20;
+export const MEMORY_DEBUG_GRAPH_FIT_PADDING = 96;
+
+export function memoryDebugRecallProjectionKey(
+  showOnlyRecallResults: boolean,
+  recallId: string | null | undefined,
+  nodeIds: ReadonlySet<string>,
+  assertionNodeIds: ReadonlySet<string>,
+  assertionIds: ReadonlySet<string>,
+): string {
+  if (!showOnlyRecallResults || !recallId) return "";
+  return [
+    "active",
+    recallId,
+    [...nodeIds].sort().join(","),
+    [...assertionNodeIds].sort().join(","),
+    [...assertionIds].sort().join(","),
+  ].join("|");
+}
+
 export const GRAPH_SELECTED_LINK_COLOR = "#e8fbff";
-const GRAPH_SELECTED_LINK_HALO_COLOR = "#72e7f7";
-const GRAPH_SELECTED_LINK_HALO_OPACITY = 0.34;
 const GRAPH_SELECTED_NODE_RING_COLOR = "#e8fbff";
+
+type GraphScreenRect = { left: number; right: number; top: number; bottom: number };
+type GraphLabelOcclusionEntry = {
+  id: string;
+  depth: number;
+  center: { x: number; y: number };
+  radius: number;
+  label?: GraphScreenRect;
+};
+
+function graphCircleIntersectsRect(
+  center: { x: number; y: number },
+  radius: number,
+  rect: GraphScreenRect,
+): boolean {
+  const nearestX = Math.max(rect.left, Math.min(center.x, rect.right));
+  const nearestY = Math.max(rect.top, Math.min(center.y, rect.bottom));
+  const dx = center.x - nearestX;
+  const dy = center.y - nearestY;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+/**
+ * Keep labels atomic: a nearer node hides the whole rear label when its
+ * projected sphere reaches the label rectangle. This avoids Three's normal
+ * per-fragment depth test cutting a CanvasTexture through the middle of text.
+ */
+export function graphVisibleLabelIds(entries: readonly GraphLabelOcclusionEntry[]): ReadonlySet<string> {
+  const visible = new Set(entries.filter((entry) => entry.label).map((entry) => entry.id));
+  entries.forEach((target) => {
+    if (!target.label || !Number.isFinite(target.depth)) return;
+    const occluded = entries.some((occluder) => {
+      if (occluder.id === target.id || !Number.isFinite(occluder.depth)) return false;
+      if (occluder.depth >= target.depth) return false;
+      return graphCircleIntersectsRect(occluder.center, Math.max(0, occluder.radius), target.label!);
+    });
+    if (occluded) visible.delete(target.id);
+  });
+  return visible;
+}
 
 /**
  * ForceGraph interprets nodeVal as a volume and applies a cube root to get the
@@ -230,156 +289,68 @@ function graphRenderColor(color: string): string {
   return color === DIMMED_LINK_COLOR ? "#2b4656" : color;
 }
 
-/**
- * Lines and arrows remain visually opaque, but they must not replace the
- * node depth that labels use later in the frame. Three's default depthTest is
- * intentionally preserved, so a line behind an opaque node is still hidden.
- */
-export function graphLinkMaterialOptions(color: string): { color: string; transparent: boolean; opacity: number; depthWrite: boolean } {
-  return {
-    color: graphRenderColor(color),
-    transparent: false,
-    opacity: GRAPH_LINK_OPACITY,
-    depthWrite: false,
-  };
+export function graphNodeLabelMaterialOptions(): { transparent: boolean; depthWrite: boolean; depthTest: boolean; opacity: number } {
+  // The label is rendered as one atomic sprite after the library-owned graph
+  // objects. Whole-label occlusion is decided separately, so per-fragment
+  // depth testing cannot cut a CanvasTexture through the text.
+  return { transparent: true, depthWrite: false, depthTest: false, opacity: GRAPH_NODE_LABEL_OPACITY };
 }
 
-type GraphPoint = { x: number; y?: number; z?: number; val?: number };
+type GraphPoint3D = { x: number; y: number; z: number };
+
+type GraphBounds = {
+  x: [number, number];
+  y: [number, number];
+  z: [number, number];
+};
+
+export function graphFitCameraTarget(
+  bounds: GraphBounds,
+  cameraPosition: GraphPoint3D,
+  cameraFov: number,
+  cameraAspect: number,
+  viewportHeight: number,
+  padding: number,
+): { position: GraphPoint3D; target: GraphPoint3D; distance: number } | null {
+  const target = {
+    x: (bounds.x[0] + bounds.x[1]) / 2,
+    y: (bounds.y[0] + bounds.y[1]) / 2,
+    z: (bounds.z[0] + bounds.z[1]) / 2,
+  };
+  const span = Math.max(1,
+    bounds.x[1] - bounds.x[0],
+    bounds.y[1] - bounds.y[0],
+    bounds.z[1] - bounds.z[0],
+  );
+  const safeAspect = Number.isFinite(cameraAspect) && cameraAspect > 0 ? cameraAspect : 1;
+  const safeViewportHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : 1;
+  const safeFov = Number.isFinite(cameraFov) && cameraFov > 0 ? cameraFov : 25;
+  const paddedFov = Math.max(1, (1 - (padding * 2) / safeViewportHeight) * safeFov);
+  const fitHeightDistance = span / Math.atan((paddedFov * Math.PI) / 180);
+  const distance = Math.max(fitHeightDistance, fitHeightDistance / safeAspect);
+  if (!Number.isFinite(distance) || distance <= 0) return null;
+
+  const dx = cameraPosition.x - target.x;
+  const dy = cameraPosition.y - target.y;
+  const dz = cameraPosition.z - target.z;
+  const directionLength = Math.hypot(dx, dy, dz);
+  const direction = directionLength > 0
+    ? { x: dx / directionLength, y: dy / directionLength, z: dz / directionLength }
+    : { x: 0, y: 0, z: 1 };
+  return {
+    target,
+    distance,
+    position: {
+      x: target.x + direction.x * distance,
+      y: target.y + direction.y * distance,
+      z: target.z + direction.z * distance,
+    },
+  };
+}
 
 function graphPointRadius(point: { val?: number }): number {
   const value = typeof point.val === "number" && Number.isFinite(point.val) ? point.val : 1;
   return Math.cbrt(Math.max(0, value)) * GRAPH_NODE_REL_SIZE;
-}
-
-function graphArrowRadius(importance: number | undefined): number {
-  return Math.max(1.1, graphLinkWidth(importance) * 1.15);
-}
-
-export function graphArrowDistances(
-  startRadius: number,
-  endRadius: number,
-  lineLength: number,
-): { tailDistance: number; headDistance: number } | null {
-  const available = lineLength - startRadius - endRadius - GRAPH_ARROW_LENGTH;
-  if (lineLength <= startRadius + endRadius + GRAPH_ARROW_LENGTH * 2) return null;
-  const tailDistance = startRadius + available * MEMORY_DEBUG_GRAPH_ARROW_REL_POS;
-  return { tailDistance, headDistance: tailDistance + GRAPH_ARROW_LENGTH };
-}
-
-function createGraphArrowObject(color: string, importance: number | undefined): Group {
-  const arrow = new Mesh(
-    new ConeGeometry(graphArrowRadius(importance), GRAPH_ARROW_LENGTH, 12),
-    new MeshLambertMaterial(graphLinkMaterialOptions(color)),
-  );
-  // three-forcegraph renders its default cylinder at renderOrder 10. The
-  // child mesh, not its parent Group, must be ordered after that cylinder or
-  // the cylinder will paint over the arrow completely.
-  arrow.renderOrder = GRAPH_LINK_OVERLAY_RENDER_ORDER;
-  arrow.geometry.translate(0, GRAPH_ARROW_LENGTH / 2, 0);
-  arrow.geometry.rotateX(Math.PI / 2);
-  const group = new Group();
-  group.add(arrow);
-  return group;
-}
-
-function createSelectedLinkHaloObject(importance: number | undefined): Mesh {
-  const coreWidth = graphLinkWidth(importance);
-  const haloWidth = Math.max(coreWidth * 1.8, coreWidth + 0.9);
-  const geometry = new CylinderGeometry(haloWidth / 2, haloWidth / 2, 1, 8, 1, false);
-  geometry.translate(0, 0.5, 0);
-  geometry.rotateX(Math.PI / 2);
-  const halo = new Mesh(
-    geometry,
-    new MeshLambertMaterial({
-      color: GRAPH_SELECTED_LINK_HALO_COLOR,
-      transparent: true,
-      opacity: GRAPH_SELECTED_LINK_HALO_OPACITY,
-      depthWrite: false,
-    }),
-  );
-  halo.renderOrder = GRAPH_LINK_OVERLAY_RENDER_ORDER;
-  return halo;
-}
-
-function createGraphLinkOverlayObject(link: Graph3DLink, isSelected: boolean, color: string): Group | null {
-  const group = new Group();
-  group.renderOrder = 11;
-  if (isSelected) group.add(createSelectedLinkHaloObject(link.importance));
-  const hasArrow = link.kind === "assertion" || link.kind === "preview-assertion";
-  if (hasArrow) {
-    group.add(createGraphArrowObject(color, link.importance));
-    if (link.direction === "both") group.add(createGraphArrowObject(color, link.importance));
-  }
-  return group.children.length ? group : null;
-}
-
-function updateGraphArrowObject(
-  object: Group,
-  coordinates: { start: GraphPoint; end: GraphPoint },
-  color: string,
-  reverse: boolean,
-): void {
-  const startPoint = reverse ? coordinates.end : coordinates.start;
-  const endPoint = reverse ? coordinates.start : coordinates.end;
-  const start = new Vector3(startPoint.x, startPoint.y ?? 0, startPoint.z ?? 0);
-  const end = new Vector3(endPoint.x, endPoint.y ?? 0, endPoint.z ?? 0);
-  const line = end.clone().sub(start);
-  const lineLength = line.length();
-  const minimumLength = graphPointRadius(startPoint) + graphPointRadius(endPoint) + GRAPH_ARROW_LENGTH * 2;
-  const distances = graphArrowDistances(graphPointRadius(startPoint), graphPointRadius(endPoint), lineLength);
-  if (lineLength <= minimumLength || !distances) {
-    object.visible = false;
-    return;
-  }
-  object.visible = true;
-  const direction = line.clone().normalize();
-  const tail = start.clone().add(direction.clone().multiplyScalar(distances.tailDistance));
-  const head = start.clone().add(direction.clone().multiplyScalar(distances.headDistance));
-  object.position.copy(tail);
-  object.lookAt(head);
-  const arrow = object.children[0];
-  if (arrow instanceof Mesh && arrow.material instanceof MeshLambertMaterial) {
-    const material = graphLinkMaterialOptions(color);
-    arrow.material.color.set(material.color);
-    arrow.material.opacity = material.opacity;
-  }
-}
-
-function updateGraphLinkOverlayObject(
-  object: Group,
-  coordinates: { start: GraphPoint; end: GraphPoint },
-  link: Graph3DLink,
-  isSelected: boolean,
-  color: string,
-): void {
-  const start = new Vector3(coordinates.start.x, coordinates.start.y ?? 0, coordinates.start.z ?? 0);
-  const end = new Vector3(coordinates.end.x, coordinates.end.y ?? 0, coordinates.end.z ?? 0);
-  const line = end.clone().sub(start);
-  const lineLength = line.length();
-  const minimumLength = graphPointRadius(coordinates.start) + graphPointRadius(coordinates.end) + GRAPH_ARROW_LENGTH * 2;
-  let childIndex = 0;
-  if (isSelected) {
-    const halo = object.children[0];
-    if (halo instanceof Mesh && halo.material instanceof MeshLambertMaterial) {
-      halo.visible = lineLength > minimumLength;
-      halo.position.copy(start);
-      halo.scale.set(1, 1, lineLength);
-      halo.lookAt(end);
-      halo.material.color.set(GRAPH_SELECTED_LINK_HALO_COLOR);
-      halo.material.opacity = GRAPH_SELECTED_LINK_HALO_OPACITY;
-    }
-    childIndex = 1;
-  }
-  const hasArrow = link.kind === "assertion" || link.kind === "preview-assertion";
-  if (hasArrow) {
-    const forwardArrow = object.children[childIndex];
-    if (forwardArrow instanceof Group) updateGraphArrowObject(forwardArrow, coordinates, color, false);
-    childIndex += 1;
-    if (link.direction === "both") {
-      const reverseArrow = object.children[childIndex];
-      if (reverseArrow instanceof Group) updateGraphArrowObject(reverseArrow, coordinates, color, true);
-    }
-  }
 }
 
 function graphNodeColor(kind: string, report?: AuditReport | null): string {
@@ -1190,7 +1161,6 @@ function createNodeHighlightSprite(nodeRadius: number, kind: GraphNodeHighlightK
   const ringDiameter = nodeRadius * 2 + 3.2;
   const spriteDiameter = ringDiameter * logicalSize / 50;
   sprite.scale.set(spriteDiameter, spriteDiameter, 1);
-  sprite.renderOrder = 30;
   return sprite;
 }
 
@@ -1424,8 +1394,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const episodeCardRefs = useRef(new Map<string, HTMLButtonElement>());
   const reportRequestRef = useRef(0);
   const graphFitPendingRef = useRef(true);
-  const nodeOverlaysRef = useRef(new Map<string, { signature: string; group: Group }>());
-  const graphLinkMaterialsRef = useRef(new Map<string, MeshLambertMaterial>());
+  const graphFitRequestRef = useRef(0);
+  const nodeOverlaysRef = useRef(new Map<string, GraphNodeOverlay>());
+  const labelOcclusionFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!filterOpen) return undefined;
@@ -1460,8 +1431,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       disposeNodeOverlay(group);
     });
     nodeOverlaysRef.current.clear();
-    graphLinkMaterialsRef.current.forEach((material) => material.dispose());
-    graphLinkMaterialsRef.current.clear();
   }, []);
 
   async function loadReport(requestFilter = "all", preserveMessage = false): Promise<void> {
@@ -1607,6 +1576,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       .flatMap((item) => [String(item.subject_id), item.object_node_id == null ? "" : String(item.object_node_id)])
       .filter(Boolean),
   );
+  const recallGraphProjectionKey = memoryDebugRecallProjectionKey(
+    showOnlyRecallResults,
+    recallView?.selection.recall_id,
+    recalledNodeIds,
+    recalledAssertionNodeIds,
+    recalledAssertionIds,
+  );
   const previewNodeIds = useMemo(() => new Set(preview?.changes.added_ids.nodes ?? []), [preview]);
   const previewAssertionIds = useMemo(() => new Set(preview?.changes.added_ids.assertions ?? []), [preview]);
   const previewAssertionNodeIds = useMemo(() => new Set(
@@ -1617,7 +1593,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   ), [preview, previewAssertionIds]);
   const graph = useMemo(() => {
     const recallProjection = recallGraphProjectionFilters(
-      Boolean(recallView),
+      Boolean(recallGraphProjectionKey),
       showOnlyRecallResults,
       new Set([...recalledNodeIds, ...recalledAssertionNodeIds]),
       recalledAssertionIds,
@@ -1643,7 +1619,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       return { ...item, degree: nodeDegree, val: graphNodeValue(importance) };
     });
     return { nodes, edges: projection.edges };
-  }, [lifecycleFilter, localConfidence, recallView, report, selectedPredicates, selectedTypeGroup, selectedTypes, showOnlyRecallResults]);
+  }, [lifecycleFilter, localConfidence, recallGraphProjectionKey, report, selectedPredicates, selectedTypeGroup, selectedTypes, showOnlyRecallResults]);
   const graphNodeIds = useMemo(() => new Set(graph.nodes.map((node) => node.id)), [graph.nodes]);
   const previewNodeKey = (id: string): string => previewNodeIds.has(id) || !graphNodeIds.has(id) ? `preview:${id}` : id;
   const previewGraphNodes = useMemo(() => (preview?.changes.affected.nodes ?? []).map((item) => {
@@ -1743,6 +1719,123 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     setTracePositions((current) => JSON.stringify(current) === JSON.stringify(next) ? current : next);
   }
 
+  function updateGraphLabelOcclusion(): void {
+    const instance = graphRef.current;
+    if (!instance || !graphData.nodes.length) return;
+    const camera = instance.camera();
+    const renderer = instance.renderer();
+    const width = renderer.domElement.clientWidth || graphViewport.width;
+    const height = renderer.domElement.clientHeight || graphViewport.height;
+    if (!width || !height) return;
+
+    camera.updateMatrixWorld();
+    const cameraRight = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    const cameraUp = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+    const projectToScreen = (point: Vector3): { x: number; y: number; z: number } | null => {
+      const projected = point.clone().project(camera);
+      if (![projected.x, projected.y, projected.z].every(Number.isFinite)) return null;
+      return {
+        x: (projected.x + 1) * width / 2,
+        y: (1 - projected.y) * height / 2,
+        z: projected.z,
+      };
+    };
+    const entries = graphData.nodes.flatMap((node): GraphLabelOcclusionEntry[] => {
+      if (![node.x, node.y, node.z].every((value) => typeof value === "number" && Number.isFinite(value))) return [];
+      const center = new Vector3(node.x!, node.y!, node.z!);
+      const screenCenter = projectToScreen(center);
+      if (!screenCenter) return [];
+      const radius = graphPointRadius(node);
+      const radiusPixels = Math.max(
+        0,
+        ...[
+          center.clone().addScaledVector(cameraRight, radius),
+          center.clone().addScaledVector(cameraRight, -radius),
+          center.clone().addScaledVector(cameraUp, radius),
+          center.clone().addScaledVector(cameraUp, -radius),
+        ].map((point) => {
+          const projected = projectToScreen(point);
+          return projected ? Math.hypot(projected.x - screenCenter.x, projected.y - screenCenter.y) : 0;
+        }),
+      );
+      const overlay = nodeOverlaysRef.current.get(String(node.id));
+      let label: GraphScreenRect | undefined;
+      if (overlay?.labelSprite) {
+        const cameraDelta = camera.position.clone().sub(center);
+        const cameraDistance = cameraDelta.length();
+        if (cameraDistance > 0.0001) {
+          const labelCenter = center.clone().addScaledVector(cameraDelta.normalize(), radius + 0.12);
+          const halfWidth = Math.abs(overlay.labelSprite.scale.x) / 2;
+          const halfHeight = Math.abs(overlay.labelSprite.scale.y) / 2;
+          const corners = [
+            labelCenter.clone().addScaledVector(cameraRight, -halfWidth).addScaledVector(cameraUp, -halfHeight),
+            labelCenter.clone().addScaledVector(cameraRight, -halfWidth).addScaledVector(cameraUp, halfHeight),
+            labelCenter.clone().addScaledVector(cameraRight, halfWidth).addScaledVector(cameraUp, -halfHeight),
+            labelCenter.clone().addScaledVector(cameraRight, halfWidth).addScaledVector(cameraUp, halfHeight),
+          ].map(projectToScreen);
+          if (corners.every((point): point is { x: number; y: number; z: number } => Boolean(point))) {
+            label = {
+              left: Math.min(...corners.map((point) => point.x)),
+              right: Math.max(...corners.map((point) => point.x)),
+              top: Math.min(...corners.map((point) => point.y)),
+              bottom: Math.max(...corners.map((point) => point.y)),
+            };
+          }
+        }
+      }
+      const viewPoint = center.clone().applyMatrix4(camera.matrixWorldInverse);
+      return [{
+        id: String(node.id),
+        depth: -viewPoint.z - radius,
+        center: { x: screenCenter.x, y: screenCenter.y },
+        radius: radiusPixels,
+        ...(label ? { label } : {}),
+      }];
+    });
+    if (!entries.length) return;
+
+    const visibleIds = graphVisibleLabelIds(entries);
+    const currentNodeIds = new Set(graphData.nodes.map((node) => String(node.id)));
+    let changed = false;
+    nodeOverlaysRef.current.forEach(({ labelSprite }, nodeId) => {
+      if (!labelSprite) return;
+      const nextVisible = currentNodeIds.has(nodeId) ? visibleIds.has(nodeId) : true;
+      if (labelSprite.visible !== nextVisible) {
+        labelSprite.visible = nextVisible;
+        changed = true;
+      }
+    });
+    if (changed) instance.refresh();
+  }
+
+  function scheduleGraphLabelOcclusion(): void {
+    if (typeof window === "undefined" || labelOcclusionFrameRef.current !== null) return;
+    labelOcclusionFrameRef.current = window.requestAnimationFrame(() => {
+      labelOcclusionFrameRef.current = null;
+      updateGraphLabelOcclusion();
+    });
+  }
+
+  useEffect(() => {
+    if (webglStatus !== "available" || !ForceGraph3DComponent || !graphData.nodes.length) return undefined;
+    const instance = graphRef.current;
+    if (!instance) return undefined;
+    const controls = instance.controls() as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void;
+      removeEventListener?: (type: string, listener: () => void) => void;
+    };
+    const handleCameraChange = (): void => scheduleGraphLabelOcclusion();
+    controls.addEventListener?.("change", handleCameraChange);
+    scheduleGraphLabelOcclusion();
+    return () => {
+      controls.removeEventListener?.("change", handleCameraChange);
+      if (labelOcclusionFrameRef.current !== null) {
+        window.cancelAnimationFrame(labelOcclusionFrameRef.current);
+        labelOcclusionFrameRef.current = null;
+      }
+    };
+  }, [ForceGraph3DComponent, graphData, graphViewport, webglStatus]);
+
   useEffect(() => {
     if (!selectedEpisodeId) {
       setTracePositions({});
@@ -1757,42 +1850,49 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     return () => window.cancelAnimationFrame(frame);
   }, [graph, selectedEpisodeId]);
 
-  function fitGraph(durationMs = 700): void {
+  function fitGraph(durationMs = 320): void {
     const instance = graphRef.current;
     if (!instance || !graphData.nodes.length) return;
     graphFitPendingRef.current = false;
-    // Let force-graph calculate the camera distance from its actual node
-    // bounds. The previous hand-written distance left the whole graph as a
-    // small cluster when the data contained a distant or isolated node.
-    window.requestAnimationFrame(() => {
-      const hasConnectedNodes = graphData.nodes.some((node) => node.degree > 0 || node.preview);
-      const fitNode = (node: Graph3DNode): boolean => node.degree > 0 || Boolean(node.preview);
-      instance.zoomToFit(0, 36, hasConnectedNodes ? fitNode : undefined);
-      const bounds = instance.getGraphBbox(hasConnectedNodes ? fitNode : undefined);
-      if (!bounds) return;
-      const center = {
-        x: (bounds.x[0] + bounds.x[1]) / 2,
-        y: (bounds.y[0] + bounds.y[1]) / 2,
-        z: (bounds.z[0] + bounds.z[1]) / 2,
+    const requestId = ++graphFitRequestRef.current;
+    // Keep the library-owned 3D fit path. Two animation frames let
+    // force-graph copy its settled positions into the Three.js scene before
+    // reading the bounds. We still compute the target from the actual graph
+    // center because the library's zoomToFit aims at the world origin.
+    const applyFit = (): void => {
+      if (requestId !== graphFitRequestRef.current || graphRef.current !== instance) return;
+      const bounds = instance.getGraphBbox();
+      const camera = instance.camera() as unknown as {
+        aspect?: number;
+        fov?: number;
+        position?: GraphPoint3D;
       };
-      const camera = instance.camera() as unknown as { position?: { x: number; y: number; z: number } };
-      const position = camera.position;
-      if (!position) return;
-      const dx = position.x - center.x;
-      const dy = position.y - center.y;
-      const dz = position.z - center.z;
-      const distance = Math.hypot(dx, dy, dz);
-      if (!Number.isFinite(distance) || distance <= 0) return;
-      // The library fit includes a conservative perspective margin. Closing
-      // the resulting distance by one controlled factor uses more of the
-      // full-screen canvas without making the graph crop at the edges.
-      const scale = .78;
-      instance.cameraPosition(
-        { x: center.x + dx * scale, y: center.y + dy * scale, z: center.z + dz * scale },
-        center,
-        durationMs,
-      );
-      window.setTimeout(() => setGraphFitReady(true), Math.max(0, durationMs));
+      const viewport = graphCanvasRef.current;
+      const fit = bounds && camera.position
+        ? graphFitCameraTarget(
+          bounds,
+          camera.position,
+          camera.fov ?? 25,
+          camera.aspect ?? ((viewport?.clientWidth ?? 1) / Math.max(1, viewport?.clientHeight ?? 1)),
+          viewport?.clientHeight ?? graphViewport.height,
+          MEMORY_DEBUG_GRAPH_FIT_PADDING,
+        )
+        : null;
+      if (!fit) return;
+      instance.cameraPosition(fit.position, fit.target, durationMs);
+      window.setTimeout(() => {
+        if (requestId === graphFitRequestRef.current) {
+          setGraphFitReady(true);
+          scheduleGraphLabelOcclusion();
+        }
+      }, Math.max(0, durationMs));
+    };
+    window.requestAnimationFrame(() => {
+      if (requestId !== graphFitRequestRef.current) return;
+      window.requestAnimationFrame(() => {
+        if (requestId !== graphFitRequestRef.current) return;
+        window.setTimeout(applyFit, 40);
+      });
     });
   }
 
@@ -1820,7 +1920,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       disposeNodeOverlay(cached.group);
     }
     const group = new Group();
-    group.renderOrder = 11;
     const highlightSprite = createNodeHighlightSprite(nodeRadius, highlightKind);
     if (highlightSprite) group.add(highlightSprite);
     if (!showPersistentLabel) {
@@ -1855,9 +1954,10 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     context.strokeText(text, logicalWidth / 2, logicalHeight / 2 + 1);
     context.fillStyle = "#e6f0f8";
     context.fillText(text, logicalWidth / 2, logicalHeight / 2 + 1);
-    const sprite = new Sprite(new SpriteMaterial({ map: new CanvasTexture(canvas), transparent: true, depthWrite: false, depthTest: true, opacity: .94 }));
-    sprite.renderOrder = 13;
+    const labelMaterial = new SpriteMaterial({ map: new CanvasTexture(canvas), ...graphNodeLabelMaterialOptions() });
+    const sprite = new Sprite(labelMaterial);
     sprite.scale.set((logicalWidth / 22) * labelScale, (logicalHeight / 22) * labelScale, 1);
+    sprite.renderOrder = GRAPH_NODE_LABEL_RENDER_ORDER;
     sprite.position.set(0, 0, 0);
     sprite.onBeforeRender = (_renderer, _scene, camera) => {
       const parent = sprite.parent;
@@ -1872,12 +1972,13 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
       sprite.position.set((dx / distance) * offset, (dy / distance) * offset, (dz / distance) * offset);
     };
     group.add(sprite);
-    nodeOverlaysRef.current.set(nodeId, { signature, group });
+    nodeOverlaysRef.current.set(nodeId, { signature, group, labelSprite: sprite });
     return group;
   }
 
   useEffect(() => {
     if (webglStatus !== "available" || !ForceGraph3DComponent || !graphData.nodes.length) return undefined;
+    graphFitRequestRef.current += 1;
     setGraphFitReady(false);
     graphFitPendingRef.current = true;
     return undefined;
@@ -2405,15 +2506,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     };
   }
 
-  function graphLinkMaterial(link: Graph3DLink): MeshLambertMaterial {
-    const options = graphLinkMaterialOptions(graphLinkState(link).color);
-    const cached = graphLinkMaterialsRef.current.get(options.color);
-    if (cached) return cached;
-    const material = new MeshLambertMaterial(options);
-    graphLinkMaterialsRef.current.set(options.color, material);
-    return material;
-  }
-
   const graphUnavailable = <div className="memory-debug-3d-loading" role="status">当前浏览器无法加载 3D 记忆图谱，请启用 WebGL。</div>;
 
   return <main className={`memory-debug-page${embedded ? " memory-debug-page-embedded" : ""}${filterOpen ? " memory-debug-filter-open" : ""}${leftPanelOpen ? " memory-debug-left-panel-open" : ""}${detailPanelOpen ? " memory-debug-right-panel-open" : ""}${leftPanelOpen && detailPanelOpen ? " memory-debug-two-drawers" : ""}`}>
@@ -2630,32 +2722,24 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               nodeThreeObject={nodeLabelObject}
               nodeThreeObjectExtend
               linkLabel={(link) => `<strong>聚合关系</strong><br/>${escapeHtml(link.labels.join("、") || link.label)}<br/><small>${link.direction === "both" ? "双向" : "单向"} · ${link.assertionIds.length} 条 Assertion · 最高重要度 ${link.importance == null ? "未记录" : `${Math.round(link.importance * 100)}%`}</small>`}
-              linkColor={(link) => {
-                const state = graphLinkState(link);
-                return graphLinkMaterialOptions(state.color).color;
-              }}
-              linkMaterial={(link: unknown) => graphLinkMaterial(link as Graph3DLink)}
+              linkColor={(link) => graphRenderColor(graphLinkState(link).color)}
               linkWidth={(link) => graphLinkWidth(link.importance)}
-              // Directional arrows are rendered by the same custom Cone
-              // object in both directions, so the library's separate arrow
-              // material cannot diverge from the line material.
-              linkDirectionalArrowLength={() => 0}
-              linkThreeObject={(link: unknown) => {
-                const graphLink = link as Graph3DLink;
-                const state = graphLinkState(graphLink);
-                return createGraphLinkOverlayObject(graphLink, state.isSelected, state.color);
+              // Keep one deterministic source → target arrow for each
+              // aggregated relation. A `both` relation is still reported as
+              // 双向 in the label and inspector; the graph stays on the
+              // library's native single-arrow path instead of adding a
+              // second hand-positioned Cone.
+              linkDirectionalArrowLength={(link) => {
+                const state = graphLinkState(link);
+                return graphLinkArrowLength(hasBackgroundHighlight, selectedEdgeId, state.linkId, link.kind, state.isReturned, state.isAffected);
               }}
-              linkThreeObjectExtend={(link) => link.kind === "assertion" || link.kind === "preview-assertion" || selectedEdgeId === String(link.id ?? "")}
-              linkPositionUpdate={(object, coordinates, link) => {
-                const graphLink = link as unknown as Graph3DLink;
-                if (object instanceof Group) {
-                  const state = graphLinkState(graphLink);
-                  updateGraphLinkOverlayObject(object, coordinates, graphLink, state.isSelected, state.color);
-                }
+              linkDirectionalArrowColor={(link) => {
+                const state = graphLinkState(link);
+                return graphRenderColor(graphLinkArrowColor(hasBackgroundHighlight, selectedEdgeId, state.linkId, link.kind, state.isReturned, state.isAffected));
               }}
+              linkDirectionalArrowRelPos={MEMORY_DEBUG_GRAPH_ARROW_REL_POS}
               linkOpacity={GRAPH_LINK_OPACITY}
               linkResolution={8}
-              linkHoverPrecision={8}
               showNavInfo={false}
               controlType={MEMORY_DEBUG_GRAPH_CONTROL_TYPE}
               enableNodeDrag={!layoutLocked}
@@ -2673,7 +2757,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
               cooldownTicks={0}
               cooldownTime={2600}
               onEngineTick={updateTracePositions}
-              onEngineStop={() => { updateTracePositions(); if (graphFitPendingRef.current) fitGraph(); }}
+              onEngineStop={() => { updateTracePositions(); scheduleGraphLabelOcclusion(); if (graphFitPendingRef.current) fitGraph(); }}
               onNodeClick={handleGraphNodeClick}
               onLinkClick={handleGraphLinkClick}
             /></WebGLGraphErrorBoundary> : graphUnavailable}

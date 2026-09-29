@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { GRAPH_SELECTED_LINK_COLOR, MEMORY_DEBUG_GRAPH_ARROW_REL_POS, MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MemoryDebugLegend, MemoryNodeFilter, MemoryDebugWorkspacePage, RECALL_PROCESS_LABELS, buildRecallDisplayResults, buildRecallObjectTree, buildRecallRequestPayload, countRecallDisplayResults, episodeCardTooltip, episodeTraceSourcePoint, filterMemoryDebugEpisodes, filterRecallDisplayResults, formatEpisodeTime, formatRecallElapsed, graphArrowDistances, graphLinkArrowLength, graphLinkColor, graphLinkIsContextual, graphLinkMaterialOptions, graphLinkWidth, graphNavigationActive, graphNodeHighlightKind, graphNodeValue, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, memoryNodeGroupOptions, memoryRecallDateBounds, projectMemoryDebugGraph, recallExclusionLabel, recallFiltersFromObjectSelection, recallGraphNodeHitIds, recallGraphProjectionFilters, recallRouteLabel, recallRouteStatusLabel, relationDisplayLabel, relationSentence, selectMemoryNodeGroup, selectMemoryNodeTypes, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
+import { GRAPH_SELECTED_LINK_COLOR, MEMORY_DEBUG_GRAPH_ARROW_REL_POS, MEMORY_DEBUG_GRAPH_CONTROL_TYPE, MEMORY_DEBUG_GRAPH_FIT_PADDING, MemoryDebugLegend, MemoryNodeFilter, MemoryDebugWorkspacePage, RECALL_PROCESS_LABELS, buildRecallDisplayResults, buildRecallObjectTree, buildRecallRequestPayload, countRecallDisplayResults, episodeCardTooltip, episodeTraceSourcePoint, filterMemoryDebugEpisodes, filterRecallDisplayResults, formatEpisodeTime, formatRecallElapsed, graphFitCameraTarget, graphLinkArrowLength, graphLinkColor, graphLinkIsContextual, graphLinkWidth, graphNavigationActive, graphNodeHighlightKind, graphNodeLabelMaterialOptions, graphNodeValue, graphVisibleLabelIds, isMemoryDebugSearchMode, isMemoryDebugSemanticNodeType, memoryDebugRecallProjectionKey, memoryNodeGroupOptions, memoryRecallDateBounds, projectMemoryDebugGraph, recallExclusionLabel, recallFiltersFromObjectSelection, recallGraphNodeHitIds, recallGraphProjectionFilters, recallRouteLabel, recallRouteStatusLabel, relationDisplayLabel, relationSentence, selectMemoryNodeGroup, selectMemoryNodeTypes, splitRecallFocusNodes, toggleEpisodeSelection } from "./MemoryDebugWorkspacePage";
 
 const graphOntology = {
   revision: "memory.ontology.v1+registry:0",
@@ -38,6 +38,60 @@ describe("记忆调试工作台", () => {
     expect(graphNavigationActive("mouse", 0)).toBe(false);
     expect(graphNavigationActive("mouse", 1)).toBe(true);
     expect(graphNavigationActive("touch", 0)).toBe(true);
+  });
+
+  it("让节点标签和关系箭头走图谱库的原生深度与箭头路径", () => {
+    expect(graphNodeLabelMaterialOptions()).toEqual({ transparent: true, depthWrite: false, depthTest: false, opacity: .94 });
+    expect(MEMORY_DEBUG_GRAPH_ARROW_REL_POS).toBe(.95);
+    expect(graphLinkArrowLength(true, "", "relation", "assertion", false, false)).toBe(10);
+  });
+
+  it("被前方节点覆盖时整体隐藏后方标签，而不是把文字切成半截", () => {
+    const visible = graphVisibleLabelIds([
+      { id: "front", depth: 4, center: { x: 100, y: 100 }, radius: 42 },
+      { id: "rear", depth: 8, center: { x: 100, y: 100 }, radius: 12, label: { left: 80, right: 120, top: 92, bottom: 108 } },
+      { id: "clear", depth: 8, center: { x: 260, y: 100 }, radius: 12, label: { left: 240, right: 280, top: 92, bottom: 108 } },
+    ]);
+
+    expect(visible.has("rear")).toBe(false);
+    expect(visible.has("clear")).toBe(true);
+  });
+
+  it("初始化适配完整图谱并保留足够边距", () => {
+    expect(MEMORY_DEBUG_GRAPH_FIT_PADDING).toBeGreaterThan(36);
+  });
+
+  it("适配时以图谱边界中心为相机目标，不受面板布局影响", () => {
+    const fit = graphFitCameraTarget(
+      { x: [100, 140], y: [-20, 20], z: [40, 80] },
+      { x: 180, y: 60, z: 120 },
+      25,
+      2,
+      800,
+      MEMORY_DEBUG_GRAPH_FIT_PADDING,
+    );
+
+    expect(fit?.target).toEqual({ x: 120, y: 0, z: 60 });
+    expect(fit?.distance).toBeGreaterThan(0);
+
+    expect(graphFitCameraTarget(
+      { x: [1, 1], y: [2, 2], z: [3, 3] },
+      { x: 0, y: 0, z: 10 },
+      25,
+      1,
+      800,
+      MEMORY_DEBUG_GRAPH_FIT_PADDING,
+    )?.target).toEqual({ x: 1, y: 2, z: 3 });
+  });
+
+  it("全图搜索只更新高亮，不改变底层图谱投影", () => {
+    const nodeIds = new Set(["node-b", "node-a"]);
+    const assertionNodeIds = new Set(["node-c"]);
+    const assertionIds = new Set(["assertion-2", "assertion-1"]);
+
+    expect(memoryDebugRecallProjectionKey(false, "recall-1", nodeIds, assertionNodeIds, assertionIds)).toBe("");
+    expect(memoryDebugRecallProjectionKey(true, "recall-1", nodeIds, assertionNodeIds, assertionIds))
+      .toBe(memoryDebugRecallProjectionKey(true, "recall-1", new Set(["node-a", "node-b"]), assertionNodeIds, new Set(["assertion-1", "assertion-2"])));
   });
 
   it("展示真实审计页的三个操作入口", () => {
@@ -396,23 +450,6 @@ describe("记忆调试工作台", () => {
     expect(graph.edges[0]).toMatchObject({ importance: .82, direction: "both", assertionIds: ["relation-1"] });
   });
 
-  it("正向和反向箭头共用不写深度的实心材质策略", () => {
-    expect(graphLinkMaterialOptions("#5e9fbb")).toEqual({
-      color: "#5e9fbb",
-      transparent: false,
-      opacity: 1,
-      depthWrite: false,
-    });
-  });
-
-  it("把箭头尾部放在线段前方，尖端朝向目标节点", () => {
-    expect(graphArrowDistances(4, 6, 100)).toEqual({
-      tailDistance: 4 + (100 - 4 - 6 - 10) * MEMORY_DEBUG_GRAPH_ARROW_REL_POS,
-      headDistance: 4 + (100 - 4 - 6 - 10) * MEMORY_DEBUG_GRAPH_ARROW_REL_POS + 10,
-    });
-    expect(graphArrowDistances(4, 6, 20)).toBeNull();
-  });
-
   it("把同一对节点的多条有向 Assertion 合并成一根线，并取最大重要度", () => {
     const graph = projectMemoryDebugGraph(graphReport({
       nodes: [{ id: "a", node_type: "person", label: "甲" }, { id: "b", node_type: "person", label: "乙" }],
@@ -427,6 +464,8 @@ describe("记忆调试工作台", () => {
     expect(graph.edges).toHaveLength(1);
     expect(graph.edges[0]).toMatchObject({
       id: "relation:a::b",
+      source: "a",
+      target: "b",
       direction: "both",
       importance: .92,
       assertionIds: ["child", "parent", "supports"],

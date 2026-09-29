@@ -6,13 +6,20 @@ declare module "three" {
 
   export class Vector3 {
     constructor(x?: number, y?: number, z?: number);
+    x: number;
+    y: number;
+    z: number;
     clone(): Vector3;
     sub(vector: Vector3): this;
     add(vector: Vector3): this;
+    addScaledVector(vector: Vector3, scale: number): this;
     copy(vector: Vector3): this;
+    applyMatrix4(matrix: { elements: ArrayLike<number> }): this;
     length(): number;
     normalize(): this;
     multiplyScalar(value: number): this;
+    project(camera: unknown): this;
+    setFromMatrixColumn(matrix: { elements: ArrayLike<number> }, index: number): this;
   }
 
   export class ConeGeometry {
@@ -80,6 +87,6 @@ declare module "three" {
     renderOrder: number;
     visible: boolean;
     position: { x: number; y: number; z: number; set(x: number, y: number, z: number): void };
-    scale: { set(x: number, y: number, z: number): void };
+    scale: { x: number; y: number; z: number; set(x: number, y: number, z: number): void };
   }
 }
