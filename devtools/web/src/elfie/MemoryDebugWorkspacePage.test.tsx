@@ -92,6 +92,7 @@ describe("记忆调试工作台", () => {
     expect(memoryDebugRecallProjectionKey(false, "recall-1", nodeIds, assertionNodeIds, assertionIds)).toBe("");
     expect(memoryDebugRecallProjectionKey(true, "recall-1", nodeIds, assertionNodeIds, assertionIds))
       .toBe(memoryDebugRecallProjectionKey(true, "recall-1", new Set(["node-a", "node-b"]), assertionNodeIds, new Set(["assertion-1", "assertion-2"])));
+    expect(memoryDebugRecallProjectionKey(true, null, nodeIds, assertionNodeIds, assertionIds)).not.toBe("");
   });
 
   it("展示真实审计页的三个操作入口", () => {

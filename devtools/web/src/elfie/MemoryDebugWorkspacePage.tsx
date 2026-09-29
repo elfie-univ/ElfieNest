@@ -158,10 +158,10 @@ export function memoryDebugRecallProjectionKey(
   assertionNodeIds: ReadonlySet<string>,
   assertionIds: ReadonlySet<string>,
 ): string {
-  if (!showOnlyRecallResults || !recallId) return "";
+  if (!showOnlyRecallResults) return "";
   return [
     "active",
-    recallId,
+    recallId ?? "active",
     [...nodeIds].sort().join(","),
     [...assertionNodeIds].sort().join(","),
     [...assertionIds].sort().join(","),
@@ -1395,6 +1395,7 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const reportRequestRef = useRef(0);
   const graphFitPendingRef = useRef(true);
   const graphFitRequestRef = useRef(0);
+  const graphFitFallbackTimerRef = useRef<number | null>(null);
   const nodeOverlaysRef = useRef(new Map<string, GraphNodeOverlay>());
   const labelOcclusionFrameRef = useRef<number | null>(null);
 
@@ -1878,7 +1879,16 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
           MEMORY_DEBUG_GRAPH_FIT_PADDING,
         )
         : null;
-      if (!fit) return;
+      if (!fit) {
+        graphFitPendingRef.current = true;
+        window.setTimeout(() => {
+          if (requestId === graphFitRequestRef.current && graphFitPendingRef.current && graphRef.current === instance) {
+            fitGraph(durationMs);
+          }
+        }, 180);
+        return;
+      }
+      graphFitPendingRef.current = false;
       instance.cameraPosition(fit.position, fit.target, durationMs);
       window.setTimeout(() => {
         if (requestId === graphFitRequestRef.current) {
@@ -1981,13 +1991,22 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
     graphFitRequestRef.current += 1;
     setGraphFitReady(false);
     graphFitPendingRef.current = true;
-    return undefined;
+    if (graphFitFallbackTimerRef.current !== null) window.clearTimeout(graphFitFallbackTimerRef.current);
+    graphFitFallbackTimerRef.current = window.setTimeout(() => {
+      graphFitFallbackTimerRef.current = null;
+      if (graphFitPendingRef.current) fitGraph();
+    }, 700);
+    return () => {
+      if (graphFitFallbackTimerRef.current !== null) {
+        window.clearTimeout(graphFitFallbackTimerRef.current);
+        graphFitFallbackTimerRef.current = null;
+      }
+    };
   }, [ForceGraph3DComponent, graphData, webglStatus]);
 
-  // Do not fit on the first viewport frame: force-graph has not settled its
-  // 3D positions yet, so fitting there produces a tiny centered cluster.
-  // The engine-stop callback fits the settled bounds; manual resize/fit stays
-  // available through the explicit toolbar action.
+  // The engine-stop callback is the fast path; the delayed fallback handles
+  // the mount race where force-graph stops before the pending flag is set.
+  // Manual fit remains available through the explicit toolbar action.
 
   function resetGraph(): void {
     setSelectedId("");
