@@ -25,7 +25,7 @@ appearance_preferences:
   - s_glyph
   - heart
   ears:
-  - dog
+  - tovren
 status: published
 age_unit: local_year
 stage_endpoint_policy:

@@ -19,9 +19,9 @@ EXPECTED_SCENES = (
     "rooms/common_area_layouts/working_layout.tscn",
     "rooms/common_area_layouts/music_layout.tscn",
     "rooms/common_area_layouts/bookroom_layout.tscn",
-    "characters/dog/dog.tscn",
-    "characters/fox/fox.tscn",
-    "characters/cat/cat.tscn",
+    "characters/tovren/tovren.tscn",
+    "characters/saevi/saevi.tscn",
+    "characters/myelle/myelle.tscn",
 )
 
 EXPECTED_LAYOUTS = {

@@ -129,19 +129,19 @@ describe("observer camera protocol", () => {
       sequence: 2,
       scope: { kind: "room", room_id: "local-nest" },
       entities: {
-        "fox-1": {
+        "saevi-1": {
           room_id: "local-nest",
           zone_id: "dorm-01",
           posture: "standing",
           active: true,
           active_command_id: null,
-          species_id: "fox",
+          species_id: "saevi",
           home_anchor_id: "dorm-01/bed-01",
           appearance: {},
           mock_motion: { waypoint: 1, sequence: 1 },
         },
       },
-      entity_revisions: { "fox-1": 1 },
+      entity_revisions: { "saevi-1": 1 },
     }
 
     expect(parseObserverSemanticSnapshot(snapshot)).toMatchObject({
@@ -149,14 +149,14 @@ describe("observer camera protocol", () => {
       generation: 1,
       sequence: 2,
     })
-    expect(parseObserverSemanticSnapshot(snapshot)?.entities["fox-1"]?.mock_motion).toEqual({
+    expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.mock_motion).toEqual({
       waypoint: 1,
       sequence: 1,
     })
     expect(parseObserverSemanticSnapshot({ ...snapshot, position: { x: 1, y: 2, z: 3 } })).toBeNull()
     expect(parseObserverSemanticSnapshot({
       ...snapshot,
-      entities: { "fox-1": { ...snapshot.entities["fox-1"], transform: {} } },
+      entities: { "saevi-1": { ...snapshot.entities["saevi-1"], transform: {} } },
     })).toBeNull()
   })
 })

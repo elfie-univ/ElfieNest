@@ -100,7 +100,7 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
                 HeardUtterancePayload(
                     kind="heard_utterance",
                     utterance_id="speech-1",
-                    sender_id="fox-1",
+                    sender_id="saevi-1",
                     text="你好",
                     emotion="happy",
                 ),
@@ -112,14 +112,14 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
                 SemanticVisualScenePayload(
                     kind="semantic_visual_scene",
                     observation_id="vision-1",
-                    observer_id="dog-1",
+                    observer_id="tovren-1",
                     zone_id="room-1",
                     entities=(
                         SemanticVisualEntityPayload(
-                            semantic_id="actor/fox-1",
+                            semantic_id="actor/saevi-1",
                             kind="actor",
                             zone_id="room-1",
-                            label="fox-1",
+                            label="saevi-1",
                         ),
                     ),
                 ),
@@ -132,7 +132,7 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
                     kind="semantic_action_result",
                     command_id="move-home-1",
                     intent_id="intent-move-home-1",
-                    actor_id="dog-1",
+                    actor_id="tovren-1",
                     body_generation=1,
                     target="home",
                     resolved_anchor_id="room-1/bed-1",
@@ -170,8 +170,8 @@ def test_nest_semantic_payloads_enter_one_typed_embodied_perception_lane() -> No
         EventId("environment-command-1"),
     ]
     contents = [event.payload.content for event in frame.events]
-    assert "sender=fox-1" in contents[0] and "emotion=happy" in contents[0]
-    assert "actor/fox-1" in contents[1]
+    assert "sender=saevi-1" in contents[0] and "emotion=happy" in contents[0]
+    assert "actor/saevi-1" in contents[1]
     assert "status=completed" in contents[2]
     assert frame.events[3].payload.modality is PhysicalModality.ENVIRONMENT
     assert "fact_type=environment_desired_changed" in contents[3]

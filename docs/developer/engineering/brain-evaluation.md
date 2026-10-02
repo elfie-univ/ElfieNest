@@ -161,10 +161,10 @@ under a disposable Runtime root using a stable `elfie_id`:
 
 ```json
 {
-  "fixture_id": "anchor-fox-v1",
+  "fixture_id": "anchor-saevi-v1",
   "elfie_id": "00000000-0000-4000-8000-000000000001",
   "name": "Lan",
-  "species_id": "fox",
+  "species_id": "saevi",
   "age_years": 2.0,
   "description": "Public synthetic evaluation life background",
   "appearance_description": "Red tail with a pale left ear tip",
@@ -219,14 +219,14 @@ configuration, and Food:
 ```bash
 ./developer.sh brain-eval capture \
   --candidate /path/to/private-eval-inputs/baseline-candidate.json \
-  --fixture /path/to/private-eval-inputs/anchor-fox.json \
+  --fixture /path/to/private-eval-inputs/anchor-saevi.json \
   --scenario /path/to/private-eval-inputs/memory-precision.json \
   --food-key mock \
   --run-id baseline-memory-001
 
 ./developer.sh brain-eval capture \
   --candidate /path/to/private-eval-inputs/candidate.json \
-  --fixture /path/to/private-eval-inputs/anchor-fox.json \
+  --fixture /path/to/private-eval-inputs/anchor-saevi.json \
   --scenario /path/to/private-eval-inputs/memory-precision.json \
   --food-key mock \
   --run-id candidate-memory-001

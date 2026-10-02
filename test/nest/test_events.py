@@ -20,20 +20,20 @@ def describe_event(event: NestDomainEvent) -> str:
 
 def test_nest_domain_events_are_closed_semantic_values() -> None:
     # Given
-    admitted = ResidentAdmittedEvent(elfie_id="fox-1")
+    admitted = ResidentAdmittedEvent(elfie_id="saevi-1")
     assigned = HomeAssignedEvent(
-        elfie_id="fox-1",
+        elfie_id="saevi-1",
         home_zone_id="dorm-01",
         home_anchor_id="dorm-01/bed-01",
     )
     mirrored = RuntimeMirrorUpdatedEvent(
-        elfie_id="fox-1",
+        elfie_id="saevi-1",
         current_zone_id="activity-main",
         posture="standing",
         active_command_id="command-1",
     )
 
     # When / Then
-    assert describe_event(admitted) == "resident:fox-1"
-    assert describe_event(assigned) == "home:fox-1:dorm-01/bed-01"
-    assert describe_event(mirrored) == "runtime:fox-1:activity-main"
+    assert describe_event(admitted) == "resident:saevi-1"
+    assert describe_event(assigned) == "home:saevi-1:dorm-01/bed-01"
+    assert describe_event(mirrored) == "runtime:saevi-1:activity-main"

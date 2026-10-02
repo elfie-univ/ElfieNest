@@ -6,7 +6,7 @@
 - `myelle-tail-corrected.blend`: Mixamo-compatible model with `Tail_01` through
   `Tail_04`, normalized tail weights and an embedded source texture.
 - Input: the user-provided `base_basic_shaded (2).fbx`, received on 2026-10-02.
-- Authoring tool: Blender 5.2.0 LTS. Runtime model: `../cat.glb`.
+- Authoring tool: Blender 5.2.0 LTS. Runtime model: `../myelle.glb`.
 
 The GLB applies the armature object's rotation, exports no actions, and uses
 the shaded texture as PBR albedo rather than emission. Runtime actions are

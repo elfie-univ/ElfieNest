@@ -31,13 +31,13 @@ describe("Elfie Lab view model", () => {
     expect(creationAgeError("not-a-number")).toBe("年龄必须是 2 到 20 岁之间的整数");
     expect(creationAgeError("2.5")).toBe("年龄必须是 2 到 20 岁之间的整数");
     expect(creationAgeError("23")).toBe("年龄必须是 2 到 20 岁之间的整数");
-    expect(creationAgeError("15", "fox")).toBeNull();
-    expect(creationAgeError("16", "fox")).toBe("年龄必须是 2 到 15 岁之间的整数");
+    expect(creationAgeError("15", "saevi")).toBeNull();
+    expect(creationAgeError("16", "saevi")).toBe("年龄必须是 2 到 15 岁之间的整数");
   });
 
   it("prepares concrete creation values before advanced controls are opened", () => {
-    const low = randomCreationValues("dog", () => 0);
-    const high = randomCreationValues("fox", () => 0.999999);
+    const low = randomCreationValues("tovren", () => 0);
+    const high = randomCreationValues("saevi", () => 0.999999);
     expect(low).toEqual({
       age: 2,
       gender: "female",

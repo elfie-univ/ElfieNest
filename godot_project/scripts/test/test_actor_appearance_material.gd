@@ -1,7 +1,7 @@
 extends SceneTree
 
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
-const FOX_SCENE := preload("res://characters/fox/fox.tscn")
+const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 
 
 func _init() -> void:
@@ -9,11 +9,11 @@ func _init() -> void:
 
 
 func _run() -> void:
-	var fox := FOX_SCENE.instantiate()
-	root.add_child(fox)
+	var saevi := SAEVI_SCENE.instantiate()
+	root.add_child(saevi)
 	await process_frame
-	var visual_root := fox.get_node("VisualRoot") as Node3D
-	var collision_shape := fox.get_node("CollisionShape3D") as CollisionShape3D
+	var visual_root := saevi.get_node("VisualRoot") as Node3D
+	var collision_shape := saevi.get_node("CollisionShape3D") as CollisionShape3D
 	ACTOR_APPEARANCE.apply(
 		visual_root,
 		collision_shape,
@@ -22,7 +22,7 @@ func _run() -> void:
 			"build_scale": 1.0,
 			"material_parameters": {"palette_id": "red", "pattern_id": "cross"},
 		},
-		"fox",
+		"saevi",
 	)
 	await process_frame
 	var shader_count := 0
@@ -39,10 +39,10 @@ func _run() -> void:
 			if bool(material.get_shader_parameter("use_emission_texture")) and material.get_shader_parameter("emission_texture") != null:
 				emission_texture_count += 1
 	if shader_count == 0 or emission_texture_count == 0:
-		push_error("Fox appearance shader did not preserve the imported emission texture")
-		fox.free()
+		push_error("Saevi appearance shader did not preserve the imported emission texture")
+		saevi.free()
 		quit(1)
 		return
 	print("ACTOR_MATERIAL_PRESERVATION: shaders=%d emission_textures=%d" % [shader_count, emission_texture_count])
-	fox.free()
+	saevi.free()
 	quit()

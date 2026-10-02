@@ -2,8 +2,8 @@ extends SceneTree
 
 const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
 const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
+	"tovren": preload("res://characters/tovren/tovren.tscn"),
+	"saevi": preload("res://characters/saevi/saevi.tscn"),
 }
 
 
@@ -29,14 +29,14 @@ func _init() -> void:
 	controller.setup(nest, characters, ACTOR_SCENES, true)
 	var actors := [
 		{
-			"actor_id": "dog-1",
-			"species": "dog",
+			"actor_id": "tovren-1",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
@@ -51,7 +51,7 @@ func _init() -> void:
 		push_error("Complete actor sync did not create exactly two actors")
 		quit(1)
 		return
-	if not _animation_tracks_resolve(controller.actor("fox-1")):
+	if not _animation_tracks_resolve(controller.actor("saevi-1")):
 		push_error("Runtime animation tracks do not resolve to the actor skeleton")
 		quit(1)
 		return
@@ -60,7 +60,7 @@ func _init() -> void:
 		push_error("Actor catalog reduction was rejected")
 		quit(1)
 		return
-	if characters.get_child_count() != 1 or controller.actor("dog-1") != null:
+	if characters.get_child_count() != 1 or controller.actor("tovren-1") != null:
 		push_error("Complete actor sync did not remove stale actor")
 		quit(1)
 		return
@@ -82,8 +82,8 @@ func _init() -> void:
 		return
 	var invalid_home_anchor := controller.sync_actors([
 		{
-			"actor_id": "dog-2",
-			"species": "dog",
+			"actor_id": "tovren-2",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/door",
 			"appearance": {},
 		},
@@ -92,7 +92,7 @@ func _init() -> void:
 		push_error("Non-bed actor home anchor was accepted")
 		quit(1)
 		return
-	if characters.get_child_count() != 1 or controller.actor("dog-2") != null:
+	if characters.get_child_count() != 1 or controller.actor("tovren-2") != null:
 		push_error("Rejected non-bed home anchor partially changed the world")
 		quit(1)
 		return

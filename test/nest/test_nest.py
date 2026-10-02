@@ -261,14 +261,14 @@ def test_nest_changes_desired_capacity_without_a_second_config_fact() -> None:
 def test_nest_rejects_capacity_that_would_remove_an_assigned_home() -> None:
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(8))
-    nest.register_resident("fox-1")
-    nest.assign_home("fox-1", "dorm-01/bed-08")
+    nest.register_resident("saevi-1")
+    nest.assign_home("saevi-1", "dorm-01/bed-08")
 
     with pytest.raises(BedCapacityError, match="bed-08"):
         nest.set_desired_bed_count(4)
 
     assert nest.desired_bed_count == 4
-    assert nest.home_anchor_id("fox-1") == "dorm-01/bed-08"
+    assert nest.home_anchor_id("saevi-1") == "dorm-01/bed-08"
 
 
 def test_nest_admits_residents_with_stable_home_assignment() -> None:
@@ -277,49 +277,49 @@ def test_nest_admits_residents_with_stable_home_assignment() -> None:
     nest.apply_catalog(_catalog_with_beds(3))
 
     # When
-    first = nest.admit_resident("fox-1")
-    second = nest.admit_resident("dog-1")
+    first = nest.admit_resident("saevi-1")
+    second = nest.admit_resident("tovren-1")
 
     # Then
     assert first.home_anchor_id == "dorm-01/bed-01"
     assert second.home_anchor_id == "dorm-01/bed-02"
-    assert nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
+    assert nest.home_anchor_id("saevi-1") == "dorm-01/bed-01"
 
 
 def test_nest_rejects_home_conflicts_and_full_catalog() -> None:
     # Given
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(1))
-    nest.admit_resident("fox-1")
+    nest.admit_resident("saevi-1")
 
     # When / Then
     with pytest.raises(NoHomeAvailableError):
-        nest.admit_resident("dog-1")
-    nest.register_resident("dog-1")
+        nest.admit_resident("tovren-1")
+    nest.register_resident("tovren-1")
     with pytest.raises(BedConflictError):
-        nest.assign_home("dog-1", "dorm-01/bed-01")
+        nest.assign_home("tovren-1", "dorm-01/bed-01")
 
 
 def test_home_assignment_is_the_single_reservation_and_access_rule() -> None:
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(1))
-    nest.admit_resident("fox-1")
-    nest.register_resident("dog-1")
+    nest.admit_resident("saevi-1")
+    nest.register_resident("tovren-1")
 
     assert nest.is_home_reserved("dorm-01/bed-01") is True
-    assert nest.home_occupant("dorm-01/bed-01") == "fox-1"
-    assert nest.can_access_home("fox-1", "dorm-01/bed-01") is True
-    assert nest.can_access_home("dog-1", "dorm-01/bed-01") is False
+    assert nest.home_occupant("dorm-01/bed-01") == "saevi-1"
+    assert nest.can_access_home("saevi-1", "dorm-01/bed-01") is True
+    assert nest.can_access_home("tovren-1", "dorm-01/bed-01") is False
 
-    nest.update_resident_posture("fox-1", "away")
-    assert nest.can_access_home("fox-1", "dorm-01/bed-01") is False
+    nest.update_resident_posture("saevi-1", "away")
+    assert nest.can_access_home("saevi-1", "dorm-01/bed-01") is False
 
 
 def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
     # Given
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(2))
-    nest.admit_resident("fox-1")
+    nest.admit_resident("saevi-1")
     nest.drain_event_outbox()
 
     # When
@@ -327,7 +327,7 @@ def test_nest_catalog_shrink_marks_reconciliation_required() -> None:
 
     # Then
     assert nest.reconciliation_required is True
-    assert nest.home_anchor_id("fox-1") == "dorm-01/bed-01"
+    assert nest.home_anchor_id("saevi-1") == "dorm-01/bed-01"
 
 
 def test_nest_exposes_active_facilities_without_geometry() -> None:
@@ -378,12 +378,12 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
         }
     )
     nest.apply_catalog(catalog)
-    nest.register_resident("fox-1")
-    nest.register_resident("dog-1")
+    nest.register_resident("saevi-1")
+    nest.register_resident("tovren-1")
     nest.apply_runtime_mirrors(
         (
             RuntimeResidentMirror(
-                elfie_id="dog-1",
+                elfie_id="tovren-1",
                 current_zone_id="dorm-01",
                 runtime_id="runtime-a",
                 runtime_generation=1,
@@ -394,14 +394,14 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
 
     assert nest.queue_visual_observation(
         observation_id="vision-1",
-        observer_id="fox-1",
+        observer_id="saevi-1",
         max_results=2,
     )
     scene = nest.complete_visual_observation(
         observation_id="vision-1",
         zone_id="dorm-01",
         visible_semantic_ids=(
-            "actor/dog-1",
+            "actor/tovren-1",
             "actor/unknown",
             "anchor/dorm-01/bed-01",
             "facility/dorm-01/rest",
@@ -411,10 +411,10 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
 
     assert scene is not None
     assert [entity.semantic_id for entity in scene.entities] == [
-        "actor/dog-1",
+        "actor/tovren-1",
         "anchor/dorm-01/bed-01",
     ]
-    assert nest.drain_event_outbox()[0].target_ids == ("fox-1",)
+    assert nest.drain_event_outbox()[0].target_ids == ("saevi-1",)
     assert not hasattr(nest, "consume_visual_events")
     assert (
         nest.complete_visual_observation(
@@ -430,14 +430,14 @@ def test_semantic_visual_observation_filters_candidates_and_emits_targeted_event
 def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> None:
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(2))
-    nest.admit_resident("fox-1")
+    nest.admit_resident("saevi-1")
     nest.drain_event_outbox()
 
     assert (
         nest.queue_semantic_action(
             command_id="home-1",
             intent_id="intent-home-1",
-            actor_id="fox-1",
+            actor_id="saevi-1",
             body_generation=1,
             target="home",
         )
@@ -445,7 +445,7 @@ def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> N
     )
     assert (
         nest.resolve_semantic_action_target(
-            actor_id="fox-1",
+            actor_id="saevi-1",
             target="home",
         )
         == "dorm-01/bed-01"
@@ -462,7 +462,7 @@ def test_semantic_home_action_resolves_once_and_records_physical_terminal() -> N
     assert result.status == "completed"
     envelope = nest.drain_event_outbox()
     assert envelope[0].owner == "nest.action"
-    assert envelope[0].target_ids == ("fox-1",)
+    assert envelope[0].target_ids == ("saevi-1",)
 
 
 def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
@@ -504,27 +504,27 @@ def test_semantic_facility_action_resolves_to_one_zone_anchor() -> None:
         }
     )
     nest.apply_catalog(catalog)
-    nest.register_resident("fox-1")
+    nest.register_resident("saevi-1")
 
     assert (
         nest.resolve_semantic_action_target(
-            actor_id="fox-1",
+            actor_id="saevi-1",
             target="facility/dorm-01/activity",
         )
         == "dorm-01/activity"
     )
     assert (
         nest.resolve_semantic_action_target(
-            actor_id="fox-1",
+            actor_id="saevi-1",
             target="unapproved/dorm-01/activity",
         )
         is None
     )
 
-    nest.update_resident_posture("fox-1", "away")
+    nest.update_resident_posture("saevi-1", "away")
     assert (
         nest.resolve_semantic_action_target(
-            actor_id="fox-1",
+            actor_id="saevi-1",
             target="facility/dorm-01/activity",
         )
         is None

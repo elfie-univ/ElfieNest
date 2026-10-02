@@ -16,8 +16,8 @@ def new_id(prefix: str) -> str:
 
 def derive_life_stage(species_id: str, age_years: float) -> str:
     """按物种和实际年龄派生可解释的生命阶段。"""
-    youth_limit = 3.0 if species_id == "dog" else 2.0
-    senior_limit = 8.0 if species_id == "dog" else 7.0
+    youth_limit = 3.0 if species_id == "tovren" else 2.0
+    senior_limit = 8.0 if species_id == "tovren" else 7.0
     if age_years < 1.0:
         return "幼年"
     if age_years < youth_limit:
@@ -31,7 +31,7 @@ def derive_life_stage(species_id: str, age_years: float) -> str:
 class ElfieSpec:
     elfie_id: str
     name: str
-    species_id: str = "fox"
+    species_id: str = "saevi"
     age_years: Optional[float] = None
     life_stage: str = "年龄未设置"
     description: str = "用于本地调试的单精灵"
@@ -46,9 +46,9 @@ class ElfieSpec:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElfieSpec":
         species_id = str(data.get("species_id", ""))
-        if species_id not in {"dog", "fox"}:
-            # 旧或未知 Lab 记录使用狐狸母版兜底，不把身体实现类型暴露为个体类别。
-            species_id = "fox"
+        if species_id not in {"tovren", "saevi"}:
+            # 旧或未知 Lab 记录使用赛维母版兜底，不把身体实现类型暴露为个体类别。
+            species_id = "saevi"
         raw_age = data.get("age_years")
         age_years = float(raw_age) if isinstance(raw_age, (int, float)) else None
         return cls(

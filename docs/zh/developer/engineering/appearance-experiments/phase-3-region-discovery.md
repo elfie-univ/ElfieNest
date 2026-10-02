@@ -35,9 +35,9 @@ APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
 
 [正式区域基线清单](../../../../public/assets/appearance-experiments/phase-3/production-region-baseline-v1.json)
 
-![Tovren正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/dog-formal-region-grid-4views.png)
+![Tovren正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/tovren-formal-region-grid-4views.png)
 
-![Saevi正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/fox-formal-region-grid-4views.png)
+![Saevi正式区域总图](../../../../public/assets/appearance-experiments/phase-3/production-v1/saevi-formal-region-grid-4views.png)
 
 每行对应一个区域，四列依次为正面、四分之三、侧面和俯视。高亮颜色只用于定位；产品局部染色
 仍使用与基础毛色相同的 V9 局部相对明暗迁移。

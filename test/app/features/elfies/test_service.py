@@ -163,7 +163,7 @@ def _record(
         owner_user_id=owner_user_id,
         owner_account_id=owner_account_id,
         owner_display_name=owner_account_id.title(),
-        species_id="fox",
+        species_id="saevi",
         gender=None,
         birth_date=None,
         adopted_at="2026-08-01T00:00:00Z",
@@ -207,7 +207,7 @@ def test_member_directory_exposes_visible_elfies_with_bounded_permissions() -> N
         "extraversion",
     )
     assert results[0].profile.species is not None
-    assert results[0].profile.species.display_name_zh == "灵狐"
+    assert results[0].profile.species.display_name_zh == "赛维"
     assert results[1].permissions.can_view_profile is True
     assert results[1].permissions.can_view_cognition is False
 
@@ -278,12 +278,12 @@ def test_retired_species_can_still_be_presented_when_catalog_contains_it() -> No
     from elfie.profile import current_species_catalog
 
     catalog = current_species_catalog()
-    fox = catalog.definition("fox")
-    retired = replace(fox, species_package_id="old-fox", status="retired")
+    saevi = catalog.definition("saevi")
+    retired = replace(saevi, species_package_id="old-saevi", status="retired")
     retired_catalog = replace(
         catalog,
         definitions=tuple(
-            retired if definition.species_id == "fox" else definition
+            retired if definition.species_id == "saevi" else definition
             for definition in catalog.definitions
         ),
     )

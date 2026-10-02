@@ -1,13 +1,14 @@
 document_kind: species_definition
 schema_version: 1
-definition_version: myelle.v3
+definition_version: myelle.v4
 species_package_id: myelle
-package_version: myelle.v3
+package_version: myelle.v4
 status: published
-technical_species_id: cat
+technical_species_id: myelle
 identity:
   display_name: Myelle
-  godot_package_id: cat
+  display_name_zh: 米耶尔
+  godot_package_id: myelle
 sensory_profile:
   source_ref: species#4.3
   tendencies: 细微声音、光线、高低差与平衡较突出，通常利于攀爬、山路及低干扰观察；不自动获得夜视或探险资格。
@@ -22,8 +23,8 @@ presentation_images:
 presentation_provenance:
   status: author_review_required
   method: blender_render_of_runtime_glb
-  model_file: godot_project/characters/cat/cat.glb
-  authoring_file: godot_project/characters/cat/source/myelle-tail-corrected.blend
+  model_file: godot_project/characters/myelle/myelle.glb
+  authoring_file: godot_project/characters/myelle/source/myelle-tail-corrected.blend
   full_body: Same imported Myelle model rendered full-body under studio lighting.
   headshot: Same model, materials and lighting rendered with a closer camera.
   proves_runtime_model: true

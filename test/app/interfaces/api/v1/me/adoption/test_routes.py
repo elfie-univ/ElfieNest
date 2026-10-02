@@ -114,7 +114,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={
-            "species_id": "fox",
+            "species_id": "saevi",
             "life_stage": "young_adult",
             "gender": "any",
             "appearance": {
@@ -131,7 +131,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     assert candidates.status_code == 200, candidates.text
     candidate_set = candidates.json()
     selected = candidate_set["candidates"][0]
-    assert selected["runtime_appearance"]["species_id"] == "fox"
+    assert selected["runtime_appearance"]["species_id"] == "saevi"
     assert selected["full_body_image_url"] == ""
     assert selected["headshot_image_url"] == ""
 
@@ -251,7 +251,7 @@ def test_adoption_dtos_reject_extra_fields(tmp_path: Path) -> None:
     response = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={
-            "species_id": "fox",
+            "species_id": "saevi",
             "life_stage": "any",
             "gender": "any",
             "appearance": {

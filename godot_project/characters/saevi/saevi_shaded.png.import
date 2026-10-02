@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bq57sl4e27mr6"
-path.s3tc="res://.godot/imported/fox_shaded.png-4678bdb739e4dd1af7ccd8b27f826a92.s3tc.ctex"
+path.s3tc="res://.godot/imported/saevi_shaded.png-4d8d6b751033dedb665cb417dd897644.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -14,8 +14,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://characters/fox/fox_shaded.png"
-dest_files=["res://.godot/imported/fox_shaded.png-4678bdb739e4dd1af7ccd8b27f826a92.s3tc.ctex"]
+source_file="res://characters/saevi/saevi_shaded.png"
+dest_files=["res://.godot/imported/saevi_shaded.png-4d8d6b751033dedb665cb417dd897644.s3tc.ctex"]
 
 [params]
 

@@ -27,7 +27,7 @@ def _seed() -> dict[str, object]:
         "identity_core": {
             "elfie_id": "elfie-header",
             "display_name": "Lumi",
-            "species_id": "fox",
+            "species_id": "saevi",
             "species_name": "Saevi",
             "resident_role": "ElfieNest 居民",
         },

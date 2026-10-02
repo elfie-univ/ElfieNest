@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[4] / "config"
 
 def test_species_directories_use_world_names_without_changing_runtime_ids() -> None:
     species_root = ROOT / "genesis/species"
-    expected = {"saevi": "fox", "tovren": "dog", "myelle": "cat"}
+    expected = {"saevi": "saevi", "tovren": "tovren", "myelle": "myelle"}
     assert {path.name for path in species_root.iterdir() if path.is_dir()} == set(
         expected
     )
@@ -191,9 +191,9 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert names["status"] == "confirmed"
     assert names["formal_species_names"] == ["Saevi", "Tovren", "Myelle"]
     assert names["technical_species_ids"] == {
-        "Saevi": "fox",
-        "Tovren": "dog",
-        "Myelle": "cat",
+        "Saevi": "saevi",
+        "Tovren": "tovren",
+        "Myelle": "myelle",
     }
     reserved = set(names["reserved_names"])
     assert reserved == {"Saevi", "Tovren", "Myelle"}
@@ -594,7 +594,7 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
     serialized_geography = yaml.safe_dump(geography, allow_unicode=True)
     assert not any(
         re.search(rf"\b{technical_id}\b", serialized_geography)
-        for technical_id in ("fox", "dog", "cat")
+        for technical_id in ("saevi", "tovren", "myelle")
     )
 
     place_by_id = {place["id"]: place for place in geography["places"]}

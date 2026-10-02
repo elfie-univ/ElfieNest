@@ -3,8 +3,8 @@ extends SceneTree
 const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
+	"tovren": preload("res://characters/tovren/tovren.tscn"),
+	"saevi": preload("res://characters/saevi/saevi.tscn"),
 }
 
 
@@ -36,8 +36,8 @@ func _init() -> void:
 	actor_controller.setup(nest, characters, ACTOR_SCENES, false)
 	var sync_result := actor_controller.sync_actors([
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
@@ -53,7 +53,7 @@ func _init() -> void:
 	)
 	actor_controller.execute_intent({
 		"command_id": "move-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-01/activity",
 		"deadline_seconds": 20.0,
@@ -64,12 +64,12 @@ func _init() -> void:
 			break
 	var terminal: Variant = _terminal_for(events, "move-1")
 	if terminal == null or String(terminal.get("status", "")) != "completed":
-		var fox := actor_controller.actor("fox-1")
+		var saevi := actor_controller.actor("saevi-1")
 		var navigation_map := nest.get_world_3d().navigation_map
 		var target := nest.resolve_anchor("activity-01/activity").global_position
 		var path := NavigationServer3D.map_get_path(
 			navigation_map,
-			fox.global_position,
+			saevi.global_position,
 			target,
 			true,
 		)
@@ -77,7 +77,7 @@ func _init() -> void:
 			"Semantic navigation failed: terminal=%s position=%s target=%s path=%s"
 			% [
 				JSON.stringify(terminal),
-				str(fox.global_position),
+				str(saevi.global_position),
 				str(target),
 				str(path),
 			]
@@ -95,7 +95,7 @@ func _init() -> void:
 
 	actor_controller.execute_intent({
 		"command_id": "unknown-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "missing/anchor",
 		"deadline_seconds": 5.0,
@@ -108,7 +108,7 @@ func _init() -> void:
 
 	actor_controller.execute_intent({
 		"command_id": "cancel-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "dorm-01/bed-02",
 		"deadline_seconds": 20.0,
@@ -116,7 +116,7 @@ func _init() -> void:
 	await physics_frame
 	actor_controller.cancel_intent({
 		"command_id": "cancel-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 	})
 	var cancelled: Variant = _terminal_for(events, "cancel-1")
 	if cancelled == null or String(cancelled.get("status", "")) != "cancelled":
@@ -127,7 +127,7 @@ func _init() -> void:
 	var started_before := _count_event(events, "intent_started", "move-1")
 	actor_controller.execute_intent({
 		"command_id": "move-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-01/activity",
 		"deadline_seconds": 20.0,
@@ -139,7 +139,7 @@ func _init() -> void:
 
 	actor_controller.execute_intent({
 		"command_id": "deadline-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "dorm-01/bed-03",
 		"deadline_seconds": 0.001,
@@ -157,14 +157,14 @@ func _init() -> void:
 
 	var multi_sync := actor_controller.sync_actors([
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 		{
-			"actor_id": "dog-1",
-			"species": "dog",
+			"actor_id": "tovren-1",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
@@ -174,15 +174,15 @@ func _init() -> void:
 		quit(1)
 		return
 	actor_controller.execute_intent({
-		"command_id": "multi-fox",
-		"actor_id": "fox-1",
+		"command_id": "multi-saevi",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-01/activity",
 		"deadline_seconds": 20.0,
 	})
 	actor_controller.execute_intent({
-		"command_id": "multi-dog",
-		"actor_id": "dog-1",
+		"command_id": "multi-tovren",
+		"actor_id": "tovren-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "dorm-01/door",
 		"deadline_seconds": 20.0,
@@ -190,11 +190,11 @@ func _init() -> void:
 	for _frame in range(1200):
 		await physics_frame
 		if (
-			_terminal_for(events, "multi-fox") != null
-			and _terminal_for(events, "multi-dog") != null
+			_terminal_for(events, "multi-saevi") != null
+			and _terminal_for(events, "multi-tovren") != null
 		):
 			break
-	for command_id: String in ["multi-fox", "multi-dog"]:
+	for command_id: String in ["multi-saevi", "multi-tovren"]:
 		var multi_terminal: Variant = _terminal_for(events, command_id)
 		if (
 			multi_terminal == null
@@ -209,15 +209,15 @@ func _init() -> void:
 
 	actor_controller.execute_intent({
 		"command_id": "removed-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-01/activity",
 		"deadline_seconds": 20.0,
 	})
 	actor_controller.sync_actors([
 		{
-			"actor_id": "dog-1",
-			"species": "dog",
+			"actor_id": "tovren-1",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},

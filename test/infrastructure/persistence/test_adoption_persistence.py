@@ -29,7 +29,7 @@ def _reservation(elfie_id: str, owner_user_id: int) -> AdmissionReservation:
         candidate_set_id=f"set:{elfie_id}",
         candidate_id=f"candidate:{elfie_id}",
         display_name=elfie_id,
-        species_id="fox",
+        species_id="saevi",
         gender="female",
         age_years=2,
         adoption_anchor_at="2000-01-01T00:00:00+00:00",

@@ -1,7 +1,7 @@
 extends SceneTree
 
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
-const DOG_SCENE := preload("res://characters/dog/dog.tscn")
+const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
 
 var _actors: Array[Node] = []
 
@@ -11,7 +11,7 @@ func _init() -> void:
 
 
 func _run() -> void:
-	var first := DOG_SCENE.instantiate()
+	var first := TOVREN_SCENE.instantiate()
 	_actors.append(first)
 	root.add_child(first)
 	await process_frame
@@ -25,22 +25,22 @@ func _run() -> void:
 			"build_scale": 1.0,
 			"material_parameters": {"palette_id": "silver_gray", "primary_color_id": "silver_gray"},
 		},
-		"dog",
+		"tovren",
 	)
 	var first_mesh := _processed_mesh(first_visual)
 	if first_mesh == null:
-		_fail("First dog apply produced no cached bind-position mesh")
+		_fail("First tovren apply produced no cached bind-position mesh")
 		return
 	var first_bind := _bind_positions(first_mesh)
 	if first_bind.size() < 4 or not is_equal_approx(first_bind[3], 1.0):
-		_fail("First dog cached mesh has no RGBA CUSTOM0 bind positions")
+		_fail("First tovren cached mesh has no RGBA CUSTOM0 bind positions")
 		return
 	var first_shader := _appearance_shader(first_visual)
 	if first_shader == null:
-		_fail("First dog apply did not install the appearance shader")
+		_fail("First tovren apply did not install the appearance shader")
 		return
 
-	var second := DOG_SCENE.instantiate()
+	var second := TOVREN_SCENE.instantiate()
 	_actors.append(second)
 	root.add_child(second)
 	await process_frame
@@ -55,28 +55,28 @@ func _run() -> void:
 			"build_scale": 0.9,
 			"material_parameters": {"palette_id": "silver_gray", "primary_color_id": "silver_gray"},
 		},
-		"dog",
+		"tovren",
 	)
 	var second_mesh := _processed_mesh(second_visual)
 	if second_mesh == null:
-		_fail("Second dog apply produced no cached bind-position mesh")
+		_fail("Second tovren apply produced no cached bind-position mesh")
 		return
 	if second_mesh != first_mesh:
-		_fail("Second dog actor rebuilt the bind-position mesh instead of sharing the cache")
+		_fail("Second tovren actor rebuilt the bind-position mesh instead of sharing the cache")
 		return
 	if _bind_positions(second_mesh) != first_bind:
-		_fail("Cached bind positions diverged between dog actors")
+		_fail("Cached bind positions diverged between tovren actors")
 		return
 	var second_shader := _appearance_shader(second_visual)
 	if second_shader == null or second_shader != first_shader:
-		_fail("Dog actors compiled separate appearance shaders instead of sharing one")
+		_fail("Tovren actors compiled separate appearance shaders instead of sharing one")
 		return
 
 	ACTOR_APPEARANCE.apply(
 		first_visual,
 		first_collision,
 		{"height_scale": 0.85, "build_scale": 1.1},
-		"dog",
+		"tovren",
 	)
 	if _processed_mesh(first_visual) != first_mesh:
 		_fail("Re-applied appearance replaced the cached bind-position mesh")

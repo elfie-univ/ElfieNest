@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "res://../build/dog-full-body.png"
+const OUTPUT_PATH := "res://../build/tovren-full-body.png"
 const IMAGE_SIZE := Vector2i(512, 512)
 
 
@@ -44,11 +44,11 @@ func _render() -> void:
 	camera.look_at(Vector3(0.0, 0.88, 0.0), Vector3.UP)
 	camera.current = true
 
-	var actor_scene := load("res://characters/dog/dog.tscn") as PackedScene
+	var actor_scene := load("res://characters/tovren/tovren.tscn") as PackedScene
 	var actor := actor_scene.instantiate() as ElfieActor
 	actor.install_shared_animations = false
 	world_root.add_child(actor)
-	actor.configure("dog-presentation", Vector3.ZERO, {})
+	actor.configure("tovren-presentation", Vector3.ZERO, {})
 	actor.set_physics_process(false)
 
 	await process_frame
@@ -60,8 +60,8 @@ func _render() -> void:
 	var error := image.save_png(absolute_path)
 	viewport.queue_free()
 	if error != OK:
-		push_error("Could not save dog portrait: %s" % error)
+		push_error("Could not save tovren portrait: %s" % error)
 		quit(1)
 		return
-	print("Saved dog full-body portrait: ", absolute_path)
+	print("Saved tovren full-body portrait: ", absolute_path)
 	quit()

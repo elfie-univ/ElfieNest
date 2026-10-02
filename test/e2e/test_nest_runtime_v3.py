@@ -11,14 +11,14 @@ def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:
     runtime = FakeRuntime()
     runtime.connect()
     engine = ElfieNestEngine(GodotNestSessionAdapter(gateway=runtime))
-    engine.session.register_elfie("fox-1", MagicMock(spec=Elfie))
-    engine.session.register_elfie("dog-1", MagicMock(spec=Elfie))
+    engine.session.register_elfie("saevi-1", MagicMock(spec=Elfie))
+    engine.session.register_elfie("tovren-1", MagicMock(spec=Elfie))
 
     engine.tick_once(0.0)
     engine.tick_once(0.0)
     engine.tick_once(0.0)
 
-    assert runtime.actor_ids == ("dog-1", "fox-1")
+    assert runtime.actor_ids == ("tovren-1", "saevi-1")
     assert [command[0] for command in runtime.commands[:2]] == [
         CommandName.CONFIGURE_WORLD,
         CommandName.SYNC_ACTORS,
@@ -33,7 +33,7 @@ def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:
     engine.tick_once(0.0)
     engine.tick_once(0.0)
 
-    assert runtime.actor_ids == ("dog-1", "fox-1")
+    assert runtime.actor_ids == ("tovren-1", "saevi-1")
     assert (
         sum(command[0] is CommandName.SYNC_ACTORS for command in runtime.commands)
         == first_sync_count + 1

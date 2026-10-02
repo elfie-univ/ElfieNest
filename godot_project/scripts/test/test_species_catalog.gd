@@ -78,7 +78,7 @@ func _appearance_geometry_changes_runtime(species_id: String, validation: Dictio
 			if not material is ShaderMaterial:
 				continue
 			var shader_material := material as ShaderMaterial
-			if species_id == "cat":
+			if species_id == "myelle":
 				material_applied = (
 					shader_material.get_shader_parameter("appearance_species_id") == 2
 					and shader_material.get_shader_parameter("use_appearance_region_source_texture") == true
@@ -109,11 +109,11 @@ func _appearance_geometry_changes_runtime(species_id: String, validation: Dictio
 
 
 func _material_parameters(species_id: String) -> Dictionary:
-	if species_id == "cat":
+	if species_id == "myelle":
 		return {"palette_id": "gray", "primary_color_id": "gray"}
 	var primary := "silver_gray"
 	var light := "ivory"
-	var warm := "golden" if species_id == "fox" else "honey_gold"
+	var warm := "golden" if species_id == "saevi" else "honey_gold"
 	return {
 		"palette_id": primary,
 		"primary_color_id": primary,

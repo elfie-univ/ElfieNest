@@ -17,7 +17,7 @@ const REAL_API_PROFILE = {
   profile_status: "empty" as const,
   personality_tags: [],
   portrait_url: "",
-  species_id: "fox",
+  species_id: "saevi",
   summary: "喜欢守在门边等熟悉的脚步声。",
   private_cognition: {
     status: "ready" as const,

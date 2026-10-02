@@ -9,10 +9,10 @@ import {
 
 describe("adoption journey model", () => {
   it("keeps basic and appearance choices independent", () => {
-    const species = adoptionReducer(INITIAL_ADOPTION_STATE, { type: "set-basic", field: "speciesId", value: "fox" })
+    const species = adoptionReducer(INITIAL_ADOPTION_STATE, { type: "set-basic", field: "speciesId", value: "saevi" })
     const appearance = adoptionReducer(species, { type: "set-appearance", field: "stature", value: "tall" })
 
-    expect(appearance.draft.speciesId).toBe("fox")
+    expect(appearance.draft.speciesId).toBe("saevi")
     expect(appearance.draft.stature).toBe("tall")
   })
 
@@ -54,7 +54,7 @@ describe("adoption journey model", () => {
   })
 
   it("uses the five quick answers by default and still validates missing answers", () => {
-    let state = adoptionReducer(INITIAL_ADOPTION_STATE, { type: "set-basic", field: "speciesId", value: "dog" })
+    let state = adoptionReducer(INITIAL_ADOPTION_STATE, { type: "set-basic", field: "speciesId", value: "tovren" })
     expect(intentComplete(state.draft)).toBe(true)
 
     const incomplete = {
@@ -91,7 +91,7 @@ describe("adoption journey model", () => {
   it("uses the original name by default and lets the user override it", () => {
     const reply = {
       candidateId: "candidate-1",
-      speciesId: "fox",
+      speciesId: "saevi",
       lifeStage: "young_adult" as const,
       ageYears: 3,
       gender: "male" as const,

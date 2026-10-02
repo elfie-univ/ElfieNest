@@ -40,7 +40,7 @@ def test_adapter_translates_world_operations_to_protocol_commands() -> None:
             (
                 RuntimeActor(
                     actor_id="elfie-1",
-                    species="fox",
+                    species="saevi",
                     appearance={},
                     spawn_anchor_id="dorm-01/bed-01",
                 ),

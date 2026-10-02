@@ -197,9 +197,9 @@ parameter_provenance:
   new_unsourced_parameters: author_review_required
 runtime_capabilities:
   inspection: blender_glb_roundtrip_and_godot_package_validation
-  model_file: godot_project/characters/cat/cat.glb
-  scene_file: godot_project/characters/cat/cat.tscn
-  manifest_file: godot_project/characters/cat/species_manifest.json
+  model_file: godot_project/characters/myelle/myelle.glb
+  scene_file: godot_project/characters/myelle/myelle.tscn
+  manifest_file: godot_project/characters/myelle/species_manifest.json
   adapter_file: godot_project/runtime/actor/actor_appearance.gd
   required_assets_present: true
   render_validation_this_revision: blender_glb_material_render_and_godot_headless_pass

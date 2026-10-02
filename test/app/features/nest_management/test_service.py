@@ -26,7 +26,7 @@ class FakeNestManagementPort:
                     occupant_id="00000001",
                     occupant_name="小狐",
                     occupant_owner_user_id=1,
-                    occupant_species_id="fox",
+                    occupant_species_id="saevi",
                     occupant_owner_account_id="owner",
                     occupant_owner_display_name="Owner",
                 ),

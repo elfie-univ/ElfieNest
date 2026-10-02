@@ -69,7 +69,7 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
                 identity=SimpleNamespace(elfie_id=elfie_id),
                 validate=lambda: None,
                 personality={},
-                species_id="fox",
+                species_id="saevi",
             )
         )
 

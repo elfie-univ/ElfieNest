@@ -119,7 +119,7 @@ def test_world_catalog_rejects_duplicate_anchors_and_extra_fields() -> None:
 def test_home_assignment_rejects_non_bed_anchor_kind() -> None:
     # Given
     chair_home_payload = {
-        "elfie_id": "fox-1",
+        "elfie_id": "saevi-1",
         "home_zone_id": "dorm-01",
         "home_anchor_id": "dorm-01/chair-01",
         "anchor_kind": "chair",
@@ -133,13 +133,13 @@ def test_home_assignment_rejects_non_bed_anchor_kind() -> None:
 def test_resident_semantic_state_separates_persistent_and_runtime_fields() -> None:
     # Given
     persistent = PersistentResidentState(
-        elfie_id="fox-1",
+        elfie_id="saevi-1",
         presence=ResidentPresence.ACTIVE,
         home_zone_id="dorm-01",
         home_anchor_id="dorm-01/bed-01",
     )
     runtime = RuntimeResidentMirror(
-        elfie_id="fox-1",
+        elfie_id="saevi-1",
         current_zone_id="activity-main",
         posture="standing",
         active_command_id="command-1",

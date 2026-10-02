@@ -313,7 +313,7 @@ func _frame_from_visible_metrics(payload: Dictionary, request_id: String) -> Dic
 	var frame_width := frame_height * maxf(aspect, 0.1)
 	# The distance change above magnifies the actor by `visible_scale`; apply
 	# the same scale to the measured center offset or an off-center silhouette
-	# (notably the shorter fox) remains visibly displaced after zooming.
+	# (notably the shorter saevi) remains visibly displaced after zooming.
 	_focus_point += _camera.global_transform.basis.y.normalized() * float(center_y) * visible_scale * frame_height * 0.5
 	_focus_point += _camera.global_transform.basis.x.normalized() * float(center_x) * visible_scale * frame_width * 0.5
 	_apply_camera()

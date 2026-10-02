@@ -19,7 +19,7 @@ def _create_elfie(client) -> str:
         "/api/elfies",
         json={
             "name": "小岚",
-            "species_id": "fox",
+            "species_id": "saevi",
             "age_years": 2.0,
             "description": "批量评测测试精灵",
             "appearance_description": "赤色尾巴",
@@ -337,10 +337,10 @@ def _capture_fixture_and_scenario() -> tuple:
         fixture_id="anchor-elfie",
         elfie_id="00001001",
         name="小榛",
-        species_id="fox",
+        species_id="saevi",
         age_years=2.0,
         description="Brain evaluation anchor",
-        appearance_description="red fox",
+        appearance_description="red saevi",
         personality_description="curious, warm and independent",
     )
     scenario = LabScenarioDefinition(

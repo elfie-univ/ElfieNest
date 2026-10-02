@@ -7,26 +7,26 @@ const BASE_COLLISION_HEIGHT := 1.72
 const MAX_REGION_ACCENTS := 2
 const COLORABLE_REGION_IDS := [0, 2, 3, 5, 7, 8, 9, 10, 11, 12]
 const SOURCE_FUR_ANCHORS := {
-	"dog": Color("d4a672"),
-	"fox": Color("ba662f"),
-	"cat": Color("c76e38"),
+	"tovren": Color("d4a672"),
+	"saevi": Color("ba662f"),
+	"myelle": Color("c76e38"),
 }
 const FUR_DISTANCE_START := {
-	"dog": 0.16,
-	"fox": 0.12,
-	"cat": 0.12,
+	"tovren": 0.16,
+	"saevi": 0.12,
+	"myelle": 0.12,
 }
 const FUR_DISTANCE_END := {
-	"dog": 0.82,
-	"fox": 0.58,
-	"cat": 0.58,
+	"tovren": 0.82,
+	"saevi": 0.58,
+	"myelle": 0.58,
 }
 const REGION_MID_LUMA := {
-	"dog": 0.62,
-	"fox": 0.56,
-	"cat": 0.56,
+	"tovren": 0.62,
+	"saevi": 0.56,
+	"myelle": 0.56,
 }
-const SHADER_SPECIES_IDS := {"dog": 0, "fox": 1, "cat": 2}
+const SHADER_SPECIES_IDS := {"tovren": 0, "saevi": 1, "myelle": 2}
 const BIND_POSITION_SOURCE_META := &"elfienest_bind_position_mesh_source"
 const BIND_POSITION_BAKED_FROM_META := &"elfienest_bind_position_baked_from"
 
@@ -44,7 +44,7 @@ const REGION_DEBUG_SHADER_CODE := """
 shader_type spatial;
 render_mode unshaded, cull_disabled, blend_mix, depth_draw_never;
 
-// The reviewed region geometry samples this texture only for the fox inner-ear
+// The reviewed region geometry samples this texture only for the saevi inner-ear
 // exclusion. The opaque production fragment assembled below also reads the
 // same original UV texture as the source for coat tone transfer.
 uniform sampler2D appearance_region_source_texture : source_color;
@@ -177,7 +177,7 @@ float appearance_source_chroma() {
     return high - low;
 }
 
-float appearance_fox_inner_white_ear() {
+float appearance_saevi_inner_white_ear() {
     float white = smoothstep(0.62, 0.80, appearance_source_luminance());
     float low_chroma = 1.0 - smoothstep(0.05, 0.16, appearance_source_chroma());
     return white * low_chroma;
@@ -189,7 +189,7 @@ float appearance_ear_pair() {
     float front = smoothstep(0.0, 0.16, appearance_region_position.z)
         * smoothstep(-0.04, 0.12, appearance_region_normal.z);
     float surface = appearance_species_id == 1
-        ? (1.0 - appearance_fox_inner_white_ear())
+        ? (1.0 - appearance_saevi_inner_white_ear())
         : front;
     return side * height * surface;
 }

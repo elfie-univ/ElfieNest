@@ -19,7 +19,7 @@ class CreateElfieRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=60)
-    species_id: Literal["dog", "fox"]
+    species_id: Literal["tovren", "saevi"]
     age_years: Optional[int] = Field(default=None, ge=2, le=100)
     gender: Optional[Literal["male", "female"]] = None
     big_five: Optional[BigFiveValues] = None

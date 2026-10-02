@@ -63,7 +63,7 @@ def _selfhood_seed(elfie_id: str, display_name: str) -> dict[str, object]:
         "identity_core": {
             "elfie_id": elfie_id,
             "display_name": display_name,
-            "species_id": "fox",
+            "species_id": "saevi",
             "species_name": "Saevi",
             "resident_role": "ElfieNest 居民",
         },
@@ -193,7 +193,7 @@ def test_restart_pauses_inflight_activity_and_journals_uncertainty(
             profile=create_visual_profile(
                 elfie_id="elfie-recovery",
                 display_name="恢复精灵",
-                species_id="fox",
+                species_id="saevi",
                 seed=7,
             ),
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
@@ -239,7 +239,7 @@ def test_restart_restores_durable_continuity_and_cognitive_clock(
     profile = create_visual_profile(
         elfie_id="elfie-continuity",
         display_name="连续精灵",
-        species_id="fox",
+        species_id="saevi",
         seed=11,
     )
     first = ElfieFactory().restore(
@@ -304,7 +304,7 @@ def test_restart_restores_alternating_owner_conversation_context(
     profile = create_visual_profile(
         elfie_id="elfie-conversation",
         display_name="连续对话精灵",
-        species_id="fox",
+        species_id="saevi",
         seed=17,
     )
     first_hub = CommunicationHub("elfie-conversation")
@@ -387,7 +387,7 @@ def test_restart_replays_a_journaled_completed_reply_then_hands_off_topic_once(
     profile = create_visual_profile(
         elfie_id="elfie-receipt-recovery",
         display_name="回执恢复精灵",
-        species_id="fox",
+        species_id="saevi",
         seed=19,
     )
     journal = SQLiteBrainJournalAdapter(journal_path)

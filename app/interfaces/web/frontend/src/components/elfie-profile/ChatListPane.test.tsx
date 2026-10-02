@@ -18,7 +18,7 @@ describe("ChatListPane layout", () => {
           elfieFilter="all"
           elfieItems={[{
             adopterAccountId: "owner",
-            profile: { elfie_id: "00000001", name: "小羽", portrait_url: "", species_id: "fox" },
+            profile: { elfie_id: "00000001", name: "小羽", portrait_url: "", species_id: "saevi" },
           }]}
           elfieQuery=""
           error="精灵列表加载失败"

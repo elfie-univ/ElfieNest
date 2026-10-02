@@ -45,7 +45,7 @@ def test_adapter_reads_existing_usage_sessions_and_tables(tmp_path: Path) -> Non
         create_visual_profile(
             elfie_id="00000001",
             display_name="小白",
-            species_id="dog",
+            species_id="tovren",
             seed=1,
         )
     )
@@ -59,7 +59,7 @@ def test_adapter_reads_existing_usage_sessions_and_tables(tmp_path: Path) -> Non
     assert usage.owner_count == 1
     assert usage.elfie_count == 1
     assert usage.session_count == 1
-    assert usage.species_stats == (StoredSpeciesCount(species_id="dog", count=1),)
+    assert usage.species_stats == (StoredSpeciesCount(species_id="tovren", count=1),)
     assert sessions[0].token_hash == token_hash
     assert sessions[0].account_id == "owner"
     assert sessions[0].expires_at == expires_at.isoformat()

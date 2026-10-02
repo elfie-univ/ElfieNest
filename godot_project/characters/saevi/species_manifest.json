@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "package_version": "dog.v1",
+  "package_version": "saevi.v1",
   "appearance_protocol_version": "appearance.v2",
-  "species_id": "dog",
-  "scene_file": "dog.tscn",
-  "model_file": "dog.glb",
+  "species_id": "saevi",
+  "scene_file": "saevi.tscn",
+  "model_file": "saevi.glb",
   "required_nodes": [
     "VisualRoot",
     "VisualRoot/character",
@@ -32,38 +32,38 @@
       "palette_id": {
         "mode": "albedo_tint",
         "values": {
-          "snow_white": [0.937255, 0.909804, 0.862745, 1.0],
-          "ivory": [0.890196, 0.803922, 0.654902, 1.0],
-          "cream": [0.847059, 0.678431, 0.462745, 1.0],
-          "honey_gold": [0.788235, 0.533333, 0.294118, 1.0],
-          "apricot": [0.843137, 0.482353, 0.301961, 1.0],
-          "russet": [0.615686, 0.305882, 0.196078, 1.0],
-          "chestnut": [0.505882, 0.294118, 0.203922, 1.0],
-          "chocolate": [0.396078, 0.231373, 0.172549, 1.0],
+          "ivory": [0.886275, 0.827451, 0.741176, 1.0],
+          "cream": [0.843137, 0.682353, 0.490196, 1.0],
+          "champagne": [0.847059, 0.717647, 0.470588, 1.0],
+          "golden": [0.788235, 0.521569, 0.258824, 1.0],
+          "orange_red": [0.788235, 0.352941, 0.176471, 1.0],
+          "saevi_red": [0.658824, 0.266667, 0.168627, 1.0],
+          "chestnut": [0.443137, 0.219608, 0.156863, 1.0],
+          "sable_brown": [0.4, 0.258824, 0.2, 1.0],
           "silver_gray": [0.478431, 0.509804, 0.533333, 1.0],
-          "smoky_charcoal": [0.290196, 0.301961, 0.321569, 1.0]
+          "smoky_black": [0.270588, 0.278431, 0.298039, 1.0]
         }
       },
       "pattern_id": {
         "mode": "pattern_id",
         "values": {
-          "solid": 0,
+          "classic": 0,
           "bicolor": 1,
-          "tricolor": 2,
+          "cross": 2,
           "face_mask": 3
         }
       },
       "pattern_layout_id": {
         "mode": "pattern_layout_id",
         "values": {
-          "solid": 0,
+          "classic": 0,
           "back_underside": 1,
           "face_chest": 2,
           "saddle": 3,
           "split": 4,
-          "back_chest_paws": 5,
-          "face_chest_tail": 6,
-          "saddle_socks": 7,
+          "cross_back": 5,
+          "cross_face": 6,
+          "shoulder_cross": 7,
           "constellation": 8,
           "central_mask": 9,
           "side_mask": 10,
@@ -167,12 +167,12 @@
     },
     "marking_zones": {
       "none": [0.0, 0.0, 0.0, 0.0],
-      "forehead_center": [0.0, 1.68, 0.42, 0.14],
-      "forehead_left": [-0.12, 1.64, 0.42, 0.13],
-      "forehead_right": [0.12, 1.64, 0.42, 0.13],
-      "cheek_pair": [0.0, 1.34, 0.28, 0.18],
-      "chest": [0.0, 1.04, 0.18, 0.18],
-      "belly_center": [0.0, 0.70, 0.18, 0.18]
+      "forehead_center": [0.0, 1.68, 0.44, 0.14],
+      "forehead_left": [-0.12, 1.64, 0.44, 0.13],
+      "forehead_right": [0.12, 1.64, 0.44, 0.13],
+      "cheek_pair": [0.0, 1.34, 0.30, 0.18],
+      "chest": [0.0, 1.04, 0.20, 0.18],
+      "belly_center": [0.0, 0.70, 0.20, 0.18]
     }
   },
   "required_animations": [

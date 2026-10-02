@@ -29,7 +29,7 @@ class FakeSession:
         resumed: bool = False,
         existing_provider: bool = False,
         verification_status: str = "passed",
-        species_ids: tuple[str, ...] = ("fox",),
+        species_ids: tuple[str, ...] = ("saevi",),
     ) -> None:
         self.csrf_token = "csrf-test"
         self.resumed = resumed
@@ -140,7 +140,7 @@ class FakeSession:
                         {
                             "candidate_id": "candidate-1",
                             "status": "accepted",
-                            "species_id": "fox",
+                            "species_id": "saevi",
                             "life_stage": "young_adult",
                             "age_years": 4,
                             "gender": "female",
@@ -348,14 +348,14 @@ def test_initial_journey_runs_setup_provider_adoption_chat_and_redacts_evidence(
         for method, path, body in session.calls
         if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
     )
-    assert candidate_call["species_id"] == "fox"
+    assert candidate_call["species_id"] == "saevi"
     assert "adoption_session_id" not in candidate_call
 
 
-def test_initial_journey_uses_packaged_species_when_fox_is_unavailable(
+def test_initial_journey_uses_packaged_species_when_saevi_is_unavailable(
     tmp_path: Path,
 ) -> None:
-    session = FakeSession(species_ids=("dog",))
+    session = FakeSession(species_ids=("tovren",))
     InstalledProductJourney(
         _config(tmp_path),
         session_factory=lambda _base_url, _timeout: session,
@@ -367,7 +367,7 @@ def test_initial_journey_uses_packaged_species_when_fox_is_unavailable(
         for method, path, body in session.calls
         if method == "POST" and path == "/api/v1/me/adoption/candidate-sets"
     )
-    assert candidate_call["species_id"] == "dog"
+    assert candidate_call["species_id"] == "tovren"
 
 
 def test_resume_journey_skips_first_run_setup_and_repeats_chat(tmp_path: Path) -> None:

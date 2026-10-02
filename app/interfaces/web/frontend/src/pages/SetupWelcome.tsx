@@ -8,7 +8,7 @@ type SetupWelcomeProps = {
   readonly title: string
 }
 
-const foxAssetUrl = new URL("../assets/elfienest-fox-transparent.png", import.meta.url).href
+const saeviAssetUrl = new URL("../assets/elfienest-saevi-transparent.png", import.meta.url).href
 const logoAssetUrl = new URL("../../../../../../docs/public/assets/elfienest-logo-mark-transparent.png", import.meta.url).href
 
 type HouseAsset = {
@@ -213,10 +213,10 @@ export function SetupWelcome({ action, disabled = false, onContinue, title }: Se
             </g>
           </svg>
 
-          <div className="setup-welcome__fox-window">
-            <div className="setup-welcome__fox-figure">
-              <img alt="" className="setup-welcome__fox" draggable="false" src={foxAssetUrl} data-testid="setup-welcome-fox" />
-              <span aria-hidden="true" className="setup-welcome__fox-eye-glint" data-testid="setup-welcome-fox-eye-glint" />
+          <div className="setup-welcome__saevi-window">
+            <div className="setup-welcome__saevi-figure">
+              <img alt="" className="setup-welcome__saevi" draggable="false" src={saeviAssetUrl} data-testid="setup-welcome-saevi" />
+              <span aria-hidden="true" className="setup-welcome__saevi-eye-glint" data-testid="setup-welcome-saevi-eye-glint" />
             </div>
           </div>
           <img

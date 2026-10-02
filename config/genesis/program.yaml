@@ -2,7 +2,7 @@ version: 1
 document_kind: genesis_program
 schema_version: 1
 program_id: elfaria
-program_version: elfaria-genesis.v11
+program_version: elfaria-genesis.v12
 status: published
 sources:
   world:
@@ -22,7 +22,7 @@ sources:
     sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
 manifest:
   package_id: elfaria-genesis
-  package_version: elfaria-genesis.v11
+  package_version: elfaria-genesis.v12
   status: published
   members:
   - path: knowledge/elfaria.yaml
@@ -37,22 +37,22 @@ manifest:
     sha256: 54e4a57e299f5a1245831b92af6bd606382bce2449a4b8f984ac73b1970834fe
   - path: species/catalog.yaml
     kind: species_catalog
-    version: species-catalog.v5
+    version: species-catalog.v6
     status: published
-    sha256: e0bf48ee06eade21c5caf0c12d972cf9109a1d56113757b23c1700973de90e81
+    sha256: daad622dd206ae09ce272d08b0a788092a3296c712028e6c9bdba08008186970
   - path: species/myelle/appearance.yaml
     kind: appearance_profile
     version: '3'
     status: published
-    sha256: 792e3cfeaf28ef81b5c44ed00eb25004b767eb6abc7e4a016cf48b087a9f9c8a
+    sha256: c8d6f2ac99a5e1f3c0a70d5582f4052890bfd3095fd549419ab8ee0f52dd8a8c
   - path: species/myelle/assets/full-body.png
     kind: display_asset
-    version: cat-display.v1
+    version: myelle-display.v1
     status: published
     sha256: 32e2d251cfd9a1193f54f07aa5fc3e0d442c96829701378b50ed366dfc106e56
   - path: species/myelle/assets/headshot.png
     kind: display_asset
-    version: cat-display.v1
+    version: myelle-display.v1
     status: published
     sha256: 6dc6775014acbe130a12dc959acca141dc0851aeb58f4e3d0a03898d78fd4e14
   - path: species/myelle/generation.yaml
@@ -62,62 +62,62 @@ manifest:
     sha256: f8af39f3749d000bb816a4e7c40187f4bf1a9a198fadde1287fd7ac2d8c7be06
   - path: species/myelle/species.yaml
     kind: species_definition
-    version: myelle.v3
+    version: myelle.v4
     status: published
-    sha256: c1047802130450c9fb8dfc4d39c14041c2a7694751a4ba1377b35230fbcda479
+    sha256: 2a2a5b0a10b7a7464c90a605cc1346f481a67b08fd9b2fd57ddab4af619d2976
   - path: species/saevi/appearance.yaml
     kind: appearance_profile
     version: '3'
     status: published
-    sha256: 7215397e12f2a373524c8314e4f33f1585310c2e475fc4db42bf473b6c6d1a80
+    sha256: 789a4da0ec1d93293a9ac0858b5f3faee4cf53c8bf2ad181aa106f091a0c50d4
   - path: species/saevi/assets/full-body.png
     kind: display_asset
-    version: fox-display.v1
+    version: saevi-display.v1
     status: published
     sha256: 44d123a3df5bb86d5d75b9ab23b9d603e31897c25fa997e24199203cdf9f9996
   - path: species/saevi/assets/headshot.png
     kind: display_asset
-    version: fox-display.v1
+    version: saevi-display.v1
     status: published
     sha256: b70e4191dde0c9ca953f37a71a3271adc488b3ad7f69d07fbbbea7b4a092afd9
   - path: species/saevi/generation.yaml
     kind: species_generation_profile
     version: saevi-genesis.v4
     status: published
-    sha256: aa97360e112a5f56dd44891593c82a629934fa61896c9af7bdd23d4c400095d4
+    sha256: 9a2494ac7853397c03e54f3f0c7fe018813249b793d5a8e735a9c0122a00990b
   - path: species/saevi/species.yaml
     kind: species_definition
-    version: saevi.v3
+    version: saevi.v4
     status: published
-    sha256: 6bead0d3fca727e3027cca22c691af2fcca14fee6bd6a08faa26b5594d817f3d
+    sha256: faa109a7802453117e070950e2ccc9506e86e6aad2ab500bf03fc18ce78f310f
   - path: species/tovren/appearance.yaml
     kind: appearance_profile
     version: '3'
     status: published
-    sha256: 32b0b9f6b885ec72b1fa9ad87141d90c54d3b8fac44bebd4a3869f6ba13929bc
+    sha256: ed9bf95d16ab449c561e70897c8525ceabc43bd0aa65fcbe1bdb8d8b9b1881ba
   - path: species/tovren/assets/full-body.png
     kind: display_asset
-    version: dog-display.v1
+    version: tovren-display.v1
     status: published
     sha256: 01c2ef6fe9f221817e294e4759106a5abebd216b45ab4f3b711204a97aee41b0
   - path: species/tovren/assets/headshot.png
     kind: display_asset
-    version: dog-display.v1
+    version: tovren-display.v1
     status: published
     sha256: 5c5a10f8c0fa0e89078fbe65c033afb5c1ac72a457f57b151002422e540a8f6a
   - path: species/tovren/generation.yaml
     kind: species_generation_profile
     version: tovren-genesis.v4
     status: published
-    sha256: 06d660f7355dfdffe56dfb57d732ac89314e3be64a285f13063c6596fc057276
+    sha256: b29d0a303dde1f230b806d1dcc1d81b38ee695bcc1e82a3439377e43cf898cd2
   - path: species/tovren/species.yaml
     kind: species_definition
-    version: tovren.v3
+    version: tovren.v4
     status: published
-    sha256: ce7ae8b1252b94d4a6e7ec65e58c3bb2d8abfd6cdad67b9153dc2f54a4131bef
+    sha256: 026e2611e5f74d9333e6fe4099164c4b7734c844fe0aec28714115560402f81b
   publication_blockers: []
   activation_blockers: []
-  content_sha256: 68fdf059e7f06970e5352b34ad2d730a9163d81fb416a3cc1b2c9330eb7ab2d1
+  content_sha256: 14cae84ff3fa56a84e917a205d38b1606eda5958a794bff66778a520d9f5202a
 coverage:
   status: complete
   resident_source_ref: resident
@@ -560,9 +560,9 @@ rules:
     status: confirmed
     formal_species_names: [Saevi, Tovren, Myelle]
     technical_species_ids:
-      Saevi: fox
-      Tovren: dog
-      Myelle: cat
+      Saevi: saevi
+      Tovren: tovren
+      Myelle: myelle
     private_name_lexicon:
       default: [Nemi, Ari, Sora, Tavi, Mira, Lio, Ena, Rin, Kio, Veya, Oru, Pela]
       species_preference:
@@ -804,7 +804,7 @@ rules:
       episode_theme_ids:
       - early-home
       familiarity: intimate
-      id: kin-fox
+      id: kin-saevi
       importance: 0.95
       initial_trust: 0.88
       species:
@@ -817,7 +817,7 @@ rules:
       episode_theme_ids:
       - early-home
       familiarity: intimate
-      id: kin-dog
+      id: kin-tovren
       importance: 0.95
       initial_trust: 0.88
       species:
@@ -830,7 +830,7 @@ rules:
       episode_theme_ids:
       - early-home
       familiarity: intimate
-      id: kin-cat
+      id: kin-myelle
       importance: 0.88
       initial_trust: 0.82
       species:

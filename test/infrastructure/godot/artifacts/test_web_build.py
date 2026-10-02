@@ -35,7 +35,7 @@ def _write_runtime(directory: Path, fingerprint: str) -> None:
                 "files": files,
                 "source_fingerprint": fingerprint,
                 "species_catalog_digest": current_species_catalog_digest(),
-                "species_package_ids": ["dog", "fox"],
+                "species_package_ids": ["tovren", "saevi"],
                 "export_boundary": export_boundary_manifest(),
             }
         ),
@@ -145,7 +145,7 @@ def test_web_export_imports_before_species_validation_and_publishes_after_it(
     def fake_validate(*args, **kwargs):
         del args, kwargs
         events.append("validate")
-        return ("dog", "fox")
+        return ("tovren", "saevi")
 
     monkeypatch.setattr(web_build, "run_headless", fake_export)
     monkeypatch.setattr(web_build, "validate_source_species_packages", fake_validate)
@@ -156,7 +156,7 @@ def test_web_export_imports_before_species_validation_and_publishes_after_it(
             Path("/fake/godot"),
             "4.7",
             "4.7",
-            ("dog", "fox"),
+            ("tovren", "saevi"),
             lambda **kwargs: None,
         )
         == 0

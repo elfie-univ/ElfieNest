@@ -11,9 +11,9 @@ def test_calculate_state_diff_only_keeps_changed_fields():
     }
 
 
-def test_legacy_lab_spec_defaults_unknown_species_to_fox():
+def test_legacy_lab_spec_defaults_unknown_species_to_saevi():
     spec = ElfieSpec.from_dict(
         {"elfie_id": "elfie_legacy", "name": "旧精灵", "species_id": "unknown"}
     )
 
-    assert spec.species_id == "fox"
+    assert spec.species_id == "saevi"

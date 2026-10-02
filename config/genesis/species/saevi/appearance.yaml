@@ -162,7 +162,7 @@ palettes:
 - champagne
 - golden
 - orange_red
-- fox_red
+- saevi_red
 - chestnut
 - sable_brown
 - silver_gray
@@ -171,7 +171,7 @@ batch_palette_order:
 - ivory
 - golden
 - orange_red
-- fox_red
+- saevi_red
 - silver_gray
 - cream
 - champagne
@@ -241,7 +241,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -267,7 +267,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -287,7 +287,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -313,7 +313,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -339,7 +339,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -359,7 +359,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -379,7 +379,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -399,7 +399,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -419,7 +419,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -439,7 +439,7 @@ region_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -485,7 +485,7 @@ region_recipes:
       grade_id: L1
       intensity: 0.8
     - region_id: ear_tip_pair
-      color_id: fox_red
+      color_id: saevi_red
       grade_id: D1
       intensity: 0.72
   paws_and_tail:
@@ -559,7 +559,7 @@ marking_rules:
     - champagne
     - golden
     - orange_red
-    - fox_red
+    - saevi_red
     - chestnut
     - sable_brown
     - silver_gray
@@ -721,7 +721,7 @@ status: published
 source_refs:
 - species#genesis-appearance-boundaries
 parameter_provenance:
-  source_path: config/species/fox/appearance.yaml
+  source_path: config/species/saevi/appearance.yaml
   source_sha256: f04879a23ab7929907c08fa1ecfc00582a80ab67f027941547aa8bb93792a301
   status: inherited_configuration_not_new_biological_facts
   inherited_numeric_parameters_recalibrated: false
@@ -729,9 +729,9 @@ parameter_provenance:
   new_unsourced_parameters: author_review_required
 runtime_capabilities:
   inspection: static_source_and_glb_only
-  model_file: godot_project/characters/fox/fox.glb
-  scene_file: godot_project/characters/fox/fox.tscn
-  manifest_file: godot_project/characters/fox/species_manifest.json
+  model_file: godot_project/characters/saevi/saevi.glb
+  scene_file: godot_project/characters/saevi/saevi.tscn
+  manifest_file: godot_project/characters/saevi/species_manifest.json
   adapter_file: godot_project/runtime/actor/actor_appearance.gd
   required_assets_present: true
   render_validation_this_revision: not_run

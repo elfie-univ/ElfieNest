@@ -20,14 +20,14 @@ function item(
 }
 
 const ITEMS = [
-  item("23456789", "Kettle", "fox", "user123"),
-  item("12345678", "Happy", "sun fox", "admin123"),
+  item("23456789", "Kettle", "saevi", "user123"),
+  item("12345678", "Happy", "sun saevi", "admin123"),
 ] as const
 
 describe("Elfie list model", () => {
   it("searches name, species, and ID without case sensitivity", () => {
     expect(filterElfieList(ITEMS, "admin123", "HAPPY", "all").groups[0]?.items).toHaveLength(1)
-    expect(filterElfieList(ITEMS, "admin123", "FOX", "all").visibleCount).toBe(2)
+    expect(filterElfieList(ITEMS, "admin123", "SAEVI", "all").visibleCount).toBe(2)
     expect(filterElfieList(ITEMS, "admin123", "23456789", "all").groups[0]?.items[0]?.profile.name).toBe("Kettle")
   })
 
@@ -41,8 +41,8 @@ describe("Elfie list model", () => {
   })
 
   it("applies ownership filters after search without changing the total filter counts", () => {
-    const mine = filterElfieList(ITEMS, "admin123", "fox", "mine")
-    const other = filterElfieList(ITEMS, "admin123", "fox", "other")
+    const mine = filterElfieList(ITEMS, "admin123", "saevi", "mine")
+    const other = filterElfieList(ITEMS, "admin123", "saevi", "other")
 
     expect(mine.counts).toEqual({ all: 2, mine: 1, other: 1 })
     expect(mine.groups.flatMap((group) => group.items).map((entry) => entry.profile.name)).toEqual(["Happy"])

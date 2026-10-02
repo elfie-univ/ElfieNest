@@ -62,7 +62,7 @@ describe("AdoptionJourneyDialog portrait crop", () => {
 function candidate(index: number) {
   return {
     candidate_id: `candidate-${index}`,
-    species_id: "fox" as const,
+    species_id: "saevi" as const,
     life_stage: "young_adult" as const,
     age_years: 3,
     gender: index % 2 === 0 ? "male" as const : "female" as const,
@@ -70,7 +70,7 @@ function candidate(index: number) {
     headshot_image_url: `data:image/png;base64,head-${index}`,
     appearance_tags: ["Balanced", "Soft"],
     personality_tags: ["Curious", "Warm"],
-    runtime_appearance: { species_id: "fox" },
+    runtime_appearance: { species_id: "saevi" },
   }
 }
 
@@ -89,29 +89,29 @@ function reply(index: number) {
 
 const species = [
   {
-    species_id: "fox",
-    species_package_id: "species-fox",
+    species_id: "saevi",
+    species_package_id: "species-saevi",
     display_name: "Saevi",
-    display_name_zh: "灵狐",
-    earth_shape_label: "fox-like",
-    scene_id: "fox",
+    display_name_zh: "赛维",
+    earth_shape_label: "saevi-like",
+    scene_id: "saevi",
     sort_order: 0,
     presentation_images: {
-      headshot_url: "/api/v1/me/adoption/species/fox/images/headshot",
-      full_body_url: "/api/v1/me/adoption/species/fox/images/full-body",
+      headshot_url: "/api/v1/me/adoption/species/saevi/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/saevi/images/full-body",
     },
   },
   {
-    species_id: "dog",
-    species_package_id: "species-dog",
+    species_id: "tovren",
+    species_package_id: "species-tovren",
     display_name: "Tovren",
-    display_name_zh: "灵犬",
-    earth_shape_label: "dog-like",
-    scene_id: "dog",
+    display_name_zh: "托伦",
+    earth_shape_label: "tovren-like",
+    scene_id: "tovren",
     sort_order: 1,
     presentation_images: {
-      headshot_url: "/api/v1/me/adoption/species/dog/images/headshot",
-      full_body_url: "/api/v1/me/adoption/species/dog/images/full-body",
+      headshot_url: "/api/v1/me/adoption/species/tovren/images/headshot",
+      full_body_url: "/api/v1/me/adoption/species/tovren/images/full-body",
     },
   },
 ] as const
@@ -143,7 +143,7 @@ async function openBasic(user: ReturnType<typeof userEvent.setup>) {
 
 async function reachShortlist(user: ReturnType<typeof userEvent.setup>) {
   await openBasic(user)
-  await user.click(screen.getByRole("button", { name: "灵狐" }))
+  await user.click(screen.getByRole("button", { name: "赛维" }))
   await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
   expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
   expect(screen.getByText("第 1 / 3 批")).toBeInTheDocument()
@@ -178,7 +178,7 @@ describe("AdoptionJourneyDialog", () => {
       candidate_set_id: "set-1",
       replies: candidateIds.map((candidateId) => reply(Number(candidateId.replace("candidate-", "")))),
     }))
-    api.commitAdoption.mockResolvedValue({ elfie_id: "00000001", name: "Aro 0", species_id: "fox" })
+    api.commitAdoption.mockResolvedValue({ elfie_id: "00000001", name: "Aro 0", species_id: "saevi" })
   })
 
   it("blocks entry when the adoption quota is full", async () => {
@@ -244,12 +244,12 @@ describe("AdoptionJourneyDialog", () => {
     renderJourney()
 
     await openBasic(user)
-    const fox = screen.getByRole("button", { name: "灵狐" })
-    expect(fox.querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/fox/images/full-body")
+    const saevi = screen.getByRole("button", { name: "赛维" })
+    expect(saevi.querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/saevi/images/full-body")
 
-    fireEvent.pointerDown(fox, { button: 0, pointerType: "mouse" })
-    expect(fox).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByRole("button", { name: "灵犬" }).querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/dog/images/full-body")
+    fireEvent.pointerDown(saevi, { button: 0, pointerType: "mouse" })
+    expect(saevi).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "托伦" }).querySelector("img")).toHaveAttribute("src", "/api/v1/me/adoption/species/tovren/images/full-body")
   })
 
   it("advances the candidate-search story while candidate profiles are in transit", async () => {
@@ -259,7 +259,7 @@ describe("AdoptionJourneyDialog", () => {
 
     vi.useFakeTimers()
     fireEvent.click(screen.getByRole("button", { name: "开始寻找" }))
-    fireEvent.click(screen.getByRole("button", { name: "灵狐" }))
+    fireEvent.click(screen.getByRole("button", { name: "赛维" }))
     fireEvent.click(screen.getByRole("button", { name: "开始寻找候选" }))
 
     expect(screen.getByRole("heading", { name: "正在穿过星海，为你寻找合拍的 Elfie" })).toBeInTheDocument()
@@ -325,12 +325,12 @@ describe("AdoptionJourneyDialog", () => {
     expect(screen.queryByText("约 1 分钟")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "开始寻找候选" })).toBeDisabled()
 
-    await user.click(screen.getByRole("button", { name: "灵狐" }))
+    await user.click(screen.getByRole("button", { name: "赛维" }))
     expect(screen.getByRole("button", { name: "开始寻找候选" })).toBeEnabled()
     await user.click(screen.getByRole("button", { name: "开始寻找候选" }))
     expect(await screen.findByRole("heading", { name: "选一位你最喜欢的 Elfie" })).toBeInTheDocument()
     expect(api.adoptionCandidates).toHaveBeenCalledWith(expect.objectContaining({
-      species_id: "fox",
+      species_id: "saevi",
       life_stage: "any",
       gender: "any",
       answers: ["any", "any", "any", "any", "any"],
@@ -375,7 +375,7 @@ describe("AdoptionJourneyDialog", () => {
     renderJourney()
 
     await openBasic(user)
-    await user.click(screen.getByRole("button", { name: "灵狐" }))
+    await user.click(screen.getByRole("button", { name: "赛维" }))
     await user.click(screen.getByRole("button", { name: "展开详细匹配" }))
     expect(await screen.findByRole("heading", { name: "再告诉我们你的外貌偏好" })).toBeInTheDocument()
     expect(screen.getByText("详细匹配：1/2")).toBeInTheDocument()

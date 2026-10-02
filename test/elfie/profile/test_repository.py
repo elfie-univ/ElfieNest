@@ -13,7 +13,7 @@ def test_profile_yaml_round_trip(tmp_path: Path) -> None:
     profile = create_visual_profile(
         elfie_id="elfie-yaml",
         display_name="小栗",
-        species_id="fox",
+        species_id="saevi",
         seed=456,
     )
     repository = YamlProfileStoreAdapter(tmp_path)
@@ -33,7 +33,7 @@ def test_profile_save_repairs_owner_only_permissions(tmp_path: Path) -> None:
     profile = create_visual_profile(
         elfie_id="elfie-private",
         display_name="小栗",
-        species_id="fox",
+        species_id="saevi",
         seed=789,
     )
 

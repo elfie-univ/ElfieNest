@@ -17,17 +17,17 @@ characters/
 ├── animation/              # Mixamo 公共双足动画库
 ├── shared/
 │   └── elfie_actor.gd      # 移动、动画装载和自适应主碰撞体
-├── dog/
-│   ├── dog.glb                  # 正式模型和 Skeleton3D
-│   ├── dog.tscn                 # CharacterBody3D 运行时包装场景
+├── tovren/
+│   ├── tovren.glb                  # 正式模型和 Skeleton3D
+│   ├── tovren.tscn                 # CharacterBody3D 运行时包装场景
 │   └── species_manifest.json    # 完整性声明
-├── fox/
-│   ├── fox.glb
-│   ├── fox.tscn
+├── saevi/
+│   ├── saevi.glb
+│   ├── saevi.tscn
 │   └── species_manifest.json
-├── cat/
-│   ├── cat.glb                  # Myelle 模型，含四节尾骨
-│   ├── cat.tscn
+├── myelle/
+│   ├── myelle.glb                  # Myelle 模型，含四节尾骨
+│   ├── myelle.tscn
 │   └── species_manifest.json
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md

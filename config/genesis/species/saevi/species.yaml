@@ -1,13 +1,14 @@
 document_kind: species_definition
 schema_version: 1
-definition_version: saevi.v3
+definition_version: saevi.v4
 species_package_id: saevi
-package_version: saevi.v3
+package_version: saevi.v4
 status: published
-technical_species_id: fox
+technical_species_id: saevi
 identity:
   display_name: Saevi
-  godot_package_id: fox
+  display_name_zh: 赛维
+  godot_package_id: saevi
 sensory_profile:
   source_ref: species#2.3
   tendencies: 熟悉环境中的路线、遮蔽与停留位置察觉较突出；实际经验必须另行形成。

@@ -4,7 +4,7 @@
   "elfie": {
     "elfie_id": "e1-ark-eval",
     "display_name": "Lumi",
-    "species_id": "fox",
+    "species_id": "saevi",
     "profile_seed": 23
   },
   "genesis": {
@@ -41,8 +41,8 @@
     {
       "scenario_id": "world-species-common",
       "purpose": "从公共 World Canon 解释迷雾镇三种物种共居原因。",
-      "steps": [{"text": "迷雾镇里为什么有灵狐、灵犬和灵猫？"}],
-      "required_prompt_tokens": ["灵狐", "共居"],
+      "steps": [{"text": "迷雾镇里为什么有赛维、托伦和米耶尔？"}],
+      "required_prompt_tokens": ["Saevi", "共居"],
       "forbidden_response_patterns": ["只有一种物种", "互相都不认识"],
       "applicable_dimensions": ["alien_world_boundary", "memory_grounding", "naturalness"]
     },

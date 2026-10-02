@@ -6,7 +6,7 @@
 - `myelle-tail-corrected.blend`：兼容 Mixamo 的模型，包含 `Tail_01` 至
   `Tail_04`、归一化尾部权重和嵌入式源贴图。
 - 输入：用户提供的 `base_basic_shaded (2).fbx`，接收日期为 2026-10-02。
-- 制作工具：Blender 5.2.0 LTS。运行时模型：`../cat.glb`。
+- 制作工具：Blender 5.2.0 LTS。运行时模型：`../myelle.glb`。
 
 GLB 已应用骨架对象旋转，不导出动作；原 shaded 贴图作为 PBR 主色而非自发光。
 运行时动作统一来自 `characters/animation/`。原始 FBX 保持不变。

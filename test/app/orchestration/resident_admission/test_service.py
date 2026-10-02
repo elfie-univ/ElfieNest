@@ -334,7 +334,7 @@ def _accepted(
     candidates = adoption.create_candidate_set(
         principal,
         CreateCandidateSetCommand(
-            species_id="fox",
+            species_id="saevi",
             life_stage="any",
             gender="any",
             appearance=CandidateAppearance("any", "any", "any", "any", "face"),

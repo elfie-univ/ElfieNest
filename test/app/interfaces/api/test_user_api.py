@@ -36,7 +36,7 @@ def app(db_path: str, monkeypatch: pytest.MonkeyPatch):
     yield create_app(
         engine=None,
         db_path=db_path,
-        species_runtime=StaticSpeciesRuntimeReadiness(("fox", "dog")),
+        species_runtime=StaticSpeciesRuntimeReadiness(("saevi", "tovren")),
     )
 
 
@@ -145,10 +145,10 @@ class TestAdoptionInfo:
         assert len(data["personality_styles"]) == 6
         # 2 个当前可领养物种；缺少完整 Godot 资源的物种不可见
         assert sorted(item["species_id"] for item in data["species"]) == [
-            "dog",
-            "fox",
+            "tovren",
+            "saevi",
         ]
-        assert data["species"][0]["scene_id"] == "fox"
+        assert data["species"][0]["scene_id"] == "saevi"
         # 3 身高
         assert sorted(data["heights"]) == sorted(["short", "standard", "tall"])
         # 3 胖瘦
@@ -158,7 +158,7 @@ class TestAdoptionInfo:
         user_id = _create_user_via_owner(client, "alice")
         tokens = _login_user(client, "alice")
 
-        adopt_test_elfie(db_path, user_id, species_id="dog")
+        adopt_test_elfie(db_path, user_id, species_id="tovren")
 
         resp = client.get("/api/v1/me/adoption", headers=_headers(tokens["csrf_token"]))
         assert resp.status_code == 200
@@ -181,7 +181,7 @@ class TestAdoptionInfo:
             connection.commit()
         _login_user(client, "alice")
         before = client.get("/api/v1/me/adoption")
-        adopt_test_elfie(db_path, user_id, name="小白", species_id="dog")
+        adopt_test_elfie(db_path, user_id, name="小白", species_id="tovren")
         after = client.get("/api/v1/me/adoption")
 
         assert before.json()["quota"]["max"] == 1
@@ -201,7 +201,7 @@ class TestAdoptionJourney:
         tokens = _login_user(client, "journey-owner")
         headers = _headers(tokens["csrf_token"])
         intent = {
-            "species_id": "fox",
+            "species_id": "saevi",
             "life_stage": "young_adult",
             "gender": "any",
             "appearance": {

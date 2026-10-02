@@ -2,23 +2,24 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhtc80h1o8u7r"
-path="res://.godot/imported/cat_shaded.png-8c423cbd680ce5a7bc9b864ee13aa25b.ctex"
+uid="uid://157laikuo5bt"
+path.s3tc="res://.godot/imported/tovren_shaded.png-93a861be53c5fb88d365ce64673e3e80.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
-"md5": "24b5de40b36d8c26dacc23c813c174db"
+"md5": "a1e6719dde2af3985616836d46794233"
 }
 
 [deps]
 
-source_file="res://characters/cat/cat_shaded.png"
-dest_files=["res://.godot/imported/cat_shaded.png-8c423cbd680ce5a7bc9b864ee13aa25b.ctex"]
+source_file="res://characters/tovren/tovren_shaded.png"
+dest_files=["res://.godot/imported/tovren_shaded.png-93a861be53c5fb88d365ce64673e3e80.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

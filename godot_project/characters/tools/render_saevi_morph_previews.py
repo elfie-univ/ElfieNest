@@ -8,7 +8,7 @@ from pathlib import Path
 import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_fox_morph_prototype import render_previews  # noqa: E402
+from build_saevi_morph_prototype import render_previews  # noqa: E402
 
 
 def main() -> None:
@@ -21,7 +21,9 @@ def main() -> None:
         (obj for obj in bpy.context.scene.objects if obj.type == "MESH"),
         key=lambda item: len(item.data.vertices),
     )
-    output = Path(__file__).resolve().parents[1] / "fox/source/previews/morph_prototype"
+    output = (
+        Path(__file__).resolve().parents[1] / "saevi/source/previews/morph_prototype"
+    )
     render_previews(mesh, output, variants)
     print("MORPH_PREVIEW_BATCH_DONE " + ",".join(sorted(variants)))
 

@@ -50,7 +50,7 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
             "preview",
         ]
 
-    assert get_species_definition("cat").display_name == "Myelle"
+    assert get_species_definition("myelle").display_name == "Myelle"
 
 
 def test_species_lookup_is_data_driven_for_each_registered_id() -> None:

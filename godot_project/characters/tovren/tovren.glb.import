@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b8so58nmpaslg"
-path="res://.godot/imported/cat.glb-65b1b58fa264a0a6d2583a2dacdd5b8c.scn"
+uid="uid://cfjxropcwmvd3"
+path="res://.godot/imported/tovren.glb-b4261e0ade7aea7dd11a113b6ba92805.scn"
 
 [deps]
 
-source_file="res://characters/cat/cat.glb"
-dest_files=["res://.godot/imported/cat.glb-65b1b58fa264a0a6d2583a2dacdd5b8c.scn"]
+source_file="res://characters/tovren/tovren.glb"
+dest_files=["res://.godot/imported/tovren.glb-b4261e0ade7aea7dd11a113b6ba92805.scn"]
 
 [params]
 

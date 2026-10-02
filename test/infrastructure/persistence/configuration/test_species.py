@@ -38,29 +38,48 @@ def _refresh_package_hashes(root: Path) -> None:
 def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     catalog = load_species_catalog()
 
-    assert catalog.supported_species == ("fox", "dog", "cat")
-    assert [item.species_id for item in catalog.definitions] == ["fox", "dog", "cat"]
-    assert catalog.definition("fox").display_name == "Saevi"
-    assert catalog.definition("dog").display_name == "Tovren"
-    assert catalog.definition("cat").display_name == "Myelle"
-    assert catalog.definition("cat").appearance.patterns == ("solid",)
-    assert catalog.definition("cat").appearance.control_options["signature"] == (
+    assert catalog.supported_species == ("saevi", "tovren", "myelle")
+    assert [item.species_id for item in catalog.definitions] == [
+        "saevi",
+        "tovren",
+        "myelle",
+    ]
+    assert catalog.definition("saevi").display_name == "Saevi"
+    assert catalog.definition("tovren").display_name == "Tovren"
+    assert catalog.definition("myelle").display_name == "Myelle"
+    assert catalog.definition("myelle").appearance.patterns == ("solid",)
+    assert catalog.definition("myelle").appearance.control_options["signature"] == (
         "warm",
         "any",
     )
-    assert catalog.definition("fox").presentation_images is not None
-    assert catalog.definition("dog").genesis is not None
-    assert catalog.definition("fox").genesis.terminal_age_years == 15
-    assert catalog.definition("dog").genesis.terminal_age_years == 20
+    assert catalog.definition("saevi").presentation_images is not None
+    assert catalog.definition("tovren").genesis is not None
+    assert catalog.definition("saevi").genesis.terminal_age_years == 15
+    assert catalog.definition("tovren").genesis.terminal_age_years == 20
     assert len(catalog.digest) == 64
-    assert catalog.definition("fox").appearance.supported_controls == (
+    assert catalog.definition("saevi").appearance.supported_controls == (
         "stature",
         "build",
         "signature",
     )
 
 
-@pytest.mark.parametrize("species_id", ("fox", "dog"))
+def test_species_use_canonical_ids_and_localized_names() -> None:
+    catalog = load_species_catalog()
+    expected = (
+        ("saevi", "Saevi", "赛维"),
+        ("tovren", "Tovren", "托伦"),
+        ("myelle", "Myelle", "米耶尔"),
+    )
+    assert catalog.supported_species == tuple(item[0] for item in expected)
+    for species_id, english, chinese in expected:
+        definition = catalog.definition(species_id)
+        assert definition.display_name == english
+        assert definition.display_name_zh == chinese
+        assert definition.identity_card.technical_species_id == species_id
+
+
+@pytest.mark.parametrize("species_id", ("saevi", "tovren"))
 def test_reviewed_elbow_knee_and_tail_underside_regions_are_colorable(
     species_id: str,
 ) -> None:
@@ -77,7 +96,7 @@ def test_species_assets_are_validated_inside_their_package(tmp_path: Path) -> No
     root = tmp_path / "config"
     shutil.copytree(resolve_bundled_config_root(), root)
     catalog = load_species_catalog(root=root)
-    definition = catalog.definition("fox")
+    definition = catalog.definition("saevi")
 
     headshot = species_asset_path(root, definition, "headshot")
     full_body = species_asset_path(root, definition, "full-body")

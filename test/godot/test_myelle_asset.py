@@ -5,11 +5,11 @@ import struct
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = ROOT / "godot_project" / "characters" / "cat"
+PACKAGE = ROOT / "godot_project" / "characters" / "myelle"
 
 
 def test_myelle_glb_has_a_skinned_mesh_and_connected_tail_chain() -> None:
-    payload = (PACKAGE / "cat.glb").read_bytes()
+    payload = (PACKAGE / "myelle.glb").read_bytes()
     magic, version, length = struct.unpack_from("<III", payload)
     assert (magic, version, length) == (0x46546C67, 2, len(payload))
     chunk_length, chunk_type = struct.unpack_from("<II", payload, 12)
@@ -69,7 +69,7 @@ def _accessor(document: dict, binary: bytes, index: int) -> list[tuple]:
 
 def test_myelle_manifest_binds_its_own_tail_and_shared_actions() -> None:
     manifest = json.loads((PACKAGE / "species_manifest.json").read_text())
-    assert manifest["species_id"] == "cat"
+    assert manifest["species_id"] == "myelle"
     assert manifest["appearance_bindings"]["bone_scales"]["TailLength"]["bones"] == [
         "Tail_01",
         "Tail_02",

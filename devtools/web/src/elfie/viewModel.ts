@@ -11,9 +11,9 @@ export function formatSignedDelta(before: number, after: number): string {
   return `${delta > 0 ? "+" : ""}${rounded(delta)}`;
 }
 
-export function creationAgeError(ageYears: string, speciesId = "dog"): string | null {
+export function creationAgeError(ageYears: string, speciesId = "tovren"): string | null {
   const age = Number(ageYears);
-  const max = speciesId === "fox" ? 15 : 20;
+  const max = speciesId === "saevi" ? 15 : 20;
   return Number.isInteger(age) && age >= 2 && age <= max ? null : `年龄必须是 2 到 ${max} 岁之间的整数`;
 }
 
@@ -28,7 +28,7 @@ export function randomCreationValues(speciesId: string, random = Math.random): {
     neuroticism: number;
   };
 } {
-  const maximum = speciesId === "fox" ? 15 : 20;
+  const maximum = speciesId === "saevi" ? 15 : 20;
   const trait = (): number => Math.round((0.2 + random() * 0.6) * 100) / 100;
   return {
     age: 2 + Math.floor(random() * (maximum - 1)),

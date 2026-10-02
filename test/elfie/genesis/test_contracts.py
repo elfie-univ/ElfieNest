@@ -33,7 +33,7 @@ from infrastructure.persistence.memory.ontology_loader import load_core_memory_o
 def _compilation(
     elfie_id: str = "genesis-check",
     *,
-    species_id: str = "fox",
+    species_id: str = "saevi",
     stage: str = "youth",
     age_years: int | None = None,
     seed: int = 23,
@@ -456,7 +456,7 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
     )
     compilation = _compilation(
         "family-bounded-ancestors",
-        species_id="dog",
+        species_id="tovren",
         stage="mature",
         age_years=7,
         seed=7,
@@ -485,7 +485,7 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
 def test_elder_parents_do_not_force_grandparent_expansion() -> None:
     compilation = _compilation(
         "elder-parent-boundary",
-        species_id="fox",
+        species_id="saevi",
         stage="mature",
         age_years=8,
         seed=7,
@@ -1127,7 +1127,7 @@ def test_genesis_rejects_an_unavailable_required_arrival_fact() -> None:
     source = load_genesis_source_package()
     required_id = source.earth_arrival_rules.required_knowledge_ids[0]
     invalid_facts = tuple(
-        replace(fact, eligibility=("dog",)) if fact.fact_id == required_id else fact
+        replace(fact, eligibility=("tovren",)) if fact.fact_id == required_id else fact
         for fact in source.knowledge
     )
     invalid_source = replace(source, knowledge=invalid_facts)

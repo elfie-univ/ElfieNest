@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "package_version": "cat.v1",
+  "package_version": "myelle.v1",
   "appearance_protocol_version": "appearance.v2",
-  "species_id": "cat",
-  "scene_file": "cat.tscn",
-  "model_file": "cat.glb",
+  "species_id": "myelle",
+  "scene_file": "myelle.tscn",
+  "model_file": "myelle.glb",
   "required_nodes": [
     "VisualRoot",
     "VisualRoot/character",

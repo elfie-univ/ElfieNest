@@ -62,7 +62,7 @@ describe("administrator Settings API boundary", () => {
   it("rejects the retired per-species administrator field", async () => {
     vi.mocked(ownerRead).mockResolvedValue({
       max_elfies_per_user: 3,
-      allowed_species_ids: ["fox"],
+      allowed_species_ids: ["saevi"],
       personality_presets_enabled: {},
     })
 

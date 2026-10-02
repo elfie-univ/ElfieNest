@@ -20,17 +20,17 @@ characters/
 ├── animation/              # Mixamo public bipedal animation library
 ├── shared/
 │   └── elfie_actor.gd      # movement, animation loading and adaptive main collider
-├── dog/
-│   ├── dog.glb                  # production model + Skeleton3D
-│   ├── dog.tscn                 # CharacterBody3D runtime wrapper
+├── tovren/
+│   ├── tovren.glb                  # production model + Skeleton3D
+│   ├── tovren.tscn                 # CharacterBody3D runtime wrapper
 │   └── species_manifest.json    # completeness declaration
-├── fox/
-│   ├── fox.glb
-│   ├── fox.tscn
+├── saevi/
+│   ├── saevi.glb
+│   ├── saevi.tscn
 │   └── species_manifest.json
-├── cat/
-│   ├── cat.glb                  # Myelle model with a four-bone tail
-│   ├── cat.tscn
+├── myelle/
+│   ├── myelle.glb                  # Myelle model with a four-bone tail
+│   ├── myelle.tscn
 │   └── species_manifest.json
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md

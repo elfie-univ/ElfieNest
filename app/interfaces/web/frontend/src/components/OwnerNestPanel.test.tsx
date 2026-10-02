@@ -25,7 +25,7 @@ const identity = {
   profile: {
     elfie_id: "00000001",
     name: "Happy",
-    species_id: "fox",
+    species_id: "saevi",
     gender: null,
     birth_date: null,
     summary: null,
@@ -51,7 +51,7 @@ describe("OwnerNestPanel", () => {
         name: "Bed 01",
         occupant_id: "00000001",
         occupant_name: "Happy",
-        occupant_species_id: "fox",
+        occupant_species_id: "saevi",
       }],
     }])
   })

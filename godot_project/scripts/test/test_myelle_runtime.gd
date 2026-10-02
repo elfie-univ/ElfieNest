@@ -14,11 +14,11 @@ func _run() -> void:
 		_fail("Import readiness timed out")
 		return
 	var catalog := CATALOG.discover_actor_scenes()
-	for species_id: String in ["fox", "dog", "cat"]:
+	for species_id: String in ["saevi", "tovren", "myelle"]:
 		if not catalog.has(species_id):
 			_fail("Missing validated species: %s" % species_id)
 			return
-	var actor := (catalog["cat"] as PackedScene).instantiate() as CharacterBody3D
+	var actor := (catalog["myelle"] as PackedScene).instantiate() as CharacterBody3D
 	root.add_child(actor)
 	actor.set_physics_process(false)
 	var visual := actor.get_node("VisualRoot") as Node3D
@@ -85,7 +85,7 @@ func _run() -> void:
 		"height_scale": 1.08, "build_scale": 1.08,
 		"bone_scales": {"HeadScale": 1.08},
 		"material_parameters": {"palette_id": "gray", "primary_color_id": "gray"},
-	}, "cat")
+	}, "myelle")
 	if skeleton.get_bone_pose_scale(head) == head_scale or not collision.shape is CapsuleShape3D:
 		_fail("Appearance or capsule application failed")
 		return

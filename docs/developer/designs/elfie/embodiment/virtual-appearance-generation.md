@@ -119,9 +119,9 @@ diamond, star, lightning, wave and halo. Micro marks are:
 
 ## Validated palette budget
 
-The release uses the ten coat colors already visually reviewed for each species. Dog uses snow
+The release uses the ten coat colors already visually reviewed for each species. Tovren uses snow
 white, ivory, cream, honey gold, apricot, russet, chestnut, chocolate, silver gray and smoky
-charcoal. Fox uses ivory, cream, champagne, golden, orange red, fox red, chestnut, sable brown,
+charcoal. Saevi uses ivory, cream, champagne, golden, orange red, saevi red, chestnut, sable brown,
 silver gray and smoky black. Regional accents and marks select only from each species' configured
 allow-list. Expanding into blue, violet, teal or emissive colors requires a separate multi-angle
 palette review and is not claimed by this release.
@@ -148,12 +148,12 @@ For this release, no body-motif parameter is generated, resolved or consumed by 
 The written experiment result remains as reference material; its duplicate Shader harness and atlas
 were removed during production cleanup. Re-enabling the feature requires a new review of a true
 anatomical-path/UV-bake implementation across front, three-quarter, side, back and top views for
-both dog and fox. It must not alter the frozen V9 transfer or the thirteen production regions.
+both tovren and saevi. It must not alter the frozen V9 transfer or the thirteen production regions.
 
 ## Acceptance sequence
 
 1. Verify the frozen V9 transfer, thirteen regions, local marks and geometry through the formal
-   `ElfieActor.configure()` render path for dog and fox.
+   `ElfieActor.configure()` render path for tovren and saevi.
 2. Verify exact-age growth and the weak sex prior while retaining bounded individual variation.
 3. Verify persistence in the real Godot world and complete the isolated-data adoption flow with a
    real frontend screenshot of five visibly distinct candidates.

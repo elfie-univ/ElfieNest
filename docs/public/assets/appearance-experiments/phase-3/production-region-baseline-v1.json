@@ -9,12 +9,12 @@
     "renderer": "GL Compatibility / macOS OpenGL",
     "views": ["front", "three_quarter", "side", "top"],
     "source_assets": [
-      "godot_project/characters/dog/dog.glb",
-      "godot_project/characters/fox/fox.glb"
+      "godot_project/characters/tovren/tovren.glb",
+      "godot_project/characters/saevi/saevi.glb"
     ]
   },
   "scope": {
-    "species": ["dog", "fox"],
+    "species": ["tovren", "saevi"],
     "region_count": 13,
     "maximum_color_accents": 2,
     "production_runtime_bound": true,
@@ -23,8 +23,8 @@
   },
   "catalog": "production-v1/formal-region-catalog.json",
   "evidence": {
-    "dog_grid": "production-v1/dog-formal-region-grid-4views.png",
-    "fox_grid": "production-v1/fox-formal-region-grid-4views.png"
+    "tovren_grid": "production-v1/tovren-formal-region-grid-4views.png",
+    "saevi_grid": "production-v1/saevi-formal-region-grid-4views.png"
   },
   "regions": [
     {"id": 0, "key": "head_tuft", "operation": "color"},
@@ -41,5 +41,5 @@
     {"id": 11, "key": "tail_tip", "operation": "color"},
     {"id": 12, "key": "tail_underside", "operation": "color"}
   ],
-  "change_rule": "Any region-boundary change requires new dog and fox multi-angle evidence and must keep ActorAppearance as the sole runtime classifier."
+  "change_rule": "Any region-boundary change requires new tovren and saevi multi-angle evidence and must keep ActorAppearance as the sole runtime classifier."
 }

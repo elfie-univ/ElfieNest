@@ -16,7 +16,7 @@ the first real turn is the connection attempt.
 For validating in-nest state inside a fixed room, character entry, the Godot
 semantic boundary and runtime events. On startup it auto-opens a local web
 page: the center previews the exported Godot room; the right side lets you
-adjust the bed count, add a fox or dog, start a Python-driven random walk, and
+adjust the bed count, add a saevi or tovren, start a Python-driven random walk, and
 pause, resume or reset the experiment. The event timeline shows world
 configuration, actor sync, motion terminal states, collisions and other Runtime
 facts.
