@@ -77,3 +77,13 @@ not repeated merely because an explicit local stage name changed. Narrow repair
 checks stay narrow and cannot satisfy broader coverage. Governance and unknown
 changes remain fail-closed through all candidate lanes, and latest-SHA CI
 remains mandatory for protected delivery.
+
+## CI execution partition
+
+In GitHub Actions, the controlled selected-test entrypoint collects the exact selected
+pytest nodes with the repository's configured import mode and marker rules, then runs
+four parallel shards. A test module stays in one shard with its collection order intact;
+the union contains every collected node exactly once. Every worker is awaited, and any
+collection or execution failure rejects the lane. The ten-minute job limit and immutable
+base selection remain unchanged. Local selected-test commands retain serial execution
+and check-scoped caching; these CI shards do not claim reusable complete-bundle evidence.

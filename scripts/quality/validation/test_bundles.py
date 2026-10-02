@@ -12,7 +12,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if __package__ is None:
@@ -604,7 +604,7 @@ def partition_test_nodes(
     """Partition the exact collected test set without overlaps or omissions."""
     if shard_count < 1 or not 0 <= shard_index < shard_count:
         raise ValueError("invalid test shard coordinates")
-    modules = {}
+    modules: Dict[str, List[str]] = {}
     for node in dict.fromkeys(nodes):
         modules.setdefault(node.split("::", 1)[0], []).append(node)
     shards: List[List[str]] = [[] for _ in range(shard_count)]
@@ -621,9 +621,8 @@ def run_test_shard(selectors: Sequence[str], shard_index: int, shard_count: int)
             sys.executable,
             "-m",
             "pytest",
-            "-o",
-            "addopts=",
             "--collect-only",
+            "-q",
             "-q",
             *selectors,
         ],
