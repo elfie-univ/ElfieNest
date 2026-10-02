@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -54,6 +55,17 @@ class _MemoryTraceModelExecution(_TestModelExecution):
         prompt = request.prompt
         current = prompt.rsplit("CURRENT_MESSAGE:\n", 1)[-1].strip()
         if "你还记得我喜欢什么颜色" in current:
+            if request.response_schema_name == "CognitiveAction":
+                return request.to_result(
+                    text=json.dumps(
+                        {
+                            "type": "recall_memory",
+                            "query": "喜欢蓝色",
+                            "reason": "需要检索主人之前表达的偏好",
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             text = (
                 "我从长期记忆里记得你喜欢蓝色。"
                 if "episode:topic:" in prompt and "喜欢蓝色" in prompt
@@ -224,10 +236,13 @@ def test_web_chat_recalls_closed_topic_from_durable_memory(
                 if "CURRENT_MESSAGE:\n换个话题：你还记得我喜欢什么颜色吗？"
                 in request.prompt
             ]
-            assert traced
+            assert [request.response_schema_name for request in traced] == [
+                "CognitiveAction",
+                "FinalCognitiveAction",
+            ]
             assert all(request.allowed_tools == () for request in traced)
             assert any(
-                "MEMORY_RECALL_STATUS:\nstatus=recalled;" in request.prompt
+                "- kind=memory; status=recalled;" in request.prompt
                 and '<EPISODE id="episode:topic:' in request.prompt
                 and "喜欢蓝色" in request.prompt
                 for request in traced

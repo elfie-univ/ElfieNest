@@ -12,7 +12,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if __package__ is None:
@@ -598,6 +598,63 @@ def combine_coverage(artifacts: Sequence[Path], cache_root: Path) -> int:
     return 0
 
 
+def partition_test_nodes(
+    nodes: Sequence[str], shard_index: int, shard_count: int
+) -> Tuple[str, ...]:
+    """Partition the exact collected test set without overlaps or omissions."""
+    if shard_count < 1 or not 0 <= shard_index < shard_count:
+        raise ValueError("invalid test shard coordinates")
+    modules: Dict[str, List[str]] = {}
+    for node in dict.fromkeys(nodes):
+        modules.setdefault(node.split("::", 1)[0], []).append(node)
+    shards: List[List[str]] = [[] for _ in range(shard_count)]
+    for module in sorted(modules, key=lambda name: (-len(modules[name]), name)):
+        target = min(range(shard_count), key=lambda index: len(shards[index]))
+        shards[target].extend(modules[module])
+    return tuple(shards[shard_index])
+
+
+def run_test_shard(selectors: Sequence[str], shard_index: int, shard_count: int) -> int:
+    partition_test_nodes((), shard_index, shard_count)
+    collection = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-q",
+            *selectors,
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if collection.returncode != 0:
+        print(collection.stdout, end="")
+        print(collection.stderr, end="", file=sys.stderr)
+        return collection.returncode
+    nodes = tuple(
+        line.strip()
+        for line in collection.stdout.splitlines()
+        if line.startswith("test/") and "::" in line
+    )
+    if not nodes:
+        print("selected CI test set collected no test nodes", file=sys.stderr)
+        return 1
+    selected = partition_test_nodes(nodes, shard_index, shard_count)
+    print(
+        f"shard {shard_index + 1}/{shard_count}: {len(selected)}/{len(set(nodes))} nodes",
+        flush=True,
+    )
+    if not selected:
+        return 0
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", *selected], cwd=PROJECT_ROOT, check=False
+    ).returncode
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
@@ -609,7 +666,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--base-sha", default="")
     parser.add_argument("--cache-root", default="build/validation-cache")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--shard-index", type=int)
+    parser.add_argument("--shard-count", type=int, default=4)
     args = parser.parse_args(argv)
+    if (
+        args.selectors
+        and args.shard_index is None
+        and os.environ.get("GITHUB_ACTIONS") == "true"
+    ):
+        workers = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--shard-index",
+                    str(index),
+                    "--shard-count",
+                    str(args.shard_count),
+                    "--selectors",
+                    *args.selectors,
+                ],
+                cwd=PROJECT_ROOT,
+            )
+            for index in range(args.shard_count)
+        ]
+        return max(worker.wait() for worker in workers)
+    if args.shard_index is not None:
+        if not args.selectors:
+            parser.error("test shards require --selectors")
+        return run_test_shard(args.selectors, args.shard_index, args.shard_count)
     cache_root = Path(args.cache_root)
     if not cache_root.is_absolute():
         cache_root = PROJECT_ROOT / cache_root
