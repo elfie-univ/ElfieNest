@@ -44,14 +44,32 @@ def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     assert catalog.definition("dog").display_name == "Tovren"
     assert catalog.definition("fox").presentation_images is not None
     assert catalog.definition("dog").genesis is not None
-    assert catalog.definition("fox").genesis.terminal_age_years == 15
-    assert catalog.definition("dog").genesis.terminal_age_years == 20
+    assert catalog.definition("fox").genesis.terminal_age_years == 17
+    assert catalog.definition("dog").genesis.terminal_age_years == 22
+    assert catalog.definition("fox").genesis.median_age_years == 15
+    assert catalog.definition("dog").genesis.median_age_years == 20
+    assert catalog.definition("dog").genesis.stage_ranges["mature"] == (6, 14)
+    assert catalog.definition("fox").genesis.stage_ranges["mature"] == (5, 10)
     assert len(catalog.digest) == 64
     assert catalog.definition("fox").appearance.supported_controls == (
         "stature",
         "build",
         "signature",
     )
+
+
+def test_species_stage_ranges_are_contiguous_and_use_half_open_endpoints() -> None:
+    catalog = load_species_catalog()
+
+    for definition in catalog.definitions:
+        assert definition.genesis is not None
+        ranges = definition.genesis.stage_ranges
+        assert tuple(ranges) == ("childhood", "adolescent", "mature", "elder")
+        assert ranges["childhood"][0] == 0
+        assert ranges["childhood"][1] == ranges["adolescent"][0]
+        assert ranges["adolescent"][1] == ranges["mature"][0]
+        assert ranges["mature"][1] == ranges["elder"][0]
+        assert ranges["elder"][1] == definition.genesis.terminal_age_years
 
 
 @pytest.mark.parametrize("species_id", ("fox", "dog"))
@@ -148,3 +166,34 @@ def test_species_appearance_must_declare_options_for_each_control(
 
     with pytest.raises(SpeciesCatalogError, match="必要控制"):
         load_species_catalog(root=root)
+
+
+@pytest.mark.parametrize(
+    ("package", "elder", "median", "terminal"),
+    [("saevi", 10, 15, 17), ("tovren", 14, 20, 22), ("myelle", 14, 20, 22)],
+)
+def test_species_lifespan_separates_median_from_hard_endpoint(
+    package: str,
+    elder: int,
+    median: int,
+    terminal: int,
+) -> None:
+    from infrastructure.persistence.configuration.species import _genesis_profile
+
+    path = (
+        resolve_bundled_config_root()
+        / "genesis"
+        / "species"
+        / package
+        / "generation.yaml"
+    )
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    profile = _genesis_profile(document)
+    assert profile.median_age_years == median
+    assert profile.stage_ranges["elder"] == (elder, terminal)
+    assert profile.terminal_age_years == terminal
+    assert profile.stage_ranges["mature"][1] == elder
+    for invalid_median in (elder, terminal):
+        document["stage_endpoint_policy"]["median_age_local_years"] = invalid_median
+        with pytest.raises(ValueError, match="寿命中位数"):
+            _genesis_profile(document)

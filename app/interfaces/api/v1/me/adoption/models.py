@@ -32,7 +32,7 @@ class CandidateSetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     species_id: str = Field(min_length=1, max_length=64)
-    life_stage: Literal["youth", "young_adult", "mature", "elder", "any"]
+    life_stage: Literal["childhood", "adolescent", "mature", "elder", "any"]
     gender: Literal["male", "female", "any"]
     appearance: CandidateAppearanceRequest
     answers: tuple[Annotated[str, Field(min_length=1, max_length=500)], ...] = Field(
@@ -206,7 +206,7 @@ class AdoptionCandidateResponse(BaseModel):
 
     candidate_id: str
     species_id: str = Field(min_length=1)
-    life_stage: Literal["youth", "young_adult", "mature", "elder"]
+    life_stage: Literal["childhood", "adolescent", "mature", "elder"]
     age_years: int = Field(ge=1, le=20)
     gender: Literal["male", "female"]
     full_body_image_url: str

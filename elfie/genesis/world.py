@@ -20,6 +20,8 @@ from elfie.brain.memory.memory_records import (
 )
 
 from .contracts import KnowledgeLevel, MemoryCertainty
+from .family_config import FamilyGenerationConfig
+from .public_events import LearningPolicy, PublicEventCatalog
 
 SourcePackageStatus = Literal["draft", "published", "retired"]
 WorldItemStatus = Literal["active", "unknown-boundary"]
@@ -32,6 +34,15 @@ KnowledgeEpistemicKind = Literal[
     "myth",
     "unknown_boundary",
 ]
+
+# Life-stage keys are shared across candidate generation, Genesis chronology
+# and activity scheduling. Species members own only the numeric age ranges;
+# these semantic gates stay in one code-owned place so they cannot drift per
+# species or between callers.
+LIFE_STAGES = ("childhood", "adolescent", "mature", "elder")
+CARE_REQUIRED_STAGES = frozenset(("childhood", "elder"))
+ACTIVITY_ELIGIBLE_STAGES = frozenset(("adolescent", "mature"))
+FAMILY_LIFE_STAGE = "mature"
 
 
 @dataclass(frozen=True)
@@ -383,22 +394,12 @@ class GenerationPolicy:
     candidate_minimum_age_years: int = 2
     candidate_age_reserve_years: int = 4
     candidate_stage_weights: tuple[tuple[str, float], ...] = (
-        ("youth", 0.0),
-        ("young_adult", 0.75),
+        ("childhood", 0.0),
+        ("adolescent", 0.75),
         ("mature", 0.20),
         ("elder", 0.05),
     )
-    family_child_count_distribution: tuple[tuple[int, float], ...] = (
-        (1, 0.40),
-        (2, 0.45),
-        (3, 0.15),
-    )
-    family_parent_min_age_gap_years: int = 3
-    family_partner_min_age_years: int = 3
-    family_partner_annual_probability: float = 0.25
-    family_max_children: int = 3
-    family_lifespan_cdf_power: int = 6
-    family_lifespan_sampler_version: str = "conditioned-lifespan-cdf.v1"
+    family: FamilyGenerationConfig = field(default_factory=FamilyGenerationConfig)
     relationship_importance_baselines: tuple[tuple[str, float], ...] = (
         ("core", 0.75),
         ("sibling", 0.65),
@@ -408,6 +409,9 @@ class GenerationPolicy:
     )
     relationship_layer_decay_lambda: float = 0.9
     friend_layer_decay_lambda: float = 0.65
+    public_contact_count_distribution: tuple[tuple[int, float], ...] = ()
+    cohort_count_distribution: tuple[tuple[int, float], ...] = ()
+    public_contact_reuse_probability: float = 0.0
     friend_contact_beta: float = 0.8
     friend_max_count: int = 2
     visit_sampler_version: str = "visits-zero-heavy-power-count.v1"
@@ -446,8 +450,8 @@ class EarthArrivalRules:
 
     eligible_species_ids: tuple[str, ...] = ()
     eligible_life_stages: tuple[str, ...] = (
-        "youth",
-        "young_adult",
+        "childhood",
+        "adolescent",
         "mature",
         "elder",
     )
@@ -591,6 +595,8 @@ class GenesisSourcePackage:
     life_archetypes: tuple[LifeArchetypeRule, ...] = ()
     relationship_archetypes: tuple[RelationshipArchetype, ...] = ()
     episode_themes: tuple[EpisodeTheme, ...] = ()
+    public_events: PublicEventCatalog = field(default_factory=PublicEventCatalog)
+    learning_policy: LearningPolicy = field(default_factory=LearningPolicy)
 
     @property
     def package_version(self) -> str:

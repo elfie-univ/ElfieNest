@@ -23,6 +23,8 @@ from elfie.profile import (
     ElfieProfile,
 )
 
+from .skeleton import SkeletonGroup, SkeletonRelationship
+
 GenesisStatus = Literal["draft", "validated", "committed"]
 MemoryCertainty = Literal["high", "medium", "low"]
 KnowledgeMastery = Literal["known", "partial", "heard", "unknown"]
@@ -97,7 +99,7 @@ class EpisodeSeed:
     retrieval_terms: tuple[str, ...] = ()
     certainty: MemoryCertainty = "high"
     temporal_label: str = "before_arrival"
-    life_stage: str = "youth"
+    life_stage: str = "childhood"
     occurred_from: str | None = None
     occurred_to: str | None = None
     place_ids: tuple[str, ...] = ()
@@ -282,6 +284,8 @@ class GenesisBundle:
     place_seeds: tuple[PlaceSeed, ...] = ()
     place_relation_seeds: tuple[PlaceRelationSeed, ...] = ()
     knowledge_episode_max_chars: int = 4000
+    person_relation_seeds: tuple[SkeletonRelationship, ...] = ()
+    group_seeds: tuple[SkeletonGroup, ...] = ()
 
     def validate(self) -> None:
         """Reject an incomplete or over-powered creation package.
@@ -382,6 +386,40 @@ class GenesisBundle:
                 )
         place_ids = {seed.place_id for seed in self.place_seeds}
         relationship_people = {seed.person_id for seed in self.relationship_seeds}
+        _require_unique((g.group_id for g in self.group_seeds), "group_id")
+        named_pairs = {
+            (e.subject_id, e.object_id)
+            for e in self.person_relation_seeds
+            if e.label
+            and e.source_ref
+            and len(e.relationship_path) >= 2
+            and e.relationship_path[0] == e.subject_id
+            and e.relationship_path[-1] == e.object_id
+            and set(e.relationship_path) <= relationship_people | {"self"}
+        }
+        for group in self.group_seeds:
+            if (
+                len(set(group.member_ids)) < 3
+                or not group.source_ref
+                or not set(group.member_ids) <= relationship_people | {"self"}
+            ):
+                raise GenesisValidationError("Genesis 群组成员或来源无效")
+            if any(
+                (a, b) not in named_pairs
+                for a in group.member_ids
+                for b in group.member_ids
+                if a != b
+            ):
+                raise GenesisValidationError("Genesis 群组缺少两两关系、称谓或证明路径")
+        for person_edge in self.person_relation_seeds:
+            if (
+                person_edge.status != "established"
+                or not person_edge.source_ref
+                or not {person_edge.subject_id, person_edge.object_id}
+                <= relationship_people | {"self"}
+            ):
+                raise GenesisValidationError("Genesis 人际关系引用或来源无效")
+
         for place in self.place_seeds:
             if (
                 not place.place_id.strip()
@@ -809,8 +847,8 @@ CANDIDATE_ROLES = (
     "discovery_variant",
 )
 STAGE_PLASTICITY = {
-    "youth": 1.15,
-    "young_adult": 1.05,
+    "childhood": 1.15,
+    "adolescent": 1.05,
     "mature": 0.95,
     "elder": 0.85,
 }

@@ -59,13 +59,13 @@ height = species baseline
 ```
 
 - Final height scale is bounded to `0.82–1.18` around a standard adult of the species.
-- Growth variation is strongest during youth and is derived from exact age within the stage; stage
+- Growth variation is strongest during childhood and is derived from exact age within the stage; stage
   boundaries cannot create a visible jump.
 - `small`, `standard` and `tall` bias the lower, middle and upper parts of the valid age range rather
   than forcing one fixed scale.
-- The adult sex prior is weak (about `±2.5%` in height); youth receives a reduced prior. It cannot
+- The adult sex prior is weak (about `±2.5%` in height); childhood receives a reduced prior. It cannot
   determine palette, regions, glyphs or micro marks.
-- Youth uses a relatively larger head and shorter limbs, converging continuously toward adult
+- Childhood uses a relatively larger head and shorter limbs, converging continuously toward adult
   allometry. Appendage variation remains bounded and correlated so hands, paws and tail cannot
   detach visually from the silhouette.
 

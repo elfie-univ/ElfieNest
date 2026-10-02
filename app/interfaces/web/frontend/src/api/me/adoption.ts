@@ -49,8 +49,8 @@ const AdoptionCandidateSchema = z.object({
   candidate_id: z.string(),
   species_id: z.string().min(1),
   life_stage: z.union([
-    z.literal("youth"),
-    z.literal("young_adult"),
+    z.literal("childhood"),
+    z.literal("adolescent"),
     z.literal("mature"),
     z.literal("elder"),
   ]),
@@ -100,7 +100,7 @@ export type AdoptionReplies = z.infer<typeof AdoptionRepliesSchema>
 
 export type AdoptionCandidateSetInput = {
   readonly species_id: string
-  readonly life_stage: "youth" | "young_adult" | "mature" | "elder" | "any"
+  readonly life_stage: "childhood" | "adolescent" | "mature" | "elder" | "any"
   readonly gender: "male" | "female" | "any"
   readonly appearance: {
     readonly stature: "small" | "standard" | "tall" | "any"

@@ -392,6 +392,34 @@ export function projectNodeSources(
   }).slice(0, 24);
 }
 
+export function sourcedPersonRelation(record: InspectorRecord | null): { subjectId: string; objectId: string; label: string; heard: boolean } | null {
+  if (!record) return null;
+  const qualifiers = record.qualifiers;
+  if (!qualifiers || typeof qualifiers !== "object" || Array.isArray(qualifiers)) return null;
+  const raw = (qualifiers as InspectorRecord).context;
+  if (typeof raw !== "string") return null;
+  try {
+    const context = JSON.parse(raw) as InspectorRecord;
+    if (!context || context.source !== "genesis_relationship" || typeof context.object_label !== "string" || !context.object_label) return null;
+    const subjectId = String(context.view_subject ?? "");
+    const objectId = String(context.view_object ?? "");
+    const ends = new Set([String(record.subject_id ?? ""), String(record.object_node_id ?? "")]);
+    if (subjectId === objectId || !ends.has(subjectId) || !ends.has(objectId)) return null;
+    const labels: Record<string, string> = { owner: "主人", route_keeper: "引路人", earth_household: "领养家庭" };
+    return { subjectId, objectId, label: labels[context.object_label] ?? context.object_label, heard: context.familiarity === "heard" };
+  } catch {
+    return null;
+  }
+}
+
+function sourcedPersonSentence(record: InspectorRecord, nodeById: RelationProjectionInput["nodeById"]): string | null {
+  const relation = sourcedPersonRelation(record);
+  if (!relation) return null;
+  const subject = nodeById.get(relation.subjectId)?.label ?? relation.subjectId;
+  const object = nodeById.get(relation.objectId)?.label ?? relation.objectId;
+  return `${object} 是 ${subject} 的${relation.label}${relation.heard ? "（听说过，尚无实际接触记录）" : ""}`;
+}
+
 export function projectRelationConnections(input: RelationProjectionInput): InspectorConnection[] {
   const selectedId = input.selectedNodeId;
   return input.assertions
@@ -406,8 +434,8 @@ export function projectRelationConnections(input: RelationProjectionInput): Insp
       const target = object?.label ?? (objectId || String(record.object_literal ?? "字面值"));
       return {
         id: String(record.assertion_id ?? `${subjectId}:${kind}:${objectId}`),
-        label: input.relationLabel(kind),
-        detail: input.relationSentence(source, target, kind, subject?.node_type, object?.node_type),
+        label: sourcedPersonRelation(record)?.label ?? input.relationLabel(kind),
+        detail: sourcedPersonSentence(record, input.nodeById) ?? input.relationSentence(source, target, kind, subject?.node_type, object?.node_type),
         importance: score(record.importance),
         confidence: score(record.confidence),
         kind: "relation" as const,
@@ -435,22 +463,25 @@ export function projectAssertionDetail(
   assertion: InspectorRecord,
   input: Omit<RelationProjectionInput, "assertions" | "selectedNodeId">,
 ): AssertionInspectorDetail {
-  const subjectId = String(assertion.subject_id ?? "");
-  const objectId = String(assertion.object_node_id ?? "");
+  const sourced = sourcedPersonRelation(assertion);
+  const subjectId = sourced?.subjectId ?? String(assertion.subject_id ?? "");
+  const objectId = sourced?.objectId ?? String(assertion.object_node_id ?? "");
   const subject = input.nodeById.get(subjectId);
   const object = input.nodeById.get(objectId);
   const kind = input.relationKind(assertion);
+  const label = sourced?.label ?? input.relationLabel(kind);
+  const symmetric = !sourced && Boolean(assertion.symmetric);
   const source = subject?.label ?? subjectId;
   const target = object?.label ?? (objectId || String(assertion.object_literal ?? "字面值"));
-  const sentence = input.relationSentence(source, target, kind, subject?.node_type, object?.node_type);
+  const sentence = sourcedPersonSentence(assertion, input.nodeById) ?? input.relationSentence(source, target, kind, subject?.node_type, object?.node_type);
   const evidenceIds = Array.isArray(assertion.evidence_ids) ? assertion.evidence_ids.map(String) : [];
   return {
     kind: "assertion",
-    header: headerFor(assertion, "Assertion 关系", input.relationLabel(kind), `${source} ${assertion.symmetric ? "↔" : "→"} ${target} · ${input.relationLabel(kind)}`),
+    header: headerFor(assertion, "Assertion 关系", label, `${source} ${symmetric ? "↔" : "→"} ${target} · ${label}`),
     sentence,
     fields: [
-      field("predicate", input.relationLabel(kind), "assertion", "关系类型"),
-      field("direction", assertion.symmetric ? `${source} ↔ ${target}` : `${source} → ${target}`, "assertion", assertion.symmetric ? "关系方向" : "方向"),
+      field("predicate", label, "assertion", "关系类型"),
+      field("direction", symmetric ? `${source} ↔ ${target}` : `${source} → ${target}`, "assertion", "称谓视角"),
       field("validity", assertion.valid_from || assertion.valid_to ? `${formatValue(assertion.valid_from)} → ${formatValue(assertion.valid_to)}` : "未记录", "assertion", "有效时间"),
       field("polarity", assertion.polarity, "assertion", "极性"),
       field("epistemic_status", assertion.epistemic_status, "assertion", "认识状态"),

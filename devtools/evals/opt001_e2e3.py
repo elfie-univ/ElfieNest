@@ -28,7 +28,10 @@ from infrastructure.persistence.elfie_workspace.adoption_profiles import (
 from infrastructure.persistence.memory import SQLiteMemoryStoreAdapter
 
 ROOT = Path(__file__).resolve().parents[2]
-PUBLISHED_STAGES = ("youth", "young_adult", "mature", "elder")
+# The care-only childhood stage has no legal adoption age (the candidate minimum is
+# two local years), so deterministic candidate/evaluation fixtures start at
+# adolescence while the source package still defines all four life stages.
+PUBLISHED_STAGES = ("adolescent", "mature", "elder")
 SEEDS = (11, 23, 47)
 _MAX_COMPILATION_ATTEMPTS = 8
 

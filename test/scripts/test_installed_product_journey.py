@@ -141,7 +141,7 @@ class FakeSession:
                             "candidate_id": "candidate-1",
                             "status": "accepted",
                             "species_id": "fox",
-                            "life_stage": "young_adult",
+                            "life_stage": "adolescent",
                             "age_years": 4,
                             "gender": "female",
                             "full_body_image_url": "",

@@ -184,7 +184,7 @@ class ElfieLabStorage:
         if definition.genesis is None:
             raise ValueError("物种缺少 Genesis 年龄配置")
         policy = self._source_package.generation_policy
-        stages = ("youth", "young_adult", "mature", "elder")
+        stages = ("childhood", "adolescent", "mature", "elder")
         age_ranges = {
             stage: legal_candidate_age_range(definition.genesis, stage, policy)
             for stage in stages

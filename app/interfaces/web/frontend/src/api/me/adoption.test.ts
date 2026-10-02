@@ -11,7 +11,7 @@ vi.mock("../http", async (loadOriginal) => {
 const candidate = {
   candidate_id: "candidate-1",
   species_id: "fox",
-  life_stage: "young_adult" as const,
+  life_stage: "adolescent" as const,
   age_years: 3,
   gender: "male" as const,
   full_body_image_url: "",

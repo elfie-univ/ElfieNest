@@ -43,6 +43,7 @@ class SpeciesGenesisProfile:
     config_version: str
     stage_ranges: Mapping[str, tuple[int, int]]
     terminal_age_years: int
+    median_age_years: int
     personality_prior: tuple[float, ...]
     appearance_preferences: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 

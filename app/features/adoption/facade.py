@@ -50,8 +50,8 @@ from .ports import (
 _HEIGHTS = ("short", "standard", "tall")
 _BUILDS = ("slim", "standard", "plump")
 _LIFE_STAGES: tuple[LifeStage, ...] = (
-    "youth",
-    "young_adult",
+    "childhood",
+    "adolescent",
     "mature",
     "elder",
     "any",

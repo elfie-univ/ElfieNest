@@ -776,7 +776,7 @@ class InstalledProductJourney:
             "/api/v1/me/adoption/candidate-sets",
             {
                 "species_id": species_id,
-                "life_stage": "young_adult",
+                "life_stage": "adolescent",
                 "gender": "any",
                 "appearance": {
                     "stature": "standard",
@@ -1069,7 +1069,7 @@ def _valid_candidate_reply(
         and candidate_id in expected_candidate_ids
         and isinstance(species_id, str)
         and bool(species_id.strip())
-        and life_stage in {"youth", "young_adult", "mature", "elder"}
+        and life_stage in {"childhood", "adolescent", "mature", "elder"}
         and isinstance(age_years, int)
         and not isinstance(age_years, bool)
         and 1 <= age_years <= 20

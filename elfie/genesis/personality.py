@@ -10,8 +10,8 @@ from elfie.profile import SpeciesCatalog, get_species_definition
 from .contracts import BIG_FIVE_TRAITS, BigFiveProfile, GenesisError
 
 STAGE_PRIORS: Mapping[str, tuple[float, ...]] = {
-    "youth": (0.05, -0.10, 0.05, 0.00, 0.10),
-    "young_adult": (0.05, 0.00, 0.05, 0.00, 0.00),
+    "childhood": (0.05, -0.10, 0.05, 0.00, 0.10),
+    "adolescent": (0.05, 0.00, 0.05, 0.00, 0.00),
     "mature": (-0.05, 0.10, -0.05, 0.05, -0.05),
     "elder": (-0.10, 0.05, -0.10, 0.10, 0.00),
 }

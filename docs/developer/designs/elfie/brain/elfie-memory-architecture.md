@@ -89,7 +89,7 @@ An Episode may be a conversation or relationship moment, a learning session, an 
 
 It retains:
 
-- stable ID, occurrence range and precision, and a registered `event_kind`; when relevant, a historical `life_stage`/`temporal_label` (for example `youth` or `before_arrival`), kept separate from write time;
+- stable ID, occurrence range and precision, and a registered `event_kind`; when relevant, a historical `life_stage`/`temporal_label` (for example `childhood` or `before_arrival`), kept separate from write time;
 - participants, places, objects and context;
 - the original Episode text and durable upstream/media references. Optional `summary_text` is a concise,
   source-grounded synopsis that may be generated during summarization and used as a read-only display

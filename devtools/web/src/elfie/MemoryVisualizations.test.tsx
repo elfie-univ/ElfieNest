@@ -54,7 +54,7 @@ describe("Elfie memory visualization SSR boundary", () => {
     const session = sessionSchema.parse({
       elfie_id: "elfie-1",
       profile: {
-        elfie_id: "elfie-1", name: "艾菲", species_id: "fox", age_years: 4, life_stage: "成年", gender: "female", origin_place_label: "东部森林", big_five: { openness: .5, conscientiousness: .5, extraversion: .5, agreeableness: .5, neuroticism: .5 }, appearance: {},
+        elfie_id: "elfie-1", name: "艾菲", species_id: "fox", age_years: 4, life_stage: "青春期", gender: "female", origin_place_label: "东部森林", big_five: { openness: .5, conscientiousness: .5, extraversion: .5, agreeableness: .5, neuroticism: .5 }, appearance: {},
         selfhood_projection: { revision: 1, captured_at: "2026-01-01T00:00:00Z", identity_core_text: "我是艾菲", adaptive_self_text: "保持好奇" },
       },
       current_state: { energy: 100, fatigue: 0, primary_emotion: "calm", is_sleeping: false },
@@ -65,7 +65,7 @@ describe("Elfie memory visualization SSR boundary", () => {
     expect(markup).toContain("修改");
     expect(markup).toContain("Selfhood");
     expect(markup).not.toContain("生成审查");
-    expect(markup).toContain("4 岁 · 成年");
+    expect(markup).toContain("4 岁 · 青春期");
     expect(markup).toContain("雌性");
     expect(markup).toContain("东部森林");
   });

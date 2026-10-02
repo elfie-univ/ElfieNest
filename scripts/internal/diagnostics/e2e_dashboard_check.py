@@ -288,7 +288,7 @@ def main() -> None:
                 "/api/v1/me/adoption/candidate-sets",
                 {
                     "species_id": "fox",
-                    "life_stage": "young_adult",
+                    "life_stage": "adolescent",
                     "gender": "any",
                     "appearance": {
                         "stature": "standard",

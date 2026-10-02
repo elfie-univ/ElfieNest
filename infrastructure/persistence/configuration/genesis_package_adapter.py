@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -33,6 +34,8 @@ from elfie.genesis.world import (
 )
 
 from .config_store import read_yaml_mapping
+from .family import load_family_generation_config
+from .public_events import load_learning_policy, load_public_event_catalog
 
 _SPECIES_IDS = {"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}
 _PLACE_KIND_ALIASES = {
@@ -49,6 +52,7 @@ def decode_genesis_package(
 ) -> GenesisSourcePackage:
     """Project the already integrity-checked package into existing domain types."""
     package_root = program_path.parent
+    family_document = _member(package_root, "family.yaml")
     knowledge_doc = _member(package_root, "knowledge/elfaria.yaml")
     geography = _member(package_root, "knowledge/geography.yaml")
     rules = _mapping(program["rules"], "rules")
@@ -68,6 +72,12 @@ def decode_genesis_package(
         for item in _array(geography, "places")
     ) + _region_places(geography)
     place_relations = _place_relations(geography)
+    public_events = load_public_event_catalog(
+        _member(package_root, "events.yaml"),
+        place_ids=tuple(place.place_id for place in places),
+    )
+    if public_events.days_per_year != _integer(world_calendar, "days_per_local_year"):
+        raise ValueError("Public event calendar differs from world calendar")
     access_rules = _access_rules(world)
     events = tuple(
         _event(item)
@@ -87,19 +97,11 @@ def decode_genesis_package(
         "rules.policy.candidates.age_policy.stage_weights",
     )
     policy_knowledge = _mapping(policy["knowledge"], "rules.policy.knowledge")
-    family_policy = _mapping(policy["family"], "rules.policy.family")
-    lifespan_policy = _mapping(
-        family_policy["lifespan"], "rules.policy.family.lifespan"
-    )
-    child_distribution = _mapping(
-        family_policy["child_count_distribution"],
-        "rules.policy.family.child_count_distribution",
-    )
+    family_config = load_family_generation_config(family_document)
     importance_policy = _mapping(policy["importance"], "rules.policy.importance")
     importance_baselines = _mapping(
         importance_policy["role_baselines"], "rules.policy.importance.role_baselines"
     )
-    household = _mapping(rules["household"], "rules.household")
     visits_policy = _mapping(policy["visits"], "rules.policy.visits")
     personality_multipliers = _mapping(
         visits_policy["personality_multipliers"],
@@ -129,6 +131,16 @@ def decode_genesis_package(
     world_source = _mapping(source_entries["world"], "sources.world")
     resident_source = _mapping(source_entries["resident"], "sources.resident")
     manifest_doc = _mapping(program["manifest"], "manifest")
+    family_members = tuple(
+        _mapping(item, "manifest member")
+        for item in _array(manifest_doc, "members")
+        if _text(_mapping(item, "manifest member"), "path") == "family.yaml"
+    )
+    if (
+        len(family_members) != 1
+        or _text(family_members[0], "version") != family_config.generation_version
+    ):
+        raise ValueError("family.yaml 与 Genesis manifest 的版本不一致")
     manifest = SourcePackageManifest(
         package_id=_text(manifest_doc, "package_id"),
         package_version=_text(manifest_doc, "package_version"),
@@ -157,6 +169,11 @@ def decode_genesis_package(
         earth_home_role="抵达后的生活基地和家",
         places=places,
         story_events=events,
+        public_events=public_events,
+        learning_policy=load_learning_policy(
+            _mapping(rules["learning"], "rules.learning"),
+            days_per_year=public_events.days_per_year,
+        ),
         knowledge=knowledge,
         unknown_boundaries=(),
         manifest=manifest,
@@ -193,33 +210,9 @@ def decode_genesis_package(
                         "rules.policy.candidates.age_policy.stage_weights",
                     ),
                 )
-                for stage in ("youth", "young_adult", "mature", "elder")
+                for stage in ("childhood", "adolescent", "mature", "elder")
             ),
-            family_child_count_distribution=tuple(
-                (
-                    child_count,
-                    _bounded_probability(
-                        child_distribution,
-                        str(child_count),
-                        "rules.policy.family.child_count_distribution",
-                    ),
-                )
-                for child_count in (1, 2, 3)
-            ),
-            family_parent_min_age_gap_years=_integer(
-                household, "biological_parent_min_age_gap_local_years"
-            ),
-            family_partner_min_age_years=_integer(
-                family_policy, "partner_min_age_years"
-            ),
-            family_partner_annual_probability=_bounded_probability(
-                family_policy,
-                "partner_annual_probability",
-                "rules.policy.family",
-            ),
-            family_max_children=_integer(family_policy, "max_children"),
-            family_lifespan_cdf_power=_integer(lifespan_policy, "cdf_power"),
-            family_lifespan_sampler_version=_text(lifespan_policy, "sampler_version"),
+            family=family_config,
             relationship_importance_baselines=tuple(
                 (
                     str(role),
@@ -236,6 +229,16 @@ def decode_genesis_package(
             ),
             friend_layer_decay_lambda=_number(
                 importance_policy, "friend_layer_decay_lambda"
+            ),
+            public_contact_count_distribution=_contact_distribution(
+                rules, "public_contact_count_distribution"
+            ),
+            cohort_count_distribution=_contact_distribution(
+                rules, "cohort_count_distribution"
+            ),
+            public_contact_reuse_probability=_number(
+                _mapping(rules["social_graph"], "social_graph"),
+                "public_contact_reuse_probability",
             ),
             friend_contact_beta=_number(importance_policy, "friend_contact_beta"),
             friend_max_count=_integer(importance_policy, "friend_max_count"),
@@ -256,7 +259,7 @@ def decode_genesis_package(
         earth_arrival_rules=EarthArrivalRules(
             earth_label=_text(arrival, "earth_label"),
             owner_home_label=_text(arrival, "owner_home_label"),
-            eligible_life_stages=("youth", "young_adult", "mature", "elder"),
+            eligible_life_stages=("childhood", "adolescent", "mature", "elder"),
             required_knowledge_ids=("E-08",),
             post_arrival_knowledge_ids=after_arrival,
             preparation_duration_local_days=_integer(arrival, "duration_local_days"),
@@ -645,7 +648,7 @@ def _relationship_archetypes(
                 person_species_ids=tuple(
                     _SPECIES_IDS[name] for name in _strings(item, "species")
                 ),
-                life_stages=("youth", "young_adult", "mature", "elder"),
+                life_stages=("childhood", "adolescent", "mature", "elder"),
                 weight=_number(item, "weight"),
                 initial_trust=_number(item, "initial_trust"),
                 importance=_number(item, "importance"),
@@ -851,3 +854,20 @@ def _strings(
     ):
         raise ValueError(f"{key} 必须是字符串数组")
     return tuple(item.strip() for item in raw)
+
+
+def _contact_distribution(
+    rules: Mapping[str, Any], key: str
+) -> tuple[tuple[int, float], ...]:
+    values = _mapping(_mapping(rules["social_graph"], "social_graph")[key], key)
+    result = tuple((int(count), float(weight)) for count, weight in values.items())
+    if (
+        not result
+        or any(
+            count < 0 or weight < 0 or not math.isfinite(weight)
+            for count, weight in result
+        )
+        or abs(sum(w for _, w in result) - 1.0) > 1e-9
+    ):
+        raise ValueError(f"Invalid social graph distribution: {key}")
+    return result

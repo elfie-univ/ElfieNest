@@ -63,7 +63,7 @@ function candidate(index: number) {
   return {
     candidate_id: `candidate-${index}`,
     species_id: "fox" as const,
-    life_stage: "young_adult" as const,
+    life_stage: "adolescent" as const,
     age_years: 3,
     gender: index % 2 === 0 ? "male" as const : "female" as const,
     full_body_image_url: `data:image/png;base64,full-${index}`,

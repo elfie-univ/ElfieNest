@@ -750,12 +750,17 @@ class GenesisMemoryCommitter:
                     self_id,
                     relation_predicate,
                     object_node_id=target_node,
-                    context=relation_context(
+                    context=_person_graph_context(
+                        bundle, relationship.person_id, person_node_ids, self_id
+                    )
+                    or relation_context(
                         ontology,
                         "genesis_relationship",
                         predicate=relation_predicate,
                         specificity=(
-                            "unspecified" if relation_predicate == "kin_of" else None
+                            relationship.role
+                            if relation_predicate == "kin_of"
+                            else None
                         ),
                         role=relationship.role,
                     ),
@@ -815,8 +820,7 @@ class GenesisMemoryCommitter:
                     ),
                 )
 
-        output_node_ids = tuple(node_ids)
-        self._write_person_links(
+        group_ids = self._write_person_links(
             bundle,
             storage,
             person_node_ids,
@@ -824,6 +828,8 @@ class GenesisMemoryCommitter:
             now,
             ontology,
         )
+        node_ids.extend(group_ids)
+        output_node_ids = tuple(node_ids)
         if output_node_ids != tuple(manifest.output_ids):
             raise GenesisValidationError("Genesis 实际输出 ID 与 Manifest 声明不一致")
         return GenesisCommitReceipt(
@@ -846,57 +852,89 @@ class GenesisMemoryCommitter:
         self_id: str,
         now: str,
         ontology: MemoryOntologySnapshot,
-    ) -> None:
-        """Persist the bounded family graph edges without creating new people."""
-
+    ) -> tuple[str, ...]:
+        """Preserve explicit graph topology and sourced group memberships."""
         safe_elfie = safe_component(bundle.profile_draft.profile.identity.elfie_id)
         resolved = {"self": self_id, **person_node_ids}
-        seen: set[tuple[str, str]] = set()
-        for relationship in bundle.relationship_seeds:
-            source = resolved.get(relationship.person_id)
-            if source is None:
-                continue
-            for target_key in relationship.related_person_ids:
-                target = resolved.get(target_key)
-                if target is None or target == source:
-                    continue
-                pair: tuple[str, str] = (min(source, target), max(source, target))
-                if pair in seen:
-                    continue
-                seen.add(pair)
-                evidence_id = (
-                    f"genesis:evidence:person-link:{safe_elfie}:"
-                    f"{safe_component(relationship.person_id)}:{safe_component(target_key)}"
-                )
+        group_ids = []
+        for group in bundle.group_seeds:
+            ident = f"genesis:group:{safe_elfie}:{safe_component(group.group_id)}"
+            self._upsert_node(
+                storage,
+                NodeInput(
+                    node_id=ident,
+                    node_type="group",
+                    canonical_label=group.label,
+                    description=group.label,
+                    properties={
+                        "group_id": group.group_id,
+                        "group_kind": group.kind,
+                        "source_ref": group.source_ref,
+                        "member_ids": list(group.member_ids),
+                    },
+                ),
+            )
+            group_ids.append(ident)
+            for member in group.member_ids:
                 self._record_assertion(
                     storage,
                     AssertionInput(
-                        pair[0],
-                        "kin_of",
-                        object_node_id=pair[1],
-                        context=relation_context(
-                            ontology,
-                            "genesis_family_graph",
-                            predicate="kin_of",
-                        ),
-                        epistemic_status="known",
-                        confidence=max(relationship.initial_trust, 0.5),
-                        importance=relation_importance(
-                            ontology, "kin_of", relationship.importance
-                        ),
+                        resolved[member],
+                        "member_of",
+                        object_node_id=ident,
                     ),
                     EvidenceInput(
-                        evidence_id=evidence_id,
+                        evidence_id=f"genesis:evidence:membership:{safe_elfie}:{safe_component(group.group_id)}:{safe_component(member)}",
                         source_type="seed",
-                        source_id=relationship.source_ref,
-                        excerpt=(
-                            f"{relationship.display_name} 与 {target_key} "
-                            "属于同一已验证家庭或核心关系图。"
-                        ),
-                        source_version=relationship.source_version,
+                        source_id=group.source_ref,
+                        excerpt=f"{member} 属于 {group.label}",
                         captured_at=now,
+                        source_version=bundle.manifest.compiler_version,
                     ),
                 )
+        for index, edge in enumerate(bundle.person_relation_seeds):
+            predicate = (
+                edge.relation
+                if edge.relation in {"parent_of", "child_of"}
+                else _relationship_predicate(edge.relation)
+            )
+            ontology.predicate_spec(predicate)
+            self._record_assertion(
+                storage,
+                AssertionInput(
+                    resolved[edge.subject_id],
+                    predicate,
+                    object_node_id=resolved[edge.object_id],
+                    context=json.dumps(
+                        {
+                            "source": "genesis_relationship",
+                            "relation": edge.relation,
+                            "view_subject": resolved[edge.subject_id],
+                            "view_object": resolved[edge.object_id],
+                            "object_label": edge.label,
+                            "relationship_path": [
+                                resolved[p] for p in edge.relationship_path
+                            ],
+                            "familiarity": "heard"
+                            if edge.relation == "friend_family"
+                            else "known",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    epistemic_status="known",
+                    confidence=0.8,
+                    importance=relation_importance(ontology, predicate, 0.5),
+                ),
+                EvidenceInput(
+                    evidence_id=f"genesis:evidence:person-link:{safe_elfie}:{index}",
+                    source_type="seed",
+                    source_id=edge.source_ref,
+                    excerpt=f"{edge.object_id} 是 {edge.subject_id} 的{edge.label or edge.relation}",
+                    source_version=bundle.manifest.compiler_version,
+                    captured_at=now,
+                ),
+            )
+        return tuple(group_ids)
 
     @staticmethod
     def _upsert_node(storage: MemoryStorePort, node: NodeInput) -> None:
@@ -1070,17 +1108,61 @@ class GenesisMemoryCommitter:
             )
 
 
+def _person_graph_context(
+    bundle: GenesisBundle, person_id: str, person_node_ids: dict[str, str], self_id: str
+) -> str:
+    edge = next(
+        (
+            e
+            for e in bundle.person_relation_seeds
+            if e.subject_id == "self" and e.object_id == person_id and e.label
+        ),
+        None,
+    )
+    if edge is None:
+        return ""
+    resolved = {"self": self_id, **person_node_ids}
+    return json.dumps(
+        {
+            "source": "genesis_relationship",
+            "relation": edge.relation,
+            "view_subject": self_id,
+            "view_object": resolved[person_id],
+            "object_label": edge.label,
+            "relationship_path": [resolved[p] for p in edge.relationship_path],
+            "familiarity": "heard" if edge.relation == "friend_family" else "known",
+        },
+        ensure_ascii=False,
+    )
+
+
 def _relationship_predicate(role: str) -> str:
     """Map a Genesis relationship role to one registered semantic predicate."""
 
     role_map = {
         "family": "kin_of",
+        "kinship": "kin_of",
+        "friend_family": "relationship",
+        "student": "teacher_of",
         "parent": "child_of",
         "child": "parent_of",
+        "partner_parent": "kin_of",
+        "partner_sibling": "kin_of",
         "sibling": "sibling_of",
         "grandparent": "kin_of",
         "aunt_uncle": "kin_of",
+        "sibling_partner": "kin_of",
+        "child_partner": "kin_of",
+        "aunt_uncle_partner": "kin_of",
+        "niece_nephew": "kin_of",
+        "grandchild": "kin_of",
+        "cousin": "kin_of",
         "partner": "kin_of",
+        "partner_sibling_partner": "kin_of",
+        "partner_niece_nephew": "kin_of",
+        "classmate": "classmate_of",
+        "colleague": "colleague_of",
+        "acquaintance": "acquaintance_of",
         "friend": "friend_of",
         "teacher": "student_of",
         "learning_keeper": "student_of",
@@ -1091,6 +1173,7 @@ def _relationship_predicate(role: str) -> str:
         "route_keeper": "guided_by",
         "departure_guide": "guided_by",
         "program_contact": "acquaintance_of",
+        "activity_contact": "acquaintance_of",
         "earth_contact": "acquaintance_of",
         "elder": "acquaintance_of",
     }

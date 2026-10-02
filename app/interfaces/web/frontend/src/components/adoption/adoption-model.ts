@@ -19,7 +19,7 @@ export type AdoptionScreen =
   | "arrival"
 
 export type SpeciesId = string
-export type LifeStage = "youth" | "young_adult" | "mature" | "elder" | "any"
+export type LifeStage = "childhood" | "adolescent" | "mature" | "elder" | "any"
 export type GenderPreference = "male" | "female" | "any"
 export type AppearanceChoice = "small" | "standard" | "tall" | "any"
 export type BuildChoice = "slim" | "standard" | "round" | "any"

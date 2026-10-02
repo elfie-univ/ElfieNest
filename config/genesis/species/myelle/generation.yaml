@@ -1,11 +1,11 @@
 document_kind: species_generation_profile
 schema_version: 1
-generation_version: myelle-genesis.v4
+generation_version: myelle-genesis.v3
 stage_ranges:
-  youth:
+  childhood:
   - 0
   - 2
-  young_adult:
+  adolescent:
   - 2
   - 6
   mature:
@@ -13,7 +13,7 @@ stage_ranges:
   - 14
   elder:
   - 14
-  - 20
+  - 22
 appearance_preferences:
   warm:
   - ginger
@@ -30,7 +30,8 @@ stage_endpoint_policy:
   lower_inclusive: true
   upper_exclusive: true
   final_endpoint: death_not_sampleable
-  terminal_age_local_years: 20
+  median_age_local_years: 20
+  terminal_age_local_years: 22
   source_ref: species#genesis-life-stage-endpoints
   guarantees_survival_until_terminal_age: false
 source_ref: world#5.3
@@ -51,7 +52,6 @@ birth_eligibility:
   requires: [habitable_place, species_suitable_environment, registered_residence,
     feasible_family_and_care, feasible_life_and_earth_transition]
   region_allowlist_is_hard_constraint: true
-  biological_parent_age_gap_ref: rules.household.biological_parent_min_age_gap_local_years
   require_parents_alive_at_adoption: false
   missing_evidence: reject_plan
 earth_transition_eligibility:

@@ -75,7 +75,7 @@ def test_opt001_e2_queries_are_scoped_to_the_compiled_knowledge() -> None:
         "99010011",
         "fox",
         11,
-        "youth",
+        "adolescent",
     )
 
     cases = _query_cases_for_bundle(world.knowledge, compilation.bundle, "fox")

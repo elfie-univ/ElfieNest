@@ -430,7 +430,7 @@ def _build_bundle(
         raise ValueError(f"物种 {species_id} 缺少 Genesis 配置")
     age_years, _ = legal_candidate_age_range(
         definition.genesis,
-        "youth",
+        "adolescent",
         source.generation_policy,
     )
     return (
@@ -442,7 +442,7 @@ def _build_bundle(
                 display_name=display_name,
                 species_id=species_id,
                 gender="female",
-                life_stage="youth",
+                life_stage="adolescent",
                 age_years_at_adoption=age_years,
                 appearance_seed=appearance_seed,
                 height="standard",

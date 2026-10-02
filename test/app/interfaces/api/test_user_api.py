@@ -202,7 +202,7 @@ class TestAdoptionJourney:
         headers = _headers(tokens["csrf_token"])
         intent = {
             "species_id": "fox",
-            "life_stage": "young_adult",
+            "life_stage": "adolescent",
             "gender": "any",
             "appearance": {
                 "stature": "tall",

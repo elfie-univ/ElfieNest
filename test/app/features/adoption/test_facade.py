@@ -76,7 +76,7 @@ def principal() -> AccountPrincipal:
 def candidate_command(**overrides: object) -> CreateCandidateSetCommand:
     values: dict[str, object] = {
         "species_id": "fox",
-        "life_stage": "young_adult",
+        "life_stage": "adolescent",
         "gender": "any",
         "appearance": CandidateAppearance(
             stature="tall",
@@ -127,7 +127,10 @@ def test_candidate_set_returns_five_distinct_runtime_appearances() -> None:
         for item in candidate_set.candidates
     }
     assert len(visual_keys) == 5
-    assert all(item.age_years >= 3 for item in candidate_set.candidates)
+    assert all(
+        item.life_stage == "adolescent" and item.age_years >= 2
+        for item in candidate_set.candidates
+    )
 
 
 def test_adoption_uses_the_validated_runtime_species_intersection() -> None:

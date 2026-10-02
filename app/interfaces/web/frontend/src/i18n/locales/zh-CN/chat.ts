@@ -48,7 +48,7 @@ export const chat = {
       badges: { oneMinute: "约 1 分钟", detailedMatch: "详细匹配：{{current}}/{{total}}", broadChoices: "详细匹配", questionCount: "问题 {{current}} / {{total}}", editable: "确认前可修改", fiveCandidates: "5 位候选" },
       welcome: { title: "一位来自遥远星球 Elfaria 的朋友，正在等你相遇", details: "了解这段旅程", note: "不确定的地方会交给缘分；想让匹配更贴合，也可以展开详细匹配", skip: "以后跳过这段介绍", start: "开始寻找", imageAlt: "来自 Elfaria、正在前往地球的 Elfie" },
       basic: { title: "先选一个基础方向", speciesLabel: "物种", lifeStageLabel: "年龄段", genderLabel: "性别倾向" },
-      lifeStages: { youth: "少年", young_adult: "青年", mature: "成熟", elder: "年长", any: "不限" },
+      lifeStages: { childhood: "幼年期（需照护）", adolescent: "青春期", mature: "成熟期", elder: "老年期（需照护）", any: "不限" },
       genders: { male: "男性", female: "女性", any: "不限" },
       quota: { exhausted: "当前领养名额已满，可以先保存意向，稍后再回来" },
       entryBlock: { quotaTitle: "领养名额已满", nestQuotaDescription: "当前通道暂时没有可用名额，请联系管理员调整", memberQuotaDescription: "你的领养名额已用完，请联系管理员调整", unavailableTitle: "跨星通道暂时不可用", unavailableDescription: "跨星通道暂时无法使用，请联系管理员确认通道状态", dismiss: "知道了" },

@@ -5,7 +5,7 @@ knowledge_version: elfaria-resident-knowledge.v11
 status: published
 source:
   path: docs/.internal/elfaria/elfaria-resident-knowledge.md
-  sha256: 4b1ae835737ecded773cb572ad8ab8e069447b7183134ee80010148470bad8be
+  sha256: c2d65536f744ed82eb06ecf2a90b8dac5a428853fdc7bdb0a4ac1c6797fccfdd
   anchor_format: '<!-- knowledge-unit: {knowledge_id} -->'
   anchor_scope: source_paragraph_or_list_item
   anchor_count: 160
@@ -468,7 +468,7 @@ knowledge:
   - id: C-03-04
     topic: C-03
     description: |-
-      公共记录和学疗院经验把年龄按本地年记述：Saevi 的幼年为 0～2 年，成长期为 2～5 年，成熟期为 5～10 年，高龄期为 10～15 年，寿命约 15 年；Tovren 和 Myelle 的幼年为 0～2 年，成长期为 2～6 年，成熟期为 6～14 年，高龄期为 14～20 年，寿命约 20 年。
+      公共记录和学疗院经验把年龄按本地年记述：Saevi 的幼年期为 0～1 年，青春期为 1～5 年，成熟期为 5～10 年，老年期为 10～15 年，寿命约 15 年；Tovren 和 Myelle 的幼年期为 0～1 年，青春期为 1～6 年，成熟期为 6～14 年，老年期为 14～20 年，寿命约 20 年。
   - id: C-03-05
     topic: C-03
     description: |-

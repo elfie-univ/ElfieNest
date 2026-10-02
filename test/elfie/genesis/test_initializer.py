@@ -216,9 +216,17 @@ def test_genesis_commit_materializes_memory_entities_and_is_idempotent() -> None
                 "public_entrance_to",
             }
         }
-        assert len(relation_assertions) == sum(
-            seed.relation != "route_to" for seed in bundle.place_relation_seeds
-        )
+        persisted_relations = {
+            (a.predicate, a.subject_id, a.object_node_id)
+            for a in storage.list_graph_assertions(limit=5000)
+        }
+        for seed in bundle.place_relation_seeds:
+            assert (
+                seed.relation,
+                f"genesis:place:genesis-check:{safe_component(seed.subject_id)}",
+                f"genesis:place:genesis-check:{safe_component(seed.object_id)}",
+            ) in persisted_relations
+        assert relation_assertions
         assert all(
             assertion.evidence_ids
             for assertion in storage.list_graph_assertions(limit=5000)
@@ -435,9 +443,14 @@ def test_genesis_commit_persists_deceased_family_and_known_death_episode() -> No
     )
 
     assert all(relationship.life_status == "deceased" for relationship in parents)
-    assert {episode.person_ids[0] for episode in death_episodes} == {
-        relationship.person_id for relationship in parents
+    assert {relationship.person_id for relationship in parents} <= {
+        episode.person_ids[0] for episode in death_episodes
     }
+    people = {item.person_id: item for item in bundle.relationship_seeds}
+    for episode in death_episodes:
+        deceased = people[episode.person_ids[0]]
+        assert deceased.life_status == "deceased"
+        assert episode.age_years_at_event == deceased.death_event_age_years
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         assert GenesisMemoryCommitter().commit(bundle, storage).status == "committed"
@@ -673,3 +686,32 @@ def test_initial_routes_and_residence_keep_unknown_distance_distinct_from_time()
         assert training.occurred_from is None
         assert training.metadata["genesis_time"]["relation"] == "before"
         assert training.metadata["genesis_time"]["stay_local_days"] > 0
+
+
+def test_group_pair_labels_and_heard_friend_families_survive_memory_commit():
+    compiled = _compilation(stage="mature", age_years=8, seed=1)
+    with SQLiteMemoryStoreAdapter.in_memory() as storage:
+        GenesisMemoryCommitter().commit(compiled.bundle, storage)
+        edges = storage.list_graph_assertions(limit=10000)
+        contexts = []
+        for edge in edges:
+            raw = edge.qualifiers.get("context", "")
+            if isinstance(raw, str) and raw.startswith("{"):
+                context = json.loads(raw)
+                if context.get("source") == "genesis_relationship":
+                    contexts.append((edge.predicate, context))
+        labels = {context["object_label"] for _, context in contexts}
+        assert {"父亲", "母亲", "弟媳"} <= labels
+        heard = [
+            (predicate, context)
+            for predicate, context in contexts
+            if context.get("familiarity") == "heard"
+        ]
+        assert heard
+        assert all(predicate == "relationship" for predicate, _ in heard)
+        for predicate, context in contexts:
+            assert len(context["relationship_path"]) >= 2
+            assert context["relationship_path"][0] == context["view_subject"]
+            assert context["relationship_path"][-1] == context["view_object"]
+            if context["relation"] == "student":
+                assert predicate == "teacher_of"

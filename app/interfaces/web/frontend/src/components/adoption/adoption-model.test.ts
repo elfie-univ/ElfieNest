@@ -92,7 +92,7 @@ describe("adoption journey model", () => {
     const reply = {
       candidateId: "candidate-1",
       speciesId: "fox",
-      lifeStage: "young_adult" as const,
+      lifeStage: "adolescent" as const,
       ageYears: 3,
       gender: "male" as const,
       fullBodyImageUrl: "",

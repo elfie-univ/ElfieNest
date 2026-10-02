@@ -87,7 +87,7 @@ type AdoptionJourneyDialogProps = {
 
 type JourneyT = (key: string, options?: Record<string, unknown>) => string
 
-const LIFE_STAGES: readonly LifeStage[] = ["youth", "young_adult", "mature", "elder", "any"]
+const LIFE_STAGES: readonly LifeStage[] = ["childhood", "adolescent", "mature", "elder", "any"]
 const GENDERS: readonly GenderPreference[] = ["male", "female", "any"]
 const APPEARANCE_GROUPS = ["stature", "build", "face", "signature"] as const
 const COMPANIONSHIP_OPTIONS: readonly (readonly CompanionAnswer[])[] = [

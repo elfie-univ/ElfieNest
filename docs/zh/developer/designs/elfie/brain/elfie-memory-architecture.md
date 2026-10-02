@@ -70,7 +70,7 @@ Episode 可以是一段对话或关系事件、一次学习过程、一次身体
 
 它保留：
 
-- 稳定 ID、发生时间范围与精度，以及注册的 `event_kind`；适用时记录历史 `life_stage`/`temporal_label`（例如 `youth` 或 `before_arrival`），并与写入时间分开；
+- 稳定 ID、发生时间范围与精度，以及注册的 `event_kind`；适用时记录历史 `life_stage`/`temporal_label`（例如 `childhood` 或 `before_arrival`），并与写入时间分开；
 - 参与者、地点、物品和场景上下文；
 - 原始 Episode 正文，以及持久的上游/媒体引用。可选 `summary_text` 是有来源依据的简短内容概括，
   可以由整理/汇总过程生成，并作为只读展示标题；它不是独立标题字段，可以为空，也不能替换或截断原文；

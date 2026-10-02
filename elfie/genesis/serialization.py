@@ -107,6 +107,8 @@ def genesis_content_hash(bundle: GenesisBundle) -> str:
         "knowledge": [_jsonable(item) for item in bundle.knowledge_seeds],
         "episodes": [_jsonable(item) for item in bundle.episode_seeds],
         "relationships": [_jsonable(item) for item in bundle.relationship_seeds],
+        "person_relations": [_jsonable(item) for item in bundle.person_relation_seeds],
+        "groups": [_jsonable(item) for item in bundle.group_seeds],
         "places": [_jsonable(item) for item in bundle.place_seeds],
         "place_relations": [_jsonable(item) for item in bundle.place_relation_seeds],
         "knowledge_episode_max_chars": bundle.knowledge_episode_max_chars,
@@ -154,6 +156,10 @@ def planned_genesis_output_ids(bundle: GenesisBundle) -> tuple[str, ...]:
     for episode in bundle.episode_seeds:
         safe_seed = safe_component(episode.seed_id)
         output.append(f"{EPISODE_NODE_PREFIX}{safe_elfie}:{safe_seed}")
+    output.extend(
+        f"genesis:group:{safe_elfie}:{safe_component(g.group_id)}"
+        for g in bundle.group_seeds
+    )
     return tuple(output)
 
 

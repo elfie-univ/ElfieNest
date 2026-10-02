@@ -41,9 +41,9 @@ from .selection import (
     personality_fit,
     role_fit,
 )
-from .world import GenerationPolicy
+from .world import LIFE_STAGES, GenerationPolicy
 
-_STAGES = ("youth", "young_adult", "mature", "elder")
+_STAGES = LIFE_STAGES
 _GENDERS = ("male", "female")
 
 
@@ -56,17 +56,17 @@ def legal_candidate_age_range(
 
     if stage not in _STAGES:
         raise GenesisError(f"不支持的候选生命阶段: {stage}")
-    minimum, maximum = genesis.stage_ranges[stage]
+    minimum, maximum_exclusive = genesis.stage_ranges[stage]
     minimum = max(minimum, generation_policy.candidate_minimum_age_years)
     stage_index = _STAGES.index(stage)
     if stage_index:
-        previous_maximum = genesis.stage_ranges[_STAGES[stage_index - 1]][1]
-        minimum = max(minimum, previous_maximum + 1)
-    maximum = min(
-        maximum,
+        previous_maximum_exclusive = genesis.stage_ranges[_STAGES[stage_index - 1]][1]
+        minimum = max(minimum, previous_maximum_exclusive)
+    maximum_inclusive = min(
+        maximum_exclusive - 1,
         genesis.terminal_age_years - generation_policy.candidate_age_reserve_years,
     )
-    return minimum, maximum
+    return minimum, maximum_inclusive
 
 
 def weighted_candidate_stage(
@@ -210,7 +210,7 @@ class GenesisEngine:
                 legacy_parts=(master_seed, batch_number, 91, 0),
             )
         ).shuffle(selected)
-        core_stage = "young_adult" if life_stage == "any" else stages[0]
+        core_stage = "adolescent" if life_stage == "any" else stages[0]
         return GenesisBatch(batch_number, tuple(selected), core_by_stage[core_stage])
 
     def _select_candidates_with_backtracking(
@@ -308,7 +308,7 @@ class GenesisEngine:
     def core_personality(
         self, *, species_id: str, life_stage: str, answers: Sequence[str]
     ) -> BigFiveProfile:
-        stage = "young_adult" if life_stage == "any" else life_stage
+        stage = "adolescent" if life_stage == "any" else life_stage
         return core_profile(
             species_id=species_id,
             life_stage=stage,
@@ -520,13 +520,19 @@ class GenesisEngine:
         if definition.genesis is None:
             raise GenesisError(f"物种 {species_id!r} 缺少 Genesis 配置")
         stages = _STAGES if requested == "any" else (requested,)
+        legal_stages: list[str] = []
         for stage in stages:
             minimum, maximum = self._legal_age_range(definition, stage)
             if minimum > maximum:
+                if requested == "any":
+                    continue
                 raise GenesisError(
                     f"物种 {species_id!r} 的 {stage} 阶段没有符合赴地年龄规则的候选"
                 )
-        return tuple(stages)
+            legal_stages.append(stage)
+        if not legal_stages:
+            raise GenesisError(f"物种 {species_id!r} 没有符合赴地年龄规则的候选阶段")
+        return tuple(legal_stages)
 
     def _legal_age_range(self, definition, stage: str) -> tuple[int, int]:
         if definition.genesis is None:

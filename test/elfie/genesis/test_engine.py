@@ -32,18 +32,18 @@ def intent() -> GenesisAppearanceIntent:
 
 def test_candidate_age_sampling_uses_program_weights_and_lifespan_reserve() -> None:
     policy = load_genesis_source_package().generation_policy
-    legal_stages = ("youth", "young_adult", "mature", "elder")
+    legal_stages = ("childhood", "adolescent", "mature", "elder")
     catalog = load_and_configure_species_catalog()
     dog = catalog.definition("dog", adoptable_only=True)
 
-    assert weighted_candidate_stage(legal_stages, policy, 0.74) == "young_adult"
+    assert weighted_candidate_stage(legal_stages, policy, 0.74) == "adolescent"
     assert weighted_candidate_stage(legal_stages, policy, 0.75) == "mature"
     assert weighted_candidate_stage(legal_stages, policy, 0.99) == "elder"
     assert legal_candidate_age_range(
         dog.genesis,
         "elder",
         policy,
-    ) == (15, 16)
+    ) == (14, 18)
 
 
 def test_species_do_not_assign_personality_and_stage_is_a_small_prior() -> None:
@@ -58,14 +58,14 @@ def test_species_do_not_assign_personality_and_stage_is_a_small_prior() -> None:
         life_stage="mature",
         answers=("any",) * 5,
     )
-    dog_youth = engine.core_personality(
+    dog_childhood = engine.core_personality(
         species_id="dog",
-        life_stage="youth",
+        life_stage="childhood",
         answers=("any",) * 5,
     )
 
     assert dog_mature.latent == fox_mature.latent
-    assert dog_youth.latent != dog_mature.latent
+    assert dog_childhood.latent != dog_mature.latent
     assert all(-2.0 <= value <= 2.0 for value in dog_mature.latent)
     assert max(abs(value) for value in dog_mature.latent) < 0.2
 
@@ -129,7 +129,7 @@ def test_batch_keeps_five_visible_variants_across_seed_sample(species_id: str) -
             master_seed=master_seed,
             batch_number=1,
             species_id=species_id,
-            life_stage="young_adult",
+            life_stage="adolescent",
             gender="female",
             appearance=intent(),
             answers=("quiet", "research", "plan", "discuss", "steady"),
@@ -147,7 +147,7 @@ def test_previous_batch_signatures_are_respected() -> None:
         master_seed=8,
         batch_number=1,
         species_id="dog",
-        life_stage="young_adult",
+        life_stage="adolescent",
         gender="female",
         appearance=intent(),
         answers=("approach", "explore", "adapt", "discuss", "lively"),
@@ -157,7 +157,7 @@ def test_previous_batch_signatures_are_respected() -> None:
         master_seed=8,
         batch_number=2,
         species_id="dog",
-        life_stage="young_adult",
+        life_stage="adolescent",
         gender="female",
         appearance=intent(),
         answers=("approach", "explore", "adapt", "discuss", "lively"),
@@ -183,7 +183,7 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
     )
     appearance = intent()
     core = engine.core_personality(
-        species_id="dog", life_stage="young_adult", answers=("any",) * 5
+        species_id="dog", life_stage="adolescent", answers=("any",) * 5
     )
     proposals = {}
     for role_index, role in enumerate(CANDIDATE_ROLES):
@@ -192,7 +192,7 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
                 seed=100 + role_index * 10 + proposal_index,
                 role=role,
                 species_id="dog",
-                life_stage="young_adult",
+                life_stage="adolescent",
                 gender="female",
                 appearance=appearance,
                 core=core,
@@ -224,7 +224,7 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
         proposals=proposals,
         roles=CANDIDATE_ROLES,
         appearance=appearance,
-        core_by_stage={"young_adult": core},
+        core_by_stage={"adolescent": core},
         history=(),
         batch_number=1,
     )
@@ -254,11 +254,11 @@ def test_species_stage_ranges_can_differ() -> None:
         answers=("any",) * 5,
     )
 
-    assert all(10 <= candidate.age_years <= 11 for candidate in fox.candidates)
-    assert all(14 <= candidate.age_years <= 16 for candidate in dog.candidates)
+    assert all(10 <= candidate.age_years <= 13 for candidate in fox.candidates)
+    assert all(14 <= candidate.age_years <= 18 for candidate in dog.candidates)
 
 
-def test_unspecified_stage_uses_configured_young_adult_prior() -> None:
+def test_unspecified_stage_uses_configured_adolescent_prior() -> None:
     batch = GenesisEngine().generate_batch(
         master_seed=41,
         batch_number=1,
@@ -273,39 +273,40 @@ def test_unspecified_stage_uses_configured_young_adult_prior() -> None:
 
 
 @pytest.mark.parametrize("species_id", ("fox", "dog"))
-def test_youth_candidates_are_older_than_one_local_year(species_id: str) -> None:
-    batch = GenesisEngine().generate_batch(
-        master_seed=19,
-        batch_number=1,
-        species_id=species_id,
-        life_stage="youth",
-        gender="female",
-        appearance=intent(),
-        answers=("any",) * 5,
-    )
+def test_childhood_candidates_are_unavailable_below_adoption_minimum(
+    species_id: str,
+) -> None:
+    with pytest.raises(GenesisError, match="没有符合赴地年龄规则"):
+        GenesisEngine().generate_batch(
+            master_seed=19,
+            batch_number=1,
+            species_id=species_id,
+            life_stage="childhood",
+            gender="female",
+            appearance=intent(),
+            answers=("any",) * 5,
+        )
 
-    assert all(candidate.age_years >= 2 for candidate in batch.candidates)
 
-
-def test_exact_age_continuously_changes_youth_height_and_allometry() -> None:
+def test_exact_age_continuously_changes_childhood_height_and_allometry() -> None:
     common = {
         "seed": 73,
         "species_id": "dog",
         "intent": intent(),
         "role": "appearance_anchor",
         "variant_index": 0,
-        "life_stage": "youth",
+        "life_stage": "childhood",
         "gender": "female",
     }
 
     youngest = generate_appearance(
         **common,
-        age_years=1,
+        age_years=0.25,
         rng=random.Random(73),
     )
     oldest = generate_appearance(
         **common,
-        age_years=2,
+        age_years=0.75,
         rng=random.Random(73),
     )
 

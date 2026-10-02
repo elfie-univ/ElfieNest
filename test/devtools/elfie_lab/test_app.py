@@ -190,7 +190,7 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
     assert all(response.status_code == 422 for response in responses.values())
     assert created.status_code == 201
     assert created.json()["profile"]["age_years"] == 2.0
-    assert created.json()["profile"]["life_stage"] == "青年"
+    assert created.json()["profile"]["life_stage"] == "青春期"
 
 
 def test_create_elfie_uses_explicit_advanced_candidate_values(

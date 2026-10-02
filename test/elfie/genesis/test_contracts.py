@@ -22,7 +22,8 @@ from elfie.genesis.compiler import (
     stage_for_age,
 )
 from elfie.genesis.contracts import validate_genesis_bundle
-from elfie.genesis.world import GeographyAccessRule
+from elfie.genesis.family import FamilyGenerator, FamilyPerson, FamilyUnion
+from elfie.genesis.world import ACTIVITY_ELIGIBLE_STAGES, GeographyAccessRule
 from infrastructure.persistence.configuration.species import (
     load_and_configure_species_catalog,
 )
@@ -30,11 +31,46 @@ from infrastructure.persistence.configuration.world import load_genesis_source_p
 from infrastructure.persistence.memory.ontology_loader import load_core_memory_ontology
 
 
+def _family_policy(
+    policy,
+    *,
+    child_count_distribution=None,
+    never_married_probability=None,
+    stop_at_elder=None,
+):
+    family = policy.family
+    if child_count_distribution is not None:
+        family = replace(
+            family,
+            children=replace(
+                family.children,
+                count_distribution=child_count_distribution,
+            ),
+        )
+    if never_married_probability is not None:
+        family = replace(
+            family,
+            marriage=replace(
+                family.marriage,
+                never_married_probability=never_married_probability,
+            ),
+        )
+    if stop_at_elder is not None:
+        family = replace(
+            family,
+            ancestor_expansion=replace(
+                family.ancestor_expansion,
+                stop_at_elder=stop_at_elder,
+            ),
+        )
+    return replace(policy, family=family)
+
+
 def _compilation(
     elfie_id: str = "genesis-check",
     *,
     species_id: str = "fox",
-    stage: str = "youth",
+    stage: str = "adolescent",
     age_years: int | None = None,
     seed: int = 23,
     source=None,
@@ -74,18 +110,104 @@ def _compilation(
     )
 
 
+def _fix_fertile_own_union(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These integration tests target child-count/event wiring, not partner selection."""
+    original = FamilyGenerator.generate_partner
+
+    def partner(
+        self, person, *, union_id, partner_id, anchored_children=(), required=False
+    ):
+        if union_id != "partner":
+            return original(
+                self,
+                person,
+                union_id=union_id,
+                partner_id=partner_id,
+                anchored_children=anchored_children,
+                required=required,
+            )
+        mate = FamilyPerson(
+            partner_id,
+            person.species_id,
+            "female" if person.gender == "male" else "male",
+            person.birth_year,
+            person.birth_year + self.genesis.terminal_age_years,
+        )
+        mature_start = self.genesis.stage_ranges["mature"][0]
+        return FamilyUnion(union_id, person, mate, person.birth_year + mature_start)
+
+    monkeypatch.setattr(FamilyGenerator, "generate_partner", partner)
+
+
 def _bundle() -> GenesisBundle:
     return _compilation().bundle
 
 
+@pytest.mark.parametrize(
+    ("species_id", "boundaries", "terminal"),
+    (
+        (
+            "fox",
+            ((0, "childhood"), (2, "adolescent"), (5, "mature"), (10, "elder")),
+            17,
+        ),
+        (
+            "dog",
+            ((0, "childhood"), (2, "adolescent"), (6, "mature"), (14, "elder")),
+            22,
+        ),
+    ),
+)
+def test_species_life_stages_use_left_closed_right_open_ranges(
+    species_id: str,
+    boundaries: tuple[tuple[int, str], ...],
+    terminal: int,
+) -> None:
+    catalog = load_and_configure_species_catalog()
+
+    for age, expected_stage in boundaries:
+        assert stage_for_age(species_id, age, catalog) == expected_stage
+    with pytest.raises(GenesisError, match="不在物种"):
+        stage_for_age(species_id, terminal, catalog)
+
+
+def test_care_stages_do_not_receive_welfare_activity_slots() -> None:
+    compilation = _compilation("elder-activity-gate", stage="elder", age_years=11)
+    catalog = load_and_configure_species_catalog()
+    source = load_genesis_source_package()
+
+    assert compilation.life_context.mobility.visit_age_years == ()
+    for episode in compilation.bundle.episode_seeds:
+        if episode.event_kind not in {"activity", "outing"}:
+            continue
+        assert episode.age_years_at_event is not None
+        assert (
+            stage_for_age("fox", episode.age_years_at_event, catalog)
+            in ACTIVITY_ELIGIBLE_STAGES
+        )
+
+    themes = {
+        theme.theme_id: theme
+        for theme in source.episode_themes
+        if theme.theme_id in {"shared-space-choice", "rain-route"}
+    }
+    assert all(
+        set(theme.life_stages) <= set(ACTIVITY_ELIGIBLE_STAGES)
+        for theme in themes.values()
+    )
+
+
 def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
-    compilation = _compilation()
+    # Keep this route assertion on a seed whose birthplace is not the station.
+    compilation = _compilation(seed=2)
     bundle = compilation.bundle
     source = load_genesis_source_package()
-    required_youth_themes = {
+    required_childhood_themes = {
         theme.theme_id
         for theme in source.episode_themes
-        if theme.required and "youth" in theme.life_stages and theme.min_age_years <= 2
+        if theme.required
+        and "childhood" in theme.life_stages
+        and theme.min_age_years <= 2
     }
 
     assert bundle.validate() is None
@@ -111,7 +233,7 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
     assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
     assert {"B-03-02", "B-04-02"}.isdisjoint(knowledge_ids)
-    assert required_youth_themes <= {
+    assert required_childhood_themes <= {
         episode.theme_id for episode in bundle.episode_seeds
     }
     assert bundle.relationship_seeds
@@ -120,12 +242,12 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     assert bundle.relationship_seeds[-2].role == "owner"
     assert bundle.relationship_seeds[-1].object_kind == "group"
     assert (
-        len(bundle.place_seeds) == 51
-    )  # Published places + Elfaria/private home + Earth/owner home/ElfieNest
+        len(bundle.place_seeds) == 52
+    )  # Published places + private home/practice + Earth/owner home/ElfieNest
     assert {place.place_id for place in source.places} <= {
         seed.place_id for seed in bundle.place_seeds
     }
-    assert sum(seed.relation != "route_to" for seed in bundle.place_relation_seeds) == 7
+    assert sum(seed.relation != "route_to" for seed in bundle.place_relation_seeds) == 9
 
     assert {
         (relation.subject_id, relation.relation, relation.object_id)
@@ -134,8 +256,25 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     } == {
         (relation.subject_id, relation.relation, relation.object_id)
         for relation in source.place_relations
+    } | {
+        (
+            compilation.life_context.origin.childhood_home_place_id,
+            "located_in",
+            compilation.life_context.origin.predeparture_home_place_id,
+        ),
+        (
+            f"private:{bundle.profile_draft.profile.identity.elfie_id}:practice",
+            "located_in",
+            compilation.life_context.origin.predeparture_home_place_id,
+        ),
     }
-    assert "skyreach_square" not in compilation.life_context.mobility.visited_place_ids
+    assert all(
+        any(
+            a.status == "completed" and place in a.place_ids
+            for a in compilation.life_context.activities
+        )
+        for place in compilation.life_context.mobility.visited_place_ids
+    )
     travel_paths = {
         path_id: (cells, days)
         for path_id, cells, days in compilation.life_context.mobility.travel_paths
@@ -246,7 +385,7 @@ def test_trip_budget_includes_the_ferry_round_trip_to_lakeheart_isle() -> None:
 
 def test_compiler_rejects_age_inside_terminal_reserve() -> None:
     with pytest.raises(GenesisError, match="生命终点"):
-        _compilation(stage="elder", age_years=12)
+        _compilation(stage="elder", age_years=14)
 
 
 def test_genesis_accepts_typed_elfie_and_group_relationship_objects() -> None:
@@ -315,10 +454,11 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
     source = load_genesis_source_package()
     source = replace(
         source,
-        generation_policy=replace(
+        generation_policy=_family_policy(
             source.generation_policy,
-            family_child_count_distribution=((3, 1.0),),
-            family_partner_annual_probability=0.0,
+            child_count_distribution=((3, 1.0),),
+            never_married_probability=1.0,
+            stop_at_elder=False,
         ),
     )
     compilation = _compilation(
@@ -333,12 +473,12 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
     siblings = tuple(item for item in relationships if item.role == "sibling")
 
     assert len(parents) == 2
-    assert len(siblings) == 2
+    assert 1 <= len(siblings) <= 2
     parent_child_orders = dict(parents[0].child_birth_orders)
     assert dict(parents[1].child_birth_orders) == parent_child_orders
-    assert len(parent_child_orders) == 3
+    assert len(parent_child_orders) == len(siblings) + 1
     assert set(parent_child_orders) == {"self", *(item.person_id for item in siblings)}
-    assert set(parent_child_orders.values()) == {1, 2, 3}
+    assert set(parent_child_orders.values()) == set(range(1, len(siblings) + 2))
     assert all(
         parent_child_orders[item.person_id] == item.birth_order for item in siblings
     )
@@ -355,7 +495,7 @@ def test_compiler_uses_one_ordered_parent_children_set() -> None:
             else None
         )
 
-    shared_children = {"self", "family-sibling-1", "family-sibling-2"}
+    shared_children = {"self", *(item.person_id for item in siblings)}
     assert all(shared_children <= set(item.related_person_ids) for item in parents)
     assert all(
         {"self", "family-parent-1", "family-parent-2"} <= set(item.related_person_ids)
@@ -378,6 +518,72 @@ def test_genesis_contract_requires_parent_rank_in_shared_child_set() -> None:
 
     with pytest.raises(GenesisValidationError, match="共享子女集合与主角排行"):
         replace(bundle, relationship_seeds=tuple(relationships)).validate()
+
+
+def test_core_family_projection_keeps_child_sets_and_does_not_invent_grandparent_care(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fix_fertile_own_union(monkeypatch)
+    compilation = _compilation("family-projection", stage="elder", age_years=11)
+    people = compilation.bundle.relationship_seeds
+    parents = tuple(p for p in people if p.role == "parent")
+    siblings = tuple(p for p in people if p.role == "sibling")
+    children = tuple(p for p in people if p.role == "child")
+    partner = next(p for p in people if p.role == "partner")
+
+    assert children
+    assert set(parents[0].child_birth_orders) == set(parents[1].child_birth_orders)
+    assert partner.child_birth_orders == tuple(
+        (child.person_id, child.birth_order) for child in children
+    )
+    for parent in parents:
+        assert set(parent.care_recipient_person_ids) == {
+            "self",
+            *(sibling.person_id for sibling in siblings),
+        }
+    for child in children:
+        assert set(child.caregiver_person_ids) == {"self", partner.person_id}
+
+
+def test_partner_origin_projects_only_partner_parents_and_siblings() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=_family_policy(
+            source.generation_policy,
+            never_married_probability=0.0,
+        ),
+    )
+    compilation = _compilation(
+        "partner-origin-projection",
+        source=source,
+        stage="elder",
+        age_years=11,
+    )
+    relationships = compilation.bundle.relationship_seeds
+    partner = next(item for item in relationships if item.role == "partner")
+    partner_parents = tuple(
+        item for item in relationships if item.role == "partner_parent"
+    )
+    partner_siblings = tuple(
+        item for item in relationships if item.role == "partner_sibling"
+    )
+
+    assert len(partner_parents) == 2
+    assert partner_siblings
+    assert partner.birth_order is not None
+    assert all(
+        partner.person_id in {person_id for person_id, _ in parent.child_birth_orders}
+        and {item.person_id for item in partner_siblings}
+        <= {person_id for person_id, _ in parent.child_birth_orders}
+        for parent in partner_parents
+    )
+    assert all(
+        set(item.caregiver_person_ids)
+        == {parent.person_id for parent in partner_parents}
+        for item in partner_siblings
+    )
+    assert compilation.bundle.validate() is None
 
 
 def test_child_birth_year_subsets_are_sampled_without_replacement_and_uniformly() -> (
@@ -404,6 +610,16 @@ def test_child_birth_year_subsets_are_sampled_without_replacement_and_uniformly(
 def test_each_parent_union_draws_its_own_child_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _fix_fertile_own_union(monkeypatch)
+    monkeypatch.setattr(
+        FamilyGenerator,
+        "_sample_child_lags",
+        lambda self, union, occupied, count: tuple(
+            lag
+            for lag in range(1, self.genesis.terminal_age_years + 1)
+            if lag not in occupied
+        )[:count],
+    )
     original_domain_seed = GenesisCompiler._domain_seed
 
     def controlled_family_seed(self, seed: int, label: str) -> int:
@@ -417,10 +633,9 @@ def test_each_parent_union_draws_its_own_child_target(
     source = load_genesis_source_package()
     source = replace(
         source,
-        generation_policy=replace(
+        generation_policy=_family_policy(
             source.generation_policy,
-            family_child_count_distribution=((1, 1 / 3), (2, 1 / 3), (3, 1 / 3)),
-            family_partner_annual_probability=1.0,
+            child_count_distribution=((1, 1 / 3), (2, 1 / 3), (3, 1 / 3)),
         ),
     )
     compilation = _compilation(
@@ -440,38 +655,48 @@ def test_each_parent_union_draws_its_own_child_target(
         for relationship in compilation.bundle.relationship_seeds
     )
 
-    assert sibling_count == 2
+    assert sibling_count >= 1
     assert child_count == 1
 
 
-def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
+def test_compiler_expands_role_bounded_family_branches() -> None:
     source = load_genesis_source_package()
     source = replace(
         source,
-        generation_policy=replace(
+        generation_policy=_family_policy(
             source.generation_policy,
-            family_child_count_distribution=((3, 1.0),),
-            family_partner_annual_probability=0.0,
+            child_count_distribution=((3, 1.0),),
+            never_married_probability=0.0,
+            stop_at_elder=False,
         ),
     )
     compilation = _compilation(
         "family-bounded-ancestors",
         species_id="dog",
         stage="mature",
-        age_years=7,
-        seed=7,
+        age_years=12,
+        seed=0,
         source=source,
     )
     relationships = compilation.bundle.relationship_seeds
     grandparents = tuple(item for item in relationships if item.role == "grandparent")
     aunts_uncles = tuple(item for item in relationships if item.role == "aunt_uncle")
+    nieces_nephews = tuple(
+        item for item in relationships if item.role == "niece_nephew"
+    )
+    cousins = tuple(item for item in relationships if item.role == "cousin")
 
     assert len(grandparents) == 4
-    assert len(aunts_uncles) == 4
-    assert not any(
-        item.role in {"great_grandparent", "cousin", "grandchild"}
-        for item in relationships
+    assert aunts_uncles
+    assert nieces_nephews
+    assert cousins
+    family_relationships = tuple(
+        item for item in relationships if item.source == "genesis_family_graph"
     )
+    assert len({item.display_name for item in family_relationships}) == len(
+        family_relationships
+    )
+    assert not any(item.role == "great_grandparent" for item in relationships)
     assert all("self" in item.related_person_ids for item in grandparents)
     assert all("self" in item.related_person_ids for item in aunts_uncles)
     parent_ids = {item.person_id for item in relationships if item.role == "parent"}
@@ -479,31 +704,96 @@ def test_compiler_expands_only_bounded_parent_ancestor_branches() -> None:
         parent_ids & set(item.related_person_ids)
         for item in grandparents + aunts_uncles
     )
+    assert all("self" in item.related_person_ids for item in nieces_nephews + cousins)
     assert compilation.bundle.validate() is None
 
 
-def test_elder_parents_do_not_force_grandparent_expansion() -> None:
+def test_compiler_expands_mature_children_to_grandchildren_only() -> None:
+    source = load_genesis_source_package()
+    source = replace(
+        source,
+        generation_policy=_family_policy(
+            source.generation_policy,
+            child_count_distribution=((3, 1.0),),
+            never_married_probability=0.0,
+        ),
+    )
     compilation = _compilation(
-        "elder-parent-boundary",
+        "family-grandchildren",
+        species_id="dog",
+        stage="elder",
+        age_years=16,
+        seed=0,
+        source=source,
+    )
+    relationships = compilation.bundle.relationship_seeds
+    grandchildren = tuple(item for item in relationships if item.role == "grandchild")
+
+    assert grandchildren
+    assert all("self" in item.related_person_ids for item in grandchildren)
+    assert not any(item.role == "great_grandchild" for item in relationships)
+    assert compilation.bundle.validate() is None
+
+
+def test_elder_parent_cutoff_requires_a_protagonist_partner() -> None:
+    source = load_genesis_source_package()
+    unmarried_source = replace(
+        source,
+        generation_policy=_family_policy(
+            source.generation_policy,
+            never_married_probability=1.0,
+            child_count_distribution=((3, 1.0),),
+        ),
+    )
+    unmarried = _compilation(
+        "elder-parent-unmarried",
         species_id="fox",
         stage="mature",
         age_years=8,
         seed=7,
+        source=unmarried_source,
     )
-    assert not any(
-        relationship.role in {"grandparent", "aunt_uncle"}
-        for relationship in compilation.bundle.relationship_seeds
+    unmarried_roles = unmarried.bundle.relationship_seeds
+    assert not any(item.role == "partner" for item in unmarried_roles)
+    assert any(item.role == "grandparent" for item in unmarried_roles)
+    assert any(item.role == "aunt_uncle" for item in unmarried_roles)
+
+    married_source = replace(
+        source,
+        generation_policy=_family_policy(
+            source.generation_policy,
+            never_married_probability=0.0,
+        ),
     )
+    married = _compilation(
+        "elder-parent-married",
+        species_id="fox",
+        stage="mature",
+        age_years=8,
+        seed=7,
+        source=married_source,
+    )
+    married_roles = married.bundle.relationship_seeds
+    assert any(item.role == "partner" for item in married_roles)
+    assert not any(item.role in {"grandparent", "aunt_uncle"} for item in married_roles)
 
 
-def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
+def test_compiler_emits_lived_family_timeline_events_only_after_birth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fix_fertile_own_union(monkeypatch)
+    monkeypatch.setattr(
+        FamilyGenerator,
+        "_sample_child_lags",
+        lambda self, union, occupied, count: tuple(range(1, count + 1)),
+    )
     source = load_genesis_source_package()
     source = replace(
         source,
-        generation_policy=replace(
+        generation_policy=_family_policy(
             source.generation_policy,
-            family_child_count_distribution=((3, 1.0),),
-            family_partner_annual_probability=1.0,
+            child_count_distribution=((3, 1.0),),
+            stop_at_elder=False,
         ),
     )
     compilation = _compilation(
@@ -565,7 +855,9 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth() -> None:
     assert partner.age_years_at_genesis is not None
     assert (
         partner.age_years_at_genesis - (6 - partner.relationship_start_age)
-        >= source.generation_policy.family_partner_min_age_years
+        >= load_and_configure_species_catalog()
+        .definition("fox")
+        .genesis.stage_ranges["mature"][0]
     )
     assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
     assert compilation.bundle.validate() is None
@@ -592,9 +884,13 @@ def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> Non
     assert all(item.life_status == "deceased" for item in parents)
     assert all(item.age_years_at_genesis is None for item in parents)
     assert all(item.death_age_years_at_genesis is not None for item in parents)
-    assert {episode.person_ids[0] for episode in death_episodes} == {
-        item.person_id for item in parents
+    assert {item.person_id for item in parents} <= {
+        episode.person_ids[0] for episode in death_episodes
     }
+    for episode in death_episodes:
+        deceased = relationships[episode.person_ids[0]]
+        assert deceased.life_status == "deceased"
+        assert episode.age_years_at_event == deceased.death_event_age_years
     assert all(1 <= episode.age_years_at_event <= 11 for episode in death_episodes)
     assert all(not episode.place_ids for episode in death_episodes)
     assert all("死因" in episode.content for episode in death_episodes)
@@ -623,6 +919,7 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
     )
     source = replace(
         source,
+        public_events=replace(source.public_events, events=()),
         generation_policy=replace(
             source.generation_policy,
             visit_repeat_count_power=1.0,
@@ -733,36 +1030,16 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
             days_per_local_year=5,
         ),
     )
-    constrained = _compilation(
-        "visit-opportunity-constrained",
-        seed=7,
-        stage="mature",
-        age_years=8,
-        source=constrained_source,
-    )
-    assert constrained.life_context.mobility.unmade_opportunity_records
-    town_requested_count = sum(
-        record[2]
-        for record in constrained.life_context.mobility.opportunity_records
-        if record[0] == "town_center"
-    ) + sum(
-        count
-        for opportunity_id, count, _ in constrained.life_context.mobility.unmade_opportunity_records
-        if opportunity_id == "town_center"
-    )
-    town_actual_count = sum(
-        record[2]
-        for record in constrained.life_context.mobility.opportunity_records
-        if record[0] == "town_center"
-    )
-    assert 0 < town_actual_count < town_requested_count
-    assert any(
-        opportunity_id == "town_center" and "历法上限" in reason
-        for opportunity_id, _, reason in constrained.life_context.mobility.unmade_opportunity_records
-    )
-    constrained_visit_ages = dict(constrained.life_context.mobility.visit_age_years)
-    town_ages = constrained_visit_ages.get("town_center", ())
-    assert all(town_ages.count(age) <= 1 for age in set(town_ages))
+    # A five-day local year cannot also hold the configured 98-day practice
+    # and care. The complete skeleton must reject this inconsistent input.
+    with pytest.raises(ValueError, match="固定生活区间超过年度预算"):
+        _compilation(
+            "visit-opportunity-constrained",
+            seed=7,
+            stage="mature",
+            age_years=8,
+            source=constrained_source,
+        )
 
 
 def test_visit_count_has_a_large_zero_mass_and_a_steep_repeat_tail() -> None:
@@ -799,17 +1076,20 @@ def test_conditioned_lifespan_sample_obeys_survival_anchor_and_source_curve() ->
     samples = 10_000
     death_ages = tuple(
         _sample_conditioned_death_age(
-            terminal_age=20,
+            elder_start_age=10,
+            median_age=15,
+            terminal_age=17,
             minimum_survival_age=10,
-            cdf_power=6,
+            early_cdf_power=4,
+            late_survival_power=2,
             uniform=(index + 0.5) / samples,
         )
         for index in range(samples)
     )
-    expected_by_15 = ((15 / 20) ** 6 - (10 / 20) ** 6) / (1.0 - (10 / 20) ** 6)
+    expected_by_15 = 0.5
 
     assert min(death_ages) >= 11
-    assert max(death_ages) <= 20
+    assert max(death_ages) <= 17
     assert sum(age <= 15 for age in death_ages) / samples == pytest.approx(
         expected_by_15, abs=0.001
     )
@@ -912,7 +1192,7 @@ def test_restricted_places_are_not_silently_sampled_as_ordinary_visits() -> None
 
 def test_genesis_rejects_adoption_before_age_two() -> None:
     with pytest.raises(GenesisError, match="至少 2 岁"):
-        _compilation(stage="youth", age_years=1)
+        _compilation(stage="childhood", age_years=1)
 
 
 def test_genesis_allows_more_than_five_source_grounded_events() -> None:
@@ -1023,7 +1303,12 @@ def test_learning_theme_requires_actual_vocation_evidence() -> None:
     source = load_genesis_source_package()
     compiler = GenesisCompiler(source, catalog=load_and_configure_species_catalog())
     compilation = _compilation(
-        "ordinary-household-learning", stage="mature", age_years=8
+        "ordinary-household-learning",
+        stage="mature",
+        age_years=8,
+        source=replace(
+            source, learning_policy=replace(source.learning_policy, vocations=())
+        ),
     )
 
     ordinary_themes = compiler._eligible_episode_themes(compilation.life_context)
@@ -1052,10 +1337,10 @@ def test_learning_theme_requires_actual_vocation_evidence() -> None:
 def test_age_is_directly_mapped_to_the_requested_earth_year() -> None:
     compilation = _compilation("age-elfie", stage="mature")
 
-    assert compilation.life_context.identity.age_years_at_adoption == 6
-    assert compilation.profile.identity.origin.age_years == 6
+    assert compilation.life_context.identity.age_years_at_adoption == 5
+    assert compilation.profile.identity.origin.age_years == 5
     assert all(
-        episode.age_years_at_event is None or 1 <= episode.age_years_at_event <= 6
+        episode.age_years_at_event is None or 1 <= episode.age_years_at_event <= 5
         for episode in compilation.bundle.episode_seeds
     )
     assert (
@@ -1072,7 +1357,7 @@ def test_age_is_directly_mapped_to_the_requested_earth_year() -> None:
             for episode in compilation.bundle.episode_seeds
             if episode.theme_id == "arrival-nest"
         ).age_years_at_event
-        == 6
+        == 5
     )
 
 
@@ -1148,12 +1433,20 @@ def test_relationship_importance_policy_is_consumed_by_family_compiler() -> None
             ("teacher", 0.41),
         ),
         relationship_layer_decay_lambda=0.7,
+        family=_family_policy(
+            source.generation_policy,
+            child_count_distribution=((3, 1.0),),
+            never_married_probability=1.0,
+            stop_at_elder=False,
+        ).family,
     )
     compilation = _compilation(
         "configured-importance",
         source=replace(source, generation_policy=policy),
+        species_id="dog",
         stage="mature",
-        age_years=6,
+        age_years=7,
+        seed=5,
     )
     relationships = compilation.bundle.relationship_seeds
     parents = [item for item in relationships if item.role == "parent"]

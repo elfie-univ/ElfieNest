@@ -163,7 +163,7 @@ describe("Inspector projection", () => {
         mastery: "full",
         eligibility: ["居住在森林区域"],
         acquired_via: "source_eligibility",
-        acquired_stage: "young_adult",
+        acquired_stage: "adolescent",
         acquired_age_years: 4,
         recall_eligible: true,
         initial_confidence: 0.92,
@@ -189,4 +189,16 @@ describe("Inspector projection", () => {
     expect(projected.excerpt).toContain("Ari 和 Ena");
     expect(projected.connections.map((item) => item.label)).toContain("支持 Assertion");
   });
+});
+
+it("保留有向亲属称谓，即使存储对称边交换端点，也区分听说和认识", () => {
+  const context = JSON.stringify({ source: "genesis_relationship", view_subject: "ari", view_object: "ena", object_label: "弟媳", familiarity: "known" });
+  const assertion = { assertion_id: "kin", subject_id: "ena", object_node_id: "ari", predicate: "kin_of", qualifiers: { context } };
+  expect(projectAssertionDetail(assertion, relationInput).sentence).toBe("Ena 是 Ari 的弟媳");
+  const heard = { ...assertion, predicate: "relationship", qualifiers: { context: JSON.stringify({ source: "genesis_relationship", view_subject: "ari", view_object: "ena", object_label: "朋友的母亲", familiarity: "heard" }) } };
+  expect(projectAssertionDetail(heard, relationInput).sentence).toBe("Ena 是 Ari 的朋友的母亲（听说过，尚无实际接触记录）");
+  const detail = projectAssertionDetail(assertion, relationInput);
+  expect(detail.header.label).toBe("弟媳");
+  expect(detail.fields.find(field => field.key === "direction")?.value).toBe("Ari → Ena");
+  expect(projectAssertionDetail(heard, relationInput).header.label).toBe("朋友的母亲");
 });

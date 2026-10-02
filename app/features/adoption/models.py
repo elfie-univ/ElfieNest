@@ -9,7 +9,7 @@ from elfie.genesis import CandidateReveal
 from elfie.public import GenesisCandidate
 
 SpeciesId = str
-LifeStage = Literal["youth", "young_adult", "mature", "elder", "any"]
+LifeStage = Literal["childhood", "adolescent", "mature", "elder", "any"]
 CandidateGender = Literal["male", "female", "any"]
 ElfieGender = Literal["male", "female"]
 CandidateReplyStatus = Literal["accepted", "unsure"]
@@ -124,7 +124,7 @@ class CandidateResult:
     runtime_appearance: dict[str, object] = field(default_factory=dict)
 
 
-ExposedLifeStage = Literal["youth", "young_adult", "mature", "elder"]
+ExposedLifeStage = Literal["childhood", "adolescent", "mature", "elder"]
 
 
 @dataclass(frozen=True)

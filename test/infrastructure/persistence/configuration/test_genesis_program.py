@@ -48,12 +48,21 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     document = loaded.document
     assert loaded.path == ROOT / "genesis/program.yaml"
     assert document["status"] == document["manifest"]["status"] == "published"
-    assert len(document["manifest"]["members"]) == 18
+    assert len(document["manifest"]["members"]) == 20
     assert not document["manifest"]["publication_blockers"]
     assert {item["id"] for item in document["manifest"]["activation_blockers"]} == {
         "myelle-runtime-readiness",
     }
     rules = document["rules"]
+    family_document = yaml.safe_load(
+        (ROOT / "genesis/family.yaml").read_text(encoding="utf-8")
+    )
+    family_member = next(
+        item
+        for item in document["manifest"]["members"]
+        if item["path"] == "family.yaml"
+    )
+    assert family_member["version"] == family_document["family_generation_version"]
     population = rules["population"]
     assert population["grid_dimensions"] == [10, 10]
     assert population["sample_unit_count"] == 100
@@ -91,7 +100,7 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert (
         rules["world"]["route_geometry_status"] == "endpoints_and_grid_hop_rules_only"
     )
-    assert rules["household"]["biological_parent_min_age_gap_local_years"] == 3
+    assert "biological_parent_min_age_gap_local_years" not in rules["household"]
     assert rules["learning"]["minimum_start_age_local_years"] == 2
     assert rules["learning"]["model"] == "teacher_apprenticeship"
     assert rules["learning"]["vocations"][-1]["apprenticeship_years"] == 1
@@ -476,7 +485,7 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
     assert projection["unit_count"] == 160
     assert projection["disposition"] == "one_to_one_exact_description"
 
-    expected_stages = {"youth", "young_adult", "mature", "elder"}
+    expected_stages = {"childhood", "adolescent", "mature", "elder"}
     for package in ("saevi", "tovren", "myelle"):
         generation = yaml.safe_load(
             (ROOT / f"genesis/species/{package}/generation.yaml").read_text(
@@ -494,23 +503,15 @@ def test_source_coverage_and_arrival_stage_policy_are_explicit() -> None:
     assert candidates["age_policy"] == {
         "terminal_reserve_years": 4,
         "stage_weights": {
-            "youth": 0.0,
-            "young_adult": 0.75,
+            "childhood": 0.0,
+            "adolescent": 0.75,
             "mature": 0.2,
             "elder": 0.05,
         },
         "source_ref": "generation#11.1",
     }
     assert program["rules"]["policy"]["family"] == {
-        "child_count_distribution": {"1": 0.4, "2": 0.45, "3": 0.15},
-        "partner_min_age_years": 3,
-        "partner_annual_probability": 0.25,
-        "max_children": 3,
-        "lifespan": {
-            "cdf_power": 6,
-            "sampler_version": "conditioned-lifespan-cdf.v1",
-        },
-        "source_ref": "generation#11.1",
+        "source_ref": "family.yaml",
     }
 
 
@@ -775,9 +776,30 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
 
 
 def test_species_rules_keep_runtime_and_personal_life_boundaries() -> None:
+    expected_ranges = {
+        "saevi": {
+            "childhood": [0, 2],
+            "adolescent": [2, 5],
+            "mature": [5, 10],
+            "elder": [10, 17],
+        },
+        "tovren": {
+            "childhood": [0, 2],
+            "adolescent": [2, 6],
+            "mature": [6, 14],
+            "elder": [14, 22],
+        },
+        "myelle": {
+            "childhood": [0, 2],
+            "adolescent": [2, 6],
+            "mature": [6, 14],
+            "elder": [14, 22],
+        },
+    }
     for package in ("saevi", "tovren", "myelle"):
         root = ROOT / "genesis/species" / package
         generation = yaml.safe_load((root / "generation.yaml").read_text())
+        assert generation["stage_ranges"] == expected_ranges[package]
         ranges = list(generation["stage_ranges"].values())
         assert ranges[0][0] == 0
         assert all(left[1] == right[0] for left, right in zip(ranges, ranges[1:]))

@@ -9,6 +9,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from elfie.genesis.family_config import (
+    ChildrenConfig,
+    FamilyGenerationConfig,
+    LifespanConfig,
+    MarriageAgeConfig,
+)
 from infrastructure.persistence.configuration.documents import (
     resolve_bundled_config_root,
 )
@@ -26,13 +32,10 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
     assert package.package_version == "elfaria-genesis.v10"
     assert package.geography_network.days_per_local_year == 196
-    assert package.generation_policy.family_lifespan_cdf_power == 6
-    assert (
-        package.generation_policy.family_lifespan_sampler_version
-        == "conditioned-lifespan-cdf.v1"
-    )
+    assert package.generation_policy.family.lifespan.cdf_power == 6
+    assert package.generation_policy.family.generation_version == "family-generation.v1"
     assert package.manifest.status == "published"
-    assert len(package.manifest.member_ids) == 18
+    assert len(package.manifest.member_ids) == 19
     assert len(package.knowledge) == 160
     assert package.knowledge[0].fact_id == "A-01"
     assert package.knowledge[0].source_ref == "knowledge/elfaria.yaml#A-01"
@@ -190,32 +193,30 @@ def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
 
 
 def test_generation_policy_consumes_family_values_from_program() -> None:
+    family = FamilyGenerationConfig(
+        marriage=MarriageAgeConfig(never_married_probability=0.4),
+        children=ChildrenConfig(
+            count_distribution=((1, 0.2), (4, 0.8)),
+            max_count=4,
+            birth_lag_decay=0.7,
+        ),
+        lifespan=LifespanConfig(cdf_power=4),
+    )
     policy = _generation_policy(
         {
             "policy": {
                 "version": "test-policy",
-                "family": {
-                    "child_count_distribution": {"1": 0.2, "4": 0.8},
-                    "partner_min_age_years": 5,
-                    "partner_annual_probability": 0.4,
-                    "max_children": 4,
-                    "lifespan": {
-                        "cdf_power": 4,
-                        "sampler_version": "conditioned-lifespan-cdf.v1",
-                    },
-                },
             },
-            "household": {"biological_parent_min_age_gap_local_years": 6},
-        }
+        },
+        family=family,
     )
 
-    assert policy.family_child_count_distribution == ((1, 0.2), (4, 0.8))
-    assert policy.family_parent_min_age_gap_years == 6
-    assert policy.family_partner_min_age_years == 5
-    assert policy.family_partner_annual_probability == 0.4
-    assert policy.family_max_children == 4
-    assert policy.family_lifespan_cdf_power == 4
-    assert policy.family_lifespan_sampler_version == "conditioned-lifespan-cdf.v1"
+    assert policy.family.children.count_distribution == ((1, 0.2), (4, 0.8))
+    assert policy.family.children.birth_lag_decay == 0.7
+    assert policy.family.marriage.never_married_probability == 0.4
+    assert policy.family.children.max_count == 4
+    assert policy.family.lifespan.cdf_power == 4
+    assert policy.family.generation_version == "family-generation.v1"
 
 
 def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
@@ -236,20 +237,20 @@ def test_resident_knowledge_keeps_source_conditions_as_atomic_gates() -> None:
     assert package.generation_policy.medium_knowledge_probability == 0.5
     assert package.generation_policy.candidate_age_reserve_years == 4
     assert package.generation_policy.candidate_stage_weights == (
-        ("youth", 0.0),
-        ("young_adult", 0.75),
+        ("childhood", 0.0),
+        ("adolescent", 0.75),
         ("mature", 0.2),
         ("elder", 0.05),
     )
-    assert package.generation_policy.family_child_count_distribution == (
-        (1, 0.4),
-        (2, 0.45),
-        (3, 0.15),
+    assert package.generation_policy.family.children.count_distribution == (
+        (0, 0.03),
+        (1, 0.05),
+        (2, 0.5),
+        (3, 0.42),
     )
-    assert package.generation_policy.family_parent_min_age_gap_years == 3
-    assert package.generation_policy.family_partner_annual_probability == 0.25
-    assert package.generation_policy.family_partner_min_age_years == 3
-    assert package.generation_policy.family_max_children == 3
+    assert package.generation_policy.family.children.birth_lag_decay == 0.75
+    assert package.generation_policy.family.marriage.never_married_probability == 0.10
+    assert package.generation_policy.family.children.max_count == 3
     assert package.generation_policy.relationship_importance_baselines == (
         ("core", 0.75),
         ("direct_acquaintance", 0.25),

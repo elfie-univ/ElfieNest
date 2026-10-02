@@ -1,0 +1,289 @@
+document_kind: public_event_catalog
+schema_version: 1
+status: published
+
+# 这份文件只描述共享世界中会对居民公开、并可成为共同经历来源的事件。
+# 家庭、学习、工作、邻里、旅游等个人关系方向不在这里配置。
+scope:
+  public_only: true
+  excluded:
+  - family_relationships
+  - learning_and_work
+  - neighborhood_relationships
+  - travel_purposes
+  - individual_life_events
+
+calendar:
+  id: elfaria_local
+  days_per_year: 196
+  day_index: 1_based
+  # 尚无来源可确定当前本地年与日，不从地球日期推算。
+  current_local_year: null
+  current_day_of_year: null
+
+events:
+- id: connection_day
+  label_zh: 连线日
+  label_en: Connection Day
+  kind: recurring_public_event
+  impact_scope: mistyville_territory
+  schedule:
+    recurrence: annual
+    day_of_year: 50
+  locations:
+    mode: parallel_registered_public_centers
+    place_refs:
+    - skyreach_square
+    - saevi_tribal_center
+    - tovren_tribal_center
+    - myelle_tribal_center
+  activities:
+  - public_gathering
+  - public_message_exchange
+  - remote_contact_attempts
+  - sky_light_observation
+  public_effects:
+  - public_communication_is_more_active_near_the_magnetic_peak
+  - residents_can_exchange_news_and_meet_people_from_other_communities
+  - participation_does_not_create_a_relationship_without_actual_contact
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_residents
+    selection: reachability_and_local_interest
+    creates_contact_opportunity: true
+  source_refs:
+  - world#3.1.1
+  - world#7.6
+
+- id: silence_day
+  label_zh: 静默日
+  label_en: Silence Day
+  kind: recurring_public_event
+  impact_scope: mistyville_territory
+  schedule:
+    recurrence: annual
+    day_of_year: 148
+  locations:
+    mode: parallel_registered_public_centers
+    place_refs:
+    - skyreach_square
+    - saevi_tribal_center
+    - tovren_tribal_center
+    - myelle_tribal_center
+  activities:
+  - face_to_face_storytelling
+  - shared_watch
+  - local_gathering
+  public_effects:
+  - long_distance_communication_is_limited_during_the_silence_period
+  - face_to_face_contact_and_local_shared_life_become_the_main_public_activities
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_residents
+    selection: local_reachability
+    creates_contact_opportunity: true
+  source_refs:
+  - world#3.1.1
+  - world#7.6
+
+- id: saevi_firstroot_gathering
+  label_zh: Saevi 祖树集会
+  label_en: Saevi Firstroot Gathering
+  kind: recurring_public_event
+  impact_scope: saevi_community
+  schedule:
+    recurrence: annual
+    # 具体日期尚未单独冻结，先在雨季窗口内抽取一天。
+    window:
+      season: rainy_season
+      day_of_year: [50, 147]
+    occurrences_per_year: 1
+  locations:
+    mode: fixed_place
+    place_refs:
+    - firstroot_tree
+  activities:
+  - community_assembly
+  - local_tradition_ceremony
+  - care_and_resource_exchange
+  public_effects:
+  - saevi_residents_have_a_shared_reason_to_reach_the_firstroot_tree
+  - local_participants_can_meet_other_residents_in_the_same_community
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_saevi_residents
+    selection: route_reachability_and_local_interest
+    creates_contact_opportunity: true
+  source_refs:
+  - world#7.6
+
+- id: tovren_riverturn_gathering
+  label_zh: Tovren 回澜丘集会
+  label_en: Tovren Riverturn Gathering
+  kind: recurring_public_event
+  impact_scope: tovren_community
+  schedule:
+    recurrence: annual
+    window:
+      season: rainy_season
+      day_of_year: [50, 147]
+    occurrences_per_year: 1
+  locations:
+    mode: fixed_place
+    place_refs:
+    - riverturn_hill
+  activities:
+  - community_assembly
+  - exchange_and_route_update
+  - local_tradition_ceremony
+  public_effects:
+  - tovren_residents_have_a_shared_reason_to_reach_riverturn_hill
+  - local_participants_can_meet_other_residents_in_the_same_community
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_tovren_residents
+    selection: route_reachability_and_local_interest
+    creates_contact_opportunity: true
+  source_refs:
+  - world#7.6
+
+- id: myelle_cloudfall_gathering
+  label_zh: Myelle 垂云瀑集会
+  label_en: Myelle Cloudfall Gathering
+  kind: recurring_public_event
+  impact_scope: myelle_community
+  schedule:
+    recurrence: annual
+    window:
+      season: rainy_season
+      day_of_year: [50, 147]
+    occurrences_per_year: 1
+  locations:
+    mode: fixed_place
+    place_refs:
+    - cloudfall_falls
+  activities:
+  - community_assembly
+  - cautious_exploration_update
+  - local_tradition_ceremony
+  public_effects:
+  - myelle_residents_have_a_shared_reason_to_reach_cloudfall_falls
+  - local_participants_can_meet_other_residents_in_the_same_community
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_myelle_residents
+    selection: route_reachability_and_local_interest
+    creates_contact_opportunity: true
+  source_refs:
+  - world#7.6
+
+- id: earth_contact_announcement
+  label_zh: 发现地球与公开联系
+  label_en: Earth Signal Discovery and Public Contact
+  kind: one_time_public_event
+  impact_scope: mistyville_territory
+  schedule:
+    recurrence: one_time
+    # 世界资料只固定了 2026 年；本地日是本次草案为可重放生成补出的日期。
+    date:
+      local_year: 2026
+      day_of_year: 32
+  locations:
+    mode: public_announcement_and_registration
+    place_refs:
+    - skyreach_square
+    - skyreach_tree
+    - earthbound_station
+  activities:
+  - public_assembly
+  - abnormal_signal_report
+  - public_scope_briefing
+  - voluntary_registration_opening
+  public_effects:
+  - residents_learn_that_earth_contact_exists_but_is_limited_and_unstable
+  - the_known_contact_scope_is_announced_as_a_public_record
+  - eligible_residents_can_register_for_later_earthbound_plans
+  - hearing_the_announcement_does_not_mean_that_a_resident_traveled_to_earth
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    eligible: alive_and_present_residents_in_the_public_notice_scope
+    selection: public_broadcast_reach
+    creates_contact_opportunity: true
+  source_refs:
+  - world#7.8
+
+- id: deep_exploration_recent_windows
+  label_zh: 近年深层地下探索
+  label_en: Recent Deep Underground Exploration Windows
+  kind: public_expedition_with_explicit_instances
+  impact_scope: mistyville_territory
+  schedule:
+    recurrence: explicit_instances
+    reference: current_local_year
+    instances:
+    - id: deep_exploration_one_year_ago
+      years_ago: 1
+      day_of_year: 36
+      activities:
+      - permitted_deep_entry
+      - sample_recovery
+      - route_and_safety_recording
+      public_effects:
+      - verified_samples_and_a_route_report_are_published_after_return
+      - a_return_gathering_records_participants_and_results
+    - id: deep_exploration_three_years_ago
+      years_ago: 3
+      day_of_year: 104
+      activities:
+      - permitted_deep_entry
+      - magnetic_anomaly_survey
+      - route_marker_update
+      public_effects:
+      - the_verified_route_record_is_updated_after_return
+      - the_public_report_can_support_later_training_or_exploration_review
+    - id: deep_exploration_five_years_ago
+      years_ago: 5
+      day_of_year: 164
+      activities:
+      - permitted_deep_entry
+      - rare_material_or_relic_recovery
+      - public_return_report
+      public_effects:
+      - recovered_materials_or_relics_are_registered_and_reviewed
+      - verified_contribution_can_receive_public_recognition
+  locations:
+    mode: controlled_route
+    place_refs:
+    - undercity_gate
+    - deep_underground
+  participant_policy:
+    participation_probability: 0.5
+    duration_days: 1
+    minimum_age_years: 2
+    required_qualification: jointly_approved_explorer
+    eligible: recommended_and_jointly_approved_explorers
+    selection: tribal_recommendation_joint_review_and_permitted_route
+    creates_contact_opportunity: true
+  common_activities:
+  - pre_entry_registration
+  - safety_briefing
+  - permitted_exploration
+  - return_and_verification
+  common_public_effects:
+  - exploration_is_not_created_without_a_specific_open_window_and_legal_route
+  - the_return_report_is_the_public_source_for_samples_records_and_recognition
+  source_refs:
+  - world#7.6
+  - generation#8

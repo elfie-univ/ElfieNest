@@ -7,29 +7,39 @@ status: published
 sources:
   world:
     path: docs/.internal/elfaria/elfaria-bottom-up-world-design.md
-    sha256: 972cde5dfc068334cfe7fd39da56ba8657378d71417dfdc1c9f4f9a0c99cdff4
+    sha256: 16ed2e8b9afc4c28f5104dbbfc8097aec238ef26a93bc294a192c451f34759df
   resident:
     path: docs/.internal/elfaria/elfaria-resident-knowledge.md
-    sha256: 4b1ae835737ecded773cb572ad8ab8e069447b7183134ee80010148470bad8be
+    sha256: c2d65536f744ed82eb06ecf2a90b8dac5a428853fdc7bdb0a4ac1c6797fccfdd
   generation:
     path: docs/.internal/elfaria/elfaria-generation-rules.md
-    sha256: ac42ef28199df96c4ea9a6b5a178e445389fc50b6fe1f71582342ab340683743
+    sha256: cb3c248012cbf7a9da290876cf667a5a044600a51292c8a8945ddffdf627e863
   geography:
     path: docs/.internal/elfaria/elfaria-geography-source-and-map.md
     sha256: 5230fc53793cac33f4771b35b690c1cab6c3878cb5929751e15b0b0e79f4d838
   species:
     path: docs/.internal/elfaria/elfaria-species-cards-v0.1.md
-    sha256: f478fb9bbf1b10e20d1fa6257c2ff8c5a28298123fdd2bfad953acb7ad63ef6f
+    sha256: 3599ff08f5a26b72363e269af210937acac81931f71143710dd883fb0d36221d
 manifest:
   package_id: elfaria-genesis
   package_version: elfaria-genesis.v10
   status: published
   members:
+  - path: events.yaml
+    kind: public_event_catalog
+    version: public-events.v1
+    status: published
+    sha256: 04836dc5e2ce33b05dd6ff8d9d222c01c356886bfa5aeacd12ae4fe07d1e3510
+  - path: family.yaml
+    kind: family_generation_policy
+    version: family-generation.v1
+    status: published
+    sha256: 6eaa1608fb9a682799b4aa516932e7ea2ce392ebeaa81198396727a92913c570
   - path: knowledge/elfaria.yaml
     kind: resident_knowledge
     version: elfaria-resident-knowledge.v11
     status: published
-    sha256: 1e244aa419ae58f7bf729569d19525e9dc37e0b621aa17e17ee35afc45937d14
+    sha256: 8de36c19354e050188b82ac52152578cf63fc025516612e380a492e7617e3537
   - path: knowledge/geography.yaml
     kind: geography_knowledge
     version: elfaria-geography.v12
@@ -59,7 +69,7 @@ manifest:
     kind: species_generation_profile
     version: myelle-genesis.v3
     status: published
-    sha256: 7551b64c53feaeadfeecc7750f3cb8423b04d126c0d839228b89ce9deaeb511a
+    sha256: b3a3567535632f68b5102edbcb25e8cfebbd2c1fc8a7d570cceffde5368b4969
   - path: species/myelle/species.yaml
     kind: species_definition
     version: myelle.v3
@@ -84,7 +94,7 @@ manifest:
     kind: species_generation_profile
     version: saevi-genesis.v4
     status: published
-    sha256: aa97360e112a5f56dd44891593c82a629934fa61896c9af7bdd23d4c400095d4
+    sha256: 0958bc17921ddc986f8d482c409a7ebc81100c3f6bb3f85a31832d7da2c65b0e
   - path: species/saevi/species.yaml
     kind: species_definition
     version: saevi.v3
@@ -109,7 +119,7 @@ manifest:
     kind: species_generation_profile
     version: tovren-genesis.v4
     status: published
-    sha256: 06d660f7355dfdffe56dfb57d732ac89314e3be64a285f13063c6596fc057276
+    sha256: e8bbf18b6018a97df5257375be7cc2a3ea016371d36001c8b789820f0fb0b930
   - path: species/tovren/species.yaml
     kind: species_definition
     version: tovren.v3
@@ -119,7 +129,7 @@ manifest:
   activation_blockers:
   - id: myelle-runtime-readiness
     reason: Myelle 正式 Godot 角色包缺失，目录中保持 draft，不开放 Myelle 领养；Saevi/Tovren 的渲染与阶段外貌由用户决定免于复验、按人工接受处理，技术记录仍保留。
-  content_sha256: 7d098f2ab001d689d5ddc79085245dc2eacfb36cb873003f606d721098467624
+  content_sha256: 7024ad2065258401b321b9484181183c70cf7ebab122901088f36a0744926840
 coverage:
   status: complete
   resident_source_ref: resident
@@ -367,6 +377,10 @@ coverage:
     - Creator sources are bound at stable section anchors; resident facts use the separate 160-unit source anchors and are not inferred from paragraph position.
     - No unresolved condition is treated as eligible by this coverage record.
 rules:
+  social_graph:
+    public_contact_count_distribution: {0: 0.50, 1: 0.30, 2: 0.15, 3: 0.05}
+    cohort_count_distribution: {0: 0.25, 1: 0.50, 2: 0.25}
+    public_contact_reuse_probability: 0.35
   world:
     id: elfaria-world-space.v3
     source_refs:
@@ -454,7 +468,6 @@ rules:
   household:
     id: household-care.v1
     source_ref: generation#2
-    biological_parent_min_age_gap_local_years: 3
     fixed_relative_count: false
     require_parent_alive_at_adoption: false
     required_evidence:
@@ -462,7 +475,7 @@ rules:
     - alive_at_event
     - care_capacity
     - shared_residence_or_contact
-    youth_care:
+    childhood_care:
     - actual_caregiver
     residence_templates:
     - id: forest_tree_dwelling
@@ -530,10 +543,10 @@ rules:
       weight_field: weight
       normalize_within_eligible_species_stage_and_region: true
       vocation_is_potential_until_qualified: true
-      youth_without_qualification_uses: household_learning
+      childhood_without_qualification_uses: household_learning
     non_occupational_paths:
     - id: household_learning
-      applicable_stages: [youth]
+      applicable_stages: [childhood]
       requires:
       - actual_care_relationship
       - age_appropriate_activity
@@ -542,7 +555,7 @@ rules:
     archetypes:
     - id: household_member
       applicable_species: [Saevi, Tovren, Myelle]
-      applicable_stages: [youth, young_adult, mature, elder]
+      applicable_stages: [childhood, adolescent, mature, elder]
       region_selection: geography_allowed_regions_for_species
       place_selection: registered_residence_in_selected_region
       weight: 1.0
@@ -566,7 +579,219 @@ rules:
       Tovren: dog
       Myelle: cat
     private_name_lexicon:
-      default: [Nemi, Ari, Sora, Tavi, Mira, Lio, Ena, Rin, Kio, Veya, Oru, Pela]
+      default:
+      - Nemi
+      - Ari
+      - Sora
+      - Tavi
+      - Mira
+      - Lio
+      - Ena
+      - Rin
+      - Kio
+      - Veya
+      - Oru
+      - Pela
+      - Aela
+      - Aerin
+      - Aira
+      - Aiva
+      - Alia
+      - Alin
+      - Alora
+      - Amara
+      - Ania
+      - Anira
+      - Aria
+      - Arin
+      - Arlo
+      - Asha
+      - Asra
+      - Aven
+      - Avia
+      - Ayla
+      - Belen
+      - Bera
+      - Bria
+      - Brin
+      - Caila
+      - Calen
+      - Cera
+      - Ceri
+      - Cira
+      - Corin
+      - Cyra
+      - Dalia
+      - Dara
+      - Darin
+      - Davi
+      - Dela
+      - Dena
+      - Dori
+      - Eira
+      - Elia
+      - Elin
+      - Elira
+      - Elora
+      - Elyn
+      - Emira
+      - Eria
+      - Eris
+      - Esra
+      - Fara
+      - Farin
+      - Faye
+      - Fela
+      - Fena
+      - Fira
+      - Florin
+      - Gara
+      - Garen
+      - Gela
+      - Gera
+      - Hana
+      - Hara
+      - Hela
+      - Hira
+      - Iara
+      - Ilya
+      - Inara
+      - Indra
+      - Ira
+      - Iria
+      - Iva
+      - Jara
+      - Jela
+      - Jena
+      - Jora
+      - Kaia
+      - Kalen
+      - Kara
+      - Karin
+      - Kela
+      - Kira
+      - Kora
+      - Kyra
+      - Lani
+      - Lara
+      - Larin
+      - Leira
+      - Lena
+      - Lia
+      - Lina
+      - Lira
+      - Lora
+      - Luma
+      - Lyra
+      - Maia
+      - Mara
+      - Marin
+      - Mela
+      - Mena
+      - Mila
+      - Mina
+      - Miri
+      - Moira
+      - Myra
+      - Nara
+      - Narin
+      - Nela
+      - Nera
+      - Nia
+      - Nila
+      - Nira
+      - Nora
+      - Nova
+      - Nyra
+      - Olia
+      - Ora
+      - Oria
+      - Orin
+      - Ovia
+      - Pala
+      - Pera
+      - Perin
+      - Pira
+      - Priya
+      - Raina
+      - Rala
+      - Rani
+      - Rara
+      - Rava
+      - Rela
+      - Rena
+      - Ria
+      - Rila
+      - Rina
+      - Risa
+      - Riva
+      - Rona
+      - Rori
+      - Runa
+      - Ryla
+      - Saia
+      - Sala
+      - Sana
+      - Sari
+      - Sela
+      - Sena
+      - Seren
+      - Sia
+      - Sila
+      - Sina
+      - Sira
+      - Suri
+      - Syra
+      - Tala
+      - Talia
+      - Tara
+      - Taren
+      - Tela
+      - Tena
+      - Tera
+      - Thalia
+      - Tia
+      - Tila
+      - Tira
+      - Tora
+      - Tula
+      - Tyra
+      - Ula
+      - Ulani
+      - Ulia
+      - Una
+      - Uria
+      - Vala
+      - Vana
+      - Vara
+      - Vela
+      - Vera
+      - Verin
+      - Via
+      - Vila
+      - Vina
+      - Vira
+      - Vora
+      - Wela
+      - Wena
+      - Wira
+      - Xara
+      - Xela
+      - Xena
+      - Yala
+      - Yara
+      - Yela
+      - Yena
+      - Yira
+      - Yuna
+      - Zala
+      - Zara
+      - Zela
+      - Zena
+      - Zia
+      - Zila
+      - Zira
+      - Zora
       species_preference:
         Saevi: [Veya, Nemi, Pela]
         Tovren: [Ari, Lio, Kio]
@@ -621,8 +846,8 @@ rules:
       impact: 遇到陌生地方时会先寻找熟悉的回去路线
       label: 归属
       life_stages:
-      - youth
-      - young_adult
+      - childhood
+      - adolescent
       - mature
       - elder
       minimum_age_local_years: 1
@@ -648,8 +873,8 @@ rules:
       impact: 面对不懂的事会先承认边界，再向熟悉的人请教
       label: 学习
       life_stages:
-      - youth
-      - young_adult
+      - childhood
+      - adolescent
       - mature
       - elder
       minimum_age_local_years: 1
@@ -675,10 +900,8 @@ rules:
       impact: 遇到协作分歧时会先确认约定，而不是直接猜测
       label: 协作
       life_stages:
-      - youth
-      - young_adult
+      - adolescent
       - mature
-      - elder
       minimum_age_local_years: 1
       obstacle: 每个人一开始理解的分工不一样
       order: 30
@@ -702,8 +925,8 @@ rules:
       impact: 逐渐相信小的可靠行动也能改变关系
       label: 第一次责任
       life_stages:
-      - youth
-      - young_adult
+      - childhood
+      - adolescent
       - mature
       - elder
       minimum_age_local_years: 2
@@ -729,9 +952,8 @@ rules:
       impact: 天气变化时会先观察实际状况，再决定是否出行
       label: 雨季路线
       life_stages:
-      - young_adult
+      - adolescent
       - mature
-      - elder
       minimum_age_local_years: 3
       obstacle: 水面和气味线索会随着天气变化
       order: 36
@@ -755,8 +977,8 @@ rules:
       impact: 重要决定要在知道边界后由自己确认
       label: 赴地决定
       life_stages:
-      - youth
-      - young_adult
+      - childhood
+      - adolescent
       - mature
       - elder
       minimum_age_local_years: 2
@@ -782,8 +1004,8 @@ rules:
       impact: 面对陌生设备和生活方式时会通过观察、接触和询问学习
       label: 抵达
       life_stages:
-      - youth
-      - young_adult
+      - childhood
+      - adolescent
       - mature
       - elder
       minimum_age_local_years: 2
@@ -957,6 +1179,11 @@ rules:
     source_ref: generation#3
     model: teacher_apprenticeship
     minimum_start_age_local_years: 2
+    # 生成年度时间预算，具体效果由骨架样本验收。
+    learning_days_per_year: 98
+    work_days_per_year: 98
+    # 生成照护时间预算，与学习或工作预算共同约束活动。
+    care_days_per_year: 49
     rule: 找一名会该手艺的居民跟随学习若干本地年
     required_evidence:
     - teacher_ref
@@ -1077,25 +1304,15 @@ rules:
       age_policy:
         terminal_reserve_years: 4
         stage_weights:
-          youth: 0.0
-          young_adult: 0.75
+          childhood: 0.0
+          adolescent: 0.75
           mature: 0.2
           elder: 0.05
         source_ref: generation#11.1
       attempt_limit_rule: maximum 12 complete-candidate attempts per five-candidate batch; internal appearance proposals are excluded
       partial_batch_policy: report_incomplete; do_not_present_as_full_batch
     family:
-      child_count_distribution:
-        '1': 0.4
-        '2': 0.45
-        '3': 0.15
-      partner_min_age_years: 3
-      partner_annual_probability: 0.25
-      max_children: 3
-      lifespan:
-        cdf_power: 6
-        sampler_version: conditioned-lifespan-cdf.v1
-      source_ref: generation#11.1
+      source_ref: family.yaml
     importance:
       source_ref: generation#11.2
       role_baselines:

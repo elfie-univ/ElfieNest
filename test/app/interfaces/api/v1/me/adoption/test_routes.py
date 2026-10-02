@@ -115,7 +115,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         "/api/v1/me/adoption/candidate-sets",
         json={
             "species_id": "fox",
-            "life_stage": "young_adult",
+            "life_stage": "adolescent",
             "gender": "any",
             "appearance": {
                 "stature": "tall",
@@ -210,7 +210,9 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         }
         assert "E-08-02" in knowledge_by_id
         assert "E-08-03" in knowledge_by_id
-        assert "B-04-02" in knowledge_by_id
+        # The adolescent stage uses a different deterministic candidate seed;
+        # assert the route knowledge family rather than one concrete town path.
+        assert "B-04" in knowledge_by_id
         for knowledge_id, (episode, _member) in knowledge_by_id.items():
             assert isinstance(knowledge_id, str)
             fact = source_facts[knowledge_id]

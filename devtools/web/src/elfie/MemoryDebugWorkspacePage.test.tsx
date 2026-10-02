@@ -286,7 +286,7 @@ describe("记忆调试工作台", () => {
       { occurred_from: "2025-02-03T08:30:00Z", occurred_to: "2025-02-05" },
       { occurred_at: "2024-12-19T20:00:00Z" },
       { occurred_from: "2030-01-01T00:00:00Z" },
-      { temporal_label: "幼年时期" },
+      { temporal_label: "幼年期" },
     ], new Date("2026-09-27T12:00:00Z"))).toEqual({ from: "2024-12-19", to: "2026-09-27" });
     expect(memoryRecallDateBounds([], new Date("2026-09-27T12:00:00Z"))).toEqual({ from: "2026-09-27", to: "2026-09-27" });
   });
@@ -375,7 +375,7 @@ describe("记忆调试工作台", () => {
     const report = graphReport({ nodes: [], assertions: [], evidence: [] });
     expect(relationDisplayLabel("friend", report)).toBe("朋友");
     expect(relationSentence("Ari", "Ena", "friend", undefined, undefined, report)).toBe("Ari 和 Ena 是朋友");
-    expect(relationSentence("Ari", "Kio", "kin_of", undefined, undefined, report)).toBe("Ari 和 Kio 是家人（具体关系未知）");
+    expect(relationSentence("Ari", "Kio", "kin_of", undefined, undefined, report)).toBe("Ari 与 Kio 的具体亲属称谓未记录");
     expect(relationSentence("Ari", "Ena", "parent_of", undefined, undefined, report)).toBe("Ari 是 Ena 的父母");
     expect(relationSentence("精灵", "主人", "owner", "elfie", "person", report)).toBe("主人 是 精灵 的主人");
 
@@ -674,4 +674,19 @@ describe("记忆调试工作台", () => {
     expect(projected.nodes.map((node) => node.id)).toEqual(["person-1", "person-2"]);
     expect(projected.edges.map((edge) => edge.id)).toEqual(["relation:person-1::person-2"]);
   });
+});
+
+it("图谱使用存储的亲属称谓及视角，不把对称谓词方向当作称谓方向", () => {
+  const report = graphReport({nodes:[{id:"ari",label:"Ari",node_type:"elfie"},{id:"ena",label:"Ena",node_type:"elfie"}], evidence:[{evidence_id:"ev"}],assertions:[{assertion_id:"kin",subject_id:"ena",object_node_id:"ari",predicate:"kin_of",evidence_ids:["ev"],qualifiers:{context:JSON.stringify({source:"genesis_relationship",view_subject:"ari",view_object:"ena",object_label:"父亲",familiarity:"known"})}}]});
+  const edge = projectMemoryDebugGraph(report).edges[0]!;
+  expect(edge.label).toBe("父亲");
+  expect(edge.source).toBe("ari");
+  expect(edge.target).toBe("ena");
+  expect(edge.direction).toBe("forward");
+});
+
+
+it("搜索结果使用具体称谓及称谓视角", () => {
+ const results=buildRecallDisplayResults({focus_nodes:[{id:"a",label:"A"},{id:"b",label:"B"}], assertions:[{assertion_id:"r",subject_id:"b",object_node_id:"a",predicate:"kin_of", qualifiers:{context:JSON.stringify({source:"genesis_relationship",view_subject:"a",view_object:"b",object_label:"爷爷",familiarity:"known"})}}],episodes:[],evidence:[]} as unknown as Parameters<typeof buildRecallDisplayResults>[0],[]);
+ expect(results.find(r=>r.id==="r")?.title).toBe("A · 爷爷 · B");
 });

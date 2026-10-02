@@ -109,7 +109,7 @@ Each batch targets five distinguishable candidates with feasible subsequent live
 
 Determine actual species, age/stage, sex, supported appearance, personality anchors and native name in that order. Appearance uses the same actual age. Candidates differ in supported appearance parameters and personality directions, not merely random seeds. If bounded generation yields fewer than five, show that number or report no solution.
 
-Age is an integer local year satisfying `2 ≤ a ≤ T−4`, where T is the species' life endpoint. With no stage preference, use youth-weighted stage probabilities normalized over stages with valid ages. With an explicit stage, sample only its legal intersection; an empty intersection is unavailable, not a reason to substitute another stage. The four-year reserve limits adoption age, not relatives' lifespans. Stage weights come from `elfaria-generation-rules` §11.1.
+Age is an integer local year satisfying `2 ≤ a ≤ T−4`, where T is the species' life endpoint. With no stage preference, use adolescent-weighted stage probabilities normalized over stages with valid ages. With an explicit stage, sample only its legal intersection; an empty intersection is unavailable, not a reason to substitute another stage. The four-year reserve limits adoption age, not relatives' lifespans. Stage weights come from `elfaria-generation-rules` §11.1.
 
 The five interaction questions only derive controlled candidate-personality anchors. They do not directly determine birthplace, family resources or social class. After acceptance, downstream stages receive frozen anchors, not raw answers. Personality cannot bypass age, training or vocational qualifications.
 
@@ -158,6 +158,40 @@ Birthplace supplies local family, facility, education and labor opportunities. T
 Age uses a simplified one-to-one convention: five years lived in Elfaria means age five, without converting local day length. After Earth arrival, each Earth year adds one year of age. Local calendars order life/travel events but do not redefine age. Preserve unknown birthdays; any displayed derived date is an “age projection.”
 
 `LifeContext` contains established identity/family anchors, residence and care, plus constrained study/vocation, activity/travel and departure plans and event slots. Distinguish unrealized plans from validated facts. Slots constrain time, places, people, prerequisites and outcomes; they are not proof of visiting or graduation. See 6.5.
+
+#### 3.3.1 Stage-three hand-off structure and order
+
+The five directions build one logical skeleton in the existing `LifeContext`, referencing rather than
+copying the shared world graph. The order is birth/home → family/care → growth/residence → learning/work
+→ public activities → travel/exploration → departure → skeleton validation. Public activities and travel
+share the time available after fixed life intervals.
+
+| Skeleton field | Hand-off content |
+| --- | --- |
+| identity/origin | Frozen identity, actual age, time anchor and birth/home; do not invent unknown birthdays |
+| family_graph | The frozen family algorithm's complete graph and marriage/birth anchors |
+| people/relationships | Shared person identities, established kinship and unrealized contact edges |
+| groups | Sourced nuclear/extended family branches and growth/study/work/activity cohorts; overlapping membership references the same person |
+| partner_sibling_families | One bounded spouse-sibling partner/child expansion assembled with the frozen core draws |
+| places/routes/place_relations | Public place/connection references and private places with their connections |
+| life_segments | Continuous residence, care, learning/work intervals, participants and annual time use |
+| place_links | Personal place purpose, interval, established/unrealized status and source |
+| activities | Specific event occurrence, time window, places, people, routes, prerequisites, dependencies and allowed outcomes |
+| knowledge_nodes | Relevant knowledge nodes, links, acquisition conditions and prerequisites, without claiming personal mastery |
+| decisions | Inapplicable, unselected or excluded results and reasons |
+
+Social, place, familiar-place, knowledge and event networks are five views sharing identities and
+references. Stage three establishes anchors such as residence and marks contact/activity slots as
+scheduled or excluded. Stage four checks prerequisites chronologically, resolves activities, then
+admits visit, acquaintance, qualification and knowledge facts. Familiarity and Memory graphs require
+actual contact or a public-knowledge source.
+
+Private names are allocated once across the graph from the configured lexicon. Public attendance and contact count are separate draws; an attended event may create zero contacts, multiple contacts or reuse an existing acquaintance. A Group requires at least three distinct members; one/two-person participation remains an activity or direct relationship. Group membership does not imply friendship. Full pairwise kinship naming is still pending. Stage four exports established person edges and groups through the Bundle to Memory, retaining parent/child, sibling, partner and cohort roles with their sources.
+
+Stage-three acceptance inspects real skeletons for fixed inputs/seeds: people/relationships,
+places/routes, continuous intervals, activity status, knowledge dependencies and exclusions.
+Automatic checks cover references, uniqueness, age and time conflicts; sample quality needs separate
+visual review. Final Bundle validation does not replace skeleton acceptance.
 
 ### 3.4 Step four: personal knowledge, relationships, experiences and self
 
@@ -243,7 +277,7 @@ Validate these counterexamples in package validation, Genesis, final owners, Adm
 | One loading path, in-place Genesis/Admission evolution, required governance and focused acceptance | Do not claim implementation; see 6.3 |
 | Stage duration, P95/failure rate, timeout/retry intervals and waiting/cancellation experience | Do not promise unmeasured latency |
 
-The published Program v8 compiles the currently bound subset of section-6.5 policy: candidate age/budget, family child-count and lifespan parameters, relationship importance, and visit probability, attraction, personality, youth-care feasibility, a full-local-year hard ceiling, a 10% lifetime cross-region travel cap and the zero-heavy repeat-count sampler. The annual ceiling does not yet subtract specific learning/work time. Remaining unbound policy and end-to-end evidence stay in ELF-019; updating source digests does not activate them.
+The creation entry keeps the existing `elfaria-genesis.v10` package version while this working tree remains unpublished; local fixes do not create a new package version. Family generation is loaded as the typed `config/genesis/family.yaml` member with the first local family policy version: marriage and fertility both use each species' `mature` stage, while marriage, partner age gaps, child plans/birth lags, lifespan and bounded ancestor expansion are kept in that one family policy. Relationship importance, visit probability, attraction, personality, childhood-care feasibility, a full-local-year hard ceiling, a 10% lifetime cross-region travel cap and the zero-heavy repeat-count sampler remain bound through their existing policy sections. The annual ceiling does not yet subtract specific learning/work time. Remaining unbound policy and end-to-end evidence stay in ELF-019.
 
 ### 5.3 Completion evidence
 
@@ -298,7 +332,7 @@ Section 2.2 assigns world facts and parameters. These formal boundaries take pre
 
 The current creation-package entry is `config/genesis/program.yaml`, with basic rules, resident knowledge, geography and species members. This document is not a second runtime-status ledger. [ELF-019](../../conformance/elfie.md) owns current gaps and evidence.
 
-The family graph, age ceiling, social probabilities, visit opportunities, history selection and coverage checks completed here are targets. Source §11 is not registered machine coverage and requires compilation and implementation before activation can be claimed. Reorganization or source-digest synchronization changes neither package rules nor acceptance status.
+The family graph, age ceiling, social probabilities, visit opportunities, history selection and coverage checks are governed by the package entry and its typed consumers. The family member is the single source for family-generation distributions; species members provide only life-stage boundaries, with `mature` code-owned as the marriage/fertility stage. Package/member version numbers remain release metadata and are changed only when a package is explicitly published; an uncommitted working-tree fix does not bump them.
 
 Evolve the existing Adoption → Admission → Genesis → final owners → Runtime path. Permanent Schema, official entrance or ownership changes require their applicable governance; this design cannot independently authorize a contract change. Algorithms and defaults now constitute an implementable baseline. Distribution calibration belongs to acceptance; changing defaults requires a policy-version change and cannot alter confirmed constraints such as the four-year age reserve or child-count distribution. Section 6.5 and parameter source `generation#11` specify role, purpose, culture and public-geography mappings.
 
@@ -421,7 +455,9 @@ Catalog maps technical species IDs to formal names. Source publication does not 
 
 ### 6.5 Individual-generation algorithms and final handoff
 
-This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from `elfaria-generation-rules` §11. Program v8 activates only the subset listed in 6.3; values without a Program binding and typed consumer remain target policy and are tracked in ELF-019.
+This section expands the final three steps. Section 3.1 determines candidate age; 3.2 freezes the four inputs. Step three establishes family/life structure, step four chronologically realizes events, knowledge and stories, and step five checks actual materialized results. Formulas here define algorithms; probabilities, multipliers, counts and thresholds come from the typed policy members. The existing `elfaria-genesis.v10` entry binds the family policy through `config/genesis/family.yaml`; the current working-tree edits are unpublished and do not change that package version. Values without a Program binding and typed consumer remain target policy and are tracked in ELF-019.
+
+The four life stages are shared semantic gates: `childhood` is the care-dependent child stage, `adolescent` is the adolescent stage, `mature` is the independent marriage/fertility and activity stage, and `elder` is the care-needing later stage. Only `adolescent` and `mature` provide welfare/activity age slots. Species generation members provide the numeric ranges and use left-closed, right-open endpoints; the final terminal age is not sampleable.
 
 #### 6.5.1 Candidates, names and invitations
 
@@ -439,6 +475,12 @@ Life context provides residence, care, learning, labor and contact opportunities
 
 #### 6.5.3 Family graph, children and life status
 
+**Marriage sampling.** Draw the lifelong-unmarried outcome once (configured probability 10%). Otherwise draw one integer marriage age from the species' `mature` stage, with weights `exp(-0.5*((age-peak)/stddev)^2)` normalized inside that stage; the current shared policy places the peak in the first quarter of that stage rather than at its midpoint. The family policy supplies a normalized peak fraction and standard-deviation fraction, so the same algorithm adapts to each species' mature bounds. Compare the sampled age with the current age only afterward; a future age means currently unmarried and is not persisted as an actual event. Do not redraw the marriage age when only the current age changes. Known parenthood bypasses the unmarried draw and conditions the same curve on feasible anchored births.
+
+**Partner age policy.** Both marriage ages must lie inside the species' mature stage. The partner's age minus the focal person's age uses the configured offsets `[-2, -1, 0, +1, +2]` and relative weights `[1, 2, 4, 2, 1]`. After filtering life limits and anchored births, multiply the partner's marriage-age curve weight by the configured gap weight and normalize. This conditional partner distribution need not have the same marginal frequencies as the focal marriage-age curve. Both people share the same union date. The policy is gender-symmetric; it models one marriage, without divorce or remarriage.
+
+**Reverse-generate parents from the known child.** This stage emits only the two parent identities and their union date; it does not draw the parents’ child count or siblings. Given the child birth year `C`, draw the child’s post-union lag `t` from the birth-lag distribution and set `formed_year=C−t`. Draw the focal father’s marriage age from the marriage-age curve, conditioned on both `a_father+t` and the species life limits being legal, then derive `birth_year=formed_year−a_father`. Reuse the fixed-date partner sampler for the mother, applying the partner age-gap curve and the same fertility condition at `C`. Known parenthood bypasses the never-married draw. Only after this parent pair is fixed does the shared-child algorithm add siblings.
+
 **Use one family graph, rendered as a tree when useful.** Each parental pair shares one children set; siblings derive from it. Do not redraw children through father, mother or sibling entrances. The core comprises self, parents, siblings, partner and children. Expansion is bounded rather than recursively adding a core around every new person.
 
 | Person relative to the protagonist | Expansion and stopping point |
@@ -454,21 +496,21 @@ Life context provides residence, care, learning, labor and contact opportunities
 
 Do not instantiate entire ancestral families merely to create cousins. A genuinely important shared-childhood cousin may use the shortest kinship connection within grandparent/grandchild bounds. A friend's mother who actually cared for the protagonist can enter as a caregiver without full-family expansion. Summary and concrete people reuse the same family facts; birth order, total children and identities are not resampled. Unknown does not mean absent or deceased. A generated family universe does not imply knowing everyone: distinguish acquaintance, hearsay and unknown.
 
-**Draw one target child count per union, then assign birth years.** Draw Kdraw from the source's 1/2/3-child distribution. Let N be legal birth years through the present and m already registered children:
+**Draw one child plan per union, then project it to the present.** Draw `K` from the configured 0/1/2/3 distribution `(10%, 20%, 40%, 30%)`. `K` is the planned lifetime child count for this generation pass; it is not the number currently visible. Existing children are inserted first, consume their `K` slots and occupy their birth years, and the remaining `K−m` birth lags are sampled without replacement. For lag `t` after the union, use the configured geometric-decay sampler (`0.75^(t−1)` in the published policy) over the species' finite candidate lag range. Birth year, not draw order, determines birth order.
 
-`K=max(m,min(Kdraw,N))`; add only `K−m` children.
+After the plan is sampled, calculate the shared effective fertility window. For each parent, convert the configured fertility upper age to a last legal birth year; take the minimum of both parents' ends and the present year. With the marriage year excluded, `N=max(0, effective_end−formed_year)` is the number of post-marriage fertility years currently available. Death dates remain hard boundaries. Keep only planned lags `t≤N`; future or out-of-window planned births are not materialized, so the current child count may be lower than `K`. Do not redraw `K` because the union was formed late.
 
-A legal year requires at least one year of partnership, both parent–child age gaps, both parents alive and before old age, and at most one child per family/year. N includes years occupied by existing children and cannot exceed completed partnership years; concrete dates must also agree. If m>N, an existing year is illegal, or the three-child template is exceeded, backtrack unfrozen parental dates without changing protagonist age or deleting anchored children. Deceased children count; do not replace them to reach a living-child quota.
-
-1. Freeze protagonist birth and insert the protagonist into the parents' shared set first.
-2. Infer parental birth/union dates making that birth legal and require survival to anchored events.
-3. Draw the target total and constrain it by actual lifespans; sample unused legal years without replacement, uniformly over legal year combinations.
-4. Birth time determines order; sex determines sibling address terms. No two children in one year.
+1. Freeze protagonist birth; reverse-generate the two parents and their union date from the known child, then insert the protagonist into the parents' shared set.
+2. Draw `K`; insert anchored children before drawing the remaining lags.
+3. Draw distinct birth lags using the declining weight, then calculate `N` from both parents and the present.
+4. Keep only birth years within `N`; generate unknown sex last, preserving anchored sex.
 5. Mark that family set complete. Grandparent families likewise insert the existing parent before adding siblings.
 
-Without anchored children, N=0 yields none; N=1 yields one; N=2 yields one/two with 40%/60%; N≥3 uses the target distribution. Thus this simplified template guarantees a child when a union has at least one legal birth year; this is a template choice, not a population claim. Validate acyclic ancestry and unique biological parents. Care uses separate relationships; direct ancestors/descendants and siblings cannot pair.
+`K` is the plan, `N` is the current effective window, and the materialized child count is `|{t:t≤N}|`. No two children share a year. Validate acyclic ancestry and unique biological parents. Care uses separate relationships; direct ancestors/descendants and siblings cannot pair.
 
 **Partners, life status and relocation.** Reuse existing partners. For an unpaired eligible person, apply the conditional probability per complete year until the first pairing. At most one partner at a time; the first template does not expand remarriage genealogies. Relocation needs legal residence, dates and routes, without sex-based assignment of who leaves.
+
+Natural mortality is zero before old age. Species configuration separates median lifespan from the hard endpoint: Saevi uses 15/17 local years; Tovren and Myelle use 20/22. The old-age start and mature reproduction boundaries remain unchanged. With old-age start E, median M and endpoint T, the cumulative death probability is `0.5*((a-E)/(M-E))^4` on E..M and `1-0.5*((T-a)/(T-M))^2` on M..T. The powers are loaded from the shared family lifespan policy; F(M)=0.5 and F(T)=1. This slice does not generate accident or disease deaths.
 
 First establish survival age L required by anchored births/care. Draw death age D once, conditioned on lifespan distribution F:
 

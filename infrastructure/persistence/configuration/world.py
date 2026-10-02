@@ -16,6 +16,7 @@ from typing import Any, cast
 
 from elfie.brain.memory.ontology import MemoryOntologySnapshot
 from elfie.genesis.contracts import KnowledgeLevel, MemoryCertainty
+from elfie.genesis.family_config import FamilyGenerationConfig
 from elfie.genesis.world import (
     CoverageLink,
     CoverageManifest,
@@ -276,11 +277,13 @@ def _name_rules(value: Mapping[str, Any]) -> NameRules:
     return NameRules(default_names=default, species_names=by_species)
 
 
-def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
+def _generation_policy(
+    value: Mapping[str, Any],
+    *,
+    family: FamilyGenerationConfig | None = None,
+) -> GenerationPolicy:
     raw_policy = _mapping(value.get("policy", {}))
     raw_backtracking = _mapping(raw_policy.get("backtracking", {}))
-    raw_family = _mapping(raw_policy.get("family", {}))
-    raw_lifespan = _mapping(raw_family.get("lifespan", {}))
     raw_importance = _mapping(raw_policy.get("importance", {}))
     raw_importance_baselines = _mapping(raw_importance.get("role_baselines", {}))
     raw_visits = _mapping(raw_policy.get("visits", {}))
@@ -288,22 +291,6 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
     raw_visit_social = _mapping(raw_visit_personality.get("social", {}))
     raw_visit_curiosity = _mapping(raw_visit_personality.get("curiosity", {}))
     raw_visit_risk = _mapping(raw_visit_personality.get("risk", {}))
-    raw_household = _mapping(value.get("household", {}))
-    raw_child_distribution = _mapping(raw_family.get("child_count_distribution", {}))
-    child_distribution = tuple(
-        sorted(
-            (
-                (
-                    int(child_count),
-                    _number_value(
-                        weight, f"family.child_count_distribution.{child_count}"
-                    ),
-                )
-                for child_count, weight in raw_child_distribution.items()
-            ),
-            key=lambda item: item[0],
-        )
-    )
     return GenerationPolicy(
         policy_version=_optional_text(raw_policy, "version", "generation-policy.v1"),
         seed_algorithm=_optional_text(
@@ -319,25 +306,7 @@ def _generation_policy(value: Mapping[str, Any]) -> GenerationPolicy:
         candidate_total_backtracks=_optional_int(
             raw_backtracking, "total_backtracks", 64
         ),
-        family_child_count_distribution=child_distribution
-        or GenerationPolicy().family_child_count_distribution,
-        family_parent_min_age_gap_years=_optional_int(
-            raw_household,
-            "biological_parent_min_age_gap_local_years",
-            3,
-        ),
-        family_partner_min_age_years=_optional_int(
-            raw_family, "partner_min_age_years", 3
-        ),
-        family_partner_annual_probability=_number_value(
-            raw_family.get("partner_annual_probability", 0.25),
-            "family.partner_annual_probability",
-        ),
-        family_max_children=_optional_int(raw_family, "max_children", 3),
-        family_lifespan_cdf_power=_optional_int(raw_lifespan, "cdf_power", 6),
-        family_lifespan_sampler_version=_optional_text(
-            raw_lifespan, "sampler_version", "conditioned-lifespan-cdf.v1"
-        ),
+        family=family or FamilyGenerationConfig(),
         relationship_importance_baselines=tuple(
             sorted(
                 (
@@ -409,7 +378,7 @@ def _arrival_rules(value: Mapping[str, Any]) -> EarthArrivalRules:
         eligible_life_stages=_texts(
             raw,
             "eligible_life_stages",
-            default=("youth", "young_adult", "mature", "elder"),
+            default=("childhood", "adolescent", "mature", "elder"),
         ),
         required_knowledge_ids=_texts(raw, "required_knowledge_ids", default=()),
         preparation_duration_local_days=_optional_int(
@@ -718,24 +687,7 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("candidate_options_per_choice 必须为正整数")
     if policy.candidate_total_backtracks < 0:
         raise ValueError("candidate_total_backtracks 不能为负数")
-    if policy.family_parent_min_age_gap_years < 1:
-        raise ValueError("family_parent_min_age_gap_years 必须为正整数")
-    if policy.family_partner_min_age_years < 1:
-        raise ValueError("family_partner_min_age_years 必须为正整数")
-    if not 0.0 <= policy.family_partner_annual_probability <= 1.0:
-        raise ValueError("family_partner_annual_probability 必须在 [0, 1] 内")
-    if policy.family_max_children < 1:
-        raise ValueError("family_max_children 必须为正整数")
-    child_counts = [count for count, _ in policy.family_child_count_distribution]
-    if not child_counts or len(child_counts) != len(set(child_counts)):
-        raise ValueError("family_child_count_distribution 必须包含唯一子女数")
-    if any(
-        count < 1 or weight < 0.0
-        for count, weight in policy.family_child_count_distribution
-    ):
-        raise ValueError("family_child_count_distribution 的值无效")
-    if sum(weight for _, weight in policy.family_child_count_distribution) <= 0.0:
-        raise ValueError("family_child_count_distribution 权重不能全为零")
+    policy.family.validate()
     baselines = dict(policy.relationship_importance_baselines)
     required_baselines = {"core", "sibling", "friend", "teacher", "direct_acquaintance"}
     if not required_baselines <= baselines.keys():
@@ -759,14 +711,6 @@ def _validate_policy(policy: GenerationPolicy) -> None:
         raise ValueError("visit_repeat_count_power 必须是有限正数")
     if not 0.0 <= policy.visit_cross_region_lifetime_fraction <= 1.0:
         raise ValueError("visit_cross_region_lifetime_fraction 必须在 [0, 1] 内")
-    if (
-        isinstance(policy.family_lifespan_cdf_power, bool)
-        or not isinstance(policy.family_lifespan_cdf_power, int)
-        or not 1 <= policy.family_lifespan_cdf_power <= 64
-    ):
-        raise ValueError("条件寿命 CDF 幂指数必须是 1 到 64 的整数")
-    if policy.family_lifespan_sampler_version != "conditioned-lifespan-cdf.v1":
-        raise ValueError("不支持的条件寿命抽样版本")
     if any(
         not math.isfinite(value) or value < 0.0
         for value in (

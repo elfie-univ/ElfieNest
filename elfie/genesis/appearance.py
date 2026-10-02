@@ -363,20 +363,20 @@ def _apply_creation_context(
 def _growth_progress(
     age_years: float, stage_ranges: Mapping[str, tuple[int, int]]
 ) -> float:
-    youth_minimum = stage_ranges["youth"][0]
-    young_adult_minimum = stage_ranges["young_adult"][0]
+    childhood_minimum = stage_ranges["childhood"][0]
+    adolescent_minimum = stage_ranges["adolescent"][0]
     mature_minimum = stage_ranges["mature"][0]
-    if age_years < young_adult_minimum:
+    if age_years < adolescent_minimum:
         return 0.65 * clamp(
-            (age_years - youth_minimum)
-            / max(float(young_adult_minimum - youth_minimum), 1.0),
+            (age_years - childhood_minimum)
+            / max(float(adolescent_minimum - childhood_minimum), 1.0),
             0.0,
             1.0,
         )
     if age_years < mature_minimum:
         return 0.65 + 0.35 * clamp(
-            (age_years - young_adult_minimum)
-            / max(float(mature_minimum - young_adult_minimum), 1.0),
+            (age_years - adolescent_minimum)
+            / max(float(mature_minimum - adolescent_minimum), 1.0),
             0.0,
             1.0,
         )

@@ -53,8 +53,8 @@ _SessionPhase = Literal[
     "replies_ready",
 ]
 _LIFE_STAGES: tuple[ExposedLifeStage, ...] = (
-    "youth",
-    "young_adult",
+    "childhood",
+    "adolescent",
     "mature",
     "elder",
 )

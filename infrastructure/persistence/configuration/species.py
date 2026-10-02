@@ -39,7 +39,7 @@ from .documents import (
 )
 
 _PACKAGE_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-_STAGES = ("youth", "young_adult", "mature", "elder")
+_STAGES = ("childhood", "adolescent", "mature", "elder")
 _GENESIS_TRAITS = 5
 _MAX_AGE_YEARS = 100
 _REQUIRED_PROPORTION_SCALES = (
@@ -587,7 +587,7 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
     if not isinstance(raw_ranges, Mapping):
         raise ValueError("genesis.stage_ranges 必须是对象")
     stage_ranges: dict[str, tuple[int, int]] = {}
-    for stage in _STAGES:
+    for index, stage in enumerate(_STAGES):
         raw_range = raw_ranges.get(stage)
         if (
             not isinstance(raw_range, (list, tuple))
@@ -599,12 +599,18 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         ):
             raise ValueError(f"genesis.stage_ranges.{stage} 必须是两个整数")
         minimum, maximum = int(raw_range[0]), int(raw_range[1])
-        if minimum < 0 or maximum < minimum or maximum > _MAX_AGE_YEARS:
+        if minimum < 0 or maximum <= minimum or maximum > _MAX_AGE_YEARS:
             raise ValueError(f"genesis.stage_ranges.{stage} 超出地球年龄范围")
+        if index and minimum != stage_ranges[_STAGES[index - 1]][1]:
+            raise ValueError("genesis.stage_ranges 必须按左闭右开连续覆盖年龄")
         stage_ranges[stage] = (minimum, maximum)
     endpoint_policy = document.get("stage_endpoint_policy")
     if not isinstance(endpoint_policy, Mapping):
         raise ValueError("generation.stage_endpoint_policy 必须是对象")
+    if endpoint_policy.get("lower_inclusive") is not True:
+        raise ValueError("generation.stage_endpoint_policy.lower_inclusive 必须为 true")
+    if endpoint_policy.get("upper_exclusive") is not True:
+        raise ValueError("generation.stage_endpoint_policy.upper_exclusive 必须为 true")
     terminal_age_years = _bounded_count(
         endpoint_policy.get("terminal_age_local_years"),
         "generation.stage_endpoint_policy.terminal_age_local_years",
@@ -615,6 +621,14 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         raise ValueError(
             "generation.stage_endpoint_policy.terminal_age_local_years 必须等于 elder 上限"
         )
+    median_age_years = _bounded_count(
+        endpoint_policy.get("median_age_local_years"),
+        "generation.stage_endpoint_policy.median_age_local_years",
+        1,
+        _MAX_AGE_YEARS,
+    )
+    if not stage_ranges["elder"][0] < median_age_years < terminal_age_years:
+        raise ValueError("generation 寿命中位数必须位于老年起点与生命上限之间")
     prior = document.get("personality_prior")
     if prior is None:
         # Species configuration must not assign individual personality.
@@ -640,6 +654,7 @@ def _genesis_profile(document: Mapping[str, Any]) -> SpeciesGenesisProfile:
         config_version=_string(document, "generation_version"),
         stage_ranges=stage_ranges,
         terminal_age_years=terminal_age_years,
+        median_age_years=median_age_years,
         personality_prior=tuple(float(value) for value in prior),
         appearance_preferences=preferences,
     )

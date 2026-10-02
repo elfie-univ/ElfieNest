@@ -12,6 +12,7 @@ import "./memory-debug-workspace.css";
 dayjs.locale("zh-cn");
 import {
   projectAssertionDetail,
+  sourcedPersonRelation,
   episodeCardDisplayTitle,
   episodeEventKindLabel,
   episodeMaintenanceLabel,
@@ -268,7 +269,7 @@ function aggregateGraphEdges(assertionEdges: readonly GraphAssertionEdge[]): Gra
       id: `relation:${key}`,
       source: direction === "reverse" ? group.right : group.left,
       target: direction === "reverse" ? group.left : group.right,
-      label: labels.length === 1 ? primaryLabel : `${primaryLabel}（${labels.length} 种）`,
+      label: labels.join(" / ") || primaryLabel,
       ...(predicates.length === 1 ? { predicate: predicates[0] } : {}),
       kind: members[0]?.kind ?? "assertion",
       evidenceIds,
@@ -377,6 +378,8 @@ function relationIsSymmetric(kind: string, report?: AuditReport | null): boolean
   return report?.ontology?.predicates.find((item) => item.predicate === canonical)?.symmetric ?? false;
 }
 function relationKindFromRecord(record: AuditRecord | null, fallback = "关系", report?: AuditReport | null): string {
+  const sourced = sourcedPersonRelation(record);
+  if (sourced) return sourced.label;
   const predicate = recordText(record, "predicate", fallback);
   const aliases = report?.ontology?.predicate_aliases ?? {};
   if (predicate !== "relationship") return aliases[predicate] ?? predicate;
@@ -384,7 +387,7 @@ function relationKindFromRecord(record: AuditRecord | null, fallback = "关系",
   if (qualifiers && typeof qualifiers === "object" && !Array.isArray(qualifiers)) {
     const context = (qualifiers as Record<string, unknown>).context;
     if (typeof context === "string") {
-      const role = context.split(":").pop()?.trim();
+      const role = context.trim().startsWith("{") ? undefined : context.split(":").pop()?.trim();
       if (role) return aliases[role] ?? role;
     }
   }
@@ -392,13 +395,14 @@ function relationKindFromRecord(record: AuditRecord | null, fallback = "关系",
 }
 export function relationDisplayLabel(kind: string, report?: AuditReport | null): string {
   const canonical = report?.ontology?.predicate_aliases[kind] ?? kind;
+  if (canonical === "kin_of") return "亲属称谓未记录";
   return report?.ontology?.predicates.find((item) => item.predicate === canonical)?.label ?? canonical;
 }
 export function relationSentence(source: string, target: string, kind: string, sourceKind?: string, targetKind?: string, report?: AuditReport | null): string {
   const normalizedKind = report?.ontology?.predicate_aliases[kind] ?? kind;
   const label = relationDisplayLabel(normalizedKind, report);
   if (normalizedKind === "friend_of") return `${source} 和 ${target} 是朋友`;
-  if (normalizedKind === "kin_of") return `${source} 和 ${target} 是家人（具体关系未知）`;
+  if (normalizedKind === "kin_of") return `${source} 与 ${target} 的具体亲属称谓未记录`;
   if (normalizedKind === "classmate_of") return `${source} 和 ${target} 是同学`;
   if (normalizedKind === "colleague_of") return `${source} 和 ${target} 是同事`;
   if (normalizedKind === "neighbor_of") return `${source} 和 ${target} 是邻居`;
@@ -832,8 +836,9 @@ export function buildRecallDisplayResults(bundle: RecallReport["bundle"], candid
 
   bundle.assertions.forEach((assertion) => {
     const id = recordText(assertion, "assertion_id", "");
-    const subjectId = recordText(assertion, "subject_id", "");
-    const objectId = recordText(assertion, "object_node_id", recordText(assertion, "object_literal", ""));
+    const sourced = sourcedPersonRelation(assertion);
+    const subjectId = sourced?.subjectId ?? recordText(assertion, "subject_id", "");
+    const objectId = sourced?.objectId ?? recordText(assertion, "object_node_id", recordText(assertion, "object_literal", ""));
     const subject = nodesById.get(subjectId)?.label ?? subjectId;
     const object = nodesById.get(objectId)?.label ?? objectId;
     const predicate = recordText(assertion, "predicate", "关系");
@@ -843,7 +848,7 @@ export function buildRecallDisplayResults(bundle: RecallReport["bundle"], candid
       .map((item) => recordText(item, "excerpt", recordText(item, "evidence_id", "来源证据")));
     // The relation predicate is part of the assertion title and is therefore
     // not repeated as a second body line. Evidence remains visible below.
-    append("assertion", id, `${subject} · ${relationDisplayLabel(predicate)} · ${object}`, "", assertion, relatedEvidence);
+    append("assertion", id, `${subject} · ${sourced?.label ?? relationDisplayLabel(predicate)} · ${object}`, "", assertion, relatedEvidence);
   });
 
   bundle.episodes.forEach((episode, index) => {
@@ -1304,12 +1309,13 @@ export function projectMemoryDebugGraph(report: AuditReport | null, filters: Gra
     if (!Array.isArray(item.evidence_ids) || item.evidence_ids.length === 0) return;
     if (filters.predicateTypes && !filters.predicateTypes.has(predicate)) return;
     if (filters.minConfidence != null && (typeof item.confidence !== "number" || item.confidence < filters.minConfidence)) return;
-    const source = item.subject_id == null ? "" : String(item.subject_id);
+    const sourced = sourcedPersonRelation(item);
+    const source = sourced?.subjectId ?? (item.subject_id == null ? "" : String(item.subject_id));
     if (!source || !nodeIds.has(source)) return;
     const assertionEvidence = (Array.isArray(item.evidence_ids) ? item.evidence_ids : [])
       .map(String)
       .filter((id) => evidenceIds.has(id));
-    let target = item.object_node_id == null ? "" : String(item.object_node_id);
+    let target = sourced?.objectId ?? (item.object_node_id == null ? "" : String(item.object_node_id));
     if (target && !nodeIds.has(target)) return;
     if (selfNodeIds && !target) return;
     if (!target && item.object_literal != null && String(item.object_literal).trim()) {
@@ -1640,8 +1646,8 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const previewGraphEdges = useMemo(() => {
     const assertionEdges: GraphAssertionEdge[] = (preview?.changes.affected.assertions ?? []).map((item) => ({
       id: String(item.assertion_id),
-      source: previewNodeKey(String(item.subject_id)),
-      target: previewNodeKey(String(item.object_node_id ?? "")),
+      source: previewNodeKey(sourcedPersonRelation(item)?.subjectId ?? String(item.subject_id)),
+      target: previewNodeKey(sourcedPersonRelation(item)?.objectId ?? String(item.object_node_id ?? "")),
       label: relationDisplayLabel(relationKindFromRecord(item, String(item.predicate ?? "关系"), report), report),
       predicate: String(item.predicate ?? "关系"),
       kind: "preview-assertion",
@@ -2260,8 +2266,6 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
   const selectedNodeEvidence = [...new Map(selectedNodeAssertions.flatMap((item) => (Array.isArray(item.evidence_ids) ? item.evidence_ids : []).map(String)).map((id) => [id, report?.data.evidence.find((item) => String(item.evidence_id) === id)]).filter((entry): entry is [string, AuditRecord] => entry[1] != null))].map(([, item]) => item);
   const selectedEpisodeSourceRefs = recordArray(selectedEpisode, "source_refs");
   const inspectorNodeById = new Map<string, InspectorNode>((report?.data.nodes ?? []).map((node) => [node.id, node as InspectorNode]));
-  const selectedEdgeSourceLabel = selectedEdge ? inspectorNodeById.get(endpointId(selectedEdge.source))?.label ?? endpointId(selectedEdge.source) : "";
-  const selectedEdgeTargetLabel = selectedEdge ? inspectorNodeById.get(selectedEdgeTargetId)?.label ?? selectedEdgeTargetId : "";
   const inspectorEvidenceById = new Map<string, AuditRecord>((report?.data.evidence ?? []).map((item) => [String(item.evidence_id), item]));
   const inspectorEpisodeById = new Map<string, AuditRecord>((report?.data.episodes ?? []).map((item) => [String(item.episode_id), item]));
   const inspectorRelationInput = {
@@ -2827,7 +2831,9 @@ export function MemoryDebugWorkspacePage({ elfieId, initialRecall = null, embedd
             <div className="memory-debug-aggregate-header">
               <span className="memory-debug-type memory-debug-relation-type">聚合关系</span>
               <h2>{selectedEdge.labels.join("、") || selectedEdge.label}</h2>
-              <p className="memory-debug-detail-copy memory-debug-relation-sentence">{selectedEdge.direction === "both" ? "双向关系" : "单向关系"} · {selectedEdgeSourceLabel} → {selectedEdgeTargetLabel}</p>
+              <div className="memory-debug-detail-copy memory-debug-relation-sentence" aria-label="具体关系摘要">
+                {selectedAssertionProjections.length ? selectedAssertionProjections.map(({ record, projection }) => <div key={String(record.assertion_id)}>{projection.sentence}</div>) : "当前快照没有返回具体关系记录。"}
+              </div>
               <div className="memory-debug-inspector-stats" aria-label="聚合关系摘要">
                 <div><span>底层 Assertion</span><strong>{selectedEdge.assertionIds.length}</strong></div>
                 <div><span>最高重要度</span><strong>{selectedEdge.importance == null ? "未记录" : `${Math.round(selectedEdge.importance * 100)}%`}</strong></div>

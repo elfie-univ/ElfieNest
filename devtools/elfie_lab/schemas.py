@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
@@ -16,15 +17,29 @@ def new_id(prefix: str) -> str:
 
 def derive_life_stage(species_id: str, age_years: float) -> str:
     """按物种和实际年龄派生可解释的生命阶段。"""
-    youth_limit = 3.0 if species_id == "dog" else 2.0
-    senior_limit = 8.0 if species_id == "dog" else 7.0
-    if age_years < 1.0:
-        return "幼年"
-    if age_years < youth_limit:
-        return "青年"
-    if age_years < senior_limit:
-        return "成年"
-    return "老年"
+    ranges = _configured_stage_ranges(species_id)
+    if age_years < ranges["childhood"][1]:
+        return "幼年期"
+    if age_years < ranges["adolescent"][1]:
+        return "青春期"
+    if age_years < ranges["mature"][1]:
+        return "成熟期"
+    return "老年期"
+
+
+@lru_cache(maxsize=3)
+def _configured_stage_ranges(species_id: str) -> Dict[str, tuple[int, int]]:
+    """Read the canonical species ranges instead of duplicating age cutoffs."""
+    from infrastructure.persistence.configuration.species import (
+        load_and_configure_species_catalog,
+    )
+
+    definition = load_and_configure_species_catalog().definition(
+        species_id, adoptable_only=True
+    )
+    if definition.genesis is None:
+        raise ValueError(f"物种 {species_id!r} 缺少 Genesis 年龄配置")
+    return dict(definition.genesis.stage_ranges)
 
 
 @dataclass

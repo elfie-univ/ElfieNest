@@ -48,7 +48,7 @@ export const chat = {
       badges: { oneMinute: "About 1 minute", detailedMatch: "Detailed match: {{current}}/{{total}}", broadChoices: "Detailed match", questionCount: "Question {{current}} / {{total}}", editable: "Editable before confirmation", fiveCandidates: "5 candidates" },
       welcome: { title: "A friend from the distant planet Elfaria is waiting to meet you", details: "How this works", note: "Uncertain choices can be left to chance. For a closer match, expand the detailed questions.", skip: "Skip this introduction next time", start: "Start finding", imageAlt: "An Elfie journeying from Elfaria to Earth" },
       basic: { title: "Choose a basic direction", speciesLabel: "Species", lifeStageLabel: "Age range", genderLabel: "Gender preference" },
-      lifeStages: { youth: "Young", young_adult: "Young adult", mature: "Mature", elder: "Elder", any: "No preference" },
+      lifeStages: { childhood: "Childhood (care)", adolescent: "Adolescence", mature: "Mature", elder: "Elder (care)", any: "No preference" },
       genders: { male: "Male", female: "Female", any: "No preference" },
       quota: { exhausted: "Your adoption capacity is currently full. You can keep this intent and return later." },
       entryBlock: { quotaTitle: "Adoption places are full", nestQuotaDescription: "No passage capacity is available right now. Please contact the administrator.", memberQuotaDescription: "You have used all of your adoption places. Please contact the administrator.", unavailableTitle: "Interstellar passage unavailable", unavailableDescription: "The passage is temporarily closed. Please contact the administrator to check the passage status.", dismiss: "Got it" },
