@@ -604,7 +604,14 @@ def partition_test_nodes(
     """Partition the exact collected test set without overlaps or omissions."""
     if shard_count < 1 or not 0 <= shard_index < shard_count:
         raise ValueError("invalid test shard coordinates")
-    return tuple(sorted(set(nodes)))[shard_index::shard_count]
+    modules = {}
+    for node in dict.fromkeys(nodes):
+        modules.setdefault(node.split("::", 1)[0], []).append(node)
+    shards: List[List[str]] = [[] for _ in range(shard_count)]
+    for module in sorted(modules, key=lambda name: (-len(modules[name]), name)):
+        target = min(range(shard_count), key=lambda index: len(shards[index]))
+        shards[target].extend(modules[module])
+    return tuple(shards[shard_index])
 
 
 def run_test_shard(selectors: Sequence[str], shard_index: int, shard_count: int) -> int:
@@ -663,6 +670,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-count", type=int, default=4)
     args = parser.parse_args(argv)
+    if (
+        args.selectors
+        and args.shard_index is None
+        and os.environ.get("GITHUB_ACTIONS") == "true"
+    ):
+        workers = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--shard-index",
+                    str(index),
+                    "--shard-count",
+                    str(args.shard_count),
+                    "--selectors",
+                    *args.selectors,
+                ],
+                cwd=PROJECT_ROOT,
+            )
+            for index in range(args.shard_count)
+        ]
+        return max(worker.wait() for worker in workers)
     if args.shard_index is not None:
         if not args.selectors:
             parser.error("test shards require --selectors")

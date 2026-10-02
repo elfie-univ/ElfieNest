@@ -486,7 +486,7 @@ def test_bundle_fingerprints_can_reuse_one_repository_snapshot(
 
 
 def test_shards_cover_every_collected_node_exactly_once():
-    nodes = tuple(f"test/example.py::test_case[{index}]" for index in range(37))
+    nodes = tuple(f"test/example_{index}.py::test_case" for index in range(37))
     shards = [test_bundles.partition_test_nodes(nodes, index, 4) for index in range(4)]
     flattened = [node for shard in shards for node in shard]
     assert len(flattened) == len(nodes)
@@ -502,3 +502,43 @@ def test_shards_reject_invalid_coordinates():
             test_bundles.partition_test_nodes(
                 ("test/example.py::test_case",), index, count
             )
+
+
+def test_ci_parallel_waits_for_every_shard_and_propagates_failure(monkeypatch):
+    started = []
+    waited = []
+
+    class Worker:
+        def __init__(self, command, **_kwargs):
+            self.index = int(command[command.index("--shard-index") + 1])
+            started.append(self.index)
+
+        def wait(self):
+            waited.append(self.index)
+            return 1 if self.index == 1 else 0
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(test_bundles.subprocess, "Popen", Worker)
+    assert test_bundles.main(["--selectors", "test/example.py"]) == 1
+    assert started == [0, 1, 2, 3]
+    assert waited == started
+
+
+def test_shard_collection_failure_cannot_report_success(monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(
+        test_bundles.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 2, "collection failed", ""
+        ),
+    )
+    assert test_bundles.run_test_shard(["test/example.py"], 0, 4) == 2
+
+
+def test_shards_preserve_module_fixture_scope_and_collection_order():
+    nodes = ("test/a.py::test_z", "test/a.py::test_a", "test/b.py::test_b")
+    shards = [test_bundles.partition_test_nodes(nodes, index, 4) for index in range(4)]
+    assert any(shard == nodes[:2] for shard in shards)
+    assert sum(map(len, shards)) == len(nodes)
