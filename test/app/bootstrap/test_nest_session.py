@@ -39,7 +39,9 @@ class _FakeSession:
         return True
 
 
-def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> None:
+def test_restore_registered_elfies_isolates_one_invalid_profile(
+    monkeypatch, tmp_path: Path
+) -> None:
     catalog_calls: list[bool] = []
     monkeypatch.setattr(
         nest_session_bootstrap,
@@ -104,7 +106,7 @@ def test_restore_registered_elfies_isolates_one_invalid_profile(monkeypatch) -> 
     session = _FakeSession()
 
     result = nest_session_bootstrap.restore_registered_elfies(
-        "/tmp/nest.db",
+        str(tmp_path / "nest.db"),
         session,  # type: ignore[arg-type]
     )
 
