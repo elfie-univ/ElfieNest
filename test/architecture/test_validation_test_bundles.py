@@ -483,3 +483,22 @@ def test_bundle_fingerprints_can_reuse_one_repository_snapshot(
     )
 
     assert first == second
+
+
+def test_shards_cover_every_collected_node_exactly_once():
+    nodes = tuple(f"test/example.py::test_case[{index}]" for index in range(37))
+    shards = [test_bundles.partition_test_nodes(nodes, index, 4) for index in range(4)]
+    flattened = [node for shard in shards for node in shard]
+    assert len(flattened) == len(nodes)
+    assert set(flattened) == set(nodes)
+    assert max(map(len, shards)) - min(map(len, shards)) <= 1
+
+
+def test_shards_reject_invalid_coordinates():
+    import pytest
+
+    for index, count in ((0, 0), (-1, 4), (4, 4)):
+        with pytest.raises(ValueError):
+            test_bundles.partition_test_nodes(
+                ("test/example.py::test_case",), index, count
+            )

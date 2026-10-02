@@ -315,13 +315,17 @@ jobs:
           git diff --check "$BASE_SHA" --
 
   python-affected:
-    name: Affected Python tests
+    name: Affected Python tests (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     needs: preflight
     if: needs.preflight.outputs.python_bundles == 'true'
     runs-on: ${{ vars.ELFIENEST_HEAVY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     concurrency:
-      group: ${{ github.workflow }}-python-tests-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
+      group: ${{ github.workflow }}-python-tests-${{ matrix.shard }}-${{ github.event_name == 'push' && needs.preflight.outputs.full_slot || github.run_id }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -367,6 +371,7 @@ jobs:
           }
           .venv/bin/python3 scripts/quality/validation/test_bundles.py \
             --base-sha "$BASE_SHA" \
+            --shard-index "${{ matrix.shard }}" --shard-count 4 \
             --selectors "${selectors[@]}"
 
   python-quality:
