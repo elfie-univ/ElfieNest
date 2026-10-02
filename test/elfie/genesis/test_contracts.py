@@ -593,7 +593,9 @@ def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> Non
     assert all(item.age_years_at_genesis is None for item in parents)
     assert all(item.death_age_years_at_genesis is not None for item in parents)
     assert {episode.person_ids[0] for episode in death_episodes} == {
-        item.person_id for item in parents
+        item.person_id
+        for item in relationships.values()
+        if item.life_status == "deceased" and item.death_event_age_years is not None
     }
     assert all(1 <= episode.age_years_at_event <= 11 for episode in death_episodes)
     assert all(not episode.place_ids for episode in death_episodes)
@@ -601,7 +603,18 @@ def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> Non
     assert compilation.bundle.validate() is None
 
 
-def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
+def test_compiler_turns_sampled_visit_opportunities_into_episodes(monkeypatch) -> None:
+    # Fix the two sampling draws while retaining the real probability/count sampler.
+    # Distance, age and personality still determine eligibility; a renamed species
+    # must not turn this compilation test into a lucky-seed test.
+    def controlled_visit_count(probability, maximum, power, **_draws):
+        return _sample_visit_count(
+            probability, maximum, power, visit_uniform=0.0, count_uniform=0.0625
+        )
+
+    monkeypatch.setattr(
+        "elfie.genesis.compiler._sample_visit_count", controlled_visit_count
+    )
     source = load_genesis_source_package()
     visit_opportunities = tuple(
         replace(
@@ -720,17 +733,37 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
         for episode in episodes.values()
     )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
-    station_only = _compilation("station-only")
+    station_only_source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            visit_opportunities=tuple(
+                replace(
+                    opportunity,
+                    base_visit_probability=0.0,
+                    base_visit_probabilities_by_region=(),
+                )
+                for opportunity in source.generation_policy.visit_opportunities
+            ),
+        ),
+    )
+    station_only = _compilation("station-only", source=station_only_source)
     assert "earthbound_station" in station_only.life_context.mobility.visited_place_ids
     assert (
         "mistyville_center" not in station_only.life_context.mobility.visited_place_ids
     )
 
+    town_trip_days = compiler._opportunity_trip_days(
+        compilation.life_context.origin.birth_cell_id,
+        town_place_ids,
+        town_episode.stay_days,
+    )
+    assert town_trip_days is not None
     constrained_source = replace(
         source,
         geography_network=replace(
             source.geography_network,
-            days_per_local_year=5,
+            days_per_local_year=town_trip_days,
         ),
     )
     constrained = _compilation(

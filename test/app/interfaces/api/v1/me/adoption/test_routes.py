@@ -210,7 +210,12 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         }
         assert "E-08-02" in knowledge_by_id
         assert "E-08-03" in knowledge_by_id
-        assert "B-04-02" in knowledge_by_id
+        traversed_routes = {
+            route_id
+            for episode in personal_episodes
+            for route_id in episode.metadata.get("route_ids", ())
+        }
+        assert ("B-04-02" in knowledge_by_id) == ("town_saevi" in traversed_routes)
         for knowledge_id, (episode, _member) in knowledge_by_id.items():
             assert isinstance(knowledge_id, str)
             fact = source_facts[knowledge_id]

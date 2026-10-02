@@ -60,7 +60,7 @@ def test_new_runtime_restores_catalog_assigns_homes_and_syncs_all_actors() -> No
     assert len(runtime.actor_syncs) == 1
     actors, revision = runtime.actor_syncs[0]
     assert revision == 1
-    assert [actor.actor_id for actor in actors] == ["tovren-1", "saevi-1"]
+    assert [actor.actor_id for actor in actors] == ["saevi-1", "tovren-1"]
     assert {actor.spawn_anchor_id for actor in actors} == {
         "dorm-01/bed-01",
         "dorm-01/bed-02",

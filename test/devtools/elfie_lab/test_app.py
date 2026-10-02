@@ -36,7 +36,7 @@ def test_create_app_installs_the_bundled_species_catalog(
 
     assert frozenset(
         species_registry.current_species_catalog().supported_species
-    ) == frozenset({"tovren", "saevi"})
+    ) == frozenset({"saevi", "tovren", "myelle"})
 
 
 def test_memory_recall_accepts_scene_without_text(tmp_path, client_for, monkeypatch):

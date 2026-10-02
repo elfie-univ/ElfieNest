@@ -18,7 +18,7 @@ def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:
     engine.tick_once(0.0)
     engine.tick_once(0.0)
 
-    assert runtime.actor_ids == ("tovren-1", "saevi-1")
+    assert runtime.actor_ids == ("saevi-1", "tovren-1")
     assert [command[0] for command in runtime.commands[:2]] == [
         CommandName.CONFIGURE_WORLD,
         CommandName.SYNC_ACTORS,
@@ -33,7 +33,7 @@ def test_fake_runtime_reconnect_converges_complete_actor_catalog() -> None:
     engine.tick_once(0.0)
     engine.tick_once(0.0)
 
-    assert runtime.actor_ids == ("tovren-1", "saevi-1")
+    assert runtime.actor_ids == ("saevi-1", "tovren-1")
     assert (
         sum(command[0] is CommandName.SYNC_ACTORS for command in runtime.commands)
         == first_sync_count + 1

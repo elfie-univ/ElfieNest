@@ -27,7 +27,7 @@ def client(db_path: str) -> TestClient:
     application = create_app(
         engine=None,
         db_path=db_path,
-        species_runtime=StaticSpeciesRuntimeReadiness(("saevi", "tovren")),
+        species_runtime=StaticSpeciesRuntimeReadiness(SUPPORTED_SPECIES),
     )
     with TestClient(application) as test_client:
         yield test_client

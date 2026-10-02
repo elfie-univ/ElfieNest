@@ -143,10 +143,10 @@ class TestAdoptionInfo:
         data = resp.json()
         # 6 种性格
         assert len(data["personality_styles"]) == 6
-        # 2 个当前可领养物种；缺少完整 Godot 资源的物种不可见
+        # 测试 Runtime 只启用两种物种，其余物种不可见
         assert sorted(item["species_id"] for item in data["species"]) == [
-            "tovren",
             "saevi",
+            "tovren",
         ]
         assert data["species"][0]["scene_id"] == "saevi"
         # 3 身高

@@ -205,7 +205,7 @@ def test_single_entity_membership_change_emits_snapshot() -> None:
         )
     )
     assert isinstance(added, ObserverSnapshotResult)
-    assert [entity.state.entity_id for entity in added.entities] == ["saevi-1", "owl-1"]
+    assert [entity.state.entity_id for entity in added.entities] == ["owl-1", "saevi-1"]
 
     world.entities = (_entity("owl-1", posture="resting"),)
     removed = facade.next_frame(
@@ -254,7 +254,7 @@ def test_one_stale_session_cannot_break_another_viewer() -> None:
         NextObserverFrameQuery(manager, "owner-login", second, None, None)
     )
     assert isinstance(frame, ObserverSnapshotResult)
-    assert [entity.state.entity_id for entity in frame.entities] == ["saevi-1", "owl-1"]
+    assert [entity.state.entity_id for entity in frame.entities] == ["owl-1", "saevi-1"]
 
 
 def test_different_viewers_publish_concurrently_without_a_global_session_lock() -> None:
