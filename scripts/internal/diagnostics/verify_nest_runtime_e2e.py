@@ -96,8 +96,8 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         allowed_origins={""},
     )
     engine = ElfieNestEngine(GodotNestSessionAdapter(gateway=server))
-    engine.session.register_elfie("fox-1", _elfie("fox-1", "fox", 101))
-    engine.session.register_elfie("dog-1", _elfie("dog-1", "dog", 202))
+    engine.session.register_elfie("saevi-1", _elfie("saevi-1", "saevi", 101))
+    engine.session.register_elfie("tovren-1", _elfie("tovren-1", "tovren", 202))
     server.start()
     print(
         json.dumps(
@@ -122,7 +122,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         speech_id = "real-speech-1"
         server.request_speech_reach(
             command_id=speech_id,
-            actor_id="fox-1",
+            actor_id="saevi-1",
             acoustic_profile="normal",
             world_revision=revision,
         )
@@ -139,7 +139,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         audience = next(
             event for event in speech if event.name is EventName.SPEECH_REACH
         )
-        if audience.payload.get("audience_actor_ids") != ["dog-1"]:
+        if audience.payload.get("audience_actor_ids") != ["tovren-1"]:
             raise RuntimeError("speech audience mismatch")
 
         # The real Body path first lets Nest persist the utterance and ask
@@ -149,7 +149,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         speech_body_events: list[RuntimeEventFrame] = []
         speech_transport = GodotTransport(
             server,
-            actor_id="fox-1",
+            actor_id="saevi-1",
             speech_intent=cast(
                 Callable[[RuntimeIntentPayload], bool], engine.session.prepare_speech
             ),
@@ -159,7 +159,7 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         speak_result = speech_transport.execute_intent(
             RuntimeIntentPayload(
                 command_id=speak_id,
-                actor_id="fox-1",
+                actor_id="saevi-1",
                 intent="speak",
                 text="hello from Nest",
                 deadline_seconds=10.0,
@@ -185,13 +185,13 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             if event.name is EventName.SPEECH_REACH
             and event.payload.get("command_id") == speak_id
         )
-        if speech_body_reach_event.payload.get("audience_actor_ids") != ["dog-1"]:
+        if speech_body_reach_event.payload.get("audience_actor_ids") != ["tovren-1"]:
             raise RuntimeError("speech body audience mismatch")
 
         observation_id = "real-visual-1"
         server.request_visual_observation(
             observation_id=observation_id,
-            actor_id="fox-1",
+            actor_id="saevi-1",
             max_results=32,
             world_revision=revision,
         )
@@ -260,34 +260,34 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
             )
 
         body_events: list[RuntimeEventFrame] = []
-        fox_transport = GodotTransport(server, actor_id="fox-1")
-        fox_transport.connect(body_events.append)
+        saevi_transport = GodotTransport(server, actor_id="saevi-1")
+        saevi_transport.connect(body_events.append)
         move_id = "real-move-1"
-        move_result = fox_transport.execute_intent(
+        move_result = saevi_transport.execute_intent(
             RuntimeIntentPayload(
                 command_id=move_id,
-                actor_id="fox-1",
+                actor_id="saevi-1",
                 intent="move_to_anchor",
                 anchor_id="activity-01/activity",
                 deadline_seconds=20.0,
             ),
             timeout_seconds=25.0,
         )
-        fox_transport.disconnect(body_events.append)
+        saevi_transport.disconnect(body_events.append)
         if move_result.terminal_status != "completed":
             raise RuntimeError(f"movement failed: {move_result}")
 
         cancel_id = "real-cancel-1"
-        dog_events: list[RuntimeEventFrame] = []
-        dog_transport = GodotTransport(server, actor_id="dog-1")
-        dog_transport.connect(dog_events.append)
+        tovren_events: list[RuntimeEventFrame] = []
+        tovren_transport = GodotTransport(server, actor_id="tovren-1")
+        tovren_transport.connect(tovren_events.append)
         cancel_result: dict[str, object] = {}
 
         def run_cancelled_move() -> None:
-            cancel_result["result"] = dog_transport.execute_intent(
+            cancel_result["result"] = tovren_transport.execute_intent(
                 RuntimeIntentPayload(
                     command_id=cancel_id,
-                    actor_id="dog-1",
+                    actor_id="tovren-1",
                     intent="move_to_anchor",
                     anchor_id="activity-01/activity",
                     deadline_seconds=20.0,
@@ -301,13 +301,13 @@ def run(port: int, nonce: str, *, verify_reconnect: bool) -> dict[str, object]:
         while time.monotonic() < deadline and not any(
             event.name is EventName.INTENT_STARTED
             and event.payload.get("command_id") == cancel_id
-            for event in dog_events
+            for event in tovren_events
         ):
             time.sleep(0.02)
-        if not server.cancel_body_command(command_id=cancel_id, actor_id="dog-1"):
+        if not server.cancel_body_command(command_id=cancel_id, actor_id="tovren-1"):
             raise RuntimeError("cancel command was not accepted by the Gateway")
         worker.join(timeout=10.0)
-        dog_transport.disconnect(dog_events.append)
+        tovren_transport.disconnect(tovren_events.append)
         cancel_runtime_result = cancel_result.get("result")
         if (
             cancel_runtime_result is None

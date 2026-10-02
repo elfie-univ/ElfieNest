@@ -1,6 +1,6 @@
 # Appearance Experiment — Phase 1: Material Recoloring
 
-**Status:** validated for fox and dog and integrated into the production 3D material path.
+**Status:** validated for saevi and tovren and integrated into the production 3D material path.
 
 **Date:** 2026-08-17
 
@@ -18,7 +18,7 @@ and marking safety zones are explicitly out of scope.
 
 ## Experiment
 
-The experiment used the original Godot fox and dog scenes and their baked source fur textures.
+The experiment used the original Godot saevi and tovren scenes and their baked source fur textures.
 It did not regenerate the models or call an image-generation service.
 
 The temporary shader compared four cases:
@@ -32,7 +32,7 @@ The validated direction is:
 
 - sample the real source fur texture, not a translucent overlay or a gray mask;
 - treat the selected color as the coat midtone and remap luminance within a bounded range;
-- protect light regions using source-texture brightness plus color neutrality, because the dog’s
+- protect light regions using source-texture brightness plus color neutrality, because the tovren’s
   light fur is cream rather than pure white;
 - preserve dark regions for paws, ear edges, and similar features;
 - render the baked source texture without a second broad lighting pass, avoiding the gray/hazy
@@ -40,17 +40,17 @@ The validated direction is:
 
 ## Evidence
 
-### Fox
+### Saevi
 
-![Fox method comparison](../../../public/assets/appearance-experiments/phase-1/fox-method-comparison.png)
+![Saevi method comparison](../../../public/assets/appearance-experiments/phase-1/saevi-method-comparison.png)
 
-![Fox final colors](../../../public/assets/appearance-experiments/phase-1/fox-final-color-comparison.png)
+![Saevi final colors](../../../public/assets/appearance-experiments/phase-1/saevi-final-color-comparison.png)
 
-### Dog
+### Tovren
 
-![Dog method comparison](../../../public/assets/appearance-experiments/phase-1/dog-method-comparison.png)
+![Tovren method comparison](../../../public/assets/appearance-experiments/phase-1/tovren-method-comparison.png)
 
-![Dog final colors](../../../public/assets/appearance-experiments/phase-1/dog-final-color-comparison.png)
+![Tovren final colors](../../../public/assets/appearance-experiments/phase-1/tovren-final-color-comparison.png)
 
 ### Ten-color palette review
 
@@ -60,9 +60,9 @@ readability, and adjacent brown tones are too similar when sampled in the same f
 batch. A second pass lifted the dark targets to smoke-charcoal/smoke-black and kept the fur
 luminance/detail transfer intact.
 
-![Dog ten-color palette, final algorithm review](../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/dog-10-color-3views.png)
+![Tovren ten-color palette, final algorithm review](../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/tovren-10-color-3views.png)
 
-![Fox ten-color palette, final algorithm review](../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/fox-10-color-3views.png)
+![Saevi ten-color palette, final algorithm review](../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/saevi-10-color-3views.png)
 
 The machine-readable review, exact hex values, algorithm references, and the superseded direct
 shader plates are in
@@ -74,7 +74,7 @@ maintained separately by the production region renderer.
 
 ## Review result
 
-| Check | Fox | Dog | Result |
+| Check | Saevi | Tovren | Result |
 | --- | --- | --- | --- |
 | Species identity and silhouette unchanged | Pass | Pass | No GLB/shape change required |
 | Coat color becomes visibly different | Pass | Pass | Silver, cream, and sable are distinct |
@@ -83,7 +83,7 @@ maintained separately by the production region renderer.
 | Global recolor alone is acceptable | Fail | Fail | It destroys the independent light/dark regions |
 
 Product review scores are visual estimates for this controlled screenshot, not an automated
-quality metric: fox approximately **8.8/10**, dog approximately **8.4/10**. The remaining gap
+quality metric: saevi approximately **8.8/10**, tovren approximately **8.4/10**. The remaining gap
 to the AI reference is primarily the GLB’s existing fur density and baked-detail ceiling; the
 recolor experiment does not change geometry and does not remove the original fur texture.
 

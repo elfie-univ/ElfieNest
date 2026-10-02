@@ -85,7 +85,10 @@ def test_elfie_keeps_legacy_body_property_and_supports_formal_switching() -> Non
     memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
-            elfie_id="elfie-binding", display_name="绑定精灵", species_id="fox", seed=3
+            elfie_id="elfie-binding",
+            display_name="绑定精灵",
+            species_id="saevi",
+            seed=3,
         ),
         memory_store=memory_store,
         memory_ontology=memory_store.ontology,

@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bq57sl4e27mr6"
-path.s3tc="res://.godot/imported/fox_shaded.png-4678bdb739e4dd1af7ccd8b27f826a92.s3tc.ctex"
+uid="uid://157laikuo5bt"
+path.s3tc="res://.godot/imported/tovren_shaded.png-93a861be53c5fb88d365ce64673e3e80.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "863930b1c4e170dd2038743dbb1ce3c5"
+"md5": "a1e6719dde2af3985616836d46794233"
 }
 
 [deps]
 
-source_file="res://characters/fox/fox_shaded.png"
-dest_files=["res://.godot/imported/fox_shaded.png-4678bdb739e4dd1af7ccd8b27f826a92.s3tc.ctex"]
+source_file="res://characters/tovren/tovren_shaded.png"
+dest_files=["res://.godot/imported/tovren_shaded.png-93a861be53c5fb88d365ce64673e3e80.s3tc.ctex"]
 
 [params]
 

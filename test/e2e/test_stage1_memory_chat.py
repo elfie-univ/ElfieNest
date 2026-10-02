@@ -62,7 +62,7 @@ def test_stage1_chat_delivers_one_reply_without_implicit_memory_recall() -> None
     profile = create_visual_profile(
         elfie_id="genesis-check",
         display_name="Lumi",
-        species_id="fox",
+        species_id="saevi",
         seed=23,
     )
     store = SQLiteMemoryStoreAdapter.in_memory()
@@ -134,7 +134,7 @@ def test_stage1_restart_keeps_genesis_fact_available(tmp_path) -> None:
                 profile=create_visual_profile(
                     elfie_id="genesis-check",
                     display_name="Lumi",
-                    species_id="fox",
+                    species_id="saevi",
                     seed=23,
                 ),
                 selfhood_seed=_selfhood_seed("genesis-check", "Lumi"),
@@ -192,7 +192,7 @@ def test_stage1_model_failure_delivers_truthful_short_failure_notice() -> None:
     profile = create_visual_profile(
         elfie_id="e1-model-failure",
         display_name="Lumi",
-        species_id="fox",
+        species_id="saevi",
         seed=23,
     )
     store = SQLiteMemoryStoreAdapter.in_memory()

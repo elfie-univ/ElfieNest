@@ -91,7 +91,7 @@ class ElfieLabStorage:
     def create_elfie(
         self,
         name: str,
-        species_id: str = "fox",
+        species_id: str = "saevi",
         age_years: Optional[float] = None,
         description: str = "用于本地调试的单精灵",
         *,
@@ -101,8 +101,8 @@ class ElfieLabStorage:
         big_five_overrides: Optional[Dict[str, float]] = None,
         gender: Optional[str] = None,
     ) -> ElfieSpec:
-        if species_id not in {"dog", "fox"}:
-            raise ValueError("精灵物种只能是 dog 或 fox")
+        if species_id not in {"tovren", "saevi"}:
+            raise ValueError("精灵物种只能是 tovren 或 saevi")
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("精灵名称不能为空")

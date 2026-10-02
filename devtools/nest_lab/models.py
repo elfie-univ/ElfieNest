@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-LabSpecies = Literal["dog", "fox"]
+LabSpecies = Literal["tovren", "saevi"]
 
 
 class _LabRequest(BaseModel):

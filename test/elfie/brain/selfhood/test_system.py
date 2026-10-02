@@ -22,7 +22,7 @@ def _seed(*, display_name: str = "小狐", openness: float = 0.8) -> dict:
         "identity_core": {
             "elfie_id": "elfie-1",
             "display_name": display_name,
-            "species_id": "fox",
+            "species_id": "saevi",
             "species_name": "Saevi",
             "resident_role": "居民",
         },

@@ -19,7 +19,7 @@ describe("member Elfies client", () => {
       relationship: "owned",
       permissions: { can_view_profile: true, can_view_cognition: true },
       profile: {
-        elfie_id: "00000001", name: "Mochi", species_id: "fox", gender: null,
+        elfie_id: "00000001", name: "Mochi", species_id: "saevi", gender: null,
         birth_date: null, summary: null, adopted_at: "2026-08-01",
         profile_status: "empty", big_five: null, personality_tags: [],
         portrait_url: "", appearance: null,
@@ -28,7 +28,7 @@ describe("member Elfies client", () => {
       relationship: "other",
       permissions: { can_view_profile: true, can_view_cognition: false },
       profile: {
-        elfie_id: "00000002", name: "Kettle", species_id: "dog", gender: null,
+        elfie_id: "00000002", name: "Kettle", species_id: "tovren", gender: null,
         birth_date: null, summary: null, adopted_at: "2026-08-02",
         profile_status: "empty", big_five: null, personality_tags: [],
         portrait_url: "", appearance: null,
@@ -50,7 +50,7 @@ describe("member Elfies client", () => {
       relationship: "other",
       permissions: { can_view_profile: true, can_view_cognition: false },
       profile: {
-        elfie_id: "00000002", name: "Kettle", species_id: "dog", gender: null,
+        elfie_id: "00000002", name: "Kettle", species_id: "tovren", gender: null,
         birth_date: null, summary: null, adopted_at: "2026-08-02",
         profile_status: "empty", big_five: null, personality_tags: [],
         portrait_url: "", appearance: null,

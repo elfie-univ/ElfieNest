@@ -6,8 +6,8 @@ extends SceneTree
 ## and renders the frozen 13 regions in four views. It is the sole replayable
 ## region-baseline renderer; historical discovery shaders are not duplicated.
 
-const DOG_SCENE := preload("res://characters/dog/dog.tscn")
-const FOX_SCENE := preload("res://characters/fox/fox.tscn")
+const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
+const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
 
 const IMAGE_SIZE := Vector2i(512, 512)
@@ -65,16 +65,16 @@ func _init() -> void:
 
 func _render() -> void:
 	DirAccess.make_dir_recursive_absolute(_output_dir)
-	var dog_grid := await _render_species("dog", DOG_SCENE)
-	var fox_grid := await _render_species("fox", FOX_SCENE)
-	dog_grid.save_png("%s/dog-formal-region-grid-4views.png" % _output_dir)
-	fox_grid.save_png("%s/fox-formal-region-grid-4views.png" % _output_dir)
-	_join_vertical([dog_grid, fox_grid]).save_png(
-		"%s/dog-fox-formal-region-grid-4views.png" % _output_dir
+	var tovren_grid := await _render_species("tovren", TOVREN_SCENE)
+	var saevi_grid := await _render_species("saevi", SAEVI_SCENE)
+	tovren_grid.save_png("%s/tovren-formal-region-grid-4views.png" % _output_dir)
+	saevi_grid.save_png("%s/saevi-formal-region-grid-4views.png" % _output_dir)
+	_join_vertical([tovren_grid, saevi_grid]).save_png(
+		"%s/tovren-saevi-formal-region-grid-4views.png" % _output_dir
 	)
 	_write_catalog()
 	print("APPEARANCE_FORMAL_REGION_OUTPUT: %s" % _output_dir)
-	print("APPEARANCE_FORMAL_REGIONS: dog=13 fox=13 views=front,three_quarter,side,top")
+	print("APPEARANCE_FORMAL_REGIONS: tovren=13 saevi=13 views=front,three_quarter,side,top")
 	quit()
 
 

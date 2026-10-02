@@ -131,6 +131,6 @@ def _profile(elfie_id: str):
     return create_visual_profile(
         elfie_id=elfie_id,
         display_name=elfie_id,
-        species_id="fox",
+        species_id="saevi",
         seed=hash(elfie_id) & ((1 << 63) - 1),
     )

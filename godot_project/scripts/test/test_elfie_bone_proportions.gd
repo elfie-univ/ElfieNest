@@ -8,7 +8,7 @@ func _init() -> void:
 
 
 func _run_contract() -> void:
-	var scene := load("res://characters/fox/fox.tscn") as PackedScene
+	var scene := load("res://characters/saevi/saevi.tscn") as PackedScene
 	var actor := scene.instantiate() as ElfieActor
 	actor.install_shared_animations = false
 	root.add_child(actor)
@@ -27,7 +27,7 @@ func _run_contract() -> void:
 	)
 	var skeleton := _find_skeleton(actor)
 	if skeleton == null:
-		_fail("Fox skeleton not found")
+		_fail("Saevi skeleton not found")
 		return
 	_assert_scale(skeleton, "mixamorig_LeftArm", Vector3(1.0, 1.35, 1.0))
 	_assert_scale(skeleton, "mixamorig_LeftForeArm", Vector3(1.0, 1.35, 1.0))

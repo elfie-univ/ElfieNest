@@ -9,7 +9,7 @@ def test_list_elfies_includes_saved_portrait_url(tmp_path, client_for):
         "/api/elfies",
         json={
             "name": "头像列表测试",
-            "species_id": "dog",
+            "species_id": "tovren",
             "age_years": 2.0,
             "description": "用于验证头像列表",
             "personality_description": "温柔、安静，也很爱探索",

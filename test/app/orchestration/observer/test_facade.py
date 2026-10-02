@@ -48,7 +48,7 @@ class FixedCapabilities:
 
 class MemoryWorld:
     def __init__(self) -> None:
-        self.entities = (_entity("fox-1", posture="awake"),)
+        self.entities = (_entity("saevi-1", posture="awake"),)
         self.intents: list[ObserverWorldIntent] = []
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
@@ -71,7 +71,7 @@ class ConcurrentWorld(MemoryWorld):
 
 def _facade(
     *,
-    visible_ids: tuple[str, ...] = ("fox-1",),
+    visible_ids: tuple[str, ...] = ("saevi-1",),
     max_intents: int = 12,
     session_ttl_seconds: int = 120,
     world: MemoryWorld | None = None,
@@ -107,7 +107,7 @@ def test_member_capability_is_bound_to_owned_elfie_and_login_session() -> None:
         OpenObserverSessionCommand(
             principal=member,
             session_fingerprint="login-one",
-            subscription=ObserverSubscription(kind="elfie", elfie_id="fox-1"),
+            subscription=ObserverSubscription(kind="elfie", elfie_id="saevi-1"),
         )
     ).capability
 
@@ -147,7 +147,7 @@ def test_projection_emits_snapshot_delta_and_stale_cursor_resync() -> None:
     assert isinstance(initial, ObserverSnapshotResult)
     assert initial.entities[0].state.posture == "awake"
 
-    world.entities = (_entity("fox-1", posture="resting"),)
+    world.entities = (_entity("saevi-1", posture="resting"),)
     delta = facade.next_frame(
         NextObserverFrameQuery(
             manager,
@@ -162,7 +162,7 @@ def test_projection_emits_snapshot_delta_and_stale_cursor_resync() -> None:
         ("posture", "resting")
     ]
 
-    world.entities = (_entity("fox-1", posture="sleeping"),)
+    world.entities = (_entity("saevi-1", posture="sleeping"),)
     resync = facade.next_frame(
         NextObserverFrameQuery(
             manager,
@@ -177,7 +177,7 @@ def test_projection_emits_snapshot_delta_and_stale_cursor_resync() -> None:
 
 
 def test_single_entity_membership_change_emits_snapshot() -> None:
-    facade, _clock, world = _facade(visible_ids=("fox-1", "owl-1"))
+    facade, _clock, world = _facade(visible_ids=("saevi-1", "owl-1"))
     manager = ObserverPrincipal(user_id=1, access="manager")
     capability = facade.open_session(
         OpenObserverSessionCommand(
@@ -192,7 +192,7 @@ def test_single_entity_membership_change_emits_snapshot() -> None:
     assert isinstance(initial, ObserverSnapshotResult)
 
     world.entities = (
-        _entity("fox-1", posture="awake"),
+        _entity("saevi-1", posture="awake"),
         _entity("owl-1", posture="resting"),
     )
     added = facade.next_frame(
@@ -205,7 +205,7 @@ def test_single_entity_membership_change_emits_snapshot() -> None:
         )
     )
     assert isinstance(added, ObserverSnapshotResult)
-    assert [entity.state.entity_id for entity in added.entities] == ["fox-1", "owl-1"]
+    assert [entity.state.entity_id for entity in added.entities] == ["owl-1", "saevi-1"]
 
     world.entities = (_entity("owl-1", posture="resting"),)
     removed = facade.next_frame(
@@ -222,7 +222,7 @@ def test_single_entity_membership_change_emits_snapshot() -> None:
 
 
 def test_one_stale_session_cannot_break_another_viewer() -> None:
-    facade, _clock, world = _facade(visible_ids=("fox-1", "owl-1"))
+    facade, _clock, world = _facade(visible_ids=("saevi-1", "owl-1"))
     manager = ObserverPrincipal(user_id=1, access="manager")
     first = facade.open_session(
         OpenObserverSessionCommand(
@@ -239,7 +239,7 @@ def test_one_stale_session_cannot_break_another_viewer() -> None:
     )
 
     world.entities = (
-        _entity("fox-1", posture="awake"),
+        _entity("saevi-1", posture="awake"),
         _entity("owl-1", posture="resting"),
     )
     second = facade.open_session(
@@ -254,7 +254,7 @@ def test_one_stale_session_cannot_break_another_viewer() -> None:
         NextObserverFrameQuery(manager, "owner-login", second, None, None)
     )
     assert isinstance(frame, ObserverSnapshotResult)
-    assert [entity.state.entity_id for entity in frame.entities] == ["fox-1", "owl-1"]
+    assert [entity.state.entity_id for entity in frame.entities] == ["owl-1", "saevi-1"]
 
 
 def test_different_viewers_publish_concurrently_without_a_global_session_lock() -> None:
@@ -278,7 +278,7 @@ def test_different_viewers_publish_concurrently_without_a_global_session_lock() 
         for capability in capabilities
     )
     assert all(isinstance(frame, ObserverSnapshotResult) for frame in initial)
-    world.entities = (_entity("fox-1", posture="resting"),)
+    world.entities = (_entity("saevi-1", posture="resting"),)
     world.barrier = Barrier(2)
 
     def next_for(index: int) -> ObserverFrameResult | None:
@@ -395,7 +395,7 @@ def test_interest_cannot_widen_scope_and_intents_keep_existing_rate_limit() -> N
         OpenObserverSessionCommand(
             principal=member,
             session_fingerprint="member-login",
-            subscription=ObserverSubscription(kind="elfie", elfie_id="fox-1"),
+            subscription=ObserverSubscription(kind="elfie", elfie_id="saevi-1"),
         )
     ).capability
     with pytest.raises(ObserverForbidden, match="cannot change"):
@@ -409,7 +409,7 @@ def test_interest_cannot_widen_scope_and_intents_keep_existing_rate_limit() -> N
             )
         )
 
-    intent = ObserverWorldIntent(actor_id="fox-1", interaction="greet")
+    intent = ObserverWorldIntent(actor_id="saevi-1", interaction="greet")
     command = SubmitObserverIntentCommand(
         principal=member,
         session_fingerprint="member-login",
@@ -427,9 +427,9 @@ def test_interest_cannot_widen_scope_and_intents_keep_existing_rate_limit() -> N
 
 
 def test_room_sessions_are_filtered_per_principal_and_room() -> None:
-    facade, _clock, world = _facade(visible_ids=("fox-1",))
+    facade, _clock, world = _facade(visible_ids=("saevi-1",))
     world.entities = (
-        _entity("fox-1", posture="awake", room_id="room-1"),
+        _entity("saevi-1", posture="awake", room_id="room-1"),
         _entity("owl-1", posture="resting", room_id="room-2"),
     )
     member = ObserverPrincipal(user_id=7, access="member")
@@ -446,7 +446,7 @@ def test_room_sessions_are_filtered_per_principal_and_room() -> None:
     )
 
     assert isinstance(frame, ObserverSnapshotResult)
-    assert [entity.state.entity_id for entity in frame.entities] == ["fox-1"]
+    assert [entity.state.entity_id for entity in frame.entities] == ["saevi-1"]
 
 
 def test_logout_revokes_every_capability_for_the_login_session() -> None:
@@ -481,7 +481,7 @@ def _entity(
         posture=posture,
         active=True,
         active_command_id=None,
-        species_id="fox",
+        species_id="saevi",
         appearance=(),
         home_anchor_id=None,
     )

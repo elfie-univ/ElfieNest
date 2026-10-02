@@ -22,7 +22,7 @@
 每只精灵不会重新雕刻。Saevi 只制作一套 Saevi 母版，Tovren 只制作一套 Tovren 母版；
 运行时把不同参数混合到同一母版上。
 
-当前 `fox_morph_prototype.blend` 中按空间椭球自动生成的 Shape Key 只用于
+当前 `saevi_morph_prototype.blend` 中按空间椭球自动生成的 Shape Key 只用于
 证明 glTF morph target 链路可用。它没有可靠的语义区域，可能误动耳朵、
 头皮或其他相邻部位，不能作为正式美术母版继续叠加。
 
@@ -30,7 +30,7 @@
 
 1. 使用完成绑骨时保存的原始 `.blend`，不要优先使用重新导入 GLB 后骨骼
    显示异常的文件。
-2. 保存副本，例如 `fox_appearance_master_v001.blend`，不得覆盖唯一源文件。
+2. 保存副本，例如 `saevi_appearance_master_v001.blend`，不得覆盖唯一源文件。
 3. 参考姿态必须是中性 T-Pose 或 A-Pose，不得保留 Action 或 NLA 动画。
 4. 在创建第一个 Shape Key 前完成网格分离、合并、重拓扑和减面。
 5. 创建 `Basis` 后禁止增加、删除、合并、细分顶点，也不能改变顶点顺序。
@@ -594,8 +594,8 @@ Tovren，但 Tovren 必须重新选择区域并重新雕刻，不能复制 Saevi
 声明一个实际上没有效果的字段。
 
 ```text
-species: fox
-source_blend: fox_appearance_master_v001.blend
+species: saevi
+source_blend: saevi_appearance_master_v001.blend
 profile_version: 1
 
 objects:

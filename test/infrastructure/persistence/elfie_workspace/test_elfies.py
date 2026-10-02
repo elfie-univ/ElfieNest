@@ -33,8 +33,8 @@ def _database(tmp_path: Path) -> str:
         )
         connection.commit()
     for elfie_id, display_name, species_id, summary in (
-        ("00000001", "小狐", "fox", "好奇探索"),
-        ("00000002", "小犬", "dog", "安静温顺"),
+        ("00000001", "小狐", "saevi", "好奇探索"),
+        ("00000002", "小犬", "tovren", "安静温顺"),
     ):
         layout = final_root_layout(tmp_path).elfie(elfie_id)
         YamlProfileStoreAdapter(layout.profile.parent).save(
@@ -69,7 +69,7 @@ def test_directory_reads_only_elfies_owned_projection(tmp_path: Path) -> None:
     db_path = _database(tmp_path)
     adapter = SQLiteElfiesProjectionAdapter(db_path)
 
-    records = adapter.list_directory(owner_user_id=1, species_id="fox")
+    records = adapter.list_directory(owner_user_id=1, species_id="saevi")
 
     assert len(records) == 1
     assert records[0].elfie_id == "00000001"
@@ -86,7 +86,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     profile = create_visual_profile(
         elfie_id="00000001",
         display_name="小狐",
-        species_id="fox",
+        species_id="saevi",
         seed=7,
     )
     YamlProfileStoreAdapter(layout.profile.parent).save(profile)
@@ -98,7 +98,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
             "identity_core": {
                 "elfie_id": "00000001",
                 "display_name": "小狐",
-                "species_id": "fox",
+                "species_id": "saevi",
                 "species_name": "Saevi",
                 "resident_role": "ElfieNest 居民",
             },
@@ -121,7 +121,7 @@ def test_profile_reader_consumes_the_public_profile_authority(tmp_path: Path) ->
     assert result.openness == 0.9
     assert result.neuroticism == 0.2
     assert result.appearance is not None
-    assert result.appearance.species_id == "fox"
+    assert result.appearance.species_id == "saevi"
     assert result.appearance.profile_version == 3
 
 

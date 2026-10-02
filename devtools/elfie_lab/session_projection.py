@@ -35,7 +35,7 @@ def build_profile(
         "configured_name": character_profile.identity.display_name,
         "species_id": character_profile.identity.species_id,
         "species_label": (
-            "小狗" if character_profile.identity.species_id == "dog" else "狐狸"
+            "托伦" if character_profile.identity.species_id == "tovren" else "赛维"
         ),
         "age_years": origin.age_years,
         "gender": character_profile.identity.gender,

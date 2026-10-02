@@ -14,7 +14,7 @@ Deformer = Callable[[Vector, bpy.types.MeshVertex], Vector]
 
 
 def project_root() -> Path:
-    marker = Path("godot_project/characters/fox/fox.glb")
+    marker = Path("godot_project/characters/saevi/saevi.glb")
     for candidate in [Path.cwd(), *Path.cwd().parents]:
         if (candidate / marker).is_file():
             return candidate
@@ -417,11 +417,11 @@ def configure_inspection_workspace(
 
 def main() -> None:
     root = project_root()
-    input_path = root / "godot_project/characters/fox/fox.glb"
-    source_dir = root / "godot_project/characters/fox/source"
+    input_path = root / "godot_project/characters/saevi/saevi.glb"
+    source_dir = root / "godot_project/characters/saevi/source"
     preview_dir = source_dir / "previews/morph_prototype"
-    blend_path = source_dir / "fox_morph_prototype.blend"
-    glb_path = source_dir / "fox_morph_prototype.glb"
+    blend_path = source_dir / "saevi_morph_prototype.blend"
+    glb_path = source_dir / "saevi_morph_prototype.glb"
     source_dir.mkdir(parents=True, exist_ok=True)
     bpy.context.preferences.filepaths.save_version = 0
 

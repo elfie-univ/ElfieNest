@@ -22,7 +22,7 @@ describe("dense memory API compatibility", () => {
       profile: {
         elfie_id: "elfie-old",
         name: "小闪",
-        species_id: "dog",
+        species_id: "tovren",
         big_five: {
           openness: 0.5,
           conscientiousness: 0.5,

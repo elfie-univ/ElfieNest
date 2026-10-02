@@ -40,7 +40,7 @@ Object.defineProperties(HTMLElement.prototype, {
 const profileStyles = readFileSync(resolve(import.meta.dirname, "../../shared/chat-profile.css"), "utf8")
 
 const RUNTIME_APPEARANCE = {
-  species_id: "fox",
+  species_id: "saevi",
   profile_version: 1,
   height_scale: 1,
   build_scale: 1,
@@ -86,7 +86,7 @@ describe("ProfileAppearanceStage", () => {
       payload: expect.objectContaining({
         appearance: RUNTIME_APPEARANCE,
         elfie_id: "12345678",
-        species_id: "fox",
+        species_id: "saevi",
       }),
     }))
     expect(frame).toHaveAttribute("src", "/runtime/godot/elfienest.html?mode=elfie_lab")

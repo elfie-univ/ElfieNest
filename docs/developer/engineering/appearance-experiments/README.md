@@ -1,6 +1,6 @@
 # Appearance Experiments
 
-This directory is the durable record for dog/fox appearance variation experiments.
+This directory is the durable record for tovren/saevi appearance variation experiments.
 
 ## Current decision map
 
@@ -10,7 +10,7 @@ This directory is the durable record for dog/fox appearance variation experiment
   feasibility plates for large natural regions, color-slot permutations, local marks, safe zones,
   and five-candidate variation.
 - [Phase 3 — production semantic regions](phase-3-region-discovery.md): the frozen thirteen-region
-  runtime contract and its compact four-view dog/fox baseline.
+  runtime contract and its compact four-view tovren/saevi baseline.
 - UV-mask prototype: explicitly rejected as the current production solution after front/side
   visual review; retained only as historical evidence in the task closure record.
 

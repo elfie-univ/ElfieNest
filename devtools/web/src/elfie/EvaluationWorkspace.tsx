@@ -583,7 +583,7 @@ function CreateEvaluationModal({ mode, elfies, foods, reviewerSubscriptions = []
     finally { setReviewerSaving(false); }
   }
   const foodOptions: readonly EvaluationSelectOption[] = [{ value: "__empty_food__", label: "选择粮食配置", disabled: true }, ...readyFoods.map((item) => ({ value: item.key, label: `${item.display_name} · ${item.model}` })), { value: "__manage_food__", label: "管理 / 新增粮食…" }];
-  const elfieOptions: readonly EvaluationSelectOption[] = [{ value: "__empty_elfie__", label: "选择测试精灵", disabled: true }, ...elfies.map((item) => ({ value: item.elfie_id, label: `${item.name} · ${item.species_id === "dog" ? "小狗" : "狐狸"}` })), { value: "__manage_elfie__", label: "管理 / 新建测试精灵…" }];
+  const elfieOptions: readonly EvaluationSelectOption[] = [{ value: "__empty_elfie__", label: "选择测试精灵", disabled: true }, ...elfies.map((item) => ({ value: item.elfie_id, label: `${item.name} · ${item.species_id === "tovren" ? "托伦" : "赛维"}` })), { value: "__manage_elfie__", label: "管理 / 新建测试精灵…" }];
   const branchSelectOptions: readonly EvaluationSelectOption[] = branchOptions.map((item) => ({ value: item.name, label: `${item.name}${item.is_current ? " · 当前分支" : ""}` }));
   const presetOptions: readonly EvaluationSelectOption[] = presets.map((item) => ({ value: item.key, label: `${item.title} · ${item.scenario_count} 个场景` }));
   const reviewerOptions: readonly EvaluationSelectOption[] = [

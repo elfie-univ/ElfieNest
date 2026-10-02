@@ -55,8 +55,8 @@ def _client(
         )
         connection.commit()
     for elfie_id, display_name, species_id, expression in (
-        ("00000001", "小狐", "fox", "好奇探索"),
-        ("00000002", "小犬", "dog", "安静温顺"),
+        ("00000001", "小狐", "saevi", "好奇探索"),
+        ("00000002", "小犬", "tovren", "安静温顺"),
     ):
         layout = final_root_layout(tmp_path).elfie(elfie_id)
         YamlProfileStoreAdapter(layout.profile.parent).save(
@@ -110,7 +110,7 @@ def test_member_resources_return_visible_envelopes_and_owned_profile(
         "other",
     ]
     assert listing.json()["items"][0]["relationship"] == "owned"
-    assert listing.json()["items"][0]["profile"]["species"]["display_name_zh"] == "灵狐"
+    assert listing.json()["items"][0]["profile"]["species"]["display_name_zh"] == "赛维"
     assert owned_listing.status_code == 200
     assert [item["profile"]["elfie_id"] for item in owned_listing.json()["items"]] == [
         "00000001"

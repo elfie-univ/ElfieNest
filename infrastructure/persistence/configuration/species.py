@@ -153,7 +153,7 @@ class BundledSpeciesCatalogSource:
         identity_card = SpeciesIdentityCard(
             package_id=_string(species_document, "species_package_id"),
             display_name=display_name,
-            display_name_zh=display_name,
+            display_name_zh=_string(identity, "display_name_zh"),
             earth_shape_label=display_name,
             technical_species_id=species_id,
             sort_order=_nonnegative_int(entry, "sort_order"),

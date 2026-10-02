@@ -52,7 +52,7 @@ def _family():
         "nephew": ("male", 25),
     }
     people = tuple(
-        SkeletonPerson(i, i, "fox", g, age, "fixture") for i, (g, age) in info.items()
+        SkeletonPerson(i, i, "saevi", g, age, "fixture") for i, (g, age) in info.items()
     )
     parents = {
         "father": ("grandfather", "grandmother"),
@@ -175,7 +175,7 @@ def test_spouses_of_siblings_are_affinity_not_biological_siblings():
 
 def test_social_group_covers_pairs_without_inventing_friendship():
     people = tuple(
-        SkeletonPerson(i, i, "fox", "male", 0, "meeting") for i in ("a", "b", "c")
+        SkeletonPerson(i, i, "saevi", "male", 0, "meeting") for i in ("a", "b", "c")
     )
     group = SkeletonGroup("meeting", "public", "meeting", ("a", "b", "c"), "meeting")
     context = complete_group_relationships(Context(people, (), (group,)))
@@ -188,7 +188,7 @@ def test_social_group_covers_pairs_without_inventing_friendship():
 
 def test_disconnected_family_members_are_rejected():
     people = tuple(
-        SkeletonPerson(i, i, "fox", "male", 0, "fixture") for i in ("a", "b", "c")
+        SkeletonPerson(i, i, "saevi", "male", 0, "fixture") for i in ("a", "b", "c")
     )
     group = SkeletonGroup("family", "family", "fixture", ("a", "b", "c"), "fixture")
     with pytest.raises(ValueError, match="关系路径"):
@@ -197,7 +197,7 @@ def test_disconnected_family_members_are_rejected():
 
 def test_learning_mentor_inverse_is_student_not_classmate():
     people = tuple(
-        SkeletonPerson(i, i, "fox", "male", 0, "learning")
+        SkeletonPerson(i, i, "saevi", "male", 0, "learning")
         for i in ("student", "teacher", "peer")
     )
     group = SkeletonGroup(
@@ -228,7 +228,7 @@ def test_social_inverse_preserves_specific_role_even_without_group(
     relation, inverse, label
 ):
     people = tuple(
-        SkeletonPerson(i, i, "fox", "male", 0, "fixture") for i in ("self", "other")
+        SkeletonPerson(i, i, "saevi", "male", 0, "fixture") for i in ("self", "other")
     )
     context = Context(
         people,

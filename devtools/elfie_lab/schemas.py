@@ -46,7 +46,7 @@ def _configured_stage_ranges(species_id: str) -> Dict[str, tuple[int, int]]:
 class ElfieSpec:
     elfie_id: str
     name: str
-    species_id: str = "fox"
+    species_id: str = "saevi"
     age_years: Optional[float] = None
     life_stage: str = "年龄未设置"
     description: str = "用于本地调试的单精灵"
@@ -61,9 +61,9 @@ class ElfieSpec:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ElfieSpec":
         species_id = str(data.get("species_id", ""))
-        if species_id not in {"dog", "fox"}:
-            # 旧或未知 Lab 记录使用狐狸母版兜底，不把身体实现类型暴露为个体类别。
-            species_id = "fox"
+        if species_id not in {"tovren", "saevi"}:
+            # 旧或未知 Lab 记录使用赛维母版兜底，不把身体实现类型暴露为个体类别。
+            species_id = "saevi"
         raw_age = data.get("age_years")
         age_years = float(raw_age) if isinstance(raw_age, (int, float)) else None
         return cls(

@@ -16,7 +16,7 @@
       "10-color-palette-corrected: superseded direct shader isolation; removed after review"
     ]
   },
-  "dog": {
+  "tovren": {
     "recommended_first_batch": [
       "ivory",
       "honey_gold",
@@ -37,14 +37,14 @@
       {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
       {"id": "smoky_charcoal", "hex": "#4a4d52", "verdict": "controlled-dark"}
     ],
-    "evidence": {"three_views": "10-color-palette-final/dog-10-color-3views.png"}
+    "evidence": {"three_views": "10-color-palette-final/tovren-10-color-3views.png"}
   },
-  "fox": {
+  "saevi": {
     "recommended_first_batch": [
       "ivory",
       "golden",
       "orange_red",
-      "fox_red",
+      "saevi_red",
       "silver_gray"
     ],
     "controlled_candidates": ["sable_brown", "smoky_black"],
@@ -54,18 +54,18 @@
       {"id": "champagne", "hex": "#d8b778", "verdict": "usable-but-close-to-cream"},
       {"id": "golden", "hex": "#c98542", "verdict": "usable"},
       {"id": "orange_red", "hex": "#c95a2d", "verdict": "usable"},
-      {"id": "fox_red", "hex": "#a8442b", "verdict": "usable"},
+      {"id": "saevi_red", "hex": "#a8442b", "verdict": "usable"},
       {"id": "chestnut", "hex": "#713828", "verdict": "usable"},
       {"id": "sable_brown", "hex": "#664233", "verdict": "controlled-dark"},
       {"id": "silver_gray", "hex": "#7a8288", "verdict": "usable"},
       {"id": "smoky_black", "hex": "#45474c", "verdict": "controlled-dark"}
     ],
-    "evidence": {"three_views": "10-color-palette-final/fox-10-color-3views.png"}
+    "evidence": {"three_views": "10-color-palette-final/saevi-10-color-3views.png"}
   },
   "product_decision": [
     "The ten colors are a library, not ten equally likely choices in one five-card batch.",
     "Use the recommended five-color batch to keep visible distance between adjacent light and brown tones.",
-    "The final algorithm keeps the fox muzzle/chest/inner-ear/tail-tip light regions and leaves the tail in its original 3D position in the side and three-quarter views.",
+    "The final algorithm keeps the saevi muzzle/chest/inner-ear/tail-tip light regions and leaves the tail in its original 3D position in the side and three-quarter views.",
     "The frozen 13-region contract is production-integrated and is validated separately by the formal region renderer."
   ]
 }

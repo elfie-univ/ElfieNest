@@ -138,10 +138,10 @@ Provider/Model。它还会把完整 `CandidateSpec` 的规范化 SHA-256 写入 
 
 ```json
 {
-  "fixture_id": "anchor-fox-v1",
+  "fixture_id": "anchor-saevi-v1",
   "elfie_id": "00000000-0000-4000-8000-000000000001",
   "name": "小岚",
-  "species_id": "fox",
+  "species_id": "saevi",
   "age_years": 2.0,
   "description": "公开、合成的测试生命背景",
   "appearance_description": "赤色尾巴，左耳尖有浅色毛",
@@ -193,14 +193,14 @@ Provider/Model。它还会把完整 `CandidateSpec` 的规范化 SHA-256 写入 
 ```bash
 ./developer.sh brain-eval capture \
   --candidate /path/to/private-eval-inputs/baseline-candidate.json \
-  --fixture /path/to/private-eval-inputs/anchor-fox.json \
+  --fixture /path/to/private-eval-inputs/anchor-saevi.json \
   --scenario /path/to/private-eval-inputs/memory-precision.json \
   --food-key mock \
   --run-id baseline-memory-001
 
 ./developer.sh brain-eval capture \
   --candidate /path/to/private-eval-inputs/candidate.json \
-  --fixture /path/to/private-eval-inputs/anchor-fox.json \
+  --fixture /path/to/private-eval-inputs/anchor-saevi.json \
   --scenario /path/to/private-eval-inputs/memory-precision.json \
   --food-key mock \
   --run-id candidate-memory-001

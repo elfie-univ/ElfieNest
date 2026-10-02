@@ -21,7 +21,7 @@ def allocate_person_names(
     Genesis naming domain. A pool shortage is a source error, never a reason to
     manufacture a new name.
     """
-    aliases = {"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}
+    aliases = {"Saevi": "saevi", "Tovren": "tovren", "Myelle": "myelle"}
     identities: Dict[str, str] = {}
     for person_id, species_id in persons:
         canonical_species = aliases.get(species_id, species_id)

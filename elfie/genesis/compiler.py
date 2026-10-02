@@ -3826,9 +3826,9 @@ def _weighted_text(values: tuple[tuple[str, float], ...], rng: random.Random) ->
 
 def _species_label(species_id: str) -> str:
     return {
-        "fox": "Saevi",
-        "dog": "Tovren",
-        "cat": "Myelle",
+        "saevi": "Saevi",
+        "tovren": "Tovren",
+        "myelle": "Myelle",
     }.get(species_id, species_id)
 
 

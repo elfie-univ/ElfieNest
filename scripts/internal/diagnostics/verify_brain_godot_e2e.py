@@ -316,7 +316,7 @@ def _make_elfie(
     profile = create_visual_profile(
         elfie_id=actor_id,
         display_name=display_name,
-        species_id="fox",
+        species_id="saevi",
         seed=seed,
     )
     selfhood_seed = {
@@ -326,8 +326,8 @@ def _make_elfie(
         "identity_core": {
             "elfie_id": actor_id,
             "display_name": display_name,
-            "species_id": "fox",
-            "species_name": "小狐狸",
+            "species_id": "saevi",
+            "species_name": "赛维",
             "resident_role": "resident",
         },
         "adaptive_self": {

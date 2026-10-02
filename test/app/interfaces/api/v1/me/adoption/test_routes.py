@@ -114,7 +114,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     candidates = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={
-            "species_id": "fox",
+            "species_id": "saevi",
             "life_stage": "adolescent",
             "gender": "any",
             "appearance": {
@@ -131,7 +131,7 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     assert candidates.status_code == 200, candidates.text
     candidate_set = candidates.json()
     selected = candidate_set["candidates"][0]
-    assert selected["runtime_appearance"]["species_id"] == "fox"
+    assert selected["runtime_appearance"]["species_id"] == "saevi"
     assert selected["full_body_image_url"] == ""
     assert selected["headshot_image_url"] == ""
 
@@ -187,9 +187,9 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         )
         assert relationship_nodes
         assert relationship_nodes[0].properties["person_species_id"] in {
-            "Saevi",
-            "Tovren",
-            "Myelle",
+            "saevi",
+            "tovren",
+            "myelle",
         }
         assert relationship_nodes[0].properties["vocation_id"] == ""
         episodes = memory.list_episodes(limit=1000)
@@ -210,9 +210,12 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
         }
         assert "E-08-02" in knowledge_by_id
         assert "E-08-03" in knowledge_by_id
-        # The adolescent stage uses a different deterministic candidate seed;
-        # assert the route knowledge family rather than one concrete town path.
-        assert "B-04" in knowledge_by_id
+        traversed_routes = {
+            route_id
+            for episode in personal_episodes
+            for route_id in episode.metadata.get("route_ids", ())
+        }
+        assert ("B-04-02" in knowledge_by_id) == ("town_saevi" in traversed_routes)
         for knowledge_id, (episode, _member) in knowledge_by_id.items():
             assert isinstance(knowledge_id, str)
             fact = source_facts[knowledge_id]
@@ -253,7 +256,7 @@ def test_adoption_dtos_reject_extra_fields(tmp_path: Path) -> None:
     response = client.post(
         "/api/v1/me/adoption/candidate-sets",
         json={
-            "species_id": "fox",
+            "species_id": "saevi",
             "life_stage": "any",
             "gender": "any",
             "appearance": {

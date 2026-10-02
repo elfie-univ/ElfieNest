@@ -1,17 +1,17 @@
 [gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://characters/shared/elfie_actor.gd" id="1_actor"]
-[ext_resource type="PackedScene" path="res://characters/dog/dog.glb" id="2_model"]
+[ext_resource type="PackedScene" path="res://characters/myelle/myelle.glb" id="2_model"]
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_dog"]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_myelle"]
 radius = 0.34
 height = 1.72
 
-[node name="Dog" type="CharacterBody3D"]
+[node name="Myelle" type="CharacterBody3D"]
 floor_snap_length = 0.15
 safe_margin = 0.02
 script = ExtResource("1_actor")
-species_id = "dog"
+species_id = "myelle"
 
 [node name="VisualRoot" type="Node3D" parent="."]
 scale = Vector3(0.7, 0.7, 0.7)
@@ -24,4 +24,4 @@ root_node = NodePath("../VisualRoot/character/Armature")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0.602, 0)
 scale = Vector3(0.7, 0.7, 0.7)
-shape = SubResource("CapsuleShape3D_dog")
+shape = SubResource("CapsuleShape3D_myelle")

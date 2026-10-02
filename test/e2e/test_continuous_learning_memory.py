@@ -98,7 +98,7 @@ def test_normal_chat_closes_captures_consolidates_and_recalls_after_restart(
                 profile=create_visual_profile(
                     elfie_id="opt-002-elfie",
                     display_name="Lumi",
-                    species_id="fox",
+                    species_id="saevi",
                     seed=23,
                 ),
                 selfhood_seed=_selfhood_seed("opt-002-elfie", "Lumi"),

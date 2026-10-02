@@ -1,0 +1,204 @@
+{
+  "schema_version": 2,
+  "package_version": "myelle.v1",
+  "appearance_protocol_version": "appearance.v2",
+  "species_id": "myelle",
+  "scene_file": "myelle.tscn",
+  "model_file": "myelle.glb",
+  "required_nodes": [
+    "VisualRoot",
+    "VisualRoot/character",
+    "AnimationPlayer",
+    "CollisionShape3D"
+  ],
+  "required_capabilities": [
+    "movement",
+    "appearance",
+    "portrait",
+    "preview"
+  ],
+  "appearance_bindings": {
+    "bone_scales": {
+      "HeadScale": {
+        "mode": "uniform",
+        "bones": [
+          "mixamorig_Head"
+        ]
+      },
+      "NeckLength": {
+        "mode": "length",
+        "bones": [
+          "mixamorig_Neck"
+        ]
+      },
+      "ArmLength": {
+        "mode": "length",
+        "bones": [
+          "mixamorig_LeftArm",
+          "mixamorig_LeftForeArm",
+          "mixamorig_RightArm",
+          "mixamorig_RightForeArm"
+        ]
+      },
+      "LegLength": {
+        "mode": "length",
+        "bones": [
+          "mixamorig_LeftUpLeg",
+          "mixamorig_LeftLeg",
+          "mixamorig_RightUpLeg",
+          "mixamorig_RightLeg"
+        ]
+      },
+      "HandScale": {
+        "mode": "uniform",
+        "bones": [
+          "mixamorig_LeftHand",
+          "mixamorig_RightHand"
+        ]
+      },
+      "PawScale": {
+        "mode": "uniform",
+        "bones": [
+          "mixamorig_LeftFoot",
+          "mixamorig_RightFoot"
+        ]
+      },
+      "TailLength": {
+        "mode": "length",
+        "bones": [
+          "Tail_01",
+          "Tail_02",
+          "Tail_03",
+          "Tail_04"
+        ]
+      }
+    },
+    "blend_shapes": {},
+    "material_parameters": {
+      "palette_id": {
+        "mode": "albedo_tint",
+        "values": {
+          "ginger": [
+            0.78,
+            0.43,
+            0.22,
+            1
+          ],
+          "cream": [
+            0.85,
+            0.72,
+            0.52,
+            1
+          ],
+          "gray": [
+            0.48,
+            0.51,
+            0.54,
+            1
+          ],
+          "white": [
+            0.93,
+            0.91,
+            0.87,
+            1
+          ],
+          "black": [
+            0.16,
+            0.17,
+            0.18,
+            1
+          ],
+          "charcoal": [
+            0.3,
+            0.31,
+            0.33,
+            1
+          ]
+        }
+      },
+      "pattern_id": {
+        "mode": "pattern_id",
+        "values": {
+          "solid": 0
+        }
+      },
+      "pattern_layout_id": {
+        "mode": "pattern_layout_id",
+        "values": {
+          "solid": 0
+        }
+      },
+      "marking_id": {
+        "mode": "marking_id",
+        "values": {
+          "none": 0
+        }
+      },
+      "marking_placement": {
+        "mode": "marking_placement",
+        "values": {
+          "none": 0
+        }
+      },
+      "region_0_id": {
+        "mode": "region_id",
+        "slot": 0,
+        "values": {
+          "none": -1
+        }
+      },
+      "region_1_id": {
+        "mode": "region_id",
+        "slot": 1,
+        "values": {
+          "none": -1
+        }
+      },
+      "region_2_id": {
+        "mode": "region_id",
+        "slot": 2,
+        "values": {
+          "none": -1
+        }
+      }
+    },
+    "marking_zones": {
+      "none": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "required_animations": [
+    "idle",
+    "walking",
+    "running",
+    "jump",
+    "twist_dance",
+    "left_strafe",
+    "left_strafe_walking",
+    "left_turn",
+    "left_turn_90",
+    "right_strafe",
+    "right_strafe_walking",
+    "right_turn",
+    "right_turn_90"
+  ],
+  "shared_animation_files": {
+    "idle": "res://characters/animation/idle.fbx",
+    "walking": "res://characters/animation/walking.fbx",
+    "running": "res://characters/animation/running.fbx",
+    "jump": "res://characters/animation/jump.fbx",
+    "twist_dance": "res://characters/animation/Twist Dance.fbx",
+    "left_strafe": "res://characters/animation/left strafe.fbx",
+    "left_strafe_walking": "res://characters/animation/left strafe walking.fbx",
+    "left_turn": "res://characters/animation/left turn.fbx",
+    "left_turn_90": "res://characters/animation/left turn 90.fbx",
+    "right_strafe": "res://characters/animation/right strafe.fbx",
+    "right_strafe_walking": "res://characters/animation/right strafe walking.fbx",
+    "right_turn": "res://characters/animation/right turn.fbx",
+    "right_turn_90": "res://characters/animation/right turn 90.fbx"
+  }
+}

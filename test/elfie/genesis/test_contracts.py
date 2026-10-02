@@ -69,7 +69,7 @@ def _family_policy(
 def _compilation(
     elfie_id: str = "genesis-check",
     *,
-    species_id: str = "fox",
+    species_id: str = "saevi",
     stage: str = "adolescent",
     age_years: int | None = None,
     seed: int = 23,
@@ -147,12 +147,12 @@ def _bundle() -> GenesisBundle:
     ("species_id", "boundaries", "terminal"),
     (
         (
-            "fox",
+            "saevi",
             ((0, "childhood"), (2, "adolescent"), (5, "mature"), (10, "elder")),
             17,
         ),
         (
-            "dog",
+            "tovren",
             ((0, "childhood"), (2, "adolescent"), (6, "mature"), (14, "elder")),
             22,
         ),
@@ -182,7 +182,7 @@ def test_care_stages_do_not_receive_welfare_activity_slots() -> None:
             continue
         assert episode.age_years_at_event is not None
         assert (
-            stage_for_age("fox", episode.age_years_at_event, catalog)
+            stage_for_age("saevi", episode.age_years_at_event, catalog)
             in ACTIVITY_ELIGIBLE_STAGES
         )
 
@@ -198,7 +198,7 @@ def test_care_stages_do_not_receive_welfare_activity_slots() -> None:
 
 
 def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
-    # Keep this route assertion on a seed whose birthplace is not the station.
+    # Knowledge access must follow the sampled visits and traversed routes.
     compilation = _compilation(seed=2)
     bundle = compilation.bundle
     source = load_genesis_source_package()
@@ -232,7 +232,12 @@ def test_genesis_bundle_validates_age_feasible_creation_outputs() -> None:
     )
     knowledge_ids = {seed.seed_id for seed in bundle.knowledge_seeds}
     assert {"E-08", "E-08-02", "E-08-03"} <= knowledge_ids
-    assert {"B-03-02", "B-04-02"}.isdisjoint(knowledge_ids)
+    assert ("B-03-02" in knowledge_ids) == (
+        "mistyville_center" in compilation.life_context.mobility.visited_place_ids
+    )
+    assert ("B-04-02" in knowledge_ids) == (
+        "town_saevi" in compilation.life_context.mobility.familiar_route_ids
+    )
     assert required_childhood_themes <= {
         episode.theme_id for episode in bundle.episode_seeds
     }
@@ -672,7 +677,7 @@ def test_compiler_expands_role_bounded_family_branches() -> None:
     )
     compilation = _compilation(
         "family-bounded-ancestors",
-        species_id="dog",
+        species_id="tovren",
         stage="mature",
         age_years=12,
         seed=0,
@@ -720,7 +725,7 @@ def test_compiler_expands_mature_children_to_grandchildren_only() -> None:
     )
     compilation = _compilation(
         "family-grandchildren",
-        species_id="dog",
+        species_id="tovren",
         stage="elder",
         age_years=16,
         seed=0,
@@ -747,9 +752,9 @@ def test_elder_parent_cutoff_requires_a_protagonist_partner() -> None:
     )
     unmarried = _compilation(
         "elder-parent-unmarried",
-        species_id="fox",
-        stage="mature",
-        age_years=8,
+        species_id="saevi",
+        stage="elder",
+        age_years=11,
         seed=7,
         source=unmarried_source,
     )
@@ -767,9 +772,9 @@ def test_elder_parent_cutoff_requires_a_protagonist_partner() -> None:
     )
     married = _compilation(
         "elder-parent-married",
-        species_id="fox",
-        stage="mature",
-        age_years=8,
+        species_id="saevi",
+        stage="elder",
+        age_years=11,
         seed=7,
         source=married_source,
     )
@@ -856,7 +861,7 @@ def test_compiler_emits_lived_family_timeline_events_only_after_birth(
     assert (
         partner.age_years_at_genesis - (6 - partner.relationship_start_age)
         >= load_and_configure_species_catalog()
-        .definition("fox")
+        .definition("saevi")
         .genesis.stage_ranges["mature"][0]
     )
     assert len({episode.seed_id for episode in family_episodes}) == len(family_episodes)
@@ -884,8 +889,13 @@ def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> Non
     assert all(item.life_status == "deceased" for item in parents)
     assert all(item.age_years_at_genesis is None for item in parents)
     assert all(item.death_age_years_at_genesis is not None for item in parents)
-    assert {item.person_id for item in parents} <= {
-        episode.person_ids[0] for episode in death_episodes
+    assert {episode.person_ids[0] for episode in death_episodes} == {
+        item.person_id
+        for item in relationships.values()
+        if item.life_status == "deceased"
+        and item.death_event_age_years is not None
+        and item.importance >= 0.65
+        and item.familiarity != "heard"
     }
     for episode in death_episodes:
         deceased = relationships[episode.person_ids[0]]
@@ -897,7 +907,18 @@ def test_elder_candidate_has_conditioned_death_records_and_lived_events() -> Non
     assert compilation.bundle.validate() is None
 
 
-def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
+def test_compiler_turns_sampled_visit_opportunities_into_episodes(monkeypatch) -> None:
+    # Fix the two sampling draws while retaining the real probability/count sampler.
+    # Distance, age and personality still determine eligibility; a renamed species
+    # must not turn this compilation test into a lucky-seed test.
+    def controlled_visit_count(probability, maximum, power, **_draws):
+        return _sample_visit_count(
+            probability, maximum, power, visit_uniform=0.0, count_uniform=0.0625
+        )
+
+    monkeypatch.setattr(
+        "elfie.genesis.compiler._sample_visit_count", controlled_visit_count
+    )
     source = load_genesis_source_package()
     visit_opportunities = tuple(
         replace(
@@ -1017,17 +1038,37 @@ def test_compiler_turns_sampled_visit_opportunities_into_episodes() -> None:
         for episode in episodes.values()
     )
     assert "earthbound_station" in compilation.life_context.mobility.visited_place_ids
-    station_only = _compilation("station-only")
+    station_only_source = replace(
+        source,
+        generation_policy=replace(
+            source.generation_policy,
+            visit_opportunities=tuple(
+                replace(
+                    opportunity,
+                    base_visit_probability=0.0,
+                    base_visit_probabilities_by_region=(),
+                )
+                for opportunity in source.generation_policy.visit_opportunities
+            ),
+        ),
+    )
+    station_only = _compilation("station-only", source=station_only_source)
     assert "earthbound_station" in station_only.life_context.mobility.visited_place_ids
     assert (
         "mistyville_center" not in station_only.life_context.mobility.visited_place_ids
     )
 
+    town_trip_days = compiler._opportunity_trip_days(
+        compilation.life_context.origin.birth_cell_id,
+        town_place_ids,
+        town_episode.stay_days,
+    )
+    assert town_trip_days is not None
     constrained_source = replace(
         source,
         geography_network=replace(
             source.geography_network,
-            days_per_local_year=5,
+            days_per_local_year=town_trip_days,
         ),
     )
     # A five-day local year cannot also hold the configured 98-day practice
@@ -1412,7 +1453,7 @@ def test_genesis_rejects_an_unavailable_required_arrival_fact() -> None:
     source = load_genesis_source_package()
     required_id = source.earth_arrival_rules.required_knowledge_ids[0]
     invalid_facts = tuple(
-        replace(fact, eligibility=("dog",)) if fact.fact_id == required_id else fact
+        replace(fact, eligibility=("tovren",)) if fact.fact_id == required_id else fact
         for fact in source.knowledge
     )
     invalid_source = replace(source, knowledge=invalid_facts)
@@ -1443,7 +1484,7 @@ def test_relationship_importance_policy_is_consumed_by_family_compiler() -> None
     compilation = _compilation(
         "configured-importance",
         source=replace(source, generation_policy=policy),
-        species_id="dog",
+        species_id="tovren",
         stage="mature",
         age_years=7,
         seed=5,

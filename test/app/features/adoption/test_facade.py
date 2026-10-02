@@ -47,7 +47,7 @@ class Persistence:
 
 class CandidateRevealAdapter:
     def reveal(self, candidate) -> CandidateReveal:
-        assert candidate.species_id == "fox"
+        assert candidate.species_id == "saevi"
         return CandidateReveal(
             "Veya", "Sora", "我喜欢先观察周围，再和熟悉的人慢慢靠近。"
         )
@@ -75,7 +75,7 @@ def principal() -> AccountPrincipal:
 
 def candidate_command(**overrides: object) -> CreateCandidateSetCommand:
     values: dict[str, object] = {
-        "species_id": "fox",
+        "species_id": "saevi",
         "life_stage": "adolescent",
         "gender": "any",
         "appearance": CandidateAppearance(
@@ -101,15 +101,44 @@ def test_options_expose_capacity_without_a_model_dependency() -> None:
     assert options.quota.maximum == 2
     assert options.quota.remaining == 1
     assert options.nest_capacity.remaining == 3
-    assert tuple(species.species_id for species in options.species) == ("fox", "dog")
+    assert tuple(species.species_id for species in options.species) == (
+        "saevi",
+        "tovren",
+        "myelle",
+    )
     assert options.availability == "available"
 
 
 def test_candidate_creation_rejects_a_species_without_a_runtime_package() -> None:
-    service = AdoptionService(Policy(), Persistence())
+    service = AdoptionService(
+        Policy(),
+        Persistence(),
+        species_runtime=StaticSpeciesRuntimeReadiness(("saevi", "tovren")),
+    )
 
-    with pytest.raises(AdoptionInvalid, match="cat"):
-        service.create_candidate_set(principal(), candidate_command(species_id="cat"))
+    with pytest.raises(AdoptionInvalid, match="myelle"):
+        service.create_candidate_set(
+            principal(), candidate_command(species_id="myelle")
+        )
+
+
+def test_myelle_candidates_have_distinct_supported_runtime_appearances() -> None:
+    service = AdoptionService(Policy(), Persistence())
+    candidates = service.create_candidate_set(
+        principal(), candidate_command(species_id="myelle")
+    ).candidates
+
+    assert len(candidates) == 5
+    assert all(candidate.species_id == "myelle" for candidate in candidates)
+    assert (
+        len(
+            {
+                candidate.runtime_appearance["material_parameters"]["palette_id"]
+                for candidate in candidates
+            }
+        )
+        == 5
+    )
 
 
 def test_candidate_set_returns_five_distinct_runtime_appearances() -> None:
@@ -137,13 +166,15 @@ def test_adoption_uses_the_validated_runtime_species_intersection() -> None:
     service = AdoptionService(
         Policy(),
         Persistence(),
-        species_runtime=StaticSpeciesRuntimeReadiness(("fox",)),
+        species_runtime=StaticSpeciesRuntimeReadiness(("saevi",)),
     )
 
     options = service.get_options(principal(), GetAdoptionOptionsQuery())
-    assert tuple(species.species_id for species in options.species) == ("fox",)
-    with pytest.raises(AdoptionInvalid, match="dog"):
-        service.create_candidate_set(principal(), candidate_command(species_id="dog"))
+    assert tuple(species.species_id for species in options.species) == ("saevi",)
+    with pytest.raises(AdoptionInvalid, match="tovren"):
+        service.create_candidate_set(
+            principal(), candidate_command(species_id="tovren")
+        )
 
 
 def test_reply_restores_identity_reveal_and_acceptance_can_be_committed() -> None:

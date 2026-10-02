@@ -84,7 +84,7 @@ def adopt_test_elfie(
     *,
     elfie_id: str | None = None,
     name: str = "小白",
-    species_id: str = "fox",
+    species_id: str = "saevi",
     personality_style: str = "好奇探索",
     height: str = "standard",
     build: str = "standard",

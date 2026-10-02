@@ -11,7 +11,7 @@ def _create_elfie(client) -> str:
         "/api/elfies",
         json={
             "name": "小岚",
-            "species_id": "fox",
+            "species_id": "saevi",
             "age_years": 2.0,
             "description": "版本评测使用的合成测试精灵",
             "appearance_description": "赤色尾巴，左耳尖有浅色毛",

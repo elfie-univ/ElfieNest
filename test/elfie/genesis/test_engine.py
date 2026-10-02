@@ -34,13 +34,13 @@ def test_candidate_age_sampling_uses_program_weights_and_lifespan_reserve() -> N
     policy = load_genesis_source_package().generation_policy
     legal_stages = ("childhood", "adolescent", "mature", "elder")
     catalog = load_and_configure_species_catalog()
-    dog = catalog.definition("dog", adoptable_only=True)
+    tovren = catalog.definition("tovren", adoptable_only=True)
 
     assert weighted_candidate_stage(legal_stages, policy, 0.74) == "adolescent"
     assert weighted_candidate_stage(legal_stages, policy, 0.75) == "mature"
     assert weighted_candidate_stage(legal_stages, policy, 0.99) == "elder"
     assert legal_candidate_age_range(
-        dog.genesis,
+        tovren.genesis,
         "elder",
         policy,
     ) == (14, 18)
@@ -48,29 +48,29 @@ def test_candidate_age_sampling_uses_program_weights_and_lifespan_reserve() -> N
 
 def test_species_do_not_assign_personality_and_stage_is_a_small_prior() -> None:
     engine = GenesisEngine()
-    dog_mature = engine.core_personality(
-        species_id="dog",
+    tovren_mature = engine.core_personality(
+        species_id="tovren",
         life_stage="mature",
         answers=("any",) * 5,
     )
-    fox_mature = engine.core_personality(
-        species_id="fox",
+    saevi_mature = engine.core_personality(
+        species_id="saevi",
         life_stage="mature",
         answers=("any",) * 5,
     )
-    dog_childhood = engine.core_personality(
-        species_id="dog",
+    tovren_childhood = engine.core_personality(
+        species_id="tovren",
         life_stage="childhood",
         answers=("any",) * 5,
     )
 
-    assert dog_mature.latent == fox_mature.latent
-    assert dog_childhood.latent != dog_mature.latent
-    assert all(-2.0 <= value <= 2.0 for value in dog_mature.latent)
-    assert max(abs(value) for value in dog_mature.latent) < 0.2
+    assert tovren_mature.latent == saevi_mature.latent
+    assert tovren_childhood.latent != tovren_mature.latent
+    assert all(-2.0 <= value <= 2.0 for value in tovren_mature.latent)
+    assert max(abs(value) for value in tovren_mature.latent) < 0.2
 
 
-@pytest.mark.parametrize("species_id", ("dog", "fox"))
+@pytest.mark.parametrize("species_id", ("tovren", "saevi"))
 def test_batch_covers_five_roles_and_is_repeatable(species_id: str) -> None:
     engine = GenesisEngine()
     kwargs = {
@@ -121,7 +121,7 @@ def test_batch_covers_five_roles_and_is_repeatable(species_id: str) -> None:
     assert all(candidate.personality.candidate.labels for candidate in first.candidates)
 
 
-@pytest.mark.parametrize("species_id", ("dog", "fox"))
+@pytest.mark.parametrize("species_id", ("tovren", "saevi"))
 def test_batch_keeps_five_visible_variants_across_seed_sample(species_id: str) -> None:
     engine = GenesisEngine()
     for master_seed in range(10):
@@ -146,7 +146,7 @@ def test_previous_batch_signatures_are_respected() -> None:
     first = engine.generate_batch(
         master_seed=8,
         batch_number=1,
-        species_id="dog",
+        species_id="tovren",
         life_stage="adolescent",
         gender="female",
         appearance=intent(),
@@ -156,7 +156,7 @@ def test_previous_batch_signatures_are_respected() -> None:
     second = engine.generate_batch(
         master_seed=8,
         batch_number=2,
-        species_id="dog",
+        species_id="tovren",
         life_stage="adolescent",
         gender="female",
         appearance=intent(),
@@ -183,7 +183,7 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
     )
     appearance = intent()
     core = engine.core_personality(
-        species_id="dog", life_stage="adolescent", answers=("any",) * 5
+        species_id="tovren", life_stage="adolescent", answers=("any",) * 5
     )
     proposals = {}
     for role_index, role in enumerate(CANDIDATE_ROLES):
@@ -191,7 +191,7 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
             engine._build_candidate(
                 seed=100 + role_index * 10 + proposal_index,
                 role=role,
-                species_id="dog",
+                species_id="tovren",
                 life_stage="adolescent",
                 gender="female",
                 appearance=appearance,
@@ -235,34 +235,34 @@ def test_candidate_selection_backtracks_only_unfrozen_role_slots(monkeypatch) ->
 
 def test_species_stage_ranges_can_differ() -> None:
     engine = GenesisEngine()
-    fox = engine.generate_batch(
+    saevi = engine.generate_batch(
         master_seed=1,
         batch_number=1,
-        species_id="fox",
+        species_id="saevi",
         life_stage="elder",
         gender="female",
         appearance=intent(),
         answers=("any",) * 5,
     )
-    dog = engine.generate_batch(
+    tovren = engine.generate_batch(
         master_seed=1,
         batch_number=1,
-        species_id="dog",
+        species_id="tovren",
         life_stage="elder",
         gender="female",
         appearance=intent(),
         answers=("any",) * 5,
     )
 
-    assert all(10 <= candidate.age_years <= 13 for candidate in fox.candidates)
-    assert all(14 <= candidate.age_years <= 18 for candidate in dog.candidates)
+    assert all(10 <= candidate.age_years <= 13 for candidate in saevi.candidates)
+    assert all(14 <= candidate.age_years <= 18 for candidate in tovren.candidates)
 
 
 def test_unspecified_stage_uses_configured_adolescent_prior() -> None:
     batch = GenesisEngine().generate_batch(
         master_seed=41,
         batch_number=1,
-        species_id="fox",
+        species_id="saevi",
         life_stage="any",
         gender="female",
         appearance=intent(),
@@ -272,7 +272,7 @@ def test_unspecified_stage_uses_configured_adolescent_prior() -> None:
     assert all(candidate.life_stage != "elder" for candidate in batch.candidates)
 
 
-@pytest.mark.parametrize("species_id", ("fox", "dog"))
+@pytest.mark.parametrize("species_id", ("saevi", "tovren"))
 def test_childhood_candidates_are_unavailable_below_adoption_minimum(
     species_id: str,
 ) -> None:
@@ -291,7 +291,7 @@ def test_childhood_candidates_are_unavailable_below_adoption_minimum(
 def test_exact_age_continuously_changes_childhood_height_and_allometry() -> None:
     common = {
         "seed": 73,
-        "species_id": "dog",
+        "species_id": "tovren",
         "intent": intent(),
         "role": "appearance_anchor",
         "variant_index": 0,
@@ -319,7 +319,7 @@ def test_exact_age_continuously_changes_childhood_height_and_allometry() -> None
 def test_sex_is_only_a_weak_adult_height_prior() -> None:
     common = {
         "seed": 91,
-        "species_id": "fox",
+        "species_id": "saevi",
         "intent": intent(),
         "role": "appearance_anchor",
         "variant_index": 0,
@@ -347,7 +347,7 @@ def test_invalid_answers_are_rejected_before_generation() -> None:
         GenesisEngine().generate_batch(
             master_seed=1,
             batch_number=1,
-            species_id="fox",
+            species_id="saevi",
             life_stage="any",
             gender="any",
             appearance=intent(),

@@ -42,7 +42,7 @@ def test_brain_observation_envelope_is_never_constructed_without_sink(
             profile=create_visual_profile(
                 elfie_id="elfie-zero-cost",
                 display_name="elfie-zero-cost",
-                species_id="fox",
+                species_id="saevi",
                 seed=1,
             ),
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),

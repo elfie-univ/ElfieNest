@@ -5,8 +5,8 @@ const MOCK_WANDER_CONTROLLER := preload("res://runtime/actor/mock_wander_control
 const MOCK_WANDER_TARGET := preload("res://runtime/actor/mock_wander_target.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
+	"tovren": preload("res://characters/tovren/tovren.tscn"),
+	"saevi": preload("res://characters/saevi/saevi.tscn"),
 }
 
 
@@ -40,14 +40,14 @@ func run() -> void:
 	actor_controller.setup(nest, characters, ACTOR_SCENES, false, true)
 	var sync_result := actor_controller.sync_actors([
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 		{
-			"actor_id": "dog-1",
-			"species": "dog",
+			"actor_id": "tovren-1",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
@@ -72,34 +72,34 @@ func run() -> void:
 		return
 	# Drive one decision immediately so this contract test is independent of wall-clock hour.
 	wander.set_process(false)
-	var fox := actor_controller.actor("fox-1")
-	var dog := actor_controller.actor("dog-1")
-	wander._ensure_state("fox-1", Time.get_ticks_msec())
-	wander._advance_actor(fox, Time.get_ticks_msec() + 60000)
-	wander._ensure_state("dog-1", Time.get_ticks_msec())
-	wander._advance_actor(dog, Time.get_ticks_msec() + 60000)
+	var saevi := actor_controller.actor("saevi-1")
+	var tovren := actor_controller.actor("tovren-1")
+	wander._ensure_state("saevi-1", Time.get_ticks_msec())
+	wander._advance_actor(saevi, Time.get_ticks_msec() + 60000)
+	wander._ensure_state("tovren-1", Time.get_ticks_msec())
+	wander._advance_actor(tovren, Time.get_ticks_msec() + 60000)
 	var moving_snapshot := actor_controller.world_snapshot()
-	var moving_actor := _actor_snapshot(moving_snapshot, "fox-1")
-	var moving_dog := _actor_snapshot(moving_snapshot, "dog-1")
+	var moving_actor := _actor_snapshot(moving_snapshot, "saevi-1")
+	var moving_tovren := _actor_snapshot(moving_snapshot, "tovren-1")
 	var motion: Variant = moving_actor.get("mock_motion")
 	if not _require(
 		motion is Dictionary
 			and int((motion as Dictionary).get("waypoint", -1)) >= 0
 			and int((motion as Dictionary).get("sequence", 0)) == 1
-			and fox.active_command_id.begins_with("mock-wander-"),
+			and saevi.active_command_id.begins_with("mock-wander-"),
 		"Authority did not expose one semantic Mock Wander waypoint while moving",
 	):
 		return
-	var dog_motion: Variant = moving_dog.get("mock_motion")
+	var tovren_motion: Variant = moving_tovren.get("mock_motion")
 	if not _require(
-		dog_motion is Dictionary
-			and int((dog_motion as Dictionary).get("waypoint", -1)) >= 0
-			and int((dog_motion as Dictionary).get("sequence", 0)) == 1
-			and dog.active_command_id.begins_with("mock-wander-"),
+		tovren_motion is Dictionary
+			and int((tovren_motion as Dictionary).get("waypoint", -1)) >= 0
+			and int((tovren_motion as Dictionary).get("sequence", 0)) == 1
+			and tovren.active_command_id.begins_with("mock-wander-"),
 		"Authority did not schedule Mock Wander independently for the second actor",
 	):
 		return
-	var target: Variant = MOCK_WANDER_TARGET.target_for(nest, fox, int((motion as Dictionary)["waypoint"]))
+	var target: Variant = MOCK_WANDER_TARGET.target_for(nest, saevi, int((motion as Dictionary)["waypoint"]))
 	if not _require(
 		target is Vector3
 			and MOCK_WANDER_TARGET.is_wanderable_position(nest, target as Vector3),
@@ -109,24 +109,24 @@ func run() -> void:
 
 	for _frame in range(600):
 		await physics_frame
-		if fox.active_command_id.is_empty() and dog.active_command_id.is_empty():
+		if saevi.active_command_id.is_empty() and tovren.active_command_id.is_empty():
 			break
 	if not _require(
-		fox.active_command_id.is_empty() and dog.active_command_id.is_empty(),
+		saevi.active_command_id.is_empty() and tovren.active_command_id.is_empty(),
 		"Mock Wander navigation did not reach its target",
 	):
 		return
-	var resting_actor := _actor_snapshot(actor_controller.world_snapshot(), "fox-1")
-	var resting_dog := _actor_snapshot(actor_controller.world_snapshot(), "dog-1")
+	var resting_actor := _actor_snapshot(actor_controller.world_snapshot(), "saevi-1")
+	var resting_tovren := _actor_snapshot(actor_controller.world_snapshot(), "tovren-1")
 	if not _require(
 		not resting_actor.has("mock_motion")
-			and not resting_dog.has("mock_motion")
+			and not resting_tovren.has("mock_motion")
 			and not _has_event(events, "intent_terminal"),
 		"Mock Wander leaked a fake intent terminal or stale motion after arrival",
 	):
 		return
-	wander._advance_actor(fox, Time.get_ticks_msec() + 60000)
-	var next_motion: Variant = _actor_snapshot(actor_controller.world_snapshot(), "fox-1").get("mock_motion")
+	wander._advance_actor(saevi, Time.get_ticks_msec() + 60000)
+	var next_motion: Variant = _actor_snapshot(actor_controller.world_snapshot(), "saevi-1").get("mock_motion")
 	if not _require(
 		next_motion is Dictionary
 			and int((next_motion as Dictionary).get("sequence", 0)) == 2,
@@ -136,26 +136,26 @@ func run() -> void:
 	var own_bed := nest.resolve_anchor("dorm-01/bed-01")
 	var sleep_motion := {}
 	for _frame in range(1200):
-		wander._stop_for_inactive_window(fox, Time.get_ticks_msec())
+		wander._stop_for_inactive_window(saevi, Time.get_ticks_msec())
 		await physics_frame
-		sleep_motion = wander.motion_for("fox-1")
+		sleep_motion = wander.motion_for("saevi-1")
 		if (
-			fox.active_command_id.is_empty()
+			saevi.active_command_id.is_empty()
 			and String(sleep_motion.get("mode", "")) == "sleep"
 		):
 			break
 	if not _require(
-		fox.active_command_id.is_empty()
+		saevi.active_command_id.is_empty()
 			and String(sleep_motion.get("mode", "")) == "sleep"
 			and own_bed != null
-			and fox.global_position.distance_to(own_bed.global_position) <= 0.5,
+			and saevi.global_position.distance_to(own_bed.global_position) <= 0.5,
 		"Mock Wander inactive-window policy did not return the Elfie to its own bed",
 	):
 		return
-	wander._wake_actor(fox, Time.get_ticks_msec())
+	wander._wake_actor(saevi, Time.get_ticks_msec())
 	if not _require(
-		wander.motion_for("fox-1").is_empty()
-			and fox.active_command_id.is_empty(),
+		wander.motion_for("saevi-1").is_empty()
+			and saevi.active_command_id.is_empty(),
 		"Mock Wander did not clear sleep state when the active window resumed",
 	):
 		return
@@ -168,8 +168,8 @@ func run() -> void:
 	disabled_controller.setup(nest, disabled_characters, ACTOR_SCENES, false, false)
 	var disabled_sync := disabled_controller.sync_actors([
 		{
-			"actor_id": "disabled-dog",
-			"species": "dog",
+			"actor_id": "disabled-tovren",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-03",
 			"appearance": {},
 		},
@@ -178,11 +178,11 @@ func run() -> void:
 		return
 	for _frame in range(4):
 		await physics_frame
-	var disabled_actor := disabled_controller.actor("disabled-dog")
+	var disabled_actor := disabled_controller.actor("disabled-tovren")
 	if not _require(
 		disabled_actor != null
 			and disabled_actor.active_command_id.is_empty()
-			and not _actor_snapshot(disabled_controller.world_snapshot(), "disabled-dog").has("mock_motion"),
+			and not _actor_snapshot(disabled_controller.world_snapshot(), "disabled-tovren").has("mock_motion"),
 		"Mock Wander switch=false still moved an authority actor",
 	):
 		return

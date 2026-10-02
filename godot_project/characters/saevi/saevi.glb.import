@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cru8thdiil20p"
-path="res://.godot/imported/fox.glb-311c12a3dae1d44421fd3ce593614ae5.scn"
+path="res://.godot/imported/saevi.glb-a67114d2e18c7d6b54f6de4194fa34db.scn"
 
 [deps]
 
-source_file="res://characters/fox/fox.glb"
-dest_files=["res://.godot/imported/fox.glb-311c12a3dae1d44421fd3ce593614ae5.scn"]
+source_file="res://characters/saevi/saevi.glb"
+dest_files=["res://.godot/imported/saevi.glb-a67114d2e18c7d6b54f6de4194fa34db.scn"]
 
 [params]
 

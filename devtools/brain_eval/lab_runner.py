@@ -46,7 +46,7 @@ class LabFixtureDefinition(EvalContract):
     # workspace key and therefore must be eight ASCII digits.
     elfie_id: str = Field(pattern=r"^[0-9]{8}$")
     name: str = Field(min_length=1, max_length=160)
-    species_id: Literal["dog", "fox"]
+    species_id: Literal["tovren", "saevi"]
     age_years: float = Field(gt=0.0, le=100.0)
     description: str = Field(min_length=1, max_length=1200)
     appearance_description: str = Field(min_length=1, max_length=1200)

@@ -41,7 +41,7 @@ def make_profile(config_dir: Path, elfie_id: str = "elfie-profile"):
     profile = create_visual_profile(
         elfie_id=elfie_id,
         display_name="小狐",
-        species_id="fox",
+        species_id="saevi",
         seed=42,
     )
     YamlProfileStoreAdapter(config_dir / "profile").save(profile)
@@ -76,7 +76,7 @@ def test_factory_consumes_typed_profile_and_memory_ports() -> None:
     profile = create_visual_profile(
         elfie_id="elfie-port",
         display_name="端口精灵",
-        species_id="fox",
+        species_id="saevi",
         seed=17,
     )
 
@@ -94,7 +94,7 @@ def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
     profile = create_visual_profile(
         elfie_id="elfie-assembly",
         display_name="装配精灵",
-        species_id="fox",
+        species_id="saevi",
         seed=23,
     )
     store = SQLiteMemoryStoreAdapter.in_memory()
@@ -109,7 +109,7 @@ def test_factory_assembles_from_an_immutable_typed_dependency_record() -> None:
 
 def test_factory_creates_canonical_elfie_without_copying_legacy_algorithms() -> None:
     profile = create_visual_profile(
-        elfie_id="elfie-new", display_name="新精灵", species_id="fox", seed=11
+        elfie_id="elfie-new", display_name="新精灵", species_id="saevi", seed=11
     )
     elfie = ElfieFactory().create(
         ElfieAssembly(
@@ -132,7 +132,7 @@ def test_elfie_facade_does_not_expose_mutable_subsystem_owners() -> None:
             profile=create_visual_profile(
                 elfie_id="facade-elfie",
                 display_name="门面精灵",
-                species_id="fox",
+                species_id="saevi",
                 seed=31,
             ),
             memory_store=SQLiteMemoryStoreAdapter.in_memory(),
@@ -160,7 +160,7 @@ def test_elfie_facade_does_not_expose_mutable_subsystem_owners() -> None:
 def test_factory_accepts_an_already_assembled_native_body() -> None:
     gateway = FakeGodotGateway()
     profile = create_visual_profile(
-        elfie_id="elfie-native", display_name="原生精灵", species_id="fox", seed=12
+        elfie_id="elfie-native", display_name="原生精灵", species_id="saevi", seed=12
     )
 
     elfie = ElfieFactory().create(
@@ -194,7 +194,7 @@ def test_factory_restores_persisted_profile_and_identity(tmp_path: Path) -> None
 
     assert elfie.profile is profile or elfie.profile.to_dict() == profile.to_dict()
     assert elfie.identity.display_name == "小狐"
-    assert elfie.species_id == "fox"
+    assert elfie.species_id == "saevi"
 
 
 def test_restore_preserves_profile_and_explicit_body_binding(tmp_path: Path) -> None:
@@ -222,7 +222,7 @@ def test_factory_registers_multiple_bodies_and_selects_current_body() -> None:
     first = HeadlessBody(body_id="first")
     second = HeadlessBody(body_id="second")
     profile = create_visual_profile(
-        elfie_id="elfie-bodies", display_name="多身体精灵", species_id="fox", seed=13
+        elfie_id="elfie-bodies", display_name="多身体精灵", species_id="saevi", seed=13
     )
 
     elfie = ElfieFactory().create(

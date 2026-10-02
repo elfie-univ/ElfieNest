@@ -78,6 +78,16 @@ func _appearance_geometry_changes_runtime(species_id: String, validation: Dictio
 			if not material is ShaderMaterial:
 				continue
 			var shader_material := material as ShaderMaterial
+			if species_id == "myelle":
+				material_applied = (
+					shader_material.get_shader_parameter("appearance_species_id") == 2
+					and shader_material.get_shader_parameter("use_appearance_region_source_texture") == true
+					and shader_material.get_shader_parameter("appearance_region_source_texture") != null
+					and shader_material.get_shader_parameter("appearance_accent_region_0") == -1
+					and shader_material.get_shader_parameter("appearance_marking_id") == 0
+				)
+				mesh_instance.set_surface_override_material(surface_index, null)
+				continue
 			if (
 				shader_material.shader != null
 				and not shader_material.shader.code.contains("ALPHA =")
@@ -99,9 +109,11 @@ func _appearance_geometry_changes_runtime(species_id: String, validation: Dictio
 
 
 func _material_parameters(species_id: String) -> Dictionary:
+	if species_id == "myelle":
+		return {"palette_id": "gray", "primary_color_id": "gray"}
 	var primary := "silver_gray"
 	var light := "ivory"
-	var warm := "golden" if species_id == "fox" else "honey_gold"
+	var warm := "golden" if species_id == "saevi" else "honey_gold"
 	return {
 		"palette_id": primary,
 		"primary_color_id": primary,

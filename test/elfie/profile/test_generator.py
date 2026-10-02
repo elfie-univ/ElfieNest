@@ -9,10 +9,10 @@ from elfie.profile import (
 
 def test_same_seed_and_choices_generate_same_appearance() -> None:
     first = AppearanceGenerator(7357).generate(
-        species_id="fox", height_direction="tall", build_direction="plump"
+        species_id="saevi", height_direction="tall", build_direction="plump"
     )
     second = AppearanceGenerator(7357).generate(
-        species_id="fox", height_direction="tall", build_direction="plump"
+        species_id="saevi", height_direction="tall", build_direction="plump"
     )
     assert first == second
 
@@ -21,20 +21,20 @@ def test_display_name_does_not_change_appearance() -> None:
     first = create_visual_profile(
         elfie_id="same-id",
         display_name="甲",
-        species_id="dog",
+        species_id="tovren",
         seed=91,
     )
     second = create_visual_profile(
         elfie_id="same-id",
         display_name="乙",
-        species_id="dog",
+        species_id="tovren",
         seed=91,
     )
     assert first.appearance == second.appearance
 
 
 def test_species_colors_are_selected_from_profile() -> None:
-    for species_id in ("dog", "fox"):
+    for species_id in ("tovren", "saevi"):
         profile = get_species_profile(species_id)
         for seed in range(20):
             genome = AppearanceGenerator(seed).generate(species_id=species_id)
@@ -58,7 +58,7 @@ def test_species_colors_are_selected_from_profile() -> None:
             assert genome.coat.nose_color_id in profile.nose_colors
 
 
-@pytest.mark.parametrize("species_id", ("dog", "fox"))
+@pytest.mark.parametrize("species_id", ("tovren", "saevi"))
 def test_first_adoption_variants_follow_region_recipe_contract(species_id: str) -> None:
     profile = get_species_profile(species_id)
     variants = [
@@ -86,7 +86,7 @@ def test_generated_profile_validates_for_many_seeds() -> None:
         profile = create_visual_profile(
             elfie_id=f"e-{seed}",
             display_name="测试精灵",
-            species_id="fox" if seed % 2 else "dog",
+            species_id="saevi" if seed % 2 else "tovren",
             seed=seed,
             height_direction=("short", "standard", "tall")[seed % 3],
             build_direction=("slim", "standard", "plump")[seed % 3],
@@ -95,14 +95,14 @@ def test_generated_profile_validates_for_many_seeds() -> None:
 
 
 def test_species_private_traits_do_not_pollute_other_species() -> None:
-    dog = AppearanceGenerator(12).generate(species_id="dog")
-    fox = AppearanceGenerator(12).generate(species_id="fox")
-    assert set(dog.species_traits) == {
+    tovren = AppearanceGenerator(12).generate(species_id="tovren")
+    saevi = AppearanceGenerator(12).generate(species_id="saevi")
+    assert set(tovren.species_traits) == {
         "jowl_fullness_bias",
         "ear_fold_bias",
         "tail_curl_bias",
     }
-    assert set(fox.species_traits) == {
+    assert set(saevi.species_traits) == {
         "black_leg_coverage",
         "tail_tip_coverage",
         "cheek_ruff_bias",
@@ -111,9 +111,9 @@ def test_species_private_traits_do_not_pollute_other_species() -> None:
 
 def test_explicit_overrides_control_generated_appearance() -> None:
     profile = create_visual_profile(
-        elfie_id="configured-fox",
+        elfie_id="configured-saevi",
         display_name="栗子",
-        species_id="fox",
+        species_id="saevi",
         seed=42,
         appearance_overrides={
             "macro": {
@@ -141,13 +141,13 @@ def test_overrides_reject_unknown_and_out_of_range_parameters() -> None:
     for overrides in (
         {"face": {"unknown_face_control": 0.2}},
         {"macro": {"stature_z": 2.1}},
-        {"species_traits": {"dog_only_trait": 0.1}},
+        {"species_traits": {"tovren_only_trait": 0.1}},
     ):
         try:
             create_visual_profile(
-                elfie_id="invalid-fox",
+                elfie_id="invalid-saevi",
                 display_name="越界",
-                species_id="fox",
+                species_id="saevi",
                 seed=42,
                 appearance_overrides=overrides,
             )

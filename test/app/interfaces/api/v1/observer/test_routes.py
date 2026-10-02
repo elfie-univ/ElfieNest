@@ -41,13 +41,13 @@ class MemoryWorld:
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         return (
             ObserverEntityRecord(
-                entity_id="fox-1",
+                entity_id="saevi-1",
                 room_id="local-nest",
                 zone_id=None,
                 posture="awake",
                 active=True,
                 active_command_id=None,
-                species_id="fox",
+                species_id="saevi",
                 appearance=(),
                 home_anchor_id=None,
             ),
@@ -62,7 +62,7 @@ def _application() -> tuple[FastAPI, MemoryWorld, FixedClock]:
     accounts.session_ttl_seconds.return_value = 60
     elfies = MagicMock(spec=ElfiesService)
     elfies.list_visible.return_value = (
-        SimpleNamespace(profile=SimpleNamespace(elfie_id="fox-1")),
+        SimpleNamespace(profile=SimpleNamespace(elfie_id="saevi-1")),
     )
     world = MemoryWorld()
     clock = FixedClock()
@@ -90,7 +90,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
             json={
                 "protocol": 3,
                 "role": "observer",
-                "subscription": {"kind": "elfie", "elfie_id": "fox-1"},
+                "subscription": {"kind": "elfie", "elfie_id": "saevi-1"},
             },
         )
         capability = opened.json()["capability"]
@@ -101,7 +101,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
             headers=headers,
             json={
                 "kind": "request_interaction",
-                "actor_id": "fox-1",
+                "actor_id": "saevi-1",
                 "interaction": "greet",
             },
         )
@@ -117,25 +117,27 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
         "kind": "snapshot",
         "generation": 1,
         "sequence": 1,
-        "scope": {"kind": "elfie", "room_id": None, "elfie_id": "fox-1"},
+        "scope": {"kind": "elfie", "room_id": None, "elfie_id": "saevi-1"},
         "entities": {
-            "fox-1": {
+            "saevi-1": {
                 "room_id": "local-nest",
                 "zone_id": None,
                 "posture": "awake",
                 "active": True,
                 "active_command_id": None,
-                "species_id": "fox",
+                "species_id": "saevi",
                 "appearance": {},
                 "home_anchor_id": None,
                 "mock_motion": None,
             }
         },
-        "entity_revisions": {"fox-1": 1},
+        "entity_revisions": {"saevi-1": 1},
     }
     assert accepted.status_code == 202
     assert accepted.json() == {"detail": "observer intent accepted"}
-    assert world.intents == [ObserverWorldIntent(actor_id="fox-1", interaction="greet")]
+    assert world.intents == [
+        ObserverWorldIntent(actor_id="saevi-1", interaction="greet")
+    ]
 
 
 def test_routes_reject_authority_fields_and_use_stable_error_envelope() -> None:
@@ -171,7 +173,7 @@ def test_session_close_is_idempotent_and_expired_frames_return_gone() -> None:
     payload = {
         "protocol": 3,
         "role": "observer",
-        "subscription": {"kind": "elfie", "elfie_id": "fox-1"},
+        "subscription": {"kind": "elfie", "elfie_id": "saevi-1"},
     }
     with TestClient(application) as client:
         client.cookies.set("session_token", "login-token")

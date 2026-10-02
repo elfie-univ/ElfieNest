@@ -75,14 +75,14 @@ describe("nextObserverFrame", () => {
       kind: "snapshot",
       generation: 1,
       sequence: 1,
-      scope: { kind: "elfie", elfie_id: "fox-1", room_id: null },
+      scope: { kind: "elfie", elfie_id: "saevi-1", room_id: null },
       entities: {},
       entity_revisions: {},
     })
 
     await expect(nextObserverFrame("capability", null)).resolves.toMatchObject({
       kind: "snapshot",
-      scope: { kind: "elfie", elfie_id: "fox-1", room_id: null },
+      scope: { kind: "elfie", elfie_id: "saevi-1", room_id: null },
     })
   })
 
@@ -92,7 +92,7 @@ describe("nextObserverFrame", () => {
       kind: "snapshot",
       generation: 1,
       sequence: 1,
-      scope: { kind: "room", room_id: "local-nest", elfie_id: "fox-1" },
+      scope: { kind: "room", room_id: "local-nest", elfie_id: "saevi-1" },
       entities: {},
       entity_revisions: {},
     })
@@ -120,8 +120,8 @@ describe("nextObserverFrame", () => {
       kind: "delta",
       generation: 1,
       sequence: 2,
-      scope: { kind: "elfie", elfie_id: "fox-1" },
-      entity_id: "fox-1",
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1",
       entity_revision: 2,
       patch: { zone_id: null, active_command_id: null },
     })

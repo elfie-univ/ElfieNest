@@ -7,8 +7,8 @@ from typing import Final, Tuple
 GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
     "scripts/*",
     "characters/tools/*",
-    "characters/dog/source/*",
-    "characters/fox/source/*",
+    "characters/tovren/source/*",
+    "characters/saevi/source/*",
     "rooms/assets/reference/*",
 )
 
@@ -17,7 +17,7 @@ GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)
 # These resources are deliberately kept in source control for authoring or
 # reference work.  They are not runtime inputs and must never be exported.
 GODOT_AUTHORING_ONLY_PATHS: Final[Tuple[str, ...]] = (
-    "characters/fox/source",
+    "characters/saevi/source",
     "characters/tools",
     "rooms/assets/reference",
 )

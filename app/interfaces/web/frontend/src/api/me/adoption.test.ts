@@ -10,7 +10,7 @@ vi.mock("../http", async (loadOriginal) => {
 
 const candidate = {
   candidate_id: "candidate-1",
-  species_id: "fox",
+  species_id: "saevi",
   life_stage: "adolescent" as const,
   age_years: 3,
   gender: "male" as const,
@@ -18,7 +18,7 @@ const candidate = {
   headshot_image_url: "",
   appearance_tags: ["高挑"],
   personality_tags: ["好奇探索"],
-  runtime_appearance: { species_id: "fox" },
+  runtime_appearance: { species_id: "saevi" },
 }
 
 describe("versioned current-member Adoption client", () => {
@@ -30,29 +30,29 @@ describe("versioned current-member Adoption client", () => {
         personality_styles: ["好奇探索"],
         species: [
           {
-            species_id: "fox",
-            species_package_id: "species-fox",
+            species_id: "saevi",
+            species_package_id: "species-saevi",
             display_name: "Saevi",
-            display_name_zh: "灵狐",
-            earth_shape_label: "fox-like",
-            scene_id: "fox",
+            display_name_zh: "赛维",
+            earth_shape_label: "saevi-like",
+            scene_id: "saevi",
             sort_order: 0,
             presentation_images: {
-              headshot_url: "/api/v1/me/adoption/species/fox/images/headshot",
-              full_body_url: "/api/v1/me/adoption/species/fox/images/full-body",
+              headshot_url: "/api/v1/me/adoption/species/saevi/images/headshot",
+              full_body_url: "/api/v1/me/adoption/species/saevi/images/full-body",
             },
           },
           {
-            species_id: "dog",
-            species_package_id: "species-dog",
+            species_id: "tovren",
+            species_package_id: "species-tovren",
             display_name: "Tovren",
-            display_name_zh: "灵犬",
-            earth_shape_label: "dog-like",
-            scene_id: "dog",
+            display_name_zh: "托伦",
+            earth_shape_label: "tovren-like",
+            scene_id: "tovren",
             sort_order: 1,
             presentation_images: {
-              headshot_url: "/api/v1/me/adoption/species/dog/images/headshot",
-              full_body_url: "/api/v1/me/adoption/species/dog/images/full-body",
+              headshot_url: "/api/v1/me/adoption/species/tovren/images/headshot",
+              full_body_url: "/api/v1/me/adoption/species/tovren/images/full-body",
             },
           },
         ],
@@ -77,11 +77,11 @@ describe("versioned current-member Adoption client", () => {
           },
         }],
       })
-      .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "fox" })
+      .mockResolvedValueOnce({ elfie_id: "00000001", name: "阿洛", species_id: "saevi" })
 
     await adoptionInfo()
     await adoptionCandidates({
-      species_id: "fox",
+      species_id: "saevi",
       life_stage: "any",
       gender: "any",
       appearance: {

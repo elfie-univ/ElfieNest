@@ -107,7 +107,7 @@ def test_unknown_and_null_fields_are_rejected() -> None:
         )
         retired_species_field = client.patch(
             "/api/v1/admin/settings/elfies",
-            json={"allowed_species_ids": ["fox"]},
+            json={"allowed_species_ids": ["saevi"]},
         )
         null_value = client.patch(
             "/api/v1/admin/settings/security",

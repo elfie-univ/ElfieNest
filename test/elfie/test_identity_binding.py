@@ -17,7 +17,7 @@ def test_identity_rebind_reassembles_workspace_and_nervous_perception() -> None:
     memory_store = SQLiteMemoryStoreAdapter.in_memory()
     elfie = Elfie(
         character_profile=create_visual_profile(
-            elfie_id="provisional", display_name="临时精灵", species_id="fox", seed=4
+            elfie_id="provisional", display_name="临时精灵", species_id="saevi", seed=4
         ),
         memory_store=memory_store,
         memory_ontology=memory_store.ontology,

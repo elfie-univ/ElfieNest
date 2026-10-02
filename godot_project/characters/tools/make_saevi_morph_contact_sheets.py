@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 CHARACTERS_ROOT = Path(__file__).resolve().parents[1]
-PREVIEWS = CHARACTERS_ROOT / "fox/source/previews/morph_prototype"
+PREVIEWS = CHARACTERS_ROOT / "saevi/source/previews/morph_prototype"
 OUTPUT = PREVIEWS / "contact_sheets"
 CELL = 384
 LABEL_HEIGHT = 42
@@ -86,7 +86,7 @@ def difference_sheet() -> None:
             cell = labeled(difference, f"{family} {suffix} diff RMS={score:.2f}")
             canvas.paste(cell, (column * CELL, row * (CELL + LABEL_HEIGHT)))
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    canvas.save(OUTPUT / "fox_morph_difference_maps.png")
+    canvas.save(OUTPUT / "saevi_morph_difference_maps.png")
 
 
 def main() -> None:
@@ -106,7 +106,7 @@ def main() -> None:
                 ],
             )
         )
-    sheet(face_rows, "fox_face_morphs.png")
+    sheet(face_rows, "saevi_face_morphs.png")
 
     body_rows = []
     for title, family, view in (
@@ -126,7 +126,7 @@ def main() -> None:
                 ],
             )
         )
-    sheet(body_rows, "fox_body_and_muzzle_morphs.png")
+    sheet(body_rows, "saevi_body_and_muzzle_morphs.png")
 
     sheet(
         [
@@ -147,7 +147,7 @@ def main() -> None:
                 ],
             ),
         ],
-        "fox_combined_morphs.png",
+        "saevi_combined_morphs.png",
     )
     difference_sheet()
 

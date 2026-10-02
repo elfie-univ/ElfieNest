@@ -288,7 +288,7 @@ def enrich_social_graph(
                 and person.death_age_year <= slot.age_year
             ):
                 continue
-            species_id = {"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}.get(
+            species_id = {"Saevi": "saevi", "Tovren": "tovren", "Myelle": "myelle"}.get(
                 person.species_id, person.species_id
             )
             genesis = compiler._species(species_id).genesis
@@ -361,7 +361,7 @@ def enrich_social_graph(
             ).choice(("male", "female"))
         people[ident] = replace(
             person,
-            species_id={"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}.get(
+            species_id={"Saevi": "saevi", "Tovren": "tovren", "Myelle": "myelle"}.get(
                 person.species_id, person.species_id
             ),
             display_name=allocated.get(ident, person.display_name),

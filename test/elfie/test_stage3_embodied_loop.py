@@ -80,7 +80,7 @@ def _new_elfie(body: HeadlessBody, runtime: EmbodiedMotionRuntime):
             profile=create_visual_profile(
                 elfie_id="stage3-elfie",
                 display_name="阶段三精灵",
-                species_id="fox",
+                species_id="saevi",
                 seed=3,
             ),
             selfhood_seed=_selfhood_seed("stage3-elfie", "阶段三精灵"),

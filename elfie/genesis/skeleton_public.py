@@ -92,11 +92,11 @@ def schedule_public_activities(
                 reason = "该生命阶段需要照护，不安排公共活动"
             elif event.required_qualification:
                 reason = f"缺少资格证据：{event.required_qualification}"
-            elif event.eligible.find("saevi") >= 0 and request.species_id != "fox":
+            elif event.eligible.find("saevi") >= 0 and request.species_id != "saevi":
                 reason = "非Saevi族群活动资格"
-            elif event.eligible.find("tovren") >= 0 and request.species_id != "dog":
+            elif event.eligible.find("tovren") >= 0 and request.species_id != "tovren":
                 reason = "非Tovren族群活动资格"
-            elif event.eligible.find("myelle") >= 0 and request.species_id != "cat":
+            elif event.eligible.find("myelle") >= 0 and request.species_id != "myelle":
                 reason = "非Myelle族群活动资格"
             distances = {
                 p: compiler._opportunity_distance_days(
@@ -156,7 +156,7 @@ def schedule_public_activities(
                     and 0
                     <= year - p.birth_age_year
                     < compiler._species(
-                        {"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}.get(
+                        {"Saevi": "saevi", "Tovren": "tovren", "Myelle": "myelle"}.get(
                             p.species_id, p.species_id
                         )
                     ).genesis.terminal_age_years

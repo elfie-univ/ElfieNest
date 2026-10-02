@@ -9,11 +9,11 @@ def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> 
     submitted: list[tuple[str, str]] = []
     adapter = GodotObserverWorldAdapter(
         entities=lambda: {
-            "fox-1": ObserverSemanticEntity(
+            "saevi-1": ObserverSemanticEntity(
                 room_id="local-nest",
                 zone_id="dorm",
                 posture="resting",
-                species_id="fox",
+                species_id="saevi",
                 appearance={"height_scale": 1.0},
                 home_anchor_id="dorm-01/bed-01",
             )
@@ -24,8 +24,8 @@ def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> 
     )
 
     entities = adapter.list_entities()
-    adapter.submit_intent(ObserverWorldIntent(actor_id="fox-1", interaction="greet"))
+    adapter.submit_intent(ObserverWorldIntent(actor_id="saevi-1", interaction="greet"))
 
-    assert entities[0].entity_id == "fox-1"
+    assert entities[0].entity_id == "saevi-1"
     assert entities[0].appearance == (("height_scale", 1.0),)
-    assert submitted == [("fox-1", "greet")]
+    assert submitted == [("saevi-1", "greet")]

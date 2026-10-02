@@ -88,9 +88,9 @@ def test_source_species_gate_joins_config_and_godot_ids() -> None:
     assert species_package_validation.validate_source_species_packages(
         config_root=Path("config"),
         godot_project=Path("godot_project"),
-        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["dog","fox"]\n'),
+        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["myelle","saevi","tovren"]\n'),
         godot_binary=Path("/bin/true"),
-    ) == ("dog", "fox")
+    ) == ("myelle", "saevi", "tovren")
 
 
 def test_source_species_gate_rejects_a_different_godot_catalog() -> None:
@@ -101,7 +101,7 @@ def test_source_species_gate_rejects_a_different_godot_catalog() -> None:
         species_package_validation.validate_source_species_packages(
             config_root=Path("config"),
             godot_project=Path("godot_project"),
-            godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["fox"]\n'),
+            godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["saevi"]\n'),
             godot_binary=Path("/bin/true"),
         )
 
@@ -142,7 +142,7 @@ def test_runtime_catalog_accepts_only_a_matching_validated_export_manifest(
     manifest = tmp_path / "build-manifest.json"
     manifest.write_text(
         '{"schema_version": 2, "species_catalog_digest": "digest", '
-        '"species_package_ids": ["dog", "fox"]}',
+        '"species_package_ids": ["tovren", "saevi"]}',
         encoding="utf-8",
     )
     catalog = type(
@@ -152,10 +152,10 @@ def test_runtime_catalog_accepts_only_a_matching_validated_export_manifest(
             "digest": "digest",
             "definitions": (
                 type(
-                    "Definition", (), {"godot_package_id": "fox", "resolvable": True}
+                    "Definition", (), {"godot_package_id": "saevi", "resolvable": True}
                 )(),
                 type(
-                    "Definition", (), {"godot_package_id": "dog", "resolvable": True}
+                    "Definition", (), {"godot_package_id": "tovren", "resolvable": True}
                 )(),
             ),
         },
@@ -167,8 +167,8 @@ def test_runtime_catalog_accepts_only_a_matching_validated_export_manifest(
         godot_binary=Path("/missing/godot"),
     )
 
-    assert readiness.available_species_ids() == ("dog", "fox")
-    assert readiness.is_available("cat") is False
+    assert readiness.available_species_ids() == ("saevi", "tovren")
+    assert readiness.is_available("myelle") is False
 
 
 def test_runtime_catalog_fails_closed_for_old_or_mismatched_manifest(
@@ -178,7 +178,7 @@ def test_runtime_catalog_fails_closed_for_old_or_mismatched_manifest(
     manifest = tmp_path / "build-manifest.json"
     manifest.write_text(
         '{"schema_version": 1, "species_catalog_digest": "digest", '
-        '"species_package_ids": ["dog", "fox"]}',
+        '"species_package_ids": ["tovren", "saevi"]}',
         encoding="utf-8",
     )
     monkeypatch.setattr(species_runtime_catalog, "_find_godot_binary", lambda: None)
@@ -189,7 +189,7 @@ def test_runtime_catalog_fails_closed_for_old_or_mismatched_manifest(
             "digest": "digest",
             "definitions": (
                 type(
-                    "Definition", (), {"godot_package_id": "fox", "resolvable": True}
+                    "Definition", (), {"godot_package_id": "saevi", "resolvable": True}
                 )(),
             ),
         },
@@ -212,10 +212,10 @@ def test_runtime_catalog_uses_the_injected_godot_runner_for_source_validation(
         catalog,
         runtime_manifest=tmp_path / "missing-manifest.json",
         godot_binary=Path("/bin/true"),
-        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["dog","fox"]\n'),
+        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["myelle","saevi","tovren"]\n'),
     )
 
-    assert readiness.available_species_ids() == ("dog", "fox")
+    assert readiness.available_species_ids() == ("myelle", "saevi", "tovren")
     assert readiness.source == "source-validation"
 
 
@@ -232,7 +232,7 @@ def test_runtime_catalog_resolves_frozen_config_from_launcher_environment(
         assert isinstance(godot_project, Path)
         observed["config_root"] = config_root
         observed["godot_project"] = godot_project
-        return ("dog", "fox")
+        return ("tovren", "saevi")
 
     monkeypatch.setattr(
         species_runtime_catalog,
@@ -250,10 +250,10 @@ def test_runtime_catalog_resolves_frozen_config_from_launcher_environment(
             "digest": "digest",
             "definitions": (
                 type(
-                    "Definition", (), {"godot_package_id": "fox", "resolvable": True}
+                    "Definition", (), {"godot_package_id": "saevi", "resolvable": True}
                 )(),
                 type(
-                    "Definition", (), {"godot_package_id": "dog", "resolvable": True}
+                    "Definition", (), {"godot_package_id": "tovren", "resolvable": True}
                 )(),
             ),
         },
@@ -263,7 +263,7 @@ def test_runtime_catalog_resolves_frozen_config_from_launcher_environment(
         catalog,
         runtime_manifest=tmp_path / "missing-manifest.json",
         godot_binary=Path("/bin/true"),
-        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["dog","fox"]\n'),
+        godot_runner=_godot_runner('SPECIES_CATALOG_IDS:["myelle","saevi","tovren"]\n'),
     )
 
     assert readiness.source == "source-validation"

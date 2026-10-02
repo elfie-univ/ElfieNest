@@ -25,10 +25,10 @@ def main() -> None:
     source = load_genesis_source_package()
     catalog = load_and_configure_species_catalog()
     compiler = GenesisCompiler(source, catalog=catalog)
-    cases = [("fox", a) for a in (2, 3, 5, 8, 10, 11)] + [
-        ("dog", a) for a in (2, 3, 6, 8, 14, 16)
+    cases = [("saevi", a) for a in (2, 3, 5, 8, 10, 11)] + [
+        ("tovren", a) for a in (2, 3, 6, 8, 14, 16)
     ]
-    cases.append(("fox", 8))  # Additional natural travel case, input seed 1.
+    cases.append(("saevi", 8))  # Additional natural travel case, input seed 1.
     results = []
     summary = []
     report = [
@@ -36,7 +36,7 @@ def main() -> None:
         "",
         "使用当前生产 GenesisCompiler，写入 build/，没有创建或修改真实精灵。",
         "时间使用年龄年＋本地日的生成投影，不声称精确生日。公共事件无当前本地年锚点时，单次绝对日期事件记录不可定位。",
-        "当前正式候选入口仅支持 fox 和 dog；幼年期0–1岁及第三物种不绕过入口限制生成。",
+        "当前正式候选入口支持 Saevi、Tovren、Myelle；本报告选取前两个物种，幼年期0–1岁不绕过赴地年龄限制生成。",
         "当前配置：本地年196天，学习/工作年度预算98天，照护49天，普通活动参与抽样0.5。效果需要人工审查。",
         "",
         "## 样本总览",

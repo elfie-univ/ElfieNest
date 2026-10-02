@@ -143,7 +143,7 @@ def test_memory_preserves_groups_and_nonself_parent_links():
 
 
 def test_old_protagonist_does_not_keep_overage_teacher_alive():
-    result = _compilation(species_id="dog", stage="elder", age_years=18, seed=1)
+    result = _compilation(species_id="tovren", stage="elder", age_years=18, seed=1)
     teacher = next(r for r in result.bundle.relationship_seeds if r.role == "teacher")
     assert teacher.life_status == "deceased"
     assert teacher.age_years_at_genesis is None
@@ -157,7 +157,7 @@ def test_old_protagonist_does_not_keep_overage_teacher_alive():
 
 
 def test_social_people_only_use_species_with_loaded_life_parameters():
-    result = _compilation(species_id="dog", stage="adolescent", age_years=3, seed=23)
+    result = _compilation(species_id="tovren", stage="adolescent", age_years=3, seed=23)
     catalog = load_species_catalog()
     for person in result.bundle.relationship_seeds:
         if person.object_kind == "elfie":

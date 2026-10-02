@@ -10,7 +10,7 @@ anatomy-spanning body-motif result is recorded but explicitly deferred.
 Phase 1 established the accepted baseline: recolor the original source fur response with bounded
 relative-luminance transfer, preserve dark identity details and light regions, and avoid a broad
 overlay that creates gray haze. The product review estimate for that baseline was approximately
-8.8/10 for fox and 8.4/10 for dog under the controlled comparison.
+8.8/10 for saevi and 8.4/10 for tovren under the controlled comparison.
 
 This record captures the next experiments so the decisions and limits are findable later. It does
 not turn the experimental images into a production shader or alter a GLB, scene geometry,
@@ -20,7 +20,7 @@ BlendShape, or face shape.
 
 An earlier UV-mask prototype was rendered from front and side views. It was rejected as the
 current production direction after visual review: the protected eye/nose regions grew too large,
-some fox white-region boundaries remained visibly wrong, and the side-view tail/edge result was
+some saevi white-region boundaries remained visibly wrong, and the side-view tail/edge result was
 not reliable enough. The reviewed images remain as historical evidence, but the rejected render
 script was removed so it cannot become a second recoloring path. The default actor appearance path
 does not bind the mask assets.
@@ -31,7 +31,7 @@ solution.
 
 ## Controlled experiment method
 
-The original dog and fox Godot scenes were rendered with the real Godot OpenGL/Metal renderer at
+The original tovren and saevi Godot scenes were rendered with the real Godot OpenGL/Metal renderer at
 the fixed 512×512 adoption-card camera. A temporary harness then applied the accepted Phase 1
 relative tone transfer and explicit species-specific natural-region masks to the rendered image.
 This made the experiments fast and repeatable without starting the service or changing the GLB.
@@ -66,10 +66,10 @@ fur-like. The result is the reference starting point for every later plate.
 
 The experiment supports different natural-region families per species:
 
-- dog: chest bib, narrow forehead blaze, and paw-sock regions;
-- fox: chest, lower face/muzzle, and inner-ear regions.
+- tovren: chest bib, narrow forehead blaze, and paw-sock regions;
+- saevi: chest, lower face/muzzle, and inner-ear regions.
 
-The source fur detail survives inside the regions, so the mechanism is feasible. The dog forehead
+The source fur detail survives inside the regions, so the mechanism is feasible. The tovren forehead
 boundary is still only an exploratory fixed-camera mask and is not final art; the final version
 needs a region boundary that follows the real fur/UV layout rather than a screen-space shape.
 
@@ -125,7 +125,7 @@ The experiments pass as a technical feasibility layer for all five requested con
 The current product-safe boundary is:
 
 - keep Phase 1 source-texture relative recoloring as the accepted visual foundation;
-- keep dog and fox on one shared appearance protocol with species-specific region definitions;
+- keep tovren and saevi on one shared appearance protocol with species-specific region definitions;
 - do not adopt the rejected UV-mask assets or the fixed-camera image-space masks as production
   runtime behavior yet;
 - production now uses only the reviewed thirteen semantic regions, with automated checks for
@@ -144,7 +144,7 @@ visual references.
 Decision: keep the written result and visual direction, but remove the duplicate harness and atlas
 so they cannot become a second production Shader. The product generates no body-motif parameters
 and `ActorAppearance` does not consume them. Reactivation requires a new anatomical-path or
-equivalent 3D-to-UV bake experiment that passes five-view review for both dog and fox. This
+equivalent 3D-to-UV bake experiment that passes five-view review for both tovren and saevi. This
 deferral does not reopen the frozen V9 tone transfer or the thirteen production regions.
 
 ## Evidence inventory

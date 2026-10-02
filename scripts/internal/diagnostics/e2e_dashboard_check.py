@@ -287,7 +287,7 @@ def main() -> None:
             status, candidates, raw, _ = alice.post_json(
                 "/api/v1/me/adoption/candidate-sets",
                 {
-                    "species_id": "fox",
+                    "species_id": "saevi",
                     "life_stage": "adolescent",
                     "gender": "any",
                     "appearance": {

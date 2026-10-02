@@ -17,8 +17,8 @@ from infrastructure.persistence.configuration.species import (
 )
 
 # Published half-open stage boundaries; these are the biological family gates.
-MATURE_START = {"dog": 6, "fox": 5}
-ELDER_START = {"dog": 14, "fox": 10}
+MATURE_START = {"tovren": 6, "saevi": 5}
+ELDER_START = {"tovren": 14, "saevi": 10}
 
 
 @lru_cache(maxsize=2)
@@ -29,7 +29,7 @@ def species_genesis(species: str) -> SpeciesGenesisProfile:
 
 
 def generator(
-    species: str = "dog", seed: int = 1, **overrides: object
+    species: str = "tovren", seed: int = 1, **overrides: object
 ) -> FamilyGenerator:
     genesis = species_genesis(species)
     family = GenerationPolicy().family
@@ -59,7 +59,7 @@ def generator(
 
 
 def person(
-    age: int, species: str = "dog", gender: str = "male", ident: str = "self"
+    age: int, species: str = "tovren", gender: str = "male", ident: str = "self"
 ) -> FamilyPerson:
     return FamilyPerson(
         person_id=ident, species_id=species, gender=gender, birth_year=-age
@@ -94,7 +94,7 @@ def assert_group(group: FamilyGroup, species: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "species,ages", [("dog", (2, 6, 14, 16)), ("fox", (2, 5, 10, 11))]
+    "species,ages", [("tovren", (2, 6, 14, 16)), ("saevi", (2, 5, 10, 11))]
 )
 @pytest.mark.parametrize("gender", ["female", "male"])
 def test_core_family_preserves_anchor_and_all_time_invariants(
@@ -147,7 +147,7 @@ def test_family_graph_wraps_core_and_bounded_ancestor_families() -> None:
     assert {branch.anchor.person_id for branch in first.ancestor_families} <= parent_ids
     for branch in first.ancestor_families:
         assert branch.anchor in branch.group.children
-        assert_group(branch.group, "dog")
+        assert_group(branch.group, "tovren")
 
 
 def test_family_graph_adds_one_terminal_partner_origin_only_when_married() -> None:
@@ -163,7 +163,7 @@ def test_family_graph_adds_one_terminal_partner_origin_only_when_married() -> No
     )
     assert married.partner_origin.anchor == partner
     assert partner in married.partner_origin.group.children
-    assert_group(married.partner_origin.group, "dog")
+    assert_group(married.partner_origin.group, "tovren")
 
     unmarried = generator(seed=3, never_married_probability=1.0).generate_family_graph(
         person(16)
@@ -201,7 +201,7 @@ def test_family_graph_expands_role_bounded_side_and_descendant_branches() -> Non
             branch.group.union.first,
             branch.group.union.second,
         )
-        assert_group(branch.group, "dog")
+        assert_group(branch.group, "tovren")
     terminal_ids = {
         child.person_id
         for branch in (
@@ -230,7 +230,7 @@ def test_family_graph_expands_children_only_after_mature_gate() -> None:
 
     assert mature_graph.child_families
     assert all(
-        -branch.anchor.birth_year >= MATURE_START["dog"]
+        -branch.anchor.birth_year >= MATURE_START["tovren"]
         for branch in mature_graph.child_families
     )
     assert not young_graph.child_families
@@ -271,7 +271,7 @@ def test_lifetime_unmarried_does_not_remove_required_parents() -> None:
     union = gen.generate_parents(subject)
     group = gen.generate_children(union, existing=(subject,))
     assert subject in group.children
-    assert_group(group, "dog")
+    assert_group(group, "tovren")
 
 
 def test_zero_never_married_probability_is_paired_by_species_maximum_age() -> None:
@@ -283,9 +283,11 @@ def test_zero_never_married_probability_is_paired_by_species_maximum_age() -> No
     union = gen.generate_partner(adult, union_id="own", partner_id="partner")
     assert union is not None
     assert (
-        MATURE_START["dog"] <= union.formed_year - adult.birth_year < ELDER_START["dog"]
+        MATURE_START["tovren"]
+        <= union.formed_year - adult.birth_year
+        < ELDER_START["tovren"]
     )
-    assert_group(gen.generate_children(union), "dog")
+    assert_group(gen.generate_children(union), "tovren")
 
 
 def test_parent_and_partner_ages_are_not_fixed_offsets() -> None:
@@ -309,7 +311,7 @@ def test_parent_and_partner_ages_are_not_fixed_offsets() -> None:
     assert len(partner_formation_ages) > 1
 
 
-@pytest.mark.parametrize("species,ages", [("dog", (2, 8, 14)), ("fox", (2, 8, 9))])
+@pytest.mark.parametrize("species,ages", [("tovren", (2, 8, 14)), ("saevi", (2, 8, 9))])
 def test_parents_are_reverse_generated_from_child_lag_and_marriage_age(
     species: str, ages: tuple[int, ...]
 ) -> None:
@@ -371,7 +373,7 @@ def test_just_formed_union_has_no_birth_window() -> None:
     assert generator().generate_children(union).children == ()
 
 
-@pytest.mark.parametrize("species", ["dog", "fox"])
+@pytest.mark.parametrize("species", ["tovren", "saevi"])
 def test_elder_boundary_cannot_be_used_as_birth_year(species: str) -> None:
     age = ELDER_START[species]
     union = FamilyUnion(
@@ -384,13 +386,13 @@ def test_elder_boundary_cannot_be_used_as_birth_year(species: str) -> None:
     "children",
     [
         (
-            FamilyPerson("bad", "dog", "male", -8),
+            FamilyPerson("bad", "tovren", "male", -8),
         ),  # Before marriage / too young parents.
         (
-            FamilyPerson("one", "dog", "male", -2),
-            FamilyPerson("two", "dog", "female", -2),
+            FamilyPerson("one", "tovren", "male", -2),
+            FamilyPerson("two", "tovren", "female", -2),
         ),
-        tuple(FamilyPerson(str(i), "dog", "male", -4 + i) for i in range(4)),
+        tuple(FamilyPerson(str(i), "tovren", "male", -4 + i) for i in range(4)),
     ],
 )
 def test_invalid_anchored_children_fail_instead_of_being_deleted(
@@ -409,7 +411,7 @@ def test_birth_after_parent_death_is_excluded() -> None:
     union = FamilyUnion("fixed", father, mother, -4)
     for seed in range(12):
         group = generator(seed=seed).generate_children(union)
-        assert_group(group, "dog")
+        assert_group(group, "tovren")
         assert all(child.birth_year < -2 for child in group.children)
 
 
@@ -419,8 +421,8 @@ def test_existing_children_override_smaller_target_without_replacement() -> None
         "fixed", person(10), person(10, gender="female", ident="mate"), -4
     )
     children = (
-        FamilyPerson("older", "dog", "male", -3),
-        FamilyPerson("younger", "dog", "female", -1),
+        FamilyPerson("older", "tovren", "male", -3),
+        FamilyPerson("younger", "tovren", "female", -1),
     )
     group = gen.generate_children(union, existing=children)
     assert group.children == children
@@ -469,7 +471,7 @@ def test_known_child_occupies_a_birth_year_before_remaining_sampling(
     union = FamilyUnion(
         "anchor-first", person(10), person(10, gender="female", ident="mate"), -4
     )
-    known = FamilyPerson("known", "dog", "female", -3)
+    known = FamilyPerson("known", "tovren", "female", -3)
 
     def sample(
         self: FamilyGenerator,
@@ -499,12 +501,12 @@ def test_target_three_children_is_limited_by_legal_year_capacity(window: int) ->
     )
     group = gen.generate_children(union)
     assert len(group.children) == window
-    assert_group(group, "dog")
+    assert_group(group, "tovren")
 
 
 def test_partner_must_accommodate_anchored_birth_even_when_lifetime_unmarried() -> None:
     father = person(10)
-    child = FamilyPerson("anchor", "dog", "female", -3)
+    child = FamilyPerson("anchor", "tovren", "female", -3)
     gen = generator(never_married_probability=1.0)
     union = gen.generate_partner(
         father,
@@ -516,12 +518,12 @@ def test_partner_must_accommodate_anchored_birth_even_when_lifetime_unmarried() 
     assert union is not None
     group = gen.generate_children(union, existing=(child,))
     assert child in group.children
-    assert_group(group, "dog")
+    assert_group(group, "tovren")
 
 
 def test_impossible_anchored_birth_does_not_change_given_parent() -> None:
     father = person(3)
-    child = FamilyPerson("anchor", "dog", "female", -2)
+    child = FamilyPerson("anchor", "tovren", "female", -2)
     with pytest.raises(ValueError):
         generator().generate_partner(
             father,
@@ -546,7 +548,7 @@ def test_generated_child_identity_cannot_collide_with_parent() -> None:
         -2,
     )
     group = generator(child_count_distribution=((3, 1.0),)).generate_children(union)
-    assert_group(group, "dog")
+    assert_group(group, "tovren")
 
 
 @pytest.mark.parametrize(
@@ -575,7 +577,7 @@ def test_currently_living_person_cannot_exceed_species_terminal_age() -> None:
 
 
 def test_all_generated_unions_respect_two_year_partner_gap() -> None:
-    for species, age in (("dog", 14), ("fox", 10)):
+    for species, age in (("tovren", 14), ("saevi", 10)):
         for seed in range(32):
             core = generator(species, seed).generate_core_family(person(age, species))
             unions = [core.origin.union]
@@ -604,7 +606,7 @@ def test_partner_sampling_consumes_configured_age_gap_weights() -> None:
     for seed in range(12):
         seeded = generator(seed=seed, never_married_probability=0.0)
         configured = FamilyGenerator(
-            species_id="dog",
+            species_id="tovren",
             genesis=seeded.genesis,
             policy=replace(seeded.policy, family=same_age_family),
             seed_for=seeded.seed_for,
@@ -627,7 +629,7 @@ def test_child_generation_validates_against_configured_age_gaps() -> None:
         partner_age_gap=PartnerAgeGapConfig(offsets=(3,), weights=(1.0,)),
     )
     configured = FamilyGenerator(
-        species_id="dog",
+        species_id="tovren",
         genesis=base.genesis,
         policy=replace(base.policy, family=family),
         seed_for=base.seed_for,
@@ -667,7 +669,7 @@ def test_marriage_age_draw_does_not_change_with_current_age() -> None:
         )
         assert older is not None
         marriage_age = older.formed_year + 17
-        assert MATURE_START["dog"] <= marriage_age < ELDER_START["dog"]
+        assert MATURE_START["tovren"] <= marriage_age < ELDER_START["tovren"]
         for current_age in (5, 6, 8):
             younger = generator(
                 seed=seed, never_married_probability=0.0
@@ -683,7 +685,7 @@ def test_marriage_age_draw_does_not_change_with_current_age() -> None:
                 )
 
 
-@pytest.mark.parametrize("species,maximum", [("dog", 13), ("fox", 9)])
+@pytest.mark.parametrize("species,maximum", [("tovren", 13), ("saevi", 9)])
 def test_both_marriage_ages_are_within_species_window(
     species: str, maximum: int
 ) -> None:
@@ -739,7 +741,7 @@ def test_marriage_age_sampling_consumes_configured_curve_shape() -> None:
             stddev_fraction=0.01,
         )
         configured = FamilyGenerator(
-            species_id="dog",
+            species_id="tovren",
             genesis=base.genesis,
             policy=replace(
                 base.policy,
@@ -755,7 +757,7 @@ def test_marriage_age_sampling_consumes_configured_curve_shape() -> None:
         expected = 6 if peak_fraction == 0.0 else 13
         assert observed == expected
         assert (
-            MATURE_START["dog"]
+            MATURE_START["tovren"]
             <= union.formed_year - union.second.birth_year
-            < ELDER_START["dog"]
+            < ELDER_START["tovren"]
         )

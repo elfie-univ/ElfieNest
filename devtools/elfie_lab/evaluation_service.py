@@ -738,9 +738,11 @@ def _fixture_from_profile(
 ) -> LabFixtureDefinition:
     raw_big_five = profile.get("big_five")
     big_five = raw_big_five if isinstance(raw_big_five, Mapping) else {}
-    if spec.species_id not in {"dog", "fox"}:
+    if spec.species_id not in {"tovren", "saevi"}:
         raise ValueError(f"不支持的评测精灵物种: {spec.species_id}")
-    species_id: Literal["dog", "fox"] = "dog" if spec.species_id == "dog" else "fox"
+    species_id: Literal["tovren", "saevi"] = (
+        "tovren" if spec.species_id == "tovren" else "saevi"
+    )
     return LabFixtureDefinition(
         fixture_id=f"elfie-lab-{spec.elfie_id}",
         elfie_id=(

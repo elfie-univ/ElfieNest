@@ -44,7 +44,7 @@ def test_retired_species_allowlist_is_ignored_and_removed_on_settings_write(
                 "system": {
                     "adoption": {
                         "max_elfies_per_user": 3,
-                        "allowed_species_ids": ["dog"],
+                        "allowed_species_ids": ["tovren"],
                         "personality_presets_enabled": {"好奇探索": True},
                     }
                 },

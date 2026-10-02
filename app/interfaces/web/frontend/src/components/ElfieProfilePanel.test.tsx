@@ -81,11 +81,11 @@ describe("ElfieProfilePanel", () => {
         onBack={vi.fn()}
         onChat={vi.fn()}
         projection={projection}
-        speciesDefinition={{ display_name: "Vulpine", display_name_zh: "灵狐" }}
+        speciesDefinition={{ display_name: "Saevi", display_name_zh: "赛维" }}
       />,
     )
 
-    expect(screen.getByLabelText("灵狐")).toHaveClass("profile-dossier__species")
+    expect(screen.getByLabelText("赛维")).toHaveClass("profile-dossier__species")
   })
 
   it("keeps the desktop portrait track bound to the visible portrait width", () => {
@@ -125,7 +125,7 @@ describe("ElfieProfilePanel", () => {
 
     // Then: the reference-led public hierarchy and adopter relationship are visible.
     expect(screen.getByRole("heading", { level: 1, name: "Happy" })).toBeInTheDocument()
-    expect(screen.getByText("fox", { selector: ".profile-dossier__species" })).toBeInTheDocument()
+    expect(screen.getByText("saevi", { selector: ".profile-dossier__species" })).toBeInTheDocument()
     expect(screen.getByText(HAPPY_EXPERIENCE.publicProfile.biography)).toBeInTheDocument()
     expect(screen.getByText("我")).toBeInTheDocument()
     expect(screen.getByText("1 个月")).toBeInTheDocument()
@@ -167,7 +167,7 @@ describe("ElfieProfilePanel", () => {
       throw new TypeError("Expected the approved identity card structure")
     }
     expect(nameRow.querySelector("h1")?.textContent).toBe("Happy")
-    expect(nameRow.querySelector(".profile-dossier__species")?.textContent).toBe("fox")
+    expect(nameRow.querySelector(".profile-dossier__species")?.textContent).toBe("saevi")
     expect(identity).not.toHaveTextContent("你的精灵")
     expect(identity).not.toHaveTextContent("关于我")
     expect([...metadata.children].map((item) => item.textContent?.replace(/\s+/g, " ").trim())).toEqual([
