@@ -36,8 +36,8 @@ def _write_godot_dedicated_bundle(root: Path) -> None:
 def _write_config_bundle(root: Path) -> None:
     _write_file(root / "app" / "system-defaults.yaml", b"version: 1\nsystem: {}\n")
     shutil.copytree(
-        assemble_desktop_resources.DEFAULT_CONFIG_SOURCE / "species",
-        root / "species",
+        assemble_desktop_resources.DEFAULT_CONFIG_SOURCE / "genesis",
+        root / "genesis",
     )
 
 
