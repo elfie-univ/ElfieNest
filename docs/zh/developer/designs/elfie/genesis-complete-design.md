@@ -370,7 +370,7 @@ config/genesis/
 
 地图/道路归共享地理成员，通用人生策略归入口规则；物种成员只加物种约束，不复制地图或个人事实。Godot 几何/导航/渲染、Selfhood 模板、Memory Retention、工具权限、Nest 当前状态和运行时默认值不搬进包。
 
-物种目录使用正式名 `saevi / tovren / myelle`；catalog 显式映射技术 ID `fox / dog / cat`，保持 Godot 绑定稳定。
+物种目录、技术物种 ID 和 Godot 包 ID 统一使用 `saevi / tovren / myelle`。英文显示名为 Saevi、Tovren、Myelle；中文显示名为赛维、托伦、米耶尔。
 
 #### 6.4.2 知识字段与标签转换
 

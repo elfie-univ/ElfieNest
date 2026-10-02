@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cfjxropcwmvd3"
-path="res://.godot/imported/dog.glb-26260ba5a5864ebc72a484e1d9c3b198.scn"
+uid="uid://b8so58nmpaslg"
+path="res://.godot/imported/myelle.glb-fafbfc6c13465349b9f6f8dba1074af3.scn"
 
 [deps]
 
-source_file="res://characters/dog/dog.glb"
-dest_files=["res://.godot/imported/dog.glb-26260ba5a5864ebc72a484e1d9c3b198.scn"]
+source_file="res://characters/myelle/myelle.glb"
+dest_files=["res://.godot/imported/myelle.glb-fafbfc6c13465349b9f6f8dba1074af3.scn"]
 
 [params]
 

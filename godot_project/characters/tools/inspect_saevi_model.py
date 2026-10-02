@@ -10,7 +10,7 @@ from mathutils import Vector
 
 
 def project_root() -> Path:
-    marker = Path("godot_project/characters/fox/fox.glb")
+    marker = Path("godot_project/characters/saevi/saevi.glb")
     for candidate in [Path.cwd(), *Path.cwd().parents]:
         if (candidate / marker).is_file():
             return candidate
@@ -91,8 +91,8 @@ def configure_render(output_dir: Path) -> None:
 
 def main() -> None:
     root = project_root()
-    input_path = root / "godot_project/characters/fox/fox.glb"
-    output_dir = root / "godot_project/characters/fox/source/previews/neutral"
+    input_path = root / "godot_project/characters/saevi/saevi.glb"
+    output_dir = root / "godot_project/characters/saevi/source/previews/neutral"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     clear_scene()
@@ -113,18 +113,18 @@ def main() -> None:
 
     for item in sorted(meshes, key=lambda obj: len(obj.data.vertices), reverse=True):
         print(
-            f"FOX_MESH name={item.name} vertices={len(item.data.vertices)} "
+            f"SAEVI_MESH name={item.name} vertices={len(item.data.vertices)} "
             f"polygons={len(item.data.polygons)} groups={len(item.vertex_groups)} "
             f"parent={item.parent.name if item.parent else '-'} hide_render={item.hide_render}"
         )
         if item != mesh:
             item.hide_render = True
     print(
-        f"FOX_BOUNDS min={tuple(round(v, 5) for v in minimum)} max={tuple(round(v, 5) for v in maximum)}"
+        f"SAEVI_BOUNDS min={tuple(round(v, 5) for v in minimum)} max={tuple(round(v, 5) for v in maximum)}"
     )
-    print(f"FOX_ARMATURE name={armature.name} bones={len(armature.data.bones)}")
-    print("FOX_BONES " + ",".join(bone.name for bone in armature.data.bones))
-    print("FOX_VERTEX_GROUPS " + ",".join(group.name for group in mesh.vertex_groups))
+    print(f"SAEVI_ARMATURE name={armature.name} bones={len(armature.data.bones)}")
+    print("SAEVI_BONES " + ",".join(bone.name for bone in armature.data.bones))
+    print("SAEVI_VERTEX_GROUPS " + ",".join(group.name for group in mesh.vertex_groups))
 
     configure_render(output_dir)
     add_lights(center, size)
@@ -142,15 +142,17 @@ def main() -> None:
         bpy.context.scene.render.filepath = str(output_dir / f"{name}.png")
         bpy.ops.render.render(write_still=True)
 
-    blend_path = root / "godot_project/characters/fox/source/fox_neutral_import.blend"
+    blend_path = (
+        root / "godot_project/characters/saevi/source/saevi_neutral_import.blend"
+    )
     blend_path.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
-    print(f"FOX_INSPECTION_DONE output={output_dir}")
+    print(f"SAEVI_INSPECTION_DONE output={output_dir}")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"FOX_INSPECTION_ERROR {exc}", file=sys.stderr)
+        print(f"SAEVI_INSPECTION_ERROR {exc}", file=sys.stderr)
         raise

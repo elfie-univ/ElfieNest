@@ -119,8 +119,8 @@ export function NestLabApp(): React.JSX.Element {
             <p className="muted">{state.world?.actor_count ?? 0} 个临时角色 · 世界版本 {state.world?.world_revision ?? "—"}</p>
           </Card>
           <Card className="console-panel" title={<h2>添加角色</h2>}>
-            <div className="button-row"><Button onClick={() => { void action("actors", "已添加一只狐狸。", { species: "fox" }); }}>＋ 狐狸</Button><Button onClick={() => { void action("actors", "已添加一只小狗。", { species: "dog" }); }}>＋ 小狗</Button></div>
-            {state.actors.length ? <ul className="actor-list">{state.actors.map((actor) => <li key={actor.actor_id}><span>{actor.species === "fox" ? "狐狸" : "小狗"}</span>{actor.actor_id}</li>)}</ul> : <Empty description="还没有临时角色" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+            <div className="button-row"><Button onClick={() => { void action("actors", "已添加一只赛维。", { species: "saevi" }); }}>＋ 赛维</Button><Button onClick={() => { void action("actors", "已添加一只托伦。", { species: "tovren" }); }}>＋ 托伦</Button></div>
+            {state.actors.length ? <ul className="actor-list">{state.actors.map((actor) => <li key={actor.actor_id}><span>{actor.species === "saevi" ? "赛维" : "托伦"}</span>{actor.actor_id}</li>)}</ul> : <Empty description="还没有临时角色" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
           <Card className="console-panel" title={<h2>实验控制</h2>}>
             <div className="button-grid"><Button onClick={() => { void action("simulation/wander", "随机游走已开启。"); }}>随机游走</Button><Button onClick={() => { void action("simulation/pause", "模拟已暂停。"); }}>暂停</Button><Button onClick={() => { void action("simulation/resume", "模拟已继续。"); }}>继续</Button><Button danger onClick={() => { void action("simulation/reset", "实验已重置。"); }}>重置</Button></div>

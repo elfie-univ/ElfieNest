@@ -24,7 +24,7 @@ def test_genesis_source_package_loads_the_published_version_bound_bundle() -> No
     package = load_genesis_source_package()
 
     assert (package.world_id, package.display_name) == ("elfaria", "Elfaria")
-    assert package.package_version == "elfaria-genesis.v10"
+    assert package.package_version == "elfaria-genesis.v12"
     assert package.geography_network.days_per_local_year == 196
     assert package.generation_policy.family_lifespan_cdf_power == 6
     assert (
@@ -184,8 +184,10 @@ def test_geography_is_projected_as_uniform_region_then_cell_sampling() -> None:
         for cell in cells
         if cell.region_id == "D"
         for species_id in cell.species_ids
-    } == {"fox", "dog", "cat"}
-    assert all(cell.species_ids == ("fox",) for cell in cells if cell.region_id == "B")
+    } == {"saevi", "tovren", "myelle"}
+    assert all(
+        cell.species_ids == ("saevi",) for cell in cells if cell.region_id == "B"
+    )
     assert package.place("myelle_region").aliases == ("A1", "A2")
 
 

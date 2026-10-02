@@ -1,9 +1,14 @@
 # ElfieNest 3D 动物角色创建与集成手册
 
 本文描述从二维设定图到 Godot 可运行角色的完整生产流程。当前标准面向
-拟人化双足角色，Saevi 和 Tovren 是当前骨骼基准角色。Myelle 尚未准备完整的正式
-资源包，暂不进入运行时；不能用程序化视觉场景或占位资源替代它。四足形态只预留资源契约，暂不实现
+拟人化双足角色，Saevi 和 Tovren 是当前骨骼基准角色。Myelle 已提供首版带蒙皮
+GLB、四节尾骨、包装场景与 manifest，并复用公共双足动作；其美术和逐年龄外貌仍待人工验收。
+不能用程序化视觉场景或占位资源代替完整角色包。四足形态只预留资源契约，暂不实现
 运行时切换。
+
+Myelle now has an initial skinned GLB, four tail bones, a wrapper scene and a
+manifest using shared bipedal actions. Artistic and per-age appearance review
+remain pending; a placeholder alone does not satisfy the runtime contract.
 
 高矮胖瘦、脸型、五官、毛发、毛色、Shape Key 命名、随机生成范围和物种
 配置见 [外貌参数与物种母版规范](APPEARANCE_SYSTEM_SPEC.md)。
@@ -48,7 +53,7 @@ godot_project/characters/
 扫描和自动导入这些文件。提交给 Godot 场景的稳定资产必须导出到物种目录的
 `<species>.glb`，场景只引用该 GLB，不得直接引用 `.blend`。
 
-物种标识使用小写 ASCII，例如 `dog`、`fox`、`cat`。所有物种的运行时节点名称
+物种标识使用小写 ASCII，例如 `tovren`、`saevi`、`myelle`。所有物种的运行时节点名称
 保持一致：
 
 ```text
@@ -244,7 +249,7 @@ mixamorig:Hips
 - 执行 `Weights > Normalize All`，单个顶点总权重为 `1.0`。
 - 使用极端左右、上下弯曲姿态检查尾根是否撕裂或塌陷。
 
-当前 dog 和 fox 仍只有一根 `mixamorig:Tail_Bone`，属于可导入但待升级的
+当前 tovren 和 saevi 仍只有一根 `mixamorig:Tail_Bone`，属于可导入但待升级的
 过渡资源。增加尾骨链后，Godot 公共尾巴弹簧组件只需要读取骨名和物种参数。
 
 ## 8. 坐标、变换和导出 GLB
@@ -298,13 +303,13 @@ Godot 版本必须与 `godot_project/project.godot` 的 `config/features` 一致
 
 ### 9.3 当前项目实现
 
-`dog.tscn` 和 `fox.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。
+`tovren.tscn` 和 `saevi.tscn` 都提供 `CharacterBody3D + CapsuleShape3D`。
 每个可用物种还必须有同目录的正式 `.glb` 与 `species_manifest.json`；共享脚本
 根据以下数据同步视觉和主胶囊：
 
 ```json
 {
-  "species": "fox",
+  "species": "saevi",
   "height": "short",
   "build": "plump"
 }
@@ -373,13 +378,13 @@ mood_influence：情绪摆幅影响
 - 上衣和裤子是绑定同一 Skeleton 的独立蒙皮网格。
 - 衣服需要体型 morph target，或提供 slim/standard/plump 版本。
 - 被衣服完全覆盖的身体区域应隐藏或使用裁剪网格，降低穿模风险。
-- 装备资源需要 `humanoid_common`、`dog_only`、`fox_only`、`cat_only` 等兼容标签。
+- 装备资源需要 `humanoid_common`、`tovren_only`、`saevi_only`、`myelle_only` 等兼容标签。
 
 建议的个体外观数据：
 
 ```json
 {
-  "species": "fox",
+  "species": "saevi",
   "height_scale": 0.96,
   "build_scale": 1.04,
   "morphs": {"plump": 0.35},
@@ -398,8 +403,8 @@ mood_influence：情绪摆幅影响
 未来建议按同一物种身份维护两套运动形态：
 
 ```text
-dog_biped.glb        # 公共 humanoid 骨架和双足动画
-dog_quadruped.glb    # 统一的 quadruped 骨架和四足动画
+tovren_biped.glb        # 公共 humanoid 骨架和双足动画
+tovren_quadruped.glb    # 统一的 quadruped 骨架和四足动画
 ```
 
 两者共享材质、颜色、装备身份和外观种子。运行时切换时替换运动形态场景，

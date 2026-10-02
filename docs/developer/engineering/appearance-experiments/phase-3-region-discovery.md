@@ -6,14 +6,14 @@
 
 ## Scope and result
 
-This phase established reusable local regions on the existing dog and fox GLB meshes without
+This phase established reusable local regions on the existing tovren and saevi GLB meshes without
 changing either GLB. The accepted result is no longer an independent experiment shader:
 
 - `godot_project/runtime/actor/actor_appearance.gd` owns the production region formulas and the
   V9 relative-tone composition;
 - `godot_project/scripts/test/render_production_region_debug.gd` is the sole replayable region
   baseline renderer and delegates classification to `ActorAppearance`;
-- dog and fox share one thirteen-region protocol while retaining species-specific geometry
+- tovren and saevi share one thirteen-region protocol while retaining species-specific geometry
   thresholds;
 - at most two color-capable regions are active on one candidate.
 
@@ -32,7 +32,7 @@ APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
   --script res://scripts/test/render_production_region_debug.gd
 ```
 
-The renderer writes the dog and fox grids, individual rows and views, and a machine-readable
+The renderer writes the tovren and saevi grids, individual rows and views, and a machine-readable
 catalog to the requested temporary directory. Only the two compact grids and catalog are checked
 in as release evidence.
 
@@ -40,9 +40,9 @@ in as release evidence.
 
 [Production baseline manifest](../../../public/assets/appearance-experiments/phase-3/production-region-baseline-v1.json)
 
-![Dog production region grid](../../../public/assets/appearance-experiments/phase-3/production-v1/dog-formal-region-grid-4views.png)
+![Tovren production region grid](../../../public/assets/appearance-experiments/phase-3/production-v1/tovren-formal-region-grid-4views.png)
 
-![Fox production region grid](../../../public/assets/appearance-experiments/phase-3/production-v1/fox-formal-region-grid-4views.png)
+![Saevi production region grid](../../../public/assets/appearance-experiments/phase-3/production-v1/saevi-formal-region-grid-4views.png)
 
 Each row is one region. Columns are front, three-quarter, side and top. Bright debug colors show
 selection only; product recoloring uses the same local V9 relative-tone transfer as the base coat.

@@ -16,7 +16,7 @@ function TestObserver() {
   const observer = useRequiredObserver()
   return <>
     <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
-    <button onClick={() => { void observer.openElfie("fox-1") }} type="button">打开精灵</button>
+    <button onClick={() => { void observer.openElfie("saevi-1") }} type="button">打开精灵</button>
     <button onClick={observer.detach} type="button">离开 3D</button>
     <p>{observer.status}</p>
   </>
@@ -82,19 +82,19 @@ describe("ObserverProvider", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest" },
       entities: {
-        "fox-1": {
+        "saevi-1": {
           room_id: "local-nest",
           zone_id: "dorm",
           posture: "resting",
           active: true,
           active_command_id: null,
-          species_id: "fox",
+          species_id: "saevi",
           appearance: {},
           home_anchor_id: "dorm-01/bed-01",
           mock_motion: null,
         },
       },
-      entity_revisions: { "fox-1": 1 },
+      entity_revisions: { "saevi-1": 1 },
     } satisfies ObserverFrame
     let resolveFrame: ((frame: ObserverFrame) => void) | undefined
     vi.mocked(nextObserverFrame).mockImplementationOnce(() => new Promise((resolve) => {
@@ -124,7 +124,7 @@ describe("ObserverProvider", () => {
 
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: "semantic_snapshot",
-      entities: expect.objectContaining({ "fox-1": expect.any(Object) }),
+      entities: expect.objectContaining({ "saevi-1": expect.any(Object) }),
     }), window.location.origin)
     expect(postMessage.mock.calls.filter(([value]) => (
       typeof value === "object" && value !== null && Reflect.get(value, "kind") === "semantic_snapshot"
@@ -330,9 +330,9 @@ describe("ObserverProvider", () => {
       kind: "snapshot",
       generation: 1,
       sequence: 1,
-      scope: { kind: "elfie", elfie_id: "fox-1" },
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
       entities: {
-        "fox-1": {
+        "saevi-1": {
           room_id: "local-nest",
           zone_id: "dorm",
           posture: "resting",
@@ -344,15 +344,15 @@ describe("ObserverProvider", () => {
           mock_motion: null,
         },
       },
-      entity_revisions: { "fox-1": 1 },
+      entity_revisions: { "saevi-1": 1 },
     } satisfies ObserverFrame
     const cleared = {
       protocol: 3,
       kind: "delta",
       generation: 1,
       sequence: 2,
-      scope: { kind: "elfie", elfie_id: "fox-1" },
-      entity_id: "fox-1",
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1",
       entity_revision: 2,
       patch: { zone_id: null, active_command_id: null },
     } satisfies ObserverFrame
@@ -361,12 +361,12 @@ describe("ObserverProvider", () => {
 
     function SemanticProbe() {
       const observer = useRequiredObserver()
-      const entity = observer.entities["fox-1"]
-      return <><button onClick={() => { void observer.openElfie("fox-1") }} type="button">观察 Fox</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}</p></>
+      const entity = observer.entities["saevi-1"]
+      return <><button onClick={() => { void observer.openElfie("saevi-1") }} type="button">观察 Saevi</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}</p></>
     }
 
     render(<ObserverProvider csrfToken="csrf" enabled><SemanticProbe /></ObserverProvider>)
-    fireEvent.click(screen.getByRole("button", { name: "观察 Fox" }))
+    fireEvent.click(screen.getByRole("button", { name: "观察 Saevi" }))
     await act(async () => {})
     expect(screen.getByText("dorm|rest-1")).toBeInTheDocument()
     await act(async () => { vi.advanceTimersByTime(1000) })

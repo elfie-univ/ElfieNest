@@ -178,7 +178,7 @@ def _registered_elfie(tmp_path: Path) -> tuple[str, Elfie]:
     memory_store = SQLiteMemoryStoreAdapter.in_memory()
     return db_path, Elfie(
         character_profile=create_visual_profile(
-            elfie_id="00000001", display_name="测试精灵", species_id="fox", seed=5
+            elfie_id="00000001", display_name="测试精灵", species_id="saevi", seed=5
         ),
         memory_store=memory_store,
         memory_ontology=memory_store.ontology,

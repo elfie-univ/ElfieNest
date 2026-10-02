@@ -128,13 +128,13 @@ export const turnSchema = z.object({
 }).passthrough();
 
 export const elfieListSchema = z.object({
-  items: z.array(z.object({ elfie_id: z.string(), name: z.string(), species_id: z.union([z.literal("dog"), z.literal("fox")]), portrait_url: z.string().optional() }).passthrough()),
+  items: z.array(z.object({ elfie_id: z.string(), name: z.string(), species_id: z.union([z.literal("tovren"), z.literal("saevi")]), portrait_url: z.string().optional() }).passthrough()),
 });
 
 export const sessionSchema = z.object({
   elfie_id: z.string(),
   profile: z.object({
-    elfie_id: z.string(), name: z.string(), species_id: z.union([z.literal("dog"), z.literal("fox")]),
+    elfie_id: z.string(), name: z.string(), species_id: z.union([z.literal("tovren"), z.literal("saevi")]),
     species_label: z.string().default(""), life_stage: z.string().default(""), age_years: z.number().optional(),
     gender: z.string().nullable().optional(), origin_place_label: z.string().default(""),
     description: z.string().default(""), appearance_description: z.string().default(""),

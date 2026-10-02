@@ -268,12 +268,12 @@ cheek_final_z = species_face_fat_weight * body_fat_z
 ```json
 {
   "species_traits": {
-    "fox": {
+    "saevi": {
       "black_leg_coverage": 0.62,
       "tail_tip_coverage": 0.48,
       "cheek_ruff_bias": 0.35
     },
-    "dog": {
+    "tovren": {
       "jowl_fullness_bias": -0.12,
       "ear_fold_bias": 0.40,
       "tail_curl_bias": 0.22
@@ -524,9 +524,9 @@ LargeHeadNeck  = max(0, head_torso_bias) * max(0, -neck_thickness_bias)
 ```json
 {
   "schema_version": 1,
-  "species": "fox",
+  "species": "saevi",
   "profile_version": 1,
-  "model_path": "res://characters/fox/fox.glb",
+  "model_path": "res://characters/saevi/saevi.glb",
   "ranges": {
     "head_torso_ratio": {"min": 0.42, "base": 0.48, "max": 0.55},
     "neck_torso_ratio": {"min": 0.10, "base": 0.14, "max": 0.18}
@@ -570,7 +570,7 @@ LargeHeadNeck  = max(0, head_torso_bias) * max(0, -neck_thickness_bias)
 ```json
 {
   "schema_version": 1,
-  "species": "fox",
+  "species": "saevi",
   "profile_version": 1,
   "seed": 18427,
   "macro": {
@@ -777,7 +777,7 @@ forehead_height + muzzle_height <= usable_face_height
 
 ## 17. Saevi 和 Tovren 升级顺序
 
-当前 dog 和 fox GLB 已有蒙皮骨架，但还没有 morph target。建议先只升级 Saevi，
+当前 tovren 和 saevi GLB 已有蒙皮骨架，但还没有 morph target。建议先只升级 Saevi，
 完成以下最小闭环：
 
 ### 第一阶段：Saevi 最小可辨识母版
@@ -798,7 +798,7 @@ forehead_height + muzzle_height <= usable_face_height
 - 固定相机生成 50 至 100 个正面头像和全身图。
 - 检查是否存在比例异常、穿模或大量相似脸。
 - 调整参数范围、相关系数和修正 Shape Key。
-- 通过后冻结 `fox profile_version = 1`。
+- 通过后冻结 `saevi profile_version = 1`。
 
 ### 第三阶段：迁移到 Tovren
 

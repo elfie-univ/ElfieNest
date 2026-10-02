@@ -719,7 +719,7 @@ describe("Elfie Lab Turn Inspector", () => {
       }),
       2: (node) => ({ ...node,
         budget: { depth_basis: "quiet hours default depth", max_steps: 6, max_model_calls: 8, deadline_seconds: 30 },
-        selfhood_projection: { identity_core_text: "艾菲，巢内晨间的狐狸", adaptive_self_text: "温和、好奇、偏好短句回应" },
+        selfhood_projection: { identity_core_text: "艾菲，巢内晨间的赛维", adaptive_self_text: "温和、好奇、偏好短句回应" },
       }),
       5: (node) => ({ ...node, routing: { routed: "reply_via_message", interaction_scope_kind: "conversation", response_domain: "communication", response_channel_id: "channel-dusk", memory_eligible: true } }),
       6: (node) => ({ ...node,

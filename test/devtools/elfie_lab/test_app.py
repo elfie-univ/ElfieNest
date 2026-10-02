@@ -13,7 +13,7 @@ from infrastructure.persistence.configuration.world import load_genesis_source_p
 from .food_test_helpers import seed_mock_food
 
 
-def complete_elfie_payload(name="测试精灵", species_id="fox"):
+def complete_elfie_payload(name="测试精灵", species_id="saevi"):
     return {
         "name": name,
         "species_id": species_id,
@@ -36,7 +36,7 @@ def test_create_app_installs_the_bundled_species_catalog(
 
     assert frozenset(
         species_registry.current_species_catalog().supported_species
-    ) == frozenset({"dog", "fox"})
+    ) == frozenset({"saevi", "tovren", "myelle"})
 
 
 def test_memory_recall_accepts_scene_without_text(tmp_path, client_for, monkeypatch):
@@ -162,7 +162,7 @@ def test_create_elfie_requires_core_profile_and_allows_optional_personality(
 ):
     # Given
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
-    payload = complete_elfie_payload("年龄测试", "dog")
+    payload = complete_elfie_payload("年龄测试", "tovren")
 
     # When
     responses = {
@@ -216,7 +216,7 @@ def test_create_elfie_uses_explicit_advanced_candidate_values(
     response = client.post(
         "/api/elfies",
         json={
-            **complete_elfie_payload("高级精灵", "fox"),
+            **complete_elfie_payload("高级精灵", "saevi"),
             "age_years": 6,
             "gender": "male",
             "big_five": traits,
@@ -301,15 +301,15 @@ def test_create_elfie_uses_explicit_advanced_candidate_values(
 
 def test_create_elfie_basic_randomizes_unset_advanced_values(tmp_path, client_for):
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
-    payload = complete_elfie_payload("基础精灵", "dog")
+    payload = complete_elfie_payload("基础精灵", "tovren")
     payload.pop("age_years")
     response = client.post("/api/elfies", json=payload)
 
     assert response.status_code == 201
     age = int(response.json()["profile"]["age_years"])
     catalog = load_and_configure_species_catalog()
-    species = catalog.definition("dog", adoptable_only=True)
-    life_stage = stage_for_age("dog", age, catalog)
+    species = catalog.definition("tovren", adoptable_only=True)
+    life_stage = stage_for_age("tovren", age, catalog)
     minimum, maximum = legal_candidate_age_range(
         species.genesis,
         life_stage,
@@ -337,7 +337,7 @@ def test_create_elfie_default_age_uses_stage_prior_and_lifespan_reserve(
     monkeypatch.setattr(elfie_lab_storage.secrets, "SystemRandom", LastStageAndAge)
     monkeypatch.setattr(elfie_lab_storage.secrets, "choice", lambda values: values[-1])
     client = client_for(create_app(str(tmp_path / "data"), str(tmp_path / "runtime")))
-    payload = complete_elfie_payload("老年边界测试", "dog")
+    payload = complete_elfie_payload("老年边界测试", "tovren")
     payload.pop("age_years")
 
     response = client.post("/api/elfies", json=payload)
@@ -421,12 +421,12 @@ def test_app_create_elfie_and_chat(tmp_path, client_for):
     assert client.get("/api/health").json()["status"] == "ok"
     created = client.post(
         "/api/elfies",
-        json=complete_elfie_payload("Web 测试精灵", "dog"),
+        json=complete_elfie_payload("Web 测试精灵", "tovren"),
     )
     assert created.status_code == 201
     elfie_id = created.json()["elfie_id"]
-    assert created.json()["profile"]["species_id"] == "dog"
-    assert created.json()["profile"]["appearance"]["species_id"] == "dog"
+    assert created.json()["profile"]["species_id"] == "tovren"
+    assert created.json()["profile"]["appearance"]["species_id"] == "tovren"
     assert (
         tmp_path / "data" / "elfies" / elfie_id / "profile" / "profile.yaml"
     ).is_file()
@@ -479,7 +479,7 @@ def test_create_elfie_uses_random_personality_and_preserves_appearance_text(
     response = client.post(
         "/api/elfies",
         json={
-            **complete_elfie_payload("描述测试精灵", "fox"),
+            **complete_elfie_payload("描述测试精灵", "saevi"),
             "appearance_description": "银白色毛发，耳尖是灰色",
             "personality_description": "温柔、乖巧，也很爱探索",
         },
@@ -556,7 +556,7 @@ def test_app_rejects_unknown_species_and_saves_portrait(tmp_path, client_for):
     assert invalid.status_code == 422
 
     created = client.post(
-        "/api/elfies", json=complete_elfie_payload("头像测试", "fox")
+        "/api/elfies", json=complete_elfie_payload("头像测试", "saevi")
     ).json()
     elfie_id = created["elfie_id"]
     png_header = "iVBORw0KGgo="

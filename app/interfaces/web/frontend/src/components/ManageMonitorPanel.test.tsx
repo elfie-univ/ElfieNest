@@ -440,7 +440,7 @@ function adminElfie(elfieId: string): unknown {
     owner: { user_id: 1, account_id: "owner", display_name: "Owner" },
     permissions: { can_view_profile: true, can_view_cognition: false },
     profile: {
-      elfie_id: elfieId, name: elfieId, species_id: "fox", gender: null,
+      elfie_id: elfieId, name: elfieId, species_id: "saevi", gender: null,
       birth_date: null, summary: null, adopted_at: "2026-08-01",
       profile_status: "empty", big_five: null, personality_tags: [],
       portrait_url: "", appearance: null,

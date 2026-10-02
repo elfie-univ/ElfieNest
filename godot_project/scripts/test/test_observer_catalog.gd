@@ -5,8 +5,8 @@ const NEST_SCENE := preload("res://rooms/nest.tscn")
 const OBSERVER_PRESENTATION := preload("res://runtime/observer/observer_presentation.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
-const FOX_SCENE := preload("res://characters/fox/fox.tscn")
-const DOG_SCENE := preload("res://characters/dog/dog.tscn")
+const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
+const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
 const EXPECTED_INITIAL_VIEW_COUNT: int = 20
 
 
@@ -187,19 +187,19 @@ func run() -> void:
 		"sequence": 1,
 		"scope": {"kind": "room", "room_id": "local-nest"},
 		"entities": {
-			"fox-1": {
+			"saevi-1": {
 				"room_id": "local-nest",
 				"zone_id": "dorm-01",
 				"posture": "standing",
 				"active": true,
 				"active_command_id": null,
-				"species_id": "fox",
+				"species_id": "saevi",
 				"home_anchor_id": "dorm-01/bed-01",
 				"appearance": {},
 				"mock_motion": null,
 			},
 		},
-		"entity_revisions": {"fox-1": 1},
+		"entity_revisions": {"saevi-1": 1},
 	}
 	if not _require(
 		not (observer_bridge.call("_parse_semantic_snapshot", valid_semantic_snapshot) as Dictionary).is_empty(),
@@ -236,7 +236,7 @@ func run() -> void:
 	synthetic_visual_root.queue_free()
 	var presentation := OBSERVER_PRESENTATION.new()
 	root.add_child(presentation)
-	presentation.setup(nest, characters, {"fox": FOX_SCENE, "dog": DOG_SCENE})
+	presentation.setup(nest, characters, {"saevi": SAEVI_SCENE, "tovren": TOVREN_SCENE})
 	presentation.apply_snapshot(valid_semantic_snapshot)
 	await _wait_frames(2)
 	var grounded_actor := characters.get_child(0) as ElfieActor
@@ -256,7 +256,7 @@ func run() -> void:
 	):
 		return
 	var motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(motion_snapshot["entities"]["fox-1"] as Dictionary)["mock_motion"] = {
+	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
 		"waypoint": 1,
 		"sequence": 1,
 	}
@@ -278,7 +278,7 @@ func run() -> void:
 	):
 		return
 	var whole_nest_motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(whole_nest_motion_snapshot["entities"]["fox-1"] as Dictionary)["mock_motion"] = {
+	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
 		"waypoint": 23,
 		"sequence": 3,
 	}
@@ -288,7 +288,7 @@ func run() -> void:
 	):
 		return
 	var sleep_snapshot := valid_semantic_snapshot.duplicate(true)
-	(sleep_snapshot["entities"]["fox-1"] as Dictionary)["mock_motion"] = {
+	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
 		"mode": "sleep",
 		"sequence": 2,
 	}
@@ -319,27 +319,27 @@ func run() -> void:
 	presentation.apply_snapshot(valid_semantic_snapshot)
 	await _wait_frames(1)
 	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
-	var dog_entity := (multi_snapshot["entities"]["fox-1"] as Dictionary).duplicate(true)
-	dog_entity["species_id"] = "dog"
-	dog_entity["home_anchor_id"] = "dorm-01/bed-02"
-	(multi_snapshot["entities"] as Dictionary)["dog-1"] = dog_entity
-	(multi_snapshot["entity_revisions"] as Dictionary)["dog-1"] = 1
+	var tovren_entity := (multi_snapshot["entities"]["saevi-1"] as Dictionary).duplicate(true)
+	tovren_entity["species_id"] = "tovren"
+	tovren_entity["home_anchor_id"] = "dorm-01/bed-02"
+	(multi_snapshot["entities"] as Dictionary)["tovren-1"] = tovren_entity
+	(multi_snapshot["entity_revisions"] as Dictionary)["tovren-1"] = 1
 	presentation.apply_snapshot(multi_snapshot)
 	await _wait_frames(2)
-	var dog_actor := characters.get_node_or_null("Dog") as ElfieActor
-	var dog_visual_root := dog_actor.get_node("VisualRoot") as Node3D if dog_actor != null else null
-	var dog_foot_y := float(
-		ACTOR_APPEARANCE._foot_contact_y(dog_visual_root)
-		if dog_visual_root != null
+	var tovren_actor := characters.get_node_or_null("Tovren") as ElfieActor
+	var tovren_visual_root := tovren_actor.get_node("VisualRoot") as Node3D if tovren_actor != null else null
+	var tovren_foot_y := float(
+		ACTOR_APPEARANCE._foot_contact_y(tovren_visual_root)
+		if tovren_visual_root != null
 		else INF
 	)
 	if not _require(
-		dog_actor != null
+		tovren_actor != null
 			and characters.get_child_count() == 2
-			and dog_actor.global_position
+			and tovren_actor.global_position
 				== nest.resolve_anchor("dorm-01/bed-02").global_position
 			and is_equal_approx(
-				dog_foot_y,
+				tovren_foot_y,
 				nest.resolve_anchor("dorm-01/bed-02").global_position.y,
 			),
 		"Observer presentation did not ground both actors in a multi-Elfie snapshot",
@@ -362,7 +362,7 @@ func run() -> void:
 		return
 	var dynamic_room_snapshot := valid_semantic_snapshot.duplicate(true)
 	(dynamic_room_snapshot["scope"] as Dictionary)["room_id"] = "room-42"
-	(dynamic_room_snapshot["entities"]["fox-1"] as Dictionary)["room_id"] = "room-42"
+	(dynamic_room_snapshot["entities"]["saevi-1"] as Dictionary)["room_id"] = "room-42"
 	presentation.apply_snapshot(dynamic_room_snapshot)
 	await _wait_frames(2)
 	if not _require(

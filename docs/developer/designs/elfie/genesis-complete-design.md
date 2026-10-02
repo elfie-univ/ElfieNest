@@ -337,7 +337,7 @@ config/genesis/
 
 Maps/roads belong to shared geography; general life policies belong to entry rules. Species members add species constraints without copying maps or personal facts. Do not move Godot geometry/navigation/rendering, Selfhood templates, Memory Retention, tool permissions, current Nest state or runtime defaults into this package.
 
-The catalog uses formal names `saevi / tovren / myelle` and explicitly maps technical IDs `fox / dog / cat`, preserving Godot bindings.
+The catalog, technical species IDs and Godot package IDs use `saevi / tovren / myelle`. English display names are Saevi, Tovren and Myelle; Chinese display names are 赛维、托伦、米耶尔.
 
 #### 6.4.2 Knowledge fields and label conversion
 

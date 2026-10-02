@@ -986,7 +986,7 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
                 episode_id="episode-1",
                 nodes=(
                     NodeInput("owner", "person", "主人"),
-                    NodeInput("fox", "organism", "小狐"),
+                    NodeInput("saevi", "organism", "小狐"),
                 ),
                 evidence=(
                     EvidenceInput(
@@ -997,7 +997,7 @@ def test_recall_can_start_from_a_seed_and_filter_relation_and_node_type() -> Non
                     AssertionInput(
                         "owner",
                         "relationship",
-                        object_node_id="fox",
+                        object_node_id="saevi",
                         evidence_ids=("ev-1",),
                         assertion_id="knows",
                     ),

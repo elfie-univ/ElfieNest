@@ -94,19 +94,19 @@ def test_nest_lab_configures_beds_and_manages_lab_actors(tmp_path) -> None:
 
     # When
     world = client.put("/api/world", json={"bed_count": 2})
-    fox = client.post("/api/actors", json={"species": "fox"})
-    dog = client.post("/api/actors", json={"species": "dog"})
+    saevi = client.post("/api/actors", json={"species": "saevi"})
+    tovren = client.post("/api/actors", json={"species": "tovren"})
 
     # Then
     assert world.status_code == 200
     assert world.json()["bed_count"] == 2
-    assert fox.status_code == 201
-    assert dog.status_code == 201
+    assert saevi.status_code == 201
+    assert tovren.status_code == 201
     assert [
         actor["species"] for actor in client.get("/api/actors").json()["items"]
     ] == [
-        "fox",
-        "dog",
+        "saevi",
+        "tovren",
     ]
 
 
@@ -114,8 +114,8 @@ def test_nest_lab_rejects_shrinking_below_current_actor_count(tmp_path) -> None:
     # Given
     client = _client(tmp_path)
     client.put("/api/world", json={"bed_count": 2})
-    client.post("/api/actors", json={"species": "fox"})
-    client.post("/api/actors", json={"species": "dog"})
+    client.post("/api/actors", json={"species": "saevi"})
+    client.post("/api/actors", json={"species": "tovren"})
 
     # When
     response = client.put("/api/world", json={"bed_count": 1})

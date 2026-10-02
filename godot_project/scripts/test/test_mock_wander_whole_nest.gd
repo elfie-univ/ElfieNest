@@ -6,8 +6,8 @@ const MOCK_WANDER_CONTROLLER := preload("res://runtime/actor/mock_wander_control
 const MOCK_WANDER_TARGET := preload("res://runtime/actor/mock_wander_target.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
+	"tovren": preload("res://characters/tovren/tovren.tscn"),
+	"saevi": preload("res://characters/saevi/saevi.tscn"),
 }
 
 
@@ -48,14 +48,14 @@ func run() -> void:
 	)
 	var sync_result := actor_controller.sync_actors([
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
 		{
-			"actor_id": "dog-1",
-			"species": "dog",
+			"actor_id": "tovren-1",
+			"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
@@ -64,8 +64,8 @@ func run() -> void:
 		return
 	await physics_frame
 
-	var fox := actor_controller.actor("fox-1")
-	var dog := actor_controller.actor("dog-1")
+	var saevi := actor_controller.actor("saevi-1")
+	var tovren := actor_controller.actor("tovren-1")
 	if not _require(
 		not MOCK_WANDER_CONTROLLER.is_active_hour(5)
 			and MOCK_WANDER_CONTROLLER.is_active_hour(6)
@@ -82,7 +82,7 @@ func run() -> void:
 		return
 	var regions: Dictionary = {}
 	for waypoint in range(waypoint_count):
-		var target: Variant = MOCK_WANDER_TARGET.target_for(nest, fox, waypoint, 1)
+		var target: Variant = MOCK_WANDER_TARGET.target_for(nest, saevi, waypoint, 1)
 		if not _require(
 			target is Vector3
 				and MOCK_WANDER_TARGET.is_wanderable_position(nest, target as Vector3),
@@ -103,13 +103,13 @@ func run() -> void:
 	if not _require(wander != null, "Whole Nest authority did not create Mock Wander"):
 		return
 	wander.set_process(false)
-	wander._ensure_state("fox-1", Time.get_ticks_msec())
-	wander._advance_actor(fox, Time.get_ticks_msec() + 60000)
-	wander._ensure_state("dog-1", Time.get_ticks_msec())
-	wander._advance_actor(dog, Time.get_ticks_msec() + 60000)
+	wander._ensure_state("saevi-1", Time.get_ticks_msec())
+	wander._advance_actor(saevi, Time.get_ticks_msec() + 60000)
+	wander._ensure_state("tovren-1", Time.get_ticks_msec())
+	wander._advance_actor(tovren, Time.get_ticks_msec() + 60000)
 	if not _require(
-		fox.active_command_id.begins_with("mock-wander-")
-			and dog.active_command_id.begins_with("mock-wander-"),
+		saevi.active_command_id.begins_with("mock-wander-")
+			and tovren.active_command_id.begins_with("mock-wander-"),
 		"Whole Nest Mock Wander did not start real actor navigation",
 	):
 		return
@@ -119,12 +119,12 @@ func run() -> void:
 		await physics_frame
 		minimum_actor_distance = min(
 			minimum_actor_distance,
-			fox.global_position.distance_to(dog.global_position),
+			saevi.global_position.distance_to(tovren.global_position),
 		)
-		if fox.active_command_id.is_empty() and dog.active_command_id.is_empty():
+		if saevi.active_command_id.is_empty() and tovren.active_command_id.is_empty():
 			break
 	if not _require(
-		fox.active_command_id.is_empty() and dog.active_command_id.is_empty(),
+		saevi.active_command_id.is_empty() and tovren.active_command_id.is_empty(),
 		"Whole Nest Mock Wander did not complete its cross-area movements",
 	):
 		return
@@ -135,36 +135,36 @@ func run() -> void:
 		return
 
 	var sleep_now := Time.get_ticks_msec()
-	wander._sleep_actor(fox, sleep_now)
-	wander._sleep_actor(dog, sleep_now)
+	wander._sleep_actor(saevi, sleep_now)
+	wander._sleep_actor(tovren, sleep_now)
 	for _frame in range(2400):
 		await physics_frame
-		var fox_sleep_motion: Dictionary = wander.motion_for("fox-1")
-		var dog_sleep_motion: Dictionary = wander.motion_for("dog-1")
+		var saevi_sleep_motion: Dictionary = wander.motion_for("saevi-1")
+		var tovren_sleep_motion: Dictionary = wander.motion_for("tovren-1")
 		if (
-			fox.active_command_id.is_empty()
-			and dog.active_command_id.is_empty()
-			and String(fox_sleep_motion.get("mode", "")) == "sleep"
-			and String(dog_sleep_motion.get("mode", "")) == "sleep"
+			saevi.active_command_id.is_empty()
+			and tovren.active_command_id.is_empty()
+			and String(saevi_sleep_motion.get("mode", "")) == "sleep"
+			and String(tovren_sleep_motion.get("mode", "")) == "sleep"
 		):
 			break
-	var fox_bed := nest.resolve_anchor("dorm-01/bed-01")
-	var dog_bed := nest.resolve_anchor("dorm-01/bed-02")
+	var saevi_bed := nest.resolve_anchor("dorm-01/bed-01")
+	var tovren_bed := nest.resolve_anchor("dorm-01/bed-02")
 	if not _require(
-		fox_bed != null
-			and dog_bed != null
-			and fox.global_position.distance_to(fox_bed.global_position) <= 0.5
-			and dog.global_position.distance_to(dog_bed.global_position) <= 0.5
-			and String(wander.motion_for("fox-1").get("mode", "")) == "sleep"
-			and String(wander.motion_for("dog-1").get("mode", "")) == "sleep",
+		saevi_bed != null
+			and tovren_bed != null
+			and saevi.global_position.distance_to(saevi_bed.global_position) <= 0.5
+			and tovren.global_position.distance_to(tovren_bed.global_position) <= 0.5
+			and String(wander.motion_for("saevi-1").get("mode", "")) == "sleep"
+			and String(wander.motion_for("tovren-1").get("mode", "")) == "sleep",
 		"Whole Nest sleep schedule did not return each Elfie to its own bed",
 	):
 		return
-	wander._wake_actor(fox, Time.get_ticks_msec())
-	wander._wake_actor(dog, Time.get_ticks_msec())
+	wander._wake_actor(saevi, Time.get_ticks_msec())
+	wander._wake_actor(tovren, Time.get_ticks_msec())
 	if not _require(
-		wander.motion_for("fox-1").is_empty()
-			and wander.motion_for("dog-1").is_empty(),
+		wander.motion_for("saevi-1").is_empty()
+			and wander.motion_for("tovren-1").is_empty(),
 		"Whole Nest sleep schedule did not clear both sleep states at 06:00",
 	):
 		return
@@ -176,7 +176,7 @@ func run() -> void:
 	)
 	actor_controller.execute_intent({
 		"command_id": "cross-room-obstacle",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-02/activity",
 		"deadline_seconds": 30.0,

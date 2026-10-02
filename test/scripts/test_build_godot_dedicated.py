@@ -33,7 +33,7 @@ def _write_bundle(directory: Path, fingerprint: str) -> None:
                 "files": metadata,
                 "source_fingerprint": fingerprint,
                 "species_catalog_digest": current_species_catalog_digest(),
-                "species_package_ids": ["dog", "fox"],
+                "species_package_ids": ["myelle", "saevi", "tovren"],
                 "export_boundary": export_boundary_manifest(),
             }
         ),

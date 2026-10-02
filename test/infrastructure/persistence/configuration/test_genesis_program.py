@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[4] / "config"
 
 def test_species_directories_use_world_names_without_changing_runtime_ids() -> None:
     species_root = ROOT / "genesis/species"
-    expected = {"saevi": "fox", "tovren": "dog", "myelle": "cat"}
+    expected = {"saevi": "saevi", "tovren": "tovren", "myelle": "myelle"}
     assert {path.name for path in species_root.iterdir() if path.is_dir()} == set(
         expected
     )
@@ -50,9 +50,7 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert document["status"] == document["manifest"]["status"] == "published"
     assert len(document["manifest"]["members"]) == 18
     assert not document["manifest"]["publication_blockers"]
-    assert {item["id"] for item in document["manifest"]["activation_blockers"]} == {
-        "myelle-runtime-readiness",
-    }
+    assert not document["manifest"]["activation_blockers"]
     rules = document["rules"]
     population = rules["population"]
     assert population["grid_dimensions"] == [10, 10]
@@ -193,9 +191,9 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert names["status"] == "confirmed"
     assert names["formal_species_names"] == ["Saevi", "Tovren", "Myelle"]
     assert names["technical_species_ids"] == {
-        "Saevi": "fox",
-        "Tovren": "dog",
-        "Myelle": "cat",
+        "Saevi": "saevi",
+        "Tovren": "tovren",
+        "Myelle": "myelle",
     }
     reserved = set(names["reserved_names"])
     assert reserved == {"Saevi", "Tovren", "Myelle"}
@@ -596,7 +594,7 @@ def test_geography_model_is_complete_and_distances_are_route_based() -> None:
     serialized_geography = yaml.safe_dump(geography, allow_unicode=True)
     assert not any(
         re.search(rf"\b{technical_id}\b", serialized_geography)
-        for technical_id in ("fox", "dog", "cat")
+        for technical_id in ("saevi", "tovren", "myelle")
     )
 
     place_by_id = {place["id"]: place for place in geography["places"]}
@@ -795,7 +793,10 @@ def test_species_rules_keep_runtime_and_personal_life_boundaries() -> None:
         assert not capabilities["presentation_image_proves_runtime_readiness"]
         assert "face" not in appearance["supported_controls"]
         if package == "myelle":
-            assert not capabilities["required_assets_present"]
+            assert capabilities["required_assets_present"]
+            assert (
+                capabilities["control_support"]["signature"] == "main_fur_palette_only"
+            )
             assert (
                 definition["presentation_provenance"]["status"]
                 == "author_review_required"

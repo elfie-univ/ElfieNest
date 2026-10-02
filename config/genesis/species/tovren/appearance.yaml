@@ -721,7 +721,7 @@ status: published
 source_refs:
 - species#genesis-appearance-boundaries
 parameter_provenance:
-  source_path: config/species/dog/appearance.yaml
+  source_path: config/species/tovren/appearance.yaml
   source_sha256: fef3295e71dee13e0a6ef50dcd8de3a5d43d05aa21ab79fcf8820c2a6ec329b0
   status: inherited_configuration_not_new_biological_facts
   inherited_numeric_parameters_recalibrated: false
@@ -729,9 +729,9 @@ parameter_provenance:
   new_unsourced_parameters: author_review_required
 runtime_capabilities:
   inspection: static_source_and_glb_only
-  model_file: godot_project/characters/dog/dog.glb
-  scene_file: godot_project/characters/dog/dog.tscn
-  manifest_file: godot_project/characters/dog/species_manifest.json
+  model_file: godot_project/characters/tovren/tovren.glb
+  scene_file: godot_project/characters/tovren/tovren.tscn
+  manifest_file: godot_project/characters/tovren/species_manifest.json
   adapter_file: godot_project/runtime/actor/actor_appearance.gd
   required_assets_present: true
   render_validation_this_revision: not_run

@@ -46,7 +46,7 @@ def _selfhood_seed(elfie_id: str, display_name: str | None = None) -> dict[str, 
         "identity_core": {
             "elfie_id": elfie_id,
             "display_name": display_name or elfie_id,
-            "species_id": "fox",
+            "species_id": "saevi",
             "species_name": "Saevi",
             "resident_role": "ElfieNest 居民",
         },
@@ -358,6 +358,6 @@ def _profile(elfie_id: str):
     return create_visual_profile(
         elfie_id=elfie_id,
         display_name=elfie_id,
-        species_id="fox",
+        species_id="saevi",
         seed=1,
     )

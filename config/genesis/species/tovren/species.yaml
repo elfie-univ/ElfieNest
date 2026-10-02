@@ -1,13 +1,14 @@
 document_kind: species_definition
 schema_version: 1
-definition_version: tovren.v3
+definition_version: tovren.v4
 species_package_id: tovren
-package_version: tovren.v3
+package_version: tovren.v4
 status: published
-technical_species_id: dog
+technical_species_id: tovren
 identity:
   display_name: Tovren
-  godot_package_id: dog
+  display_name_zh: 托伦
+  godot_package_id: tovren
 sensory_profile:
   source_ref: species#3.3
   tendencies: 声音、回声与协作节奏较突出，通常利于持续步行、追踪与往返；不自动赋予熟练度。

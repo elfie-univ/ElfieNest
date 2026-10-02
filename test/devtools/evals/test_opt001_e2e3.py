@@ -13,41 +13,41 @@ from infrastructure.persistence.configuration.world import load_genesis_source_p
 
 def test_opt001_e2_queries_are_scoped_to_species_and_cover_the_gate() -> None:
     world = load_genesis_source_package()
-    fox_cases = _query_cases_for_species(world.knowledge, "fox")
-    dog_cases = _query_cases_for_species(world.knowledge, "dog")
+    saevi_cases = _query_cases_for_species(world.knowledge, "saevi")
+    tovren_cases = _query_cases_for_species(world.knowledge, "tovren")
 
-    assert len(fox_cases) == 96
-    assert len(dog_cases) == 96
-    assert all(_eligible_for_species(fact, "fox") for fact, _ in fox_cases)
-    assert all(_eligible_for_species(fact, "dog") for fact, _ in dog_cases)
-    assert not any(fact.fact_id == "species.tovren_group" for fact, _ in fox_cases)
-    assert not any(fact.fact_id == "species.saevi_paths" for fact, _ in dog_cases)
-    eligible_fox_ids = {
+    assert len(saevi_cases) == 96
+    assert len(tovren_cases) == 96
+    assert all(_eligible_for_species(fact, "saevi") for fact, _ in saevi_cases)
+    assert all(_eligible_for_species(fact, "tovren") for fact, _ in tovren_cases)
+    assert not any(fact.fact_id == "species.tovren_group" for fact, _ in saevi_cases)
+    assert not any(fact.fact_id == "species.saevi_paths" for fact, _ in tovren_cases)
+    eligible_saevi_ids = {
         fact.fact_id
         for fact in world.knowledge
         if fact.status == "active"
         and (
             not fact.eligibility
             or "all" in fact.eligibility
-            or "fox" in fact.eligibility
+            or "saevi" in fact.eligibility
         )
     }
-    eligible_dog_ids = {
+    eligible_tovren_ids = {
         fact.fact_id
         for fact in world.knowledge
         if fact.status == "active"
         and (
             not fact.eligibility
             or "all" in fact.eligibility
-            or "dog" in fact.eligibility
+            or "tovren" in fact.eligibility
         )
     }
-    fox_ids = {fact.fact_id for fact, _ in fox_cases}
-    dog_ids = {fact.fact_id for fact, _ in dog_cases}
-    assert fox_ids <= eligible_fox_ids
-    assert dog_ids <= eligible_dog_ids
-    assert len(fox_ids) == min(96, len(eligible_fox_ids))
-    assert len(dog_ids) == min(96, len(eligible_dog_ids))
+    saevi_ids = {fact.fact_id for fact, _ in saevi_cases}
+    tovren_ids = {fact.fact_id for fact, _ in tovren_cases}
+    assert saevi_ids <= eligible_saevi_ids
+    assert tovren_ids <= eligible_tovren_ids
+    assert len(saevi_ids) == min(96, len(eligible_saevi_ids))
+    assert len(tovren_ids) == min(96, len(eligible_tovren_ids))
 
 
 def test_opt001_compilation_retries_a_rejected_genesis_seed() -> None:
@@ -56,13 +56,13 @@ def test_opt001_compilation_retries_a_rejected_genesis_seed() -> None:
     compilation = _compilation(
         GenesisCompiler(world, catalog=catalog),
         catalog,
-        "opt001-retry-fox-mature-47",
-        "fox",
+        "opt001-retry-saevi-mature-47",
+        "saevi",
         47,
         "mature",
     )
 
-    assert compilation.bundle.profile_draft.profile.identity.species_id == "fox"
+    assert compilation.bundle.profile_draft.profile.identity.species_id == "saevi"
     assert compilation.bundle.manifest.status == "validated"
 
 
@@ -73,12 +73,12 @@ def test_opt001_e2_queries_are_scoped_to_the_compiled_knowledge() -> None:
         GenesisCompiler(world, catalog=catalog),
         catalog,
         "99010011",
-        "fox",
+        "saevi",
         11,
         "youth",
     )
 
-    cases = _query_cases_for_bundle(world.knowledge, compilation.bundle, "fox")
+    cases = _query_cases_for_bundle(world.knowledge, compilation.bundle, "saevi")
     seeded_ids = {seed.seed_id for seed in compilation.bundle.knowledge_seeds}
 
     assert len(cases) == 96

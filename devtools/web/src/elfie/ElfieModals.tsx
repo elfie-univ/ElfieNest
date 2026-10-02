@@ -60,7 +60,7 @@ const traits: readonly [keyof BigFive, string][] = [
 
 const initialCreation: Creation = {
   name: "",
-  species_id: "dog",
+  species_id: "tovren",
   description: "用于本地调试的单精灵",
   appearance_description: "默认测试外貌",
   personality_description: "",
@@ -142,7 +142,7 @@ function SelfhoodPanel({ session }: Readonly<{ session: ElfieSession }>): React.
 export function ElfieModals(props: Props): React.JSX.Element {
   const [creation, setCreation] = useState<Creation>(initialCreation);
   const [creationAdvanced, setCreationAdvanced] = useState(false);
-  const [creationValues, setCreationValues] = useState(() => randomCreationValues("dog"));
+  const [creationValues, setCreationValues] = useState(() => randomCreationValues("tovren"));
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [view, setView] = useState<FoodManagementView>("list");
@@ -167,7 +167,7 @@ export function ElfieModals(props: Props): React.JSX.Element {
     if (!props.createOpen) return;
     setCreation(initialCreation);
     setCreationAdvanced(false);
-    setCreationValues(randomCreationValues("dog"));
+    setCreationValues(randomCreationValues("tovren"));
     setCreating(false);
     setCreateError("");
     creationGate.current.leave();
@@ -557,18 +557,18 @@ export function ElfieModals(props: Props): React.JSX.Element {
 
     <Modal className="lab-modal elfie-management-modal" footer={null} onCancel={props.onElfieManagementClose} open={props.elfieManagementOpen} title={<ModalTitle eyebrow="批量评测 · 测试对象" title="管理测试精灵" />} width={780} zIndex={1200}>
       <div className="elfie-management-toolbar"><span>选择已有精灵，或新建一只用于本次评测。</span><Button onClick={props.onElfieManagementCreate} type="primary">＋ 新建测试精灵</Button></div>
-      <section aria-label="测试精灵列表" className="elfie-management-list">{props.elfies.length ? props.elfies.map((item) => <article className="elfie-management-row" key={item.elfie_id}><div><strong>{item.name}</strong><small>{item.species_id === "dog" ? "小狗" : "狐狸"} · {item.elfie_id}</small></div><div><Button onClick={() => props.onElfieManagementSelect(item.elfie_id)}>选择</Button><Button danger onClick={() => props.onElfieManagementDelete(item.elfie_id)}>删除</Button></div></article>) : <p className="form-empty">还没有测试精灵。点击上方按钮新建。</p>}</section>
+      <section aria-label="测试精灵列表" className="elfie-management-list">{props.elfies.length ? props.elfies.map((item) => <article className="elfie-management-row" key={item.elfie_id}><div><strong>{item.name}</strong><small>{item.species_id === "tovren" ? "托伦" : "赛维"} · {item.elfie_id}</small></div><div><Button onClick={() => props.onElfieManagementSelect(item.elfie_id)}>选择</Button><Button danger onClick={() => props.onElfieManagementDelete(item.elfie_id)}>删除</Button></div></article>) : <p className="form-empty">还没有测试精灵。点击上方按钮新建。</p>}</section>
     </Modal>
 
     <Modal className="lab-modal elfie-creation-modal" closable={!creating} footer={null} onCancel={() => { if (!creating) props.onCreateClose(); }} open={props.createOpen} title={<ModalTitle eyebrow="独立测试数据" title="新建测试精灵" />} width={680} zIndex={1300}>
       <form aria-label="新建测试精灵" className="lab-form elfie-creation-form" onSubmit={(event) => { void submitCreation(event); }}>
         <div className="elfie-creation-identity">
-          <label><span>物种：</span><Select onChange={(value) => { setCreationValue("species_id", value); setCreationValues((current) => ({ ...current, age: current.age <= (value === "fox" ? 15 : 20) ? current.age : randomCreationValues(value).age })); }} options={[{ label: "小狗", value: "dog" }, { label: "狐狸", value: "fox" }]} value={creation.species_id} /></label>
+          <label><span>物种：</span><Select onChange={(value) => { setCreationValue("species_id", value); setCreationValues((current) => ({ ...current, age: current.age <= (value === "saevi" ? 15 : 20) ? current.age : randomCreationValues(value).age })); }} options={[{ label: "托伦", value: "tovren" }, { label: "赛维", value: "saevi" }]} value={creation.species_id} /></label>
           <label><span>姓名：</span><Input autoComplete="off" maxLength={60} onChange={(event) => setCreationValue("name", event.target.value)} placeholder="给它起一个名字" required value={creation.name} /></label>
         </div>
         <label>用途描述<Input.TextArea maxLength={240} onChange={(event) => setCreationValue("description", event.target.value)} placeholder="例如：验证普通聊天" required rows={3} value={creation.description} /></label>
         {creationAdvanced ? <section aria-label="高级创建参数" className="elfie-creation-advanced">
-          <label className="trait-row"><span>年龄</span><Slider max={creation.species_id === "fox" ? 15 : 20} min={2} onChange={(age) => setCreationValues((current) => ({ ...current, age }))} step={1} value={creationValues.age} /><output>{creationValues.age} 岁</output></label>
+          <label className="trait-row"><span>年龄</span><Slider max={creation.species_id === "saevi" ? 15 : 20} min={2} onChange={(age) => setCreationValues((current) => ({ ...current, age }))} step={1} value={creationValues.age} /><output>{creationValues.age} 岁</output></label>
           <label className="creation-gender-field"><span>性别</span><Select onChange={(gender) => setCreationValues((current) => ({ ...current, gender }))} options={[{ label: "雌性", value: "female" }, { label: "雄性", value: "male" }]} value={creationValues.gender} /></label>
           {traits.map(([key, label]) => <label className="trait-row" key={key}><span>{label}</span><Slider aria-label={label} max={1} min={0} onChange={(value) => setCreationValues((current) => ({ ...current, bigFive: { ...current.bigFive, [key]: value } }))} step={0.01} value={creationValues.bigFive[key]} /><output>{creationValues.bigFive[key].toFixed(2)}</output></label>)}
         </section> : null}

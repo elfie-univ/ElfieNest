@@ -33,7 +33,7 @@ from infrastructure.persistence.profile_store import YamlProfileStoreAdapter
 from test.elfie.genesis.test_contracts import _compilation
 
 
-@pytest.mark.parametrize("species_id", ("fox", "dog"))
+@pytest.mark.parametrize("species_id", ("saevi", "tovren"))
 def test_workspace_adapter_stages_publishes_and_reopens_one_compilation(
     tmp_path: Path, species_id: str
 ) -> None:
@@ -129,7 +129,7 @@ def test_workspace_adapter_round_trips_the_real_compile_envelope(
         .generate_batch(
             master_seed=23,
             batch_number=1,
-            species_id="fox",
+            species_id="saevi",
             life_stage="mature",
             gender="female",
             appearance=GenesisAppearanceIntent(

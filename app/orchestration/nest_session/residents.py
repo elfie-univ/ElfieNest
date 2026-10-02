@@ -25,7 +25,7 @@ def actor_catalog(elfies: Mapping[str, Elfie]) -> tuple[ActorDescriptor, ...]:
             )
         else:
             descriptors.append(
-                ActorDescriptor(actor_id=elfie_id, species="fox", appearance={})
+                ActorDescriptor(actor_id=elfie_id, species="saevi", appearance={})
             )
     return tuple(descriptors)
 

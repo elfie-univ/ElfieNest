@@ -42,7 +42,7 @@ export const MOCK_ELFIES = [
     profile: {
       elfie_id: "12345678",
       name: "Happy",
-      species_id: "fox",
+      species_id: "saevi",
       gender: "未登记",
       birth_date: "2026-06-01",
       summary: "一只活泼好动、精力旺盛的小精灵。",
@@ -64,7 +64,7 @@ export const MOCK_ELFIES = [
     profile: {
       elfie_id: "23456789",
       name: "Kettle",
-      species_id: "fox",
+      species_id: "saevi",
       gender: "未登记",
       birth_date: null,
       summary: "安静、好奇，喜欢观察巢里的每一个角落。",

@@ -39,15 +39,15 @@
 
 ### Saevi
 
-![Saevi 方法对比](../../../../public/assets/appearance-experiments/phase-1/fox-method-comparison.png)
+![Saevi 方法对比](../../../../public/assets/appearance-experiments/phase-1/saevi-method-comparison.png)
 
-![Saevi 最终颜色](../../../../public/assets/appearance-experiments/phase-1/fox-final-color-comparison.png)
+![Saevi 最终颜色](../../../../public/assets/appearance-experiments/phase-1/saevi-final-color-comparison.png)
 
 ### Tovren
 
-![Tovren 方法对比](../../../../public/assets/appearance-experiments/phase-1/dog-method-comparison.png)
+![Tovren 方法对比](../../../../public/assets/appearance-experiments/phase-1/tovren-method-comparison.png)
 
-![Tovren 最终颜色](../../../../public/assets/appearance-experiments/phase-1/dog-final-color-comparison.png)
+![Tovren 最终颜色](../../../../public/assets/appearance-experiments/phase-1/tovren-final-color-comparison.png)
 
 ### 十色库复核
 
@@ -55,9 +55,9 @@
 过深的颜色会压低眼睛和鼻子的辨识度，相近的棕色放在同一批五个候选里差异不够明显。
 第二轮把最深色调整为烟炭/烟黑，并保留原始毛发的明暗和细节迁移。
 
-![Tovren 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/dog-10-color-3views.png)
+![Tovren 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/tovren-10-color-3views.png)
 
-![Saevi 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/fox-10-color-3views.png)
+![Saevi 十色库最终算法复核](../../../../public/assets/appearance-experiments/phase-1/10-color-palette-final/saevi-10-color-3views.png)
 
 精确色值、算法引用以及被替代的直连着色器实验见
 [`palette-review-v1-final.json`](../../../../public/assets/appearance-experiments/phase-1/palette-review-v1-final.json)。

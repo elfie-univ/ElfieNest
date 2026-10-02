@@ -2,8 +2,8 @@ extends SceneTree
 
 const CONTROLLER_SCRIPT := preload("res://lab_preview_controller.gd")
 const ACTOR_SCRIPT := preload("res://characters/shared/elfie_actor.gd")
-const DOG_SCENE := preload("res://characters/dog/dog.tscn")
-const FOX_SCENE := preload("res://characters/fox/fox.tscn")
+const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
+const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 
 var _failed := false
 var _created_actors: Array[Node3D] = []
@@ -57,13 +57,13 @@ func _run_contract() -> void:
 	controller.setup(
 		characters,
 		camera,
-		{"fox": PackedScene.new()},
+		{"saevi": PackedScene.new()},
 		Callable(self, "_create_actor"),
 	)
 
 	var configured: Dictionary = controller.handle_message(_message("configure", "req-1", {
-		"elfie_id": "fox-1",
-		"species_id": "fox",
+		"elfie_id": "saevi-1",
+		"species_id": "saevi",
 		"spec_revision": 7.0,
 		"appearance": {},
 	}))
@@ -106,13 +106,13 @@ func _run_contract() -> void:
 	v9_controller.setup(
 		v9_characters,
 		v9_camera,
-		{"fox": PackedScene.new()},
+		{"saevi": PackedScene.new()},
 		Callable(self, "_create_actor"),
 	)
 	_require(
 		_is_completed(v9_controller.handle_message(_message("configure", "v9-configure", {
-			"elfie_id": "fox-v9",
-			"species_id": "fox",
+			"elfie_id": "saevi-v9",
+			"species_id": "saevi",
 			"spec_revision": 8,
 			"appearance": {},
 		}))),
@@ -162,8 +162,8 @@ func _run_contract() -> void:
 	)
 
 	var repeated: Dictionary = controller.handle_message(_message("configure", "req-2", {
-		"elfie_id": "fox-1",
-		"species_id": "fox",
+		"elfie_id": "saevi-1",
+		"species_id": "saevi",
 		"spec_revision": 7,
 		"appearance": {"height_scale": 1.1},
 	}))
@@ -232,16 +232,16 @@ func _run_real_actor_contract() -> void:
 	root.add_child(camera)
 	var controller := CONTROLLER_SCRIPT.new()
 	root.add_child(controller)
-	controller.setup(characters, camera, {"dog": DOG_SCENE})
-	var response: Dictionary = controller.handle_message(_message("configure", "real-dog", {
-		"elfie_id": "dog-real",
-		"species_id": "dog",
+	controller.setup(characters, camera, {"tovren": TOVREN_SCENE})
+	var response: Dictionary = controller.handle_message(_message("configure", "real-tovren", {
+		"elfie_id": "tovren-real",
+		"species_id": "tovren",
 		"spec_revision": 1,
 		"appearance": _real_actor_appearance(),
 	}))
 	await process_frame
-	_require(_is_completed(response), "Real dog configure did not complete")
-	_require(characters.get_child_count() == 1, "Real dog actor was not created")
+	_require(_is_completed(response), "Real tovren configure did not complete")
+	_require(characters.get_child_count() == 1, "Real tovren actor was not created")
 	var actor := characters.get_child(0) as Node3D
 	var meshes := actor.find_children("*", "MeshInstance3D", true, false)
 	var bounds := actor.call("visual_bounds") as AABB
@@ -266,12 +266,12 @@ func _run_real_actor_contract() -> void:
 	)
 	_require(
 		_frame_is_balanced(_projected_vertical_range(camera, bounds)),
-		"Real dog default rest pose did not balance the projected full-body bounds: %s" % _projected_vertical_range(camera, bounds),
+		"Real tovren default rest pose did not balance the projected full-body bounds: %s" % _projected_vertical_range(camera, bounds),
 	)
 	var pose_response: Dictionary = controller.handle_message(_message("preview_intent", "real-pose", {
 		"intent": {"type": "motion", "intent_id": "pose-real", "motion": "pose_waving"},
 	}))
-	_require(_is_completed(pose_response), "Real dog static pose did not complete")
+	_require(_is_completed(pose_response), "Real tovren static pose did not complete")
 	await process_frame
 	for pose_name in [
 		"pose_hands_on_hips",
@@ -282,42 +282,42 @@ func _run_real_actor_contract() -> void:
 	]:
 		_require(
 			animation_player != null and animation_player.has_animation(pose_name),
-			"Real dog preview did not install pose animation: %s" % pose_name,
+			"Real tovren preview did not install pose animation: %s" % pose_name,
 		)
 	_require(
 		animation_player != null and animation_player.assigned_animation == "pose_waving",
-		"Real dog static pose did not select the requested animation: current=%s names=%s" % [
+		"Real tovren static pose did not select the requested animation: current=%s names=%s" % [
 			animation_player.assigned_animation if animation_player != null else "<missing>",
 			animation_player.get_animation_list() if animation_player != null else [],
 		],
 	)
 	_require(
 		animation_player != null and not animation_player.playback_active,
-		"Real dog static pose continued playing instead of freezing",
+		"Real tovren static pose continued playing instead of freezing",
 	)
 	var default_pose_response: Dictionary = controller.handle_message(_message("preview_intent", "real-default-pose", {
 		"intent": {"type": "motion", "intent_id": "pose-default", "motion": "pose_default"},
 	}))
-	_require(_is_completed(default_pose_response), "Real dog default rest pose did not complete")
+	_require(_is_completed(default_pose_response), "Real tovren default rest pose did not complete")
 	_require(
 		animation_player != null and not animation_player.playback_active,
-		"Real dog default rest pose started playback",
+		"Real tovren default rest pose started playback",
 	)
 	await process_frame
 	var default_bounds := actor.call("visual_bounds") as AABB
 	_require(
 		_frame_is_balanced(_projected_vertical_range(camera, default_bounds)),
-		"Real dog default rest pose did not reframe the projected bounds: %s" % _projected_vertical_range(camera, default_bounds),
+		"Real tovren default rest pose did not reframe the projected bounds: %s" % _projected_vertical_range(camera, default_bounds),
 	)
 	var pose_reframe_response: Dictionary = controller.handle_message(_message("preview_intent", "real-pose-reframe", {
 		"intent": {"type": "motion", "intent_id": "pose-waving-reframe", "motion": "pose_waving"},
 	}))
-	_require(_is_completed(pose_reframe_response), "Real dog static pose did not complete during reframe verification")
+	_require(_is_completed(pose_reframe_response), "Real tovren static pose did not complete during reframe verification")
 	await process_frame
 	var pose_bounds := actor.call("visual_bounds") as AABB
 	_require(
 		_frame_is_balanced(_projected_vertical_range(camera, pose_bounds)),
-		"Real dog static pose did not reframe the projected bounds: %s" % _projected_vertical_range(camera, pose_bounds),
+		"Real tovren static pose did not reframe the projected bounds: %s" % _projected_vertical_range(camera, pose_bounds),
 	)
 	var camera_before_pose_orbit := camera.global_transform
 	var pose_orbit_response: Dictionary = controller.handle_message(_message("orbit", "real-pose-orbit", {
@@ -328,26 +328,26 @@ func _run_real_actor_contract() -> void:
 		camera.global_transform != camera_before_pose_orbit,
 		"Static pose stopped camera interaction together with the animation player",
 	)
-	_require(not meshes.is_empty(), "Real dog actor has no MeshInstance3D")
-	_require(has_mesh_bounds, "Real dog actor has no measurable mesh bounds")
+	_require(not meshes.is_empty(), "Real tovren actor has no MeshInstance3D")
+	_require(has_mesh_bounds, "Real tovren actor has no measurable mesh bounds")
 	_require(
 		_appearance_uses_bind_position_attribute(meshes),
-		"Real dog appearance shader did not carry bind-pose coordinates for markings",
+		"Real tovren appearance shader did not carry bind-pose coordinates for markings",
 	)
 	_require(
 		_has_opaque_appearance_material(meshes),
-		"Real dog preview did not apply the formal opaque ActorAppearance material",
+		"Real tovren preview did not apply the formal opaque ActorAppearance material",
 	)
-	_require(not bounds.size.is_zero_approx(), "Real dog actor has empty visual bounds")
-	_require(bounds.position.y <= mesh_bounds.position.y, "Real dog visual bounds omitted the mesh feet")
-	_require(bounds.end.y >= mesh_bounds.end.y, "Real dog visual bounds omitted the mesh top")
-	_require(camera.global_position.distance_to(bounds.get_center()) >= 1.0, "Preview camera is inside the real dog bounds")
+	_require(not bounds.size.is_zero_approx(), "Real tovren actor has empty visual bounds")
+	_require(bounds.position.y <= mesh_bounds.position.y, "Real tovren visual bounds omitted the mesh feet")
+	_require(bounds.end.y >= mesh_bounds.end.y, "Real tovren visual bounds omitted the mesh top")
+	_require(camera.global_position.distance_to(bounds.get_center()) >= 1.0, "Preview camera is inside the real tovren bounds")
 	_require(
 		camera.global_position.distance_to(bounds.get_center()) < 3.85,
-		"Real dog preview camera retained the fixed V9 distance",
+		"Real tovren preview camera retained the fixed V9 distance",
 	)
-	await _run_species_frame_contract("fox", FOX_SCENE)
-	print("INFO: real dog meshes=%d bounds=%s camera=%s size=%.3f" % [
+	await _run_species_frame_contract("saevi", SAEVI_SCENE)
+	print("INFO: real tovren meshes=%d bounds=%s camera=%s size=%.3f" % [
 		meshes.size(),
 		bounds,
 		camera.global_position,

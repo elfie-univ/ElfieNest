@@ -7,7 +7,7 @@ def _profile():
     return create_visual_profile(
         elfie_id="elfie-resolve",
         display_name="豆包",
-        species_id="dog",
+        species_id="tovren",
         seed=99,
     )
 
@@ -61,7 +61,7 @@ def test_high_body_fat_makes_main_soft_tissue_regions_fuller() -> None:
 
 def test_payload_contains_explicit_species_and_all_parameter_groups() -> None:
     payload = AppearanceResolver().resolve(_profile()).to_payload()
-    assert payload["species_id"] == "dog"
+    assert payload["species_id"] == "tovren"
     assert payload["height_scale"] > 0
     assert payload["build_scale"] > 0
     assert payload["bone_scales"]

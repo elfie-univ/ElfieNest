@@ -20,10 +20,10 @@ def test_capture_runs_the_real_brain_with_isolated_lab_state(tmp_path: Path) -> 
         fixture_id="anchor-elfie",
         elfie_id="00001001",
         name="小榛",
-        species_id="fox",
+        species_id="saevi",
         age_years=2.0,
         description="Brain evaluation anchor",
-        appearance_description="red fox",
+        appearance_description="red saevi",
         personality_description="curious, warm and independent",
     )
     scenario = LabScenarioDefinition(
@@ -63,10 +63,10 @@ def test_capture_rejects_every_path_inside_production_data_root() -> None:
         fixture_id="anchor-elfie",
         elfie_id="00001001",
         name="小榛",
-        species_id="fox",
+        species_id="saevi",
         age_years=2.0,
         description="Brain evaluation anchor",
-        appearance_description="red fox",
+        appearance_description="red saevi",
         personality_description="curious, warm and independent",
     )
     scenario = LabScenarioDefinition(

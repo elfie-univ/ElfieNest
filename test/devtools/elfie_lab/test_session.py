@@ -31,12 +31,12 @@ def session_factory():
 
 def test_mock_turn_records_full_debug_chain(tmp_path, session_factory):
     storage = ElfieLabStorage(str(tmp_path))
-    spec = storage.create_elfie("艾菲-测试", species_id="dog")
+    spec = storage.create_elfie("艾菲-测试", species_id="tovren")
     session = session_factory(spec, storage)
 
     profile = session.profile()
-    assert profile["species_id"] == "dog"
-    assert profile["appearance"]["species_id"] == "dog"
+    assert profile["species_id"] == "tovren"
+    assert profile["appearance"]["species_id"] == "tovren"
     assert len(profile["big_five"]) == 5
     assert len(profile["personality_tags"]) == 3
     assert set(profile["memory_cognition"]) == {

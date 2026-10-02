@@ -1,6 +1,6 @@
 extends SceneTree
 
-const OUTPUT_PATH := "res://../build/fox_bone_proportion_comparison.png"
+const OUTPUT_PATH := "res://../build/saevi_bone_proportion_comparison.png"
 const TILE_SIZE := Vector2i(400, 450)
 const VARIANTS := [
 	{"label": "ARM 0.65 (short)", "control": "ArmLength", "factor": 0.65},
@@ -78,7 +78,7 @@ func _render_variant(variant: Dictionary) -> Image:
 	camera.look_at(Vector3(0.0, 0.88, 0.0), Vector3.UP)
 	camera.current = true
 
-	var actor_scene := load("res://characters/fox/fox.tscn") as PackedScene
+	var actor_scene := load("res://characters/saevi/saevi.tscn") as PackedScene
 	var actor := actor_scene.instantiate() as ElfieActor
 	actor.install_shared_animations = false
 	world_root.add_child(actor)

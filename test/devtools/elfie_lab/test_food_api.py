@@ -62,7 +62,7 @@ def successful_food_connection_probe(monkeypatch):
 def elfie_payload(name: str) -> dict[str, object]:
     return {
         "name": name,
-        "species_id": "fox",
+        "species_id": "saevi",
         "age_years": 2,
         "description": "验证粮食选择",
         "personality_description": "稳定、好奇",

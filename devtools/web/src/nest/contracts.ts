@@ -21,7 +21,7 @@ export const actorsSchema = z.object({
   items: z.array(
     z.object({
       actor_id: z.string(),
-      species: z.union([z.literal("dog"), z.literal("fox")]),
+      species: z.union([z.literal("tovren"), z.literal("saevi")]),
     }),
   ),
 });

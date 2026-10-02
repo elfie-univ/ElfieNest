@@ -74,7 +74,7 @@ def test_elfie_body_switch_updates_the_reflex_execution_target() -> None:
         character_profile=create_visual_profile(
             elfie_id="elfie-body-switch",
             display_name="换身精灵",
-            species_id="fox",
+            species_id="saevi",
             seed=2,
         ),
         memory_store=memory_store,
@@ -113,7 +113,7 @@ def test_stale_current_body_generation_is_rejected_after_switch() -> None:
         character_profile=create_visual_profile(
             elfie_id="elfie-generation-guard",
             display_name="代际守卫",
-            species_id="fox",
+            species_id="saevi",
             seed=4,
         ),
         memory_store=memory_store,

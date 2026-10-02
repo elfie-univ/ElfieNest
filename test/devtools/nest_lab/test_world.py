@@ -57,9 +57,9 @@ def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> No
         gateway=gateway,
     )
 
-    # When: the Runtime supplies its semantic manifest, then a developer adds a fox.
+    # When: the Runtime supplies its semantic manifest, then a developer adds a saevi.
     world.poll()
-    actor = world.add_actor("fox")
+    actor = world.add_actor("saevi")
     world.set_wandering()
 
     # Then: only established protocol-v3 commands are emitted with semantic anchors.
@@ -76,7 +76,7 @@ def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> No
     assert sync_payload["actors"] == [
         {
             "actor_id": actor.actor_id,
-            "species": "fox",
+            "species": "saevi",
             "home_anchor_id": "dorm-01/bed-01",
             "appearance": {},
         }
@@ -93,7 +93,7 @@ def test_pausing_wander_cancels_an_inflight_semantic_move(tmp_path) -> None:
         gateway=gateway,
     )
     world.poll()
-    world.add_actor("dog")
+    world.add_actor("tovren")
     world.set_wandering()
 
     world.pause()
@@ -109,7 +109,7 @@ def test_concurrent_actor_additions_preserve_capacity_and_unique_ids(tmp_path) -
     world.set_bed_count(4)
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        actors = list(executor.map(lambda _: world.add_actor("dog"), range(4)))
+        actors = list(executor.map(lambda _: world.add_actor("tovren"), range(4)))
 
     assert len({actor.actor_id for actor in actors}) == 4
     assert world.world()["actor_count"] == 4

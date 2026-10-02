@@ -769,7 +769,11 @@ class InstalledProductJourney:
         if not species_ids:
             raise JourneyFailure("adoption_species_missing", phase="adoption")
         species_id = next(
-            (candidate for candidate in ("fox", "dog") if candidate in species_ids),
+            (
+                candidate
+                for candidate in ("saevi", "tovren")
+                if candidate in species_ids
+            ),
             species_ids[0],
         )
         candidate_set = session.post_json(

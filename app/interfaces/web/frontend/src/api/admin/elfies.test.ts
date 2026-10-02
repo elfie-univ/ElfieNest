@@ -6,7 +6,7 @@ import { adminElfies, adminElfiesPath } from "./elfies"
 vi.mock("../http", () => ({ requestJson: vi.fn() }))
 
 const profile = {
-  elfie_id: "00000001", name: "Mochi", species_id: "fox", gender: null,
+  elfie_id: "00000001", name: "Mochi", species_id: "saevi", gender: null,
   birth_date: null, summary: null, adopted_at: "2026-08-01",
   profile_status: "empty", big_five: null, personality_tags: [],
   portrait_url: "", appearance: null,
@@ -22,9 +22,9 @@ describe("administrator Elfies client", () => {
       profile,
     }] })
 
-    expect(await adminElfies({ ownerUserId: 1, speciesId: "fox" })).toHaveLength(1)
+    expect(await adminElfies({ ownerUserId: 1, speciesId: "saevi" })).toHaveLength(1)
     expect(requestJson).toHaveBeenCalledWith(
-      "/api/v1/admin/elfies?owner_user_id=1&species_id=fox",
+      "/api/v1/admin/elfies?owner_user_id=1&species_id=saevi",
     )
     expect(adminElfiesPath()).toBe("/api/v1/admin/elfies")
   })

@@ -7,8 +7,8 @@ extends SceneTree
 ## ActorAppearance material, region, marking, body-scale, and bone-scale path
 ## used by the world and the adoption preview.
 
-const DOG_SCENE := preload("res://characters/dog/dog.tscn")
-const FOX_SCENE := preload("res://characters/fox/fox.tscn")
+const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
+const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 
 const IMAGE_SIZE := Vector2i(512, 512)
 const BACKGROUND := Color("707079")
@@ -27,9 +27,9 @@ const LIFE_STAGE_ANGLES: Array[Dictionary] = [
 	{"id": "side", "position": Vector3(3.85, 0.98, 0.0)},
 ]
 
-const DOG_VARIANTS: Array[Dictionary] = [
+const TOVREN_VARIANTS: Array[Dictionary] = [
 	{
-		"id": "dog-01-gray-tuft-ear-crescent",
+		"id": "tovren-01-gray-tuft-ear-crescent",
 		"primary": "silver_gray",
 		"height_scale": 0.96,
 		"build_scale": 0.96,
@@ -43,7 +43,7 @@ const DOG_VARIANTS: Array[Dictionary] = [
 		"marking_color": "apricot",
 	},
 	{
-		"id": "dog-02-honey-ear-tip-paws-freckles",
+		"id": "tovren-02-honey-ear-tip-paws-freckles",
 		"primary": "honey_gold",
 		"height_scale": 1.02,
 		"build_scale": 1.02,
@@ -57,7 +57,7 @@ const DOG_VARIANTS: Array[Dictionary] = [
 		"marking_color": "russet",
 	},
 	{
-		"id": "dog-03-russet-elbow-knee-heart",
+		"id": "tovren-03-russet-elbow-knee-heart",
 		"primary": "russet",
 		"height_scale": 1.00,
 		"build_scale": 1.07,
@@ -71,7 +71,7 @@ const DOG_VARIANTS: Array[Dictionary] = [
 		"marking_color": "honey_gold",
 	},
 	{
-		"id": "dog-04-charcoal-legs-tail-belly-heart",
+		"id": "tovren-04-charcoal-legs-tail-belly-heart",
 		"primary": "smoky_charcoal",
 		"height_scale": 1.07,
 		"build_scale": 0.95,
@@ -85,7 +85,7 @@ const DOG_VARIANTS: Array[Dictionary] = [
 		"marking_color": "honey_gold",
 	},
 	{
-		"id": "dog-05-apricot-chest-tail-under-star",
+		"id": "tovren-05-apricot-chest-tail-under-star",
 		"primary": "apricot",
 		"height_scale": 0.98,
 		"build_scale": 1.04,
@@ -100,9 +100,9 @@ const DOG_VARIANTS: Array[Dictionary] = [
 	},
 ]
 
-const FOX_VARIANTS: Array[Dictionary] = [
+const SAEVI_VARIANTS: Array[Dictionary] = [
 	{
-		"id": "fox-01-gray-tuft-ear-crescent",
+		"id": "saevi-01-gray-tuft-ear-crescent",
 		"primary": "silver_gray",
 		"height_scale": 0.96,
 		"build_scale": 0.96,
@@ -116,7 +116,7 @@ const FOX_VARIANTS: Array[Dictionary] = [
 		"marking_color": "orange_red",
 	},
 	{
-		"id": "fox-02-golden-ear-tip-paws-freckles",
+		"id": "saevi-02-golden-ear-tip-paws-freckles",
 		"primary": "golden",
 		"height_scale": 1.02,
 		"build_scale": 1.01,
@@ -127,11 +127,11 @@ const FOX_VARIANTS: Array[Dictionary] = [
 		],
 		"marking": "freckles",
 		"placement": "cheek_pair",
-		"marking_color": "fox_red",
+		"marking_color": "saevi_red",
 	},
 	{
-		"id": "fox-03-red-elbow-knee-heart",
-		"primary": "fox_red",
+		"id": "saevi-03-red-elbow-knee-heart",
+		"primary": "saevi_red",
 		"height_scale": 1.00,
 		"build_scale": 1.06,
 		"bone_scales": {"ArmLength": 0.95, "HandScale": 1.06},
@@ -144,7 +144,7 @@ const FOX_VARIANTS: Array[Dictionary] = [
 		"marking_color": "golden",
 	},
 	{
-		"id": "fox-04-black-legs-tail-belly-heart",
+		"id": "saevi-04-black-legs-tail-belly-heart",
 		"primary": "smoky_black",
 		"height_scale": 1.07,
 		"build_scale": 0.95,
@@ -158,7 +158,7 @@ const FOX_VARIANTS: Array[Dictionary] = [
 		"marking_color": "golden",
 	},
 	{
-		"id": "fox-05-champagne-chest-tail-under-star",
+		"id": "saevi-05-champagne-chest-tail-under-star",
 		"primary": "champagne",
 		"height_scale": 0.98,
 		"build_scale": 1.04,
@@ -207,14 +207,14 @@ func _init() -> void:
 func _render() -> void:
 	DirAccess.make_dir_recursive_absolute(_output_dir)
 	var plates: Array[Image] = []
-	if _species_filter.is_empty() or _species_filter == "dog":
-		var dog_plate := await _render_species("dog", DOG_SCENE, DOG_VARIANTS)
-		dog_plate.save_png("%s/dog-formal-candidates-4views.png" % _output_dir)
-		plates.append(dog_plate)
-	if _species_filter.is_empty() or _species_filter == "fox":
-		var fox_plate := await _render_species("fox", FOX_SCENE, FOX_VARIANTS)
-		fox_plate.save_png("%s/fox-formal-candidates-4views.png" % _output_dir)
-		plates.append(fox_plate)
+	if _species_filter.is_empty() or _species_filter == "tovren":
+		var tovren_plate := await _render_species("tovren", TOVREN_SCENE, TOVREN_VARIANTS)
+		tovren_plate.save_png("%s/tovren-formal-candidates-4views.png" % _output_dir)
+		plates.append(tovren_plate)
+	if _species_filter.is_empty() or _species_filter == "saevi":
+		var saevi_plate := await _render_species("saevi", SAEVI_SCENE, SAEVI_VARIANTS)
+		saevi_plate.save_png("%s/saevi-formal-candidates-4views.png" % _output_dir)
+		plates.append(saevi_plate)
 	if plates.is_empty():
 		push_error("Unknown APPEARANCE_CANDIDATE_SPECIES: %s" % _species_filter)
 		quit(1)
@@ -222,14 +222,14 @@ func _render() -> void:
 	_join_vertical(plates).save_png("%s/formal-candidates-4views.png" % _output_dir)
 	_write_catalog()
 	if _life_stage_payload.size() > 0:
-		if _species_filter.is_empty() or _species_filter == "dog":
-			await _write_life_stage_plate("dog", DOG_SCENE)
-		if _species_filter.is_empty() or _species_filter == "fox":
-			await _write_life_stage_plate("fox", FOX_SCENE)
+		if _species_filter.is_empty() or _species_filter == "tovren":
+			await _write_life_stage_plate("tovren", TOVREN_SCENE)
+		if _species_filter.is_empty() or _species_filter == "saevi":
+			await _write_life_stage_plate("saevi", SAEVI_SCENE)
 	print("APPEARANCE_FORMAL_3D_OUTPUT: %s" % _output_dir)
 	print(
 		"APPEARANCE_FORMAL_3D_CANDIDATES: species=%s count=%d views=front,three_quarter,side,back"
-		% [_species_filter if not _species_filter.is_empty() else "dog,fox", _candidate_limit]
+		% [_species_filter if not _species_filter.is_empty() else "tovren,saevi", _candidate_limit]
 	)
 	quit()
 
@@ -419,7 +419,7 @@ func _write_catalog() -> void:
 		"render_mode": "opaque_uv_surface_shader",
 		"views": ["front", "three_quarter", "side", "back"],
 		"candidate_count": _candidate_limit,
-		"species": {"dog": DOG_VARIANTS, "fox": FOX_VARIANTS},
+		"species": {"tovren": TOVREN_VARIANTS, "saevi": SAEVI_VARIANTS},
 		"constraints": {
 			"max_region_accents": 2,
 			"max_marks": 1,

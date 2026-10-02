@@ -10,11 +10,11 @@ import type { ElfieListItem } from "./elfie-list-model"
 const ITEMS = [
   {
     adopterAccountId: "owner-1",
-    profile: { elfie_id: "12345678", name: "Happy", portrait_url: "", species_id: "fox" },
+    profile: { elfie_id: "12345678", name: "Happy", portrait_url: "", species_id: "saevi" },
   },
   {
     adopterAccountId: "owner-2",
-    profile: { elfie_id: "23456789", name: "Kettle", portrait_url: "", species_id: "dog" },
+    profile: { elfie_id: "23456789", name: "Kettle", portrait_url: "", species_id: "tovren" },
   },
 ] as const satisfies readonly ElfieListItem[]
 
@@ -69,7 +69,7 @@ describe("ElfieList i18n", () => {
     expect(screen.getByRole("heading", { name: "My Elfies" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "View Happy's profile" })).toBeInTheDocument()
     expect(screen.getByText("Happy")).toBeInTheDocument()
-    expect(screen.queryByText("fox · 12345678")).not.toBeInTheDocument()
+    expect(screen.queryByText("saevi · 12345678")).not.toBeInTheDocument()
     expect(screen.getByText("Kettle")).toBeInTheDocument()
   })
 

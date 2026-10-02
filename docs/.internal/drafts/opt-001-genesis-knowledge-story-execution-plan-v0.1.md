@@ -96,7 +96,7 @@ World Canon 的叙事层级固定为：`Elfaria(world) → 已知区域/迷雾�
 | `status` / `source_ref` | active 或 unknown-boundary；可追溯的 Canon/approved seed 来源 |
 | `related_ids` / `eligibility` | 关联地点/物种/事件；适用物种、区域、生活阶段或角色 |
 
-物种合同与范围固定为：所有 `published` 物种使用同一 Genesis/Memory 字段、来源和验证规则；当前只把 `fox/Saevi`、`dog/Tovren` 纳入公开领养门禁，`cat/Myelle` 保持 draft。物种包只提供共同身体、感知、生活语境、别名和边界，不能决定个体 Big Five、朋友或人生经历。
+物种合同与范围固定为：所有 `published` 物种使用同一 Genesis/Memory 字段、来源和验证规则；当前只把 `saevi/Saevi`、`tovren/Tovren` 纳入公开领养门禁，`myelle/Myelle` 保持 draft。物种包只提供共同身体、感知、生活语境、别名和边界，不能决定个体 Big Five、朋友或人生经历。
 
 ### 3.3 个体初始化包
 
@@ -140,7 +140,7 @@ Genesis 选择规则：人人应掌握的 eligible `common` 知识进入 `master
 
 | 阶段 | 要做 | 进入/退出门 |
 |---|---|---|
-| 0. 冻结内容与范围 | 逐条核对 Elfaria/迷雾镇/三物种现有 Canon；建立八主题覆盖矩阵、未知/禁编表、公开物种表；重写 `devtools/evals/stage1_e1_scenarios.json` 中不合规的 E1 fixture | **退出：**用户确认首版事实、术语、published 范围（fox/Saevi、dog/Tovren；cat/Myelle 仍 draft） |
+| 0. 冻结内容与范围 | 逐条核对 Elfaria/迷雾镇/三物种现有 Canon；建立八主题覆盖矩阵、未知/禁编表、公开物种表；重写 `devtools/evals/stage1_e1_scenarios.json` 中不合规的 E1 fixture | **退出：**用户确认首版事实、术语、published 范围（saevi/Saevi、tovren/Tovren；myelle/Myelle 仍 draft） |
 | 1. Canon 配置接线 | 在现有配置注册/校验机制下维护唯一机器 Canon：`config/world/elfaria.yaml` 与现有 `config/species/`；把硬编码 WorldCanon 收敛到该总源，不建平行知识源 | **退出：**版本、schema、来源、别名、unknown 和范围可加载；所有条目可定位 |
 | 2. Genesis 类型化 | 将通用 `MemorySeed`/现有 `PersonalitySeed`/`SelfModelSeed` 收敛为三类 Seed 与 Selfhood 边界，移除“最多 5 段记忆”对 Knowledge 的限制；基于 Canon、领养上下文和确定性 seed 个体化，Genesis 只在领养时运行 | **退出：**确定性校验拒绝越界物种/地点/年龄/时间线/无引用/矛盾包；同输入生成同 Manifest |
 | 3. 正式导入 | 把三类 Seed 映射到现有普通 Episode、Node、Assertion、Evidence 和 `RecallBundle`；补齐历史时间字段语义、稀有词/别名检索、来源回链、幂等和失败恢复。优先用现有 marker/manifest 与受控暂存实现可见性，不擅自跨库造新事务 | **退出：**整包成功后才可见；重放不复制；崩溃不留下半套 Profile/Selfhood/Memory。若必须新增表、系统 Port 或真实迁移，立即停并单独审批 |

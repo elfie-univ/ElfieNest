@@ -13,7 +13,7 @@ PDF = b"%PDF-1.7\nelfie-lab-attachment"
 def elfie_payload(name):
     return {
         "name": name,
-        "species_id": "fox",
+        "species_id": "saevi",
         "age_years": 2,
         "description": "验证视觉输入",
         "personality_description": "温柔、好奇",

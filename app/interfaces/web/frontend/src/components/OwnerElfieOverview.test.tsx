@@ -32,7 +32,7 @@ const identity = {
   profile: {
     elfie_id: "00000001",
     name: "星尘",
-    species_id: "dog",
+    species_id: "tovren",
     gender: null,
     birth_date: null,
     summary: null,

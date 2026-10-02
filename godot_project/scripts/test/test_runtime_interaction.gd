@@ -3,8 +3,8 @@ extends SceneTree
 const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
 const ACTOR_SCENES := {
-	"dog": preload("res://characters/dog/dog.tscn"),
-	"fox": preload("res://characters/fox/fox.tscn"),
+	"tovren": preload("res://characters/tovren/tovren.tscn"),
+	"saevi": preload("res://characters/saevi/saevi.tscn"),
 }
 
 
@@ -37,14 +37,14 @@ func _init() -> void:
 	)
 	var synced := controller.sync_actors([
 		{
-			"actor_id": "fox-1",
-			"species": "fox",
+			"actor_id": "saevi-1",
+			"species": "saevi",
 			"spawn_anchor_id": "dorm-01/bed-02",
 			"appearance": {},
 		},
 		{
-				"actor_id": "dog-1",
-				"species": "dog",
+				"actor_id": "tovren-1",
+				"species": "tovren",
 			"spawn_anchor_id": "dorm-01/bed-01",
 			"appearance": {},
 		},
@@ -54,8 +54,8 @@ func _init() -> void:
 		return
 	# Face the observer toward the second actor so this test exercises the
 	# positive FOV path rather than relying on the scene's default orientation.
-	var fox := controller.actor("fox-1")
-	fox.look_at(fox.global_position + Vector3.RIGHT, Vector3.UP)
+	var saevi := controller.actor("saevi-1")
+	saevi.look_at(saevi.global_position + Vector3.RIGHT, Vector3.UP)
 
 	var events: Array[Dictionary] = []
 	world_controller.runtime_event.connect(
@@ -68,22 +68,22 @@ func _init() -> void:
 	)
 	world_controller.resolve_speech_reach({
 		"command_id": "speech-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"acoustic_profile": "normal",
 	})
 	controller.execute_intent({
 		"command_id": "speech-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "speak",
 		"deadline_seconds": 2.0,
 	})
 	var audience: Variant = _event_payload(events, "speech_reach", "speech-1")
-	if audience == null or audience.get("audience_actor_ids", []) != ["dog-1"]:
+	if audience == null or audience.get("audience_actor_ids", []) != ["tovren-1"]:
 		_fail("Speech audience was not limited to the active semantic zone")
 		return
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 8,
 	})
 	var visual: Variant = _event_payload(events, "visual_observation", "vision-1")
@@ -91,17 +91,17 @@ func _init() -> void:
 		"visible_semantic_ids",
 		[],
 	)
-	if visual == null or "actor/dog-1" not in visible_ids:
+	if visual == null or "actor/tovren-1" not in visible_ids:
 		_fail("Semantic visual observation did not include the nearby actor")
 		return
 	var rest_marker := nest.resolve_facility("dorm-01/rest")
 	if rest_marker == null:
 		_fail("Semantic facility marker was not built")
 		return
-	fox.look_at(fox.global_position - (rest_marker.global_position - fox.global_position), Vector3.UP)
+	saevi.look_at(saevi.global_position - (rest_marker.global_position - saevi.global_position), Vector3.UP)
 	world_controller.resolve_visual_observation({
 		"observation_id": "facility-visible",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 64,
 	})
 	var visible_facilities: Variant = _event_payload(events, "visual_observation", "facility-visible")
@@ -109,10 +109,10 @@ func _init() -> void:
 		_fail("Semantic visual observation did not apply physical filtering to a facility")
 		return
 	var rest_position := rest_marker.global_position
-	rest_marker.global_position = fox.global_position + Vector3.RIGHT
+	rest_marker.global_position = saevi.global_position + Vector3.RIGHT
 	world_controller.resolve_visual_observation({
 		"observation_id": "facility-behind",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 64,
 	})
 	var hidden_facilities: Variant = _event_payload(events, "visual_observation", "facility-behind")
@@ -120,30 +120,30 @@ func _init() -> void:
 		_fail("Semantic visual observation returned a facility outside the visual cone")
 		return
 	rest_marker.global_position = rest_position
-	fox.look_at(fox.global_position + Vector3.RIGHT, Vector3.UP)
-	var dog := controller.actor("dog-1")
-	var observer_position := fox.global_position
-	var target_position := dog.global_position
+	saevi.look_at(saevi.global_position + Vector3.RIGHT, Vector3.UP)
+	var tovren := controller.actor("tovren-1")
+	var observer_position := saevi.global_position
+	var target_position := tovren.global_position
 	# A target behind the observer must not be returned by the World query.
-	dog.global_position = observer_position + Vector3.RIGHT
+	tovren.global_position = observer_position + Vector3.RIGHT
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-behind",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 8,
 	})
 	var behind: Variant = _event_payload(events, "visual_observation", "vision-behind")
-	if behind != null and "actor/dog-1" in behind.get("visible_semantic_ids", []):
+	if behind != null and "actor/tovren-1" in behind.get("visible_semantic_ids", []):
 		_fail("World visual query returned an actor behind the observer")
 		return
-	dog.global_position = target_position
+	tovren.global_position = target_position
 	var visual_obstacle := _add_query_obstacle(main, observer_position, target_position)
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-occluded",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 8,
 	})
 	var occluded: Variant = _event_payload(events, "visual_observation", "vision-occluded")
-	if occluded != null and "actor/dog-1" in occluded.get("visible_semantic_ids", []):
+	if occluded != null and "actor/tovren-1" in occluded.get("visible_semantic_ids", []):
 		_fail("World visual query returned an occluded actor")
 		return
 	visual_obstacle.queue_free()
@@ -151,7 +151,7 @@ func _init() -> void:
 	# The bounded result contract is enforced by World, not by Nest.
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-bounded",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"max_results": 1,
 	})
 	var bounded: Variant = _event_payload(events, "visual_observation", "vision-bounded")
@@ -159,25 +159,25 @@ func _init() -> void:
 		_fail("World visual query exceeded the requested result bound")
 		return
 	# A quiet voice cannot cross the same physical distance as a normal voice.
-	dog.global_position = observer_position + Vector3(0.0, 0.0, 2.5)
+	tovren.global_position = observer_position + Vector3(0.0, 0.0, 2.5)
 	world_controller.resolve_speech_reach({
 		"command_id": "speech-quiet-range",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"acoustic_profile": "quiet",
 	})
 	var quiet_range: Variant = _event_payload(events, "speech_reach", "speech-quiet-range")
-	if quiet_range == null or "dog-1" in quiet_range.get("audience_actor_ids", []):
+	if quiet_range == null or "tovren-1" in quiet_range.get("audience_actor_ids", []):
 		_fail("Quiet speech ignored its bounded acoustic range")
 		return
-	dog.global_position = target_position
+	tovren.global_position = target_position
 	var speech_obstacle := _add_query_obstacle(main, observer_position, target_position)
 	world_controller.resolve_speech_reach({
 		"command_id": "speech-occluded",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"acoustic_profile": "loud",
 	})
 	var occluded_speech: Variant = _event_payload(events, "speech_reach", "speech-occluded")
-	if occluded_speech == null or "dog-1" in occluded_speech.get("audience_actor_ids", []):
+	if occluded_speech == null or "tovren-1" in occluded_speech.get("audience_actor_ids", []):
 		_fail("Speech reach ignored physical occlusion")
 		return
 	speech_obstacle.queue_free()
@@ -185,20 +185,20 @@ func _init() -> void:
 
 	controller.execute_intent({
 		"command_id": "expression-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "emotion_expression",
 		"expression": "happy",
 		"deadline_seconds": 2.0,
 	})
 	if (
-		String(controller.actor("fox-1").get_meta("runtime_expression", ""))
+		String(controller.actor("saevi-1").get_meta("runtime_expression", ""))
 		!= "happy"
 	):
 		_fail("Supported expression was not observable on the actor")
 		return
 	controller.execute_intent({
 		"command_id": "expression-bad",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "emotion_expression",
 		"expression": "not-supported",
 		"deadline_seconds": 2.0,
@@ -215,7 +215,7 @@ func _init() -> void:
 	):
 		_fail("Unsupported expression did not fail explicitly")
 		return
-	var progress_probe := controller.actor("dog-1")
+	var progress_probe := controller.actor("tovren-1")
 	var probe_home := progress_probe.global_position
 	var probe_terminals: Array[String] = []
 	progress_probe.navigation_terminal.connect(
@@ -241,7 +241,7 @@ func _init() -> void:
 	progress_probe.set_physics_process(true)
 	controller.execute_intent({
 		"command_id": "move-clear-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "activity-01/activity",
 		"deadline_seconds": 10.0,
@@ -258,12 +258,12 @@ func _init() -> void:
 	if clear_move == null or String(clear_move.get("status", "")) != "completed":
 		_fail(
 			"Two synchronized actors could not navigate without an obstacle: "
-			+ "fox=%s dog=%s distance=%.3f terminal=%s"
+			+ "saevi=%s tovren=%s distance=%.3f terminal=%s"
 			% [
-				str(controller.actor("fox-1").global_position),
-				str(controller.actor("dog-1").global_position),
-				controller.actor("fox-1").global_position.distance_to(
-					controller.actor("dog-1").global_position
+				str(controller.actor("saevi-1").global_position),
+				str(controller.actor("tovren-1").global_position),
+				controller.actor("saevi-1").global_position.distance_to(
+					controller.actor("tovren-1").global_position
 				),
 				JSON.stringify(clear_move),
 			]
@@ -272,7 +272,7 @@ func _init() -> void:
 	var obstacle := _add_runtime_obstacle(main)
 	controller.execute_intent({
 		"command_id": "blocked-1",
-		"actor_id": "fox-1",
+		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "dorm-01/bed-02",
 		"deadline_seconds": 10.0,
@@ -293,7 +293,7 @@ func _init() -> void:
 	):
 		_fail("Physical obstruction did not produce movement_blocked terminal")
 		return
-	var tactile_count := _tactile_count(events, "fox-1", obstacle.name)
+	var tactile_count := _tactile_count(events, "saevi-1", obstacle.name)
 	if tactile_count < 1 or tactile_count > 2:
 		_fail("Significant contact was not emitted with cooldown")
 		return

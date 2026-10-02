@@ -18,14 +18,14 @@ appearance_preferences:
   warm:
   - golden
   - orange_red
-  - fox_red
+  - saevi_red
   - chestnut
   marked:
   - crescent
   - s_glyph
   - constellation
   ears:
-  - fox
+  - saevi
 status: published
 age_unit: local_year
 stage_endpoint_policy:

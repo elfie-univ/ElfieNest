@@ -42,7 +42,7 @@ class MemoryOperationsAdapter:
             owner_count=1,
             elfie_count=2,
             session_count=1,
-            species_stats=(StoredSpeciesCount(species_id="fox", count=2),),
+            species_stats=(StoredSpeciesCount(species_id="saevi", count=2),),
         )
 
     def list_active_sessions(self, limit: int) -> tuple[StoredActiveSession, ...]:
@@ -164,7 +164,7 @@ def test_facade_maps_existing_database_projections() -> None:
     backup = facade.backup_databases(BackupDatabasesCommand())
 
     assert usage.user_count == 3
-    assert usage.species_stats[0].species_id == "fox"
+    assert usage.species_stats[0].species_id == "saevi"
     assert sessions.items[0].account_id == "owner"
     assert tables.items[0].name == "users"
     assert backup.backup_path == Path("/safe/backup")

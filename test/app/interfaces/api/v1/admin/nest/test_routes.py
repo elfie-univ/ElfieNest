@@ -82,7 +82,7 @@ def _seed_elfie(db_path: str, elfie_id: str) -> None:
         create_visual_profile(
             elfie_id=elfie_id,
             display_name=elfie_id,
-            species_id="fox",
+            species_id="saevi",
             seed=1,
         )
     )

@@ -34,7 +34,7 @@ from elfie.genesis.world import (
 
 from .config_store import read_yaml_mapping
 
-_SPECIES_IDS = {"Saevi": "fox", "Tovren": "dog", "Myelle": "cat"}
+_SPECIES_IDS = {"Saevi": "saevi", "Tovren": "tovren", "Myelle": "myelle"}
 _PLACE_KIND_ALIASES = {
     "public_space": "settlement_shared_space",
     "controlled_facility": "departure_facility",
