@@ -28,14 +28,20 @@ characters/
 │   ├── fox.glb
 │   ├── fox.tscn
 │   └── species_manifest.json
+├── cat/
+│   ├── cat.glb                  # Myelle model with a four-bone tail
+│   ├── cat.tscn
+│   └── species_manifest.json
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-Saevi and Tovren are the current selectable species. Myelle
-remains a narrative/profile design entry only: it has no complete production
-asset package and is intentionally unavailable at runtime. A species becomes
+Saevi, Tovren and Myelle are selectable species. Myelle uses an initial orange
+character model with a four-bone tail and shared bipedal actions. Its current
+appearance controls cover aggregate height, width/depth and main-coat color;
+face morphs, ear variants, region accents and added markings are unavailable.
+A species becomes
 selectable only after its directory contains a complete manifest-validated
 package; the runtime never substitutes a procedural scene, SVG, or other
 placeholder. At runtime the scene is selected by `species`; when older data has

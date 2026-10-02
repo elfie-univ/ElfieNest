@@ -21,12 +21,12 @@ presentation_images:
   full_body: assets/full-body.png
 presentation_provenance:
   status: author_review_required
-  method: builtin_image_generation
-  prompt_set:
-    full_body: Myelle 成年全身展示概念；沿用 Saevi 的柔和三维毛发及灰底构图，银灰毛、浅色口鼻、灵活直立体态、长尾，无文字道具。
-    headshot: 以上述全身图为身份参考，保留同一个体的五官、毛色和耳形，生成露出双耳的上胸头像。
-  source_refs: [species#4.2, species#genesis-appearance-boundaries]
-  proves_runtime_model: false
+  method: blender_render_of_runtime_glb
+  model_file: godot_project/characters/cat/cat.glb
+  authoring_file: godot_project/characters/cat/source/myelle-tail-corrected.blend
+  full_body: Same imported Myelle model rendered full-body under studio lighting.
+  headshot: Same model, materials and lighting rendered with a closer camera.
+  proves_runtime_model: true
 generation_file: generation.yaml
 ecological_context:
   source_ref: species#4.4

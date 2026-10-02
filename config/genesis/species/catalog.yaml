@@ -1,7 +1,7 @@
 version: 1
 document_kind: species_catalog
 schema_version: 1
-catalog_version: species-catalog.v4
+catalog_version: species-catalog.v5
 appearance_protocol_version: appearance.v2
 status: published
 species:
@@ -30,7 +30,7 @@ species:
 - species_id: cat
   package: myelle
   species_package_id: myelle
-  status: draft
+  status: published
   sort_order: 2
   definition_version: myelle.v3
   files:

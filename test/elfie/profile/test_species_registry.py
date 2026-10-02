@@ -18,7 +18,7 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
     assert (
         tuple(definition.species_id for definition in definitions) == SUPPORTED_SPECIES
     )
-    assert tuple(definition.sort_order for definition in definitions) == (0, 1)
+    assert tuple(definition.sort_order for definition in definitions) == (0, 1, 2)
     assert all(definition.scene_id for definition in definitions)
     assert all(definition.identity_card.package_id for definition in definitions)
     assert all(
@@ -50,7 +50,7 @@ def test_species_registry_is_complete_and_stably_ordered() -> None:
             "preview",
         ]
 
-    assert not (package_root / "cat").exists()
+    assert get_species_definition("cat").display_name == "Myelle"
 
 
 def test_species_lookup_is_data_driven_for_each_registered_id() -> None:
@@ -59,5 +59,5 @@ def test_species_lookup_is_data_driven_for_each_registered_id() -> None:
         assert resolved.species_package_id == definition.species_package_id
         assert resolved.appearance.species_id == definition.species_id
 
-    with pytest.raises(ValueError, match="cat"):
-        get_species_definition("cat")
+    with pytest.raises(ValueError, match="unknown"):
+        get_species_definition("unknown")

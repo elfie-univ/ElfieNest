@@ -10,7 +10,7 @@
 
 | ID | 严重性 | 状态 | 当前差距 | 关闭条件 | 证据 |
 | --- | --- | --- | --- | --- | --- |
-| CFG-006 | P1 | closed | 已发布的 `config/genesis/program.yaml` 及全部 18 个 manifest 成员，现为 Adoption 与 Genesis 唯一创建输入。旧 `config/world/` 和 `config/species/` 生产配置已移除；Myelle 仍为 draft。地点、父级、空间关系和路线注册表完整归 geography，Program 只保留引用与策略。 | 保持单一经 manifest 校验的资料包、单一强类型消费路径、失败即关闭的可领养条件，并将运行时/Godot 资产分开；不得恢复双读或隐式来源回退。 | target=配置契约 1.7、应用契约 1.12、ADR-0039/0040；inventory=入口、18 个 manifest 成员、登记加载器、Adoption Bootstrap、发行 staging 和旧生产配置路径缺席；references=`documents.py`、`genesis_package_adapter.py`、`world.py`、`species.py`、`app_wiring/adoption.py`、`release_manifest.py`；verification=资料包完整性及 160 条知识/45 条条件检查、地理 authority 检查、物种/地理/编译测试、版本化 Adoption 候选→提交 E2E 与已保存 Memory 检查、发行资源及封闭清单测试；residuals=Myelle 因单独的 Godot 资源门禁仍不可领养。 |
+| CFG-006 | P1 | closed | 已发布的 `config/genesis/program.yaml` 及全部 18 个 manifest 成员，现为 Adoption 与 Genesis 唯一创建输入。旧 `config/world/` 和 `config/species/` 生产配置已移除；Myelle 已有可选择的首版 Godot 资源包。地点、父级、空间关系和路线注册表完整归 geography，Program 只保留引用与策略。 | 保持单一经 manifest 校验的资料包、单一强类型消费路径、失败即关闭的可领养条件，并将运行时/Godot 资产分开；不得恢复双读或隐式来源回退。 | target=配置契约 1.7、应用契约 1.12、ADR-0039/0040；inventory=入口、18 个 manifest 成员、登记加载器、Adoption Bootstrap、发行 staging 和旧生产配置路径缺席；references=`documents.py`、`genesis_package_adapter.py`、`world.py`、`species.py`、`app_wiring/adoption.py`、`release_manifest.py`；verification=资料包完整性及 160 条知识/45 条条件检查、地理 authority 检查、物种/地理/编译测试、版本化 Adoption 候选→提交 E2E 与已保存 Memory 检查、发行资源及封闭清单测试；residuals=Myelle 的 GLB 蒙皮、13 个共享动作、尾骨层级、外观与碰撞已通过聚焦 Godot headless 门禁；动作观感、美术验收和年龄阶段外观仍待负责人目视审阅。 |
 
 ## 当前清单
 

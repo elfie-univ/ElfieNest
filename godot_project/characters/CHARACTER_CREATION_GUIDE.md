@@ -1,9 +1,14 @@
 # ElfieNest 3D 动物角色创建与集成手册
 
 本文描述从二维设定图到 Godot 可运行角色的完整生产流程。当前标准面向
-拟人化双足角色，Saevi 和 Tovren 是当前骨骼基准角色。Myelle 尚未准备完整的正式
-资源包，暂不进入运行时；不能用程序化视觉场景或占位资源替代它。四足形态只预留资源契约，暂不实现
+拟人化双足角色，Saevi 和 Tovren 是当前骨骼基准角色。Myelle 已提供首版带蒙皮
+GLB、四节尾骨、包装场景与 manifest，并复用公共双足动作；其美术和逐年龄外貌仍待人工验收。
+不能用程序化视觉场景或占位资源代替完整角色包。四足形态只预留资源契约，暂不实现
 运行时切换。
+
+Myelle now has an initial skinned GLB, four tail bones, a wrapper scene and a
+manifest using shared bipedal actions. Artistic and per-age appearance review
+remain pending; a placeholder alone does not satisfy the runtime contract.
 
 高矮胖瘦、脸型、五官、毛发、毛色、Shape Key 命名、随机生成范围和物种
 配置见 [外貌参数与物种母版规范](APPEARANCE_SYSTEM_SPEC.md)。

@@ -101,15 +101,42 @@ def test_options_expose_capacity_without_a_model_dependency() -> None:
     assert options.quota.maximum == 2
     assert options.quota.remaining == 1
     assert options.nest_capacity.remaining == 3
-    assert tuple(species.species_id for species in options.species) == ("fox", "dog")
+    assert tuple(species.species_id for species in options.species) == (
+        "fox",
+        "dog",
+        "cat",
+    )
     assert options.availability == "available"
 
 
 def test_candidate_creation_rejects_a_species_without_a_runtime_package() -> None:
-    service = AdoptionService(Policy(), Persistence())
+    service = AdoptionService(
+        Policy(),
+        Persistence(),
+        species_runtime=StaticSpeciesRuntimeReadiness(("fox", "dog")),
+    )
 
     with pytest.raises(AdoptionInvalid, match="cat"):
         service.create_candidate_set(principal(), candidate_command(species_id="cat"))
+
+
+def test_myelle_candidates_have_distinct_supported_runtime_appearances() -> None:
+    service = AdoptionService(Policy(), Persistence())
+    candidates = service.create_candidate_set(
+        principal(), candidate_command(species_id="cat")
+    ).candidates
+
+    assert len(candidates) == 5
+    assert all(candidate.species_id == "cat" for candidate in candidates)
+    assert (
+        len(
+            {
+                candidate.runtime_appearance["material_parameters"]["palette_id"]
+                for candidate in candidates
+            }
+        )
+        == 5
+    )
 
 
 def test_candidate_set_returns_five_distinct_runtime_appearances() -> None:

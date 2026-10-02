@@ -25,13 +25,18 @@ characters/
 │   ├── fox.glb
 │   ├── fox.tscn
 │   └── species_manifest.json
+├── cat/
+│   ├── cat.glb                  # Myelle 模型，含四节尾骨
+│   ├── cat.tscn
+│   └── species_manifest.json
 ├── CHARACTER_CREATION_GUIDE.md
 ├── BLENDER_APPEARANCE_AUTHORING_GUIDE.md
 └── APPEARANCE_SYSTEM_SPEC.md
 ```
 
-当前可选择物种是 Saevi 和 Tovren。Myelle 目前只保留
-在故事/档案设计中：它没有完整的正式资源包，因此明确不可用于运行时。一个
+当前可选择物种是 Saevi、Tovren 和 Myelle。Myelle 使用首版橙色角色模型，
+包含四节尾骨并复用公共双足动作；当前外貌控制支持整体身高、宽深比例和主毛色，
+不支持脸型 Morph、耳形变体、区域改色及新增标记。一个
 物种只有在自己的目录中提供完整 manifest 并通过校验后才可选择；运行时不会用
 程序化场景、SVG 或其他占位资源顶上去。运行时按照 `species` 选择场景；旧数据
 没有 `species` 时，只在已经验收通过的资源包中保留稳定回退规则。

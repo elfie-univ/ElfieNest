@@ -9,19 +9,24 @@ const COLORABLE_REGION_IDS := [0, 2, 3, 5, 7, 8, 9, 10, 11, 12]
 const SOURCE_FUR_ANCHORS := {
 	"dog": Color("d4a672"),
 	"fox": Color("ba662f"),
+	"cat": Color("c76e38"),
 }
 const FUR_DISTANCE_START := {
 	"dog": 0.16,
 	"fox": 0.12,
+	"cat": 0.12,
 }
 const FUR_DISTANCE_END := {
 	"dog": 0.82,
 	"fox": 0.58,
+	"cat": 0.58,
 }
 const REGION_MID_LUMA := {
 	"dog": 0.62,
 	"fox": 0.56,
+	"cat": 0.56,
 }
+const SHADER_SPECIES_IDS := {"dog": 0, "fox": 1, "cat": 2}
 const BIND_POSITION_SOURCE_META := &"elfienest_bind_position_mesh_source"
 const BIND_POSITION_BAKED_FROM_META := &"elfienest_bind_position_baked_from"
 
@@ -94,8 +99,10 @@ void vertex() {
     appearance_leg_bone = joint_weight_range(bone_indices, bone_weights, 1u, 10u);
     appearance_lower_leg_bone = joint_weight_range(bone_indices, bone_weights, 2u, 5u)
         + joint_weight_range(bone_indices, bone_weights, 7u, 10u);
-    if (appearance_species_id == 0) {
-        appearance_tail_bone = joint_weight(bone_indices, bone_weights, 33u);
+    if (appearance_species_id != 1) {
+        appearance_tail_bone = appearance_species_id == 2
+            ? joint_weight_range(bone_indices, bone_weights, 33u, 36u)
+            : joint_weight(bone_indices, bone_weights, 33u);
         appearance_arm_bone = joint_weight_range(bone_indices, bone_weights, 14u, 21u)
             + joint_weight_range(bone_indices, bone_weights, 25u, 32u);
         appearance_forearm_bone = joint_weight_range(bone_indices, bone_weights, 16u, 21u)
@@ -322,6 +329,8 @@ float appearance_region_alpha(int region_id) {
 }
 
 int appearance_classify_region() {
+    // Myelle currently supports main-coat recoloring only; no region accents.
+    if (appearance_species_id == 2) return -1;
     // This is the phase-3 experiment's overlap priority verbatim. Smaller,
     // more specific regions own overlaps before their broader parent bands.
     if (appearance_region_alpha(0) > 0.52) return 0;
@@ -714,7 +723,7 @@ static func apply_region_debug(
 			continue
 		var material := ShaderMaterial.new()
 		material.shader = shader
-		material.set_shader_parameter("appearance_species_id", 0 if species_id == "dog" else 1)
+		material.set_shader_parameter("appearance_species_id", SHADER_SPECIES_IDS.get(species_id, 0))
 		material.set_shader_parameter(
 			"appearance_region_coordinate_scale",
 			Vector3.ONE,
@@ -1291,7 +1300,7 @@ static func _apply_material_parameters(
 			material.shader = shader
 			material.set_shader_parameter(
 				"appearance_species_id",
-				0 if species_id == "dog" else 1,
+				SHADER_SPECIES_IDS.get(species_id, 0),
 			)
 			material.set_shader_parameter(
 				"appearance_region_coordinate_scale",

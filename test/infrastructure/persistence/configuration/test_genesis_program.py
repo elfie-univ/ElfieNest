@@ -50,9 +50,7 @@ def test_registered_source_package_contains_confirmed_parameters() -> None:
     assert document["status"] == document["manifest"]["status"] == "published"
     assert len(document["manifest"]["members"]) == 18
     assert not document["manifest"]["publication_blockers"]
-    assert {item["id"] for item in document["manifest"]["activation_blockers"]} == {
-        "myelle-runtime-readiness",
-    }
+    assert not document["manifest"]["activation_blockers"]
     rules = document["rules"]
     population = rules["population"]
     assert population["grid_dimensions"] == [10, 10]
@@ -795,7 +793,10 @@ def test_species_rules_keep_runtime_and_personal_life_boundaries() -> None:
         assert not capabilities["presentation_image_proves_runtime_readiness"]
         assert "face" not in appearance["supported_controls"]
         if package == "myelle":
-            assert not capabilities["required_assets_present"]
+            assert capabilities["required_assets_present"]
+            assert (
+                capabilities["control_support"]["signature"] == "main_fur_palette_only"
+            )
             assert (
                 definition["presentation_provenance"]["status"]
                 == "author_review_required"

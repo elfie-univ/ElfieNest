@@ -111,8 +111,8 @@ remaining items describe separate open implementation gates:
 1. **Typed source and product cutover (`CFG-006`; closed).** The published
    `config/genesis/program.yaml` manifest and its 18 members feed the typed
    creation and availability views. Adoption and Genesis use this single source;
-   old production config files are removed, and Myelle remains excluded as
-   draft. Check: package integrity, closed inventory, release-manifest coverage
+   old production config files are removed, and Myelle is selectable with its
+   initial validated Godot package. Check: package integrity, closed inventory, release-manifest coverage
    and persisted Adoption/Memory E2E.
 2. **Geography and life-feasibility primitives (`elfie/genesis`).** Use the 100
    cells, 83 birth-eligible cells, allowed species regions, 16 ordered land chains,
@@ -129,7 +129,7 @@ remaining items describe separate open implementation gates:
    display. The five questionnaire answers affect personality only.
    Preserve the existing 1–3 invitations and deterministic reply semantics.
    Check: five-way diversity, age ≥2, impossible-choice explanation, no
-   unproven candidate display and no Myelle option while draft.
+   unproven candidate display and five distinct supported Myelle appearances.
 4. **Acceptance freeze (`Adoption`, Admission reservation).** Atomically bind
    the accepted candidate/name, package/policy/compiler revisions, seed, time
    anchor and idempotency key in a private durable envelope. Validate the name

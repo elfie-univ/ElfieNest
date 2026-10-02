@@ -38,10 +38,16 @@ def _refresh_package_hashes(root: Path) -> None:
 def test_bundled_catalog_loads_only_complete_adoptable_species() -> None:
     catalog = load_species_catalog()
 
-    assert catalog.supported_species == ("fox", "dog")
-    assert [item.species_id for item in catalog.definitions] == ["fox", "dog"]
+    assert catalog.supported_species == ("fox", "dog", "cat")
+    assert [item.species_id for item in catalog.definitions] == ["fox", "dog", "cat"]
     assert catalog.definition("fox").display_name == "Saevi"
     assert catalog.definition("dog").display_name == "Tovren"
+    assert catalog.definition("cat").display_name == "Myelle"
+    assert catalog.definition("cat").appearance.patterns == ("solid",)
+    assert catalog.definition("cat").appearance.control_options["signature"] == (
+        "warm",
+        "any",
+    )
     assert catalog.definition("fox").presentation_images is not None
     assert catalog.definition("dog").genesis is not None
     assert catalog.definition("fox").genesis.terminal_age_years == 15

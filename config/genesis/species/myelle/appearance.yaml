@@ -1,7 +1,10 @@
 document_kind: appearance_profile
 schema_version: 1
-profile_version: 2
-supported_controls: []
+profile_version: 3
+supported_controls:
+- stature
+- build
+- signature
 control_options:
   stature:
   - small
@@ -20,7 +23,6 @@ control_options:
   - any
   signature:
   - warm
-  - marked
   - any
 control_ranges:
   stature:
@@ -154,19 +156,14 @@ shape_correlations:
     muscularity: 0.0
     local_bias: 0.26
 palettes:
-- black
-- white
-- cream
 - ginger
+- cream
 - gray
-- calico
-- tuxedo
+- white
+- black
+- charcoal
 patterns:
 - solid
-- tabby
-- bicolor
-- calico
-- tuxedo
 eye_colors:
 - green
 - amber
@@ -199,17 +196,156 @@ parameter_provenance:
   unsupported_values_are_not_generation_options: true
   new_unsourced_parameters: author_review_required
 runtime_capabilities:
-  inspection: static_repository_inventory_only
-  required_assets_present: false
-  missing_assets: [character_scene, character_model, species_manifest]
-  presentation_assets: concept_drafts_pending_author_review
-  control_support: {}
-  bone_scale_bindings: []
+  inspection: blender_glb_roundtrip_and_godot_package_validation
+  model_file: godot_project/characters/cat/cat.glb
+  scene_file: godot_project/characters/cat/cat.tscn
+  manifest_file: godot_project/characters/cat/species_manifest.json
+  adapter_file: godot_project/runtime/actor/actor_appearance.gd
+  required_assets_present: true
+  render_validation_this_revision: blender_glb_material_render_and_godot_headless_pass
+  author_render_acceptance: pending
+  control_support:
+    stature: aggregate_height_scale
+    build: aggregate_width_depth_scale_only
+    signature: main_fur_palette_only
+  bone_scale_bindings:
+  - HeadScale
+  - NeckLength
+  - ArmLength
+  - LegLength
+  - HandScale
+  - PawScale
+  - TailLength
+  model_morph_target_count: 0
   blend_shape_bindings: []
-  unsupported_controls: [stature, build, face, signature]
-  render_validation_this_revision: blocked_missing_assets
+  unsupported_controls:
+  - face
+  - signature.marked
+  - signature.ears
+  unavailable_fields:
+  - region_accents
+  - markings
+  - independent_eye_and_nose_colors
+  - local_body_morphs
   life_stage_visual_validation: author_review_required
   missing_binding_or_asset: reject_candidate_without_reroll
   presentation_image_proves_runtime_readiness: false
-  authoring_options_only: true
-  reason: Myelle 只有物种与外貌草案，没有 cat 正式角色包；其他物种模型不能代替。
+  authoring_options_only: false
+markings:
+- none
+marking_placements:
+- none
+pattern_color_slots:
+  solid: 1
+pattern_layouts:
+  solid:
+  - solid
+region_rules:
+  head_tuft:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  forehead_mark_zone:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  ear_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  ear_tip_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  cheek_fluff:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  chest_tuft:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  belly_center:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  forearm_paw_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  elbow_cuff_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  lower_leg_foot_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  knee_cuff_pair:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  tail_tip:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+  tail_underside:
+    mode: disabled
+    allowed_colors: []
+    allowed_grades: []
+    source_mid_luma: 0.56
+    default_intensity: 0
+region_recipes:
+  base:
+    accents: []
+region_recipe_order:
+- base
+marking_rules:
+  none:
+    placements:
+    - none
+    colors:
+    - ginger
+    - cream
+    - gray
+    - white
+    - black
+    - charcoal
+batch_palette_order:
+- ginger
+- cream
+- gray
+- white
+- black
+- charcoal
+batch_recipe_order:
+- base
+batch_marking_order:
+- none
+max_region_accents: 0
+max_marks: 0
+max_forehead_marks: 0
