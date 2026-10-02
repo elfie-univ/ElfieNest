@@ -85,6 +85,7 @@ def test_typed_genesis_materializes_story_graph_and_reopens(tmp_path: Path) -> N
             for relationship in compilation.bundle.relationship_seeds
         )
         + (kind == "elfie")
+        + (len(compilation.bundle.group_seeds) if kind == "group" else 0)
         for kind in ("person", "elfie", "group")
     }
     with SQLiteMemoryStoreAdapter(memory_path, elfie_id="00000101") as storage:
