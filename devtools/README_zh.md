@@ -26,8 +26,9 @@
 房屋资产设计保留已确认的资产库布局和右侧完整 3D 控制栏。源码位于
 `devtools/asset_design/web/`，通过 `build/asset_previews/catalog.json` 读取已登记
 的模型、测量数据和图片。新资产版本复用同一查看器，不生成专用 HTML 页面。独立入口
-不启动实验状态或 Godot，也不构建实验前端；统一实验服务也挂载相同页面，并提供单独
-的导航入口。布局基准和只读边界测试位于 `test/devtools/asset_design/`。本地资产
+不启动实验状态或 Godot，也不构建实验前端。使用 `./developer.sh asset-design`
+打开独立页面；原实验服务和菜单不挂载该页面。布局基准和只读边界测试位于
+`test/devtools/asset_design/`。本地资产
 缺失时页面显示空工作台；Git 保留工具源码，大型设计文件仍是本地资产。
 
 `./developer.sh brain-trace` 是不启动网页的后端采集工具。`list` 列出隔离 Lab 数据根中的

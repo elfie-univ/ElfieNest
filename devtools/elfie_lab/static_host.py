@@ -7,7 +7,6 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
-from devtools.asset_design.app import build_router
 from devtools.web_host import mount_vite_bundle
 
 
@@ -23,7 +22,6 @@ class NoStoreStaticFiles(StaticFiles):
 def mount_static_surfaces(app: FastAPI) -> None:
     """挂载 Lab 前端，并在已构建时挂载 Godot Web 导出。"""
     mount_vite_bundle(app)
-    app.include_router(build_router())
     godot_web_dir = Path(__file__).parents[2] / "build" / "components" / "godot-web"
     if godot_web_dir.is_dir():
         app.mount(

@@ -21,9 +21,10 @@ Asset design preserves the approved asset library and complete right-hand 3D con
 panel. Its source is `devtools/asset_design/web/`; it reads registered models,
 measurements and images from `build/asset_previews/catalog.json`. New asset versions
 reuse this viewer instead of generating HTML pages. It does not start experiment
-state or Godot, and does not build their frontends. The unified experiment service
-mounts the same page, with a separate navigation entry. Layout baselines and
-read-only boundary tests live in `test/devtools/asset_design/`. Missing local asset
+state or Godot, and does not build their frontends. Open this independent page
+with `./developer.sh asset-design`; it is not mounted in the experiment service
+or its menus. Layout baselines and read-only boundary tests live in
+`test/devtools/asset_design/`. Missing local asset
 data leaves an empty workbench; Git preserves the tool, not the large design files.
 
 

@@ -31,8 +31,3 @@ def test_unified_app_serves_all_three_same_origin_shells(
     health = client.get("/api/health")
     assert health.status_code == 200
     assert health.json()["service"] == "developer-tools"
-
-    assets = client.get("/assets/design")
-    assert assets.status_code == 200
-    assert 'id="assetSelect"' in assets.text
-    assert "__ELFIENEST_LAB__" not in assets.text

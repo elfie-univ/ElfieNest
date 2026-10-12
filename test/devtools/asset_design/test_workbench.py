@@ -69,6 +69,15 @@ def test_empty_asset_directory_keeps_the_workbench_available(tmp_path) -> None:
         assert client.get("/assets/design/catalog.json").json()["assets"] == []
 
 
+def test_experiment_service_and_menu_do_not_mount_the_asset_workbench() -> None:
+    repository = Path(__file__).resolve().parents[3]
+    static_host = (repository / "devtools/elfie_lab/static_host.py").read_text()
+    menu = (repository / "devtools/web/src/ui/GlobalLabNav.tsx").read_text()
+    assert "devtools.asset_design" not in static_host
+    assert "asset-design" not in menu
+    assert "/assets/design" not in menu
+
+
 def test_fixed_layout_styles_match_the_approved_baseline() -> None:
     fixtures = Path(__file__).parent / "fixtures"
     baseline = json.loads((fixtures / "approved-layout.json").read_text())

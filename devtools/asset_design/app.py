@@ -41,7 +41,7 @@ LIBRARIES = {
 
 
 def build_router(asset_root: Path = ASSET_ROOT) -> APIRouter:
-    """Mount the same full-page surface in standalone or unified Developer Tools."""
+    """Serve the fixed full-page surface in the independent asset workbench."""
     router = APIRouter(prefix=PREFIX)
 
     @router.get("", include_in_schema=False)
