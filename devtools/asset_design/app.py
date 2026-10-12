@@ -26,6 +26,7 @@ PAGES = {
         "library.js",
         "viewer.html",
         "viewer.css",
+        "controls.css",
         "viewer.js",
         "view-state.mjs",
     )

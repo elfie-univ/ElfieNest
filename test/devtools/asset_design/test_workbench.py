@@ -166,8 +166,8 @@ def test_approved_viewer_controls_remain_in_the_right_sidebar(tmp_path) -> None:
             "download",
         ):
             assert f'id="{control}"' in sidebar
-        for number in range(1, 9):
-            assert f'value="M{number:02}"' in sidebar
+        assert 'id="objectControls"' in page
+        assert 'id="floorControls"' in page
         script = client.get("/assets/design/viewer.js").text
         assert "__PAYLOAD__" not in page
         assert "estate_v30.glb" not in script

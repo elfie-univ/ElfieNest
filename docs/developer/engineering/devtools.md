@@ -27,6 +27,12 @@ or its menus. Layout baselines and read-only boundary tests live in
 `test/devtools/asset_design/`. Missing local asset
 data leaves an empty workbench; Git preserves the tool, not the large design files.
 
+Preview content selects the model, separate components or saved images. Object and
+floor selection live only in the viewer; available floors come from model tags.
+Houses can be viewed together. Object, floor, section, display switches, lighting
+and camera preset are saved in the URL. Camera controls do not change those
+selections; the four M01-specific sample shortcuts have been removed.
+
 
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.

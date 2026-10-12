@@ -1,10 +1,14 @@
 import * as THREE from '/assets/design/library/three.module.js';
 import {GLTFLoader} from '/assets/design/library/GLTFLoader.js';
 import {OrbitControls} from '/assets/design/library/OrbitControls.js';
-import {meshVisible} from '/assets/design/view-state.mjs';
+import {meshVisible,moduleSelected,deriveCapabilities,objectChoices,floorChoices,normalizeView,readView,frameable,measurementVisible} from '/assets/design/view-state.mjs';
 const status=document.getElementById('status'),error=document.getElementById('error');
+const params=new URLSearchParams(location.search),embedded=params.get('embedded')==='1'&&window.parent!==window;
+if(embedded)document.body.classList.add('embedded');
+function notify(type,data){if(embedded)window.parent.postMessage({type,asset:params.get('asset'),file:params.get('file'),...data},location.origin);}
+
 try{
-const params=new URLSearchParams(location.search),file=params.get('file');
+const file=params.get('file');
 if(!file||!(/\.(glb|gltf)$/i).test(file))throw new Error('请选择已保存的 GLB 或 GLTF 模型。');
 const catalogResponse=await fetch('/assets/design/catalog.json');if(!catalogResponse.ok)throw new Error('资产目录无法读取');
 const catalog=await catalogResponse.json();
@@ -44,29 +48,74 @@ o.castShadow=!o.userData.glass;o.receiveShadow=!o.userData.glass;
 if(o.userData.full_height)o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];
 for(const m of materials){m.side=THREE.DoubleSide;if(o.userData.glass){if(o.userData.roof_skylight){m.transmission=.82;m.transparent=false;m.opacity=1;m.depthWrite=true;m.roughness=.055;m.ior=1.46;m.thickness=.04;m.clearcoat=.8;m.clearcoatRoughness=.035;m.envMap=skylightEnvironment;m.envMapIntensity=1.3;m.color.set(0xa5e6ef);}else{m.transmission=0;m.transparent=true;m.opacity=.075;m.depthWrite=false;m.roughness=.18;m.color.set(0xcce6df);}}else{m.roughness=Math.max(.28,m.roughness||.4);m.metalness=Math.min(.18,m.metalness||0);}}
 });
-let dirty=true,section=false;
+let dirty=true;
+const architectural=file===asset.primaryModel&&['estate','central','pod','early'].includes(asset.category);
+const capabilities=deriveCapabilities(architectural?meshes.map(o=>o.userData):[]);
+let view=normalizeView(readView(params),capabilities);
+const meshBounds=new Map(meshes.map(o=>{o.geometry.computeBoundingBox();return[o,o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)];}));
+const ranges={};
+for(const [module,floors] of Object.entries(capabilities)){
+ const boxes=floors.map(floor=>{const box=new THREE.Box3();for(const o of meshes){const p=o.userData;if(p.module===module&&!p.full_height&&!p.reference&&String(p.floor||1)===floor)box.union(meshBounds.get(o));}return box;});
+ floors.forEach((floor,i)=>{const box=boxes[i],next=boxes[i+1];if(!box.isEmpty())ranges[module+':'+floor]=[box.min.y-.005,next&&!next.isEmpty()&&next.min.y>box.min.y?next.min.y-.005:box.max.y+.005];});
+}
+
 const interiorLights=[];
 for(let i=0;i<8;i++){const a=(-40+i*260/7)*Math.PI/180;const l=new THREE.PointLight(0xffc889,0,8,2);l.position.set(13.55*Math.cos(a),1.75,-13.55*Math.sin(a));scene.add(l);interiorLights.push(l);}
 for(const h of [2.5,5.8,8.5]){const l=new THREE.PointLight(0xffd49d,0,11,2);l.position.set(0,h,0);scene.add(l);interiorLights.push(l);}
 const nookLights=(payload.measurements.furniture_lamps_world_m||[]).map(p=>{const l=new THREE.PointLight(0xffcd8f,1.1,2.2,2);l.position.set(p[0],p[2],-p[1]);scene.add(l);return l;});
 function setLighting(dusk){scene.background.set(dusk?'#152b43':'#dce6e0');ambient.intensity=dusk?.48:.72;ground.material.color.set(dusk?0x253c3c:0xc3d0c7);exteriorLights.forEach((l,i)=>{l.intensity=dusk?[1.0,.65,.22][i]:[1.05,.65,.30][i];l.color.set(dusk?[0x99c2ff,0xa5b2ff,0xc2d9ff][i]:[0xffe7c3,0xcdeaff,0xffffff][i]);});interiorLights.forEach((l,i)=>l.intensity=dusk?(i<8?48:95):(i<8?3:12));document.getElementById('day').setAttribute('aria-pressed',String(!dusk));document.getElementById('dusk').setAttribute('aria-pressed',String(dusk));dirty=true;}
-document.getElementById('day').onclick=()=>setLighting(false);document.getElementById('dusk').onclick=()=>setLighting(true);setLighting(true);
-function applyView(){const floor=document.getElementById('floor').value;const showGlass=document.getElementById('glass').checked;const showScale=document.getElementById('scale').checked;const module=document.getElementById('module').value;
-for(const o of meshes){const p=o.userData;o.visible=meshVisible(p,{module,floor,section,glass:showGlass,scale:showScale,furniture:document.getElementById('furniture').checked});if(p.full_height){const ranges={'1':[.06,4.3],'2':[4.3,7.1],'3':[7.1,9.9],'4':[9.9,13.4]};const range=ranges[floor];const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats)m.clippingPlanes=range?[new THREE.Plane(new THREE.Vector3(0,1,0),-range[0]),new THREE.Plane(new THREE.Vector3(0,-1,0),range[1])]:[];}}
-document.getElementById('whole').setAttribute('aria-pressed',String(!section));document.getElementById('section').setAttribute('aria-pressed',String(section));
-for(const l of nookLights)l.visible=document.getElementById('furniture').checked&&(module==='all'||module==='M01')&&(floor==='all'||floor==='1');
-status.textContent=`${module==='all'?'全巢':module==='central'?'中央楼':module} · ${section?'剖视':'整体'} · ${floor==='all'?'全部楼层':floor==='4'?'屋顶':floor+' 楼'} · 拖动旋转`;dirty=true;}
-document.getElementById('whole').onclick=()=>{section=false;applyView();};document.getElementById('section').onclick=()=>{section=true;applyView();};
-for(const id of ['floor','glass','scale','module'])document.getElementById(id).onchange=applyView;
-function focusModule(){
- const selected=document.getElementById('module').value;
- if(selected==='all'){controls.target.copy(modelCenter);camera.position.copy(modelCenter).add(new THREE.Vector3(.2,.9,1.6).multiplyScalar(modelRadius));}
- else{model.updateMatrixWorld(true);const bounds=new THREE.Box3();for(const o of meshes)if(o.visible)bounds.expandByObject(o);if(!bounds.isEmpty()){const center=bounds.getCenter(new THREE.Vector3());const size=bounds.getSize(new THREE.Vector3()).length();const direction=camera.position.clone().sub(controls.target).normalize();controls.target.copy(center);camera.position.copy(center).addScaledVector(direction,Math.max(10,size*1.35));}}
- controls.update();dirty=true;
-}
-document.getElementById('module').onchange=()=>{applyView();focusModule();};
-function preset(kind){focusModule();const target=controls.target.clone(),distance=camera.position.distanceTo(target);const direction=kind==='top'?new THREE.Vector3(.001,1,.002):kind==='rear'?new THREE.Vector3(0,.4,-1):kind==='side'?new THREE.Vector3(1,.4,0):new THREE.Vector3(.08,.5,1);camera.position.copy(target).addScaledVector(direction.normalize(),distance);controls.update();dirty=true;}
 
+function fillSelect(id,choices,value){
+ const select=document.getElementById(id);select.replaceChildren();
+ for(const choice of choices){const option=document.createElement('option');option.value=choice.value;option.textContent=choice.label;select.append(option);}
+ select.value=value;
+}
+function applyView(next,fit=false){
+ view=normalizeView(next,capabilities);
+ const objects=objectChoices(capabilities),floors=floorChoices(capabilities,view.module);
+ fillSelect('module',objects,view.module);fillSelect('floor',floors,view.floor);
+ document.getElementById('objectControls').hidden=objects.length===1;
+ document.getElementById('floorControls').hidden=floors.length===1;
+ for(const key of ['glass','scale','furniture','dimensions','ruler'])document.getElementById(key).checked=view[key];
+ for(const o of meshes){const p=o.userData;o.visible=meshVisible(p,view);
+  if(p.full_height){const range=view.floor==='all'?null:ranges[p.module+':'+view.floor];const materials=Array.isArray(o.material)?o.material:[o.material];
+   for(const material of materials)material.clippingPlanes=range?[new THREE.Plane(new THREE.Vector3(0,1,0),-range[0]),new THREE.Plane(new THREE.Vector3(0,-1,0),range[1])]:[];
+  }
+ }
+ document.getElementById('whole').setAttribute('aria-pressed',String(!view.section));document.getElementById('section').setAttribute('aria-pressed',String(view.section));
+ for(const light of nookLights)light.visible=view.furniture&&moduleSelected(view.module,'M01')&&(view.floor==='all'||view.floor==='1');
+ for(const [id,preset] of [['reset','fit'],['front','front'],['top','top'],['rear','rear'],['side','side']])document.getElementById(id).setAttribute('aria-pressed',String(view.camera===preset));
+ setLighting(view.light==='dusk');updateMeasurementLayers();const bounds=visibleBounds();const size=bounds.getSize(new THREE.Vector3());document.getElementById('modelSize').textContent=[size.x,size.z,size.y].map(n=>n.toFixed(2)).join(' × ');if(fit)fitView(bounds);
+ const objectName=objects.find(o=>o.value===view.module).label,floorName=floors.find(f=>f.value===view.floor).label;
+ status.textContent=`${objectName} · ${floorName} · ${view.section?'剖视':'整体'} · 拖动旋转`;dirty=true;
+}
+function changeView(patch){
+ if(embedded)notify('asset-change',{patch});
+ else applyView({...view,...patch},['module','floor','camera'].some(key=>Object.hasOwn(patch,key)));
+}
+function visibleBounds(){
+ const bounds=new THREE.Box3();
+ for(const mesh of meshes){if(!mesh.visible||!frameable(mesh.userData,mesh.name,capabilities))continue;const box=meshBounds.get(mesh).clone();
+  const range=view.floor==='all'?null:ranges[mesh.userData.module+':'+view.floor];
+  if(mesh.userData.full_height&&range){box.min.y=Math.max(box.min.y,range[0]);box.max.y=Math.min(box.max.y,range[1]);}
+  if(!box.isEmpty())bounds.union(box);
+ }
+ return bounds;
+}
+function fitView(bounds){
+ if(bounds.isEmpty())return;
+ const center=bounds.getCenter(new THREE.Vector3()),radius=Math.max(.1,bounds.getBoundingSphere(new THREE.Sphere()).radius);
+ const anchor=measurements.anchors[view.module];
+ const front=anchor?point(anchor.front).sub(point(anchor.center)).normalize():new THREE.Vector3(0,0,1);
+ const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),front).normalize();
+ const direction=view.camera==='top'?new THREE.Vector3(.001,1,.002):view.camera==='rear'?front.clone().negate().add(new THREE.Vector3(0,.35,0))
+  :view.camera==='side'?right.add(new THREE.Vector3(0,.35,0)):view.camera==='front'?front.clone().add(new THREE.Vector3(0,.35,0))
+  :front.clone().addScaledVector(right,.3).add(new THREE.Vector3(0,.7,0));
+ const angle=Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*Math.min(1,camera.aspect));
+ const distance=radius/Math.sin(angle)*1.08;
+ controls.target.copy(center);controls.maxDistance=Math.max(110,distance*4);controls.minDistance=radius*.08;
+ camera.far=Math.max(200,distance+radius*10);camera.updateProjectionMatrix();camera.position.copy(center).addScaledVector(direction.normalize(),distance);controls.update();dirty=true;
+}
 const dimensionLayer=new THREE.Group(),rulerLayer=new THREE.Group();scene.add(dimensionLayer,rulerLayer);
 const dimensionGroups=[],rulerGroups=[];
 const point=p=>new THREE.Vector3(p[0],p[2],-p[1]);
@@ -85,38 +134,25 @@ for(const entry of measurements.rulers){
  group.userData=entry;rulerLayer.add(group);rulerGroups.push(group);
 }
 function updateMeasurementLayers(){
- const selected=document.getElementById('module').value;const top=Math.abs(camera.position.clone().sub(controls.target).normalize().y)>.94;
- dimensionLayer.visible=document.getElementById('dimensions').checked;rulerLayer.visible=document.getElementById('ruler').checked;
- for(const group of [...dimensionGroups,...rulerGroups])group.visible=group.userData.module===selected&&(!group.userData.vertical||!top)&&(!group.userData.label?.startsWith('床')||document.getElementById('furniture').checked);
+ const top=Math.abs(camera.position.clone().sub(controls.target).normalize().y)>.94;
+ dimensionLayer.visible=view.dimensions;rulerLayer.visible=view.ruler;
+ for(const group of [...dimensionGroups,...rulerGroups])group.visible=measurementVisible(group.userData,view,ranges[group.userData.module+':'+view.floor])&&(!group.userData.vertical||!top)&&(!group.userData.label?.startsWith('床')||view.furniture);
 }
-function modulePreset(kind){
- const selected=document.getElementById('module').value,anchor=(file===asset.primaryModel)?measurements.anchors[selected]:null;
- if(!anchor){preset(kind);return;}
- const center=point(anchor.center),front=point(anchor.front).sub(center).normalize(),right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),front).normalize();controls.target.copy(center);
- if(kind==='top')camera.position.copy(center).add(new THREE.Vector3(.001,anchor.size*1.9,.002));
- else{const direction=kind==='rear'?front.clone().negate():kind==='side'?right:front;camera.position.copy(center).addScaledVector(direction,anchor.size*1.5).add(new THREE.Vector3(0,anchor.size*.65,0));}
- controls.update();dirty=true;
-}
-for(const id of ['reset','front','top','rear','side'])document.getElementById(id).onclick=()=>modulePreset(id);
-for(const id of ['dimensions','ruler','furniture'])document.getElementById(id).onchange=()=>{applyView();updateMeasurementLayers();};
-const sample=document.getElementById('bedSample');sample.onclick=()=>{
- document.getElementById('module').value='M01';document.getElementById('floor').value='1';document.getElementById('furniture').checked=true;document.getElementById('dimensions').checked=true;section=true;applyView();setLighting(false);modulePreset('top');updateMeasurementLayers();
-};
-
-document.getElementById('windowView').onclick=()=>{document.getElementById('module').value='M01';document.getElementById('floor').value='1';document.getElementById('glass').checked=true;document.getElementById('dimensions').checked=false;section=false;applyView();setLighting(true);const v=measurements.furniture_window_view;camera.position.copy(point(v.eye));controls.target.copy(point(v.target));controls.update();dirty=true;};
-
-function sampleView(outside){document.getElementById('module').value='M01';document.getElementById('floor').value='1';document.getElementById('dimensions').checked=false;document.getElementById('furniture').checked=true;section=!outside;applyView();setLighting(false);const v=outside?measurements.sample_window:measurements.sample_view;camera.position.copy(point(v.eye));controls.target.copy(point(v.target));controls.update();dirty=true;}
-document.getElementById('nookClose').onclick=()=>sampleView(false);
-document.getElementById('nookWindow').onclick=()=>sampleView(true);
+for(const id of ['module','floor'])document.getElementById(id).onchange=()=>changeView({[id]:document.getElementById(id).value});
+for(const id of ['glass','scale','furniture','dimensions','ruler'])document.getElementById(id).onchange=()=>changeView({[id]:document.getElementById(id).checked});
+document.getElementById('whole').onclick=()=>changeView({section:false});document.getElementById('section').onclick=()=>changeView({section:true});
+document.getElementById('day').onclick=()=>changeView({light:'day'});document.getElementById('dusk').onclick=()=>changeView({light:'dusk'});
+for(const [id,cameraPreset] of [['reset','fit'],['front','front'],['top','top'],['rear','rear'],['side','side']])document.getElementById(id).onclick=()=>changeView({camera:cameraPreset});
+window.addEventListener('message',event=>{
+ if(embedded&&event.origin===location.origin&&event.source===window.parent&&event.data?.type==='asset-view')applyView(event.data.view,event.data.fit);
+});
 for(const [id,factor] of [['zoomIn',.8],['zoomOut',1.25]])document.getElementById(id).onclick=()=>{const offset=camera.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*factor)));camera.position.copy(controls.target).add(offset);controls.update();dirty=true;};
 document.getElementById('download').disabled=false;document.getElementById('download').onclick=()=>{const url=URL.createObjectURL(new Blob([buffer],{type:'model/gltf-binary'}));const a=document.createElement('a');a.href=url;a.download=file.split('/').pop();a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();dirty=true;}
 new ResizeObserver(resize).observe(stage);resize();
-for(const option of document.getElementById('module').options)if(option.value!=='all')option.disabled=!asset.modes.includes(option.value)||file!==asset.primaryModel;
-for(const id of ['bedSample','nookClose','nookWindow','windowView'])document.getElementById(id).hidden=!(measurements.sample_view&&measurements.sample_window&&measurements.furniture_window_view&&file===asset.primaryModel);
-if(!estate){ground.geometry.dispose();ground.geometry=new THREE.CircleGeometry(modelRadius*2.5,128);ground.position.set(modelCenter.x,modelBounds.min.y-.01,modelCenter.z);controls.minDistance=modelRadius*.12;controls.maxDistance=modelRadius*20;camera.near=Math.max(.001,modelRadius/500);camera.far=modelRadius*150;camera.updateProjectionMatrix();}
-applyView();focusModule();updateMeasurementLayers();
+if(!estate){ground.geometry.dispose();ground.geometry=new THREE.CircleGeometry(modelRadius*2.5,128);ground.position.set(modelCenter.x,modelBounds.min.y-.01,modelCenter.z);camera.near=Math.max(.001,modelRadius/500);camera.updateProjectionMatrix();}
+applyView(view,true);notify('asset-ready',{capabilities});
 function animate(){requestAnimationFrame(animate);const moved=controls.update();if(moved||dirty){updateMeasurementLayers();renderer.render(scene,camera);dirty=false;}}
 animate();
-window.elfiePreview={ready:true,meshCount:meshes.length,triangleCount,source:file,state:()=>({section,floor:document.getElementById('floor').value,camera:camera.position.toArray(),visible:meshes.filter(m=>m.visible).length,references:meshes.filter(m=>m.visible&&m.userData.reference).length,furniture:meshes.filter(m=>m.visible&&m.userData.furniture).length,dimensionLabels:dimensionGroups.filter(g=>g.visible&&dimensionLayer.visible).map(g=>g.userData.label),rulerGroups:rulerGroups.filter(g=>g.visible&&rulerLayer.visible).length})};
-}catch(e){status.textContent='载入失败';error.style.display='block';error.textContent='预览没有成功载入：'+e.message+'。请使用支持 WebGL 的新版 Chrome、Edge 或 Safari 打开此文件。';console.error(e);}
+window.elfiePreview={ready:true,meshCount:meshes.length,triangleCount,source:file,state:()=>({section:view.section,floor:document.getElementById('floor').value,camera:camera.position.toArray(),visible:meshes.filter(m=>m.visible).length,references:meshes.filter(m=>m.visible&&m.userData.reference).length,furniture:meshes.filter(m=>m.visible&&m.userData.furniture).length,dimensionLabels:dimensionGroups.filter(g=>g.visible&&dimensionLayer.visible).map(g=>g.userData.label),rulerGroups:rulerGroups.filter(g=>g.visible&&rulerLayer.visible).length})};
+}catch(e){status.textContent='载入失败';error.style.display='block';error.textContent='预览没有成功载入：'+e.message+'。请使用支持 WebGL 的新版 Chrome、Edge 或 Safari 打开此文件。';notify('asset-error',{message:e.message});console.error(e);}
