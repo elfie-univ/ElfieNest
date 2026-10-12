@@ -23,10 +23,15 @@ const items: NonNullable<MenuProps["items"]> = [
   { key: devtoolsRoutes.elfieExperiment, icon: <ExperimentOutlined />, label: "单精灵实验", title: "单精灵实验" },
   { key: devtoolsRoutes.elfieEvaluations, icon: <BarChartOutlined />, label: "批量评测", title: "批量评测" },
   { key: devtoolsRoutes.nestExperiment, icon: <HomeOutlined />, label: "精灵巢实验", title: "精灵巢实验" },
+  { key: "asset-design", icon: <HomeOutlined />, label: "房屋资产设计", title: "房屋资产设计" },
 ];
 
 export function GlobalLabNav({ activeRoute, currentKind, onNavigate }: Props): React.JSX.Element {
   function handleClick(info: Parameters<NonNullable<MenuProps["onClick"]>>[0]): void {
+    if (info.key === "asset-design") {
+      window.location.assign("/assets/design");
+      return;
+    }
     const route = info.key as DevtoolsRoute;
     const href = routeHref(route, currentKind);
     const target = new URL(href, window.location.href);

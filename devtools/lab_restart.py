@@ -121,7 +121,11 @@ def default_lab_ports(tool: DeveloperTool) -> tuple[int, ...]:
     # All three Developer Tool commands now launch the same HTTP service.  A
     # Nest surface still owns one internal Godot WebSocket listener directly
     # beside the HTTP port, so the default restart releases both listeners.
-    return (tool.default_port, tool.default_port + 1)
+    return (
+        (tool.default_port,)
+        if tool.name == "asset-design"
+        else (tool.default_port, tool.default_port + 1)
+    )
 
 
 def restart_default_lab(
@@ -170,7 +174,7 @@ def _is_current_lab_process(
     tool_name: str,
 ) -> bool:
     """仅接受通过当前工作区统一入口启动的同类 Lab。"""
-    expected_tools = {"elfie-lab", "nest-lab", "brain-eval"}
+    expected_tools = {"elfie-lab", "nest-lab", "brain-eval", "asset-design"}
     if tool_name not in expected_tools:
         expected_tools = {tool_name}
     return process_cwd.resolve() == workspace and any(

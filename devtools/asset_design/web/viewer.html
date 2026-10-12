@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>精灵巢 · 资产 3D 预览</title>
+<link rel="stylesheet" href="/assets/design/viewer.css">
+<script type="importmap">{"imports":{"three":"/assets/design/library/three.module.js"}}</script>
+</head>
+<body>
+<header><div><h1>精灵巢 · 资产三维预览</h1><p>沿用已确认的完整查看器</p></div><span class="tag">橙色参照高 1.2 米</span></header>
+<main>
+<div id="stage"><canvas id="viewport" aria-label="精灵巢整体三维模型，可拖动旋转、滚轮缩放"></canvas><div id="status" role="status" aria-live="polite">正在载入模型…</div><div id="error" role="alert"></div></div>
+<aside>
+<fieldset><legend>查看方式</legend><div class="row"><button id="whole" type="button" aria-pressed="true">整体</button><button id="section" type="button" aria-pressed="false">剖视</button></div><label class="check"><input id="glass" type="checkbox" checked>显示玻璃</label><label class="check"><input id="scale" type="checkbox" checked>显示 1.2 米参照</label><label class="check"><input id="furniture" type="checkbox" checked>显示家具</label><label class="check"><input id="dimensions" type="checkbox">显示尺寸标注</label><label class="check"><input id="ruler" type="checkbox">显示参考标尺</label><button id="bedSample" type="button">查看四人小窝 M01</button><button id="nookClose" type="button">薄荷小窝近看</button><button id="nookWindow" type="button">从侧窗看样板</button><button id="windowView" type="button">窗外视角 · 1.2 米</button></fieldset>
+<fieldset><legend><label for="floor">楼层</label></legend><select id="floor"><option value="all">全部楼层</option><option value="1">一楼</option><option value="2">二楼</option><option value="3">三楼</option><option value="4">屋顶</option></select></fieldset>
+<fieldset><legend><label for="module">查看模块</label></legend><select id="module"><option value="all">全部建筑</option><option value="central">中央楼</option><option value="M01">房间 M01</option><option value="M02">房间 M02</option><option value="M03">房间 M03</option><option value="M04">房间 M04</option><option value="M05">房间 M05</option><option value="M06">房间 M06</option><option value="M07">房间 M07</option><option value="M08">房间 M08</option></select></fieldset><fieldset><legend>视角</legend><div class="row"><button id="reset" type="button">重置</button><button id="front" type="button">正面</button><button id="top" type="button">俯视</button><button id="rear" type="button">背面</button><button id="side" type="button">侧面</button></div><div class="row" style="margin-top:8px"><button id="zoomIn" type="button">放大</button><button id="zoomOut" type="button">缩小</button></div></fieldset>
+<fieldset><legend>光照</legend><div class="row"><button id="day" type="button" aria-pressed="true">日间</button><button id="dusk" type="button" aria-pressed="false">傍晚</button></div></fieldset><div class="details"><dl><dt>当前模型</dt><dd id="modelName">正在载入…</dd><dt>实际模型尺寸（米）</dt><dd id="modelSize">正在读取…</dd></dl></div>
+<div><button id="download" type="button" disabled>下载 GLB 资产</button><p class="help">拖动：旋转 · 滚轮：缩放<br>右键拖动：平移<br>触屏：单指旋转、双指缩放<br>剖视隐藏外壳，中央楼完整楼板保留。<br>各房间仅在一层连接中央大厅。</p></div>
+</aside>
+</main>
+<script type="module" src="/assets/design/viewer.js"></script>
+</body>
+</html>

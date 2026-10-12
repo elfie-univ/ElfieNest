@@ -8,16 +8,25 @@
 ./developer.sh --help
 ```
 
-工具提供三个页面入口，由同一个同源 HTTP 服务承载：
+实验页面由同一个 HTTP 服务承载；资产设计另有独立启动入口：
 
 | 命令 | 初始页面 | 关注点 |
 | --- | --- | --- |
 | `./developer.sh elfie-lab` | `/elfie/experiment` | 单只精灵的档案、感知、决策和回合 |
 | `./developer.sh brain-eval` | `/elfie/evaluations` | Brain 批量评测与报告 |
 | `./developer.sh nest-lab` | `/nest/experiment` | 固定房间、临时角色、Godot 事件与语义移动 |
+| `./developer.sh asset-design` | `/assets/design` | 独立房屋与家具资产预览；HTTP `9001` |
+
+房屋资产设计保留已确认的资产库布局和右侧完整 3D 控制栏。源码位于
+`devtools/asset_design/web/`，通过 `build/asset_previews/catalog.json` 读取已登记
+的模型、测量数据和图片。新资产版本复用同一查看器，不生成专用 HTML 页面。独立入口
+不启动实验状态或 Godot，也不构建实验前端；统一实验服务也挂载相同页面，并提供单独
+的导航入口。布局基准和只读边界测试位于 `test/devtools/asset_design/`。本地资产
+缺失时页面显示空工作台；Git 保留工具源码，大型设计文件仍是本地资产。
+
 
 它们可以复用底层库和同一份 Godot Web Runtime，但不能依赖普通用户鉴权、
-`ElfieNestEngine` 或生产数据才能启动。启动任一页面时会自动检查该
+`ElfieNestEngine` 或生产数据才能启动。启动实验页面时会自动检查该
 Runtime；只有缺失或 Godot 源码发生变化时才重新导出。
 
 Elfie Lab 与 Nest Lab 的浏览器壳共用 `devtools/web/` 的 React + TypeScript + Vite 工程。

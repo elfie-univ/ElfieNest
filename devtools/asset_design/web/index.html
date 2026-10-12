@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>精灵巢 · 设计资产库</title><link rel="stylesheet" href="/assets/design/library.css"></head>
+<body>
+<header class="masthead"><div><div class="eyebrow">ELFIE NEST / DESIGN COLLECTION</div><h1>精灵巢 · 设计资产库</h1><p id="stats">正在整理资产…</p></div><span class="local-tag">房屋资产设计</span></header>
+<nav id="categories" aria-label="资产类别"></nav>
+<section class="toolbar" aria-label="预览选择">
+ <label class="version-label">资产与版本<select id="assetSelect" aria-label="资产与版本"></select></label>
+ <label>查看内容<select id="modeSelect" aria-label="查看内容"></select></label>
+ <label class="search-label">查找<input id="search" type="search" placeholder="搜索当前类别" aria-label="搜索当前类别"></label>
+</section>
+<main>
+ <section class="selection"><div><h2 id="assetTitle"></h2><p id="assetDescription"></p></div><span id="previewState" role="status" aria-live="polite"></span></section>
+ <section id="preview" aria-label="资产预览"><iframe id="viewer" title="资产三维预览"></iframe>
+  <div id="imageViewer" hidden><div class="image-bar"><button id="previousImage" aria-label="上一张效果图">← 上一张</button><span id="imageName"></span><button id="nextImage" aria-label="下一张效果图">下一张 →</button></div><img id="heroImage" alt="所选资产的保存效果图"><div id="imageStrip"></div></div>
+  <div id="empty" hidden>当前类别没有匹配的资产。</div>
+ </section>
+ <details id="versionsPanel"><summary id="versionsSummary">版本缩略图</summary><div id="versionGrid"></div></details>
+ <details id="filesPanel"><summary id="filesSummary">资产文件</summary><div id="fileKinds" aria-label="文件类型"></div><div class="file-table-wrap"><table><thead><tr><th>文件</th><th>大小</th><th>查看 / 下载</th></tr></thead><tbody id="fileRows"></tbody></table></div><p class="path" id="sourcePath"></p></details>
+</main>
+<footer>模型、Blender 源文件、测量数据与效果图统一索引；每次只加载当前选择的预览。</footer>
+<script type="module" src="/assets/design/library.js"></script>
+</body></html>

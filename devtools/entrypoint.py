@@ -27,6 +27,7 @@ _TOOL_NAMES: Final[tuple[tuple[str, str, int | None, str], ...]] = (
     ("elfie-lab", "devtools.elfie_lab", 9001, "elfie_lab"),
     ("nest-lab", "devtools.nest_lab", 9001, "nest_lab"),
     ("brain-eval", "devtools.brain_eval", 9001, "elfie_lab/evaluation"),
+    ("asset-design", "devtools.asset_design", 9001, "asset_design"),
 )
 
 

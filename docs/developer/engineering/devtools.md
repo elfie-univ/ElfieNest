@@ -8,17 +8,28 @@ The unified entry point is:
 ./developer.sh --help
 ```
 
-The tools provide three page entry points backed by one same-origin HTTP service:
+The experiment pages share one HTTP service; asset design also has an independent launcher:
 
 | Command | Initial page | Focus |
 | --- | --- | --- |
 | `./developer.sh elfie-lab` | `/elfie/experiment` | A single Elfie's profile, perception, decisions and turns |
 | `./developer.sh brain-eval` | `/elfie/evaluations` | Batch evaluation and reports |
 | `./developer.sh nest-lab` | `/nest/experiment` | Fixed rooms, temporary characters, Godot events and semantic motion |
+| `./developer.sh asset-design` | `/assets/design` | Independent room and furniture asset preview; HTTP `9001` |
+
+Asset design preserves the approved asset library and complete right-hand 3D control
+panel. Its source is `devtools/asset_design/web/`; it reads registered models,
+measurements and images from `build/asset_previews/catalog.json`. New asset versions
+reuse this viewer instead of generating HTML pages. It does not start experiment
+state or Godot, and does not build their frontends. The unified experiment service
+mounts the same page, with a separate navigation entry. Layout baselines and
+read-only boundary tests live in `test/devtools/asset_design/`. Missing local asset
+data leaves an empty workbench; Git preserves the tool, not the large design files.
+
 
 They can reuse the underlying libraries and the same Godot Web Runtime, but they
 must not depend on end-user auth, `ElfieNestEngine` or production data to start.
-When launching any page, the Runtime is auto-checked; it is
+When launching an experiment page, the Runtime is auto-checked; it is
 re-exported only when missing or when the Godot source has changed.
 
 The Elfie Lab and Nest Lab browser shells share the React + TypeScript + Vite
