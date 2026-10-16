@@ -1,21 +1,19 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>精灵巢 · 设计资产库</title><link rel="stylesheet" href="/assets/design/library.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>精灵巢 · 设计资产库</title><link rel="stylesheet" href="/assets/design/library.css"><link rel="stylesheet" href="/assets/design/controls.css"></head>
 <body>
 <header class="masthead"><div><div class="eyebrow">ELFIE NEST / DESIGN COLLECTION</div><h1>精灵巢 · 设计资产库</h1><p id="stats">正在整理资产…</p></div><span class="local-tag">房屋资产设计</span></header>
-<nav id="categories" aria-label="资产类别"></nav>
-<section class="toolbar" aria-label="预览选择">
- <label class="version-label">资产与版本<select id="assetSelect" aria-label="资产与版本"></select></label>
- <label>预览内容<select id="modeSelect" aria-label="预览内容"></select></label>
- <label class="search-label">查找<input id="search" type="search" placeholder="搜索当前类别" aria-label="搜索当前类别"></label>
+<section class="workspace-toolbar" aria-label="预览选择">
+ <div id="mediaModes" role="group" aria-label="预览内容"></div>
+ <div class="design-pickers"><label><span class="picker-label">内容分类</span><select id="categorySelect" aria-label="内容分类"></select></label><div class="asset-picker" id="versionPicker"><label for="assetSelect">版本</label><div class="version-row"><select id="assetSelect" aria-label="版本" disabled><option>暂无版本</option></select><div class="version-navigation" role="group" aria-label="快速切换版本"><button id="newerVersion" type="button" title="较新版本（←）" disabled aria-label="较新版本">←</button><button id="olderVersion" type="button" title="较旧版本（→）" disabled aria-label="较旧版本">→</button><button id="latestVersion" type="button" disabled>最新</button></div></div></div></div>
 </section>
 <main>
- <section class="selection"><div><h2 id="assetTitle"></h2><p id="assetDescription"></p></div><span id="previewState" role="status" aria-live="polite"></span></section>
+ <section class="selection"><div><h2 id="assetTitle"></h2><details id="descriptionDetails" class="asset-description" hidden><summary><p id="assetDescription"></p></summary></details><p id="assetStorage" class="storage-summary"></p><p id="categoryStorage" class="storage-summary" title="按当前预览类型与内容分类统计；文件路径去重，包含部件、源文件与辅助文件，不含清理备份。"></p><p id="deleteStatus" role="status" aria-live="polite"></p></div><div class="selection-actions"><div class="version-actions"><button id="confirmVersion" type="button" hidden disabled>确认版本</button><button id="deleteAsset" class="asset-delete" type="button" disabled>删除当前版本</button></div><span id="previewState" role="status" aria-live="polite"></span><div id="deletePrompt" hidden><p id="deleteScope"></p><div class="version-actions"><button id="deleteCancel" type="button">取消</button><button id="deleteConfirm" class="asset-delete" type="button">确定删除</button></div></div></div></section>
  <section id="preview" aria-label="资产预览"><iframe id="viewer" title="资产三维预览"></iframe>
-  <div id="imageViewer" hidden><div class="image-bar"><button id="previousImage" aria-label="上一张效果图">← 上一张</button><span id="imageName"></span><button id="nextImage" aria-label="下一张效果图">下一张 →</button></div><img id="heroImage" alt="所选资产的保存效果图"><div id="imageStrip"></div></div>
-  <div id="empty" hidden>当前类别没有匹配的资产。</div>
+  <div id="imageViewer" hidden><div class="gallery-main"><div class="image-bar"><button id="previousImage" aria-label="上一张图片">← 上一张</button><span id="imageName"></span><button id="nextImage" aria-label="下一张图片">下一张 →</button></div><img id="heroImage" alt="所选资产图片"><p id="imageEmpty" hidden>此分组暂无图片。</p></div><aside class="image-controls"><label id="imageScopeControl" hidden>查看小屋<select id="imageScope" aria-label="查看小屋"></select></label><p id="imageScopeHint" hidden>主题图为共用参考，尚未绑定到具体小屋编号。</p><label>图片分组<select id="imageKind" aria-label="图片分组"></select></label><div id="imageStrip"></div></aside></div>
+  <aside id="comparison" hidden><h3>设计参考对照</h3><p id="referenceStatus" role="status"></p><label>参考图片<select id="referenceSelect" aria-label="参考图片"></select></label><img id="referenceImage" alt="对照用设计参考"><p id="referenceEmpty">暂无对应参考图，可以手动选择。</p><button id="autoReference" type="button">使用对应参考</button></aside>
+  <div id="empty" hidden>暂无可预览的资产。</div>
  </section>
- <details id="versionsPanel"><summary id="versionsSummary">版本缩略图</summary><div id="versionGrid"></div></details>
  <details id="filesPanel"><summary id="filesSummary">资产文件</summary><div id="fileKinds" aria-label="文件类型"></div><div class="file-table-wrap"><table><thead><tr><th>文件</th><th>大小</th><th>查看 / 下载</th></tr></thead><tbody id="fileRows"></tbody></table></div><p class="path" id="sourcePath"></p></details>
 </main>
 <footer>模型、Blender 源文件、测量数据与效果图统一索引；每次只加载当前选择的预览。</footer>

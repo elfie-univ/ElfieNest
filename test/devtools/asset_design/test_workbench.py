@@ -45,6 +45,8 @@ def test_asset_page_is_independent_and_only_serves_registered_assets(tmp_path) -
         assert page.headers["cache-control"] == "no-store"
         assert 'id="assetSelect"' in page.text
         assert 'id="viewer"' in page.text
+        assert client.get("/assets/design/asset-media.mjs").status_code == 200
+        assert client.get("/assets/design/cleanup-state.mjs").status_code == 200
         catalog = client.get("/assets/design/catalog.json").json()
         assert catalog["assets"][0]["primaryModel"] == "room/room.glb"
         assert (
@@ -163,9 +165,12 @@ def test_approved_viewer_controls_remain_in_the_right_sidebar(tmp_path) -> None:
             "zoomOut",
             "day",
             "dusk",
-            "download",
         ):
             assert f'id="{control}"' in sidebar
+        footer = page.split('<footer class="viewer-footer">', 1)[1].split(
+            "</footer>", 1
+        )[0]
+        assert 'id="download"' in footer
         assert 'id="objectControls"' in page
         assert 'id="floorControls"' in page
         script = client.get("/assets/design/viewer.js").text
@@ -195,3 +200,41 @@ def test_asset_command_does_not_construct_the_experiment_app(monkeypatch) -> Non
     )
     assert developer_main.main(["asset-design"]) == 0
     assert opened == ["http://127.0.0.1:9001/assets/design"]
+
+
+def test_catalog_statistics_follow_unique_existing_indexed_files(tmp_path) -> None:
+    (tmp_path / "room").mkdir()
+    (tmp_path / "room/a.glb").write_bytes(b"model")
+    (tmp_path / "room/ref.png").write_bytes(b"image")
+    path = tmp_path / "catalog.json"
+    files = [
+        {"path": "room/a.glb", "name": "a.glb", "kind": "model", "bytes": 999},
+        {"path": "room/ref.png", "name": "ref.png", "kind": "image", "bytes": 999},
+    ]
+    path.write_text(
+        json.dumps(
+            {
+                "assets": [
+                    {"id": "a", "title": "a", "category": "pod", "files": files},
+                    {"id": "b", "title": "b", "category": "pod", "files": files[:1]},
+                ],
+                "stats": {"models": 500, "images": 500, "records": 500},
+            }
+        )
+    )
+    before = path.read_bytes()
+    with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
+        result = client.get("/assets/design/catalog.json").json()
+        assert result["stats"] == {
+            "models": 1,
+            "images": 1,
+            "records": 2,
+            "directories": 1,
+            "sources": 0,
+            "files": 2,
+            "bytes": 10,
+        }
+        assert result["assets"][0]["files"][0]["bytes"] == 5
+        (tmp_path / "room/a.glb").unlink()
+        assert client.get("/assets/design/catalog.json").json()["stats"]["models"] == 0
+    assert path.read_bytes() == before

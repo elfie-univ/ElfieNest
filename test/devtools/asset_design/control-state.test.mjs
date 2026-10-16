@@ -2,23 +2,25 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {
   deriveCapabilities, floorChoices, objectChoices, normalizeView,
-  readView, writeView, previewChoices, meshVisible, frameable, measurementVisible,
+  readView, writeView, meshVisible, frameable, measurementVisible,
 } from '../../../devtools/asset_design/web/view-state.mjs';
+import {assetModes} from '../../../devtools/asset_design/web/asset-media.mjs';
 
 const records = [1,2,3,4].map(floor=>({module:'central',floor}));
 for(let i=1;i<=8;i++) for(const floor of [1,2]) records.push({module:`M${String(i).padStart(2,'0')}`,floor});
 const capabilities=deriveCapabilities(records);
 
-test('preview selection contains files and images, not duplicate buildings',()=>{
-  const choices=previewChoices({primaryModel:'estate.glb',models:['estate.glb','chair.glb'],images:['render.png']});
-  assert.deepEqual(choices.map(c=>c.value),['model','glb:chair.glb','images']);
+test('top navigation contains model, images and comparison only',()=>{
+  const asset={primaryModel:'estate.glb',models:['estate.glb','chair.glb'],images:['reference.png'],files:[{path:'estate.glb',kind:'model'},{path:'reference.png',kind:'image'}]};
+  const choices=assetModes(asset,{assets:[asset]});
+  assert.deepEqual(choices.map(c=>c.value),['model','images','compare']);
 });
 test('object selection supports the eight houses together',()=>{
   assert(objectChoices(capabilities).some(c=>c.value==='pods'));
   assert.equal(objectChoices(capabilities).filter(c=>/^M\d+$/.test(c.value)).length,8);
 });
 test('floors belong to the selected object',()=>{
-  assert.deepEqual(floorChoices(capabilities,'all').map(c=>c.value),['all']);
+  assert.deepEqual(floorChoices(capabilities,'all').map(c=>c.value),['all','1','2','3','4']);
   assert.deepEqual(floorChoices(capabilities,'central').map(c=>c.label),['全部楼层','一楼','二楼','三楼','屋顶']);
   assert.deepEqual(floorChoices(capabilities,'M01').map(c=>c.label),['全部楼层','一楼','二楼露台']);
   assert.deepEqual(floorChoices(capabilities,'pods').map(c=>c.value),['all','1','2']);
@@ -30,7 +32,19 @@ test('changing rooms keeps valid floors and all display switches',()=>{
   assert.deepEqual(next,{...view,module:'M08'});
   assert.equal(normalizeView({...view,module:'central',floor:'3'},capabilities).floor,'3');
   assert.equal(normalizeView({...view,floor:'3'},capabilities).floor,'all');
-  assert.equal(normalizeView({...view,module:'all'},capabilities).floor,'all');
+  assert.equal(normalizeView({...view,module:'all'},capabilities).floor,'2');
+});
+test('whole-estate floor filters use actual available floors and hide other floors',()=>{
+  const sparse=deriveCapabilities([{module:'central',floor:1},{module:'central',floor:3},{module:'M01',floor:2}]);
+  assert.deepEqual(floorChoices(sparse,'all').map(c=>c.value),['all','1','2','3']);
+  assert.deepEqual(floorChoices({},'all').map(c=>c.value),['all']);
+  for(const floor of ['1','2','3']){
+    const view=normalizeView({module:'all',floor},capabilities);
+    assert.equal(view.floor,floor);
+    assert(meshVisible({module:'central',floor:Number(floor),furniture:true},view));
+    assert(!meshVisible({module:'central',floor:Number(floor)%3+1,furniture:true},view));
+    assert.equal(normalizeView(readView(writeView(new URLSearchParams(),view)),capabilities).floor,floor);
+  }
 });
 test('grouped house filtering excludes the central building and bedrooms',()=>{
   const view=normalizeView({module:'pods',floor:'2'},capabilities);

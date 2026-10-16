@@ -1,31 +1,70 @@
 import * as THREE from '/assets/design/library/three.module.js';
 import {GLTFLoader} from '/assets/design/library/GLTFLoader.js';
+import {loadDesignScene} from './scene-model.mjs';
+import {sceneVisibility} from './design-state.mjs';
 import {OrbitControls} from '/assets/design/library/OrbitControls.js';
 import {meshVisible,moduleSelected,deriveCapabilities,objectChoices,floorChoices,normalizeView,readView,frameable,measurementVisible} from '/assets/design/view-state.mjs';
 const status=document.getElementById('status'),error=document.getElementById('error');
 const params=new URLSearchParams(location.search),embedded=params.get('embedded')==='1'&&window.parent!==window;
 if(embedded)document.body.classList.add('embedded');
-function notify(type,data){if(embedded)window.parent.postMessage({type,asset:params.get('asset'),file:params.get('file'),...data},location.origin);}
+function notify(type,data){if(embedded)window.parent.postMessage({type,asset:params.get('asset'),file:params.get('file')||'',designObject:params.get('designObject'),revision:params.get('revision'),...data},location.origin);}
+if(embedded){
+ const sidebar=document.querySelector('aside'),controls=document.getElementById('viewerControls'),footer=document.querySelector('.viewer-footer');
+ let previousHeight=0;
+ const layoutObserver=new ResizeObserver(()=>{
+  const style=getComputedStyle(sidebar);
+  const minimumHeight=Math.ceil(controls.getBoundingClientRect().height+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+footer.getBoundingClientRect().height);
+  if(minimumHeight!==previousHeight){previousHeight=minimumHeight;notify('asset-layout',{minimumHeight});}
+ });
+ layoutObserver.observe(controls);layoutObserver.observe(footer);
+}
 
 try{
-const file=params.get('file');
-if(!file||!(/\.(glb|gltf)$/i).test(file))throw new Error('请选择已保存的 GLB 或 GLTF 模型。');
+const file=params.get('file')||'';
+const designObject=params.get('designObject');
+let designPlan=null;
+if(designObject){
+ const query=new URLSearchParams({object:designObject});
+ if(params.get('revision')&&params.get('revision')!=='live')query.set('version',params.get('revision'));
+ const r=await fetch('/assets/design/design/scene?'+query,{cache:'no-store'});
+ if(!r.ok)throw new Error('对象组合无法读取');designPlan=await r.json();
+}
+if(!designPlan&&(!file||!(/\.(glb|gltf)$/i).test(file)))throw new Error('请选择已保存的 GLB 或 GLTF 模型。');
 const catalogResponse=await fetch('/assets/design/catalog.json');if(!catalogResponse.ok)throw new Error('资产目录无法读取');
 const catalog=await catalogResponse.json();
-const asset=catalog.assets.find(a=>a.id===params.get('asset'));
-if(!asset||!asset.files.some(f=>f.path===file&&f.kind==='model'))throw new Error('所选模型未登记在该资产中。');
+const asset=catalog.assets.find(a=>a.id===(designPlan?.layers[0]?.asset||params.get('asset')))||{modes:[],category:'estate',files:[]};
+if(!designPlan&&!asset.files.some(f=>f.path===file&&f.kind==='model'))throw new Error('所选模型未登记在该资产中。');
 const fileURL=p=>'/assets/design/files/'+p.split('/').map(encodeURIComponent).join('/');
-const response=await fetch(fileURL(file));if(!response.ok)throw new Error('模型文件无法读取');
-const buffer=await response.arrayBuffer();
+let buffer=null;
+if(!designPlan){const response=await fetch(fileURL(file));if(!response.ok)throw new Error('模型文件无法读取');buffer=await response.arrayBuffer();}
 let measurements={dimensions:[],rulers:[],anchors:{}};
-if(asset.measurements&&file===asset.primaryModel){const r=await fetch(fileURL(asset.measurements));if(!r.ok)throw new Error('测量数据无法读取');measurements=await r.json();}
+const measurementFile=designPlan?designPlan.layers[0]?.measurements:asset.measurements&&file===asset.primaryModel?asset.measurements:null;
+if(measurementFile){const r=await fetch(fileURL(measurementFile));if(!r.ok)throw new Error('测量数据无法读取');measurements={...measurements,...await r.json()};}
 const payload={measurements};
-const gltf=await new Promise((resolve,reject)=>new GLTFLoader().parse(buffer,fileURL(file).slice(0,fileURL(file).lastIndexOf('/')+1),resolve,reject));
-const model=gltf.scene;
+const model=designPlan?await loadDesignScene(designPlan,fileURL):(await new Promise((resolve,reject)=>new GLTFLoader().parse(buffer,fileURL(file).replace(/[^/]*$/,''),resolve,reject))).scene;
+const review=designPlan?.review;
+if(review&&review.axis==='module'){
+ document.getElementById('scopeControls').hidden=false;
+ document.getElementById('scopeLabel').textContent={floor:'楼层',module:'露台位置',part:'套装部件'}[review.axis];
+ fillSelect('reviewScope',review.choices.map(c=>({value:c.id,label:c.label})),review.object);
+ document.getElementById('reviewScope').onchange=()=>notify('asset-scope',{object:document.getElementById('reviewScope').value});
+}
+const context=document.getElementById('contextControl');
+if(designPlan){
+ const hasReference=designPlan.layers.some(l=>l.reference);
+ context.hidden=designObject==='overview'||!['building','layout','part'].includes(designPlan.layers[0]?.group)&&!designObject.startsWith('part:');
+ document.getElementById('context').disabled=!hasReference;
+ const pendingReference=designPlan.layers.some(l=>l.reference&&l.unconfirmed);
+ document.getElementById('contextStatus').hidden=hasReference&&!pendingReference;
+ document.getElementById('contextStatus').textContent=pendingReference?'最新 · 未确认':'暂无已确认版本';
+ document.getElementById('contextLabel').textContent=designPlan.layers[0]?.group==='building'?'参考家具':designPlan.layers[0]?.group==='layout'?'参考建筑':'参考布置';
+ context.title=hasReference?designPlan.layers.filter(l=>l.reference).map(l=>l.label+' · '+l.title).join('\n'):'暂无已确认参考';
+ document.getElementById('furnitureControl').hidden=designObject!=='overview';
+}
 model.updateMatrixWorld(true);
 const modelBounds=new THREE.Box3().setFromObject(model),modelCenter=modelBounds.getCenter(new THREE.Vector3()),modelSize=modelBounds.getSize(new THREE.Vector3()),modelRadius=Math.max(.1,modelBounds.getBoundingSphere(new THREE.Sphere()).radius);
-const estate=asset.modes.includes('central');
-document.getElementById('modelName').textContent=file.split('/').pop();
+const estate=designPlan?designPlan.layers.some(l=>l.module==='central'||/^M\d{2}$/.test(l.module)):asset.modes.includes('central');
+document.getElementById('modelName').textContent=designPlan?(designObject==='overview'?'当前确认组合':designPlan.layers[0]?.label||'暂无确认对象'):file.split('/').pop();
 document.getElementById('modelSize').textContent=[modelSize.x,modelSize.z,modelSize.y].map(n=>n.toFixed(2)).join(' × ');
 
 const canvas=document.getElementById('viewport'),stage=document.getElementById('stage');
@@ -43,13 +82,13 @@ const controls=new OrbitControls(camera,canvas);controls.target.set(0,4.0,0);con
 // A soft studio environment gives the dome visible reflections without obscuring its interior.
 const skyCanvas=document.createElement('canvas');skyCanvas.width=512;skyCanvas.height=256;const skyContext=skyCanvas.getContext('2d');const gradient=skyContext.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#c3e5f3');gradient.addColorStop(.48,'#365867');gradient.addColorStop(1,'#112e36');skyContext.fillStyle=gradient;skyContext.fillRect(0,0,512,256);skyContext.fillStyle='#edfaff';skyContext.fillRect(70,28,105,24);skyContext.fillStyle='#99dbe9';skyContext.fillRect(320,48,70,45);const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.mapping=THREE.EquirectangularReflectionMapping;skyTexture.colorSpace=THREE.SRGBColorSpace;const pmrem=new THREE.PMREMGenerator(renderer);const skylightEnvironment=pmrem.fromEquirectangular(skyTexture).texture;skyTexture.dispose();pmrem.dispose();
 const meshes=[];let triangleCount=0;
-model.traverse(o=>{if(!o.isMesh)return;if(!o.userData.module){let p=o.parent;while(p&&!p.userData.module)p=p.parent;if(p)o.userData={...p.userData,...o.userData};}meshes.push(o);triangleCount+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3;
+model.traverse(o=>{if(!o.isMesh||o.userData.designExcluded)return;if(!o.userData.module){let p=o.parent;while(p&&!p.userData.module)p=p.parent;if(p)o.userData={...p.userData,...o.userData};}meshes.push(o);triangleCount+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3;
 o.castShadow=!o.userData.glass;o.receiveShadow=!o.userData.glass;
 if(o.userData.full_height)o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();const materials=Array.isArray(o.material)?o.material:[o.material];
 for(const m of materials){m.side=THREE.DoubleSide;if(o.userData.glass){if(o.userData.roof_skylight){m.transmission=.82;m.transparent=false;m.opacity=1;m.depthWrite=true;m.roughness=.055;m.ior=1.46;m.thickness=.04;m.clearcoat=.8;m.clearcoatRoughness=.035;m.envMap=skylightEnvironment;m.envMapIntensity=1.3;m.color.set(0xa5e6ef);}else{m.transmission=0;m.transparent=true;m.opacity=.075;m.depthWrite=false;m.roughness=.18;m.color.set(0xcce6df);}}else{m.roughness=Math.max(.28,m.roughness||.4);m.metalness=Math.min(.18,m.metalness||0);}}
 });
 let dirty=true;
-const architectural=file===asset.primaryModel&&['estate','central','pod','early'].includes(asset.category);
+const architectural=!!designPlan||file===asset.primaryModel&&['estate','central','pod','early'].includes(asset.category);
 const capabilities=deriveCapabilities(architectural?meshes.map(o=>o.userData):[]);
 let view=normalizeView(readView(params),capabilities);
 const meshBounds=new Map(meshes.map(o=>{o.geometry.computeBoundingBox();return[o,o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)];}));
@@ -74,10 +113,11 @@ function applyView(next,fit=false){
  view=normalizeView(next,capabilities);
  const objects=objectChoices(capabilities),floors=floorChoices(capabilities,view.module);
  fillSelect('module',objects,view.module);fillSelect('floor',floors,view.floor);
- document.getElementById('objectControls').hidden=objects.length===1;
- document.getElementById('floorControls').hidden=floors.length===1;
- for(const key of ['glass','scale','furniture','dimensions','ruler'])document.getElementById(key).checked=view[key];
- for(const o of meshes){const p=o.userData;o.visible=meshVisible(p,view);
+ document.getElementById('objectControls').hidden=objects.length<=2||review?.axis==='module'||!!designPlan&&designObject!=='overview'&&!['building:pod','layout:pod'].includes(designObject);
+ document.getElementById('floorControls').hidden=floors.length===1||['floor','module'].includes(review?.axis);
+ for(const key of ['glass','scale','furniture','dimensions','ruler','context'])document.getElementById(key).checked=view[key]&&(key!=='context'||!document.getElementById(key).disabled);
+ for(const o of meshes){const p=o.userData;o.visible=(!designPlan||sceneVisibility(p,view,designObject))&&meshVisible(p,designPlan&&designObject!=='overview'?{...view,furniture:true}:view)
+   &&(view.floor==='all'||!p.full_height||!!ranges[p.module+':'+view.floor]);
   if(p.full_height){const range=view.floor==='all'?null:ranges[p.module+':'+view.floor];const materials=Array.isArray(o.material)?o.material:[o.material];
    for(const material of materials)material.clippingPlanes=range?[new THREE.Plane(new THREE.Vector3(0,1,0),-range[0]),new THREE.Plane(new THREE.Vector3(0,-1,0),range[1])]:[];
   }
@@ -86,8 +126,8 @@ function applyView(next,fit=false){
  for(const light of nookLights)light.visible=view.furniture&&moduleSelected(view.module,'M01')&&(view.floor==='all'||view.floor==='1');
  for(const [id,preset] of [['reset','fit'],['front','front'],['top','top'],['rear','rear'],['side','side']])document.getElementById(id).setAttribute('aria-pressed',String(view.camera===preset));
  setLighting(view.light==='dusk');updateMeasurementLayers();const bounds=visibleBounds();const size=bounds.getSize(new THREE.Vector3());document.getElementById('modelSize').textContent=[size.x,size.z,size.y].map(n=>n.toFixed(2)).join(' × ');if(fit)fitView(bounds);
- const objectName=objects.find(o=>o.value===view.module).label,floorName=floors.find(f=>f.value===view.floor).label;
- status.textContent=`${objectName} · ${floorName} · ${view.section?'剖视':'整体'} · 拖动旋转`;dirty=true;
+ const objectName=designPlan&&designObject!=='overview'?designPlan.layers[0]?.label||'对象':objects.find(o=>o.value===view.module).label,floorName=floors.find(f=>f.value===view.floor).label;
+ status.textContent=designPlan&&!meshes.length?'尚无已确认版本':`${objectName} · ${floorName} · ${view.section?'剖视':'整体'} · 拖动旋转`;dirty=true;
 }
 function changeView(patch){
  if(embedded)notify('asset-change',{patch});
@@ -139,7 +179,7 @@ function updateMeasurementLayers(){
  for(const group of [...dimensionGroups,...rulerGroups])group.visible=measurementVisible(group.userData,view,ranges[group.userData.module+':'+view.floor])&&(!group.userData.vertical||!top)&&(!group.userData.label?.startsWith('床')||view.furniture);
 }
 for(const id of ['module','floor'])document.getElementById(id).onchange=()=>changeView({[id]:document.getElementById(id).value});
-for(const id of ['glass','scale','furniture','dimensions','ruler'])document.getElementById(id).onchange=()=>changeView({[id]:document.getElementById(id).checked});
+for(const id of ['glass','scale','furniture','dimensions','ruler','context'])document.getElementById(id).onchange=()=>changeView({[id]:document.getElementById(id).checked});
 document.getElementById('whole').onclick=()=>changeView({section:false});document.getElementById('section').onclick=()=>changeView({section:true});
 document.getElementById('day').onclick=()=>changeView({light:'day'});document.getElementById('dusk').onclick=()=>changeView({light:'dusk'});
 for(const [id,cameraPreset] of [['reset','fit'],['front','front'],['top','top'],['rear','rear'],['side','side']])document.getElementById(id).onclick=()=>changeView({camera:cameraPreset});
@@ -147,12 +187,14 @@ window.addEventListener('message',event=>{
  if(embedded&&event.origin===location.origin&&event.source===window.parent&&event.data?.type==='asset-view')applyView(event.data.view,event.data.fit);
 });
 for(const [id,factor] of [['zoomIn',.8],['zoomOut',1.25]])document.getElementById(id).onclick=()=>{const offset=camera.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*factor)));camera.position.copy(controls.target).add(offset);controls.update();dirty=true;};
-document.getElementById('download').disabled=false;document.getElementById('download').onclick=()=>{const url=URL.createObjectURL(new Blob([buffer],{type:'model/gltf-binary'}));const a=document.createElement('a');a.href=url;a.download=file.split('/').pop();a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};
+document.getElementById('download').disabled=!!designPlan;
+if(designPlan)document.getElementById('download').title='原始 GLB 可从资产文件下载';document.getElementById('download').onclick=()=>{const url=URL.createObjectURL(new Blob([buffer],{type:'model/gltf-binary'}));const a=document.createElement('a');a.href=url;a.download=file.split('/').pop();a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();dirty=true;}
 new ResizeObserver(resize).observe(stage);resize();
-if(!estate){ground.geometry.dispose();ground.geometry=new THREE.CircleGeometry(modelRadius*2.5,128);ground.position.set(modelCenter.x,modelBounds.min.y-.01,modelCenter.z);camera.near=Math.max(.001,modelRadius/500);camera.updateProjectionMatrix();}
-applyView(view,true);notify('asset-ready',{capabilities});
+if(!estate&&!modelBounds.isEmpty()){ground.geometry.dispose();ground.geometry=new THREE.CircleGeometry(modelRadius*2.5,128);ground.position.set(modelCenter.x,modelBounds.min.y-.01,modelCenter.z);camera.near=Math.max(.001,modelRadius/500);camera.updateProjectionMatrix();}
+applyView(view,true);notify('asset-ready',{capabilities,designPlan:designPlan?{id:designPlan.id,expectedCurrent:designPlan.expectedCurrent,confirmable:designPlan.confirmable,adopted:designPlan.adopted,refs:designPlan.layers.filter(l=>l.reference).map(l=>({object:l.object,version:l.version,digest:l.digest,contentDigest:l.contentDigest})),issues:designPlan.issues}:null});
+if(designPlan&&!meshes.length)status.textContent='尚无已确认版本';
 function animate(){requestAnimationFrame(animate);const moved=controls.update();if(moved||dirty){updateMeasurementLayers();renderer.render(scene,camera);dirty=false;}}
 animate();
-window.elfiePreview={ready:true,meshCount:meshes.length,triangleCount,source:file,state:()=>({section:view.section,floor:document.getElementById('floor').value,camera:camera.position.toArray(),visible:meshes.filter(m=>m.visible).length,references:meshes.filter(m=>m.visible&&m.userData.reference).length,furniture:meshes.filter(m=>m.visible&&m.userData.furniture).length,dimensionLabels:dimensionGroups.filter(g=>g.visible&&dimensionLayer.visible).map(g=>g.userData.label),rulerGroups:rulerGroups.filter(g=>g.visible&&rulerLayer.visible).length})};
+window.elfiePreview={ready:true,designPlan,context:()=>meshes.filter(m=>m.visible&&m.userData.designReference).length,meshCount:meshes.length,triangleCount,source:file,state:()=>({section:view.section,floor:document.getElementById('floor').value,camera:camera.position.toArray(),visible:meshes.filter(m=>m.visible).length,references:meshes.filter(m=>m.visible&&m.userData.reference).length,furniture:meshes.filter(m=>m.visible&&m.userData.furniture).length,dimensionLabels:dimensionGroups.filter(g=>g.visible&&dimensionLayer.visible).map(g=>g.userData.label),rulerGroups:rulerGroups.filter(g=>g.visible&&rulerLayer.visible).length})};
 }catch(e){status.textContent='载入失败';error.style.display='block';error.textContent='预览没有成功载入：'+e.message+'。请使用支持 WebGL 的新版 Chrome、Edge 或 Safari 打开此文件。';notify('asset-error',{message:e.message});console.error(e);}

@@ -12,6 +12,8 @@ from devtools.asset_design.catalog import (
     load_catalog,
     registered_file,
 )
+from devtools.asset_design.cleanup import build_cleanup_router
+from devtools.asset_design.design import build_design_router
 from devtools.elfie_lab.host import LoopbackHostMiddleware
 
 WEB_ROOT = Path(__file__).parent / "web"
@@ -29,6 +31,11 @@ PAGES = {
         "controls.css",
         "viewer.js",
         "view-state.mjs",
+        "asset-media.mjs",
+        "cleanup-state.mjs",
+        "design-state.mjs",
+        "content-images.mjs",
+        "scene-model.mjs",
     )
 }
 LIBRARIES = {
@@ -81,7 +88,9 @@ def create_app(asset_root: Path = ASSET_ROOT) -> FastAPI:
     """Construct only an asset HTTP service; never load experiment data or engines."""
     app = FastAPI(title="ElfieNest 房屋资产设计")
     app.add_middleware(LoopbackHostMiddleware)
+    app.include_router(build_design_router(asset_root))
     app.include_router(build_router(asset_root))
+    app.include_router(build_cleanup_router(asset_root))
 
     @app.get("/", include_in_schema=False)
     def index() -> RedirectResponse:
