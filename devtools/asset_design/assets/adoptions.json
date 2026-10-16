@@ -1,0 +1,222 @@
+{
+  "current": {
+    "building:central": {
+      "id": "3355c5dbf6f9490eafd95a893b71f97b",
+      "object": "building:central",
+      "version": "elfie_pod_layout_appearance_optimized_v1",
+      "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+      "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f",
+      "refs": [
+        {
+          "object": "layout:central:1",
+          "version": "layout_central_1_v008",
+          "digest": "992d1db541962db9ba9711ebf34174bd2796dfffe77c9f6f36ac7359271c87ca",
+          "contentDigest": "df11988bc0b6e4be7fddbd0418fdde9d895aa6b7c9a9cce1bc3176d748dee6ba"
+        },
+        {
+          "object": "layout:central:2",
+          "version": "layout_central_2_v012",
+          "digest": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+          "contentDigest": "c6163d0e36370f6aa16c38d2b7b936a7691d6abcaf0523f129489102e74435ea"
+        },
+        {
+          "object": "layout:central:3",
+          "version": "layout_central_3_v006",
+          "digest": "bf9aa184ef59b5c3dd1c1d134ebd7fb604633b5ff187c7ad533e314e4885c151",
+          "contentDigest": "9004a0996b2522157322bfc9732470c75511bd4297c04f0936ad9ee81d4abbc0"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.436854+00:00"
+    },
+    "building:pod": {
+      "id": "6d9ee23dcac242eb869f0c746dbf0c8e",
+      "object": "building:pod",
+      "version": "building_pod_v033",
+      "digest": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80",
+      "contentDigest": "4850b2b68d18a8b9bdf1989719ed5d60ace42d4cf2dcdd4ac172c5dba7eff146",
+      "refs": [
+        {
+          "object": "layout:pod",
+          "version": "layout_pod_v014",
+          "digest": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8",
+          "contentDigest": "928ae8cb3fe458b12bf03e4124154189844fdb8efaab293c3d4f51382056323c"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.456476+00:00"
+    },
+    "layout:central:1": {
+      "id": "e6e76785bdb244808b7abf837b2b0f4e",
+      "object": "layout:central:1",
+      "version": "layout_central_1_v008",
+      "digest": "992d1db541962db9ba9711ebf34174bd2796dfffe77c9f6f36ac7359271c87ca",
+      "contentDigest": "df11988bc0b6e4be7fddbd0418fdde9d895aa6b7c9a9cce1bc3176d748dee6ba",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.474861+00:00"
+    },
+    "layout:central:2": {
+      "id": "9ad78210d8e641a9a92cf83d616af357",
+      "object": "layout:central:2",
+      "version": "layout_central_2_v012",
+      "digest": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+      "contentDigest": "c6163d0e36370f6aa16c38d2b7b936a7691d6abcaf0523f129489102e74435ea",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.491806+00:00"
+    },
+    "layout:central:3": {
+      "id": "92fa560354e14748b50033c8399a527b",
+      "object": "layout:central:3",
+      "version": "layout_central_3_v006",
+      "digest": "bf9aa184ef59b5c3dd1c1d134ebd7fb604633b5ff187c7ad533e314e4885c151",
+      "contentDigest": "9004a0996b2522157322bfc9732470c75511bd4297c04f0936ad9ee81d4abbc0",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.508929+00:00"
+    },
+    "layout:pod": {
+      "id": "3f240ff4f07447eab526ccc27db8f4ff",
+      "object": "layout:pod",
+      "version": "layout_pod_v014",
+      "digest": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8",
+      "contentDigest": "928ae8cb3fe458b12bf03e4124154189844fdb8efaab293c3d4f51382056323c",
+      "refs": [
+        {
+          "object": "building:pod",
+          "version": "building_pod_v033",
+          "digest": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80",
+          "contentDigest": "4850b2b68d18a8b9bdf1989719ed5d60ace42d4cf2dcdd4ac172c5dba7eff146"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.527050+00:00"
+    }
+  },
+  "history": [
+    {
+      "id": "3355c5dbf6f9490eafd95a893b71f97b",
+      "object": "building:central",
+      "version": "elfie_pod_layout_appearance_optimized_v1",
+      "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+      "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f",
+      "refs": [
+        {
+          "object": "layout:central:1",
+          "version": "layout_central_1_v008",
+          "digest": "992d1db541962db9ba9711ebf34174bd2796dfffe77c9f6f36ac7359271c87ca",
+          "contentDigest": "df11988bc0b6e4be7fddbd0418fdde9d895aa6b7c9a9cce1bc3176d748dee6ba"
+        },
+        {
+          "object": "layout:central:2",
+          "version": "layout_central_2_v012",
+          "digest": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+          "contentDigest": "c6163d0e36370f6aa16c38d2b7b936a7691d6abcaf0523f129489102e74435ea"
+        },
+        {
+          "object": "layout:central:3",
+          "version": "layout_central_3_v006",
+          "digest": "bf9aa184ef59b5c3dd1c1d134ebd7fb604633b5ff187c7ad533e314e4885c151",
+          "contentDigest": "9004a0996b2522157322bfc9732470c75511bd4297c04f0936ad9ee81d4abbc0"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.436854+00:00"
+    },
+    {
+      "id": "6d9ee23dcac242eb869f0c746dbf0c8e",
+      "object": "building:pod",
+      "version": "building_pod_v033",
+      "digest": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80",
+      "contentDigest": "4850b2b68d18a8b9bdf1989719ed5d60ace42d4cf2dcdd4ac172c5dba7eff146",
+      "refs": [
+        {
+          "object": "layout:pod",
+          "version": "layout_pod_v014",
+          "digest": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8",
+          "contentDigest": "928ae8cb3fe458b12bf03e4124154189844fdb8efaab293c3d4f51382056323c"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.456476+00:00"
+    },
+    {
+      "id": "e6e76785bdb244808b7abf837b2b0f4e",
+      "object": "layout:central:1",
+      "version": "layout_central_1_v008",
+      "digest": "992d1db541962db9ba9711ebf34174bd2796dfffe77c9f6f36ac7359271c87ca",
+      "contentDigest": "df11988bc0b6e4be7fddbd0418fdde9d895aa6b7c9a9cce1bc3176d748dee6ba",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.474861+00:00"
+    },
+    {
+      "id": "9ad78210d8e641a9a92cf83d616af357",
+      "object": "layout:central:2",
+      "version": "layout_central_2_v012",
+      "digest": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+      "contentDigest": "c6163d0e36370f6aa16c38d2b7b936a7691d6abcaf0523f129489102e74435ea",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.491806+00:00"
+    },
+    {
+      "id": "92fa560354e14748b50033c8399a527b",
+      "object": "layout:central:3",
+      "version": "layout_central_3_v006",
+      "digest": "bf9aa184ef59b5c3dd1c1d134ebd7fb604633b5ff187c7ad533e314e4885c151",
+      "contentDigest": "9004a0996b2522157322bfc9732470c75511bd4297c04f0936ad9ee81d4abbc0",
+      "refs": [
+        {
+          "object": "building:central",
+          "version": "elfie_pod_layout_appearance_optimized_v1",
+          "digest": "5f2bd0f2bd5d3298ec4d999da1fa85f9f4afedef7b39f783dfff5d408b00584f",
+          "contentDigest": "342667339d263ff96473e3f03068a0a3f230f0b51a77834ce2b04efd19613b7f"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.508929+00:00"
+    },
+    {
+      "id": "3f240ff4f07447eab526ccc27db8f4ff",
+      "object": "layout:pod",
+      "version": "layout_pod_v014",
+      "digest": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8",
+      "contentDigest": "928ae8cb3fe458b12bf03e4124154189844fdb8efaab293c3d4f51382056323c",
+      "refs": [
+        {
+          "object": "building:pod",
+          "version": "building_pod_v033",
+          "digest": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80",
+          "contentDigest": "4850b2b68d18a8b9bdf1989719ed5d60ace42d4cf2dcdd4ac172c5dba7eff146"
+        }
+      ],
+      "at": "2026-10-16T08:06:23.527050+00:00"
+    }
+  ]
+}

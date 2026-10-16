@@ -1,0 +1,42 @@
+{
+  "object": "layout:pod",
+  "version": "layout_pod_v014",
+  "optimization": {
+    "savedIndexBytes": 160338,
+    "changedIndexAccessors": 4,
+    "removedDuplicateVertices": 5286,
+    "savedPNGBytes": 263042
+  },
+  "verification": {
+    "pngDecompressedScanlinesAndMetadataExact": true,
+    "allTriangleCornerAttributesExact": true,
+    "allNodeMaterialAndSceneMetadataExact": true,
+    "triangleOrderExact": true
+  },
+  "before": {
+    "sha256": "3bece7e29e436e0f49f988a1a0065853dda705f522e2e14055959a9986dc3548",
+    "fileBytes": 8657684,
+    "dimensionsXYZm": [
+      6.0494912714022195,
+      0.7936371195981344,
+      6.8431009158003375
+    ],
+    "trianglesIncludingInstances": 1057850,
+    "renderedMeshInstances": 916,
+    "embeddedImageBytes": 996578
+  },
+  "after": {
+    "sha256": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8",
+    "fileBytes": 8252588,
+    "dimensionsXYZm": [
+      6.0494912714022195,
+      0.7936371195981344,
+      6.8431009158003375
+    ],
+    "trianglesIncludingInstances": 1057850,
+    "renderedMeshInstances": 916,
+    "embeddedImageBytes": 733536
+  },
+  "savedBytes": 405096,
+  "reductionPercent": 4.679034
+}

@@ -1,0 +1,17 @@
+{
+  "object": "layout:pod",
+  "source": "model.glb",
+  "placements": {
+    "M01": 912,
+    "M02": 913,
+    "M03": 914,
+    "M04": 915,
+    "M05": 916,
+    "M06": 917,
+    "M07": 918,
+    "M08": 919
+  },
+  "instanceCount": 8,
+  "approvedVersion": "layout_pod_v014",
+  "sourceSha256": "25fdd0c6cc3c2c389e5f2264e4480e79e4fd7567a65adc41e306e4aef44c87e8"
+}

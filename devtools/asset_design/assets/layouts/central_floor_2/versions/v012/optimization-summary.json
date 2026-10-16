@@ -1,0 +1,42 @@
+{
+  "object": "layout:central:2",
+  "version": "layout_central_2_v012",
+  "optimization": {
+    "savedIndexBytes": 19944,
+    "changedIndexAccessors": 1,
+    "removedDuplicateVertices": 37,
+    "savedPNGBytes": 83921
+  },
+  "verification": {
+    "pngDecompressedScanlinesAndMetadataExact": true,
+    "allTriangleCornerAttributesExact": true,
+    "allNodeMaterialAndSceneMetadataExact": true,
+    "triangleOrderExact": true
+  },
+  "before": {
+    "sha256": "3182b80d128c6266c339a242e475e654fe05d7efad1a1c8680e8768456956623",
+    "fileBytes": 26548544,
+    "dimensionsXYZm": [
+      15.355000291203746,
+      2.0970005989074707,
+      15.519927024841309
+    ],
+    "trianglesIncludingInstances": 485406,
+    "renderedMeshInstances": 94,
+    "embeddedImageBytes": 372453
+  },
+  "after": {
+    "sha256": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+    "fileBytes": 23318744,
+    "dimensionsXYZm": [
+      15.355000291203746,
+      2.0970005989074707,
+      15.519927024841309
+    ],
+    "trianglesIncludingInstances": 485406,
+    "renderedMeshInstances": 94,
+    "embeddedImageBytes": 288532
+  },
+  "savedBytes": 3229800,
+  "reductionPercent": 12.165639
+}

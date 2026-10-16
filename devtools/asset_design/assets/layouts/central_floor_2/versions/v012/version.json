@@ -1,0 +1,119 @@
+{
+  "id": "layout_central_2_v012",
+  "category": "layout",
+  "title": "主楼 · 2 楼 · V012",
+  "description": "已确认设计资产；编辑源与本版本模型一致，历史版本另行本地归档。",
+  "primaryModel": "layouts/central_floor_2/versions/v012/model.glb",
+  "models": [
+    "layouts/central_floor_2/versions/v012/model.glb"
+  ],
+  "images": [
+    "layouts/central_floor_2/references/02_games_four_windows.png",
+    "layouts/central_floor_2/references/elfie_second_floor_games_v1__reference_floor_2.png",
+    "layouts/central_floor_2/versions/v012/images/storage-after.jpg",
+    "layouts/central_floor_2/versions/v012/images/storage-before.jpg"
+  ],
+  "files": [
+    {
+      "path": "layouts/central_floor_2/references/02_games_four_windows.png",
+      "name": "02_games_four_windows.png",
+      "kind": "image",
+      "bytes": 2089292
+    },
+    {
+      "path": "layouts/central_floor_2/references/elfie_second_floor_games_v1__reference_floor_2.png",
+      "name": "elfie_second_floor_games_v1__reference_floor_2.png",
+      "kind": "image",
+      "bytes": 2071964
+    },
+    {
+      "path": "layouts/central_floor_2/source/build.json",
+      "name": "build.json",
+      "kind": "data",
+      "bytes": 234
+    },
+    {
+      "path": "layouts/central_floor_2/source/model.glb",
+      "name": "model.glb",
+      "kind": "source",
+      "bytes": 23318744
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v012/images/storage-after.jpg",
+      "name": "storage-after.jpg",
+      "kind": "image",
+      "bytes": 53005
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v012/images/storage-before.jpg",
+      "name": "storage-before.jpg",
+      "kind": "image",
+      "bytes": 51468
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v012/model.glb",
+      "name": "model.glb",
+      "kind": "model",
+      "bytes": 23318744
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v012/optimization-summary.json",
+      "name": "optimization-summary.json",
+      "kind": "data",
+      "bytes": 1176
+    }
+  ],
+  "designObject": {
+    "id": "layout:central:2",
+    "label": "主楼 · 2 楼",
+    "group": "layout",
+    "space": "estate",
+    "module": "central",
+    "floor": "2",
+    "collection": "layout:central",
+    "collectionLabel": "主楼布置"
+  },
+  "designVersion": {
+    "id": "layout_central_2_v012",
+    "asset": "layout_central_2_v012",
+    "title": "主楼 · 2 楼 · V012",
+    "file": "layouts/central_floor_2/versions/v012/model.glb",
+    "digest": "910e2df1435dddd773126e7d0534532c8ae50213c4b6352c6c2b290cb70b391c",
+    "nodes": [
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24,
+      26,
+      28,
+      30,
+      32,
+      34,
+      36,
+      38,
+      40,
+      42,
+      44,
+      46,
+      48,
+      50,
+      52,
+      54,
+      56,
+      58
+    ],
+    "measurements": null,
+    "contentDigest": "c6163d0e36370f6aa16c38d2b7b936a7691d6abcaf0523f129489102e74435ea",
+    "revision": 12,
+    "provenance": [
+      {
+        "asset": "layout_central_2_v011",
+        "sha256": "3182b80d128c6266c339a242e475e654fe05d7efad1a1c8680e8768456956623"
+      }
+    ]
+  },
+  "archived": false
+}

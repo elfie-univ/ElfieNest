@@ -1,0 +1,17 @@
+{
+  "object": "building:pod",
+  "source": "model.glb",
+  "placements": {
+    "M01": 41,
+    "M02": 50,
+    "M03": 51,
+    "M04": 52,
+    "M05": 53,
+    "M06": 54,
+    "M07": 55,
+    "M08": 56
+  },
+  "instanceCount": 8,
+  "approvedVersion": "building_pod_v033",
+  "sourceSha256": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80"
+}
