@@ -1,0 +1,68 @@
+{
+  "units": "metres",
+  "models": {
+    "central": {
+      "status": "visual trial, not artistically approved",
+      "source_version": "elfie_central_third_quiet_concept_v1",
+      "file": "central.glb",
+      "bytes": 69420928,
+      "sha256": "d939edd6d39af73cab36f3f4b8d77169f1835d89aed4dd71a19f3d6e7a33e270",
+      "source": "elfie_central_third_quiet_concept_v1/estate.glb",
+      "source_sha256": "02b7381463cdf83229b460740fecf110ca3f93b105284b101fd5441d5035266c",
+      "source_mesh_nodes": 435,
+      "unique_meshes": 303,
+      "triangles": 1986616,
+      "embedded_images": 9,
+      "retained_buffer_views": 1390,
+      "binary_views_byte_identical": true,
+      "source_node_transforms_and_tags_preserved": true,
+      "source_file_unchanged": true,
+      "external_files": 0
+    },
+    "pod": {
+      "status": "building and ground-floor furnishings approved; source terrace props retained as-is",
+      "source_version": "elfie_pod_complete_confirmed_v2",
+      "file": "pod.glb",
+      "bytes": 39715472,
+      "sha256": "5fb4214bf114b555f6551bd9b2626c56de7105a821a210283f79f970b1ef43ae",
+      "source": "elfie_pod_complete_confirmed_v2/complete_pod.glb",
+      "source_sha256": "9c0895259f907e650b0c0dc3e1b64f14b30bc85b2b97460be99887ab4a6ee6c2",
+      "source_mesh_nodes": 979,
+      "unique_meshes": 301,
+      "triangles": 1303295,
+      "embedded_images": 8,
+      "retained_buffer_views": 869,
+      "binary_views_byte_identical": true,
+      "source_node_transforms_and_tags_preserved": true,
+      "source_file_unchanged": true,
+      "external_files": 0
+    }
+  },
+  "scene": "estate.tscn",
+  "placement_count": {
+    "central": 1,
+    "pods": 8
+  },
+  "runtime_ready": false,
+  "collision_navigation_interaction": "not included; visual development baseline only",
+  "authoring_sources": "Embedded GLB mesh and material data; Blender history and reference images excluded",
+  "validation": {
+    "engine": "Godot 4.7.stable",
+    "script": "res://scripts/test/test_estate_asset_baseline.gd",
+    "result": "passed",
+    "checks": [
+      "self-contained GLB buffers and images",
+      "retained binary views byte-identical to source",
+      "source transforms and functional/floor tags retained",
+      "one central building plus eight independent house roots",
+      "original eight placement matrices",
+      "house instances share imported mesh resources"
+    ],
+    "not_validated": [
+      "collision",
+      "navigation",
+      "interaction logic",
+      "rendering performance"
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://rooms/estate/central.glb" id="1_central"]
+[ext_resource type="PackedScene" path="res://rooms/estate/pod.glb" id="2_pod"]
+
+[node name="EstateAssetBaseline" type="Node3D"]
+
+[node name="Central" parent="." instance=ExtResource("1_central")]
+metadata/module = "central"
+
+[node name="M01" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(-0.6427874447189748, -5.783476609530202e-8, 0.7660446952941307, 5.783476609530202e-8, 1.0000004878793423, 1.2402703968797576e-7, 0.7660446952941307, -1.2402703968797576e-7, 0.642787932598317, 10.379901885986328, 0, 8.709772109985352)
+metadata/module = "M01"
+
+[node name="M02" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(-0.049846045113255695, -7.540407084620994e-8, 0.9987567578630328, 7.540405736291137e-8, 1.0000000496954868, 7.92611825138171e-8, 0.9987567578630328, -7.926119668682353e-8, 0.04984609480873364, 13.533156394958496, 0, 0.6754117608070374)
+metadata/module = "M02"
+
+[node name="M03" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(0.5633200401378653, 1.1802739100925586e-7, 0.8262388128284824, -1.1802738397427515e-7, 1.0000001040442417, -6.237929971501715e-8, 0.8262388128284824, 6.237930343311338e-8, -0.5633199360936298, 11.195535659790039, 0, -7.632987022399902)
+metadata/module = "M03"
+
+[node name="M04" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(0.9479275233580831, 1.4706445307909461e-7, 0.31848635585329993, -1.4706444431337013e-7, 1.000000137383866, -2.4045052917270436e-8, 0.31848635585329993, 2.4045054350467358e-8, -0.9479273859742251, 4.315494060516357, 0, -12.844415664672852)
+metadata/module = "M04"
+
+[node name="M05" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(-0.9479275798589697, 0, -0.31848646307194883, 0, 1, 0, 0.31848646307194883, 0, -0.9479275798589697, -4.315494060516357, 0, -12.844415664672852)
+metadata/module = "M05"
+
+[node name="M06" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(-0.5633204952934605, 0, -0.8262385519025592, 0, 1, 0, 0.8262385519025592, 0, -0.5633204952934605, -11.195535659790039, 0, -7.632987022399902)
+metadata/module = "M06"
+
+[node name="M07" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(0.049846054026424724, 0, -0.99875693645469, 0, 1, 0, 0.99875693645469, 0, 0.049846054026424724, -13.533156394958496, 0, 0.6754117608070374)
+metadata/module = "M07"
+
+[node name="M08" parent="." instance=ExtResource("2_pod")]
+transform = Transform3D(0.6427874447189748, 0, -0.7660446952941307, 0, 1, 0, 0.7660446952941307, 0, 0.6427874447189748, -10.379901885986328, 0, 8.709772109985352)
+metadata/module = "M08"
