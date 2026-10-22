@@ -14,13 +14,26 @@
 ./developer.sh --help
 ```
 
-当前有三个无参数入口；它们启动同一个 Developer Tools HTTP 服务，只由命令选择首次打开的页面：
+三个实验入口启动统一 Developer Tools HTTP 服务；房屋资产设计另有独立启动入口：
 
 | 命令 | 首次打开 | 本地默认 | 用途 |
 | --- | --- | --- | --- |
 | `./developer.sh elfie-lab` | `/elfie/experiment` | HTTP `127.0.0.1:9001` | 单精灵实验 |
 | `./developer.sh brain-eval` | `/elfie/evaluations` | 同上 | 批量评测与报告 |
 | `./developer.sh nest-lab` | `/nest/experiment` | 同上（Godot WS 为内部 `9002`） | 精灵巢与 Godot Runtime 实验 |
+| `./developer.sh asset-design` | `/assets/design` | HTTP `127.0.0.1:9001` | 独立房屋与家具资产预览 |
+
+房屋资产设计保留已确认的资产库布局和右侧完整 3D 控制栏。源码位于
+`devtools/asset_design/web/`，通过 `build/asset_previews/catalog.json` 读取已登记
+的模型、测量数据和图片。新资产版本复用同一查看器，不生成专用 HTML 页面。独立入口
+不启动实验状态或 Godot，也不构建实验前端。使用 `./developer.sh asset-design`
+打开独立页面；原实验服务和菜单不挂载该页面。布局基准和只读边界测试位于
+`test/devtools/asset_design/`。本地资产
+缺失时页面显示空工作台；Git 保留工具源码，大型设计文件仍是本地资产。
+
+上方预览内容只选择完整模型、独立部件或保存效果图。对象与楼层只在预览区选择，
+可用楼层从模型标签读取，小屋可以合看。对象、楼层、剖视、显示开关、光照与视角
+预设保存到地址中；视角按钮不改变其他选择。四个 M01 专用样板快捷按钮已移除。
 
 `./developer.sh brain-trace` 是不启动网页的后端采集工具。`list` 列出隔离 Lab 数据根中的
 精灵和已保存粮食；`collect` 在同一条真实 Brain 链路上执行消息序列，并将模型调用、记忆

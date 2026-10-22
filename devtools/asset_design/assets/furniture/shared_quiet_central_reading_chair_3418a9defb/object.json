@@ -1,0 +1,45 @@
+{
+  "designObject": {
+    "id": "part:shared_quiet_central_reading_chair_3418a9defb",
+    "label": "阅读扶手椅",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "阅读扶手椅（6处引用）",
+    "menuOrder": 11,
+    "menuCategory": "seating",
+    "currentUsage": {
+      "count": 6,
+      "locations": {
+        "layout:central:3": 6
+      },
+      "description": "主楼三层：中央阅读区 4 把，书写区 2 把；米白和绿色共用几何。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "reuseVariants": {
+      "geometryMaster": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "parameters": [
+        "size",
+        "rotation",
+        "material"
+      ],
+      "mergedFrom": [
+        "part:shared_quiet_central_reading_chair_3418a9defb",
+        "part:shared_quiet_central_reading_chair_e8f4eccfd4",
+        "part:shared_quiet_right_journaling_chair_28f34cdd2b"
+      ]
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_quiet_central_reading_chair_3418a9defb_v004",
+      "file": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/version.json",
+      "order": 463
+    }
+  ]
+}

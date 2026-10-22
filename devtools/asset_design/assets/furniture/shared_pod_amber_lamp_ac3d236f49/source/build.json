@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_pod_amber_lamp_ac3d236f49",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共母版：卧室琥珀球台灯；当前 32 处引用。8 间小屋卧室：A/B/C/D 书桌各 1 盏，每间 4 盏，共 32 盏。",
+  "reuse": {
+    "identity": "ac3d236f494d1e4ca63f30db89f3691e92d8e25f24f38529db190776ef5358e3",
+    "category": "lighting",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/reuse.json"
+  },
+  "currentUsage": {
+    "count": 32,
+    "locations": {
+      "layout:pod": 32
+    },
+    "description": "8 间小屋卧室：A/B/C/D 书桌各 1 盏，每间 4 盏，共 32 盏。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "object": "part:shared_television_left_speaker_50a1618b48",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "50a1618b487df2463a7f3d3ceb6ef5641223f3cccaefd726b73cf2a4ada5a3fe",
+    "category": "media",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_television_left_speaker_50a1618b48/versions/v003/reuse.json"
+  },
+  "currentUsage": {
+    "count": 2,
+    "locations": {
+      "layout:terrace:M01": 2
+    },
+    "description": "M01观影露台 2 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "shapeVariants": [
+    {
+      "id": "left",
+      "node": 0,
+      "label": "左音箱原支脚形状"
+    },
+    {
+      "id": "right",
+      "node": 2,
+      "label": "右音箱原支脚形状，适配原层架高度"
+    }
+  ],
+  "collision": {
+    "owner": "part:shared_television_left_speaker_50a1618b48",
+    "rootNode": 5,
+    "shapes": 2,
+    "type": "simple-boxes",
+    "movable": false,
+    "renderGeometryUnchanged": true,
+    "sleepingCavityOpen": false
+  }
+}

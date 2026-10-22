@@ -1,0 +1,46 @@
+{
+  "id": "part_shared_pod_amber_lamp_ac3d236f49_v001",
+  "category": "kit",
+  "title": "卧室琥珀球台灯 · V001",
+  "description": "当前场景：32 处引用（历史版本不重复计数）。8 间小屋卧室：A/B/C/D 书桌各 1 盏，每间 4 盏，共 32 盏。",
+  "primaryModel": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/model.glb",
+  "models": [
+    "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/model.glb", "name": "model.glb", "kind": "model", "bytes": 5612},
+    {"path": "furniture/shared_pod_amber_lamp_ac3d236f49/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5604},
+    {"path": "furniture/shared_pod_amber_lamp_ac3d236f49/source/build.json", "name": "build.json", "kind": "data", "bytes": 4314},
+    {"path": "furniture/shared_resources/source/resources/10600490b6cb4aae7a9b6b3e490cf8601ceccd44590ebf63c77a4011519647fd.bin", "name": "10600490b6cb4aae7a9b6b3e490cf8601ceccd44590ebf63c77a4011519647fd.bin", "kind": "data", "bytes": 21936},
+    {"path": "furniture/shared_resources/source/resources/b2c426cbbdaa33addf853206126f633408f681e34e59647c1a665bf613aef006.bin", "name": "b2c426cbbdaa33addf853206126f633408f681e34e59647c1a665bf613aef006.bin", "kind": "data", "bytes": 19710},
+    {"path": "furniture/shared_resources/source/resources/b5d111fef6e5ad2cea3190404e57e5b9ccb4dd9d61d32b2da82e515503681b80.bin", "name": "b5d111fef6e5ad2cea3190404e57e5b9ccb4dd9d61d32b2da82e515503681b80.bin", "kind": "data", "bytes": 24168},
+    {"path": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1613}
+  ],
+  "designVersion": {
+    "id": "part_shared_pod_amber_lamp_ac3d236f49_v001",
+    "asset": "part_shared_pod_amber_lamp_ac3d236f49_v001",
+    "title": "卧室琥珀球台灯 · V001",
+    "revision": 1,
+    "file": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/model.glb",
+    "digest": "8c11694ff90821a68884feae1ad64589d11bbd75b136d97c74a216642c5d2f57",
+    "contentDigest": "dce5610f527258b4372b2c305a6b16d2ba001754c8b86ae6057fbaec77ec4e30",
+    "nodes": [
+      0,
+      1,
+      2
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "ac3d236f494d1e4ca63f30db89f3691e92d8e25f24f38529db190776ef5358e3",
+      "category": "lighting",
+      "sourceReferences": 1,
+      "estateReferences": 8,
+      "approval": "pending",
+      "notes": [],
+      "exclusiveResourceBytes": 0,
+      "details": "furniture/shared_pod_amber_lamp_ac3d236f49/versions/v001/reuse.json"
+    }
+  }
+}

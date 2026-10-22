@@ -1,0 +1,422 @@
+{
+  "object": "layout:central:2",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "sourceSha256": "4a1c0b916b798d342173fe92acb4f4b8ac69fe44c54928cef70e069091e7d1cb",
+  "design": {
+    "status": "review candidate",
+    "reference": "../references/approved-second-floor.png",
+    "description": "V017 局部补齐：现有楼梯矮墙横向壁龛内增加复用浅木植物画框、两本小书及三个高低错落的木质摆件；所有摆设限制在现有 10 厘米深、46 厘米高的凹槽内。其余家具与楼梯几何保持原样。",
+    "sharedGeometry": {
+      "diningChairs": 6,
+      "loungeChairs": 4,
+      "pierPlants": 4,
+      "plantScale": 0.78
+    },
+    "architecture": "building_central_v022 unchanged",
+    "verification": {
+      "passed": true,
+      "sourceBaseSHA256": "447c6b8f769e80487bd77ebcb267cac0a6b6ccbefb6b2d2af3dfc688ea4009af",
+      "candidateSHA256": "f027687ed80356567f1f32d8a5a5e328f6e12f40e6cafe759412ac71077b3864",
+      "unchangedMeshNodes": 63,
+      "newDecorMeshInstances": 9,
+      "sharedOrnamentInstances": 3,
+      "nicheInnerRadiusM": 3.0,
+      "nicheBackRadiusM": 3.1,
+      "nicheShelfY": 4.52,
+      "nicheTopY": 4.98,
+      "newDecorRadiusRangeM": [
+        3.014,
+        3.089529738154982
+      ],
+      "measurements": {
+        "games_niche_frame | Uniform frame | continuous oak rails": {
+          "bounds": [
+            [
+              -0.7537207570184293,
+              4.532,
+              -3.0308359293414706
+            ],
+            [
+              -0.5227184168583044,
+              4.852,
+              -2.9743382407053054
+            ]
+          ],
+          "radiusRange": [
+            3.067615957169203,
+            3.0759383736404415
+          ]
+        },
+        "games_niche_frame | Uniform frame | ivory picture mat": {
+          "bounds": [
+            [
+              -0.7478164677054402,
+              4.537333328247071,
+              -3.026081864811259
+            ],
+            [
+              -0.5287114150912997,
+              4.84666667175293,
+              -2.979509648183068
+            ]
+          ],
+          "radiusRange": [
+            3.071516989782117,
+            3.0719223969669924
+          ]
+        },
+        "games_niche_frame | Uniform frame | replaceable picture insert": {
+          "bounds": [
+            [
+              -0.7364726040871246,
+              4.5583111114501955,
+              -3.0242683832106976
+            ],
+            [
+              -0.5403214057174837,
+              4.825688888549805,
+              -2.9825751589177925
+            ]
+          ],
+          "radiusRange": [
+            3.0721566488648273,
+            3.0721566488648273
+          ]
+        },
+        "games_niche_frame | Uniform frame | backing panel": {
+          "bounds": [
+            [
+              -0.7499021547616205,
+              4.536266662597656,
+              -3.0312074170437824
+            ],
+            [
+              -0.5283111988319387,
+              4.847733337402344,
+              -2.982313612609907
+            ]
+          ],
+          "radiusRange": [
+            3.0750527113383277,
+            3.0769714137197357
+          ]
+        },
+        "games_niche_frame_stand": {
+          "bounds": [
+            [
+              -0.7175802554348345,
+              4.52,
+              -3.0244368064941987
+            ],
+            [
+              -0.5486019416453198,
+              4.532000000104308,
+              -2.9324820819746775
+            ]
+          ],
+          "radiusRange": [
+            3.0160611737425564,
+            3.076040473659279
+          ]
+        },
+        "games_niche_books": {
+          "bounds": [
+            [
+              -0.23265859971464878,
+              4.52,
+              -3.089481920572308
+            ],
+            [
+              0.019771669829392963,
+              4.5830000010132785,
+              -3.006802124244176
+            ]
+          ],
+          "radiusRange": [
+            3.014829016119843,
+            3.089529738154982
+          ]
+        },
+        "games_niche_ornament_0": {
+          "bounds": [
+            [
+              0.4956593015772167,
+              4.52,
+              -3.0376312869941553
+            ],
+            [
+              0.5635945821910587,
+              4.739999999999999,
+              -2.9696960063803135
+            ]
+          ],
+          "radiusRange": [
+            3.0159999999999996,
+            3.0839999999999996
+          ]
+        },
+        "games_niche_ornament_1": {
+          "bounds": [
+            [
+              0.9570500193876306,
+              4.52,
+              -2.9197645072846132
+            ],
+            [
+              1.0289157228010255,
+              4.829999999999999,
+              -2.8478988038712183
+            ]
+          ],
+          "radiusRange": [
+            3.014,
+            3.0859999999999994
+          ]
+        },
+        "games_niche_ornament_2": {
+          "bounds": [
+            [
+              1.3989083696582356,
+              4.52,
+              -2.725970055058458
+            ],
+            [
+              1.4648681633356984,
+              4.779999999999999,
+              -2.6600102613809953
+            ]
+          ],
+          "radiusRange": [
+            3.0169999999999995,
+            3.0829999999999997
+          ]
+        }
+      },
+      "reusedFrameSource": "furniture/uniform_frame/source/model.glb",
+      "reusedFrameSourceSHA256": "1ee11fe5cb025bd2ff45e2a954ea1f22d2655fa3778e8c74fe3ae8c51fb02834",
+      "frameHeightM": 0.32
+    }
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuseMasters": {
+    "layout:central:2:plant-1": {
+      "object": "part:floor_plant",
+      "scale": [
+        0.9999999988387672,
+        0.9999999767396509,
+        1.0000000017011619
+      ],
+      "nodes": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ]
+    },
+    "layout:central:2:plant-2": {
+      "object": "part:floor_plant",
+      "scale": [
+        0.9999999988387672,
+        0.9999999767396509,
+        1.0000000017011619
+      ],
+      "nodes": [
+        47,
+        48,
+        49,
+        50,
+        51,
+        52
+      ]
+    },
+    "layout:central:2:plant-3": {
+      "object": "part:floor_plant",
+      "scale": [
+        0.9999999988387672,
+        0.9999999767396509,
+        1.0000000017011619
+      ],
+      "nodes": [
+        53,
+        54,
+        55,
+        56,
+        57,
+        58
+      ]
+    },
+    "layout:central:2:plant-4": {
+      "object": "part:floor_plant",
+      "scale": [
+        0.9999999988387672,
+        0.9999999767396509,
+        1.0000000017011619
+      ],
+      "nodes": [
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ]
+    },
+    "layout:central:2:games_central_chair_0": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        65
+      ]
+    },
+    "layout:central:2:games_central_chair_1": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        66
+      ]
+    },
+    "layout:central:2:games_central_chair_2": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0000000000000002,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        67
+      ]
+    },
+    "layout:central:2:games_central_chair_3": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        68
+      ]
+    },
+    "layout:central:2:games_central_chair_4": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        69
+      ]
+    },
+    "layout:central:2:games_central_chair_5": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        70
+      ]
+    },
+    "layout:central:2:games_left_chess_chair_0": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.191489310189823,
+        1.0275931233376052,
+        1.1489361252417136
+      ],
+      "nodes": [
+        71
+      ]
+    },
+    "layout:central:2:games_left_chess_chair_1": {
+      "object": "part:shared_games_central_chair_1a067d1758",
+      "scale": [
+        1.191489310189823,
+        1.0275931233376052,
+        1.1489361252417136
+      ],
+      "nodes": [
+        72
+      ]
+    }
+  },
+  "furnitureLightingDraft": {
+    "description": "电视及游戏屏支撑修正、书柜落地与2800K连续灯带，三楼两层书架均匀暖光、3000K遮光书写台灯；不变更建筑确认版",
+    "changedNodes": [
+      "games_right_console",
+      "games_right_console",
+      "games_left_curved_bookshelf"
+    ],
+    "addedNodes": [
+      "Draft L2 curved bookcase continuous hidden diffuser",
+      "Draft L2 curved bookcase front glare shield"
+    ],
+    "measurements": {
+      "console_floor_gap_before_m": 0.0129,
+      "screen_base_gap_before_m": 0.0159,
+      "bookcase_floor_gap_before_m": 0.06,
+      "bookcase_temperature_kelvin": 2800,
+      "game_screen_local_y_scale": 0.8600000143051147
+    }
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 8,
+    "collisionTriangles": 5335,
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "movingDoors": 0,
+    "doorMotion": null,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "correctedMirroredColliderWinding": [
+      "Collision games_left_curved_bookshelf",
+      "Collision games_central_chair_0",
+      "Collision games_central_chair_5",
+      "Collision games_left_chess_chair_0",
+      "Collision games_left_chess_chair_1",
+      "Collision games_front_pouf_1"
+    ],
+    "uniqueShapes": 8,
+    "collisionTrianglesByInstance": 5335
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:floor_plant",
+      "part:shared_games_central_chair_1a067d1758",
+      "part:shared_games_front_pouf_71af28b866",
+      "part:shared_games_right_console_chair_490430005f"
+    ],
+    "removedLayoutBodies": 16
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [
+      "Collision games_left_curved_bookshelf",
+      "Collision games_rear_display"
+    ],
+    "nativeValidated": true
+  }
+}

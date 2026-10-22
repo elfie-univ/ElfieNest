@@ -1,0 +1,2698 @@
+{
+  "object": "building:central",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "sourceSha256": "3b12530f80c032bd0a45e51fa27862ef8ab284f5432e26e154574ba3cf6b1406",
+  "design": {
+    "name": "ground-floor-painted-botanical-and-closed-stair-joints-v1",
+    "floor": 1,
+    "floorFinish": "warm matte porcelain",
+    "inlayCenterXZ": [
+      0,
+      0.92
+    ],
+    "inlayRadiusM": 1.85,
+    "inlay": "fourfold symmetric leaf medallion",
+    "interiorFinish": "warm cream plaster",
+    "backdrop": "CC0 fine foliage, ivory pottery, botanical print and books in existing illuminated niches",
+    "retained": "All 26 treads, handrails, posts, glass, floor, niche dimensions and depths, V020 shelf arrangement, other floors and confirmation records",
+    "status": "review candidate: flat botanical paint, front niche arrangement left 17 cm, cap and stair cheek seams closed",
+    "decor": "CC0 scanned fine foliage and ivory ceramic vases; front botanical print, linen books and shallow bowl",
+    "frontNichePlacement": {
+      "arcShiftM": 0.17,
+      "direction": "left viewed from sofa",
+      "radiusM": 3.115,
+      "objects": [
+        "potted fern",
+        "botanical picture",
+        "book stack",
+        "shallow bowl"
+      ]
+    },
+    "wallPaint": {
+      "type": "base-color texture on original plaster surface",
+      "reference": "buildings/central/references/botanical-wall-paint-v001.png",
+      "angleDegrees": [
+        -90,
+        -72
+      ],
+      "heightM": [
+        1.55,
+        2.25
+      ],
+      "removedSolidReliefPieces": 7
+    },
+    "stairJointRepair": {
+      "capToCheekContactRadiiM": [
+        3.29,
+        4.49
+      ],
+      "wallAndNicheDepthsPreserved": true,
+      "sharedTopEdgeVertices": true
+    },
+    "stairTopClosureRepair": {
+      "floor": 1,
+      "arrivalTreadTopM": 4.300000190734863,
+      "transverseClosureTopM": 4.299000190734863,
+      "clearanceBelowTreadM": 0.001,
+      "retained": "All 62 original tread meshes and materials; side cheek walls, railings, glass, posts, niches and lighting; departure-floor ownership",
+      "reason": "The transverse high-end closure previously stood about 23 cm above the final tread and read as a pale extra riser."
+    }
+  },
+  "upperStairs": {
+    "designReferences": [
+      "buildings/central/references/approved-second-floor.png",
+      "layouts/central_floor_3/references/approved-third-floor-20261017.png"
+    ],
+    "scope": "L2/L3 continuous cream tread cheeks and enclosed sloping undersides, low curved guards on both sides of each downward opening, fitted coping",
+    "styleSource": "Existing L1 warm greige treads, champagne handrails, ivory posts and clear glass; continuous cream side enclosures",
+    "guardHeightM": 0.85,
+    "guardBodyThicknessM": 0.135,
+    "copingThicknessM": 0.025,
+    "cheekAboveSlopeM": 0.23,
+    "cheekBelowSlopeM": 0.17,
+    "retained": "All L1/L3 geometry, original stair treads, cheeks, handrails, glass, posts, slab openings and furniture; L2 guard outer dimensions and niche width, height and depth; solid rear face and confirmation records",
+    "status": "review candidate; not automatically confirmed",
+    "frontNiche": {
+      "floor": 2,
+      "position": "centered on full 126-degree curved guard",
+      "angleDegrees": [
+        -115.5,
+        -64.5
+      ],
+      "sideMarginDegrees": 37.5,
+      "arcShiftLeftM": 0.39269908169872414,
+      "widthArcM": 2.670353755551324,
+      "heightM": 0.46,
+      "depthM": 0.1,
+      "lighting": "Existing L1 warm LED diffuser material, concealed 65 mm behind the opening, with local baked warm wash on oak backing and inside returns",
+      "diffuserWidthM": 0.006,
+      "rear": "solid, no rear niche or through-opening"
+    },
+    "floorOwnership": {
+      "rule": "The complete flight, tread cheeks, soffit, handrails, posts and infill belong to the departure floor; guards around the arrival-floor opening belong to the arrival floor. Explicit full_height=false prevents inferred height slicing.",
+      "flights": {
+        "1": "ground to floor two",
+        "2": "floor two to floor three",
+        "3": "floor three to roof"
+      },
+      "guardOwners": [
+        2,
+        3,
+        4
+      ],
+      "geometry": "unchanged"
+    }
+  },
+  "description": "主楼八个小屋连接口统一采用浅木色暗藏平移门；暖光灯带沿门洞左右内壁和圆角顶面连续布置，底部不加，开关门均保留U形轮廓。灯带位于门板前方，墙面外沿无灯圈；保留已确认的配色、玻璃、家具及其他灯光。自动感应联动尚未接入。",
+  "roofArchitecture": {
+    "floor": 4,
+    "reference": "buildings/central/references/roof-emission-zoning-reference.png",
+    "scope": "Approved emission zoning and colour only, on the latest shared-resource building source. Body geometry, other floors, console, stairs and reuse data retained.",
+    "deferred": [
+      "Arrival animation and event triggering; current object extraction and fixed viewer do not play animated lighting. No runtime or preview UI changes in this asset revision."
+    ],
+    "visibility": "Building architecture, furniture=false. Roof cove and skylight halo follow roof cutaway.",
+    "lighting": "Four golden warm-white architectural rings; broad continuous inner ice-cyan petal inlays with 34% visible width, same-shaped outer inlays at one-third emission and dim side spill; pale ice-aqua luminous disc.",
+    "measurements": {
+      "floorHeightM": 9.899999618530273,
+      "portal": {
+        "platformRadiusM": 2.2935999999999996,
+        "platformTopM": 10.239999618530273,
+        "petals": [
+          {
+            "name": "Roof01 petal 1 shell and light channels",
+            "heightM": 2.28,
+            "angleDegrees": 212.62499999999997,
+            "minimumRoofClearanceM": 0.6647167205810547,
+            "maxRadiusM": 2.7038303502392105
+          },
+          {
+            "name": "Roof01 petal 2 shell and light channels",
+            "heightM": 2.28,
+            "angleDegrees": 332.625,
+            "minimumRoofClearanceM": 0.6647233963012695,
+            "maxRadiusM": 2.7038303653465174
+          },
+          {
+            "name": "Roof01 petal 3 shell and light channels",
+            "heightM": 2.28,
+            "angleDegrees": 92.62499999999994,
+            "minimumRoofClearanceM": 0.6647186279296875,
+            "maxRadiusM": 2.7038304958292434
+          }
+        ],
+        "maxPetalRadiusM": 2.7038304958292434,
+        "entranceAngleDegrees": 152.625,
+        "stairOpeningBoundaryDegrees": 115.25,
+        "angularGapsDegrees": [
+          120,
+          120,
+          120
+        ]
+      },
+      "console": {
+        "tiltFromHorizontalDegrees": 48,
+        "frontHeightM": 0.68,
+        "rearHeightM": 1.2130940071180125,
+        "screenRadiiM": [
+          5.34,
+          5.82
+        ],
+        "operatorRadiusM": 5.08,
+        "referenceHeightM": 1.2,
+        "primaryControlReachM": 0.33952415734346586,
+        "primaryControlHeightM": 0.7439712808541614,
+        "minimumRoofClearanceM": 0.748748779296875,
+        "operatorHeadroomM": 2.1466760635375977,
+        "readableInterface": true
+      },
+      "route": {
+        "widthM": 0.9,
+        "minimumHeadroomM": 2.258342742919922,
+        "samples": 93
+      },
+      "lighting": {
+        "staticEverydayLighting": true,
+        "architecturalLampsUnchanged": false,
+        "arrivalAnimation": false
+      },
+      "newMeshAssemblies": 6,
+      "materialPrimitives": 20,
+      "triangles": 74092,
+      "scope": "Roof-only refinement: 120-degree equal petals, centred steps, reachable raised console, patterned emission. All architectural lamps and other floors exact."
+    },
+    "verification": {
+      "passed": true,
+      "candidateSHA256": "03a315c0ac276d9d28cbd26c0d19a4da5d493e5e0ac5492514762b8a6a39aaac",
+      "originalBinaryPreserved": true,
+      "unchangedBodyAndOtherFloorMeshes": 331,
+      "replacedOnlyOpticalNodes": 20,
+      "changedRoofExclusiveMaterials": [
+        "Roof fine turquoise halo",
+        "Roof01 radial luminous crystal",
+        "Roof01 cyan light channel.001",
+        "Roof01 soft warm-white concealed light.001"
+      ],
+      "newLightingMeshes": 20,
+      "fourWarmRingWidthsM": {
+        "roof_integrated_inner_light": 0.045000237857432346,
+        "roof_integrated_perimeter_light": 0.05500045555562583,
+        "roof_integrated_ceiling_light": 0.0750002736792279,
+        "roof_lighting_upper_cove": 0.06500049209982262
+      },
+      "sixFaceGeometricWidthFractions": [
+        0.4279262729735466,
+        0.4279262729735466,
+        0.4279262358664936,
+        0.4279262346767677,
+        0.42792624952982716,
+        0.4279262495298272
+      ],
+      "sixFaceVisibleBrightWidthFractions": [
+        0.3410037487757949,
+        0.3410037487757949,
+        0.34100371920611205,
+        0.34100371825804926,
+        0.341003730094081,
+        0.3410037300940811
+      ],
+      "outsideToInsideEmissionRatio": 0.3333333554091283,
+      "sideToInsideEmissionRatio": 0.050000003311369244,
+      "luminousDiscFaceRGBA": [
+        142,
+        220,
+        230,
+        255
+      ],
+      "luminousDiscCentreRGBA": [
+        232,
+        253,
+        255,
+        255
+      ],
+      "allNewLightsBuildingOwned": true,
+      "animations": false
+    },
+    "status": "Local emission-zoning review candidate; not automatically confirmed",
+    "lightingMeasurements": {
+      "floorHeightM": 9.899999618530273,
+      "rings": [
+        {
+          "name": "outer floor shoulder",
+          "radiusM": 5.24,
+          "widthM": 0.055,
+          "washHalfWidthM": 0.55,
+          "ceiling": false,
+          "maxSurfaceOffsetM": 0.002
+        },
+        {
+          "name": "inner portal approach",
+          "radiusM": 2.82,
+          "widthM": 0.045,
+          "washHalfWidthM": 0.36,
+          "ceiling": false,
+          "maxSurfaceOffsetM": 0.002
+        },
+        {
+          "name": "skylight shoulder halo",
+          "radiusM": 3.85,
+          "widthM": 0.075,
+          "washHalfWidthM": 0.6,
+          "ceiling": true,
+          "maxSurfaceOffsetM": 0.002
+        },
+        {
+          "name": "upper perimeter cove",
+          "radiusM": 5.23,
+          "widthM": 0.065,
+          "washHalfWidthM": 0.6,
+          "ceiling": true,
+          "maxSurfaceOffsetM": 0.002
+        }
+      ],
+      "petalVeinMaximumWidthM": 0.6776534342805781,
+      "minimumVeinRoofClearanceM": 0.7173566818237305,
+      "localMaskWidthFraction": 0.43,
+      "mainBrightWidthFraction": 0.33540000000000003,
+      "outerToInnerEmissionRatio": 0.3333333333333333,
+      "sideToInnerEmissionRatio": 0.049999999999999996,
+      "newMeshes": 20,
+      "triangles": 62980,
+      "lighting": "Asset-local emissive diffusers and feathered baked surface wash; no viewer or runtime changes",
+      "animations": false
+    },
+    "storageVerification": {
+      "renderInputsPreserved": true,
+      "sourceSHA256": "3ba23556a7190b6fb177f7666d466f1772900f1751edad3ca0bb7c7520d188fc",
+      "sharedResources": 315,
+      "reusedResources": 305,
+      "newResources": 10
+    }
+  },
+  "roofGlassRepair": {
+    "scope": "Axial bore closure and local normals only; original dome positions, materials and every other mesh retained.",
+    "verification": {
+      "passed": true,
+      "candidateSHA256": "b5c09acda4381724ea15032475de32c0c510ac7cb51be037f7bd5ff8a0cdf91b",
+      "centreSurfaceHeightsM": [
+        13.356000900268555,
+        13.41200065612793
+      ],
+      "glassThicknessAtCentreM": 0.055999755859375,
+      "originalHoleDiameterM": 0.0060503,
+      "allOriginalDomeVertexPositionsUnchanged": true,
+      "normalsOutsideCentreUnchanged": true,
+      "changedCentralNormals": 512,
+      "newCentreVertices": 2,
+      "manifoldEdgeIncidence": 2,
+      "eulerCharacteristic": 2,
+      "unchangedOtherMeshNodes": 350,
+      "allMaterialsAndTexturesUnchanged": true,
+      "glassFloorCutawayAndFurniturePropertiesUnchanged": true
+    },
+    "storage": {
+      "sourceSHA256": "166bc28b99be25380c227c648af9c35dbccf1ada52f0a1b9af68a7d1a9b6ea45",
+      "renderInputsPreserved": true,
+      "reusedResources": 304,
+      "newResources": 1
+    },
+    "status": "Local review candidate; not automatically confirmed"
+  },
+  "lightingWorking": {
+    "order": [
+      "stair",
+      "ceiling",
+      "local"
+    ],
+    "measurements": {
+      "stair1": {
+        "radius": 4.650029032689778,
+        "angles": [
+          0.4677710894524365,
+          2.6738366716030333
+        ],
+        "railToDiffuserM": 0.0504806366642081,
+        "lights": 6
+      },
+      "stair2": {
+        "radius": 4.650028973069503,
+        "angles": [
+          0.4677712744146524,
+          2.0106488827872813
+        ],
+        "railToDiffuserM": 0.05041070156890215,
+        "lights": 6
+      },
+      "stair3": {
+        "radius": 4.650028973069503,
+        "angles": [
+          0.46777136661268065,
+          2.0106488827872813
+        ],
+        "railToDiffuserM": 0.050410561585152225,
+        "lights": 6
+      },
+      "ceiling1": {
+        "center": [
+          -0.2800000011920929,
+          -0.6500000357627869,
+          4.059999465942383
+        ],
+        "tableTop": 0.7950000166893005,
+        "diameterM": 1.8,
+        "thicknessM": 0.03,
+        "downlights": 4,
+        "downlightLayout": "Four equal angles at radius 2.65 m around main fixture; see perimeterCeilingLighting"
+      },
+      "ceiling2": {
+        "center": [
+          0.0,
+          -0.8500000238418579,
+          6.860000133514404
+        ],
+        "tableTop": 5.205240249633789,
+        "diameterM": 1.8,
+        "thicknessM": 0.03,
+        "downlights": 4,
+        "downlightLayout": "Four equal angles at radius 2.65 m around main fixture; see perimeterCeilingLighting"
+      },
+      "ceiling3": {
+        "center": [
+          0.20000001788139343,
+          -1.100000023841858,
+          9.65999984741211
+        ],
+        "tableTop": 7.648799896240234,
+        "diameterM": 1.8,
+        "thicknessM": 0.06,
+        "downlights": 4
+      },
+      "plant0": {
+        "target": [
+          -7.6322832107543945,
+          1.9887678623199463,
+          1.2769999504089355
+        ],
+        "ceiling": [
+          -7.100055195117108,
+          1.850083546801585,
+          4.060000419616699
+        ]
+      },
+      "plant1": {
+        "target": [
+          -7.142000675201416,
+          -3.0910277366638184,
+          1.3249999284744263
+        ],
+        "ceiling": [
+          -6.637246143163552,
+          -2.872572106415393,
+          4.059999942779541
+        ]
+      },
+      "readingLamp": {
+        "tableBounds": [
+          [
+            4.75,
+            4.900000095367432,
+            7.121000289916992
+          ],
+          [
+            5.550000190734863,
+            5.700000286102295,
+            7.687999725341797
+          ]
+        ],
+        "base": [
+          5.380000095367432,
+          5.400000190734863,
+          7.688999725341797
+        ],
+        "heightM": 0.37
+      },
+      "shelf": {
+        "radius": 7.712343661282559,
+        "angles": [
+          0.9196187048927752,
+          2.221974009553928
+        ],
+        "height": 8.2693505859375
+      }
+    },
+    "status": "unconfirmed working draft; no published revision allocated",
+    "fixtureData": "GLB node extras design_lights in local node coordinates"
+  },
+  "doubleCeilingRings": {
+    "rings": [
+      {
+        "floor": 3,
+        "radiusM": 1.65,
+        "centerXZ": [
+          0,
+          1.35
+        ],
+        "ceilingY": 9.66,
+        "widthM": 0.035,
+        "supportSamples": 192
+      },
+      {
+        "floor": 3,
+        "radiusM": 3.25,
+        "centerXZ": [
+          0,
+          1.35
+        ],
+        "ceilingY": 9.66,
+        "widthM": 0.045,
+        "supportSamples": 192
+      }
+    ],
+    "railWidthM": 0.028,
+    "railInwardLipM": 0.028,
+    "bounce": "Asset-local baked warm ceiling reflection plus upward fill; original surface geometry retained",
+    "status": "L3 retained exactly; L1/L2 replaced by perimeterCeilingLighting",
+    "supersededFloors": [
+      1,
+      2
+    ]
+  },
+  "perimeterCeilingLighting": {
+    "floors": [
+      {
+        "floor": 2,
+        "ceilingY": 6.86,
+        "outerContourVertices": 512,
+        "perimeterInsetM": 0.16,
+        "stripWidthM": 0.036,
+        "stripSurfaceGapM": 0.006,
+        "sharedCenterXZ": [
+          0,
+          0.85
+        ],
+        "innerRadiusM": 1.65,
+        "downlightRadiusM": 2.65,
+        "downlightAnglesDeg": [
+          45,
+          135,
+          225,
+          315
+        ],
+        "fixtureThicknessM": 0.03,
+        "supportChecksPassed": true
+      },
+      {
+        "floor": 1,
+        "ceilingY": 4.06,
+        "outerContourVertices": 512,
+        "perimeterInsetM": 0.16,
+        "stripWidthM": 0.036,
+        "stripSurfaceGapM": 0.006,
+        "sharedCenterXZ": [
+          -0.28,
+          0.65
+        ],
+        "innerRadiusM": 1.65,
+        "downlightRadiusM": 2.65,
+        "downlightAnglesDeg": [
+          45,
+          135,
+          225,
+          315
+        ],
+        "fixtureThicknessM": 0.03,
+        "supportChecksPassed": true
+      }
+    ],
+    "retained": "All L3 nodes/materials/geometry, stair/handrail lighting and furniture unchanged",
+    "status": "unconfirmed review candidate"
+  },
+  "completeLightingCoverage": {
+    "plants": [
+      {
+        "plant": "L1 coffee table arrangement",
+        "floor": 1,
+        "kind": "table",
+        "lamp": "Working L1 circular opal ceiling diffuser",
+        "mount": [
+          -0.2800000049173832,
+          4.01,
+          0.6500000059604645
+        ],
+        "target": [
+          -0.2800000049173832,
+          1.2149999916553498,
+          0.6500000059604645
+        ],
+        "owner": "existing central main lamp"
+      },
+      {
+        "plant": "L1 broadleaf corner",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "L1 dedicated plant lamp 2",
+        "mount": [
+          0.031397213709679926,
+          4.059999942779541,
+          -7.1162118333033035
+        ],
+        "target": [
+          0.03360322646302871,
+          1.4159999656677247,
+          -7.616206966787352
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_plant:9",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "L1 dedicated plant lamp 3",
+        "mount": [
+          6.674981811270825,
+          4.059999942779541,
+          2.9018699495837956
+        ],
+        "target": [
+          7.133524275765876,
+          1.7759999996900264,
+          3.101215900771182
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_plant:10",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "L1 dedicated plant lamp 4",
+        "mount": [
+          4.591660793523679,
+          4.059999942779541,
+          -5.6692708879796925
+        ],
+        "target": [
+          4.906353098136787,
+          1.7759999996900264,
+          -6.057817865084509
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_plant:11",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "L1 dedicated plant lamp 5",
+        "mount": [
+          -4.591660793523679,
+          4.059999942779541,
+          -5.6692708879796925
+        ],
+        "target": [
+          -4.906353098136787,
+          1.7759999996900264,
+          -6.057817865084509
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_plant:12",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "Working plant accent 1 adjustable opal face",
+        "mount": [
+          -6.674981811270825,
+          4.05999994277954,
+          2.9018699495837956
+        ],
+        "target": [
+          -7.133524275765876,
+          1.7759999996900264,
+          3.101215900771182
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_fineleaf:19",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "Working plant accent 0 adjustable opal face",
+        "mount": [
+          -7.138840248622116,
+          4.059999942779541,
+          -1.8832749848268147
+        ],
+        "target": [
+          -7.622300211027435,
+          1.4606400031596423,
+          -2.010815036383366
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:1:part:floor_fineleaf:20",
+        "floor": 1,
+        "kind": "floor",
+        "lamp": "L1 dedicated plant lamp 8",
+        "mount": [
+          7.138840248622116,
+          4.059999942779541,
+          -1.8832749848268147
+        ],
+        "target": [
+          7.622300211027435,
+          1.4606400031596423,
+          -2.010815036383366
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:2:part:floor_plant:1",
+        "floor": 2,
+        "kind": "floor",
+        "lamp": "L2 dedicated plant lamp 9",
+        "mount": [
+          -5.233046157061636,
+          6.860000133514404,
+          -5.243970090467442
+        ],
+        "target": [
+          -5.586230720789185,
+          5.451280121821016,
+          -5.59789192356704
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:2:part:floor_plant:2",
+        "floor": 2,
+        "kind": "floor",
+        "lamp": "L2 dedicated plant lamp 10",
+        "mount": [
+          5.230377673845336,
+          6.860000133514405,
+          -5.24388296301167
+        ],
+        "target": [
+          5.583474906695589,
+          5.451280121821016,
+          -5.59789192356704
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:2:part:floor_plant:3",
+        "floor": 2,
+        "kind": "floor",
+        "lamp": "L2 dedicated plant lamp 11",
+        "mount": [
+          -5.232220808624309,
+          6.860000133514404,
+          5.2187174251366955
+        ],
+        "target": [
+          -5.586230720789185,
+          5.451280121821016,
+          5.571813703917733
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "plant": "layout:central:2:part:floor_plant:4",
+        "floor": 2,
+        "kind": "floor",
+        "lamp": "L2 dedicated plant lamp 12",
+        "mount": [
+          5.229552121750027,
+          6.860000133514405,
+          5.218630094025685
+        ],
+        "target": [
+          5.583474906695589,
+          5.451280121821016,
+          5.571813703917733
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "plant": "building:central:part:shared_niche_front_fern_59886e72dc:1",
+        "floor": 1,
+        "kind": "niche",
+        "lamp": "L1 dedicated plant lamp 13",
+        "mount": [
+          -2.2094061394766347,
+          2.6192154535117345,
+          -2.162538799891352
+        ],
+        "target": [
+          -2.2094061394766347,
+          2.0272800588607787,
+          -2.162538799891352
+        ],
+        "owner": "L1 inner sofa background opening returns and top"
+      },
+      {
+        "plant": "building:central:part:shared_niche_front_fern_59886e72dc:2",
+        "floor": 1,
+        "kind": "niche",
+        "lamp": "L1 dedicated plant lamp 14",
+        "mount": [
+          -2.1045056729223717,
+          2.01200008392334,
+          -4.151096641969351
+        ],
+        "target": [
+          -2.1045056729223717,
+          1.5596799755096435,
+          -4.151096641969351
+        ],
+        "owner": "L1 outer hallway display opening returns and top"
+      },
+      {
+        "plant": "L1 tall niche vase and branches",
+        "floor": 1,
+        "kind": "niche",
+        "lamp": "L1 dedicated plant lamp 15",
+        "mount": [
+          -3.4094172716140747,
+          3.011503704145311,
+          -1.8558525443077087
+        ],
+        "target": [
+          -3.4094172716140747,
+          2.008879997730255,
+          -1.8558525443077087
+        ],
+        "owner": "L1 high-end vertical display opening returns and top"
+      }
+    ],
+    "plantCounts": {
+      "1": 11,
+      "2": 4,
+      "3": 0
+    },
+    "floorPlantCounts": {
+      "1": 7,
+      "2": 4,
+      "3": 0
+    },
+    "regional": [
+      {
+        "floor": 1,
+        "index": 0,
+        "position": [
+          4.93991935868877,
+          4.059999942779541,
+          2.812161392862757
+        ],
+        "normal": [
+          -0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 1,
+        "position": [
+          1.8821613928627576,
+          4.059999942779541,
+          5.869919358688771
+        ],
+        "normal": [
+          -0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 2,
+        "position": [
+          -2.442161392862757,
+          4.059999942779541,
+          5.869919358688771
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 3,
+        "position": [
+          -5.4999193586887705,
+          4.059999942779541,
+          2.812161392862758
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 4,
+        "position": [
+          -5.499919358688772,
+          4.059999942779541,
+          -1.5121613928627542
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 5,
+        "position": [
+          -2.442161392862756,
+          4.059999942779541,
+          -4.569919358688771
+        ],
+        "normal": [
+          -0.0,
+          -1.0,
+          -0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 6,
+        "position": [
+          1.8821613928627585,
+          4.059999942779541,
+          -4.56991935868877
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 1,
+        "index": 7,
+        "position": [
+          4.939919358688771,
+          4.059999942779541,
+          -1.5121613928627564
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L2 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 0,
+        "position": [
+          5.21991935868877,
+          6.860000133514405,
+          3.0121613928627573
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 1,
+        "position": [
+          2.1621613928627577,
+          6.860000133514404,
+          6.06991935868877
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 2,
+        "position": [
+          -2.162161392862757,
+          6.860000133514404,
+          6.06991935868877
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 3,
+        "position": [
+          -5.21991935868877,
+          6.860000133514403,
+          3.012161392862758
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 4,
+        "position": [
+          -5.219919358688772,
+          6.860000133514405,
+          -1.312161392862754
+        ],
+        "normal": [
+          -0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 5,
+        "position": [
+          -2.162161392862756,
+          6.860000133514404,
+          -4.3699193586887715
+        ],
+        "normal": [
+          -0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 6,
+        "position": [
+          2.1621613928627585,
+          6.860000133514404,
+          -4.369919358688771
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      },
+      {
+        "floor": 2,
+        "index": 7,
+        "position": [
+          5.219919358688771,
+          6.860000133514404,
+          -1.3121613928627562
+        ],
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "owner": "Central L3 complete slab with stair opening"
+      }
+    ],
+    "columns": [
+      {
+        "floor": 3,
+        "position": [
+          -4.95,
+          11.009595666931524,
+          -4.95
+        ],
+        "normal": [
+          -0.40837904224367194,
+          -0.8138241427070891,
+          -0.4134208782865381
+        ],
+        "target": [
+          -5.58,
+          8.65,
+          -5.58
+        ],
+        "owner": "Central L4 round arrival floor with continuous rising surround"
+      },
+      {
+        "floor": 3,
+        "position": [
+          4.95,
+          11.009595755637744,
+          -4.95
+        ],
+        "normal": [
+          0.4083768124074495,
+          -0.8138241150526728,
+          -0.4134231353548863
+        ],
+        "target": [
+          5.58,
+          8.65,
+          -5.58
+        ],
+        "owner": "Central L4 round arrival floor with continuous rising surround"
+      },
+      {
+        "floor": 3,
+        "position": [
+          -4.95,
+          10.977230966251014,
+          4.95
+        ],
+        "normal": [
+          -0.4181909251919001,
+          -0.808995590323185,
+          0.4130889552200395
+        ],
+        "target": [
+          -5.58,
+          8.65,
+          5.58
+        ],
+        "owner": "Central L4 round arrival floor with continuous rising surround"
+      },
+      {
+        "floor": 3,
+        "position": [
+          4.95,
+          10.977230927946383,
+          4.95
+        ],
+        "normal": [
+          0.4181899328531368,
+          -0.8089956023563101,
+          0.4130899362468663
+        ],
+        "target": [
+          5.58,
+          8.65,
+          5.58
+        ],
+        "owner": "Central L4 round arrival floor with continuous rising surround"
+      }
+    ],
+    "thirdFloorReadingReference": "layout_central_3_v018",
+    "architectureAndFurniture": "unchanged; only fixture nodes and L1/L2 ceiling light textures updated",
+    "status": "unconfirmed review candidate"
+  },
+  "stairEdgeLighting": {
+    "treadCounts": [
+      26,
+      18,
+      18
+    ],
+    "sideStrips": 6,
+    "lensHeightMetres": 0.012,
+    "sideLensWidthMetres": 0.024,
+    "sideLensReturnMetres": 0.008,
+    "sideEmission": "upward toward upper handrail",
+    "records": [
+      {
+        "floor": 1,
+        "tread": 1,
+        "owner": "Public stair L1 tread 1",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.27605160624878095,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.955982031249149
+      },
+      {
+        "floor": 1,
+        "tread": 2,
+        "owner": "Public stair L1 tread 2",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.3789935340610333,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9423591995390291
+      },
+      {
+        "floor": 1,
+        "tread": 3,
+        "owner": "Public stair L1 tread 3",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.43681329841257993,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9347076144558705
+      },
+      {
+        "floor": 1,
+        "tread": 4,
+        "owner": "Public stair L1 tread 4",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.340507713144869,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.4181117706649834
+      },
+      {
+        "floor": 1,
+        "tread": 5,
+        "owner": "Public stair L1 tread 5",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 3.915952856635827,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.4742952858259281
+      },
+      {
+        "floor": 1,
+        "tread": 6,
+        "owner": "Public stair L1 tread 6",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.6341176213083645,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9085973244738276
+      },
+      {
+        "floor": 1,
+        "tread": 7,
+        "owner": "Public stair L1 tread 7",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.24631826432176473,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9599167964304457
+      },
+      {
+        "floor": 1,
+        "tread": 8,
+        "owner": "Public stair L1 tread 8",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.5889053325030367,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6499102706702273
+      },
+      {
+        "floor": 1,
+        "tread": 9,
+        "owner": "Public stair L1 tread 9",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.582445127424961,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.38609495546476486
+      },
+      {
+        "floor": 1,
+        "tread": 10,
+        "owner": "Public stair L1 tread 10",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.4546022809261574,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.800018393845162
+      },
+      {
+        "floor": 1,
+        "tread": 11,
+        "owner": "Public stair L1 tread 11",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.8797132370761714,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8760964007642006
+      },
+      {
+        "floor": 1,
+        "tread": 12,
+        "owner": "Public stair L1 tread 12",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.900198417299495,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.7410503785233141
+      },
+      {
+        "floor": 1,
+        "tread": 13,
+        "owner": "Public stair L1 tread 13",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 5.4859369867973955,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.266531257627851
+      },
+      {
+        "floor": 1,
+        "tread": 14,
+        "owner": "Public stair L1 tread 14",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.651187330488281,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6416681753922914
+      },
+      {
+        "floor": 1,
+        "tread": 15,
+        "owner": "Public stair L1 tread 15",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.030336435911668277,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9884987762262848
+      },
+      {
+        "floor": 1,
+        "tread": 16,
+        "owner": "Public stair L1 tread 16",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.0,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9925133519185452
+      },
+      {
+        "floor": 1,
+        "tread": 17,
+        "owner": "Public stair L1 tread 17",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 3.7397177582720107,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.49761737758629715
+      },
+      {
+        "floor": 1,
+        "tread": 18,
+        "owner": "Public stair L1 tread 18",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 3.6431669058877327,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.5103944456036988
+      },
+      {
+        "floor": 1,
+        "tread": 19,
+        "owner": "Public stair L1 tread 19",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.3597385066225066,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9449073157822683
+      },
+      {
+        "floor": 1,
+        "tread": 20,
+        "owner": "Public stair L1 tread 20",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.0,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.992513351918545
+      },
+      {
+        "floor": 1,
+        "tread": 21,
+        "owner": "Public stair L1 tread 21",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.2313416748644332,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6972284979191797
+      },
+      {
+        "floor": 1,
+        "tread": 22,
+        "owner": "Public stair L1 tread 22",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.549931760231099,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.39039761560553005
+      },
+      {
+        "floor": 1,
+        "tread": 23,
+        "owner": "Public stair L1 tread 23",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.201853251050996,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.833465965423235
+      },
+      {
+        "floor": 1,
+        "tread": 24,
+        "owner": "Public stair L1 tread 24",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.0,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9925133519185436
+      },
+      {
+        "floor": 1,
+        "tread": 25,
+        "owner": "Public stair L1 tread 25",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.5822473542348602,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9154615821588992
+      },
+      {
+        "floor": 1,
+        "tread": 26,
+        "owner": "Public stair L1 tread 26",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.550543736612918,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.39031662964152825
+      },
+      {
+        "floor": 1,
+        "side": "inner",
+        "owner": "L1 enclosed tread-facing cheek walls and underside",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.016267602606451336
+      },
+      {
+        "floor": 1,
+        "side": "outer",
+        "owner": "L1 enclosed tread-facing cheek walls and underside",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.020915691904709065
+      },
+      {
+        "floor": 2,
+        "tread": 1,
+        "owner": "Public stair L2 tread 1",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.4664099615373293,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9307909366793972
+      },
+      {
+        "floor": 2,
+        "tread": 2,
+        "owner": "Public stair L2 tread 2",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.45123607747437705,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9327989743504562
+      },
+      {
+        "floor": 2,
+        "tread": 3,
+        "owner": "Public stair L2 tread 3",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.8713741640321193,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6125297257644345
+      },
+      {
+        "floor": 2,
+        "tread": 4,
+        "owner": "Public stair L2 tread 4",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.631436568692678,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.37961166751970576
+      },
+      {
+        "floor": 2,
+        "tread": 5,
+        "owner": "Public stair L2 tread 5",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.029890954627554,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8562226154534812
+      },
+      {
+        "floor": 2,
+        "tread": 6,
+        "owner": "Public stair L2 tread 6",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.4665613396232016,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6661006768649296
+      },
+      {
+        "floor": 2,
+        "tread": 7,
+        "owner": "Public stair L2 tread 7",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.46106588495187,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.4021576913048044
+      },
+      {
+        "floor": 2,
+        "tread": 8,
+        "owner": "Public stair L2 tread 8",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.9963227431605198,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8606648685309546
+      },
+      {
+        "floor": 2,
+        "tread": 9,
+        "owner": "Public stair L2 tread 9",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.76181494351729,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6270282576560023
+      },
+      {
+        "floor": 2,
+        "tread": 10,
+        "owner": "Public stair L2 tread 10",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 5.057278704636377,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.3232578000885549
+      },
+      {
+        "floor": 2,
+        "tread": 11,
+        "owner": "Public stair L2 tread 11",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.07076080608787,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8508140990181088
+      },
+      {
+        "floor": 2,
+        "tread": 12,
+        "owner": "Public stair L2 tread 12",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.323945791174502,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6849737216684652
+      },
+      {
+        "floor": 2,
+        "tread": 13,
+        "owner": "Public stair L2 tread 13",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.507208055590299,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.39605146191211926
+      },
+      {
+        "floor": 2,
+        "tread": 14,
+        "owner": "Public stair L2 tread 14",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.0755581618601124,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8501792403970616
+      },
+      {
+        "floor": 2,
+        "tread": 15,
+        "owner": "Public stair L2 tread 15",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.2586054917914176,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6936205376092743
+      },
+      {
+        "floor": 2,
+        "tread": 16,
+        "owner": "Public stair L2 tread 16",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.529798267749999,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.3930619836199626
+      },
+      {
+        "floor": 2,
+        "tread": 17,
+        "owner": "Public stair L2 tread 17",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.116326475189432,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8447841610217882
+      },
+      {
+        "floor": 2,
+        "tread": 18,
+        "owner": "Public stair L2 tread 18",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.1930321469962495,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.7022981936411631
+      },
+      {
+        "floor": 2,
+        "side": "inner",
+        "owner": "Public stair L2 low screen 3.18",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.011031486195554333
+      },
+      {
+        "floor": 2,
+        "side": "outer",
+        "owner": "Public stair L2 low screen 4.65",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.01483033199578445
+      },
+      {
+        "floor": 3,
+        "tread": 1,
+        "owner": "Public stair L3 tread 1",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.3949758853362453,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.9402441732676029
+      },
+      {
+        "floor": 3,
+        "tread": 2,
+        "owner": "Public stair L3 tread 2",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.7064220305468603,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8990289122642564
+      },
+      {
+        "floor": 3,
+        "tread": 3,
+        "owner": "Public stair L3 tread 3",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 3.4468016225183993,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.5363804676833428
+      },
+      {
+        "floor": 3,
+        "tread": 4,
+        "owner": "Public stair L3 tread 4",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 5.30175326247044,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.2909052317079293
+      },
+      {
+        "floor": 3,
+        "tread": 5,
+        "owner": "Public stair L3 tread 5",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.446413510644848,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.801102055690494
+      },
+      {
+        "floor": 3,
+        "tread": 6,
+        "owner": "Public stair L3 tread 6",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.526160310038587,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6582136403452137
+      },
+      {
+        "floor": 3,
+        "tread": 7,
+        "owner": "Public stair L3 tread 7",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.459823747162141,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.4023220697503015
+      },
+      {
+        "floor": 3,
+        "tread": 8,
+        "owner": "Public stair L3 tread 8",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 0.9962456255354113,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8606750739006331
+      },
+      {
+        "floor": 3,
+        "tread": 9,
+        "owner": "Public stair L3 tread 9",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.3890253871651135,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6763614059407126
+      },
+      {
+        "floor": 3,
+        "tread": 10,
+        "owner": "Public stair L3 tread 10",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.483213061928528,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.3992268421239204
+      },
+      {
+        "floor": 3,
+        "tread": 11,
+        "owner": "Public stair L3 tread 11",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.0355126364245,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8554786695543203
+      },
+      {
+        "floor": 3,
+        "tread": 12,
+        "owner": "Public stair L3 tread 12",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.3239443005253495,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6849739189336901
+      },
+      {
+        "floor": 3,
+        "tread": 13,
+        "owner": "Public stair L3 tread 13",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.5072108786138205,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.3960510883269809
+      },
+      {
+        "floor": 3,
+        "tread": 14,
+        "owner": "Public stair L3 tread 14",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.0755607943794834,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8501788920223116
+      },
+      {
+        "floor": 3,
+        "tread": 15,
+        "owner": "Public stair L3 tread 15",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.258606674579063,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.6936203810849368
+      },
+      {
+        "floor": 3,
+        "tread": 16,
+        "owner": "Public stair L3 tread 16",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 4.52980004746533,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.39306174810113204
+      },
+      {
+        "floor": 3,
+        "tread": 17,
+        "owner": "Public stair L3 tread 17",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 1.1163252029669621,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.8447843293814933
+      },
+      {
+        "floor": 3,
+        "tread": 18,
+        "owner": "Public stair L3 tread 18",
+        "surfaceOffset": 0.001,
+        "topInset": 0.025,
+        "baselineIlluminance": 2.193032650148366,
+        "correctedIlluminance": 7.5,
+        "lampIntensity": 0.7022981270564705
+      },
+      {
+        "floor": 3,
+        "side": "inner",
+        "owner": "Public stair L3 low screen 3.18",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.011031486380608767
+      },
+      {
+        "floor": 3,
+        "side": "outer",
+        "owner": "Public stair L3 low screen 4.65",
+        "samples": 513,
+        "surfaceOffset": 0.003,
+        "upwardLightSources": 3,
+        "topCapMounted": true,
+        "maxSegmentLength": 0.01483033199578445
+      }
+    ],
+    "status": "unconfirmed review candidate"
+  },
+  "stairLowGlareDraft": {
+    "temperatureKelvin": 3000,
+    "lightPowerScale": 0.18,
+    "srgb": [
+      1,
+      0.6949030005552019,
+      0.4310480202110507
+    ],
+    "linear": [
+      1.0,
+      0.44076420335141947,
+      0.15567688220471093
+    ],
+    "newInnerHandrailNodes": [
+      "Working L1 inner handrail concealed diffuser",
+      "L1 inner handrail continuous outward luminous edge",
+      "Working L2 inner handrail concealed diffuser",
+      "L2 inner handrail continuous outward luminous edge",
+      "Working L3 inner handrail concealed diffuser",
+      "L3 inner handrail continuous outward luminous edge"
+    ],
+    "changedLightingNodes": [
+      "Working L1 outer handrail concealed diffuser",
+      "Working L2 outer handrail concealed diffuser",
+      "Working L3 outer handrail concealed diffuser",
+      "L1 handrail continuous inward luminous edge",
+      "L2 handrail continuous inward luminous edge",
+      "L3 handrail continuous inward luminous edge",
+      "L1 tread 1 concealed front edge",
+      "L1 tread 2 concealed front edge",
+      "L1 tread 3 concealed front edge",
+      "L1 tread 4 concealed front edge",
+      "L1 tread 5 concealed front edge",
+      "L1 tread 6 concealed front edge",
+      "L1 tread 7 concealed front edge",
+      "L1 tread 8 concealed front edge",
+      "L1 tread 9 concealed front edge",
+      "L1 tread 10 concealed front edge",
+      "L1 tread 11 concealed front edge",
+      "L1 tread 12 concealed front edge",
+      "L1 tread 13 concealed front edge",
+      "L1 tread 14 concealed front edge",
+      "L1 tread 15 concealed front edge",
+      "L1 tread 16 concealed front edge",
+      "L1 tread 17 concealed front edge",
+      "L1 tread 18 concealed front edge",
+      "L1 tread 19 concealed front edge",
+      "L1 tread 20 concealed front edge",
+      "L1 tread 21 concealed front edge",
+      "L1 tread 22 concealed front edge",
+      "L1 tread 23 concealed front edge",
+      "L1 tread 24 concealed front edge",
+      "L1 tread 25 concealed front edge",
+      "L1 tread 26 concealed front edge",
+      "L1 inner sloping side concealed edge",
+      "L1 outer sloping side concealed edge",
+      "L2 tread 1 concealed front edge",
+      "L2 tread 2 concealed front edge",
+      "L2 tread 3 concealed front edge",
+      "L2 tread 4 concealed front edge",
+      "L2 tread 5 concealed front edge",
+      "L2 tread 6 concealed front edge",
+      "L2 tread 7 concealed front edge",
+      "L2 tread 8 concealed front edge",
+      "L2 tread 9 concealed front edge",
+      "L2 tread 10 concealed front edge",
+      "L2 tread 11 concealed front edge",
+      "L2 tread 12 concealed front edge",
+      "L2 tread 13 concealed front edge",
+      "L2 tread 14 concealed front edge",
+      "L2 tread 15 concealed front edge",
+      "L2 tread 16 concealed front edge",
+      "L2 tread 17 concealed front edge",
+      "L2 tread 18 concealed front edge",
+      "L2 inner sloping side concealed edge",
+      "L2 outer sloping side concealed edge",
+      "L3 tread 1 concealed front edge",
+      "L3 tread 2 concealed front edge",
+      "L3 tread 3 concealed front edge",
+      "L3 tread 4 concealed front edge",
+      "L3 tread 5 concealed front edge",
+      "L3 tread 6 concealed front edge",
+      "L3 tread 7 concealed front edge",
+      "L3 tread 8 concealed front edge",
+      "L3 tread 9 concealed front edge",
+      "L3 tread 10 concealed front edge",
+      "L3 tread 11 concealed front edge",
+      "L3 tread 12 concealed front edge",
+      "L3 tread 13 concealed front edge",
+      "L3 tread 14 concealed front edge",
+      "L3 tread 15 concealed front edge",
+      "L3 tread 16 concealed front edge",
+      "L3 tread 17 concealed front edge",
+      "L3 tread 18 concealed front edge",
+      "L3 inner sloping side concealed edge",
+      "L3 outer sloping side concealed edge",
+      "Working L1 inner handrail concealed diffuser",
+      "L1 inner handrail continuous outward luminous edge",
+      "Working L2 inner handrail concealed diffuser",
+      "L2 inner handrail continuous outward luminous edge",
+      "Working L3 inner handrail concealed diffuser",
+      "L3 inner handrail continuous outward luminous edge"
+    ],
+    "status": "mutable working draft only"
+  },
+  "fourLineVisibilityDraft": {
+    "floor": 1,
+    "temperatureKelvin": 3000,
+    "changedNodes": [
+      "Working L1 outer handrail concealed diffuser",
+      "L1 handrail continuous inward luminous edge",
+      "Working L1 inner handrail concealed diffuser",
+      "L1 inner handrail continuous outward luminous edge",
+      "L1 inner sloping side concealed edge",
+      "L1 outer sloping side concealed edge"
+    ],
+    "upperDiffuserHeightMetres": 0.024,
+    "lowerVisibleReturnHeightMetres": 0.027,
+    "upperEmissiveStrength": 3.2,
+    "lowerEmissiveStrength": 2.8,
+    "lightSourceIntensities": "unchanged",
+    "treadLighting": "unchanged"
+  },
+  "treadDiffuseDraft": {
+    "floor": 1,
+    "treads": 26,
+    "temperatureKelvin": 3000,
+    "removedCentralSpotlights": 26,
+    "method": "embedded diffuse nosing wash on original tread surfaces; unchanged base material, geometry and handrail lighting",
+    "atlasSize": [
+      768,
+      384
+    ]
+  },
+  "treadResidualSpotFix": {
+    "floor": 1,
+    "removedDownwardSpots": 12,
+    "removedFrom": [
+      "Working L1 inner handrail concealed diffuser",
+      "Working L1 outer handrail concealed diffuser"
+    ],
+    "preserved": "all four contour meshes, materials, temperature, emission strength; six lower upward lights",
+    "diffuseProfile": "same across full tread width, identical normalized gradient per step"
+  },
+  "treadWalkingSurfaceFix": {
+    "top": "constant low diffuse emission, no gradient or centre highlight",
+    "riser": "identical full-width nosing falloff on all 26 steps",
+    "temperatureKelvin": 3000
+  },
+  "evenNosingDraft": {
+    "floor": 1,
+    "steps": 26,
+    "temperatureKelvin": 3000,
+    "lensEmissionStrength": 1.6,
+    "verticalLensMm": 18,
+    "visibleReturnMm": 15,
+    "fullWidthUniform": true,
+    "centreSpotlights": 0,
+    "fourRailContours": "unchanged"
+  },
+  "allStairsEvenDraft": {
+    "flights": [
+      {
+        "from": 1,
+        "to": 2,
+        "steps": 26
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "steps": 18
+      },
+      {
+        "from": 3,
+        "to": "roof",
+        "steps": 18
+      }
+    ],
+    "totalSteps": 62,
+    "temperatureKelvin": 3000,
+    "method": "identical full-width recessed diffuser, short visible return and front wash as approved L1; no central spotlights",
+    "handrailContourAppearance": "unchanged",
+    "newNumberedVersions": 0
+  },
+  "upperFloorsFourContoursDraft": {
+    "floors": [
+      2,
+      3
+    ],
+    "temperatureKelvin": 3000,
+    "upperAndLowerMaterials": "same as approved L1",
+    "changedLightingNodes": [
+      "Working L2 inner handrail concealed diffuser",
+      "L2 inner handrail continuous outward luminous edge",
+      "L2 inner sloping side concealed edge",
+      "Working L2 outer handrail concealed diffuser",
+      "L2 handrail continuous inward luminous edge",
+      "L2 outer sloping side concealed edge",
+      "Working L3 inner handrail concealed diffuser",
+      "L3 inner handrail continuous outward luminous edge",
+      "L3 inner sloping side concealed edge",
+      "Working L3 outer handrail concealed diffuser",
+      "L3 handrail continuous inward luminous edge",
+      "L3 outer sloping side concealed edge"
+    ],
+    "all62Treads": "unchanged",
+    "curvedStairwellParapet": "unchanged; proposal only"
+  },
+  "curvedParapetDraft": {
+    "floors": [
+      2,
+      3
+    ],
+    "strips": 4,
+    "temperatureKelvin": 2750,
+    "strength": 0.65,
+    "mounts": [
+      {
+        "floor": 2,
+        "side": "inner",
+        "owner": "Central L2 full stairwell edge 3.1",
+        "radius": 2.99799986436349,
+        "top": 5.150000095367432,
+        "verticalLensMm": 12,
+        "insetBelowCopingMm": 13,
+        "endClearanceMm": 20
+      },
+      {
+        "floor": 2,
+        "side": "outer",
+        "owner": "Central L2 full stairwell edge 4.7",
+        "radius": 4.802000247759805,
+        "top": 5.150000095367432,
+        "verticalLensMm": 12,
+        "insetBelowCopingMm": 13,
+        "endClearanceMm": 20
+      },
+      {
+        "floor": 3,
+        "side": "inner",
+        "owner": "Central L3 full stairwell edge 3.1",
+        "radius": 2.99799986436349,
+        "top": 7.949999809265137,
+        "verticalLensMm": 12,
+        "insetBelowCopingMm": 13,
+        "endClearanceMm": 20
+      },
+      {
+        "floor": 3,
+        "side": "outer",
+        "owner": "Central L3 full stairwell edge 4.7",
+        "radius": 4.802000226015086,
+        "top": 7.949999809265137,
+        "verticalLensMm": 12,
+        "insetBelowCopingMm": 13,
+        "endClearanceMm": 20
+      }
+    ],
+    "allStairRailAndTreadLights": "retained for direct visual comparison",
+    "roof": "unchanged"
+  },
+  "parapetDownwashDraft": {
+    "floors": [
+      2,
+      3
+    ],
+    "temperatureKelvin": 2750,
+    "lensStrength": 0.65,
+    "method": "continuous baked linear diffuse wash on original room-facing wall surfaces",
+    "falloffMetres": 0.24,
+    "changedNodes": [
+      "L2 inner curved stairwell parapet concealed warm edge",
+      "Central L2 full stairwell edge 3.1",
+      "L2 outer curved stairwell parapet concealed warm edge",
+      "Central L2 full stairwell edge 4.7",
+      "L3 inner curved stairwell parapet concealed warm edge",
+      "Central L3 full stairwell edge 3.1",
+      "L3 outer curved stairwell parapet concealed warm edge",
+      "Central L3 full stairwell edge 4.7"
+    ],
+    "all3000KRailsAndTreads": "unchanged"
+  },
+  "colourMaterialTrial": {
+    "changedMaterialIndices": [
+      5,
+      46,
+      2,
+      1
+    ],
+    "viewerAndEnvironment": "Only opt-in V048 surfaces use authored glTF transmission and a soft cyan/lilac/warm reflection environment. Scene illumination and untagged materials unchanged.",
+    "confirmedLighting": "unchanged",
+    "status": "unconfirmed review candidate",
+    "windowEdgeGlow": [
+      "Central L2 fitted reveal quadrant 1",
+      "Central L2 fitted reveal quadrant 2",
+      "Central L2 fitted reveal quadrant 3",
+      "Central L2 fitted reveal quadrant 4",
+      "Central L3 fitted reveal quadrant 1",
+      "Central L3 fitted reveal quadrant 2",
+      "Central L3 fitted reveal quadrant 3",
+      "Central L3 fitted reveal quadrant 4"
+    ],
+    "glassTransmission": [
+      0.94,
+      0
+    ],
+    "glassClarity": "facade thin transparent reflective glazing, skylight physical transmission; retain clear furniture visibility"
+  },
+  "centralPocketDoors": {
+    "beforeSHA256": "6be710b98e54538840a6cf9bb165f3294bffc8e0b726872a7c505f34d186d73f",
+    "afterSHA256": "dfa9b03a447a79d81bf24309457a4a3e87fdea58c4ab35671b462a5876d13d41",
+    "centralWallNode": 41,
+    "modifiedPrimitives": [
+      {
+        "primitive": 0,
+        "cutTriangles": 410,
+        "beforeTriangles": 259386,
+        "afterTriangles": 260238
+      },
+      {
+        "primitive": 1,
+        "cutTriangles": 258,
+        "beforeTriangles": 20018,
+        "afterTriangles": 20566
+      }
+    ],
+    "leafNode": 621,
+    "doorParentNode": 619,
+    "thresholdFinishRaiseM": 0.0015,
+    "wallThicknessM": 0.38,
+    "wallSkinRetainedM": 0.165,
+    "cavityThicknessM": 0.05,
+    "leafThicknessM": 0.045,
+    "sideRunningClearanceM": 0.0025,
+    "leafWidthM": 1.488,
+    "travelM": 1.479,
+    "closedLeafBounds": {
+      "x": [
+        0.726,
+        2.214
+      ],
+      "y": [
+        0.304,
+        2.694
+      ],
+      "z": [
+        -5.5125,
+        -5.4675
+      ]
+    },
+    "cavityBounds": {
+      "x": [
+        -0.88,
+        0.726
+      ],
+      "y": [
+        0.302,
+        2.696
+      ],
+      "z": [
+        -5.515,
+        -5.465
+      ]
+    },
+    "anchor": {
+      "extras": {
+        "module": "M01",
+        "source_name": "ROOM • complete rear door lining",
+        "floor": 1,
+        "glass": false,
+        "section_hide": false
+      },
+      "mesh": 34,
+      "name": "M01 | ROOM • complete rear door lining.001",
+      "rotation": [
+        0.9063078761100769,
+        0,
+        -0.4226183593273163,
+        6.842434885356852e-08
+      ],
+      "scale": [
+        -1,
+        -0.9999999403953552,
+        -1
+      ],
+      "translation": [
+        10.379901885986328,
+        0,
+        8.709772109985352
+      ]
+    },
+    "openingControls": "Whole M01 small-house entrance, including access to its stairs; does not leave the stairs on the public side.",
+    "runtimeTriggerConnected": false,
+    "sourceBytesBefore": 2320988,
+    "sourceBytesAfter": 5757536,
+    "newFormalVersions": 1,
+    "doors": [
+      {
+        "connection": "M01",
+        "parent": 619,
+        "leaf": 621,
+        "anchor": {
+          "extras": {
+            "module": "M01",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M01 | ROOM • complete rear door lining.001",
+          "rotation": [
+            0.9063078761100769,
+            0,
+            -0.4226183593273163,
+            6.842434885356852e-08
+          ],
+          "scale": [
+            -1,
+            -0.9999999403953552,
+            -1
+          ],
+          "translation": [
+            10.379901885986328,
+            0,
+            8.709772109985352
+          ]
+        }
+      },
+      {
+        "connection": "M02",
+        "parent": 625,
+        "leaf": 627,
+        "anchor": {
+          "extras": {
+            "module": "M02",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M02 | ROOM • complete rear door lining.001",
+          "matrix": [
+            -0.049846045113255744,
+            7.540405736291137e-08,
+            0.998756757863033,
+            0,
+            -7.540407084620994e-08,
+            1.000000049695487,
+            -7.926119668682354e-08,
+            0,
+            0.9987567578630329,
+            7.92611825138171e-08,
+            0.04984609480873364,
+            0,
+            13.533156394958494,
+            1.0587911840678754e-22,
+            0.6754117608070384,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M03",
+        "parent": 631,
+        "leaf": 633,
+        "anchor": {
+          "extras": {
+            "module": "M03",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M03 | ROOM • complete rear door lining.001",
+          "matrix": [
+            0.5633200737143582,
+            -1.1802739100925586e-07,
+            0.8262388620761563,
+            0,
+            1.1802740507921732e-07,
+            1.0000002232535439,
+            6.237931086930583e-08,
+            0,
+            0.8262388128284825,
+            -6.237929971501716e-08,
+            -0.5633199360936298,
+            0,
+            11.195535659790039,
+            0,
+            -7.632987022399902,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M04",
+        "parent": 637,
+        "leaf": 639,
+        "anchor": {
+          "extras": {
+            "module": "M04",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M04 | ROOM • complete rear door lining.001",
+          "matrix": [
+            0.9479275798589697,
+            -1.470644530790946e-07,
+            0.31848634542477333,
+            0,
+            1.470644706105436e-07,
+            1.0000002469755083,
+            2.404505499633209e-08,
+            0,
+            0.3184863074582423,
+            -2.40450492635449e-08,
+            -0.9479273390910083,
+            0,
+            4.315494060516359,
+            4.235164736271502e-22,
+            -12.844415664672852,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M05",
+        "parent": 643,
+        "leaf": 645,
+        "anchor": {
+          "extras": {
+            "module": "M05",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M05 | ROOM • complete rear door lining.001",
+          "matrix": [
+            -0.9479275798589697,
+            0,
+            0.31848643366015483,
+            0,
+            -1.3234889800848443e-23,
+            1,
+            6.617444900424222e-24,
+            0,
+            -0.318486433660155,
+            0,
+            -0.9479275798589698,
+            0,
+            -4.3154940605163565,
+            2.117582368135751e-22,
+            -12.844415664672852,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M06",
+        "parent": 649,
+        "leaf": 651,
+        "anchor": {
+          "extras": {
+            "module": "M06",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M06 | ROOM • complete rear door lining.001",
+          "matrix": [
+            -0.5633204952934605,
+            0,
+            0.8262384992051679,
+            0,
+            0,
+            1,
+            1.3234889800848443e-23,
+            0,
+            -0.826238499205168,
+            0,
+            -0.5633204952934606,
+            0,
+            -11.195535659790037,
+            2.117582368135751e-22,
+            -7.632987022399902,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M07",
+        "parent": 655,
+        "leaf": 657,
+        "anchor": {
+          "extras": {
+            "module": "M07",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M07 | ROOM • complete rear door lining.001",
+          "matrix": [
+            0.04984605402642478,
+            0,
+            0.9987569364546902,
+            0,
+            0,
+            1,
+            -1.3234889800848443e-23,
+            0,
+            -0.99875693645469,
+            0,
+            0.04984605402642478,
+            0,
+            -13.533156394958498,
+            2.117582368135751e-22,
+            0.6754117608070386,
+            1
+          ]
+        }
+      },
+      {
+        "connection": "M08",
+        "parent": 661,
+        "leaf": 663,
+        "anchor": {
+          "extras": {
+            "module": "M08",
+            "source_name": "ROOM • complete rear door lining",
+            "floor": 1,
+            "glass": false,
+            "section_hide": false
+          },
+          "mesh": 34,
+          "name": "M08 | ROOM • complete rear door lining.001",
+          "matrix": [
+            0.6427874447189749,
+            0,
+            0.7660446952941307,
+            0,
+            -1.6798664330758368e-24,
+            1,
+            0,
+            0,
+            -0.7660446952941307,
+            0,
+            0.6427874447189748,
+            0,
+            -10.379901885986328,
+            2.117582368135751e-22,
+            8.70977210998535,
+            1
+          ]
+        }
+      }
+    ],
+    "cutByEntrance": [
+      83,
+      82,
+      84,
+      82,
+      86,
+      84,
+      83,
+      84
+    ],
+    "doorCount": 8,
+    "backup": "/Users/Lendfating/ElfieNest-backups/central-eight-doors-20261020",
+    "motion": [
+      {
+        "connection": "M01",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M02",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M03",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M04",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M05",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M06",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M07",
+        "poses": 21,
+        "collisions": []
+      },
+      {
+        "connection": "M08",
+        "poses": 21,
+        "collisions": []
+      }
+    ],
+    "furniture": {
+      "checkedFurnitureMeshes": 61576,
+      "conservativeSweptBoxOverlaps": []
+    },
+    "approvedPrototypeGeometryAndMaterialsUnchanged": true,
+    "sharedDoorGeometry": true,
+    "confirmedVersion": "building_central_v050"
+  },
+  "centralDoorULightTrial": {
+    "beforeSHA256": "ceb3e6750e51e4b5f3efc14d23ee97e5ef2bbf1e7118e67889c496831c238da8",
+    "afterSHA256": "9c8667c8f39f3da26f1f38ede35be7b5e0e2b5f7666331d3b97cda33aab9f71f",
+    "doorCount": 8,
+    "lampNodes": [
+      624,
+      630,
+      636,
+      642,
+      648,
+      654,
+      660,
+      666
+    ],
+    "sharedLampMesh": 822,
+    "diffuserWidthM": 0.02,
+    "lightPlaneZ": [
+      -5.57,
+      -5.55
+    ],
+    "slidingLeafZ": [
+      -5.5125,
+      -5.4675
+    ],
+    "minimumSeparationM": 0.0375,
+    "setbackFromInteriorWallFaceM": 0.11,
+    "mountedOn": "Inside aperture jamb and soffit surfaces, in front of sliding plane",
+    "addedPointLights": 0,
+    "removedOldPointLights": 0,
+    "onlyLampMeshMaterialAndNodeMetadataChanged": true,
+    "newFormalVersions": 0,
+    "trianglesPerU": 540,
+    "clearance": [
+      {
+        "connection": "M01",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M02",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M03",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M04",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M05",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M06",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M07",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      },
+      {
+        "connection": "M08",
+        "minimumSlideSeparationM": 0.037499999999999645,
+        "insideDoorway": true
+      }
+    ],
+    "backup": "/Users/Lendfating/ElfieNest-backups/central-reveal-light-20261020"
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 79,
+    "collisionTriangles": 50110,
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "scope": "Central building structural collisions including roof shells, skylight and framing ring; decorative lighting and trim intentionally nonblocking",
+    "movingDoors": 8,
+    "doorMotion": "Animate the leaf AnimatableBody3D; its child rectangular BoxShape3D follows the same transform.",
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/central-envelope-complete-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "uniqueShapes": 79,
+    "collisionTrianglesByInstance": 50110
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [],
+    "nativeValidated": true,
+    "rectangularDoorBoxes": 8,
+    "curvedStairFlights": 3,
+    "firstFlightCompoundConvexSegments": 26,
+    "otherFlightCompoundConvexSegments": 18
+  },
+  "structuralCollisionCoverage": {
+    "addedStructuralParts": [
+      "Central integrated shallow skylight",
+      "Central skylight broad rounded framing ring",
+      "Roof01 petal 1 shell and light channels",
+      "Roof01 petal 2 shell and light channels",
+      "Roof01 petal 3 shell and light channels"
+    ],
+    "addedShapes": 5,
+    "addedTriangles": 6726,
+    "roofNativeChecks": {
+      "ringOpeningClear": 1,
+      "roofSphereSweeps": 200,
+      "roofSurfaceRays": 200
+    },
+    "allBuildingAcceptance": "pending",
+    "unresolvedProbeResults": [
+      {
+        "node": "Central L1 fitted panoramic reveal",
+        "issue": "direct-space 40mm sphere sweep misses a sampled thin edge despite successful surface ray"
+      },
+      {
+        "node": "Central L2 full stairwell edge 3.1",
+        "issue": "direct-space 40mm sphere sweep misses a sampled thin edge despite successful surface ray"
+      }
+    ],
+    "ineffectiveExperimentalReinforcementsNotRetained": true,
+    "resolvedProbeResults": [
+      {
+        "node": "Central L2 fitted reveal quadrant 4",
+        "issue": "body motion/actual probe movement misses one underside sample despite surface ray; direct-space sweep does detect it",
+        "resolution": "Invalid probe start embedded in another architectural solid; reachable exterior approaches pass without collision-model changes",
+        "status": "resolved-invalid-probe",
+        "verification": "build/asset_design/central-edge-repair-20261020/verification.json"
+      },
+      {
+        "node": "Central stairwell edge coping.002",
+        "issue": "body motion, actual probe movement and direct-space sphere sweep miss one underside sample despite surface ray",
+        "resolution": "Invalid probe start embedded in another architectural solid; reachable exterior approaches pass without collision-model changes",
+        "status": "resolved-invalid-probe",
+        "verification": "build/asset_design/central-edge-repair-20261020/verification.json"
+      }
+    ]
+  }
+}

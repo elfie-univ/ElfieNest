@@ -1,0 +1,70 @@
+{
+  "id": "part_shared_pod_petal_chair_d33b2e4ede_v003",
+  "category": "kit",
+  "title": "卧室花瓣旋转椅 · V003",
+  "description": "公共母版：卧室花瓣旋转椅；当前 32 处引用。8 间小屋卧室：A/B/C/D 各 1 把，每间 4 把，共 32 把。",
+  "primaryModel": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 24320},
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 24272},
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/source/build.json", "name": "build.json", "kind": "data", "bytes": 1104},
+    {"path": "furniture/shared_resources/source/resources/209cc309b95c833705abde0e5ac7b29ba0131531a2de2884c9331580e7c8d037.bin", "name": "209cc309b95c833705abde0e5ac7b29ba0131531a2de2884c9331580e7c8d037.bin", "kind": "data", "bytes": 60708},
+    {"path": "furniture/shared_resources/source/resources/271a402d99c90a2e6c8c718e26b01674b666966d02e266580e7f065432c28b86.bin", "name": "271a402d99c90a2e6c8c718e26b01674b666966d02e266580e7f065432c28b86.bin", "kind": "data", "bytes": 60772},
+    {"path": "furniture/shared_resources/source/resources/546d365736039dc29632fb65ea9c12c198c17b685f95c9fb5371a4ef6e1b3215.bin", "name": "546d365736039dc29632fb65ea9c12c198c17b685f95c9fb5371a4ef6e1b3215.bin", "kind": "data", "bytes": 12946},
+    {"path": "furniture/shared_resources/source/resources/56071fae5b26ae2a3307f11f51a14c990360fedc97050355c585ce0482d71676.bin", "name": "56071fae5b26ae2a3307f11f51a14c990360fedc97050355c585ce0482d71676.bin", "kind": "data", "bytes": 10056},
+    {"path": "furniture/shared_resources/source/resources/8ba41cb037a1e9d90613b78f2dcd82b380c56a73be3bdff980473981dd5aa60d.bin", "name": "8ba41cb037a1e9d90613b78f2dcd82b380c56a73be3bdff980473981dd5aa60d.bin", "kind": "data", "bytes": 10056},
+    {"path": "furniture/shared_resources/source/resources/9867681cd2a984da95405d1a0a330ea4e9b5430aba38452c98838ec8e96e1b57.bin", "name": "9867681cd2a984da95405d1a0a330ea4e9b5430aba38452c98838ec8e96e1b57.bin", "kind": "data", "bytes": 21480},
+    {"path": "furniture/shared_resources/source/resources/98e229e9d0f3086a6c673764332de27531b9700f0f4fa0f855176504cb528418.bin", "name": "98e229e9d0f3086a6c673764332de27531b9700f0f4fa0f855176504cb528418.bin", "kind": "data", "bytes": 36712},
+    {"path": "furniture/shared_resources/source/resources/a5b8ce37c42cad672ebe1612db75661f690492882c9e895e02fc68144b36533c.png", "name": "a5b8ce37c42cad672ebe1612db75661f690492882c9e895e02fc68144b36533c.png", "kind": "texture", "bytes": 6576},
+    {"path": "furniture/shared_resources/source/resources/ab2539ceb309cff466f9c749de704f4f05d5e50e0736b8ecf5dff244a7cc3e67.bin", "name": "ab2539ceb309cff466f9c749de704f4f05d5e50e0736b8ecf5dff244a7cc3e67.bin", "kind": "data", "bytes": 10056},
+    {"path": "furniture/shared_resources/source/resources/ad76926de9e2ebcb463a5b89d31b8ba38c88760d92742c08479936e925a258ca.bin", "name": "ad76926de9e2ebcb463a5b89d31b8ba38c88760d92742c08479936e925a258ca.bin", "kind": "data", "bytes": 60708},
+    {"path": "furniture/shared_resources/source/resources/bc40320be6445963c55e3986ac61692d12d90953c73794dfd505acf3a7e84d00.bin", "name": "bc40320be6445963c55e3986ac61692d12d90953c73794dfd505acf3a7e84d00.bin", "kind": "data", "bytes": 17448},
+    {"path": "furniture/shared_resources/source/resources/c47cc0bbfc2c4298015fb5bb38f7391c5c5dd5399937a7066dc98eba55333deb.bin", "name": "c47cc0bbfc2c4298015fb5bb38f7391c5c5dd5399937a7066dc98eba55333deb.bin", "kind": "data", "bytes": 10056},
+    {"path": "furniture/shared_resources/source/resources/d48593bbb28c1a67cb7b8c34a2d93d51b50a2b10414c50d74ceb7685a7b7a0fb.bin", "name": "d48593bbb28c1a67cb7b8c34a2d93d51b50a2b10414c50d74ceb7685a7b7a0fb.bin", "kind": "data", "bytes": 10056},
+    {"path": "furniture/shared_resources/source/resources/e91e71a08ca23707b76de1a17e23854e7b785214349357cfb69ce8bfcd155b71.bin", "name": "e91e71a08ca23707b76de1a17e23854e7b785214349357cfb69ce8bfcd155b71.bin", "kind": "data", "bytes": 34740},
+    {"path": "furniture/shared_resources/source/resources/f47b1538582a94891b3f0ea7f72ed305d19a31a03f6d27591b012d14211fd8d4.bin", "name": "f47b1538582a94891b3f0ea7f72ed305d19a31a03f6d27591b012d14211fd8d4.bin", "kind": "data", "bytes": 34938},
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 14208},
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-front-comparison.png", "name": "11-front-comparison.png", "kind": "image", "bytes": 479893},
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-side-comparison.png", "name": "11-side-comparison.png", "kind": "image", "bytes": 618575}
+  ],
+  "designVersion": {
+    "id": "part_shared_pod_petal_chair_d33b2e4ede_v003",
+    "asset": "part_shared_pod_petal_chair_d33b2e4ede_v003",
+    "title": "卧室花瓣旋转椅 · V003",
+    "revision": 3,
+    "file": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/model.glb",
+    "digest": "e69fef78ecd61394fe60dab728c70031e8298a05ae7bf72a2bfc6a190093ce20",
+    "contentDigest": "e9291a2ae9b96e5c6a93ad7a4e5fda2cb6807b55acdd3cf75135c61bcd6694de",
+    "nodes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "d33b2e4ede61c863d7d929c9bea340cd74aaf17daade10b97029113e6cc90f80",
+      "category": "chair",
+      "sourceReferences": 4,
+      "estateReferences": 32,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v001/reuse.json"
+    }
+  }
+}

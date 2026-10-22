@@ -1,0 +1,44 @@
+{
+  "id": "part_shared_music_coffee_table_1db16d8004_v003",
+  "category": "kit",
+  "title": "露台木脚圆桌 · V003",
+  "description": "公共母版：露台木脚圆桌；当前 6 处引用。M03阅读露台 1 处；M04桌游露台 1 处；M05音乐露台 1 处；M06手作露台 1 处；M07茶点露台 1 处；M08收藏露台 1 处",
+  "primaryModel": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_music_coffee_table_1db16d8004/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 4860},
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 4852},
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/source/build.json", "name": "build.json", "kind": "data", "bytes": 1416},
+    {"path": "furniture/shared_resources/source/resources/587d3eb548526a4e7c669aa5176b0bc482dd5adc6dd88669038e301dadc33f35.bin", "name": "587d3eb548526a4e7c669aa5176b0bc482dd5adc6dd88669038e301dadc33f35.bin", "kind": "data", "bytes": 1104},
+    {"path": "furniture/shared_resources/source/resources/dadcf178827ac389428e4e95afb6860281963ba47350965512b3b0caf2e1e0b0.bin", "name": "dadcf178827ac389428e4e95afb6860281963ba47350965512b3b0caf2e1e0b0.bin", "kind": "data", "bytes": 154016},
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1201},
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-front-comparison.png", "name": "09-front-comparison.png", "kind": "image", "bytes": 528025},
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-side-comparison.png", "name": "09-side-comparison.png", "kind": "image", "bytes": 526811}
+  ],
+  "designVersion": {
+    "id": "part_shared_music_coffee_table_1db16d8004_v003",
+    "asset": "part_shared_music_coffee_table_1db16d8004_v003",
+    "title": "露台木脚圆桌 · V003",
+    "revision": 3,
+    "file": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/model.glb",
+    "digest": "e9912b635e0ae2b58e3a7b9abe5451752ff544a9d304c8fcd09214c3d273db6e",
+    "contentDigest": "24b9d1020aa0ccf270bdb2cf9a50825e7ca24ac32827cf128cc7b46bc7617897",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "1db16d8004acc05613e43a10ce79c2b356ee0844a2eace3586c2698c9d67914f",
+      "category": "table",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_music_coffee_table_1db16d8004/versions/v001/reuse.json"
+    }
+  }
+}

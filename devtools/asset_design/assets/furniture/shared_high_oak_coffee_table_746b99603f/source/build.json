@@ -1,0 +1,35 @@
+{
+  "object": "part:shared_high_oak_coffee_table_746b99603f",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "746b99603fe7c5c56ecc971160f424760d0cb0b2cba39ad7fb1b732085373a89",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 3,
+    "locations": {
+      "layout:central:1": 2,
+      "layout:central:3": 1
+    },
+    "description": "主楼一层 2 处；主楼三层 1 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_high_oak_coffee_table_746b99603f",
+    "rootNode": 5,
+    "shapes": 2,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": false,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": false
+  }
+}

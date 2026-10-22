@@ -1,0 +1,46 @@
+{
+  "object": "part:shared_games_central_chair_1a067d1758",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "1a067d1758b5863563383a70cc718d6db509da44cc72ef862e0f57222db8c574",
+    "category": "chair",
+    "sourceReferences": 6,
+    "estateReferences": 6,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_central_chair_1a067d1758/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 8,
+    "locations": {
+      "layout:central:2": 8
+    },
+    "description": "主楼二层：中央桌游区 6 把、棋桌区 2 把；保留原布料与腰枕配色。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "reuseVariants": {
+    "geometryMaster": "part:shared_games_central_chair_1a067d1758",
+    "parameters": [
+      "size",
+      "rotation",
+      "material"
+    ],
+    "mergedFrom": [
+      "part:shared_games_central_chair_1a067d1758",
+      "part:shared_games_left_chess_chair_b5019208cb"
+    ]
+  },
+  "collision": {
+    "owner": "part:shared_games_central_chair_1a067d1758",
+    "rootNode": 5,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": true
+  }
+}

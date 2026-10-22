@@ -1,0 +1,40 @@
+{
+  "object": "part:shared_natural_floor_plant_eeaa5dd5b5",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "eeaa5dd5b59744d9ba4eba9774e7908281f876e577ceb099c098197cdf7d4125",
+    "category": "plant",
+    "sourceReferences": 10,
+    "estateReferences": 10,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 10,
+    "locations": {
+      "layout:terrace:M01": 1,
+      "layout:terrace:M02": 1,
+      "layout:terrace:M03": 2,
+      "layout:terrace:M04": 1,
+      "layout:terrace:M05": 1,
+      "layout:terrace:M06": 1,
+      "layout:terrace:M07": 1,
+      "layout:terrace:M08": 2
+    },
+    "description": "M01观影露台 1 处；M02电玩露台 1 处；M03阅读露台 2 处；M04桌游露台 1 处；M05音乐露台 1 处；M06手作露台 1 处；M07茶点露台 1 处；M08收藏露台 2 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_natural_floor_plant_eeaa5dd5b5",
+    "rootNode": 3,
+    "shapes": 1,
+    "type": "static-structural",
+    "movable": false,
+    "renderGeometryUnchanged": true
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "id": "part_shared_high_oak_coffee_table_746b99603f_v004",
+  "category": "kit",
+  "title": "矮圆茶几 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 6056},
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 6044},
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/source/build.json", "name": "build.json", "kind": "data", "bytes": 1121},
+    {"path": "furniture/shared_resources/source/resources/47358a9c5cc1ff14da1507ce5be995dc29d7750a2b310ce4f46f2690a1d57f6c.bin", "name": "47358a9c5cc1ff14da1507ce5be995dc29d7750a2b310ce4f46f2690a1d57f6c.bin", "kind": "data", "bytes": 22016},
+    {"path": "furniture/shared_resources/source/resources/8ff128e2e10111ced11dff1af88e3cf036cca6b6f3479f10e6bfb8bb44a7b8b5.bin", "name": "8ff128e2e10111ced11dff1af88e3cf036cca6b6f3479f10e6bfb8bb44a7b8b5.bin", "kind": "data", "bytes": 22016},
+    {"path": "furniture/shared_resources/source/resources/cf2baa26597634f8a031cc73b6bd920fa6589e2f35b366b0700f753f46c01a13.bin", "name": "cf2baa26597634f8a031cc73b6bd920fa6589e2f35b366b0700f753f46c01a13.bin", "kind": "data", "bytes": 2208},
+    {"path": "furniture/shared_resources/source/resources/dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "name": "dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "kind": "texture", "bytes": 21219},
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1010},
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/images/07-front-comparison.png", "name": "07-front-comparison.png", "kind": "image", "bytes": 424968}
+  ],
+  "designVersion": {
+    "id": "part_shared_high_oak_coffee_table_746b99603f_v004",
+    "asset": "part_shared_high_oak_coffee_table_746b99603f_v004",
+    "title": "矮圆茶几 · V004",
+    "revision": 4,
+    "file": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/model.glb",
+    "digest": "140bf601e7413d5bcaa5747f0d4e1d8cb611bc069eb4639b6ca0423218481fb3",
+    "contentDigest": "40b695e29414d727f9e205a54af47d9051af8f48273cdda05a469715939c5d39",
+    "nodes": [
+      0,
+      1
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "746b99603fe7c5c56ecc971160f424760d0cb0b2cba39ad7fb1b732085373a89",
+      "category": "table",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v002/reuse.json"
+    }
+  }
+}

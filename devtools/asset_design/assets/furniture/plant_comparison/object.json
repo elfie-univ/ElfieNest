@@ -1,0 +1,20 @@
+{
+  "designObject": {
+    "id": "part:plant_comparison",
+    "label": "三款落地植物对比",
+    "group": "kit",
+    "space": "sample:plants",
+    "module": "",
+    "floor": "",
+    "collection": "part:plant_comparison",
+    "collectionLabel": "三款落地植物对比",
+    "menuVisible": false
+  },
+  "versions": [
+    {
+      "id": "part_plant_comparison_v001",
+      "file": "furniture/plant_comparison/versions/v001/version.json",
+      "order": 51
+    }
+  ]
+}

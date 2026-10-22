@@ -1,0 +1,36 @@
+{
+  "designObject": {
+    "id": "part:shared_lilac_game_armchair_033103e3ca",
+    "label": "木座软包扶手椅",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "木座软包扶手椅（9处引用）",
+    "menuOrder": 13,
+    "menuCategory": "seating",
+    "currentUsage": {
+      "count": 9,
+      "locations": {
+        "layout:terrace:M03": 2,
+        "layout:terrace:M04": 4,
+        "layout:terrace:M05": 1,
+        "layout:terrace:M06": 1,
+        "layout:terrace:M08": 1
+      },
+      "description": "M03 两把、M04 四把、M05/M06/M08 各一把；共用木座软包扶手椅，实例保留颜色、尺寸与朝向。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_lilac_game_armchair_033103e3ca_v005",
+      "file": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/version.json",
+      "order": 459
+    }
+  ]
+}

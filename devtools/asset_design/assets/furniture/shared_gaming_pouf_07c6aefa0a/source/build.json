@@ -1,0 +1,36 @@
+{
+  "object": "part:shared_gaming_pouf_07c6aefa0a",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "07c6aefa0a95ad3730d12f73cb16d13c715c6bdb81568c60df30d437dc16b709",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 4,
+    "locations": {
+      "layout:terrace:M02": 2,
+      "layout:terrace:M03": 1,
+      "layout:terrace:M06": 1
+    },
+    "description": "M02电玩露台 2 处；M03阅读露台 1 处；M06手作露台 1 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_gaming_pouf_07c6aefa0a",
+    "rootNode": 3,
+    "shapes": 1,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": false
+  }
+}

@@ -69,6 +69,21 @@ def test_restart_default_nest_lab_stops_only_its_current_worktree_process(
     assert inspector.waited_ports == (9001, 9002)
 
 
+def test_asset_design_restart_owns_only_http_port(tmp_path: Path) -> None:
+    workspace = tmp_path / "ElfieNest"
+    inspector = FakeRestartInspector(
+        listeners={9001: (71,), 9002: (72,)},
+        commands={
+            71: ("python3", "-m", "devtools", "asset-design"),
+            72: ("unrelated-service",),
+        },
+        working_directories={71: workspace, 72: workspace},
+    )
+    restart_default_lab(resolve_tool("asset-design", tmp_path), workspace, inspector)
+    assert inspector.terminated == [71]
+    assert inspector.waited_ports == (9001,)
+
+
 def test_restart_default_lab_rejects_an_unrelated_process_on_its_port(
     tmp_path: Path,
 ) -> None:

@@ -1,0 +1,44 @@
+{
+  "id": "part_shared_quiet_rear_footstool_e7090e2df2_v003",
+  "category": "kit",
+  "title": "阅读脚凳〔1次〕 · V003",
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。",
+  "primaryModel": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 4204},
+    {"path": "furniture/shared_quiet_rear_footstool_e7090e2df2/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 4196},
+    {"path": "furniture/shared_quiet_rear_footstool_e7090e2df2/source/build.json", "name": "build.json", "kind": "data", "bytes": 864},
+    {"path": "furniture/shared_resources/source/resources/2e3e9b08d2988ff982254096cbe2d29509051ceea9694c010fc808d8fd8fd910.png", "name": "2e3e9b08d2988ff982254096cbe2d29509051ceea9694c010fc808d8fd8fd910.png", "kind": "texture", "bytes": 972},
+    {"path": "furniture/shared_resources/source/resources/665d2b9c7537ef8e34ab8a53c4530d3bf4f20ced7b081867e44a608fa6723ece.png", "name": "665d2b9c7537ef8e34ab8a53c4530d3bf4f20ced7b081867e44a608fa6723ece.png", "kind": "texture", "bytes": 33792},
+    {"path": "furniture/shared_resources/source/resources/9bb395d3ee3df54e05a207493d2051a27488f72d26aa4319cd9a511075205439.bin", "name": "9bb395d3ee3df54e05a207493d2051a27488f72d26aa4319cd9a511075205439.bin", "kind": "data", "bytes": 20816},
+    {"path": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1194},
+    {"path": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/images/13-front-comparison.png", "name": "13-front-comparison.png", "kind": "image", "bytes": 623438}
+  ],
+  "designVersion": {
+    "id": "part_shared_quiet_rear_footstool_e7090e2df2_v003",
+    "asset": "part_shared_quiet_rear_footstool_e7090e2df2_v003",
+    "title": "阅读脚凳〔1次〕 · V003",
+    "revision": 3,
+    "file": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/model.glb",
+    "digest": "eea3bc685b843bb6d9ca3280b3593a603b951496abf80fd3decf9e1264d820d0",
+    "contentDigest": "cbe25d9e239e080a1deb0bf51205d06904898fe1c52cde622af694fb2073d9ae",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "e7090e2df2fbc0d4e573b8258dc1408034b0caa097640a0e0579cd1822d7590b",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v001/reuse.json"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "object": "part:shared_games_right_console_chair_490430005f",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "490430005f9d85a5d73f1f7b879e03663296aeb5c8f1f5b29e5304813b985b32",
+    "category": "chair",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_right_console_chair_490430005f/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 2,
+    "locations": {
+      "layout:central:2": 2
+    },
+    "description": "主楼二层 2 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_games_right_console_chair_490430005f",
+    "rootNode": 5,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": true
+  }
+}

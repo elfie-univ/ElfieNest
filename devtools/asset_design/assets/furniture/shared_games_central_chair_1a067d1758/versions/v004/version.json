@@ -1,0 +1,45 @@
+{
+  "id": "part_shared_games_central_chair_1a067d1758_v004",
+  "category": "kit",
+  "title": "圆背木脚椅 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_games_central_chair_1a067d1758/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_games_central_chair_1a067d1758/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 6496},
+    {"path": "furniture/shared_games_central_chair_1a067d1758/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 6488},
+    {"path": "furniture/shared_games_central_chair_1a067d1758/source/build.json", "name": "build.json", "kind": "data", "bytes": 1437},
+    {"path": "furniture/shared_resources/source/resources/1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "name": "1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "kind": "texture", "bytes": 32513},
+    {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
+    {"path": "furniture/shared_resources/source/resources/6d0728cc87f5dd083961d8cf2629f74932cd691bfa12e90467366559a42e3c9d.bin", "name": "6d0728cc87f5dd083961d8cf2629f74932cd691bfa12e90467366559a42e3c9d.bin", "kind": "data", "bytes": 280416},
+    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 4498},
+    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-front-comparison.png", "name": "03-front-comparison.png", "kind": "image", "bytes": 694948},
+    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-side-comparison.png", "name": "03-side-comparison.png", "kind": "image", "bytes": 651453}
+  ],
+  "designVersion": {
+    "id": "part_shared_games_central_chair_1a067d1758_v004",
+    "asset": "part_shared_games_central_chair_1a067d1758_v004",
+    "title": "圆背木脚椅 · V004",
+    "revision": 4,
+    "file": "furniture/shared_games_central_chair_1a067d1758/versions/v004/model.glb",
+    "digest": "47905f2e04ab1aaf5f085ee932ccb127dd05e4209dfdddf733694cb70f6d4286",
+    "contentDigest": "b87c43c3dd03f6927a48df44dd297f624b699161ed38757d136576007508f51b",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "1a067d1758b5863563383a70cc718d6db509da44cc72ef862e0f57222db8c574",
+      "category": "chair",
+      "sourceReferences": 6,
+      "estateReferences": 6,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_games_central_chair_1a067d1758/versions/v002/reuse.json"
+    }
+  }
+}

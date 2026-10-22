@@ -1,0 +1,37 @@
+{
+  "designObject": {
+    "id": "part:shared_music_coffee_table_1db16d8004",
+    "label": "露台木脚圆桌",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "露台木脚圆桌（6处引用）",
+    "menuOrder": 12,
+    "menuCategory": "table",
+    "currentUsage": {
+      "count": 6,
+      "locations": {
+        "layout:terrace:M03": 1,
+        "layout:terrace:M04": 1,
+        "layout:terrace:M05": 1,
+        "layout:terrace:M06": 1,
+        "layout:terrace:M07": 1,
+        "layout:terrace:M08": 1
+      },
+      "description": "M03阅读露台 1 处；M04桌游露台 1 处；M05音乐露台 1 处；M06手作露台 1 处；M07茶点露台 1 处；M08收藏露台 1 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_music_coffee_table_1db16d8004_v003",
+      "file": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/version.json",
+      "order": 460
+    }
+  ]
+}

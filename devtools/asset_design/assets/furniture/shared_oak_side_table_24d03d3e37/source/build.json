@@ -1,0 +1,35 @@
+{
+  "object": "part:shared_oak_side_table_24d03d3e37",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "24d03d3e378434a0356b38ab458817307a28d8f922843c4cae51a3902523459d",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_oak_side_table_24d03d3e37/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 3,
+    "locations": {
+      "layout:central:1": 1,
+      "layout:central:3": 2
+    },
+    "description": "主楼一层 1 处；主楼三层 2 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_oak_side_table_24d03d3e37",
+    "rootNode": 5,
+    "shapes": 2,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": false,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": false
+  }
+}

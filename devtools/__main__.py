@@ -124,12 +124,16 @@ def _help_text(name: str) -> str:
         "elfie-lab": "打开单精灵实验页面（统一 Developer Tools Web UI）",
         "nest-lab": "打开精灵巢实验页面（统一 Developer Tools Web UI）",
         "brain-eval": "打开批量评测页面（统一 Developer Tools Web UI）",
+        "asset-design": "打开独立房屋资产设计页面（原版资产库与完整查看器）",
     }
     return descriptions[name]
 
 
 def _help_description(name: str) -> str:
     descriptions = {
+        "asset-design": "房屋资产设计 — 固定资产库与完整 3D 查看器\n\n"
+        "查看本地真实模型、房间、露台和家具；不启动精灵或 Godot 实验。\n"
+        "入口：/assets/design；HTTP 9001；资产：build/asset_previews/。",
         "elfie-lab": """
 Elfie Lab — Single Elfie Debugging Platform
 
@@ -275,7 +279,7 @@ def _restart_default_lab_if_requested(
     args: argparse.Namespace, raw_args: list[str]
 ) -> None:
     """默认启动是同类 Lab 的重启；显式端口保留并行实验语义。"""
-    if args.tool not in {"elfie-lab", "nest-lab", "brain-eval"}:
+    if args.tool not in {"elfie-lab", "nest-lab", "brain-eval", "asset-design"}:
         return
     # ``brain-eval catalog|capture|compare|calibrate`` is still an artifact
     # CLI.  Only the no-action form is the shared web launcher.
@@ -307,6 +311,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_nest_lab(args)
     if args.tool == "elfie-lab":
         return _run_elfie_lab(args)
+    if args.tool == "asset-design":
+        from devtools.asset_design.app import create_app
+
+        webbrowser.open(f"http://{args.host}:{args.port}/assets/design")
+        uvicorn.run(create_app(), host=args.host, port=args.port, access_log=False)
+        return 0
     if args.tool == "brain-eval":
         if args.brain_eval_action is None:
             return _run_unified_lab(args, "evaluations", "/elfie/evaluations")

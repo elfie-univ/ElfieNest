@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_pod_desk_planter_fca2aefb7a",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共母版：阔叶桌面盆栽；当前 32 处引用。8 间小屋卧室：A/B/C/D 书桌各 1 盆，每间 4 盆，共 32 盆。",
+  "reuse": {
+    "identity": "fca2aefb7a0999db9140e6c645215ec362a6732be5c0cd2133264b9320fbf984",
+    "category": "plant",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_desk_planter_fca2aefb7a/versions/v001/reuse.json"
+  },
+  "currentUsage": {
+    "count": 32,
+    "locations": {
+      "layout:pod": 32
+    },
+    "description": "8 间小屋卧室：A/B/C/D 书桌各 1 盆，每间 4 盆，共 32 盆。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}

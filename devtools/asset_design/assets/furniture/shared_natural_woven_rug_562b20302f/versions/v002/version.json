@@ -1,0 +1,43 @@
+{
+  "id": "part_shared_natural_woven_rug_562b20302f_v002",
+  "category": "kit",
+  "title": "圆形地毯 · V002",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/model.glb",
+  "models": [
+    "furniture/shared_natural_woven_rug_562b20302f/versions/v002/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/model.glb", "name": "model.glb", "kind": "model", "bytes": 4104},
+    {"path": "furniture/shared_natural_woven_rug_562b20302f/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 4092},
+    {"path": "furniture/shared_natural_woven_rug_562b20302f/source/build.json", "name": "build.json", "kind": "data", "bytes": 1435},
+    {"path": "furniture/shared_resources/source/resources/14626cf9ebe9488db861ddd782273a69bc503501244681eba6d1a4f82b080d77.png", "name": "14626cf9ebe9488db861ddd782273a69bc503501244681eba6d1a4f82b080d77.png", "kind": "texture", "bytes": 1337288},
+    {"path": "furniture/shared_resources/source/resources/1801261f274ee4176593b77ea7c2021d47db845860b4364fde3b6ff079048fb0.bin", "name": "1801261f274ee4176593b77ea7c2021d47db845860b4364fde3b6ff079048fb0.bin", "kind": "data", "bytes": 622536},
+    {"path": "furniture/shared_resources/source/resources/eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "name": "eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "kind": "texture", "bytes": 1081666},
+    {"path": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 2944}
+  ],
+  "designVersion": {
+    "id": "part_shared_natural_woven_rug_562b20302f_v002",
+    "asset": "part_shared_natural_woven_rug_562b20302f_v002",
+    "title": "圆形地毯 · V002",
+    "revision": 2,
+    "file": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/model.glb",
+    "digest": "d17a47539242bfbe417684289f2007710179e8074720c9bf3144cbc43ff3641f",
+    "contentDigest": "8673c922faf9591bc5e5d08d39a3fc78e8f88084827eb4312f61b966b5fd2755",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "562b20302f14be6e917521fbdac7d6ed6c37287d8f46e820c66406868f56c35a",
+      "category": "soft_furnishing",
+      "sourceReferences": 3,
+      "estateReferences": 3,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/reuse.json"
+    }
+  }
+}

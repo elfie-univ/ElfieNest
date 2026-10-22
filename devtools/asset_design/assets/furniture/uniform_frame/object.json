@@ -1,0 +1,32 @@
+{
+  "designObject": {
+    "id": "part:uniform_frame",
+    "label": "浅木画框",
+    "group": "kit",
+    "space": "sample:decor",
+    "module": "",
+    "floor": "",
+    "collection": "part:uniform_frame",
+    "collectionLabel": "浅木统一画框",
+    "menuVisible": true,
+    "menuLabel": "浅木画框（8处引用）",
+    "menuOrder": 7,
+    "menuCategory": "decor",
+    "currentUsage": {
+      "count": 8,
+      "locations": {
+        "layout:central:1": 8
+      },
+      "description": "主楼一层 V039：八个墙面画框位置，各 1 幅。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_uniform_frame_v003",
+      "file": "furniture/uniform_frame/versions/v003/version.json",
+      "order": 363
+    }
+  ]
+}

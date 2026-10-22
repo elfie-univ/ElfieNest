@@ -1,0 +1,26 @@
+{
+  "object": "part:shared_coffee_plant_7a33cf7991",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "7a33cf799140642dbe6076ac567ef7e2d03651963b472a3e2d271ba9739c1439",
+    "category": "plant",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_coffee_plant_7a33cf7991/source/v001-reuse.json"
+  },
+  "currentUsage": {
+    "count": 2,
+    "locations": {
+      "layout:terrace:M01": 1,
+      "layout:terrace:M08": 1
+    },
+    "description": "M01观影露台 1 处；M08收藏露台 1 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}
