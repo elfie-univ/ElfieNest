@@ -232,6 +232,7 @@ def test_test_environment_ignores_host_installation_mode(monkeypatch) -> None:
     environment = test_bundles._test_environment()
 
     assert environment["ELFIENEST_RUNTIME_MODE"] == "development"
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
     assert "ELFIENEST_BUNDLED_CONFIG_DIR" not in environment
 
 

@@ -395,6 +395,7 @@ def _test_environment() -> Dict[str, str]:
     env = os.environ.copy()
     env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
     env["ELFIENEST_RUNTIME_MODE"] = "development"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     env.pop("ELFIENEST_BUNDLED_CONFIG_DIR", None)
     return env
 
