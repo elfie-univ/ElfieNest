@@ -1,0 +1,34 @@
+{
+  "designObject": {
+    "id": "part:shared_gaming_pouf_07c6aefa0a",
+    "label": "圆柱软坐墩",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "圆柱软坐墩（4处引用）",
+    "menuOrder": 14,
+    "menuCategory": "stool",
+    "currentUsage": {
+      "count": 4,
+      "locations": {
+        "layout:terrace:M02": 2,
+        "layout:terrace:M03": 1,
+        "layout:terrace:M06": 1
+      },
+      "description": "M02电玩露台 2 处；M03阅读露台 1 处；M06手作露台 1 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_gaming_pouf_07c6aefa0a_v004",
+      "file": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/version.json",
+      "order": 457
+    }
+  ]
+}

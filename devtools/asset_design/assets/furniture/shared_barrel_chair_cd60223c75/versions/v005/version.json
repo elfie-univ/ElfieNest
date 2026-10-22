@@ -1,0 +1,60 @@
+{
+  "id": "part_shared_barrel_chair_cd60223c75_v005",
+  "category": "kit",
+  "title": "桶形单椅整套 · V005",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_barrel_chair_cd60223c75/versions/v005/model.glb",
+  "models": [
+    "furniture/shared_barrel_chair_cd60223c75/versions/v005/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/model.glb", "name": "model.glb", "kind": "model", "bytes": 15440},
+    {"path": "furniture/shared_barrel_chair_cd60223c75/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 15412},
+    {"path": "furniture/shared_barrel_chair_cd60223c75/source/build.json", "name": "build.json", "kind": "data", "bytes": 1043},
+    {"path": "furniture/shared_resources/source/resources/005658c62950965221026848d357ed560edae322d2c0c5aba2da23a6cde83d50.bin", "name": "005658c62950965221026848d357ed560edae322d2c0c5aba2da23a6cde83d50.bin", "kind": "data", "bytes": 103840},
+    {"path": "furniture/shared_resources/source/resources/17b7ec1e84bd580b0b9088952717ef7eb06df4aebfa1bb301483a7bb7bce7dbd.bin", "name": "17b7ec1e84bd580b0b9088952717ef7eb06df4aebfa1bb301483a7bb7bce7dbd.bin", "kind": "data", "bytes": 366624},
+    {"path": "furniture/shared_resources/source/resources/1c8b59fb333422e58157e4761dc6e7306b1fb9ab5b2832cf2a0ec7245e60b05f.bin", "name": "1c8b59fb333422e58157e4761dc6e7306b1fb9ab5b2832cf2a0ec7245e60b05f.bin", "kind": "data", "bytes": 12288},
+    {"path": "furniture/shared_resources/source/resources/881e1535b1d87789430a9a2f3cdd6687c0bd04063a0edeffba3933929751dd96.bin", "name": "881e1535b1d87789430a9a2f3cdd6687c0bd04063a0edeffba3933929751dd96.bin", "kind": "data", "bytes": 12288},
+    {"path": "furniture/shared_resources/source/resources/8e203d56e947e648903a9e76a19308268daf5ba6f7e5cb45cf8ce1e86a70699b.png", "name": "8e203d56e947e648903a9e76a19308268daf5ba6f7e5cb45cf8ce1e86a70699b.png", "kind": "texture", "bytes": 2305},
+    {"path": "furniture/shared_resources/source/resources/be827ef25e90a887f5c46163988e7a919164b02c2c374fadd0a74f058f5c5ae2.bin", "name": "be827ef25e90a887f5c46163988e7a919164b02c2c374fadd0a74f058f5c5ae2.bin", "kind": "data", "bytes": 12288},
+    {"path": "furniture/shared_resources/source/resources/c30f931e9d46df543877d531665631191144c98a31883b5c6f1ce119bcc2006f.bin", "name": "c30f931e9d46df543877d531665631191144c98a31883b5c6f1ce119bcc2006f.bin", "kind": "data", "bytes": 12288},
+    {"path": "furniture/shared_resources/source/resources/e95af1c652503577a48a850028d88be9b87485b60a56bbedae18a355e3242820.bin", "name": "e95af1c652503577a48a850028d88be9b87485b60a56bbedae18a355e3242820.bin", "kind": "data", "bytes": 7424},
+    {"path": "furniture/shared_resources/source/resources/ed07f32ea7047f41aa28deb1a0dc9f4fc111cdbe9c4cdbfba4f270573d6038bd.bin", "name": "ed07f32ea7047f41aa28deb1a0dc9f4fc111cdbe9c4cdbfba4f270573d6038bd.bin", "kind": "data", "bytes": 12288},
+    {"path": "furniture/shared_resources/source/resources/fcbdb18ce1c16582e87813b47b7e20de4ffe9b4852f13612891f01e3ffbc4217.bin", "name": "fcbdb18ce1c16582e87813b47b7e20de4ffe9b4852f13612891f01e3ffbc4217.bin", "kind": "data", "bytes": 125504},
+    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1915},
+    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-front-comparison.png", "name": "01-front-comparison.png", "kind": "image", "bytes": 523662},
+    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-side-comparison.png", "name": "01-side-comparison.png", "kind": "image", "bytes": 607845}
+  ],
+  "designVersion": {
+    "id": "part_shared_barrel_chair_cd60223c75_v005",
+    "asset": "part_shared_barrel_chair_cd60223c75_v005",
+    "title": "桶形单椅整套 · V005",
+    "revision": 5,
+    "file": "furniture/shared_barrel_chair_cd60223c75/versions/v005/model.glb",
+    "digest": "14d92f3172d332e10ffae9df96eb40d1051f1e82923f0194a9f65e48ed08b2e4",
+    "contentDigest": "00508cfeacc2d39c6b2625f3e16fc4d9d829bc71fc4f758fc74fa9bbd428db68",
+    "nodes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "cd60223c7521b10b8ea40a71d8e8a717a5509adc7ab972b177cd98915dc8510b",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_barrel_chair_cd60223c75/versions/v003/reuse.json"
+    }
+  }
+}

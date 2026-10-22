@@ -1,0 +1,317 @@
+{
+  "object": "layout:central:3",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "sourceSha256": "0573bd48b0480d44d58caf681d2ffcb4db2c9bfe859896d71cdc01a644718043",
+  "design": {
+    "reference": "approved-third-floor-20261017.png",
+    "scope": "Window daybed group only: shorter lower body, fixed curved head support, sewn plump leaning pillows and surface-fitted opaque throw; own rug and side table rebalanced",
+    "floorHeightM": 7.1,
+    "geometryBasis": "Immutable V010 furniture and unchanged building_central_v026 L3 geometry",
+    "assemblies": "curved sofa, four central lounge chairs, two desk chairs, rear reading chair and stool, bookcase, desk, daybed, four tables, three rugs",
+    "independentParts": "Sofa seat cushions and pillows retained; daybed body with fixed head support, mattress, left cylindrical bolster, two sewn pillows and throw remain separate functional parts",
+    "reuse": "two ivory lounge chairs share one mesh; two sage lounge chairs share one mesh; both desk chairs share one mesh",
+    "status": "Daybed soft-contact repair candidate; awaiting visual confirmation",
+    "sizeCalibration": {
+      "centralTableDiameterM": 2.1,
+      "centralRugDiameterM": 5.6,
+      "centralChairOverallHeightM": 1.16,
+      "centralChairPlacement": "four diagonal inward-facing chairs",
+      "sofaDepthLengthHeightM": [
+        2.13,
+        4.81,
+        1.14
+      ],
+      "sofaCushionThicknessM": 0.37,
+      "daybedBodyLengthDepthM": [
+        4.35,
+        1.8
+      ],
+      "daybedMattressThicknessM": 0.28,
+      "retained": "Empty worktop; no plants; three rugs; bookcase, desk, sofa, central conversation and rear reading groups preserved; unchanged architecture",
+      "bookcaseChordWidthM": 10.0,
+      "bookcaseRadialOutwardM": 0.25,
+      "rearWindowWidthCoverage": 0.9242,
+      "sofaOutwardM": 1.2,
+      "sofaRugOutwardM": 0.6,
+      "deskWorktopHeightM": 0.875,
+      "deskWorktopLengthM": 3.5,
+      "deskCenterDepthM": 0.96,
+      "deskBackboardAboveWorktopM": 0.14,
+      "deskOverallHeightM": 1.015,
+      "deskChairOutwardM": 0.5,
+      "daybedMattressTopHeightM": 0.64,
+      "daybedRugLengthDepthM": [
+        6.65,
+        2.85
+      ],
+      "daybedPillowLeanDegrees": [
+        18,
+        22
+      ],
+      "daybedThrowThicknessM": 0.006
+    },
+    "verification": {
+      "stairIntersections": 0,
+      "windowIntersections": 0,
+      "functionalIntersections": 0,
+      "daybedClothAndPillowIntersections": 0,
+      "slabSupport": "All sampled bottom footprints supported by actual L3 slab",
+      "nonDaybedGeometryAndPlacement": "unchanged"
+    }
+  },
+  "description": "三楼阅读照明工作稿：现有书柜层板下藏灯、原边桌上的小型独立阅读台灯；保留原家具、摆放、公共模型引用和确认记录。",
+  "reuseMasters": {
+    "layout:central:3:quiet_central_reading_chair_0": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        43
+      ]
+    },
+    "layout:central:3:quiet_central_reading_chair_1": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        44
+      ]
+    },
+    "layout:central:3:quiet_central_reading_chair_2": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0000000000000002,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        45
+      ]
+    },
+    "layout:central:3:quiet_central_reading_chair_3": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0000000000000002,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        46
+      ]
+    },
+    "layout:central:3:quiet_right_journaling_chair_0": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        47
+      ]
+    },
+    "layout:central:3:quiet_right_journaling_chair_1": {
+      "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        48
+      ]
+    }
+  },
+  "lightingWorking": {
+    "order": [
+      "stair",
+      "ceiling",
+      "local"
+    ],
+    "measurements": {
+      "stair1": {
+        "radius": 4.650029032689778,
+        "angles": [
+          0.4677710894524365,
+          2.6738366716030333
+        ],
+        "railToDiffuserM": 0.0504806366642081,
+        "lights": 6
+      },
+      "stair2": {
+        "radius": 4.650028973069503,
+        "angles": [
+          0.4677712744146524,
+          2.0106488827872813
+        ],
+        "railToDiffuserM": 0.05041070156890215,
+        "lights": 6
+      },
+      "stair3": {
+        "radius": 4.650028973069503,
+        "angles": [
+          0.46777136661268065,
+          2.0106488827872813
+        ],
+        "railToDiffuserM": 0.050410561585152225,
+        "lights": 6
+      },
+      "ceiling1": {
+        "center": [
+          -0.2800000011920929,
+          -0.6500000357627869,
+          4.059999465942383
+        ],
+        "tableTop": 0.7950000166893005,
+        "diameterM": 1.8,
+        "thicknessM": 0.06,
+        "downlights": 4
+      },
+      "ceiling2": {
+        "center": [
+          0.0,
+          -0.8500000238418579,
+          6.860000133514404
+        ],
+        "tableTop": 5.205240249633789,
+        "diameterM": 1.8,
+        "thicknessM": 0.06,
+        "downlights": 4
+      },
+      "ceiling3": {
+        "center": [
+          0.20000001788139343,
+          -1.100000023841858,
+          9.65999984741211
+        ],
+        "tableTop": 7.648799896240234,
+        "diameterM": 1.8,
+        "thicknessM": 0.06,
+        "downlights": 4
+      },
+      "plant0": {
+        "target": [
+          -7.6322832107543945,
+          1.9887678623199463,
+          1.2769999504089355
+        ],
+        "ceiling": [
+          -7.100055195117108,
+          1.850083546801585,
+          4.060000419616699
+        ]
+      },
+      "plant1": {
+        "target": [
+          -7.142000675201416,
+          -3.0910277366638184,
+          1.3249999284744263
+        ],
+        "ceiling": [
+          -6.637246143163552,
+          -2.872572106415393,
+          4.059999942779541
+        ]
+      },
+      "readingLamp": {
+        "tableBounds": [
+          [
+            4.75,
+            4.900000095367432,
+            7.121000289916992
+          ],
+          [
+            5.550000190734863,
+            5.700000286102295,
+            7.687999725341797
+          ]
+        ],
+        "base": [
+          5.380000095367432,
+          5.400000190734863,
+          7.688999725341797
+        ],
+        "heightM": 0.37
+      },
+      "shelf": {
+        "radius": 7.712343661282559,
+        "angles": [
+          0.9196187048927752,
+          2.221974009553928
+        ],
+        "height": 8.2693505859375
+      }
+    },
+    "status": "unconfirmed working draft; no published revision allocated",
+    "fixtureData": "GLB node extras design_lights in local node coordinates"
+  },
+  "furnitureLightingDraft": {
+    "description": "电视及游戏屏支撑修正、书柜落地与2800K连续灯带，三楼两层书架均匀暖光、3000K遮光书写台灯；不变更建筑确认版",
+    "changedNodes": [
+      "Working reading bookcase concealed shelf diffuser"
+    ],
+    "addedNodes": [
+      "Draft L3 lower tier continuous concealed shelf diffuser",
+      "Draft L3 writing desk concealed downward task lens",
+      "Draft L3 writing desk seated eye glare shield"
+    ],
+    "measurements": {
+      "bookcase_temperature_kelvin": 2800,
+      "shelf_continuous_tiers": 2,
+      "old_spotlights_removed": 4,
+      "desk_task_temperature_kelvin": 3000,
+      "bookcase_radius_m": 7.712029388675859,
+      "desk_task_method": "continuous baked diffuse wash on original tabletop; no individual task spotlights"
+    }
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 7,
+    "collisionTriangles": 2797,
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "movingDoors": 0,
+    "doorMotion": null,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "uniqueShapes": 7,
+    "collisionTrianglesByInstance": 2797
+  },
+  "movableFurnitureInstances": [
+    "layout:central:3:movable:quiet_rear_reading_armchair",
+    "layout:central:3:movable:quiet_rear_footstool"
+  ],
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_high_oak_coffee_table_746b99603f",
+      "part:shared_oak_side_table_24d03d3e37",
+      "part:shared_quiet_central_reading_chair_3418a9defb",
+      "part:shared_quiet_rear_footstool_e7090e2df2",
+      "part:shared_quiet_rear_reading_armchair_2477bb0b6f"
+    ],
+    "removedLayoutBodies": 11
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [
+      "Collision quiet_right_journaling_desk"
+    ],
+    "nativeValidated": true
+  }
+}

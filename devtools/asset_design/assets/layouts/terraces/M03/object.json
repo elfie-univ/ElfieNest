@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "layout:terrace:M03",
+    "label": "M03 露台布置",
+    "group": "layout",
+    "space": "estate",
+    "module": "M03",
+    "floor": "2",
+    "collection": "layout:terraces",
+    "collectionLabel": "露台活动布置"
+  },
+  "versions": [
+    {
+      "id": "layout_terrace_M03_v016",
+      "file": "layouts/terraces/M03/versions/v016/version.json",
+      "order": 478
+    }
+  ]
+}

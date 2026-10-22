@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>精灵巢 · 资产 3D 预览</title>
+<link rel="stylesheet" href="/assets/design/viewer.css">
+<link rel="stylesheet" href="/assets/design/controls.css">
+<script type="importmap">{"imports":{"three":"/assets/design/library/three.module.js"}}</script>
+</head>
+<body>
+<header><div><h1>精灵巢 · 资产三维预览</h1><p>沿用已确认的完整查看器</p></div><span class="tag">橙色参照高 1.2 米</span></header>
+<main>
+<div id="stage"><canvas id="viewport" aria-label="精灵巢整体三维模型，可拖动旋转、滚轮缩放"></canvas><div id="status" role="status" aria-live="polite">正在载入模型…</div><div id="error" role="alert"></div></div>
+<aside>
+<div id="viewerControls">
+<fieldset id="scopeControls" hidden><legend><label id="scopeLabel" for="reviewScope">范围</label></legend><select id="reviewScope"></select></fieldset>
+<fieldset id="objectControls"><legend><label for="module">查看对象</label></legend><select id="module"><option value="all">完整模型</option></select></fieldset>
+<fieldset id="floorControls"><legend><label for="floor">楼层</label></legend><select id="floor"><option value="all">全部楼层</option></select></fieldset>
+<fieldset id="courtyardViewControls" hidden><legend>庭院视角</legend><div class="row"><button id="interiorView" type="button" aria-pressed="true">庭院内部</button><button id="exteriorView" type="button" aria-pressed="false">庭院外部</button></div></fieldset>
+<fieldset><legend>查看方式</legend><div class="row"><button id="whole" type="button" aria-pressed="true">整体</button><button id="section" type="button" aria-pressed="false">剖视</button></div><label id="furnitureControl" class="check"><input id="furniture" type="checkbox" checked>显示家具</label><label class="check"><input id="glass" type="checkbox" checked>显示玻璃</label><label id="contextControl" class="check" hidden><input id="context" type="checkbox" checked><span id="contextLabel">参考建筑</span><span id="contextStatus" class="reference-status" hidden>暂无已确认版本</span></label></fieldset>
+<fieldset><legend>尺寸辅助</legend><label class="check"><input id="scale" type="checkbox" checked>显示 1.2 米参照</label><label class="check"><input id="dimensions" type="checkbox">显示尺寸标注</label><label class="check"><input id="ruler" type="checkbox">显示参考标尺</label></fieldset>
+<fieldset><legend>视角</legend><div class="row zoom-controls" role="group" aria-label="缩放"><button id="zoomOut" type="button" aria-label="缩小" title="缩小">−</button><button id="reset" type="button" aria-label="适配视图" title="适配当前对象">适配</button><button id="zoomIn" type="button" aria-label="放大" title="放大">＋</button></div><div class="row view-directions"><button id="front" type="button">正面</button><button id="top" type="button">俯视</button><button id="rear" type="button">背面</button><button id="side" type="button">侧面</button></div></fieldset>
+
+<fieldset><legend>光照</legend><div class="row"><button id="day" type="button" aria-pressed="true">日间</button><button id="dusk" type="button" aria-pressed="false">傍晚</button></div></fieldset>
+</div>
+</aside>
+<footer class="viewer-footer">
+<div class="model-info"><span id="modelName">正在载入…</span><span>尺寸（米） <span id="modelSize">正在读取…</span></span></div>
+<details class="control-help"><summary>操作说明</summary><p class="help">拖动：旋转 · 滚轮：缩放<br>右键拖动：平移<br>触屏：单指旋转、双指缩放<br>楼层按当前对象提供。<br>视角按钮只调整相机。</p></details>
+<button id="download" type="button" disabled>下载 GLB 资产</button>
+</footer>
+</main>
+<script type="module" src="/assets/design/viewer.js"></script>
+</body>
+</html>

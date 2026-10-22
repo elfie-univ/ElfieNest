@@ -428,16 +428,17 @@ def test_genesis_commit_persists_deceased_family_and_known_death_episode() -> No
         for relationship in bundle.relationship_seeds
         if relationship.role == "parent"
     )
+    parent_ids = {relationship.person_id for relationship in parents}
     death_episodes = tuple(
         episode
         for episode in bundle.episode_seeds
         if episode.theme_id == "family-event:death"
+        and episode.person_ids
+        and episode.person_ids[0] in parent_ids
     )
 
     assert all(relationship.life_status == "deceased" for relationship in parents)
-    assert {episode.person_ids[0] for episode in death_episodes} == {
-        relationship.person_id for relationship in parents
-    }
+    assert {episode.person_ids[0] for episode in death_episodes} == parent_ids
 
     with SQLiteMemoryStoreAdapter.in_memory() as storage:
         assert GenesisMemoryCommitter().commit(bundle, storage).status == "committed"

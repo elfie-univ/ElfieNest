@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "layout:pod",
+    "label": "小屋卧室布置",
+    "group": "layout",
+    "space": "estate",
+    "module": "M01",
+    "floor": "",
+    "collection": "layout:pod",
+    "collectionLabel": "小屋卧室布置"
+  },
+  "versions": [
+    {
+      "id": "layout_pod_v022",
+      "file": "layouts/pod_bedroom/versions/v022/version.json",
+      "order": 482
+    }
+  ]
+}

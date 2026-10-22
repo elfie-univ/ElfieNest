@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_niche_front_fern_59886e72dc",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "59886e72dc039b6f95bef9a229a7dde3c6c775e0f722304da8830f05bd063d89",
+    "category": "plant",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_niche_front_fern_59886e72dc/source/v001-reuse.json"
+  },
+  "currentUsage": {
+    "count": 2,
+    "locations": {
+      "building:central": 2
+    },
+    "description": "主楼楼梯壁龛 2 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}

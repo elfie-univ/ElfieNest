@@ -1,0 +1,44 @@
+{
+  "id": "part_shared_blue_matching_ottoman_80bb399c60_v003",
+  "category": "kit",
+  "title": "M08·配套蓝色脚凳〔1次〕 · V003",
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M08：1。保持原网格、材质、贴图及内部部件关系。",
+  "primaryModel": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 4936},
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 4928},
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/source/build.json", "name": "build.json", "kind": "data", "bytes": 869},
+    {"path": "furniture/shared_resources/source/resources/15016f15a0963ddfce174c1389dd427da2668f4272904d76cedabd4b4bc841c1.bin", "name": "15016f15a0963ddfce174c1389dd427da2668f4272904d76cedabd4b4bc841c1.bin", "kind": "data", "bytes": 316352},
+    {"path": "furniture/shared_resources/source/resources/210405281b16a92eabe45db262360a709e1c8a52eb2165a06aa8fc8c7c08bffa.png", "name": "210405281b16a92eabe45db262360a709e1c8a52eb2165a06aa8fc8c7c08bffa.png", "kind": "texture", "bytes": 91775},
+    {"path": "furniture/shared_resources/source/resources/f298fe30ff2b67b8abc5993b2e8b6903da4fae2ef2102308caafac6267370e07.png", "name": "f298fe30ff2b67b8abc5993b2e8b6903da4fae2ef2102308caafac6267370e07.png", "kind": "texture", "bytes": 520451},
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1430},
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/images/02-front-comparison.png", "name": "02-front-comparison.png", "kind": "image", "bytes": 617446}
+  ],
+  "designVersion": {
+    "id": "part_shared_blue_matching_ottoman_80bb399c60_v003",
+    "asset": "part_shared_blue_matching_ottoman_80bb399c60_v003",
+    "title": "M08·配套蓝色脚凳〔1次〕 · V003",
+    "revision": 3,
+    "file": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/model.glb",
+    "digest": "41da688749cea8c8ac390a2623d7dab075a1d9e1043d74dcaf7392a183ab65cc",
+    "contentDigest": "0ef4992ed5610377407c641ed1774386e214ba701a7f7ddb38295f101457c519",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "80bb399c607081121221fc02039550d795d2f6c2f84231fc555f1badc205875d",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v001/reuse.json"
+    }
+  }
+}

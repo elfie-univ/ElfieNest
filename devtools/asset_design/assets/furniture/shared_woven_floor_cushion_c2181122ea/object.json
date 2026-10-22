@@ -1,0 +1,32 @@
+{
+  "designObject": {
+    "id": "part:shared_woven_floor_cushion_c2181122ea",
+    "label": "M08 编织圆地垫",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "M08 编织圆地垫（2处引用）",
+    "menuOrder": 22,
+    "menuCategory": "rug",
+    "currentUsage": {
+      "count": 2,
+      "locations": {
+        "layout:terrace:M08": 2
+      },
+      "description": "M08收藏露台 2 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_woven_floor_cushion_c2181122ea_v004",
+      "file": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/version.json",
+      "order": 466
+    }
+  ]
+}

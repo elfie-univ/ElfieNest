@@ -1,0 +1,208 @@
+{
+  "object": "layout:terrace:M01",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "theme": "观影",
+  "editableModel": "model.blend",
+  "reference": "references/pod_terrace_20261015_eight_themes.png",
+  "assemblies": [
+    "rounded_oak_coffee_table",
+    "coffee_plant",
+    "porcelain_coffee_cup",
+    "coffee_table_magazine",
+    "tall_floor_plant",
+    "television_remote",
+    "curved_niche_oak_liner",
+    "rear_cabinet_conformal_liner",
+    "television_recessed_soft_light",
+    "wardrobe_recessed_soft_light",
+    "television_left_speaker",
+    "television_right_speaker",
+    "television_flat_mounting_backboard",
+    "natural_woven_rug",
+    "cabinet_trailing_foliage",
+    "linen_throw_on_fitted_sofa",
+    "sofa_following_actual_wall",
+    "theme_lower_fitted_doors",
+    "reference_rear_open_storage",
+    "single_surface_flat_display"
+  ],
+  "floorHeight": 3.1,
+  "wallFitting": "One source-derived five-surface liner per opening; face normals point toward the cavity, including both jambs",
+  "buildingSourceSha256": "40a042f982b9dd2cb0d7fa057705c172644fc69341bd721a52ba896af83f5f59",
+  "fitToleranceM": 0.0015,
+  "cabinetInstallationGapM": 0.0006,
+  "cabinetVeneerThicknessM": 0.008,
+  "sofaBackClearanceM": 0.04,
+  "cabinetWoodSRGB": [
+    0.84,
+    0.63,
+    0.36
+  ],
+  "televisionDimensionsM": [
+    1.24,
+    0.6975
+  ],
+  "sofaAngleRangeDegrees": [
+    -62,
+    113
+  ],
+  "tableSRGB": [
+    0.84,
+    0.65,
+    0.39
+  ],
+  "sofaSRGB": [
+    0.62,
+    0.71,
+    0.54
+  ],
+  "cabinetLighting": {
+    "type": "continuous opal strip behind oak concealment lip",
+    "recessDepthM": 0.034,
+    "diffuserWidthM": 0.012,
+    "softIndirectWash": "Verified non-black 2D emissive field over full cabinet surfaces; 0.14 m falloff",
+    "comparison": "Registered on/off model pair differs only in cabinet-light emissive factors"
+  },
+  "televisionSpeakers": [
+    {
+      "assembly": "television_left_speaker",
+      "centerT": -0.73,
+      "radius": 3.194,
+      "bottom": 3.2818263816833495,
+      "size": [
+        0.1,
+        0.07,
+        0.18
+      ],
+      "shellClearanceMin": 0.035502633043651866
+    },
+    {
+      "assembly": "television_right_speaker",
+      "centerT": 0.73,
+      "radius": 3.41,
+      "bottom": 3.27355731010437,
+      "size": [
+        0.1,
+        0.07,
+        0.18
+      ],
+      "shellClearanceMin": 0.0656347177366694
+    }
+  ],
+  "televisionAlignment": {
+    "type": "flat TV and planar mounting panel parallel to actual opening chord",
+    "normal": [
+      -0.9324745535850525,
+      0.3612355887889862,
+      0.0
+    ],
+    "yawDegrees": -68.8239022122607,
+    "panel": {
+      "width": 1.4,
+      "height": 0.78,
+      "thickness": 0.016,
+      "frontDepth": 3.4219999999999997,
+      "bottom": 3.33,
+      "top": 4.11,
+      "spacers": 4
+    }
+  },
+  "sofaEndConstruction": {
+    "backAndArms": "one connected closed sweep with rounded terminal domes",
+    "cornerRadiusM": 0.24,
+    "armHeightDropM": 0.15,
+    "backHeightM": 1.02,
+    "armHeightM": 0.825,
+    "unchanged": "plinth, base, all eight seat cushions, six pillows; actual two-wall path"
+  },
+  "naturalFoliage": {
+    "tall_floor_plant": {
+      "leafCount": 13,
+      "preservedPlanterAndSoilVertices": 160,
+      "leafThicknessM": 0.0013
+    },
+    "coffee_plant": {
+      "leafCount": 36,
+      "preservedPlanterAndSoilVertices": 160,
+      "leafThicknessM": 0.00055
+    }
+  },
+  "referenceRefinement": [
+    "distinct tailored seating",
+    "reference adjusted sofa length and seat count",
+    "woven cloth and braided jute PBR textures",
+    "loose cushions, seams and folded cloth",
+    "theme prop refinements and extra foliage",
+    "warmer cabinet light wash; original viewer lighting unchanged"
+  ],
+  "wallSofas": [],
+  "cabinetLightWashStrength": 1.4,
+  "sourceSha256": "f1938b25f7bc9f8bc838ccb8f893093bafb2da202f6c46a893d35355cb821ab2",
+  "restoredSeating": [
+    "linen_throw_on_fitted_sofa",
+    "sofa_following_actual_wall"
+  ],
+  "cabinetInterior": "continuous cups / open basket / books",
+  "cabinetDesign": {
+    "preserved": [
+      "cabinet_trailing_foliage",
+      "coffee_plant",
+      "coffee_table_magazine",
+      "curved_niche_oak_liner",
+      "linen_throw_on_fitted_sofa",
+      "natural_woven_rug",
+      "porcelain_coffee_cup",
+      "rear_cabinet_conformal_liner",
+      "rounded_oak_coffee_table",
+      "sofa_following_actual_wall",
+      "tall_floor_plant",
+      "television_flat_mounting_backboard",
+      "television_left_speaker",
+      "television_recessed_soft_light",
+      "television_remote",
+      "television_right_speaker",
+      "wardrobe_recessed_soft_light"
+    ],
+    "lowerDoorCount": 5,
+    "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
+    "proportions": "native object dimensions; no axis squashing"
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 6,
+    "uniqueShapes": 6,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 2154,
+    "collisionTrianglesByInstance": 2154
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_natural_floor_plant_eeaa5dd5b5",
+      "part:shared_television_left_speaker_50a1618b48"
+    ],
+    "removedLayoutBodies": 3
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [
+      "Collision M01 rear-storage"
+    ],
+    "nativeValidated": true
+  }
+}

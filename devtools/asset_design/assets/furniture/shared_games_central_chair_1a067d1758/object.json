@@ -1,0 +1,44 @@
+{
+  "designObject": {
+    "id": "part:shared_games_central_chair_1a067d1758",
+    "label": "圆背木脚椅",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "圆背木脚椅（8处引用）",
+    "menuOrder": 10,
+    "menuCategory": "seating",
+    "currentUsage": {
+      "count": 8,
+      "locations": {
+        "layout:central:2": 8
+      },
+      "description": "主楼二层：中央桌游区 6 把、棋桌区 2 把；保留原布料与腰枕配色。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "reuseVariants": {
+      "geometryMaster": "part:shared_games_central_chair_1a067d1758",
+      "parameters": [
+        "size",
+        "rotation",
+        "material"
+      ],
+      "mergedFrom": [
+        "part:shared_games_central_chair_1a067d1758",
+        "part:shared_games_left_chess_chair_b5019208cb"
+      ]
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_games_central_chair_1a067d1758_v004",
+      "file": "furniture/shared_games_central_chair_1a067d1758/versions/v004/version.json",
+      "order": 454
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "designObject": {
+    "id": "part:shared_television_left_speaker_50a1618b48",
+    "label": "独立音箱",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "独立音箱（2处引用）",
+    "menuOrder": 18,
+    "menuCategory": "decor",
+    "currentUsage": {
+      "count": 2,
+      "locations": {
+        "layout:terrace:M01": 2
+      },
+      "description": "M01 观影露台左右音箱各 1 处。一个公共 GLB 内保留两种原始支脚形状，分别适配层架，不强行统一几何。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "shapeVariants": [
+      {
+        "id": "left",
+        "node": 0,
+        "label": "左音箱原支脚形状"
+      },
+      {
+        "id": "right",
+        "node": 2,
+        "label": "右音箱原支脚形状，适配原层架高度"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "id": "part_shared_television_left_speaker_50a1618b48_v005",
+      "file": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/version.json",
+      "order": 467
+    }
+  ]
+}

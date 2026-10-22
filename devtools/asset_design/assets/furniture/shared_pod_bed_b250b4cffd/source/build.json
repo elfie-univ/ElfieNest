@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_pod_bed_b250b4cffd",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共母版：卧室床组（含全部床品与配套枕头）；当前 32 处引用。8 间小屋卧室：A/B/C/D 各 1 套，每间 4 套，共 32 套。 已确认局部减面：单床 183143→157451 面；保留灯具、搭毯、包边、流苏与全部材质贴图。",
+  "currentUsage": {
+    "count": 32,
+    "locations": {
+      "layout:pod": 32
+    },
+    "description": "8 间小屋卧室：A/B/C/D 各 1 套，每间 4 套，共 32 套。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_pod_bed_b250b4cffd",
+    "rootNode": 141,
+    "shapes": 9,
+    "type": "low-poly-convex-base-and-eight-rim-sections",
+    "movable": false,
+    "renderGeometryUnchanged": true,
+    "sleepingCavityOpen": true
+  }
+}

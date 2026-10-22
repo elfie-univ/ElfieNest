@@ -1,0 +1,34 @@
+{
+  "object": "part:shared_pod_petal_chair_d33b2e4ede",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共母版：卧室花瓣旋转椅；当前 32 处引用。8 间小屋卧室：A/B/C/D 各 1 把，每间 4 把，共 32 把。",
+  "reuse": {
+    "identity": "d33b2e4ede61c863d7d929c9bea340cd74aaf17daade10b97029113e6cc90f80",
+    "category": "chair",
+    "sourceReferences": 4,
+    "estateReferences": 32,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v001/reuse.json"
+  },
+  "currentUsage": {
+    "count": 32,
+    "locations": {
+      "layout:pod": 32
+    },
+    "description": "8 间小屋卧室：A/B/C/D 各 1 把，每间 4 把，共 32 把。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_pod_petal_chair_d33b2e4ede",
+    "rootNode": 18,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": true
+  }
+}

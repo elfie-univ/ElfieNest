@@ -1,0 +1,112 @@
+{
+  "object": "layout:terrace:M03",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "theme": "阅读",
+  "editableModel": "model.blend",
+  "reference": "references/pod_terrace_20261015_eight_themes.png",
+  "buildingSourceSha256": "40a042f982b9dd2cb0d7fa057705c172644fc69341bd721a52ba896af83f5f59",
+  "fittedCabinets": "Current M01 five-surface wood liners and concealed continuous soft light; shared architectural prototype and instance basis verified",
+  "wallSofas": [],
+  "assemblies": [
+    "curved_niche_oak_liner",
+    "rear_cabinet_conformal_liner",
+    "television_recessed_soft_light",
+    "wardrobe_recessed_soft_light",
+    "natural_floor_plant",
+    "reading_side_table",
+    "linen_reading_lamp",
+    "reading_book_and_cup",
+    "natural_woven_rug",
+    "reading_ottoman",
+    "additional_low_reading_plant",
+    "cabinet_trailing_foliage",
+    "cream_reading_armchair",
+    "sage_reading_armchair",
+    "theme_lower_fitted_doors",
+    "reference_rear_open_storage",
+    "reference_theme_niche_woodwork_and_display"
+  ],
+  "reviewCoordinates": "Normalized to M01 instance for consistent review camera; furniture source retains its own real placement",
+  "referenceRefinement": [
+    "distinct tailored seating",
+    "reference adjusted sofa length and seat count",
+    "woven cloth and braided jute PBR textures",
+    "loose cushions, seams and folded cloth",
+    "theme prop refinements and extra foliage",
+    "warmer cabinet light wash; original viewer lighting unchanged"
+  ],
+  "cabinetLightWashStrength": 1.4,
+  "sourceSha256": "107bd05f6f0df1d4470941aa3e876d93db05860a62da4ace3fc6148482f79f7b",
+  "restoredSeating": [
+    "sage_reading_armchair",
+    "cream_reading_armchair"
+  ],
+  "cabinetInterior": "continuous tall and low books / horizontal stack",
+  "cabinetDesign": {
+    "preserved": [
+      "additional_low_reading_plant",
+      "cabinet_trailing_foliage",
+      "cream_reading_armchair",
+      "curved_niche_oak_liner",
+      "linen_reading_lamp",
+      "natural_floor_plant",
+      "natural_woven_rug",
+      "reading_book_and_cup",
+      "reading_ottoman",
+      "reading_side_table",
+      "rear_cabinet_conformal_liner",
+      "sage_reading_armchair",
+      "television_recessed_soft_light",
+      "wardrobe_recessed_soft_light"
+    ],
+    "lowerDoorCount": 4,
+    "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
+    "proportions": "native object dimensions; no axis squashing"
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 3,
+    "uniqueShapes": 3,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 1343,
+    "collisionTrianglesByInstance": 1343
+  },
+  "movableFurnitureInstances": [
+    "layout:terrace:M03:movable:cream_reading_armchair",
+    "layout:terrace:M03:movable:sage_reading_armchair"
+  ],
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_gaming_pouf_07c6aefa0a",
+      "part:shared_lilac_game_armchair_033103e3ca",
+      "part:shared_music_coffee_table_1db16d8004",
+      "part:shared_natural_floor_plant_eeaa5dd5b5"
+    ],
+    "removedLayoutBodies": 6
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [
+      "Collision M03 M03_linen_reading_lamp",
+      "Collision M03 theme-cabinet",
+      "Collision M03 rear-storage"
+    ],
+    "nativeValidated": true
+  }
+}

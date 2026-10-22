@@ -1,0 +1,45 @@
+{
+  "id": "part_shared_gaming_pouf_07c6aefa0a_v004",
+  "category": "kit",
+  "title": "圆柱软坐墩 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 5248},
+    {"path": "furniture/shared_gaming_pouf_07c6aefa0a/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5236},
+    {"path": "furniture/shared_gaming_pouf_07c6aefa0a/source/build.json", "name": "build.json", "kind": "data", "bytes": 1155},
+    {"path": "furniture/shared_resources/source/resources/2359eefbf9f1fb712f3ab44091bec6ad0d52b45a819227fe05771799066af8d8.bin", "name": "2359eefbf9f1fb712f3ab44091bec6ad0d52b45a819227fe05771799066af8d8.bin", "kind": "data", "bytes": 1104},
+    {"path": "furniture/shared_resources/source/resources/26fbc200860ca7061f57693a61cc1d92a39293290030e3d131c199f3719db0ce.png", "name": "26fbc200860ca7061f57693a61cc1d92a39293290030e3d131c199f3719db0ce.png", "kind": "texture", "bytes": 490725},
+    {"path": "furniture/shared_resources/source/resources/28ddd7685d358bc7c9f6d3865691ddac0eda0840a7620344c6c0783a56a5bc37.png", "name": "28ddd7685d358bc7c9f6d3865691ddac0eda0840a7620344c6c0783a56a5bc37.png", "kind": "texture", "bytes": 81590},
+    {"path": "furniture/shared_resources/source/resources/dbdf7906fe1a38f51abfa63921f99fca466e23a6abd5ebb5f830c13a0e991a92.bin", "name": "dbdf7906fe1a38f51abfa63921f99fca466e23a6abd5ebb5f830c13a0e991a92.bin", "kind": "data", "bytes": 134716},
+    {"path": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1176},
+    {"path": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/images/06-front-comparison.png", "name": "06-front-comparison.png", "kind": "image", "bytes": 629312}
+  ],
+  "designVersion": {
+    "id": "part_shared_gaming_pouf_07c6aefa0a_v004",
+    "asset": "part_shared_gaming_pouf_07c6aefa0a_v004",
+    "title": "圆柱软坐墩 · V004",
+    "revision": 4,
+    "file": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/model.glb",
+    "digest": "756226fa6625846df94fcb55031beaa31ae244794e3989dfe9e20d6ffdd2ac98",
+    "contentDigest": "b88014b56e6da6d05a7e7da6a0794239a9dfab716c98e85217433fdaf20406aa",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "07c6aefa0a95ad3730d12f73cb16d13c715c6bdb81568c60df30d437dc16b709",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v002/reuse.json"
+    }
+  }
+}

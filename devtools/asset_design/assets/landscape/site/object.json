@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "landscape:site",
+    "label": "庭院与花园",
+    "group": "landscape",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "landscape:site",
+    "collectionLabel": "庭院与花园"
+  },
+  "versions": [
+    {
+      "id": "landscape_site_v013",
+      "file": "landscape/site/versions/v013/version.json",
+      "order": 501
+    }
+  ]
+}

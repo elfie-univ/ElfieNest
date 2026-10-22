@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_quiet_rear_reading_armchair_2477bb0b6f",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "2477bb0b6fb2ca923cd72a75551de93f6c8d32d920d13e638c86f030a88f6b1a",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v001/reuse.json"
+  },
+  "collision": {
+    "owner": "part:shared_quiet_rear_reading_armchair_2477bb0b6f",
+    "rootNode": 5,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": true
+  }
+}

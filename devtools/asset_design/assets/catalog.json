@@ -1,0 +1,1395 @@
+{
+  "imageReferences": [
+    {
+      "path": "layouts/terraces/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "八主题完整原始效果图",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-check-overview.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "八间当前模型总览 · 原页面日间",
+      "kind": "render",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-check-niche.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "八间当前壁龛 · 真实模型近景",
+      "kind": "render",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-check-rear.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "八间当前后柜 · 真实模型近景",
+      "kind": "render",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-overview.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前模型总览 · 原页面日间",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-niche.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前壁龛 · 真实模型近景",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-final-rear.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前后柜 · 真实模型近景",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-current-overview.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前模型总览 · 原页面日间",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-current-niche.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前壁龛 · 真实模型近景",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v010-eight-current-rear.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前后柜 · 真实模型近景",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M08/references/M08-original-reference.png",
+      "objects": [
+        "layout:terrace:M08"
+      ],
+      "title": "M08 收藏休闲 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M07/references/M07-original-reference.png",
+      "objects": [
+        "layout:terrace:M07"
+      ],
+      "title": "M07 茶点聊天 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M06/references/M06-original-reference.png",
+      "objects": [
+        "layout:terrace:M06"
+      ],
+      "title": "M06 绘画手作 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M05/references/M05-original-reference.png",
+      "objects": [
+        "layout:terrace:M05"
+      ],
+      "title": "M05 音乐 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M04/references/M04-original-reference.png",
+      "objects": [
+        "layout:terrace:M04"
+      ],
+      "title": "M04 桌游 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M03/references/M03-original-reference.png",
+      "objects": [
+        "layout:terrace:M03"
+      ],
+      "title": "M03 阅读 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M02/references/M02-original-reference.png",
+      "objects": [
+        "layout:terrace:M02"
+      ],
+      "title": "M02 电玩 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M01/references/M01-original-reference.png",
+      "objects": [
+        "layout:terrace:M01"
+      ],
+      "title": "M01 观影 · 原始参考图局部",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M01/references/v017-M01-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M01 观影 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M01/references/v017-M01-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M01 观影 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M01/references/v017-M01-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M01 观影 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v009-M02-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M02 电玩 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v009-M02-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M02 电玩 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v009-M02-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M02 电玩 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M03/references/v007-M03-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M03 阅读 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M03/references/v007-M03-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M03 阅读 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M03/references/v007-M03-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M03 阅读 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M04/references/v008-M04-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M04 桌游 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M04/references/v008-M04-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M04 桌游 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M04/references/v008-M04-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M04 桌游 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M05/references/v007-M05-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M05 音乐 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M05/references/v007-M05-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M05 音乐 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M05/references/v007-M05-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M05 音乐 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M06/references/v007-M06-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M06 绘画手作 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M06/references/v007-M06-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M06 绘画手作 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M06/references/v007-M06-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M06 绘画手作 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M07/references/v007-M07-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M07 茶点聊天 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M07/references/v007-M07-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M07 茶点聊天 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M07/references/v007-M07-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M07 茶点聊天 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M08/references/v007-M08-current-day.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M08 收藏休闲 · 当前模型 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M08/references/v007-M08-before-after.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M08 收藏休闲 · 修正前后对比 · 同视角同光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M08/references/v007-M08-cabinet-detail.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · M08 收藏休闲 · 柜内放大 · 真实模型 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v009-eight-corrected-overview.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八间当前模型总览 · 原页面日间截图",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "layouts/terraces/M02/references/v009-eight-cabinet-interiors.jpg",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "历史 · 八主题柜内分格总览 · 中性检查光照",
+      "kind": "history",
+      "version": null
+    },
+    {
+      "path": "buildings/central/references/exec-b088f3f5-7f88-4a64-a349-4e5038beb990.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "02 · 森林园区 · 三层主楼与花园露台",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/exec-d7e11c52-95c1-44b7-aa30-2df1365eea29.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "03 · 原始园区造型 · 主楼、楼梯与连廊",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/forest_architecture_02.jpg",
+      "objects": [
+        "building:central"
+      ],
+      "title": "04 · 原始森林园区 · 圆润主楼与透明管道",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/pod/references/final-interior-review.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "final-interior-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "buildings/pod/references/final-whole-review.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "final-whole-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "buildings/pod/references/forest_architecture_01.jpg",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "18 · 森林小屋 · 原始双层房间造型",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/01_ground_lounge.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "主楼1层 · 当前布局参考",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/elfie_ground_lounge_fixed_stair_v1__reference_floor_1.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "10 · 一楼 · 沿固定楼梯布置客厅",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_2/references/02_games_four_windows.png",
+      "objects": [
+        "layout:central:2",
+        "part:floor_plant"
+      ],
+      "title": "主楼2层 · 当前布局参考",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_2/references/elfie_second_floor_games_v1__reference_floor_2.png",
+      "objects": [
+        "layout:central:2",
+        "part:floor_plant"
+      ],
+      "title": "12 · 二楼 · 桌游与游戏活动区",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_3/references/03_quiet_four_windows.png",
+      "objects": [
+        "layout:central:3"
+      ],
+      "title": "主楼3层 · 当前布局参考",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/pod_bedroom/references/A-end-review.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "A-end-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "layouts/pod_bedroom/references/B-end-review.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "B-end-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "layouts/pod_bedroom/references/C-end-review.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "C-end-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "layouts/pod_bedroom/references/D-end-review.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "D-end-review.png",
+      "kind": "render"
+    },
+    {
+      "path": "layouts/pod_bedroom/references/exec-6e10da9a-f049-4c90-a546-abc180205dbe.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "19 · 四人小屋 · 沿墙家具与活动区 · 薄荷版",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/exec-57a050a0-f66d-42cc-87b0-d0ab94378531.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "exec-57a050a0-f66d-42cc-87b0-d0ab94378531.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/exec-bb201c0a-d84a-4f91-b558-245648294cd3.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "exec-bb201c0a-d84a-4f91-b558-245648294cd3.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/exec-8c99a803-ec68-403d-9f60-ccdd83214151.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "exec-8c99a803-ec68-403d-9f60-ccdd83214151.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/exec-ccde8008-74de-444d-8a2e-be11066ee1e3.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "exec-ccde8008-74de-444d-8a2e-be11066ee1e3.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M01/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M01"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/exec-c6bc8392-ba80-42ff-866f-a3bb920cfe6f.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "exec-c6bc8392-ba80-42ff-866f-a3bb920cfe6f.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-6e2906f2-9859-4607-b1b0-870ce2a4481b.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-6e2906f2-9859-4607-b1b0-870ce2a4481b.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M01/references/reference-cabinets-enlarged.png",
+      "objects": [
+        "layout:terrace:M01"
+      ],
+      "title": "reference-cabinets-enlarged.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-a3d9d96f-65ea-4119-9f7a-092dfcf64ff9.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-a3d9d96f-65ea-4119-9f7a-092dfcf64ff9.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-878265d7-2544-47bb-8353-0bc72fb6fe33.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-878265d7-2544-47bb-8353-0bc72fb6fe33.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-02719e7c-6354-4f55-9569-091465fefb11.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-02719e7c-6354-4f55-9569-091465fefb11.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-0fbd8e2b-c2fd-4513-946d-bfe6d0f844c7.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-0fbd8e2b-c2fd-4513-946d-bfe6d0f844c7.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-eab8688f-644b-45f4-8a20-e71a92bd1d7e.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-eab8688f-644b-45f4-8a20-e71a92bd1d7e.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-0fa0671f-5533-4a3a-8f6b-8f9a545e0ec7.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-0fa0671f-5533-4a3a-8f6b-8f9a545e0ec7.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/codex-clipboard-e6acc120-a5b4-4e26-ad89-5d70b52be11a.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "codex-clipboard-e6acc120-a5b4-4e26-ad89-5d70b52be11a.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M02/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M02"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M03/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M03"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M04/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M04"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M05/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M05"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M06/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M06"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M07/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M07"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/M08/references/pod_terrace_20261015_eight_themes.png",
+      "objects": [
+        "layout:terrace:M08"
+      ],
+      "title": "pod_terrace_20261015_eight_themes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "furniture/uniform_frame/references/codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "objects": [
+        "part:uniform_frame"
+      ],
+      "title": "codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "kind": "reference"
+    },
+    {
+      "path": "furniture/floor_plant/references/codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "objects": [
+        "part:floor_plant"
+      ],
+      "title": "codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "codex-clipboard-a55ba51d-a2ce-46d5-9759-3e63f1cedb64.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/wall-paint-concept-v001.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "wall-paint-concept-v001.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/botanical-wall-paint-v001.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "botanical-wall-paint-v001.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/landscape-botanical-art-v001.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "landscape-botanical-art-v001.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/approved-second-floor.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "approved-second-floor.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_3/references/approved-third-floor-20261017.png",
+      "objects": [
+        "layout:central:3"
+      ],
+      "title": "approved-third-floor-20261017.png",
+      "kind": "reference"
+    },
+    {
+      "path": "furniture/plant_comparison/versions/v001/images/three-plants-comparison.png",
+      "objects": [
+        "part:plant_comparison"
+      ],
+      "title": "three-plants-comparison.png",
+      "kind": "render",
+      "version": "part_plant_comparison_v001"
+    },
+    {
+      "path": "layouts/central_floor_2/references/approved-second-floor.png",
+      "objects": [
+        "layout:central:2"
+      ],
+      "title": "approved-second-floor.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/floor1-plant-symmetry-layout-20261018.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "floor1-plant-symmetry-layout-20261018.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_1/references/floor1-approved-plant-types-20261018.png",
+      "objects": [
+        "layout:central:1"
+      ],
+      "title": "floor1-approved-plant-types-20261018.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/approved-roof-reference.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "approved-roof-reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/roof-console-revision-notes.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "roof-console-revision-notes.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/roof-console-scale-check.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "roof-console-scale-check.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/roof-step-direction-reference.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "roof-step-direction-reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/roof-lighting-concept-day-and-arrival.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "roof-lighting-concept-day-and-arrival.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/roof-emission-zoning-reference.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "roof-emission-zoning-reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/central/references/skylight-centre-defect-reference.png",
+      "objects": [
+        "building:central"
+      ],
+      "title": "skylight-centre-defect-reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/pod/references/flat-three-panel-design-reference.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "flat-three-panel-design-reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/pod/references/approved-five-petal-design.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "approved-five-petal-design.png",
+      "kind": "reference"
+    },
+    {
+      "path": "buildings/pod/references/approved-edge-coves.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "approved-edge-coves.png",
+      "kind": "reference"
+    },
+    {
+      "path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-front-comparison.png",
+      "objects": [
+        "part:shared_barrel_chair_cd60223c75"
+      ],
+      "title": "01-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_barrel_chair_cd60223c75_v005"
+    },
+    {
+      "path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-side-comparison.png",
+      "objects": [
+        "part:shared_barrel_chair_cd60223c75"
+      ],
+      "title": "01-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_barrel_chair_cd60223c75_v005"
+    },
+    {
+      "path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/images/02-front-comparison.png",
+      "objects": [
+        "part:shared_blue_matching_ottoman_80bb399c60"
+      ],
+      "title": "02-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_blue_matching_ottoman_80bb399c60_v003"
+    },
+    {
+      "path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-front-comparison.png",
+      "objects": [
+        "part:shared_games_central_chair_1a067d1758"
+      ],
+      "title": "03-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_games_central_chair_1a067d1758_v004"
+    },
+    {
+      "path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-side-comparison.png",
+      "objects": [
+        "part:shared_games_central_chair_1a067d1758"
+      ],
+      "title": "03-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_games_central_chair_1a067d1758_v004"
+    },
+    {
+      "path": "furniture/shared_games_front_pouf_71af28b866/versions/v004/images/04-front-comparison.png",
+      "objects": [
+        "part:shared_games_front_pouf_71af28b866"
+      ],
+      "title": "04-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_games_front_pouf_71af28b866_v004"
+    },
+    {
+      "path": "furniture/shared_games_right_console_chair_490430005f/versions/v004/images/05-front-comparison.png",
+      "objects": [
+        "part:shared_games_right_console_chair_490430005f"
+      ],
+      "title": "05-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_games_right_console_chair_490430005f_v004"
+    },
+    {
+      "path": "furniture/shared_gaming_pouf_07c6aefa0a/versions/v004/images/06-front-comparison.png",
+      "objects": [
+        "part:shared_gaming_pouf_07c6aefa0a"
+      ],
+      "title": "06-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_gaming_pouf_07c6aefa0a_v004"
+    },
+    {
+      "path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/images/07-front-comparison.png",
+      "objects": [
+        "part:shared_high_oak_coffee_table_746b99603f"
+      ],
+      "title": "07-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_high_oak_coffee_table_746b99603f_v004"
+    },
+    {
+      "path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-front-comparison.png",
+      "objects": [
+        "part:shared_lilac_game_armchair_033103e3ca"
+      ],
+      "title": "08-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_lilac_game_armchair_033103e3ca_v005"
+    },
+    {
+      "path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-side-comparison.png",
+      "objects": [
+        "part:shared_lilac_game_armchair_033103e3ca"
+      ],
+      "title": "08-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_lilac_game_armchair_033103e3ca_v005"
+    },
+    {
+      "path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-front-comparison.png",
+      "objects": [
+        "part:shared_music_coffee_table_1db16d8004"
+      ],
+      "title": "09-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_music_coffee_table_1db16d8004_v003"
+    },
+    {
+      "path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-side-comparison.png",
+      "objects": [
+        "part:shared_music_coffee_table_1db16d8004"
+      ],
+      "title": "09-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_music_coffee_table_1db16d8004_v003"
+    },
+    {
+      "path": "furniture/shared_oak_side_table_24d03d3e37/versions/v004/images/10-front-comparison.png",
+      "objects": [
+        "part:shared_oak_side_table_24d03d3e37"
+      ],
+      "title": "10-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_oak_side_table_24d03d3e37_v004"
+    },
+    {
+      "path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-front-comparison.png",
+      "objects": [
+        "part:shared_pod_petal_chair_d33b2e4ede"
+      ],
+      "title": "11-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_pod_petal_chair_d33b2e4ede_v003"
+    },
+    {
+      "path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-side-comparison.png",
+      "objects": [
+        "part:shared_pod_petal_chair_d33b2e4ede"
+      ],
+      "title": "11-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_pod_petal_chair_d33b2e4ede_v003"
+    },
+    {
+      "path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-front-comparison.png",
+      "objects": [
+        "part:shared_quiet_central_reading_chair_3418a9defb"
+      ],
+      "title": "12-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_quiet_central_reading_chair_3418a9defb_v004"
+    },
+    {
+      "path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-side-comparison.png",
+      "objects": [
+        "part:shared_quiet_central_reading_chair_3418a9defb"
+      ],
+      "title": "12-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_quiet_central_reading_chair_3418a9defb_v004"
+    },
+    {
+      "path": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/images/13-front-comparison.png",
+      "objects": [
+        "part:shared_quiet_rear_footstool_e7090e2df2"
+      ],
+      "title": "13-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_quiet_rear_footstool_e7090e2df2_v003"
+    },
+    {
+      "path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/images/14-front-comparison.png",
+      "objects": [
+        "part:shared_quiet_rear_reading_armchair_2477bb0b6f"
+      ],
+      "title": "14-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003"
+    },
+    {
+      "path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/images/14-side-comparison.png",
+      "objects": [
+        "part:shared_quiet_rear_reading_armchair_2477bb0b6f"
+      ],
+      "title": "14-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003"
+    },
+    {
+      "path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/images/15-front-comparison.png",
+      "objects": [
+        "part:shared_woven_floor_cushion_c2181122ea"
+      ],
+      "title": "15-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_woven_floor_cushion_c2181122ea_v004"
+    },
+    {
+      "path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-front-comparison.png",
+      "objects": [
+        "part:shared_television_left_speaker_50a1618b48"
+      ],
+      "title": "01-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_television_left_speaker_50a1618b48_v005"
+    },
+    {
+      "path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-side-comparison.png",
+      "objects": [
+        "part:shared_television_left_speaker_50a1618b48"
+      ],
+      "title": "01-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_television_left_speaker_50a1618b48_v005"
+    },
+    {
+      "path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/speaker-closeups.png",
+      "objects": [
+        "part:shared_television_left_speaker_50a1618b48"
+      ],
+      "title": "speaker-closeups.png",
+      "kind": "render",
+      "version": "part_shared_television_left_speaker_50a1618b48_v005"
+    },
+    {
+      "path": "furniture/shared_pod_bed_b250b4cffd/versions/v004/images/02-front-comparison.png",
+      "objects": [
+        "part:shared_pod_bed_b250b4cffd"
+      ],
+      "title": "02-front-comparison.png",
+      "kind": "render",
+      "version": "part_shared_pod_bed_b250b4cffd_v004"
+    },
+    {
+      "path": "furniture/shared_pod_bed_b250b4cffd/versions/v004/images/02-side-comparison.png",
+      "objects": [
+        "part:shared_pod_bed_b250b4cffd"
+      ],
+      "title": "02-side-comparison.png",
+      "kind": "render",
+      "version": "part_shared_pod_bed_b250b4cffd_v004"
+    },
+    {
+      "path": "layouts/terraces/M01/versions/v025/images/02-front-comparison.png",
+      "objects": [
+        "layout:terrace:M01"
+      ],
+      "title": "02-front-comparison.png",
+      "kind": "render",
+      "version": "layout_terrace_M01_v025"
+    },
+    {
+      "path": "layouts/terraces/M01/versions/v025/images/02-side-comparison.png",
+      "objects": [
+        "layout:terrace:M01"
+      ],
+      "title": "02-side-comparison.png",
+      "kind": "render",
+      "version": "layout_terrace_M01_v025"
+    },
+    {
+      "path": "layouts/pod_bedroom/versions/v022/images/01-front-comparison.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "01-front-comparison.png",
+      "kind": "render",
+      "version": "layout_pod_v022"
+    },
+    {
+      "path": "layouts/pod_bedroom/versions/v022/images/01-side-comparison.png",
+      "objects": [
+        "layout:pod"
+      ],
+      "title": "01-side-comparison.png",
+      "kind": "render",
+      "version": "layout_pod_v022"
+    },
+    {
+      "path": "buildings/pod/versions/v049/images/after-terrace.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "after-terrace.png",
+      "kind": "render",
+      "version": "building_pod_v049"
+    },
+    {
+      "path": "buildings/pod/versions/v049/images/after-jamb.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "after-jamb.png",
+      "kind": "render",
+      "version": "building_pod_v049"
+    },
+    {
+      "path": "buildings/pod/versions/v049/images/after-inside.png",
+      "objects": [
+        "building:pod"
+      ],
+      "title": "after-inside.png",
+      "kind": "render",
+      "version": "building_pod_v049"
+    },
+    {
+      "path": "landscape/site/references/reference.png",
+      "objects": [
+        "landscape:site"
+      ],
+      "title": "reference.png",
+      "kind": "reference"
+    }
+  ],
+  "stats": {
+    "directories": 4,
+    "records": 45,
+    "files": 975,
+    "models": 45,
+    "sources": 45,
+    "images": 35,
+    "bytes": 414323360
+  },
+  "objects": [
+    {
+      "id": "part:plant_comparison",
+      "index": "furniture/plant_comparison/object.json"
+    },
+    {
+      "id": "part:shared_games_niche_ornament_3b0024b038",
+      "index": "furniture/shared_games_niche_ornament_3b0024b038/object.json"
+    },
+    {
+      "id": "part:shared_pod_desk_planter_fca2aefb7a",
+      "index": "furniture/shared_pod_desk_planter_fca2aefb7a/object.json"
+    },
+    {
+      "id": "part:shared_pod_amber_lamp_ac3d236f49",
+      "index": "furniture/shared_pod_amber_lamp_ac3d236f49/object.json"
+    },
+    {
+      "id": "part:shared_cabinet_trailing_foliage_de758ed7b0",
+      "index": "furniture/shared_cabinet_trailing_foliage_de758ed7b0/object.json"
+    },
+    {
+      "id": "part:shared_coffee_plant_7a33cf7991",
+      "index": "furniture/shared_coffee_plant_7a33cf7991/object.json"
+    },
+    {
+      "id": "part:shared_natural_woven_rug_562b20302f",
+      "index": "furniture/shared_natural_woven_rug_562b20302f/object.json"
+    },
+    {
+      "id": "part:shared_apricot_craft_armchair_235af5c541",
+      "index": "furniture/shared_apricot_craft_armchair_235af5c541/object.json"
+    },
+    {
+      "id": "part:uniform_frame",
+      "index": "furniture/uniform_frame/object.json"
+    },
+    {
+      "id": "part:shared_niche_front_fern_59886e72dc",
+      "index": "furniture/shared_niche_front_fern_59886e72dc/object.json"
+    },
+    {
+      "id": "building:central",
+      "index": "buildings/central/object.json"
+    },
+    {
+      "id": "part:floor_fineleaf",
+      "index": "furniture/floor_fineleaf/object.json"
+    },
+    {
+      "id": "part:floor_plant",
+      "index": "furniture/floor_plant/object.json"
+    },
+    {
+      "id": "part:shared_natural_floor_plant_eeaa5dd5b5",
+      "index": "furniture/shared_natural_floor_plant_eeaa5dd5b5/object.json"
+    },
+    {
+      "id": "part:shared_barrel_chair_cd60223c75",
+      "index": "furniture/shared_barrel_chair_cd60223c75/object.json"
+    },
+    {
+      "id": "part:shared_blue_matching_ottoman_80bb399c60",
+      "index": "furniture/shared_blue_matching_ottoman_80bb399c60/object.json"
+    },
+    {
+      "id": "part:shared_games_central_chair_1a067d1758",
+      "index": "furniture/shared_games_central_chair_1a067d1758/object.json"
+    },
+    {
+      "id": "part:shared_games_front_pouf_71af28b866",
+      "index": "furniture/shared_games_front_pouf_71af28b866/object.json"
+    },
+    {
+      "id": "part:shared_games_right_console_chair_490430005f",
+      "index": "furniture/shared_games_right_console_chair_490430005f/object.json"
+    },
+    {
+      "id": "part:shared_gaming_pouf_07c6aefa0a",
+      "index": "furniture/shared_gaming_pouf_07c6aefa0a/object.json"
+    },
+    {
+      "id": "part:shared_high_oak_coffee_table_746b99603f",
+      "index": "furniture/shared_high_oak_coffee_table_746b99603f/object.json"
+    },
+    {
+      "id": "part:shared_lilac_game_armchair_033103e3ca",
+      "index": "furniture/shared_lilac_game_armchair_033103e3ca/object.json"
+    },
+    {
+      "id": "part:shared_music_coffee_table_1db16d8004",
+      "index": "furniture/shared_music_coffee_table_1db16d8004/object.json"
+    },
+    {
+      "id": "part:shared_oak_side_table_24d03d3e37",
+      "index": "furniture/shared_oak_side_table_24d03d3e37/object.json"
+    },
+    {
+      "id": "part:shared_pod_petal_chair_d33b2e4ede",
+      "index": "furniture/shared_pod_petal_chair_d33b2e4ede/object.json"
+    },
+    {
+      "id": "part:shared_quiet_central_reading_chair_3418a9defb",
+      "index": "furniture/shared_quiet_central_reading_chair_3418a9defb/object.json"
+    },
+    {
+      "id": "part:shared_quiet_rear_footstool_e7090e2df2",
+      "index": "furniture/shared_quiet_rear_footstool_e7090e2df2/object.json"
+    },
+    {
+      "id": "part:shared_quiet_rear_reading_armchair_2477bb0b6f",
+      "index": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/object.json"
+    },
+    {
+      "id": "part:shared_woven_floor_cushion_c2181122ea",
+      "index": "furniture/shared_woven_floor_cushion_c2181122ea/object.json"
+    },
+    {
+      "id": "part:shared_television_left_speaker_50a1618b48",
+      "index": "furniture/shared_television_left_speaker_50a1618b48/object.json"
+    },
+    {
+      "id": "part:shared_pod_bed_b250b4cffd",
+      "index": "furniture/shared_pod_bed_b250b4cffd/object.json"
+    },
+    {
+      "id": "layout:central:1",
+      "index": "layouts/central_floor_1/object.json"
+    },
+    {
+      "id": "layout:terrace:M07",
+      "index": "layouts/terraces/M07/object.json"
+    },
+    {
+      "id": "layout:terrace:M08",
+      "index": "layouts/terraces/M08/object.json"
+    },
+    {
+      "id": "layout:terrace:M06",
+      "index": "layouts/terraces/M06/object.json"
+    },
+    {
+      "id": "layout:terrace:M01",
+      "index": "layouts/terraces/M01/object.json"
+    },
+    {
+      "id": "layout:terrace:M04",
+      "index": "layouts/terraces/M04/object.json"
+    },
+    {
+      "id": "layout:terrace:M03",
+      "index": "layouts/terraces/M03/object.json"
+    },
+    {
+      "id": "layout:terrace:M02",
+      "index": "layouts/terraces/M02/object.json"
+    },
+    {
+      "id": "layout:terrace:M05",
+      "index": "layouts/terraces/M05/object.json"
+    },
+    {
+      "id": "layout:central:3",
+      "index": "layouts/central_floor_3/object.json"
+    },
+    {
+      "id": "layout:pod",
+      "index": "layouts/pod_bedroom/object.json"
+    },
+    {
+      "id": "layout:central:2",
+      "index": "layouts/central_floor_2/object.json"
+    },
+    {
+      "id": "building:pod",
+      "index": "buildings/pod/object.json"
+    },
+    {
+      "id": "landscape:site",
+      "index": "landscape/site/object.json"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "part_shared_games_right_console_chair_490430005f_v004",
+  "category": "kit",
+  "title": "圆底游戏机椅 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_games_right_console_chair_490430005f/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_games_right_console_chair_490430005f/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 7052},
+    {"path": "furniture/shared_games_right_console_chair_490430005f/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 7044},
+    {"path": "furniture/shared_games_right_console_chair_490430005f/source/build.json", "name": "build.json", "kind": "data", "bytes": 1081},
+    {"path": "furniture/shared_resources/source/resources/23e21af0964e9035198efd39fcbb5e92f9636700c1e699d606d4446df6ad3720.bin", "name": "23e21af0964e9035198efd39fcbb5e92f9636700c1e699d606d4446df6ad3720.bin", "kind": "data", "bytes": 203936},
+    {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
+    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1769},
+    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v004/images/05-front-comparison.png", "name": "05-front-comparison.png", "kind": "image", "bytes": 673884}
+  ],
+  "designVersion": {
+    "id": "part_shared_games_right_console_chair_490430005f_v004",
+    "asset": "part_shared_games_right_console_chair_490430005f_v004",
+    "title": "圆底游戏机椅 · V004",
+    "revision": 4,
+    "file": "furniture/shared_games_right_console_chair_490430005f/versions/v004/model.glb",
+    "digest": "26f6fa86c918b89137f1bbd3e98a20184da8f51d25b0a326aea27ccb6609ed93",
+    "contentDigest": "4fdd6b4162f9ac2058b1e61956458b57fc584e0ac95a5dc2770de6da8da55c5b",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "490430005f9d85a5d73f1f7b879e03663296aeb5c8f1f5b29e5304813b985b32",
+      "category": "chair",
+      "sourceReferences": 2,
+      "estateReferences": 2,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_games_right_console_chair_490430005f/versions/v002/reuse.json"
+    }
+  }
+}

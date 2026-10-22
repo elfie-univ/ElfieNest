@@ -1,0 +1,45 @@
+{
+  "id": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003",
+  "category": "kit",
+  "title": "后部阅读扶手椅〔1次〕 · V003",
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。",
+  "primaryModel": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 5392},
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5384},
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/source/build.json", "name": "build.json", "kind": "data", "bytes": 884},
+    {"path": "furniture/shared_resources/source/resources/2e3e9b08d2988ff982254096cbe2d29509051ceea9694c010fc808d8fd8fd910.png", "name": "2e3e9b08d2988ff982254096cbe2d29509051ceea9694c010fc808d8fd8fd910.png", "kind": "texture", "bytes": 972},
+    {"path": "furniture/shared_resources/source/resources/665d2b9c7537ef8e34ab8a53c4530d3bf4f20ced7b081867e44a608fa6723ece.png", "name": "665d2b9c7537ef8e34ab8a53c4530d3bf4f20ced7b081867e44a608fa6723ece.png", "kind": "texture", "bytes": 33792},
+    {"path": "furniture/shared_resources/source/resources/d1168b05196ce40292b3c51f79fdd43b78d3311ed37e5cc3ae317f9e5136154b.bin", "name": "d1168b05196ce40292b3c51f79fdd43b78d3311ed37e5cc3ae317f9e5136154b.bin", "kind": "data", "bytes": 148544},
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1215},
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/images/14-front-comparison.png", "name": "14-front-comparison.png", "kind": "image", "bytes": 684847},
+    {"path": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/images/14-side-comparison.png", "name": "14-side-comparison.png", "kind": "image", "bytes": 646011}
+  ],
+  "designVersion": {
+    "id": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003",
+    "asset": "part_shared_quiet_rear_reading_armchair_2477bb0b6f_v003",
+    "title": "后部阅读扶手椅〔1次〕 · V003",
+    "revision": 3,
+    "file": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v003/model.glb",
+    "digest": "3c75de89292c852cc79bfd881330df3fffa1528b98eeba1e7c0b8a8915d1e3de",
+    "contentDigest": "bde53a97ea2e7d4bd8fec7c8777d736c0a18a0811ce2449a36ba628627c9f580",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "2477bb0b6fb2ca923cd72a75551de93f6c8d32d920d13e638c86f030a88f6b1a",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_quiet_rear_reading_armchair_2477bb0b6f/versions/v001/reuse.json"
+    }
+  }
+}

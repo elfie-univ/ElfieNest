@@ -1,0 +1,50 @@
+{
+  "id": "part_shared_niche_front_fern_59886e72dc_v003",
+  "category": "kit",
+  "title": "壁龛蕨类盆栽 · V003",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_niche_front_fern_59886e72dc/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_niche_front_fern_59886e72dc/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_niche_front_fern_59886e72dc/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 5560},
+    {"path": "furniture/shared_niche_front_fern_59886e72dc/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5536},
+    {"path": "furniture/shared_niche_front_fern_59886e72dc/source/build.json", "name": "build.json", "kind": "data", "bytes": 801},
+    {"path": "furniture/shared_resources/source/resources/137ffbd61551654d94aebfd5f0b18fe9d85ed5c1515d32cca65c9db62fccd01b.jpg", "name": "137ffbd61551654d94aebfd5f0b18fe9d85ed5c1515d32cca65c9db62fccd01b.jpg", "kind": "texture", "bytes": 190645},
+    {"path": "furniture/shared_resources/source/resources/29fc2dc6f236d29d403367517249a32c87eb7ce4b70d79ba9ee22d7571eb153f.jpg", "name": "29fc2dc6f236d29d403367517249a32c87eb7ce4b70d79ba9ee22d7571eb153f.jpg", "kind": "texture", "bytes": 164130},
+    {"path": "furniture/shared_resources/source/resources/2db5d76abdc9b52efed13c7ddaeb20d56b46520e0bff8ce583887b2301c85051.bin", "name": "2db5d76abdc9b52efed13c7ddaeb20d56b46520e0bff8ce583887b2301c85051.bin", "kind": "data", "bytes": 67424},
+    {"path": "furniture/shared_resources/source/resources/45bce132c6e96a0864bc89ab5da51361ab3f4afa83a6669ae499ab5ca811f621.jpg", "name": "45bce132c6e96a0864bc89ab5da51361ab3f4afa83a6669ae499ab5ca811f621.jpg", "kind": "texture", "bytes": 367222},
+    {"path": "furniture/shared_resources/source/resources/9b18cb6e3f3aed3958cffede8f3d4b06f10655c03bb475701ad47cf7b9435ec5.png", "name": "9b18cb6e3f3aed3958cffede8f3d4b06f10655c03bb475701ad47cf7b9435ec5.png", "kind": "texture", "bytes": 846407},
+    {"path": "furniture/shared_resources/source/resources/bcdce9dbb8e0440f977a1d1261726e0f57e78dd2ebda164903c7ceb0efad5492.bin", "name": "bcdce9dbb8e0440f977a1d1261726e0f57e78dd2ebda164903c7ceb0efad5492.bin", "kind": "data", "bytes": 293776},
+    {"path": "furniture/shared_resources/source/resources/c719769d4b0debb5ed83f15d2e7b926cd36fa3c115a1211ff5a3d1ddbd354f09.bin", "name": "c719769d4b0debb5ed83f15d2e7b926cd36fa3c115a1211ff5a3d1ddbd354f09.bin", "kind": "data", "bytes": 876},
+    {"path": "furniture/shared_resources/source/resources/ebfb5d76ce9cbdaec20bcd22dce9b755f0b1b8650ef29ca13555e3e6961025d7.jpg", "name": "ebfb5d76ce9cbdaec20bcd22dce9b755f0b1b8650ef29ca13555e3e6961025d7.jpg", "kind": "texture", "bytes": 280359},
+    {"path": "furniture/shared_niche_front_fern_59886e72dc/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1733}
+  ],
+  "designVersion": {
+    "id": "part_shared_niche_front_fern_59886e72dc_v003",
+    "asset": "part_shared_niche_front_fern_59886e72dc_v003",
+    "title": "壁龛蕨类盆栽 · V003",
+    "revision": 3,
+    "file": "furniture/shared_niche_front_fern_59886e72dc/versions/v003/model.glb",
+    "digest": "bb4c9c79e4d0429ed32d4726e804011fd02a27e3fa44513b53d3a29d6aa0d225",
+    "contentDigest": "5a8f2676f71254206183d47cd48bdac02d0f61e5f112b4e30f67bf786782bc13",
+    "nodes": [
+      0,
+      1,
+      2
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "59886e72dc039b6f95bef9a229a7dde3c6c775e0f722304da8830f05bd063d89",
+      "category": "plant",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_niche_front_fern_59886e72dc/versions/v003/reuse.json"
+    }
+  }
+}

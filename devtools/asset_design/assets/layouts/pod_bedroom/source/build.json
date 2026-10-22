@@ -1,0 +1,96 @@
+{
+  "object": "layout:pod",
+  "source": "model.glb",
+  "placements": {
+    "M01": 840,
+    "M02": 841,
+    "M03": 842,
+    "M04": 843,
+    "M05": 844,
+    "M06": 845,
+    "M07": 846,
+    "M08": 847
+  },
+  "instanceCount": 8,
+  "sourceSha256": "911865543f5226173b76c6ba34b14ccac9df8e2f595a2e1fa5eefc4c00e25f12",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuseMasters": {
+    "layout:pod:rug-A": {
+      "object": "part:shared_natural_woven_rug_562b20302f",
+      "scale": [
+        0.25720776357404135,
+        0.7393656871186418,
+        0.24278172680851962
+      ],
+      "nodes": [
+        1131
+      ]
+    },
+    "layout:pod:rug-B": {
+      "object": "part:shared_natural_woven_rug_562b20302f",
+      "scale": [
+        0.25720776357404135,
+        0.7393656871186418,
+        0.24278172680851962
+      ],
+      "nodes": [
+        1132
+      ]
+    },
+    "layout:pod:rug-C": {
+      "object": "part:shared_natural_woven_rug_562b20302f",
+      "scale": [
+        0.25720776357404135,
+        0.7393656871186418,
+        0.24278172680851962
+      ],
+      "nodes": [
+        1133
+      ]
+    },
+    "layout:pod:rug-D": {
+      "object": "part:shared_natural_woven_rug_562b20302f",
+      "scale": [
+        0.25720776357404135,
+        0.7393656871186418,
+        0.24278172680851956
+      ],
+      "nodes": [
+        1134
+      ]
+    }
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 32,
+    "uniqueShapes": 8,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 7380,
+    "collisionTrianglesByInstance": 29520
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_pod_bed_b250b4cffd",
+      "part:shared_pod_petal_chair_d33b2e4ede"
+    ],
+    "removedLayoutBodies": 64
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [],
+    "nativeValidated": true
+  }
+}

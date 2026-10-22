@@ -1,0 +1,33 @@
+{
+  "designObject": {
+    "id": "part:shared_coffee_plant_7a33cf7991",
+    "label": "直立枝叶桌面盆栽",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "直立枝叶桌面盆栽（2处引用）",
+    "menuOrder": 20,
+    "menuCategory": "plant",
+    "currentUsage": {
+      "count": 2,
+      "locations": {
+        "layout:terrace:M01": 1,
+        "layout:terrace:M08": 1
+      },
+      "description": "M01观影露台 1 处；M08收藏露台 1 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_coffee_plant_7a33cf7991_v002",
+      "file": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/version.json",
+      "order": 197
+    }
+  ]
+}

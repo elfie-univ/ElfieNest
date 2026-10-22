@@ -390,9 +390,18 @@ def bundle_pytest_command(bundle: TestBundle) -> Tuple[str, ...]:
     )
 
 
-def _execute_bundle(bundle: TestBundle, coverage_file: Path) -> int:
+def _test_environment() -> Dict[str, str]:
+    """Run repository tests against source configuration, not host installation state."""
     env = os.environ.copy()
     env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
+    env["ELFIENEST_RUNTIME_MODE"] = "development"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env.pop("ELFIENEST_BUNDLED_CONFIG_DIR", None)
+    return env
+
+
+def _execute_bundle(bundle: TestBundle, coverage_file: Path) -> int:
+    env = _test_environment()
     env["COVERAGE_FILE"] = str(coverage_file)
     command = list(bundle_pytest_command(bundle))
     print(f"\n==> test bundle {bundle.bundle_id}: {' '.join(command)}")
@@ -485,8 +494,7 @@ def run_focused_tests(
         if not no_cache and cache_hit(cache_root, key):
             print(f"✅ reused passed focused tests: {key}")
             return 0
-        env = os.environ.copy()
-        env.setdefault("UV_CACHE_DIR", "/tmp/elfienest-uv-cache")
+        env = _test_environment()
         print(f"\n==> focused tests: {' '.join(command)}")
         result = subprocess.run(
             list(command), cwd=PROJECT_ROOT, env=env, check=False
@@ -669,28 +677,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-count", type=int, default=4)
     args = parser.parse_args(argv)
-    if (
-        args.selectors
-        and args.shard_index is None
-        and os.environ.get("GITHUB_ACTIONS") == "true"
-    ):
-        workers = [
-            subprocess.Popen(
-                [
-                    sys.executable,
-                    str(Path(__file__).resolve()),
-                    "--shard-index",
-                    str(index),
-                    "--shard-count",
-                    str(args.shard_count),
-                    "--selectors",
-                    *args.selectors,
-                ],
-                cwd=PROJECT_ROOT,
-            )
-            for index in range(args.shard_count)
-        ]
-        return max(worker.wait() for worker in workers)
+    # Selected tests share one worktree, process environment, ports, and
+    # repository-local runtime paths.  Running them concurrently in that same
+    # worktree makes otherwise deterministic tests race with one another.
     if args.shard_index is not None:
         if not args.selectors:
             parser.error("test shards require --selectors")

@@ -1,0 +1,73 @@
+{
+  "object": "part:floor_plant",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "sourceSha256": "4c73b8194d63d6d48c50ebfa058d4a242f103453e3e8f784471e2b276e611e0a",
+  "design": {
+    "description": "楼层共用大叶橡皮树，28 片宽厚弯曲叶片、三株木质茎、奶白陶盆；高 205 厘米，盆径 46 厘米。",
+    "species": "Ficus elastica",
+    "heightM": 2.05,
+    "potDiameterM": 0.46,
+    "origin": "floor center",
+    "canopyBoundsM": [
+      [
+        -0.43905530465135006,
+        0.3893812884369929,
+        -0.42480654523743505
+      ],
+      [
+        0.43552218883974764,
+        2.05,
+        0.3913729077007412
+      ]
+    ],
+    "leafCount": 28,
+    "leafLengthRangeM": [
+      0.25582877429214745,
+      0.3615702016324844
+    ],
+    "foliage": {
+      "source": "Original procedural mesh; broad closed-color blades with curved midribs, secondary veins, petioles and growing tips",
+      "geometry": "Actual curved blade surfaces with separately shaded undersides; no alpha-cutout leaf cards",
+      "planter": "Retained rounded ivory ceramic planter from part_floor_plant_v002, resized to 46 cm"
+    },
+    "referenceImages": [
+      "layouts/central_floor_2/references/02_games_four_windows.png",
+      "layouts/central_floor_2/references/elfie_second_floor_games_v1__reference_floor_2.png"
+    ],
+    "reuse": "One movable assembly, intended for first/second/third-floor placements; current trial replaces only Corner floor plant 6 on floor one."
+  },
+  "baseVersion": "part_floor_plant_v002",
+  "currentUsage": {
+    "count": 8,
+    "locations": {
+      "layout:central:1": 4,
+      "layout:central:2": 4
+    },
+    "description": "主楼一层 4 处、二层 4 处；尺寸、朝向和材质保留在引用参数。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuseVariants": {
+    "geometryMaster": "part:floor_plant",
+    "parameters": [
+      "size",
+      "rotation",
+      "material"
+    ],
+    "mergedFrom": [
+      "part:floor_plant",
+      "part:shared_rubber_tree_planter_dddf795435"
+    ]
+  },
+  "collision": {
+    "owner": "part:floor_plant",
+    "rootNode": 9,
+    "shapes": 1,
+    "type": "static-structural",
+    "movable": false,
+    "renderGeometryUnchanged": true
+  }
+}

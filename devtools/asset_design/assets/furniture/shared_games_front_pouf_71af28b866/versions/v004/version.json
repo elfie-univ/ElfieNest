@@ -1,0 +1,44 @@
+{
+  "id": "part_shared_games_front_pouf_71af28b866_v004",
+  "category": "kit",
+  "title": "花瓣软坐墩 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_games_front_pouf_71af28b866/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_games_front_pouf_71af28b866/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 3504},
+    {"path": "furniture/shared_games_front_pouf_71af28b866/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 3496},
+    {"path": "furniture/shared_games_front_pouf_71af28b866/source/build.json", "name": "build.json", "kind": "data", "bytes": 1055},
+    {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
+    {"path": "furniture/shared_resources/source/resources/c83c420397362427330842f1c927106c5088608812f85a66d26547e61d49f842.bin", "name": "c83c420397362427330842f1c927106c5088608812f85a66d26547e61d49f842.bin", "kind": "data", "bytes": 133760},
+    {"path": "furniture/shared_resources/source/resources/f5ca294de86d462178896e2a8319cf6343ae83d6e62f4b2c1dca2ba283f74584.bin", "name": "f5ca294de86d462178896e2a8319cf6343ae83d6e62f4b2c1dca2ba283f74584.bin", "kind": "data", "bytes": 1104},
+    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 824},
+    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v004/images/04-front-comparison.png", "name": "04-front-comparison.png", "kind": "image", "bytes": 565733}
+  ],
+  "designVersion": {
+    "id": "part_shared_games_front_pouf_71af28b866_v004",
+    "asset": "part_shared_games_front_pouf_71af28b866_v004",
+    "title": "花瓣软坐墩 · V004",
+    "revision": 4,
+    "file": "furniture/shared_games_front_pouf_71af28b866/versions/v004/model.glb",
+    "digest": "145aa77cdc65cb512eb9ee869695527216836068fe662acba90d891f2c8fd831",
+    "contentDigest": "8c4ac220799f8851df8210f8756ead139526696767813b0ee6857a16a151a585",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "71af28b866271568288b48a1f41191554ae9a2d98841abdd779479286b6076c1",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_games_front_pouf_71af28b866/versions/v002/reuse.json"
+    }
+  }
+}

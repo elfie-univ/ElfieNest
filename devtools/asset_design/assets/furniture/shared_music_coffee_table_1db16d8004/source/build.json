@@ -1,0 +1,39 @@
+{
+  "object": "part:shared_music_coffee_table_1db16d8004",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共母版：露台木脚圆桌；当前 6 处引用。M03阅读露台 1 处；M04桌游露台 1 处；M05音乐露台 1 处；M06手作露台 1 处；M07茶点露台 1 处；M08收藏露台 1 处",
+  "reuse": {
+    "identity": "1db16d8004acc05613e43a10ce79c2b356ee0844a2eace3586c2698c9d67914f",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_music_coffee_table_1db16d8004/versions/v001/reuse.json"
+  },
+  "currentUsage": {
+    "count": 6,
+    "locations": {
+      "layout:terrace:M03": 1,
+      "layout:terrace:M04": 1,
+      "layout:terrace:M05": 1,
+      "layout:terrace:M06": 1,
+      "layout:terrace:M07": 1,
+      "layout:terrace:M08": 1
+    },
+    "description": "M03阅读露台 1 处；M04桌游露台 1 处；M05音乐露台 1 处；M06手作露台 1 处；M07茶点露台 1 处；M08收藏露台 1 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:shared_music_coffee_table_1db16d8004",
+    "rootNode": 6,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": false,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": false
+  }
+}
