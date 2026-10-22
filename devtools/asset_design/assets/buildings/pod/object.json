@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "building:pod",
+    "label": "小屋",
+    "group": "building",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "building:pod",
+    "collectionLabel": "小屋"
+  },
+  "versions": [
+    {
+      "id": "building_pod_v049",
+      "file": "buildings/pod/versions/v049/version.json",
+      "order": 486
+    }
+  ]
+}

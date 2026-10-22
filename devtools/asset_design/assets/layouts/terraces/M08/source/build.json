@@ -1,0 +1,107 @@
+{
+  "object": "layout:terrace:M08",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "theme": "收藏休闲",
+  "editableModel": "model.blend",
+  "reference": "references/pod_terrace_20261015_eight_themes.png",
+  "buildingSourceSha256": "40a042f982b9dd2cb0d7fa057705c172644fc69341bd721a52ba896af83f5f59",
+  "fittedCabinets": "Current M01 five-surface wood liners and concealed continuous soft light; shared architectural prototype and instance basis verified",
+  "wallSofas": [],
+  "assemblies": [
+    "curved_niche_oak_liner",
+    "rear_cabinet_conformal_liner",
+    "television_recessed_soft_light",
+    "wardrobe_recessed_soft_light",
+    "natural_floor_plant",
+    "collector_side_table",
+    "tabletop_natural_foliage",
+    "natural_woven_rug",
+    "blue_matching_ottoman",
+    "woven_floor_cushion_one",
+    "woven_floor_cushion_two",
+    "additional_low_collectors_plant",
+    "cabinet_trailing_foliage",
+    "blue_collectors_armchair",
+    "theme_lower_fitted_doors",
+    "reference_rear_open_storage",
+    "reference_theme_niche_woodwork_and_display"
+  ],
+  "reviewCoordinates": "Normalized to M01 instance for consistent review camera; furniture source retains its own real placement",
+  "referenceRefinement": [
+    "distinct tailored seating",
+    "reference adjusted sofa length and seat count",
+    "woven cloth and braided jute PBR textures",
+    "loose cushions, seams and folded cloth",
+    "theme prop refinements and extra foliage",
+    "warmer cabinet light wash; original viewer lighting unchanged"
+  ],
+  "cabinetLightWashStrength": 1.4,
+  "sourceSha256": "b701214c52a3b90cd7a55df6e68bdeb13595f87bec851ba7cd4eb3bd5cb1a298",
+  "restoredSeating": [
+    "blue_collectors_armchair"
+  ],
+  "cabinetInterior": "cream pot / open woven basket / green keepsake box / books",
+  "cabinetDesign": {
+    "preserved": [
+      "additional_low_collectors_plant",
+      "blue_collectors_armchair",
+      "blue_matching_ottoman",
+      "cabinet_trailing_foliage",
+      "collector_side_table",
+      "curved_niche_oak_liner",
+      "natural_floor_plant",
+      "natural_woven_rug",
+      "rear_cabinet_conformal_liner",
+      "tabletop_natural_foliage",
+      "television_recessed_soft_light",
+      "wardrobe_recessed_soft_light",
+      "woven_floor_cushion_one",
+      "woven_floor_cushion_two"
+    ],
+    "lowerDoorCount": 5,
+    "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
+    "proportions": "native object dimensions; no axis squashing"
+  },
+  "description": "木座扶手椅统一引用共用母版；保留原实例的杏色/蓝色、摆放、朝向与缩放，采用棋桌扶手椅形状。",
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 2,
+    "uniqueShapes": 2,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 370,
+    "collisionTrianglesByInstance": 370
+  },
+  "movableFurnitureInstances": [
+    "layout:terrace:M08:movable:blue_matching_ottoman"
+  ],
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_blue_matching_ottoman_80bb399c60",
+      "part:shared_lilac_game_armchair_033103e3ca",
+      "part:shared_music_coffee_table_1db16d8004",
+      "part:shared_natural_floor_plant_eeaa5dd5b5",
+      "part:shared_woven_floor_cushion_c2181122ea"
+    ],
+    "removedLayoutBodies": 7
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [],
+    "nativeValidated": true
+  }
+}

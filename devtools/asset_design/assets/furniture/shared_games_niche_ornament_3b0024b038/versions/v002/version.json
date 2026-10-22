@@ -1,0 +1,42 @@
+{
+  "id": "part_shared_games_niche_ornament_3b0024b038_v002",
+  "category": "kit",
+  "title": "壁龛小摆件 · V002",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/model.glb",
+  "models": [
+    "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/model.glb", "name": "model.glb", "kind": "model", "bytes": 2172},
+    {"path": "furniture/shared_games_niche_ornament_3b0024b038/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 2168},
+    {"path": "furniture/shared_games_niche_ornament_3b0024b038/source/build.json", "name": "build.json", "kind": "data", "bytes": 803},
+    {"path": "furniture/shared_resources/source/resources/322bff23a563ff54c81d04959575c2668f6f2759e7d913032236f7894bb493a4.bin", "name": "322bff23a563ff54c81d04959575c2668f6f2759e7d913032236f7894bb493a4.bin", "kind": "data", "bytes": 33280},
+    {"path": "furniture/shared_resources/source/resources/d26b84b0636fe11d27256fddda2ea8fe238c9965098db3ac03cc190c575bef99.png", "name": "d26b84b0636fe11d27256fddda2ea8fe238c9965098db3ac03cc190c575bef99.png", "kind": "texture", "bytes": 43691},
+    {"path": "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 2383}
+  ],
+  "designVersion": {
+    "id": "part_shared_games_niche_ornament_3b0024b038_v002",
+    "asset": "part_shared_games_niche_ornament_3b0024b038_v002",
+    "title": "壁龛小摆件 · V002",
+    "revision": 2,
+    "file": "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/model.glb",
+    "digest": "940139187e174dfcddeb1a30b103a861414d9cd202d9d2791dddf6930246d31b",
+    "contentDigest": "c850d336869e6aa27a790a98e49af7d7987b2232478cb7d904105d26d2b4fbe2",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "3b0024b0388c6451e14d6642c09326a7ca6122b94d469ecfe382d030b18aa0ff",
+      "category": "decor",
+      "sourceReferences": 3,
+      "estateReferences": 3,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_games_niche_ornament_3b0024b038/versions/v002/reuse.json"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "designObject": {
+    "id": "part:floor_plant",
+    "label": "橡皮树落地盆栽",
+    "group": "kit",
+    "space": "sample:decor",
+    "module": "",
+    "floor": "",
+    "collection": "part:floor_plant",
+    "collectionLabel": "奶白陶盆落地绿植",
+    "menuVisible": true,
+    "menuLabel": "橡皮树落地盆栽（8处引用）",
+    "menuOrder": 9,
+    "menuCategory": "plant",
+    "currentUsage": {
+      "count": 8,
+      "locations": {
+        "layout:central:1": 4,
+        "layout:central:2": 4
+      },
+      "description": "主楼一层 4 处、二层 4 处；尺寸、朝向和材质保留在引用参数。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "reuseVariants": {
+      "geometryMaster": "part:floor_plant",
+      "parameters": [
+        "size",
+        "rotation",
+        "material"
+      ],
+      "mergedFrom": [
+        "part:floor_plant",
+        "part:shared_rubber_tree_planter_dddf795435"
+      ]
+    }
+  },
+  "versions": [
+    {
+      "id": "part_floor_plant_v006",
+      "file": "furniture/floor_plant/versions/v006/version.json",
+      "order": 421
+    }
+  ]
+}

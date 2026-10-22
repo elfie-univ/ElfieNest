@@ -1,0 +1,46 @@
+{
+  "id": "part_plant_comparison_v001",
+  "category": "kit",
+  "title": "三款落地植物对比 · V001",
+  "description": "左至右：细叶盆栽 V002、橡皮树 V003、簇生大叶盆栽 V002。三款保持真实尺寸，各带原来的盆；这是现有模型的并排对比，不新增植物款式。",
+  "primaryModel": "furniture/plant_comparison/versions/v001/model.glb",
+  "models": [
+    "furniture/plant_comparison/versions/v001/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/plant_comparison/versions/v001/model.glb", "name": "model.glb", "kind": "model", "bytes": 9311496},
+    {"path": "furniture/plant_comparison/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 9311496},
+    {"path": "furniture/plant_comparison/source/build.json", "name": "build.json", "kind": "data", "bytes": 815},
+    {"path": "furniture/plant_comparison/versions/v001/images/three-plants-comparison.png", "name": "three-plants-comparison.png", "kind": "image", "bytes": 1648464}
+  ],
+  "designVersion": {
+    "id": "part_plant_comparison_v001",
+    "asset": "part_plant_comparison_v001",
+    "title": "三款落地植物对比 · V001",
+    "revision": 1,
+    "file": "furniture/plant_comparison/versions/v001/model.glb",
+    "digest": "f7e571061734a0a3a97d2849dae013ae5d01f2f402baad786856711c2e2822c1",
+    "contentDigest": "3a12f36f282a709830d295e7839e7387237a7f63f5e104ea8aac5bb86e05e2a6",
+    "nodes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      8,
+      9,
+      11,
+      12,
+      13,
+      14,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "part_uniform_frame_v003",
+  "category": "kit",
+  "title": "浅木画框 · V003",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/uniform_frame/versions/v003/model.glb",
+  "models": [
+    "furniture/uniform_frame/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/uniform_frame/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 5676},
+    {"path": "furniture/uniform_frame/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5664},
+    {"path": "furniture/uniform_frame/source/build.json", "name": "build.json", "kind": "data", "bytes": 2096},
+    {"path": "furniture/shared_resources/source/resources/2724d6a338760ca72ec7f511220adbc5d37656fc48f5a8d1b312accfd4c43402.jpg", "name": "2724d6a338760ca72ec7f511220adbc5d37656fc48f5a8d1b312accfd4c43402.jpg", "kind": "texture", "bytes": 379056},
+    {"path": "furniture/shared_resources/source/resources/6b72da5222e9fdd85ddb8f9c5b1876d5978cad13fffdb9ec98cfb16fc5842235.bin", "name": "6b72da5222e9fdd85ddb8f9c5b1876d5978cad13fffdb9ec98cfb16fc5842235.bin", "kind": "data", "bytes": 840},
+    {"path": "furniture/shared_resources/source/resources/a6c1190aff93f145e1f1830ce4631c3fd0183a1eede11237282c556766453cf5.bin", "name": "a6c1190aff93f145e1f1830ce4631c3fd0183a1eede11237282c556766453cf5.bin", "kind": "data", "bytes": 34336},
+    {"path": "furniture/shared_resources/source/resources/c732a50ac6bdab29ebcf1074089fead5113a1ce4ac1f6c624c858fffa1e59cf3.bin", "name": "c732a50ac6bdab29ebcf1074089fead5113a1ce4ac1f6c624c858fffa1e59cf3.bin", "kind": "data", "bytes": 304},
+    {"path": "furniture/shared_resources/source/resources/d2903300a5f6a5f417176b0a741d34ae2d9c8cd5368b792337319f3a425a4049.bin", "name": "d2903300a5f6a5f417176b0a741d34ae2d9c8cd5368b792337319f3a425a4049.bin", "kind": "data", "bytes": 140}
+  ],
+  "designVersion": {
+    "id": "part_uniform_frame_v003",
+    "asset": "part_uniform_frame_v003",
+    "title": "浅木画框 · V003",
+    "revision": 3,
+    "file": "furniture/uniform_frame/versions/v003/model.glb",
+    "digest": "7d85552c028e7217ba7018f1c8dea1f8a34d1fe3e7e09e5e07400344f9d68b77",
+    "contentDigest": "a3f612f8e5a8490d8b7a52f6697e8803051be702fce5ffe198e1771981b7277b",
+    "nodes": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0
+  }
+}

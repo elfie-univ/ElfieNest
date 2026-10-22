@@ -47,6 +47,19 @@ def test_asset_page_is_independent_and_only_serves_registered_assets(tmp_path) -
         assert 'id="viewer"' in page.text
         assert client.get("/assets/design/asset-media.mjs").status_code == 200
         assert client.get("/assets/design/cleanup-state.mjs").status_code == 200
+        assert client.get("/assets/design/authored-appearance.mjs").status_code == 200
+        assert client.get("/assets/design/interior-camera.mjs").status_code == 200
+        shader_module = client.get("/assets/design/light-shader-loops.mjs")
+        assert shader_module.status_code == 200
+        assert shader_module.headers["cache-control"] == "no-store"
+        assert "installLightShaderLoops" in shader_module.text
+        detail_module = client.get("/assets/design/adaptive-detail.mjs")
+        assert detail_module.status_code == 200
+        assert detail_module.headers["cache-control"] == "no-store"
+        assert "prepareAdaptiveDetail" in detail_module.text
+        simplifier = client.get("/assets/design/library/meshopt_simplifier.module.js")
+        assert simplifier.status_code == 200
+        assert "MeshoptSimplifier" in simplifier.text
         catalog = client.get("/assets/design/catalog.json").json()
         assert catalog["assets"][0]["primaryModel"] == "room/room.glb"
         assert (

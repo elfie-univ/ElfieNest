@@ -5,6 +5,7 @@ import json
 
 from devtools.asset_design.design_models import read_model
 from devtools.asset_design.object_content import content_digest
+from devtools.asset_design.working_drafts import add_working_drafts
 
 
 def object_inventory(root, assets):
@@ -35,7 +36,7 @@ def object_inventory(root, assets):
         obj["archivedVersions" if asset.archived else "versions"].append(version)
     for obj in objects.values():
         obj["versions"].sort(key=lambda v: v["revision"], reverse=True)
-    state_path = root / ".design-adoptions.json"
+    state_path = root / "adoptions.json"
     current = (
         json.loads(state_path.read_text()).get("current", {})
         if state_path.exists()
@@ -77,6 +78,7 @@ def object_inventory(root, assets):
                 }
             ],
         }
+    add_working_drafts(root, objects, issues)
     overview = {
         "id": "overview",
         "label": "完整园区",

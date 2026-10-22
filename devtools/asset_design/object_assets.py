@@ -8,15 +8,32 @@ import json
 import re
 import shutil
 from pathlib import Path
+from typing import Optional, Sequence
 from uuid import uuid4
 
 from devtools.asset_design.catalog import ASSET_ROOT, Catalog
+from devtools.asset_design.catalog_store import (
+    read_catalog,
+    restore_catalog,
+    save_catalog,
+    snapshot_catalog,
+)
 from devtools.asset_design.deletion import write_json
 from devtools.asset_design.design_catalog import legacy_inventory
 from devtools.asset_design.design_models import read_model
+from devtools.asset_design.glb_resources import (
+    read_glb,
+    relocate_glb,
+    resource_bytes,
+    resource_path,
+)
 from devtools.asset_design.object_content import content_digest
 from devtools.asset_design.object_glb import extract_glb
 from devtools.asset_design.paths import WORK_ROOT, object_directory, revision_file
+from devtools.asset_design.reuse_metadata import (
+    externalize_reuse,
+    referenced_reuse_file,
+)
 
 
 def slug(identifier):
@@ -43,17 +60,17 @@ def backup(root):
 
 def commit_catalog(root, catalog, before):
     Catalog.model_validate(catalog)
-    if (root / "catalog.json").read_bytes() != before:
+    if snapshot_catalog(root) != before:
         raise ValueError(
             "Catalog changed during preparation; sources and confirmations untouched"
         )
-    write_json(root / "catalog.json", catalog)
+    save_catalog(root, catalog, expected=before)
 
 
 def split_assets(root):
     root = root.resolve()
-    before = (root / "catalog.json").read_bytes()
-    catalog = json.loads(before)
+    before = snapshot_catalog(root)
+    catalog = read_catalog(root)
     if any(a.get("designObject") for a in catalog["assets"]):
         raise ValueError("Assets already split; use publish for one object")
     state_path = root / "adoptions.json"
@@ -99,10 +116,9 @@ def split_assets(root):
             0,
         )
         pinned_contents = {
-            entry.get("contentDigest")
+            record.get("contentDigest")
             for record in state["current"].values()
-            for entry in [record, *record["refs"]]
-            if entry["object"] == obj["id"]
+            if record["object"] == obj["id"]
         }
         folder = object_directory(root, obj["id"])
         if folder.exists():
@@ -224,19 +240,12 @@ def split_assets(root):
                 ),
             ]
         )
-    for asset in added:
-        write_json(
-            (root / asset["designVersion"]["file"]).parent / "version.json", asset
-        )
-    # Resolve every live confirmation and pinned reference before changing any state.
+    # Resolve each object’s own live confirmation before changing any state.
     for record in state["current"].values():
-        for entry in [record, *record["refs"]]:
-            selected = mapping[(entry["object"], entry["version"])]
-            if entry.get("contentDigest") != selected["contentDigest"]:
-                raise ValueError(
-                    "Confirmed object content mismatch: " + entry["object"]
-                )
-            entry["digest"] = selected["digest"]
+        selected = mapping[(record["object"], record["version"])]
+        if record.get("contentDigest") != selected["contentDigest"]:
+            raise ValueError("Confirmed object content mismatch: " + record["object"])
+        record["digest"] = selected["digest"]
     if (state_path.read_bytes() if state_path.exists() else None) != state_before:
         raise ValueError("Confirmations changed during preparation")
     # Old object revisions are archived only after all extracted content was verified.
@@ -246,7 +255,7 @@ def split_assets(root):
         if state_before is not None:
             write_json(state_path, state)
     except BaseException:
-        (root / "catalog.json").write_bytes(before)
+        restore_catalog(before)
         raise
     report = {
         "backup": str(destination),
@@ -304,23 +313,44 @@ def register_images(root, catalog, asset, images, references):
             rows.append(entry)
 
 
-def publish_object(root, object_id, *, images=(), references=()):
+def publish_object(
+    root: Path,
+    object_id: str,
+    *,
+    images: Sequence[Path] = (),
+    references: Sequence[Path] = (),
+    storage_revision: bool = False,
+    label: Optional[str] = None,
+) -> dict:
     root = root.resolve()
-    before = (root / "catalog.json").read_bytes()
-    catalog = json.loads(before)
+    before = snapshot_catalog(root)
+    catalog = read_catalog(root)
     owned = [
         a
         for a in catalog["assets"]
         if (a.get("designObject") or {}).get("id") == object_id
     ]
-    if not owned:
+    if not owned and not (object_id.startswith("part:") and label and label.strip()):
         raise ValueError("Unknown independent object: " + object_id)
     folder = object_directory(root, object_id)
     build = json.loads((folder / "source" / "build.json").read_text())
     source = folder / "source" / "model.glb"
     records, _ = read_model(root, source.relative_to(root).as_posix())
     selected = [r["node"] for r in records if not r.get("reference")]
-    metadata = owned[0]["designObject"]
+    metadata = (
+        owned[0]["designObject"]
+        if owned
+        else {
+            "id": object_id,
+            "label": label.strip(),
+            "group": "kit",
+            "space": "estate",
+            "module": "",
+            "floor": "",
+            "collection": "part:shared_library",
+            "collectionLabel": "公共资产库",
+        }
+    )
     for r in records:
         if r.get("reference"):
             continue
@@ -341,24 +371,49 @@ def publish_object(root, object_id, *, images=(), references=()):
             raise ValueError("Source contains another furniture part")
     digest = content_digest(root, source.relative_to(root).as_posix(), selected)
     existing = next(
-        (a for a in owned if a["designVersion"]["contentDigest"] == digest), None
+        (a for a in owned if a["designVersion"]["contentDigest"] == digest),
+        None,
     )
+    number = max((a["designVersion"]["revision"] for a in owned), default=0) + 1
+    target = revision_file(folder, number)
+    referenced_reuse_file(root, build.get("reuse"), target.relative_to(root).as_posix())
+    doc, _ = read_glb(source)
+    dependencies = {}
+    for value in doc.get("buffers", []) + doc.get("images", []):
+        uri = value.get("uri")
+        if not uri or uri.startswith("data:"):
+            continue
+        path = resource_path(source, uri, root)
+        resource_bytes(source, uri, root)
+        relative = path.relative_to(root).as_posix()
+        dependencies[relative] = "data" if path.suffix == ".bin" else "texture"
+    preserved = (
+        bool(dependencies)
+        or storage_revision
+        or bool(doc.get("extras", {}).get("templateInstances"))
+    )
+    if preserved:
+        data = relocate_glb(source, target, root)
+        remap = {index: index for index in range(len(doc["nodes"]))}
+    if existing and storage_revision:
+        latest = max(owned, key=lambda a: a["designVersion"]["revision"])
+        latest_file = root / latest["designVersion"]["file"]
+        existing = (
+            latest
+            if latest_file.is_file() and latest_file.read_bytes() == data
+            else None
+        )
     if existing:
         if images or references:
             register_images(root, catalog, existing, images, references)
-            write_json(
-                (root / existing["designVersion"]["file"]).parent / "version.json",
-                existing,
-            )
             commit_catalog(root, catalog, before)
         return {"changed": False, "version": existing["designVersion"]["title"]}
-    number = max(a["designVersion"]["revision"] for a in owned) + 1
-    target = revision_file(folder, number)
     if target.exists():
         raise ValueError("Revision already exists")
-    data, remap = extract_glb(
-        source, [r["node"] for r in records], build["placements"].values()
-    )
+    if not preserved:
+        data, remap = extract_glb(
+            source, [r["node"] for r in records], build["placements"].values()
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     relative = target.relative_to(root).as_posix()
@@ -376,6 +431,8 @@ def publish_object(root, object_id, *, images=(), references=()):
         "placements": {k: remap[v] for k, v in build["placements"].items()},
         "instanceCount": build["instanceCount"],
     }
+    if "reuse" in build:
+        version["reuse"] = copy.deepcopy(build["reuse"])
     if content_digest(root, relative, version["nodes"]) != digest:
         raise ValueError("Published content differs from source")
     catalog["assets"].append(
@@ -383,15 +440,28 @@ def publish_object(root, object_id, *, images=(), references=()):
             "id": identifier,
             "category": metadata["group"],
             "title": version["title"],
+            "description": build.get("description", ""),
             "primaryModel": relative,
             "models": [relative],
-            "files": [file_entry(root, relative, "model")],
+            "files": [
+                file_entry(root, relative, "model"),
+                file_entry(root, source.relative_to(root).as_posix(), "source"),
+                file_entry(
+                    root,
+                    source.with_name("build.json").relative_to(root).as_posix(),
+                    "data",
+                ),
+                *(
+                    file_entry(root, path, kind)
+                    for path, kind in sorted(dependencies.items())
+                ),
+            ],
             "designObject": metadata,
             "designVersion": version,
         }
     )
+    externalize_reuse(root, catalog["assets"][-1])
     register_images(root, catalog, catalog["assets"][-1], images, references)
-    write_json(target.parent / "version.json", catalog["assets"][-1])
     commit_catalog(root, catalog, before)
     return {"changed": True, "version": version["title"], "file": relative}
 
@@ -399,8 +469,8 @@ def publish_object(root, object_id, *, images=(), references=()):
 def restore_version(root, object_id, revision):
     """Restore one archived independent revision without changing confirmations."""
     root = root.resolve()
-    before = (root / "catalog.json").read_bytes()
-    catalog = json.loads(before)
+    before = snapshot_catalog(root)
+    catalog = read_catalog(root)
     asset = next(
         (
             a
@@ -435,7 +505,6 @@ def restore_version(root, object_id, revision):
     ):
         raise ValueError("Archived revision content has changed")
     asset["archived"] = False
-    write_json((root / version["file"]).parent / "version.json", asset)
     commit_catalog(root, catalog, before)
     return {"restored": asset["title"]}
 
@@ -448,6 +517,8 @@ def main():
     parser.add_argument("--revision", type=int)
     parser.add_argument("--image", action="append", type=Path, default=[])
     parser.add_argument("--reference", action="append", type=Path, default=[])
+    parser.add_argument("--storage-revision", action="store_true")
+    parser.add_argument("--label")
     args = parser.parse_args()
     result = (
         split_assets(args.root)
@@ -455,7 +526,12 @@ def main():
         else restore_version(args.root, args.object, args.revision)
         if args.action == "restore"
         else publish_object(
-            args.root, args.object, images=args.image, references=args.reference
+            args.root,
+            args.object,
+            images=args.image,
+            references=args.reference,
+            storage_revision=args.storage_revision,
+            label=args.label,
         )
     )
     print(

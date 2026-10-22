@@ -1,12 +1,12 @@
 """Design assets remain portable and publish into their object-owned directories."""
 
-import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from devtools.asset_design.app import create_app
 from devtools.asset_design.catalog import ASSET_ROOT
+from devtools.asset_design.catalog_store import read_catalog, save_catalog
 from devtools.asset_design.object_assets import publish_object, split_assets
 from devtools.asset_design.workspace import audit_workspace, organize_workspace
 from test.devtools.asset_design.test_design import confirm, open_scene, setup
@@ -21,7 +21,7 @@ def test_workspace_relocates_versions_images_and_confirmations_without_legacy_ro
     with TestClient(create_app(old), base_url="http://127.0.0.1") as client:
         confirm(client, open_scene(client, "building:pod", "v2"))
     split_assets(old)
-    catalog = json.loads((old / "catalog.json").read_text())
+    catalog = read_catalog(old)
     (old / "reference.png").write_bytes(b"reference")
     catalog["imageReferences"] = [
         {
@@ -31,7 +31,7 @@ def test_workspace_relocates_versions_images_and_confirmations_without_legacy_ro
             "kind": "reference",
         }
     ]
-    (old / "catalog.json").write_text(json.dumps(catalog))
+    save_catalog(old, catalog)
     before = (old / "adoptions.json").read_bytes()
     organize_workspace(old, target)
     assert (target / "adoptions.json").read_bytes() == before
@@ -83,10 +83,28 @@ def test_publishing_registers_generated_images_without_changing_confirmation(tmp
     image.write_bytes(b"generated picture")
     result = publish_object(target, "building:pod", images=[image])
     assert result["changed"] is False
-    catalog = json.loads((target / "catalog.json").read_text())
+    catalog = read_catalog(target)
     ref = catalog["imageReferences"][0]
     assert ref["objects"] == ["building:pod"]
     assert ref["kind"] == "render"
     assert ref["path"] == "buildings/pod/versions/v002/images/new-render.png"
     assert (target / ref["path"]).read_bytes() == image.read_bytes()
     assert audit_workspace(target)["issues"] == []
+
+
+def test_workspace_preserves_shared_resource_paths_when_relocated(tmp_path):
+    from devtools.asset_design.object_assets import publish_object
+    from test.devtools.asset_design.test_shared_publication import (
+        prepare as prepare_shared,
+    )
+
+    old = tmp_path / "old"
+    old.mkdir()
+    identifier, _, _, resources, _ = prepare_shared(old)
+    publish_object(old, identifier, label="公共盆栽")
+
+    target = tmp_path / "new"
+    organize_workspace(old, target)
+
+    assert audit_workspace(target)["issues"] == []
+    assert all((target / resource.relative_to(old)).is_file() for resource in resources)

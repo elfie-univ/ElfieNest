@@ -1,0 +1,119 @@
+{
+  "object": "layout:terrace:M07",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "theme": "茶点聊天",
+  "editableModel": "model.blend",
+  "reference": "references/pod_terrace_20261015_eight_themes.png",
+  "buildingSourceSha256": "40a042f982b9dd2cb0d7fa057705c172644fc69341bd721a52ba896af83f5f59",
+  "fittedCabinets": "Current M01 five-surface wood liners and concealed continuous soft light; shared architectural prototype and instance basis verified",
+  "wallSofas": [
+    {
+      "assembly": "left_wall_fitted_tea_sofa",
+      "anglesDegrees": [
+        -63,
+        -25
+      ],
+      "seats": 2,
+      "backClearanceM": 0.04,
+      "geometry": "true inner-wall offset with continuous descending return arms"
+    },
+    {
+      "assembly": "right_wall_fitted_tea_sofa",
+      "anglesDegrees": [
+        15,
+        82
+      ],
+      "seats": 3,
+      "backClearanceM": 0.04,
+      "geometry": "true inner-wall offset with continuous descending return arms"
+    }
+  ],
+  "assemblies": [
+    "curved_niche_oak_liner",
+    "rear_cabinet_conformal_liner",
+    "television_recessed_soft_light",
+    "wardrobe_recessed_soft_light",
+    "natural_floor_plant",
+    "round_tea_table",
+    "porcelain_tea_service",
+    "natural_woven_rug",
+    "cabinet_trailing_foliage",
+    "left_wall_fitted_tea_sofa",
+    "right_wall_fitted_tea_sofa",
+    "theme_lower_fitted_doors",
+    "reference_rear_open_storage",
+    "reference_theme_niche_woodwork_and_display"
+  ],
+  "reviewCoordinates": "Normalized to M01 instance for consistent review camera; furniture source retains its own real placement",
+  "referenceRefinement": [
+    "distinct tailored seating",
+    "reference adjusted sofa length and seat count",
+    "woven cloth and braided jute PBR textures",
+    "loose cushions, seams and folded cloth",
+    "theme prop refinements and extra foliage",
+    "warmer cabinet light wash; original viewer lighting unchanged"
+  ],
+  "cabinetLightWashStrength": 1.4,
+  "sourceSha256": "2121b41b865b100caa9331d5da067bc7064ff54c0a174a531cf8d0fb84b4f569",
+  "restoredSeating": [
+    "left_wall_fitted_tea_sofa",
+    "right_wall_fitted_tea_sofa"
+  ],
+  "cabinetInterior": "nine varied ceramic tea canisters on one open base",
+  "cabinetDesign": {
+    "preserved": [
+      "cabinet_trailing_foliage",
+      "curved_niche_oak_liner",
+      "left_wall_fitted_tea_sofa",
+      "natural_floor_plant",
+      "natural_woven_rug",
+      "porcelain_tea_service",
+      "rear_cabinet_conformal_liner",
+      "right_wall_fitted_tea_sofa",
+      "round_tea_table",
+      "television_recessed_soft_light",
+      "wardrobe_recessed_soft_light"
+    ],
+    "lowerDoorCount": 6,
+    "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
+    "proportions": "native object dimensions; no axis squashing"
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 4,
+    "uniqueShapes": 4,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 2862,
+    "collisionTrianglesByInstance": 2862
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_music_coffee_table_1db16d8004",
+      "part:shared_natural_floor_plant_eeaa5dd5b5"
+    ],
+    "removedLayoutBodies": 2
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [
+      "Collision M07 rear-storage"
+    ],
+    "nativeValidated": true
+  }
+}

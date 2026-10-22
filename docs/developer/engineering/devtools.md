@@ -31,6 +31,16 @@ data leaves an empty workbench. Design assets, catalog and confirmation records 
 The content menu lists central floors and furniture parts independently; the eight rooftop
 terraces share a content choice with an M01–M08 selector. Model, image and comparison modes
 retain the selected content and terrace, and returning to the model restores its revision.
+Furniture choices include only reusable masters explicitly marked `designObject.menuVisible`
+in the catalog, ordered by `menuOrder` and named with `menuLabel` when supplied. Hidden
+parts remain registered and available in their original scene assemblies and file references.
+The content picker retains the original section headings and direct choices for the
+overview, buildings and layouts. Under the Furniture section heading, function categories (plants, tables, chairs, stools,
+etc.) expand directly into individually named furniture. Furniture is a heading,
+not another expandable level; the menu has at most two levels. Distinct plants remain separate entries
+across scenes and floors. Each leaf shows its current placement count in parentheses,
+excluding historical revisions. Locations stay in asset details and revisions in the
+existing version picker. Menu organization does not merge models or change scene references.
 Image mode hides the model version picker. Catalog `imageReferences` associate registered
 image paths with object IDs: design references apply across revisions, while review images
 retain their source revision. Shared terrace concepts do not assign themes to house IDs.
@@ -42,6 +52,16 @@ rooftop terraces use the right-hand house selector. The model picker is labelled
 and lists only the selected object's revisions, newest first. Image mode preserves the
 object and house selection, hides model version controls, and shows the corresponding
 references even when no picture is available. Returning to 3D restores the saved revision.
+
+An object source can opt into a single unnumbered working preview with
+`workingDraft: true` in its `source/build.json`. The existing version picker shows
+this working draft; source edits refresh it without appending published revisions.
+Confirmation freezes only the selected object’s displayed draft into an immutable
+version and adopts that object. A changed source requires a fresh
+preview before confirmation. Fixture geometry can declare local `design_lights`
+in its GLB node extras; those sources follow the fixture's transforms, visibility
+and day/evening brightness. Upper slabs tagged with `ceiling_for_floor` provide
+the room's actual ceiling in whole view and are omitted in its cutaway.
 The title area's right-hand delete button directly removes the current saved version or
 picture and selects the next available version in the same group. Version deletion includes
 component exports. Exclusive model/image outputs move to `build/asset_design/cleanup/` with the
@@ -61,6 +81,11 @@ unambiguously to registered local images.
 The newest usable version is selected within the chosen category and design. Changing
 mode preserves a matching saved version where possible and otherwise selects a usable
 scheme in that category. Empty modes show an empty state without changing the media mode.
+An open asset page checks the catalogue every two seconds and refreshes when it regains
+focus. Newly published versions automatically open for the current object or its matching
+building/floor layout, retaining the floor, display switches and orbit camera. Other
+objects' versions still appear in their menus. Browsing history does not trigger a jump
+until another relevant version is published; previewing never confirms a version.
 Images are grouped as references, model screenshots,
 layouts/dimensions and comparison material; textures remain in asset files.
 Comparison uses an explicitly associated reference or a labelled manual choice;
@@ -94,24 +119,34 @@ to the newest distinct candidate; confirmation adopts exactly that object, even 
 an older version. The latest confirmation action determines the adopted version, not its
 numeric label. The button names its scope; reference visibility never expands that scope.
 
-Reference furniture/buildings use matching adopted objects and stay pinned for the open
-preview. When a building has no confirmation, its newest version is shown as an unconfirmed
-reference; viewing or confirming furniture does not adopt that building. Reload to see
-subsequent confirmations. The live overview composes adopted
-building, placed-layout and environment subsets from their original GLBs, preserving source
-transforms. One house shell and one house layout are adopted once and instanced at the
-source model’s eight placements. Their position selector changes only the preview.
-The eight distinct upper-terrace layouts retain separate M01–M08 scopes. Main-building
-layout floors and kit parts also have explicit confirmation scopes; the all-floor and
-all-terrace views require selecting a specific scope before confirmation.
-Unconfirmed or changed object content is omitted and flagged; unrelated changes in the
-same GLB do not invalidate an adopted object. Reference-content changes require a separate
-combination check without making the object unconfirmed. The existing confirmation button
-offers that check when needed. Standalone samples without estate placement remain historical
-versions; confirming a standalone furniture part does not silently replace every instance in
-a placed layout. Saved renders are historical images, not live composites.
+Reference furniture/buildings always resolve the other object's latest confirmation.
+Unconfirmed objects are omitted; confirming one object neither confirms nor publishes
+its references. An open ready preview checks for subsequent confirmations and refreshes
+its references automatically. Changing a reference never invalidates the current object's
+confirmation and does not require another confirmation of the composition.
+The live overview composes adopted building, placed-layout and environment subsets
+from their original GLBs, preserving source transforms. One house shell and one house
+layout are adopted once and instanced at the source model's eight placements; the
+position selector changes only the preview. Upper-terrace layouts retain separate
+M01–M08 scopes. Main-building floors and kit parts have explicit confirmation scopes;
+all-floor and all-terrace views require selecting a specific scope before confirmation.
+Unconfirmed or changed own content is omitted and flagged in the overview. Unrelated
+changes in the same GLB do not invalidate an adopted object.
+Legacy placed layouts retain embedded furniture. Reusable layouts store
+`extras.templateInstances` bindings to furniture objects, placement matrices and host
+materials. Preview resolves each mother object's latest confirmed version and shares
+its geometry across instances; unique furniture stays embedded. Concrete mother versions
+and hashes exist only in the temporary load plan, never in the host's confirmation.
+Missing confirmations, missing nodes or reordered bindings fail explicitly. Saved renders
+remain historical images.
 
-Adoptions and pinned source hashes are stored atomically in the isolated asset root's
+Editable build metadata does not duplicate the GLB's `extras.templateInstances`.
+Its `reuse.details` may reference an existing `versions/vNNN/reuse.json` for the same
+object instead of embedding occurrence and resource lists. Publishing validates and
+registers that report as a shared file; removing its original version retains the
+report while another version or build input still references it.
+
+Own-object adoptions and source hashes are stored atomically in the isolated asset root's
 `adoptions.json`; the catalog and asset versions are never rewritten by confirmation.
 Object-content hashes identify adoption; whole-file hashes still verify preview downloads.
 Content selectors show distinct model-version counts in parentheses, with source-only
@@ -120,12 +155,13 @@ confirmation records and links remain available. The live overview is not a save
 To audit existing exports, run `.venv/bin/python3 -m devtools.asset_design.reindex --report
 build/asset_version_audit/objects.json`. After inspection, the same command with `--apply`
 checks the original confirmed source hashes, backs up the confirmation file, and adds
-object hashes to current confirmations and their references. It preserves historical
+object hashes to current confirmations. It preserves historical
 confirmation entries and never rewrites or deletes models. Unsupported content is reported
 for review and blocks applying the reconciliation.
 Conflicting confirmations of the same object require a reload; different objects can be
-confirmed independently. Confirmed sources and pinned historical references cannot be
-deleted through the cleanup API. Scene plans are temporary and must be reopened after
+confirmed independently. Only an object’s current confirmation protects its version;
+historical confirmation entries do not retain foreign versions. Cleanup still protects
+shared files and the last furniture mother required by a retained scene. Scene plans are temporary and must be reopened after
 restarting the workbench. Outdoor models opt in with `design_role: landscape` or
 `design_role: environment` scene-node tags (or the corresponding catalog category);
 untagged presentation backdrops are not interpreted as garden geometry.
@@ -167,6 +203,15 @@ food row is injected. The configuration form only saves the selected model and
 connection. The first real turn is the model connection attempt.
 
 ## Asset consolidation
+
+After its first frame, the complete-estate preview prepares temporary mesh detail
+in a worker. Projected error selects distant meshes; close views and shadow updates
+use the originals. Some distant opaque color maps use half-size copies, and small
+skylights use a half-size transmission buffer, restoring full size when approached.
+Saved assets, confirmations, light parameters and main-view antialiasing are unchanged.
+These preview copies add some CPU caching, so lower estimated GPU usage does not
+establish lower process memory. The page counts full-model triangles; submitted
+triangles vary with the view.
 
 Apply these principles to furniture, rooms and complete buildings:
 
@@ -212,8 +257,9 @@ ELFIE_DEV_HOME=/tmp/elfienest-developer \
 ```
 
 Independent object assets use `devtools/asset_design/assets/<object-directory>/source/model.glb` as their
-editable build input. Each published `versions/vNNN/model.glb` contains only that object's geometry,
-materials, textures, hierarchy and required placement/measurement helpers. The catalog
+editable build input. Each published `versions/vNNN/model.glb` retains that object's geometry,
+materials, textures, hierarchy and required placement/measurement helpers, using embedded
+data or registered shared resources. The catalog
 owns explicit object/version records; legacy full-scene exports are retained as archived
 provenance, not scanned to create new object versions. Floor and terrace overview scenes
 compose object references without exporting another combined model.
@@ -241,10 +287,29 @@ Design authoring is independent of final Godot delivery. Buildings live in
 `assets/buildings/{central,pod}/`; layouts in `assets/layouts/central_floor_N/`,
 `pod_bedroom/` and `terraces/M01/`; kits and parts in `assets/furniture/`;
 the garden in `assets/landscape/site/`. Each object owns editable `source/model.glb`
-and `source/build.json`, immutable `versions/vNNN/model.glb` snapshots, a `version.json`
-registration copy, per-version `images/`, and cross-version `references/`.
-The root `catalog.json` owns loading and file associations; `adoptions.json` owns
-confirmations. File names never imply approval.
+and `source/build.json`, immutable `versions/vNNN/model.glb` snapshots, per-version
+`images/`, and cross-version `references/`. The root `catalog.json` lists object
+indexes and global image associations. Each object's `object.json` owns its common
+metadata and explicit version list; each listed `versions/vNNN/version.json` owns
+that version's file registrations and details. Unlisted files do not become versions
+automatically. The service assembles the existing flat catalog response from these
+records; model paths, preview URLs, ordering and confirmation semantics stay unchanged.
+`adoptions.json` remains the confirmation authority. File names never imply approval.
+
+Publishing and restoring update the listed metadata through the same catalog store.
+Deleting an unprotected version archives its registration with exclusive outputs;
+deleting the last version also archives its object index. Shared files and editable
+sources remain protected. Failed writes restore changed indexes and moved files;
+cleanup backups include the original root, object and version metadata. This storage
+split does not garbage-collect shared resources or change furniture mother resolution.
+
+Shared geometry and images live under
+`assets/furniture/shared_resources/source/resources/{sha256}.{bin,png,jpg}`.
+Object sources and version snapshots use relative GLB buffer/image URIs to these
+registered files; publishing adjusts the relative paths for the version directory.
+Resource reads verify the filename's SHA256 and reject paths outside this store.
+Move the registered resources together with the asset workspace. Standalone part
+extraction embeds their payloads again.
 
 With the service stopped, edit the object's source, then publish and register pictures:
 
@@ -253,6 +318,32 @@ With the service stopped, edit the object's source, then publish and register pi
 .venv/bin/python3 -m devtools.asset_design.workspace scan
 ./developer.sh asset-design
 ```
+
+For a new `part:*` object, prepare its `source/model.glb` and `source/build.json`,
+then supply `--label` on its first publication. It appears in the shared library;
+the flag does not rename existing objects. Use `--storage-revision` to publish an
+optimized container whose render content is unchanged. It creates a version only
+when the relocated container differs from the latest candidate, preserves its
+content digest, and never changes confirmation records:
+
+```sh
+.venv/bin/python3 -m devtools.asset_design.object_assets publish --object part:example_plant --label "Shared plant"
+.venv/bin/python3 -m devtools.asset_design.object_assets publish --object layout:central:2 --storage-revision
+```
+
+Publication registers the model, editable source, build description and each unique
+shared dependency. Optional `build.json` fields `description` and `reuse` supply the
+asset description and version reuse metadata. For review, distinguish placements
+inside source models from estate placements after applying the owning object's
+instance count. Compare candidate-library bytes with each shared payload counted
+once; this excludes retained historical versions and editable source snapshots and
+does not describe total workspace disk savings. Publishing and previewing never
+automatically adopt a candidate.
+
+The catalogue keeps reuse counts and a `reuse.details` path; full placement and
+resource audit data lives in that revision's registered `reuse.json`, loaded only
+when requested. Unchanged catalogue polls return HTTP 304. Only content-addressed
+shared resources use immutable browser caching; editable model files remain uncached.
 
 Publishing deduplicates model content, selects the version directory and registers
 image ownership; changed content still requires separate confirmation. `scan` checks

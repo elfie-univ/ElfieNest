@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_blue_matching_ottoman_80bb399c60",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M08：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "80bb399c607081121221fc02039550d795d2f6c2f84231fc555f1badc205875d",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v001/reuse.json"
+  },
+  "collision": {
+    "owner": "part:shared_blue_matching_ottoman_80bb399c60",
+    "rootNode": 3,
+    "shapes": 1,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": false
+  }
+}

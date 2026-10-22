@@ -1,0 +1,41 @@
+{
+  "id": "part_shared_coffee_plant_7a33cf7991_v002",
+  "category": "kit",
+  "title": "直立枝叶桌面盆栽 · V002",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/model.glb",
+  "models": [
+    "furniture/shared_coffee_plant_7a33cf7991/versions/v002/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/model.glb", "name": "model.glb", "kind": "model", "bytes": 9712},
+    {"path": "furniture/shared_coffee_plant_7a33cf7991/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 9712},
+    {"path": "furniture/shared_coffee_plant_7a33cf7991/source/build.json", "name": "build.json", "kind": "data", "bytes": 847},
+    {"path": "furniture/shared_resources/source/resources/b03837750989fe23d0972b4304bb14a616faf608a8561e4c01f327c179bbec89.bin", "name": "b03837750989fe23d0972b4304bb14a616faf608a8561e4c01f327c179bbec89.bin", "kind": "data", "bytes": 723912},
+    {"path": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1815}
+  ],
+  "designVersion": {
+    "id": "part_shared_coffee_plant_7a33cf7991_v002",
+    "asset": "part_shared_coffee_plant_7a33cf7991_v002",
+    "title": "直立枝叶桌面盆栽 · V002",
+    "revision": 2,
+    "file": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/model.glb",
+    "digest": "85ff7e9d07b9ce4cbfb9510ada4c78eeaf07b5195e3da1c0bb0399b0b943a100",
+    "contentDigest": "c27cd3f22623a0467ce0d72f638fce4bde64b4652a4c4532bf7164726894417f",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "7a33cf799140642dbe6076ac567ef7e2d03651963b472a3e2d271ba9739c1439",
+      "category": "plant",
+      "sourceReferences": 2,
+      "estateReferences": 2,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_coffee_plant_7a33cf7991/versions/v002/reuse.json"
+    }
+  }
+}

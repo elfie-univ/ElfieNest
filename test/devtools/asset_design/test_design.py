@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from devtools.asset_design.app import create_app
+from devtools.asset_design.catalog_store import read_catalog, save_catalog
 
 
 def model(root, asset_id, offset=0, layout_offset=0):
@@ -124,13 +125,11 @@ def test_confirm_older_version_updates_only_one_object_and_survives_restart(tmp_
         assert (tmp_path / name).read_bytes() == content
 
 
-def test_building_reference_defaults_to_latest_until_confirmed(tmp_path):
+def test_building_reference_requires_confirmed_version(tmp_path):
     setup(tmp_path)
     with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
         preview = open_scene(client, "layout:pod", "v1")
-        reference = next(x for x in preview["layers"] if x["reference"])
-        assert (reference["object"], reference["version"]) == ("building:pod", "v2")
-        assert reference["unconfirmed"] is True
+        assert not any(x["reference"] for x in preview["layers"])
         assert open_scene(client, "overview")["layers"] == []
         assert confirm(client, preview).status_code == 200
         assert (
@@ -354,7 +353,7 @@ def test_source_only_history_remains_selectable_and_downloadable(tmp_path):
     source.parent.mkdir()
     source.write_bytes(b"old source")
     catalog_path = tmp_path / "catalog.json"
-    catalog = json.loads(catalog_path.read_text())
+    catalog = read_catalog(catalog_path.parent)
     catalog["assets"].append(
         {
             "id": "old-room",
@@ -370,7 +369,7 @@ def test_source_only_history_remains_selectable_and_downloadable(tmp_path):
             ],
         }
     )
-    catalog_path.write_text(json.dumps(catalog))
+    save_catalog(catalog_path.parent, catalog)
     before = catalog_path.read_bytes()
     with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
         objects = client.get("/assets/design/design/index").json()["objects"]

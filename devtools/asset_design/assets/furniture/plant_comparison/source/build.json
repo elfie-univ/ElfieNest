@@ -1,0 +1,31 @@
+{
+  "object": "part:plant_comparison",
+  "source": "model.glb",
+  "sourceSha256": "f7e571061734a0a3a97d2849dae013ae5d01f2f402baad786856711c2e2822c1",
+  "placements": {},
+  "instanceCount": 0,
+  "design": {
+    "name": "Three existing plants, original pots, equal scale",
+    "members": [
+      {
+        "label": "01 Fine-leaf plant",
+        "object": "part:floor_plant",
+        "x": -1.6
+      },
+      {
+        "label": "02 Rubber tree",
+        "object": "part:floor_plant",
+        "x": 0
+      },
+      {
+        "label": "03 Broadleaf clump",
+        "object": "part:broadleaf_clump",
+        "x": 1.6
+      }
+    ],
+    "newSpeciesCreated": false,
+    "potsReplaced": false,
+    "spacingM": 1.6,
+    "purpose": "Review the three plant types embedded in source/model.glb; not a fourth plant design."
+  }
+}

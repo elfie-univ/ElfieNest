@@ -7,9 +7,11 @@ from functools import lru_cache
 from pathlib import Path
 
 
-@lru_cache(maxsize=128)
-def model_info(path: str, modified: int, size: int) -> tuple[list[dict], str]:
-    del modified, size
+@lru_cache(maxsize=512)
+def model_info(
+    path: str, modified: int, size: int, changed: int, inode: int
+) -> tuple[list[dict], str]:
+    del modified, size, changed, inode
     with Path(path).open("rb") as stream:
         header = stream.read(20)
         if len(header) != 20 or header[:4] != b"glTF" or header[16:20] != b"JSON":
@@ -44,4 +46,6 @@ def read_model(root: Path, file: str) -> tuple[list[dict], str]:
     if not path.is_relative_to(root.resolve()) or not path.is_file():
         raise ValueError("Model unavailable")
     stat = path.stat()
-    return model_info(str(path), stat.st_mtime_ns, stat.st_size)
+    return model_info(
+        str(path), stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns, stat.st_ino
+    )

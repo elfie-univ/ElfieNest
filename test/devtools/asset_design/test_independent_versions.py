@@ -145,8 +145,6 @@ def test_reconcile_preserves_confirmed_sources_and_original_history(tmp_path):
     path = tmp_path / "adoptions.json"
     old = json.loads(path.read_text())
     old["current"]["building:pod"].pop("contentDigest")
-    for ref in old["current"]["building:pod"]["refs"]:
-        ref.pop("contentDigest")
     path.write_text(json.dumps(old))
     before = {p.name: p.read_bytes() for p in tmp_path.iterdir() if p.is_file()}
     reconcile(tmp_path)

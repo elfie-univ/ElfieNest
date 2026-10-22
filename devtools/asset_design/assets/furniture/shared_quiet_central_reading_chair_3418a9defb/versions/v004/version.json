@@ -1,0 +1,45 @@
+{
+  "id": "part_shared_quiet_central_reading_chair_3418a9defb_v004",
+  "category": "kit",
+  "title": "阅读扶手椅 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 5844},
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5836},
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/source/build.json", "name": "build.json", "kind": "data", "bytes": 1540},
+    {"path": "furniture/shared_resources/source/resources/1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "name": "1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "kind": "texture", "bytes": 32513},
+    {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
+    {"path": "furniture/shared_resources/source/resources/cc5ee9f081f22547299d660e0cc1a0d46f7893b59fe93507397dcacdb3dd4177.bin", "name": "cc5ee9f081f22547299d660e0cc1a0d46f7893b59fe93507397dcacdb3dd4177.bin", "kind": "data", "bytes": 425504},
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1840},
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-front-comparison.png", "name": "12-front-comparison.png", "kind": "image", "bytes": 676351},
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-side-comparison.png", "name": "12-side-comparison.png", "kind": "image", "bytes": 629851}
+  ],
+  "designVersion": {
+    "id": "part_shared_quiet_central_reading_chair_3418a9defb_v004",
+    "asset": "part_shared_quiet_central_reading_chair_3418a9defb_v004",
+    "title": "阅读扶手椅 · V004",
+    "revision": 4,
+    "file": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/model.glb",
+    "digest": "3ca67cbd5bbd60a56403cbff10815e77843912514d5afc055e271789c434156f",
+    "contentDigest": "dfcf64cf2b5d3831f456e528a7e0cf97a03c5a3524197f1d933fcf5b64a4b250",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "3418a9defb08ce5a368b7f2e41ab9a4ccc8c4e4f0d698e12d97321d6b63ebbc1",
+      "category": "chair",
+      "sourceReferences": 2,
+      "estateReferences": 2,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v002/reuse.json"
+    }
+  }
+}

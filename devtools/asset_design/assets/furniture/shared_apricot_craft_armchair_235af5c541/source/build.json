@@ -1,0 +1,23 @@
+{
+  "object": "part:shared_apricot_craft_armchair_235af5c541",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "235af5c54197f0271fb71ce40c981b7a490ad75baac2b1dad3360af5c05fde52",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/reuse.json"
+  },
+  "currentUsage": {
+    "count": 0,
+    "locations": {},
+    "description": "当前 2 处引用已合并到共用木座软包扶手椅；旧版本仅供历史回看。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}

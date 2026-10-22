@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from devtools.asset_design.catalog import ASSET_ROOT, load_catalog
+from devtools.asset_design.catalog_store import snapshot_catalog
 from devtools.asset_design.deletion import write_json
 from devtools.asset_design.design_catalog import inventory
 from devtools.asset_design.object_content import content_digest
@@ -14,7 +15,7 @@ from devtools.asset_design.paths import WORK_ROOT
 
 
 def reconcile(root, *, apply=False):
-    catalog_before = (root / "catalog.json").read_bytes()
+    catalog_before = snapshot_catalog(root)
     raw = inventory(root, independent=False)
     objects = {o["id"]: o for o in raw["objects"]}
     state_file = root / "adoptions.json"
@@ -41,8 +42,6 @@ def reconcile(root, *, apply=False):
 
     for object_id, record in upgraded["current"].items():
         bind(record, object_id)
-        for ref in record["refs"]:
-            bind(ref, ref["object"])
 
     grouped = inventory(root)
     catalog = load_catalog(root)
@@ -106,7 +105,7 @@ def reconcile(root, *, apply=False):
             backup.write_bytes(original)
         if (
             state_file.read_bytes() != original
-            or (root / "catalog.json").read_bytes() != catalog_before
+            or snapshot_catalog(root) != catalog_before
         ):
             raise ValueError("Confirmations changed during audit; rerun")
         write_json(state_file, upgraded)

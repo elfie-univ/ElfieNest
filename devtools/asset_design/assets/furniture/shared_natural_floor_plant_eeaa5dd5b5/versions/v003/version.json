@@ -1,0 +1,42 @@
+{
+  "id": "part_shared_natural_floor_plant_eeaa5dd5b5_v003",
+  "category": "kit",
+  "title": "心形阔叶落地盆栽 · V003",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v003/model.glb",
+  "models": [
+    "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 11360},
+    {"path": "furniture/shared_natural_floor_plant_eeaa5dd5b5/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 11352},
+    {"path": "furniture/shared_natural_floor_plant_eeaa5dd5b5/source/build.json", "name": "build.json", "kind": "data", "bytes": 1404},
+    {"path": "furniture/shared_resources/source/resources/02ecf15845c59c8c4309ed03a7fa4023283d33c3b1592b071d8ba0f8ad1a16bb.bin", "name": "02ecf15845c59c8c4309ed03a7fa4023283d33c3b1592b071d8ba0f8ad1a16bb.bin", "kind": "data", "bytes": 309968},
+    {"path": "furniture/shared_resources/source/resources/e9cb77de4fc9a15154ee9694e99b6c78a9d60206ce5cebd9b4714883f13a14a9.bin", "name": "e9cb77de4fc9a15154ee9694e99b6c78a9d60206ce5cebd9b4714883f13a14a9.bin", "kind": "data", "bytes": 1896},
+    {"path": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 7972}
+  ],
+  "designVersion": {
+    "id": "part_shared_natural_floor_plant_eeaa5dd5b5_v003",
+    "asset": "part_shared_natural_floor_plant_eeaa5dd5b5_v003",
+    "title": "心形阔叶落地盆栽 · V003",
+    "revision": 3,
+    "file": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v003/model.glb",
+    "digest": "db9d0c5ec44eee5129bfd5c0201f234e4e574d30b712d97ef3d19bd564701f01",
+    "contentDigest": "f3bfd85c378ac49b6bed7688507dbce64bb2b6e106eee91262fc51489f22f82f",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "eeaa5dd5b59744d9ba4eba9774e7908281f876e577ceb099c098197cdf7d4125",
+      "category": "plant",
+      "sourceReferences": 10,
+      "estateReferences": 10,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_natural_floor_plant_eeaa5dd5b5/versions/v002/reuse.json"
+    }
+  }
+}

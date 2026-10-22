@@ -1,9 +1,11 @@
 import {objectImages} from '/assets/design/content-images.mjs';
-import {designMenu,adoptionLabel,versionRemovalScope,filePreviewSelection} from '/assets/design/design-state.mjs';
+import {confirmedReferenceSignature,designMenu,contentMenuTree,adoptionLabel,versionRemovalScope,filePreviewSelection,publishedPreview} from '/assets/design/design-state.mjs';
 import {readView,writeView,normalizeView,defaultView} from '/assets/design/view-state.mjs';
+import {readCatalog} from '/assets/design/catalog-request.mjs';
 import {imageEntries,imageKinds,referenceFor,assetModes,mediaModes,metadataReferences,workbenchMenus,assetDeleteState,nextVersionAfterDeletion,storageInventory,versionNavigation,versionShortcut} from '/assets/design/asset-media.mjs';
-async function readCatalog(){return fetch('/assets/design/catalog.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('资产目录无法读取');return r.json();});}
-let catalog=await readCatalog();
+const initialCatalog=await readCatalog();
+let catalog=initialCatalog.catalog,catalogEtag=initialCatalog.etag;
+let catalogSignature=JSON.stringify(catalog);
 async function readDesignIndex(){const r=await fetch('/assets/design/design/index',{cache:'no-store'});if(!r.ok)throw new Error('对象目录无法读取');return r.json();}
 let designIndex=await readDesignIndex();
 const kindLabels={model:'模型',source:'Blender 源文件',image:'图片与贴图',data:'尺寸／数据',support:'构建与辅助文件',all:'全部文件'};
@@ -23,12 +25,60 @@ let category=initial.get('category')||'',furniture=initial.get('furnitureCategor
 let asset=null,modelFile='',fileKind='model',imageKind='all',imagePath='',manualReference='';
 let deleteBusy=false,deleteMessage='',catalogStale=false,confirmBusy=false,loadedPlan=null,pendingDelete=null;
 let designObject=initial.get('designObject')||'',designVersion=initial.get('revision')||'';
+let exteriorPreview=initial.get('exterior')==='1';
 const rememberedVersions=new Map();
 let modelStats=null,imageDimensions='',rawPreview=false;
 let view=readView(initial),capabilities={},entries=[];
+let refreshBusy=false,refreshTimer=null,pendingOrbit=null;
+async function refreshCatalog(){
+ if(refreshBusy||document.hidden||deleteBusy||confirmBusy||pendingDelete||catalogStale)return;
+ refreshBusy=true;
+ try{
+  const pending=await readCatalog(catalogEtag);
+  if(!pending||JSON.stringify(pending.catalog)===catalogSignature){
+   if(pending)catalogEtag=pending.etag;
+   if(frame.dataset.ready!=='yes')return;
+   const index=await readDesignIndex();
+   const ownDraft=data=>JSON.stringify(data.objects.find(o=>o.id===designObject)?.versions.filter(v=>v.draft).map(v=>[v.digest,v.contentDigest]));
+   const changed=confirmedReferenceSignature(index,designObject,loadedPlan)!==confirmedReferenceSignature(designIndex,designObject,loadedPlan)||designVersion==='draft'&&ownDraft(index)!==ownDraft(designIndex);
+   if(changed){
+    const orbit=frame.contentWindow.elfiePreview?.orbit?.();
+    designIndex=index;frame.dataset.source='';chooseFromMenus();pendingOrbit=orbit;
+   }
+   return;
+  }
+  const updated=pending.catalog;
+  const signature=JSON.stringify(updated);
+  const index=await readDesignIndex();
+  // A publication may still be completing. Retry without consuming its new ID.
+  const known=new Set(catalog.assets.map(a=>a.id));
+  if(updated.assets.some(a=>!known.has(a.id)&&a.designObject&&!index.objects.some(o=>o.id===a.designObject.id&&o.versions.some(v=>v.id===a.designVersion?.id))))return;
+  await readReferences(updated);
+  if(deleteBusy||confirmBusy||pendingDelete||catalogStale)return;
+  const next=publishedPreview(catalog,updated,index,designObject,view);
+  const orbit=next&&frame.dataset.ready==='yes'?frame.contentWindow.elfiePreview?.orbit?.():null;
+  catalog=updated;designIndex=index;catalogSignature=signature;catalogEtag=pending.etag;
+  const params=new URLSearchParams(location.hash.slice(1));
+  if(next){
+   designObject=next.object;designVersion=next.version;
+   params.delete('file');params.delete('image');
+  }
+  renderStats();chooseFromMenus(params);if(next)pendingOrbit=orbit;
+ }catch(error){
+  // Keep the last usable catalogue and retry after service restarts or read failures.
+  console.warn('资产目录自动更新暂未成功：',error.message);
+ }finally{refreshBusy=false;}
+}
+function scheduleCatalogRefresh(){
+ clearTimeout(refreshTimer);
+ refreshTimer=setTimeout(async()=>{await refreshCatalog();scheduleCatalogRefresh();},2000);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCatalog();scheduleCatalogRefresh();}});
+window.addEventListener('focus',()=>refreshCatalog());
 function gallery(){return entries.filter(e=>imageKind==='all'||e.kind===imageKind);}
 function updateHash(){
  const params=new URLSearchParams({category,view:mode});if(asset)params.set('asset',asset.id);writeView(params,view);
+ if(exteriorPreview)params.set('exterior','1');
  if(category==='furniture')params.set('furnitureCategory',furniture);
  if(asset?.designObject){params.set('designObject',asset.designObject);params.set('revision',asset.designVersion);}
  if(asset&&modelFile&&(rawPreview||modelFile!==(asset.primaryModel||asset.models[0])))params.set('file',modelFile);
@@ -39,10 +89,10 @@ function updateHash(){
 }
 function renderDeleteAction(){
  const state=assetDeleteState(asset,deleteBusy),button=el('deleteAsset');
- const scope=versionRemovalScope(designIndex,asset?.id),live=asset?.designVersion==='live';
+ const scope=versionRemovalScope(designIndex,asset?.id),live=['live','draft'].includes(asset?.designVersion);
  button.hidden=mode==='images'||!!live;
  button.disabled=state.disabled||confirmBusy||catalogStale||scope.protected;button.textContent=state.label;
- button.title=scope.protected?'已被确认或用作参考，保留此版本':state.scope+(scope.labels.length?'\n关联对象：'+scope.labels.join('、'):'');
+ button.title=scope.protected?'当前对象的确认版，保留此版本':state.scope+(scope.labels.length?'\n关联对象：'+scope.labels.join('、'):'');
  button.setAttribute('aria-label',state.label+(asset?'：'+asset.title:''));
  el('deleteStatus').textContent=deleteMessage;
  el('deletePrompt').hidden=!pendingDelete;
@@ -98,7 +148,7 @@ async function deleteCurrentAsset(){
   const response=await fetch('/assets/cleanup/assets/'+encodeURIComponent(target.id),{method:'DELETE'});
   if(!response.ok){const body=await response.json();throw new Error(body.detail||`请求失败（${response.status}）`);}
   const result=await response.json();deleted=true;
-  const updated=await readCatalog();await readReferences(updated);catalog=updated;designIndex=await readDesignIndex();
+  const pending=await readCatalog(),updated=pending.catalog;await readReferences(updated);catalog=updated;designIndex=await readDesignIndex();catalogEtag=pending.etag;
   if(mode!=='images')designVersion=nextId;
   chooseFromMenus(undefined,nextId);renderStats();
   deleteMessage=`已删除「${target.title}」。已保留可恢复备份。`;
@@ -109,6 +159,53 @@ async function deleteCurrentAsset(){
   if(deleted){catalog.assets=catalog.assets.filter(a=>a.id!==target.id);asset=null;chooseFromMenus(undefined,nextId);}
  }finally{deleteBusy=false;renderPickers();renderModes();renderDeleteAction();}
 }
+function closeContentMenu(){
+ el('contentMenu').hidden=true;el('contentTrigger').setAttribute('aria-expanded','false');
+}
+function positionContentMenu(){
+ const popup=el('contentMenu');if(popup.hidden)return;
+ const rect=el('contentTrigger').getBoundingClientRect(),width=popup.getBoundingClientRect().width;
+ popup.style.top=(rect.bottom+6)+'px';
+ popup.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-width-12))+'px';
+}
+function renderContentCascade(menu,selected){
+ const trigger=el('contentTrigger'),popup=el('contentMenu');
+ const tree=contentMenuTree(menu);
+ const leaf=tree.flatMap(g=>g.children.flatMap(c=>c.children||[c])).find(c=>c.id===selected);
+ trigger.textContent=(leaf?.label||menu.object?.label||'选择内容')+' ▾';
+ trigger.disabled=confirmBusy||deleteBusy||catalogStale;
+ popup.replaceChildren();closeContentMenu();
+ function column(items,depth){
+  while(popup.children.length>depth)popup.lastElementChild.remove();
+  const panel=document.createElement('div');panel.className='cascade-column';panel.setAttribute('role','menu');popup.append(panel);
+  for(const item of items.flatMap(item=>item.section?[{heading:item.label},...item.children]:item)){
+   if(item.heading){const heading=document.createElement('div');heading.className='cascade-heading';heading.textContent=item.heading;panel.append(heading);continue;}
+   const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.textContent=item.label+(item.children?' ›':'');
+   if(item.children){button.setAttribute('aria-haspopup','menu');button.setAttribute('aria-expanded','false');}
+   else if(item.id===selected)button.setAttribute('aria-current','true');
+   button.onclick=()=>{
+    for(const sibling of panel.children)if(sibling.hasAttribute('aria-haspopup'))sibling.setAttribute('aria-expanded','false');
+    if(item.children){button.setAttribute('aria-expanded','true');column(item.children,depth+1);}
+    else{closeContentMenu();chooseContent(item.id);trigger.focus();}
+   };
+   button.onkeydown=event=>{
+    if(event.key==='ArrowRight'&&item.children){event.preventDefault();button.click();popup.lastElementChild.firstElementChild?.focus();}
+    if(event.key==='ArrowLeft'&&depth>0){event.preventDefault();const previous=popup.children[depth-1];while(popup.children.length>depth)popup.lastElementChild.remove();positionContentMenu();previous.querySelector('[aria-expanded="true"]')?.focus();}
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const choices=[...panel.querySelectorAll('button')],index=choices.indexOf(button);choices[(index+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length].focus();}
+   };
+   panel.append(button);
+  }
+  positionContentMenu();
+ }
+ trigger.onclick=()=>{
+  if(!popup.hidden){closeContentMenu();return;}
+  column(tree,0);popup.hidden=false;positionContentMenu();trigger.setAttribute('aria-expanded','true');popup.firstElementChild.querySelector('button')?.focus();
+ };
+}
+document.addEventListener('click',event=>{if(!event.target.closest('.content-picker'))closeContentMenu();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!el('contentMenu').hidden){closeContentMenu();el('contentTrigger').focus();}});
+window.addEventListener('resize',positionContentMenu);
+window.addEventListener('scroll',positionContentMenu,true);
 function renderDesignPickers(assetId){
  if(!designObject&&assetId){
   designObject=designIndex.objects.find(o=>o.group==='archive'&&o.versions.some(v=>v.id===assetId))?.id||'overview';
@@ -122,6 +219,7 @@ function renderDesignPickers(assetId){
   for(const object of group.objects){const o=document.createElement('option');o.value=object.id;o.textContent=mode==='images'?`${object.label}（${objectImages(catalog,object.id).filter(e=>e.kind==='reference').length} 张参考图）`:object.compositionOnly?`${object.label}（组合查看）`:`${object.label}（${object.versionCount} 个版本${object.sourceCount?`，${object.sourceCount} 份源文件`:""}）`;node.append(o);}content.append(node);
  }
  content.value=menu.object?.collection||designObject;
+ renderContentCascade(menu,content.value);
  const select=el('assetSelect');select.replaceChildren();select.disabled=confirmBusy||deleteBusy||catalogStale||!menu.selected;
  groups=[{assets:menu.versions.map(v=>({id:v.id}))}];
  for(const version of menu.versions){const o=document.createElement('option');o.value=version.id;
@@ -131,8 +229,8 @@ function renderDesignPickers(assetId){
  }
  if(menu.selected)select.value=menu.selected.id;
  const source=catalog.assets.find(a=>a.id===menu.selected?.asset);
- const synthetic=source?{...source,title:menu.selected.members||menu.selected.sources?menu.selected.title:source.title,
-  description:menu.selected.members?"组合查看：分别引用独立对象；请在右侧选择具体楼层或露台后确认。":source.designObject?source.description:menu.selected.sources?`此对象独立版本；${menu.selected.sources.length} 份历史导出包含相同内容。预览来源：${source.title}。历史文件均保留。`:source.description,
+ const synthetic=source?{...source,title:menu.selected.draft||menu.selected.members||menu.selected.sources?menu.selected.title:source.title,
+  description:menu.selected.draft?"未编号工作稿：持续覆盖更新；确认后才保存正式版本。":menu.selected.members?"组合查看：分别引用独立对象；请在右侧选择具体楼层或露台后确认。":source.designObject?source.description:menu.selected.sources?`此对象独立版本；${menu.selected.sources.length} 份历史导出包含相同内容。预览来源：${source.title}。历史文件均保留。`:source.description,
   primaryModel:menu.selected.file,models:menu.selected.file?[menu.selected.file]:[]}:
   {id:'__confirmed_overview',title:'园区总览',description:'',models:[],files:[],images:[],modes:['central']};
  return menu.selected?{...synthetic,contentLabel:menu.object?.label,designObject,designVersion}:null;
@@ -142,9 +240,8 @@ function renderConfirmation(){
  const button=el('confirmVersion');button.hidden=mode==='images'||rawPreview||!asset?.designObject||obj?.group==='overview'||!!obj?.historical;
  if(button.hidden)return;
  const adopted=!!loadedPlan?.adopted;
- const refsKey=refs=>JSON.stringify((refs||[]).map(r=>[r.object,r.contentDigest]).sort());
- const matches=adopted&&refsKey(obj.current.refs)===refsKey(loadedPlan?.refs);
- button.textContent=confirmBusy?'确认中…':obj?.aggregate?(obj.collection==='layout:central'?'选择楼层后确认':'选择位置后确认'):matches?'已确认':adopted?'确认参考组合':'确认'+(obj?.label||'当前对象')+(designObject.startsWith('layout:central:')?'布置':'')+(['building:pod','layout:pod'].includes(designObject)?'（共用）':'');
+ const matches=adopted;
+ button.textContent=confirmBusy?'确认中…':obj?.aggregate?(obj.collection==='layout:central'?'选择楼层后确认':'选择位置后确认'):matches?'已确认':'确认'+(obj?.label||'当前对象')+(designObject.startsWith('layout:central:')?'布置':'')+(['building:pod','layout:pod'].includes(designObject)?'（共用）':'');
  button.disabled=confirmBusy||deleteBusy||catalogStale||!loadedPlan?.confirmable||matches;
  button.title='仅确认'+(obj?.label||'当前对象')+'；参考显隐、查看楼层和相机不扩大确认范围';
 }
@@ -155,8 +252,9 @@ async function confirmVersion(){
  try{
   const r=await fetch('/assets/design/design/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sceneId:target.id,expectedCurrent:target.expectedCurrent})});
   if(!r.ok){const body=await r.json();throw new Error(body.detail||'确认失败');}
-  await r.json();designIndex=await readDesignIndex();
-  // Keep the current preview and its pinned references on screen.
+  const record=await r.json();designIndex=await readDesignIndex();
+  if(designVersion==='draft'){designVersion=record.version;chooseFromMenus();return;}
+  // Confirming changes only this object; references remain independently adopted.
   loadedPlan={...target,adopted:true,expectedCurrent:designIndex.objects.find(o=>o.id===designObject)?.current?.id};
  }catch(error){deleteMessage='确认失败：'+error.message;loadedPlan=null;}
  finally{confirmBusy=false;renderPickers();renderDeleteAction();}
@@ -197,7 +295,7 @@ function chooseFromMenus(params,assetId=asset?.id){
 }
 function selectAsset(a,params){
  const objectChanged=asset?.designObject!==a.designObject;
- const changed=asset?.id!==a.id||objectChanged||asset?.designVersion!==a.designVersion;if(changed){pendingDelete=null;if(!catalogStale)deleteMessage='';}asset=a;entries=a.designObject?objectImages(catalog,a.designObject,a.designVersion):imageEntries(a,catalog);
+ const changed=asset?.id!==a.id||objectChanged||asset?.designVersion!==a.designVersion;if(changed){pendingOrbit=null;pendingDelete=null;if(!catalogStale)deleteMessage='';}asset=a;entries=a.designObject?objectImages(catalog,a.designObject,a.designVersion):imageEntries(a,catalog);
  if(a.designObject&&a.designVersion)rememberedVersions.set(a.designObject,a.designVersion);
  if(objectChanged&&a.designObject&&!params?.has('object')){const obj=designIndex.objects.find(o=>o.id===a.designObject);view={...view,module:a.designObject==='overview'?'all':a.designObject==='layout:terraces'?'pods':obj?.module||'all',floor:obj?.floor||'all'};}
  const objectLabel=designIndex.objects.find(o=>o.id===a.designObject)?.label;
@@ -214,13 +312,13 @@ function selectAsset(a,params){
   imageKind=Object.hasOwn(imageKinds,params?.get('imageKind'))?params.get('imageKind'):'all';
   imagePath=params?.get('image')||'';manualReference=params?.get('reference')||'';
  }
- if((changed||params||mode==='images')&&imageKind==='all'&&!params?.has('imageKind')&&entries.some(e=>e.kind==='reference'))imageKind='reference';
+ if(mode!=='images'&&(changed||params)&&imageKind==='all'&&!params?.has('imageKind')&&entries.some(e=>e.kind==='reference'))imageKind='reference';
  const explicitImage=a.files.find(f=>f.kind==='image'&&f.path===imagePath);
  if(explicitImage&&!entries.some(e=>e.path===imagePath))entries.push({path:imagePath,name:explicitImage.name,kind:'file'});
  fileKind=a.models.length?'model':a.files.some(f=>f.kind==='source')?'source':'image';
  renderFiles();renderImageKinds();showPreview();renderDeleteAction();
 }
-function switchMode(next){if(designObject&&designVersion)rememberedVersions.set(designObject,designVersion);mode=next;if(next==='compare'&&designVersion==='live')designVersion=designIndex.objects.find(o=>o.id===designObject)?.versions[0]?.id||'';chooseFromMenus();}
+function switchMode(next){if(designObject&&designVersion)rememberedVersions.set(designObject,designVersion);mode=next;if(next==='images')imageKind='all';if(next==='compare'&&designVersion==='live')designVersion=designIndex.objects.find(o=>o.id===designObject)?.versions[0]?.id||'';chooseFromMenus();}
 function renderModes(){
  el('mediaModes').replaceChildren();
  for(const choice of mediaModes){
@@ -247,6 +345,7 @@ function showPreview(){
  el('imageViewer').hidden=mode!=='images';el('comparison').hidden=mode!=='compare';el('preview').classList.toggle('comparing',mode==='compare');
  if(mode==='images'){frame.removeAttribute('src');frame.dataset.source='';frame.dataset.ready='no';renderImage();el('previewState').textContent='图片 · 参考／模型截图／布局尺寸';updateHash();return;}
  const query=new URLSearchParams({file:modelFile,asset:asset.id,embedded:'1'});
+ if(exteriorPreview)query.set('exterior','1');
  if(asset.designObject&&!rawPreview){query.set('designObject',asset.designObject);query.set('revision',asset.designVersion);}
  const base='/assets/design/viewer.html?'+query;
  frame.title=asset.title+' · 三维模型';
@@ -257,7 +356,7 @@ function showPreview(){
  if(mode==='compare')renderComparison();
  el('previewState').textContent=frame.dataset.ready==='yes'?'三维预览 · 拖动旋转':'正在加载模型…';updateHash();
 }
-function sendView(fit){if(frame.dataset.ready==='yes'&&!frame.hidden)frame.contentWindow.postMessage({type:'asset-view',view,fit},location.origin);}
+function sendView(fit,orbit){if(frame.dataset.ready==='yes'&&!frame.hidden)frame.contentWindow.postMessage({type:'asset-view',view,fit,orbit},location.origin);}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==frame.contentWindow||!asset)return;
  const data=event.data;if(!data||data.asset!==asset.id||data.file!==modelFile)return;
@@ -271,9 +370,16 @@ window.addEventListener('message',event=>{
   if(!target||target.collection!==current?.collection||target.historical)return;
   chooseContent(target.id);return;
  }
+ if(data.type==='asset-view-mode'){
+  if(!['overview','landscape:site'].includes(designObject))return;
+  exteriorPreview=data.exterior===true;
+  pendingOrbit=null;
+  frame.dataset.source='';frame.dataset.ready='no';
+  showPreview();updateHash();return;
+ }
  if(data.type==='asset-ready'){
   loadedPlan=data.designPlan;renderConfirmation();
-  capabilities=data.capabilities;view=normalizeView(view,capabilities);frame.dataset.ready='yes';sendView(true);
+  capabilities=data.capabilities;view=normalizeView(view,capabilities);frame.dataset.ready='yes';sendView(true,pendingOrbit);pendingOrbit=null;
   const stats=frame.contentWindow.elfiePreview;
   modelStats=stats?.source===modelFile?{meshCount:stats.meshCount,triangleCount:stats.triangleCount}:null;renderStorage();
   if(!frame.hidden)el('previewState').textContent=rawPreview?'原始文件预览 · '+modelFile.split('/').pop():loadedPlan?.issues?.length?`${loadedPlan.issues.length} 项待确认／检查`:'三维预览 · 拖动旋转';
@@ -371,7 +477,7 @@ function stepImage(delta){const rows=gallery();if(!rows.length)return;const inde
 el('previousImage').onclick=()=>stepImage(-1);el('nextImage').onclick=()=>stepImage(1);
 el('referenceSelect').onchange=()=>{manualReference=el('referenceSelect').value;renderComparison();updateHash();};el('autoReference').onclick=()=>{manualReference='';renderComparison();updateHash();};
 window.addEventListener('popstate',()=>{
- const params=new URLSearchParams(location.hash.slice(1));view=readView(params);designObject=params.get('designObject')||'';designVersion=params.get('revision')||'';
+ const params=new URLSearchParams(location.hash.slice(1));view=readView(params);designObject=params.get('designObject')||'';designVersion=params.get('revision')||'';exteriorPreview=params.get('exterior')==='1';
  mode=mediaModes.some(m=>m.value===params.get('view'))?params.get('view'):'model';
  category=params.get('category')||'';furniture=params.get('furnitureCategory')||'';chooseFromMenus(params,params.get('asset'));
 });
@@ -379,3 +485,4 @@ renderStats();
 const seed=catalog.assets.find(a=>a.id===initial.get('asset'));
 if(seed&&initial.get('asset'))category=workbenchMenus({assets:[seed]},assetModes(seed,catalog).some(m=>m.value===mode)?mode:'model').category||category;
 chooseFromMenus(initial,seed?.id);
+scheduleCatalogRefresh();

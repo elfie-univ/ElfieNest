@@ -3,12 +3,23 @@ import {test} from 'node:test';
 import {
   deriveCapabilities, floorChoices, objectChoices, normalizeView,
   readView, writeView, meshVisible, frameable, measurementVisible,
+  spansFloors, floorControlVisible,
 } from '../../../devtools/asset_design/web/view-state.mjs';
 import {assetModes} from '../../../devtools/asset_design/web/asset-media.mjs';
 
 const records = [1,2,3,4].map(floor=>({module:'central',floor}));
 for(let i=1;i<=8;i++) for(const floor of [1,2]) records.push({module:`M${String(i).padStart(2,'0')}`,floor});
 const capabilities=deriveCapabilities(records);
+
+test('the actual upper slab supplies the selected room ceiling only in whole view',()=>{
+ const slab={module:'central',floor:2,ceiling_for_floor:1};
+ const view={module:'central',floor:'1',section:false,glass:true,furniture:true,scale:true};
+ assert.equal(meshVisible(slab,view),true);
+ assert.equal(meshVisible(slab,{...view,section:true}),false);
+ assert.equal(meshVisible(slab,{...view,floor:'2',section:true}),true);
+ assert.equal(meshVisible(slab,{...view,floor:'all',section:true}),true);
+ assert.equal(meshVisible(slab,{...view,module:'M01'}),false);
+});
 
 test('top navigation contains model, images and comparison only',()=>{
   const asset={primaryModel:'estate.glb',models:['estate.glb','chair.glb'],images:['reference.png'],files:[{path:'estate.glb',kind:'model'},{path:'reference.png',kind:'image'}]};
@@ -25,6 +36,17 @@ test('floors belong to the selected object',()=>{
   assert.deepEqual(floorChoices(capabilities,'M01').map(c=>c.label),['全部楼层','一楼','二楼露台']);
   assert.deepEqual(floorChoices(capabilities,'pods').map(c=>c.value),['all','1','2']);
   assert.deepEqual(objectChoices(deriveCapabilities([])),[{value:'all',label:'完整模型'}]);
+});
+test('a floor layout keeps the reference-building floor filter available',()=>{
+  const choices=floorChoices(capabilities,'central');
+  assert.equal(floorControlVisible(choices,{axis:'floor'}),true);
+  assert.equal(floorControlVisible(choices,null),true);
+  assert.equal(floorControlVisible(choices,{axis:'module'}),false);
+  assert.equal(floorControlVisible([{value:'all',label:'全部楼层'}],null),false);
+  const view=normalizeView({module:'central',floor:'1'},capabilities);
+  assert.equal(view.floor,'1');
+  assert(meshVisible({module:'central',floor:1,furniture:true},view));
+  assert(!meshVisible({module:'central',floor:2,designReference:true},view));
 });
 test('changing rooms keeps valid floors and all display switches',()=>{
   const view=normalizeView({module:'M01',floor:'2',section:true,furniture:false,glass:false,light:'dusk',camera:'top'},capabilities);
@@ -83,4 +105,29 @@ test('section retains the real terrace floor while hiding the outer shell',()=>{
   for(const source_name of ['ROOM • structural terrace slab','ROOM • inset terrace walking finish'])
     assert(meshVisible({module:'M01',floor:2,section_hide:true,source_name},view));
   assert(!meshVisible({module:'M01',floor:2,section_hide:true,source_name:'ROOM • outer shell'},view));
+});
+
+test('a house shell tagged on floor one still spans the actual terrace level',()=>{
+  const shell={module:'M02',floor:1,designObject:'building:pod',designReference:true};
+  const levels=[.1,3.1];
+  assert(spansFloors(shell,.05,4.8,levels));
+  const view=normalizeView({module:'M02',floor:'2',context:true},capabilities);
+  assert(meshVisible({...shell,full_height:spansFloors(shell,.05,4.8,levels)},view));
+  assert(!spansFloors(shell,.05,2.9,levels));
+  assert(!spansFloors({...shell,floor:2},3.2,4.8,levels));
+  assert(!spansFloors({...shell,designObject:'layout:terrace:M02',furniture:true},.05,4.8,levels));
+  assert(!spansFloors({...shell,reference:true},.05,4.8,levels));
+});
+
+test('an explicitly floor-owned flight stays whole on its departure floor',()=>{
+  const levels=[.28,4.06,6.86,9.66];
+  const view={module:'central',section:false,glass:true,scale:true,furniture:true};
+  for(const [floor,minimum,maximum] of [[1,.28,5.24],[2,4.28,8.04],[3,7.08,10.84]]){
+    const flight={module:'central',floor,full_height:false,designObject:'building:central'};
+    assert.equal(spansFloors(flight,minimum,maximum,levels),false);
+    const classified={...flight,full_height:spansFloors(flight,minimum,maximum,levels)};
+    assert(meshVisible(classified,{...view,floor:String(floor)}));
+    assert(!meshVisible(classified,{...view,floor:String(floor+1)}));
+    if(floor>1)assert(!meshVisible(classified,{...view,floor:String(floor-1)}));
+  }
 });

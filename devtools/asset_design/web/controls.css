@@ -72,3 +72,17 @@ body:has(.viewer-footer) .reference-status{font-size:10px}
  .workspace-toolbar #mediaModes{gap:4px}
  .workspace-toolbar #mediaModes button{padding-inline:7px;font-size:12px}
 }
+
+/* A single content picker opens successive columns within the same menu. */
+.content-picker{display:flex;align-items:center;gap:7px;min-width:0;flex:0 1 310px}
+.content-picker>.picker-label{white-space:nowrap}
+#contentTrigger{max-width:300px;min-width:175px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:inherit;padding:10px 12px}
+.content-cascade[hidden]{display:none}
+.content-cascade{position:fixed;z-index:100;display:flex;width:max-content;box-sizing:border-box;max-width:calc(100vw - 24px);overflow-x:auto;border:1px solid #bdcfc5;border-radius:10px;background:#fff;box-shadow:0 8px 28px #173d2e26;padding:5px}
+.cascade-column{display:flex;flex-direction:column;min-width:145px;max-height:min(65vh,520px);overflow-y:auto;padding:3px;border-right:1px solid #e1e9e3}
+.cascade-column:last-child{border-right:0}
+.cascade-column button{border:0;border-radius:5px;text-align:left;white-space:nowrap;padding:10px 12px;font-size:14px;background:transparent;color:#24483e}
+.cascade-column button:hover,.cascade-column button:focus-visible,.cascade-column button[aria-expanded="true"]{background:#e8f1eb}
+.cascade-column button[aria-current="true"]{background:#d4e7dd;font-weight:600}
+
+.cascade-heading{padding:10px 12px 4px;font-weight:700;color:#24483e;white-space:nowrap}

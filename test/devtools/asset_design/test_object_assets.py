@@ -5,6 +5,7 @@ import json
 from fastapi.testclient import TestClient
 
 from devtools.asset_design.app import create_app
+from devtools.asset_design.catalog_store import read_catalog, save_catalog
 from devtools.asset_design.object_assets import publish_object, split_assets
 from test.devtools.asset_design.test_design import confirm, open_scene, setup
 
@@ -30,9 +31,9 @@ def test_split_preserves_confirmation_and_isolates_builds(tmp_path):
         # The source is self-contained; legacy input files are unnecessary for publishing.
         (tmp_path / "v1.glb").unlink()
         (tmp_path / "v2.glb").unlink()
-        catalog_before = json.loads((tmp_path / "catalog.json").read_text())
+        catalog_before = read_catalog(tmp_path)
         assert publish_object(tmp_path, "building:pod")["changed"] is False
-        assert json.loads((tmp_path / "catalog.json").read_text()) == catalog_before
+        assert read_catalog(tmp_path) == catalog_before
         assert open_scene(client, "building:pod", "v2")["adopted"]
         index = client.get("/assets/design/design/index").json()
         pod = next(o for o in index["objects"] if o["id"] == "building:pod")
@@ -45,8 +46,12 @@ def test_publishing_furniture_changes_only_its_versions_and_does_not_confirm(tmp
 
     setup(tmp_path)
     split_assets(tmp_path)
-    before = json.loads((tmp_path / "catalog.json").read_text())
+    before = read_catalog(tmp_path)
     source = tmp_path / "layouts/pod_bedroom/source/model.glb"
+    build_path = source.with_name("build.json")
+    build = json.loads(build_path.read_text())
+    build["previewReferences"] = [{"object": "building:pod", "version": "v2"}]
+    build_path.write_text(json.dumps(build))
     raw = source.read_bytes()
     length = struct.unpack_from("<I", raw, 12)[0]
     doc = json.loads(raw[20 : 20 + length])
@@ -61,9 +66,10 @@ def test_publishing_furniture_changes_only_its_versions_and_does_not_confirm(tmp
     )
     result = publish_object(tmp_path, "layout:pod")
     assert result["changed"]
-    after = json.loads((tmp_path / "catalog.json").read_text())
+    after = read_catalog(tmp_path)
     assert after["assets"][:-1] == before["assets"]
     assert after["assets"][-1]["designObject"]["id"] == "layout:pod"
+    assert "previewReferences" not in after["assets"][-1]["designVersion"]
     assert not (tmp_path / "adoptions.json").exists()
     with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
         scene = open_scene(client, "layout:pod")
@@ -74,6 +80,40 @@ def test_publishing_furniture_changes_only_its_versions_and_does_not_confirm(tmp
         aggregate = open_scene(client, "layout:central")
         assert not aggregate["confirmable"]
         assert all(layer["object"] != "layout:central" for layer in aggregate["layers"])
+
+
+def test_furniture_preview_uses_its_fitted_building_without_adopting_it(tmp_path):
+    setup(tmp_path)
+    with TestClient(create_app(tmp_path), base_url="http://127.0.0.1") as client:
+        confirm(client, open_scene(client, "building:pod", "v1"))
+        split_assets(tmp_path)
+        before = (tmp_path / "adoptions.json").read_bytes()
+        catalog = read_catalog(tmp_path)
+        furniture = next(
+            a
+            for a in catalog["assets"]
+            if a.get("designObject", {}).get("id") == "layout:pod"
+        )
+        furniture["designVersion"]["previewReferences"] = [
+            {"object": "building:pod", "version": "v2"}
+        ]
+        save_catalog(tmp_path, catalog)
+        preview = open_scene(client, "layout:pod")
+        building = next(
+            layer for layer in preview["layers"] if layer["object"] == "building:pod"
+        )
+        assert building["version"] == "v1"
+        assert building["reference"] and not building.get("unconfirmed")
+        overview = open_scene(client, "overview")
+        assert (
+            next(
+                layer
+                for layer in overview["layers"]
+                if layer["object"] == "building:pod"
+            )["version"]
+            == "v1"
+        )
+        assert (tmp_path / "adoptions.json").read_bytes() == before
 
 
 def test_archived_revision_restores_without_changing_adoption_and_confirmed_file_is_protected(

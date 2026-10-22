@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from devtools.asset_design.app import create_app
+from devtools.asset_design.catalog_store import read_catalog
 
 
 def setup_assets(root):
@@ -81,7 +82,7 @@ def test_delete_one_version_archives_outputs_keeps_shared_files_and_marks(tmp_pa
             client.get("/assets/design/files/kit/shared.png").content
             == files["kit/shared.png"]
         )
-    saved = json.loads((root / "catalog.json").read_text())
+    saved = read_catalog(root)
     assert saved["extra"] == original["extra"]
     assert [a["id"] for a in saved["assets"]] == ["child"]
     assert saved["assets"][0]["mtime_ns"] == 456

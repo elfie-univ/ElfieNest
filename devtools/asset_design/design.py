@@ -1,4 +1,4 @@
-"""Local object adoption and pinned preview plans, isolated from production data."""
+"""Independent object adoption with live confirmed reference previews."""
 
 import copy
 import hashlib
@@ -23,6 +23,11 @@ from devtools.asset_design.design_groups import (
     review_scopes,
 )
 from devtools.asset_design.design_models import read_model
+from devtools.asset_design.glb_resources import read_glb
+from devtools.asset_design.template_instances import (
+    resolve_templates,
+    template_dependencies,
+)
 
 ASSET_LOCK = RLock()
 STATE_FILE = "adoptions.json"
@@ -44,20 +49,37 @@ def read_state(root):
 
 
 def assert_not_adopted(root, asset_id):
-    asset = next((a for a in load_catalog(root).assets if a.id == asset_id), None)
-    for record in read_state(root)["history"]:
-        if asset_id in {record["version"], *(ref["version"] for ref in record["refs"])}:
-            raise HTTPException(409, "Version retained by an object confirmation")
-        if asset and asset.designObject:
-            for entry in [record, *record["refs"]]:
-                if entry["object"] == asset.designObject["id"] and (
-                    entry["version"] == asset.designVersion["id"]
-                    or entry.get("contentDigest")
-                    == asset.designVersion["contentDigest"]
+    assets = load_catalog(root).assets
+    asset = next((a for a in assets if a.id == asset_id), None)
+    if asset and asset.designObject and asset.designObject["id"].startswith("part:"):
+        identifier = asset.designObject["id"]
+        revisions = [
+            a
+            for a in assets
+            if a.designObject and a.designObject["id"] == identifier and not a.archived
+        ]
+        if len(revisions) == 1:
+            for consumer in assets:
+                if consumer.archived or not consumer.designVersion:
+                    continue
+                doc, _ = read_glb(
+                    checked_file(root.resolve(), consumer.designVersion["file"])
+                )
+                if any(
+                    i["object"] == identifier
+                    for i in doc.get("extras", {}).get("templateInstances", [])
                 ):
                     raise HTTPException(
-                        409, "Independent model retained by a confirmation"
+                        409, "Last furniture mother retained by a scene reference"
                     )
+    retained_ids = {asset_id}
+    if asset and asset.designVersion:
+        retained_ids.add(asset.designVersion["id"])
+    if any(
+        record["version"] in retained_ids
+        for record in read_state(root)["current"].values()
+    ):
+        raise HTTPException(409, "Current object confirmation retains this version")
 
 
 class Confirmation(BaseModel):
@@ -173,28 +195,7 @@ def build_design_router(root: Path):
                                 )
                                 continue
                             layers.append(selected)
-                            record = state["current"][candidate["id"]]
-                            for ref in record["refs"]:
-                                current = state["current"].get(ref["object"])
-                                if not current or (current.get("contentDigest"),) != (
-                                    ref.get("contentDigest"),
-                                ):
-                                    issues.append(
-                                        {
-                                            "object": candidate["id"],
-                                            "reason": "参考版本已变，待检查",
-                                        }
-                                    )
-                            if candidate["group"] == "layout" and not any(
-                                ref["object"].startswith("building:")
-                                for ref in record["refs"]
-                            ):
-                                issues.append(
-                                    {
-                                        "object": candidate["id"],
-                                        "reason": "尚未结合已确认建筑检查",
-                                    }
-                                )
+
             else:
                 if obj is None:
                     raise HTTPException(404, "Object unavailable")
@@ -210,19 +211,10 @@ def build_design_router(root: Path):
                 else:
                     layers.append(layer(obj, selected))
                 for candidate in objects.values():
-                    needed = reference_needed(obj, candidate)
-                    if needed:
+                    if reference_needed(obj, candidate):
                         reference = current_layer(
                             objects, candidate["id"], state, issues, True
                         )
-                        if (
-                            reference is None
-                            and candidate["group"] == "building"
-                            and candidate["id"] not in state["current"]
-                            and candidate["versions"]
-                        ):
-                            reference = layer(candidate, candidate["versions"][0], True)
-                            reference["unconfirmed"] = True
                         if reference:
                             # A part's surrounding kit excludes its old counterpart.
                             if obj["id"].startswith("part:"):
@@ -239,34 +231,33 @@ def build_design_router(root: Path):
                                     set(reference["nodes"]) - excluded
                                 )
                             layers.append(reference)
+            try:
+                for entry in layers:
+                    instances = resolve_templates(root, entry, objects, state)
+                    if obj and obj["id"].startswith("part:") and entry["reference"]:
+                        instances = [i for i in instances if i["object"] != obj["id"]]
+                    if instances:
+                        entry["templateInstances"] = instances
+                dependencies = template_dependencies(layers)
+            except (ValueError, KeyError, IndexError, OSError, TypeError) as error:
+                raise HTTPException(
+                    409, "Furniture composition unavailable: " + str(error)
+                ) from error
             previous = state["current"].get(object)
             adopted = bool(
                 previous
                 and layers
+                and not layers[0].get("draft")
                 and previous.get("contentDigest")
                 and previous["contentDigest"] == layers[0].get("contentDigest")
+                and previous["version"] == layers[0]["version"]
             )
-            if adopted:
-                old_refs = {
-                    r["object"]: r.get("contentDigest") for r in previous["refs"]
-                }
-                new_refs = {
-                    r["object"]: r.get("contentDigest")
-                    for r in layers
-                    if r["reference"]
-                }
-                if old_refs != new_refs:
-                    issues.append(
-                        {
-                            "object": object,
-                            "reason": "对象已确认；参考组合已变化，待检查",
-                        }
-                    )
             plan = {
                 "object": object,
                 "version": version
                 or (obj["versions"][0]["id"] if obj and object != "overview" else None),
                 "layers": layers,
+                "templates": dependencies,
                 "issues": issues,
                 "expectedCurrent": previous["id"] if previous else None,
                 "review": review_scopes(objects, obj) if obj else None,
@@ -303,31 +294,27 @@ def build_design_router(root: Path):
                     409, "Object was confirmed elsewhere; reload before confirming"
                 )
             _, objects = items()
-            for entry in plan["layers"]:
+            owned_layers = [entry for entry in plan["layers"] if not entry["reference"]]
+            for entry in owned_layers:
                 _, source = version_for(objects, entry["object"], entry["version"])
-                if source.get("contentDigest") != entry.get(
-                    "contentDigest"
-                ) or not entry.get("contentDigest"):
+                if (
+                    source.get("contentDigest") != entry.get("contentDigest")
+                    or not entry.get("contentDigest")
+                    or (entry.get("draft") and source["digest"] != entry["digest"])
+                ):
                     raise HTTPException(
                         409, "Preview source changed; reload before confirming"
                     )
-            source = plan["layers"][0]
+            from devtools.asset_design.working_drafts import freeze_working_layers
+
+            saved_layers = freeze_working_layers(root, owned_layers)
+            source = saved_layers[0]
             record = {
                 "id": uuid4().hex,
                 "object": plan["object"],
                 "version": source["version"],
                 "digest": source["digest"],
                 "contentDigest": source["contentDigest"],
-                "refs": [
-                    {
-                        "object": e["object"],
-                        "version": e["version"],
-                        "digest": e["digest"],
-                        "contentDigest": e["contentDigest"],
-                    }
-                    for e in plan["layers"]
-                    if e["reference"]
-                ],
                 "at": datetime.now(timezone.utc).isoformat(),
             }
             state["current"][plan["object"]] = record

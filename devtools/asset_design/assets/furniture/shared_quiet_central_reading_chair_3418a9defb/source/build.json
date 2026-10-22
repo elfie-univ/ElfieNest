@@ -1,0 +1,47 @@
+{
+  "object": "part:shared_quiet_central_reading_chair_3418a9defb",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "3418a9defb08ce5a368b7f2e41ab9a4ccc8c4e4f0d698e12d97321d6b63ebbc1",
+    "category": "chair",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v002/reuse.json"
+  },
+  "currentUsage": {
+    "count": 6,
+    "locations": {
+      "layout:central:3": 6
+    },
+    "description": "主楼三层：中央阅读区 4 把，书写区 2 把；米白和绿色共用几何。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "reuseVariants": {
+    "geometryMaster": "part:shared_quiet_central_reading_chair_3418a9defb",
+    "parameters": [
+      "size",
+      "rotation",
+      "material"
+    ],
+    "mergedFrom": [
+      "part:shared_quiet_central_reading_chair_3418a9defb",
+      "part:shared_quiet_central_reading_chair_e8f4eccfd4",
+      "part:shared_quiet_right_journaling_chair_28f34cdd2b"
+    ]
+  },
+  "collision": {
+    "owner": "part:shared_quiet_central_reading_chair_3418a9defb",
+    "rootNode": 5,
+    "shapes": 4,
+    "type": "simple-boxes-and-16-sided-convex-cylinders",
+    "movable": true,
+    "renderGeometryUnchanged": true,
+    "seatCavityOpen": true
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "designObject": {
+    "id": "part:shared_natural_woven_rug_562b20302f",
+    "label": "圆形地毯",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "圆形地毯（40处引用）",
+    "menuOrder": 1,
+    "menuCategory": "rug",
+    "currentUsage": {
+      "count": 40,
+      "locations": {
+        "layout:pod": 32,
+        "layout:terrace:M01": 1,
+        "layout:terrace:M02": 1,
+        "layout:terrace:M03": 1,
+        "layout:terrace:M04": 1,
+        "layout:terrace:M05": 1,
+        "layout:terrace:M06": 1,
+        "layout:terrace:M07": 1,
+        "layout:terrace:M08": 1
+      },
+      "description": "8 间卧室各 4 张，共 32 张；M01—M08 露台各 1 张，共 8 张。颜色与尺寸为引用参数。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "reuseVariants": {
+      "geometryMaster": "part:shared_natural_woven_rug_562b20302f",
+      "parameters": [
+        "size",
+        "rotation",
+        "material"
+      ],
+      "mergedFrom": [
+        "part:shared_pod_botanical_rug_71c7a6bb36",
+        "part:shared_natural_woven_rug_562b20302f"
+      ]
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_natural_woven_rug_562b20302f_v002",
+      "file": "furniture/shared_natural_woven_rug_562b20302f/versions/v002/version.json",
+      "order": 201
+    }
+  ]
+}

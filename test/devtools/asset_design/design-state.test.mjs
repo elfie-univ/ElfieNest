@@ -1,8 +1,125 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {designMenu,adoptionLabel,sceneVisibility,sceneMeshSelection,versionRemovalScope} from '../../../devtools/asset_design/web/design-state.mjs';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+import {confirmedReferenceSignature,designMenu,adoptionLabel,sceneVisibility,sceneMeshSelection,versionRemovalScope} from '../../../devtools/asset_design/web/design-state.mjs';
 
-test('source deletion identifies every affected object and protects confirmed dependencies',()=>{
+test('furniture menu lists only opted-in reusable masters without removing scene objects',()=>{
+ const part=(id,extra={})=>({id,group:'kit',label:id,versions:[{id:id+'-v1'}],...extra});
+ const index={groups:{overview:'园区总览',layout:'家具布置',kit:'家具套装'},objects:[
+  {id:'overview',group:'overview',label:'完整园区',versions:[]},
+  {id:'layout:pod',group:'layout',label:'卧室组装',versions:[{id:'room'}]},
+  part('part:single'),part('part:drawer',{menuVisible:false}),
+  part('part:chair',{menuVisible:true,menuLabel:'共用椅子',menuOrder:2}),
+  part('part:bed',{menuVisible:true,menuLabel:'共用床体',menuOrder:1}),
+ ]};
+ const frozen=JSON.stringify(index),menu=designMenu(index);
+ assert.deepEqual(menu.groups.find(g=>g.value==='kit').objects.map(o=>[o.id,o.label]),[
+  ['part:bed','共用床体'],['part:chair','共用椅子'],
+ ]);
+ assert(menu.groups.find(g=>g.value==='layout').objects.some(o=>o.id==='layout:pod'));
+ assert.equal(designMenu(index,'part:drawer').selected.id,'part:drawer-v1','hidden exports remain addressable');
+ assert.equal(JSON.stringify(index),frozen,'visibility does not delete objects, versions or scene data');
+});
+
+test('publishing a floor layout opens it from its building without adopting either object',async()=>{
+ const {publishedPreview}=await import('../../../devtools/asset_design/web/design-state.mjs');
+ const building={id:'building:central',module:'central',group:'building',versions:[{id:'b21'}],current:{version:'b19'}};
+ const layout={id:'layout:central:1',module:'central',floor:'1',group:'layout',versions:[{id:'l33',asset:'l33'}],current:{version:'l32'}};
+ const index={objects:[building,layout]},before={assets:[{id:'b21'}]},after={assets:[...before.assets,{id:'l33',designObject:{id:layout.id},designVersion:{id:'l33'}}]};
+ const frozen=JSON.stringify(index);
+ assert.deepEqual(publishedPreview(before,after,index,building.id,{module:'central',floor:'1'}),{object:layout.id,version:'l33'});
+ assert.equal(publishedPreview(after,after,index,building.id,{module:'central',floor:'1'}),null);
+ assert.equal(publishedPreview(before,after,index,building.id,{module:'central',floor:'2'}),null);
+ assert.equal(JSON.stringify(index),frozen);
+});
+
+test('publication follows current content, refreshes overview and ignores unrelated modules',async()=>{
+ const {publishedPreview}=await import('../../../devtools/asset_design/web/design-state.mjs');
+ const item=(id,module,group='building')=>({id,module,group,versions:[{id:id+'2',asset:id+'2'},{id:id+'1'}]});
+ const central=item('building:central','central'),pod=item('building:pod','M01'),plant=item('part:plant','','kit');
+ const index={objects:[{id:'overview',group:'overview'},central,pod,plant]};
+ const before={assets:[]};
+ const after={assets:[central,pod,plant].map(o=>({id:o.id+'2',designObject:{id:o.id},designVersion:{id:o.id+'2'}}))};
+ assert.deepEqual(publishedPreview(before,after,index,central.id,{module:'central',floor:'1'}),{object:central.id,version:central.id+'2'});
+ assert.deepEqual(publishedPreview(before,after,index,plant.id,{}),{object:plant.id,version:plant.id+'2'});
+ assert.deepEqual(publishedPreview(before,after,index,'overview',{module:'central',floor:'1'}),{object:central.id,version:central.id+'2'});
+ assert.equal(publishedPreview(before,{assets:[after.assets[1]]},index,central.id,{module:'central'}),null);
+ assert.equal(publishedPreview(before,{assets:[{...after.assets[0],designVersion:{id:'not-indexed-yet'}}]},index,central.id,{module:'central'}),null);
+});
+
+test('open workbench polls publications, retries incomplete reads and preserves view and orbit',async()=>{
+ const web=new URL('../../../devtools/asset_design/web/',import.meta.url);
+ const dependencies=Object.assign({},...await Promise.all(['content-images.mjs','design-state.mjs','view-state.mjs','asset-media.mjs'].map(name=>import(new URL(name,web)))));
+ const building={id:'building:central',group:'building',module:'central',label:'主楼',versions:[{id:'b21',asset:'b21',file:'b21.glb'},{id:'b19',asset:'b19',file:'b19.glb'}]};
+ const layout={id:'layout:central:1',group:'layout',module:'central',floor:'1',label:'一楼',versions:[{id:'l33',asset:'l33',file:'l33.glb'}]};
+ const asset=(id,object)=>({id,title:id,category:'other',primaryModel:id+'.glb',models:[id+'.glb'],images:[],files:[{path:id+'.glb',name:id+'.glb',kind:'model',bytes:100}],designObject:{id:object.id},designVersion:{id}});
+ let catalog={assets:[asset('b19',building),asset('b21',building)],stats:{}},index={groups:{building:'建筑',layout:'布置'},objects:[building]};
+ const nodes=new Map(),events=new Map(),timers=[],requests=[],messages=[],warnings=[];
+ const element=()=>({dataset:{},style:{},children:[],value:'',hidden:false,classList:{toggle(){},remove(){}},append(...children){this.children.push(...children);},replaceChildren(){this.children=[];},get options(){return this.children;},setAttribute(){},removeAttribute(){}});
+ const document={hidden:false,getElementById(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);},createElement:element,addEventListener(name,fn){events.set(name,fn);}};
+ const location={hash:'#view=model&designObject=building%3Acentral&revision=b21&asset=b21&object=central&floor=1&light=dusk&glass=0&dimensions=1',origin:'http://127.0.0.1'};
+ const orbit={position:[4,3,8],target:[1,2,3]};
+ document.getElementById('viewer').contentWindow={elfiePreview:{orbit:()=>orbit},postMessage(message){messages.push(message);}};
+ let fail=false;
+ const context={...dependencies,document,location,URLSearchParams,console:{warn(...args){warnings.push(args);}},setTimeout(fn){timers.push(fn);return timers.length;},clearTimeout(){},history:{replaceState(_,__,hash){location.hash=hash;}},fetch:async (path,options={})=>{
+  requests.push(path);if(fail)throw new Error('service restarting');
+  const etag=JSON.stringify(catalog);
+  if(path.endsWith('catalog.json')&&options.headers?.['If-None-Match']===etag)return {status:304};
+  return {ok:true,status:200,headers:{get:()=>etag},json:async()=>structuredClone(path.endsWith('catalog.json')?catalog:index)};
+ }};
+ context.window={addEventListener(name,fn){events.set(name,fn);}};
+ const source=(await readFile(new URL('catalog-request.mjs',web),'utf8')).replace(/^export /gm,'')+'\n'+(await readFile(new URL('library.js',web),'utf8')).replace(/^import .*;\n/gm,'');
+ const page=await vm.runInNewContext('(async()=>{'+source+'\nreturn {refreshCatalog};})()',context);
+ assert.equal(timers.length,1);
+ assert.equal(nodes.get('assetSelect').value,'b21');
+ await timers[0]();
+ assert.equal(requests.filter(p=>p.endsWith('/index')).length,1,'unchanged catalogue does not rebuild the index');
+ catalog.assets.push(asset('l33',layout));
+ await page.refreshCatalog();
+ assert.equal(nodes.get('assetSelect').value,'b21','incomplete index retains the pending publication');
+ index.objects.push(layout);fail=true;
+ await page.refreshCatalog();assert.equal(warnings.length,1);
+ fail=false;nodes.get('viewer').dataset.ready='yes';
+ await page.refreshCatalog();
+ assert.equal(nodes.get('assetSelect').value,'l33');
+ assert.equal(nodes.get('categorySelect').value,layout.id);
+ assert.match(nodes.get('viewer').src,/revision=l33/);
+ const params=new URLSearchParams(location.hash.slice(1));
+ assert.equal(params.get('floor'),'1');assert.equal(params.get('light'),'dusk');assert.equal(params.get('glass'),'0');assert.equal(params.get('dimensions'),'1');
+ events.get('message')({origin:location.origin,source:nodes.get('viewer').contentWindow,data:{type:'asset-ready',asset:'l33',file:'l33.glb',designObject:layout.id,revision:'l33',capabilities:{central:['1','2']}}});
+ assert.deepEqual(messages.at(-1).orbit,orbit);
+ // A reader can still inspect history; the next poll must not force them back.
+ nodes.get('categorySelect').value=building.id;nodes.get('categorySelect').onchange();
+ nodes.get('assetSelect').value='b19';nodes.get('assetSelect').onchange();
+ await page.refreshCatalog();assert.equal(nodes.get('assetSelect').value,'b19');
+ // An unnumbered draft refreshes even when the published catalogue is unchanged.
+ building.versions.unshift({id:'draft',title:'主楼 · 工作稿（未编号）',draft:true,asset:'b21',file:'source.glb',digest:'first'});
+ catalog.assets[0].description='draft preview enabled';await page.refreshCatalog();
+ nodes.get('assetSelect').value='draft';nodes.get('assetSelect').onchange();
+ assert.equal(nodes.get('deleteAsset').hidden,true);
+ nodes.get('viewer').dataset.ready='yes';
+ building.versions[0].digest='second';const oldIndexReads=requests.filter(p=>p.endsWith('/index')).length;
+ await page.refreshCatalog();assert.equal(nodes.get('assetSelect').value,'draft');
+ assert.equal(requests.filter(p=>p.endsWith('/index')).length,oldIndexReads+1);
+ const frame=nodes.get('viewer'),reloads=[];let frameSource=frame.src;
+ Object.defineProperty(frame,'src',{get:()=>frameSource,set(value){frameSource=value;reloads.push(value);},configurable:true});
+ frame.dataset.ready='yes';
+ index.objects.push({id:'building:pod',group:'building',module:'M01',label:'小屋',versions:[{id:'draft',draft:true,asset:'b21',file:'pod.glb',digest:'unrelated'}]});
+ await page.refreshCatalog();assert.equal(reloads.length,0,'an unrelated draft edit does not reload the open model');
+ building.versions[0].digest='third';frame.dataset.ready='no';
+ await page.refreshCatalog();assert.equal(reloads.length,0,'a draft update does not interrupt a preview still loading');
+ frame.dataset.ready='yes';await page.refreshCatalog();assert.equal(reloads.length,1,'the latest draft is applied after loading completes');
+ events.get('message')({origin:location.origin,source:frame.contentWindow,data:{type:'asset-ready',asset:'b21',file:'source.glb',designObject:building.id,revision:'draft',capabilities:{central:['1','2']},designPlan:{layers:[{object:layout.id,reference:true}]}}});
+ layout.versions.unshift({id:'draft',draft:true,asset:'l33',file:'floor.glb',digest:'floor-draft'});
+ await page.refreshCatalog();assert.equal(reloads.length,1,'unconfirmed reference drafts do not change the preview');
+ layout.current={id:'confirmed-layout',version:'l33'};
+ await page.refreshCatalog();assert.equal(reloads.length,2,'a newly confirmed reference updates the preview');
+ document.hidden=true;const count=requests.length;await page.refreshCatalog();assert.equal(requests.length,count);
+ assert(requests.every(path=>!path.includes('/confirm')));
+});
+
+test('source deletion protects only the objects current version',()=>{
  const index={objects:[
   {id:'overview',group:'overview',label:'园区总览',versions:[{id:'v1',asset:'source'}]},
   {id:'shell',group:'building',label:'小屋',versions:[{id:'v1',asset:'source'}]},
@@ -10,7 +127,7 @@ test('source deletion identifies every affected object and protects confirmed de
    current:{version:'v2',refs:[{object:'shell',version:'v1'}]}},
   {id:'archive',group:'archive',label:'原始资产',versions:[{id:'v1',asset:'source'}]},
  ]};
- assert.deepEqual(versionRemovalScope(index,'source'),{labels:['小屋','小屋家具布置'],protected:true});
+ assert.deepEqual(versionRemovalScope(index,'source'),{labels:['小屋','小屋家具布置'],protected:false});
  delete index.objects[2].current;
  assert.deepEqual(versionRemovalScope(index,'source'),{labels:['小屋','小屋家具布置'],protected:false});
  assert.deepEqual(versionRemovalScope(index,'missing'),{labels:[],protected:false});
@@ -80,8 +197,8 @@ test('content menu keeps floor and part versions independent from old combined e
   {id:'layout:central',collection:'layout:central',collectionLabel:'主楼布置',label:'主楼布置',group:'layout',aggregate:true,versions:[{id:'v2'}]},
   {id:'layout:central:2',collection:'layout:central',collectionLabel:'主楼布置',label:'主楼二楼布置',group:'layout',versions:[{id:'v2'}]},
   {id:'saved:old',collection:'layout:central',collectionLabel:'主楼布置',label:'历史整套',group:'layout',historical:true,versions:[{id:'v1',asset:'old'}]},
-  {id:'layout:kit',collection:'layout:kit',collectionLabel:'床桌椅套装',label:'床桌椅套装',group:'kit',versions:[{id:'kit'}]},
-  {id:'part:bed',collection:'layout:kit',collectionLabel:'床桌椅套装',label:'床体',group:'kit',versions:[{id:'kit'}]},
+  {id:'layout:kit',collection:'layout:kit',collectionLabel:'床桌椅套装',label:'床桌椅套装',group:'kit',menuVisible:true,versions:[{id:'kit'}]},
+  {id:'part:bed',collection:'layout:kit',collectionLabel:'床桌椅套装',label:'床体',group:'kit',menuVisible:true,versions:[{id:'kit'}]},
  ]};
  const menu=designMenu(index,'layout:central:2','v1');
  assert.deepEqual(menu.groups.flatMap(g=>g.objects.map(o=>o.id)),['layout:central:2','layout:kit','part:bed']);
@@ -167,3 +284,24 @@ test('object-reference compositions are views rather than saved revisions',()=>{
  assert.equal(object.compositionOnly,true);
  assert.equal(object.versionCount,0);
 });
+
+test('reference refresh watches confirmed versions, not unconfirmed publications',()=>{
+ const index={objects:[{id:'host',current:{id:'h',version:'h1'}},{id:'ref',current:{id:'r',version:'r1'},versions:[{id:'r2'}]}]};
+ const plan={layers:[{object:'ref',reference:true}],templates:[]};
+ const first=confirmedReferenceSignature(index,'host',plan);
+ index.objects[1].versions.unshift({id:'r3'});
+ assert.equal(confirmedReferenceSignature(index,'host',plan),first);
+ index.objects[1].current={id:'new',version:'r3'};
+ assert.notEqual(confirmedReferenceSignature(index,'host',plan),first);
+});
+
+ test('reference refresh observes newly confirmed missing references and overview members',()=>{
+ const index={objects:[{id:'building'},{id:'layout',current:{id:'first',version:'v1'}}]};
+ const plan={layers:[{object:'layout',reference:false}],issues:[{object:'building',reason:'待确认'}]};
+ const first=confirmedReferenceSignature(index,'overview',plan);
+ index.objects[0].current={id:'confirmed',version:'b1'};
+ assert.notEqual(confirmedReferenceSignature(index,'overview',plan),first);
+ const second=confirmedReferenceSignature(index,'overview',plan);
+ index.objects[1].current={id:'second',version:'v2'};
+ assert.notEqual(confirmedReferenceSignature(index,'overview',plan),second);
+ });

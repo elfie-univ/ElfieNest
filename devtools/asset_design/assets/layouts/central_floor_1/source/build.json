@@ -3,6 +3,637 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "approvedVersion": "layout_central_1_v008",
-  "sourceSha256": "992d1db541962db9ba9711ebf34174bd2796dfffe77c9f6f36ac7359271c87ca"
+  "sourceSha256": "c6b80f221b1a544b97749bce32150be42aac4a5f8be7456266434828008d334b",
+  "design": {
+    "name": "V037 design merged with V038 shared resources",
+    "status": "merged review candidate",
+    "floor": 1,
+    "architecture": "building_central_v026",
+    "decor": "All eight existing 110 x 150 cm portraits move toward their own doorway: 68 cm clear from frame edge to door jamb. Seven original-size plants: two fine-leaf, four rubber trees and one rear broadleaf clump, with three exact left/right mirrored pairs. Front-only TV landscape image with mild emission; cabinet and bezel retained.",
+    "reusableTemplates": [
+      "part_floor_plant_v002",
+      "part_broadleaf_clump_v002"
+    ],
+    "plantArrangement": [
+      {
+        "name": "Corner floor plant 1",
+        "kind": "fine",
+        "matrix": [
+          -0.17364817766692997,
+          0,
+          0.9848077530122081,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.9848077530122081,
+          0,
+          0.17364817766692997,
+          0,
+          7.630034304717086,
+          0.2919999996200204,
+          -2.00671753502178,
+          1
+        ],
+        "bounds": [
+          [
+            7.318813200175347,
+            0.3,
+            -2.4133222884083425
+          ],
+          [
+            7.940664976477162,
+            1.912000004388392,
+            -1.5758473314308972
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M02",
+            "leafToWallM": 0.049999999999998934,
+            "leafBeyondDoorJambM": 2.6884460465695943,
+            "leafPastFrameEdgeM": 0.9085068099286635
+          },
+          {
+            "wall": "Uniform wall art M03",
+            "leafToWallM": 0.049999999999998934,
+            "leafBeyondDoorJambM": 0.1196129234735146,
+            "leafPastFrameEdgeM": 2.2796350248757973
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 2",
+        "kind": "rubber",
+        "matrix": [
+          0.9659258262890683,
+          0,
+          0.2588190451025208,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.2588190451025208,
+          0,
+          -0.9659258262890683,
+          0,
+          7.139557270741501,
+          0.29999999956948126,
+          3.08552591261974,
+          1
+        ],
+        "bounds": [
+          [
+            6.696392305083287,
+            0.30000000000000004,
+            2.6870389274847275
+          ],
+          [
+            7.587608748800381,
+            2.3499999518857653,
+            3.495016815271034
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M02",
+            "leafToWallM": 0.1370549131091252,
+            "leafBeyondDoorJambM": 0.11995743274688797,
+            "leafPastFrameEdgeM": 2.2799816846847545
+          },
+          {
+            "wall": "Uniform wall art M01",
+            "leafToWallM": 0.0600000000000005,
+            "leafBeyondDoorJambM": 2.5651453630243024,
+            "leafPastFrameEdgeM": 0.7852283660684314
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 3",
+        "kind": "rubber",
+        "matrix": [
+          0.49999999999999983,
+          0,
+          -0.8660254037844387,
+          0,
+          0,
+          1,
+          0,
+          0,
+          -0.8660254037844387,
+          0,
+          -0.49999999999999983,
+          0,
+          4.892759187365838,
+          0.2999999995694812,
+          -6.067706158492363,
+          1
+        ],
+        "bounds": [
+          [
+            4.4474826814490225,
+            0.29999999999999993,
+            -6.501539486803228
+          ],
+          [
+            5.29162776246457,
+            2.3499999518857653,
+            -5.649426291625257
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M03",
+            "leafToWallM": 0.05000000000000071,
+            "leafBeyondDoorJambM": 2.59867537338475,
+            "leafPastFrameEdgeM": 0.8187312539313198
+          },
+          {
+            "wall": "Uniform wall art M04",
+            "leafToWallM": 0.11397581340848628,
+            "leafBeyondDoorJambM": 0.09985471086520192,
+            "leafPastFrameEdgeM": 2.260062359142485
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 4",
+        "kind": "broad",
+        "matrix": [
+          0.9396926207859084,
+          0,
+          -0.3420201433256687,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.3420201433256687,
+          0,
+          0.9396926207859084,
+          0,
+          0,
+          0.3,
+          -7.647629605428543,
+          1
+        ],
+        "bounds": [
+          [
+            -0.6345686324185793,
+            0.3,
+            -8.248260550654061
+          ],
+          [
+            0.686576040514151,
+            1.8499999523162842,
+            -7.025016830531214
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M04",
+            "leafToWallM": 0.045244021622873554,
+            "leafBeyondDoorJambM": 2.481042475175747,
+            "leafPastFrameEdgeM": 0.7011252398012964
+          },
+          {
+            "wall": "Uniform wall art M05",
+            "leafToWallM": 0.05475597837712787,
+            "leafBeyondDoorJambM": 2.5708670672752008,
+            "leafPastFrameEdgeM": 0.7909492883063893
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 5",
+        "kind": "rubber",
+        "matrix": [
+          -0.49999999999999983,
+          0,
+          -0.8660254037844387,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0.8660254037844387,
+          0,
+          -0.49999999999999983,
+          0,
+          -4.892759187365838,
+          0.2999999995694812,
+          -6.067706158492363,
+          1
+        ],
+        "bounds": [
+          [
+            -5.29162776246457,
+            0.29999999999999993,
+            -6.501539486803228
+          ],
+          [
+            -4.4474826814490225,
+            2.3499999518857653,
+            -5.649426291625257
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M05",
+            "leafToWallM": 0.11397581340848628,
+            "leafBeyondDoorJambM": 0.09985471086520192,
+            "leafPastFrameEdgeM": 2.2600629027368457
+          },
+          {
+            "wall": "Uniform wall art M06",
+            "leafToWallM": 0.05000000000000071,
+            "leafBeyondDoorJambM": 2.59867799598912,
+            "leafPastFrameEdgeM": 0.8187337525580289
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 6",
+        "kind": "rubber",
+        "matrix": [
+          -0.9659258262890683,
+          0,
+          0.2588190451025208,
+          0,
+          0,
+          1,
+          0,
+          0,
+          -0.2588190451025208,
+          0,
+          -0.9659258262890683,
+          0,
+          -7.139557270741501,
+          0.29999999956948126,
+          3.08552591261974,
+          1
+        ],
+        "bounds": [
+          [
+            -7.587608748800381,
+            0.30000000000000004,
+            2.6870389274847275
+          ],
+          [
+            -6.696392305083287,
+            2.3499999518857653,
+            3.495016815271034
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M08",
+            "leafToWallM": 0.0600000000000005,
+            "leafBeyondDoorJambM": 2.5651453630243024,
+            "leafPastFrameEdgeM": 0.7852283660684314
+          },
+          {
+            "wall": "Uniform wall art M07",
+            "leafToWallM": 0.1370549131091252,
+            "leafBeyondDoorJambM": 0.11995743274688797,
+            "leafPastFrameEdgeM": 2.2799816846847545
+          }
+        ]
+      },
+      {
+        "name": "Corner floor plant 7",
+        "kind": "fine",
+        "matrix": [
+          0.17364817766692997,
+          0,
+          0.9848077530122081,
+          0,
+          0,
+          1,
+          0,
+          0,
+          -0.9848077530122081,
+          0,
+          0.17364817766692997,
+          0,
+          -7.630034304717086,
+          0.2919999996200204,
+          -2.00671753502178,
+          1
+        ],
+        "bounds": [
+          [
+            -7.940664976477162,
+            0.3,
+            -2.4133222884083425
+          ],
+          [
+            -7.318813200175347,
+            1.912000004388392,
+            -1.5758473314308972
+          ]
+        ],
+        "clearances": [
+          {
+            "wall": "Uniform wall art M06",
+            "leafToWallM": 0.049999999999998934,
+            "leafBeyondDoorJambM": 0.11961006245056538,
+            "leafPastFrameEdgeM": 2.279632526249088
+          },
+          {
+            "wall": "Uniform wall art M07",
+            "leafToWallM": 0.049999999999998934,
+            "leafBeyondDoorJambM": 2.6884459273603047,
+            "leafPastFrameEdgeM": 0.9085068099286635
+          }
+        ]
+      }
+    ],
+    "frames": [
+      {
+        "name": "Uniform wall art M02",
+        "wallCenterOffsetM": 0.457089009284973,
+        "doorJambGapM": 0.679999988079071,
+        "wallMountMinimumGapM": 0.012500000198372163,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418581,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M03",
+        "wallCenterOffsetM": 0.45708990573883024,
+        "doorJambGapM": 0.6799999880790709,
+        "wallMountMinimumGapM": 0.012500000198372163,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.100000023841858,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M01",
+        "wallCenterOffsetM": 0.45709023475647026,
+        "doorJambGapM": 0.67999998807907,
+        "wallMountMinimumGapM": 0.012500000198370387,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418588,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M04",
+        "wallCenterOffsetM": 0.45709035396575937,
+        "doorJambGapM": 0.6799999880790707,
+        "wallMountMinimumGapM": 0.012500000198372163,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418584,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M05",
+        "wallCenterOffsetM": -0.4570900821685788,
+        "doorJambGapM": 0.6799999880790709,
+        "wallMountMinimumGapM": 0.012500000198371275,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418581,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M08",
+        "wallCenterOffsetM": -0.45709023475647026,
+        "doorJambGapM": 0.67999998807907,
+        "wallMountMinimumGapM": 0.012500000198370387,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418588,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M06",
+        "wallCenterOffsetM": -0.457091155052185,
+        "doorJambGapM": 0.6799999880790711,
+        "wallMountMinimumGapM": 0.012500000198372163,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418575,
+          1.5
+        ]
+      },
+      {
+        "name": "Uniform wall art M07",
+        "wallCenterOffsetM": -0.457089009284973,
+        "doorJambGapM": 0.679999988079071,
+        "wallMountMinimumGapM": 0.012500000198372163,
+        "heightAboveFloorM": 1.55,
+        "sizeM": [
+          1.1000000238418581,
+          1.5
+        ]
+      }
+    ],
+    "verification": {
+      "frameDoorJambGapM": 0.68,
+      "mirrorPairs": [
+        {
+          "left": 7,
+          "right": 1,
+          "exactGeometryMirror": true
+        },
+        {
+          "left": 5,
+          "right": 3,
+          "exactGeometryMirror": true
+        },
+        {
+          "left": 6,
+          "right": 2,
+          "exactGeometryMirror": true
+        }
+      ],
+      "otherFurnitureExact": true
+    },
+    "retained": "All other ground-floor furniture, picture sizes and image contents, original plant pots and sizes, architecture, other floors, and confirmation records.",
+    "television": {
+      "content": "Original restrained landscape graphic",
+      "texture": "textures/tv-landscape.png",
+      "frontOnly": true,
+      "emissiveFactor": [
+        0.65,
+        0.65,
+        0.65
+      ]
+    }
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "baselineDigest": "ba2d9c51de0a0efe6eeb11a8d93a8b4b50e2f7d2785725e328a2d65ec3798871",
+    "mergedFromVersions": [],
+    "storageOnly": true,
+    "approval": "pending",
+    "editableContentPreserved": true,
+    "sharedAssemblyOccurrences": 39
+  },
+  "reuseMasters": {
+    "layout:central:1:Corner floor plant 2": {
+      "object": "part:floor_plant",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        122,
+        123,
+        124,
+        125,
+        126,
+        127
+      ]
+    },
+    "layout:central:1:Corner floor plant 3": {
+      "object": "part:floor_plant",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        128,
+        129,
+        130,
+        131,
+        132,
+        133
+      ]
+    },
+    "layout:central:1:Corner floor plant 5": {
+      "object": "part:floor_plant",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        134,
+        135,
+        136,
+        137,
+        138,
+        139
+      ]
+    },
+    "layout:central:1:Corner floor plant 6": {
+      "object": "part:floor_plant",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        140,
+        141,
+        142,
+        143,
+        144,
+        145
+      ]
+    },
+    "layout:central:1:C01": {
+      "object": "part:shared_barrel_chair_cd60223c75",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154
+      ]
+    },
+    "layout:central:1:C02": {
+      "object": "part:shared_barrel_chair_cd60223c75",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "nodes": [
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163
+      ]
+    }
+  },
+  "furnitureLightingDraft": {
+    "description": "电视及游戏屏支撑修正、书柜落地与2800K连续灯带，三楼两层书架均匀暖光、3000K遮光书写台灯；不变更建筑确认版",
+    "changedNodes": [],
+    "addedNodes": [
+      "TV connected support neck 1.34",
+      "TV connected support neck 0.1"
+    ],
+    "measurements": {
+      "screen_support_gap_before_m": 0.0535,
+      "support_overlap_after_m": 0.0085
+    }
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 4,
+    "collisionTriangles": 1042,
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "movingDoors": 0,
+    "doorMotion": null,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "uniqueShapes": 4,
+    "collisionTrianglesByInstance": 1042
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:floor_fineleaf",
+      "part:floor_plant",
+      "part:shared_barrel_chair_cd60223c75",
+      "part:shared_high_oak_coffee_table_746b99603f",
+      "part:shared_oak_side_table_24d03d3e37"
+    ],
+    "removedLayoutBodies": 11
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [],
+    "nativeValidated": true
+  }
 }

@@ -1,0 +1,30 @@
+{
+  "designObject": {
+    "id": "part:shared_quiet_rear_footstool_e7090e2df2",
+    "label": "阅读脚凳〔1次〕",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuCategory": "stool",
+    "menuLabel": "阅读脚凳（1处引用）",
+    "currentUsage": {
+      "count": 1,
+      "locations": {
+        "layout:central:3": 1
+      },
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_quiet_rear_footstool_e7090e2df2_v003",
+      "file": "furniture/shared_quiet_rear_footstool_e7090e2df2/versions/v003/version.json",
+      "order": 464
+    }
+  ]
+}

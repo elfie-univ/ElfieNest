@@ -1,0 +1,44 @@
+{
+  "id": "part_floor_fineleaf_v003",
+  "category": "kit",
+  "title": "细叶灌木落地盆栽 · V003",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/floor_fineleaf/versions/v003/model.glb",
+  "models": [
+    "furniture/floor_fineleaf/versions/v003/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/floor_fineleaf/versions/v003/model.glb", "name": "model.glb", "kind": "model", "bytes": 10480},
+    {"path": "furniture/floor_fineleaf/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 10448},
+    {"path": "furniture/floor_fineleaf/source/build.json", "name": "build.json", "kind": "data", "bytes": 683},
+    {"path": "furniture/shared_resources/source/resources/02dba3f6ce6df06332317773fe839ff1f03c018e6fb1afbaa1fda30a705adb56.bin", "name": "02dba3f6ce6df06332317773fe839ff1f03c018e6fb1afbaa1fda30a705adb56.bin", "kind": "data", "bytes": 50526},
+    {"path": "furniture/shared_resources/source/resources/04941b8cf5aafc50bae5de770ca0d325d59e3525501ede3ca194f6d2879e3d97.bin", "name": "04941b8cf5aafc50bae5de770ca0d325d59e3525501ede3ca194f6d2879e3d97.bin", "kind": "data", "bytes": 2496},
+    {"path": "furniture/shared_resources/source/resources/2ab4d6f3c8e3e54bbacf38198e7f03701a03b262a6a12a0025783bd05a5d4673.bin", "name": "2ab4d6f3c8e3e54bbacf38198e7f03701a03b262a6a12a0025783bd05a5d4673.bin", "kind": "data", "bytes": 793696},
+    {"path": "furniture/shared_resources/source/resources/3707ba1f097ba55bbf7f4ada9edc719b317188397696be156643caa76098c156.bin", "name": "3707ba1f097ba55bbf7f4ada9edc719b317188397696be156643caa76098c156.bin", "kind": "data", "bytes": 415808},
+    {"path": "furniture/shared_resources/source/resources/5d99ed106c6629d91cf5d29f067c1fd10ff4894df40634abb6c4694c59d3c764.jpg", "name": "5d99ed106c6629d91cf5d29f067c1fd10ff4894df40634abb6c4694c59d3c764.jpg", "kind": "texture", "bytes": 498655},
+    {"path": "furniture/shared_resources/source/resources/684fe96f087b0b6ebc35b278d5df9fe173a223602fc13497729699ed60d53e7b.bin", "name": "684fe96f087b0b6ebc35b278d5df9fe173a223602fc13497729699ed60d53e7b.bin", "kind": "data", "bytes": 32544},
+    {"path": "furniture/shared_resources/source/resources/970807e1ed9383a67b4c96c281af2c013ecafd68b8131a801276cbaaeb4e83ae.bin", "name": "970807e1ed9383a67b4c96c281af2c013ecafd68b8131a801276cbaaeb4e83ae.bin", "kind": "data", "bytes": 62688},
+    {"path": "furniture/shared_resources/source/resources/af7976ad8e694bcc47eb3dcaadde88831150c035278a43e20592a875f4f35144.png", "name": "af7976ad8e694bcc47eb3dcaadde88831150c035278a43e20592a875f4f35144.png", "kind": "texture", "bytes": 1111914},
+    {"path": "furniture/shared_resources/source/resources/d28556973d1cbf96c5327341be7a71da66ac63ed97b31f22162376a9f95b0041.jpg", "name": "d28556973d1cbf96c5327341be7a71da66ac63ed97b31f22162376a9f95b0041.jpg", "kind": "texture", "bytes": 793264},
+    {"path": "furniture/shared_resources/source/resources/f7bf2359e932d3633ac99a5f9e6a507eda439b64937eb6774585da3d0fb6d3d7.jpg", "name": "f7bf2359e932d3633ac99a5f9e6a507eda439b64937eb6774585da3d0fb6d3d7.jpg", "kind": "texture", "bytes": 580075}
+  ],
+  "designVersion": {
+    "id": "part_floor_fineleaf_v003",
+    "asset": "part_floor_fineleaf_v003",
+    "title": "细叶灌木落地盆栽 · V003",
+    "revision": 3,
+    "file": "furniture/floor_fineleaf/versions/v003/model.glb",
+    "digest": "0c54e21540ed989e890667126d5d76c7ea33d26380551cf34720eae46517e5ef",
+    "contentDigest": "79698c1b12674c69756fb0b3b5a2bcb9414422c0ca5f1a2335959ebe21c3d10a",
+    "nodes": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0
+  }
+}

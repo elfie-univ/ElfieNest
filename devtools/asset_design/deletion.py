@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -11,37 +10,14 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from devtools.asset_design.catalog import ASSET_ROOT, Catalog
-from devtools.asset_design.paths import WORK_ROOT
-
-
-def write_bytes(path: Path, data: bytes) -> None:
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as output:
-            temporary = Path(output.name)
-            output.write(data)
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-
-
-def write_json(path: Path, data: dict) -> None:
-    write_bytes(path, (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode())
-
-
-def checked_file(root: Path, relative: str) -> Path:
-    path = root / relative
-    if (
-        Path(relative).is_absolute()
-        or ".." in Path(relative).parts
-        or not path.resolve().is_relative_to(root)
-        or any(
-            parent.is_symlink() for parent in (path, *path.parents) if parent != root
-        )
-    ):
-        raise HTTPException(409, "Unsafe saved file path; nothing deleted")
-    return path
+from devtools.asset_design.catalog_io import checked_file, write_bytes, write_json
+from devtools.asset_design.catalog_store import (
+    read_catalog,
+    rollback_catalog,
+    save_catalog,
+    snapshot_catalog,
+)
+from devtools.asset_design.paths import WORK_ROOT, object_directory
 
 
 def asset_paths(asset: dict) -> set:
@@ -68,13 +44,30 @@ def delete_asset(asset_root: Path, asset_id: str) -> dict:
     if not catalog_path.is_file():
         raise HTTPException(404, "Saved asset unavailable")
     catalog_before = catalog_path.read_bytes()
-    raw = json.loads(catalog_before)
+    metadata_before = snapshot_catalog(root)
+    raw = read_catalog(root)
     selected = next((a for a in raw["assets"] if a["id"] == asset_id), None)
     if selected is None:
         raise HTTPException(404, "Saved asset unavailable")
     remaining = [a for a in raw["assets"] if a["id"] != asset_id]
     indexed = {f["path"]: f for a in raw["assets"] for f in a.get("files", [])}
     targets = asset_paths(selected)
+    metadata_targets = set()
+    if selected.get("designObject"):
+        version_path = (
+            root / selected["designVersion"]["file"]
+        ).parent / "version.json"
+        metadata_targets.add(version_path.relative_to(root).as_posix())
+        identifier = selected["designObject"]["id"]
+        if not any(
+            a.get("designObject", {}).get("id") == identifier for a in remaining
+        ):
+            metadata_targets.add(
+                (object_directory(root, identifier) / "object.json")
+                .relative_to(root)
+                .as_posix()
+            )
+    targets.update(metadata_targets)
     for relative in targets:
         checked_file(root, relative)
     shared = set().union(*(asset_paths(a) for a in remaining)) if remaining else set()
@@ -89,7 +82,7 @@ def delete_asset(asset_root: Path, asset_id: str) -> dict:
         if path.is_symlink() or not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
-        if relative in selected_inputs or path in {catalog_path, mark_path}:
+        if relative in selected_inputs or path in {*metadata_before, mark_path}:
             continue
         if path.suffix.lower() in {".py", ".json", ".gltf", ".gd", ".obj", ".mtl"}:
             consumers.append((relative, path.read_text(errors="replace")))
@@ -117,7 +110,8 @@ def delete_asset(asset_root: Path, asset_id: str) -> dict:
             else "referenced by build or model input"
             if used_by
             else "source/support input retained"
-            if not file or file["kind"] not in {"model", "image"}
+            if relative not in metadata_targets
+            and (not file or file["kind"] not in {"model", "image"})
             else "missing file"
             if not path.is_file()
             else "archive"
@@ -163,6 +157,10 @@ def delete_asset(asset_root: Path, asset_id: str) -> dict:
     archive = archive_base / backup
     archive.mkdir(parents=True)
     (archive / "catalog.before.json").write_bytes(catalog_before)
+    for path, content in metadata_before.items():
+        saved = archive / "metadata.before" / path.relative_to(root)
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(content)
     if marks_before is not None:
         (archive / "marks.before.json").write_bytes(marks_before)
     report = {
@@ -175,20 +173,26 @@ def delete_asset(asset_root: Path, asset_id: str) -> dict:
     }
     write_json(archive / "report.json", report)
     moved = []
+    metadata_changes = {}
     try:
-        for relative in movable:
+        for relative in [p for p in movable if p not in metadata_targets]:
             destination = archive / "files" / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             os.replace(root / relative, destination)
             moved.append(relative)
-        write_json(catalog_path, raw)
+        metadata_changes = save_catalog(root, raw, expected=metadata_before)
+        for relative in sorted(metadata_targets.intersection(movable)):
+            destination = archive / "files" / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(root / relative, destination)
+            moved.append(relative)
         write_json(mark_path, marks)
         report["status"] = "deleted"
         write_json(archive / "report.json", report)
     except Exception:
         for relative in reversed(moved):
             os.replace(archive / "files" / relative, root / relative)
-        write_bytes(catalog_path, catalog_before)
+        rollback_catalog(metadata_changes)
         if marks_before is not None:
             write_bytes(mark_path, marks_before)
         else:

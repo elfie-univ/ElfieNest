@@ -1,0 +1,47 @@
+{
+  "id": "part_shared_television_left_speaker_50a1618b48_v005",
+  "category": "kit",
+  "title": "独立音箱 · V005",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/model.glb",
+  "models": [
+    "furniture/shared_television_left_speaker_50a1618b48/versions/v005/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/model.glb", "name": "model.glb", "kind": "model", "bytes": 7896},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 7884},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/source/build.json", "name": "build.json", "kind": "data", "bytes": 1290},
+    {"path": "furniture/shared_resources/source/resources/14bcf5d612455c301be6688fb4055b5d195175c18ed4ec03a355974466de37ff.bin", "name": "14bcf5d612455c301be6688fb4055b5d195175c18ed4ec03a355974466de37ff.bin", "kind": "data", "bytes": 124464},
+    {"path": "furniture/shared_resources/source/resources/92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "name": "92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "kind": "texture", "bytes": 1213},
+    {"path": "furniture/shared_resources/source/resources/b53ac1a5d6386d753447d8b42eab5be77a8742c6c2aa3b1e7e88e4d640c39f35.bin", "name": "b53ac1a5d6386d753447d8b42eab5be77a8742c6c2aa3b1e7e88e4d640c39f35.bin", "kind": "data", "bytes": 124464},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1105},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-front-comparison.png", "name": "01-front-comparison.png", "kind": "image", "bytes": 415875},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-side-comparison.png", "name": "01-side-comparison.png", "kind": "image", "bytes": 406302},
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/speaker-closeups.png", "name": "speaker-closeups.png", "kind": "image", "bytes": 124136}
+  ],
+  "designVersion": {
+    "id": "part_shared_television_left_speaker_50a1618b48_v005",
+    "asset": "part_shared_television_left_speaker_50a1618b48_v005",
+    "title": "独立音箱 · V005",
+    "revision": 5,
+    "file": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/model.glb",
+    "digest": "e147ef8b73d62429929c68b148c7a814e4ee1f2225ed36f267d175f53b5c0984",
+    "contentDigest": "7b60e6c5f9278b08b20ddf36f382af9d68e2dc7aad7293614ecff675b2c8f116",
+    "nodes": [
+      0,
+      2
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "50a1618b487df2463a7f3d3ceb6ef5641223f3cccaefd726b73cf2a4ada5a3fe",
+      "category": "media",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_television_left_speaker_50a1618b48/versions/v003/reuse.json"
+    }
+  }
+}

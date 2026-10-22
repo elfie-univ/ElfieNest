@@ -1,0 +1,24 @@
+{
+  "object": "part:floor_fineleaf",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "currentUsage": {
+    "count": 2,
+    "locations": {
+      "layout:central:1": 2
+    },
+    "description": "主楼一层：1、7 号落地盆栽，共 2 处。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "collision": {
+    "owner": "part:floor_fineleaf",
+    "rootNode": 8,
+    "shapes": 1,
+    "type": "static-structural",
+    "movable": false,
+    "renderGeometryUnchanged": true
+  }
+}

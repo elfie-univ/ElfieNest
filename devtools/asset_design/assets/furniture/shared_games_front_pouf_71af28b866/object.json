@@ -1,0 +1,32 @@
+{
+  "designObject": {
+    "id": "part:shared_games_front_pouf_71af28b866",
+    "label": "花瓣软坐墩",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "花瓣软坐墩（2处引用）",
+    "menuOrder": 25,
+    "menuCategory": "stool",
+    "currentUsage": {
+      "count": 2,
+      "locations": {
+        "layout:central:2": 2
+      },
+      "description": "主楼二层 2 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_games_front_pouf_71af28b866_v004",
+      "file": "furniture/shared_games_front_pouf_71af28b866/versions/v004/version.json",
+      "order": 455
+    }
+  ]
+}

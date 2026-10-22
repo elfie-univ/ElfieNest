@@ -1,11 +1,14 @@
 """Project saved scene tags into independently reviewable objects; never edit assets."""
 
+import copy
 import re
 import struct
+from collections import OrderedDict
 from functools import partial
 from pathlib import Path
 
 from devtools.asset_design.catalog import load_catalog
+from devtools.asset_design.catalog_observation import observe_catalog
 from devtools.asset_design.design_groups import (
     add_version,
     house_placements,
@@ -37,13 +40,28 @@ def module_name(module):
     return "主楼" if module == "central" else "小屋 " + module
 
 
+_INVENTORIES = OrderedDict()
+
+
 def inventory(root: Path, *, independent: bool = True) -> dict:
     from devtools.asset_design.object_registry import object_inventory
 
-    assets = load_catalog(root).assets
-    if any(asset.designObject for asset in assets):
-        return object_inventory(root, assets)
-    return legacy_inventory(root, independent=independent)
+    root = root.resolve()
+    catalog, signature = observe_catalog(root)
+    key = (root, independent)
+    cached = _INVENTORIES.get(key)
+    if cached and cached[0] == signature:
+        return copy.deepcopy(cached[1])
+    if any(asset.designObject for asset in catalog.assets):
+        result = object_inventory(root, catalog.assets)
+    else:
+        result = legacy_inventory(root, independent=independent)
+    if not result["issues"]:
+        _INVENTORIES[key] = (signature, copy.deepcopy(result))
+        _INVENTORIES.move_to_end(key)
+        while len(_INVENTORIES) > 8:
+            _INVENTORIES.popitem(last=False)
+    return result
 
 
 def legacy_inventory(root: Path, *, independent: bool = True) -> dict:

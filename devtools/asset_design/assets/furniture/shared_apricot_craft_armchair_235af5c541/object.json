@@ -1,0 +1,31 @@
+{
+  "designObject": {
+    "id": "part:shared_apricot_craft_armchair_235af5c541",
+    "label": "露台木座扶手椅",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": false,
+    "menuCategory": "chair",
+    "menuOrder": 27,
+    "menuLabel": "露台木座扶手椅（2处引用）",
+    "currentUsage": {
+      "count": 0,
+      "locations": {},
+      "description": "当前 2 处引用已合并到共用木座软包扶手椅；旧版本仅供历史回看。",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    },
+    "mergedInto": "part:shared_lilac_game_armchair_033103e3ca"
+  },
+  "versions": [
+    {
+      "id": "part_shared_apricot_craft_armchair_235af5c541_v001",
+      "file": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/version.json",
+      "order": 258
+    }
+  ]
+}

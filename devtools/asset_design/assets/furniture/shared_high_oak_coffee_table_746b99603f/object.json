@@ -1,0 +1,33 @@
+{
+  "designObject": {
+    "id": "part:shared_high_oak_coffee_table_746b99603f",
+    "label": "矮圆茶几",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "矮圆茶几（3处引用）",
+    "menuOrder": 17,
+    "menuCategory": "table",
+    "currentUsage": {
+      "count": 3,
+      "locations": {
+        "layout:central:1": 2,
+        "layout:central:3": 1
+      },
+      "description": "主楼一层 2 处；主楼三层 1 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_high_oak_coffee_table_746b99603f_v004",
+      "file": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/version.json",
+      "order": 458
+    }
+  ]
+}

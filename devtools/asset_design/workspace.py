@@ -10,8 +10,10 @@ import sys
 from pathlib import Path
 
 from devtools.asset_design.catalog import ASSET_ROOT, Catalog, load_catalog
+from devtools.asset_design.catalog_store import read_catalog, save_catalog
 from devtools.asset_design.deletion import checked_file, write_json
 from devtools.asset_design.design_catalog import inventory
+from devtools.asset_design.glb_resources import RESOURCE_DIRECTORY
 from devtools.asset_design.paths import WORK_ROOT, object_directory, revision_file
 
 
@@ -69,7 +71,7 @@ def organize_workspace(source, target):
     source, target = source.resolve(), target.resolve()
     if target.exists():
         raise ValueError("Destination exists; nothing overwritten")
-    raw = json.loads((source / "catalog.json").read_text())
+    raw = read_catalog(source)
     catalog = copy.deepcopy(raw)
     catalog["assets"] = [
         a for a in catalog["assets"] if a.get("designObject") or not a.get("archived")
@@ -103,6 +105,14 @@ def organize_workspace(source, target):
                 mapping[old] = relative(folder / "source/model.glb")
             elif Path(old).name == "build.json":
                 mapping[old] = relative(folder / "source/build.json")
+            elif (
+                Path(old).parts[: len(RESOURCE_DIRECTORY.parts)]
+                == RESOURCE_DIRECTORY.parts
+            ):
+                # GLB files keep relative URIs into the shared content-addressed
+                # store. Keep that store at its canonical root during a workspace
+                # relocation instead of copying each payload beside one version.
+                mapping[old] = relative(target / old)
             elif file["kind"] == "image":
                 mapping[old] = relative(version_dir / "images" / Path(old).name)
             else:
@@ -190,8 +200,6 @@ def organize_workspace(source, target):
             copy_asset(source / old, target / new)
     for asset in catalog["assets"]:
         if asset.get("designObject"):
-            v = asset["designVersion"]
-            write_json((target / v["file"]).parent / "version.json", asset)
             folder = object_directory(target, asset["designObject"]["id"])
             build = folder / "source/build.json"
             if build.exists():
@@ -203,7 +211,7 @@ def organize_workspace(source, target):
         state = source / ".design-adoptions.json"
     if state.exists():
         copy_asset(state, target / "adoptions.json")
-    write_json(target / "catalog.json", catalog)
+    save_catalog(target, catalog)
     result = audit_workspace(target)
     if result["issues"]:
         raise ValueError("Workspace audit failed: " + str(result["issues"]))

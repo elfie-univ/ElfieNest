@@ -1,0 +1,43 @@
+{
+  "id": "part_shared_apricot_craft_armchair_235af5c541_v001",
+  "category": "kit",
+  "title": "M06·杏色手作扶手椅〔1次〕 · V001",
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M06：1。保持原网格、材质、贴图及内部部件关系。 该组合独占资源约 0.201 MB；总资源含共用部分，不可累加作为可节省量。",
+  "primaryModel": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/model.glb",
+  "models": [
+    "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/model.glb", "name": "model.glb", "kind": "model", "bytes": 4884},
+    {"path": "furniture/shared_apricot_craft_armchair_235af5c541/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 4876},
+    {"path": "furniture/shared_apricot_craft_armchair_235af5c541/source/build.json", "name": "build.json", "kind": "data", "bytes": 2716},
+    {"path": "furniture/shared_resources/source/resources/412274d343cb21426a95106e7bdcb6ce3513f9a989475ed4fd99a5dc7f5b8ef4.bin", "name": "412274d343cb21426a95106e7bdcb6ce3513f9a989475ed4fd99a5dc7f5b8ef4.bin", "kind": "data", "bytes": 200688},
+    {"path": "furniture/shared_resources/source/resources/ab149b1001d9b0120b80fe26913d2838845c82236068c31085f76a84c41b1b73.png", "name": "ab149b1001d9b0120b80fe26913d2838845c82236068c31085f76a84c41b1b73.png", "kind": "texture", "bytes": 2411},
+    {"path": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1331}
+  ],
+  "designVersion": {
+    "id": "part_shared_apricot_craft_armchair_235af5c541_v001",
+    "asset": "part_shared_apricot_craft_armchair_235af5c541_v001",
+    "title": "M06·杏色手作扶手椅〔1次〕 · V001",
+    "revision": 1,
+    "file": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/model.glb",
+    "digest": "0afe810126c388a777663b76eeb454bf9ae72d4b03a8c9598f71f716d0c82de0",
+    "contentDigest": "43892086a6dbba3f72c7364abd4f3701c29cd363bfe40428f2a4f2215628189e",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "235af5c54197f0271fb71ce40c981b7a490ad75baac2b1dad3360af5c05fde52",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "exclusiveResourceBytes": 200688,
+      "details": "furniture/shared_apricot_craft_armchair_235af5c541/versions/v001/reuse.json"
+    }
+  }
+}

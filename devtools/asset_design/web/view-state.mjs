@@ -49,6 +49,10 @@ export function floorChoices(capabilities, module) {
   }))];
 }
 
+export function floorControlVisible(choices, review) {
+  return choices.length > 1 && review?.axis !== 'module';
+}
+
 export function normalizeView(input, capabilities) {
   const view = {...defaultView, ...input};
   if (!objectChoices(capabilities).some(choice => choice.value === view.module)) view.module = 'all';
@@ -89,14 +93,24 @@ export function measurementVisible(entry, view, range) {
     && Math.max(entry.a[2],entry.b[2]) <= range[1] + .05;
 }
 
+export function spansFloors(properties, minimum, maximum, floorStarts) {
+  if (!properties.designObject?.startsWith('building:')
+    || properties.furniture || properties.reference === true
+    || properties.full_height === false) return false;
+  return floorStarts.slice(1).some(height => minimum < height - .005 && maximum > height + .005);
+}
+
 export function meshVisible(properties, view) {
+  const ceiling = view.floor !== 'all'
+    && Number(properties.ceiling_for_floor) === Number(view.floor);
   const floorSurface = properties.roof_floor_extension
     || /structural terrace slab|inset terrace walking finish/i.test(properties.source_name || '');
   return moduleSelected(view.module, properties.module)
+    && (!ceiling || !view.section)
     && (!view.section || !properties.section_hide || floorSurface)
     && (view.glass || !properties.glass)
     && (view.scale || properties.reference !== true)
     && (view.furniture || !properties.furniture)
-    && (view.floor === 'all' || properties.full_height
+    && (view.floor === 'all' || ceiling || properties.full_height
       || Number(properties.floor || 1) === Number(view.floor));
 }

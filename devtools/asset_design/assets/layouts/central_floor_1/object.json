@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "layout:central:1",
+    "label": "主楼 · 1 楼",
+    "group": "layout",
+    "space": "estate",
+    "module": "central",
+    "floor": "1",
+    "collection": "layout:central",
+    "collectionLabel": "主楼布置"
+  },
+  "versions": [
+    {
+      "id": "layout_central_1_v050",
+      "file": "layouts/central_floor_1/versions/v050/version.json",
+      "order": 472
+    }
+  ]
+}

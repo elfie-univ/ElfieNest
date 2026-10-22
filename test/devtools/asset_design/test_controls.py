@@ -79,6 +79,8 @@ def test_version_actions_share_the_information_area_and_sidebar_order() -> None:
     ordered = (
         "module",
         "floor",
+        "interiorView",
+        "exteriorView",
         "whole",
         "section",
         "glass",
@@ -132,6 +134,7 @@ def test_embedded_viewer_sizes_both_panels_from_the_controls() -> None:
     assert '<div id="viewerControls">' in sidebar
     assert sidebar.index('id="viewerControls"') < sidebar.index('id="scopeControls"')
     assert 'id="dusk"' in sidebar
+    assert 'id="courtyardViewControls"' in sidebar
     viewer = (web / "viewer.js").read_text()
     assert "notify('asset-layout'" in viewer.split("try{", 1)[0]
     library = (web / "library.js").read_text()

@@ -1,0 +1,42 @@
+{
+  "id": "part_floor_plant_v006",
+  "category": "kit",
+  "title": "橡皮树落地盆栽 · V006",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/floor_plant/versions/v006/model.glb",
+  "models": [
+    "furniture/floor_plant/versions/v006/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/floor_plant/versions/v006/model.glb", "name": "model.glb", "kind": "model", "bytes": 10804},
+    {"path": "furniture/floor_plant/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 10784},
+    {"path": "furniture/floor_plant/source/build.json", "name": "build.json", "kind": "data", "bytes": 2438},
+    {"path": "furniture/shared_resources/source/resources/3cc5cd23157d9f63027c02d9840487d280e28195eeaa0c13e1e929bab9d48032.bin", "name": "3cc5cd23157d9f63027c02d9840487d280e28195eeaa0c13e1e929bab9d48032.bin", "kind": "data", "bytes": 32592},
+    {"path": "furniture/shared_resources/source/resources/546ef799a8b296a8a6eeade049d0518fe301453f64993f95741b4acf109fb0b6.bin", "name": "546ef799a8b296a8a6eeade049d0518fe301453f64993f95741b4acf109fb0b6.bin", "kind": "data", "bytes": 2496},
+    {"path": "furniture/shared_resources/source/resources/aedd3226e27eb35868ca990edfb828fe5e9654afcd59cfb60cf6499b804344ed.bin", "name": "aedd3226e27eb35868ca990edfb828fe5e9654afcd59cfb60cf6499b804344ed.bin", "kind": "data", "bytes": 600096},
+    {"path": "furniture/shared_resources/source/resources/c677e4f31b99f95f615eb991de5cbfd8ed6e4debba9890ed299bc5d0cd7f13ee.bin", "name": "c677e4f31b99f95f615eb991de5cbfd8ed6e4debba9890ed299bc5d0cd7f13ee.bin", "kind": "data", "bytes": 3384},
+    {"path": "furniture/shared_resources/source/resources/ce326d0e1a8ab91b5ba0f833f648995933030b244ade729fa47f6c7f82e01eb9.bin", "name": "ce326d0e1a8ab91b5ba0f833f648995933030b244ade729fa47f6c7f82e01eb9.bin", "kind": "data", "bytes": 382368},
+    {"path": "furniture/shared_resources/source/resources/d5eec8b13e5b92edbd8bf4be1e44ba73232a54784d5d9eaf254b59aa96b036ac.bin", "name": "d5eec8b13e5b92edbd8bf4be1e44ba73232a54784d5d9eaf254b59aa96b036ac.bin", "kind": "data", "bytes": 62688},
+    {"path": "furniture/shared_resources/source/resources/f0dd305988175272bda1a0eb233b10f44d7ead0d7ca498d2a66fdfaaef1d5f80.bin", "name": "f0dd305988175272bda1a0eb233b10f44d7ead0d7ca498d2a66fdfaaef1d5f80.bin", "kind": "data", "bytes": 66360}
+  ],
+  "designVersion": {
+    "id": "part_floor_plant_v006",
+    "asset": "part_floor_plant_v006",
+    "title": "橡皮树落地盆栽 · V006",
+    "revision": 6,
+    "file": "furniture/floor_plant/versions/v006/model.glb",
+    "digest": "4ce95ca652421e6b51da71664c4116e216d52555662b07a895c6f6f2843ecc0d",
+    "contentDigest": "e3cd711dcaeee66df921cfca8a619bb4c199014ec8587a12d1c6351a58411026",
+    "nodes": [
+      1,
+      2,
+      4,
+      5,
+      6,
+      7
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0
+  }
+}

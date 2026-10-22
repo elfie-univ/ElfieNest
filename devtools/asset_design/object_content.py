@@ -2,9 +2,16 @@
 
 import hashlib
 import json
-import struct
 from functools import cache, lru_cache
 from pathlib import Path
+from typing import Iterable, Optional, Union
+
+from devtools.asset_design.glb_resources import (
+    IMAGE_MIMES,
+    dependency_signature,
+    read_glb,
+    resource_bytes,
+)
 
 
 def digest(value):
@@ -13,27 +20,55 @@ def digest(value):
     ).hexdigest()
 
 
-@lru_cache(maxsize=128)
-def node_contents(path: str, modified: int, size: int):
-    del modified, size
-    with Path(path).open("rb") as stream:
-        header = stream.read(20)
-        length = struct.unpack_from("<I", header, 12)[0]
-        doc = json.loads(stream.read(length))
-        chunk = stream.read(8)
-        binary = stream.read() if chunk else b""
-    if doc.get("skins") or doc.get("animations") or doc.get("extensionsRequired"):
+def node_contents(
+    path: str,
+    modified: int,
+    size: int,
+    root: Optional[Union[Path, str]] = None,
+) -> dict[int, str]:
+    stat = Path(path).stat()
+    doc = _document(path, modified, size, stat.st_ctime_ns)
+    signature = dependency_signature(path, doc, root)
+    return _node_contents(path, modified, size, stat.st_ctime_ns, signature, root)
+
+
+@lru_cache(maxsize=512)
+def _document(path: str, modified: int, size: int, changed: int) -> dict:
+    del modified, size, changed
+    return read_glb(path)[0]
+
+
+@lru_cache(maxsize=512)
+def _node_contents(
+    path: str,
+    modified: int,
+    size: int,
+    changed: int,
+    dependencies: tuple[tuple[str, int, int, int, int], ...],
+    root: Optional[Union[Path, str]],
+) -> dict[int, str]:
+    del modified, size, changed, dependencies
+    doc, binary = read_glb(path)
+    unsupported = set(doc.get("extensionsRequired", ())) - {"EXT_mesh_gpu_instancing"}
+    if doc.get("skins") or doc.get("animations") or unsupported:
         raise ValueError(
-            "Animated, skinned or required-extension models need explicit object review"
+            "Animated, skinned or unsupported required-extension models need explicit object review"
         )
+
+    @cache
+    def buffer(index: int) -> bytes:
+        value = doc["buffers"][index]
+        if value.get("uri"):
+            return resource_bytes(path, value["uri"], root)
+        if index != 0:
+            raise ValueError("Only the first buffer can use the GLB binary chunk")
+        return binary
 
     @cache
     def view(index):
         value = doc["bufferViews"][index]
-        if value.get("buffer", 0) != 0 or doc.get("buffers", [{}])[0].get("uri"):
-            raise ValueError("External geometry needs explicit object review")
         start = value.get("byteOffset", 0)
-        data = binary[start : start + value["byteLength"]]
+        data = buffer(value.get("buffer", 0))[start : start + value["byteLength"]]
         if len(data) != value["byteLength"]:
             raise ValueError("Truncated geometry buffer")
         return data
@@ -89,7 +124,13 @@ def node_contents(path: str, modified: int, size: int):
         if "bufferView" in image:
             image["bufferView"] = hashlib.sha256(view(image["bufferView"])).hexdigest()
         elif not image.get("uri", "").startswith("data:"):
-            raise ValueError("External textures need explicit object review")
+            uri = image.pop("uri", "")
+            data = resource_bytes(path, uri, root)
+            suffix = Path(uri).suffix
+            if suffix not in IMAGE_MIMES:
+                raise ValueError("External image must use a supported image resource")
+            image.setdefault("mimeType", IMAGE_MIMES[suffix])
+            image["bufferView"] = hashlib.sha256(data).hexdigest()
         value["source"] = image
         value.pop("name", None)
         if "sampler" in value:
@@ -131,6 +172,18 @@ def node_contents(path: str, modified: int, size: int):
                 ]
         return digest(value)
 
+    def node_extensions(value):
+        if not value:
+            return value
+        value = json.loads(json.dumps(value))
+        instancing = value.get("EXT_mesh_gpu_instancing")
+        if instancing and "attributes" in instancing:
+            instancing["attributes"] = {
+                semantic: accessor(index)
+                for semantic, index in instancing["attributes"].items()
+            }
+        return value
+
     result = {}
 
     def visit(index, inherited, ancestors):
@@ -150,7 +203,7 @@ def node_contents(path: str, modified: int, size: int):
                     "transforms": transforms,
                     "properties": properties,
                     "weights": node.get("weights"),
-                    "extensions": node.get("extensions"),
+                    "extensions": node_extensions(node.get("extensions")),
                 }
             )
         for child in node.get("children", []):
@@ -161,10 +214,31 @@ def node_contents(path: str, modified: int, size: int):
     return result
 
 
-def content_digest(root, file, nodes):
+def content_digest(root: Path, file: Union[str, Path], nodes: Iterable[int]) -> str:
     path = (root / file).resolve()
     if not path.is_relative_to(root.resolve()) or not path.is_file():
         raise ValueError("Model unavailable")
     stat = path.stat()
-    contents = node_contents(str(path), stat.st_mtime_ns, stat.st_size)
-    return digest(sorted(contents[index] for index in nodes))
+    contents = node_contents(
+        str(path), stat.st_mtime_ns, stat.st_size, str(root.resolve())
+    )
+    values = sorted(contents[index] for index in nodes)
+    doc = _document(str(path), stat.st_mtime_ns, stat.st_size, stat.st_ctime_ns)
+    instances = doc.get("extras", {}).get("templateInstances")
+    if instances:
+        # Referenced materials may have no remaining host mesh. Hash their render
+        # inputs too, resolving texture resources instead of container indices.
+        from devtools.asset_design.shared_manifest import _Model
+
+        model = _Model(str(path))
+        semantic = json.loads(json.dumps(instances))
+        for instance in semantic:
+            for binding in instance["bindings"]:
+                binding["materials"] = [
+                    model.textures(doc["materials"][index])
+                    if index is not None
+                    else None
+                    for index in binding.get("materials", [])
+                ]
+        return digest({"nodes": values, "templateInstances": semantic})
+    return digest(values)

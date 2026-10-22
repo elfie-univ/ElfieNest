@@ -1,17 +1,756 @@
 {
   "object": "building:pod",
   "source": "model.glb",
-  "placements": {
-    "M01": 41,
-    "M02": 50,
-    "M03": 51,
-    "M04": 52,
-    "M05": 53,
-    "M06": 54,
-    "M07": 55,
-    "M08": 56
+  "placements": {},
+  "instanceCount": 0,
+  "sourceSha256": "667e8c62523bbc733c958cbbf56958822721281486aa8256fcfd7be66d036d4d",
+  "pendingRepair": "M01 canonical shell: 0.87 m TV opening",
+  "televisionNicheHeightM": 0.87,
+  "description": "同一小屋工作稿：按原园区效果图的柔和浅彩色调，将八栋外墙按绿、粉、蓝、杏桃、青、紫、奶油黄、雾靛蓝排列，拉开近似色并交错冷暖；保留已确认的几何、暖乳白内墙、地面、家具及灯带。 八栋小屋已确认局部减面：复用已验证的门口内凹与内墙曲面；各栋颜色、开口边界、楼梯栏杆和全部灯具保留。 走道两条灯带局部修正：贴合真实墙顶交接线，左侧沿拱边及台阶转角连续收接，两侧延至各自自然端线；保留灯带粗细、暖光、全部其他几何和当前配色。 楼道卧室门框局部收口：门框上方弧形区域并入原门框，复用同一材质；保留原门洞、灯带和其他部件。 修复门框右侧与走廊交接墙面的材质归属；普通二层围墙恢复统一 4.30 米顶高，18 厘米降高仅限楼梯段。 平滑墙面局部减面试验：仅处理首层外墙平滑大面，门边、墙顶、开口与其他细节保持原样；单栋建筑 825,048 → 817,976 三角面（约 -0.86%），保留 V045 供对比，未自动确认。 二层室内分色修复：墙体生成完成后，按原始墙壳截面重建内外皮与开口端面的材质归属；沿连续边界切分跨界三角面，消除阶梯状绿白交界，矮墩朝楼梯端面恢复外墙色；保留现有墙形和减面结果。",
+  "ceilingLighting": {
+    "revision": 6,
+    "fixturesPerHouse": 3,
+    "geometry": {
+      "ROOM • five-petal solid opal ceiling lamp": {
+        "shape": "five broad notched petals with solid opal emitting faces",
+        "widthM": 1.7439609002945777,
+        "depthM": 1.6802988490227082,
+        "projectionFromCeilingM": 0.043,
+        "petalCount": 5,
+        "diffuserAreaM2": 1.8661262978691706,
+        "ceilingUndersideM": 2.87
+      },
+      "CONNECTOR • continuous bedroom-matched edge strips": {
+        "shape": "continuous rounded corner strips backed against both actual junction surfaces",
+        "referenceFixture": "ROOM • closed ceiling light",
+        "material": "10 • warm concealed lighting.001",
+        "diameterM": 0.036,
+        "emissiveFactor": [
+          1,
+          0.699999988079071,
+          0.36000001430511475
+        ],
+        "emissiveStrength": 2.5999999046325684,
+        "roofClearanceM": 0,
+        "pathSamples": {
+          "left": [
+            [
+              0.3799999952316284,
+              2.6509788783621206,
+              -5.2980001907348635
+            ],
+            [
+              0.3799999952316284,
+              2.727926828934547,
+              -5.135366843891144
+            ],
+            [
+              0.3799999952316284,
+              2.7898716107531425,
+              -4.972733497047424
+            ],
+            [
+              0.3799999952316284,
+              2.8248882695319195,
+              -4.810100150203705
+            ],
+            [
+              0.3799999952316284,
+              2.826236200245018,
+              -4.647466803359985
+            ],
+            [
+              0.3799999952316284,
+              2.79365655399579,
+              -4.484833456516266
+            ],
+            [
+              0.3799999952316284,
+              2.7334221614182015,
+              -4.322200109672546
+            ],
+            [
+              0.3799999952316284,
+              2.6571289545740964,
+              -4.159566762828827
+            ],
+            [
+              0.5240000009536743,
+              2.6524471088605663,
+              -4.150000095367432
+            ],
+            [
+              0.6770000070333481,
+              2.652447108860567,
+              -4.150000095367432
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -4.066833428700765
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.9254500953674314
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.784066762034098
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.642683428700765
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.5013000953674314
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.359916762034098
+            ],
+            [
+              0.7400000095367432,
+              2.6500000953674316,
+              -3.2185334287007645
+            ]
+          ],
+          "right": [
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -5.2980001907348635
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -5.169240185012818
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -5.040480179290771
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.9117201735687255
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.78296016784668
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.654200162124634
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.525440156402588
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.396680150680542
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.267920144958496
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.13916013923645
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -4.010400133514405
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -3.8816401277923585
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -3.7528801220703123
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -3.6241201163482666
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -3.4953601106262204
+            ],
+            [
+              2.200000047683716,
+              2.6500000953674316,
+              -3.3666001049041743
+            ],
+            [
+              2.200000047683716,
+              2.650000095367432,
+              -3.2378400991821286
+            ]
+          ]
+        },
+        "continuousEnds": true,
+        "profile": "rounded visible face with roof and wall contact backs",
+        "profileExtentM": 0.036,
+        "wallClearanceM": 0,
+        "mountingOverlapM": 0.0003,
+        "endSetbackM": 0.002,
+        "alignment": "actual connector edge and stair landing boundary; sharp turns mitered without an inset diagonal"
+      }
+    },
+    "preserved": "Only corridor fixture mesh/node replaced. All roof surfaces, bedroom five-petal fixture, other nodes, meshes, existing materials and original binary payload unchanged.",
+    "preview": "Same emissive material as the existing bedroom perimeter light; continuous directly visible surfaces.",
+    "designReference": "approved-five-petal-design.png",
+    "corridorDesignReference": "approved-edge-coves.png"
   },
-  "instanceCount": 8,
-  "approvedVersion": "building_pod_v033",
-  "sourceSha256": "245c6984bbf6a61d43f51630f4b35916d8f23e6082bcc6da3eba51d80252ca80"
+  "terraceLighting": {
+    "shape": "open continuous downward-facing ribbon under inner parapet lip",
+    "widthM": 0.024,
+    "belowActualUpperEdgeM": 0.075,
+    "emissiveStrength": 1.1,
+    "bedroomEmissiveStrength": 2.6,
+    "stairOpeningPreserved": true,
+    "node": 251,
+    "pathSamples": [
+      [
+        2.182127348872573,
+        4.048869927506805,
+        -2.510250362675946
+      ],
+      [
+        2.579106626358567,
+        4.225000190734863,
+        -2.166192115878758
+      ],
+      [
+        2.887267056233513,
+        4.225000190734863,
+        -1.7385378622699614
+      ],
+      [
+        3.039139662107391,
+        4.225000190734863,
+        -1.2328753639731516
+      ],
+      [
+        3.089708859569913,
+        4.225000190734863,
+        -0.719431141337438
+      ],
+      [
+        3.134316280385228,
+        4.225000190734863,
+        -0.22656925951587686
+      ],
+      [
+        3.1342613959925076,
+        4.225000190734863,
+        0.265315908482631
+      ],
+      [
+        3.1239226139393423,
+        4.225000190734863,
+        0.7679830654244368
+      ],
+      [
+        3.0675036464706364,
+        4.225000190734863,
+        1.2884993930164372
+      ],
+      [
+        2.9038543311415155,
+        4.225000190734863,
+        1.7975096632360335
+      ],
+      [
+        2.5801243434400454,
+        4.225000190734863,
+        2.221682379094984
+      ],
+      [
+        2.118633283675311,
+        4.225000190734863,
+        2.4985633817454107
+      ],
+      [
+        1.6056710102627536,
+        4.225000190734863,
+        2.638491798695854
+      ],
+      [
+        1.1079192295145777,
+        4.225000190734863,
+        2.69471566642557
+      ],
+      [
+        0.6448511795247409,
+        4.225000190734863,
+        2.7116968579867984
+      ],
+      [
+        0.20903151286212437,
+        4.225000190734863,
+        2.7143851021170557
+      ],
+      [
+        -0.21694010844428108,
+        4.225000190734863,
+        2.714382296851295
+      ],
+      [
+        -0.6531264362675681,
+        4.225000190734863,
+        2.7115839786130334
+      ],
+      [
+        -1.1168079992781377,
+        4.225000190734863,
+        2.6941253927039566
+      ],
+      [
+        -1.615135383142617,
+        4.225000190734863,
+        2.636819350269503
+      ],
+      [
+        -2.1279014245149117,
+        4.225000190734863,
+        2.494811324862315
+      ],
+      [
+        -2.5875741526715252,
+        4.225000190734863,
+        2.215080615208897
+      ],
+      [
+        -2.908188482505516,
+        4.225000190734863,
+        1.788564776894642
+      ],
+      [
+        -3.0692816492821766,
+        4.225000190734863,
+        1.2788025444914914
+      ],
+      [
+        -3.124363398358256,
+        4.225000190734863,
+        0.7585037641787833
+      ],
+      [
+        -3.1342974308691276,
+        4.225000190734863,
+        0.2561797182268323
+      ],
+      [
+        -3.134310360389993,
+        4.225000190734863,
+        -0.23569464948617821
+      ],
+      [
+        -3.1253507436102326,
+        4.225000190734863,
+        -0.7372779403826445
+      ],
+      [
+        -3.073262430982891,
+        4.225000190734863,
+        -1.2570942688608233
+      ],
+      [
+        -2.9179023495031617,
+        4.225000190734863,
+        -1.7685181526033023
+      ],
+      [
+        -2.5879713707923004,
+        4.198626708615695,
+        -2.1864499129103923
+      ],
+      [
+        -2.113807144604848,
+        4.04500036239624,
+        -2.4459263066571446
+      ],
+      [
+        -1.609250464797708,
+        4.04500036239624,
+        -2.58929726622429
+      ],
+      [
+        -1.1177086864521555,
+        4.04500036239624,
+        -2.647547694350414
+      ],
+      [
+        -0.6604005905643899,
+        4.04500036239624,
+        -2.6656024498986612
+      ],
+      [
+        -0.23073977145314137,
+        4.04500036239624,
+        -2.668637571785959
+      ],
+      [
+        0.18807961024167308,
+        4.04500036239624,
+        -2.668652387307395
+      ],
+      [
+        0.6157781756524494,
+        4.04500036239624,
+        -2.666276231560867
+      ]
+    ],
+    "workingDraft": true,
+    "designLights": [
+      {
+        "type": "spot",
+        "position": [
+          2.8572831441006836,
+          4.207000190734863,
+          -1.7204833610802095
+        ],
+        "target": [
+          2.921534384385318,
+          3.575000190734863,
+          -1.7591715779153922
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          3.089934613728171,
+          4.207000190734863,
+          0.7596274779737905
+        ],
+        "target": [
+          3.16276604275211,
+          3.575000190734863,
+          0.7775323082251755
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          1.5874759056123846,
+          4.207000190734863,
+          2.608592999944698
+        ],
+        "target": [
+          1.626465415577461,
+          3.575000190734863,
+          2.672661854411461
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          -0.21415171376949457,
+          4.207000190734863,
+          2.6794935471583408
+        ],
+        "target": [
+          -0.22012684521546563,
+          3.575000190734863,
+          2.754255153643243
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          -2.560985757043733,
+          4.207000190734863,
+          2.192319744884149
+        ],
+        "target": [
+          -2.617960890531859,
+          3.575000190734863,
+          2.2410930384371808
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          -3.0994137571325844,
+          4.207000190734863,
+          0.2533285243291088
+        ],
+        "target": [
+          -3.174164486568034,
+          3.575000190734863,
+          0.2594382255385162
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          -2.561235681029912,
+          4.180626708615695,
+          -2.1638622416508464
+        ],
+        "target": [
+          -2.6185264448064585,
+          3.548626708615695,
+          -2.2122643943498734
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      },
+      {
+        "type": "spot",
+        "position": [
+          -0.22772479749728186,
+          4.02700036239624,
+          -2.633767671699416
+        ],
+        "target": [
+          -0.23418545597412366,
+          3.39500036239624,
+          -2.7084888861705796
+        ],
+        "color": 16768949,
+        "intensity": 1.1,
+        "distance": 2.3,
+        "angle": 1.15
+      }
+    ]
+  },
+  "interiorFinish": {
+    "colorSRGB": "#F2EDE3",
+    "baseColorLinear": [
+      0.8879231178819663,
+      0.846873231509858,
+      0.768151147247507,
+      1
+    ],
+    "scope": [
+      "ground-floor inward walls",
+      "ground-floor ceiling underside",
+      "connector ceiling underside",
+      "terrace inward parapet"
+    ],
+    "preserve": [
+      "exterior theme colors",
+      "floors",
+      "window and door frames",
+      "furniture",
+      "lighting"
+    ],
+    "workingDraft": true,
+    "material": 21
+  },
+  "houseCount": 8,
+  "assembly": "eight linked GLB placements; geometry accessors shared, exterior materials independent",
+  "exteriorPalette": [
+    {
+      "module": "M01",
+      "label": "鼠尾草绿",
+      "color": "#95B58C"
+    },
+    {
+      "module": "M02",
+      "label": "柔玫瑰粉",
+      "color": "#D39BAE"
+    },
+    {
+      "module": "M03",
+      "label": "晴雾蓝",
+      "color": "#91BBD7"
+    },
+    {
+      "module": "M04",
+      "label": "暖杏桃",
+      "color": "#D5A078"
+    },
+    {
+      "module": "M05",
+      "label": "薄荷青",
+      "color": "#83BBB5"
+    },
+    {
+      "module": "M06",
+      "label": "淡丁香紫",
+      "color": "#B8A2CE"
+    },
+    {
+      "module": "M07",
+      "label": "奶油黄",
+      "color": "#D8CC92"
+    },
+    {
+      "module": "M08",
+      "label": "雾靛蓝",
+      "color": "#8791BC"
+    }
+  ],
+  "paletteReference": "../../landscape/site/references/reference.png",
+  "corridorJunctionFit": {
+    "workingDraft": true,
+    "sourceRoofNode": 6,
+    "sourceStairNode": 49,
+    "sourceMesh": 63,
+    "owners": [
+      250,
+      303,
+      356,
+      409,
+      462,
+      515,
+      568,
+      621
+    ],
+    "measuredBoundary": {
+      "outerLeftX": 0.3799999952316284,
+      "innerLeftX": 0.7400000095367432,
+      "rightX": 2.200000047683716,
+      "farZ": -5.300000190734863,
+      "landingCornerZ": -4.150000095367432,
+      "nearZ": -3.1500000953674316
+    },
+    "wallAndRoofContactM": 0,
+    "endSetbackM": 0.002,
+    "unchangedNodes": 623,
+    "unchangedMaterials": true
+  },
+  "corridorDoorhead": {
+    "workingDraft": true,
+    "mesh": 34,
+    "material": 2,
+    "shape": "upper door-lining infill following existing curved front edge and closing against ceiling",
+    "openingPreserved": true,
+    "owners": [
+      34,
+      286,
+      339,
+      392,
+      445,
+      498,
+      551,
+      604
+    ]
+  },
+  "wallRepair": {
+    "ordinaryParapetTopM": 4.3,
+    "stairOnlyDropM": 0.18,
+    "stairScopeSourceY": [
+      3.12,
+      3.15
+    ],
+    "jambMaterialOwner": "existing exterior wall",
+    "newComponents": 0,
+    "shellTriangles": 577028
+  },
+  "wallSimplificationTrial": {
+    "baselineVersion": "building_pod_v045",
+    "baselineSHA256": "af3d18f0dd3591948bdff8511e617245b9eb2dc87427c28611e76aecd006e4dd",
+    "selectedBeforeTrianglesPerHouse": 20201,
+    "selectedAfterTrianglesPerHouse": 13129,
+    "buildingBeforeTrianglesPerHouse": 825048,
+    "buildingAfterTrianglesPerHouse": 817976,
+    "protectedBoundaryVerticesPerHouse": 3663,
+    "boundaryEdgesUnchanged": true,
+    "sampledMaxSurfaceDeviationM": 8.825127588352188e-05,
+    "samplingIsNotStrictHausdorffBound": true,
+    "scope": {
+      "localY": [
+        0.35,
+        2.48
+      ],
+      "localZMin": -1.65,
+      "normalYAbsMax": 0.12
+    },
+    "unchanged": "door jambs, parapet, openings, inner wall, other meshes, node hierarchy, materials, lights, images",
+    "appliedToColorInstances": 8
+  },
+  "interiorRecoat": {
+    "colorSRGB": "#F2EDE3",
+    "scope": "upper room inward skin; opening-end faces remain exterior",
+    "method": "reset upper material ownership, then split original-surface triangles along crown medial section and explicit opening return boundaries",
+    "originalCrownMedialSection": [
+      3.305,
+      2.885
+    ],
+    "superellipsePower": 3.5,
+    "preservedSimplificationVersion": "building_pod_v046",
+    "noDecimation": true
+  },
+  "interiorFinishGenerator": {
+    "file": "generate_interior_finish.py",
+    "module": "devtools.asset_design.assets.buildings.pod.source.generate_interior_finish",
+    "order": [
+      "finalize wall geometry",
+      "reset upper material ownership",
+      "split continuous finish boundary",
+      "assign interior/exterior materials"
+    ],
+    "outputRoot": "build/",
+    "writesSource": false
+  },
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "basedOnConfirmedVersion": "building_pod_v049",
+    "colliders": 344,
+    "uniqueShapes": 39,
+    "uniqueCollisionTriangles": 71016,
+    "collisionTrianglesByInstance": 568512,
+    "moduleCount": 8,
+    "sharedFlightRamps": 2,
+    "flightRampInstances": 16,
+    "thinSurfacePolicy": "Static triangle surfaces include both windings so thin glazing and shells block from either side.",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "coveredStructuralNodes": 344,
+    "excludedReferenceAndLightingNodes": 272,
+    "validation": "build/asset_design/pod-collisions-20261020/verification.json",
+    "runtimeSceneConnected": false
+  }
 }

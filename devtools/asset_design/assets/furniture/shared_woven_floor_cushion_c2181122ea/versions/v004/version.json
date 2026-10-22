@@ -1,0 +1,45 @@
+{
+  "id": "part_shared_woven_floor_cushion_c2181122ea_v004",
+  "category": "kit",
+  "title": "M08 编织圆地垫 · V004",
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "primaryModel": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/model.glb",
+  "models": [
+    "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/model.glb", "name": "model.glb", "kind": "model", "bytes": 5744},
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 5732},
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/source/build.json", "name": "build.json", "kind": "data", "bytes": 1079},
+    {"path": "furniture/shared_resources/source/resources/14626cf9ebe9488db861ddd782273a69bc503501244681eba6d1a4f82b080d77.png", "name": "14626cf9ebe9488db861ddd782273a69bc503501244681eba6d1a4f82b080d77.png", "kind": "texture", "bytes": 1337288},
+    {"path": "furniture/shared_resources/source/resources/6bafeab5d22925c2ea58ec68e9a72cec412fa6437ac532ecba90be04434bf31b.bin", "name": "6bafeab5d22925c2ea58ec68e9a72cec412fa6437ac532ecba90be04434bf31b.bin", "kind": "data", "bytes": 390552},
+    {"path": "furniture/shared_resources/source/resources/c4322d771b17f19bd107404f1a36fb10311cf61e8fad0c06c81ecd5d5309380e.bin", "name": "c4322d771b17f19bd107404f1a36fb10311cf61e8fad0c06c81ecd5d5309380e.bin", "kind": "data", "bytes": 1104},
+    {"path": "furniture/shared_resources/source/resources/eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "name": "eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "kind": "texture", "bytes": 1081666},
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1416},
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/images/15-front-comparison.png", "name": "15-front-comparison.png", "kind": "image", "bytes": 654935}
+  ],
+  "designVersion": {
+    "id": "part_shared_woven_floor_cushion_c2181122ea_v004",
+    "asset": "part_shared_woven_floor_cushion_c2181122ea_v004",
+    "title": "M08 编织圆地垫 · V004",
+    "revision": 4,
+    "file": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/model.glb",
+    "digest": "729a2d95ee2796a8aca902fdfbf94545eadf24905db7be21db9779c6043641fb",
+    "contentDigest": "79331d0f90b3eb6ac398db65637d8144b9e93866b5d6d0f9ef18f4c3534de79d",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "c2181122eab44393df151f48971b3f884ebab0428cb9a4cbbae5b728b0162d30",
+      "category": "soft_furnishing",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v002/reuse.json"
+    }
+  }
+}

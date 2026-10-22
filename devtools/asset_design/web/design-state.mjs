@@ -1,11 +1,34 @@
+// Only confirmation identities can change which external models are displayed.
+export function confirmedReferenceSignature(index,objectId,plan){
+ const watched=new Set([objectId,...(plan?.layers||[]).map(l=>l.object),...(plan?.issues||[]).map(i=>i.object),...(plan?.templates||[]).map(t=>t.object)]);
+ return JSON.stringify((index.objects||[]).filter(o=>watched.has(o.id)).map(o=>[o.id,o.current?.id,o.current?.version,o.current?.contentDigest]).sort());
+}
 // Selection and visibility never change adoption state.
-export function adoptionLabel(object,version){return (object.current?.contentDigest&&version.contentDigest?object.current.contentDigest===version.contentDigest:object.current?.version===version.id)?'已确认':'未确认';}
+export function adoptionLabel(object,version){if(version.draft)return '工作稿';return (object.current?.contentDigest&&version.contentDigest?object.current.contentDigest===version.contentDigest:object.current?.version===version.id)?'已确认':'未确认';}
+// Catalogue append order is publication order; existing revisions never trigger a jump.
+export function publishedPreview(previous,catalog,index,objectId,view){
+ const known=new Set(previous.assets.map(a=>a.id));
+ const current=index.objects.find(o=>o.id===objectId);
+ const module=view.module&&view.module!=='all'?view.module:current?.module;
+ for(const asset of [...catalog.assets].reverse()){
+  if(known.has(asset.id))continue;
+  const object=index.objects.find(o=>o.id===asset.designObject?.id);
+  const version=object?.versions?.find(v=>v.id===asset.designVersion?.id);
+  if(!version||object.historical||object.aggregate)continue;
+  const same=object.id===objectId;
+  const spatial=['building','layout','overview'].includes(current?.group)&&['building','layout'].includes(object.group);
+  const matchesModule=!module||module==='all'||module===object.module||module==='pods'&&/^M\d{2}$/.test(object.module);
+  const matchesFloor=!object.floor||!view.floor||view.floor==='all'||String(object.floor)===String(view.floor);
+  if(same||spatial&&matchesModule&&matchesFloor)return {object:object.id,version:version.id};
+ }
+ return null;
+}
 export function versionRemovalScope(index,assetId){
  const objects=index.objects||[];
  const affected=objects.filter(o=>o.versions.some(v=>v.asset===assetId||v.sources?.some(s=>s.asset===assetId)));
  const usesSource=(object,version)=>objects.find(o=>o.id===object)?.versions.some(v=>(v.id===version||v.sources?.some(s=>s.asset===version))&&(v.asset===assetId||v.sources?.some(s=>s.asset===assetId)));
  return {labels:affected.filter(o=>!['overview','archive'].includes(o.group)&&!o.historical&&!o.aggregate).map(o=>o.label),
-  protected:objects.some(o=>o.current&&(usesSource(o.id,o.current.version)||(o.current.refs||[]).some(r=>usesSource(r.object,r.version))))};
+  protected:objects.some(o=>o.current&&(usesSource(o.id,o.current.version)))};
 }
 function collectionVersions(objects,base){
  const family=base?.collection||base?.id;
@@ -15,11 +38,11 @@ function collectionVersions(objects,base){
  }
  const versions=[],contents=new Map();
  for(const candidate of candidates){
-  const same=candidate.contentDigest&&!candidate.sourceOnly?contents.get(candidate.contentDigest):null;
+  const same=candidate.contentDigest&&!candidate.sourceOnly&&!candidate.draft?contents.get(candidate.contentDigest):null;
   if(same){same.aliases.push(candidate.id,...(candidate.sources||[]).map(s=>s.asset));continue;}
   const version={...candidate,aliases:[candidate.id,...(candidate.sources||[]).map(s=>s.asset)]};
   versions.push(version);
-  if(candidate.contentDigest&&!candidate.sourceOnly)contents.set(candidate.contentDigest,version);
+  if(candidate.contentDigest&&!candidate.sourceOnly&&!candidate.draft)contents.set(candidate.contentDigest,version);
  }
  return versions;
 }
@@ -28,7 +51,7 @@ export function designMenu(index,objectId='overview',versionId=''){
  const names={'layout:central:1':'主楼一层布置','layout:central:2':'主楼二层布置','layout:central:3':'主楼三层布置','layout:pod':'小屋一层卧室','layout:terraces':'小屋二层露台'};
  const objects=(index.objects||[]).filter(o=>!hasFloors||o.collection!=='layout:central'||/^layout:central:[123]$/.test(o.id)).map(o=>{
   const individual=/^layout:central:[123]$/.test(o.id)||o.id.startsWith('part:');
-  const label=names[o.id]||(o.collection==='layout:terraces'?'小屋二层露台':o.label);
+  const label=names[o.id]||o.menuLabel||(o.collection==='layout:terraces'?'小屋二层露台':o.label);
   return {...o,label,collection:individual?o.id:o.collection,collectionLabel:individual?label:names[o.collection]||o.collectionLabel};
  });
  const requested=objects.find(o=>o.id===objectId)||objects.find(o=>o.collection===objectId)||objects.find(o=>o.id==='overview')||objects[0];
@@ -38,13 +61,31 @@ export function designMenu(index,objectId='overview',versionId=''){
  const selected=versions.find(v=>v.aliases.includes(versionId))||versions[0];
  const object=objects.find(o=>o.id===selected?.object)||base;
  const seen=new Set(),collections=[];
- for(const candidate of objects){const id=candidate.collection||candidate.id;if(seen.has(id))continue;seen.add(id);
+ for(const candidate of objects){
+  if(candidate.group==='kit'&&candidate.menuVisible!==true)continue;
+  const id=candidate.collection||candidate.id;if(seen.has(id))continue;seen.add(id);
   const choices=id===family?versions:collectionVersions(objects,objects.find(o=>o.id===id)||candidate);
   collections.push({...candidate,id,label:candidate.collectionLabel||candidate.label,
    compositionOnly:choices.length>0&&choices.every(v=>v.id==='live'||v.members),
-   versionCount:choices.filter(v=>v.id!=='live'&&!v.members&&!v.sourceOnly).length,sourceCount:choices.filter(v=>v.sourceOnly).length});
+   versionCount:choices.filter(v=>v.id!=='live'&&!v.members&&!v.sourceOnly&&!v.draft).length,sourceCount:choices.filter(v=>v.sourceOnly).length});
  }
- return {object,versions,selected,groups:Object.entries(index.groups).map(([value,label])=>({value,label:value==='kit'?'家具':label,objects:collections.filter(o=>o.group===value)})).filter(g=>g.objects.length)};
+ return {object,versions,selected,groups:Object.entries(index.groups).map(([value,label])=>({value,label:value==='kit'?'家具':label,objects:collections.filter(o=>o.group===value).sort((a,b)=>value==='kit'?(a.menuOrder??Infinity)-(b.menuOrder??Infinity):0)})).filter(g=>g.objects.length)};
+}
+// Function categories are catalog metadata, independent of shape, color and revision.
+export function furnitureMenu(menu,category='all'){
+ const labels={plant:'植物',table:'桌子',seating:'椅子',stool:'坐墩',rug:'地毯与地垫',bed:'床与床品',lighting:'灯具',decor:'摆件'};
+ const objects=menu.groups.filter(g=>g.value==='kit').flatMap(g=>g.objects);
+ const buckets=Object.entries(labels).map(([value,label])=>({value,label,objects:objects.filter(o=>(Object.hasOwn(labels,o.menuCategory)?o.menuCategory:'decor')===value)})).filter(g=>g.objects.length);
+ if(!buckets.some(g=>g.value===category))category='all';
+ const categories=[{value:'all',label:'全部家具',count:objects.length},...buckets.map(g=>({value:g.value,label:g.label,count:g.objects.length}))];
+ const groups=menu.groups.flatMap(g=>g.value==='kit'?buckets.filter(b=>category==='all'||b.value===category).map(b=>({...b,value:'kit',label:'家具 · '+b.label})):g);
+ return {category,categories,groups};
+}
+// One content menu: furniture -> function -> independently named authority.
+export function contentMenuTree(menu){
+ const leaf=o=>({id:o.id,label:o.group==='kit'?`${o.label.replace(/〔\d+处〕|（\d+处引用）/g,'').trim()}（${o.currentUsage?.count??0}处引用）`:o.compositionOnly?`${o.label}（组合查看）`:`${o.label}（${o.versionCount} 个版本${o.sourceCount?`，${o.sourceCount} 份源文件`:''}）`});
+ const furniture=furnitureMenu(menu).groups.filter(g=>g.value==='kit');
+ return menu.groups.map(g=>g.value==='kit'?{label:'家具',section:true,children:furniture.map(b=>({label:b.label.replace('家具 · ',''),children:b.objects.map(leaf)}))}:{label:g.label,section:true,children:g.objects.map(leaf)});
 }
 export function sceneVisibility(properties,view,object){
  if(properties.designReference&&!view.context)return false;

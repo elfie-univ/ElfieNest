@@ -1,0 +1,19 @@
+{
+  "designObject": {
+    "id": "building:central",
+    "label": "主楼",
+    "group": "building",
+    "space": "estate",
+    "module": "central",
+    "floor": "",
+    "collection": "building:central",
+    "collectionLabel": "主楼"
+  },
+  "versions": [
+    {
+      "id": "building_central_v050",
+      "file": "buildings/central/versions/v050/version.json",
+      "order": 419
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "designObject": {
+    "id": "part:shared_oak_side_table_24d03d3e37",
+    "label": "柱脚圆边桌",
+    "group": "kit",
+    "space": "estate",
+    "module": "",
+    "floor": "",
+    "collection": "part:shared_library",
+    "collectionLabel": "公共资产库",
+    "menuVisible": true,
+    "menuLabel": "柱脚圆边桌（3处引用）",
+    "menuOrder": 16,
+    "menuCategory": "table",
+    "currentUsage": {
+      "count": 3,
+      "locations": {
+        "layout:central:1": 1,
+        "layout:central:3": 2
+      },
+      "description": "主楼一层 1 处；主楼三层 2 处",
+      "scope": "latest-scene-per-object",
+      "historicalVersionsCounted": false
+    }
+  },
+  "versions": [
+    {
+      "id": "part_shared_oak_side_table_24d03d3e37_v004",
+      "file": "furniture/shared_oak_side_table_24d03d3e37/versions/v004/version.json",
+      "order": 461
+    }
+  ]
+}

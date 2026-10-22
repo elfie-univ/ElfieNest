@@ -3,13 +3,17 @@
 import copy
 import json
 import struct
+from functools import cache
+from pathlib import Path
+from typing import Iterable
+
+from devtools.asset_design.glb_resources import IMAGE_MIMES, read_glb, resource_bytes
 
 
-def extract_glb(path, selected, anchors=()):
-    raw = path.read_bytes()
-    length = struct.unpack_from("<I", raw, 12)[0]
-    doc = json.loads(raw[20 : 20 + length])
-    binary = raw[28 + length :] if len(raw) > 20 + length else b""
+def extract_glb(
+    path: Path, selected: Iterable[int], anchors: Iterable[int] = ()
+) -> tuple[bytes, dict[int, int]]:
+    doc, binary = read_glb(path)
     if doc.get("animations") or doc.get("skins") or doc.get("extensionsRequired"):
         raise ValueError(
             "Animated or extended models require explicit extraction support"
@@ -18,6 +22,21 @@ def extract_glb(path, selected, anchors=()):
     if doc.get("extensionsUsed"):
         output["extensionsUsed"] = copy.deepcopy(doc["extensionsUsed"])
     tables, maps, payload = {}, {}, bytearray()
+
+    def append(chunk):
+        payload.extend(bytes(-len(payload) % 4))
+        value = {"buffer": 0, "byteOffset": len(payload), "byteLength": len(chunk)}
+        payload.extend(chunk)
+        return value
+
+    @cache
+    def buffer(index):
+        value = doc["buffers"][index]
+        if value.get("uri"):
+            return resource_bytes(path, value["uri"])
+        if index != 0:
+            raise ValueError("Only the first buffer can use the GLB binary chunk")
+        return binary
 
     def take(kind, index, convert):
         mapping = maps.setdefault(kind, {})
@@ -29,17 +48,11 @@ def extract_glb(path, selected, anchors=()):
 
     def view(index):
         def convert(value):
-            if value.get("buffer", 0) != 0 or doc.get("buffers", [{}])[0].get("uri"):
-                raise ValueError(
-                    "External buffers cannot be archived as standalone GLB"
-                )
             start = value.get("byteOffset", 0)
-            chunk = binary[start : start + value["byteLength"]]
+            chunk = buffer(value.get("buffer", 0))[start : start + value["byteLength"]]
             if len(chunk) != value["byteLength"]:
                 raise ValueError("Truncated binary input")
-            payload.extend(bytes(-len(payload) % 4))
-            value["buffer"], value["byteOffset"] = 0, len(payload)
-            payload.extend(chunk)
+            value.update(append(chunk))
             return value
 
         return take("bufferViews", index, convert)
@@ -59,9 +72,14 @@ def extract_glb(path, selected, anchors=()):
             if "bufferView" in value:
                 value["bufferView"] = view(value["bufferView"])
             elif not value.get("uri", "").startswith("data:"):
-                raise ValueError(
-                    "External image cannot become an implicit build dependency"
-                )
+                uri = value.pop("uri", "")
+                suffix = Path(uri).suffix
+                if suffix not in IMAGE_MIMES:
+                    raise ValueError("Unsupported external image resource")
+                chunk = resource_bytes(path, uri)
+                value.setdefault("mimeType", IMAGE_MIMES[suffix])
+                value["bufferView"] = len(tables.setdefault("bufferViews", []))
+                tables["bufferViews"].append(append(chunk))
             return value
 
         def convert(value):

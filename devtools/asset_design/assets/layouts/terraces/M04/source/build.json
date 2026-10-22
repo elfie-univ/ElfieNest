@@ -1,0 +1,103 @@
+{
+  "object": "layout:terrace:M04",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "theme": "桌游",
+  "editableModel": "model.blend",
+  "reference": "references/pod_terrace_20261015_eight_themes.png",
+  "buildingSourceSha256": "40a042f982b9dd2cb0d7fa057705c172644fc69341bd721a52ba896af83f5f59",
+  "fittedCabinets": "Current M01 five-surface wood liners and concealed continuous soft light; shared architectural prototype and instance basis verified",
+  "wallSofas": [],
+  "assemblies": [
+    "curved_niche_oak_liner",
+    "rear_cabinet_conformal_liner",
+    "television_recessed_soft_light",
+    "wardrobe_recessed_soft_light",
+    "natural_floor_plant",
+    "round_chess_table",
+    "natural_woven_rug",
+    "complete_chess_set",
+    "cabinet_trailing_foliage",
+    "lilac_game_armchair_1",
+    "lilac_game_armchair_2",
+    "lilac_game_armchair_3",
+    "lilac_game_armchair_4",
+    "theme_lower_fitted_doors",
+    "reference_rear_open_storage",
+    "reference_theme_niche_woodwork_and_display"
+  ],
+  "reviewCoordinates": "Normalized to M01 instance for consistent review camera; furniture source retains its own real placement",
+  "referenceRefinement": [
+    "distinct tailored seating",
+    "reference adjusted sofa length and seat count",
+    "woven cloth and braided jute PBR textures",
+    "loose cushions, seams and folded cloth",
+    "theme prop refinements and extra foliage",
+    "warmer cabinet light wash; original viewer lighting unchanged"
+  ],
+  "cabinetLightWashStrength": 1.4,
+  "sourceSha256": "81d6cfcc3a06cb6db44654ce1aadd45eb8476e4a258c799d2c8729b97ed95603",
+  "restoredSeating": [
+    "lilac_game_armchair_1",
+    "lilac_game_armchair_3",
+    "lilac_game_armchair_2",
+    "lilac_game_armchair_4"
+  ],
+  "cabinetInterior": "board-game boxes stacked directly on one open base",
+  "cabinetDesign": {
+    "preserved": [
+      "cabinet_trailing_foliage",
+      "complete_chess_set",
+      "curved_niche_oak_liner",
+      "lilac_game_armchair_1",
+      "lilac_game_armchair_2",
+      "lilac_game_armchair_3",
+      "lilac_game_armchair_4",
+      "natural_floor_plant",
+      "natural_woven_rug",
+      "rear_cabinet_conformal_liner",
+      "round_chess_table",
+      "television_recessed_soft_light",
+      "wardrobe_recessed_soft_light"
+    ],
+    "lowerDoorCount": 4,
+    "screensAndPrints": "single texture planes with open ring frames; no layered graphic meshes",
+    "proportions": "native object dimensions; no axis squashing"
+  },
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "collisionPreparation": {
+    "format": [
+      "OMI_physics_body",
+      "OMI_physics_shape"
+    ],
+    "colliders": 2,
+    "uniqueShapes": 2,
+    "scope": "Existing fixed furniture layouts and central building; referenced mothers unchanged",
+    "visualGeometryMaterialsAndTransformsUnchanged": true,
+    "mirrorsBakedIntoShapes": true,
+    "physicsBodiesHavePositiveDeterminant": true,
+    "smallDecorHasSeparateColliders": false,
+    "godotVersion": "4.7",
+    "validation": "build/asset_design/fixed-groups-simple-20261020/verification.json",
+    "runtimeSceneConnected": false,
+    "collisionTriangles": 187,
+    "collisionTrianglesByInstance": 187
+  },
+  "collisionOwnership": {
+    "furniture": "referenced-mother-root",
+    "mothers": [
+      "part:shared_lilac_game_armchair_033103e3ca",
+      "part:shared_music_coffee_table_1db16d8004",
+      "part:shared_natural_floor_plant_eeaa5dd5b5"
+    ],
+    "removedLayoutBodies": 6
+  },
+  "collisionSimplification": {
+    "profile": "fixed-furniture-and-central-curved-ramps",
+    "visualGeometryAndDimensionsUnchanged": true,
+    "triangleMeshPreservesOpenings": true,
+    "retainedGroups": [],
+    "nativeValidated": true
+  }
+}

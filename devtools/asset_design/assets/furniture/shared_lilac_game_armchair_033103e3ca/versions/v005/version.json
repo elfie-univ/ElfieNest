@@ -1,0 +1,44 @@
+{
+  "id": "part_shared_lilac_game_armchair_033103e3ca_v005",
+  "category": "kit",
+  "title": "木座软包扶手椅 · V005",
+  "description": "共用木座软包扶手椅：M04 淡紫色、M06 杏色、M08 蓝色由场景实例材质决定；保留原三角面及编辑部件。",
+  "primaryModel": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/model.glb",
+  "models": [
+    "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/model.glb"
+  ],
+  "files": [
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/model.glb", "name": "model.glb", "kind": "model", "bytes": 6876},
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 6868},
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/source/build.json", "name": "build.json", "kind": "data", "bytes": 1279},
+    {"path": "furniture/shared_resources/source/resources/46231234a60d92a04df8c3a3413ebffd9742e4b688d0d7a603ef61f3a5648732.bin", "name": "46231234a60d92a04df8c3a3413ebffd9742e4b688d0d7a603ef61f3a5648732.bin", "kind": "data", "bytes": 200048},
+    {"path": "furniture/shared_resources/source/resources/92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "name": "92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "kind": "texture", "bytes": 1213},
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1152},
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-front-comparison.png", "name": "08-front-comparison.png", "kind": "image", "bytes": 667682},
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-side-comparison.png", "name": "08-side-comparison.png", "kind": "image", "bytes": 616791}
+  ],
+  "designVersion": {
+    "id": "part_shared_lilac_game_armchair_033103e3ca_v005",
+    "asset": "part_shared_lilac_game_armchair_033103e3ca_v005",
+    "title": "木座软包扶手椅 · V005",
+    "revision": 5,
+    "file": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/model.glb",
+    "digest": "ff147d4f6fd7575c439f1e363926e67f802f91b5050247c8364d855dd273fcf1",
+    "contentDigest": "2a574a65544e70577812e796f621898f681ab68ba75f4ec115db039c1c77e867",
+    "nodes": [
+      0
+    ],
+    "measurements": null,
+    "placements": {},
+    "instanceCount": 0,
+    "reuse": {
+      "identity": "033103e3ca836cdeff7ef34a0f5482e7954433a7ea8ef664a30a9155edf10f85",
+      "category": "chair",
+      "sourceReferences": 1,
+      "estateReferences": 1,
+      "approval": "pending",
+      "notes": [],
+      "details": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v003/reuse.json"
+    }
+  }
+}

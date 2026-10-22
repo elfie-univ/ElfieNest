@@ -4,7 +4,7 @@ export function objectImages(catalog,object,version='') {
  const family=object.startsWith('layout:terrace:')?'layout:terraces':object;
  const entries=new Map();
  for(const entry of catalog.imageReferences||[]){
-  if(!registered.has(entry.path)||!entry.objects.some(id=>id===object||id===family))continue;
+  if(!registered.has(entry.path)||!entry.objects.some(id=>id===object||id===family&&entry.kind==='reference'))continue;
   const historical=entry.version&&entry.version!==version;
   entries.set(entry.path,{path:entry.path,name:entry.title+(entry.version?' · 来源 '+entry.version:''),
    kind:entry.kind==='reference'?'reference':historical?'history':entry.kind,

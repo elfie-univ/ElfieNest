@@ -1,0 +1,25 @@
+{
+  "object": "part:shared_games_niche_ornament_3b0024b038",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "reuse": {
+    "identity": "3b0024b0388c6451e14d6642c09326a7ca6122b94d469ecfe382d030b18aa0ff",
+    "category": "decor",
+    "sourceReferences": 3,
+    "estateReferences": 3,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_niche_ornament_3b0024b038/source/v001-reuse.json"
+  },
+  "currentUsage": {
+    "count": 3,
+    "locations": {
+      "layout:central:2": 3
+    },
+    "description": "主楼二层 3 处",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  }
+}
