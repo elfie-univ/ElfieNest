@@ -120,6 +120,7 @@ def test_data_home_rejects_existing_file(tmp_path):
 def test_get_elfie_home_default(monkeypatch):
     """默认返回 ~/.elfienest/"""
     monkeypatch.delenv("ELFIE_HOME", raising=False)
+    monkeypatch.delenv("ELFIENEST_RUNTIME_MODE", raising=False)
     home = get_elfie_home()
     assert home == Path.home() / ".elfienest"
 
