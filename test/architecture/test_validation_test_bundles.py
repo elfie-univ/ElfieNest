@@ -515,24 +515,30 @@ def test_shards_reject_invalid_coordinates():
             )
 
 
-def test_ci_parallel_waits_for_every_shard_and_propagates_failure(monkeypatch):
-    started = []
-    waited = []
+def test_ci_keeps_selected_tests_in_one_process(monkeypatch):
+    calls = []
 
-    class Worker:
-        def __init__(self, command, **_kwargs):
-            self.index = int(command[command.index("--shard-index") + 1])
-            started.append(self.index)
+    def run_selected(selectors, base_sha, cache_root, *, no_cache=False):
+        calls.append((selectors, base_sha, cache_root, no_cache))
+        return 0
 
-        def wait(self):
-            waited.append(self.index)
-            return 1 if self.index == 1 else 0
+    def unexpected_parallel_worker(*_args, **_kwargs):
+        raise AssertionError(
+            "CI selected tests must not share one worktree across shards"
+        )
 
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setattr(test_bundles.subprocess, "Popen", Worker)
-    assert test_bundles.main(["--selectors", "test/example.py"]) == 1
-    assert started == [0, 1, 2, 3]
-    assert waited == started
+    monkeypatch.setattr(test_bundles, "run_selected_tests", run_selected)
+    monkeypatch.setattr(
+        test_bundles.subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: "base-sha\n",
+    )
+    monkeypatch.setattr(test_bundles.subprocess, "Popen", unexpected_parallel_worker)
+
+    assert test_bundles.main(["--selectors", "test/example.py"]) == 0
+    assert len(calls) == 1
+    assert calls[0][0] == ["test/example.py"]
 
 
 def test_shard_collection_failure_cannot_report_success(monkeypatch):

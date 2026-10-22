@@ -677,28 +677,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-count", type=int, default=4)
     args = parser.parse_args(argv)
-    if (
-        args.selectors
-        and args.shard_index is None
-        and os.environ.get("GITHUB_ACTIONS") == "true"
-    ):
-        workers = [
-            subprocess.Popen(
-                [
-                    sys.executable,
-                    str(Path(__file__).resolve()),
-                    "--shard-index",
-                    str(index),
-                    "--shard-count",
-                    str(args.shard_count),
-                    "--selectors",
-                    *args.selectors,
-                ],
-                cwd=PROJECT_ROOT,
-            )
-            for index in range(args.shard_count)
-        ]
-        return max(worker.wait() for worker in workers)
+    # Selected tests share one worktree, process environment, ports, and
+    # repository-local runtime paths.  Running them concurrently in that same
+    # worktree makes otherwise deterministic tests race with one another.
     if args.shard_index is not None:
         if not args.selectors:
             parser.error("test shards require --selectors")
