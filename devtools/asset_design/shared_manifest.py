@@ -9,7 +9,7 @@ import hashlib
 import json
 from functools import cache, lru_cache
 from pathlib import Path
-from typing import Union
+from typing import Any, Union, cast
 
 from devtools.asset_design.glb_resources import (
     IMAGE_MIMES,
@@ -18,7 +18,7 @@ from devtools.asset_design.glb_resources import (
     resource_bytes,
 )
 
-JsonValue = Union[dict, list, str, int, float, bool, None]
+JsonValue = Union[dict[str, Any], list[Any], str, int, float, bool, None]
 
 
 def _hash(value: JsonValue) -> str:
@@ -75,7 +75,7 @@ class _Model:
             raise ValueError("Animated or skinned assemblies need explicit review")
         for name in ("buffer", "view", "accessor", "texture", "mesh", "world"):
             setattr(self, name, cache(getattr(self, name)))
-        self.parents = {}
+        self.parents: dict[int, int] = {}
         for i, node in enumerate(self.doc["nodes"]):
             for child in node.get("children", []):
                 if child in self.parents:
@@ -176,7 +176,10 @@ class _Model:
         if not isinstance(value, dict):
             return value
         return {
-            key: {**self.textures(item), "index": self.texture(item["index"])}
+            key: {
+                **cast(dict[str, Any], self.textures(item)),
+                "index": self.texture(item["index"]),
+            }
             if key.endswith("Texture") and isinstance(item, dict) and "index" in item
             else self.textures(item)
             for key, item in value.items()

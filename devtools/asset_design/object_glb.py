@@ -5,7 +5,7 @@ import json
 import struct
 from functools import cache
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from devtools.asset_design.glb_resources import IMAGE_MIMES, read_glb, resource_bytes
 
@@ -21,7 +21,9 @@ def extract_glb(
     output = {"asset": copy.deepcopy(doc["asset"]), "scene": 0}
     if doc.get("extensionsUsed"):
         output["extensionsUsed"] = copy.deepcopy(doc["extensionsUsed"])
-    tables, maps, payload = {}, {}, bytearray()
+    tables: dict[str, list[dict[str, Any]]] = {}
+    maps: dict[str, dict[int, int]] = {}
+    payload = bytearray()
 
     def append(chunk):
         payload.extend(bytes(-len(payload) % 4))

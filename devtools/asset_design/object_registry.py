@@ -2,6 +2,7 @@
 
 import copy
 import json
+from typing import Any
 
 from devtools.asset_design.design_models import read_model
 from devtools.asset_design.object_content import content_digest
@@ -9,7 +10,8 @@ from devtools.asset_design.working_drafts import add_working_drafts
 
 
 def object_inventory(root, assets):
-    objects, issues = {}, []
+    objects: dict[str, dict[str, Any]] = {}
+    issues: list[dict[str, str]] = []
     for asset in assets:
         if not asset.designObject:
             continue

@@ -8,6 +8,7 @@ import json
 import math
 import struct
 from pathlib import Path
+from typing import Any, Optional
 
 from devtools.asset_design.glb_resources import encode_glb, read_glb
 from devtools.asset_design.object_glb import extract_glb
@@ -113,18 +114,18 @@ def clip(poly, fn, negative=True):
     return out
 
 
-proof = {
+proof: dict[str, Any] = {
     "maxSerializedVertexDeviationM": 0.0,
     "maxBarycentricUnderflow": 0.0,
     "maxTriangleAreaResidualM2": 0.0,
 }
-source_triangle = None
+source_triangle: Optional[list[tuple[float, ...]]] = None
 emitted_area = 0.0
 patches = collections.defaultdict(list)
 keeps = []
-counts = collections.Counter()
-protected = collections.Counter()
-baseline = collections.Counter()
+counts: collections.Counter[str] = collections.Counter()
+protected: collections.Counter[str] = collections.Counter()
+baseline: collections.Counter[str] = collections.Counter()
 
 
 def emit(poly, owner, colored):
@@ -148,6 +149,7 @@ def emit(poly, owner, colored):
         for vertex in tri:
             p = vertex[0]
             weights = vertex[3]
+            assert source_triangle is not None
             expected = tuple(
                 sum(source_triangle[k][axis] * weights[k] for k in range(3))
                 for axis in range(3)
@@ -297,7 +299,7 @@ assert (
     and proof["maxBarycentricUnderflow"] < 1e-10
     and proof["maxTriangleAreaResidualM2"] < 1e-9
 ), proof
-r = dict(counts)
+r: dict[str, Any] = dict(counts)
 r.update(proof)
 r.update(
     beforeSHA256=hashlib.sha256(S.read_bytes()).hexdigest(),

@@ -330,17 +330,21 @@ def publish_object(
         for a in catalog["assets"]
         if (a.get("designObject") or {}).get("id") == object_id
     ]
-    if not owned and not (object_id.startswith("part:") and label and label.strip()):
-        raise ValueError("Unknown independent object: " + object_id)
+    if not owned:
+        if not object_id.startswith("part:") or not label or not label.strip():
+            raise ValueError("Unknown independent object: " + object_id)
     folder = object_directory(root, object_id)
     build = json.loads((folder / "source" / "build.json").read_text())
     source = folder / "source" / "model.glb"
     records, _ = read_model(root, source.relative_to(root).as_posix())
     selected = [r["node"] for r in records if not r.get("reference")]
-    metadata = (
-        owned[0]["designObject"]
-        if owned
-        else {
+    if owned:
+        metadata = owned[0]["designObject"]
+        if metadata is None:
+            raise ValueError("Object metadata unavailable: " + object_id)
+    else:
+        assert label is not None
+        metadata = {
             "id": object_id,
             "label": label.strip(),
             "group": "kit",
@@ -350,7 +354,6 @@ def publish_object(
             "collection": "part:shared_library",
             "collectionLabel": "公共资产库",
         }
-    )
     for r in records:
         if r.get("reference"):
             continue

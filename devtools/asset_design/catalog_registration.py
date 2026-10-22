@@ -17,15 +17,17 @@ _LOCK = RLock()
 
 def _collect(root: Path) -> dict[str, list[tuple[str, str, str]]]:
     catalog = Catalog.model_validate(read_catalog(root))
-    owners = {}
+    owners: dict[str, list[tuple[str, str, str]]] = {}
     for asset in catalog.assets:
+        design_object = asset.designObject
+        design_version = asset.designVersion
         owner = (
             (
-                asset.designObject["id"],
+                design_object["id"],
                 asset.id,
-                (Path(asset.designVersion["file"]).parent / "version.json").as_posix(),
+                (Path(design_version["file"]).parent / "version.json").as_posix(),
             )
-            if asset.designObject
+            if design_object is not None and design_version is not None
             else ("", asset.id, "")
         )
         for file in asset.files:

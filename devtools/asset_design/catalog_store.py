@@ -5,7 +5,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -78,18 +78,18 @@ def _document(path: Path, snapshot: dict[Path, bytes]) -> dict:
 
 def metadata_document(root: Path, relative: str) -> tuple[dict, bytes]:
     path = metadata_path(root, relative)
-    snapshot = {}
+    snapshot: dict[Path, bytes] = {}
     value = _document(path, snapshot)
     return value, snapshot[path]
 
 
 def _read(root: Path) -> tuple[dict, dict[Path, bytes]]:
     root = root.resolve()
-    checked = set()
+    checked: set[Path] = set()
     index = _metadata_path(root, "catalog.json", checked)
     if not index.exists():
         return {"assets": []}, {}
-    snapshot = {}
+    snapshot: dict[Path, bytes] = {}
     data = _document(index, snapshot)
     if "objects" not in data:
         # Existing unowned export inputs are still used by the explicit split CLI.
@@ -185,7 +185,9 @@ def _save_catalog(
 ) -> dict[Path, Optional[bytes]]:
     Catalog.model_validate(data)
     root = root.resolve()
-    objects, imports, output = {}, [], {}
+    objects: dict[Path, dict[str, Any]] = {}
+    imports: list[dict[str, Any]] = []
+    output: dict[Path, dict[str, Any]] = {}
     orders = _version_orders(root, data.get("assets", []))
     if len(orders) != len(data.get("assets", [])):
         raise ValueError("Duplicate asset identity")

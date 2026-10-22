@@ -76,7 +76,7 @@ def organize_workspace(source, target):
     catalog["assets"] = [
         a for a in catalog["assets"] if a.get("designObject") or not a.get("archived")
     ]
-    mapping, owners = {}, {}
+    mapping = {}
     virtual = set()
     versions = {}
 
@@ -98,7 +98,6 @@ def organize_workspace(source, target):
         old_folder = Path(version["file"]).parent
         for file in asset["files"]:
             old = file["path"]
-            owners.setdefault(old, (folder, version_dir))
             if old in mapping:
                 continue
             if old.endswith("/source.glb") or old.endswith("/source/model.glb"):
@@ -134,11 +133,15 @@ def organize_workspace(source, target):
                 target, "building:central" if owner == "overview" else owner
             )
         )
-        version_dir = versions.get((owner, image.get("version")))
+        image_version_dir = versions.get((owner, image.get("version")))
         mapping.setdefault(
             old,
             relative(
-                (version_dir / "images" if version_dir else folder / "references")
+                (
+                    image_version_dir / "images"
+                    if image_version_dir
+                    else folder / "references"
+                )
                 / Path(old).name
             ),
         )

@@ -170,7 +170,8 @@ def build_design_router(root: Path):
         with ASSET_LOCK:
             _, objects = items()
             state = read_state(root)
-            layers, issues = [], []
+            layers: list[dict] = []
+            issues: list[dict[str, str]] = []
             obj = objects.get(object)
             if object == "overview" and version is None:
                 for candidate in objects.values():

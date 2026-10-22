@@ -45,3 +45,4 @@
 - [ADR-0038：Memory Debug Workspace 是只读的 Brain 开发者投影](./0038-memory-debug-workspace-projection)
 - [ADR-0039：注册 Genesis 准备资料包，不激活运行](./0039-genesis-preparation-package)
 - [ADR-0040：Genesis 源资料先发布，创建链后激活](./0040-genesis-source-publication-before-activation)
+- [ADR-0041：隔离资产设计工作台与保存的设计资产](./0041-asset-design-workbench-boundary)

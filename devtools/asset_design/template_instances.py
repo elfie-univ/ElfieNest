@@ -2,6 +2,7 @@
 
 import copy
 import math
+from typing import Any
 
 from devtools.asset_design.deletion import checked_file
 from devtools.asset_design.glb_resources import read_glb
@@ -80,7 +81,7 @@ def resolve_templates(root, entry, objects, state):
 
 def template_dependencies(entries):
     """Deduplicate the mother identities pinned by one or more scene layers."""
-    dependencies = {}
+    dependencies: dict[str, dict[str, Any]] = {}
     for entry in entries:
         for instance in entry.get("templateInstances", []):
             key = instance["object"]

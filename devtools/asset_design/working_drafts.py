@@ -63,10 +63,13 @@ def freeze_working_layers(root, layers):
             a
             for a in reversed(load_catalog(root).assets)
             if a.designObject
+            and a.designVersion is not None
             and a.designObject["id"] == entry["object"]
             and a.designVersion["contentDigest"] == entry["contentDigest"]
         )
-        entry.update(asset.designVersion)
-        entry["version"] = asset.designVersion["id"]
+        design_version = asset.designVersion
+        assert design_version is not None
+        entry.update(design_version)
+        entry["version"] = design_version["id"]
         entry.pop("draft")
     return saved

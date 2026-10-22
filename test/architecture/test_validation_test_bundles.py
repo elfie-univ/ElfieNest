@@ -225,6 +225,16 @@ def test_bundle_command_defers_coverage_threshold_until_combination() -> None:
     assert "--cov-fail-under=0" in command
 
 
+def test_test_environment_ignores_host_installation_mode(monkeypatch) -> None:
+    monkeypatch.setenv("ELFIENEST_RUNTIME_MODE", "release")
+    monkeypatch.setenv("ELFIENEST_BUNDLED_CONFIG_DIR", "/outside/source")
+
+    environment = test_bundles._test_environment()
+
+    assert environment["ELFIENEST_RUNTIME_MODE"] == "development"
+    assert "ELFIENEST_BUNDLED_CONFIG_DIR" not in environment
+
+
 def test_run_bundle_reuses_pass_without_starting_pytest(
     tmp_path: Path, monkeypatch
 ) -> None:

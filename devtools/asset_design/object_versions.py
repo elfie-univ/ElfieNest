@@ -2,6 +2,7 @@
 
 import json
 import struct
+from typing import Any
 
 from devtools.asset_design.design_models import read_model
 from devtools.asset_design.object_content import content_digest
@@ -38,7 +39,7 @@ def independent_versions(root, objects, issues):
                         }
                     )
             continue
-        groups = {}
+        groups: dict[str, list[dict[str, Any]]] = {}
 
         # Catalog entries may be prepended or appended. A new carried copy must
         # not become the oldest source merely because it was inserted first.

@@ -6,6 +6,7 @@ import struct
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from devtools.asset_design.catalog import load_catalog
 from devtools.asset_design.catalog_observation import observe_catalog
@@ -40,7 +41,9 @@ def module_name(module):
     return "主楼" if module == "central" else "小屋 " + module
 
 
-_INVENTORIES = OrderedDict()
+_INVENTORIES: OrderedDict[tuple[Path, bool], tuple[tuple, dict[str, Any]]] = (
+    OrderedDict()
+)
 
 
 def inventory(root: Path, *, independent: bool = True) -> dict:
@@ -65,7 +68,7 @@ def inventory(root: Path, *, independent: bool = True) -> dict:
 
 
 def legacy_inventory(root: Path, *, independent: bool = True) -> dict:
-    objects = {
+    objects: dict[str, dict[str, Any]] = {
         "overview": {
             "id": "overview",
             "label": "完整园区",

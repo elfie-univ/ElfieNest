@@ -6,12 +6,12 @@ from pathlib import Path
 from stat import S_ISREG
 from threading import RLock
 
-from devtools.asset_design.catalog_models import Catalog
+from devtools.asset_design.catalog_models import AssetFile, Catalog
 from devtools.asset_design.catalog_store import read_catalog, snapshot_catalog
 from devtools.asset_design.paths import object_directory
 
 _LOCK = RLock()
-_CATALOGS = OrderedDict()
+_CATALOGS: OrderedDict[Path, tuple[tuple, Catalog]] = OrderedDict()
 
 
 def file_stamp(path: Path) -> tuple:
@@ -84,8 +84,8 @@ def observe_catalog(root: Path) -> tuple[Catalog, tuple]:
         if cached and cached[0] == signature:
             return cached[1], signature
         catalog = base.model_copy(deep=True)
-        files = {}
-        safe = {}
+        files: dict[str, AssetFile] = {}
+        safe: dict[str, bool] = {}
         for asset in catalog.assets:
             for file in asset.files:
                 state = states[file.path]

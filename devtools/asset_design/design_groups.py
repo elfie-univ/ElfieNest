@@ -1,7 +1,7 @@
 """Content collections and right-sidebar review scopes for saved design objects."""
 
 import copy
-from typing import Optional
+from typing import Any, Optional
 
 from devtools.asset_design.catalog import Asset
 
@@ -89,7 +89,7 @@ def organize(objects: dict[str, dict]) -> list[dict]:
             "aggregate": True,
             "versions": [],
         }
-        versions = {}
+        versions: dict[str, dict[str, Any]] = {}
         for member in members:
             for version in member["versions"]:
                 merged = versions.setdefault(
@@ -173,7 +173,7 @@ def house_placements(shell: list[dict], houses: list[str]) -> dict[str, int]:
     )
     for anchor in candidates:
         key = anchor.get("source_name", anchor["name"])
-        matches = {
+        matches: dict[str, Optional[int]] = {
             module: next(
                 (
                     r["node"]
@@ -186,7 +186,9 @@ def house_placements(shell: list[dict], houses: list[str]) -> dict[str, int]:
             for module in houses
         }
         if all(value is not None for value in matches.values()):
-            return matches
+            return {
+                module: value for module, value in matches.items() if value is not None
+            }
     return {}
 
 
