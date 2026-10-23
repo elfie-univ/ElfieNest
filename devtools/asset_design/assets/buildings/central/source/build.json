@@ -105,7 +105,7 @@
       "geometry": "unchanged"
     }
   },
-  "description": "主楼八个小屋连接口统一采用浅木色暗藏平移门；暖光灯带沿门洞左右内壁和圆角顶面连续布置，底部不加，开关门均保留U形轮廓。灯带位于门板前方，墙面外沿无灯圈；保留已确认的配色、玻璃、家具及其他灯光。自动感应联动尚未接入。",
+  "description": "移除主楼自带的两级旧白色入口台阶，避免与已确认花纹台阶共面闪烁；保留建筑、材质、门、室内布置及花纹台阶。",
   "roofArchitecture": {
     "floor": 4,
     "reference": "buildings/central/references/roof-emission-zoning-reference.png",
