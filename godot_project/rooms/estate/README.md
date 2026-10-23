@@ -52,8 +52,18 @@ after all regions synchronize. The real half-landing tops provide inset turning
 navigation patches and links to their actual stair treads; Actors still walk with
 full capsules, gravity and swept step clearance. `furniture.use` navigates to a
 source-bound approach before entering its bed/seat pose. Occupancy, cancellation
-and blocked exits are explicit outcomes. Water flow and cloud movement remain
-static export data. The camera-only Nest Lab is not an autonomous-life acceptance.
+and blocked exits are explicit outcomes. Display-side material overrides add
+gentle lake normals, spillway flow, fountain-jet highlights and ripple/foam motion
+to 26 source-bound water surfaces without moving vertices or changing collision
+geometry. Cloud movement remains static export data. The camera-only Nest Lab is
+not an autonomous-life acceptance.
+
+Resident animation blends idle/walking clips and visual heading changes. Existing
+bed/seat actions now blend their visual child and skeleton into and out of the
+authored contact pose, with a subtle sleeping breathing loop. These procedural
+transitions do not add a separate climbing animation or change physical contact,
+occupancy, exit clearance or command completion. Interrupted transitions recover
+from their current displayed pose; body proportions remain unchanged.
 
 Collision resources share exact triangle bytes across render-material variants.
 Triangles are read from indexed surfaces without generating a picking BVH for

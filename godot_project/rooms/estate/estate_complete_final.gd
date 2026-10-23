@@ -5,6 +5,7 @@ const INSTANCE_SIDECAR_PATH := "res://rooms/estate/ElfieNest-complete-final.inst
 const SIDECAR_MAGIC := "ENINST01"
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
+const WATER := preload("res://rooms/estate/estate_water.gd")
 const MAX_BATCH_INSTANCES := 128
 const BATCH_CELL_SIZE := 16.0
 
@@ -16,6 +17,7 @@ var _canopy_meshes: Dictionary = {}
 
 func _ready() -> void:
 	DAYLIGHT.apply($CompleteFinal)
+	WATER.attach($CompleteFinal)
 	_restore_instanced_groups()
 
 

@@ -131,6 +131,8 @@ func run() -> void:
 	bridge._handle_semantic_snapshot(sleep)
 	await _wait_arrival(actor)
 	_check(actor.runtime_posture() == "sleeping" and actor.furniture_anchor_id == "dorm-01/bed-01", "authored bed pose missing")
+	# Physical/semantic contact is immediate; the visual child now blends into it.
+	await create_timer(0.8).timeout
 	_check_contact(actor, bed)
 	var visual := actor.get_node("VisualRoot") as Node3D
 	var sleep_transform := visual.transform
@@ -139,6 +141,7 @@ func run() -> void:
 	bridge._handle_semantic_snapshot(_snapshot("sitting", null, "dorm-01/chair-01"))
 	await _wait_arrival(actor)
 	_check(actor.runtime_posture() == "sitting" and actor.furniture_anchor_id == "dorm-01/chair-01", "authored chair pose missing")
+	await create_timer(0.8).timeout
 	_check_contact(actor, chair)
 	bridge._handle_semantic_snapshot(_snapshot("sitting", null, "dorm-01/chair-02"))
 	_check(actor.furniture_anchor_id.is_empty(), "invalid furniture metadata retained old pose")

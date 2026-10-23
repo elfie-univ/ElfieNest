@@ -40,7 +40,7 @@
     },
     "external_files": 0,
     "runtime_effects": {
-      "water": "static snapshot at export time; runtime flow and ripple shaders are not included",
+      "water": "static source geometry with runtime material-only lake ripples, spillway flow, fountain highlights and foam on 26 source-bound surfaces; instanced spray remains static",
       "clouds": "static sky presentation; moving cloud animation is not included",
       "lighting": "directional sunlight is included; environment and tone mapping remain runtime settings"
     },

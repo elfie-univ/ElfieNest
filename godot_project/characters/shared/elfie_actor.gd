@@ -134,6 +134,11 @@ func cancel_navigation(reason: String = "cancelled") -> bool:
 	return true
 
 
+func _process(delta: float) -> void:
+	if not install_preview_poses and _animation_runtime != null:
+		_animation_runtime.advance(delta)
+
+
 func _physics_process(delta: float) -> void:
 	if install_preview_poses:
 		# Character Lab is a nonphysical pose viewer, not a world authority.
@@ -196,7 +201,9 @@ func _physics_process(delta: float) -> void:
 	_play_animation("walking")
 	# 导入物种模型以 +Z 为视觉前方，而 Node3D.look_at 对齐的是 -Z。
 	# 因此看向反方向，使视觉朝向与物理速度一致，避免倒着行走。
+	var previous_visual_heading := _visual_root.global_basis
 	look_at(global_position - direction, Vector3.UP)
+	_animation_runtime.smooth_heading(previous_visual_heading)
 	_navigation_agent.velocity = direction * WALK_SPEED
 
 
@@ -353,7 +360,8 @@ func enter_furniture(marker: Marker3D, anchor_id: String) -> String:
 	if global_position.distance_to(pose.origin) > FURNITURE_CONTACT_DISTANCE:
 		return "interaction_out_of_contact_range"
 	var posture := String(marker.get_meta("interaction_posture"))
-	_furniture_visual_transform = _visual_root.transform
+	var visual_source: Dictionary = _animation_runtime.capture_visual_pose()
+	_furniture_visual_transform = _animation_runtime.standing_visual_transform()
 	if not _apply_furniture_pose(posture):
 		_restore_furniture_pose()
 		return "unsupported_furniture_pose"
@@ -379,6 +387,7 @@ func enter_furniture(marker: Marker3D, anchor_id: String) -> String:
 	_furniture_posture = posture
 	_navigation_agent.avoidance_enabled = false
 	velocity = Vector3.ZERO
+	_animation_runtime.transition_from(visual_source, posture)
 	return ""
 
 
@@ -414,8 +423,9 @@ func observer_stop_presentation() -> bool:
 	if not furniture_anchor_id.is_empty():
 		# View-only exit restores the saved local approach; no authority clearance
 		# decision or terminal event is produced for the actual resident.
+		var visual_source: Dictionary = _animation_runtime.capture_visual_pose()
 		global_transform = _furniture_exit_transform
-		_restore_furniture_pose()
+		_restore_furniture_pose(visual_source)
 		_collision_shape.disabled = false
 		furniture_anchor_id = ""
 		_furniture_posture = ""
@@ -432,8 +442,9 @@ func leave_furniture() -> bool:
 		return true
 	if not _furniture_exit_is_clear():
 		return false
+	var visual_source: Dictionary = _animation_runtime.capture_visual_pose()
 	global_transform = _furniture_exit_transform
-	_restore_furniture_pose()
+	_restore_furniture_pose(visual_source)
 	_collision_shape.disabled = false
 	furniture_anchor_id = ""
 	_furniture_posture = ""
@@ -462,6 +473,9 @@ func _furniture_hips() -> Dictionary:
 
 
 func _apply_furniture_pose(posture: String) -> bool:
+	_animation_runtime.cancel_expression()
+	_animation_runtime.reset_procedural_pose()
+	_visual_root.transform = _furniture_visual_transform
 	if _animation_player.has_animation("idle"):
 		_animation_player.play("idle")
 		_animation_player.advance(0.0)
@@ -486,7 +500,8 @@ func _apply_furniture_pose(posture: String) -> bool:
 	return true
 
 
-func _restore_furniture_pose() -> void:
+func _restore_furniture_pose(visual_source: Dictionary = {}) -> void:
+	_animation_runtime.reset_procedural_pose()
 	_visual_root.transform = _furniture_visual_transform
 	for saved: Dictionary in _furniture_bone_poses:
 		var skeleton := saved["skeleton"] as Skeleton3D
@@ -494,6 +509,9 @@ func _restore_furniture_pose() -> void:
 	_furniture_bone_poses.clear()
 	_animation_player.playback_active = true
 	_play_animation("idle")
+	_animation_player.advance(0.0)
+	if not visual_source.is_empty():
+		_animation_runtime.transition_from(visual_source)
 
 
 static func _furniture_bone(skeleton: Skeleton3D, suffix: String) -> int:
