@@ -64,7 +64,7 @@ def _final_database(tmp_path: Path) -> str:
         )
         connection.execute(
             """INSERT INTO nest_settings(nest_id, bed_count, tick_interval_sec)
-               VALUES ('local-nest', 4, 1.0)"""
+               VALUES ('local-nest', 32, 1.0)"""
         )
         connection.commit()
     return db_path
@@ -175,7 +175,7 @@ def test_nest_repositories_store_settings_catalog_presence_and_home_anchor(
     # Then: reopening restores semantic state without storing a Godot catalog.
     restored = SQLiteNestStateAdapter(db_path).load_snapshot()
     assert restored.catalog == catalog
-    assert restored.desired_bed_count == 4
+    assert restored.desired_bed_count == 32
     assert restored.residents == (
         PersistentResidentState(elfie_id="00000001", presence=ResidentPresence.AWAY),
     )

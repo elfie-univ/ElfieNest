@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from infrastructure.persistence.configuration.documents import ConfigDocumentId
+from nest.public import FIXED_BED_COUNT
 
 
 class ConfigSchemaError(ValueError):
@@ -635,7 +636,9 @@ def _validate_nest_defaults(document: Mapping[str, Any], label: str) -> None:
     _keys(document, {"version", "nest"}, label)
     nest = _object(document.get("nest"), f"{label}.nest")
     _keys(nest, {"bed_count"}, f"{label}.nest")
-    _positive_int(nest.get("bed_count"), f"{label}.nest.bed_count")
+    bed_count = _positive_int(nest.get("bed_count"), f"{label}.nest.bed_count")
+    if bed_count != FIXED_BED_COUNT:
+        raise ConfigSchemaError(f"{label}.nest.bed_count 必须固定为 {FIXED_BED_COUNT}")
 
 
 def _validate_species_catalog_shape(document: Mapping[str, Any], label: str) -> None:

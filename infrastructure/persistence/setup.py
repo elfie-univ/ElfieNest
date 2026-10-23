@@ -18,6 +18,7 @@ from app.orchestration.setup_installation import (
     SetupInstallationPortError,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
+from nest.public import FIXED_BED_COUNT
 
 
 class SQLiteSetupAdapter:
@@ -87,7 +88,8 @@ class SQLiteSetupAdapter:
 
     def save_nest_draft(self, *, bed_count: int) -> StoredSetupDraft:
         def update(values: dict[str, object]) -> None:
-            values["bed_count"] = bed_count
+            _ = bed_count
+            values["bed_count"] = FIXED_BED_COUNT
             values["nest_configured"] = True
 
         return self._update_draft(update)
@@ -378,7 +380,7 @@ def _default_draft_mapping() -> dict[str, object]:
         "password_hash": None,
         "use_local_ollama": None,
         "model_id": None,
-        "bed_count": 12,
+        "bed_count": FIXED_BED_COUNT,
         "owner_configured": False,
         "offline_configured": False,
         "nest_configured": False,
@@ -407,7 +409,7 @@ def _draft_from_mapping(value: Mapping[str, object]) -> StoredSetupDraft:
         password_hash=_text(value.get("password_hash")),
         use_local_ollama=_boolean(value.get("use_local_ollama")),
         model_id=_text(value.get("model_id")),
-        bed_count=_integer(value.get("bed_count")) or 12,
+        bed_count=FIXED_BED_COUNT,
         owner_configured=value.get("owner_configured") is True,
         offline_configured=value.get("offline_configured") is True,
         nest_configured=value.get("nest_configured") is True,

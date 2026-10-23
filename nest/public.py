@@ -1,7 +1,7 @@
 """Stable typed boundary surface for App orchestration callers."""
 
 from nest import Nest
-from nest.config import NestConfig, NestConfigError
+from nest.config import FIXED_BED_COUNT, NestConfig, NestConfigError
 from nest.events import (
     HeardUtterance,
     NestEventEnvelope,
@@ -49,6 +49,7 @@ __all__ = [
     "EnvironmentDesiredState",
     "EnvironmentActualState",
     "EnvironmentRule",
+    "FIXED_BED_COUNT",
     "InteractionAnchor",
     "HeardUtterance",
     "NestFactNotice",

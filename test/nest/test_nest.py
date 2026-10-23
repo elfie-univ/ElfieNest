@@ -1,8 +1,8 @@
 import pytest
 
 from nest import Nest
+from nest.config import NestConfigError
 from nest.living_rules.errors import (
-    BedCapacityError,
     BedConflictError,
     NoHomeAvailableError,
     UnknownResidentError,
@@ -68,7 +68,7 @@ def test_restore_snapshot_replaces_residents_and_restores_presence() -> None:
 
     nest.restore_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=catalog,
             residents=(
@@ -126,7 +126,7 @@ def test_restore_snapshot_clears_previous_catalog_runtime_projection_and_overrid
 
     nest.restore_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),
@@ -250,24 +250,26 @@ def test_nest_rejects_negative_tick() -> None:
         nest.tick(-0.1)
 
 
-def test_nest_changes_desired_capacity_without_a_second_config_fact() -> None:
+def test_nest_keeps_a_fixed_capacity_without_a_second_config_fact() -> None:
     nest = Nest()
 
-    assert nest.set_desired_bed_count(32) is True
+    assert nest.desired_bed_count == 32
     assert nest.set_desired_bed_count(32) is False
+    with pytest.raises(NestConfigError, match="固定为 32"):
+        nest.set_desired_bed_count(4)
     assert nest.desired_bed_count == 32
 
 
-def test_nest_rejects_capacity_that_would_remove_an_assigned_home() -> None:
+def test_nest_rejects_capacity_changes_below_the_fixed_capacity() -> None:
     nest = Nest()
     nest.apply_catalog(_catalog_with_beds(8))
     nest.register_resident("saevi-1")
     nest.assign_home("saevi-1", "dorm-01/bed-08")
 
-    with pytest.raises(BedCapacityError, match="bed-08"):
+    with pytest.raises(NestConfigError, match="固定为 32"):
         nest.set_desired_bed_count(4)
 
-    assert nest.desired_bed_count == 4
+    assert nest.desired_bed_count == 32
     assert nest.home_anchor_id("saevi-1") == "dorm-01/bed-08"
 
 

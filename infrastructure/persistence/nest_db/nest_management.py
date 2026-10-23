@@ -14,7 +14,7 @@ from app.features.nest_management import (
 )
 from infrastructure.persistence.elfie_workspace.identity import load_profile_from_db
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest.public import AnchorKind, NestConfig, WorldCatalog
+from nest.public import FIXED_BED_COUNT, AnchorKind, NestConfig, WorldCatalog
 
 
 class SQLiteNestManagementAdapter:
@@ -39,11 +39,7 @@ class SQLiteNestManagementAdapter:
                FROM nest_settings WHERE nest_id=?""",
             (defaults.nest_id,),
         ).fetchone()
-        desired_bed_count = (
-            defaults.bed_count
-            if configuration is None
-            else int(configuration["bed_count"])
-        )
+        desired_bed_count = FIXED_BED_COUNT
         applied_world_revision = (
             None
             if configuration is None or configuration["applied_world_revision"] is None

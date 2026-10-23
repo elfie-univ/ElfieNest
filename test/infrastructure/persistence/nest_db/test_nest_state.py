@@ -52,7 +52,7 @@ def _seed_elfie(db_path: str) -> None:
         )
         connection.execute(
             "INSERT INTO nest_settings(nest_id, bed_count, tick_interval_sec) "
-            "VALUES ('local-nest', 4, 1.0)"
+            "VALUES ('local-nest', 32, 1.0)"
         )
         connection.execute(
             "UPDATE nest_settings SET world_catalog_json=? WHERE nest_id='local-nest'",
@@ -74,7 +74,7 @@ def test_state_store_persists_runtime_catalog_revision_and_presence(tmp_path) ->
     catalog = WorldCatalog(nest_id="local-nest", revision=3, zones=())
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=catalog,
             residents=(
@@ -106,7 +106,7 @@ def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> N
 
     snapshot = SQLiteNestStateAdapter(db_path).load_snapshot()
 
-    assert snapshot.desired_bed_count == 4
+    assert snapshot.desired_bed_count == 32
     assert snapshot.elapsed_seconds == 0.0
     with get_db(db_path) as connection:
         assert (
@@ -153,7 +153,7 @@ def test_state_store_restores_clock_and_environment_rules(tmp_path) -> None:
 
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=7200.0,
             catalog=None,
             residents=(),
@@ -181,7 +181,7 @@ def test_runtime_catalog_before_setup_does_not_create_configuration(tmp_path) ->
 
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=WorldCatalog(nest_id="local-nest", revision=1, zones=()),
             residents=(),
@@ -207,7 +207,7 @@ def test_remove_resident_keeps_elfie_and_clears_home_anchor(tmp_path) -> None:
     state_store = SQLiteNestStateAdapter(db_path)
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),

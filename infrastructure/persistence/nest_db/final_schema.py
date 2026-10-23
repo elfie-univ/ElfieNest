@@ -10,6 +10,7 @@ from infrastructure.persistence.nest_db.sqlite_connection import (
     UnsafeSQLitePathError,
     app_sqlite_connection,
 )
+from nest.public import FIXED_BED_COUNT
 
 FINAL_NEST_DATABASE_NAME: Final = "nest.db"
 
@@ -342,6 +343,10 @@ def initialize_final_schema(connection: sqlite3.Connection) -> None:
     """Create every final root table, index, and cross-row invariant."""
     _initialize_final_tables(connection)
     _initialize_final_objects(connection)
+    connection.execute(
+        "UPDATE nest_settings SET bed_count=? WHERE nest_id='local-nest'",
+        (FIXED_BED_COUNT,),
+    )
 
 
 def repair_final_nest_database(db_path: str | Path) -> Path:
@@ -501,7 +506,7 @@ _TABLE_STATEMENTS: Final = (
     )""",
     """CREATE TABLE IF NOT EXISTS nest_settings (
         nest_id TEXT PRIMARY KEY CHECK(nest_id='local-nest'),
-        bed_count INTEGER NOT NULL CHECK(bed_count BETWEEN 4 AND 32),
+        bed_count INTEGER NOT NULL CHECK(bed_count=32),
         tick_interval_sec REAL NOT NULL CHECK(tick_interval_sec>0),
         max_elfies INTEGER CHECK(max_elfies IS NULL OR max_elfies>=0),
         applied_world_revision INTEGER CHECK(applied_world_revision IS NULL OR applied_world_revision>=0),

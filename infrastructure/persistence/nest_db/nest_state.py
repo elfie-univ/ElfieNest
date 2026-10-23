@@ -9,7 +9,7 @@ from typing import Final
 from app.orchestration.nest_session.ports import NestStateStoreError
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 from nest.living_rules.models import PersistentResidentState, ResidentPresence
-from nest.public import NestConfig, NestSnapshot
+from nest.public import FIXED_BED_COUNT, NestConfig, NestSnapshot
 from nest.space_facilities.models import AnchorKind, WorldCatalog
 from nest.time_environment.models import EnvironmentDesiredState, EnvironmentRule
 
@@ -52,9 +52,7 @@ class SQLiteNestStateAdapter:
         except sqlite3.Error as error:
             raise NestStateStoreError(str(error)) from error
         return NestSnapshot(
-            desired_bed_count=(
-                defaults.bed_count if config is None else int(config["bed_count"])
-            ),
+            desired_bed_count=FIXED_BED_COUNT,
             elapsed_seconds=(
                 0.0 if config is None else float(config["clock_anchor_seconds"])
             ),

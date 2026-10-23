@@ -95,7 +95,7 @@ def test_query_reads_authoritative_configuration_and_assignments(tmp_path) -> No
     _seed_elfie(db_path, "00000001")
     with get_db(db_path) as connection:
         connection.execute(
-            "UPDATE nest_settings SET bed_count=6 WHERE nest_id='local-nest'"
+            "UPDATE nest_settings SET bed_count=32 WHERE nest_id='local-nest'"
         )
         connection.execute(
             "UPDATE elfies SET home_anchor_id='dorm-01/bed-01' "
@@ -106,5 +106,5 @@ def test_query_reads_authoritative_configuration_and_assignments(tmp_path) -> No
 
     snapshot = adapter.load_snapshot()
 
-    assert snapshot.desired_bed_count == 6
+    assert snapshot.desired_bed_count == 32
     assert snapshot.beds[0].occupant_id == "00000001"

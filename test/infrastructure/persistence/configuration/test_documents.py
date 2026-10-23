@@ -191,8 +191,17 @@ def test_release_source_reads_only_the_launcher_resource_root(tmp_path: Path) ->
 def test_nest_defaults_are_loaded_as_typed_configuration(tmp_path: Path) -> None:
     path = tmp_path / "nest" / "defaults.yaml"
     path.parent.mkdir(parents=True)
-    path.write_text("version: 1\nnest:\n  bed_count: 8\n", encoding="utf-8")
+    path.write_text("version: 1\nnest:\n  bed_count: 32\n", encoding="utf-8")
 
     config = load_nest_config(root=tmp_path)
 
-    assert config.bed_count == 8
+    assert config.bed_count == 32
+
+
+def test_nest_defaults_reject_a_non_fixed_bed_count(tmp_path: Path) -> None:
+    path = tmp_path / "nest" / "defaults.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text("version: 1\nnest:\n  bed_count: 4\n", encoding="utf-8")
+
+    with pytest.raises(ConfigDocumentError, match="必须固定为 32"):
+        load_nest_config(root=tmp_path)
