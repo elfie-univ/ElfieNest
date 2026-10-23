@@ -16,6 +16,7 @@ const OBSERVER_PRESENTATION_CONTROLLER := preload("res://runtime/observer/observ
 const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/endpoint/websocket_client.gd")
 const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
 const LAB_RUNTIME := preload("res://runtime/lab/lab_runtime.gd")
+const M01_SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/endpoint/authority_semantic_events.gd")
 const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
@@ -24,7 +25,7 @@ const OBSERVER_MODE_VALUE := "product"
 const VISUAL_AUTHORITY_ENV := "ELFIENEST_GODOT_SHOW_VISUALS"
 ## Temporary monitor-only visual behavior; remove when real action control lands.
 const MOCK_WANDER_ENABLED := false
-const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := true
+const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := false
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -67,6 +68,14 @@ func add_character(
 
 
 func _ready() -> void:
+	if OS.has_feature("web"):
+		get_viewport().msaa_3d = Viewport.MSAA_4X
+	if M01_SAMPLE.is_requested():
+		M01_SAMPLE.isolate_host(self)
+		var sample := M01_SAMPLE.new()
+		sample.camera_owner = nest
+		add_child(sample)
+		return
 	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
@@ -80,6 +89,7 @@ func _ready() -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.setup_nest_lab()
+		nest.set_observation_hud_visible(true)
 		return
 	if _product_observer_mode:
 		_enter_product_observer_presentation_mode()

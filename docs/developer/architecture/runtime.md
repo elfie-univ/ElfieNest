@@ -88,9 +88,14 @@ Runtime, Gateway, Core or backend simulation.
 
 The product Observer may also receive a strict semantic entity snapshot for
 view-only presentation. Each entity carries identity, species, appearance,
-room/zone state and a semantic `home_anchor_id`; it never carries coordinates,
+room/zone state, a semantic `home_anchor_id` and nullable `action_anchor_id`; it never carries coordinates,
 transforms, navigation or collision facts. Godot resolves that anchor locally
-and owns actor placement and rendering. As a temporary removable behavior, the
+and owns actor placement and rendering. The action anchor, posture and active
+command are projected from authority snapshots at action start and completion.
+Observer replays walking and authored bed/seat poses against its own identical
+scene; duplicate or stale snapshots do not restart actions. Local pause stops
+display physics only. Product-local random wandering is disabled. Unknown action
+anchors do not fall back to a fabricated home state. As a temporary removable behavior, the
 authority may additionally publish `mock_motion: {waypoint, sequence}`. The
 waypoint is resolved locally against the room NavMesh; Observer clients replay
 it and never choose random targets. The React bridge accepts and forwards only
@@ -106,6 +111,30 @@ rate-limited high-level `request_interaction` (`greet` or `rest`), which goes to
 the world sink through the application boundary. The first Observer phase is
 not a camera/video transport: it does not send JPEG frames or provide a camera
 stream API.
+
+## Complete-estate physics and furniture actions
+
+`godot_project/rooms/nest.tscn` remains the single world entry. The complete
+estate's authored module, floor and furniture metadata bind its physical
+colliders and stable interaction anchors; the retired procedural-room coordinates
+are not reused. Mirrored render nodes are converted into positive-handed physics
+frames without moving the visible geometry. The garden's authored collision
+proxies are reused rather than baking the foliage into navigation.
+
+World readiness requires synchronized navigation regions and valid paths from
+advertised anchors to the courtyard, not merely a nonempty navigation resource.
+The estate exposes a fixed 32-bed semantic catalogue without duplicating the estate.
+
+The native Body exposes `furniture.use` with only `anchor_id` as an argument.
+It lowers through the existing authenticated `execute_intent` command to
+`use_anchor`; callers cannot supply coordinates or a pose. The same command
+physically navigates to the object's approach marker before entering its authored
+sleeping or sitting pose. It retains the original intent/body-generation identity
+and exactly one terminal result. A plain `move_to_anchor` never uses furniture.
+Occupied furniture, unavailable paths, invalid contact metadata and blocked exit
+positions fail explicitly. Walking away restores the standing body and collisions.
+These operations remain Godot-owned; they do not add a Python geometry model,
+a second Gateway, or an Observer simulation authority.
 
 ## Runtime artifact contract
 

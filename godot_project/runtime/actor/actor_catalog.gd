@@ -58,14 +58,14 @@ static func snapshot(
 		if not actor_data is Dictionary:
 			continue
 		var actor_instance := actors_by_id[actor_id] as ElfieActor
+		var action_anchor_id := actor_instance.furniture_anchor_id
+		if action_anchor_id.is_empty():
+			action_anchor_id = String(actor_instance.get_meta("action_anchor_id", ""))
 		actors.append({
 			"actor_id": String(actor_id),
 			"zone_id": nest.nearest_zone_id(actor_instance.global_position),
-			"posture": (
-				"walking"
-					if not actor_instance.active_command_id.is_empty()
-					else "idle"
-			),
+			"posture": actor_instance.runtime_posture(),
+			"action_anchor_id": action_anchor_id if not action_anchor_id.is_empty() else null,
 			"active_command_id": (
 				actor_instance.active_command_id
 					if not actor_instance.active_command_id.is_empty()

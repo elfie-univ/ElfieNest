@@ -27,7 +27,7 @@ func run() -> void:
 	var configured: Dictionary = await world_controller.configure_world(
 		{
 			"nest_id": "mock-wander-test",
-			"bed_count": 4,
+			"bed_count": 32,
 			"world_revision": 1,
 		},
 		"configure-mock-wander",

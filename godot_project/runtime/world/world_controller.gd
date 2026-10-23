@@ -190,7 +190,7 @@ func configure_world(
 		}
 		runtime_event.emit("startup_error", failure, cause_id)
 		return failure
-	if not await _wait_for_navigation_sync():
+	if not await _nest.wait_for_navigation_sync():
 		var sync_failure := {
 			"accepted": false,
 			"code": "navigation_sync_timeout",
@@ -199,6 +199,10 @@ func configure_world(
 		runtime_event.emit("startup_error", sync_failure, cause_id)
 		return sync_failure
 
+	if not _nest.validate_navigation_anchors():
+		var anchor_failure := {"accepted": false, "code": "navigation_anchors_unreachable", "world_revision": _nest.world_revision}
+		runtime_event.emit("startup_error", anchor_failure, cause_id)
+		return anchor_failure
 	navigation_ready = true
 	runtime_event.emit("scene_manifest", manifest, cause_id)
 	runtime_event.emit(
@@ -210,20 +214,6 @@ func configure_world(
 		cause_id,
 	)
 	return result
-
-
-func _wait_for_navigation_sync() -> bool:
-	var navigation_map := _nest.get_world_3d().navigation_map
-	for _frame in range(30):
-		await get_tree().physics_frame
-		if (
-			NavigationServer3D.map_get_iteration_id(navigation_map) > 0
-			and not NavigationServer3D.map_get_regions(navigation_map).is_empty()
-		):
-			await get_tree().physics_frame
-			await get_tree().physics_frame
-			return true
-	return false
 
 
 func _prepare_semantic_anchors(manifest: Dictionary) -> bool:

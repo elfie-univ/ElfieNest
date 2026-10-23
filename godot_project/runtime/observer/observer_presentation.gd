@@ -2,6 +2,8 @@ class_name ObserverPresentationController
 extends Node
 
 const MOCK_WANDER_TARGET := preload("res://runtime/actor/mock_wander_target.gd")
+const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
+const REAL_COMMAND_PREFIX := "observer-real-action-"
 const MOCK_COMMAND_PREFIX := "observer-mock-wander-"
 ## Temporary monitor-only visual Mock; remove this block when real control lands.
 const LOCAL_MOCK_COMMAND_PREFIX := "observer-local-mock-wander-"
@@ -18,6 +20,12 @@ var _actor_scenes: Dictionary
 var _actors: Dictionary = {}
 var _fingerprints: Dictionary = {}
 var _pending_motions: Dictionary = {}
+var _motion_states: Dictionary = {}
+var _navigation_ready := false
+var _navigation_preparing := false
+var _snapshot_generation := 0
+var _snapshot_sequence := 0
+var _paused_snapshot: Dictionary = {}
 var _local_mock_wander_enabled := false
 var _local_mock_random := RandomNumberGenerator.new()
 var _local_mock_states: Dictionary = {}
@@ -35,9 +43,28 @@ func setup(
 	_local_mock_wander_enabled = enable_local_mock_wander
 	if _local_mock_wander_enabled:
 		_local_mock_random.randomize()
+	call_deferred("prepare_navigation")
+
+
+func prepare_navigation() -> void:
+	if _navigation_preparing:
+		return
+	_navigation_preparing = true
+	_navigation_ready = false
+	if _nest.bake_navigation():
+		_navigation_ready = await _nest.wait_for_navigation_sync()
+		if _navigation_ready:
+			_navigation_ready = _nest.validate_navigation_anchors()
+	_navigation_preparing = false
 
 
 func _process(_delta: float) -> void:
+	if _nest.observer_presentation_paused():
+		return
+	if not _paused_snapshot.is_empty():
+		var snapshot := _paused_snapshot
+		_paused_snapshot = {}
+		apply_snapshot(snapshot)
 	var pending_ids: Array[String] = []
 	for raw_id: Variant in _pending_motions.keys():
 		pending_ids.append(String(raw_id))
@@ -56,6 +83,25 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 	var entities: Variant = snapshot.get("entities", {})
 	if not entities is Dictionary:
 		return
+	var generation := int(snapshot.get("generation", 0))
+	var sequence := int(snapshot.get("sequence", 0))
+	if generation < _snapshot_generation:
+		return
+	if generation == _snapshot_generation and sequence <= _snapshot_sequence:
+		return
+	if _nest.observer_presentation_paused():
+		var pending_generation := int(_paused_snapshot.get("generation", 0))
+		var pending_sequence := int(_paused_snapshot.get("sequence", 0))
+		if generation > pending_generation or (generation == pending_generation and sequence > pending_sequence):
+			_paused_snapshot = snapshot.duplicate(true)
+		return
+	if generation > _snapshot_generation:
+		for raw_id: Variant in _actors.keys():
+			_stop_real_motion(_actors[raw_id] as ElfieActor)
+		_motion_states.clear()
+		_pending_motions.clear()
+	_snapshot_generation = generation
+	_snapshot_sequence = sequence
 	var expected_ids: Dictionary = {}
 	for raw_id: Variant in (entities as Dictionary).keys():
 		var actor_id := String(raw_id)
@@ -87,6 +133,8 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 
 
 func _valid_entity(actor_id: String, entity: Dictionary) -> bool:
+	if not OBSERVER_BRIDGE._semantic_entity_is_valid(entity):
+		return false
 	if actor_id.is_empty() or String(entity.get("room_id", "")).strip_edges().is_empty():
 		return false
 	if typeof(entity.get("active", false)) != TYPE_BOOL or not bool(entity["active"]):
@@ -109,9 +157,13 @@ func _create_actor(actor_id: String, entity: Dictionary) -> ElfieActor:
 		instance.queue_free()
 		return null
 	var actor := instance as ElfieActor
-	# Keep the temporary observer replay lightweight; movement remains visible even
-	# without installing the authority's shared animation library.
-	actor.install_shared_animations = false
+	# Product main keeps polling the bridge while paused; display physics must not
+	# inherit that ALWAYS mode. The child NavigationAgent inherits this boundary.
+	actor.process_mode = Node.PROCESS_MODE_PAUSABLE
+	actor.set_meta("observer_presentation", true)
+	# Home supplies only the initial replay origin, not an invented current action.
+	# Do not display a newly seen resident until a real action anchor is known.
+	actor.visible = false
 	_characters.add_child(actor)
 	var anchor := _nest.resolve_anchor(String(entity["home_anchor_id"]))
 	if anchor == null:
@@ -121,15 +173,14 @@ func _create_actor(actor_id: String, entity: Dictionary) -> ElfieActor:
 	actor.species_id = species
 	actor.configure(actor_id, anchor.global_position, entity["appearance"] as Dictionary)
 	actor.ground_visual_to_floor(anchor.global_position.y)
-	actor.set_meta("observer_presentation", true)
 	actor.set_meta("species", species)
 	actor.set_meta("home_anchor_id", String(entity["home_anchor_id"]))
+	actor.set_physics_process(false)
 	return actor
 
 
 func _render_fingerprint(entity: Dictionary) -> String:
 	return JSON.stringify({
-		"room_id": entity.get("room_id"),
 		"species_id": entity.get("species_id"),
 		"appearance": entity.get("appearance", {}),
 		"home_anchor_id": entity.get("home_anchor_id"),
@@ -145,6 +196,66 @@ func _set_observer_command_state(actor: ElfieActor, entity: Dictionary) -> void:
 
 
 func _apply_motion(actor: ElfieActor, entity: Dictionary) -> void:
+	var anchor_id: Variant = entity.get("action_anchor_id")
+	# An explicit authority motion is not Observer's optional random wandering.
+	# Non-null semantic anchors always take precedence, including unknown anchors.
+	if anchor_id == null and entity.get("mock_motion") is Dictionary:
+		if _motion_states.has(actor.elfie_id):
+			_stop_real_motion(actor)
+			_motion_states.erase(actor.elfie_id)
+		if not _navigation_ready:
+			_pending_motions[actor.elfie_id] = entity.duplicate(true)
+			return
+		_apply_mock_motion(actor, entity)
+		return
+	var command_id: Variant = entity.get("active_command_id")
+	var posture := String(entity.get("posture", ""))
+	var state := JSON.stringify([anchor_id, command_id, posture])
+	if _motion_states.get(actor.elfie_id, "") == state:
+		return
+	_stop_real_motion(actor)
+	if not anchor_id is String or String(anchor_id).is_empty():
+		_motion_states[actor.elfie_id] = state
+		return
+	var marker := _nest.resolve_anchor(String(anchor_id))
+	if marker == null:
+		_motion_states[actor.elfie_id] = state
+		actor.set_meta("observer_replay_error", "anchor_not_found")
+		return
+	if (
+		(posture == "walking" and not command_id is String)
+		or (posture == "idle" and command_id != null)
+		or posture not in ["walking", "idle", "sleeping", "sitting"]
+	):
+		_motion_states[actor.elfie_id] = state
+		actor.set_meta("observer_replay_error", "inconsistent_action_state")
+		return
+	if not _navigation_ready:
+		_pending_motions[actor.elfie_id] = entity.duplicate(true)
+		return
+	_pending_motions.erase(actor.elfie_id)
+	_motion_states[actor.elfie_id] = state
+	actor.set_meta("observer_replay_error", "")
+	actor.visible = true
+	if posture == "walking":
+		var replay_command := REAL_COMMAND_PREFIX + String(command_id)
+		if not actor.move_to(replay_command, marker.global_position, 60.0):
+			actor.set_meta("observer_replay_error", "local_path_unavailable")
+			return
+		actor.set_physics_process(true)
+		return
+	var error := actor.observer_present_anchor(marker, String(anchor_id), posture)
+	actor.set_meta("observer_replay_error", error)
+
+
+func _stop_real_motion(actor: ElfieActor) -> void:
+	_pending_motions.erase(actor.elfie_id)
+	actor.observer_stop_presentation()
+	actor.set_meta("observer_mock_motion_sequence", -1)
+	actor.set_meta("observer_replay_error", "")
+
+
+func _apply_mock_motion(actor: ElfieActor, entity: Dictionary) -> void:
 	var raw_motion: Variant = entity.get("mock_motion", null)
 	if raw_motion == null:
 		_pending_motions.erase(actor.elfie_id)
@@ -203,6 +314,7 @@ func _apply_motion(actor: ElfieActor, entity: Dictionary) -> void:
 		return
 	_pending_motions.erase(actor.elfie_id)
 	actor.set_meta("observer_mock_motion_sequence", sequence)
+	actor.visible = true
 	actor.set_physics_process(true)
 
 
@@ -359,13 +471,11 @@ func _local_mock_rest_msec() -> int:
 
 func _remove_actor(actor_id: String) -> void:
 	_pending_motions.erase(actor_id)
+	_motion_states.erase(actor_id)
 	_local_mock_states.erase(actor_id)
 	var actor := _actors.get(actor_id) as ElfieActor
 	if actor != null:
-		if actor.active_command_id.begins_with(LOCAL_MOCK_COMMAND_PREFIX):
-			actor.cancel_navigation("observer_actor_removed")
-		if actor.active_command_id.begins_with(MOCK_COMMAND_PREFIX):
-			actor.cancel_navigation("observer_actor_removed")
+		_stop_real_motion(actor)
 		if actor.get_parent() == _characters:
 			_characters.remove_child(actor)
 		actor.queue_free()

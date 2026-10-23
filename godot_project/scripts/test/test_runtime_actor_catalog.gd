@@ -16,7 +16,7 @@ func _init() -> void:
 	var characters := main.get_node("Characters") as Node3D
 	var config := nest.apply_world_config({
 		"nest_id": "actor-test",
-		"bed_count": 4,
+		"bed_count": 32,
 		"world_revision": 1,
 	})
 	if not bool(config.get("accepted", false)):

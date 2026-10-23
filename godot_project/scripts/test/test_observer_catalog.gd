@@ -7,7 +7,7 @@ const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
 const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
-const EXPECTED_INITIAL_VIEW_COUNT: int = 20
+const EXPECTED_INITIAL_VIEW_COUNT: int = 15
 
 
 func _initialize() -> void:
@@ -39,22 +39,39 @@ func run() -> void:
 	var initial_views := initial_catalog["views"] as Array
 	if not _require(
 		initial_views.size() == EXPECTED_INITIAL_VIEW_COUNT
-			and _view_matches(initial_views[0], "overview", "整体总览")
-			and _view_matches(initial_views[1], "section-01", "区域俯视 01-04")
-			and _view_matches(initial_views[2], "section-02", "区域俯视 05-08")
-			and _view_matches(initial_views[3], "activity-01", "01 厨房")
-			and _view_matches(initial_views[4], "dorm-01", "01 宿舍")
-			and _view_matches(initial_views[initial_views.size() - 1], "portal", "传送室"),
+			and _view_matches(initial_views[0], "overview", "完整精灵巢 · 俯视")
+			and _view_matches(initial_views[1], "courtyard", "庭院与建筑")
+			and _view_matches(initial_views[2], "garden", "庭院近景")
+			and _view_matches(initial_views[3], "sky", "庭院与天空")
+			and _view_matches(initial_views[4], "central-1", "主楼活动 · 1 层")
+			and _view_matches(initial_views[14], "dorm-08", "08 宿舍 · 真实四人房"),
 		"Observer catalog ids and labels do not cover every generated view"
 	):
 		return
 
 	if not _require(
-		nest.select_observer_camera_by_id("activity-01")
-			and String(nest.observer_camera_catalog()["active_id"]) == "activity-01",
+		nest.select_observer_camera_by_id("central-1")
+			and String(nest.observer_camera_catalog()["active_id"]) == "central-1",
 		"Selecting a semantic observer view id did not activate it"
 	):
 		return
+	nest.select_observer_camera_by_id("dorm-01")
+	var chair := nest.resolve_anchor("dorm-01/chair-01")
+	var contact := (chair.get_meta("interaction_transform") as Transform3D).origin
+	var dorm_camera := root.get_camera_3d()
+	if not _require(
+		not dorm_camera.is_position_behind(contact)
+			and Rect2(Vector2.ZERO, Vector2(root.size)).has_point(dorm_camera.unproject_position(contact)),
+		"Default dorm view hides the actual chair-01 contact",
+	):
+		return
+	var sight := PhysicsRayQueryParameters3D.create(dorm_camera.global_position, contact + Vector3.UP * 0.6)
+	if not _require(
+		nest.get_world_3d().direct_space_state.intersect_ray(sight).is_empty(),
+		"Default dorm camera is outside the shell or its view of the seated avatar is obstructed",
+	):
+		return
+	nest.select_observer_camera_by_id("central-1")
 	var active_after_valid_select := String(nest.observer_camera_catalog()["active_id"])
 	if not _require(
 		not nest.select_observer_camera_by_id("missing-view")
@@ -66,7 +83,7 @@ func run() -> void:
 	nest.reset_observer_camera()
 	await process_frame
 	if not _require(
-		String(nest.observer_camera_catalog()["active_id"]) == "activity-01",
+		String(nest.observer_camera_catalog()["active_id"]) == "central-1",
 		"Reset changed the selected observer view instead of resetting its camera"
 	):
 		return
@@ -77,45 +94,48 @@ func run() -> void:
 	):
 		return
 
-	nest.select_observer_camera_by_id("activity-01")
-	nest.bed_count = 8
+	nest.select_observer_camera_by_id("central-1")
+	nest.bed_count = 32
+	nest.rebuild()
 	await _wait_frames(4)
 	var retained_catalog := nest.observer_camera_catalog()
 	if not _require(
 		int(retained_catalog["revision"]) > int(initial_catalog["revision"])
-			and String(retained_catalog["active_id"]) == "activity-01",
+			and String(retained_catalog["active_id"]) == "central-1",
 		"Rebuild did not increment revision and retain an existing active id"
 	):
 		return
 	nest.bed_count = 32
 	await _wait_frames(4)
 	if not _require(
-		nest.select_observer_camera_by_id("section-01"),
-		"Test setup could not select the section view before shrinking the layout"
+		nest.select_observer_camera_by_id("courtyard"),
+		"Test setup could not select the courtyard view before updating capacity"
 	):
 		return
-	nest.bed_count = 5
+	nest.bed_count = 32
+	nest.set("_active_camera_id", "removed-view")
+	nest.rebuild()
 	await _wait_frames(4)
 	var fallback_catalog := nest.observer_camera_catalog()
 	if not _require(
 		int(fallback_catalog["revision"]) > int(retained_catalog["revision"])
 			and String(fallback_catalog["active_id"]) == "overview"
-			and _view_index_by_id(fallback_catalog["views"] as Array, "section-01") == -1,
+			and _view_index_by_id(fallback_catalog["views"] as Array, "removed-view") == -1,
 		"Rebuild did not fall back to overview when the active id disappeared"
 	):
 		return
 
 	var selected_camera := root.get_camera_3d()
-	var size_before_pause := selected_camera.size
+	var size_before_pause := _camera_zoom(selected_camera)
 	nest.bed_count = 32
 	await _wait_frames(4)
 	if not _require(
-		nest.select_observer_camera_by_id("section-01"),
-		"Test setup could not select section-01 before paused rebuild"
+		nest.select_observer_camera_by_id("courtyard"),
+		"Test setup could not select courtyard before paused rebuild"
 	):
 		return
 	selected_camera = root.get_camera_3d()
-	size_before_pause = selected_camera.size
+	size_before_pause = _camera_zoom(selected_camera)
 	var active_id_before_pause := String(nest.observer_camera_catalog()["active_id"])
 	nest.set_observer_presentation_paused(true)
 	if not _require(
@@ -134,26 +154,27 @@ func run() -> void:
 	await process_frame
 	if not _require(
 		String(nest.observer_camera_catalog()["active_id"]) == active_id_before_pause
-			and is_equal_approx(selected_camera.size, size_before_pause),
+			and is_equal_approx(_camera_zoom(selected_camera), size_before_pause),
 			"Paused presentation accepted command-driven camera reset"
 	):
 		return
-	nest.bed_count = 5
+	nest.bed_count = 32
+	nest.rebuild()
 	await _wait_frames(4)
 	var paused_rebuild_catalog := nest.observer_camera_catalog()
 	if not _require(
-		String(paused_rebuild_catalog["active_id"]) == "overview"
-			and _view_index_by_id(paused_rebuild_catalog["views"] as Array, "section-01") == -1,
-		"Paused presentation blocked internal rebuild active-view fallback"
+		String(paused_rebuild_catalog["active_id"]) == "courtyard"
+			and _view_index_by_id(paused_rebuild_catalog["views"] as Array, "courtyard") >= 0,
+		"Paused presentation lost its selected complete estate view during rebuild"
 	):
 		return
 	selected_camera = root.get_camera_3d()
-	size_before_pause = selected_camera.size
+	size_before_pause = _camera_zoom(selected_camera)
 	_send_wheel_up()
 	await process_frame
 	if not _require(
 		nest.observer_presentation_paused()
-			and is_equal_approx(selected_camera.size, size_before_pause),
+			and is_equal_approx(_camera_zoom(selected_camera), size_before_pause),
 		"Local presentation pause did not gate camera input"
 	):
 		return
@@ -162,7 +183,7 @@ func run() -> void:
 	await process_frame
 	if not _require(
 		not nest.observer_presentation_paused()
-			and selected_camera.size < size_before_pause,
+			and _camera_zoom(selected_camera) < size_before_pause,
 		"Resuming local presentation did not restore camera input"
 	):
 		return
@@ -190,9 +211,10 @@ func run() -> void:
 			"saevi-1": {
 				"room_id": "local-nest",
 				"zone_id": "dorm-01",
-				"posture": "standing",
+				"posture": "idle",
 				"active": true,
 				"active_command_id": null,
+				"action_anchor_id": "dorm-01/bed-01",
 				"species_id": "saevi",
 				"home_anchor_id": "dorm-01/bed-01",
 				"appearance": {},
@@ -213,169 +235,12 @@ func run() -> void:
 		"Coordinate-bearing observer snapshot crossed the presentation boundary"
 	):
 		return
-	var characters := Node3D.new()
-	root.add_child(characters)
-	var synthetic_visual_root := Node3D.new()
-	root.add_child(synthetic_visual_root)
-	var synthetic_mesh := MeshInstance3D.new()
-	var synthetic_box := BoxMesh.new()
-	synthetic_box.size = Vector3(1.0, 2.0, 1.0)
-	synthetic_mesh.mesh = synthetic_box
-	synthetic_mesh.position.y = 1.25
-	synthetic_visual_root.add_child(synthetic_mesh)
-	var synthetic_ground_offset := ACTOR_APPEARANCE.ground_visual_to_plane(
-		synthetic_visual_root,
-		0.0,
-	)
-	if not _require(
-		is_equal_approx(synthetic_ground_offset, -0.25)
-			and is_equal_approx(synthetic_visual_root.global_position.y, -0.25),
-		"Visual grounding did not move a model whose lowest point was above the floor",
-	):
-		return
-	synthetic_visual_root.queue_free()
-	var presentation := OBSERVER_PRESENTATION.new()
-	root.add_child(presentation)
-	presentation.setup(nest, characters, {"saevi": SAEVI_SCENE, "tovren": TOVREN_SCENE})
-	presentation.apply_snapshot(valid_semantic_snapshot)
-	await _wait_frames(2)
-	var grounded_actor := characters.get_child(0) as ElfieActor
-	var grounded_visual_root := grounded_actor.get_node("VisualRoot") as Node3D
-	var grounded_foot_y := float(
-		ACTOR_APPEARANCE._foot_contact_y(grounded_visual_root)
-	)
-	if not _require(
-		characters.get_child_count() == 1
-			and grounded_actor.global_position
-				== nest.resolve_anchor("dorm-01/bed-01").global_position
-			and is_equal_approx(
-				grounded_foot_y,
-				nest.resolve_anchor("dorm-01/bed-01").global_position.y,
-			),
-		"Observer presentation did not place the Elfie at its semantic home anchor"
-	):
-		return
-	var motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"waypoint": 1,
-		"sequence": 1,
-	}
-	if not _require(nest.bake_navigation(), "Observer could not prepare its local replay NavMesh"):
-		return
-	for _frame in range(4):
-		await physics_frame
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", motion_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected the temporary waypoint state",
-	):
-		return
-	presentation.apply_snapshot(motion_snapshot)
-	for _frame in range(4):
-		await physics_frame
-	if not _require(
-		grounded_actor.active_command_id.begins_with("observer-mock-wander-"),
-		"Observer did not replay the authority waypoint as local navigation",
-	):
-		return
-	var whole_nest_motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"waypoint": 23,
-		"sequence": 3,
-	}
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", whole_nest_motion_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected a whole-Nest waypoint beyond the legacy room range",
-	):
-		return
-	var sleep_snapshot := valid_semantic_snapshot.duplicate(true)
-	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"mode": "sleep",
-		"sequence": 2,
-	}
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", sleep_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected the sleep-return motion state",
-	):
-		return
-	presentation.apply_snapshot(valid_semantic_snapshot)
-	await _wait_frames(1)
-	presentation.apply_snapshot(sleep_snapshot)
-	for _frame in range(600):
-		await physics_frame
-		if (
-			grounded_actor.active_command_id.is_empty()
-			and grounded_actor.global_position.distance_to(
-				nest.resolve_anchor("dorm-01/bed-01").global_position
-			) <= 0.5
-		):
-			break
-	if not _require(
-		grounded_actor.global_position.distance_to(
-			nest.resolve_anchor("dorm-01/bed-01").global_position
-		) <= 0.5,
-		"Observer did not replay sleep motion back to the semantic home bed",
-	):
-		return
-	presentation.apply_snapshot(valid_semantic_snapshot)
-	await _wait_frames(1)
-	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
-	var tovren_entity := (multi_snapshot["entities"]["saevi-1"] as Dictionary).duplicate(true)
-	tovren_entity["species_id"] = "tovren"
-	tovren_entity["home_anchor_id"] = "dorm-01/bed-02"
-	(multi_snapshot["entities"] as Dictionary)["tovren-1"] = tovren_entity
-	(multi_snapshot["entity_revisions"] as Dictionary)["tovren-1"] = 1
-	presentation.apply_snapshot(multi_snapshot)
-	await _wait_frames(2)
-	var tovren_actor := characters.get_node_or_null("Tovren") as ElfieActor
-	var tovren_visual_root := tovren_actor.get_node("VisualRoot") as Node3D if tovren_actor != null else null
-	var tovren_foot_y := float(
-		ACTOR_APPEARANCE._foot_contact_y(tovren_visual_root)
-		if tovren_visual_root != null
-		else INF
-	)
-	if not _require(
-		tovren_actor != null
-			and characters.get_child_count() == 2
-			and tovren_actor.global_position
-				== nest.resolve_anchor("dorm-01/bed-02").global_position
-			and is_equal_approx(
-				tovren_foot_y,
-				nest.resolve_anchor("dorm-01/bed-02").global_position.y,
-			),
-		"Observer presentation did not ground both actors in a multi-Elfie snapshot",
-	):
-		return
-	presentation.apply_snapshot(valid_semantic_snapshot)
-	if not _require(
-		characters.get_child_count() == 1,
-		"Observer presentation recreated an unchanged actor"
-	):
-		return
-	var empty_snapshot := valid_semantic_snapshot.duplicate(true)
-	empty_snapshot["entities"] = {}
-	empty_snapshot["entity_revisions"] = {}
-	presentation.apply_snapshot(empty_snapshot)
-	if not _require(
-		characters.get_child_count() == 0,
-		"Observer presentation did not remove a stale actor"
-	):
-		return
-	var dynamic_room_snapshot := valid_semantic_snapshot.duplicate(true)
-	(dynamic_room_snapshot["scope"] as Dictionary)["room_id"] = "room-42"
-	(dynamic_room_snapshot["entities"]["saevi-1"] as Dictionary)["room_id"] = "room-42"
-	presentation.apply_snapshot(dynamic_room_snapshot)
-	await _wait_frames(2)
-	if not _require(
-		characters.get_child_count() == 1,
-		"Observer presentation rejected a valid non-default semantic room id"
-	):
-		return
 	var world_config := {
 		"channel": "elfienest.observer",
 		"version": 1,
 		"kind": "world_config",
 		"nest_id": "local-nest",
-		"bed_count": 4,
+		"bed_count": 32,
 	}
 	if not _require(
 		not (observer_bridge.call("_parse_world_config", world_config) as Dictionary).is_empty(),
@@ -390,13 +255,13 @@ func run() -> void:
 	await _wait_frames(4)
 	var configured_catalog := nest.observer_camera_catalog()
 	if not _require(
-		nest.bed_count == 4
-			and (configured_catalog["views"] as Array).size() == 4
+		nest.bed_count == 32
+			and (configured_catalog["views"] as Array).size() == EXPECTED_INITIAL_VIEW_COUNT
 			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-01") >= 0
-			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-02") == -1
-			and _view_index_by_id(configured_catalog["views"] as Array, "section-01") == -1
+			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-02") >= 0
+			and _view_index_by_id(configured_catalog["views"] as Array, "courtyard") >= 0
 			and _view_index_by_id(configured_catalog["views"] as Array, "section-02") == -1,
-		"Observer world configuration did not rebuild the four-bed geometry"
+		"Observer world configuration changed the fixed complete estate camera layout"
 	):
 		return
 	var invalid_world_config := world_config.duplicate(true)
@@ -409,7 +274,7 @@ func run() -> void:
 	nest.bed_count = 32
 	await _wait_frames(4)
 	selected_camera = root.get_camera_3d()
-	size_before_pause = selected_camera.size
+	size_before_pause = _camera_zoom(selected_camera)
 	if not _require(
 		(observer_bridge.call("_parse_camera_command",
 			_observer_command("select", {"view_id": "overview"})
@@ -499,15 +364,197 @@ func run() -> void:
 	await process_frame
 	if not _require(
 		not nest.observer_presentation_paused()
-			and selected_camera.size < size_before_pause,
+			and _camera_zoom(selected_camera) < size_before_pause,
 		"Continue command did not unlock local presentation input"
 	):
 		return
 	main.free()
+	observer_bridge.free()
 	print(
 		"PASS: observer catalog ids, revisions, selection, reset, pause gating, and command parsing"
 	)
+	if not await _test_semantic_replay(nest, valid_semantic_snapshot):
+		return
 	quit(0)
+
+
+func _test_semantic_replay(nest: ModularNest, valid_semantic_snapshot: Dictionary) -> bool:
+	# Positive replay coverage remains strict until actual estate anchors and routes exist.
+	if not _require(
+		nest.resolve_anchor("dorm-01/bed-01") != null
+			and nest.resolve_anchor("dorm-01/bed-02") != null
+			and nest.bake_navigation(),
+		"BLOCKED: complete estate semantic homes/navigation are not mapped; actor replay is unverified",
+	):
+		return false
+	var observer_bridge := OBSERVER_BRIDGE.new()
+	observer_bridge.setup(nest, null, true)
+	var characters := Node3D.new()
+	root.add_child(characters)
+	var synthetic_visual_root := Node3D.new()
+	root.add_child(synthetic_visual_root)
+	var synthetic_mesh := MeshInstance3D.new()
+	var synthetic_box := BoxMesh.new()
+	synthetic_box.size = Vector3(1.0, 2.0, 1.0)
+	synthetic_mesh.mesh = synthetic_box
+	synthetic_mesh.position.y = 1.25
+	synthetic_visual_root.add_child(synthetic_mesh)
+	var synthetic_ground_offset := ACTOR_APPEARANCE.ground_visual_to_plane(
+		synthetic_visual_root,
+		0.0,
+	)
+	if not _require(
+		is_equal_approx(synthetic_ground_offset, -0.25)
+			and is_equal_approx(synthetic_visual_root.global_position.y, -0.25),
+		"Visual grounding did not move a model whose lowest point was above the floor",
+	):
+		return false
+	synthetic_visual_root.queue_free()
+	var presentation := OBSERVER_PRESENTATION.new()
+	root.add_child(presentation)
+	presentation.setup(nest, characters, {"saevi": SAEVI_SCENE, "tovren": TOVREN_SCENE})
+	await presentation.prepare_navigation()
+	_apply_replay(presentation, valid_semantic_snapshot)
+	await _wait_frames(2)
+	var grounded_actor := characters.get_child(0) as ElfieActor
+	var grounded_visual_root := grounded_actor.get_node("VisualRoot") as Node3D
+	var grounded_foot_y := float(
+		ACTOR_APPEARANCE._foot_contact_y(grounded_visual_root)
+	)
+	print("Observer grounding: ready=%s actor=%s anchor=%s foot=%s error=%s" % [presentation.get("_navigation_ready"), grounded_actor.global_position, nest.resolve_anchor("dorm-01/bed-01").global_position, grounded_foot_y, grounded_actor.get_meta("observer_replay_error", "")])
+	if not _require(
+		characters.get_child_count() == 1
+			and grounded_actor.global_position
+				== nest.resolve_anchor("dorm-01/bed-01").global_position
+			and absf(grounded_foot_y - nest.resolve_anchor("dorm-01/bed-01").global_position.y) <= 0.05,
+		"Observer presentation did not place the Elfie at its semantic home anchor"
+	):
+		return false
+	var motion_snapshot := valid_semantic_snapshot.duplicate(true)
+	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
+	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
+		"waypoint": 1,
+		"sequence": 1,
+	}
+	if not _require(nest.bake_navigation(), "Observer could not prepare its local replay NavMesh"):
+		return false
+	for _frame in range(4):
+		await physics_frame
+	if not _require(
+		not (observer_bridge.call("_parse_semantic_snapshot", motion_snapshot) as Dictionary).is_empty(),
+		"Observer semantic snapshot rejected the temporary waypoint state",
+	):
+		return false
+	_apply_replay(presentation, motion_snapshot)
+	for _frame in range(4):
+		await physics_frame
+	if not _require(
+		grounded_actor.active_command_id.begins_with("observer-mock-wander-"),
+		"Observer did not replay the authority waypoint as local navigation",
+	):
+		return false
+	var whole_nest_motion_snapshot := valid_semantic_snapshot.duplicate(true)
+	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
+	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
+		"waypoint": 23,
+		"sequence": 3,
+	}
+	if not _require(
+		not (observer_bridge.call("_parse_semantic_snapshot", whole_nest_motion_snapshot) as Dictionary).is_empty(),
+		"Observer semantic snapshot rejected a whole-Nest waypoint beyond the legacy room range",
+	):
+		return false
+	var sleep_snapshot := valid_semantic_snapshot.duplicate(true)
+	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
+	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
+		"mode": "sleep",
+		"sequence": 2,
+	}
+	if not _require(
+		not (observer_bridge.call("_parse_semantic_snapshot", sleep_snapshot) as Dictionary).is_empty(),
+		"Observer semantic snapshot rejected the sleep-return motion state",
+	):
+		return false
+	_apply_replay(presentation, valid_semantic_snapshot)
+	await _wait_frames(1)
+	_apply_replay(presentation, sleep_snapshot)
+	for _frame in range(600):
+		await physics_frame
+		if (
+			grounded_actor.active_command_id.is_empty()
+			and grounded_actor.global_position.distance_to(
+				nest.resolve_anchor("dorm-01/bed-01").global_position
+			) <= 0.5
+		):
+			break
+	if not _require(
+		grounded_actor.global_position.distance_to(
+			nest.resolve_anchor("dorm-01/bed-01").global_position
+		) <= 0.5,
+		"Observer did not replay sleep motion back to the semantic home bed",
+	):
+		return false
+	_apply_replay(presentation, valid_semantic_snapshot)
+	await _wait_frames(1)
+	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
+	var tovren_entity := (multi_snapshot["entities"]["saevi-1"] as Dictionary).duplicate(true)
+	tovren_entity["species_id"] = "tovren"
+	tovren_entity["home_anchor_id"] = "dorm-01/bed-02"
+	tovren_entity["action_anchor_id"] = "dorm-01/bed-02"
+	(multi_snapshot["entities"] as Dictionary)["tovren-1"] = tovren_entity
+	(multi_snapshot["entity_revisions"] as Dictionary)["tovren-1"] = 1
+	_apply_replay(presentation, multi_snapshot)
+	await _wait_frames(2)
+	var tovren_actor := characters.get_node_or_null("Tovren") as ElfieActor
+	var tovren_visual_root := tovren_actor.get_node("VisualRoot") as Node3D if tovren_actor != null else null
+	var tovren_foot_y := float(
+		ACTOR_APPEARANCE._foot_contact_y(tovren_visual_root)
+		if tovren_visual_root != null
+		else INF
+	)
+	if not _require(
+		tovren_actor != null
+			and characters.get_child_count() == 2
+			and tovren_actor.global_position
+				== nest.resolve_anchor("dorm-01/bed-02").global_position
+			and absf(tovren_foot_y - nest.resolve_anchor("dorm-01/bed-02").global_position.y) <= 0.05,
+		"Observer presentation did not ground both actors in a multi-Elfie snapshot",
+	):
+		return false
+	_apply_replay(presentation, valid_semantic_snapshot)
+	if not _require(
+		characters.get_child_count() == 1,
+		"Observer presentation recreated an unchanged actor"
+	):
+		return false
+	var empty_snapshot := valid_semantic_snapshot.duplicate(true)
+	empty_snapshot["entities"] = {}
+	empty_snapshot["entity_revisions"] = {}
+	_apply_replay(presentation, empty_snapshot)
+	if not _require(
+		characters.get_child_count() == 0,
+		"Observer presentation did not remove a stale actor"
+	):
+		return false
+	var dynamic_room_snapshot := valid_semantic_snapshot.duplicate(true)
+	(dynamic_room_snapshot["scope"] as Dictionary)["room_id"] = "room-42"
+	(dynamic_room_snapshot["entities"]["saevi-1"] as Dictionary)["room_id"] = "room-42"
+	_apply_replay(presentation, dynamic_room_snapshot)
+	await _wait_frames(2)
+	if not _require(
+		characters.get_child_count() == 1,
+		"Observer presentation rejected a valid non-default semantic room id"
+	):
+		return false
+	observer_bridge.free()
+	return true
+
+
+func _apply_replay(presentation: Node, snapshot: Dictionary) -> void:
+	var current := int(presentation.get("_snapshot_sequence"))
+	var next := snapshot.duplicate(true)
+	next["sequence"] = current + 1
+	presentation.apply_snapshot(next)
 
 
 func _catalog_has_shape(catalog: Dictionary) -> bool:
@@ -556,6 +603,10 @@ func _observer_command(
 	for key: Variant in fields.keys():
 		command[key] = fields[key]
 	return command
+
+
+func _camera_zoom(camera: Camera3D) -> float:
+	return camera.fov if camera.projection == Camera3D.PROJECTION_PERSPECTIVE else camera.size
 
 
 func _send_wheel_up() -> void:

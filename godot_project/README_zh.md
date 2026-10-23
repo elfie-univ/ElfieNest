@@ -22,14 +22,27 @@ ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移�
 godot_project/
 ├── main.tscn、main.gd     # 项目入口
 ├── runtime/               # 世界配置、角色同步与语义动作生命周期
-├── rooms/                 # Nest、房间、布局和家具资源
+├── rooms/                 # Nest 观察控制与完整最终精灵巢资产
 ├── characters/            # Elfie 角色、模型、动画与外观制作资料
 ├── ui/                    # 观察界面
 └── scripts/               # Godot 内部测试与资源制作工具
 ```
 
 角色制作资料从 [`characters/README.md`](characters/README.md) 进入；房间资源
-约定从 [`rooms/assets/README.md`](rooms/assets/README.md) 进入。
+约定从 [`rooms/estate/README.md`](rooms/estate/README.md) 进入。旧程序化方形房间、独立家具及
+主楼/小屋基线已退役；`rooms/nest.tscn` 是唯一精灵巢入口，只实例化一次完整新版资产。
+当前根据最终模型绑定碰撞、32 个床位、32 把书桌椅、庭院座椅、房门与导航；世界就绪要求
+导航同步及锚点可达。`furniture.use` 沿原有 Body/Gateway 链路先走到家具，再进入可退出的
+睡眠或坐姿；仅打开相机预览不代表这些动作已验收。
+
+当前白天基线由 `rooms/estate/estate_daylight.gd` 在恢复共享实例前应用：中性带阴影的
+太阳光、关闭人工灯具自发光；室内补光与亮部范围位于 `rooms/nest.tscn`。
+建筑外壳、窗框和玻璃使用柔和室外光层，不使用室内补光。小屋仅依靠透射的观察玻璃在
+Compatibility 中采用薄层淡色 Alpha 透明显示，保留原 RGB 与粗糙度；这并非物理透射或
+折射的等价实现。
+已确认的主楼一楼保留室内补光；小屋、上层房间及屋顶区域（包括其中家具）使用柔和白天光照。
+这不会重写已确认的 GLB、天空纹理、几何或渲染质量设置。此基线尚未实现自动昼夜照明，
+也未安装拟议的庭院灯具。
 
 ## 编辑安全
 
@@ -56,6 +69,10 @@ godot_project/
 ```text
 build/components/godot-web/
 ```
+
+实验入口 `?mode=m01_sample` 仅加载原始 M01 网格，使用 4x MSAA，验证源清漆、
+织物柔光与玻璃，不启动精灵或完整世界。它是光学对照候选，不是已经验收的园区
+渲染配置；源 RGB 值保持不变。
 
 在仓库根目录构建或检查：
 
@@ -96,7 +113,7 @@ Dedicated 预设强制启用 Godot 的 `dedicated_server` feature 与 headless �
 `execute_intent` 和 `cancel_intent`。Runtime 生命周期从图形化 Web、图形化 Electron
 权威角色或无显示 Linux Dedicated 中选择一个权威宿主。Godot 负责：
 
-- 根据床位数重建固定房间，并发布稳定的 zone/anchor 语义目录；
+- 管理完整精灵巢，并发布已验证的 zone/anchor 语义目录（新版锚点尚未映射，因此拒绝报告世界就绪）；
 - 生成导航网格、逐物理帧寻路、碰撞与避障；
 - 加载 Saevi/Tovren/Myelle 角色场景，播放移动、姿态和表情；
 - 计算触觉接触和说话听众，并回传带 revision/generation 的类型化事件。

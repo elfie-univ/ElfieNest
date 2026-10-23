@@ -8,32 +8,23 @@ GODOT_ROOT = PROJECT_ROOT / "godot_project"
 EXPECTED_SCENES = (
     "main.tscn",
     "rooms/nest.tscn",
-    "rooms/activity_room.tscn",
-    "rooms/dorm_room.tscn",
-    "rooms/portal_room.tscn",
-    "rooms/common_area_layouts/kitchen_layout.tscn",
-    "rooms/common_area_layouts/sitting_layout.tscn",
-    "rooms/common_area_layouts/media_layout.tscn",
-    "rooms/common_area_layouts/gym_layout.tscn",
-    "rooms/common_area_layouts/garden_layout.tscn",
-    "rooms/common_area_layouts/working_layout.tscn",
-    "rooms/common_area_layouts/music_layout.tscn",
-    "rooms/common_area_layouts/bookroom_layout.tscn",
+    "rooms/estate/estate.tscn",
     "characters/tovren/tovren.tscn",
     "characters/saevi/saevi.tscn",
     "characters/myelle/myelle.tscn",
 )
 
-EXPECTED_LAYOUTS = {
-    Path(path).name
-    for path in EXPECTED_SCENES
-    if path.startswith("rooms/common_area_layouts/")
-}
-
 LEGACY_RESOURCE_PREFIXES = (
     "res://modular_rooms/",
     "res://room/",
     "res://character/",
+    "res://rooms/assets/",
+    "res://rooms/common_area_layouts/",
+    "res://rooms/room_dimensions.gd",
+    "res://rooms/room_geometry.gd",
+    "res://rooms/dorm_room",
+    "res://rooms/activity_room",
+    "res://rooms/portal_room",
 )
 
 
@@ -52,10 +43,23 @@ def test_expected_scene_structure_exists() -> None:
     assert missing == [], f"缺少正式 Godot 场景: {missing}"
 
 
-def test_common_area_layout_names_are_exact() -> None:
-    layout_root = GODOT_ROOT / "rooms" / "common_area_layouts"
-    actual_layouts = {path.name for path in layout_root.glob("*.tscn")}
-    assert actual_layouts == EXPECTED_LAYOUTS
+def test_rooms_contain_only_current_complete_estate() -> None:
+    rooms = GODOT_ROOT / "rooms"
+    assert {path.name for path in rooms.iterdir()} <= {
+        "nest.gd",
+        "nest.gd.uid",
+        "nest.tscn",
+        "estate",
+    }
+    estate = rooms / "estate"
+    for retired in (
+        "central.glb",
+        "pod.glb",
+        "placements.json",
+        "estate_nest.gd",
+        "estate_nest.tscn",
+    ):
+        assert not (estate / retired).exists(), f"旧资产尚未迁出: {retired}"
 
 
 def test_legacy_resource_paths_are_not_referenced() -> None:
@@ -202,12 +206,20 @@ def test_runtime_manifest_is_semantic_and_does_not_export_coordinates() -> None:
     nest_text = (GODOT_ROOT / "rooms" / "nest.gd").read_text(encoding="utf-8")
     manifest_section = nest_text.split("func scene_manifest()", maxsplit=1)[1]
     manifest_section = manifest_section.split(
-        "func _build_semantic_anchor_markers",
+        "func bake_navigation",
         maxsplit=1,
     )[0]
 
-    assert '"zones": _semantic_zones(room_count)' in manifest_section
-    assert '"anchors": _semantic_anchors(room_count)' in manifest_section
+    # Coordinates stay inside Godot; only the model-bound semantic catalog crosses out.
+    assert '"zones": _estate_semantics.zones' in manifest_section
+    assert (
+        '"anchors": _estate_semantics.manifest_anchors(FIXED_BED_COUNT)'
+        in manifest_section
+    )
+    assert (
+        '"capabilities": ["semantic_anchors", "complete_actor_sync", "navigation"]'
+        in manifest_section
+    )
     assert "Vector3" not in manifest_section
     assert '"position"' not in manifest_section
 

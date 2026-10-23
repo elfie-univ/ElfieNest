@@ -24,15 +24,34 @@ Main source layout:
 godot_project/
 ├── main.tscn, main.gd     # project entry
 ├── runtime/               # world configuration, actor sync and semantic action lifecycle
-├── rooms/                 # Nest, rooms, layout and furniture assets
+├── rooms/                 # Nest observer and the complete final estate asset
 ├── characters/            # Elfie characters, models, animation and appearance authoring material
 ├── ui/                    # observation UI
 └── scripts/               # Godot-internal tests and asset authoring tools
 ```
 
 Enter character authoring from [`characters/README.md`](characters/README.md);
-enter room asset conventions from
-[`rooms/assets/README.md`](rooms/assets/README.md).
+enter the complete building, interiors and courtyard from
+[`rooms/estate/README.md`](rooms/estate/README.md). The legacy procedural rooms,
+standalone furniture and central/pod baseline have been retired; `rooms/nest.tscn`
+is the only Nest entry and instantiates this complete estate once. Its authored
+geometry now binds collisions, 32 beds, 32 desk chairs, courtyard seating, doors
+and navigation; world readiness waits for synchronization and reachable anchors.
+`furniture.use` uses the existing Body/Gateway path to walk to furniture before
+entering its reversible bed or seat pose; a camera preview alone does not verify it.
+
+The current daylight baseline is applied by `rooms/estate/estate_daylight.gd`
+before restoring shared instances: neutral shadowed sunlight and non-emissive
+artificial lamps, with interior fill and highlight headroom in `rooms/nest.tscn`.
+Facade shells, window surrounds and glazing use the softer outdoor light layer,
+not the interior fill. The pods' transmission-only observation glass is rendered
+as thin tinted alpha glazing in Compatibility; source RGB and roughness are kept,
+but this does not reproduce physical transmission or refraction.
+The reviewed ground-floor common room keeps its indoor fill; pods, upper rooms
+and roof areas use the softer daylight profile, including their furniture.
+It does not rewrite the approved GLB, sky textures, geometry or render-quality
+settings. Automatic day/night lighting and proposed courtyard lamps are not yet
+implemented by this baseline.
 
 ## Editing safety
 
@@ -64,6 +83,11 @@ not expose camera or JPEG-frame transport. Final artifacts may only go into:
 ```text
 build/components/godot-web/
 ```
+
+The experimental `?mode=m01_sample` Lab entry isolates the original M01 meshes,
+uses 4x MSAA and tests source clearcoat, cloth sheen and glazing without starting
+actors or the full world. It is an optical comparison candidate, not an accepted
+replacement for the estate's rendering profile; source RGB values are preserved.
 
 Build or check from the repository root:
 
@@ -109,8 +133,8 @@ The sole authority Runtime receives `configure_world`, `sync_actors`,
 Runtime lifecycle chooses one authority host: graphical Web, graphical Electron
 authority role, or displayless Linux Dedicated. Godot is responsible for:
 
-- Rebuilding fixed rooms based on the bed count and publishing a stable
-  zone/anchor semantic catalog;
+- Owning the complete estate and publishing its verified zone/anchor semantic
+  catalog (the new asset's anchors are not mapped yet, so world readiness fails closed);
 - Generating the navigation mesh, per-physics-frame pathfinding, collision and
   avoidance;
 - Loading the saevi / tovren / myelle character scenes and playing movement, posture and

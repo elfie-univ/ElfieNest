@@ -27,7 +27,7 @@ func run() -> void:
 	var configured: Dictionary = await world_controller.configure_world(
 		{
 			"nest_id": "observer-local-mock-test",
-			"bed_count": 8,
+			"bed_count": 32,
 			"world_revision": 1,
 		},
 		"configure-observer-local-mock",
@@ -42,7 +42,10 @@ func run() -> void:
 	var presentation := OBSERVER_PRESENTATION.new()
 	root.add_child(presentation)
 	presentation.setup(nest, characters, ACTOR_SCENES, true)
+	await presentation.prepare_navigation()
 	presentation.apply_snapshot({
+		"generation": 1,
+		"sequence": 1,
 		"entities": {
 			"saevi-1": {
 				"room_id": "local-nest",
@@ -50,6 +53,7 @@ func run() -> void:
 				"posture": "standing",
 				"active": true,
 				"active_command_id": null,
+				"action_anchor_id": null,
 				"species_id": "saevi",
 				"appearance": {},
 				"home_anchor_id": "dorm-01/bed-01",

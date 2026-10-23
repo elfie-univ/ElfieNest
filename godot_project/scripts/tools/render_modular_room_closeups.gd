@@ -1,12 +1,11 @@
 extends SceneTree
 
 const NEST_SCENE := preload("res://rooms/nest.tscn")
-const D := preload("res://rooms/room_dimensions.gd")
 const FRAME_SIZE := Vector2i(1024, 768)
 const CONTACT_COLUMNS: int = 4
 const THUMBNAIL_SIZE := Vector2i(512, 384)
 
-var _output_dir := "/tmp/elfienest-room-closeups"
+var _output_dir := ProjectSettings.globalize_path("res://../build/estate-closeups")
 
 
 func _initialize() -> void:
@@ -28,46 +27,18 @@ func run() -> void:
 	nest.show_observation_hud = false
 	root.add_child(nest)
 	await _wait_frames(5)
-	var camera := nest.get_node("Camera3D") as Camera3D
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.near = 0.05
-	camera.far = 200.0
-	camera.current = true
-
-	var specs: Array[Dictionary] = []
-	var building_center_z := -4.0 * D.CELL_PITCH
-	specs.append(_spec("00_overview.png", Vector3(0.2, 0.6, building_center_z), Vector3(22.0, 28.0, 26.0), 52.0))
-	var room_names := ["kitchen", "sitting", "media", "gym", "garden", "working", "music", "bookroom"]
-	for index in range(8):
-		specs.append(_spec(
-			"%02d_activity_%s.png" % [index + 1, room_names[index]],
-			Vector3(D.ACTIVITY_CENTER_X, 0.9, D.cell_center_z(index)),
-			Vector3(7.0, 5.2, 4.5),
-			6.8
-		))
-	for index in [0, 7]:
-		specs.append(_spec(
-			"%02d_dorm.png" % (index + 1),
-			Vector3(D.DORM_CENTER_X, 0.65, D.cell_center_z(index)),
-			Vector3(-4.5, 7.5, 1.6),
-			6.4
-		))
-	specs.append(_spec(
-		"11_corridor.png",
-		Vector3(0.0, 0.45, building_center_z),
-		Vector3(8.0, 9.0, 14.0),
-		25.0
-	))
-
 	var captures: Array[Image] = []
-	for spec in specs:
-		var image := await _capture(
-			camera,
-			spec["target"] as Vector3,
-			spec["offset"] as Vector3,
-			float(spec["size"])
-		)
-		var output_path := _output_dir.path_join(String(spec["filename"]))
+	var views := nest.observer_camera_catalog()["views"] as Array
+	for view: Dictionary in views:
+		var view_id := String(view["id"])
+		if not nest.select_observer_camera_by_id(view_id):
+			push_error("Cannot select complete estate view: %s" % view_id)
+			quit(1)
+			return
+		await _wait_frames(3)
+		await RenderingServer.frame_post_draw
+		var image := root.get_texture().get_image()
+		var output_path := _output_dir.path_join("%s.png" % view_id)
 		var save_error := image.save_png(output_path)
 		if save_error != OK:
 			push_error("Cannot save close-up: %s" % output_path)
@@ -81,27 +52,9 @@ func run() -> void:
 		push_error("Cannot save contact sheet")
 		quit(1)
 		return
-	print("PASS: rendered %d room views and contact sheet" % captures.size())
+	print("PASS: rendered %d complete estate views and contact sheet" % captures.size())
 	nest.queue_free()
 	quit(0)
-
-
-func _spec(filename: String, target: Vector3, offset: Vector3, size: float) -> Dictionary:
-	return {
-		"filename": filename,
-		"target": target,
-		"offset": offset,
-		"size": size,
-	}
-
-
-func _capture(camera: Camera3D, target: Vector3, offset: Vector3, size: float) -> Image:
-	camera.size = size
-	camera.position = target + offset
-	camera.look_at(target, Vector3.UP)
-	await _wait_frames(3)
-	await RenderingServer.frame_post_draw
-	return root.get_texture().get_image()
 
 
 func _save_contact_sheet(images: Array[Image], output_path: String) -> Error:

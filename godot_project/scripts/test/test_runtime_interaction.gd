@@ -2,6 +2,7 @@ extends SceneTree
 
 const ACTOR_CONTROLLER_SCRIPT := preload("res://runtime/actor/actor_controller.gd")
 const WORLD_CONTROLLER_SCRIPT := preload("res://runtime/world/world_controller.gd")
+const SPATIAL_QUERIES := preload("res://runtime/world/spatial_queries.gd")
 const ACTOR_SCENES := {
 	"tovren": preload("res://characters/tovren/tovren.tscn"),
 	"saevi": preload("res://characters/saevi/saevi.tscn"),
@@ -17,7 +18,7 @@ func _init() -> void:
 	root.add_child(world_controller)
 	world_controller.setup(nest)
 	var configured: Dictionary = await world_controller.configure_world(
-		{"nest_id": "interaction-test", "bed_count": 4, "world_revision": 1},
+		{"nest_id": "interaction-test", "bed_count": 32, "world_revision": 1},
 		"configure-1",
 	)
 	if not bool(configured.get("accepted", false)):
@@ -55,7 +56,12 @@ func _init() -> void:
 	# Face the observer toward the second actor so this test exercises the
 	# positive FOV path rather than relying on the scene's default orientation.
 	var saevi := controller.actor("saevi-1")
-	saevi.look_at(saevi.global_position + Vector3.RIGHT, Vector3.UP)
+	var tovren := controller.actor("tovren-1")
+	if not _place_query_pair(nest, saevi, tovren, 1.0, 3.5, true):
+		_fail("No clear nearby query fixture exists at the real dorm anchors")
+		return
+	await physics_frame
+	_face_toward(saevi, tovren.global_position)
 
 	var events: Array[Dictionary] = []
 	world_controller.runtime_event.connect(
@@ -98,7 +104,10 @@ func _init() -> void:
 	if rest_marker == null:
 		_fail("Semantic facility marker was not built")
 		return
-	saevi.look_at(saevi.global_position - (rest_marker.global_position - saevi.global_position), Vector3.UP)
+	var nearby_target_position := tovren.global_position
+	_face_toward(saevi, rest_marker.global_position)
+	tovren.global_position = saevi.global_position - saevi.global_basis.z.normalized()
+	await physics_frame
 	world_controller.resolve_visual_observation({
 		"observation_id": "facility-visible",
 		"actor_id": "saevi-1",
@@ -109,41 +118,42 @@ func _init() -> void:
 		_fail("Semantic visual observation did not apply physical filtering to a facility")
 		return
 	var rest_position := rest_marker.global_position
-	rest_marker.global_position = saevi.global_position + Vector3.RIGHT
+	rest_marker.global_position = saevi.global_position - saevi.global_basis.z.normalized()
 	world_controller.resolve_visual_observation({
 		"observation_id": "facility-behind",
 		"actor_id": "saevi-1",
 		"max_results": 64,
 	})
 	var hidden_facilities: Variant = _event_payload(events, "visual_observation", "facility-behind")
-	if hidden_facilities != null and "facility/dorm-01/rest" in hidden_facilities.get("visible_semantic_ids", []):
+	if hidden_facilities == null or "facility/dorm-01/rest" in hidden_facilities.get("visible_semantic_ids", []):
 		_fail("Semantic visual observation returned a facility outside the visual cone")
 		return
 	rest_marker.global_position = rest_position
-	saevi.look_at(saevi.global_position + Vector3.RIGHT, Vector3.UP)
-	var tovren := controller.actor("tovren-1")
+	tovren.global_position = nearby_target_position
+	_face_toward(saevi, tovren.global_position)
 	var observer_position := saevi.global_position
 	var target_position := tovren.global_position
 	# A target behind the observer must not be returned by the World query.
-	tovren.global_position = observer_position + Vector3.RIGHT
+	tovren.global_position = observer_position - saevi.global_basis.z.normalized()
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-behind",
 		"actor_id": "saevi-1",
 		"max_results": 8,
 	})
 	var behind: Variant = _event_payload(events, "visual_observation", "vision-behind")
-	if behind != null and "actor/tovren-1" in behind.get("visible_semantic_ids", []):
+	if behind == null or "actor/tovren-1" in behind.get("visible_semantic_ids", []):
 		_fail("World visual query returned an actor behind the observer")
 		return
 	tovren.global_position = target_position
 	var visual_obstacle := _add_query_obstacle(main, observer_position, target_position)
+	await physics_frame
 	world_controller.resolve_visual_observation({
 		"observation_id": "vision-occluded",
 		"actor_id": "saevi-1",
 		"max_results": 8,
 	})
 	var occluded: Variant = _event_payload(events, "visual_observation", "vision-occluded")
-	if occluded != null and "actor/tovren-1" in occluded.get("visible_semantic_ids", []):
+	if occluded == null or "actor/tovren-1" in occluded.get("visible_semantic_ids", []):
 		_fail("World visual query returned an occluded actor")
 		return
 	visual_obstacle.queue_free()
@@ -155,11 +165,25 @@ func _init() -> void:
 		"max_results": 1,
 	})
 	var bounded: Variant = _event_payload(events, "visual_observation", "vision-bounded")
-	if bounded == null or (bounded.get("visible_semantic_ids", []) as Array).size() > 1:
+	if bounded == null or (bounded.get("visible_semantic_ids", []) as Array).size() != 1:
 		_fail("World visual query exceeded the requested result bound")
 		return
 	# A quiet voice cannot cross the same physical distance as a normal voice.
-	tovren.global_position = observer_position + Vector3(0.0, 0.0, 2.5)
+	if not _place_query_pair(
+		nest, saevi, tovren, SPATIAL_QUERIES.speech_range("quiet") + 0.5,
+		SPATIAL_QUERIES.speech_range("normal") - 0.5,
+	):
+		_fail("No clear same-room anchor pair spans quiet but not normal speech range")
+		return
+	await physics_frame
+	world_controller.resolve_speech_reach({
+		"command_id": "speech-normal-range", "actor_id": "saevi-1",
+		"acoustic_profile": "normal",
+	})
+	var normal_range: Variant = _event_payload(events, "speech_reach", "speech-normal-range")
+	if normal_range == null or "tovren-1" not in normal_range.get("audience_actor_ids", []):
+		_fail("Speech range fixture was already inaudible before applying the quiet limit")
+		return
 	world_controller.resolve_speech_reach({
 		"command_id": "speech-quiet-range",
 		"actor_id": "saevi-1",
@@ -169,8 +193,10 @@ func _init() -> void:
 	if quiet_range == null or "tovren-1" in quiet_range.get("audience_actor_ids", []):
 		_fail("Quiet speech ignored its bounded acoustic range")
 		return
+	saevi.global_position = observer_position
 	tovren.global_position = target_position
 	var speech_obstacle := _add_query_obstacle(main, observer_position, target_position)
+	await physics_frame
 	world_controller.resolve_speech_reach({
 		"command_id": "speech-occluded",
 		"actor_id": "saevi-1",
@@ -223,11 +249,18 @@ func _init() -> void:
 			probe_terminals.append(command_id)
 	)
 	progress_probe.set_physics_process(false)
-	progress_probe.global_position = Vector3(0.0, 0.02, -2.25)
+	var segment := _courtyard_walk_segment(nest)
+	if segment.size() != 2:
+		_fail("No real courtyard navigation segment can host the slow-progress probe")
+		return
+	progress_probe.global_position = segment[0] + Vector3.UP * 0.02
+	var probe_direction := (segment[1] - segment[0]).normalized()
 	progress_probe.active_command_id = "slow-progress-1"
+	var agent := progress_probe.get_node("NavigationAgent3D") as NavigationAgent3D
+	agent.avoidance_enabled = false
 	var probe_start := progress_probe.global_position
 	for _frame in range(100):
-		progress_probe._on_avoidance_velocity_computed(Vector3(0.1, 0.0, 0.0))
+		progress_probe._on_avoidance_velocity_computed(probe_direction * 0.1)
 		await physics_frame
 	if (
 		"slow-progress-1" in probe_terminals
@@ -238,12 +271,13 @@ func _init() -> void:
 	progress_probe.active_command_id = ""
 	progress_probe.velocity = Vector3.ZERO
 	progress_probe.global_position = probe_home
+	agent.avoidance_enabled = true
 	progress_probe.set_physics_process(true)
 	controller.execute_intent({
 		"command_id": "move-clear-1",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
-		"anchor_id": "activity-01/activity",
+		"anchor_id": "central-01/activity",
 		"deadline_seconds": 10.0,
 	})
 	for _frame in range(600):
@@ -269,7 +303,13 @@ func _init() -> void:
 			]
 		)
 		return
-	var obstacle := _add_runtime_obstacle(main)
+	var obstacle := _add_runtime_obstacle(
+		main, saevi, nest.resolve_anchor("dorm-01/bed-02").global_position,
+	)
+	if obstacle == null:
+		_fail("No actual return path exists for the dynamic collision test")
+		return
+	await physics_frame
 	controller.execute_intent({
 		"command_id": "blocked-1",
 		"actor_id": "saevi-1",
@@ -319,30 +359,111 @@ func _event_payload(
 	return null
 
 
-func _add_runtime_obstacle(parent: Node) -> StaticBody3D:
+func _add_runtime_obstacle(parent: Node, actor: ElfieActor, target: Vector3) -> StaticBody3D:
+	var path := NavigationServer3D.map_get_path(
+		actor.get_world_3d().navigation_map, actor.global_position, target, true,
+	)
+	var direction := Vector3.ZERO
+	for point: Vector3 in path:
+		var offset := point - actor.global_position
+		offset.y = 0.0
+		if offset.length() > 0.3:
+			direction = offset.normalized()
+			break
+	if direction.is_zero_approx():
+		return null
 	var body := StaticBody3D.new()
 	body.name = "RuntimeTestObstacle"
-	body.position = Vector3(0.62, 0.9, -2.25)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(0.35, 1.8, 1.2)
+	shape.size = Vector3(1.2, 1.8, 0.35)
 	collision.shape = shape
 	body.add_child(collision)
 	parent.add_child(body)
+	body.global_position = actor.global_position + direction * 0.65 + Vector3.UP * 0.9
+	body.look_at(body.global_position + direction, Vector3.UP)
 	return body
 
 
 func _add_query_obstacle(parent: Node, first: Vector3, second: Vector3) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = "QueryObstacle"
-	body.position = (first + second) / 2.0 + Vector3.UP * 0.9
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(0.28, 1.8, 0.65)
+	shape.size = Vector3(0.8, 1.8, 0.28)
 	collision.shape = shape
 	body.add_child(collision)
 	parent.add_child(body)
+	body.global_position = (first + second) / 2.0 + Vector3.UP * 0.9
+	body.look_at(second + Vector3.UP * 0.9, Vector3.UP)
 	return body
+
+
+func _face_toward(actor: ElfieActor, target: Vector3) -> void:
+	var offset := target - actor.global_position
+	offset.y = 0.0
+	actor.look_at(actor.global_position - offset, Vector3.UP)
+
+
+func _place_query_pair(
+	nest: ModularNest, first: ElfieActor, second: ElfieActor,
+	minimum: float, maximum: float, require_facility_view: bool = false,
+) -> bool:
+	var points: Array[Vector3] = []
+	var map := nest.get_world_3d().navigation_map
+	var rest := nest.resolve_facility("dorm-01/rest")
+	for id in nest.semantic_anchor_ids():
+		var marker := nest.resolve_anchor(id)
+		if marker == null or marker.get_meta("zone_id", "") != "dorm-01":
+			continue
+		if not NavigationServer3D.map_get_closest_point_owner(map, marker.global_position).is_valid():
+			continue
+		var point := NavigationServer3D.map_get_closest_point(map, marker.global_position)
+		if point.distance_to(marker.global_position) > 0.5:
+			continue
+		points.append(point + Vector3.UP * 0.02)
+	for a: Vector3 in points:
+		for b: Vector3 in points:
+			var distance := a.distance_to(b)
+			if distance < minimum or distance > maximum:
+				continue
+			if nest.nearest_zone_id(a) != "dorm-01" or nest.nearest_zone_id(b) != "dorm-01":
+				continue
+			if require_facility_view:
+				if rest == null or a.distance_to(rest.global_position) < 0.5:
+					continue
+				if not SPATIAL_QUERIES.has_line_of_sight(
+					nest.get_world_3d(), a + Vector3.UP * SPATIAL_QUERIES.VISUAL_EYE_HEIGHT,
+					rest.global_position + Vector3.UP * 0.6,
+					null, [first.get_rid(), second.get_rid()],
+				):
+					continue
+			if not SPATIAL_QUERIES.has_line_of_sight(
+				nest.get_world_3d(), a + Vector3.UP * SPATIAL_QUERIES.VISUAL_EYE_HEIGHT,
+				b + Vector3.UP * SPATIAL_QUERIES.ACTOR_TARGET_HEIGHT,
+				null, [first.get_rid(), second.get_rid()],
+			):
+				continue
+			first.global_position = a
+			second.global_position = b
+			return true
+	return false
+
+
+func _courtyard_walk_segment(nest: ModularNest) -> PackedVector3Array:
+	var start := nest.resolve_anchor("courtyard/activity")
+	var target := nest.resolve_anchor("courtyard/picnic-seat")
+	if start == null or target == null:
+		return PackedVector3Array()
+	var path := NavigationServer3D.map_get_path(
+		nest.get_world_3d().navigation_map, start.global_position, target.global_position, true,
+	)
+	if path.is_empty() or path[path.size() - 1].distance_to(target.global_position) > 1.35:
+		return PackedVector3Array()
+	for index in range(1, path.size()):
+		if path[index - 1].distance_to(path[index]) > 1.0 and absf(path[index].y - path[index - 1].y) < 0.05:
+			return PackedVector3Array([path[index - 1], path[index]])
+	return PackedVector3Array()
 
 
 func _tactile_count(

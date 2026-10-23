@@ -69,8 +69,11 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 状态；它绝不能暂停 Runtime、Gateway、Core 或后端模拟。
 
 产品 Observer 也可以接收严格的语义实体快照，用于只读呈现。每个实体只携带身份、物种、外观、
-房间/区域状态和语义 `home_anchor_id`，不携带坐标、transform、导航或碰撞事实。Godot 在本地
-解析该 anchor，并负责角色放置与渲染。作为临时、可删除的行为，authority 还可以发布
+房间/区域状态、语义 `home_anchor_id` 和可空的 `action_anchor_id`，不携带坐标、transform、
+导航或碰撞事实。Godot 在本地解析该 anchor，并负责角色放置与渲染。动作锚点、姿态和进行中
+命令来自权威世界开始及完成动作时的快照。Observer 在相同场景中回放行走与已创作的床椅姿态；
+重复或过期快照不会重启动作，本地暂停只停止显示物理。产品本地随机游走已关闭，未知动作锚点
+不会回退成虚构的床位状态。作为临时、可删除的行为，authority 还可以发布
 `mock_motion: {waypoint, sequence}`；waypoint 仍由本地房间 NavMesh 解析，Observer 客户端只复现
 它，不自行选择随机目标。React bridge 只接受并转发经过校验、发往当前同源 Observer iframe 的快照。
 
@@ -81,6 +84,22 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 世界的请求是单独授权、限流的高层 `request_interaction`（`greet` 或 `rest`），它经由
 应用边界送到 world sink。第一阶段的 Observer 不是相机/视频传输：不发送 JPEG 帧，也
 不提供相机流 API。
+
+## 完整精灵巢的物理与家具动作
+
+`godot_project/rooms/nest.tscn` 仍是唯一世界入口。完整资产中已有的模块、楼层与家具
+元数据绑定物理碰撞和稳定交互锚点，不再使用退役程序化房间的坐标。镜像渲染节点会转换为
+正手性的物理变换，视觉几何不移动。庭院复用已创作的碰撞代理，不把树叶全部用于导航烘焙。
+
+世界就绪要求导航区域完成同步，并且发布的锚点具有通往庭院的有效路径，而不只是存在
+非空导航资源。整套精灵巢固定提供 32 个床位的活动语义目录，不复制或重建整套精灵巢。
+
+原生 Body 提供 `furniture.use`，参数只有 `anchor_id`。它通过已有认证的
+`execute_intent` 命令转换为 `use_anchor`，调用方不能传入坐标或姿态。同一个命令先实际
+导航到家具旁的接近点，再进入已创作的睡眠或坐姿，并保留原始 intent/body-generation
+身份和唯一终态。普通 `move_to_anchor` 不会自动使用家具。家具被占用、路径不可达、
+接触元数据无效或退出位置受阻都会明确失败。走开时恢复站立身体与碰撞。这些操作仍由
+Godot 拥有，不增加 Python 几何模型、第二个 Gateway 或 Observer 模拟权威。
 
 ## Runtime 产物契约
 

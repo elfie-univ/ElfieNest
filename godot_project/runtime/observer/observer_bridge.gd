@@ -3,6 +3,7 @@ extends Node
 
 const OBSERVER_CHANNEL := "elfienest.observer"
 const OBSERVER_PROTOCOL_VERSION := 1
+const FIXED_BED_COUNT := 32
 
 var _nest: ModularNest
 var _presentation: Node
@@ -54,8 +55,7 @@ func process_frame() -> void:
 				var world_config := _parse_world_config(parsed_message as Dictionary)
 				if not world_config.is_empty():
 					if _nest.apply_observer_world_config(world_config):
-						# Observer replay needs only a local NavMesh; it remains presentation state.
-						_nest.bake_navigation()
+						_presentation.prepare_navigation()
 					continue
 				var semantic_snapshot := _parse_semantic_snapshot(parsed_message as Dictionary)
 				if not semantic_snapshot.is_empty():
@@ -95,7 +95,7 @@ func _parse_world_config(message: Dictionary) -> Dictionary:
 	):
 		return {}
 	var bed_count := _parse_revision(message.get("bed_count"))
-	if bed_count < 4 or bed_count > 32:
+	if bed_count != FIXED_BED_COUNT:
 		return {}
 	return {"nest_id": String(message["nest_id"]), "bed_count": bed_count}
 
@@ -168,39 +168,43 @@ func _semantic_scope_is_valid(scope: Variant) -> bool:
 	return false
 
 
-func _semantic_entity_is_valid(entity: Variant) -> bool:
+static func _semantic_entity_is_valid(entity: Variant) -> bool:
 	if not entity is Dictionary:
 		return false
 	var entity_map := entity as Dictionary
-	if not _has_exact_keys(
-		entity_map,
-		[
-			"room_id",
-			"zone_id",
-			"posture",
-			"active",
-			"active_command_id",
-			"species_id",
-			"appearance",
-			"home_anchor_id",
-			"mock_motion",
-		],
-	):
+	var entity_keys := [
+		"room_id",
+		"zone_id",
+		"posture",
+		"active",
+		"active_command_id",
+		"action_anchor_id",
+		"species_id",
+		"appearance",
+		"home_anchor_id",
+		"mock_motion",
+	]
+	if entity_map.size() != entity_keys.size():
 		return false
+	for key: String in entity_keys:
+		if not entity_map.has(key):
+			return false
 	return (
 		_text_is_valid(entity_map.get("room_id"))
 		and _text_or_null_is_valid(entity_map.get("zone_id"))
 		and _text_is_valid(entity_map.get("posture"))
 		and typeof(entity_map.get("active")) == TYPE_BOOL
 		and _text_or_null_is_valid(entity_map.get("active_command_id"))
+		and _text_or_null_is_valid(entity_map.get("action_anchor_id"))
 		and _text_or_null_is_valid(entity_map.get("species_id"))
 		and entity_map.get("appearance") is Dictionary
 		and _text_or_null_is_valid(entity_map.get("home_anchor_id"))
 		and _mock_motion_is_valid(entity_map.get("mock_motion"))
+		and not _has_forbidden_keys(entity_map)
 	)
 
 
-func _mock_motion_is_valid(value: Variant) -> bool:
+static func _mock_motion_is_valid(value: Variant) -> bool:
 	if value == null:
 		return true
 	if not value is Dictionary:
@@ -209,12 +213,12 @@ func _mock_motion_is_valid(value: Variant) -> bool:
 	var mode := String(motion.get("mode", "wander"))
 	if mode == "sleep":
 		return (
-			_has_exact_keys(motion, ["mode", "sequence"])
+			motion.size() == 2 and motion.has("mode") and motion.has("sequence")
 			and _parse_revision(motion.get("sequence")) >= 1
 		)
 	if mode != "wander":
 		return false
-	if not _has_exact_keys(motion, ["waypoint", "sequence"]):
+	if motion.size() != 2 or not motion.has("waypoint") or not motion.has("sequence"):
 		return false
 	return (
 		_parse_revision(motion.get("waypoint")) >= 0
@@ -302,7 +306,7 @@ func _on_camera_catalog_changed(_catalog: Dictionary) -> void:
 	publish_catalog()
 
 
-func _parse_revision(value: Variant) -> int:
+static func _parse_revision(value: Variant) -> int:
 	if typeof(value) == TYPE_INT:
 		return int(value)
 	if typeof(value) == TYPE_FLOAT and is_equal_approx(float(value), roundf(float(value))):
@@ -310,11 +314,11 @@ func _parse_revision(value: Variant) -> int:
 	return -1
 
 
-func _text_is_valid(value: Variant) -> bool:
+static func _text_is_valid(value: Variant) -> bool:
 	return typeof(value) == TYPE_STRING and not String(value).is_empty()
 
 
-func _text_or_null_is_valid(value: Variant) -> bool:
+static func _text_or_null_is_valid(value: Variant) -> bool:
 	return value == null or _text_is_valid(value)
 
 
@@ -329,7 +333,7 @@ func _has_exact_keys(value: Dictionary, expected_keys: Array) -> bool:
 	return true
 
 
-func _has_forbidden_keys(value: Variant) -> bool:
+static func _has_forbidden_keys(value: Variant) -> bool:
 	if value is Array:
 		for nested: Variant in value as Array:
 			if _has_forbidden_keys(nested):

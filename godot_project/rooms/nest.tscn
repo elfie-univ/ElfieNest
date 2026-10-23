@@ -1,16 +1,26 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://rooms/nest.gd" id="1_nest"]
 [ext_resource type="PackedScene" path="res://ui/observation_hud.tscn" id="2_hud"]
+[ext_resource type="Shader" path="res://rooms/estate/estate_reflection_sky.gdshader" id="3_reflections"]
+
+[sub_resource type="ShaderMaterial" id="SkyMaterial_daylight"]
+shader = ExtResource("3_reflections")
+
+[sub_resource type="Sky" id="Sky_daylight"]
+sky_material = SubResource("SkyMaterial_daylight")
 
 [sub_resource type="Environment" id="Environment_demo"]
 background_mode = 1
 background_color = Color(0.72, 0.78, 0.81, 1)
-ambient_light_source = 3
-ambient_light_color = Color(0.94, 0.94, 0.94, 1)
-ambient_light_energy = 0.24
+sky = SubResource("Sky_daylight")
+ambient_light_source = 2
+ambient_light_color = Color(0.65830647, 0.72512194, 0.77031568, 1)
+ambient_light_energy = 0.2291831181
 reflected_light_source = 2
-tonemap_mode = 2
+tonemap_mode = 3
+tonemap_white = 1.0
+tonemap_exposure = 0.88
 
 [node name="Nest" type="Node3D"]
 script = ExtResource("1_nest")
@@ -20,11 +30,15 @@ bed_count = 32
 environment = SubResource("Environment_demo")
 
 [node name="CeilingFill" type="DirectionalLight3D" parent="."]
+light_cull_mask = 2
 position = Vector3(0, 18, -21)
 rotation_degrees = Vector3(-90, 0, 0)
 light_color = Color(1, 1, 1, 1)
-light_energy = 0.1
-shadow_enabled = false
+light_energy = 0.004
+shadow_enabled = true
+shadow_caster_mask = 8
+shadow_bias = 0.01
+shadow_normal_bias = 0.1
 
 [node name="Camera3D" type="Camera3D" parent="."]
 projection = 1
