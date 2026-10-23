@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_pod_amber_lamp_7783f8deeb",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 8 次引用。layout:pod：8。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "7783f8deebef22e44a1a9c1f8302a4d5c4f8cbe29d3c71c01e34b2187d9d135d",
+    "category": "lighting",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_amber_lamp_7783f8deeb/versions/v001/reuse.json"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_natural_woven_rug_488301d0ea",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：4 处源摆放，庄园共 4 次引用。layout:terrace:M02：1；layout:terrace:M03：1；layout:terrace:M04：1；layout:terrace:M07：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "488301d0eae432c49297d973345e362180edab631a6b1a6bdf3383e883a33fcc",
+    "category": "soft_furnishing",
+    "sourceReferences": 4,
+    "estateReferences": 4,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_natural_woven_rug_488301d0ea/versions/v001/reuse.json"
+  }
+}

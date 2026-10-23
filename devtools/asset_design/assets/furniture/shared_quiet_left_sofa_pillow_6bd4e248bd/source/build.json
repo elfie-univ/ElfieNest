@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_quiet_left_sofa_pillow_6bd4e248bd",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "6bd4e248bdff50b08d321dbf13164656aa3db98160f903c0356ce25ce9fe6495",
+    "category": "soft_furnishing",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_left_sofa_pillow_6bd4e248bd/versions/v001/reuse.json"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "meshComponents": 5,
+  "triangles": 54816,
+  "boundsYUp": [
+    [
+      -0.5935599207878113,
+      0.0,
+      -0.5725528597831726
+    ],
+    [
+      0.6352189779281616,
+      1.5499999523162842,
+      0.6545940637588501
+    ]
+  ],
+  "sizeM": {
+    "width": 1.228778898715973,
+    "height": 1.5499999523162842,
+    "depth": 1.2271469235420227
+  },
+  "potDiameterM": 0.48,
+  "potHeightM": 0.457,
+  "leafCount": 20,
+  "singleMovableAssembly": true,
+  "floorCenteredOrigin": true,
+  "embeddedTextures": 3,
+  "allPositionsFinite": true,
+  "allNormalsUnit": true,
+  "indicesInRange": true,
+  "renderStageExcluded": true,
+  "GLBSHA256": "6826fa107f7de6a82cc98f12bc13ff9faac39a0628f810b1017d47fa29bbf44b"
+}

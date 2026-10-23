@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_reading_ottoman_a0cbdef816",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M03：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "a0cbdef81650d338a40b7b092b109b39917bfadf204cf25e6ebecf59cb943eb5",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_reading_ottoman_a0cbdef816/versions/v001/reuse.json"
+  }
+}

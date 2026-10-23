@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_television_right_speaker_07ea24812c",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M01：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "07ea24812c47e18dcd2069bb6d94cb4102cc99d8ca6f12d28fbe142709506564",
+    "category": "media",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_television_right_speaker_07ea24812c/versions/v001/reuse.json"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_niche_book_45762c9d60",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。building:central：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "45762c9d60cd350dbc60f816f101b38e8bbf5c3adec7c40182e09c3b6d8f47c4",
+    "category": "decor",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_niche_book_45762c9d60/versions/v001/reuse.json"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "object": "part:shared_quiet_rear_reading_side_table_cups_82deaaeea4",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。源模型为单节点融合组合，本轮保留完整。",
+  "reuse": {
+    "identity": "82deaaeea4d12889d24a00b1667189c8805f8d1d650b6affb8ff874d0f3e1ea2",
+    "category": "decor",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [
+      "源模型为单节点融合组合，本轮保留完整。"
+    ],
+    "details": "furniture/shared_quiet_rear_reading_side_table_cups_82deaaeea4/versions/v001/reuse.json"
+  }
+}

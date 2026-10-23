@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_listening_tea_cup_864f625d34",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M05：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "864f625d34a846002a2b431f4a061a8cfce448b5b815b4dd8480e226c5145ed2",
+    "category": "decor",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_listening_tea_cup_864f625d34/versions/v001/reuse.json"
+  }
+}

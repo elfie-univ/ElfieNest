@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_television_flat_mounting_backboard_288c45813f",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：2 处源摆放，庄园共 2 次引用。layout:terrace:M01：1；layout:terrace:M02：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "288c45813fdbaa2206dbb6495b6f1e248ddcd595fa6e60b6f19a9b16f4319dd6",
+    "category": "media",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_television_flat_mounting_backboard_288c45813f/versions/v001/reuse.json"
+  }
+}

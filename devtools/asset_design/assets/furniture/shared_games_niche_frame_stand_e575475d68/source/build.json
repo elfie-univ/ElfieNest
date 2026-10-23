@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_games_niche_frame_stand_e575475d68",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:2：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "e575475d6884e3caf26761ac6e4cf8bfcab5a2ed358a27273e301cae0866105c",
+    "category": "decor",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_niche_frame_stand_e575475d68/versions/v001/reuse.json"
+  }
+}

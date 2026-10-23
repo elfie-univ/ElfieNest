@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_mushroom_lamp_de2293c44f",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "de2293c44fa9c6bb355e783baf9e0e88a9da6650d5f32d9f02f2ec92b1494c28",
+    "category": "lighting",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_mushroom_lamp_de2293c44f/versions/v001/reuse.json"
+  }
+}
