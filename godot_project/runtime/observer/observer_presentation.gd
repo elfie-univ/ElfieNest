@@ -20,6 +20,7 @@ var _actor_scenes: Dictionary
 var _actors: Dictionary = {}
 var _fingerprints: Dictionary = {}
 var _pending_motions: Dictionary = {}
+var _pending_arrivals: Dictionary = {}
 var _motion_states: Dictionary = {}
 var _navigation_ready := false
 var _navigation_preparing := false
@@ -29,6 +30,7 @@ var _paused_snapshot: Dictionary = {}
 var _local_mock_wander_enabled := false
 var _local_mock_random := RandomNumberGenerator.new()
 var _local_mock_states: Dictionary = {}
+var _initial_actor_focus_done := false
 
 
 func setup(
@@ -65,6 +67,18 @@ func _process(_delta: float) -> void:
 		var snapshot := _paused_snapshot
 		_paused_snapshot = {}
 		apply_snapshot(snapshot)
+	for actor_id: String in _pending_arrivals.keys():
+		var actor := _actors.get(actor_id) as ElfieActor
+		if actor == null:
+			_pending_arrivals.erase(actor_id)
+			continue
+		if not actor.active_command_id.is_empty():
+			continue
+		var arrival: Dictionary = _pending_arrivals[actor_id]
+		_pending_arrivals.erase(actor_id)
+		var marker := _nest.resolve_anchor(String(arrival["anchor"]))
+		var error := actor.observer_present_anchor(marker, String(arrival["anchor"]), String(arrival["posture"]))
+		actor.set_meta("observer_replay_error", error)
 	var pending_ids: Array[String] = []
 	for raw_id: Variant in _pending_motions.keys():
 		pending_ids.append(String(raw_id))
@@ -77,6 +91,12 @@ func _process(_delta: float) -> void:
 		_apply_motion(actor, entity as Dictionary)
 	if _local_mock_wander_enabled:
 		_process_local_mock_wander()
+	if not _initial_actor_focus_done:
+		for actor_id: String in _actors:
+			var actor := _actors[actor_id] as ElfieActor
+			if actor.is_visible_in_tree():
+				_initial_actor_focus_done = _nest.select_observer_camera_by_id("elfie-" + actor_id)
+				break
 
 
 func apply_snapshot(snapshot: Dictionary) -> void:
@@ -176,6 +196,7 @@ func _create_actor(actor_id: String, entity: Dictionary) -> ElfieActor:
 	actor.set_meta("species", species)
 	actor.set_meta("home_anchor_id", String(entity["home_anchor_id"]))
 	actor.set_physics_process(false)
+	_nest.register_observer_actor_camera(actor_id, actor)
 	return actor
 
 
@@ -244,11 +265,24 @@ func _apply_motion(actor: ElfieActor, entity: Dictionary) -> void:
 			return
 		actor.set_physics_process(true)
 		return
+	if actor.global_position.distance_to(marker.global_position) > ElfieActor.ARRIVAL_DISTANCE * 2.0:
+		if posture != "idle":
+			var metadata_error := ElfieActor.furniture_marker_error(marker)
+			if not metadata_error.is_empty():
+				actor.set_meta("observer_replay_error", metadata_error)
+				return
+		if not actor.move_to(REAL_COMMAND_PREFIX + "arrival-" + str(_snapshot_sequence), marker.global_position, 120.0):
+			actor.set_meta("observer_replay_error", "local_path_unavailable")
+			return
+		_pending_arrivals[actor.elfie_id] = {"anchor": anchor_id, "posture": posture}
+		actor.set_physics_process(true)
+		return
 	var error := actor.observer_present_anchor(marker, String(anchor_id), posture)
 	actor.set_meta("observer_replay_error", error)
 
 
 func _stop_real_motion(actor: ElfieActor) -> void:
+	_pending_arrivals.erase(actor.elfie_id)
 	_pending_motions.erase(actor.elfie_id)
 	actor.observer_stop_presentation()
 	actor.set_meta("observer_mock_motion_sequence", -1)
@@ -470,6 +504,7 @@ func _local_mock_rest_msec() -> int:
 
 
 func _remove_actor(actor_id: String) -> void:
+	_nest.remove_observer_actor_camera(actor_id)
 	_pending_motions.erase(actor_id)
 	_motion_states.erase(actor_id)
 	_local_mock_states.erase(actor_id)

@@ -403,6 +403,79 @@ func observation_view_count() -> int:
 	return _camera_views.size()
 
 
+func register_observer_actor_camera(actor_id: String, actor: CharacterBody3D) -> void:
+	var view_id := "elfie-" + actor_id
+	if _observation_view_index_by_id(view_id) >= 0:
+		return
+	var camera := Camera3D.new()
+	camera.fov = 60.0
+	camera.near = 0.05
+	camera.far = 150.0
+	add_child(camera)
+	_register_observation_view(view_id, "跟随精灵 · " + actor_id, camera, actor.global_position)
+	_camera_views[-1]["actor"] = actor
+	camera_catalog_revision += 1
+	_emit_observer_camera_catalog_changed()
+
+
+func remove_observer_actor_camera(actor_id: String) -> void:
+	var index := _observation_view_index_by_id("elfie-" + actor_id)
+	if index < 0:
+		return
+	var camera := _camera_views[index]["camera"] as Camera3D
+	_camera_views.remove_at(index)
+	camera.queue_free()
+	camera_catalog_revision += 1
+	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
+	if _active_camera_index < 0 and not _camera_views.is_empty():
+		select_observation_view(0)
+	_emit_observer_camera_catalog_changed()
+
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint() or _observer_presentation_paused or _camera_views.is_empty():
+		return
+	var view := _camera_views[_active_camera_index]
+	var actor := view.get("actor") as CharacterBody3D
+	if not is_instance_valid(actor) or not actor.is_visible_in_tree():
+		return
+	var camera := view["camera"] as Camera3D
+	var target := actor.global_position + Vector3(0, 0.6, 0)
+	var offset := Vector3(1.8, 1.0, 2.2)
+	var desired := target + offset
+	# Presentation-only occlusion query: never move the actor or change collisions.
+	var query := PhysicsRayQueryParameters3D.create(target, desired)
+	var excluded: Array[RID] = [actor.get_rid()]
+	for resident in get_tree().get_nodes_in_group(&"runtime_elfie_actors"):
+		if resident is CollisionObject3D:
+			excluded.append(resident.get_rid())
+	query.exclude = excluded
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		desired = (hit["position"] as Vector3).move_toward(target, 0.15)
+	var distance := desired.distance_to(target)
+	if bool(view.get("follow_initialized", false)):
+		var previous_distance := float(view["follow_distance"])
+		var speed := 6.0 if distance < previous_distance else 2.0
+		distance = move_toward(previous_distance, distance, speed * minf(delta, 0.05))
+		target = (view["follow_target"] as Vector3).lerp(target, 1.0 - exp(-8.0 * minf(delta, 0.05)))
+	view["follow_initialized"] = true
+	view["follow_distance"] = distance
+	view["follow_target"] = target
+	desired = target + offset.normalized() * distance
+	# Smoothing must never carry the camera through the current occluder.
+	# Check the final segment from the real resident, not the lagging target.
+	query.from = actor.global_position + Vector3(0, 0.6, 0)
+	query.to = desired
+	var final_hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not final_hit.is_empty():
+		desired = (final_hit["position"] as Vector3).move_toward(query.from, 0.25)
+		view["follow_distance"] = desired.distance_to(query.from)
+	camera.global_position = desired
+	camera.look_at(query.from)
+	_camera_target = query.from
+
+
 func observation_view_labels() -> PackedStringArray:
 	var labels := PackedStringArray()
 	for view in _camera_views:
@@ -444,6 +517,7 @@ func select_observation_view(index: int) -> void:
 		return
 	_active_camera_index = index
 	var view := _camera_views[index]
+	view["follow_initialized"] = false
 	_active_camera_id = String(view["id"])
 	var camera := view["camera"] as Camera3D
 	camera.current = true

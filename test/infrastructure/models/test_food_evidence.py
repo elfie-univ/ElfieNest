@@ -24,6 +24,52 @@ from infrastructure.persistence.reports.report_repository import ReportRepositor
 PROVIDER_CATALOG = load_provider_catalog()
 
 
+def test_validation_defaults_match_persisted_model_evidence() -> None:
+    stored = ProviderConnection(
+        connection_id="ollama_0001",
+        catalog_id="ollama",
+        alias="Local",
+        api_mode="ollama",
+        auth_type="none",
+        models=(ProviderModelRecord("local"),),
+    )
+    effective = replace(
+        stored,
+        models=(
+            replace(
+                stored.models[0],
+                request_profile_id="ollama_chat_v1",
+                request_profile_version=1,
+            ),
+        ),
+    )
+    observation = ValidationObservation(
+        observation_id=1,
+        run_id="run_profile_default",
+        subject_kind="model",
+        subject_id="ollama_0001/local",
+        status="passed",
+        observed_at=datetime.now(timezone.utc).isoformat(),
+        latency_ms=1.0,
+        time_to_first_token_ms=None,
+        error_category=None,
+        error_message=None,
+        details={"config_fingerprint": connection_validation_fingerprint(effective)},
+    )
+    evidence = query_model_evidence(
+        provider_catalog=PROVIDER_CATALOG,
+        connections={stored.connection_id: stored},
+        observations=(observation,),
+        provider_observations=(),
+        secret_resolver=lambda _: "",
+    )
+    assert evidence["ollama_0001/local"].verified
+    changed = replace(stored, api_base="http://localhost:9999")
+    assert connection_validation_fingerprint(
+        changed
+    ) != connection_validation_fingerprint(effective)
+
+
 def _configure_inventory(store: ProviderConnectionStore) -> None:
     store.replace(
         ProviderConnection(

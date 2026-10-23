@@ -105,6 +105,15 @@ same-origin, validated snapshots to the current Observer iframe.
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a
 separate camera implementation.
 
+The product Observer adds a follow camera for each resident, labelled with the
+resident ID in the existing camera catalog. It initially frames the first
+visible resident; users can select another resident or return to the estate and
+room presets. Following changes only the display camera, not resident movement
+or authority state. Follow motion and obstacle-distance changes are smoothed;
+other residents do not trigger camera occlusion zoom. Completed semantic actions
+are replayed by walking to the local anchor before presenting the final pose,
+not by teleporting the display actor to the destination.
+
 The closed local navigation intents are `request_resync`, `focus_room` and
 `focus_elfie`. The only world-changing request is the separately authorized,
 rate-limited high-level `request_interaction` (`greet` or `rest`), which goes to

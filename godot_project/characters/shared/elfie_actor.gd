@@ -383,7 +383,7 @@ func enter_furniture(marker: Marker3D, anchor_id: String) -> String:
 
 
 func observer_present_anchor(marker: Marker3D, anchor_id: String, posture: String) -> String:
-	# Semantic completion may catch this view up to an authored local contact.
+	# A semantic completion is not permission to teleport through local geometry.
 	# This must never be usable on an authority Actor.
 	var presentation: Variant = get_meta("observer_presentation", false)
 	if typeof(presentation) != TYPE_BOOL or not bool(presentation):
@@ -398,8 +398,9 @@ func observer_present_anchor(marker: Marker3D, anchor_id: String, posture: Strin
 			return error
 		if String(marker.get_meta("interaction_posture")) != posture:
 			return "incompatible_interaction_posture"
+	if global_position.distance_to(marker.global_position) > ARRIVAL_DISTANCE * 2.0:
+		return "anchor_not_reached"
 	observer_stop_presentation()
-	global_position = marker.global_position
 	if posture == "idle":
 		return ""
 	return enter_furniture(marker, anchor_id)

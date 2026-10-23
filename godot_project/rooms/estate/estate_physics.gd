@@ -31,19 +31,38 @@ func build(estate: Node3D) -> void:
 		if bool(e.get("door_leaf", false)):
 			_add_door(mesh, e)
 			continue
+		if uses_furniture_collision(mesh):
+			_add_mesh(mesh, false)
+			continue
 		if module.is_empty():
 			if "Inset natural lake" in source or source == "Reference fountain water":
 				_add_water_exclusion(mesh)
 			continue
 		if bool(e.get("furniture", false)):
-			var piece := str(e.get("piece", ""))
-			var kind := str(e.get("kind", ""))
-			if piece in ["shell", "cabinet", "worktop", "chair_seat"] or kind in ["chair", "sofa", "table", "desk", "bookcase", "built_in_cabinet", "fixed_furniture", "daybed"]:
-				_add_mesh(mesh, false)
 			continue
 		if uses_concave_collision(mesh):
 			_add_mesh(mesh, true)
 	print("ESTATE_PHYSICS colliders=%d sliding_doors=%d" % [collider_count, _doors.size()])
+
+
+static func uses_furniture_collision(mesh: MeshInstance3D) -> bool:
+	var e := mesh.get_meta("extras", {}) as Dictionary
+	var piece := str(e.get("piece", ""))
+	var kind := str(e.get("kind", ""))
+	if bool(e.get("furniture", false)) and (
+		piece in ["shell", "cabinet", "worktop", "chair_seat", "chair_post", "chair_base", "chair_cushion", "drawer", "apron", "deck"]
+		or kind in ["chair", "sofa", "table", "desk", "bookcase", "built_in_cabinet", "fixed_furniture", "daybed"]
+	):
+		return true
+	# The final asset also contains solid pieces with source names but no kind.
+	# Collide with pots/supports, not every leaf, textile fringe or light diffuser.
+	var source := str(e.get("source_name", mesh.name)).to_lower()
+	return (
+		"planter" in source or source.ends_with(" pot") or " bud vase" in source
+		or source.begins_with("coffee table ") or source.begins_with("side table ")
+		or (source.begins_with("upholstery ") and not " seam " in source)
+		or source.begins_with("tv connected support ")
+	)
 
 
 static func uses_concave_collision(mesh: MeshInstance3D) -> bool:

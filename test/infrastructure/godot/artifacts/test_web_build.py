@@ -60,6 +60,37 @@ def test_runtime_is_current_when_manifest_matches_source_fingerprint(
     assert runtime_is_current(output) is True
 
 
+@pytest.mark.parametrize("suffix", [".glb", ".instances.bin"])
+def test_export_rejects_unresolved_lfs_assets_before_starting_godot(
+    tmp_path: Path, monkeypatch, capsys, suffix: str
+) -> None:
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    asset = project / ("estate" + suffix)
+    asset.write_text(
+        "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 100\n"
+    )
+    monkeypatch.setattr(web_build, "GODOT_PROJECT", project)
+    monkeypatch.setattr(
+        web_build,
+        "_find_godot",
+        lambda *_: pytest.fail("Unresolved assets must fail before Godot starts"),
+    )
+    assert (
+        web_build._export_runtime(tmp_path / "runtime", None, False, godot_runner=None)
+        == 1
+    )
+    assert "git lfs pull" in capsys.readouterr().out
+
+
+def test_resolved_binary_assets_are_not_lfs_pointers(
+    tmp_path: Path, monkeypatch
+) -> None:
+    (tmp_path / "estate.glb").write_bytes(b"glTF" + bytes(256))
+    monkeypatch.setattr(web_build, "GODOT_PROJECT", tmp_path)
+    assert web_build._unresolved_lfs_assets() == []
+
+
 def test_runtime_is_stale_when_godot_source_changes(
     tmp_path: Path,
     monkeypatch,

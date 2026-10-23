@@ -57,5 +57,22 @@ func run() -> void:
 	hidden_estate.queue_free()
 	physics.queue_free()
 	await process_frame
+	var furniture := Node3D.new()
+	root.add_child(furniture)
+	for source: String in ["Coffee table high round softened oak top", "Floor plant | rounded ceramic planter", "Botanical V1 front fern ivory pot"]:
+		var mesh := MeshInstance3D.new()
+		mesh.mesh = BoxMesh.new()
+		mesh.set_meta("extras", {"module": "central", "source_name": source, "furniture": true})
+		furniture.add_child(mesh)
+	var furniture_physics := PHYSICS.new()
+	root.add_child(furniture_physics)
+	furniture_physics.build(furniture)
+	if furniture_physics.collider_count != 3:
+		push_error("Untagged coffee tables and solid planters have no collision")
+		quit(1)
+		return
+	furniture.queue_free()
+	furniture_physics.queue_free()
+	await process_frame
 	print("PASS collision classification: both stair flights retained, lamps excluded, hidden authority collides")
 	quit(0)

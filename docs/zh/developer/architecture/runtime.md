@@ -80,6 +80,12 @@ React 消费该目录后，只能发出封闭的语义命令 `overview`、`selec
 `/monitor` 是 Owner 与 Admin 可访问的完整观察页面。Owner/Admin 的精灵巢管理弹窗嵌入
 同一个 `ObservationMonitor` 表面与 bridge，而不是实现另一套相机能力。
 
+产品 Observer 在现有相机目录中为每位居民增加以精灵 ID 标识的跟随机位，首次显示时
+对准第一位可见居民。用户可切换跟随其他居民，也可回到庄园总览和固定房间机位。
+跟随只改变显示镜头，不改变居民移动或 authority 状态。跟随位移和避障距离变化均平滑
+过渡，其他精灵不触发镜头避障缩放。收到语义动作完成状态后，显示角色先沿本地导航
+走到目标锚点再呈现最终姿态，不再直接瞬移到目的地。
+
 封闭的本地导航 intent 是 `request_resync`、`focus_room` 与 `focus_elfie`。唯一会改变
 世界的请求是单独授权、限流的高层 `request_interaction`（`greet` 或 `rest`），它经由
 应用边界送到 world sink。第一阶段的 Observer 不是相机/视频传输：不发送 JPEG 帧，也

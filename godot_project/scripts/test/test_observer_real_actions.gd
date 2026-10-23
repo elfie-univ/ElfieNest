@@ -38,7 +38,7 @@ func _initialize() -> void:
 
 func run() -> void:
 	var nest := ReplayNest.new()
-	var hud := CanvasLayer.new()
+	var hud: Node = load("res://ui/observation_hud.tscn").instantiate()
 	hud.name = "ObservationHUD"
 	nest.add_child(hud)
 	root.add_child(nest)
@@ -87,6 +87,8 @@ func run() -> void:
 		if not actor.active_command_id.is_empty():
 			break
 	_check(not actor.active_command_id.is_empty(), "pending walk never started after navigation sync")
+	await process_frame
+	_check(nest.observer_camera_catalog()["active_id"] == "elfie-saevi-1", "first visible resident was not framed")
 	var command := actor.active_command_id
 	var deadline := int(actor.get("_deadline_msec"))
 	bridge._handle_semantic_snapshot(walk)
@@ -114,16 +116,20 @@ func run() -> void:
 	_check(actor.global_position.distance_to(activity.global_position) <= ElfieActor.ARRIVAL_DISTANCE * 2.0, "real local walk failed")
 	_check(actor.furniture_anchor_id.is_empty(), "walking automatically used furniture")
 	bridge._handle_semantic_snapshot(_snapshot("idle", null, "courtyard/activity"))
-	_check(actor.global_position.is_equal_approx(activity.global_position), "completed arrival was not aligned")
+	_check(actor.global_position.distance_to(activity.global_position) < 0.44, "completed arrival was not reached")
 	for _frame in range(2):
 		await process_frame
 	var appearance := load("res://runtime/actor/actor_appearance.gd")
 	_check(absf(float(appearance._foot_contact_y(actor.get_node("VisualRoot"))) - activity.global_position.y) <= 0.05, "animated avatar feet sank below its standing origin")
 	var retained := actor.get_instance_id()
+	var before_arrival := actor.global_position
 	bridge._handle_semantic_snapshot(_snapshot("idle", null, "dorm-01/bed-01"))
+	_check(actor.global_position.is_equal_approx(before_arrival), "terminal snapshot teleported the avatar across the room")
+	await _wait_arrival(actor)
 	_check(actor.furniture_anchor_id.is_empty() and actor.runtime_posture() == "idle", "arrival at bed automatically used it")
 	var sleep := _snapshot("sleeping", null, "dorm-01/bed-01")
 	bridge._handle_semantic_snapshot(sleep)
+	await _wait_arrival(actor)
 	_check(actor.runtime_posture() == "sleeping" and actor.furniture_anchor_id == "dorm-01/bed-01", "authored bed pose missing")
 	_check_contact(actor, bed)
 	var visual := actor.get_node("VisualRoot") as Node3D
@@ -131,6 +137,7 @@ func run() -> void:
 	bridge._handle_semantic_snapshot(_snapshot("sleeping", null, "dorm-01/bed-01"))
 	_check(visual.transform.is_equal_approx(sleep_transform), "duplicate accumulated bed pose")
 	bridge._handle_semantic_snapshot(_snapshot("sitting", null, "dorm-01/chair-01"))
+	await _wait_arrival(actor)
 	_check(actor.runtime_posture() == "sitting" and actor.furniture_anchor_id == "dorm-01/chair-01", "authored chair pose missing")
 	_check_contact(actor, chair)
 	bridge._handle_semantic_snapshot(_snapshot("sitting", null, "dorm-01/chair-02"))
@@ -166,7 +173,9 @@ func run() -> void:
 	bridge._handle_camera_command({"action": "set_local_presentation_paused", "paused": false})
 	_check(not nest.observer_presentation_paused(), "local resume boundary lost")
 	presentation._process(0.0)
-	_check(actor.global_position.is_equal_approx(activity.global_position), "resume lost latest real state")
+	_check(actor.global_position.is_equal_approx(paused_position), "resume teleported the resident")
+	await _wait_arrival(actor)
+	_check(actor.global_position.distance_to(activity.global_position) < 0.44, "resume lost latest real state")
 	var explicit_mock := _snapshot("idle", null, null)
 	explicit_mock["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 20}
 	_check(not bool(presentation.get("_local_mock_wander_enabled")), "product random mock unexpectedly enabled")
@@ -217,6 +226,15 @@ func _snapshot(posture: String, command: Variant, anchor: Variant) -> Dictionary
 			"home_anchor_id": "dorm-01/bed-01", "mock_motion": null,
 		}},
 	}
+
+
+func _wait_arrival(actor: ElfieActor) -> void:
+	for frame in range(900):
+		await physics_frame
+		if actor.active_command_id.is_empty():
+			await process_frame
+			await process_frame
+			return
 
 
 func _marker(nest: ReplayNest, id: String, kind: String, approach: Vector3, posture: String = "") -> Marker3D:

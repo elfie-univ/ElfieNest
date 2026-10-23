@@ -141,6 +141,14 @@ def _export_runtime(
     godot_runner: GodotSpeciesValidationRunner | None,
 ) -> int:
     """Export the Godot Runtime and atomically replace the current bundle after validation."""
+    unresolved = _unresolved_lfs_assets()
+    if unresolved:
+        print(
+            "❌ Runtime assets are Git LFS pointers; run git lfs pull before exporting:"
+        )
+        for path in unresolved:
+            print(f"   {path.relative_to(GODOT_PROJECT)}")
+        return 1
     binary = _find_godot(explicit_binary)
     if binary is None:
         print(
@@ -193,6 +201,20 @@ def _export_runtime(
             species_package_ids,
             godot_runner,
         )
+
+
+def _unresolved_lfs_assets() -> list[Path]:
+    """Do not let Godot cache placeholder scenes for absent binary assets."""
+    unresolved = []
+    for path in sorted(GODOT_PROJECT.rglob("*")):
+        if ".godot" in path.parts or not path.is_file() or path.stat().st_size > 1024:
+            continue
+        with path.open("rb") as stream:
+            if stream.read(43).startswith(
+                b"version https://git-lfs.github.com/spec/v1"
+            ):
+                unresolved.append(path)
+    return unresolved
 
 
 def _export_runtime_locked(

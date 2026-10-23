@@ -15,6 +15,10 @@ from infrastructure.models.provider_records import (
 )
 from infrastructure.models.providers.catalog import ProviderCatalog
 from infrastructure.models.providers.profiles import get_product
+from infrastructure.models.providers.request_profiles import (
+    default_request_profile_id,
+    get_request_profile,
+)
 
 ValidationMode = Literal["full", "cached", "heartbeat"]
 
@@ -97,7 +101,7 @@ def connection_validation_fingerprint(
         secret_resolver=secret_resolver,
     )
     payload["models"] = [
-        _model_fingerprint(model)
+        _model_fingerprint(model, connection.api_mode)
         for model in sorted(
             active_validation_models(connection),
             key=lambda item: item.endpoint_model_id,
@@ -273,7 +277,7 @@ def _snapshot_from_report(latest: Mapping[str, Any]) -> _FullValidationSnapshot 
     )
 
 
-def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
+def _model_fingerprint(model: ProviderModelRecord, api_mode: str) -> dict[str, Any]:
     # Capability declarations and probe evidence are channel observations, not
     # stable text-validation inputs.  Capability probes persist their result
     # back onto the model record for UI and inventory projections; including
@@ -282,13 +286,25 @@ def _model_fingerprint(model: ProviderModelRecord) -> dict[str, Any]:
     # verified).  The immutable report observations carry channel-specific
     # proof, while the stable endpoint/profile fields below keep text evidence
     # bound to the actual model configuration.
+    # Administration supplies the default profile before validating. Hash the
+    # same effective profile when reading raw persisted models for Food health.
+    profile_id = model.request_profile_id
+    if not profile_id and api_mode:
+        profile_id = default_request_profile_id(api_mode)
+    # Incomplete records have no effective profile yet; keep that absence
+    # distinct rather than guessing an API mode from a different owner.
+    profile = (
+        get_request_profile(profile_id, model.request_profile_version)
+        if profile_id
+        else None
+    )
     return {
         "id": model.endpoint_model_id,
         "display_name": model.display_name,
         "canonical_model_id": model.canonical_model_id,
         "source": model.source,
-        "request_profile_id": model.request_profile_id,
-        "request_profile_version": model.request_profile_version,
+        "request_profile_id": profile.profile_id if profile else None,
+        "request_profile_version": profile.version if profile else None,
         "context_window_tokens": model.context_window_tokens,
         "max_output_tokens": model.max_output_tokens,
         "hidden": model.hidden,
