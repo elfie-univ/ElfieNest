@@ -1,68 +1,111 @@
 {
   "units": "metres",
-  "models": {
-    "central": {
-      "status": "visual trial, not artistically approved",
-      "source_version": "elfie_central_third_quiet_concept_v1",
-      "file": "central.glb",
-      "bytes": 69420928,
-      "sha256": "d939edd6d39af73cab36f3f4b8d77169f1835d89aed4dd71a19f3d6e7a33e270",
-      "source": "elfie_central_third_quiet_concept_v1/estate.glb",
-      "source_sha256": "02b7381463cdf83229b460740fecf110ca3f93b105284b101fd5441d5035266c",
-      "source_mesh_nodes": 435,
-      "unique_meshes": 303,
-      "triangles": 1986616,
-      "embedded_images": 9,
-      "retained_buffer_views": 1390,
-      "binary_views_byte_identical": true,
-      "source_node_transforms_and_tags_preserved": true,
-      "source_file_unchanged": true,
-      "external_files": 0
+  "asset": {
+    "status": "approved complete final export; building, interiors, terraces and courtyard",
+    "file": "ElfieNest-complete-final.glb",
+    "bytes": 251670368,
+    "sha256": "38fc4ae6f874f6ccc3a366a7e7352439d677bca6de57d44070319ba578f0a9fd",
+    "source": "current desktop final export, lossless Godot MultiMesh compatibility repack",
+    "source_bytes": 251879364,
+    "source_sha256": "30c4f8e7889b03b7da61a68b23f7a640c901267ba0de8c314b4678cc819e8e32",
+    "source_binary_sha256": "b8d19b5f8172a31e7caf711375bd611620830a6dfbcba479b6a83a0c62fba575",
+    "instance_sidecar": "ElfieNest-complete-final.instances.bin",
+    "instance_sidecar_bytes": 13875592,
+    "instance_sidecar_sha256": "5c25c8805cc0a202ff24bf4a70bcf721c7b8b94383404f36b32d5d1a859b190d",
+    "godot_compatibility": "EXT_mesh_gpu_instancing removed from GLB; 134 groups and 216743 world-space transforms restored as MultiMeshInstance3D",
+    "scene_name": "ElfieNest complete building, interiors, terraces and approved courtyard",
+    "nodes": 8507,
+    "meshes": 2016,
+    "materials": 471,
+    "embedded_images": 91,
+    "lossless_sharing": {
+      "tool": "scripts/internal/build/optimize_estate_glb.py",
+      "images_before_after": [
+        224,
+        91
+      ],
+      "textures_before_after": [
+        310,
+        183
+      ],
+      "materials_before_after": [
+        1123,
+        471
+      ],
+      "meshes_before_after": [
+        2140,
+        2016
+      ],
+      "preserved": "all 8507 node names, metadata and transforms; non-retired per-node geometry/material/texture graphs; OMI collision mesh references; byte-identical GLB binary and instance sidecar"
     },
-    "pod": {
-      "status": "building and ground-floor furnishings approved; source terrace props retained as-is",
-      "source_version": "elfie_pod_complete_confirmed_v2",
-      "file": "pod.glb",
-      "bytes": 39715472,
-      "sha256": "5fb4214bf114b555f6551bd9b2626c56de7105a821a210283f79f970b1ef43ae",
-      "source": "elfie_pod_complete_confirmed_v2/complete_pod.glb",
-      "source_sha256": "9c0895259f907e650b0c0dc3e1b64f14b30bc85b2b97460be99887ab4a6ee6c2",
-      "source_mesh_nodes": 979,
-      "unique_meshes": 301,
-      "triangles": 1303295,
-      "embedded_images": 8,
-      "retained_buffer_views": 869,
-      "binary_views_byte_identical": true,
-      "source_node_transforms_and_tags_preserved": true,
-      "source_file_unchanged": true,
-      "external_files": 0
+    "external_files": 0,
+    "runtime_effects": {
+      "water": "static snapshot at export time; runtime flow and ripple shaders are not included",
+      "clouds": "static sky presentation; moving cloud animation is not included",
+      "lighting": "directional sunlight is included; environment and tone mapping remain runtime settings"
+    },
+    "roof_source": {
+      "version": "building_central_v051",
+      "file": "devtools/asset_design/assets/buildings/central/versions/v051/model.glb",
+      "sha256": "2052bf1cddd59a6a6d5061263e628c15c38b15585500dba624aba86ec23382c3",
+      "meshes": 36,
+      "scope": "central floor-4 rendered roof meshes; exact source position, normal, UV, index and material/embedded-image equality verified; binary chunks and all other nodes unchanged"
     }
   },
   "scene": "estate.tscn",
-  "placement_count": {
-    "central": 1,
-    "pods": 8
-  },
-  "runtime_ready": false,
-  "collision_navigation_interaction": "not included; visual development baseline only",
-  "authoring_sources": "Embedded GLB mesh and material data; Blender history and reference images excluded",
+  "current_instance_count": 1,
+  "multimesh_group_count": 134,
+  "multimesh_instance_count": 216743,
+  "runtime_ready": true,
+  "presentation_ready": true,
+  "main_scene": "res://main.tscn -> res://rooms/nest.tscn -> res://rooms/estate/estate.tscn",
+  "collision_navigation_interaction": "843 source-bound colliders plus six authored garden proxies; eight automatic sliding doors; 87 semantic anchors in 21 zones including 32 beds; synchronized navigation and real capsule movement, stairs and furniture use verified",
+  "legacy_baseline": "retired: procedural square rooms, standalone furniture, common-area layouts and central/pod assets are no longer source or export inputs",
   "validation": {
-    "engine": "Godot 4.7.stable",
+    "engine": "Godot 4.7.1.stable",
     "script": "res://scripts/test/test_estate_asset_baseline.gd",
     "result": "passed",
     "checks": [
       "self-contained GLB buffers and images",
-      "retained binary views byte-identical to source",
-      "source transforms and functional/floor tags retained",
-      "one central building plus eight independent house roots",
-      "original eight placement matrices",
-      "house instances share imported mesh resources"
+      "one complete final GLB instance",
+      "source SHA-256 marker matches the current desktop export",
+      "two superseded white entrance-step meshes are absent while both approved floral treads remain",
+      "MultiMesh sidecar restores all instanced groups and transforms",
+      "first group contains 2418 instances; every group first/last matrix matches the sidecar",
+      "24 instanced surfaces retain vertex-color albedo",
+      "main scene loads complete estate without legacy geometry and exposes 15 observer cameras",
+      "lossless sharing preserves per-node geometry/material/texture graph, physics mesh references and binary chunks"
     ],
+    "headless_rss_mib": {
+      "asset_before": 1194.76171875,
+      "asset_after": 951.41015625,
+      "main_before": 1351.7578125,
+      "main_after": 1101.109375,
+      "scope": "stage RSS, not peak; excludes browser and GPU; script elapsed time excludes class preloads"
+    },
+    "physical_runtime": {
+      "script": "res://scripts/test/test_complete_estate_world.gd",
+      "result": "passed",
+      "checks": [
+        "all 87 anchor routes",
+        "real courtyard return through automatic doors",
+        "bed and chair use with authored contact",
+        "occupancy, duplicate command and cancellation",
+        "maximum-size actors on central and terrace stairs"
+      ],
+      "stage_rss_kib": 1685588,
+      "scope": "native headless stage RSS, not peak and not browser/GPU memory"
+    },
+    "gateway_body_nest": {
+      "helper": "scripts/internal/diagnostics/verify_nest_runtime_e2e.py",
+      "host": "res://scripts/test/test_gateway_estate_e2e.gd",
+      "result": "passed",
+      "scope": "real authenticated Gateway, NativeBody actions and Nest posture facts; identity-only fixtures without Brain/Provider or production data"
+    },
     "not_validated": [
-      "collision",
-      "navigation",
-      "interaction logic",
-      "rendering performance"
+      "autonomous Brain/Provider life cycle",
+      "browser/GPU peak memory",
+      "rendering performance budget"
     ]
   }
 }
