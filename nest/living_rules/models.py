@@ -82,6 +82,7 @@ class RuntimeResidentMirror(_StrictSemanticModel):
     current_zone_id: Optional[ZoneId] = None
     posture: str = "standing"
     active_command_id: Optional[str] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     mock_motion: Optional[RuntimeMockMotion] = None
     position: Optional[tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None

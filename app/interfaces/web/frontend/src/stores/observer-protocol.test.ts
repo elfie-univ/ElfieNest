@@ -28,7 +28,7 @@ function validWorldConfig() {
     version: 1,
     kind: "world_config",
     nest_id: "local-nest",
-    bed_count: 4,
+    bed_count: 32,
   }
 }
 
@@ -135,6 +135,7 @@ describe("observer camera protocol", () => {
           posture: "standing",
           active: true,
           active_command_id: null,
+          action_anchor_id: "dorm-01/chair-01",
           species_id: "saevi",
           home_anchor_id: "dorm-01/bed-01",
           appearance: {},
@@ -153,6 +154,13 @@ describe("observer camera protocol", () => {
       waypoint: 1,
       sequence: 1,
     })
+    expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.action_anchor_id).toBe("dorm-01/chair-01")
+    for (const invalid of ["", 42, { position: [0, 0, 0] }]) {
+      expect(parseObserverSemanticSnapshot({
+        ...snapshot,
+        entities: { "saevi-1": { ...snapshot.entities["saevi-1"], action_anchor_id: invalid } },
+      })).toBeNull()
+    }
     expect(parseObserverSemanticSnapshot({ ...snapshot, position: { x: 1, y: 2, z: 3 } })).toBeNull()
     expect(parseObserverSemanticSnapshot({
       ...snapshot,

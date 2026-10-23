@@ -41,7 +41,7 @@ PRESET_NAME = "Web"
 ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v3"
-CANVAS_CAPTURE_VERSION = "canvas-capture-v1"
+CANVAS_CAPTURE_VERSION = "canvas-capture-v3"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
 CANVAS_CAPTURE_MARKER = "elfienest:webgl-canvas-capture"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
@@ -81,7 +81,10 @@ _CANVAS_CAPTURE_SCRIPT = """// elfienest:webgl-canvas-capture
 \tif (originalGetContext.__elfieNestCapturePatched) return;
 \tconst patchedGetContext = function (type, attributes) {
 \t\tif (this === canvas && (type === 'webgl' || type === 'webgl2')) {
-\t\t\tattributes = Object.assign({}, attributes || {}, { preserveDrawingBuffer: true });
+\t\t\tattributes = Object.assign({}, attributes || {}, {
+\t\t\t\tpreserveDrawingBuffer: true,
+\t\t\t\tpowerPreference: 'high-performance',
+\t\t\t});
 \t\t}
 \t\treturn originalGetContext.call(this, type, attributes);
 \t};
@@ -382,7 +385,7 @@ def patch_web_entry_for_lan_http(entry: Path) -> None:
             )
         text = text.replace(
             script_marker,
-            f"{_CANVAS_CAPTURE_SCRIPT}\n{script_marker}",
+            f"<script>\n{_CANVAS_CAPTURE_SCRIPT}</script>\n{script_marker}",
             1,
         )
     entry.write_text(text, encoding="utf-8")

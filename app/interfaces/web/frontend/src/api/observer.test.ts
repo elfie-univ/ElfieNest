@@ -48,6 +48,24 @@ describe("openObserverSession", () => {
 })
 
 describe("nextObserverFrame", () => {
+  it.each(["courtyard/activity", null])("preserves action anchor delta %s", async (target) => {
+    vi.mocked(requestJson).mockResolvedValue({
+      protocol: 3, kind: "delta", generation: 1, sequence: 2,
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1", entity_revision: 2, patch: { action_anchor_id: target },
+    })
+    await expect(nextObserverFrame("capability", null)).resolves.toMatchObject({ patch: { action_anchor_id: target } })
+  })
+
+  it.each(["", 42, { x: 1 }])("rejects malformed action anchor %s", async (target) => {
+    vi.mocked(requestJson).mockResolvedValue({
+      protocol: 3, kind: "delta", generation: 1, sequence: 2,
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1", entity_revision: 2, patch: { action_anchor_id: target },
+    })
+    await expect(nextObserverFrame("capability", null)).rejects.toThrow()
+  })
+
   it("accepts the Python room snapshot shape with a null inactive Elfie field", async () => {
     vi.mocked(requestJson).mockResolvedValue({
       protocol: 3,

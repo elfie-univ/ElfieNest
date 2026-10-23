@@ -27,6 +27,7 @@ const ObserverEntitySchema = z.object({
   posture: z.string(),
   active: z.boolean(),
   active_command_id: z.string().nullable(),
+  action_anchor_id: z.string().min(1).nullable(),
   species_id: z.string().nullable().default(null),
   appearance: z.record(z.string(), z.unknown()).default({}),
   home_anchor_id: z.string().nullable().default(null),

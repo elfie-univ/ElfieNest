@@ -87,6 +87,7 @@ class _SnapshotActor(BaseModel):
     zone_id: Optional[str]
     posture: str
     active_command_id: Optional[str]
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     mock_motion: Optional[_SnapshotMockMotion] = None
     position: Optional[tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
@@ -203,6 +204,7 @@ def parse_world_snapshot(
                 current_zone_id=actor.zone_id,
                 posture=actor.posture,
                 active_command_id=actor.active_command_id,
+                action_anchor_id=actor.action_anchor_id,
                 position=actor.position,
                 heading_degrees=actor.heading_degrees,
                 velocity=actor.velocity,

@@ -18,17 +18,15 @@ vi.mock("../stores/observer", () => ({
 vi.mock("./ObserverSurface", () => ({
   ObserverSurface: ({
     autoStart,
-    bedCount,
     roomId,
     showHeader,
     title,
   }: {
     readonly autoStart?: boolean
-    readonly bedCount: number
     readonly roomId: string
     readonly showHeader?: boolean
     readonly title: string
-  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-bed-count={String(bedCount)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
+  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
 }))
 
 type ObserverState = NonNullable<ReturnType<typeof useOptionalObserver>>
@@ -95,14 +93,13 @@ function createObserver(
 
 function renderMonitor(
   locale: SupportedLocale = "zh-CN",
-  bedCount = 4,
   mode: "embedded" | "standalone" = "embedded",
   immersive = false,
   onExitImmersive = vi.fn(),
 ): i18n {
   const instance = createI18n()
   void instance.changeLanguage(locale)
-  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} immersive={immersive} mode={mode} onExitImmersive={onExitImmersive} roomId="local-nest" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor immersive={immersive} mode={mode} onExitImmersive={onExitImmersive} roomId="local-nest" /></I18nextProvider>)
   return instance
 }
 
@@ -133,7 +130,6 @@ describe("ObservationMonitor", () => {
     expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "总览" })).toHaveAttribute("aria-pressed", "false")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
-    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
   })
 
@@ -157,7 +153,7 @@ describe("ObservationMonitor", () => {
   it("hides standalone navigation and the camera toolbar in immersive mode", async () => {
     const user = userEvent.setup()
     const onExitImmersive = vi.fn()
-    renderMonitor("zh-CN", 4, "standalone", true, onExitImmersive)
+    renderMonitor("zh-CN", "standalone", true, onExitImmersive)
 
     expect(screen.queryByRole("toolbar", { name: "监控工具栏" })).toBeNull()
     await user.click(screen.getByRole("button", { name: "退出沉浸观察" }))
@@ -259,7 +255,7 @@ describe("ObservationMonitor", () => {
   })
 
   it("localizes the immersive exit control", async () => {
-    const instance = renderMonitor("zh-CN", 4, "standalone", true)
+    const instance = renderMonitor("zh-CN", "standalone", true)
 
     expect(screen.getByRole("button", { name: "退出沉浸观察" })).toBeInTheDocument()
     await instance.changeLanguage("en-US")
@@ -328,7 +324,7 @@ describe("ObservationMonitor", () => {
       version: 1,
       kind: "world_config",
       nest_id: "local-nest",
-      bed_count: 4,
+      bed_count: 32,
     })
     expect(fixture.calls.detach).not.toHaveBeenCalled()
   })

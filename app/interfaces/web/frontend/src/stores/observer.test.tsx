@@ -15,7 +15,7 @@ vi.mock("../api/observer", () => ({
 function TestObserver() {
   const observer = useRequiredObserver()
   return <>
-    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
+    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 32 }) }} type="button">打开房间</button>
     <button onClick={() => { void observer.openElfie("saevi-1") }} type="button">打开精灵</button>
     <button onClick={observer.detach} type="button">离开 3D</button>
     <p>{observer.status}</p>
@@ -70,7 +70,7 @@ describe("ObserverProvider", () => {
       version: 1,
       kind: "world_config",
       nest_id: "local-nest",
-      bed_count: 4,
+      bed_count: 32,
     }, window.location.origin)
   })
 
@@ -88,6 +88,7 @@ describe("ObserverProvider", () => {
           posture: "resting",
           active: true,
           active_command_id: null,
+          action_anchor_id: "dorm-01/chair-01",
           species_id: "saevi",
           appearance: {},
           home_anchor_id: "dorm-01/bed-01",
@@ -338,6 +339,7 @@ describe("ObserverProvider", () => {
           posture: "resting",
           active: true,
           active_command_id: "rest-1",
+          action_anchor_id: "dorm-01/bed-01",
           species_id: null,
           appearance: {},
           home_anchor_id: null,
@@ -354,7 +356,7 @@ describe("ObserverProvider", () => {
       scope: { kind: "elfie", elfie_id: "saevi-1" },
       entity_id: "saevi-1",
       entity_revision: 2,
-      patch: { zone_id: null, active_command_id: null },
+      patch: { zone_id: null, active_command_id: null, action_anchor_id: null },
     } satisfies ObserverFrame
     vi.mocked(nextObserverFrame).mockResolvedValueOnce(snapshot).mockResolvedValueOnce(cleared)
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
@@ -362,14 +364,14 @@ describe("ObserverProvider", () => {
     function SemanticProbe() {
       const observer = useRequiredObserver()
       const entity = observer.entities["saevi-1"]
-      return <><button onClick={() => { void observer.openElfie("saevi-1") }} type="button">观察 Saevi</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}</p></>
+      return <><button onClick={() => { void observer.openElfie("saevi-1") }} type="button">观察 Saevi</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}|{entity?.action_anchor_id ?? "无目标"}</p></>
     }
 
     render(<ObserverProvider csrfToken="csrf" enabled><SemanticProbe /></ObserverProvider>)
     fireEvent.click(screen.getByRole("button", { name: "观察 Saevi" }))
     await act(async () => {})
-    expect(screen.getByText("dorm|rest-1")).toBeInTheDocument()
+    expect(screen.getByText("dorm|rest-1|dorm-01/bed-01")).toBeInTheDocument()
     await act(async () => { vi.advanceTimersByTime(1000) })
-    expect(screen.getByText("无区域|无命令")).toBeInTheDocument()
+    expect(screen.getByText("无区域|无命令|无目标")).toBeInTheDocument()
   })
 })

@@ -125,7 +125,7 @@ def test_remote_food_decision_is_written_to_setup_draft(tmp_path: Path) -> None:
     assert response.json()["draft"]["remote_configured"] is False
     assert response.json()["draft"]["remote_skipped"] is True
     assert response.json()["draft"]["remote_connection_id"] is None
-    assert response.json()["draft"]["bed_count"] == 12
+    assert response.json()["draft"]["bed_count"] == 32
     assert response.json()["current_step"] == 1
 
 
@@ -134,7 +134,7 @@ def test_unknown_draft_fields_use_the_standard_error_envelope(tmp_path: Path) ->
         client.cookies.set("setup_token", "local-token")
         response = client.put(
             "/api/v1/setup/draft/nest",
-            json={"bed_count": 8, "unexpected": True},
+            json={"bed_count": 32, "unexpected": True},
         )
     assert response.status_code == 422
     assert response.json() == {

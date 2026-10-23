@@ -15,7 +15,7 @@ type MonitorPageProps = {
 export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
   const { t } = useTranslation("monitor")
   const { refresh, user, loading } = useSession()
-  const [bedCount, setBedCount] = useState<number | null>(null)
+  const [roomReady, setRoomReady] = useState(false)
   const [immersive, setImmersive] = useState(false)
   const [roomLoadFailed, setRoomLoadFailed] = useState(false)
   const [showMobileAccess, setShowMobileAccess] = useState(false)
@@ -23,7 +23,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
   useEffect(() => {
     if (loading || !authorized) return undefined
     let active = true
-    setBedCount(null)
+    setRoomReady(false)
     setRoomLoadFailed(false)
     void ownerRooms().then((rooms) => {
       if (!active) return
@@ -32,7 +32,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
         setRoomLoadFailed(true)
         return
       }
-      setBedCount(room.desired_bed_count)
+      setRoomReady(true)
     }).catch(() => {
       if (active) setRoomLoadFailed(true)
     })
@@ -42,9 +42,9 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
   if (user === null || !canAccessMonitor(user.role)) { window.location.assign(user === null ? "/login?next=/monitor" : "/chat"); return <main /> }
   return <main className={immersive ? "monitor-page monitor-page--immersive" : "monitor-page"}>
     {!immersive ? <MonitorRail onMobileAccess={() => setShowMobileAccess(true)} onToggleImmersive={() => setImmersive(true)} onUpdated={refresh} user={user} /> : null}
-    {bedCount === null
+    {!roomReady
       ? <p className="empty monitor-page__status">{roomLoadFailed ? t("status.offline") : t("surface.loading")}</p>
-      : <ObservationMonitor bedCount={bedCount} immersive={immersive} mode="standalone" onExitImmersive={() => setImmersive(false)} roomId={roomId} />}
+      : <ObservationMonitor immersive={immersive} mode="standalone" onExitImmersive={() => setImmersive(false)} roomId={roomId} />}
     {showMobileAccess ? <MobileAccessDialog onClose={() => setShowMobileAccess(false)} targetPath="/monitor" /> : null}
   </main>
 }

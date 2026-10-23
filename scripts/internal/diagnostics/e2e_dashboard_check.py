@@ -237,7 +237,7 @@ def main() -> None:
                 ),
                 owner.put_json(
                     "/api/v1/setup/draft/nest",
-                    {"bed_count": 4},
+                    {"bed_count": 32},
                     headers=setup_headers,
                 ),
             )

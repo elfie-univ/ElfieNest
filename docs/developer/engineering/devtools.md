@@ -181,8 +181,8 @@ source digest. The Nest Lab camera button only sends a restricted set of
 intents — overview, activity area, dormitory, teleport room and reset view —
 Godot remains the single source of truth for camera transforms.
 
-Nest Lab embeds the exported fixed room in the browser. Developers can change
-the bed count, add a saevi / tovren, start a Python-driven random walk that picks a
+Nest Lab embeds the exported fixed room in the browser. The room always exposes
+32 fixed beds; developers can add a saevi / tovren, start a Python-driven random walk that picks a
 semantic anchor on a timer, or pause, resume and reset the experiment. Godot
 handles geometry, rendering, pathfinding and collision; the Lab only sends v2
 semantic commands and records Runtime facts. Both Labs use the same Godot Web

@@ -92,6 +92,7 @@ class ObserverEntityResponse(BaseModel):
     posture: str
     active: bool
     active_command_id: Optional[str]
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     species_id: Optional[str]
     appearance: Dict[str, JsonValue]
     home_anchor_id: Optional[str]
@@ -106,6 +107,7 @@ class ObserverEntityPatchResponse(BaseModel):
     posture: Optional[str] = None
     active: Optional[bool] = None
     active_command_id: Optional[str] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     species_id: Optional[str] = None
     appearance: Optional[Dict[str, JsonValue]] = None
     home_anchor_id: Optional[str] = None

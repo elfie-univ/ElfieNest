@@ -17,7 +17,7 @@ vi.mock("../api/client", async (loadOriginal) => {
 })
 
 vi.mock("../components/ObservationMonitor", () => ({
-  ObservationMonitor: ({ bedCount, roomId }: { readonly bedCount: number; readonly roomId: string }) => <section aria-label="房间 3D 观察" data-bed-count={String(bedCount)} data-room-id={roomId} data-slot="observation-monitor" role="region" />,
+  ObservationMonitor: ({ roomId }: { readonly roomId: string }) => <section aria-label="房间 3D 观察" data-room-id={roomId} data-slot="observation-monitor" role="region" />,
 }))
 
 const owner = {
@@ -43,7 +43,7 @@ const admin = {
 } satisfies ClientUser
 
 const redirects = vi.hoisted(() => ({ assign: vi.fn() }))
-const roomFixture = [{ id: "local-nest", name: "Local Nest", desired_bed_count: 4, beds: [] }]
+const roomFixture = [{ id: "local-nest", name: "Local Nest", desired_bed_count: 32 as const, beds: [] }]
 
 function setSession(user: ClientUser | null, loading = false): void {
   vi.mocked(useSession).mockReturnValue({
@@ -77,7 +77,6 @@ describe("MonitorPage", () => {
 
     expect(container.querySelector("main")).toHaveClass("monitor-page")
     expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "房间 3D 观察" })).toHaveAttribute("data-bed-count", "4")
     expect(screen.queryByRole("heading")).toBeNull()
     expect(redirects.assign).not.toHaveBeenCalled()
   })

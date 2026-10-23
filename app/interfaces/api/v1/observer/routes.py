@@ -280,6 +280,7 @@ def _entity_response(entity: ObserverEntityRecord) -> ObserverEntityResponse:
         posture=entity.posture,
         active=entity.active,
         active_command_id=entity.active_command_id,
+        action_anchor_id=entity.action_anchor_id,
         species_id=entity.species_id,
         appearance=dict(entity.appearance),
         home_anchor_id=entity.home_anchor_id,

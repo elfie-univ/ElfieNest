@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from threading import Barrier
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -466,6 +467,41 @@ def test_logout_revokes_every_capability_for_the_login_session() -> None:
         facade.next_frame(
             NextObserverFrameQuery(manager, "owner-login", capability, None, None)
         )
+
+
+def test_action_anchor_snapshot_delta_and_explicit_clear() -> None:
+    facade, _clock, world = _facade()
+    principal = ObserverPrincipal(user_id=1, access="manager")
+    world.entities = (
+        replace(world.entities[0], action_anchor_id="courtyard/activity"),
+    )
+    capability = facade.open_session(
+        OpenObserverSessionCommand(
+            principal, "login", ObserverSubscription(kind="room", room_id="local-nest")
+        )
+    ).capability
+    frame = facade.next_frame(
+        NextObserverFrameQuery(principal, "login", capability, None, None)
+    )
+    assert isinstance(frame, ObserverSnapshotResult)
+    assert frame.entities[0].state.action_anchor_id == "courtyard/activity"
+    for target in ("dorm-01/bed-01", None):
+        world.entities = (replace(world.entities[0], action_anchor_id=target),)
+        delta = facade.next_frame(
+            NextObserverFrameQuery(
+                principal, "login", capability, frame.generation, frame.sequence
+            )
+        )
+        assert isinstance(delta, ObserverDeltaResult)
+        assert [(change.field, change.value) for change in delta.changes] == [
+            ("action_anchor_id", target)
+        ]
+        frame = delta
+
+
+def test_observer_port_record_rejects_empty_action_anchor() -> None:
+    with pytest.raises(ValueError, match="action_anchor_id"):
+        replace(_entity("saevi-1", posture="idle"), action_anchor_id="")
 
 
 def _entity(

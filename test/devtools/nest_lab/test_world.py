@@ -106,7 +106,7 @@ def test_pausing_wander_cancels_an_inflight_semantic_move(tmp_path) -> None:
 def test_concurrent_actor_additions_preserve_capacity_and_unique_ids(tmp_path) -> None:
     """The polling frontend and control requests share one synchronized Lab state."""
     world = NestLabWorld(data_dir=tmp_path, http_port=8890, websocket_port=8891)
-    world.set_bed_count(4)
+    world.set_bed_count(32)
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         actors = list(executor.map(lambda _: world.add_actor("tovren"), range(4)))

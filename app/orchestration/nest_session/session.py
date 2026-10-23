@@ -559,6 +559,9 @@ class NestSession:
                 active_command_id=(
                     mirror.active_command_id if mirror is not None else None
                 ),
+                action_anchor_id=(
+                    mirror.action_anchor_id if mirror is not None else None
+                ),
                 mock_motion=(
                     RuntimeMockMotion(
                         waypoint=mirror.mock_motion.waypoint,

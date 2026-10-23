@@ -32,6 +32,7 @@ class ObserverSemanticEntity(BaseModel):
     posture: str = Field(default="standing", min_length=1)
     active: bool = True
     active_command_id: Optional[str] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     species_id: Optional[str] = None
     appearance: dict[str, JsonValue] = Field(default_factory=dict)
     home_anchor_id: Optional[str] = None
@@ -133,6 +134,13 @@ class ResidentMirror:
     position: tuple[float, float, float] | None = None
     heading_degrees: float | None = None
     velocity: tuple[float, float, float] | None = None
+    action_anchor_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.action_anchor_id is not None and (
+            not isinstance(self.action_anchor_id, str) or not self.action_anchor_id
+        ):
+            raise ValueError("action_anchor_id must be a nonempty string or None")
 
 
 @dataclass(frozen=True)

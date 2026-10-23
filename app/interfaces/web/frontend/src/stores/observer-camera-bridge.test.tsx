@@ -191,8 +191,14 @@ describe("useObserverCameraBridge", () => {
       generation: 1,
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest" },
-      entities: {},
-      entity_revisions: {},
+      entities: {
+        "saevi-1": {
+          room_id: "local-nest", zone_id: "dorm-01", posture: "sitting", active: true,
+          active_command_id: null, action_anchor_id: "dorm-01/chair-01",
+          species_id: "saevi", appearance: {}, home_anchor_id: "dorm-01/bed-01", mock_motion: null,
+        },
+      },
+      entity_revisions: { "saevi-1": 1 },
     }
 
     act(() => { result.current.bridge.publishSemanticSnapshot(snapshot) })
@@ -214,7 +220,7 @@ describe("useObserverCameraBridge", () => {
       version: 1,
       kind: "world_config",
       nest_id: "local-nest",
-      bed_count: 4,
+      bed_count: 32,
     }
 
     act(() => {

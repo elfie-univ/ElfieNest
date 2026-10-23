@@ -80,6 +80,7 @@ class NativeBody:
                 {
                     "move.forward",
                     "move.turn",
+                    "furniture.use",
                     "speak",
                     "expression",
                     "emergency_stop",
@@ -117,6 +118,21 @@ class NativeBody:
                                 "maximum": 360.0,
                             }
                         },
+                        "additionalProperties": False,
+                    },
+                    return_schema=_ACTION_OUTCOME_SCHEMA,
+                    registration_source="godot.native_body",
+                ),
+                BodyCapabilityDescriptor(
+                    capability_id="furniture.use",
+                    description=(
+                        "Walk to a concrete furniture anchor, then use its authored "
+                        "bed or seat pose. Moving to an anchor alone does not use it."
+                    ),
+                    argument_schema={
+                        "type": "object",
+                        "required": ["anchor_id"],
+                        "properties": {"anchor_id": {"type": "string", "minLength": 1}},
                         "additionalProperties": False,
                     },
                     return_schema=_ACTION_OUTCOME_SCHEMA,
@@ -545,6 +561,15 @@ class NativeBody:
             "initiator": "elfie",
         }
         arguments = command.arguments
+        if command.capability_id == "furniture.use":
+            anchor_id = arguments.get("anchor_id")
+            if (
+                set(arguments) != {"anchor_id"}
+                or not isinstance(anchor_id, str)
+                or not anchor_id.strip()
+            ):
+                raise ValueError("furniture.use requires only a non-blank anchor_id")
+            return {**base, "intent": "use_anchor", "anchor_id": anchor_id}
         if command.capability_id == "move.forward":
             distance = arguments.get("distance")
             if isinstance(distance, bool) or not isinstance(distance, (int, float)):

@@ -16,7 +16,7 @@ from app.features.nest_management import (
 class FakeNestManagementPort:
     def __init__(self) -> None:
         self.snapshot = NestSnapshotRecord(
-            desired_bed_count=4,
+            desired_bed_count=32,
             applied_world_revision=3,
             beds=(
                 NestBedRecord(

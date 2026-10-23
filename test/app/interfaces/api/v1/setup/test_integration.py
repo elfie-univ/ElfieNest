@@ -162,7 +162,7 @@ def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) ->
             current = client.get("/api/v1/setup/status").json()
 
         assert current["complete"] is True
-        assert current["draft"]["bed_count"] == 12
+        assert current["draft"]["bed_count"] == 32
         session = client.cookies.get("session_token")
         assert session is not None
         principal = application.state.accounts.authenticate_session(session)
@@ -170,16 +170,16 @@ def test_real_setup_chain_creates_owner_session_and_nest_once(tmp_path: Path) ->
         assert principal.role == "owner"
         assert (
             application.state.nest_management.get_rooms(principal)[0].desired_bed_count
-            == 12
+            == 32
         )
         for _ in range(3):
             engine.tick_once(0.0)
-        assert state_store.load_snapshot().desired_bed_count == 12
+        assert state_store.load_snapshot().desired_bed_count == 32
         restarted = ElfieNestEngine(_ReadyWorldRuntime(), state_store=state_store)
-        assert restarted.nest.desired_bed_count == 12
+        assert restarted.nest.desired_bed_count == 32
 
 
-def test_real_setup_chain_skips_remote_food_and_uses_default_twelve_beds(
+def test_real_setup_chain_skips_remote_food_and_uses_fixed_32_beds(
     tmp_path: Path,
 ) -> None:
     application, engine, state_store = _application_with_engine(tmp_path)
@@ -206,7 +206,7 @@ def test_real_setup_chain_skips_remote_food_and_uses_default_twelve_beds(
         assert skipped.status_code == 200
         assert skipped.json()["draft"]["remote_configured"] is False
         assert skipped.json()["draft"]["remote_skipped"] is True
-        assert skipped.json()["draft"]["bed_count"] == 12
+        assert skipped.json()["draft"]["bed_count"] == 32
 
         accepted = client.post(
             "/api/v1/setup/installation",
@@ -226,18 +226,18 @@ def test_real_setup_chain_skips_remote_food_and_uses_default_twelve_beds(
             current = client.get("/api/v1/setup/status").json()
 
         assert current["complete"] is True
-        assert current["draft"]["bed_count"] == 12
+        assert current["draft"]["bed_count"] == 32
         session = client.cookies.get("session_token")
         assert session is not None
         principal = application.state.accounts.authenticate_session(session)
         assert principal is not None
         assert (
             application.state.nest_management.get_rooms(principal)[0].desired_bed_count
-            == 12
+            == 32
         )
         for _ in range(3):
             engine.tick_once(0.0)
-        assert state_store.load_snapshot().desired_bed_count == 12
+        assert state_store.load_snapshot().desired_bed_count == 32
 
 
 def test_real_setup_chain_replaces_stale_session_cookie_before_writing_owner(

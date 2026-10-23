@@ -165,7 +165,7 @@ describe("AdoptionJourneyDialog", () => {
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
-      nest_capacity: { used: 0, max: 4, remaining: 4 },
+      nest_capacity: { used: 0, max: 32, remaining: 32 },
       availability: "available",
     })
     api.adoptionCandidates.mockResolvedValue({
@@ -190,7 +190,7 @@ describe("AdoptionJourneyDialog", () => {
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 3, max: 3, remaining: 0, can_adopt: false },
-      nest_capacity: { used: 4, max: 4, remaining: 0 },
+      nest_capacity: { used: 32, max: 32, remaining: 0 },
       availability: "nest_full",
     })
 
@@ -212,7 +212,7 @@ describe("AdoptionJourneyDialog", () => {
       heights: ["short", "standard", "tall"],
       builds: ["slim", "standard", "plump"],
       quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
-      nest_capacity: { used: 0, max: 4, remaining: 4 },
+      nest_capacity: { used: 0, max: 32, remaining: 32 },
       availability: "species_unavailable",
     })
 

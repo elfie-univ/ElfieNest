@@ -338,6 +338,7 @@ def _nest_mirror(
         current_zone_id=mirror.current_zone_id,
         posture=mirror.posture,
         active_command_id=mirror.active_command_id,
+        action_anchor_id=mirror.action_anchor_id,
         position=mirror.position,
         heading_degrees=mirror.heading_degrees,
         velocity=mirror.velocity,

@@ -48,7 +48,7 @@ class SetupOfflineDraftRequest(BaseModel):
 
 class SetupNestDraftRequest(BaseModel):
     model_config = _STRICT
-    bed_count: int = Field(strict=True)
+    bed_count: int = Field(strict=True, ge=32, le=32)
 
 
 class SetupRemoteDraftRequest(BaseModel):

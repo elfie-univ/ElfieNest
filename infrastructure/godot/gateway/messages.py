@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum, unique
+from math import isfinite
 from typing import Dict, List, Literal, Optional, Tuple, Type
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -100,7 +101,7 @@ class _ManifestFacilityPayload(_Payload):
 class _SceneManifestPayload(_Payload):
     nest_id: str
     world_revision: int = Field(ge=0)
-    bed_count: int = Field(ge=4, le=32)
+    bed_count: int = Field(strict=True, ge=32, le=32)
     capabilities: List[str] = Field(default_factory=list)
     zones: List[_ManifestZonePayload]
     anchors: List[_ManifestAnchorPayload]
@@ -117,6 +118,7 @@ class _SnapshotActorPayload(_Payload):
     zone_id: Optional[str]
     posture: str
     active_command_id: Optional[str]
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     mock_motion: Optional[_MockMotionPayload] = None
     position: Optional[Tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
@@ -206,7 +208,7 @@ class _EnvironmentStatePayload(_Payload):
 
 class _ConfigureWorldPayload(_Payload):
     nest_id: str = Field(min_length=1)
-    bed_count: int = Field(ge=4, le=32)
+    bed_count: int = Field(strict=True, ge=32, le=32)
     world_revision: int = Field(ge=0)
 
 
@@ -229,6 +231,7 @@ class _ExecuteIntentPayload(_Payload):
     initiator: Literal["elfie"]
     intent: Literal[
         "move_to_anchor",
+        "use_anchor",
         "move_forward",
         "turn",
         "speak",
@@ -242,19 +245,49 @@ class _ExecuteIntentPayload(_Payload):
     expression: Optional[str] = None
     intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_use_anchor_types(cls, value: object) -> object:
+        if isinstance(value, dict) and value.get("intent") == "use_anchor":
+            for key in ("command_id", "intent_id", "actor_id", "anchor_id"):
+                if not isinstance(value.get(key), str) or not value[key].strip():
+                    raise ValueError(f"use_anchor requires non-blank {key}")
+            generation = value.get("body_generation")
+            deadline = value.get("deadline_seconds")
+            if type(generation) is not int or generation < 1:
+                raise ValueError("use_anchor requires integer body_generation")
+            if (
+                isinstance(deadline, bool)
+                or not isinstance(deadline, (int, float))
+                or not isfinite(deadline)
+                or deadline <= 0.0
+            ):
+                raise ValueError("use_anchor requires finite positive deadline_seconds")
+        return value
+
     @model_validator(mode="after")
     def _validate_intent_fields(self) -> _ExecuteIntentPayload:
+        if self.intent == "use_anchor":
+            expected_fields = {
+                "command_id",
+                "intent_id",
+                "actor_id",
+                "body_generation",
+                "initiator",
+                "intent",
+                "deadline_seconds",
+                "anchor_id",
+            }
+            if self.model_fields_set != expected_fields:
+                raise ValueError("use_anchor payload has incompatible fields")
         if self.intent == "speak":
             # The utterance is stored and routed by Nest before the direct
             # Body animation command.  The Godot command may therefore omit
             # text; a direct protocol caller may still include non-empty text.
             if self.text is not None and not self.text.strip():
                 raise ValueError("speak payload is incomplete")
-        elif self.intent == "move_to_anchor":
-            required = {
-                "move_to_anchor": self.anchor_id,
-            }
-            value = required["move_to_anchor"]
+        elif self.intent in {"move_to_anchor", "use_anchor"}:
+            value = self.anchor_id
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{self.intent} payload is incomplete")
         elif self.intent == "move_forward":
@@ -281,6 +314,7 @@ class _ExecuteIntentPayload(_Payload):
         }
         expected = {
             "move_to_anchor": {"anchor_id"},
+            "use_anchor": {"anchor_id"},
             "move_forward": {"distance"},
             "turn": {"angle_degrees"},
             "speak": {"text"} if self.text is not None else set(),

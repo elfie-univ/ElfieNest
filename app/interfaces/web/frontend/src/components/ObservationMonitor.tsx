@@ -7,7 +7,6 @@ import { Icon } from "./Icon"
 import { ObserverSurface } from "./ObserverSurface"
 
 type ObservationMonitorProps = {
-  readonly bedCount: number
   readonly immersive?: boolean
   readonly mode?: "embedded" | "standalone"
   readonly onExitImmersive?: () => void
@@ -60,7 +59,7 @@ function monitorHelpKey(
   }
 }
 
-export function ObservationMonitor({ bedCount, immersive = false, mode = "embedded", onExitImmersive, roomId }: ObservationMonitorProps) {
+export function ObservationMonitor({ immersive = false, mode = "embedded", onExitImmersive, roomId }: ObservationMonitorProps) {
   const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const cameraCatalog = observer?.cameraCatalog ?? null
@@ -88,11 +87,11 @@ export function ObservationMonitor({ bedCount, immersive = false, mode = "embedd
   ].filter(Boolean).join(" ")
   return <section className={monitorClassName} data-slot="observation-monitor">
     <div className="observation-monitor__stage">
-      <ObserverSurface autoStart bedCount={bedCount} kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
+      <ObserverSurface autoStart kind="room" roomId={roomId} showHeader={false} title={t("surface.title")} />
       {showStatusOverlay ? <div aria-live="polite" className="observer-surface__fallback absolute inset-0 z-[2]" role="status">
         <p>{statusCopy}</p>
         <p>{t(monitorHelpKey(statusKey, observer?.fallbackReason))}</p>
-        {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId, bedCount)) }} type="button">{t("controls.retry")}</Button> : null}
+        {retryAvailable ? <Button aria-label={t("controls.retry")} onClick={() => { void observer.openRoom(roomId, createObserverWorldConfig(roomId)) }} type="button">{t("controls.retry")}</Button> : null}
       </div> : <p aria-live="polite" className="sr-only" role="status">{statusCopy}</p>}
       {statusKey === "connection.connectedTo" ? <p aria-live="polite" className="observation-monitor__entity-count">{t("surface.entityCount", { count: visibleElfieCount })}</p> : null}
       <p className="sr-only">{t("help.controls")}</p>

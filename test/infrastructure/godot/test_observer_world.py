@@ -13,6 +13,7 @@ def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> 
                 room_id="local-nest",
                 zone_id="dorm",
                 posture="resting",
+                action_anchor_id="dorm-01/chair-01",
                 species_id="saevi",
                 appearance={"height_scale": 1.0},
                 home_anchor_id="dorm-01/bed-01",
@@ -28,4 +29,5 @@ def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> 
 
     assert entities[0].entity_id == "saevi-1"
     assert entities[0].appearance == (("height_scale", 1.0),)
+    assert entities[0].action_anchor_id == "dorm-01/chair-01"
     assert submitted == [("saevi-1", "greet")]

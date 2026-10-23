@@ -100,7 +100,7 @@ EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES = {
     "set_local_presentation_paused": frozenset({"paused"}),
 }
 EXPECTED_GODOT_OBSERVER_VIEW_IDS = frozenset(
-    {"overview", "section-%02d", "activity-%02d", "dorm-%02d", "portal"}
+    {"overview", "courtyard", "garden", "sky", "central-%d", "dorm-%02d"}
 )
 EXPECTED_NATIVE_TARGETS = frozenset(
     {
@@ -408,9 +408,6 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
         GODOT_NEST_PATH, "_register_observation_view"
     )
     rebuild_body = _gdscript_function_body(GODOT_NEST_PATH, "_build_observation_views")
-    section_views_body = _gdscript_function_body(
-        GODOT_NEST_PATH, "_build_section_observation_views"
-    )
     select_view_body = _gdscript_function_body(
         GODOT_NEST_PATH, "select_observation_view"
     )
@@ -451,7 +448,7 @@ def test_godot_observer_catalog_is_semantic_versioned_and_not_authority() -> Non
 
     # And: registrations preserve stable semantic ids, while unknown selection
     # returns false before any active-camera mutation or fallback selection.
-    registration_sources = rebuild_body + "\n" + section_views_body
+    registration_sources = rebuild_body
     assert EXPECTED_GODOT_OBSERVER_VIEW_IDS <= _gdscript_string_literals(
         registration_sources
     )

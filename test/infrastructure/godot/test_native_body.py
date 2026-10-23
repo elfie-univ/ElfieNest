@@ -4,10 +4,14 @@ from datetime import datetime, timedelta, timezone
 from threading import Event, Thread
 from typing import Any, Dict, List
 
+import pytest
+from pydantic import JsonValue
+
 from elfie.body import (
     BodyId,
     BodyMode,
     BodyPort,
+    CapabilityCommand,
     CommandStatus,
     EmergencyStopCommand,
     ExpressionCommand,
@@ -134,6 +138,7 @@ def test_native_body_exposes_only_registered_public_catalog_entries() -> None:
     assert [item.capability_id for item in body.list_actions()] == [
         "move.forward",
         "move.turn",
+        "furniture.use",
         "speak",
         "expression",
         "emergency_stop",
@@ -153,6 +158,126 @@ def test_native_body_exposes_only_registered_public_catalog_entries() -> None:
         item.registration_source == "godot.native_body" for item in body.list_inputs()
     )
     assert "gesture.wave" not in body.capabilities.actions
+
+
+def test_furniture_use_is_one_targeted_intent_with_real_lifecycle() -> None:
+    body, gateway = make_body()
+    body.connect()
+    command = CapabilityCommand(
+        command_type="capability",
+        capability_id="furniture.use",
+        arguments={"anchor_id": "dorm-01/bed-01"},
+        **_command_fields("use-bed"),
+    )
+
+    receipts = body.execute(command, now=NOW)
+
+    assert [receipt.status for receipt in receipts] == [
+        CommandStatus.ACCEPTED,
+        CommandStatus.STARTED,
+        CommandStatus.COMPLETED,
+    ]
+    assert len(gateway.sent) == 1
+    payload = gateway.sent[0]["payload"]
+    assert payload["intent"] == "use_anchor"
+    assert payload["anchor_id"] == "dorm-01/bed-01"
+    assert payload["intent_id"] == "intent-use-bed"
+    assert payload["body_generation"] == 1
+    assert not {"position", "posture", "interaction_transform"} & payload.keys()
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"anchor_id": " "},
+        {"anchor_id": 42},
+        {"anchor_id": "dorm-01/bed-01", "posture": "sleeping"},
+        {"anchor_id": "dorm-01/bed-01", "position": [0, 0, 0]},
+    ],
+)
+def test_furniture_use_rejects_invalid_or_physical_arguments(
+    arguments: dict[str, JsonValue],
+) -> None:
+    body, gateway = make_body()
+    body.connect()
+    receipts = body.execute(
+        CapabilityCommand(
+            command_type="capability",
+            capability_id="furniture.use",
+            arguments=arguments,
+            **_command_fields("bad-use"),
+        ),
+        now=NOW,
+    )
+    assert receipts[-1].status is CommandStatus.REJECTED
+    assert gateway.sent == []
+
+
+def test_movement_to_furniture_does_not_lower_to_use() -> None:
+    body, gateway = make_body()
+    body.connect()
+    body.execute(
+        MotionCommand(
+            command_type="motion",
+            kind="walking",
+            target="dorm-01/bed-01",
+            posture="sleeping",
+            **_command_fields("only-walk"),
+        ),
+        now=NOW,
+    )
+    assert gateway.sent[0]["payload"]["intent"] == "move_to_anchor"
+    assert "posture" not in gateway.sent[0]["payload"]
+
+
+@pytest.mark.parametrize(
+    "terminal,expected",
+    [
+        ("failed", CommandStatus.FAILED),
+        ("cancelled", CommandStatus.INTERRUPTED),
+    ],
+)
+def test_furniture_use_preserves_runtime_failure_and_cancellation(
+    terminal: str,
+    expected: CommandStatus,
+) -> None:
+    body, gateway = make_body()
+    body.connect()
+    gateway.auto_complete = False
+    command = CapabilityCommand(
+        command_type="capability",
+        capability_id="furniture.use",
+        arguments={"anchor_id": "dorm-01/bed-01"},
+        **_command_fields("use-terminal"),
+    )
+    result: list[tuple] = []
+    worker = Thread(target=lambda: result.append(body.execute(command, now=NOW)))
+    worker.start()
+    assert gateway.command_sent.wait(timeout=0.5)
+    identity = {
+        "command_id": "use-terminal",
+        "actor_id": "elfie-1",
+        "intent_id": "intent-use-terminal",
+        "body_generation": 1,
+    }
+    for name in (EventName.INTENT_ACCEPTED, EventName.INTENT_STARTED):
+        body.transport.receive_runtime_event(gateway.runtime_event(name, identity))
+    body.transport.receive_runtime_event(
+        gateway.runtime_event(
+            EventName.INTENT_TERMINAL,
+            {**identity, "status": terminal, "reason": "furniture_not_reached"},
+        )
+    )
+    worker.join(timeout=0.5)
+    assert not worker.is_alive()
+    assert [receipt.status for receipt in result[0]] == [
+        CommandStatus.ACCEPTED,
+        CommandStatus.STARTED,
+        expected,
+    ]
+    assert result[0][-1].error.message == "furniture_not_reached"
+    assert len(gateway.sent) == 1
 
 
 def test_native_body_does_not_consume_legacy_gateway_callbacks() -> None:

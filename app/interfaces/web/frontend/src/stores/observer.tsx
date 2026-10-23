@@ -113,6 +113,9 @@ function mergeFrame(
       active_command_id: patch.active_command_id === undefined
         ? entity.active_command_id
         : patch.active_command_id,
+      action_anchor_id: patch.action_anchor_id === undefined
+        ? entity.action_anchor_id
+        : patch.action_anchor_id,
       species_id: patch.species_id === undefined ? entity.species_id : patch.species_id,
       appearance: patch.appearance === undefined ? entity.appearance : patch.appearance,
       home_anchor_id: patch.home_anchor_id === undefined

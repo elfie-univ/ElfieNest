@@ -7,7 +7,7 @@ import { createObserverWorldConfig, type ObserverWorldConfig } from "../stores/o
 import { Icon } from "./Icon"
 
 type ObserverSurfaceProps =
-  | { readonly autoStart?: boolean; readonly bedCount: number; readonly kind: "room"; readonly roomId: string; readonly showHeader?: boolean; readonly title: string }
+  | { readonly autoStart?: boolean; readonly kind: "room"; readonly roomId: string; readonly showHeader?: boolean; readonly title: string }
   | { readonly autoStart?: boolean; readonly elfieId: string; readonly kind: "elfie"; readonly showHeader?: boolean; readonly title: string }
 
 export function ObserverSurface(props: ObserverSurfaceProps) {
@@ -18,10 +18,9 @@ export function ObserverSurface(props: ObserverSurfaceProps) {
   const isRoom = props.kind === "room"
   const roomId = isRoom ? props.roomId : null
   const elfieId = isRoom ? null : props.elfieId
-  const bedCount = isRoom ? props.bedCount : null
   const worldConfig = useMemo<ObserverWorldConfig | null>(
-    () => roomId !== null && bedCount !== null ? createObserverWorldConfig(roomId, bedCount) : null,
-    [bedCount, roomId],
+    () => roomId !== null ? createObserverWorldConfig(roomId) : null,
+    [roomId],
   )
   const open = useCallback((): void => {
     if (observer === null) return

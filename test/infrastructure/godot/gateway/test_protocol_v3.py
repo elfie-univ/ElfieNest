@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -6,6 +7,7 @@ from pydantic import ValidationError
 from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
+    JsonObject,
     RuntimeCommandFrame,
     SemanticLane,
     parse_runtime_command_frame,
@@ -13,6 +15,64 @@ from infrastructure.godot.gateway.messages import (
 )
 
 OCCURRED_AT = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+
+
+def _use_anchor_frame(**overrides: object) -> JsonObject:
+    payload: dict[str, object] = {
+        "command_id": "use-1",
+        "intent_id": "intent-use-1",
+        "actor_id": "elfie-1",
+        "body_generation": 1,
+        "initiator": "elfie",
+        "intent": "use_anchor",
+        "anchor_id": "dorm-01/bed-01",
+        "deadline_seconds": 10.0,
+    }
+    payload.update(overrides)
+    return cast(
+        JsonObject,
+        {
+            "protocol": 3,
+            "kind": "command",
+            "lane": "body",
+            "name": "execute_intent",
+            "message_id": "message-use-1",
+            "cause_id": "use-1",
+            "target_actor_id": "elfie-1",
+            "runtime_id": "runtime-main",
+            "generation": 1,
+            "world_revision": 4,
+            "issued_at": OCCURRED_AT.isoformat(),
+            "payload": payload,
+        },
+    )
+
+
+def test_furniture_use_protocol_accepts_semantic_anchor_only() -> None:
+    frame = parse_runtime_command_frame(_use_anchor_frame())
+    assert frame.payload["intent"] == "use_anchor"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"anchor_id": None},
+        {"anchor_id": " "},
+        {"anchor_id": 42},
+        {"distance": 1.0},
+        {"expression": None},
+        {"interaction_transform": [1, 0, 0]},
+        {"posture": "sleeping"},
+        {"deadline_seconds": float("inf")},
+        {"deadline_seconds": True},
+        {"body_generation": True},
+        {"body_generation": 1.5},
+        {"initiator": "observer"},
+    ],
+)
+def test_furniture_use_protocol_is_strict(overrides: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        parse_runtime_command_frame(_use_anchor_frame(**overrides))
 
 
 def test_protocol_v3_preserves_body_target_cause_and_physical_values() -> None:

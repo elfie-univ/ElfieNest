@@ -11,7 +11,7 @@ from typing import Any, Callable
 from devtools.nest_lab.actor_sync import sync_actors
 from devtools.nest_lab.event_log import LabEventLog
 from devtools.nest_lab.models import LabActor, LabSpecies, NestLabConflictError
-from devtools.nest_lab.residents import assign_missing_homes, clear_home_assignments
+from devtools.nest_lab.residents import assign_missing_homes
 from devtools.nest_lab.simulation import WanderScheduler
 from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import (
@@ -24,7 +24,7 @@ from infrastructure.godot.nest_session.mapper import (
     parse_scene_manifest,
     parse_world_snapshot,
 )
-from nest import Nest, NestConfig
+from nest import FIXED_BED_COUNT, Nest, NestConfig
 from nest.living_rules.models import RuntimeResidentMirror
 from nest.space_facilities.models import (
     AnchorKind,
@@ -64,7 +64,7 @@ class NestLabWorld:
         )
         self._data_dir = data_dir
         self._nest = Nest(NestConfig())
-        self._bed_count = 4
+        self._bed_count = FIXED_BED_COUNT
         self._world_revision = 1
         self._actors: dict[str, LabActor] = {}
         self._events = LabEventLog()
@@ -147,19 +147,10 @@ class NestLabWorld:
 
     @_synchronized
     def set_bed_count(self, bed_count: int) -> dict[str, bool | int | str]:
-        """Reconfigure the fixed room when all residents still fit."""
+        """Return the fixed room state; capacity is not a Lab setting."""
         self.poll()
-        if bed_count < len(self._actors):
-            raise NestLabConflictError("床位数不能小于当前角色数量")
-        if bed_count != self._bed_count:
-            self._bed_count = bed_count
-            self._world_revision += 1
-            clear_home_assignments(self._nest, self._actors)
-            self._manifest_revision = None
-            self._configured_revision = None
-            self._actor_catalog_dirty = True
-            self._connection_token = None
-            self._events.append("world_reconfigured", f"bed_count={bed_count}")
+        if bed_count != FIXED_BED_COUNT:
+            raise NestLabConflictError("床位数固定为 32")
         self.poll()
         return self.world()
 

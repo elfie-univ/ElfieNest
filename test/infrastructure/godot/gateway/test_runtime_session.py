@@ -149,7 +149,7 @@ def test_runtime_session_builds_config_before_ready_and_gates_actor_sync() -> No
 
     configure = session.create_command(
         CommandName.CONFIGURE_WORLD,
-        {"nest_id": "local-nest", "bed_count": 4, "world_revision": 1},
+        {"nest_id": "local-nest", "bed_count": 32, "world_revision": 1},
         world_revision=1,
     )
 

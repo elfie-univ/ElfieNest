@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+
+import pytest
+from pydantic import JsonValue, ValidationError
 
 from app.orchestration.nest_session import RuntimeActor, RuntimeConnection
 from app.orchestration.nest_session.models import (
@@ -11,6 +16,7 @@ from infrastructure.godot.gateway.api import GodotAPIServer
 from infrastructure.godot.gateway.messages import (
     CommandName,
     EventName,
+    JsonObject,
     RuntimeEventFrame,
     SemanticLane,
 )
@@ -18,6 +24,7 @@ from infrastructure.godot.gateway.session import (
     RuntimeConnection as GatewayConnection,
 )
 from infrastructure.godot.nest_session import GodotNestSessionAdapter
+from infrastructure.godot.nest_session.mapper import parse_world_snapshot
 
 
 def test_adapter_translates_world_operations_to_protocol_commands() -> None:
@@ -30,7 +37,7 @@ def test_adapter_translates_world_operations_to_protocol_commands() -> None:
     assert (
         adapter.configure_world(
             nest_id="local-nest",
-            bed_count=4,
+            bed_count=32,
             world_revision=1,
         )
         == "configure-1"
@@ -52,7 +59,7 @@ def test_adapter_translates_world_operations_to_protocol_commands() -> None:
 
     assert gateway.send_runtime_command.call_args_list[0].args == (
         CommandName.CONFIGURE_WORLD,
-        {"nest_id": "local-nest", "bed_count": 4, "world_revision": 1},
+        {"nest_id": "local-nest", "bed_count": 32, "world_revision": 1},
     )
     assert (
         gateway.send_runtime_command.call_args_list[1].args[0]
@@ -76,7 +83,7 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
             payload={
                 "nest_id": "local-nest",
                 "world_revision": 1,
-                "bed_count": 4,
+                "bed_count": 32,
                 "capabilities": [],
                 "zones": [
                     {
@@ -122,7 +129,19 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
     assert event.payload.catalog.facilities[0].capabilities == ("sleep",)
 
 
-def test_adapter_maps_snapshot_to_semantic_resident_mirrors() -> None:
+@pytest.mark.parametrize(
+    ("target", "posture", "active_command"),
+    [
+        ("courtyard/activity", "walking", "move-1"),
+        ("courtyard/activity", "idle", None),
+        ("dorm-01/bed-01", "sleeping", None),
+        ("dorm-01/chair-01", "sitting", None),
+        (None, "idle", None),
+    ],
+)
+def test_adapter_maps_snapshot_to_semantic_resident_mirrors(
+    target: str | None, posture: str, active_command: str | None
+) -> None:
     gateway = MagicMock(spec=GodotAPIServer)
     gateway.drain_runtime_events.return_value = (
         RuntimeEventFrame(
@@ -141,8 +160,9 @@ def test_adapter_maps_snapshot_to_semantic_resident_mirrors() -> None:
                     {
                         "actor_id": "elfie-1",
                         "zone_id": "dorm-01",
-                        "posture": "standing",
-                        "active_command_id": None,
+                        "posture": posture,
+                        "active_command_id": active_command,
+                        "action_anchor_id": target,
                     }
                 ],
             },
@@ -156,6 +176,40 @@ def test_adapter_maps_snapshot_to_semantic_resident_mirrors() -> None:
     assert isinstance(event.payload, WorldSnapshot)
     assert event.payload.residents[0].elfie_id == "elfie-1"
     assert event.payload.residents[0].current_zone_id == "dorm-01"
+    assert event.payload.residents[0].action_anchor_id == target
+    assert event.payload.residents[0].posture == posture
+    assert event.payload.residents[0].active_command_id == active_command
+
+
+@pytest.mark.parametrize("target", ["", 42, {"x": 1}])
+def test_snapshot_parser_rejects_invalid_action_anchor(target: JsonValue) -> None:
+    payload: JsonObject = {
+        "world_revision": 1,
+        "actors": [
+            {
+                "actor_id": "elfie-1",
+                "zone_id": "dorm-01",
+                "posture": "idle",
+                "active_command_id": None,
+                "action_anchor_id": target,
+            }
+        ],
+    }
+    with pytest.raises(ValidationError):
+        parse_world_snapshot(payload)
+    with pytest.raises(ValidationError):
+        RuntimeEventFrame(
+            protocol=3,
+            kind="event",
+            lane=SemanticLane.NEST,
+            name=EventName.WORLD_SNAPSHOT,
+            message_id="invalid-action-anchor",
+            runtime_id="runtime-a",
+            generation=1,
+            world_revision=1,
+            occurred_at=datetime(2026, 8, 11, tzinfo=timezone.utc),
+            payload=payload,
+        )
 
 
 def test_adapter_requests_bounded_visual_observation_on_nest_lane() -> None:

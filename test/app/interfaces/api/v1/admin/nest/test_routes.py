@@ -128,7 +128,7 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
 
     updated = client.put(
         "/api/v1/admin/nest/rooms/default/bed-count",
-        json={"bed_count": 6},
+        json={"bed_count": 32},
     )
     assigned = client.put(
         "/api/v1/admin/nest/elfies/00000001/bed",
@@ -138,7 +138,7 @@ def test_versioned_admin_nest_real_chain(tmp_path) -> None:
 
     assert updated.status_code == 200
     assert updated.json() == {
-        "desired_bed_count": 6,
+        "desired_bed_count": 32,
         "applied_world_revision": 1,
     }
     assert assigned.status_code == 200

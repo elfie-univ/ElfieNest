@@ -55,7 +55,7 @@ def test_new_runtime_restores_catalog_assigns_homes_and_syncs_all_actors() -> No
 
     engine.tick_once(0.0)
 
-    assert runtime.configurations == [("local-nest", 4, 1)]
+    assert runtime.configurations == [("local-nest", 32, 1)]
     assert runtime.configured_revisions == [1]
     assert len(runtime.actor_syncs) == 1
     actors, revision = runtime.actor_syncs[0]
@@ -117,6 +117,7 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
                             elfie_id="saevi-1",
                             current_zone_id="activity-01",
                             posture="standing",
+                            action_anchor_id="central-01/activity",
                         ),
                     ),
                 ),
@@ -128,6 +129,11 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
 
     mirror = engine.nest.runtime_mirrors["saevi-1"]
     assert mirror.current_zone_id == "activity-01"
+    assert mirror.action_anchor_id == "central-01/activity"
+    assert (
+        engine.session.observer_semantic_entities()["saevi-1"].action_anchor_id
+        == "central-01/activity"
+    )
     assert mirror.runtime_id == "runtime-a"
     assert mirror.runtime_generation == 1
     assert mirror.world_revision == 1
@@ -925,7 +931,7 @@ def _event(
 def _catalog(
     *,
     revision: int = 1,
-    bed_count: int = 4,
+    bed_count: int = 32,
     zone_id: str = "dorm-01",
 ) -> SemanticWorldCatalog:
     return SemanticWorldCatalog(
@@ -954,7 +960,7 @@ def _catalog(
 class FailingNestStateStore:
     def load_snapshot(self) -> NestSnapshot:
         return NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),

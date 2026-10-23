@@ -40,7 +40,7 @@ describe("ObserverSurface", () => {
       value: () => ({}),
     })
     const user = userEvent.setup()
-    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface bedCount={4} kind="room" roomId="local-nest" title="房间 3D 观察" /></ObserverProvider>)
+    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface kind="room" roomId="local-nest" title="房间 3D 观察" /></ObserverProvider>)
     await user.click(screen.getByRole("button", { name: "进入 3D" }))
     expect(await screen.findByRole("button", { name: "结束观察" })).toBeInTheDocument()
 
@@ -59,7 +59,7 @@ describe("ObserverSurface", () => {
       value: () => ({}),
     })
     const user = userEvent.setup()
-    const { container } = renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface bedCount={4} kind="room" roomId="local-nest" title="房间 3D 观察" /></ObserverProvider>)
+    const { container } = renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface kind="room" roomId="local-nest" title="房间 3D 观察" /></ObserverProvider>)
     await user.click(screen.getByRole("button", { name: "进入 3D" }))
     const engine = container.querySelector<HTMLIFrameElement>("iframe[title='ElfieNest 3D Observer']")
     if (engine?.contentWindow === null || engine === null) throw new Error("observer iframe missing")
@@ -81,7 +81,7 @@ describe("ObserverSurface", () => {
       value: () => ({}),
     })
 
-    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart bedCount={4} kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
+    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
 
     expect(screen.getByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
     expect(screen.queryByText("房间 3D 观察")).not.toBeInTheDocument()
@@ -99,7 +99,7 @@ describe("ObserverSurface", () => {
       value: () => ({}),
     })
 
-    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart bedCount={4} kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
+    renderLocalized(<ObserverProvider csrfToken="csrf" enabled><ObserverSurface autoStart kind="room" roomId="local-nest" showHeader={false} title="房间 3D 观察" /></ObserverProvider>)
 
     expect(await screen.findByText("手机浏览器需要安全连接才能打开 3D 房间观察。")).toBeInTheDocument()
     expect(screen.getByText(/10\.\*、172\.16\.\*–172\.31\.\*、192\.168\.\* 地址可以直接打开/)).toBeInTheDocument()
@@ -107,7 +107,7 @@ describe("ObserverSurface", () => {
   })
 
   it("renders the real fallback surface in English without Chinese copy", () => {
-    renderLocalized(<ObserverSurface bedCount={4} kind="room" roomId="local-nest" title="3D room monitor" />, "en-US")
+    renderLocalized(<ObserverSurface kind="room" roomId="local-nest" title="3D room monitor" />, "en-US")
 
     expect(screen.getByText("3D monitoring is unavailable.")).toBeInTheDocument()
     expect(screen.getByText("Chat, profiles, and room management remain available.")).toBeInTheDocument()

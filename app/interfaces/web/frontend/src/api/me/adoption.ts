@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { ElfieIdValueSchema } from "@/shared/elfie-id"
 
+import { FIXED_BED_COUNT } from "../../constants"
 import { csrfHeaders, requestJson } from "../http"
 
 const AdoptionInfoSchema = z.object({
@@ -34,7 +35,7 @@ const AdoptionInfoSchema = z.object({
   }),
   nest_capacity: z.object({
     used: z.number().int(),
-    max: z.number().int(),
+    max: z.literal(FIXED_BED_COUNT),
     remaining: z.number().int(),
   }),
   availability: z.enum([

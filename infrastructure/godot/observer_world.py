@@ -32,6 +32,9 @@ class _SemanticEntity(Protocol):
     def active_command_id(self) -> str | None: ...
 
     @property
+    def action_anchor_id(self) -> str | None: ...
+
+    @property
     def species_id(self) -> str | None: ...
 
     @property
@@ -67,6 +70,7 @@ class GodotObserverWorldAdapter:
                     posture=entity.posture,
                     active=entity.active,
                     active_command_id=entity.active_command_id,
+                    action_anchor_id=entity.action_anchor_id,
                     species_id=entity.species_id,
                     appearance=tuple(sorted(entity.appearance.items())),
                     home_anchor_id=entity.home_anchor_id,

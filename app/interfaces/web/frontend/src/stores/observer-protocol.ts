@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { FIXED_BED_COUNT } from "../constants"
+
 export const OBSERVER_CHANNEL = "elfienest.observer" as const
 export const OBSERVER_PROTOCOL_VERSION = 1 as const
 export const OBSERVER_CAMERA_COMMAND_KIND = "camera_command" as const
@@ -53,7 +55,7 @@ const observerWorldConfigSchema = z.object({
   version: z.literal(OBSERVER_PROTOCOL_VERSION),
   kind: z.literal(OBSERVER_WORLD_CONFIG_KIND),
   nest_id: semanticStringSchema,
-  bed_count: z.number().int().min(4).max(32),
+  bed_count: z.literal(FIXED_BED_COUNT),
 }).strict()
 const observerSemanticScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("room"), room_id: semanticStringSchema }).strict(),
@@ -69,6 +71,7 @@ const observerSemanticEntitySchema = z.object({
   posture: semanticStringSchema,
   active: z.boolean(),
   active_command_id: semanticStringSchema.nullable(),
+  action_anchor_id: z.string().min(1).nullable(),
   species_id: semanticStringSchema.nullable(),
   appearance: z.record(z.string(), z.unknown()),
   home_anchor_id: semanticStringSchema.nullable(),
@@ -191,13 +194,13 @@ export function parseObserverWorldConfig(value: unknown): ObserverWorldConfig | 
   return parsed.success ? parsed.data : null
 }
 
-export function createObserverWorldConfig(nestId: string, bedCount: number): ObserverWorldConfig {
+export function createObserverWorldConfig(nestId: string): ObserverWorldConfig {
   return {
     channel: OBSERVER_CHANNEL,
     version: OBSERVER_PROTOCOL_VERSION,
     kind: OBSERVER_WORLD_CONFIG_KIND,
     nest_id: nestId,
-    bed_count: bedCount,
+    bed_count: FIXED_BED_COUNT,
   }
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -101,6 +102,34 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
     assert "addModule" in patched
     assert "elfienest:webgl-canvas-capture" in patched
     assert "preserveDrawingBuffer: true" in patched
+    assert "powerPreference: 'high-performance'" in patched
+
+    # A substring check alone accepts JavaScript emitted as visible body text.
+    class ScriptCollector(HTMLParser):
+        in_script = False
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.scripts: list[str] = []
+
+        def handle_starttag(self, tag, attrs) -> None:
+            if tag == "script":
+                self.in_script = True
+
+        def handle_endtag(self, tag) -> None:
+            if tag == "script":
+                self.in_script = False
+
+        def handle_data(self, data) -> None:
+            if self.in_script:
+                self.scripts.append(data)
+
+    parsed = ScriptCollector()
+    parsed.feed(patched)
+    assert any("elfienest:webgl-canvas-capture" in script for script in parsed.scripts)
+    assert patched.index("patchGodotCanvasCapture") < patched.index(
+        '<script src="elfienest.js">'
+    )
     assert "window.location.protocol !== 'http:'" in patched
     assert (
         "feature === 'Secure Context - Check web server configuration (use HTTPS)'"
@@ -110,6 +139,20 @@ def test_patch_web_entry_for_lan_http_adds_scoped_godot_compatibility(
 
     patch_web_entry_for_lan_http(entry)
     assert entry.read_text(encoding="utf-8") == patched
+
+
+def test_capture_patch_revision_invalidates_existing_runtime(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "godot_project"
+    project.mkdir()
+    monkeypatch.setattr(web_build, "GODOT_PROJECT", project)
+    current_revision = web_build.CANVAS_CAPTURE_VERSION
+    monkeypatch.setattr(web_build, "CANVAS_CAPTURE_VERSION", "canvas-capture-v1")
+    old_fingerprint = current_source_fingerprint()
+    monkeypatch.setattr(web_build, "CANVAS_CAPTURE_VERSION", current_revision)
+    assert current_source_fingerprint() != old_fingerprint
 
 
 def test_web_export_imports_before_species_validation_and_publishes_after_it(

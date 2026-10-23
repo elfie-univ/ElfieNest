@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Empty, Slider, Tag } from "antd";
+import { useRef, useState } from "react";
+import { Alert, Button, Card, Empty, Tag } from "antd";
 
+import { FIXED_BED_COUNT } from "../constants";
 import { viewIntents, type NestEvent, type ViewIntent } from "./contracts";
 import { useNestLab } from "./use-nest-lab";
 
@@ -48,20 +49,7 @@ function eventTime(isoTime: string): string {
 export function NestLabApp(): React.JSX.Element {
   const { state, error, refresh, run } = useNestLab();
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const [bedDraft, setBedDraft] = useState(4);
-  const [bedDirty, setBedDirty] = useState(false);
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    if (state.world !== null && !bedDirty) setBedDraft(state.world.bed_count);
-  }, [bedDirty, state.world]);
-
-  async function commitBeds(): Promise<void> {
-    if (!bedDirty || state.world === null) return;
-    await run("world", "put", { bed_count: bedDraft });
-    setBedDirty(false);
-    setNotice(`床位数已更新为 ${bedDraft}。`);
-  }
 
   async function action(path: string, success: string, json?: unknown): Promise<void> {
     try {
@@ -113,9 +101,8 @@ export function NestLabApp(): React.JSX.Element {
 
         <aside className="controls-column">
           <Card className="console-panel" title={<h2>房间设置</h2>}>
-            <label className="bed-control" htmlFor="bedCount">床位数 <output>{bedDraft}</output></label>
-            <Slider id="bedCount" max={32} min={1} onChange={(value) => { setBedDraft(value); setBedDirty(true); }} value={bedDraft} />
-            <Button block disabled={!bedDirty} onClick={() => { void commitBeds(); }} type="primary">应用床位数</Button>
+            <div className="bed-control"><span>床位数</span><output>{FIXED_BED_COUNT}</output></div>
+            <p className="muted">房间容量固定为 {FIXED_BED_COUNT} 个床位。</p>
             <p className="muted">{state.world?.actor_count ?? 0} 个临时角色 · 世界版本 {state.world?.world_revision ?? "—"}</p>
           </Card>
           <Card className="console-panel" title={<h2>添加角色</h2>}>

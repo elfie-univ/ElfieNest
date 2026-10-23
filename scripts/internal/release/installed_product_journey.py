@@ -415,7 +415,7 @@ class InstalledProductJourney:
             code="setup_offline_failed",
         )
         _expect(
-            session.put_json("/api/v1/setup/draft/nest", {"bed_count": 4}),
+            session.put_json("/api/v1/setup/draft/nest", {"bed_count": 32}),
             200,
             phase="setup",
             code="setup_nest_failed",

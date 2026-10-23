@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { csrfHeaders, requestJson } from "./http"
+import { FIXED_BED_COUNT } from "../constants"
 
 const SetupStatusSchema = z.object({
   need_setup: z.boolean(),
@@ -11,7 +12,7 @@ const SetupStatusSchema = z.object({
   draft: z.object({
     owner_account_id: z.string().nullable(), display_name: z.string().nullable(),
     password_configured: z.boolean(), use_local_ollama: z.boolean().nullable(),
-    ollama_installed: z.boolean(), model_id: z.string().nullable(), bed_count: z.number().int().nullable(),
+    ollama_installed: z.boolean(), model_id: z.string().nullable(), bed_count: z.literal(FIXED_BED_COUNT).nullable(),
     owner_configured: z.boolean(), offline_configured: z.boolean(), nest_configured: z.boolean(), locked_at: z.string().nullable(),
     remote_configured: z.boolean(), remote_skipped: z.boolean(), remote_connection_id: z.string().nullable(),
   }),
@@ -62,9 +63,9 @@ export async function setupSaveOfflineDraft(useLocalOllama: boolean, modelId: st
     body: JSON.stringify({ use_local_ollama: useLocalOllama, model_id: modelId }),
   }))
 }
-export async function setupSaveNestDraft(bedCount: number, csrfToken: string): Promise<SetupStatus> {
+export async function setupSaveNestDraft(csrfToken: string): Promise<SetupStatus> {
   return SetupStatusSchema.parse(await requestJson("/api/v1/setup/draft/nest", {
-    method: "PUT", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ bed_count: bedCount }),
+    method: "PUT", headers: csrfHeaders(csrfToken, true), body: JSON.stringify({ bed_count: FIXED_BED_COUNT }),
   }))
 }
 export async function setupSaveRemoteDraft(configured: boolean, connectionId: string | null, csrfToken: string): Promise<SetupStatus> {

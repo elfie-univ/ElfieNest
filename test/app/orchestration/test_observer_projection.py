@@ -26,6 +26,7 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
                 current_zone_id="dorm",
                 posture="resting",
                 active_command_id="intent-7",
+                action_anchor_id="courtyard/activity",
                 runtime_id="runtime-a",
                 runtime_generation=1,
                 world_revision=1,
@@ -43,6 +44,7 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
         "posture": "resting",
         "active": True,
         "active_command_id": "intent-7",
+        "action_anchor_id": "courtyard/activity",
         "species_id": "saevi",
         "appearance": {},
         "home_anchor_id": None,
@@ -72,6 +74,7 @@ def test_observer_projection_includes_view_only_actor_semantics() -> None:
         "posture": "standing",
         "active": True,
         "active_command_id": None,
+        "action_anchor_id": None,
         "species_id": "saevi",
         "appearance": {"height_scale": 1.0},
         "home_anchor_id": "dorm-01/bed-01",
@@ -85,7 +88,7 @@ def test_observer_projection_uses_persisted_home_when_runtime_is_not_connected()
     # Given: management has assigned a bed, but no authoritative Runtime catalog exists yet.
     state_store = MagicMock()
     state_store.load_snapshot.return_value = NestSnapshot(
-        desired_bed_count=4,
+        desired_bed_count=32,
         elapsed_seconds=0.0,
         catalog=None,
         residents=(

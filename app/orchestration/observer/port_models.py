@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from app.orchestration.nest_session.models import RuntimeMockMotion
+from app.orchestration.nest_session import RuntimeMockMotion
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,13 @@ class ObserverEntityRecord:
     appearance: tuple[tuple[str, JsonValue], ...]
     home_anchor_id: str | None
     mock_motion: RuntimeMockMotion | None = None
+    action_anchor_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.action_anchor_id is not None and (
+            not isinstance(self.action_anchor_id, str) or not self.action_anchor_id
+        ):
+            raise ValueError("action_anchor_id must be a nonempty string or None")
 
 
 @dataclass(frozen=True)
@@ -30,4 +37,4 @@ class ObserverWorldIntent:
     interaction: Literal["greet", "rest"]
 
 
-__all__ = ("ObserverEntityRecord", "ObserverWorldIntent")
+__all__ = ("ObserverEntityRecord", "ObserverWorldIntent", "RuntimeMockMotion")

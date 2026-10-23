@@ -15,7 +15,7 @@ function CameraResetProbe() {
   const observer = useOptionalObserver()
   if (observer === null) throw new Error("ObserverProvider is required")
   return <>
-    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
+    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 32 }) }} type="button">打开房间</button>
     <p>{observer.status}</p>
     <p data-testid="camera-catalog">{observer.cameraCatalog?.revision ?? "none"}</p>
   </>
