@@ -119,10 +119,22 @@ def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
         encoding="utf-8"
     )
 
-    assert '_query_parameter("mode") == "nest_lab"' in main_text
+    assert '_query_parameter("lab") == "nest_lab"' in main_text
     assert "_lab_runtime.setup_nest_lab()" in main_text
     assert "CameraStreamBridge" not in main_text
     assert "CameraStreamBridge" not in lab_runtime_text
+
+
+def test_nest_lab_web_mode_keeps_isolated_authority_transport() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    nest_lab_frontend = (
+        PROJECT_ROOT / "devtools" / "web" / "src" / "nest" / "use-nest-lab.ts"
+    ).read_text(encoding="utf-8")
+
+    assert 'mode: "authority"' in nest_lab_frontend
+    assert 'lab: "nest_lab"' in nest_lab_frontend
+    assert "_runtime_client.process_frame()" in main_text
+    assert "and not _nest_lab_mode" in main_text
 
 
 def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:
@@ -154,6 +166,16 @@ def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> No
     assert "process_nest_lab_frame" in lab_runtime_text
     assert "select_observation_view_named" in lab_runtime_text
     assert "reset_observation_camera" in lab_runtime_text
+
+
+def test_portal_room_has_real_open_close_animation_hooks() -> None:
+    portal_text = (GODOT_ROOT / "rooms" / "portal_room.gd").read_text(encoding="utf-8")
+
+    assert 'library.add_animation("open"' in portal_text
+    assert 'library.add_animation("closed"' in portal_text
+    assert "body_entered.connect" in portal_text
+    assert "body_exited.connect" in portal_text
+    assert "track_insert_key" in portal_text
 
 
 def test_actor_movement_matches_the_imported_model_forward_axis() -> None:

@@ -16,10 +16,14 @@ const TELEPORTER_RING_CENTER_Z: float = 1.84
 const TELEPORTER_RING_RADIUS: float = 1.05
 const TELEPORTER_RUNWAY_WIDTH: float = 0.82
 const TELEPORTER_RUNWAY_LENGTH: float = 1.0
+const DOOR_ANIMATION_DURATION: float = 0.35
+const DOOR_OPEN_OFFSET: float = DOOR_WIDTH * 0.55
 
 @export var auto_preview: bool = true
 
 var _generated: Node3D
+var _door_animation_player: AnimationPlayer
+var _door_occupants := 0
 
 
 func _ready() -> void:
@@ -28,6 +32,8 @@ func _ready() -> void:
 
 
 func build() -> void:
+	_door_animation_player = null
+	_door_occupants = 0
 	_generated = _replace_generated()
 	G.add_floor(_generated, "PortalFloor", ROOM_SIZE, ROOM_SIZE, Vector3(0.0, 0.0, ROOM_SIZE / 2.0), FLOOR_COLOR)
 	for x_position in [-ROOM_SIZE / 2.0, ROOM_SIZE / 2.0]:
@@ -95,8 +101,20 @@ func _build_corridor_door() -> void:
 	for x_position in [-DOOR_WIDTH / 2.0, DOOR_WIDTH / 2.0]:
 		G.add_box(_generated, "DoorLightStrip", Vector3(0.055, DOOR_HEIGHT, 0.07), Vector3(x_position, DOOR_HEIGHT / 2.0, -0.07), TELEPORTER_COLOR, false, 2.4)
 	G.add_box(_generated, "DoorLightHeader", Vector3(DOOR_WIDTH + 0.06, 0.055, 0.07), Vector3(0.0, DOOR_HEIGHT, -0.07), TELEPORTER_COLOR, false, 2.4)
-	G.add_box(_generated, "DoorLeafLeft", Vector3(0.16, DOOR_HEIGHT - 0.08, 0.065), Vector3(-DOOR_WIDTH / 2.0 + 0.08, (DOOR_HEIGHT - 0.08) / 2.0, 0.0), Color("#d7cbb8"))
-	G.add_box(_generated, "DoorLeafRight", Vector3(0.16, DOOR_HEIGHT - 0.08, 0.065), Vector3(DOOR_WIDTH / 2.0 - 0.08, (DOOR_HEIGHT - 0.08) / 2.0, 0.0), Color("#d7cbb8"))
+	G.add_box(
+		_generated,
+		"DoorLeafLeft",
+		Vector3(0.16, DOOR_HEIGHT - 0.08, 0.065),
+		_door_leaf_position(-1.0, false),
+		Color("#d7cbb8")
+	)
+	G.add_box(
+		_generated,
+		"DoorLeafRight",
+		Vector3(0.16, DOOR_HEIGHT - 0.08, 0.065),
+		_door_leaf_position(1.0, false),
+		Color("#d7cbb8")
+	)
 
 
 func _build_teleporter() -> void:
@@ -157,6 +175,59 @@ func _build_animation_hooks() -> void:
 	collision.shape = shape
 	trigger.add_child(collision)
 	_generated.add_child(trigger)
+	trigger.body_entered.connect(_on_corridor_door_body_entered)
+	trigger.body_exited.connect(_on_corridor_door_body_exited)
 	var animation_player := AnimationPlayer.new()
 	animation_player.name = "CorridorDoorAnimation"
+	animation_player.root_node = NodePath("..")
+	var library := AnimationLibrary.new()
+	library.add_animation("open", _make_door_animation(true))
+	library.add_animation("closed", _make_door_animation(false))
+	animation_player.add_animation_library("", library)
 	_generated.add_child(animation_player)
+	_door_animation_player = animation_player
+	animation_player.play("closed")
+	animation_player.seek(DOOR_ANIMATION_DURATION, true)
+
+
+func _door_leaf_position(side: float, open: bool) -> Vector3:
+	var x_position := side * (DOOR_WIDTH / 2.0 - 0.08)
+	if open:
+		x_position += side * DOOR_OPEN_OFFSET
+	return Vector3(x_position, (DOOR_HEIGHT - 0.08) / 2.0, 0.0)
+
+
+func _make_door_animation(opening: bool) -> Animation:
+	var animation := Animation.new()
+	animation.length = DOOR_ANIMATION_DURATION
+	var start_open := not opening
+	var left_track := animation.add_track(Animation.TYPE_VALUE)
+	animation.track_set_path(left_track, NodePath("DoorLeafLeft:position"))
+	animation.track_insert_key(left_track, 0.0, _door_leaf_position(-1.0, start_open))
+	animation.track_insert_key(left_track, DOOR_ANIMATION_DURATION, _door_leaf_position(-1.0, opening))
+	var right_track := animation.add_track(Animation.TYPE_VALUE)
+	animation.track_set_path(right_track, NodePath("DoorLeafRight:position"))
+	animation.track_insert_key(right_track, 0.0, _door_leaf_position(1.0, start_open))
+	animation.track_insert_key(right_track, DOOR_ANIMATION_DURATION, _door_leaf_position(1.0, opening))
+	return animation
+
+
+func _on_corridor_door_body_entered(body: Node3D) -> void:
+	if not body.is_in_group(&"runtime_elfie_actors"):
+		return
+	_door_occupants += 1
+	_play_door_animation("open")
+
+
+func _on_corridor_door_body_exited(body: Node3D) -> void:
+	if not body.is_in_group(&"runtime_elfie_actors"):
+		return
+	_door_occupants = maxi(0, _door_occupants - 1)
+	if _door_occupants == 0:
+		_play_door_animation("closed")
+
+
+func _play_door_animation(animation_name: String) -> void:
+	if _door_animation_player == null or not _door_animation_player.has_animation(animation_name):
+		return
+	_door_animation_player.play(animation_name)

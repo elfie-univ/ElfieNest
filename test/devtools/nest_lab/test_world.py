@@ -77,7 +77,7 @@ def test_lab_translates_actor_and_wander_controls_to_v3_commands(tmp_path) -> No
         {
             "actor_id": actor.actor_id,
             "species": "saevi",
-            "home_anchor_id": "dorm-01/bed-01",
+            "spawn_anchor_id": "dorm-01/bed-01",
             "appearance": {},
         }
     ]

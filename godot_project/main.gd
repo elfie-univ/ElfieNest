@@ -69,7 +69,7 @@ func add_character(
 func _ready() -> void:
 	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
-	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
+	_nest_lab_mode = OS.has_feature("web") and _query_parameter("lab") == "nest_lab"
 	_product_observer_mode = (
 		OS.has_feature("web")
 		and _query_parameter(OBSERVER_MODE_PARAMETER) == OBSERVER_MODE_VALUE
@@ -80,7 +80,6 @@ func _ready() -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.setup_nest_lab()
-		return
 	if _product_observer_mode:
 		_enter_product_observer_presentation_mode()
 		_setup_observer_presentation()
@@ -92,7 +91,11 @@ func _ready() -> void:
 		return
 	_runtime_mode = RUNTIME_MODE.new()
 	_runtime_mode.setup(_resolve_runtime_mode())
-	if _runtime_mode.disables_visual_runtime_services() and not _show_visual_authority():
+	if (
+		_runtime_mode.disables_visual_runtime_services()
+		and not _show_visual_authority()
+		and not _nest_lab_mode
+	):
 		nest.visible = false
 	if not _runtime_mode.allows_authority_transport():
 		if _runtime_mode.requires_web_ready_signal():
@@ -112,6 +115,8 @@ func _process(_delta: float) -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.process_nest_lab_frame()
+		if _runtime_client != null:
+			_runtime_client.process_frame()
 		return
 	if _product_observer_mode:
 		_observer_bridge.process_frame()

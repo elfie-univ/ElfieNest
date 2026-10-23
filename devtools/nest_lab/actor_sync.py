@@ -24,13 +24,13 @@ def sync_actors(
     """Send one complete actor catalog; return false while homes are unresolved."""
     descriptors: list[JsonValue] = []
     for actor in actors:
-        home_anchor_id = nest.home_anchor_id(actor.actor_id)
-        if home_anchor_id is None:
+        spawn_anchor_id = nest.home_anchor_id(actor.actor_id)
+        if spawn_anchor_id is None:
             return False
         descriptor: JsonObject = {
             "actor_id": actor.actor_id,
             "species": actor.species,
-            "home_anchor_id": home_anchor_id,
+            "spawn_anchor_id": spawn_anchor_id,
             "appearance": {},
         }
         descriptors.append(descriptor)

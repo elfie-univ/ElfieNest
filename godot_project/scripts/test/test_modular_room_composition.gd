@@ -54,6 +54,9 @@ func run() -> void:
 	var portal_ok := await _test_teleporter_is_centered_on_its_stage()
 	if not portal_ok:
 		return
+	var door_animation_ok := await _test_portal_door_has_open_close_animation()
+	if not door_animation_ok:
+		return
 	var capacity_ok := await _test_partial_dorm_and_eight_room_activity_boundaries()
 	if not capacity_ok:
 		return
@@ -363,6 +366,42 @@ func _test_teleporter_is_centered_on_its_stage() -> bool:
 		runway.position.z < ring.position.z
 			and runway.position.z + runway_mesh.size.z / 2.0 > ring.position.z - (ring.mesh as CylinderMesh).bottom_radius,
 		"Teleporter approach runway does not join the circular platform from the doorway side"
+	):
+		return false
+	portal.free()
+	return true
+
+
+func _test_portal_door_has_open_close_animation() -> bool:
+	var portal := PORTAL_SCENE.instantiate() as ModularPortalRoom
+	portal.auto_preview = false
+	root.add_child(portal)
+	portal.build()
+	await process_frame
+	var generated := portal.get_node("Generated") as Node3D
+	var animation_player := generated.get_node("CorridorDoorAnimation") as AnimationPlayer
+	var trigger := generated.get_node("CorridorDoorTrigger") as Area3D
+	if not _require(
+		animation_player.has_animation("open")
+			and animation_player.has_animation("closed"),
+		"Portal corridor door lacks open and closed animations"
+	):
+		return false
+	if not _require(
+		animation_player.get_animation("open").get_track_count() >= 2,
+		"Portal corridor door open animation has no leaf tracks"
+	):
+		return false
+	if not _require(
+		trigger.is_connected(
+			"body_entered",
+			Callable(portal, "_on_corridor_door_body_entered"),
+		)
+		and trigger.is_connected(
+			"body_exited",
+			Callable(portal, "_on_corridor_door_body_exited"),
+		),
+		"Portal corridor door trigger is not connected to its animation hooks"
 	):
 		return false
 	portal.free()
