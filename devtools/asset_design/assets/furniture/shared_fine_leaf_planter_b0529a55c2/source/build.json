@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_fine_leaf_planter_b0529a55c2",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：3 处源摆放，庄园共 3 次引用。layout:central:1：3。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "b0529a55c222968690cd3dba3692f9237ef62670ec5dc79e704e9e85d4ea887e",
+    "category": "plant",
+    "sourceReferences": 3,
+    "estateReferences": 3,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_fine_leaf_planter_b0529a55c2/versions/v001/reuse.json"
+  }
+}

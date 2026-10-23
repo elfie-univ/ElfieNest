@@ -123,10 +123,22 @@ def test_nest_lab_web_mode_disables_production_camera_streaming() -> None:
         encoding="utf-8"
     )
 
-    assert '_query_parameter("mode") == "nest_lab"' in main_text
+    assert '_query_parameter("lab") == "nest_lab"' in main_text
     assert "_lab_runtime.setup_nest_lab()" in main_text
     assert "CameraStreamBridge" not in main_text
     assert "CameraStreamBridge" not in lab_runtime_text
+
+
+def test_nest_lab_web_mode_keeps_isolated_authority_transport() -> None:
+    main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
+    nest_lab_frontend = (
+        PROJECT_ROOT / "devtools" / "web" / "src" / "nest" / "use-nest-lab.ts"
+    ).read_text(encoding="utf-8")
+
+    assert 'mode: "authority"' in nest_lab_frontend
+    assert 'lab: "nest_lab"' in nest_lab_frontend
+    assert "_runtime_client.process_frame()" in main_text
+    assert "and not _nest_lab_mode" in main_text
 
 
 def test_elfie_lab_retries_its_web_bridge_until_the_browser_is_ready() -> None:

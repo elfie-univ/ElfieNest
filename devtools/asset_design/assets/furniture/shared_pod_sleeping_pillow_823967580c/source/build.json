@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_pod_sleeping_pillow_823967580c",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：4 处源摆放，庄园共 32 次引用。layout:pod：32。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "823967580ce0fc78fee2992d7955e54a32d3868d3a304f77bd8ca123fa176489",
+    "category": "soft_furnishing",
+    "sourceReferences": 4,
+    "estateReferences": 32,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_sleeping_pillow_823967580c/versions/v001/reuse.json"
+  }
+}

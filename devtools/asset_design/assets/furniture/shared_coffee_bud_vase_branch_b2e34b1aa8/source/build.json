@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_coffee_bud_vase_branch_b2e34b1aa8",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "b2e34b1aa8f6ff8a3b6a6540d9f5b5e1bb57a06cef50db6aab4e7ecc0857b1d7",
+    "category": "plant",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_coffee_bud_vase_branch_b2e34b1aa8/versions/v001/reuse.json"
+  }
+}

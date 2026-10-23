@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_barrel_chair_lumbar_8e4d863b18",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "8e4d863b1846d63bfb310540035127691236594904269ced7bbb24031e3f67db",
+    "category": "soft_furnishing",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_barrel_chair_lumbar_8e4d863b18/versions/v001/reuse.json"
+  }
+}

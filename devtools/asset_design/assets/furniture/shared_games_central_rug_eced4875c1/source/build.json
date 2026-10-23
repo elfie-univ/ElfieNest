@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_games_central_rug_eced4875c1",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:2：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "eced4875c1f0574318206a3c0576dabba39d6f30f55e3dc750db7dcb8e395b34",
+    "category": "soft_furnishing",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_central_rug_eced4875c1/versions/v001/reuse.json"
+  }
+}

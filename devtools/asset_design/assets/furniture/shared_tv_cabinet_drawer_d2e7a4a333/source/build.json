@@ -1,0 +1,18 @@
+{
+  "object": "part:shared_tv_cabinet_drawer_d2e7a4a333",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。抽屉面板与把手共同保留，独立于柜体。",
+  "reuse": {
+    "identity": "d2e7a4a3331e55a407b0bfecbb34349b232fff6c5a0938af68f4cb32f772fbfa",
+    "category": "storage",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [
+      "抽屉面板与把手共同保留，独立于柜体。"
+    ],
+    "details": "furniture/shared_tv_cabinet_drawer_d2e7a4a333/versions/v001/reuse.json"
+  }
+}

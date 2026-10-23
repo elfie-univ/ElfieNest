@@ -528,9 +528,10 @@
     {
       "path": "buildings/central/references/exec-bb201c0a-d84a-4f91-b558-245648294cd3.png",
       "objects": [
+        "layout:central:1",
         "building:central"
       ],
-      "title": "exec-bb201c0a-d84a-4f91-b558-245648294cd3.png",
+      "title": "主楼1层 · 最终布局效果图",
       "kind": "reference"
     },
     {
@@ -563,14 +564,6 @@
         "building:central"
       ],
       "title": "exec-c6bc8392-ba80-42ff-866f-a3bb920cfe6f.png",
-      "kind": "reference"
-    },
-    {
-      "path": "layouts/central_floor_1/references/codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
-      "objects": [
-        "layout:central:1"
-      ],
-      "title": "codex-clipboard-590c9dbe-b01a-423e-aab9-f7b2762ccd5c.png",
       "kind": "reference"
     },
     {
@@ -1198,6 +1191,14 @@
         "landscape:site"
       ],
       "title": "reference.png",
+      "kind": "reference"
+    },
+    {
+      "path": "layouts/terraces/references/pod_terrace_20261015_single_lounge.png",
+      "objects": [
+        "layout:terraces"
+      ],
+      "title": "八主题露台 · 单间休闲区最终效果图",
       "kind": "reference"
     }
   ],

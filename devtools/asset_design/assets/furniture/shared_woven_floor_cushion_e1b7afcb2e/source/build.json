@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_woven_floor_cushion_e1b7afcb2e",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M08：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "e1b7afcb2e0e76fb075399897aca97897c7b53ab5fab59306833101e7f248006",
+    "category": "soft_furnishing",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_woven_floor_cushion_e1b7afcb2e/versions/v001/reuse.json"
+  }
+}

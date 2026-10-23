@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_central_sofa_seat_2d19f7a1b5",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "2d19f7a1b5b0410798a65b664ed9f95d252d570a2ef150501a90deb3caec2ad4",
+    "category": "soft_furnishing",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_central_sofa_seat_2d19f7a1b5/versions/v001/reuse.json"
+  }
+}

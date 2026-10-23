@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_television_recessed_soft_light_bb579599a5",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：8 处源摆放，庄园共 8 次引用。layout:terrace:M01：1；layout:terrace:M02：1；layout:terrace:M03：1；layout:terrace:M04：1；layout:terrace:M05：1；layout:terrace:M06：1；layout:terrace:M07：1；layout:terrace:M08：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "bb579599a55ea884ad8d40241843eedfc3b0ccce81bb19bb61b8acefaccd81c0",
+    "category": "lighting",
+    "sourceReferences": 8,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_television_recessed_soft_light_bb579599a5/versions/v001/reuse.json"
+  }
+}

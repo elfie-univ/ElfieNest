@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_games_left_chess_chair_b5019208cb",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：2 处源摆放，庄园共 2 次引用。layout:central:2：2。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "b5019208cbba1260d43da4e8f58562e6c9c291a0e388d059df609230d9bcfa23",
+    "category": "chair",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_left_chess_chair_b5019208cb/versions/v001/reuse.json"
+  }
+}

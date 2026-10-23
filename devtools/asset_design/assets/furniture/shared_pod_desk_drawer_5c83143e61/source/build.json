@@ -1,0 +1,18 @@
+{
+  "object": "part:shared_pod_desk_drawer_5c83143e61",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 8 次引用。layout:pod：8。保持原网格、材质、贴图及内部部件关系。抽屉面板及对应灯条/边框共同保留，独立于书桌柜体。",
+  "reuse": {
+    "identity": "5c83143e61e912eb8574be5db211b13d6af1265f1245ae5ed51ffd1e30f0957e",
+    "category": "storage",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [
+      "抽屉面板及对应灯条/边框共同保留，独立于书桌柜体。"
+    ],
+    "details": "furniture/shared_pod_desk_drawer_5c83143e61/versions/v001/reuse.json"
+  }
+}

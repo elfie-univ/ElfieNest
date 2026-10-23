@@ -1,0 +1,15 @@
+{
+  "object": "part:shared_lit_standing_television_0b043f3401",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "一楼 V037 亮屏电视的公共部件变体；原边框、支脚、显示屏及风景贴图完整保留。供 V039 融合版复用。",
+  "reuse": {
+    "identity": "0b043f3401ebbeaeb62efb37c8381593ac39260f44f924c71138eaa14814ef15",
+    "category": "television",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "details": "furniture/shared_lit_standing_television_0b043f3401/versions/v001/reuse.json"
+  }
+}

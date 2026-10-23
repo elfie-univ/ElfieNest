@@ -74,5 +74,46 @@ func run() -> void:
 	furniture.queue_free()
 	furniture_physics.queue_free()
 	await process_frame
+	if not _test_authored_sliding_door():
+		return
 	print("PASS collision classification: both stair flights retained, lamps excluded, hidden authority collides")
 	quit(0)
+
+
+func _test_authored_sliding_door() -> bool:
+	var estate := Node3D.new()
+	root.add_child(estate)
+	var leaf := MeshInstance3D.new()
+	leaf.mesh = BoxMesh.new()
+	leaf.position = Vector3(10.0, 1.2, 0.0)
+	leaf.set_meta("extras", {"module": "M01", "door_leaf": true, "slideAxis": [1, 0, 0], "slideTravelM": 1.75})
+	estate.add_child(leaf)
+	var physics := PHYSICS.new()
+	root.add_child(physics)
+	physics.build(estate)
+	var bodies := physics.find_children("*", "StaticBody3D", true, false)
+	if bodies.size() != 1:
+		push_error("Authored sliding door has no unique physical body")
+		quit(1)
+		return false
+	var body := bodies[0] as Node3D
+	var closed := leaf.global_transform
+	var actor := Node3D.new()
+	root.add_child(actor)
+	actor.add_to_group(&"runtime_elfie_actors")
+	actor.global_position = Vector3(10.0, 0.0, 0.0)
+	physics._physics_process(0.4)
+	if not leaf.global_position.is_equal_approx(closed.origin + Vector3(1.75, 0.0, 0.0)) or not body.global_transform.is_equal_approx(leaf.global_transform):
+		push_error("Nearby actor did not open the authored door and its collision together")
+		quit(1)
+		return false
+	actor.global_position = Vector3(100.0, 0.0, 0.0)
+	physics._physics_process(0.4)
+	if not leaf.global_transform.is_equal_approx(closed) or not body.global_transform.is_equal_approx(closed):
+		push_error("Authored door and collision did not close after the actor left")
+		quit(1)
+		return false
+	actor.free()
+	physics.free()
+	estate.free()
+	return true

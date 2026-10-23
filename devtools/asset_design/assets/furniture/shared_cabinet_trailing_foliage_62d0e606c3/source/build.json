@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_cabinet_trailing_foliage_62d0e606c3",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M04：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "62d0e606c397d632146f40519f874399f1e770d40fa13723f3f0c6e46ebff930",
+    "category": "plant",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_cabinet_trailing_foliage_62d0e606c3/versions/v001/reuse.json"
+  }
+}
