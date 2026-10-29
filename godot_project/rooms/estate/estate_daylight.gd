@@ -189,7 +189,9 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 				var artificial := original.emission_enabled and _is_artificial(material_name)
 				var vertex_painted := instance.mesh is ArrayMesh and bool(instance.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR)
 				var physical_surface := SURFACE.supports(original, true, room_receiver) and not _is_landscape_template(instance)
-				var uses_vertex_color := vertex_painted and original.vertex_color_use_as_albedo
+				# Rubber tree assets store leaf/wood colors in glTF COLOR_0;
+				# their imported shared material does not enable vertex albedo.
+				var uses_vertex_color := vertex_painted and (original.vertex_color_use_as_albedo or material_name.begins_with("rubber tree "))
 				var sheen: Dictionary = optics.get("sheen", {})
 				var fabric_surface := not sheen.is_empty() and original.albedo_texture == null and not original.emission_enabled and not vertex_painted and not _is_landscape_template(instance)
 				if not clear_glazing and not artificial and finish.is_empty() and not diffuser and not physical_surface and not fabric_surface:
