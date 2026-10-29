@@ -188,6 +188,7 @@ describe("useObserverCameraBridge", () => {
       version: 1,
       kind: "semantic_snapshot",
       protocol: 3,
+      environment: { phase: "night", lights_on: true, quiet_mode: true },
       generation: 1,
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest" },

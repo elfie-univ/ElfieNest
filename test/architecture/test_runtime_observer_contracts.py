@@ -100,7 +100,7 @@ EXPECTED_GODOT_OBSERVER_ACTION_KEY_RULES = {
     "set_local_presentation_paused": frozenset({"paused"}),
 }
 EXPECTED_GODOT_OBSERVER_VIEW_IDS = frozenset(
-    {"overview", "courtyard", "garden", "sky", "central-%d", "dorm-%02d"}
+    {"overview", "central-%d", "dorm-%02d", "terrace-%02d"}
 )
 EXPECTED_NATIVE_TARGETS = frozenset(
     {

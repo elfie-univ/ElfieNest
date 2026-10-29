@@ -107,6 +107,10 @@ describe("ObservationMonitor", () => {
   let fixture: ObserverFixture
 
   beforeEach(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
     vi.clearAllMocks()
     fixture = createObserver(catalog)
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
@@ -131,6 +135,29 @@ describe("ObservationMonitor", () => {
     expect(screen.getByRole("button", { name: "总览" })).toHaveAttribute("aria-pressed", "false")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
     expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
+  })
+
+  it("selects time independently from the real camera and can return to local time", async () => {
+    const user = userEvent.setup()
+    fixture = createObserver({ ...catalog, views: [...catalog.views,
+      { id: "lighting-live", label: "Local time" },
+      { id: "lighting-day", label: "Day" },
+      { id: "lighting-night", label: "Evening" },
+      { id: "lighting-quiet", label: "Quiet hours" },
+    ] })
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+    renderMonitor()
+    await user.click(screen.getByRole("combobox", { name: "时间" }))
+    await user.click(screen.getByRole("option", { name: "上半夜 18:00–24:00" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-night")
+    expect(screen.getByRole("combobox", { name: "视角" })).toHaveTextContent("活动区")
+    await user.click(screen.getByRole("combobox", { name: "视角" }))
+    await user.click(screen.getByRole("option", { name: "宿舍区" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("dorm-01")
+    expect(screen.getByRole("combobox", { name: "时间" })).toHaveTextContent("上半夜")
+    await user.click(screen.getByRole("combobox", { name: "时间" }))
+    await user.click(screen.getByRole("option", { name: "本地实时" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-live")
   })
 
   it("shows the current visible Elfie count in the ready 3D surface", () => {

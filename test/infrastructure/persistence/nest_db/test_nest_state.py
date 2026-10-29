@@ -259,3 +259,48 @@ def test_state_store_exposes_persisted_bed_as_semantic_home_anchor(
             home_anchor_id=anchor_id,
         )
     }
+
+
+def test_missing_settings_uses_owner_lighting_defaults_without_writing(
+    tmp_path,
+) -> None:
+    from nest import Nest
+
+    db_path = init_db(str(tmp_path / "nest.db"))
+    nest = Nest()
+    nest.restore_snapshot(SQLiteNestStateAdapter(db_path).load_snapshot())
+    nest.tick(12 * 3600)
+
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=False, quiet_mode=False
+    )
+    with get_db(db_path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM nest_settings").fetchone()[0] == 0
+        )
+
+
+def test_persisted_empty_lighting_schedule_is_not_replaced_by_defaults(
+    tmp_path,
+) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    adapter = SQLiteNestStateAdapter(db_path)
+    adapter.initialize_snapshot(
+        NestSnapshot(
+            desired_bed_count=32,
+            elapsed_seconds=12 * 3600,
+            catalog=None,
+            residents=(),
+            environment_rules=(),
+            environment_desired=EnvironmentDesiredState(
+                lights_on=True, quiet_mode=True
+            ),
+        )
+    )
+
+    restored = adapter.load_snapshot()
+
+    assert restored.environment_rules == ()
+    assert restored.environment_desired == EnvironmentDesiredState(
+        lights_on=True, quiet_mode=True
+    )

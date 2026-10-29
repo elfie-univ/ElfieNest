@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -5,6 +6,7 @@ import { useOptionalObserver } from "../stores/observer"
 import { createObserverWorldConfig } from "../stores/observer-protocol"
 import { Icon } from "./Icon"
 import { ObserverSurface } from "./ObserverSurface"
+import { SelectField } from "./SelectField"
 
 type ObservationMonitorProps = {
   readonly immersive?: boolean
@@ -63,7 +65,16 @@ export function ObservationMonitor({ immersive = false, mode = "embedded", onExi
   const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const cameraCatalog = observer?.cameraCatalog ?? null
-  const cameraViews = cameraCatalog?.views.filter((view) => view.id !== "overview") ?? []
+  const cameraViews = cameraCatalog?.views.filter((view) => view.id !== "overview" && !view.id.startsWith("lighting-")) ?? []
+  const supportsTimePreview = cameraCatalog?.views.some((view) => view.id === "lighting-live") ?? false
+  const [timePreview, setTimePreview] = useState("lighting-live")
+  useEffect(() => { if (cameraCatalog === null) setTimePreview("lighting-live") }, [cameraCatalog])
+  const timeOptions = [
+    { value: "lighting-live", label: t("controls.localTime") },
+    { value: "lighting-day", label: t("controls.daytime") },
+    { value: "lighting-night", label: t("controls.evening") },
+    { value: "lighting-quiet", label: t("controls.quietHours") },
+  ]
   const presentationPaused = cameraCatalog?.presentationPaused ?? false
   const pauseIcon = presentationPaused ? "play" : "pause"
   const pauseLabel = presentationPaused ? t("controls.resume") : t("controls.pause")
@@ -103,7 +114,10 @@ export function ObservationMonitor({ immersive = false, mode = "embedded", onExi
         <Button aria-label={t("controls.overview")} aria-pressed={cameraCatalog?.activeId === "overview"} className="observation-monitor__command" disabled={cameraCommandDisabled} onClick={() => observer?.overview()} size="sm" type="button" variant="outline">
           <Icon name="cctv" size={16} /><span>{t("controls.overview")}</span>
         </Button>
-        {cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
+        {supportsTimePreview ? <>
+          <div className="observation-monitor__selector"><SelectField disabled={cameraCommandDisabled} label={t("controls.time")} onValueChange={(value) => { setTimePreview(value); observer?.select(value) }} options={timeOptions} value={timePreview} /></div>
+          <div className="observation-monitor__selector"><SelectField disabled={cameraCommandDisabled} label={t("controls.view")} onValueChange={(value) => observer?.select(value)} options={(cameraCatalog?.views ?? []).filter((view) => !view.id.startsWith("lighting-")).map((view) => ({ value: view.id, label: view.label }))} value={cameraCatalog?.activeId ?? "overview"} /></div>
+        </> : cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
         <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={pauseCommandDisabled} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
           <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>
         </Button>

@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from nest.config import FIXED_BED_COUNT
 from nest.living_rules.models import PersistentResidentState
 from nest.space_facilities.models import WorldCatalog
+from nest.time_environment.clock import (
+    default_environment_desired,
+    default_environment_rules,
+)
 from nest.time_environment.models import EnvironmentDesiredState, EnvironmentRule
 
 
@@ -21,9 +25,11 @@ class NestSnapshot:
     clock_paused: bool = False
     time_scale: float = 1.0
     environment_desired: EnvironmentDesiredState = field(
-        default_factory=EnvironmentDesiredState
+        default_factory=default_environment_desired
     )
-    environment_rules: tuple[EnvironmentRule, ...] = ()
+    environment_rules: tuple[EnvironmentRule, ...] = field(
+        default_factory=default_environment_rules
+    )
 
     def __post_init__(self) -> None:
         if self.desired_bed_count != FIXED_BED_COUNT:

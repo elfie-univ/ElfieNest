@@ -40,6 +40,7 @@ const ObserverSnapshotSchema = z.object({
   sequence: z.number().int().positive(),
   scope: ObserverSubscriptionSchema,
   entities: z.record(z.string(), ObserverEntitySchema),
+  environment: z.object({ phase: z.enum(["day", "dawn", "dusk", "night"]), lights_on: z.boolean(), quiet_mode: z.boolean() }).strict().nullable(),
   entity_revisions: z.record(z.string(), z.number().int().positive()),
 }).strict()
 const ObserverDeltaSchema = z.object({

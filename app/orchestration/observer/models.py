@@ -8,7 +8,11 @@ from typing import Literal, Union
 from pydantic import JsonValue
 from typing_extensions import TypeAlias
 
-from .port_models import ObserverEntityRecord, ObserverWorldIntent
+from .port_models import (
+    ObserverEntityRecord,
+    ObserverEnvironmentRecord,
+    ObserverWorldIntent,
+)
 
 
 @dataclass(frozen=True)
@@ -99,6 +103,7 @@ class ObserverSnapshotResult:
     sequence: int
     scope: ObserverSubscription
     entities: tuple[ObserverProjectedEntityResult, ...]
+    environment: ObserverEnvironmentRecord | None = None
 
 
 @dataclass(frozen=True)

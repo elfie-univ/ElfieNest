@@ -9,6 +9,7 @@ from pydantic import JsonValue
 
 from app.orchestration.observer import (
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverPortError,
     ObserverWorldIntent,
     RuntimeMockMotion,
@@ -55,9 +56,17 @@ class GodotObserverWorldAdapter:
         *,
         entities: Callable[[], Mapping[str, _SemanticEntity]],
         intent_sink: Callable[[str, str], None] | None,
+        environment: Callable[[], ObserverEnvironmentRecord | None],
     ) -> None:
+        self._environment = environment
         self._entities = entities
         self._intent_sink = intent_sink
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        try:
+            return self._environment()
+        except (RuntimeError, TypeError, ValueError) as error:
+            raise ObserverPortError("Observer environment projection failed") from error
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         try:

@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from threading import Event, Lock
-from typing import Optional
+from typing import Callable, Optional
 
 from app.orchestration.nest_session.ports import (
     ModelPortFactory,
@@ -41,6 +42,7 @@ class ElfieNestEngine:
         tick_interval_sec: float = 1.5,
         state_store: NestStateStorePort | None = None,
         nest_config: NestConfig | None = None,
+        local_time: Callable[[], datetime] | None = None,
     ) -> None:
         """初始化引擎。
 
@@ -59,6 +61,9 @@ class ElfieNestEngine:
             state_store=state_store,
         )
         self.coordinator = self.session
+        self._local_time = local_time
+        if local_time is not None:
+            self.nest.tick(0.0, local_time=local_time())
         self._loop_started = False
         self._stop_event = Event()
         self._running_event = Event()
@@ -119,7 +124,10 @@ class ElfieNestEngine:
         for event in self.world_runtime.drain_events():
             self.session.consume_runtime_event(event)
         self.session.flush_runtime_state()
-        self.nest.tick(seconds)
+        self.nest.tick(
+            seconds,
+            local_time=self._local_time() if self._local_time is not None else None,
+        )
         self.session.persist_time_environment()
         self.session.flush_environment_state()
         self.session.tick_elfies(seconds)

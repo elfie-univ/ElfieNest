@@ -78,6 +78,7 @@ describe("ObserverProvider", () => {
     const snapshot = {
       protocol: 3,
       kind: "snapshot",
+      environment: { phase: "day", lights_on: false, quiet_mode: false },
       generation: 1,
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest" },
@@ -125,6 +126,7 @@ describe("ObserverProvider", () => {
 
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: "semantic_snapshot",
+      environment: snapshot.environment,
       entities: expect.objectContaining({ "saevi-1": expect.any(Object) }),
     }), window.location.origin)
     expect(postMessage.mock.calls.filter(([value]) => (
@@ -329,6 +331,7 @@ describe("ObserverProvider", () => {
     const snapshot = {
       protocol: 3,
       kind: "snapshot",
+      environment: null,
       generation: 1,
       sequence: 1,
       scope: { kind: "elfie", elfie_id: "saevi-1" },

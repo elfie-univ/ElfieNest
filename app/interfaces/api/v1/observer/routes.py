@@ -33,6 +33,7 @@ from .models import (
     ObserverDeltaResponse,
     ObserverEntityPatchResponse,
     ObserverEntityResponse,
+    ObserverEnvironmentResponse,
     ObserverErrorDetails,
     ObserverErrorItem,
     ObserverErrorResponse,
@@ -206,6 +207,15 @@ def next_observer_frame(
         return ObserverSnapshotResponse(
             protocol=3,
             kind="snapshot",
+            environment=(
+                ObserverEnvironmentResponse(
+                    phase=result.environment.phase.value,
+                    lights_on=result.environment.lights_on,
+                    quiet_mode=result.environment.quiet_mode,
+                )
+                if result.environment is not None
+                else None
+            ),
             generation=result.generation,
             sequence=result.sequence,
             scope=_subscription_response(result.scope),

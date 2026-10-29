@@ -12,12 +12,35 @@ func run() -> void:
 	var builder=LAYOUT.new()
 	var result=builder.build(source)
 	assert(result!=null)
+	var left: Node3D=result.get_node("Fixture_G1")
+	var right: Node3D=result.get_node("Fixture_P05")
+	if absf(left.position.x)<16.0 or left.position.z<16.0:
+		push_error("Plaza lamps must sit outside the ring at the paired front corners");quit(1);return
+	assert(left.position.is_equal_approx(Vector3(-right.position.x,right.position.y,right.position.z)),"Plaza high lamps must mirror the entrance axis")
+	for fixture: Node3D in [left,right]:
+		var diffuser: MeshInstance3D=fixture.get_node("Diffuser")
+		var light: Dictionary=diffuser.get_meta("extras").design_lights[0]
+		assert(float(light.intensity)>=8.0*PI and float(light.target[0])*fixture.position.x<0,"High lamps must illuminate toward plaza")
+		assert(diffuser.mesh.get_aabb().size.x>fixture.get_node("Shield").mesh.get_aabb().size.x,"Luminous lip must remain visible around cap")
+		assert(diffuser.mesh.get_aabb().size.x>=0.65,"High lamps need a broad luminous underside")
+		assert(diffuser.mesh.get_aabb().size.y>=0.08,"Diffuser must be readable from the side")
+
 	var old=load("res://rooms/estate/estate_outdoor_lighting.scn").instantiate()
 	var road=source.find_child("ROAD REF • ring continuous warm-grey stone bed",true,false)
 	var trail: MeshInstance3D
 	for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
 		if mesh.get_meta("extras",{}).get("forestTrail",false):trail=mesh
 	var pavement=LAYOUT.paving_triangles([road,trail])
+	var access=preload("res://rooms/estate/estate_outdoor_access.gd").new()
+	root.add_child(access)
+	access.load_precompiled(load("res://rooms/estate/estate_spatial.res"))
+	var outer_count:=0
+	for fixture: Node3D in result.get_children():
+		if str(fixture.name).begins_with("Fixture_O"):
+			outer_count+=1
+			assert(not access.contains_outdoor_point(Vector2(fixture.position.x,fixture.position.z)),"Outer lamps must stay outside approved activity areas")
+			assert(not LAYOUT.footprint_overlaps(fixture.position,pavement,0.4),"Outer lamps must clear ring and junctions")
+	assert(outer_count>=4,"Ring outer edge needs staggered lamps")
 	var removed=[]
 	for fixture: Node3D in old.get_children():
 		if not str(fixture.name).begins_with("Fixture_L"):continue

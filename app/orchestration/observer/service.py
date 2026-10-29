@@ -36,7 +36,7 @@ from .models import (
     SubmitObserverIntentCommand,
     UpdateObserverInterestCommand,
 )
-from .port_models import ObserverEntityRecord
+from .port_models import ObserverEntityRecord, ObserverEnvironmentRecord
 from .ports import (
     ObserverCapabilityIssuerPort,
     ObserverClockPort,
@@ -59,6 +59,7 @@ class _ObserverSession:
     pending: Deque[ObserverFrameResult] = field(default_factory=deque)
     entities: dict[str, ObserverEntityRecord] = field(default_factory=dict)
     entity_revisions: dict[str, int] = field(default_factory=dict)
+    environment: ObserverEnvironmentRecord | None = None
     snapshot_required: bool = True
     intent_timestamps: Deque[float] = field(default_factory=deque)
     lock: RLock = field(default_factory=RLock, repr=False)
@@ -166,6 +167,14 @@ class ObserverFacade:
             query.session_fingerprint,
             query.capability,
         ) as session:
+            try:
+                environment = self._world.read_environment()
+            except ObserverPortError as error:
+                raise ObserverUnavailable("observer environment unavailable") from error
+            if environment != session.environment:
+                session.environment = environment
+                session.pending.clear()
+                session.snapshot_required = True
             self._publish_session(session, self._entities())
             if self._acknowledgement_is_invalid(
                 session,
@@ -356,6 +365,7 @@ class ObserverFacade:
             generation=session.generation,
             sequence=session.sequence,
             scope=session.subscription,
+            environment=session.environment,
             entities=tuple(
                 ObserverProjectedEntityResult(
                     state=entity,

@@ -74,6 +74,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: null },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -95,6 +96,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "elfie", elfie_id: "saevi-1", room_id: null },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -112,6 +114,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: "saevi-1" },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -126,6 +129,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: null, authority: true },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 

@@ -487,7 +487,8 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.nest.set_desired_environment(
+    # A manual decision across ticks uses the existing household override.
+    engine.nest.set_environment_override(
         EnvironmentDesiredState(lights_on=False, quiet_mode=True)
     )
     runtime.events.extend(
@@ -972,3 +973,21 @@ class FailingNestStateStore:
 
     def initialize_snapshot(self, snapshot: NestSnapshot) -> None:
         self.save_snapshot(snapshot)
+
+
+def test_new_session_sends_owner_default_day_and_night_lighting() -> None:
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    runtime.events.extend(
+        (
+            _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+            _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        )
+    )
+
+    engine.tick_once(12 * 3600)
+    assert runtime.environment_requests[-1][2:4] == (False, False)
+
+    engine.tick_once(8 * 3600)
+    assert runtime.environment_requests[-1][2:4] == (True, False)

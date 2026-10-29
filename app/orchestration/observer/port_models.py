@@ -8,6 +8,14 @@ from typing import Literal
 from pydantic import JsonValue
 
 from app.orchestration.nest_session import RuntimeMockMotion
+from nest.time_environment import LifePhase
+
+
+@dataclass(frozen=True)
+class ObserverEnvironmentRecord:
+    phase: LifePhase
+    lights_on: bool
+    quiet_mode: bool
 
 
 @dataclass(frozen=True)

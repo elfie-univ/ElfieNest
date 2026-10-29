@@ -359,6 +359,7 @@ export function ObserverProvider({
             scope: semanticScope(frame.scope),
             entities: { ...nextEntities },
             entity_revisions: { ...entityRevisionsRef.current },
+            environment: frame.kind === "snapshot" ? frame.environment : (semanticSnapshotRef.current?.environment ?? null),
           }
         }
         if (semanticSnapshotRef.current !== null) {

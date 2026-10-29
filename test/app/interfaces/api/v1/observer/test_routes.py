@@ -14,13 +14,18 @@ from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.auth import get_current_user
 from app.interfaces.api.v1.observer import router
-from app.interfaces.api.v1.observer.models import ObserverEntityPatchResponse
+from app.interfaces.api.v1.observer.models import (
+    ObserverEntityPatchResponse,
+    ObserverEnvironmentResponse,
+)
 from app.orchestration.observer import (
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverFacade,
     ObserverWorldIntent,
 )
 from infrastructure.persistence.nest_db.store import init_db
+from nest.time_environment import LifePhase
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -32,6 +37,14 @@ class FixedClock:
         return self.current
 
 
+def test_quiet_mode_requires_an_explicit_boolean() -> None:
+    for value in ["false", 0, None]:
+        with pytest.raises(ValidationError):
+            ObserverEnvironmentResponse.model_validate(
+                {"phase": "night", "lights_on": True, "quiet_mode": value}
+            )
+
+
 class FixedCapabilities:
     def issue(self) -> str:
         return "observer-capability"
@@ -41,6 +54,11 @@ class MemoryWorld:
     def __init__(self) -> None:
         self.intents: list[ObserverWorldIntent] = []
         self.action_anchor_id: str | None = "dorm-01/chair-01"
+
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         return (
@@ -88,6 +106,7 @@ def _application() -> tuple[FastAPI, MemoryWorld, FixedClock]:
 
 def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() -> None:
     application, world, _clock = _application()
+    world.environment = ObserverEnvironmentRecord(LifePhase.DAY, False, False)
     with TestClient(application) as client:
         client.cookies.set("session_token", "login-token")
         opened = client.post(
@@ -120,6 +139,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
     assert frame.json() == {
         "protocol": 3,
         "kind": "snapshot",
+        "environment": {"phase": "day", "lights_on": False, "quiet_mode": False},
         "generation": 1,
         "sequence": 1,
         "scope": {"kind": "elfie", "room_id": None, "elfie_id": "saevi-1"},

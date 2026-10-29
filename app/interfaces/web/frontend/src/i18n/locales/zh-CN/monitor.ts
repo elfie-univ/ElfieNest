@@ -32,6 +32,12 @@ export const monitor = {
     railLabel: "监控导航栏",
   },
   controls: {
+    time: "时间",
+    view: "视角",
+    localTime: "本地实时",
+    daytime: "白天 06:00–18:00",
+    evening: "上半夜 18:00–24:00",
+    quietHours: "下半夜 00:00–06:00",
     resetAria: "复位视角",
     reset: "复位",
     overview: "总览",

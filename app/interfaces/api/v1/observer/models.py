@@ -120,6 +120,14 @@ class ObserverEntityPatchResponse(BaseModel):
         return self
 
 
+class ObserverEnvironmentResponse(BaseModel):
+    model_config = _STRICT
+
+    phase: Literal["day", "dawn", "dusk", "night"]
+    lights_on: bool = Field(strict=True)
+    quiet_mode: bool = Field(strict=True)
+
+
 class ObserverSnapshotResponse(BaseModel):
     model_config = _STRICT
 
@@ -130,6 +138,7 @@ class ObserverSnapshotResponse(BaseModel):
     scope: ObserverSubscriptionResponse
     entities: Dict[str, ObserverEntityResponse]
     entity_revisions: Dict[str, int]
+    environment: Optional[ObserverEnvironmentResponse] = None
 
 
 class ObserverDeltaResponse(BaseModel):

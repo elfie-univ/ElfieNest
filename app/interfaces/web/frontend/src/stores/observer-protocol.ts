@@ -86,6 +86,7 @@ const observerSemanticSnapshotSchema = z.object({
   sequence: z.number().int().positive(),
   scope: observerSemanticScopeSchema,
   entities: z.record(z.string().min(1), observerSemanticEntitySchema),
+  environment: z.object({ phase: z.enum(["day", "dawn", "dusk", "night"]), lights_on: z.boolean(), quiet_mode: z.boolean() }).strict().nullable(),
   entity_revisions: z.record(z.string().min(1), z.number().int().positive()),
 }).strict().refine(
   (value) => Object.keys(value.entities).every((entityId) => Object.prototype.hasOwnProperty.call(value.entity_revisions, entityId))

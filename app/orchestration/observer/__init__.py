@@ -22,7 +22,12 @@ from .models import (
     SubmitObserverIntentCommand,
     UpdateObserverInterestCommand,
 )
-from .port_models import ObserverEntityRecord, ObserverWorldIntent, RuntimeMockMotion
+from .port_models import (
+    ObserverEntityRecord,
+    ObserverEnvironmentRecord,
+    ObserverWorldIntent,
+    RuntimeMockMotion,
+)
 from .ports import (
     ObserverCapabilityIssuerPort,
     ObserverClockPort,
@@ -40,6 +45,7 @@ __all__ = (
     "ObserverDeltaResult",
     "ObserverEntityChangeResult",
     "ObserverEntityRecord",
+    "ObserverEnvironmentRecord",
     "ObserverError",
     "ObserverFacade",
     "ObserverForbidden",

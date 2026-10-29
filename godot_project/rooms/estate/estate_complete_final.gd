@@ -31,6 +31,10 @@ func _ready() -> void:
 func _apply_outdoor_layout(layout: Node3D) -> void:
 	for mesh: MeshInstance3D in $CompleteFinal.find_children("*", "MeshInstance3D", true, false):
 		var extras: Dictionary = mesh.get_meta("extras", {})
+		if str(extras.get("outdoor_fixture_id", "")) in ["E01","E02"]:
+			for light: Dictionary in extras.get("design_lights", []):
+				light.merge({"intensity": 2.0*PI, "distance": 8.0, "angle": deg_to_rad(75.0), "attenuation": 0.8, "angle_attenuation": 0.5},true)
+			mesh.set_meta("extras", extras)
 		if str(extras.get("outdoor_fixture_id", "")).begins_with("R"):
 			for light: Dictionary in extras.get("design_lights", []):
 				light.merge({"intensity": PI, "distance": 14.0, "angle": deg_to_rad(78.0), "attenuation": 0.7, "angle_attenuation": 0.2}, true)

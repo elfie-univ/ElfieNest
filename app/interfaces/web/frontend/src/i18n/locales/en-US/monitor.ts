@@ -32,6 +32,12 @@ export const monitor = {
     railLabel: "Monitor navigation rail",
   },
   controls: {
+    time: "Time",
+    view: "View",
+    localTime: "Local time",
+    daytime: "Day 06:00–18:00",
+    evening: "Evening 18:00–24:00",
+    quietHours: "Quiet hours 00:00–06:00",
     resetAria: "Reset view",
     reset: "Reset",
     overview: "Overview",

@@ -11,6 +11,10 @@ from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_conn
 from nest.living_rules.models import PersistentResidentState, ResidentPresence
 from nest.public import FIXED_BED_COUNT, NestConfig, NestSnapshot
 from nest.space_facilities.models import AnchorKind, WorldCatalog
+from nest.time_environment.clock import (
+    default_environment_desired,
+    default_environment_rules,
+)
 from nest.time_environment.models import EnvironmentDesiredState, EnvironmentRule
 
 _PRESENCE_TO_STATUS: Final = {
@@ -183,7 +187,7 @@ def _catalog_from_row(row: sqlite3.Row | None) -> WorldCatalog | None:
 
 def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesiredState:
     if row is None or row["environment_desired_json"] is None:
-        return EnvironmentDesiredState()
+        return default_environment_desired()
     try:
         return EnvironmentDesiredState.model_validate_json(
             row["environment_desired_json"]
@@ -193,7 +197,9 @@ def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesired
 
 
 def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRule, ...]:
-    if row is None or row["environment_rules_json"] is None:
+    if row is None:
+        return default_environment_rules()
+    if row["environment_rules_json"] is None:
         return ()
     try:
         values = json.loads(row["environment_rules_json"])

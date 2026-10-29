@@ -142,7 +142,18 @@ describe("observer camera protocol", () => {
           mock_motion: { waypoint: 1, sequence: 1 },
         },
       },
+      environment: null,
       entity_revisions: { "saevi-1": 1 },
+    }
+
+    expect(parseObserverSemanticSnapshot({ ...snapshot, environment: {
+      phase: "night", lights_on: true, quiet_mode: true,
+    } })?.environment?.quiet_mode).toBe(true)
+    for (const environment of [
+      { phase: "night", lights_on: true },
+      { phase: "night", lights_on: true, quiet_mode: "false" },
+    ]) {
+      expect(parseObserverSemanticSnapshot({ ...snapshot, environment })).toBeNull()
     }
 
     expect(parseObserverSemanticSnapshot(snapshot)).toMatchObject({

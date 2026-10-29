@@ -139,10 +139,11 @@ def test_restore_snapshot_clears_previous_catalog_runtime_projection_and_overrid
 
     assert nest.world_catalog is None
     assert nest.actual_environment is None
+    assert nest.desired_environment.quiet_mode is False
     nest.tick(1.0)
     assert nest.desired_environment == EnvironmentDesiredState(
         lights_on=True,
-        quiet_mode=False,
+        quiet_mode=True,
     )
 
 
@@ -581,7 +582,7 @@ def test_nest_exposes_deterministic_life_phase_and_environment_rules() -> None:
 
     nest.tick(7 * 3600)
 
-    assert nest.life_phase is LifePhase.DAWN
+    assert nest.life_phase is LifePhase.DAY
     assert nest.desired_environment.lights_on is False
 
 

@@ -19,6 +19,7 @@ def test_adapter_translates_semantics_without_geometry_and_delivers_intent() -> 
                 home_anchor_id="dorm-01/bed-01",
             )
         },
+        environment=lambda: None,
         intent_sink=lambda actor_id, interaction: submitted.append(
             (actor_id, interaction)
         ),

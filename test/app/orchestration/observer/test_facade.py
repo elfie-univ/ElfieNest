@@ -15,6 +15,7 @@ from app.orchestration.observer import (
     NextObserverFrameQuery,
     ObserverDeltaResult,
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverFacade,
     ObserverForbidden,
     ObserverFrameResult,
@@ -52,6 +53,11 @@ class MemoryWorld:
         self.entities = (_entity("saevi-1", posture="awake"),)
         self.intents: list[ObserverWorldIntent] = []
 
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
+
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         return self.entities
 
@@ -63,6 +69,11 @@ class ConcurrentWorld(MemoryWorld):
     def __init__(self) -> None:
         super().__init__()
         self.barrier: Barrier | None = None
+
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         if self.barrier is not None:
@@ -521,3 +532,44 @@ def _entity(
         appearance=(),
         home_anchor_id=None,
     )
+
+
+def test_environment_changes_reach_empty_observer_without_actor_changes() -> None:
+    from app.orchestration.observer import ObserverEnvironmentRecord
+    from nest.time_environment import LifePhase
+
+    facade, _clock, world = _facade()
+    world.entities = ()
+    world.environment = ObserverEnvironmentRecord(LifePhase.DAY, False, False)
+    principal = ObserverPrincipal(user_id=1, access="manager")
+    capability = facade.open_session(
+        OpenObserverSessionCommand(
+            principal,
+            "lighting",
+            ObserverSubscription(kind="room", room_id="local-nest"),
+        )
+    ).capability
+    first = facade.next_frame(
+        NextObserverFrameQuery(principal, "lighting", capability, None, None)
+    )
+    assert isinstance(first, ObserverSnapshotResult)
+    assert first.environment == world.environment
+    world.environment = ObserverEnvironmentRecord(LifePhase.NIGHT, True, True)
+    second = facade.next_frame(
+        NextObserverFrameQuery(
+            principal, "lighting", capability, first.generation, first.sequence
+        )
+    )
+    assert isinstance(second, ObserverSnapshotResult)
+    assert second.environment == world.environment
+    assert second.sequence > first.sequence
+    assert not second.entities
+    world.environment = ObserverEnvironmentRecord(LifePhase.NIGHT, True, False)
+    third = facade.next_frame(
+        NextObserverFrameQuery(
+            principal, "lighting", capability, second.generation, second.sequence
+        )
+    )
+    assert isinstance(third, ObserverSnapshotResult)
+    assert third.environment == world.environment
+    assert third.sequence > second.sequence
