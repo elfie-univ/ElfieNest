@@ -51,6 +51,9 @@ static func apply(estate: Node) -> Dictionary:
 	var windows: Dictionary = {}
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		SURFACE.repair_window_normals(mesh, windows)
+		if (mesh.get_meta("extras", {}) as Dictionary).get("piece") == "bed_cover":
+			mesh.mesh = SURFACE.duvet_rest(mesh.mesh)
+	preload("res://rooms/estate/estate_bedding_layers.gd").attach(estate)
 	var counts := {"sun": 0, "artificial_surfaces": 0, "sky_meshes": 0, "glass_surfaces": 0, "corrected_surfaces": 0}
 	_calibrate(estate, materials, counts)
 	# Keep indoor/outdoor shadow masks separate while sharing the reference

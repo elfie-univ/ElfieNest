@@ -65,8 +65,6 @@ func build() -> void:
 			platform_steps=mesh
 		mesh.reparent(review_geometry, true)
 		mesh.visible = true
-		if module == "M01" and str(extras.get("resident", "")) == "A" and str(extras.get("piece", "")) == "throw":
-			mesh.visible = false
 	for light: DirectionalLight3D in source.find_children("*", "DirectionalLight3D", true, false):
 		light.reparent(review_geometry, true)
 		light.visible = true

@@ -247,6 +247,8 @@ func sample_bedding(seconds: float) -> void:
 	if t>=3.3 and t<5.9: grip = smoothstep(3.3,3.7,t)*(1.0-smoothstep(5.5,5.9,t))
 	if t>=12.0 and t<15.3: grip = smoothstep(12.0,12.4,t)*(1.0-smoothstep(15.0,15.3,t))
 	_reach_duvet(grip)
+	if blanket.has_meta("estate_bedding_layers"):
+		blanket.get_meta("estate_bedding_layers").sample()
 
 func _walk(distance: float, seconds: float) -> void:
 	_apply_snapshot(_standing)

@@ -6,6 +6,45 @@ const SHEEN := preload("res://runtime/lab/m01_sheen.gdshader")
 const GLASS := preload("res://rooms/estate/estate_glass.gdshader")
 
 
+static func duvet_rest(source: Mesh) -> Mesh:
+	# Static rooms and sleep poses use the same approved thin, fine-wrinkle
+	# panel. Never flatten an already prepared mesh or mutate the imported asset.
+	if source.get_meta("estate_duvet_rest", false): return source
+	var arrays := source.surface_get_arrays(0).duplicate(true)
+	var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bounds := source.get_aabb()
+	for i in range(points.size()):
+		var point := points[i]
+		var ripple := sin(point.z*47.0+point.x*10.0+sin(point.x*21.0)*0.25)*0.0028
+		ripple += sin(point.x*62.0+point.z*13.0)*0.0015
+		ripple += sin(point.z*83.0-point.x*23.0)*0.0008
+		var crown := smoothstep(0.015, 0.08, point.y-bounds.position.y)
+		# Roll the last few centimetres down onto the fitted pad. The imported
+		# hem used to sit 4 cm below the flattened panel, exposing a hard ledge.
+		point.y = bounds.position.y+0.012+0.016*crown+ripple*crown
+		points[i] = point
+	var normals := PackedVector3Array()
+	normals.resize(points.size())
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var source_normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	for i in range(0, indices.size(), 3):
+		var a := indices[i]
+		var b := indices[i+1]
+		var c := indices[i+2]
+		var normal := (points[b]-points[a]).cross(points[c]-points[a])
+		if normal.dot(source_normals[a]+source_normals[b]+source_normals[c]) < 0.0: normal = -normal
+		for vertex: int in [a, b, c]: normals[vertex] += normal
+	for i in range(normals.size()): normals[i] = normals[i].normalized()
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TANGENT] = null
+	var result := ArrayMesh.new()
+	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	result.surface_set_material(0, source.surface_get_material(0))
+	result.set_meta("estate_duvet_rest", true)
+	return result
+
+
 static func supports(material: BaseMaterial3D, allow_vertex_color: bool = false, allow_room_textures: bool = false) -> bool:
 	# Specialized/emissive surfaces retain their path. Interior receivers may
 	# opt into albedo/normal textures without changing their authored inputs.

@@ -18,26 +18,9 @@ var _neighbors: Array[PackedInt32Array] = []
 func bind(value: MeshInstance3D) -> void:
 	cloth = value
 	authored_mesh = cloth.mesh
-	original = authored_mesh
+	original = preload("res://rooms/estate/estate_surface.gd").duvet_rest(authored_mesh)
 	_arrays = original.surface_get_arrays(0).duplicate(true)
 	_rest = _arrays[Mesh.ARRAY_VERTEX]
-	_bounds = original.get_aabb()
-	# The authored 23 cm quilting was rejected. Keep this same cloth object,
-	# outline, UVs and material, but give its resting panel a thin fabric profile.
-	for i in range(_rest.size()):
-		var point := _rest[i]
-		var ripple := sin(point.z*47.0+point.x*10.0+sin(point.x*21.0)*0.25)*0.0028
-		ripple += sin(point.x*62.0+point.z*13.0)*0.0015
-		ripple += sin(point.z*83.0-point.x*23.0)*0.0008
-		point.y = _bounds.position.y+0.055+(point.y-_bounds.position.y)*0.025+ripple
-		_rest[i] = point
-	var refined := ArrayMesh.new()
-	_arrays[Mesh.ARRAY_VERTEX] = _rest
-	_arrays[Mesh.ARRAY_NORMAL] = _normals(_rest)
-	_arrays[Mesh.ARRAY_TANGENT] = null
-	refined.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,_arrays)
-	refined.surface_set_material(0,authored_mesh.surface_get_material(0))
-	original = refined
 	cloth.mesh = original
 	_bounds = original.get_aabb()
 	for point: Vector3 in _rest:

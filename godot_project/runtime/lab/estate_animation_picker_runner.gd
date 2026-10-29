@@ -186,7 +186,6 @@ func _sleep_sample(id: String) -> bool:
 	_actor.free()
 	_actor=prepared.probe
 	_actor.visible=true
-	for item: Dictionary in prepared.get("_throws"): (item["mesh"] as Node3D).visible=false
 	sleep_sample=prepared.review
 	var target := (duvet.global_transform*duvet.get_aabb()).get_center()+Vector3.UP*0.3
 	_camera.global_position=target+Vector3(2.2,1.7,2.4)
@@ -197,8 +196,10 @@ func _sleep_sample(id: String) -> bool:
 		sleep_sample.sample_bedding(7.0)
 		await _wait(6.0,Callable(prepared.effects,"preview_cover"))
 	else:
-		await _wait(14.5,func(seconds: float) -> void:
-			sleep_sample.sample_bedding(1.5+seconds)
+		sleep_sample.sample_bedding(0.0)
+		await _wait(sleep_sample.CYCLE,func(seconds: float) -> void:
+			# Hold the restored bed at the end instead of wrapping to approach.
+			sleep_sample.sample_bedding(minf(seconds, sleep_sample.CYCLE-0.001))
 			_phase="原床睡眠 / "+str(sleep_sample.animation_stage))
 	return true
 

@@ -16,7 +16,6 @@ var anchor_id := ""
 var _entry: Dictionary = {}
 var _pose_queries: Dictionary = {}
 var _excluded: Array[RID] = []
-var _throws: Array[Dictionary] = []
 var _actor_process := true
 
 
@@ -57,7 +56,6 @@ func prepare(body: ElfieActor, marker: Marker3D, duvet: MeshInstance3D, geometry
 		var extra := mesh.get_meta("extras", {}) as Dictionary
 		if extra.get("module") != "M01" or extra.get("resident") != "A" or extra.get("assembly") != "bed": continue
 		bed_names[str(mesh.name)] = true
-		if extra.get("piece") == "throw": _throws.append({"mesh": mesh, "visible": mesh.visible})
 		if extra.get("piece") in ["shell", "rolled_lip", "deck"]: shells.append(mesh)
 		if extra.get("piece") == "shell": shell = mesh
 	for obstacle: StaticBody3D in physics.find_children("*", "StaticBody3D", true, false):
@@ -129,7 +127,6 @@ func begin(value: String) -> String:
 	_entry = review.call("_snapshot")
 	_actor_process = actor.is_processing()
 	actor.set_process(false)
-	for item: Dictionary in _throws: (item["mesh"] as Node3D).visible = false
 	active = true
 	mode = value
 	return ""
@@ -163,6 +160,5 @@ func finish() -> String:
 	actor.set_process(_actor_process)
 	review.bind_actor(probe)
 	effects.preview_cover(6.0)
-	for item: Dictionary in _throws: (item["mesh"] as Node3D).visible = bool(item["visible"])
 	active = false
 	return ""
