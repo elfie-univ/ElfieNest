@@ -244,7 +244,10 @@ func _add_mesh(mesh: MeshInstance3D, concave: bool, parent: Node3D = null) -> St
 	if _spatial_data!=null:
 		assert(_spatial_data.mesh_shapes.has(source_key),"Compiled collider is missing: "+source_key)
 		return _add_mesh_body(mesh,mirrored,_spatial_data.mesh_shapes[source_key],parent)
-	var resource_id := mesh.mesh.get_instance_id()
+	# Visible joinery may trim an overhang or close a rail. Keep the exact
+	# imported movement/occlusion surface used by the approved stair route.
+	var physical_mesh := mesh.get_meta("estate_stair_collision_mesh",mesh.mesh) as Mesh
+	var resource_id := physical_mesh.get_instance_id()
 	var source_faces := PackedVector3Array()
 	if not _geometry_signatures.has(resource_id):
 		# Material variants can import as distinct ArrayMeshes with byte-identical
@@ -252,19 +255,19 @@ func _add_mesh(mesh: MeshInstance3D, concave: bool, parent: Node3D = null) -> St
 		# retaining separate winding-corrected shapes for mirrored instances.
 		var digest := HashingContext.new()
 		digest.start(HashingContext.HASH_SHA256)
-		source_faces = collision_faces(mesh.mesh)
+		source_faces = collision_faces(physical_mesh)
 		digest.update(source_faces.to_byte_array())
 		_geometry_signatures[resource_id] = digest.finish().hex_encode()
 	var key := "%s:%s:%s" % [_geometry_signatures[resource_id], str(concave), str(mirrored)]
 	if not _shapes.has(key):
 		var shape: Shape3D
 		if concave:
-			if source_faces.is_empty(): source_faces = collision_faces(mesh.mesh)
+			if source_faces.is_empty(): source_faces = collision_faces(physical_mesh)
 			var triangle_shape := ConcavePolygonShape3D.new()
 			triangle_shape.set_faces(source_faces)
 			shape = triangle_shape
 		else:
-			shape = mesh.mesh.create_convex_shape(true, false)
+			shape = physical_mesh.create_convex_shape(true, false)
 		if shape is ConcavePolygonShape3D:
 			var triangle_shape := shape as ConcavePolygonShape3D
 			if mirrored:

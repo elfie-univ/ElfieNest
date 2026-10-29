@@ -152,7 +152,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			)
 			_camera_pitch = clampf(
 				_camera_pitch - mouse_motion.relative.y * CAMERA_ORBIT_SPEED,
-				CAMERA_MIN_PITCH,
+				deg_to_rad(-35) if _camera_views[_active_camera_index].has("floor_height_limits") else CAMERA_MIN_PITCH,
 				CAMERA_MAX_PITCH
 			)
 			_apply_camera_transform(camera)
@@ -183,12 +183,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				camera.fov = clampf(camera.fov * 0.9, 30.0, 100.0)
 			else:
 				camera.size = clampf(camera.size * 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
+			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
 				camera.fov = clampf(camera.fov / 0.9, 30.0, 100.0)
 			else:
 				camera.size = clampf(camera.size / 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
+			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventKey:
 		var key_event := event as InputEventKey
@@ -427,6 +429,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 	var room_floor_tops: Dictionary = {}
 	var terrace_floors: Dictionary = {}
 	var central_floor_tops: Dictionary = {}
+	var central_floor_bottoms: Dictionary = {}
 	var arrival_platform_center := Vector3.ZERO
 	var arrival_steps_center := Vector3.ZERO
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
@@ -449,8 +452,10 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		]:
 			var local_bounds := (global_transform.affine_inverse() * mesh.global_transform) * mesh.get_aabb()
 			central_floor_tops[int(extras["floor"])] = local_bounds.end.y
+			central_floor_bottoms[int(extras["floor"])] = local_bounds.position.y
 		if module_name == "central" and source.begins_with("Central L4 round arrival floor"):
 			central_floor_tops[4] = _arrival_floor_top(mesh)
+			central_floor_bottoms[4] = ((global_transform.affine_inverse()*mesh.global_transform)*mesh.get_aabb()).position.y
 	# Keep the internal overview action/fallback while presenting only one outdoor view.
 	var overview := get_node("Camera3D") as Camera3D
 	overview.projection = Camera3D.PROJECTION_PERSPECTIVE
@@ -488,6 +493,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 			target = Vector3(arrival_platform_center.x, floor_y + 1.0, arrival_platform_center.z)
 			field_of_view = 80.0
 		_add_complete_view(generated, "central-%d" % floor_number, "主楼 · %d 层" % floor_number, to_global(camera_position), to_global(target), field_of_view)
+		_camera_views.back()["floor_height_limits"] = Vector2(to_global(Vector3(0,floor_y+0.25,0)).y, to_global(Vector3(0,float(central_floor_bottoms[floor_number+1])-0.25,0)).y if central_floor_bottoms.has(floor_number+1) else INF)
 	for index in range(1, 9):
 		var module_name := "M%02d" % index
 		if not room_floors.has(module_name):
@@ -507,6 +513,9 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 			var target := Vector3(center.x,surface.end.y+1.0,center.z+0.8)
 			_add_complete_view(generated, "terrace-%02d" % index, "宿舍 %s · 二层露台" % module_name, terrace.global_transform * camera_position, terrace.global_transform * target,85.0)
 			(_camera_views.back()["camera"] as Camera3D).keep_aspect = Camera3D.KEEP_WIDTH
+	# Explicit local inspection uses the same complete world and monitor controls.
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(parent.location.search).get('stair_review')")) == "1":
+		_add_stair_joint_views(generated,central_floor_tops)
 	var labels := observation_view_labels()
 	camera_catalog_revision += 1
 	_active_camera_index = _observation_view_index_by_id(previous_id)
@@ -518,6 +527,23 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		_observation_hud.call("set_views", labels, _active_camera_index)
 	select_observation_view(_active_camera_index)
 	_emit_observer_camera_catalog_changed()
+
+
+func _add_stair_joint_views(generated: Node3D, floors: Dictionary) -> void:
+	for floor_number in [2,3,4]:
+		var floor_y := float(floors[floor_number])
+		var angle := deg_to_rad(-153.0 if floor_number==2 else -115.0)
+		var radial := Vector3(cos(angle),0,sin(angle))
+		var tangent := Vector3(-sin(angle),0,cos(angle))
+		for side in [0,1]:
+			var radius := 3.18 if side==0 else 4.65
+			var outward := -radial if side==0 else radial
+			for part in [0,1,2]:
+				var height := 0.45 if part==0 else (0.90 if part==1 else 0.06)
+				var target := radial*radius+Vector3.UP*(floor_y+height)
+				var position := target+outward*(1.25 if part==0 else 0.65)-tangent*0.65
+				position.y+=0.08
+				_add_complete_view(generated,"stair-joint-%d-%d-%d" % [floor_number,side,part],"接头检查 · %d层 · %s · %s" % [floor_number,"内侧" if side==0 else "外侧",["整体","扶手封头","底部"][part]],to_global(position),to_global(target),70.0)
 
 
 func _arrival_floor_top(mesh: MeshInstance3D) -> float:
@@ -737,6 +763,7 @@ func select_observation_view(index: int) -> void:
 		view["follow_offset"] = FOLLOW_CAMERA_OFFSET
 		_process(0.0)
 	_sync_orbit_state(camera)
+	if view.has("floor_height_limits"): _apply_camera_transform(camera)
 	if not _rebuilding and (not _observer_environment.is_empty() or _observer_lighting_preview != "live"):
 		_apply_observer_lighting_display()
 	if not Engine.is_editor_hint() and _observation_hud != null:
@@ -845,9 +872,19 @@ func _reset_camera() -> void:
 		view["follow_initialized"] = false
 		_process(0.0)
 	_sync_orbit_state(camera)
+	if view.has("floor_height_limits"): _apply_camera_transform(camera)
 
 
 func _apply_camera_transform(camera: Camera3D) -> void:
+	var current_view: Dictionary = _camera_views[_active_camera_index]
+	if current_view.has("floor_height_limits"):
+		var limits: Vector2 = current_view["floor_height_limits"]
+		_camera_target.y = clampf(_camera_target.y,limits.x,limits.y)
+		# Bound the orbit itself, not just its resulting position: reversing a
+		# drag must respond immediately instead of unwinding an invisible orbit.
+		var low := asin(clampf((limits.x-_camera_target.y)/_camera_distance,-1.0,1.0))
+		var high := asin(clampf((limits.y-_camera_target.y)/_camera_distance,-1.0,1.0))
+		_camera_pitch = clampf(_camera_pitch,maxf(low,deg_to_rad(-35)),minf(high,deg_to_rad(35)))
 	var horizontal_scale := cos(_camera_pitch) * _camera_distance
 	var offset := Vector3(
 		sin(_camera_yaw) * horizontal_scale,

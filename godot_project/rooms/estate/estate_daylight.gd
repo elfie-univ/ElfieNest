@@ -47,6 +47,7 @@ const ARTIFICIAL_EMISSION_NAMES := [
 
 
 static func apply(estate: Node) -> Dictionary:
+	preload("res://rooms/estate/estate_stair_finish.gd").apply(estate as Node3D)
 	var materials: Dictionary = {}
 	var windows: Dictionary = {}
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):

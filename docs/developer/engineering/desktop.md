@@ -41,6 +41,17 @@ versioned camera catalog: semantic view `id` and `label` values, `active_id`, a
 positive `revision`, and `presentation_paused`. The catalog never exposes camera
 coordinates, transforms or room geometry.
 
+Selecting a main-building floor constrains both the orbit target and camera height
+to that floor, with clearance from the floor and the next slab. Orbit, pan, zoom
+and reset share these limits. Switching floors replaces the limits; overview
+remains unrestricted. This is an Observer camera constraint, not actor collision.
+
+For local stair-joint inspection, open `/monitor?stair_review=1`. The existing
+view selector adds 18 close-up presets for floors 2–4: inner/outer joints, rail
+ends and bases. These inspection cameras use the same complete scene; regular
+floor cameras retain their floor-height limits.
+
+
 The React bridge accepts that catalog only from its current same-origin Godot
 iframe and only in the strict versioned message format. It may emit only
 `overview`, `select`, `reset`, and `set_local_presentation_paused`; `select`
