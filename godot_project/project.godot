@@ -22,4 +22,5 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-limits/opengl/max_renderable_lights=256
+limits/opengl/max_renderable_lights=384
+limits/opengl/max_lights_per_object=32

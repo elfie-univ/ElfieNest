@@ -8,6 +8,8 @@ uniform vec3 sheen_color = vec3(1.0);
 uniform float sheen_roughness = 0.8;
 uniform float sheen_amount = 1.0;
 uniform bool use_authored_reflection = false;
+// The shared observer environment controls the natural-light contribution.
+uniform float natural_light_scale : hint_range(0.0, 1.0) = 1.0;
 
 // Integrated Charlie lobe used by the reference physical material to reserve
 // energy for the cloth layer instead of adding it on top of the full base BRDF.
@@ -46,7 +48,7 @@ void fragment() {
 		NORMAL = -NORMAL;
 	}
 	vec3 world_normal = normalize(mat3(INV_VIEW_MATRIX) * NORMAL);
-	vec3 hemisphere = mix(to_linear(vec3(0.352941, 0.407843, 0.364706)), to_linear(vec3(0.843137, 0.921569, 1.0)), world_normal.y * 0.5 + 0.5) * (0.72 / PI);
+	vec3 hemisphere = mix(to_linear(vec3(0.352941, 0.407843, 0.364706)), to_linear(vec3(0.843137, 0.921569, 1.0)), world_normal.y * 0.5 + 0.5) * (0.72 / PI) * natural_light_scale;
 	float cloth_albedo = sheen_albedo(max(dot(NORMAL, VIEW), 0.0));
 	float sheen_max = max(sheen_color.r, max(sheen_color.g, sheen_color.b));
 	IRRADIANCE = vec4(hemisphere * 0.96 * (1.0 - sheen_amount * sheen_max * cloth_albedo), 1.0);

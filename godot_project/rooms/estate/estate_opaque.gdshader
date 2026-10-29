@@ -9,6 +9,15 @@ uniform float source_clearcoat = 0.0;
 uniform float source_coat_roughness = 0.0;
 uniform bool use_linear_vertex_color = false;
 uniform bool use_authored_reflection = false;
+// The shared observer environment controls the natural-light contribution.
+uniform float natural_light_scale : hint_range(0.0, 1.0) = 1.0;
+uniform bool use_albedo_texture = false;
+uniform bool use_normal_texture = false;
+uniform sampler2D source_albedo_texture : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D source_normal_texture : hint_normal, filter_linear_mipmap_anisotropic;
+uniform float source_normal_scale = 1.0;
+uniform vec3 source_uv_scale = vec3(1.0);
+uniform vec3 source_uv_offset = vec3(0.0);
 
 vec3 to_linear(vec3 color) {
 	return mix(color / 12.92, pow((color + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), color));
@@ -31,10 +40,18 @@ void fragment() {
 		NORMAL = -NORMAL;
 	}
 	vec3 world_normal = normalize(mat3(INV_VIEW_MATRIX) * NORMAL);
-	IRRADIANCE = vec4(mix(to_linear(vec3(0.352941, 0.407843, 0.364706)), to_linear(vec3(0.843137, 0.921569, 1.0)), world_normal.y * 0.5 + 0.5) * (0.72 / PI), 1.0);
+	IRRADIANCE = vec4(mix(to_linear(vec3(0.352941, 0.407843, 0.364706)), to_linear(vec3(0.843137, 0.921569, 1.0)), world_normal.y * 0.5 + 0.5) * (0.72 / PI) * natural_light_scale, 1.0);
 	vec3 gradient = max(abs(dFdx(NORMAL)), abs(dFdy(NORMAL)));
 	float geometry_roughness = max(gradient.x, max(gradient.y, gradient.z));
 	ALBEDO = source_albedo.rgb;
+	vec2 source_uv = UV * source_uv_scale.xy + source_uv_offset.xy;
+	if (use_albedo_texture) {
+		ALBEDO *= texture(source_albedo_texture, source_uv).rgb;
+	}
+	if (use_normal_texture) {
+		NORMAL_MAP = texture(source_normal_texture, source_uv).rgb;
+		NORMAL_MAP_DEPTH = source_normal_scale;
+	}
 	if (use_linear_vertex_color) {
 		// glTF COLOR_0 is linear. Compatibility decodes ALBEDO after
 		// fragment(), so encode the linear product once at that boundary.

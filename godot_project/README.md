@@ -40,18 +40,18 @@ and navigation; world readiness waits for synchronization and reachable anchors.
 `furniture.use` uses the existing Body/Gateway path to walk to furniture before
 entering its reversible bed or seat pose; a camera preview alone does not verify it.
 
-The current daylight baseline is applied by `rooms/estate/estate_daylight.gd`
-before restoring shared instances: neutral shadowed sunlight and non-emissive
-artificial lamps, with interior fill and highlight headroom in `rooms/nest.tscn`.
-Facade shells, window surrounds and glazing use the softer outdoor light layer,
-not the interior fill. The pods' transmission-only observation glass is rendered
-as thin tinted alpha glazing in Compatibility; source RGB and roughness are kept,
-but this does not reproduce physical transmission or refraction.
-The reviewed ground-floor common room keeps its indoor fill; pods, upper rooms
-and roof areas use the softer daylight profile, including their furniture.
-It does not rewrite the approved GLB, sky textures, geometry or render-quality
-settings. Automatic day/night lighting and proposed courtyard lamps are not yet
-implemented by this baseline.
+The project includes the forest loop and return spur, smooth lawn and planting regions,
+ten physical doors, and offline collision/navigation resources. Buildings, furniture and
+base materials retain their baseline; terrain, fixtures and actions are integrated by feature.
+Chair/sofa sequences, the original duvet, bed-bound embodiment, adoption arrival and water
+effects use the actual models in this project. See the [estate entry](rooms/estate/README.md)
+for focused replays; these do not certify autonomous life.
+
+The product monitor consumes Nest's local civil-time environment: artificial lighting is off
+at 06–18, enabled at 18–24, and ordinary room lighting winds down at 00–06 while guidance remains.
+Time and viewpoint are independent; Local time restores the latest environment without changing
+Nest's clock or resident state. Surfaces receive actual lights without a fixed warm additive term.
+Final appearance still requires review in the real monitor.
 
 ## Editing safety
 

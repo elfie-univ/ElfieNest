@@ -122,6 +122,8 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 		_pending_motions.clear()
 	_snapshot_generation = generation
 	_snapshot_sequence = sequence
+	if snapshot.get("environment") is Dictionary:
+		_nest.apply_observer_environment(snapshot["environment"],entities)
 	var expected_ids: Dictionary = {}
 	for raw_id: Variant in (entities as Dictionary).keys():
 		var actor_id := String(raw_id)

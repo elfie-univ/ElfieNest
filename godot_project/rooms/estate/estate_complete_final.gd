@@ -16,9 +16,31 @@ var _canopy_meshes: Dictionary = {}
 
 
 func _ready() -> void:
-	DAYLIGHT.apply($CompleteFinal)
+	var outdoor := load("res://rooms/estate/estate_outdoor_lighting.scn") as PackedScene
+	if outdoor == null:
+		_fail_restore("Build the current estate lighting before loading the composed world")
+		return
+	var layout := outdoor.instantiate() as Node3D
+	add_child(layout)
+	_apply_outdoor_layout(layout)
+	DAYLIGHT.apply(self)
 	WATER.attach($CompleteFinal)
 	_restore_instanced_groups()
+
+
+func _apply_outdoor_layout(layout: Node3D) -> void:
+	for mesh: MeshInstance3D in $CompleteFinal.find_children("*", "MeshInstance3D", true, false):
+		var extras: Dictionary = mesh.get_meta("extras", {})
+		if str(extras.get("outdoor_fixture_id", "")).begins_with("R"):
+			for light: Dictionary in extras.get("design_lights", []):
+				light.merge({"intensity": PI, "distance": 14.0, "angle": deg_to_rad(78.0), "attenuation": 0.7, "angle_attenuation": 0.2}, true)
+			mesh.set_meta("extras", extras)
+	for patch: MeshInstance3D in layout.find_children("*", "MeshInstance3D", true, false):
+		if not patch.has_meta("source_ground"):
+			continue
+		var original := $CompleteFinal.find_child(str(patch.get_meta("source_ground")), true, false) as MeshInstance3D
+		assert(original != null, "Lighting patch lost its original ground surface")
+		original.visible = false
 
 
 func _restore_instanced_groups() -> void:

@@ -8,7 +8,8 @@ script = ExtResource("2_complete_script")
 metadata/asset_role = "complete-final"
 metadata/source_sha256 = "30c4f8e7889b03b7da61a68b23f7a640c901267ba0de8c314b4678cc819e8e32"
 metadata/source_binary_sha256 = "b8d19b5f8172a31e7caf711375bd611620830a6dfbcba479b6a83a0c62fba575"
-metadata/instance_sidecar_sha256 = "5c25c8805cc0a202ff24bf4a70bcf721c7b8b94383404f36b32d5d1a859b190d"
+metadata/instance_sidecar_sha256 = "fdea0636761225ee023fb3e7a528187efac2502ea927336eb68339b0673580b4"
+metadata/integrated_model_sha256 = "65890652ec770f733417358f8144d5793738c684a1e82fd167f3742e55270b20"
 metadata/runtime_ready = true
 
 [node name="CompleteFinal" parent="." instance=ExtResource("1_complete")]

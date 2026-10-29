@@ -102,13 +102,13 @@ func _initialize_lab_browser_bridge() -> void:
 func _select_nest_lab_camera_preset(intent: String) -> void:
 	match intent:
 		"overview":
-			_nest.select_observation_view(0)
+			_nest.select_observer_overview()
 		"activity":
-			_nest.select_observation_view_named("活动")
+			_nest.select_observer_camera_by_id("central-1")
 		"dorm":
-			_nest.select_observation_view_named("宿舍")
+			_nest.select_observer_camera_by_id("dorm-01")
 		"portal":
-			_nest.select_observation_view_named("传送室")
+			_nest.select_observer_camera_by_id("central-4")
 		"restore":
 			_nest.reset_observation_camera()
 		_:

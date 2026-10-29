@@ -4,6 +4,7 @@ extends CharacterBody3D
 const ACTOR_PATH_PLANNER := preload("res://runtime/actor/actor_path_planner.gd")
 const ACTOR_ANIMATION_RUNTIME := preload("res://runtime/actor/actor_animation_runtime.gd")
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
+const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
 const WALK_SPEED := 1.15
 const ARRIVAL_DISTANCE := 0.22
 const BLOCKED_SECONDS := 1.5
@@ -42,6 +43,7 @@ signal tactile_contact(contact: Dictionary)
 
 
 func _ready() -> void:
+	collision_mask |= COLLISION_LAYERS.MOVEMENT_BOUNDARY
 	floor_snap_length = maxf(floor_snap_length, MAX_STEP_HEIGHT + 0.05)
 	_navigation_agent = NavigationAgent3D.new()
 	_navigation_agent.name = "NavigationAgent3D"
@@ -497,7 +499,11 @@ func _apply_furniture_pose(posture: String) -> bool:
 		})
 		var angle := -PI / 2.0 if part.ends_with("UpLeg") else PI / 2.0
 		skeleton.set_bone_pose_rotation(bone, bone_rotation * Quaternion(Vector3.RIGHT, angle))
-	return true
+	for part: String in ["LeftForeArm","LeftHand","RightForeArm","RightHand"]:
+		var bone := _furniture_bone(skeleton,part)
+		if bone<0:return false
+		_furniture_bone_poses.append({"skeleton":skeleton,"bone":bone,"rotation":skeleton.get_bone_pose_rotation(bone)})
+	return load("res://runtime/actor/chair_seated_hand_pose.gd").apply_current_pose(self)
 
 
 func _restore_furniture_pose(visual_source: Dictionary = {}) -> void:

@@ -113,6 +113,7 @@ func _parse_semantic_snapshot(message: Dictionary) -> Dictionary:
 			"scope",
 			"entities",
 			"entity_revisions",
+			"environment",
 		],
 	):
 		return {}
@@ -127,6 +128,11 @@ func _parse_semantic_snapshot(message: Dictionary) -> Dictionary:
 		or _parse_revision(message["sequence"]) < 1
 	):
 		return {}
+	var environment: Variant = message.get("environment")
+	if environment != null:
+		if not environment is Dictionary or not _has_exact_keys(environment, ["phase", "lights_on", "quiet_mode"]): return {}
+		if environment.get("phase") not in ["day", "dawn", "dusk", "night"] or typeof(environment.get("lights_on")) != TYPE_BOOL: return {}
+		if typeof(environment.get("quiet_mode")) != TYPE_BOOL: return {}
 	var scope: Variant = message.get("scope")
 	if not _semantic_scope_is_valid(scope):
 		return {}

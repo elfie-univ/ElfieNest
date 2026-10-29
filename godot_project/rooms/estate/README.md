@@ -1,115 +1,118 @@
-# Estate complete final asset
+# Estate source and functional replays
 
 > 中文：[`README_zh.md`](README_zh.md)
 
-Open `res://rooms/estate/estate.tscn` in the repository's Godot 4.7 project.
-The scene now contains one self-contained final GLB with the complete building,
-real interiors, terraces and approved courtyard. Legacy procedural rooms,
-standalone furniture and the central/pod baseline have been removed from source
-and export inputs. A local recoverable copy is outside the project under
-`build/asset_exports/retired-rooms-20261022/`.
+`res://rooms/estate/estate.tscn` loads one complete estate through `rooms/nest.tscn`.
+Buildings, furniture, base meshes and materials retain the committed baseline.
+The integrated GLB adds the approved forest loop, return spur, smooth ground regions,
+path-side vegetation changes and nine retained outdoor fixtures (E01–E02, R01–R07).
+The scene's `source_sha256` records the original desktop export; `integrated_model_sha256`
+and `instance_sidecar_sha256` identify the current integrated inputs.
 
-| Resource | Contents | Size |
-| --- | --- | --- |
-| `ElfieNest-complete-final.glb` | Godot-compatible complete building, interiors, terraces and courtyard export | 251,670,216 bytes |
-| `ElfieNest-complete-final.instances.bin` | Lossless world-space transforms for the final GLB's repeated-instance groups | 13,875,592 bytes |
+| Source resource | Current contents |
+| --- | --- |
+| `ElfieNest-complete-final.glb` | 266,635,048 bytes; selected terrain/fixture additions over the baseline |
+| `ElfieNest-complete-final.instances.bin` | 134 landscape groups, 214,750 instances; 13,748,040 bytes |
+| `estate_outdoor_lighting.scn` | Authored road/plaza guidance, lake-bank rim, four high poles and 24 forest lamps |
+| `estate_spatial.res` | Current-model collision shapes, activity boundaries and native navigation/stair links |
 
-`main.tscn` uses the original `rooms/nest.tscn` / `ModularNest` owner, which retains
-camera and Observer behavior and loads this complete asset once instead of generating
-the old corridor rooms. The 15 views include the courtyard, sky, central floors
-and eight furnished dorms. Run the standard Web build, then open
-`elfienest.html?mode=nest_lab` for the in-engine view selector and orbit controls.
-The default dorm view looks across the near bed/chair pair so the first
-interaction seat is in frame, rather than behind the camera.
+Runtime loads precompiled spatial data and rejects mismatched model, instance or lighting
+inputs. Roads, plaza, lawn and the forest path connect; planting, water, facilities and
+simplified trunks remain protected. The movement boundary is excluded from perception rays.
+Ten physical door leaves (eight authored and two garden) share proximity opening, delayed
+closure, reversal and occupied-volume protection. An explicit default-open setter is available;
+connecting that policy to the world's day/night phase remains separate from this migration.
 
-Daylight uses the workbench's authored reflection gradient, ACES response and
-asset-local fixture definitions at 8% output, with furniture-only contact shadows.
-Painted and needle crown instances retain their exact base vertex/index buffers
-without the importer's silhouette-reducing LOD alternatives. Source colors,
-roughness, textures and instance transforms are unchanged. The courtyard camera
-matches the central V050 front reference (42-degree FOV, two 0.8 zoom steps).
+Nest supplies local civil time: 06–18 day, 18–24 evening, 00–06 quiet hours. Ordinary lamps and
+authored emission follow the same switch; quiet hours retain guidance and occupied-room policy.
+Surfaces receive actual lights without the rejected fixed warm term. The product monitor has
+independent time/view selectors; preview changes do not alter Nest or residents.
 
-Landscape transforms are partitioned into 16 m horizontal cells and batches of
-at most 128 instances, sharing the original meshes/materials. This bounds draw
-submissions and enables spatial culling without removing geometry. Room fixtures
-do not illuminate landscape batches. The Web entry requests a high-performance
-GPU; the browser decides which device is available, and discrete GPU use can
-increase power consumption. This request does not reduce rendering quality.
-The source-only post-import hook carries authored clearcoat/IOR/transmission
-values into material metadata, so Web uses the same values without reading a raw
-GLB at runtime. The importer itself is excluded from exported Runtime bundles.
+The regular camera catalog contains one courtyard view, four central floors and eight
+bedroom/terrace pairs. The monitor adds forest/estate access views and a ring-road view.
+Orbit, zoom, limited pan, current-view reset and actor-follow offsets remain available.
 
-`ModularNest` binds runtime collisions and semantic anchors from this asset's
-module/floor/furniture metadata: 32 beds, 32 desk chairs, two garden seats, eight
-sliding doors, four central levels, eight terraces and the courtyard. Bed capacity
-only activates the corresponding bed/chair catalogue; it never rebuilds the rooms.
-The six authored garden collision proxies are reused and foliage is not baked.
-Mirrored geometry keeps a positive-handed physics frame. Rendering visibility,
-including hidden authority mode, never disables collisions.
+After the repository Web build, these explicit local replays use the same project assets:
 
-Navigation readiness checks every advertised approach and route to the courtyard
-after all regions synchronize. The real half-landing tops provide inset turning
-navigation patches and links to their actual stair treads; Actors still walk with
-full capsules, gravity and swept step clearance. `furniture.use` navigates to a
-source-bound approach before entering its bed/seat pose. Occupancy, cancellation
-and blocked exits are explicit outcomes. Display-side material overrides add
-gentle lake normals, spillway flow, fountain-jet highlights and ripple/foam motion
-to 26 source-bound water surfaces without moving vertices or changing collision
-geometry. Cloud movement remains static export data. The camera-only Nest Lab is
-not an autonomous-life acceptance.
+| URL query | Purpose |
+| --- | --- |
+| `?observer=product` | Real semantic monitor, live environment and independent time/view controls |
+| `?mode=elfie_lab&review=chair` | Swivel-chair sequence and seated forearm clearance |
+| `?mode=elfie_lab&review=sofa` / `review=tour` | Sofa approach/mount/sit/leave and connected walking/stair tour |
+| `?mode=event_review` | Original duvet sleep, bed-bound embodiment and seven-layer adoption arrival |
+| `?mode=animation_journey` | Nine functional previews, with sofa/sleep/water variants; 25 independent source clips plus nod/shake gestures; select to play, pause or replay |
+| `?mode=animation_journey&playback=continuous` | Ordered physical journey with stop-at-first-gap reporting |
+| `?mode=water_review` | Original fountain jets, outward ring pulses, spillway and natural lake waves |
+| `?mode=path_lighting_review&area=estate` | Accepted complete-estate lighting review |
 
-Resident animation blends idle/walking clips and visual heading changes. Existing
-bed/seat actions now blend their visual child and skeleton into and out of the
-authored contact pose, with a subtle sleeping breathing loop. These procedural
-transitions do not add a separate climbing animation or change physical contact,
-occupancy, exit clearance or command completion. Interrupted transitions recover
-from their current displayed pose; body proportions remain unchanged.
+The dropdown opens disposable crops of the real project in one isolated viewport. Selecting
+an item destroys the previous fixture and its owned playback clock, including pending waits.
+Replay starts that item afresh. Scenario setup places its local sample at the relevant object;
+this is explicitly not a continuous route or evidence that skipped travel succeeded.
+The main menu combines arrival and platform exit into the confirmed complete rooftop sequence.
+Sofa locations, sleep poses and water scenes have secondary selectors; every water scene supports
+day/night playback. Individual source clips and head gestures remain separately selectable.
+Source clips use the existing species retarget in place. Source assets and confirmed contact
+edits remain unchanged. The regular monitor does not enable this mode.
 
-Collision resources share exact triangle bytes across render-material variants.
-Triangles are read from indexed surfaces without generating a picking BVH for
-every render mesh; convex furniture uses its actual hull. The visible GLB is
-unchanged, with no triangle decimation or texture reduction. The full physical
-world with real actors measured approximately 1.61 GiB stage RSS, not peak or
-browser/GPU memory. The acceptance scenario covers courtyard return, bed/chair
-use, cancellation/occupancy and maximum-size actors on real central/terrace stairs.
+The explicit continuous journey starts with the existing adoption effects, then hands the same actor
+to physical movement. Play, pause, chapter inspection, retry at the actual stopped position
+and a checklist are local test controls; no resident or world event is created. A new run
+restarts the same Web document/engine, with duplicate-click protection and a bounded
+world-loading timeout. The first missing integration or blocked route stops the sequence
+and leaves all remaining chapters pending. Sleep reuses the original three poses and duvet
+controller after the same actor physically reaches the measured bedside. Entry and exit
+use the existing furniture contact/visual blend, check foreign obstacles along the sampled
+pose path, and retain the existing standing-capsule exit check. The standing collider is
+disabled only during the existing furniture contact convention. A played chapter
+does not imply visual acceptance, and source-clip auditions do not prove navigation.
+The internal-door chapter visits only representative room M01 and returns to the central
+lounge; it does not claim coverage of all eight doors. Physical travel retains the confirmed
+species-retargeted, in-place idle/walk clips. Collision includes the central stair walls,
+glass rails, rooftop solids and solid furniture such as TVs, stools, ottomans and cabinets.
+These participate in offline navigation baking; spatial data without the matching explicit
+collision policy is rejected, even if a resource inherits a new script default version.
+Add `&autoplay=1` to the continuous journey URL to start playback after validated loading;
+it does not enable playback in the product observer.
 
-`test_complete_estate_world.gd` validates physical actions, while
-`test_observer_real_actions.gd` checks strict semantic replay and mid-walk pause.
-`scripts/internal/diagnostics/verify_nest_runtime_e2e.py` connects real Gateway,
-NativeBody and Nest pose projections to `main.tscn`; its resident identities are
-fixtures, not Brain/Provider or autonomous-life acceptance.
+The dropdown's arrival reuses the original event-review actor and seven-layer effects,
+night lighting and fixed front camera along the platform steps. Its four phases are
+preparation, charge, materialization/landing and walking down. Preparation only lights
+the three ceiling rings, broad petal inlays and platform in sequence. Charge uses one
+clockwise angular phase for two revolutions of ceiling chases, petals/carrier and the
+platform's top blue ring; the outer base and treads stay fixed. Three full-height,
+full-width petal volumes converge into an upright column. Each petal face has an ice-cyan
+center and matching blue regions on both sides; blue side lighting and the original single
+ice-cyan rear line replace moving stripes. Energy rises to the dome, spreads inside-out, and holds
+the fully illuminated roof for one second. A separate broad front then travels from
+dome to platform before the existing arrival effect reveals the resident.
+Continuous opaque inlays on owned ceramic meshes replace
+the overlapping transparent petal strips. During landing, effects fade to reveal the
+resident; step lighting prelights the walk, followed by the inner and outer floor guides.
+The source GLB, collision resources, actor facing and walk-down motion are preserved.
+The 28.7-second preview plays once, then leaves the actor visible on the rooftop floor.
+Skeletal source clips live in `characters/animation/`; this combined arrival is stored in
+`runtime/lab/estate_platform_cycle.gd`, `estate_event_effects.gd`,
+`estate_arrival_lighting.gd` and their shaders, with staging in `estate_event_review.gd`.
+The owned petal coatings, wide inward columns, core, uplink, dome and moving carrier are
+defined in `runtime/lab/estate_petal_charge.gd`; continuous inlays are installed by
+`estate_arrival_inlay.gd`. Their shaders and the shared platform timing stay in the same folder.
 
-The GLB embeds its image data and has no external texture files. Godot 4.7 does
-not support the source file's `EXT_mesh_gpu_instancing`, so the repository copy
-removes that unsupported wrapper and restores its 134 groups / 216,743 instances
-through `MultiMeshInstance3D` using the sidecar. Identical images (224 → 91),
-textures (310 → 183), materials (1,123 → 471) and meshes (2,140 → 2,016) now share
-references. All 8,507 node identities, metadata and transforms are preserved;
-the two superseded white entrance-step nodes no longer reference render meshes,
-while binary data and instance transforms remain byte-identical. This is
-resource sharing plus the approved entrance-step removal, not texture resizing
-or mesh simplification. The current desktop export is 251,879,364 bytes with
-SHA-256 `30c4f8e7889b03b7da61a68b23f7a640c901267ba0de8c314b4678cc819e8e32`.
+Replays do not fabricate world events or certify autonomous life. Final integrated appearance,
+including the chair refinement, still requires review in the real monitor. No departure effect,
+fan beams, regular lake stripes, superseded plaza fixtures or climbing/jump candidate gallery
+is part of the selected action chain.
 
-The Godot copy SHA-256 is `5538b1f675cbc532c920eb7543e1b1fd7f16f2c097ab5180297b425148b8f973`.
-The sharing pass is reproducible with `scripts/internal/build/optimize_estate_glb.py`;
-it writes a separate output and never modifies the desktop source.
-
-Sidecar v1 stores `name_length, instance_count, name, matrices` per group. Reading
-the count after the name interpreted the first group as 808,464,479 instances
-instead of 2,418 and attempted a 36 GiB allocation. The reader now matches the
-writer, validates lengths before allocating, uploads transforms in bulk, and
-preserves per-surface materials and vertex colors. No geometry or textures were
-reduced. Before physics integration, the focused headless check measured asset RSS falling from
-1,194.8 MiB to 951.4 MiB (20.4%) and main-scene RSS from 1,351.8 MiB to
-1,101.1 MiB (18.5%). This excludes browser/GPU memory and is not a peak-memory
-guarantee. The validation process took 4.05 s including class/resource preloads;
-the one-time import took 75.6 s. Script-local elapsed times exclude preloads.
-The focused test also checks all group counts, first/last transform samples,
-vertex colors and the main scene's camera catalog.
-
-Run the focused resource check through the repository-controlled Godot entry:
+Offline authoring uses the repository's controlled Godot host entry:
 
 ```sh
-bash scripts/quality/checks/godot_host.sh res://scripts/test/test_estate_asset_baseline.gd
+bash scripts/quality/checks/godot_host.sh res://scripts/tools/bake_estate_lighting.gd
+# Inspect build/estate-lighting-v4/estate_outdoor_lighting.scn, then publish it here.
+bash scripts/quality/checks/godot_host.sh res://scripts/tools/bake_estate_spatial.gd
+# Inspect build/estate_spatial/bake-report.json, then publish estate_spatial.res here.
+bash scripts/quality/checks/godot_host.sh res://scripts/test/test_estate_precompiled_spatial.gd
 ```
+
+Intermediates stay under `build/`; final authored resources above are source assets.
+Godot import caches remain local and excluded from Git. Web output is produced only by
+`./developer.sh build-godot-web` into `build/components/godot-web/`.

@@ -131,6 +131,13 @@ func _add_facility(id: String, zone: String, kind: String, label: String, point:
 	facility_descriptors.append({"facility_id": id, "zone_id": zone, "kind": kind, "label": label, "capabilities": capabilities, "active": true})
 
 
+func restrict_outdoor_anchors(access: Node3D) -> void:
+	for marker: Marker3D in anchors.values():
+		if str(marker.get_meta("zone_id")) != "courtyard": continue
+		var point := marker.global_position
+		marker.set_meta("access_restricted", not access.contains_point(Vector2(point.x, point.z)))
+
+
 func manifest_anchors(capacity: int) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for descriptor: Dictionary in descriptors:
@@ -138,6 +145,8 @@ func manifest_anchors(capacity: int) -> Array[Dictionary]:
 		var marker := anchors[str(copy["anchor_id"])] as Marker3D
 		if marker.has_meta("bed_order"):
 			copy["active"] = int(marker.get_meta("bed_order")) < capacity
+		if bool(marker.get_meta("access_restricted", false)):
+			copy["active"] = false
 		result.append(copy)
 	return result
 
@@ -166,9 +175,14 @@ func align_approaches(map: RID) -> void:
 	# Author a reachable stand point near the actual object; never move an Actor.
 	# Do not snap between storeys or replace a disconnected room with another floor.
 	for marker: Marker3D in anchors.values():
+		if bool(marker.get_meta("access_restricted", false)): continue
 		var point := marker.global_position
 		var nearest := NavigationServer3D.map_get_closest_point(map, point)
 		var limit := 2.0 if str(marker.get_meta("kind")) == "activity" else 0.5
+		# Outdoor seats must approach from their platform, not adjacent lawn.
+		# Keep the existing contact-distance and same-storey checks below.
+		if str(marker.get_meta("zone_id")) == "courtyard" and str(marker.get_meta("kind")) == "chair":
+			limit = 1.0
 		var found := _valid_approach(marker, point, nearest, limit)
 		var best := nearest.distance_to(point) if found else INF
 		# Tables can have navigable tops closer to a room's geometric centre

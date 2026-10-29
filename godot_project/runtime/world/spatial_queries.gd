@@ -1,6 +1,8 @@
 class_name NestSpatialQueries
 extends RefCounted
 
+const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
+
 ## Coordinate queries owned by the Godot world; callers receive semantic IDs only.
 const VISUAL_MAX_RANGE: float = 18.0
 const VISUAL_FOV_DEGREES: float = 120.0
@@ -60,6 +62,7 @@ static func has_line_of_sight(
 	excluded: Array[RID] = [],
 ) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(from_position, to_position)
+	query.collision_mask = COLLISION_LAYERS.PERCEPTION_MASK
 	query.exclude = excluded
 	query.collide_with_areas = true
 	query.collide_with_bodies = true

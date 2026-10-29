@@ -1,21 +1,22 @@
 extends RefCounted
-## Shared rendering correction for untextured opaque physical surfaces.
+## Shared opaque rendering, with original room albedo/normal textures retained.
 
 const OPAQUE := preload("res://rooms/estate/estate_opaque.gdshader")
 const SHEEN := preload("res://runtime/lab/m01_sheen.gdshader")
 const GLASS := preload("res://rooms/estate/estate_glass.gdshader")
 
 
-static func supports(material: BaseMaterial3D, allow_vertex_color: bool = false) -> bool:
-	# Preserve specialized, textured and emissive materials on their existing path.
+static func supports(material: BaseMaterial3D, allow_vertex_color: bool = false, allow_room_textures: bool = false) -> bool:
+	# Specialized/emissive surfaces retain their path. Interior receivers may
+	# opt into albedo/normal textures without changing their authored inputs.
 	return (
 		material is StandardMaterial3D
 		and material.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED
 		and material.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL
 		and not material.emission_enabled
 		and (allow_vertex_color or not material.vertex_color_use_as_albedo)
-		and material.albedo_texture == null
-		and material.normal_texture == null
+		and (allow_room_textures or material.albedo_texture == null)
+		and (allow_room_textures or material.normal_texture == null)
 		and material.roughness_texture == null
 		and material.metallic_texture == null
 		and material.ao_texture == null
@@ -30,6 +31,13 @@ static func make_material(original: BaseMaterial3D, coat: float = 0.0, coat_roug
 	result.set_meta("source_material", original)
 	result.shader = OPAQUE
 	result.set_shader_parameter("source_albedo", original.albedo_color)
+	result.set_shader_parameter("use_albedo_texture", original.albedo_texture != null)
+	result.set_shader_parameter("source_albedo_texture", original.albedo_texture)
+	result.set_shader_parameter("use_normal_texture", original.normal_texture != null)
+	result.set_shader_parameter("source_normal_texture", original.normal_texture)
+	result.set_shader_parameter("source_normal_scale", original.normal_scale)
+	result.set_shader_parameter("source_uv_scale", original.uv1_scale)
+	result.set_shader_parameter("source_uv_offset", original.uv1_offset)
 	result.set_shader_parameter("source_roughness", original.roughness)
 	result.set_shader_parameter("source_metallic", original.metallic)
 	result.set_shader_parameter("source_specular", original.metallic_specular)

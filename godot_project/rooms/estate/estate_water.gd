@@ -2,6 +2,7 @@ extends RefCounted
 ## Presentation-only material overrides; RuntimeMode owns estate visibility.
 
 const SURFACE := preload("res://rooms/estate/estate_water.gdshader")
+const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const FLOW := preload("res://rooms/estate/estate_water_flow.gdshader")
 # Actual sourceGardenNode markers in the approved GLB reference these meshes.
 const SOURCE_SURFACES := {
@@ -36,6 +37,7 @@ static func attach(root: Node3D) -> Dictionary:
 		for index in range(mesh.mesh.get_surface_count()):
 			var actual := mesh.get_active_material(index)
 			if actual != null and actual.has_meta("estate_water_role"):
+				mesh.layers = (mesh.layers & ~DAYLIGHT.OUTDOOR_LIGHT_LAYER) | DAYLIGHT.WATER_LIGHT_LAYER
 				counts[str(actual.get_meta("estate_water_role"))] += 1
 				continue
 			# Daylight may have wrapped an opaque surface in its own shader.
@@ -55,6 +57,7 @@ static func attach(root: Node3D) -> Dictionary:
 					surface_role = "jet"
 			if surface_role.is_empty():
 				continue
+			mesh.layers = (mesh.layers & ~DAYLIGHT.OUTDOOR_LIGHT_LAYER) | DAYLIGHT.WATER_LIGHT_LAYER
 			mesh.set_surface_override_material(index, _material(original, surface_role))
 			counts[surface_role] += 1
 	return counts

@@ -4,6 +4,7 @@ extends Node3D
 const SOURCE := "res://rooms/estate/ElfieNest-complete-final.glb"
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 const SHEEN := preload("res://runtime/lab/m01_sheen.gdshader")
+const LIGHTING_SAMPLE := preload("res://rooms/estate/estate_lighting_sample.gd")
 const MIRROR_X := Transform3D(Basis.FLIP_X, Vector3.ZERO)
 var camera_owner: Node3D
 var camera: Camera3D
@@ -16,6 +17,7 @@ var _mesh_cache: Dictionary = {}
 var _material_cache: Dictionary = {}
 var _mirror_cache: Dictionary = {}
 var _window_cache: Dictionary = {}
+var _lighting_sample_report: Dictionary = {}
 
 
 static func isolate_host(host: Node) -> void:
@@ -27,7 +29,7 @@ static func isolate_host(host: Node) -> void:
 		(existing as Light3D).visible = false
 
 
-static func is_requested() -> bool:
+static func is_requested(mode: String = "m01_sample") -> bool:
 	if not OS.has_feature("web"):
 		return false
 	# Use the same string boundary as the existing main.gd Lab mode selector.
@@ -37,7 +39,7 @@ static func is_requested() -> bool:
 	for part in String(query).trim_prefix("?").split("&"):
 		var pair := part.split("=", true, 1)
 		if pair.size() == 2 and pair[0] == "mode":
-			return String(pair[1]).uri_decode() == "m01_sample"
+			return String(pair[1]).uri_decode() == mode
 	return false
 
 
@@ -107,6 +109,7 @@ func build() -> void:
 		if pose is Dictionary and pose.get("position") is Array and pose.get("target") is Array:
 			set_camera(_vector(pose["position"]), _vector(pose["target"]))
 		JavaScriptBridge.eval("window.__m01SampleQueue=[];window.addEventListener('message',e=>{if(e.origin===location.origin&&e.data?.channel==='m01-optical-sample'&&e.data.type==='camera')window.__m01SampleQueue.push(e.data);});")
+		_apply_requested_lighting_sample()
 		_publish()
 	print("M01_OPTICAL_SAMPLE ", JSON.stringify(counts))
 
@@ -332,6 +335,8 @@ func _process(delta: float) -> void:
 func _publish() -> void:
 	var target: Vector3 = camera_owner.get("_camera_target") if camera_owner != null else camera.position - camera.basis.z
 	var report := {"ready": true, "counts": counts, "position": [camera.global_position.x, camera.global_position.y, camera.global_position.z], "target": [target.x, target.y, target.z], "fov": camera.fov, "msaa": get_viewport().msaa_3d, "draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), "render_primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), "fps": Engine.get_frames_per_second()}
+	if not _lighting_sample_report.is_empty():
+		report["lighting_sample"] = _lighting_sample_report
 	var active_environment := get_world_3d().environment
 	if active_environment != null:
 		report["environment"] = {"ambient": active_environment.ambient_light_source, "ambient_energy": active_environment.ambient_light_energy, "sky_energy": active_environment.background_energy_multiplier, "reflection": active_environment.reflected_light_source}
@@ -340,3 +345,17 @@ func _publish() -> void:
 
 static func _vector(value: Array) -> Vector3:
 	return Vector3(float(value[0]), float(value[1]), float(value[2]))
+
+
+func _apply_requested_lighting_sample() -> void:
+	if not is_requested():
+		return
+	var preset := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('lighting')||''"))
+	var levels := {"day": 1.0, "twilight": 0.45, "night": 0.0}
+	if not levels.has(preset):
+		return
+	var control := LIGHTING_SAMPLE.new()
+	var bindings := control.bind_m01(self)
+	control.apply_sample(float(levels[preset]))
+	_lighting_sample_report = {"preset": preset, "daylight": levels[preset], "bindings": bindings}
+	print("M01_LIGHTING_SAMPLE ", JSON.stringify(_lighting_sample_report))
