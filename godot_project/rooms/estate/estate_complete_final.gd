@@ -67,7 +67,6 @@ func _restore_instanced_groups() -> void:
 		var instance_count := file.get_32()
 		if (
 			name_length == 0 or name_length > 256
-			or instance_count == 0
 			or instance_count > expected_instance_count - observed_instance_count
 			or name_length + instance_count * 64 > file.get_length() - file.get_position()
 		):
@@ -163,7 +162,8 @@ static func _spatial_batches(buffer: PackedFloat32Array) -> Array[Dictionary]:
 		indices.append(index)
 		cells[cell] = indices
 	var batches: Array[Dictionary] = []
-	for indices: PackedInt32Array in cells.values():
+	for cell_indices: PackedInt32Array in cells.values():
+		var indices := _spatial_order(cell_indices, buffer)
 		for start in range(0, indices.size(), MAX_BATCH_INSTANCES):
 			var batch_indices := indices.slice(start, mini(start + MAX_BATCH_INSTANCES, indices.size()))
 			var batch_buffer := PackedFloat32Array()
@@ -173,6 +173,35 @@ static func _spatial_batches(buffer: PackedFloat32Array) -> Array[Dictionary]:
 					batch_buffer[index * 12 + component] = buffer[batch_indices[index] * 12 + component]
 			batches.append({"source_indices": batch_indices, "buffer": batch_buffer})
 	return batches
+
+
+static func _spread_spatial_bits(value: int) -> int:
+	var bits := value & 0x3ff
+	bits = (bits | (bits << 16)) & 0x030000ff
+	bits = (bits | (bits << 8)) & 0x0300f00f
+	bits = (bits | (bits << 4)) & 0x030c30c3
+	return (bits | (bits << 2)) & 0x09249249
+
+
+static func _spatial_order(indices: PackedInt32Array, buffer: PackedFloat32Array) -> PackedInt32Array:
+	if indices.size() <= MAX_BATCH_INSTANCES:
+		return indices
+	# Morton order keeps neighbouring transforms together without adding draws.
+	# Quantization only orders indices; every uploaded transform stays exact.
+	var keys: Array[Vector2i] = []
+	for index in indices:
+		var offset := index * 12
+		var x := floori(buffer[offset + 3] * 8.0) & 127
+		var y := clampi(floori((buffer[offset + 7] + 16.0) * 8.0), 0, 1023)
+		var z := floori(buffer[offset + 11] * 8.0) & 127
+		var key := _spread_spatial_bits(x) | (_spread_spatial_bits(y) << 1) | (_spread_spatial_bits(z) << 2)
+		keys.append(Vector2i(key, index))
+	keys.sort()
+	var ordered := PackedInt32Array()
+	ordered.resize(indices.size())
+	for i in range(keys.size()):
+		ordered[i] = keys[i].y
+	return ordered
 
 
 static func is_canopy_mesh(mesh: Mesh) -> bool:
@@ -207,6 +236,9 @@ func _full_detail_canopy(mesh: Mesh) -> Mesh:
 	var full_mesh := ArrayMesh.new()
 	full_mesh.set("_surfaces", surfaces)
 	full_mesh.custom_aabb = (mesh as ArrayMesh).custom_aabb
+	# Keep the importer's position-only shadow mesh and its shadow LODs.
+	# Visible canopy buffers above remain at their approved full detail.
+	full_mesh.shadow_mesh = (mesh as ArrayMesh).shadow_mesh
 	full_mesh.set_meta("full_detail_canopy", true)
 	_canopy_meshes[identity] = full_mesh
 	return full_mesh

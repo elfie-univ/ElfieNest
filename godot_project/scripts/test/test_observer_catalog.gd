@@ -7,7 +7,7 @@ const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
 const ACTOR_APPEARANCE := preload("res://runtime/actor/actor_appearance.gd")
 const SAEVI_SCENE := preload("res://characters/saevi/saevi.tscn")
 const TOVREN_SCENE := preload("res://characters/tovren/tovren.tscn")
-const EXPECTED_INITIAL_VIEW_COUNT: int = 15
+const EXPECTED_INITIAL_VIEW_COUNT: int = 21
 
 
 func _initialize() -> void:
@@ -39,12 +39,12 @@ func run() -> void:
 	var initial_views := initial_catalog["views"] as Array
 	if not _require(
 		initial_views.size() == EXPECTED_INITIAL_VIEW_COUNT
-			and _view_matches(initial_views[0], "overview", "完整精灵巢 · 俯视")
-			and _view_matches(initial_views[1], "courtyard", "庭院与建筑")
-			and _view_matches(initial_views[2], "garden", "庭院近景")
-			and _view_matches(initial_views[3], "sky", "庭院与天空")
-			and _view_matches(initial_views[4], "central-1", "主楼活动 · 1 层")
-			and _view_matches(initial_views[14], "dorm-08", "08 宿舍 · 真实四人房"),
+			and _view_matches(initial_views[0], "overview", "庭院与建筑")
+			and _view_matches(initial_views[1], "central-1", "主楼 · 1 层")
+			and _view_matches(initial_views[4], "central-4", "主楼 · 4 层")
+			and _view_matches(initial_views[5], "dorm-01", "宿舍 M01 · 一层")
+			and _view_matches(initial_views[6], "terrace-01", "宿舍 M01 · 二层露台")
+			and _view_matches(initial_views[20], "terrace-08", "宿舍 M08 · 二层露台"),
 		"Observer catalog ids and labels do not cover every generated view"
 	):
 		return
@@ -108,7 +108,7 @@ func run() -> void:
 	nest.bed_count = 32
 	await _wait_frames(4)
 	if not _require(
-		nest.select_observer_camera_by_id("courtyard"),
+		nest.select_observer_camera_by_id("overview"),
 		"Test setup could not select the courtyard view before updating capacity"
 	):
 		return
@@ -130,7 +130,7 @@ func run() -> void:
 	nest.bed_count = 32
 	await _wait_frames(4)
 	if not _require(
-		nest.select_observer_camera_by_id("courtyard"),
+		nest.select_observer_camera_by_id("overview"),
 		"Test setup could not select courtyard before paused rebuild"
 	):
 		return
@@ -163,8 +163,8 @@ func run() -> void:
 	await _wait_frames(4)
 	var paused_rebuild_catalog := nest.observer_camera_catalog()
 	if not _require(
-		String(paused_rebuild_catalog["active_id"]) == "courtyard"
-			and _view_index_by_id(paused_rebuild_catalog["views"] as Array, "courtyard") >= 0,
+		String(paused_rebuild_catalog["active_id"]) == "overview"
+			and _view_index_by_id(paused_rebuild_catalog["views"] as Array, "overview") >= 0,
 		"Paused presentation lost its selected complete estate view during rebuild"
 	):
 		return
@@ -221,6 +221,7 @@ func run() -> void:
 				"mock_motion": null,
 			},
 		},
+		"environment": null,
 		"entity_revisions": {"saevi-1": 1},
 	}
 	if not _require(
@@ -259,7 +260,7 @@ func run() -> void:
 			and (configured_catalog["views"] as Array).size() == EXPECTED_INITIAL_VIEW_COUNT
 			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-01") >= 0
 			and _view_index_by_id(configured_catalog["views"] as Array, "dorm-02") >= 0
-			and _view_index_by_id(configured_catalog["views"] as Array, "courtyard") >= 0
+			and _view_index_by_id(configured_catalog["views"] as Array, "overview") >= 0
 			and _view_index_by_id(configured_catalog["views"] as Array, "section-02") == -1,
 		"Observer world configuration changed the fixed complete estate camera layout"
 	):

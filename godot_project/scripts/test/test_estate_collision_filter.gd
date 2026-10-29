@@ -8,6 +8,7 @@ func _init() -> void:
 
 
 func run() -> void:
+	if not await _test_original_tv(): return
 	for source: String in ["STAIR • solid flight 0", "STAIR • solid flight 1", "ROOM • sculpted continuous shell"]:
 		var mesh := MeshInstance3D.new()
 		mesh.set_meta("extras", {"module": "M01", "source_name": source})
@@ -80,6 +81,58 @@ func run() -> void:
 	quit(0)
 
 
+func _test_original_tv() -> bool:
+	var world := Node3D.new()
+	root.add_child(world)
+	var source := (load("res://rooms/estate/ElfieNest-complete-final.glb") as PackedScene).instantiate() as Node3D
+	world.add_child(source)
+	var geometry := Node3D.new()
+	world.add_child(geometry)
+	var cabinet: MeshInstance3D
+	var screen: MeshInstance3D
+	for mesh: MeshInstance3D in source.find_children("*", "MeshInstance3D", true, false):
+		var extra := mesh.get_meta("extras", {}) as Dictionary
+		if str(mesh.name) in ["L1 inner sofa background plaster face", "L1 enclosed tread-facing cheek walls and underside", "L1 clear glass rail panel 3_18 0", "Rooftop stair deep-end guard", "Roof01 complete raised landing platform", "Roof01 petal 1 shell and light channels", "Working L1 handrail shield 1"]:
+			if not PHYSICS.uses_concave_collision(mesh):
+				push_error("Original solid central structure was omitted: " + str(mesh.name))
+				quit(1)
+				return false
+		if extra.get("kind") in ["stool", "ottoman", "floor_cushion", "toy_box", "display_bank", "screen", "cabinet_doors", "cabinet_interior", "display"]:
+			if not PHYSICS.uses_furniture_collision(mesh):
+				push_error("Original solid furniture kind was omitted: " + str(mesh.name))
+				quit(1)
+				return false
+		if extra.get("central_furnishing") != "living_tv": continue
+		mesh.reparent(geometry, true)
+		if str(mesh.name) == "TV cabinet rounded oak carcass": cabinet = mesh
+		if str(mesh.name) == "TV slim graphite frame": screen = mesh
+	source.free()
+	var physics := PHYSICS.new()
+	world.add_child(physics)
+	physics.build(geometry)
+	if physics.collider_count < 7:
+		push_error("Original central TV cabinet/top/frame/display are missing physical collision")
+		quit(1)
+		return false
+	await physics_frame
+	await process_frame
+	var actor := (load("res://characters/tovren/tovren.tscn") as PackedScene).instantiate() as ElfieActor
+	world.add_child(actor)
+	actor.set_physics_process(false)
+	for mesh: MeshInstance3D in [cabinet, screen]:
+		var bounds := mesh.global_transform * mesh.get_aabb()
+		actor.global_position = bounds.get_center() + Vector3(-1.0, -0.3, 0.0)
+		var hit := actor.move_and_collide(Vector3(2.0, 0, 0))
+		if hit == null or actor.global_position.x >= bounds.get_center().x:
+			push_error("Real actor crossed original TV solid: " + str(mesh.name))
+			quit(1)
+			return false
+	world.queue_free()
+	await process_frame
+	print("PASS original TV: cabinet and screen physically block the actor")
+	return true
+
+
 func _test_authored_sliding_door() -> bool:
 	var estate := Node3D.new()
 	root.add_child(estate)
@@ -109,6 +162,11 @@ func _test_authored_sliding_door() -> bool:
 		return false
 	actor.global_position = Vector3(100.0, 0.0, 0.0)
 	physics._physics_process(0.4)
+	if not leaf.global_position.is_equal_approx(closed.origin + Vector3(1.75, 0.0, 0.0)):
+		push_error("Authored door ignored the confirmed close delay")
+		quit(1)
+		return false
+	physics._physics_process(2.4)
 	if not leaf.global_transform.is_equal_approx(closed) or not body.global_transform.is_equal_approx(closed):
 		push_error("Authored door and collision did not close after the actor left")
 		quit(1)

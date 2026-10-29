@@ -75,6 +75,13 @@ func add_character(
 
 
 func _ready() -> void:
+	if OS.has_feature("web") and _query_parameter("mode") == "navigation_tour":
+		lab_preview.free()
+		set_process(false)
+		var tour := load("res://runtime/lab/estate_navigation_tour.gd").new() as Node
+		add_child(tour)
+		await tour.setup(nest, characters)
+		return
 	if OS.has_feature("web") and _query_parameter("mode") == "animation_journey":
 		lab_preview.free()
 		set_process(false)

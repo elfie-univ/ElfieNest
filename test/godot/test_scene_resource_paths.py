@@ -168,7 +168,7 @@ def test_nest_lab_web_mode_accepts_only_named_camera_presets_and_restore() -> No
     assert "_lab_runtime.process_nest_lab_frame()" in main_text
     assert "elfienest-nest-lab" in lab_runtime_text
     assert "process_nest_lab_frame" in lab_runtime_text
-    assert "select_observation_view_named" in lab_runtime_text
+    assert "select_observer_camera_by_id" in lab_runtime_text
     assert "reset_observation_camera" in lab_runtime_text
 
 

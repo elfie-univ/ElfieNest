@@ -125,7 +125,18 @@ static func apply(estate: Node) -> Dictionary:
 		lamp.global_position = bounds.get_center()
 		lamp.global_position.y = bounds.position.y - 0.03
 		lamp.visible = false
+	if OS.has_feature("web"):
+		for sun: DirectionalLight3D in estate.find_children("*", "DirectionalLight3D", true, false):
+			if sun.shadow_enabled:
+				_apply_web_shadow_budget(sun)
 	return counts
+
+
+static func _apply_web_shadow_budget(sun: DirectionalLight3D) -> void:
+	# Preserve near shadows; fade distant shadow work rather than scenery.
+	sun.directional_shadow_max_distance = minf(sun.directional_shadow_max_distance, 30.0)
+	sun.directional_shadow_fade_start = minf(sun.directional_shadow_fade_start, 0.7)
+	sun.directional_shadow_mode = mini(sun.directional_shadow_mode, DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS) as DirectionalLight3D.ShadowMode
 
 
 static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) -> void:

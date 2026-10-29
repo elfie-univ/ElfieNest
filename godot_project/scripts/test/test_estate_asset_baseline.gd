@@ -5,7 +5,9 @@ const MODEL_PATH := "res://rooms/estate/ElfieNest-complete-final.glb"
 const SIDECAR_PATH := "res://rooms/estate/ElfieNest-complete-final.instances.bin"
 const EXPECTED_SOURCE_SHA256 := "30c4f8e7889b03b7da61a68b23f7a640c901267ba0de8c314b4678cc819e8e32"
 const EXPECTED_GROUP_COUNT := 134
-const EXPECTED_INSTANCE_COUNT := 216743
+# The cleared roadside family remains declared, with no drawable instances.
+const EXPECTED_RENDERED_GROUP_COUNT := 133
+const EXPECTED_INSTANCE_COUNT := 214448
 const ESTATE_ASSERTIONS := preload("res://scripts/test/complete_estate_test_support.gd")
 var _profile: FileAccess
 var _start_ms := 0
@@ -102,7 +104,7 @@ func _validate() -> void:
 			if multimesh.instance_count > CompleteEstateFinal.MAX_BATCH_INSTANCES:
 				_fail("Full-detail render batch exceeded its bounded instance count")
 				return
-	if source_groups.size() != EXPECTED_GROUP_COUNT or observed_instance_count != EXPECTED_INSTANCE_COUNT:
+	if source_groups.size() != EXPECTED_RENDERED_GROUP_COUNT or observed_instance_count != EXPECTED_INSTANCE_COUNT:
 		estate.queue_free()
 		_fail("Complete final MultiMesh scene shape changed")
 		return
@@ -157,7 +159,7 @@ func _validate() -> void:
 	if nest.get_node_or_null("Generated/DormRoom_01") != null:
 		_fail("Old procedural rooms must not overlap the complete estate")
 		return
-	if nest.observation_view_count() != 15 or not nest.select_observer_camera_by_id("dorm-01"):
+	if nest.observation_view_count() != 21 or not nest.select_observer_camera_by_id("dorm-01"):
 		_fail("Complete estate observation views are missing")
 		return
 	nest.reset_observer_camera()
@@ -198,7 +200,7 @@ func _validate() -> void:
 		_fail(manifest_error)
 		return
 	_checkpoint("main_scene_ready")
-	print("Complete estate main scene passed: 15 cameras, real collisions/anchors and fixed asset identity")
+	print("Complete estate main scene passed: 21 cameras, real collisions/anchors and fixed asset identity")
 	main.queue_free()
 	await process_frame
 	quit(0)

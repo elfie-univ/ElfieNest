@@ -10,7 +10,7 @@ def test_complete_estate_applies_daylight_before_restoring_shared_instances() ->
     source = (ROOT / "rooms/estate/estate_complete_final.gd").read_text()
     ready = source.split("func _ready() -> void:", 1)[1].split("\n\nfunc ", 1)[0]
     assert 'preload("res://rooms/estate/estate_daylight.gd")' in source
-    assert ready.index("DAYLIGHT.apply($CompleteFinal)") < ready.index(
+    assert ready.index("DAYLIGHT.apply(self)") < ready.index(
         "_restore_instanced_groups()"
     )
 
@@ -100,11 +100,10 @@ def test_facade_glass_and_shell_do_not_use_interior_fill() -> None:
 
 def test_courtyard_review_view_targets_the_building_not_the_sky_bounds() -> None:
     source = (ROOT / "rooms/nest.gd").read_text()
-    view = next(
-        line for line in source.splitlines() if '"courtyard", "庭院与建筑"' in line
-    )
-    assert "to_global(REFERENCE_REVIEW_POSITION)" in view
-    assert "to_global(REFERENCE_REVIEW_TARGET), 42.0" in view
+    assert '_register_observation_view("overview", "庭院与建筑"' in source
+    assert "overview.global_position = to_global(REFERENCE_REVIEW_POSITION)" in source
+    assert "overview.look_at(to_global(REFERENCE_REVIEW_TARGET))" in source
+    assert "overview.fov = 38.0" in source
 
 
 def test_canopy_instances_do_not_use_importer_generated_silhouette_lods() -> None:
