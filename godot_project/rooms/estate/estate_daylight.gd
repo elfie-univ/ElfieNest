@@ -27,8 +27,9 @@ const DAYTIME_FIXTURE_SCALE := 0.08 / PI
 # Broad ceiling fixtures overlap; retain surface detail in the LDR renderer.
 const GENERAL_FIXTURE_BOOST := 3.125
 # The opal fixture's authored point source provides its broad diffuse output.
-const OPAL_DIFFUSER_BOOST := 25.0
+const OPAL_DIFFUSER_BOOST := 37.5
 const CEILING_WARM_WHITE := Color(1.0, 0.855, 0.69)
+const POD_MODULES := ["M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08"]
 # Distinguish authored bounce from powered fixture surfaces in diagnostics.
 # Both retain source emission; only tagged diffusers with actual light entries
 # receive the reference viewer's daytime intensity override.
@@ -125,6 +126,12 @@ static func apply(estate: Node) -> Dictionary:
 		var bounds := mesh.global_transform * mesh.get_aabb()
 		lamp.global_position = bounds.get_center()
 		lamp.global_position.y = bounds.position.y - 0.03
+		if str(extras.get("module", "")) in POD_MODULES:
+			lamp.light_color = CEILING_WARM_WHITE
+			lamp.light_energy = 8.0 / PI
+			lamp.omni_range = 10.0
+			lamp.omni_attenuation = 1.0
+			lamp.light_specular = 0.0
 		lamp.visible = false
 	if OS.has_feature("web"):
 		for sun: DirectionalLight3D in estate.find_children("*", "DirectionalLight3D", true, false):
@@ -341,7 +348,9 @@ static func _room_light_mask(extras: Dictionary) -> int:
 		if bool(extras.get("full_height", false)):
 			return (1 << 5) | (1 << 6) | (1 << 7)
 		return 1 << (4 + clampi(int(extras.get("floor", 1)), 1, 3))
-	if module in ["M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08"]:
+	if module in POD_MODULES:
+		if int(extras.get("floor", 1)) == 2:
+			return 1 << (19 + int(module.trim_prefix("M")))
 		return 1 << (7 + int(module.trim_prefix("M")))
 	return 0
 
@@ -383,6 +392,7 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 	var room := "%s:%s" % [extras.get("module", ""), extras.get("floor", 1)]
 	var label := str(extras.get("source_name", mesh.name)).to_lower()
 	var central := str(extras.get("module", "")) == "central"
+	var pod_terrace := str(extras.get("module", "")) in POD_MODULES and label == "terrace • inner parapet concealed warm strip"
 	var opal := central and "circular opal ceiling diffuser" in label
 	if central and ("ceiling perimeter continuous warm diffuser" in label or "l3 ceiling ring 2 continuous warm diffuser" in label):
 		_restore_ceiling_band(mesh, extras)
@@ -396,6 +406,10 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 		light.light_color = Color.hex((int(source.get("color", 0xffdfb5)) << 8) | 0xff)
 		var outdoor := extras.has("outdoor_fixture_id")
 		light.light_energy = float(source["intensity"]) * (1.0 / PI if outdoor else DAYTIME_FIXTURE_SCALE)
+		if pod_terrace:
+			light.light_color = CEILING_WARM_WHITE
+			light.light_energy = 2.4 * DAYTIME_FIXTURE_SCALE
+			light.light_specular = 0.0
 		light.light_cull_mask = _room_light_mask(extras)
 		var general := central and (opal or " downlight " in label)
 		if general:
@@ -421,13 +435,25 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 		mesh.add_child(light)
 		light.global_position = mesh.global_transform * _vector(source["position"])
 		if spot:
-			var target := mesh.global_transform * _vector(source.get("target", [0, -1, 0]))
+			var local_target := _vector(source.get("target", [0, -1, 0]))
+			if pod_terrace:
+				# Aim the existing parapet sources across the seating, retaining
+				# their authored mounting positions and target height.
+				var centre := mesh.get_aabb().get_center()
+				local_target.x = centre.x
+				local_target.z = centre.z
+			var target := mesh.global_transform * local_target
 			var up := Vector3.FORWARD if absf((target - light.global_position).normalized().dot(Vector3.UP)) > 0.99 else Vector3.UP
 			light.look_at(target, up)
 			(light as SpotLight3D).spot_range = maxf(float(source["distance"]), 12.0) if general else float(source["distance"])
 			(light as SpotLight3D).spot_angle = rad_to_deg(float(source["angle"]))
 			(light as SpotLight3D).spot_attenuation = float(source.get("attenuation", 2.0))
 			(light as SpotLight3D).spot_angle_attenuation = float(source.get("angle_attenuation", 1.0))
+			if pod_terrace:
+				(light as SpotLight3D).spot_range = 6.5
+				(light as SpotLight3D).spot_angle = 75.0
+				(light as SpotLight3D).spot_attenuation = 1.0
+				(light as SpotLight3D).spot_angle_attenuation = 0.4
 			# One authored broad light per room supplies contact shadows. Other
 			# local bounce lights stay unshadowed, as in the reference viewer.
 			if not outdoor and not contact_rooms.has(room):
@@ -459,7 +485,7 @@ static func _restore_ceiling_band(mesh: MeshInstance3D, extras: Dictionary) -> v
 		light.name = "CeilingBandDiffuse%d" % sector
 		light.top_level = true
 		light.light_color = CEILING_WARM_WHITE
-		light.light_energy = 2.4 if floor_number == 1 else 1.6
+		light.light_energy = 3.6 if floor_number == 1 else 2.4
 		light.light_specular = 0.0
 		light.omni_range = 8.0
 		light.omni_attenuation = 1.0

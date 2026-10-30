@@ -462,6 +462,7 @@ export function ObserverProvider({
   }, [attach, pauseObservation])
 
   const open = useCallback(async (scope: ObserverScope): Promise<void> => {
+    const previousScope = scopeRef.current
     scopeRef.current = scope
     worldConfigRef.current = scope.kind === "room" ? scope.worldConfig : null
     if (!enabled || !csrfToken) {
@@ -489,8 +490,11 @@ export function ObserverProvider({
       restartRequiredRef.current = false
     }
     setFallbackReason(null)
-    setStatus("loading")
     const nextKey = scopeKey(scope)
+    const reusingReadyView = engineReadyRef.current
+      && previousScope !== null
+      && scopeKey(previousScope) === nextKey
+    setStatus(reusingReadyView ? "ready" : "loading")
     const attempt = attemptRef.current
     try {
       if (activeScopeRef.current !== null && activeScopeRef.current !== nextKey) {
