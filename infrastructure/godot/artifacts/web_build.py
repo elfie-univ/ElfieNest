@@ -18,6 +18,7 @@ if os.name == "nt":
 else:
     import fcntl
 
+from infrastructure.godot.artifacts.authority_pack import build_authority_pack
 from infrastructure.godot.artifacts.export_boundary import export_boundary_manifest
 from infrastructure.godot.artifacts.species_package_validation import (
     GodotSpeciesValidationRunner,
@@ -42,6 +43,7 @@ ENTRY_NAME = "elfienest.html"
 REQUIRED_SUFFIXES = (".html", ".js", ".wasm", ".pck")
 LAN_HTTP_COMPATIBILITY_VERSION = "lan-http-v3"
 CANVAS_CAPTURE_VERSION = "canvas-capture-v3"
+PACK_OWNERSHIP_VERSION = "pack-ownership-v3-authority"
 LAN_HTTP_COMPATIBILITY_MARKER = "elfienest:lan-http-compatibility"
 CANVAS_CAPTURE_MARKER = "elfienest:webgl-canvas-capture"
 _SECURE_CONTEXT_FEATURE = "Secure Context - Check web server configuration (use HTTPS)"
@@ -262,6 +264,12 @@ def _export_runtime_locked(
         )
         return 1
 
+    patch_web_pack_ownership(entry.with_suffix(".js"))
+    patch_web_pack_download(entry.with_suffix(".js"))
+    authority_pack = staging / "elfienest-authority.pck"
+    build_authority_pack(entry.with_suffix(".pck"), authority_pack)
+    patch_web_authority_pack(entry, authority_pack.stat().st_size)
+
     try:
         validated_species_package_ids = validate_source_species_packages(
             config_root=PROJECT_ROOT / "config",
@@ -357,6 +365,8 @@ def current_source_fingerprint() -> str:
     digest.update(b"\0")
     digest.update(CANVAS_CAPTURE_VERSION.encode("utf-8"))
     digest.update(b"\0")
+    digest.update(PACK_OWNERSHIP_VERSION.encode("utf-8"))
+    digest.update(b"\0")
     if not GODOT_PROJECT.is_dir():
         return digest.hexdigest()
     for path in sorted(item for item in GODOT_PROJECT.rglob("*") if item.is_file()):
@@ -373,6 +383,93 @@ def current_source_fingerprint() -> str:
 def current_species_catalog_digest() -> str:
     """Return the bundled species catalog digest paired with this export."""
     return load_species_catalog(root=PROJECT_ROOT / "config").digest
+
+
+def patch_web_authority_pack(entry: Path, size: int) -> None:
+    """Select the physical package only for the existing authority entry mode."""
+    text = entry.read_text(encoding="utf-8")
+    marker = "// elfienest:authority-pack-v1"
+    if marker in text:
+        return
+    before = "const engine = new Engine(GODOT_CONFIG);"
+    if text.count(before) != 1:
+        raise RuntimeError(f"Unsupported Godot authority pack entry: {entry}")
+    script = (
+        marker + "\n"
+        "if (new URLSearchParams(window.location.search).get('mode') === 'authority') {\n"
+        "  GODOT_CONFIG.mainPack = 'elfienest-authority.pck';\n"
+        f"  GODOT_CONFIG.fileSizes['elfienest-authority.pck'] = {size};\n"
+        "}\n"
+    )
+    entry.write_text(text.replace(before, script + before, 1), encoding="utf-8")
+
+
+def patch_web_pack_ownership(engine: Path) -> None:
+    """Transfer immutable startup PCK buffers instead of copying the whole pack."""
+    text = engine.read_text(encoding="utf-8")
+    marker = "// elfienest:pack-ownership-v1"
+    if marker in text:
+        return
+    replacements = (
+        (
+            "copy_to_fs:function(path,buffer){",
+            "copy_to_fs:function(path,buffer,canOwn=false){",
+        ),
+        (
+            "FS.writeFile(path,new Uint8Array(buffer))",
+            "FS.writeFile(path,new Uint8Array(buffer),{canOwn:canOwn})",
+        ),
+        (
+            "me.rtenv['copyToFS'](file.path, file.buffer);",
+            "me.rtenv['copyToFS'](file.path, file.buffer, file.path.endsWith('.pck'));",
+        ),
+    )
+    # Guard the pinned engine template. Never silently apply only part of the
+    # ownership change; direct copyToFS calls and non-pack files must still copy.
+    if any(text.count(before) != 1 for before, _after in replacements):
+        raise RuntimeError(f"Unsupported Godot pack ownership template: {engine}")
+    for before, after in replacements:
+        text = text.replace(before, after, 1)
+    engine.write_text(text + "\n" + marker + "\n", encoding="utf-8")
+
+
+def patch_web_pack_download(engine: Path) -> None:
+    """Avoid buffering a second complete pack in Response.arrayBuffer()."""
+    text = engine.read_text(encoding="utf-8")
+    marker = "// elfienest:pack-download-v1"
+    if marker in text:
+        return
+    before = "const tr = getTrackedResponse(response, tracker[file]);"
+    if text.count(before) != 1:
+        raise RuntimeError(f"Unsupported Godot pack download template: {engine}")
+    after = """// elfienest:pack-download-v1
+            if (!raw && file.endsWith('.pck') && Number.isSafeInteger(fileSize) && fileSize > 0) {
+                return (async function () {
+                    const bytes = new Uint8Array(fileSize);
+                    const reader = response.body.getReader();
+                    let offset = 0;
+                    try {
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done) break;
+                            if (offset + value.byteLength > fileSize) throw new Error('Pack size exceeds manifest');
+                            bytes.set(value, offset);
+                            offset += value.byteLength;
+                            tracker[file].loaded = offset;
+                        }
+                        if (offset !== fileSize) throw new Error('Pack size does not match manifest');
+                        tracker[file].done = true;
+                        return bytes.buffer;
+                    } catch (error) {
+                        await reader.cancel();
+                        throw error;
+                    } finally {
+                        reader.releaseLock();
+                    }
+                }());
+            }
+            const tr = getTrackedResponse(response, tracker[file]);"""
+    engine.write_text(text.replace(before, after, 1), encoding="utf-8")
 
 
 def patch_web_entry_for_lan_http(entry: Path) -> None:

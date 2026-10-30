@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { closeObserverSession, nextObserverFrame, openObserverSession, warmObserverAssets } from "./observer"
-
-const { kyGet } = vi.hoisted(() => ({ kyGet: vi.fn() }))
-
-vi.mock("ky", () => ({ default: { get: kyGet } }))
+import { closeObserverSession, nextObserverFrame, openObserverSession } from "./observer"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn().mockReturnValue({ "X-CSRF-Token": "csrf" }),
@@ -152,34 +148,5 @@ describe("nextObserverFrame", () => {
       kind: "delta",
       patch: { zone_id: null, active_command_id: null },
     })
-  })
-})
-
-describe("warmObserverAssets", () => {
-  it("prefetches only manifest-declared JavaScript, Wasm, and PCK payloads", async () => {
-    const arrayBuffer = vi.fn().mockResolvedValue(new ArrayBuffer(0))
-    kyGet
-      .mockReturnValueOnce({
-        json: vi.fn().mockResolvedValue({
-          files: {
-            "elfienest.html": { sha256: "a".repeat(64) },
-            "elfienest.js": { sha256: "b".repeat(64) },
-            "elfienest.wasm": { sha256: "c".repeat(64) },
-            "elfienest.pck": { sha256: "d".repeat(64) },
-            "metadata.json": { sha256: "e".repeat(64) },
-          },
-        }),
-      })
-      .mockReturnValue({ arrayBuffer })
-
-    await warmObserverAssets()
-
-    expect(kyGet.mock.calls.map(([url]) => url)).toEqual([
-      "/runtime/godot/build-manifest.json",
-      "/runtime/godot/elfienest.js",
-      "/runtime/godot/elfienest.wasm",
-      "/runtime/godot/elfienest.pck",
-    ])
-    expect(arrayBuffer).toHaveBeenCalledTimes(3)
   })
 })

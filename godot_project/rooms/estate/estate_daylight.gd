@@ -28,6 +28,7 @@ const DAYTIME_FIXTURE_SCALE := 0.08 / PI
 const GENERAL_FIXTURE_BOOST := 3.125
 # The opal fixture's authored point source provides its broad diffuse output.
 const OPAL_DIFFUSER_BOOST := 25.0
+const CEILING_WARM_WHITE := Color(1.0, 0.855, 0.69)
 # Distinguish authored bounce from powered fixture surfaces in diagnostics.
 # Both retain source emission; only tagged diffusers with actual light entries
 # receive the reference viewer's daytime intensity override.
@@ -161,6 +162,10 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 			# fixtures, instead of spending their eight-light budget on stair LEDs.
 			instance.layers &= ~_room_light_mask(extras)
 			instance.layers |= _activity_light_mask(extras)
+		elif _is_central_interior_surface(instance):
+			# Ceiling diffusers also illuminate interior plaster and walls, while
+			# glazing and exterior shells retain their separate lighting layers.
+			instance.layers |= _activity_light_mask(extras)
 		if bool(extras.get("furniture", false)):
 			instance.layers |= FURNITURE_CONTACT_LAYER
 		# Module membership includes the facade as well as the room. Do not
@@ -270,6 +275,20 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 		_calibrate(child, materials, counts)
 
 
+static func _is_central_interior_surface(instance: MeshInstance3D) -> bool:
+	var extras := instance.get_meta("extras", {}) as Dictionary
+	if str(extras.get("module", "")) != "central" or int(extras.get("floor", 1)) not in [1, 2, 3] or bool(extras.get("glass", false)) or bool(extras.get("full_height", false)):
+		return false
+	if instance.mesh == null: return false
+	for surface in range(instance.mesh.get_surface_count()):
+		var material := instance.get_active_material(surface)
+		if material == null: continue
+		var label := material.resource_name.to_lower()
+		if label.begins_with("exterior •") or "facade" in label or "window reveal" in label or "window and door surrounds" in label:
+			return false
+	return true
+
+
 static func _uses_interior_fill(instance: MeshInstance3D) -> bool:
 	var extras := instance.get_meta("extras", {}) as Dictionary
 	# Only the already-reviewed ground-floor common room retains this fill.
@@ -362,6 +381,11 @@ static func _glass_specular(ior: float) -> float:
 static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Dictionary) -> void:
 	var extras := mesh.get_meta("extras", {}) as Dictionary
 	var room := "%s:%s" % [extras.get("module", ""), extras.get("floor", 1)]
+	var label := str(extras.get("source_name", mesh.name)).to_lower()
+	var central := str(extras.get("module", "")) == "central"
+	var opal := central and "circular opal ceiling diffuser" in label
+	if central and ("ceiling perimeter continuous warm diffuser" in label or "l3 ceiling ring 2 continuous warm diffuser" in label):
+		_restore_ceiling_band(mesh, extras)
 	for source: Dictionary in extras.get("design_lights", []):
 		var spot := str(source["type"]) == "spot"
 		var light: Light3D = SpotLight3D.new() if spot else OmniLight3D.new()
@@ -373,8 +397,17 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 		var outdoor := extras.has("outdoor_fixture_id")
 		light.light_energy = float(source["intensity"]) * (1.0 / PI if outdoor else DAYTIME_FIXTURE_SCALE)
 		light.light_cull_mask = _room_light_mask(extras)
-		var label := str(extras.get("source_name", mesh.name)).to_lower()
-		var general := str(extras.get("module", "")) == "central" and ("circular opal ceiling diffuser" in label or " downlight " in label)
+		var general := central and (opal or " downlight " in label)
+		if general:
+			light.light_color = CEILING_WARM_WHITE
+		if opal:
+			# The broad opal face is represented by diffuse sources, not tiny
+			# mirror-bright points on the floor. Keep narrow task accents intact.
+			if not spot or float(source.get("angle", 0.0)) > 1.0:
+				light.light_specular = 0.0
+				var floor_number := int(extras.get("floor", 1))
+				var intensity := (75.0 if floor_number == 1 else 65.0) if spot else (3.0 if floor_number == 1 else 2.4)
+				light.light_energy = intensity * DAYTIME_FIXTURE_SCALE
 		if str(extras.get("module", "")) == "central" and float(source["intensity"]) >= 4.0:
 			# Existing reading/column lights also serve furniture at the perimeter.
 			light.light_cull_mask |= _activity_light_mask(extras)
@@ -385,7 +418,6 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			# to interior receivers, so it cannot brighten the exterior shell.
 			light.light_cull_mask = _activity_light_mask(extras)
 			light.set_meta("estate_fixture_boost", OPAL_DIFFUSER_BOOST)
-			(light as OmniLight3D).omni_attenuation = 1.0
 		mesh.add_child(light)
 		light.global_position = mesh.global_transform * _vector(source["position"])
 		if spot:
@@ -409,8 +441,33 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 				contact_rooms[room] = true
 		else:
 			(light as OmniLight3D).omni_range = 12.0 if general else float(source["distance"])
-			(light as OmniLight3D).omni_attenuation = float(source.get("attenuation", 2.0))
+			(light as OmniLight3D).omni_attenuation = 1.0 if general else float(source.get("attenuation", 2.0))
 		light.set_meta("asset_role", "authored-daylight-fixture")
+
+
+static func _restore_ceiling_band(mesh: MeshInstance3D, extras: Dictionary) -> void:
+	# Sample the existing luminous band's geometry; never invent a second
+	# floating fill rig. Six band sources plus the central diffuser fit within
+	# Compatibility's eight omni lights per receiver.
+	var bounds := mesh.get_aabb()
+	var centre := bounds.get_center()
+	var radii := Vector2(bounds.size.x, bounds.size.z) * 0.5
+	var floor_number := int(extras.get("floor", 1))
+	for sector in range(6):
+		var angle := TAU * (float(sector) + 0.5) / 6.0
+		var light := OmniLight3D.new()
+		light.name = "CeilingBandDiffuse%d" % sector
+		light.top_level = true
+		light.light_color = CEILING_WARM_WHITE
+		light.light_energy = 2.4 if floor_number == 1 else 1.6
+		light.light_specular = 0.0
+		light.omni_range = 8.0
+		light.omni_attenuation = 1.0
+		light.light_cull_mask = _activity_light_mask(extras)
+		light.set_meta("asset_role", "authored-daylight-fixture")
+		light.set_meta("estate_fixture_calibrated", true)
+		mesh.add_child(light)
+		light.global_position = mesh.global_transform * (centre + Vector3(cos(angle) * radii.x, -0.08, sin(angle) * radii.y))
 
 
 static func _vector(value: Array) -> Vector3:

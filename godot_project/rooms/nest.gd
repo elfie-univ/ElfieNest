@@ -14,6 +14,7 @@ const CHAIR_REVIEW_REQUEST := preload("res://runtime/lab/chair_review_request.gd
 const COMPLETE_SCENE_PATH := "res://rooms/estate/estate.tscn"
 const ESTATE_PHYSICS := preload("res://rooms/estate/estate_physics.gd")
 const ESTATE_SEMANTICS := preload("res://rooms/estate/estate_semantics.gd")
+const AUTHORITY_SCENE := preload("res://rooms/estate/estate_authority_scene.gd")
 const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
 const M01_SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
 const FIXED_BED_COUNT: int = 32
@@ -43,6 +44,7 @@ var bed_count: int = FIXED_BED_COUNT:
 			call_deferred("rebuild")
 
 var _rebuilding := false
+var physical_authority := false
 var _camera_target := Vector3.ZERO
 var _camera_default_target := Vector3.ZERO
 var _camera_yaw: float = 0.0
@@ -228,6 +230,24 @@ func rebuild() -> void:
 	_anchor_markers.clear()
 	_facility_markers.clear()
 	_camera_views.clear()
+	if physical_authority:
+		var data := load(ESTATE_PHYSICS.SPATIAL.PATH) as Resource
+		if data == null or not data.matches_authority_inputs(ESTATE_PHYSICS.SPATIAL.current_inputs()):
+			push_error("Missing or stale physical authority scene. Recompile estate spatial resources.")
+			_rebuilding = false
+			return
+		var physical := data.authority_scene.instantiate() as Node3D
+		add_child(physical)
+		var bindings := AUTHORITY_SCENE.restore(physical, data)
+		_estate_physics = bindings.physics
+		_estate_semantics = bindings.semantics
+		_anchor_markers = _estate_semantics.anchors
+		_facility_markers = _estate_semantics.facilities
+		_estate_lighting = ESTATE_LIGHTING.new()
+		_estate_lighting.bind(self)
+		_estate_lighting.apply(_lights_on,_quiet_mode,_runtime_occupied_zones(),true)
+		_rebuilding = false
+		return
 	var generated := Node3D.new()
 	generated.name = "Generated"
 	add_child(generated)

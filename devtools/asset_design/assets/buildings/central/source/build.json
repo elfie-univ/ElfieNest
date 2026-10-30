@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "sourceSha256": "3b12530f80c032bd0a45e51fa27862ef8ab284f5432e26e154574ba3cf6b1406",
+  "sourceSha256": "c6d2ea0a5f40727700f841008cfa4db6a2767d082f1e9afbfe6780fea4689366",
   "design": {
     "name": "ground-floor-painted-botanical-and-closed-stair-joints-v1",
     "floor": 1,
@@ -2694,5 +2694,16 @@
         "verification": "build/asset_design/central-edge-repair-20261020/verification.json"
       }
     ]
+  },
+  "centralCeilingLampRepair": {
+    "floors": [
+      1,
+      2,
+      3
+    ],
+    "diffuserDiameterM": 1.76,
+    "bodyThicknessM": 0.03,
+    "diffuser": "continuous solid warm opal disc, shared across all three floors",
+    "preserved": "fixture positions, light sources and intensities, outer rings, other geometry"
   }
 }

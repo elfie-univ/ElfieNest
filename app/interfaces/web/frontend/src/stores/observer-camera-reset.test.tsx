@@ -8,7 +8,6 @@ vi.mock("../api/observer", () => ({
   closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
   openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
-  warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
 function CameraResetProbe() {

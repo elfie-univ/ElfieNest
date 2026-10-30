@@ -42,6 +42,10 @@ func build(parent: Node3D, estate: Node3D) -> void:
 			var level := int(e.get("floor", 1))
 			var point := (mesh.global_transform * mesh.get_aabb()).get_center()
 			point.y = 0.32 if level == 1 else (4.32 if level == 2 else (7.12 if level == 3 else 9.92))
+			if level == 4:
+				# The centre is occupied by the raised arrival apparatus. Use
+				# the surrounding east-side walking floor as the activity approach.
+				point.x += 3.0
 			var zone := "central-%02d" % level
 			_add_zone(zone, "主楼 %d 层" % level, "activity", point)
 			_add_anchor(zone + "/activity", zone, "activity", "主楼活动区", point, mesh)
@@ -174,6 +178,8 @@ func nearest_zone(point: Vector3) -> String:
 func align_approaches(map: RID) -> void:
 	# Author a reachable stand point near the actual object; never move an Actor.
 	# Do not snap between storeys or replace a disconnected room with another floor.
+	var courtyard := anchors.get("courtyard/activity") as Marker3D
+	var destination := NavigationServer3D.map_get_closest_point(map, courtyard.global_position) if courtyard != null else Vector3.INF
 	for marker: Marker3D in anchors.values():
 		if bool(marker.get_meta("access_restricted", false)): continue
 		var point := marker.global_position
@@ -183,7 +189,7 @@ func align_approaches(map: RID) -> void:
 		# Keep the existing contact-distance and same-storey checks below.
 		if str(marker.get_meta("zone_id")) == "courtyard" and str(marker.get_meta("kind")) == "chair":
 			limit = 1.0
-		var found := _valid_approach(marker, point, nearest, limit)
+		var found := _valid_approach(marker, point, nearest, limit) and _activity_connected(marker, map, nearest, destination)
 		var best := nearest.distance_to(point) if found else INF
 		# Tables can have navigable tops closer to a room's geometric centre
 		# than its floor. Search only the nearby authored floor, never snap up
@@ -194,12 +200,21 @@ func align_approaches(map: RID) -> void:
 				var sample := point + Vector3(cos(radians), 0, sin(radians)) * minf(ring * 0.25, limit)
 				var candidate := NavigationServer3D.map_get_closest_point(map, sample)
 				var distance := candidate.distance_to(point)
-				if distance < best and _valid_approach(marker, point, candidate, limit):
+				if distance < best and _valid_approach(marker, point, candidate, limit) and _activity_connected(marker, map, candidate, destination):
 					nearest = candidate
 					best = distance
 					found = true
 		if found:
 			marker.global_position = nearest
+
+
+func _activity_connected(marker: Marker3D, map: RID, point: Vector3, destination: Vector3) -> bool:
+	if str(marker.get_meta("kind")) != "activity" or not destination.is_finite():
+		return true
+	# A nearby polygon can be an isolated pocket beside terrace furniture.
+	# Keep the same floor and distance limits, but choose a usable approach.
+	var path := NavigationServer3D.map_get_path(map, point, destination, true)
+	return not path.is_empty() and path[-1].distance_to(destination) <= 0.3
 
 
 func _valid_approach(marker: Marker3D, origin: Vector3, candidate: Vector3, limit: float) -> bool:

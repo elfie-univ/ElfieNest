@@ -50,6 +50,14 @@
       "sha256": "2052bf1cddd59a6a6d5061263e628c15c38b15585500dba624aba86ec23382c3",
       "meshes": 36,
       "scope": "central floor-4 rendered roof meshes; exact source position, normal, UV, index and material/embedded-image equality verified; binary chunks and all other nodes unchanged"
+    },
+    "central_ceiling_lamp_repair": {
+      "sha256": "8b0112c5e62a09b9ace1234a81223c0911d3465548fda6add902d7a70f7a12a9",
+      "bytes": 266664292,
+      "source_object": "building:central",
+      "source_version": "v052",
+      "change": "Three matching solid warm opal faces and thin lamp bodies; source lights, outer rings and instance sidecar preserved",
+      "status": "local review candidate"
     }
   },
   "scene": "estate.tscn",

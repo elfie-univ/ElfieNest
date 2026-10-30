@@ -41,4 +41,10 @@ func _post_import(scene: Node) -> Object:
 				# The optical sample additionally inspects complete glTF definitions;
 				# production consumes the narrow source_optics values above.
 				material.set_meta("m01_reference_optics", sample_materials[material.resource_name])
+	# Deduplicate before serialization so Web never allocates the discarded
+	# material variants of identical geometry during scene loading.
+	var sharing := preload("res://rooms/estate/estate_mesh_storage.gd")
+	print("ESTATE_IMPORTED_TEXTURES shared=", sharing.share_textures(scene as Node3D))
+	var storage := sharing.share_geometry(scene as Node3D, true)
+	print("ESTATE_IMPORTED_GEOMETRY ", JSON.stringify(storage))
 	return scene

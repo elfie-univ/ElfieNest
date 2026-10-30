@@ -2,7 +2,7 @@ extends Node3D
 ## Partial geometry framing review using the unchanged production fixed catalog.
 ## The monolithic GLB still loads; landscape instances and world services do not.
 
-const SOURCE := preload("res://rooms/estate/ElfieNest-complete-final.glb")
+const SOURCE_PATH := "res://rooms/estate/ElfieNest-complete-final.glb"
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const LIGHTING := preload("res://rooms/estate/estate_lighting.gd")
 var camera_owner: ModularNest
@@ -29,7 +29,8 @@ func build() -> void:
 	review_geometry = Node3D.new()
 	review_geometry.name = "SelectedActualCameraGeometry"
 	add_child(review_geometry)
-	_source = SOURCE.instantiate() as Node3D
+	# This review is reachable from main; load geometry only when it is opened.
+	_source = (load(SOURCE_PATH) as PackedScene).instantiate() as Node3D
 	_source.name = "HiddenOriginalGeometry"
 	_source.visible = false
 	add_child(_source)

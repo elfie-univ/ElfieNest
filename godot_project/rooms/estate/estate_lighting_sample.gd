@@ -3,6 +3,7 @@ extends RefCounted
 ## Callers bind owned sample resources and supply the reviewed daylight level.
 
 const ESTATE_LIGHTING := preload("res://rooms/estate/estate_lighting.gd")
+const REFLECTION_SKY := preload("res://rooms/estate/estate_reflection_sky.gdshader")
 const NIGHT_NATURAL_SCALE := ESTATE_LIGHTING.DAYLIGHT.NIGHT_NATURAL_SCALE
 var _lights: Dictionary = {}
 var _emission: Dictionary = {}
@@ -69,7 +70,17 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 		environment.background_color = Color(0.015, 0.025, 0.05) if is_zero_approx(level) else ((binding["background"] as Color).srgb_to_linear() * natural).linear_to_srgb()
 		# Compatibility uses this multiplier both in panorama generation and
 		# reflection sampling. Keep the total radiance scale equal to natural.
-		environment.background_energy_multiplier = float(binding["sky"]) * sqrt(natural)
+		var sky_energy := float(binding["sky"]) * sqrt(natural)
+		if environment.sky != null:
+			var sky_material := environment.sky.sky_material as ShaderMaterial
+			if sky_material != null and sky_material.shader == REFLECTION_SKY:
+				# Night already has its own dim background color. Do not apply
+				# the old studio-panorama attenuation to it a second time.
+				if sky_material.get_shader_parameter("environment_color") != environment.background_color:
+					sky_material.set_shader_parameter("environment_color", environment.background_color)
+				sky_energy = 1.0
+		if not is_equal_approx(environment.background_energy_multiplier, sky_energy):
+			environment.background_energy_multiplier = sky_energy
 
 
 func bind_m01(sample: Node3D) -> Dictionary:

@@ -1,4 +1,3 @@
-import ky from "ky"
 import { z } from "zod"
 
 import { csrfHeaders, requestJson } from "./http"
@@ -58,10 +57,6 @@ const ObserverCapabilitySchema = z.object({
   capability: z.string().min(1),
   idle_timeout_seconds: z.number().int().positive(),
 }).strict()
-const GodotBuildManifestSchema = z.object({
-  files: z.record(z.string(), z.object({ sha256: z.string().length(64) }).passthrough()),
-}).passthrough()
-
 export type ObserverSubscription = z.infer<typeof ObserverSubscriptionSchema>
 export type ObserverEntity = z.infer<typeof ObserverEntitySchema>
 export type ObserverFrame = z.infer<typeof ObserverFrameSchema>
@@ -120,19 +115,4 @@ export async function nextObserverFrame(
   if (signal !== undefined) init.signal = signal
   const payload = await requestJson(`/api/v1/observer/frames${query}`, init)
   return payload === null ? null : ObserverFrameSchema.parse(payload)
-}
-
-export async function warmObserverAssets(): Promise<void> {
-  try {
-    const manifest = GodotBuildManifestSchema.parse(
-      await ky.get("/runtime/godot/build-manifest.json", { credentials: "same-origin" }).json(),
-    )
-    const resourceNames = Object.keys(manifest.files).filter((name) => /\.(?:js|wasm|pck)$/.test(name))
-    await Promise.all(resourceNames.map(async (name) => {
-      await ky.get(`/runtime/godot/${encodeURIComponent(name)}`, { credentials: "same-origin" }).arrayBuffer()
-    }))
-  } catch (reason: unknown) {
-    if (reason instanceof Error) return
-    throw reason
-  }
 }

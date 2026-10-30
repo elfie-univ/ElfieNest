@@ -5,11 +5,14 @@ import { closeObserverSession, nextObserverFrame, openObserverSession, type Obse
 import { ApiError } from "../api/http"
 import { ObserverProvider, useOptionalObserver } from "./observer"
 
-vi.mock("../api/observer", () => ({
+const { assetGet } = vi.hoisted(() => ({ assetGet: vi.fn() }))
+vi.mock("ky", () => ({ default: { get: assetGet } }))
+
+vi.mock("../api/observer", async () => ({
+  ...await vi.importActual<typeof import("../api/observer")>("../api/observer"),
   closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
   openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
-  warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
 function TestObserver() {
@@ -47,6 +50,59 @@ beforeEach(() => {
 })
 
 describe("ObserverProvider", () => {
+  it("leaves runtime payload downloads to the Godot loader", async () => {
+    assetGet.mockClear()
+    render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 10)) })
+    expect(assetGet).not.toHaveBeenCalled()
+  })
+
+  it("reuses its capability check when reopening a ready observer", async () => {
+    const loseContext = vi.fn()
+    const getContext = vi.fn(() => ({ getExtension: () => ({ loseContext }) }))
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: getContext })
+    render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+      await act(async () => {})
+    }
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(loseContext).toHaveBeenCalledTimes(1)
+    expect(openObserverSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops a lost WebGL renderer without alerts or automatic reconnect on focus", async () => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe")
+    if (!engine?.contentDocument || !engine.contentWindow) throw new Error("observer iframe missing")
+    engine.contentDocument.open()
+    engine.contentDocument.write("<html><body></body></html>")
+    engine.contentDocument.close()
+    const canvas = engine.contentDocument.createElement("canvas")
+    engine.contentDocument.body.appendChild(canvas)
+    fireEvent.load(engine)
+    window.dispatchEvent(new MessageEvent("message", {
+      data: "elfienest:godot-web-ready", origin: window.location.origin, source: engine.contentWindow,
+    }))
+    await act(async () => {})
+    expect(screen.getByText("ready")).toBeInTheDocument()
+    const engineAlert = vi.fn()
+    canvas.addEventListener("webglcontextlost", engineAlert)
+    await act(async () => { canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })) })
+    expect(engineAlert).not.toHaveBeenCalled()
+    expect(screen.getByText("fallback")).toBeInTheDocument()
+    expect(container.querySelector("iframe")).toBeNull()
+    await act(async () => { window.dispatchEvent(new Event("online")); document.dispatchEvent(new Event("visibilitychange")) })
+    expect(container.querySelector("iframe")).toBeNull()
+    expect(screen.getByText("fallback")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    expect(container.querySelector("iframe")).not.toBeNull()
+  })
+
   it("accepts only the same-origin ready message from its observer iframe", async () => {
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
     const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)

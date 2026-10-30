@@ -181,6 +181,7 @@ func _ready() -> void:
 		and not _show_visual_authority()
 		and not _nest_lab_mode
 	):
+		nest.physical_authority = true
 		nest.visible = false
 	if not _runtime_mode.allows_authority_transport():
 		if _runtime_mode.requires_web_ready_signal():

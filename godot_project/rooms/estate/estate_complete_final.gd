@@ -26,6 +26,8 @@ func _ready() -> void:
 	DAYLIGHT.apply(self)
 	WATER.attach($CompleteFinal)
 	_restore_instanced_groups()
+	var storage := preload("res://rooms/estate/estate_mesh_storage.gd").share_geometry(self)
+	print("ESTATE_SHARED_GEOMETRY ", JSON.stringify(storage))
 
 
 func _apply_outdoor_layout(layout: Node3D) -> void:
@@ -118,6 +120,9 @@ func _restore_instanced_groups() -> void:
 					material.vertex_color_use_as_albedo = true
 					if SURFACE.supports(material, true):
 						shared_mesh.surface_set_material(surface, SURFACE.make_material(material, 0.0, 0.0, true))
+		# The hidden prototype and its visible instances use the same full-detail
+		# buffers. Retaining its old imported mesh adds an unused GPU allocation.
+		source_mesh.mesh = shared_mesh
 		var batch_index := 0
 		for batch: Dictionary in _spatial_batches(instance_buffer):
 			var multimesh := MultiMesh.new()

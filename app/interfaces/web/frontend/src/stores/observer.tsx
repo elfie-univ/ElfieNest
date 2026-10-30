@@ -4,7 +4,6 @@ import {
   closeObserverSession,
   nextObserverFrame,
   openObserverSession,
-  warmObserverAssets,
   type ObserverCursor,
   type ObserverEntity,
   type ObserverFrame,
@@ -67,7 +66,10 @@ function scopeKey(scope: ObserverScope): string {
 
 function supportsWebGl2(): boolean {
   const canvas = document.createElement("canvas")
-  return canvas.getContext("webgl2") !== null
+  const context = canvas.getContext("webgl2")
+  if (context === null) return false
+  context.getExtension?.("WEBGL_lose_context")?.loseContext()
+  return true
 }
 
 function isLowMemoryDevice(): boolean {
@@ -184,6 +186,7 @@ export function ObserverProvider({
   const attemptRef = useRef(0)
   const retryRef = useRef(0)
   const userPausedRef = useRef(false)
+  const webGlSupportedRef = useRef<boolean | null>(null)
   const csrfTokenRef = useRef(csrfToken)
   csrfTokenRef.current = csrfToken
   const {
@@ -310,11 +313,12 @@ export function ObserverProvider({
   }, [destroyRenderer])
 
   const requireRestart = useCallback((): void => {
+    stopPolling()
     destroyRenderer()
     restartRequiredRef.current = true
     setFallbackReason("runtime")
     setStatus("fallback")
-  }, [destroyRenderer])
+  }, [destroyRenderer, stopPolling])
 
   const openRef = useRef<(scope: ObserverScope) => Promise<void>>(async () => {})
   const pollRef = useRef<() => void>(() => {})
@@ -420,6 +424,16 @@ export function ObserverProvider({
     engine.src = PRODUCT_OBSERVER_URL
     engine.title = "ElfieNest 3D Observer"
     engine.addEventListener("error", requireRestart)
+    engine.addEventListener("load", () => {
+      // Capture before the engine's canvas listener opens a blocking alert.
+      // A lost renderer must not continue presenting a connected session.
+      engine.contentDocument?.addEventListener("webglcontextlost", (event) => {
+        if (iframeRef.current !== engine) return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        requireRestart()
+      }, { capture: true, once: true })
+    })
     return engine
   }, [requireRestart])
 
@@ -460,7 +474,8 @@ export function ObserverProvider({
       setStatus("fallback")
       return
     }
-    if (!supportsWebGl2() || isLowMemoryDevice()) {
+    webGlSupportedRef.current ??= supportsWebGl2()
+    if (!webGlSupportedRef.current || isLowMemoryDevice()) {
       setFallbackReason("unsupported-device")
       setStatus("fallback")
       return
@@ -523,12 +538,6 @@ export function ObserverProvider({
   openRef.current = open
 
   useEffect(() => {
-    if (!enabled) return undefined
-    const timer = window.setTimeout(() => { void warmObserverAssets() }, 1)
-    return (): void => window.clearTimeout(timer)
-  }, [enabled])
-
-  useEffect(() => {
     if (!enabled) resetEngine()
   }, [enabled, resetEngine])
 
@@ -545,10 +554,12 @@ export function ObserverProvider({
 
   useEffect(() => {
     const resume = (): void => {
+      if (restartRequiredRef.current) return
       const scope = scopeRef.current
       if (scope !== null && !detachedRef.current) void openRef.current(scope)
     }
     const onVisibilityChange = (): void => {
+      if (restartRequiredRef.current) return
       if (document.visibilityState === "hidden") {
         pauseObservation()
         return
