@@ -80,8 +80,7 @@ func run() -> void:
 		):
 			return
 	var environment := (nest.get_node("WorldEnvironment") as WorldEnvironment).environment
-	var ceiling_fill := nest.get_node("CeilingFill") as DirectionalLight3D
-	if not _require(environment != null and not ceiling_fill.shadow_enabled, "Observer environment was lost"):
+	if not _require(environment != null and not nest.has_node("CeilingFill"), "Observer must retain the environment without an artificial ceiling fill"):
 		return
 	nest.set_observation_hud_visible(false)
 	if not _require(not (nest.get_node("ObservationHUD") as CanvasLayer).visible, "HUD visibility interface failed"):

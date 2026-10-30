@@ -65,7 +65,22 @@ export function ObservationMonitor({ immersive = false, mode = "embedded", onExi
   const { t } = useTranslation("monitor")
   const observer = useOptionalObserver()
   const cameraCatalog = observer?.cameraCatalog ?? null
-  const cameraViews = cameraCatalog?.views.filter((view) => view.id !== "overview" && !view.id.startsWith("lighting-")) ?? []
+  const visibleViews = cameraCatalog?.views.filter((view) => !view.id.startsWith("lighting-") && !view.id.startsWith("access-")) ?? []
+  const cameraViews = visibleViews.filter((view) => view.id !== "overview")
+  const cameraOptions = visibleViews.map((view) => ({
+    value: view.id,
+    label: view.label,
+    group: view.id === "overview" || view.id.startsWith("estate-") ? t("controls.outdoorViews")
+      : view.id.startsWith("central-") ? t("controls.centralViews")
+      : view.id.startsWith("dorm-") ? t("controls.bedroomViews")
+      : view.id.startsWith("terrace-") ? t("controls.terraceViews")
+      : t("controls.otherViews"),
+  }))
+  const groupedCameraOptions = [
+    t("controls.outdoorViews"), t("controls.centralViews"), t("controls.bedroomViews"),
+    t("controls.terraceViews"), t("controls.otherViews"),
+  ].map((label) => ({ label, options: cameraOptions.filter((option) => option.group === label) }))
+    .filter((group) => group.options.length > 0)
   const supportsTimePreview = cameraCatalog?.views.some((view) => view.id === "lighting-live") ?? false
   const [timePreview, setTimePreview] = useState("lighting-live")
   useEffect(() => { if (cameraCatalog === null) setTimePreview("lighting-live") }, [cameraCatalog])
@@ -116,7 +131,7 @@ export function ObservationMonitor({ immersive = false, mode = "embedded", onExi
         </Button>
         {supportsTimePreview ? <>
           <div className="observation-monitor__selector"><SelectField disabled={cameraCommandDisabled} label={t("controls.time")} onValueChange={(value) => { setTimePreview(value); observer?.select(value) }} options={timeOptions} value={timePreview} /></div>
-          <div className="observation-monitor__selector"><SelectField disabled={cameraCommandDisabled} label={t("controls.view")} onValueChange={(value) => observer?.select(value)} options={(cameraCatalog?.views ?? []).filter((view) => !view.id.startsWith("lighting-")).map((view) => ({ value: view.id, label: view.label }))} value={cameraCatalog?.activeId ?? "overview"} /></div>
+          <div className="observation-monitor__selector"><SelectField disabled={cameraCommandDisabled} label={t("controls.view")} onValueChange={(value) => observer?.select(value)} options={groupedCameraOptions} value={cameraCatalog?.activeId ?? "overview"} /></div>
         </> : cameraViews.map((view) => <Button aria-label={view.label} aria-pressed={cameraCatalog?.activeId === view.id} className="observation-monitor__camera" disabled={cameraCommandDisabled} key={view.id} onClick={() => observer?.select(view.id)} size="sm" type="button" variant="outline">{view.label}</Button>)}
         <Button aria-label={pauseLabel} className="observation-monitor__command observation-monitor__pause" disabled={pauseCommandDisabled} onClick={() => observer?.setLocalPresentationPaused(!presentationPaused)} size="sm" type="button" variant="outline">
           <Icon name={pauseIcon} size={16} /><span>{pauseLabel}</span>

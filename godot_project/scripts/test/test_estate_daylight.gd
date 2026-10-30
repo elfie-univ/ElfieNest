@@ -130,7 +130,7 @@ func run() -> void:
 		return
 	if not _require(review_camera.position.is_equal_approx(ModularNest.REFERENCE_REVIEW_POSITION) and (-review_camera.basis.z).dot((ModularNest.REFERENCE_REVIEW_TARGET - review_camera.position).normalized()) > 0.999 and is_equal_approx(review_camera.fov, 42.0), "Review camera does not match the reference position/target/FOV"):
 		return
-	if not _require(nest.get_node("CeilingFill").light_cull_mask == DAYLIGHT.INTERIOR_FILL_LAYER, "Ceiling fill is not restricted to building geometry"):
+	if not _require(not nest.has_node("CeilingFill"), "Observer must not introduce an artificial ceiling fill"):
 		return
 	var sun_count := 0
 	var preserved_fixture_emission_count := 0
@@ -185,7 +185,7 @@ func run() -> void:
 					if not _require(bool(actual.get_shader_parameter("use_authored_reflection")) == (original.get_meta("extras", {}) as Dictionary).has("preview_surface_finish"), "Studio reflection leaked onto a surface without an authored environment"):
 						return
 				if actual.shader == load("res://rooms/estate/estate_opaque.gdshader"):
-					var vertex_color := bool(mesh.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR) and original.vertex_color_use_as_albedo
+					var vertex_color := bool(mesh.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR)
 					if not _require(bool(actual.get_shader_parameter("use_linear_vertex_color")) == vertex_color, "Shared material confused colored and uncolored primitive inputs"):
 						return
 				if not _require(actual.get_shader_parameter("source_albedo") == original.albedo_color and actual.get_shader_parameter("source_roughness") == original.roughness, "Plain surface source RGB/roughness changed"):
@@ -246,7 +246,7 @@ func run() -> void:
 				return
 			if not _require(light.shadow_caster_mask == DAYLIGHT.FURNITURE_CONTACT_LAYER, "Contact light is shadowing architecture rather than furniture"):
 				return
-	if not _require(contact_lights > 0 and nest.get_node("CeilingFill").shadow_enabled and nest.get_node("CeilingFill").shadow_caster_mask == DAYLIGHT.FURNITURE_CONTACT_LAYER, "Furniture contact shadow rig is missing"):
+	if not _require(contact_lights > 0, "Designed fixture contact shadows are missing"):
 		return
 	var full_crowns := 0
 	var checked_crowns := {}

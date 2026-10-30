@@ -29,8 +29,8 @@ func bind(nest: Node) -> Dictionary:
 	var counts := {"artificial_lights": 0, "ordinary_emission": 0, "independent_emission": 0, "authored_bounce": 0}
 	for light: Light3D in nest.find_children("*", "Light3D", true, false):
 		if is_ordinary_light(light, nest):
-			# CeilingFill survives Generated rebuilds. Capture its authored
-			# visibility once, never the result of the last environment command.
+			# Capture authored visibility once, never the result of the last
+			# environment command.
 			if not light.has_meta(INITIAL_VISIBLE):
 				light.set_meta(INITIAL_VISIBLE, light.visible)
 			if not light.has_meta("estate_initial_energy"): light.set_meta("estate_initial_energy",light.light_energy)
@@ -82,7 +82,7 @@ static func lighting_group(node: Node) -> StringName:
 		if e.has("outdoor_fixture_id") or str(current.name)=="OutdoorLighting": return &"outdoor"
 		var module := str(e.get("module",""))
 		if module=="central":
-			var zone := "central-%02d"%clampi(int(e.get("floor",1)),1,3)
+			var zone := "central-%02d"%clampi(int(e.get("floor",1)),1,4)
 			var name := str(e.get("source_name",current.name)).to_lower()
 			for token: String in ["stair","entrance","threshold"]:
 				if token in name: return StringName("safety:"+zone)
@@ -119,6 +119,9 @@ static func night_boost(group: StringName, quiet_mode: bool = false) -> float:
 
 
 static func emission_energy(material: BaseMaterial3D, source_energy: float, group: StringName, quiet_mode: bool = false) -> float:
+	# The roof's textured arrival surfaces retain detail in both night periods.
+	if group == &"central-04" and material.has_meta(DAYLIGHT.NIGHT_EMISSION):
+		return float(material.get_meta(DAYLIGHT.NIGHT_EMISSION))
 	# Keep the accepted quiet-hour calibration. Evening only restores diffusers
 	# that the importer actually reduced; other authored emission stays intact.
 	if quiet_mode:
@@ -136,11 +139,8 @@ static func occupied_zones(entities: Dictionary) -> PackedStringArray:
 	return zones
 
 
-static func is_ordinary_light(light: Light3D, nest: Node) -> bool:
-	return (
-		light == nest.get_node_or_null("CeilingFill")
-		or light.get_meta("asset_role", "") == "authored-daylight-fixture"
-	)
+static func is_ordinary_light(light: Light3D, _nest: Node) -> bool:
+	return light.get_meta("asset_role", "") == "authored-daylight-fixture"
 
 
 static func is_ordinary_emission(material: BaseMaterial3D) -> bool:

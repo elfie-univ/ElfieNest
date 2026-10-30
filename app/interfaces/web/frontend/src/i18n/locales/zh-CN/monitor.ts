@@ -34,6 +34,11 @@ export const monitor = {
   controls: {
     time: "时间",
     view: "视角",
+    outdoorViews: "庭院",
+    centralViews: "主楼",
+    bedroomViews: "卧室",
+    terraceViews: "露台",
+    otherViews: "其他视角",
     localTime: "本地实时",
     daytime: "白天 06:00–18:00",
     evening: "上半夜 18:00–24:00",

@@ -160,6 +160,35 @@ describe("ObservationMonitor", () => {
     expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-live")
   })
 
+  it.each([true, false])("keeps inspection cameras out of monitoring with time preview %s", async (timePreview) => {
+    const user = userEvent.setup()
+    fixture = createObserver({ ...catalog, views: [...catalog.views,
+      { id: "access-estate", label: "室外碰撞与活动范围" },
+      { id: "access-forest", label: "森林小路边界" },
+      { id: "estate-ring", label: "环形路" },
+      { id: "central-1", label: "主楼 · 1 层" },
+      { id: "terrace-01", label: "宿舍 M01 · 二层露台" },
+      ...(timePreview ? [{ id: "lighting-live", label: "本地实时" }] : []),
+    ] })
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+    renderMonitor()
+
+    if (timePreview) await user.click(screen.getByRole("combobox", { name: "视角" }))
+    const role = timePreview ? "option" : "button"
+    expect(screen.queryByRole(role, { name: "室外碰撞与活动范围" })).not.toBeInTheDocument()
+    expect(screen.queryByRole(role, { name: "森林小路边界" })).not.toBeInTheDocument()
+    for (const name of ["活动区", "宿舍区", "环形路", "主楼 · 1 层", "宿舍 M01 · 二层露台"]) {
+      expect(screen.getByRole(role, { name })).toBeInTheDocument()
+    }
+    if (timePreview) {
+      for (const name of ["庭院", "主楼", "卧室", "露台", "其他视角"]) {
+        expect(screen.getByRole("group", { name })).toBeInTheDocument()
+      }
+    }
+    await user.click(screen.getByRole(role, { name: "环形路" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("estate-ring")
+  })
+
   it("shows the current visible Elfie count in the ready 3D surface", () => {
     fixture = createObserver(catalog, "ready", 2)
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)

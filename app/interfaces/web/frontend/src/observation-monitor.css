@@ -82,8 +82,15 @@
   touch-action: pan-x;
   white-space: nowrap;
 }
-.observation-monitor__selector { flex: 0 0 190px; }
-.observation-monitor__selector [data-field-row] { margin: 0; }
+.observation-monitor__selector { flex: 0 0 auto; width: max-content; }
+.observation-monitor__selector [data-field-row] {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.observation-monitor__selector [data-slot="select-trigger"] { width: auto; min-width: 160px; }
+.observation-monitor__selector .manage-field__label { white-space: nowrap; overflow-wrap: normal; }
 .observation-monitor__toolbar::-webkit-scrollbar { height: 4px; }
 .observation-monitor__toolbar::-webkit-scrollbar-track { background: transparent; }
 .observation-monitor__toolbar::-webkit-scrollbar-thumb {

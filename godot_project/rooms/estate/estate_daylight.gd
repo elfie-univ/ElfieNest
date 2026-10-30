@@ -17,7 +17,8 @@ const OBSERVATION_GLASS_ALPHA := 0.075
 const FURNITURE_CONTACT_LAYER := 8
 const NATIVE_HEMISPHERE_LAYER := 1 << 17
 # Separate general room lighting from tiny stair/shelf accents in Compatibility.
-const ACTIVITY_LAYERS := [INTERIOR_FILL_LAYER, 1 << 16, 1 << 19]
+const ACTIVITY_LAYERS := [INTERIOR_FILL_LAYER, 1 << 16, 1 << 19, 1 << 28]
+const ROOF_ROOM_LAYER := 1 << 29
 const NIGHT_NATURAL_SCALE := 0.035
 const NIGHT_EMISSION := &"estate_night_emission_energy"
 # The reference's day mode runs authored fixtures at 8%. Compatibility's
@@ -161,9 +162,14 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 		var instance := node as MeshInstance3D
 		var extras := instance.get_meta("extras", {}) as Dictionary
 		instance.layers |= _room_light_mask(extras)
+		var bedroom_ceiling := str(extras.get("module", "")) in POD_MODULES and str(extras.get("source_name", instance.name)).begins_with("ROOM • structural terrace slab")
+		# The terrace slab also owns the bedroom's ceiling underside. Its
+		# downward-facing ivory surface needs the lower room's actual lights.
+		if bedroom_ceiling:
+			instance.layers |= _room_light_mask({"module": extras["module"], "floor": 1})
 		var source_name := str(extras.get("source_name", instance.name)).to_lower()
 		var room_receiver := str(extras.get("module", "")) == "central" and (bool(extras.get("furniture", false)) or "floor" in source_name or "slab" in source_name)
-		var room_group := "central-%02d" % clampi(int(extras.get("floor", 1)), 1, 3) if room_receiver else ""
+		var room_group := "central-%02d" % clampi(int(extras.get("floor", 1)), 1, 4) if room_receiver else ""
 		if room_receiver:
 			# The floor and furniture reliably receive the existing general ceiling
 			# fixtures, instead of spending their eight-light budget on stair LEDs.
@@ -210,24 +216,31 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 				var finish := (original.get_meta("extras", {}) as Dictionary).get("preview_surface_finish", {}) as Dictionary
 				var diffuser := original.emission_enabled and bool(extras.get("lighting_diffuser", false)) and not (extras.get("design_lights", []) as Array).is_empty()
 				var artificial := original.emission_enabled and _is_artificial(material_name)
+				var roof_emitter := str(extras.get("module", "")) == "central" and int(extras.get("floor", 1)) == 4 and material_name.begins_with("roof") and artificial
 				var vertex_painted := instance.mesh is ArrayMesh and bool(instance.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_COLOR)
-				var physical_surface := SURFACE.supports(original, true, room_receiver) and not _is_landscape_template(instance)
-				# Rubber tree assets store leaf/wood colors in glTF COLOR_0;
-				# their imported shared material does not enable vertex albedo.
-				var uses_vertex_color := vertex_painted and (original.vertex_color_use_as_albedo or material_name.begins_with("rubber tree "))
+				var bed_lining := str(extras.get("module", "")) in POD_MODULES and str(extras.get("piece", "")) in ["inner_wrap", "inner_welt"]
+				var physical_surface := SURFACE.supports(original, true, room_receiver or bed_lining or bedroom_ceiling) and not _is_landscape_template(instance)
+				# glTF COLOR_0 is authored albedo, including the play rug's
+				# patchwork. The imported shared material may leave it disabled.
+				var uses_vertex_color := vertex_painted
 				var sheen: Dictionary = optics.get("sheen", {})
 				var fabric_surface := not sheen.is_empty() and original.albedo_texture == null and not original.emission_enabled and not vertex_painted and not _is_landscape_template(instance)
 				if not clear_glazing and not artificial and finish.is_empty() and not diffuser and not physical_surface and not fabric_surface:
 					continue
 				# A shared material can belong to both a powered diffuser and an
 				# unpowered decorative ring; their day intensities differ.
-				var identity := "%d:%s:%s:%s" % [original.get_instance_id(), diffuser, uses_vertex_color, room_group]
+				var identity := "%d:%s:%s:%s:%s" % [original.get_instance_id(), diffuser, uses_vertex_color, room_group, roof_emitter]
 				if not materials.has(identity):
 					var calibrated := original.duplicate() as BaseMaterial3D
+					calibrated.vertex_color_use_as_albedo = uses_vertex_color
 					if diffuser:
 						calibrated.emission_enabled = true
 						calibrated.emission_energy_multiplier = 1.0 if extras.has("outdoor_fixture_id") else 0.15
 						calibrated.set_meta(NIGHT_EMISSION, 1.0)
+					if roof_emitter:
+						# Keep the imported cyan/radial textures and day inputs. Their
+						# original 1.6–3.6 emission clips to white in the LDR night view.
+						calibrated.set_meta(NIGHT_EMISSION, minf(original.emission_energy_multiplier, 0.35 if original.emission_texture != null else 0.65))
 					if clear_glazing:
 						# This source uses glTF transmission=1 with alpha=1. The
 						# Compatibility importer leaves it opaque. Use thin tinted
@@ -284,7 +297,7 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 
 static func _is_central_interior_surface(instance: MeshInstance3D) -> bool:
 	var extras := instance.get_meta("extras", {}) as Dictionary
-	if str(extras.get("module", "")) != "central" or int(extras.get("floor", 1)) not in [1, 2, 3] or bool(extras.get("glass", false)) or bool(extras.get("full_height", false)):
+	if str(extras.get("module", "")) != "central" or int(extras.get("floor", 1)) not in [1, 2, 3, 4] or bool(extras.get("glass", false)) or bool(extras.get("full_height", false)):
 		return false
 	if instance.mesh == null: return false
 	for surface in range(instance.mesh.get_surface_count()):
@@ -326,7 +339,7 @@ static func _uses_interior_fill(instance: MeshInstance3D) -> bool:
 
 
 static func _activity_light_mask(extras: Dictionary) -> int:
-	return ACTIVITY_LAYERS[clampi(int(extras.get("floor", 1)), 1, 3) - 1]
+	return ACTIVITY_LAYERS[clampi(int(extras.get("floor", 1)), 1, 4) - 1]
 
 
 static func _is_landscape_template(instance: Node) -> bool:
@@ -346,7 +359,8 @@ static func _room_light_mask(extras: Dictionary) -> int:
 	var module := str(extras.get("module", ""))
 	if module == "central":
 		if bool(extras.get("full_height", false)):
-			return (1 << 5) | (1 << 6) | (1 << 7)
+			return (1 << 5) | (1 << 6) | (1 << 7) | ROOF_ROOM_LAYER
+		if int(extras.get("floor", 1)) == 4: return ROOF_ROOM_LAYER
 		return 1 << (4 + clampi(int(extras.get("floor", 1)), 1, 3))
 	if module in POD_MODULES:
 		if int(extras.get("floor", 1)) == 2:
@@ -394,8 +408,7 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 	var central := str(extras.get("module", "")) == "central"
 	var pod_terrace := str(extras.get("module", "")) in POD_MODULES and label == "terrace • inner parapet concealed warm strip"
 	var opal := central and "circular opal ceiling diffuser" in label
-	if central and ("ceiling perimeter continuous warm diffuser" in label or "l3 ceiling ring 2 continuous warm diffuser" in label):
-		_restore_ceiling_band(mesh, extras)
+	var downlight := central and " downlight " in label
 	for source: Dictionary in extras.get("design_lights", []):
 		var spot := str(source["type"]) == "spot"
 		var light: Light3D = SpotLight3D.new() if spot else OmniLight3D.new()
@@ -411,7 +424,7 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			light.light_energy = 2.4 * DAYTIME_FIXTURE_SCALE
 			light.light_specular = 0.0
 		light.light_cull_mask = _room_light_mask(extras)
-		var general := central and (opal or " downlight " in label)
+		var general := opal or downlight
 		if general:
 			light.light_color = CEILING_WARM_WHITE
 		if opal:
@@ -420,13 +433,16 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			if not spot or float(source.get("angle", 0.0)) > 1.0:
 				light.light_specular = 0.0
 				var floor_number := int(extras.get("floor", 1))
-				var intensity := (75.0 if floor_number == 1 else 65.0) if spot else (3.0 if floor_number == 1 else 2.4)
+				# Balance this real fixture's broad output against its clustered
+				# down-facing beams, retaining detail at the central seating.
+				var intensity := (56.0 if floor_number == 1 else 48.0) if spot else (4.8 if floor_number == 1 else 4.4)
 				light.light_energy = intensity * DAYTIME_FIXTURE_SCALE
 		if str(extras.get("module", "")) == "central" and float(source["intensity"]) >= 4.0:
 			# Existing reading/column lights also serve furniture at the perimeter.
 			light.light_cull_mask |= _activity_light_mask(extras)
 		if general:
-			light.set_meta("estate_fixture_boost", GENERAL_FIXTURE_BOOST)
+			var coverage := 1.6 if "distributed ceiling downlight" in label else (1.15 if downlight else 1.0)
+			light.set_meta("estate_fixture_boost", GENERAL_FIXTURE_BOOST * coverage)
 		if general and not spot:
 			# Use the existing diffuser source for soft room coverage. Restrict it
 			# to interior receivers, so it cannot brighten the exterior shell.
@@ -449,6 +465,12 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			(light as SpotLight3D).spot_angle = rad_to_deg(float(source["angle"]))
 			(light as SpotLight3D).spot_attenuation = float(source.get("attenuation", 2.0))
 			(light as SpotLight3D).spot_angle_attenuation = float(source.get("angle_attenuation", 1.0))
+			if downlight:
+				# Widen the existing downlight's beam rather than creating room
+				# fills. Follow its current model mount and direction, including
+				# the perimeter placements that reach the outward-facing seating.
+				(light as SpotLight3D).spot_angle = maxf((light as SpotLight3D).spot_angle, 75.0)
+				(light as SpotLight3D).spot_angle_attenuation = 0.6
 			if pod_terrace:
 				(light as SpotLight3D).spot_range = 6.5
 				(light as SpotLight3D).spot_angle = 75.0
@@ -466,34 +488,9 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 				light.shadow_normal_bias = 0.1
 				contact_rooms[room] = true
 		else:
-			(light as OmniLight3D).omni_range = 12.0 if general else float(source["distance"])
+			(light as OmniLight3D).omni_range = 14.0 if opal else (12.0 if general else float(source["distance"]))
 			(light as OmniLight3D).omni_attenuation = 1.0 if general else float(source.get("attenuation", 2.0))
 		light.set_meta("asset_role", "authored-daylight-fixture")
-
-
-static func _restore_ceiling_band(mesh: MeshInstance3D, extras: Dictionary) -> void:
-	# Sample the existing luminous band's geometry; never invent a second
-	# floating fill rig. Six band sources plus the central diffuser fit within
-	# Compatibility's eight omni lights per receiver.
-	var bounds := mesh.get_aabb()
-	var centre := bounds.get_center()
-	var radii := Vector2(bounds.size.x, bounds.size.z) * 0.5
-	var floor_number := int(extras.get("floor", 1))
-	for sector in range(6):
-		var angle := TAU * (float(sector) + 0.5) / 6.0
-		var light := OmniLight3D.new()
-		light.name = "CeilingBandDiffuse%d" % sector
-		light.top_level = true
-		light.light_color = CEILING_WARM_WHITE
-		light.light_energy = 3.6 if floor_number == 1 else 2.4
-		light.light_specular = 0.0
-		light.omni_range = 8.0
-		light.omni_attenuation = 1.0
-		light.light_cull_mask = _activity_light_mask(extras)
-		light.set_meta("asset_role", "authored-daylight-fixture")
-		light.set_meta("estate_fixture_calibrated", true)
-		mesh.add_child(light)
-		light.global_position = mesh.global_transform * (centre + Vector3(cos(angle) * radii.x, -0.08, sin(angle) * radii.y))
 
 
 static func _vector(value: Array) -> Vector3:

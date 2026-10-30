@@ -34,6 +34,11 @@ export const monitor = {
   controls: {
     time: "Time",
     view: "View",
+    outdoorViews: "Courtyard",
+    centralViews: "Main building",
+    bedroomViews: "Bedrooms",
+    terraceViews: "Terraces",
+    otherViews: "Other views",
     localTime: "Local time",
     daytime: "Day 06:00–18:00",
     evening: "Evening 18:00–24:00",

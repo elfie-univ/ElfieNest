@@ -30,12 +30,7 @@ func run() -> void:
 		ring.set_meta("extras", {"module": "central", "floor": floor_number, "source_name": "L3 ceiling ring 2 continuous warm diffuser" if floor_number == 3 else "L%d ceiling perimeter continuous warm diffuser" % floor_number})
 		world.add_child(ring)
 		DAYLIGHT._restore_fixture_lights(ring, {})
-		check(ring.get_child_count() == 6, "Each outer ceiling band must illuminate all six sectors")
-		for source: OmniLight3D in ring.get_children():
-			check(source.light_cull_mask == DAYLIGHT.ACTIVITY_LAYERS[floor_number - 1], "Ring output must stay on its own indoor receivers")
-			check(source.global_position.y < ring.global_position.y, "Ring emitters must sit below the actual ceiling surface")
-			check(Vector2(source.global_position.x, source.global_position.z).length() > 3.0, "Ring output must follow the physical band, not cluster at the room centre")
-			check(is_zero_approx(source.light_specular), "Distributed diffuse output must not add point reflections")
+		check(ring.get_child_count() == 0, "A luminous band without designed sources must not gain invented fill lights")
 		for finish in ["Interior warm plaster", "Exterior • facade", "Observation glass"]:
 			var receiver := MeshInstance3D.new()
 			receiver.mesh = BoxMesh.new()
@@ -57,5 +52,5 @@ func run() -> void:
 		check(light.visible == (CONTROL.lighting_group(light) == &"central-03"), "Quiet-hour occupancy must remain floor-specific")
 	world.free()
 	for message in failures: push_error(message)
-	if failures.is_empty(): print("PASS ceiling falloff, distributed coverage, diffuse reflection and floor-specific switching")
+	if failures.is_empty(): print("PASS designed ceiling source falloff, no invented band fills and floor-specific switching")
 	quit(0 if failures.is_empty() else 1)

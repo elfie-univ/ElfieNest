@@ -29,17 +29,6 @@ bed_count = 32
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_demo")
 
-[node name="CeilingFill" type="DirectionalLight3D" parent="."]
-light_cull_mask = 2
-position = Vector3(0, 18, -21)
-rotation_degrees = Vector3(-90, 0, 0)
-light_color = Color(1, 1, 1, 1)
-light_energy = 0.004
-shadow_enabled = true
-shadow_caster_mask = 8
-shadow_bias = 0.01
-shadow_normal_bias = 0.1
-
 [node name="Camera3D" type="Camera3D" parent="."]
 projection = 1
 size = 29.0
