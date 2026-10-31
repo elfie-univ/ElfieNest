@@ -51,6 +51,7 @@ const ARTIFICIAL_EMISSION_NAMES := [
 
 static func apply(estate: Node) -> Dictionary:
 	preload("res://rooms/estate/estate_stair_finish.gd").apply(estate as Node3D)
+	_position_front_ceiling_fixture(estate)
 	var materials: Dictionary = {}
 	var windows: Dictionary = {}
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
@@ -98,8 +99,18 @@ static func apply(estate: Node) -> Dictionary:
 		hemisphere.light_cull_mask = NATIVE_HEMISPHERE_LAYER
 		hemisphere.rotation_degrees.x = -90.0 if up else 90.0
 		estate.add_child(hemisphere)
+	var ceiling_targets: Dictionary = {}
+	for fixture: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		var extras: Dictionary = fixture.get_meta("extras", {})
+		if extras.get("module") != "central" or "circular opal ceiling diffuser" not in str(extras.get("source_name", fixture.name)).to_lower(): continue
+		for source: Dictionary in extras.get("design_lights", []):
+			if source.get("type") != "spot" or float(source.get("angle", 0.0)) < 1.0: continue
+			var centre := (fixture.global_transform * fixture.get_aabb()).get_center()
+			centre.y = (fixture.global_transform * _vector(source["target"])).y + 0.9
+			ceiling_targets[int(extras.get("floor", 1))] = centre
+			break
 	for mesh: Node in estate.find_children("*", "MeshInstance3D", true, false):
-		_restore_fixture_lights(mesh as MeshInstance3D, contact_rooms)
+		_restore_fixture_lights(mesh as MeshInstance3D, contact_rooms, ceiling_targets)
 		var extras: Dictionary = mesh.get_meta("extras", {})
 		if extras.get("lighting_kind")=="stair" and extras.get("stair_edge_role")=="side" and not (extras.get("design_lights",[]) as Array).is_empty():
 			# Concealed strips provide indirect light through their real sources.
@@ -139,6 +150,55 @@ static func apply(estate: Node) -> Dictionary:
 			if sun.shadow_enabled:
 				_apply_web_shadow_budget(sun)
 	return counts
+
+
+static func _position_front_ceiling_fixture(estate: Node) -> void:
+	var roof: MeshInstance3D
+	var daybed: MeshInstance3D
+	var parts: Array[MeshInstance3D] = []
+	var supports: Array[MeshInstance3D] = []
+	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		var extras: Dictionary = mesh.get_meta("extras", {})
+		var label := str(extras.get("source_name", mesh.name))
+		if label.begins_with("Central L4 round arrival floor"): roof = mesh
+		if label == "quiet_front_sage_daybed": daybed = mesh
+		if label.begins_with("Working L3 downlight 1 "): parts.append(mesh)
+		if label.begins_with("Central L4 round arrival floor") or label == "Central single continuous full-height envelope" or label.begins_with("Central L3 fitted reveal quadrant"):
+			supports.append(mesh)
+	if roof == null or daybed == null or parts.is_empty(): return
+	var bed_bounds := daybed.global_transform * daybed.get_aabb()
+	var roof_bounds := roof.global_transform * roof.get_aabb()
+	# The existing front lamp must be on the window side of the backrest.
+	# Its body, rim and baffle stay together on the real curved underside.
+	var origin := Vector3(bed_bounds.get_center().x, roof_bounds.end.y + 1.0, minf(bed_bounds.end.z + 1.55, roof_bounds.end.z + 0.05))
+	var mounting := Vector3(0.0, INF, 0.0)
+	var normal := Vector3.UP
+	for support: MeshInstance3D in supports:
+		for surface in range(support.mesh.get_surface_count()):
+			var arrays := support.mesh.surface_get_arrays(surface)
+			var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+			if indices.is_empty():
+				indices.resize(points.size())
+				for vertex in range(points.size()): indices[vertex] = vertex
+			for i in range(0, indices.size(), 3):
+				var a := support.global_transform * points[indices[i]]
+				var b := support.global_transform * points[indices[i + 1]]
+				var c := support.global_transform * points[indices[i + 2]]
+				var hit: Variant = Geometry3D.ray_intersects_triangle(origin, Vector3.DOWN, a, b, c)
+				if hit == null or (hit as Vector3).y >= mounting.y or (hit as Vector3).y < roof_bounds.position.y: continue
+				mounting = hit
+				normal = (b - a).cross(c - a).normalized()
+				if normal.y < 0.0: normal = -normal
+	if not is_finite(mounting.y):
+		push_error("Front ceiling fixture could not be mounted on the actual roof")
+		return
+	var right := normal.cross(Vector3.BACK).normalized()
+	var basis := Basis(right, normal, right.cross(normal).normalized())
+	var target := Vector3(bed_bounds.get_center().x, bed_bounds.position.y + bed_bounds.size.y * 0.55, bed_bounds.end.z)
+	for part: MeshInstance3D in parts:
+		part.global_transform = Transform3D(basis, mounting + normal * 0.001)
+		part.set_meta("estate_ceiling_target", target)
 
 
 static func _apply_web_shadow_budget(sun: DirectionalLight3D) -> void:
@@ -188,6 +248,11 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 			instance.layers |= INTERIOR_FILL_LAYER
 		else:
 			instance.layers |= OUTDOOR_LIGHT_LAYER
+		# Shared slabs own the ceiling below as well as the floor above.
+		# Restore the lower mask after normalizing indoor/outdoor layers.
+		var ceiling_floor := int(extras.get("ceiling_for_floor", 0))
+		if str(extras.get("module", "")) == "central" and ceiling_floor in [1, 2, 3]:
+			instance.layers |= _activity_light_mask({"floor": ceiling_floor})
 		if instance.mesh != null:
 			for surface in range(instance.mesh.get_surface_count()):
 				var original := instance.get_active_material(surface) as BaseMaterial3D
@@ -251,6 +316,11 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 							calibrated.albedo_color.a = OBSERVATION_GLASS_ALPHA
 						elif transmission > 0.0:
 							calibrated.albedo_color.a = 1.0 - transmission
+						elif facade_glass:
+							# These closed panes have two rendered faces. Preserve
+							# the authored whole-pane opacity across both faces,
+							# rather than applying the full absorption twice.
+							calibrated.albedo_color.a = 1.0 - sqrt(1.0 - original.albedo_color.a)
 						# Compatibility specular is sqrt(F0 / .16). Authored IOR is
 						# 1.12 for pod panes and 1.46 for central facade glass.
 						calibrated.metallic_specular = _glass_specular(1.12 if observation_glass else 1.46)
@@ -401,7 +471,7 @@ static func _glass_specular(ior: float) -> float:
 	return SURFACE.specular_from_ior(ior)
 
 
-static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Dictionary) -> void:
+static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Dictionary, ceiling_targets: Dictionary) -> void:
 	var extras := mesh.get_meta("extras", {}) as Dictionary
 	var room := "%s:%s" % [extras.get("module", ""), extras.get("floor", 1)]
 	var label := str(extras.get("source_name", mesh.name)).to_lower()
@@ -409,6 +479,7 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 	var pod_terrace := str(extras.get("module", "")) in POD_MODULES and label == "terrace • inner parapet concealed warm strip"
 	var opal := central and "circular opal ceiling diffuser" in label
 	var downlight := central and " downlight " in label
+	var perimeter_downlight := downlight and ("distributed ceiling downlight" in label or int(extras.get("floor", 1)) == 3)
 	for source: Dictionary in extras.get("design_lights", []):
 		var spot := str(source["type"]) == "spot"
 		var light: Light3D = SpotLight3D.new() if spot else OmniLight3D.new()
@@ -425,6 +496,14 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			light.light_specular = 0.0
 		light.light_cull_mask = _room_light_mask(extras)
 		var general := opal or downlight
+		if central and spot and not general:
+			# Short-range task/edge lights fade beyond their local room.
+			# WebGL's 16 KiB light buffer holds 146 spots; these 42 local
+			# accents otherwise displace real ceiling beams from that buffer.
+			# Their emissive fixtures and all ceiling lights remain visible.
+			light.distance_fade_enabled = true
+			light.distance_fade_begin = 8.0
+			light.distance_fade_length = 2.0
 		if general:
 			light.light_color = CEILING_WARM_WHITE
 		if opal:
@@ -433,16 +512,20 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			if not spot or float(source.get("angle", 0.0)) > 1.0:
 				light.light_specular = 0.0
 				var floor_number := int(extras.get("floor", 1))
-				# Balance this real fixture's broad output against its clustered
-				# down-facing beams, retaining detail at the central seating.
-				var intensity := (56.0 if floor_number == 1 else 48.0) if spot else (4.8 if floor_number == 1 else 4.4)
+				# Four central beams overlap on the same seating. Budget their
+				# combined output, with the accepted bedroom lamp as a reference.
+				var intensity := (14.0 if floor_number == 1 else 6.0) if spot else (2.6 if floor_number == 1 else 4.4)
 				light.light_energy = intensity * DAYTIME_FIXTURE_SCALE
-		if str(extras.get("module", "")) == "central" and float(source["intensity"]) >= 4.0:
-			# Existing reading/column lights also serve furniture at the perimeter.
-			light.light_cull_mask |= _activity_light_mask(extras)
+		if downlight:
+			# Existing ceiling sources cover the perimeter; extra gain clips
+			# the upholstery where their wide beams overlap the central lamp.
+			var perimeter_output := 96.0 if int(extras.get("floor", 1)) == 3 else (72.0 if int(extras.get("floor", 1)) == 1 else 48.0)
+			light.light_energy = (perimeter_output if perimeter_downlight else minf(float(source["intensity"]), 24.0)) * DAYTIME_FIXTURE_SCALE
 		if general:
-			var coverage := 1.6 if "distributed ceiling downlight" in label else (1.15 if downlight else 1.0)
-			light.set_meta("estate_fixture_boost", GENERAL_FIXTURE_BOOST * coverage)
+			# General furniture lighting belongs to the real ceiling fixtures.
+			# Keep task/column sources on their local architectural receivers.
+			light.light_cull_mask = _activity_light_mask(extras)
+			light.set_meta("estate_fixture_boost", GENERAL_FIXTURE_BOOST)
 		if general and not spot:
 			# Use the existing diffuser source for soft room coverage. Restrict it
 			# to interior receivers, so it cannot brighten the exterior shell.
@@ -459,6 +542,14 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 				local_target.x = centre.x
 				local_target.z = centre.z
 			var target := mesh.global_transform * local_target
+			if perimeter_downlight and ceiling_targets.has(int(extras.get("floor", 1))):
+				# Aim the existing roof-mounted source across the outward-facing
+				# seating. Sloped roof normals previously sent its beam outside.
+				var centre: Vector3 = ceiling_targets[int(extras.get("floor", 1))]
+				target = centre.lerp(light.global_position, 0.75)
+				target.y = centre.y
+			if mesh.has_meta("estate_ceiling_target"):
+				target = mesh.get_meta("estate_ceiling_target")
 			var up := Vector3.FORWARD if absf((target - light.global_position).normalized().dot(Vector3.UP)) > 0.99 else Vector3.UP
 			light.look_at(target, up)
 			(light as SpotLight3D).spot_range = maxf(float(source["distance"]), 12.0) if general else float(source["distance"])
@@ -469,8 +560,16 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 				# Widen the existing downlight's beam rather than creating room
 				# fills. Follow its current model mount and direction, including
 				# the perimeter placements that reach the outward-facing seating.
-				(light as SpotLight3D).spot_angle = maxf((light as SpotLight3D).spot_angle, 75.0)
-				(light as SpotLight3D).spot_angle_attenuation = 0.6
+				var beam_angle := 82.0 if int(extras.get("floor", 1)) == 3 else 75.0
+				(light as SpotLight3D).spot_angle = maxf((light as SpotLight3D).spot_angle, beam_angle)
+				# A softer edge reaches outward-facing furniture without raising
+				# the beam's peak or introducing any additional light sources.
+				(light as SpotLight3D).spot_angle_attenuation = 0.25
+				if perimeter_downlight:
+					# Put the beam on the perimeter rather than bathing the central
+					# table again; retain every authored mounting position.
+					(light as SpotLight3D).spot_angle = 55.0
+					(light as SpotLight3D).spot_angle_attenuation = 0.5
 			if pod_terrace:
 				(light as SpotLight3D).spot_range = 6.5
 				(light as SpotLight3D).spot_angle = 75.0

@@ -12,11 +12,27 @@ func _initialize() -> void:
 			if state.get_node_property_name(node, property) == &"environment":
 				environment = state.get_node_property_value(node, property).duplicate(true)
 	var sample := SAMPLE.new()
+	var original_background := environment.background_mode
+	var original_ambient := environment.ambient_light_energy
 	sample.bind_environment(environment)
 	for daylight in [1.0, 0.0, 1.0]:
 		sample.apply_environment(daylight, is_zero_approx(daylight))
 		var sky := environment.sky.sky_material as ShaderMaterial
 		var reflected: Variant = sky.get_shader_parameter("environment_color")
+		var night := is_zero_approx(daylight)
+		var night_amount: Variant = sky.get_shader_parameter("night_amount")
+		if night_amount == null or not is_equal_approx(float(night_amount), 1.0 if night else 0.0):
+			push_error("Night sky must enable its gradient and sparse stars only at night")
+			quit(1)
+			return
+		if environment.background_mode != (Environment.BG_SKY if night else original_background):
+			push_error("Night stars must be visible, and returning to day must restore the approved background")
+			quit(1)
+			return
+		if not is_equal_approx(environment.ambient_light_energy, original_ambient * (SAMPLE.NIGHT_NATURAL_SCALE if night else 1.0)):
+			push_error("The visible night sky must not increase ambient lighting")
+			quit(1)
+			return
 		if reflected == null or not (reflected as Color).is_equal_approx(environment.background_color):
 			push_error("Reflections must use the displayed environment color in both day and night")
 			quit(1)

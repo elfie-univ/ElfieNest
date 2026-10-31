@@ -11,7 +11,7 @@ var _phase_selector: OptionButton
 var _lighting_views: Array[Dictionary] = []
 var _lighting_cameras: PackedStringArray = []
 const LIGHTING_PHASES := ["day", "night", "quiet"]
-const LIGHTING_CAMERAS := {"overview": "全园总览", "central": "主楼正面", "living": "一层室内", "middle": "二层室内", "upper": "三层室内", "plaza": "小广场", "ring": "环形路", "forest": "林间小路", "lake": "湖与喷泉", "seats": "湖边座椅", "bedroom": "卧室", "terrace": "露台"}
+const LIGHTING_CAMERAS := {"overview": "全园总览", "central": "主楼正面", "living": "一层室内", "middle": "二层室内", "south": "二层南窗外望", "upper": "三层室内", "plaza": "小广场", "sky": "室外仰望天空", "ring": "环形路", "forest": "林间小路", "lake": "湖与喷泉", "shore": "湖岸近景", "seats": "湖边座椅", "bedroom": "卧室", "terrace": "露台"}
 
 
 func _ready() -> void:

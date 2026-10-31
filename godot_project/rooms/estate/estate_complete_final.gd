@@ -6,6 +6,7 @@ const SIDECAR_MAGIC := "ENINST01"
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 const WATER := preload("res://rooms/estate/estate_water.gd")
+const SHORE := preload("res://rooms/estate/estate_shore_finish.gd")
 const MAX_BATCH_INSTANCES := 128
 const BATCH_CELL_SIZE := 16.0
 
@@ -13,6 +14,7 @@ var multimesh_group_count := 0
 var multimesh_instance_count := 0
 var restore_error := ""
 var _canopy_meshes: Dictionary = {}
+var _shore := SHORE.new()
 
 
 func _ready() -> void:
@@ -23,6 +25,7 @@ func _ready() -> void:
 	var layout := outdoor.instantiate() as Node3D
 	add_child(layout)
 	_apply_outdoor_layout(layout)
+	_shore.apply(self, layout)
 	DAYLIGHT.apply(self)
 	WATER.attach($CompleteFinal)
 	_restore_instanced_groups()
@@ -107,6 +110,8 @@ func _restore_instanced_groups() -> void:
 			file.close()
 			_fail_restore("Complete final instance marker has no mesh: %s" % group_name)
 			return
+		var retreated := _shore.retreat_plants(source_mesh.mesh, instance_buffer)
+		set_meta("shore_retreat_count", int(get_meta("shore_retreat_count", 0)) + retreated)
 
 		marker.visible = false
 		var shared_mesh := _full_detail_canopy(source_mesh.mesh)

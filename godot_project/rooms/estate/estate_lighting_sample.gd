@@ -32,7 +32,7 @@ func bind_natural_material(material: ShaderMaterial) -> void:
 func bind_environment(environment: Environment) -> void:
 	var identity := environment.get_instance_id()
 	if not _environments.has(identity):
-		_environments[identity] = {"environment": environment, "ambient": environment.ambient_light_energy, "background": environment.background_color, "sky": environment.background_energy_multiplier}
+		_environments[identity] = {"environment": environment, "ambient": environment.ambient_light_energy, "background": environment.background_color, "background_mode": environment.background_mode, "sky": environment.background_energy_multiplier}
 
 
 func apply_sample(daylight: float, room_in_use: bool = true, ordinary_enabled: bool = true) -> void:
@@ -74,6 +74,11 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 		if environment.sky != null:
 			var sky_material := environment.sky.sky_material as ShaderMaterial
 			if sky_material != null and sky_material.shader == REFLECTION_SKY:
+				var night := is_zero_approx(level)
+				environment.background_mode = Environment.BG_SKY if night else int(binding["background_mode"]) as Environment.BGMode
+				var night_amount: Variant = sky_material.get_shader_parameter("night_amount")
+				if night_amount == null or not is_equal_approx(float(night_amount), 1.0 if night else 0.0):
+					sky_material.set_shader_parameter("night_amount", 1.0 if night else 0.0)
 				# Night already has its own dim background color. Do not apply
 				# the old studio-panorama attenuation to it a second time.
 				if sky_material.get_shader_parameter("environment_color") != environment.background_color:

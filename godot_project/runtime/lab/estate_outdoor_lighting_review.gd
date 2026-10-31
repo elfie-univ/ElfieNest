@@ -24,6 +24,8 @@ func _ready() -> void:
 		_people = add_review_people(self, estate)
 	var lake := estate.find_child("COMPLETE Inset natural lake",true,false) as MeshInstance3D
 	var lake_center := (lake.global_transform*lake.get_aabb()).get_center()
+	var platform := estate.find_child("CY R003 circular waterfront platform closed foundation",true,false) as MeshInstance3D
+	var shore_eye := (platform.global_transform*platform.get_aabb()).get_center() + Vector3.UP * 2.0
 	var trail := estate.find_child("FOREST TRAIL smooth gravel main loop and return spur",true,false)
 	var path: Array = (trail.get_meta("extras") as Dictionary).forest_trail_paths[0]
 	var start: Array = path[mini(40,path.size()-2)]
@@ -35,11 +37,14 @@ func _ready() -> void:
 		["Overview",Vector3(49,46,61),Vector3(0,1,4)],
 		["Central",Vector3(21,17,28),Vector3(0,5.8,0)],
 		["Middle",Vector3(0,5.8,5.5),Vector3(0,5.3,0)],
+		["South",Vector3(0,5.8,6.4),Vector3(0,1.2,26)],
 		["Upper",Vector3(0,8.6,5.5),Vector3(0,8.1,0)],
 		["Plaza",Vector3(0,15,43),Vector3(0,0.5,23)],
+		["Sky",Vector3(0,2.0,24),Vector3(0,14,50)],
 		["Ring",Vector3(-14,2.2,-14),Vector3(-7,0.6,-18)],
 		["Forest",eye,target],
 		["Lake",lake_center+Vector3(20,24,28),lake_center],
+		["Shore",shore_eye,lake_center],
 		["Seats",Vector3(42,6,12),Vector3(31,0.5,3)]
 	]
 	var living := _living_view(estate)
