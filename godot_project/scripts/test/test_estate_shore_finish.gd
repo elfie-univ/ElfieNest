@@ -1,6 +1,7 @@
 extends SceneTree
 
 const SAMPLE := preload("res://rooms/estate/estate_lighting_sample.gd")
+const SHORE := preload("res://rooms/estate/estate_shore_finish.gd")
 var failures: Array[String] = []
 
 func _initialize() -> void:
@@ -14,27 +15,46 @@ func run() -> void:
 	root.add_child(estate)
 	var rim := estate.find_child("WholeLakeConcealedRim", true, false) as MeshInstance3D
 	check(rim != null and not rim.visible, "The old thin rim must not double the broad bank light")
-	var banks: Array[MeshInstance3D] = []
+	var ribbon := estate.find_child("WholeLakeRibbon", true, false) as MeshInstance3D
+	if ribbon == null:
+		push_error("The full lake and platform require one shared ribbon")
+		estate.free()
+		quit(1)
+		return
+	var banks: Array[MeshInstance3D] = [ribbon]
+	check(ribbon.mesh.get_surface_count() == 1, "All shore segments must share one surface and one light material")
+	var path: PackedVector3Array = ribbon.get_meta("shoreline")
+	check(path[0] != path[-1], "The real waterfall opening must remain clear instead of closing a lamp across the falling water")
+	var arrays := ribbon.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	check(vertices.size() == path.size() * 4 and indices.size() == (path.size() - 1) * 18, "One shared full-height profile must cover every contour segment")
+	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
+	var curtain_box := curtain.global_transform * curtain.get_aabb()
+	for i in range(0, indices.size(), 3):
+		var a := vertices[indices[i]]
+		var b := vertices[indices[i + 1]]
+		var c := vertices[indices[i + 2]]
+		var center := (a + b + c) / 3.0
+		check(not (center.x > curtain_box.position.x and center.x < curtain_box.end.x and center.z > curtain_box.position.z and center.z < curtain_box.end.z), "No warm bank-light triangle may cross the waterfall face")
+	var edges: Dictionary = {}
+	for i in range(0, indices.size(), 3):
+		for j in range(3):
+			var a := indices[i + j]
+			var b := indices[i + (j + 1) % 3]
+			var key := Vector2i(mini(a, b), maxi(a, b))
+			edges[key] = int(edges.get(key, 0)) + 1
+	for key: Vector2i in edges:
+		var boundary := (key.x % 4 == 0 and key.y % 4 == 0) or (key.x % 4 == 3 and key.y % 4 == 3) or (key.x / 4 == key.y / 4 and key.x / 4 in [0, path.size() - 1])
+		check(int(edges[key]) == (1 if boundary else 2), "Ribbon joins must share vertices, with no cracks, caps or overlapping triangles")
+	for i in range(path.size() - 1):
+		check(vertices[i * 4 + 1].y - vertices[i * 4 + 3].y > 0.4, "Platform and bank must retain the same broad luminous face")
+	var ribbon_material := ribbon.get_active_material(0) as BaseMaterial3D
+	var mask := ribbon_material.emission_texture.get_image()
+	check(mask.get_pixel(0, 63).r > 0.9 and mask.get_pixel(0, 0).r < 0.01, "The whole ribbon uses the same warm top-to-water fade")
 	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
-		if str((mesh.get_meta("extras", {}) as Dictionary).get("outdoor_fixture_id", "")) == "shoreline-wash":
-			banks.append(mesh)
-	check(banks.size() == 7, "All bank components and the waterfront platform must carry the same water-facing finish")
-	for bank: MeshInstance3D in banks:
-		var original := bank.mesh.surface_get_material(0) as BaseMaterial3D
-		var actual := bank.get_active_material(0) as BaseMaterial3D
-		check(actual != null and actual.emission_enabled and actual.emission_on_uv2 and actual.emission_texture != null, "The actual water-facing bank must carry a graded light finish, not only a horizontal strip")
-		check(actual != null and actual.albedo_color == original.albedo_color and actual.albedo_texture == original.albedo_texture, "The bank must retain its original moss/soil finish")
-		check(bool(bank.mesh.surface_get_format(0) & Mesh.ARRAY_FORMAT_TEX_UV2), "Bank lighting must preserve original UVs and use a separate height mask")
-		if actual != null and actual.emission_texture != null:
-			check(actual.emission_operator == BaseMaterial3D.EMISSION_OP_MULTIPLY, "The height mask must multiply the emitter, leaving the lower bank dark")
-			var mask := actual.emission_texture.get_image()
-			check(mask.get_pixel(15, 63).r > 0.9 and mask.get_pixel(15, 0).r < 0.01 and mask.get_pixel(0, 63).r < 0.01, "The shore face must fade toward the water and leave non-facing soil unlit")
-			var reference := estate.find_child("CY R003 corrected CY R002 continuous natural shore slope 0", true, false) as MeshInstance3D
-			var bounds := reference.global_transform * reference.get_aabb()
-			var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D
-			var water_y := (lake.global_transform * lake.get_aabb()).end.y
-			var water_row := floori((water_y - bounds.position.y) / bounds.size.y * 63.0)
-			check(mask.get_pixel(15, water_row).r < 0.02, "The graded bank must be dark at and below the actual waterline")
+		if mesh == ribbon: continue
+		check(str((mesh.get_meta("extras", {}) as Dictionary).get("outdoor_fixture_id", "")) != "shoreline-wash", "Old per-bank glow must not create duplicate contours")
 	check(int(estate.get_meta("shore_retreat_count", 0)) > 0, "Overhanging land plants must actually retreat from the water")
 	check(int(estate.get("multimesh_instance_count")) == 214448, "Shore tidying must preserve all landscape instances")
 	var outline: PackedVector3Array = estate.find_child("OutdoorLighting", true, false).get_meta("shoreline")
@@ -63,7 +83,7 @@ func run() -> void:
 			var material := bank.get_active_material(0) as BaseMaterial3D
 			if material == null: continue
 			check(material.emission_energy_multiplier > 0.0 if night else is_zero_approx(material.emission_energy_multiplier), "Shore illumination must follow the actual night/day switch")
-	for failure: String in failures: push_error(failure)
-	if failures.is_empty(): print("PASS real graded shore faces, original soil finish, cleared water footprint, preserved planting and day/night switching; retreated=", estate.get_meta("shore_retreat_count"))
+	for failure: String in failures.slice(0, 10): push_error(failure)
+	if failures.is_empty(): print("PASS one shared ribbon with clear waterfall opening, uniform profile, manifold joins, no duplicate glow, preserved planting and day/night switching; retreated=", estate.get_meta("shore_retreat_count"))
 	estate.free()
 	quit(0 if failures.is_empty() else 1)

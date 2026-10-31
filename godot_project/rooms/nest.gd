@@ -769,11 +769,29 @@ func set_observation_hud_visible(visible: bool) -> void:
 func select_observation_view(index: int) -> void:
 	if index < 0 or index >= _camera_views.size():
 		return
+	var next_id := str(_camera_views[index]["id"])
+	var phase_only := (
+		_active_camera_id.begins_with("lighting-v4-")
+		and next_id.begins_with("lighting-v4-")
+		and next_id != _active_camera_id
+		and next_id.get_slice("-", 2) == _active_camera_id.get_slice("-", 2)
+	)
+	var previous_camera := _active_camera()
 	_active_camera_index = index
 	var view := _camera_views[index]
 	view["follow_initialized"] = false
 	_active_camera_id = String(view["id"])
 	var camera := view["camera"] as Camera3D
+	if phase_only:
+		# Phase presets share a viewpoint. Keep the live orbit/pan/zoom,
+		# while retaining each preset's stored transform for explicit reset.
+		camera.global_transform = previous_camera.global_transform
+		camera.size = previous_camera.size
+		camera.fov = previous_camera.fov
+		camera.current = true
+		if _observation_hud != null: _observation_hud.call("set_selected_view", index)
+		_emit_observer_camera_catalog_changed()
+		return
 	camera.current = true
 	_camera_target = view["target"] as Vector3
 	camera.global_transform = view["transform"] as Transform3D

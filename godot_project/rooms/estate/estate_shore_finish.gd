@@ -4,8 +4,6 @@ extends RefCounted
 var water := PackedVector2Array()
 var water_bounds := Rect2()
 var water_height := 0.0
-var bank_top := 0.0
-var bank_bottom := 0.0
 
 func apply(estate: Node3D, layout: Node3D) -> void:
 	var old_rim := layout.find_child("WholeLakeConcealedRim", true, false) as MeshInstance3D
@@ -16,64 +14,139 @@ func apply(estate: Node3D, layout: Node3D) -> void:
 	for point: Vector2 in water: water_bounds = water_bounds.expand(point)
 	var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D
 	water_height = (lake.global_transform * lake.get_aabb()).end.y
-	var bank := estate.find_child("CY R003 corrected CY R002 continuous natural shore slope 0", true, false) as MeshInstance3D
-	bank_top = (bank.global_transform * bank.get_aabb()).end.y
-	bank_bottom = (bank.global_transform * bank.get_aabb()).position.y
-	var image := Image.create(16, 64, false, Image.FORMAT_RGB8)
+	var path := ribbon_path(estate)
+	var top := path[0].y
+	var contour := PackedVector2Array()
+	for i in range(path.size()): contour.append(Vector2(path[i].x, path[i].z))
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uv := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for i in range(contour.size()):
+		var point := contour[i]
+		var tangent := (contour[mini(i + 1, contour.size() - 1)] - contour[maxi(i - 1, 0)]).normalized()
+		var inward := Vector2(-tangent.y, tangent.x)
+		if not Geometry2D.is_point_in_polygon(point + inward * 0.02, contour): inward = -inward
+		# The same softly rounded, full-height cross-section runs around the
+		# entire shore. Shared indexed vertices leave no independent end caps.
+		for profile: Vector2 in [Vector2(-0.035, top - 0.02), Vector2(0.0, top), Vector2(0.04, top - 0.035), Vector2(0.085, water_height + 0.002)]:
+			var xz := point + inward * profile.x
+			vertices.append(Vector3(xz.x, profile.y, xz.y))
+			normals.append(Vector3(inward.x, 0.2, inward.y).normalized())
+			uv.append(Vector2(0.5, clampf((profile.y - water_height) / (top - water_height), 0.0, 1.0)))
+	for i in range(contour.size() - 1):
+		var next := i + 1
+		for row in range(3):
+			var a := i * 4 + row
+			var b := next * 4 + row
+			indices.append_array(PackedInt32Array([a, b, b + 1, a, b + 1, a + 1]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uv
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var ribbon_mesh := ArrayMesh.new()
+	ribbon_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var image := Image.create(1, 64, false, Image.FORMAT_RGB8)
 	for y in range(64):
-		for x in range(16):
-			var level := lerpf(bank_bottom, bank_top, float(y) / 63.0)
-			var height := clampf((level - water_height) / (bank_top - water_height), 0.0, 1.0)
-			var strength := float(x) / 15.0 * pow(height, 1.5)
-			image.set_pixel(x, y, Color(strength, strength, strength).linear_to_srgb())
-	image.generate_mipmaps()
-	var mask := ImageTexture.create_from_image(image)
-	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
-		var label := str(mesh.name)
-		if not label.begins_with("CY R003 corrected CY R002 continuous natural shore slope") and label not in ["CY R003 corrected CY R002 lakeside returned solid planting bank", "CY R003 corrected CY R002 lakeside gently sloping planted shore", "CY R003 corrected CY SHORE solid Continuous planted lake bank", "CY R003 corrected CY SHORE solid Lake sloping bank", "CY R003 circular waterfront platform closed foundation"]: continue
-		var finished := ArrayMesh.new()
-		for surface in range(mesh.mesh.get_surface_count()):
-			var arrays := mesh.mesh.surface_get_arrays(surface).duplicate(true)
-			# Shared rim vertices can carry upward normals from the platform top.
-			# Split indexed faces so the vertical fascia keeps its own light mask.
-			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-			if not indices.is_empty():
-				for attribute in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_COLOR]:
-					if arrays[attribute] == null: continue
-					var source = arrays[attribute]
-					var expanded = source.duplicate()
-					expanded.resize(indices.size())
-					for index in range(indices.size()): expanded[index] = source[indices[index]]
-					arrays[attribute] = expanded
-				arrays[Mesh.ARRAY_INDEX] = null
-				arrays[Mesh.ARRAY_TANGENT] = null
-			var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var uv := PackedVector2Array()
-			for i in range(points.size()):
-				var point := mesh.global_transform * points[i]
-				var triangle := i - i % 3
-				var face := (points[triangle + 1] - points[triangle]).cross(points[triangle + 2] - points[triangle]).normalized()
-				var facing := 1.0 - smoothstep(0.95, 0.999, absf(face.y))
-				var coverage := facing
-				var height := clampf((point.y - bank_bottom) / (bank_top - bank_bottom), 0.0, 1.0)
-				uv.append(Vector2((coverage * 15.0 + 0.5) / 16.0, (height * 63.0 + 0.5) / 64.0))
-			arrays[Mesh.ARRAY_TEX_UV2] = uv
-			finished.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-			var original := mesh.get_active_material(surface) as BaseMaterial3D
-			finished.surface_set_material(surface, mesh.mesh.surface_get_material(surface))
-			var material := original.duplicate() as BaseMaterial3D
-			material.resource_name = "Outdoor shoreline concealed warm wash lamp"
-			material.emission_enabled = true
-			material.emission = Color(1.0, 0.77, 0.44)
-			material.emission_energy_multiplier = 1.1
-			material.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
-			material.emission_on_uv2 = true
-			material.emission_texture = mask
-			mesh.set_surface_override_material(surface, material)
-		mesh.mesh = finished
-		var extras: Dictionary = mesh.get_meta("extras", {}).duplicate()
-		extras["outdoor_fixture_id"] = "shoreline-wash"
-		mesh.set_meta("extras", extras)
+		var strength := pow(float(y) / 63.0, 1.5)
+		image.set_pixel(0, y, Color(strength, strength, strength).linear_to_srgb())
+	var material := StandardMaterial3D.new()
+	material.resource_name = "Outdoor shoreline concealed warm wash lamp"
+	material.albedo_color = Color(0.68, 0.57, 0.38)
+	material.roughness = 0.8
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.emission_enabled = true
+	material.emission = Color(1.0, 0.77, 0.44)
+	material.emission_energy_multiplier = 1.1
+	material.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
+	material.emission_texture = ImageTexture.create_from_image(image)
+	ribbon_mesh.surface_set_material(0, material)
+	var ribbon := MeshInstance3D.new()
+	ribbon.name = "WholeLakeRibbon"
+	ribbon.mesh = ribbon_mesh
+	ribbon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ribbon.set_meta("extras", {"outdoor_fixture_id": "shoreline-wash", "lighting_diffuser": true})
+	ribbon.set_meta("shoreline", path)
+	layout.add_child(ribbon)
+	ribbon.global_transform = Transform3D.IDENTITY
+
+static func ribbon_path(estate: Node3D) -> PackedVector3Array:
+	# The composed world and the cropped water review use the same source
+	# boundary and the same contour operation, without local connector patches.
+	var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D
+	var reader := preload("res://rooms/estate/estate_outdoor_access.gd").new()
+	var loops: Array[PackedVector2Array] = reader._top_outlines(lake, 0, -1.0)
+	reader.free()
+	var water_outline := PackedVector2Array()
+	var largest := 0.0
+	for loop: PackedVector2Array in loops:
+		var area := 0.0
+		for i in range(loop.size()): area += loop[i].cross(loop[(i + 1) % loop.size()])
+		if absf(area) > largest:
+			largest = absf(area)
+			water_outline = loop
+	assert(not water_outline.is_empty(), "The real lake must have a closed boundary")
+	# A uniform opening removes narrow folded tips in the authored outline;
+	# it does not add an independent cap at the platform junction.
+	var inset := Geometry2D.offset_polygon(water_outline, -0.35, Geometry2D.JOIN_ROUND)
+	assert(inset.size() == 1, "The lake ribbon must remain one closed contour")
+	var opened := Geometry2D.offset_polygon(inset[0], 0.315, Geometry2D.JOIN_ROUND)
+	assert(opened.size() == 1, "The lake ribbon must remain one closed contour")
+	var contour := PackedVector2Array()
+	for point: Vector2 in opened[0]:
+		if contour.is_empty() or contour[-1].distance_to(point) > 0.06: contour.append(point)
+	for pass_index in range(2):
+		var rounded := PackedVector2Array()
+		for i in range(contour.size()):
+			var a := contour[i]
+			var b := contour[(i + 1) % contour.size()]
+			rounded.append(a.lerp(b, 0.25))
+			rounded.append(a.lerp(b, 0.75))
+		contour = rounded
+	var bank := estate.find_child("CY R003 corrected CY R002 continuous natural shore slope 0", true, false) as MeshInstance3D
+	var platform := estate.find_child("CY R003 circular waterfront platform closed foundation", true, false) as MeshInstance3D
+	var top := maxf((bank.global_transform * bank.get_aabb()).end.y, (platform.global_transform * platform.get_aabb()).end.y) + 0.012
+	var north := estate.find_child("CY R001 spillway north continuous side wall", true, false) as MeshInstance3D
+	var south := estate.find_child("CY R001 spillway south continuous side wall", true, false) as MeshInstance3D
+	var north_box := north.global_transform * north.get_aabb()
+	var south_box := south.global_transform * south.get_aabb()
+	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
+	var fall := curtain.global_transform * curtain.get_aabb()
+	var opening := Rect2(Vector2(fall.position.x - 0.4, north_box.end.z - 0.055), Vector2(fall.size.x + 0.8, south_box.position.z + 0.055 - (north_box.end.z - 0.055)))
+	# Split at the real channel sides before opening the loop. Both guides
+	# then terminate on these exact crest vertices, leaving the water clear.
+	var split := PackedVector3Array()
+	for i in range(contour.size()):
+		var a := contour[i]
+		var b := contour[(i + 1) % contour.size()]
+		var cuts: Array[float] = [0.0]
+		if absf(b.y - a.y) > 0.00001:
+			for z: float in [opening.position.y, opening.end.y]:
+				var t := (z - a.y) / (b.y - a.y)
+				var point := a.lerp(b, t)
+				if t > 0.00001 and t < 0.99999 and point.x > opening.position.x and point.x < opening.end.x: cuts.append(t)
+		cuts.sort()
+		for t: float in cuts:
+			var point := a.lerp(b, t)
+			split.append(Vector3(point.x, top, point.y))
+	var clear: Array[bool] = []
+	for i in range(split.size()):
+		var midpoint := (split[i] + split[(i + 1) % split.size()]) * 0.5
+		clear.append(not opening.has_point(Vector2(midpoint.x, midpoint.z)))
+	var start := -1
+	for i in range(split.size()):
+		if clear[i] and not clear[posmod(i - 1, split.size())]:
+			assert(start == -1, "Only the real waterfall may interrupt the shore ribbon")
+			start = i
+	assert(start >= 0, "The shoreline must meet both sides of the real waterfall")
+	var path := PackedVector3Array([split[start]])
+	for step in range(split.size()):
+		var index := (start + step) % split.size()
+		if not clear[index]: break
+		path.append(split[(index + 1) % split.size()])
+	return path
 
 func nearest_edge(point: Vector2) -> Vector2:
 	var nearest := water[0]

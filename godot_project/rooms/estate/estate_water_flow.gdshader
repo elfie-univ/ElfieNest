@@ -11,6 +11,11 @@ uniform bool use_source_texture = false;
 uniform sampler2D source_texture : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec3 accent_color = vec3(0.0);
 uniform float accent_strength = 0.0;
+uniform bool is_waterfall = false;
+uniform vec3 waterfall_min = vec3(0.0);
+uniform vec3 waterfall_size = vec3(1.0);
+uniform float waterfall_glow = 0.0;
+uniform float waterfall_phase = 0.0;
 varying vec3 water_position;
 
 void vertex() {
@@ -34,6 +39,17 @@ void fragment() {
 	// gains coverage, so the illuminated ring remains readable without new mesh.
 	if (is_ripple) {
 		ALPHA = clamp(ALPHA + accent_strength * 0.38, 0.0, 0.85);
+	}
+	if (is_waterfall && waterfall_glow > 0.0) {
+		// Full-sheet illumination. Downward-moving ribbons modulate a lit
+		// base, so neither side nor the lower water curtain becomes black.
+		vec3 p = (water_position - waterfall_min) / max(waterfall_size, vec3(0.001));
+		float ribbon = 0.78 + 0.22 * sin(p.y * 18.0 + waterfall_phase * 3.2 + sin(p.z * 12.0));
+		float color_phase = 0.5 + 0.5 * sin(waterfall_phase * 0.45 + p.z * 3.0 + p.y * 1.5);
+		vec3 aqua = vec3(0.20, 0.72, 0.85);
+		vec3 violet = vec3(0.62, 0.30, 0.82);
+		EMISSION = mix(aqua, violet, color_phase) * ribbon * waterfall_glow;
+		ALPHA = mix(ALPHA, max(ALPHA, 0.82), clamp(waterfall_glow, 0.0, 1.0));
 	}
 	NORMAL = normalize(NORMAL + vec3(wave * 0.018, 0.0, cos(phase) * 0.018));
 	METALLIC = source_metallic;
