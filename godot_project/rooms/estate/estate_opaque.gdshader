@@ -39,8 +39,8 @@ void fragment() {
 	if (dot(NORMAL, VIEW) < 0.0) {
 		NORMAL = -NORMAL;
 	}
-	vec3 world_normal = normalize(mat3(INV_VIEW_MATRIX) * NORMAL);
-	IRRADIANCE = vec4(mix(to_linear(vec3(0.352941, 0.407843, 0.364706)), to_linear(vec3(0.843137, 0.921569, 1.0)), world_normal.y * 0.5 + 0.5) * (0.72 / PI) * natural_light_scale, 1.0);
+	// Direct illumination comes from the scene sun and mounted fixtures only.
+	IRRADIANCE = vec4(0.0, 0.0, 0.0, 1.0);
 	vec3 gradient = max(abs(dFdx(NORMAL)), abs(dFdy(NORMAL)));
 	float geometry_roughness = max(gradient.x, max(gradient.y, gradient.z));
 	ALBEDO = source_albedo.rgb;

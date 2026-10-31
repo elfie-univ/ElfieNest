@@ -18,6 +18,7 @@ var _shore := SHORE.new()
 
 
 func _ready() -> void:
+	_place_lakeside_bench($CompleteFinal)
 	var outdoor := load("res://rooms/estate/estate_outdoor_lighting.scn") as PackedScene
 	if outdoor == null:
 		_fail_restore("Build the current estate lighting before loading the composed world")
@@ -31,6 +32,19 @@ func _ready() -> void:
 	_restore_instanced_groups()
 	var storage := preload("res://rooms/estate/estate_mesh_storage.gd").share_geometry(self)
 	print("ESTATE_SHARED_GEOMETRY ", JSON.stringify(storage))
+
+
+static func _place_lakeside_bench(source: Node3D) -> void:
+	# Keep the seat level while clearing the approach and following the rear rim.
+	var pivot := Vector3(36.0, 0.0, -0.4)
+	var turn := Basis(Vector3.UP, deg_to_rad(-12.0))
+	for part: MeshInstance3D in source.find_children("Lakeside*", "MeshInstance3D", true, false):
+		if not (str(part.name).begins_with("Lakeside bench") or str(part.name).begins_with("Lakeside bronze bench leg") or str(part.name).begins_with("Lakeside back frame")):
+			continue
+		var placed := part.global_transform
+		placed.origin = pivot + turn * (placed.origin - pivot) + Vector3(1.15, 0.0, 0.15)
+		placed.basis = turn * placed.basis
+		part.global_transform = placed
 
 
 func _apply_outdoor_layout(layout: Node3D) -> void:
@@ -68,6 +82,8 @@ func _restore_instanced_groups() -> void:
 		return
 
 	var observed_instance_count := 0
+	var rendered_instance_count := 0
+	var removed_by_group: Dictionary={}
 	for _group_index in range(group_count):
 		if file.get_length() - file.get_position() < 8:
 			_fail_restore("Complete final instance sidecar group header is truncated")
@@ -113,6 +129,13 @@ func _restore_instanced_groups() -> void:
 		var retreated := _shore.retreat_plants(source_mesh.mesh, instance_buffer)
 		set_meta("shore_retreat_count", int(get_meta("shore_retreat_count", 0)) + retreated)
 
+		var filtered:=_shore.filter_plant_instances(source_mesh.mesh,instance_buffer)
+		instance_buffer=filtered.buffer
+		rendered_instance_count+=instance_buffer.size()/12
+		removed_by_group[group_name]=filtered.removed
+		set_meta("foliage_pruned_bench",int(get_meta("foliage_pruned_bench",0))+int(filtered.bench))
+		set_meta("foliage_pruned_water",int(get_meta("foliage_pruned_water",0))+int(filtered.water))
+
 		marker.visible = false
 		var shared_mesh := _full_detail_canopy(source_mesh.mesh)
 		for surface in range(shared_mesh.get_surface_count()):
@@ -145,7 +168,9 @@ func _restore_instanced_groups() -> void:
 			multimesh_instance.cast_shadow = source_mesh.cast_shadow
 			multimesh_instance.set_meta("asset_role", "complete-final-instanced-group")
 			multimesh_instance.set_meta("source_group", group_name)
-			multimesh_instance.set_meta("source_instance_indices", batch["source_indices"])
+			var original_indices:=PackedInt32Array()
+			for index: int in batch["source_indices"]:original_indices.append(filtered.indices[index])
+			multimesh_instance.set_meta("source_instance_indices",original_indices)
 			add_child(multimesh_instance)
 			batch_index += 1
 		observed_instance_count += instance_count
@@ -159,8 +184,10 @@ func _restore_instanced_groups() -> void:
 		)
 		return
 	multimesh_group_count = group_count
-	multimesh_instance_count = observed_instance_count
-	print("ESTATE_RENDER_BATCHES source_groups=", group_count, " batches=", find_children("*", "MultiMeshInstance3D", false, false).size(), " instances=", observed_instance_count)
+	multimesh_instance_count = rendered_instance_count
+	set_meta("foliage_pruned_count",observed_instance_count-rendered_instance_count)
+	set_meta("foliage_pruned_by_group",removed_by_group)
+	print("ESTATE_RENDER_BATCHES source_groups=", group_count, " batches=", find_children("*", "MultiMeshInstance3D", false, false).size(), " instances=", rendered_instance_count)
 
 
 static func _spatial_batches(buffer: PackedFloat32Array) -> Array[Dictionary]:

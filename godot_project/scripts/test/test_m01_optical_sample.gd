@@ -24,6 +24,10 @@ func run() -> void:
 	var environments := sample.find_children("*", "WorldEnvironment", true, false)
 	if not _require(environments.size() == 1 and environments[0].environment.reflected_light_source == Environment.REFLECTION_SOURCE_SKY, "M01 has no environment reflections"):
 		return
+	if not _require(sample.find_children("ReferenceRoomPoint*", "Light3D", true, false).is_empty() and sample.find_children("ReferenceCentralPoint*", "Light3D", true, false).is_empty(), "No unmounted reference fill lights may be created"):
+		return
+	if not _require(sample.find_children("ReferenceHemisphere*", "Light3D", true, false).is_empty() and environments[0].environment.ambient_light_source == Environment.AMBIENT_SOURCE_DISABLED and is_zero_approx(environments[0].environment.ambient_light_energy), "M01 must not introduce hemisphere or ambient compensation"):
+		return
 	var shadow_lights := 0
 	for light: Node in sample.find_children("*", "Light3D", true, false):
 		if light.shadow_enabled:

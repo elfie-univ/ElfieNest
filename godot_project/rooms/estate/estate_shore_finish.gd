@@ -4,6 +4,9 @@ extends RefCounted
 var water := PackedVector2Array()
 var water_bounds := Rect2()
 var water_height := 0.0
+var bench_clearance:=AABB()
+var estate_frame:=Transform3D.IDENTITY
+var _plant_bounds: Dictionary={}
 
 func apply(estate: Node3D, layout: Node3D) -> void:
 	var old_rim := layout.find_child("WholeLakeConcealedRim", true, false) as MeshInstance3D
@@ -14,6 +17,17 @@ func apply(estate: Node3D, layout: Node3D) -> void:
 	for point: Vector2 in water: water_bounds = water_bounds.expand(point)
 	var lake := estate.find_child("COMPLETE Inset natural lake", true, false) as MeshInstance3D
 	water_height = (lake.global_transform * lake.get_aabb()).end.y
+	estate_frame=estate.global_transform
+	var first:=true
+	for part: MeshInstance3D in estate.find_children("Lakeside*","MeshInstance3D",true,false):
+		if not ("bench" in str(part.name) or str(part.name).begins_with("Lakeside back frame")):continue
+		var box:=part.global_transform*part.get_aabb()
+		bench_clearance=box if first else bench_clearance.merge(box)
+		first=false
+	bench_clearance=bench_clearance.grow(0.35)
+	bench_clearance.position.y=0.65
+	bench_clearance.size.y=2.0
+	estate.set_meta("bank_triangles_clipped",preload("res://rooms/estate/estate_bank_cleanup.gd").apply(estate,water,water_bounds,water_height))
 	var path := ribbon_path(estate)
 	var top := path[0].y
 	var contour := PackedVector2Array()
@@ -190,3 +204,41 @@ func retreat_plants(mesh: Mesh, buffer: PackedFloat32Array) -> int:
 		buffer[offset + 11] = destination.y
 		moved += 1
 	return moved
+
+func filter_plant_instances(mesh: Mesh, buffer: PackedFloat32Array) -> Dictionary:
+	var identity:=mesh.get_instance_id()
+	if not _plant_bounds.has(identity):
+		var actual:=AABB()
+		var first:=true
+		var plant:=false
+		for s in range(mesh.get_surface_count()):
+			var material:=mesh.surface_get_material(s) as BaseMaterial3D
+			if material!=null and material.shading_mode==BaseMaterial3D.SHADING_MODE_PER_PIXEL and material.transparency==BaseMaterial3D.TRANSPARENCY_DISABLED and not material.emission_enabled:plant=true
+			var points: PackedVector3Array=mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+			for point in points:
+				actual=AABB(point,Vector3.ZERO) if first else actual.expand(point)
+				first=false
+		_plant_bounds[identity]={"bounds":actual,"plant":plant and actual.size.y<3.0 and actual.size.x<4.0 and actual.size.z<4.0}
+	var definition: Dictionary=_plant_bounds[identity]
+	var kept:=PackedFloat32Array()
+	var indices:=PackedInt32Array()
+	var removed:=PackedInt32Array()
+	var bench:=0;var lake:=0
+	for i in range(buffer.size()/12):
+		var o:=i*12
+		var pose:=Transform3D(Basis(Vector3(buffer[o],buffer[o+4],buffer[o+8]),Vector3(buffer[o+1],buffer[o+5],buffer[o+9]),Vector3(buffer[o+2],buffer[o+6],buffer[o+10])),Vector3(buffer[o+3],buffer[o+7],buffer[o+11]))
+		var box: AABB=(estate_frame*pose)*(definition.bounds as AABB)
+		var obstructs: bool=definition.plant and bench_clearance.intersects(box)
+		var over_water:=false
+		if definition.plant and box.position.y<water_height+0.3 and box.end.y<water_height+1.3:
+			for corner in range(8):
+				var point:=box.get_endpoint(corner)
+				var xz:=Vector2(point.x,point.z)
+				if water_bounds.has_point(xz) and Geometry2D.is_point_in_polygon(xz,water):over_water=true;break
+		if obstructs or over_water:
+			removed.append(i)
+			if obstructs:bench+=1
+			else:lake+=1
+			continue
+		indices.append(i);kept.append_array(buffer.slice(o,o+12))
+	return {"buffer":kept,"indices":indices,"removed":removed,"bench":bench,"water":lake}

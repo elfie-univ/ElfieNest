@@ -30,6 +30,17 @@ func run() -> void:
 	var world := Node3D.new();root.add_child(world)
 	var estate := load("res://rooms/estate/estate.tscn").instantiate() as Node3D
 	world.add_child(estate)
+	var authority: Node3D=data.authority_scene.instantiate()
+	root.add_child(authority)
+	var bench_parts:=0
+	for part: MeshInstance3D in estate.get_node("CompleteFinal").find_children("Lakeside*","MeshInstance3D",true,false):
+		if not ("bench" in str(part.name) or str(part.name).begins_with("Lakeside back frame")):continue
+		var physical_part: Node3D=authority.find_child(str(part.name),true,false)
+		if not require(physical_part!=null and physical_part.global_transform.is_equal_approx(part.global_transform),"Compiled bench part must follow the visible seat: "+str(part.name)):return
+		bench_parts+=1
+	if not require(bench_parts==9,"Compiled bench must preserve seat, back, both legs and frames"):return
+	authority.free()
+	print("LAKESIDE_AUTHORITY bench_parts=",bench_parts)
 	var physics := PHYSICS.new();world.add_child(physics)
 	physics.build(estate)
 	if not require(physics.loaded_precompiled,"Normal startup must load spatial data"):return

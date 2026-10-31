@@ -172,9 +172,12 @@ func _optics(original: BaseMaterial3D, glass: bool) -> Material:
 	if _material_cache.has(identity):
 		return _material_cache[identity]
 	var source := original
+	if source.emission_enabled and preload("res://rooms/estate/estate_daylight.gd")._is_authored_bounce(source.resource_name.to_lower()):
+		source = original.duplicate() as BaseMaterial3D
+		source.emission_enabled = false
 	var definition: Dictionary = source.get_meta("m01_reference_optics", {})
 	var extensions: Dictionary = definition.get("extensions", {})
-	var result: Material = original.duplicate()
+	var result: Material = source.duplicate()
 	if extensions.has("KHR_materials_sheen"):
 		var sheen: Dictionary = extensions["KHR_materials_sheen"]
 		var fabric := ShaderMaterial.new()
@@ -219,11 +222,11 @@ func _build_lighting() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("dce6e0")
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
 	var upper := Color.hex(0xd7ebffff).srgb_to_linear()
 	var lower := Color.hex(0x5a685dff).srgb_to_linear()
 	environment.ambient_light_color = lower.lerp(upper, 0.5).linear_to_srgb()
-	environment.ambient_light_energy = 0.72 / PI
+	environment.ambient_light_energy = 0.0
 	# GLES3 applies background energy during sky generation and again during
 	# sampling. Keep it neutral and put radiance units into the linear panorama.
 	environment.background_energy_multiplier = 1.0
@@ -245,52 +248,17 @@ func _build_lighting() -> void:
 	environment.sky = sky
 	world.environment = environment
 	add_child(world)
-	# Reproduce the reference's normal-dependent HemisphereLight without sky
-	# convolution: mean + half-difference * normal.y. Cloth already provides
-	# this irradiance in its shader, so these diffuse-only lights use layer 4.
-	for up in [true, false]:
-		var hemisphere := DirectionalLight3D.new()
-		hemisphere.name = "ReferenceHemisphereUpper" if up else "ReferenceHemisphereLower"
-		hemisphere.light_color = ((upper - lower) * 0.5).linear_to_srgb()
-		hemisphere.light_energy = 0.72 / PI
-		hemisphere.light_negative = not up
-		hemisphere.light_specular = 0.0
-		hemisphere.light_cull_mask = 4
-		hemisphere.rotation_degrees.x = -90.0 if up else 90.0
-		add_child(hemisphere)
-	for entry: Array in [[0xffe7c3ff, 1.05, Vector3(-20, 35, 24)], [0xcdeaffff, 0.65, Vector3(22, 25, -24)], [0xffffffff, 0.30, Vector3(0, 15, 32)]]:
+	for entry: Array in [[0xffe7c3ff, 1.05, Vector3(-20, 35, 24)]]:
 		var light := DirectionalLight3D.new()
 		light.light_color = Color.hex(entry[0])
 		light.light_energy = float(entry[1]) / PI
 		light.shadow_enabled = entry[1] == 1.05
-		if light.shadow_enabled:
-			# Compatibility adds the shadowed light after separately tonemapping
-			# it. Match the reference's displayed sun contrast, not its raw watts.
-			light.light_energy *= 0.04
 		light.directional_shadow_max_distance = 40.0
 		light.shadow_bias = 0.03
 		light.shadow_normal_bias = 0.1
 		add_child(light)
 		light.position = entry[2]
 		light.look_at(Vector3.ZERO)
-	# Selecting M01 in the reference hides geometry, not its shared light rig.
-	for index in range(8):
-		var angle := deg_to_rad(-40.0 + index * 260.0 / 7.0)
-		_add_point("ReferenceRoomPoint", Color.hex(0xffc889ff), 3.0, 8.0, Vector3(13.55 * cos(angle), 1.75, -13.55 * sin(angle)))
-	for height in [2.5, 5.8, 8.5]:
-		_add_point("ReferenceCentralPoint", Color.hex(0xffd49dff), 12.0, 11.0, Vector3(0.0, height, 0.0))
-
-
-func _add_point(label: String, color: Color, intensity: float, distance: float, position: Vector3) -> void:
-	var light := OmniLight3D.new()
-	light.name = label
-	light.light_color = color
-	light.light_energy = intensity / PI
-	light.omni_range = distance
-	light.omni_attenuation = 2.0
-	light.shadow_enabled = false
-	add_child(light)
-	light.global_position = position
 
 
 func _restore_fixture_lights(mesh: MeshInstance3D, extras: Dictionary) -> void:

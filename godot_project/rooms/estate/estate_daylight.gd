@@ -3,10 +3,10 @@ extends RefCounted
 
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 
-# Shadowed Compatibility lights are encoded in a separate additive pass.
-# Retain the sample's displayed-contrast calibration for that pass only.
+# Retain the accepted calibration only for interior contact fixtures.
+# The actual sun uses its authored energy without ambient compensation.
 const SHADOWED_PASS_SCALE := 0.04
-const SUN_ENERGY := 1.05 / PI * SHADOWED_PASS_SCALE
+const SUN_ENERGY := 1.05 / PI
 const SUN_COLOR := Color(1.0, 231.0 / 255.0, 195.0 / 255.0, 1.0)
 const INTERIOR_FILL_LAYER := 2
 const OUTDOOR_LIGHT_LAYER := 4
@@ -19,7 +19,7 @@ const NATIVE_HEMISPHERE_LAYER := 1 << 17
 # Separate general room lighting from tiny stair/shelf accents in Compatibility.
 const ACTIVITY_LAYERS := [INTERIOR_FILL_LAYER, 1 << 16, 1 << 19, 1 << 28]
 const ROOF_ROOM_LAYER := 1 << 29
-const NIGHT_NATURAL_SCALE := 0.035
+const NIGHT_NATURAL_SCALE := 0.0
 const NIGHT_EMISSION := &"estate_night_emission_energy"
 # The reference's day mode runs authored fixtures at 8%. Compatibility's
 # non-physical Light3D energy is multiplied by PI before the same inverse-square
@@ -32,8 +32,7 @@ const OPAL_DIFFUSER_BOOST := 37.5
 const CEILING_WARM_WHITE := Color(1.0, 0.855, 0.69)
 const POD_MODULES := ["M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08"]
 # Distinguish authored bounce from powered fixture surfaces in diagnostics.
-# Both retain source emission; only tagged diffusers with actual light entries
-# receive the reference viewer's daytime intensity override.
+# Painted bounce is not an emitter. Only actual fixtures retain emission.
 const AUTHORED_BOUNCE_NAMES := [
 	"baked warm wash", "warm plaster returns", "continuous warm ivory plaster",
 	"directly painted botanical sprig", "warm perimeter returns",
@@ -62,7 +61,7 @@ static func apply(estate: Node) -> Dictionary:
 	var counts := {"sun": 0, "artificial_surfaces": 0, "sky_meshes": 0, "glass_surfaces": 0, "corrected_surfaces": 0}
 	_calibrate(estate, materials, counts)
 	# Keep indoor/outdoor shadow masks separate while sharing the reference
-	# direction and unshadowed fill units across the complete scene.
+	# solar direction across the complete scene; no extra directional fills.
 	for light: Node in estate.find_children("*", "DirectionalLight3D", true, false):
 		(light as DirectionalLight3D).global_position = (estate as Node3D).to_global(Vector3(-20, 35, 24))
 		(light as DirectionalLight3D).look_at((estate as Node3D).global_position)
@@ -74,31 +73,7 @@ static func apply(estate: Node) -> Dictionary:
 		light.get_parent().add_child(outdoor_sun)
 		outdoor_sun.global_position = (estate as Node3D).to_global(Vector3(-20, 35, 24))
 		outdoor_sun.look_at((estate as Node3D).global_position)
-		for entry: Array in [[0xcdeaffff, 0.65, Vector3(22, 25, -24)], [0xffffffff, 0.30, Vector3(0, 15, 32)]]:
-			var fill := DirectionalLight3D.new()
-			fill.name = "CourtyardReferenceFillCool" if int(entry[0]) == 0xcdeaffff else "CourtyardReferenceFillFront"
-			fill.light_cull_mask = INTERIOR_FILL_LAYER | OUTDOOR_LIGHT_LAYER | LANDSCAPE_LIGHT_LAYER | WATER_LIGHT_LAYER
-			fill.light_color = Color.hex(entry[0])
-			fill.light_energy = float(entry[1]) / PI
-			fill.set_meta("reference_intensity", entry[1])
-			estate.add_child(fill)
-			fill.global_position = (estate as Node3D).to_global(entry[2])
-			fill.look_at((estate as Node3D).global_position)
 	var contact_rooms: Dictionary = {}
-	# Textured native materials need the same normal-dependent hemisphere as
-	# custom surfaces. Do not add it twice to shaders that own IRRADIANCE.
-	var upper := Color.hex(0xd7ebffff).srgb_to_linear()
-	var lower := Color.hex(0x5a685dff).srgb_to_linear()
-	for up in [true, false]:
-		var hemisphere := DirectionalLight3D.new()
-		hemisphere.name = "NativeHemisphereUpper" if up else "NativeHemisphereLower"
-		hemisphere.light_color = ((upper - lower) * 0.5).linear_to_srgb()
-		hemisphere.light_energy = 0.72 / PI
-		hemisphere.light_negative = not up
-		hemisphere.light_specular = 0.0
-		hemisphere.light_cull_mask = NATIVE_HEMISPHERE_LAYER
-		hemisphere.rotation_degrees.x = -90.0 if up else 90.0
-		estate.add_child(hemisphere)
 	var ceiling_targets: Dictionary = {}
 	for fixture: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		var extras: Dictionary = fixture.get_meta("extras", {})
@@ -259,6 +234,10 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 				if original == null:
 					continue
 				var material_name := original.resource_name.to_lower()
+				if original.emission_enabled and _is_authored_bounce(material_name):
+					original = original.duplicate() as BaseMaterial3D
+					original.emission_enabled = false
+					instance.set_surface_override_material(surface, original)
 				if _is_background(material_name):
 					# The existing sky is geometry, not an Environment sky. It must
 					# neither change color nor occlude the real sun when shadows work.
@@ -349,18 +328,7 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 					counts["glass_surfaces"] += 1
 				if artificial:
 					counts["artificial_surfaces"] += 1
-			var needs_hemisphere := false
-			var owns_irradiance := false
-			for surface in range(instance.mesh.get_surface_count()):
-				var actual := instance.get_active_material(surface)
-				owns_irradiance = owns_irradiance or actual is ShaderMaterial
-				var native := actual as BaseMaterial3D
-				if native != null and native.albedo_texture != null and native.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL and not bool(extras.get("glass", false)):
-					needs_hemisphere = true
-			# Light layers are per instance, not per surface: mixed meshes must
-			# not add native hemisphere lights to custom IRRADIANCE a second time.
-			if needs_hemisphere and not owns_irradiance:
-				instance.layers |= NATIVE_HEMISPHERE_LAYER
+
 	for child: Node in node.get_children():
 		_calibrate(child, materials, counts)
 
@@ -495,6 +463,17 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			light.light_energy = 2.4 * DAYTIME_FIXTURE_SCALE
 			light.light_specular = 0.0
 		light.light_cull_mask = _room_light_mask(extras)
+		if outdoor:
+			# Real outdoor fixtures must be occluded by trees and architecture.
+			light.shadow_enabled = true
+			light.shadow_caster_mask = 0xFFFFF
+			light.shadow_bias = 0.01
+			light.shadow_normal_bias = 0.1
+			if str(extras.get("outdoor_fixture_id", "")) == "H01":
+				# The waterfront lamp lights a broad, flat paving surface. Bias its
+				# shadow map enough to avoid self-shadow bands, retaining occlusion.
+				light.shadow_bias = 0.1
+				light.shadow_normal_bias = 1.0
 		var general := opal or downlight
 		if central and spot and not general:
 			# Short-range task/edge lights fade beyond their local room.
@@ -579,8 +558,7 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			# local bounce lights stay unshadowed, as in the reference viewer.
 			if not outdoor and not contact_rooms.has(room):
 				light.shadow_enabled = true
-				# Shadowed positional lights use the same encoded additive pass
-				# as the sun; apply its displayed-contrast calibration too.
+				# Retain the existing local calibration of indoor contact sources.
 				light.light_energy *= SHADOWED_PASS_SCALE
 				light.shadow_caster_mask = FURNITURE_CONTACT_LAYER
 				light.shadow_bias = 0.01

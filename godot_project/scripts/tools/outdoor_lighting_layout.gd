@@ -4,6 +4,7 @@ const GEOMETRY := preload("res://scripts/tools/outdoor_lighting_geometry.gd")
 var result: Node3D
 var high_poles: Array[Dictionary] = []
 var forest_lamps: Array[Dictionary] = []
+var plaza_light_focus := Vector3.ZERO
 
 func build(source: Node3D) -> Node3D:
 	result = Node3D.new()
@@ -20,9 +21,24 @@ func build(source: Node3D) -> Node3D:
 		if bool(e.get("forestTrail", false)): trail = mesh
 		if str(mesh.name) == "ROAD REF • ring continuous warm-grey stone bed": road = mesh
 	var plaza_pair := _symmetric_plaza_pair(source,road,trail)
-	assert(is_finite(plaza_pair.x), "No clear mirrored outer-corner position for plaza lamps")
-	_high("G1", Vector3(-plaza_pair.x,-0.06,plaza_pair.y),3.8,8.0,24.0)
-	_high("P05", Vector3(plaza_pair.x,-0.06,plaza_pair.y),3.8,8.0,24.0)
+	var plaza := source.find_child(preload("res://scripts/tools/outdoor_lighting_edges.gd").PLAZA,true,false) as MeshInstance3D
+	var faces := plaza.mesh.get_faces()
+	var area := 0.0
+	# Derive the shared aiming point from the actual paved surface.
+	for i in range(0,faces.size(),3):
+		var a := plaza.global_transform*faces[i]
+		var b := plaza.global_transform*faces[i+1]
+		var c := plaza.global_transform*faces[i+2]
+		var weight := (b-a).cross(c-a).y
+		if weight<=0.000001:continue
+		plaza_light_focus+=(a+b+c)/3.0*weight
+		area+=weight
+	assert(area>0.0,"Plaza lights require a real paved surface")
+	plaza_light_focus/=area
+	result.set_meta("plaza_light_focus",plaza_light_focus)
+	assert(is_finite(plaza_pair.x), "No clear mirrored plaza-edge position for lamps")
+	_high("G1", Vector3(-plaza_pair.x,-0.06,plaza_pair.y),6.5,8.0,24.0)
+	_high("P05", Vector3(plaza_pair.x,-0.06,plaza_pair.y),6.5,8.0,24.0)
 	# W01 moves to the real authored woodland/lawn seam, away from open lawn.
 	var lawn := source.find_child("CY SHORE solid Continuous lawn with true lake opening",true,false) as MeshInstance3D
 	var nearest := Vector2(INF,INF)
@@ -37,9 +53,11 @@ func build(source: Node3D) -> Node3D:
 	_high("W01",Vector3(nearest.x,-0.06,nearest.y),4.0,2.2,28.0)
 	var platform := source.find_child("CY R003 circular waterfront platform closed foundation",true,false) as MeshInstance3D
 	var platform_bounds := platform.global_transform*platform.get_aabb()
-	var back := Vector2(platform_bounds.get_center().x,platform_bounds.position.z-0.8)
-	var planted: Vector2 = GEOMETRY.planting_edge(planting_boundaries, back)
-	_high("H01",Vector3(planted.x,-0.06,planted.y),3.3,2.6,18.0)
+	# Aim at the circular end, independent of the movable bench.
+	var focus := Vector3(platform_bounds.end.x-4.8,0.095,platform_bounds.end.z-4.8)
+	var position := _lakeside_lamp_position(source,Vector3(focus.x-1.6,-0.06,focus.z-5.0))
+	_plaza_single_arm("H01",position,6.5,8.0,18.0,focus)
+	high_poles.append({"id":"H01","point":position,"height":6.5})
 	assert(trail != null and road != null, "Real road and forest route required")
 	_forest(trail,road)
 	_outer_ring(source,road,trail)
@@ -62,6 +80,9 @@ func build(source: Node3D) -> Node3D:
 	GEOMETRY.strip(result,pool_rim,0.10,"FountainConcealedRim")
 	var patches: Array[String] = []
 	for mesh in ground: patches.append_array(GEOMETRY.partition(mesh,result))
+	# Append new path fixtures after ground partitioning to preserve patch IDs.
+	_ring_fixture(source,"B01",Vector3(24.0,-0.06,-3.15),85.0)
+	_ring_fixture(source,"B02",Vector3(29.0,-0.06,-3.05),85.0)
 	result.set_meta("high_poles",high_poles)
 	result.set_meta("forest_lamps",forest_lamps)
 	result.set_meta("shoreline",shore)
@@ -70,6 +91,26 @@ func build(source: Node3D) -> Node3D:
 	result.set_meta("source_model_sha256",FileAccess.get_sha256("res://rooms/estate/ElfieNest-complete-final.glb"))
 	return result
 
+func _lakeside_lamp_position(source: Node3D, desired: Vector3) -> Vector3:
+	var surfaces: Array=[]
+	for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
+		var extras: Dictionary=mesh.get_meta("extras",{})
+		if str(extras.get("landscape_ground_region","")) in ["ring","plaza","lakeside_paving"] or bool(extras.get("forestTrail",false)):
+			surfaces.append(mesh)
+	var nearby: Array[PackedVector2Array]=[]
+	var search:=Rect2(Vector2(desired.x-1.5,desired.z-1.5),Vector2(3.0,3.0))
+	for triangle: PackedVector2Array in paving_triangles(surfaces):
+		var bounds:=Rect2(triangle[0],Vector2.ZERO).expand(triangle[1]).expand(triangle[2])
+		if search.intersects(bounds,true):nearby.append(triangle)
+	var candidates: Array[Vector3]=[]
+	for x in range(-10,11):
+		for z in range(-10,11):candidates.append(desired+Vector3(x*0.1,0,z*0.1))
+	candidates.sort_custom(func(a: Vector3,b: Vector3):return a.distance_squared_to(desired)<b.distance_squared_to(desired))
+	for point: Vector3 in candidates:
+		if not footprint_overlaps(point,nearby,0.3):return point
+	assert(false,"The marked left-hand lamp area needs a clear unpaved base")
+	return desired
+
 func _symmetric_plaza_pair(source: Node3D, road: MeshInstance3D, trail: MeshInstance3D) -> Vector2:
 	var surfaces: Array = [road,trail]
 	for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
@@ -77,13 +118,13 @@ func _symmetric_plaza_pair(source: Node3D, road: MeshInstance3D, trail: MeshInst
 	var pavement := paving_triangles(surfaces)
 	var chosen := Vector2(INF,INF)
 	var best := INF
-	# The outer pair may stand on lawn, but never occupies paving or a junction.
-	for xi in range(160,201):
-		for zi in range(160,201):
+	# Bring both poles to the plaza shoulders, leaving the paved junction clear.
+	for xi in range(130,161):
+		for zi in range(175,216):
 			var point := Vector2(xi*0.1,zi*0.1)
-			if footprint_overlaps(Vector3(point.x,0,point.y),pavement,0.5) or footprint_overlaps(Vector3(-point.x,0,point.y),pavement,0.5):continue
-			if point.distance_squared_to(Vector2(17,17))<best:
-				best=point.distance_squared_to(Vector2(17,17));chosen=point
+			if footprint_overlaps(Vector3(point.x,0,point.y),pavement,0.35) or footprint_overlaps(Vector3(-point.x,0,point.y),pavement,0.35):continue
+			if point.distance_squared_to(Vector2(14.8,18.8))<best:
+				best=point.distance_squared_to(Vector2(14.8,18.8));chosen=point
 				if best==0.0:return chosen
 	return chosen
 
@@ -123,9 +164,126 @@ func _outer_ring(source: Node3D, road: MeshInstance3D, trail: MeshInstance3D) ->
 
 	access.free()
 
+func _ring_fixture(source: Node3D, id: String, point: Vector3, angle: float=78.0) -> void:
+	var fixture:=Node3D.new()
+	fixture.name="Fixture_"+id
+	result.add_child(fixture)
+	fixture.position=point
+	for part: String in ["housing","diffuser"]:
+		var original:=source.find_child("Outdoor R01 "+part,true,false) as MeshInstance3D
+		assert(original!=null)
+		var copy:=original.duplicate() as MeshInstance3D
+		fixture.add_child(copy)
+		copy.transform=Transform3D.IDENTITY
+		copy.name=part.capitalize()
+		var extras: Dictionary=copy.get_meta("extras",{}).duplicate(true)
+		extras.outdoor_fixture_id=id
+		extras.outdoor_fixture_group="path"
+		for light: Dictionary in extras.get("design_lights",[]):
+			# Emit from the path-facing diffuser surface, above the opaque lower
+			# collar. The original central emitter is trapped inside that collar.
+			light.merge({"position":[0.0,1.06,0.165],"target":[0.0,0.0,2.7],"intensity":PI,"distance":14.0,"angle":deg_to_rad(angle),"attenuation":0.7,"angle_attenuation":0.2},true)
+		copy.set_meta("extras",extras)
+
 func _high(id: String, point: Vector3, height: float, energy: float, reach: float) -> void:
-	_lamp(id,point,height,energy,reach,80.0,"high")
+	if id in ["G1","P05"]:
+		_plaza_single_arm(id,point,height,energy,maxf(reach,34.0),plaza_light_focus)
+	else:
+		_lamp(id,point,height,energy,reach,80.0,"high")
 	high_poles.append({"id":id,"point":point,"height":height})
+
+func _plaza_single_arm(id: String, point: Vector3, height: float, energy: float, reach: float, focus: Vector3, size: float=1.0) -> void:
+	var fixture := Node3D.new()
+	fixture.name = "Fixture_"+id
+	result.add_child(fixture)
+	fixture.position = point
+	var forward := Vector3(focus.x-point.x,0,focus.z-point.z).normalized()
+	var across := Vector3(-forward.z,0,forward.x)
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.16,0.18,0.14)
+	metal.metallic = 0.35
+	metal.roughness = 0.6
+	var lens := StandardMaterial3D.new()
+	lens.resource_name = "Outdoor warm single-arm lamp diffuser"
+	lens.albedo_color = Color(0.72,0.65,0.46)
+	lens.emission_enabled = true
+	lens.emission = Color(1.0,0.79,0.5)
+	lens.emission_energy_multiplier = 0.7
+	# Sweep one rounded rectangular housing: upright shaft, smooth elbow,
+	# then a slim rising arm, matching the single-sided reference streetlight.
+	var turn := deg_to_rad(65.0)
+	var radius := 0.60
+	var elbow_y := height/size-radius*sin(turn)-1.70*cos(turn)-0.08
+	var arm_start := forward*(radius*(1.0-cos(turn)))+Vector3.UP*(elbow_y+radius*sin(turn))
+	var along := forward*sin(turn)+Vector3.UP*cos(turn)
+	var underside := forward*cos(turn)-Vector3.UP*sin(turn)
+	var stations: Array[Dictionary] = []
+	for i in range(13):
+		var t := float(i)/12.0
+		stations.append({"centre":Vector3.UP*elbow_y*t,"out":forward,"width":lerpf(0.19,0.12,t),"depth":lerpf(0.16,0.085,t)})
+	for i in range(1,17):
+		var t := float(i)/16.0
+		var angle := turn*t
+		stations.append({"centre":forward*(radius*(1.0-cos(angle)))+Vector3.UP*(elbow_y+radius*sin(angle)),"out":forward*cos(angle)-Vector3.UP*sin(angle),"width":lerpf(0.12,0.25,t),"depth":lerpf(0.085,0.09,t)})
+	for i in range(1,17):
+		var t := float(i)/16.0
+		stations.append({"centre":arm_start+along*(1.70*t),"out":underside,"width":0.25-0.02*pow(t,8.0),"depth":0.09-0.01*pow(t,8.0)})
+	var rings: Array[PackedVector3Array] = []
+	for station: Dictionary in stations:
+		station.centre*=size
+		station.width*=size
+		station.depth*=size
+		var ring := PackedVector3Array()
+		for j in range(33):
+			var angle := TAU*float(j)/32.0
+			var u := signf(cos(angle))*pow(absf(cos(angle)),0.35)
+			var v := signf(sin(angle))*pow(absf(sin(angle)),0.35)
+			ring.append(station.centre+across*(station.width*u)+station.out*(station.depth*v))
+		rings.append(ring)
+	var shell := SurfaceTool.new()
+	shell.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(rings.size()-1):
+		for j in range(32):
+			for vertex: Vector3 in [rings[i][j],rings[i+1][j+1],rings[i][j+1],rings[i][j],rings[i+1][j],rings[i+1][j+1]]:shell.add_vertex(vertex)
+	for j in range(32):
+		for vertex: Vector3 in [stations[0].centre,rings[0][j],rings[0][j+1],stations[-1].centre,rings[-1][j+1],rings[-1][j]]:shell.add_vertex(vertex)
+	shell.generate_normals()
+	_add_arm_part(fixture,"SingleArmHousing",shell.commit(),metal,id,height,false)
+	# A solid opal lens projects slightly beyond the metal edge. Its luminous
+	# side lip remains readable from the elevated courtyard review camera.
+	var panel_centre := (arm_start+along*0.88+underside*0.09)*size
+	var panel := PackedVector3Array()
+	for j in range(49):
+		var angle := TAU*float(j)/48.0
+		var u := signf(cos(angle))*pow(absf(cos(angle)),0.35)
+		var v := signf(sin(angle))*pow(absf(sin(angle)),0.35)
+		panel.append(panel_centre+along*(0.70*u*size)+across*(0.28*v*size))
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var depth := underside*(0.12*size)
+	for j in range(48):
+		for vertex: Vector3 in [panel_centre,panel[j],panel[j+1],panel_centre+depth,panel[j+1]+depth,panel[j]+depth,panel[j],panel[j]+depth,panel[j+1]+depth,panel[j],panel[j+1]+depth,panel[j+1]]:surface.add_vertex(vertex)
+	surface.generate_normals()
+	var part := _add_arm_part(fixture,"Diffuser",surface.commit(),lens,id,height,true)
+
+	var emitter := panel_centre+underside*(0.15*size)
+	var aim := focus-point
+	# Broad overlapping cones cover the full paving, including its tips and
+	# connecting edges. The centre remains the shared physical aiming point.
+	var beam_angle := deg_to_rad(70.0)
+	var beam_reach := reach
+	var extras: Dictionary = part.get_meta("extras")
+	extras["design_lights"] = [{"type":"spot","position":[emitter.x,emitter.y,emitter.z],"target":[aim.x,aim.y,aim.z],"color":0xffdfb5,"intensity":energy*0.75*PI,"distance":beam_reach,"angle":beam_angle,"attenuation":0.7,"angle_attenuation":0.65}]
+	part.set_meta("extras",extras)
+
+func _add_arm_part(parent: Node3D, label: String, mesh: ArrayMesh, material: Material, id: String, height: float, diffuse: bool) -> MeshInstance3D:
+	mesh.surface_set_material(0,material)
+	var part := MeshInstance3D.new()
+	part.name = label
+	part.mesh = mesh
+	part.set_meta("extras",{"outdoor_fixture_id":id,"outdoor_fixture_group":"high","lighting_diffuser":diffuse,"full_height":true,"furniture":false,"height":height})
+	parent.add_child(part)
+	return part
 
 func _forest(trail: MeshInstance3D,road: MeshInstance3D) -> void:
 	var pavement := paving_triangles([road,trail])
@@ -181,10 +339,6 @@ func _lamp(id: String, position: Vector3, height: float, energy: float, reach: f
 		var e := {"outdoor_fixture_id":id,"outdoor_fixture_group":group,"lighting_diffuser":diffuse,"full_height":true,"furniture":false}
 		if diffuse:
 			e["design_lights"] = [{"type":"spot","position":[0,-0.10 if height>2.0 else -0.03,0],"target":[0,-1,0],"color":0xffdfb5,"intensity":energy*PI,"distance":reach,"angle":deg_to_rad(angle),"attenuation":0.7,"angle_attenuation":0.2}]
-		if diffuse and id in ["G1","P05"]:
-			# Aim the broad pool into the plaza, rather than straight onto the planting.
-			e.design_lights[0].target = [-signf(position.x)*5.0,-3.6,5.0]
-			e.design_lights[0].angle = deg_to_rad(65.0)
 		mesh.set_meta("extras",e)
 		parent.add_child(mesh)
 

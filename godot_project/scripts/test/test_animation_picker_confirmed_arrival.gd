@@ -22,7 +22,7 @@ func run() -> void:
 	if not require(body == cycle.get_node("LocalPlatformBody") and body.get_script() == preload("res://characters/shared/elfie_actor.gd"), "Arrival must use the original single platform body and its animation runtime"): return
 	if not require(bool(original.get("arrival_lighting").get("night")), "Confirmed arrival night lighting is missing"): return
 	var environment := original.get_node("WorldEnvironment") as WorldEnvironment
-	if not require(is_equal_approx(environment.environment.ambient_light_energy, 0.28), "Arrival ambient lighting differs from the confirmed night preview"): return
+	if not require(is_zero_approx(environment.environment.ambient_light_energy) and environment.environment.ambient_light_source==Environment.AMBIENT_SOURCE_DISABLED, "Arrival must not add ambient compensation light"): return
 	var camera: Camera3D = runner.get("_camera")
 	var view: Dictionary = (original.get("views") as Array)[1]
 	if not require(camera.global_position.is_equal_approx(view["camera"]) and is_equal_approx(camera.fov, 100.0), "Arrival must start at the fixed rooftop front camera"): return

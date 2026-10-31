@@ -12,8 +12,8 @@ and `instance_sidecar_sha256` identify the current integrated inputs.
 | Source resource | Current contents |
 | --- | --- |
 | `ElfieNest-complete-final.glb` | 266,635,048 bytes; selected terrain/fixture additions over the baseline |
-| `ElfieNest-complete-final.instances.bin` | 134 landscape groups, 214,750 instances; 13,748,040 bytes |
-| `estate_outdoor_lighting.scn` | Authored road/plaza guidance, lake-bank rim, four high poles and 24 forest lamps |
+| `ElfieNest-complete-final.instances.bin` | 134 landscape groups, 214,448 instances; 13,728,712 bytes |
+| `estate_outdoor_lighting.scn` | Authored road/plaza guidance, lake-bank rim, four high poles (including the inward-facing 6.5 m single-arm streetlight pair with solid opal diffusers and broad overlapping beams aimed at the centre to cover the full plaza, and one matching full-size 6.5 m single-arm waterfront lamp), two full-size 1.17 m ring-road-style approach lamps, and 23 forest lamps |
 | `estate_spatial.res` | Current-model collision shapes, activity boundaries and native navigation/stair links |
 
 Runtime loads precompiled spatial data and rejects mismatched model, instance or lighting
@@ -44,6 +44,8 @@ After the repository Web build, these explicit local replays use the same projec
 | `?mode=animation_journey&playback=continuous` | Ordered physical journey with stop-at-first-gap reporting |
 | `?mode=water_review` | Original fountain jets, outward ring pulses, spillway and natural lake waves |
 | `?mode=path_lighting_review&area=estate` | Accepted complete-estate lighting review |
+
+The waterfront lamp stands at the left end of the complete bench. Review lighting uses only the sun and mounted fixtures; ambient and hemisphere compensation are disabled. Append `&lamp=off` to the estate lighting review to disable only the waterfront source and its diffuser for a same-view comparison.
 
 The dropdown opens disposable crops of the real project in one isolated viewport. Selecting
 an item destroys the previous fixture and its owned playback clock, including pending waits.

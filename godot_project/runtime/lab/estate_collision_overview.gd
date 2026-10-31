@@ -104,9 +104,9 @@ func _on_selection(catalog: Dictionary) -> void:
 			var group := str(node.get_meta("source_group",""))
 			var number := group.trim_prefix("__ELFIE_INST_GROUP_").to_int()
 			node.visible = bool(_appearance[node]) and node is MultiMeshInstance3D and ((number >= 52 and number <= 81) or (number >= 88 and number <= 132))
-	_environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
 	_environment.environment.ambient_light_color = Color(0.8, 0.85, 0.9)
-	_environment.environment.ambient_light_energy = 0.65 if actual_plan or zones_visible or original_woodland else 0.0
+	_environment.environment.ambient_light_energy = 0.0
 	var outdoor_only := selected != "collision-whole"
 	for entry: Dictionary in records:
 		var shape := entry["shape"] as CollisionShape3D

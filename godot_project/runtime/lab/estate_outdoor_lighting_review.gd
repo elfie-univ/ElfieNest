@@ -6,10 +6,15 @@ var _water: Node3D
 var _night := false
 var _quiet := false
 var _people: Array[Dictionary] = []
+var _waterfront_off := false
+var _waterfront: Node3D
 
 func _ready() -> void:
 	var estate := load("res://rooms/estate/estate.tscn").instantiate() as Node3D
 	add_child(estate)
+	_waterfront = estate.get_node("OutdoorLighting/Fixture_H01")
+	if OS.has_feature("web"):
+		_waterfront_off = str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('lamp')||''")) == "off"
 	var reference := load("res://rooms/nest.tscn").instantiate() as Node3D
 	var world := reference.get_node("WorldEnvironment") as WorldEnvironment
 	reference.remove_child(world)
@@ -22,8 +27,9 @@ func _ready() -> void:
 	_water.bind(estate,world.environment,false)
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('people')||''")) == "1":
 		_people = add_review_people(self, estate)
-	var lake := estate.find_child("COMPLETE Inset natural lake",true,false) as MeshInstance3D
-	var lake_center := (lake.global_transform*lake.get_aabb()).get_center()
+	var shore: RefCounted=estate.get("_shore")
+	var lake_bounds: Rect2=shore.get("water_bounds")
+	var lake_center:=Vector3(lake_bounds.get_center().x,float(shore.get("water_height")),lake_bounds.get_center().y)
 	var platform := estate.find_child("CY R003 circular waterfront platform closed foundation",true,false) as MeshInstance3D
 	var shore_eye := (platform.global_transform*platform.get_aabb()).get_center() + Vector3.UP * 2.0
 	var trail := estate.find_child("FOREST TRAIL smooth gravel main loop and return spur",true,false)
@@ -43,9 +49,9 @@ func _ready() -> void:
 		["Sky",Vector3(0,2.0,24),Vector3(0,14,50)],
 		["Ring",Vector3(-14,2.2,-14),Vector3(-7,0.6,-18)],
 		["Forest",eye,target],
-		["Lake",lake_center+Vector3(20,24,28),lake_center],
+		["Lake",lake_center+Vector3(0,30,0.1),lake_center],
 		["Shore",shore_eye,lake_center],
-		["Seats",Vector3(42,6,12),Vector3(31,0.5,3)]
+		["Seats",Vector3(32,12,17),Vector3(32,0.5,1.5)]
 	]
 	var living := _living_view(estate)
 	if not living.is_empty(): specifications.insert(2, living)
@@ -57,7 +63,7 @@ func _ready() -> void:
 	for spec: Array in specifications:
 		for mode: String in ["day","night","quiet"]:
 			var label := {"day":"Day 06–18","night":"Evening 18–24","quiet":"Quiet 00–06"}
-			views.append({"id":"lighting-v4-"+str(spec[0]).to_lower()+"-"+mode,"focus":str(spec[0])+" / "+str(label[mode]),"camera":spec[1],"target":spec[2],"fov":58.0})
+			views.append({"id":"lighting-v4-"+str(spec[0]).to_lower()+"-"+mode,"focus":str(spec[0])+" / "+str(label[mode]),"camera":spec[1],"target":spec[2],"fov":66.0 if spec[0]=="Lake" else 58.0})
 	camera_owner.configure_estate_path_lighting_review(views)
 	var selected := "lighting-v4-overview-night"
 	if OS.has_feature("web"):
@@ -71,6 +77,13 @@ func set_phase(night: bool, quiet: bool = false) -> void:
 	_quiet=quiet
 	_control.apply_environment(0.0 if night else 1.0,night,true,quiet)
 	_water.set_night(night and not quiet)
+	if _waterfront_off:
+		for light: Light3D in _waterfront.find_children("*","Light3D",true,false):
+			light.visible = false
+		var diffuser := _waterfront.get_node("Diffuser") as MeshInstance3D
+		for surface in range(diffuser.mesh.get_surface_count()):
+			var material := diffuser.get_active_material(surface) as BaseMaterial3D
+			if material != null: material.emission_energy_multiplier = 0.0
 	for person: Dictionary in _people:
 		(person.actor as ElfieActor).visible = not quiet
 

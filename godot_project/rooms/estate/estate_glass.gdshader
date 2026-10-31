@@ -76,7 +76,7 @@ void fragment() {
 	// this is a dielectric coating response, not an edit to source RGB.
 	ALBEDO = to_srgb(effective_f0);
 	METALLIC = 1.0;
-	EMISSION = to_srgb(transmitted + to_linear(source_emission.rgb) + to_linear(source_albedo.rgb) * (1.0 - source_transmission) * (0.72 / PI));
+	EMISSION = to_srgb(transmitted + to_linear(source_emission.rgb));
 	SPECULAR = abs(ratio) / 0.4;
 	ROUGHNESS = source_roughness;
 	CLEARCOAT = source_clearcoat;

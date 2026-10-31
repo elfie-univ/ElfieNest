@@ -209,7 +209,8 @@ func sample(seconds: float, night: bool) -> void:
 	for binding: Dictionary in _sky:
 		(binding["mesh"] as MeshInstance3D).visible = bool(binding["visible"]) and not night
 	_environment.background_color = Color(0.015, 0.025, 0.05) if night else _day_environment["background_color"]
-	_environment.ambient_light_energy = 0.08 if night else float(_day_environment["ambient_light_energy"])
+	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
+	_environment.ambient_light_energy = 0.0
 	_environment.background_energy_multiplier = 0.2 if night else float(_day_environment["background_energy_multiplier"])
 
 

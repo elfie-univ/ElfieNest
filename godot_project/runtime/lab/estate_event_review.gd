@@ -152,11 +152,12 @@ func apply_arrival_night() -> void:
 	if bool(arrival_lighting.get("night")): return
 	arrival_lighting.set("night",true)
 	ordinary.apply(true)
-	for sun: DirectionalLight3D in review_geometry.find_children("*","DirectionalLight3D",true,false): sun.light_energy*=0.14
+	for sun: DirectionalLight3D in review_geometry.find_children("*","DirectionalLight3D",true,false): sun.light_energy=0.0
 	var environment := get_node("WorldEnvironment") as WorldEnvironment
 	environment.environment=environment.environment.duplicate(true)
 	environment.environment.background_color=Color(0.025,0.035,0.065)
-	environment.environment.ambient_light_energy=0.28
+	environment.environment.ambient_light_source=Environment.AMBIENT_SOURCE_DISABLED
+	environment.environment.ambient_light_energy=0.0
 	environment.environment.background_energy_multiplier=0.3
 
 

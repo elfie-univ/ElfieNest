@@ -66,7 +66,8 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 		(sky["mesh"] as MeshInstance3D).visible = bool(sky["visible"]) and level > 0.0
 	for binding: Dictionary in _environments.values():
 		var environment := binding["environment"] as Environment
-		environment.ambient_light_energy = float(binding["ambient"]) * natural
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
+		environment.ambient_light_energy = 0.0
 		environment.background_color = Color(0.015, 0.025, 0.05) if is_zero_approx(level) else ((binding["background"] as Color).srgb_to_linear() * natural).linear_to_srgb()
 		# Compatibility uses this multiplier both in panorama generation and
 		# reflection sampling. Keep the total radiance scale equal to natural.

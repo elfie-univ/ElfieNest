@@ -84,7 +84,7 @@ func _validate() -> void:
 		estate.queue_free()
 		_fail("Complete final MultiMesh group count changed")
 		return
-	if int(estate.get("multimesh_instance_count")) != EXPECTED_INSTANCE_COUNT:
+	if int(estate.get("multimesh_instance_count")) + int(estate.get_meta("foliage_pruned_count",0)) != EXPECTED_INSTANCE_COUNT:
 		estate.queue_free()
 		_fail("Complete final MultiMesh instance count changed")
 		return
@@ -104,7 +104,7 @@ func _validate() -> void:
 			if multimesh.instance_count > CompleteEstateFinal.MAX_BATCH_INSTANCES:
 				_fail("Full-detail render batch exceeded its bounded instance count")
 				return
-	if source_groups.size() != EXPECTED_RENDERED_GROUP_COUNT or observed_instance_count != EXPECTED_INSTANCE_COUNT:
+	if source_groups.size() != EXPECTED_RENDERED_GROUP_COUNT or observed_instance_count + int(estate.get_meta("foliage_pruned_count",0)) != EXPECTED_INSTANCE_COUNT:
 		estate.queue_free()
 		_fail("Complete final MultiMesh scene shape changed")
 		return
@@ -153,7 +153,7 @@ func _validate() -> void:
 		_fail("Main scene must have one complete-estate Nest entry")
 		return
 	var integrated := nest.get_node_or_null("Generated/CompleteEstate")
-	if integrated == null or int(integrated.get("multimesh_instance_count")) != EXPECTED_INSTANCE_COUNT:
+	if integrated == null or int(integrated.get("multimesh_instance_count")) + int(integrated.get_meta("foliage_pruned_count",0)) != EXPECTED_INSTANCE_COUNT:
 		_fail("Main scene did not build the complete final estate")
 		return
 	if nest.get_node_or_null("Generated/DormRoom_01") != null:
@@ -231,6 +231,9 @@ static func batch_transform_error(estate: Node3D) -> String:
 		var matrices := file.get_buffer(count * 64).to_float32_array()
 		var seen := PackedByteArray()
 		seen.resize(count)
+		for removed: int in (estate.get_meta("foliage_pruned_by_group",{}) as Dictionary).get(group_name,PackedInt32Array()):
+			if removed<0 or removed>=count or seen[removed]!=0:return "Invalid clearance-pruned source index: "+group_name
+			seen[removed]=2
 		var shared_mesh: Mesh = null
 		for node: MultiMeshInstance3D in groups.get(group_name, []):
 			var indices: PackedInt32Array = node.get_meta("source_instance_indices")
@@ -249,7 +252,7 @@ static func batch_transform_error(estate: Node3D) -> String:
 					var source_component: int = [0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14][component]
 					if buffer[index * 12 + component] != matrices[sample * 16 + source_component]:
 						return "Spatial batch changed a source transform: " + group_name
-		if seen.count(1) != count:
+		if seen.count(1) + seen.count(2) != count:
 			return "Spatial batches omitted source instances: " + group_name
 	return ""
 

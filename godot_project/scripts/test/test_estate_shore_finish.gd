@@ -56,7 +56,7 @@ func run() -> void:
 		if mesh == ribbon: continue
 		check(str((mesh.get_meta("extras", {}) as Dictionary).get("outdoor_fixture_id", "")) != "shoreline-wash", "Old per-bank glow must not create duplicate contours")
 	check(int(estate.get_meta("shore_retreat_count", 0)) > 0, "Overhanging land plants must actually retreat from the water")
-	check(int(estate.get("multimesh_instance_count")) == 214448, "Shore tidying must preserve all landscape instances")
+	check(int(estate.get("multimesh_instance_count")) + int(estate.get_meta("foliage_pruned_count",0)) == 214448, "Every original landscape instance must be retained or explicitly accounted for by clearance pruning")
 	var outline: PackedVector3Array = estate.find_child("OutdoorLighting", true, false).get_meta("shoreline")
 	var water := PackedVector2Array()
 	for i in range(outline.size() - 1): water.append(Vector2(outline[i].x, outline[i].z))
