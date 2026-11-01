@@ -5,8 +5,8 @@ const MODEL_PATH := "res://rooms/estate/ElfieNest-complete-final.glb"
 const SIDECAR_PATH := "res://rooms/estate/ElfieNest-complete-final.instances.bin"
 const EXPECTED_SOURCE_SHA256 := "30c4f8e7889b03b7da61a68b23f7a640c901267ba0de8c314b4678cc819e8e32"
 const EXPECTED_GROUP_COUNT := 134
-# The cleared roadside family remains declared, with no drawable instances.
-const EXPECTED_RENDERED_GROUP_COUNT := 133
+# Approved clearance leaves three declared families with no drawable instances.
+const EXPECTED_RENDERED_GROUP_COUNT := 131
 const EXPECTED_INSTANCE_COUNT := 214448
 const ESTATE_ASSERTIONS := preload("res://scripts/test/complete_estate_test_support.gd")
 var _profile: FileAccess
@@ -228,7 +228,11 @@ static func batch_transform_error(estate: Node3D) -> String:
 		var name_length := file.get_32()
 		var count := file.get_32()
 		var group_name := file.get_buffer(name_length).get_string_from_utf8()
-		var matrices := file.get_buffer(count * 64).to_float32_array()
+		var matrices := file.get_buffer(count * CompleteEstateFinal.INSTANCE_BYTES).to_float32_array()
+		# Compare batching against the accepted shoreline retreat, not raw placement.
+		var marker := estate.get_node("CompleteFinal").find_child(group_name, true, false)
+		var template := (estate as CompleteEstateFinal)._first_mesh_instance(marker)
+		estate.get("_shore").retreat_plants(template.mesh, matrices)
 		var seen := PackedByteArray()
 		seen.resize(count)
 		for removed: int in (estate.get_meta("foliage_pruned_by_group",{}) as Dictionary).get(group_name,PackedInt32Array()):
@@ -249,8 +253,7 @@ static func batch_transform_error(estate: Node3D) -> String:
 					return "Spatial batch duplicated/invalid source index: " + group_name
 				seen[sample] = 1
 				for component in range(12):
-					var source_component: int = [0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14][component]
-					if buffer[index * 12 + component] != matrices[sample * 16 + source_component]:
+					if buffer[index * 12 + component] != matrices[sample * 12 + component]:
 						return "Spatial batch changed a source transform: " + group_name
 		if seen.count(1) + seen.count(2) != count:
 			return "Spatial batches omitted source instances: " + group_name

@@ -32,7 +32,7 @@ func bind_natural_material(material: ShaderMaterial) -> void:
 func bind_environment(environment: Environment) -> void:
 	var identity := environment.get_instance_id()
 	if not _environments.has(identity):
-		_environments[identity] = {"environment": environment, "ambient": environment.ambient_light_energy, "background": environment.background_color, "background_mode": environment.background_mode, "sky": environment.background_energy_multiplier}
+		_environments[identity] = {"environment": environment, "ambient": environment.ambient_light_energy, "ambient_source": environment.ambient_light_source, "background": environment.background_color, "background_mode": environment.background_mode, "sky": environment.background_energy_multiplier}
 
 
 func apply_sample(daylight: float, room_in_use: bool = true, ordinary_enabled: bool = true) -> void:
@@ -66,8 +66,10 @@ func apply_environment(daylight: float, lights_on: bool, room_in_use: bool = tru
 		(sky["mesh"] as MeshInstance3D).visible = bool(sky["visible"]) and level > 0.0
 	for binding: Dictionary in _environments.values():
 		var environment := binding["environment"] as Environment
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
-		environment.ambient_light_energy = 0.0
+		# Preserve the authored daytime environment diffuse, separately from
+		# mounted fixtures. Night must not inherit daytime environment lighting.
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED if is_zero_approx(level) else int(binding["ambient_source"]) as Environment.AmbientSource
+		environment.ambient_light_energy = float(binding["ambient"]) * level
 		environment.background_color = Color(0.015, 0.025, 0.05) if is_zero_approx(level) else ((binding["background"] as Color).srgb_to_linear() * natural).linear_to_srgb()
 		# Compatibility uses this multiplier both in panorama generation and
 		# reflection sampling. Keep the total radiance scale equal to natural.
@@ -127,6 +129,14 @@ func bind_m01(sample: Node3D) -> Dictionary:
 						# This sample does not invent their operational state.
 						counts["preserved_emissive_surfaces"] += 1
 			mesh.set_surface_override_material(surface, owned[identity])
+	# Restored instance batches own shared runtime materials, separate from the
+	# hidden MeshInstance prototypes. Their daylight must follow the same switch.
+	for batch: MultiMeshInstance3D in sample.find_children("*", "MultiMeshInstance3D", true, false):
+		if batch.multimesh == null or batch.multimesh.mesh == null: continue
+		for surface in range(batch.multimesh.mesh.get_surface_count()):
+			var material := batch.material_override if batch.material_override != null else batch.multimesh.mesh.surface_get_material(surface)
+			if material is ShaderMaterial:
+				bind_natural_material(material)
 	return counts
 
 

@@ -38,7 +38,7 @@ func build(estate: Node3D) -> void:
 	var version := file.get_32()
 	var group_count := file.get_32()
 	file.get_32()
-	if magic != CompleteEstateFinal.SIDECAR_MAGIC or version != 1:
+	if magic != CompleteEstateFinal.SIDECAR_MAGIC or version != CompleteEstateFinal.SIDECAR_VERSION:
 		push_error("Invalid authored instance header")
 		return
 	var source_extent := Rect2()
@@ -47,7 +47,7 @@ func build(estate: Node3D) -> void:
 		var name_length := file.get_32()
 		var count := file.get_32()
 		var group := file.get_buffer(name_length).get_string_from_utf8()
-		var matrices := file.get_buffer(count*64).to_float32_array()
+		var matrices := file.get_buffer(count*CompleteEstateFinal.INSTANCE_BYTES).to_float32_array()
 		var number := group.trim_prefix("__ELFIE_INST_GROUP_").to_int()
 		# These are the landscape planting families of this fixed source asset;
 		# groups 0–51 are trees and 82–87 are stones, never treated as flowers.
@@ -72,8 +72,8 @@ func build(estate: Node3D) -> void:
 		var bounds := marker.mesh.get_aabb()
 		var woodland := bool((marker.get_meta("extras",{}) as Dictionary).get("woodlandUnderstory",false))
 		for index in range(count):
-			var offset := index*16
-			var frame := estate.global_transform * Transform3D(Basis(Vector3(matrices[offset],matrices[offset+1],matrices[offset+2]),Vector3(matrices[offset+4],matrices[offset+5],matrices[offset+6]),Vector3(matrices[offset+8],matrices[offset+9],matrices[offset+10])),Vector3(matrices[offset+12],matrices[offset+13],matrices[offset+14]))
+			var offset := index*12
+			var frame := estate.global_transform * Transform3D(Basis(Vector3(matrices[offset],matrices[offset+4],matrices[offset+8]),Vector3(matrices[offset+1],matrices[offset+5],matrices[offset+9]),Vector3(matrices[offset+2],matrices[offset+6],matrices[offset+10])),Vector3(matrices[offset+3],matrices[offset+7],matrices[offset+11]))
 			var origin := Vector2(frame.origin.x, frame.origin.z)
 			if first:
 				source_extent = Rect2(origin,Vector2.ZERO)

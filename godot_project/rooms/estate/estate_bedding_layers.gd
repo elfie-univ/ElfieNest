@@ -25,7 +25,12 @@ static func attach(estate: Node) -> void:
 		if e.get("piece") not in ["throw", "bed_cover_seam"]: continue
 		var key := str(e.get("module"))+":"+str(e.get("resident"))
 		if beds.has(key): beds[key]._add(mesh, e.get("piece") == "throw")
-	for binding: RefCounted in beds.values(): binding.sample()
+	for binding: RefCounted in beds.values():
+		# Support lookup is construction data; sampling uses stored corner
+		# indices/weights and the current cloth mesh after every layer is bound.
+		binding._cells.clear()
+		binding._points.clear()
+		binding.sample()
 
 func _bind(value: MeshInstance3D) -> void:
 	cloth = value

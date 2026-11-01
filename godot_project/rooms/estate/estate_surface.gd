@@ -139,6 +139,7 @@ static func repair_window_normals(instance: MeshInstance3D, cache: Dictionary) -
 	if str(extras.get("source_name", "")) != "ROOM • front fitted deep reveal" or not instance.mesh is ArrayMesh:
 		return
 	var source := instance.mesh as ArrayMesh
+	if source.get_meta("estate_window_normals", false): return
 	var identity := source.get_instance_id()
 	if not cache.has(identity):
 		var result := ArrayMesh.new()
@@ -165,5 +166,6 @@ static func repair_window_normals(instance: MeshInstance3D, cache: Dictionary) -
 			result.add_surface_from_arrays(source.surface_get_primitive_type(surface), arrays)
 			result.surface_set_material(surface, source.surface_get_material(surface))
 		result.custom_aabb = source.custom_aabb
+		result.set_meta("estate_window_normals", true)
 		cache[identity] = result
 	instance.mesh = cache[identity]

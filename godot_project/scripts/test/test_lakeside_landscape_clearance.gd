@@ -45,7 +45,7 @@ func run():
   for index in removed:
    if index<0 or index>=count or kept.has(index):failures.append("Removed source ID is invalid or still rendered: "+group)
   if kept.size()+removed.size()!=count:failures.append("Unclassified source instances: "+group)
-  sidecar.seek(sidecar.get_position()+count*64)
+  sidecar.seek(sidecar.get_position()+count*CompleteEstateFinal.INSTANCE_BYTES)
  sidecar.close()
  var actual=int(estate.get("multimesh_instance_count"))+int(estate.get_meta("foliage_pruned_count",0))
  if actual!=214448:failures.append("Pruning must account for every original instance")

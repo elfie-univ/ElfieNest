@@ -14,12 +14,21 @@ func _initialize() -> void:
 	var sample := SAMPLE.new()
 	var original_background := environment.background_mode
 	var original_ambient := environment.ambient_light_energy
+	if environment.ambient_light_source != Environment.AMBIENT_SOURCE_COLOR or not is_equal_approx(original_ambient, 0.2291831181):
+		push_error("The authored daytime environment diffuse must survive nighttime lighting changes")
+		quit(1)
+		return
 	sample.bind_environment(environment)
-	for daylight in [1.0, 0.0, 1.0]:
-		sample.apply_environment(daylight, is_zero_approx(daylight))
+	for phase: Array in [[1.0,false], [0.0,false], [0.0,true], [1.0,false]]:
+		var daylight := float(phase[0])
+		sample.apply_environment(daylight, is_zero_approx(daylight), true, phase[1])
 		var sky := environment.sky.sky_material as ShaderMaterial
 		var reflected: Variant = sky.get_shader_parameter("environment_color")
 		var night := is_zero_approx(daylight)
+		if environment.ambient_light_source != (Environment.AMBIENT_SOURCE_DISABLED if night else Environment.AMBIENT_SOURCE_COLOR):
+			push_error("Day must restore environment diffuse; evening and quiet night must disable it")
+			quit(1)
+			return
 		var night_amount: Variant = sky.get_shader_parameter("night_amount")
 		if night_amount == null or not is_equal_approx(float(night_amount), 1.0 if night else 0.0):
 			push_error("Night sky must enable its gradient and sparse stars only at night")

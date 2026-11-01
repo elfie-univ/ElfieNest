@@ -3,6 +3,8 @@ class_name CompleteEstateFinal
 
 const INSTANCE_SIDECAR_PATH := "res://rooms/estate/ElfieNest-complete-final.instances.bin"
 const SIDECAR_MAGIC := "ENINST01"
+const SIDECAR_VERSION := 2
+const INSTANCE_BYTES := 48
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 const WATER := preload("res://rooms/estate/estate_water.gd")
@@ -76,7 +78,7 @@ func _restore_instanced_groups() -> void:
 	var version := file.get_32()
 	var group_count := file.get_32()
 	var expected_instance_count := file.get_32()
-	if magic != SIDECAR_MAGIC or version != 1:
+	if magic != SIDECAR_MAGIC or version != SIDECAR_VERSION:
 		file.close()
 		_fail_restore("Complete final instance sidecar header is invalid")
 		return
@@ -93,29 +95,12 @@ func _restore_instanced_groups() -> void:
 		if (
 			name_length == 0 or name_length > 256
 			or instance_count > expected_instance_count - observed_instance_count
-			or name_length + instance_count * 64 > file.get_length() - file.get_position()
+			or name_length + instance_count * INSTANCE_BYTES > file.get_length() - file.get_position()
 		):
 			_fail_restore("Complete final instance sidecar group size is invalid")
 			return
 		var group_name := file.get_buffer(name_length).get_string_from_utf8()
-		var matrices := file.get_buffer(instance_count * 64).to_float32_array()
-		var instance_buffer := PackedFloat32Array()
-		instance_buffer.resize(instance_count * 12)
-		for instance_index in range(instance_count):
-			var matrix_index := instance_index * 16
-			var buffer_index := instance_index * 12
-			instance_buffer[buffer_index + 0] = matrices[matrix_index + 0]
-			instance_buffer[buffer_index + 1] = matrices[matrix_index + 4]
-			instance_buffer[buffer_index + 2] = matrices[matrix_index + 8]
-			instance_buffer[buffer_index + 3] = matrices[matrix_index + 12]
-			instance_buffer[buffer_index + 4] = matrices[matrix_index + 1]
-			instance_buffer[buffer_index + 5] = matrices[matrix_index + 5]
-			instance_buffer[buffer_index + 6] = matrices[matrix_index + 9]
-			instance_buffer[buffer_index + 7] = matrices[matrix_index + 13]
-			instance_buffer[buffer_index + 8] = matrices[matrix_index + 2]
-			instance_buffer[buffer_index + 9] = matrices[matrix_index + 6]
-			instance_buffer[buffer_index + 10] = matrices[matrix_index + 10]
-			instance_buffer[buffer_index + 11] = matrices[matrix_index + 14]
+		var instance_buffer := file.get_buffer(instance_count * INSTANCE_BYTES).to_float32_array()
 		var marker := $CompleteFinal.find_child(group_name, true, false)
 		if marker == null:
 			file.close()

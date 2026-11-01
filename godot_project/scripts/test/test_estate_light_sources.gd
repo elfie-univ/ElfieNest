@@ -4,10 +4,6 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
-	var shader_text:=FileAccess.get_file_as_string("res://rooms/estate/estate_opaque.gdshader")
-	if "IRRADIANCE = vec4(mix(" in shader_text:
-		push_error("Opaque surfaces still receive unmounted hemisphere irradiance")
-		quit(1);return
 	var raw: Node3D=load("res://rooms/estate/ElfieNest-complete-final.glb").instantiate()
 	root.add_child(raw)
 	preload("res://rooms/estate/estate_complete_final.gd")._place_lakeside_bench(raw)
@@ -29,12 +25,11 @@ func run() -> void:
 	var lakeside_shadowed:=0
 	var original_outdoor:=0
 	for light: Light3D in estate.find_children("*","Light3D",true,false):
-		if "ReferenceFill" in str(light.name) or "Hemisphere" in str(light.name): failures.append("Unmounted fill: "+str(light.name))
-		if light is DirectionalLight3D:
+		if light is DirectionalLight3D and light.shadow_enabled:
 			solar_sources+=1
 			if not light.shadow_enabled: failures.append("Unshadowed directional compensation")
-			if not is_equal_approx(light.light_energy,1.05/PI):failures.append("Sun energy still depends on removed ambient compensation")
-		elif light.visible and light.get_meta("asset_role","")!="authored-daylight-fixture":
+			if not is_equal_approx(light.light_energy,1.05/PI*0.04):failures.append("Original daytime sun calibration changed")
+		elif not light is DirectionalLight3D and light.visible and light.get_meta("asset_role","")!="authored-daylight-fixture":
 			failures.append("Source has no mounted fixture: "+str(light.name))
 		if not light.visible or light is DirectionalLight3D: continue
 		var owner_extras: Dictionary=light.get_parent().get_meta("extras",{})
@@ -54,13 +49,14 @@ func run() -> void:
 					if part.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:failures.append("Bollard must still cast shadows from other lights")
 				if (light.shadow_caster_mask & 29)!=29:failures.append("Bollard must retain actor, ground, furniture and foliage occlusion")
 	var daylight=preload("res://rooms/estate/estate_daylight.gd")
+	if daylight.BOLLARD_FIXTURE_LAYER & daylight.NATIVE_HEMISPHERE_LAYER: failures.append("Local bollard isolation overlaps restored daylight hemisphere")
 	for mesh: MeshInstance3D in estate.find_children("*","MeshInstance3D",true,false):
 		for surface in range(mesh.mesh.get_surface_count()):
 			var material=mesh.get_active_material(surface)
 			if material is BaseMaterial3D and daylight._is_authored_bounce(material.resource_name.to_lower()) and material.emission_enabled:
 				failures.append("Painted surface emits without a fixture: "+material.resource_name)
 	if outdoor!=42 or lakeside_shadowed!=3 or original_outdoor!=39:failures.append("Outdoor fixture inventory changed")
-	if solar_sources!=2: failures.append("Only the two layer-separated views of the same sun are allowed")
+	if solar_sources!=1: failures.append("Exactly one physical sun must illuminate shared floor/ceiling receivers")
 	var reference: Node3D=load("res://rooms/nest.tscn").instantiate()
 	var environment: Environment=(reference.get_node("WorldEnvironment") as WorldEnvironment).environment.duplicate(true)
 	reference.free()

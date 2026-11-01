@@ -71,6 +71,8 @@ func _ready() -> void:
 		if requested.begins_with("lighting-v4-"): selected = requested
 	camera_owner.select_observer_camera_by_id(selected)
 	set_phase(not selected.ends_with("day"),selected.ends_with("quiet"))
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('profile')||''"))=="memory":
+		add_child(preload("res://runtime/lab/estate_memory_probe.gd").new())
 
 func set_phase(night: bool, quiet: bool = false) -> void:
 	_night = night

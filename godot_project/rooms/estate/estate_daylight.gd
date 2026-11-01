@@ -3,10 +3,9 @@ extends RefCounted
 
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 
-# Retain the accepted calibration only for interior contact fixtures.
-# The actual sun uses its authored energy without ambient compensation.
+# Restore the accepted daytime rig and its original shadowed-pass calibration.
 const SHADOWED_PASS_SCALE := 0.04
-const SUN_ENERGY := 1.05 / PI
+const SUN_ENERGY := 1.05 / PI * SHADOWED_PASS_SCALE
 const SUN_COLOR := Color(1.0, 231.0 / 255.0, 195.0 / 255.0, 1.0)
 const INTERIOR_FILL_LAYER := 2
 const OUTDOOR_LIGHT_LAYER := 4
@@ -16,8 +15,8 @@ const OUTDOOR_SUN_ENERGY := SUN_ENERGY
 const OBSERVATION_GLASS_ALPHA := 0.075
 const FURNITURE_CONTACT_LAYER := 8
 const NATIVE_HEMISPHERE_LAYER := 1 << 17
-# Reuse the inactive hemisphere receiver bit for the two bollard fixtures.
-const BOLLARD_FIXTURE_LAYER := 1 << 17
+# Keep local fixture isolation separate from restored daytime hemisphere receivers.
+const BOLLARD_FIXTURE_LAYER := 1 << 15
 # Separate general room lighting from tiny stair/shelf accents in Compatibility.
 const ACTIVITY_LAYERS := [INTERIOR_FILL_LAYER, 1 << 16, 1 << 19, 1 << 28]
 const ROOF_ROOM_LAYER := 1 << 29
@@ -62,20 +61,36 @@ static func apply(estate: Node) -> Dictionary:
 	preload("res://rooms/estate/estate_bedding_layers.gd").attach(estate)
 	var counts := {"sun": 0, "artificial_surfaces": 0, "sky_meshes": 0, "glass_surfaces": 0, "corrected_surfaces": 0}
 	_calibrate(estate, materials, counts)
-	# Keep indoor/outdoor shadow masks separate while sharing the reference
-	# solar direction across the complete scene; no extra directional fills.
-	for light: Node in estate.find_children("*", "DirectionalLight3D", true, false):
-		(light as DirectionalLight3D).global_position = (estate as Node3D).to_global(Vector3(-20, 35, 24))
-		(light as DirectionalLight3D).look_at((estate as Node3D).global_position)
-		var outdoor_sun := (light as DirectionalLight3D).duplicate() as DirectionalLight3D
-		outdoor_sun.name = "CourtyardDaylight"
-		outdoor_sun.light_cull_mask = OUTDOOR_LIGHT_LAYER | LANDSCAPE_LIGHT_LAYER | WATER_LIGHT_LAYER | BOLLARD_FIXTURE_LAYER
-		outdoor_sun.light_energy = OUTDOOR_SUN_ENERGY
-		outdoor_sun.light_color = Color.hex(0xffe7c3ff)
-		light.get_parent().add_child(outdoor_sun)
-		outdoor_sun.global_position = (estate as Node3D).to_global(Vector3(-20, 35, 24))
-		outdoor_sun.look_at((estate as Node3D).global_position)
+	# One physical sun illuminates every receiver once. Shared floor/ceiling
+	# meshes carry multiple room masks; separate solar copies double-lit L2.
+	for light: DirectionalLight3D in estate.find_children("*", "DirectionalLight3D", true, false):
+		light.global_position = (estate as Node3D).to_global(Vector3(-20, 35, 24))
+		light.look_at((estate as Node3D).global_position)
+	for entry: Array in [[0xcdeaffff, 0.65, Vector3(22, 25, -24)], [0xffffffff, 0.30, Vector3(0, 15, 32)]]:
+		var fill := DirectionalLight3D.new()
+		fill.name = "CourtyardReferenceFillCool" if int(entry[0]) == 0xcdeaffff else "CourtyardReferenceFillFront"
+		fill.light_cull_mask = INTERIOR_FILL_LAYER | OUTDOOR_LIGHT_LAYER | LANDSCAPE_LIGHT_LAYER | WATER_LIGHT_LAYER | BOLLARD_FIXTURE_LAYER
+		fill.light_color = Color.hex(entry[0])
+		fill.light_energy = float(entry[1]) / PI
+		fill.set_meta("reference_intensity", entry[1])
+		estate.add_child(fill)
+		fill.global_position = (estate as Node3D).to_global(entry[2])
+		fill.look_at((estate as Node3D).global_position)
 	var contact_rooms: Dictionary = {}
+	# Textured native materials need the same normal-dependent hemisphere as
+	# custom surfaces. Do not add it twice to shaders that own IRRADIANCE.
+	var upper := Color.hex(0xd7ebffff).srgb_to_linear()
+	var lower := Color.hex(0x5a685dff).srgb_to_linear()
+	for up in [true, false]:
+		var hemisphere := DirectionalLight3D.new()
+		hemisphere.name = "NativeHemisphereUpper" if up else "NativeHemisphereLower"
+		hemisphere.light_color = ((upper - lower) * 0.5).linear_to_srgb()
+		hemisphere.light_energy = 0.72 / PI
+		hemisphere.light_negative = not up
+		hemisphere.light_specular = 0.0
+		hemisphere.light_cull_mask = NATIVE_HEMISPHERE_LAYER
+		hemisphere.rotation_degrees.x = -90.0 if up else 90.0
+		estate.add_child(hemisphere)
 	var ceiling_targets: Dictionary = {}
 	for fixture: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
 		var extras: Dictionary = fixture.get_meta("extras", {})
@@ -191,7 +206,7 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 		sunlight.light_color = SUN_COLOR
 		sunlight.light_energy = SUN_ENERGY
 		sunlight.shadow_enabled = true
-		sunlight.light_cull_mask = INTERIOR_FILL_LAYER
+		sunlight.light_cull_mask = 0xFFFFF
 		counts["sun"] += 1
 	elif node is Light3D:
 		(node as Light3D).visible = false
@@ -336,6 +351,18 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 				if artificial:
 					counts["artificial_surfaces"] += 1
 
+			var needs_hemisphere := false
+			var owns_irradiance := false
+			for surface in range(instance.mesh.get_surface_count()):
+				var actual := instance.get_active_material(surface)
+				owns_irradiance = owns_irradiance or actual is ShaderMaterial
+				var native := actual as BaseMaterial3D
+				if native != null and native.albedo_texture != null and native.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL and not bool(extras.get("glass", false)):
+					needs_hemisphere = true
+			# Light layers are per instance, not per surface: mixed meshes must
+			# not add native hemisphere lights to custom IRRADIANCE a second time.
+			if needs_hemisphere and not owns_irradiance:
+				instance.layers |= NATIVE_HEMISPHERE_LAYER
 	for child: Node in node.get_children():
 		_calibrate(child, materials, counts)
 

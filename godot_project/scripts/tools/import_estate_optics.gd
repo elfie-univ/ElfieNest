@@ -1,7 +1,7 @@
 @tool
 extends EditorScenePostImport
 ## Carry authored optical extensions into the compiled scene, including Web.
-## Source-only importer: no runtime GLB reads, color edits or geometry changes.
+## Import authored optics and the accepted static mesh corrections once.
 
 
 func _post_import(scene: Node) -> Object:
@@ -41,6 +41,15 @@ func _post_import(scene: Node) -> Object:
 				# The optical sample additionally inspects complete glTF definitions;
 				# production consumes the narrow source_optics values above.
 				material.set_meta("m01_reference_optics", sample_materials[material.resource_name])
+	# These accepted static corrections depend only on local mesh data. Store
+	# their final buffers once, instead of retaining source and corrected copies
+	# in every running estate. Animated bedding bindings still belong to runtime.
+	var surface_tools := preload("res://rooms/estate/estate_surface.gd")
+	var windows := {}
+	for node: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
+		surface_tools.repair_window_normals(node, windows)
+		if (node.get_meta("extras", {}) as Dictionary).get("piece") == "bed_cover":
+			node.mesh = surface_tools.duvet_rest(node.mesh)
 	# Deduplicate before serialization so Web never allocates the discarded
 	# material variants of identical geometry during scene loading.
 	var sharing := preload("res://rooms/estate/estate_mesh_storage.gd")

@@ -171,14 +171,14 @@ func _add_authored_plants(estate: Node3D) -> bool:
 	var version := file.get_32()
 	var groups := file.get_32()
 	file.get_32()
-	if magic!=CompleteEstateFinal.SIDECAR_MAGIC or version!=1:
+	if magic!=CompleteEstateFinal.SIDECAR_MAGIC or version!=CompleteEstateFinal.SIDECAR_VERSION:
 		push_error("Invalid source plant instance geometry")
 		return false
 	var projected: Array[PackedVector2Array] = []
 	for _group in range(groups):
 		var length := file.get_32();var count := file.get_32()
 		var name := file.get_buffer(length).get_string_from_utf8()
-		var matrices := file.get_buffer(count*64).to_float32_array()
+		var matrices := file.get_buffer(count*CompleteEstateFinal.INSTANCE_BYTES).to_float32_array()
 		var number := name.trim_prefix("__ELFIE_INST_GROUP_").to_int()
 		# Plant families in this fixed GLB: trees 0–51 and rocks 82–87 are
 		# deliberately separate from groundcover, shrubs, sedges and flowers.
@@ -190,8 +190,8 @@ func _add_authored_plants(estate: Node3D) -> bool:
 		plant_source_groups+=1
 		var local_footprint := _plant_mesh_union(template)
 		for instance in range(count):
-			var i := instance*16
-			var frame := estate.global_transform*Transform3D(Basis(Vector3(matrices[i],matrices[i+1],matrices[i+2]),Vector3(matrices[i+4],matrices[i+5],matrices[i+6]),Vector3(matrices[i+8],matrices[i+9],matrices[i+10])),Vector3(matrices[i+12],matrices[i+13],matrices[i+14]))
+			var i := instance*12
+			var frame := estate.global_transform*Transform3D(Basis(Vector3(matrices[i],matrices[i+4],matrices[i+8]),Vector3(matrices[i+1],matrices[i+5],matrices[i+9]),Vector3(matrices[i+2],matrices[i+6],matrices[i+10])),Vector3(matrices[i+3],matrices[i+7],matrices[i+11]))
 			var bounds := frame*template.mesh.get_aabb()
 			if not _overlaps_mask(bounds,lawn): continue
 			plant_instance_count+=1

@@ -1200,6 +1200,42 @@
       ],
       "title": "八主题露台 · 单间休闲区最终效果图",
       "kind": "reference"
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v027/images/table-repaired-front.png",
+      "objects": [
+        "layout:central:2"
+      ],
+      "title": "table-repaired-front.png",
+      "kind": "render",
+      "version": "layout_central_2_v027"
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v027/images/table-repaired-rear.png",
+      "objects": [
+        "layout:central:2"
+      ],
+      "title": "table-repaired-rear.png",
+      "kind": "render",
+      "version": "layout_central_2_v027"
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v028/images/table-repaired-front.png",
+      "objects": [
+        "layout:central:2"
+      ],
+      "title": "table-repaired-front.png",
+      "kind": "render",
+      "version": "layout_central_2_v028"
+    },
+    {
+      "path": "layouts/central_floor_2/versions/v028/images/table-repaired-rear.png",
+      "objects": [
+        "layout:central:2"
+      ],
+      "title": "table-repaired-rear.png",
+      "kind": "render",
+      "version": "layout_central_2_v028"
     }
   ],
   "stats": {
