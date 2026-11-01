@@ -94,6 +94,7 @@ static func restore(generated: Node3D, data: Resource) -> Dictionary:
   physics._doors.append(door)
   physics._door_controls.append(DOOR.new(door))
  var semantics := SEMANTICS.new()
+ semantics._root=generated
  semantics.zones.assign(bindings.zones)
  semantics.descriptors.assign(bindings.descriptors)
  semantics.facility_descriptors.assign(bindings.facilities)

@@ -19,7 +19,9 @@ const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
 const M01_SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
 const FIXED_BED_COUNT: int = 32
 const CAMERA_ORBIT_SPEED: float = 0.008
-const FOLLOW_CAMERA_OFFSET := Vector3(1.8, 1.0, 2.2)
+const FOLLOW_CAMERA_OFFSET := Vector3(1.8, 1.3, 3.2)
+const FOLLOW_CAMERA_MIN_DISTANCE := 1.8
+const FOLLOW_CAMERA_WALL_MARGIN := 0.2
 const CAMERA_MIN_PITCH: float = deg_to_rad(12.0)
 const CAMERA_MAX_PITCH: float = deg_to_rad(82.0)
 const CAMERA_MIN_SIZE: float = 5.0
@@ -45,6 +47,7 @@ var bed_count: int = FIXED_BED_COUNT:
 
 var _rebuilding := false
 var physical_authority := false
+var _pov_body_layers: Array[Dictionary] = []
 var _camera_target := Vector3.ZERO
 var _camera_default_target := Vector3.ZERO
 var _camera_yaw: float = 0.0
@@ -144,9 +147,22 @@ func _unhandled_input(event: InputEvent) -> void:
 	var camera := _active_camera()
 	if camera == null:
 		return
+	var current_view := _camera_views[_active_camera_index]
+	if bool(current_view.get("first_person", false)) and event is InputEventMouseMotion:
+		var motion := event as InputEventMouseMotion
+		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			current_view["look_yaw"] = wrapf(float(current_view.get("look_yaw", 0.0)) - motion.relative.x*0.0032, -PI, PI)
+			current_view["look_pitch"] = clampf(float(current_view.get("look_pitch", 0.0)) - motion.relative.y*0.0032, deg_to_rad(-75), deg_to_rad(75))
+			_process(0.0)
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseMotion:
 		var mouse_motion := event as InputEventMouseMotion
 		if mouse_motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			if not _camera_views[_active_camera_index].has("actor"):
+				_turn_camera(camera, mouse_motion.relative)
+				get_viewport().set_input_as_handled()
+				return
 			_camera_yaw = wrapf(
 				_camera_yaw - mouse_motion.relative.x * CAMERA_ORBIT_SPEED,
 				-PI,
@@ -160,6 +176,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 		elif mouse_motion.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+			if not _camera_views[_active_camera_index].has("actor"):
+				_move_camera_track(camera, mouse_motion.relative.x)
+				get_viewport().set_input_as_handled()
+				return
 			var viewport_height := maxf(get_viewport().get_visible_rect().size.y, 1.0)
 			var visible_height := camera.size
 			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
@@ -170,11 +190,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				)
 			var pan_scale := visible_height / viewport_height
 			var camera_basis := camera.global_transform.basis
-			_camera_target += (
+			var movement := (
 				-camera_basis.x * mouse_motion.relative.x
 				+ camera_basis.y * mouse_motion.relative.y
 			) * pan_scale
-			_apply_camera_transform(camera)
+			var previous := camera.global_position
+			camera.global_position = _constrain_camera_position(previous + movement)
+			_camera_target += camera.global_position - previous
+			_sync_orbit_state(camera)
+			if _camera_views[_active_camera_index].has("actor"):
+				_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
@@ -185,14 +210,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				camera.fov = clampf(camera.fov * 0.9, 30.0, 100.0)
 			else:
 				camera.size = clampf(camera.size * 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
-			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
 				camera.fov = clampf(camera.fov / 0.9, 30.0, 100.0)
 			else:
 				camera.size = clampf(camera.size / 0.9, CAMERA_MIN_SIZE, CAMERA_MAX_SIZE)
-			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventKey:
 		var key_event := event as InputEventKey
@@ -425,7 +448,7 @@ func add_lighting_observer_views() -> void:
 	if _lighting_preview_available: return
 	_lighting_preview_available = true
 	var parent := get_node("Generated") as Node3D
-	_add_complete_view(parent, "estate-ring", "环形路", to_global(Vector3(-20, 3.4, -8)), to_global(Vector3(-12, 0.8, -13)))
+	_add_complete_view(parent, "estate-ring", "环形路", to_global(Vector3(0, 3.4, 22)), to_global(Vector3(0, 4.5, 0)))
 	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
 	camera_catalog_revision += 1
 	_emit_observer_camera_catalog_changed()
@@ -447,6 +470,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 	var previous_id := _active_camera_id
 	var room_floors: Dictionary = {}
 	var room_floor_tops: Dictionary = {}
+	var room_floor_bounds: Dictionary = {}
 	var terrace_floors: Dictionary = {}
 	var central_floor_tops: Dictionary = {}
 	var central_floor_bottoms: Dictionary = {}
@@ -463,6 +487,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		if source.contains("continuous lower floor"):
 			room_floors[module_name] = mesh.global_transform
 			room_floor_tops[module_name] = mesh.get_aabb().end.y
+			room_floor_bounds[module_name] = mesh.get_aabb()
 		if source == "ROOM • inset terrace walking finish":
 			terrace_floors[module_name] = mesh
 		if module_name == "central" and source in [
@@ -476,7 +501,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		if module_name == "central" and source.begins_with("Central L4 round arrival floor"):
 			central_floor_tops[4] = _arrival_floor_top(mesh)
 			central_floor_bottoms[4] = ((global_transform.affine_inverse()*mesh.global_transform)*mesh.get_aabb()).position.y
-	# Keep the internal overview action/fallback while presenting only one outdoor view.
+	# Overview remains a preset and the fallback for missing resident cameras.
 	var overview := get_node("Camera3D") as Camera3D
 	overview.projection = Camera3D.PROJECTION_PERSPECTIVE
 	overview.fov = 38.0
@@ -484,7 +509,7 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 	overview.far = 1000.0
 	overview.global_position = to_global(REFERENCE_REVIEW_POSITION)
 	overview.look_at(to_global(REFERENCE_REVIEW_TARGET))
-	_register_observation_view("overview", "庭院与建筑", overview, to_global(REFERENCE_REVIEW_TARGET))
+	_register_observation_view("overview", "全园总览", overview, to_global(REFERENCE_REVIEW_TARGET))
 	for floor_number in range(1, 5):
 		var floor_y := float(central_floor_tops[floor_number])
 		var camera_position := Vector3(0, floor_y + 1.4, 5.2)
@@ -514,6 +539,8 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 			field_of_view = 80.0
 		_add_complete_view(generated, "central-%d" % floor_number, "主楼 · %d 层" % floor_number, to_global(camera_position), to_global(target), field_of_view)
 		_camera_views.back()["floor_height_limits"] = Vector2(to_global(Vector3(0,floor_y+0.25,0)).y, to_global(Vector3(0,float(central_floor_bottoms[floor_number+1])-0.25,0)).y if central_floor_bottoms.has(floor_number+1) else INF)
+		var upper_y := float(central_floor_bottoms.get(floor_number + 1, floor_y + 3.5)) - 0.25
+		_set_camera_region(_camera_views.back(), global_transform, AABB(Vector3(-8.1, floor_y + 0.25, -8.1), Vector3(16.2, upper_y - floor_y - 0.25, 16.2)))
 	for index in range(1, 9):
 		var module_name := "M%02d" % index
 		if not room_floors.has(module_name):
@@ -523,7 +550,11 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		var walking_y := float(room_floor_tops[module_name])
 		var lower_position := Vector3(0,walking_y+1.8,-2.65)
 		var lower_target := Vector3(-0.12,walking_y+0.95,-0.3)
-		_add_complete_view(generated, "dorm-%02d" % index, "宿舍 %s · 一层" % module_name, floor_frame * lower_position, floor_frame * lower_target, 100.0)
+		_add_complete_view(generated, "dorm-%02d" % index, "卧室 %s · 一层" % module_name, floor_frame * lower_position, floor_frame * lower_target, 100.0)
+		var room_bounds: AABB = room_floor_bounds[module_name]
+		room_bounds.position.y = walking_y + 0.25
+		room_bounds.size.y = 2.5
+		_set_camera_region(_camera_views.back(), floor_frame, room_bounds)
 		if terrace_floors.has(module_name):
 			var terrace := terrace_floors[module_name] as MeshInstance3D
 			var surface := terrace.get_aabb()
@@ -531,7 +562,11 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 			# Inset from the curved edge: the AABB corner itself is outside the floor.
 			var camera_position := Vector3(surface.position.x+1.15,surface.end.y+1.85,surface.position.z+1.65)
 			var target := Vector3(center.x,surface.end.y+1.0,center.z+0.8)
-			_add_complete_view(generated, "terrace-%02d" % index, "宿舍 %s · 二层露台" % module_name, terrace.global_transform * camera_position, terrace.global_transform * target,85.0)
+			_add_complete_view(generated, "terrace-%02d" % index, "卧室 %s · 二层" % module_name, terrace.global_transform * camera_position, terrace.global_transform * target,85.0)
+			var terrace_bounds := surface
+			terrace_bounds.position.y = surface.end.y + 0.25
+			terrace_bounds.size.y = 2.6
+			_set_camera_region(_camera_views.back(), terrace.global_transform, terrace_bounds)
 			(_camera_views.back()["camera"] as Camera3D).keep_aspect = Camera3D.KEEP_WIDTH
 	# Explicit local inspection uses the same complete world and monitor controls.
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(parent.location.search).get('stair_review')")) == "1":
@@ -616,6 +651,18 @@ func _register_observation_view(
 		"fov": camera.fov,
 	})
 
+	var local_position := to_local(camera.global_position)
+	var center := to_local(target)
+	if view_id in ["overview", "estate-ring"]:
+		center = Vector3.ZERO
+	var radius := maxf(Vector2(local_position.x - center.x, local_position.z - center.z).length(), 1.0)
+	var height := maxf(local_position.y + 5.0, 5.0)
+	_set_camera_region(_camera_views.back(), global_transform, AABB(Vector3(center.x-radius-2, 0.25, center.z-radius-2), Vector3((radius+2)*2, height, (radius+2)*2)))
+	if view_id in ["overview", "estate-ring"]:
+		_camera_views.back()["minimum_radius"] = maxf(radius - 2.0, 1.0)
+	if view_id == "overview":
+		_camera_views.back()["track_angle_limit"] = PI / 2.0
+
 
 func add_access_observer_views() -> void:
 	if _observation_view_index_by_id("access-estate") >= 0: return
@@ -645,26 +692,43 @@ func register_observer_actor_camera(actor_id: String, actor: CharacterBody3D) ->
 	var view_id := "elfie-" + actor_id
 	if _observation_view_index_by_id(view_id) >= 0:
 		return
-	var camera := Camera3D.new()
-	camera.fov = 60.0
-	camera.near = 0.05
-	camera.far = 150.0
-	add_child(camera)
-	camera.global_position = actor.global_position + Vector3.UP * 0.6 + FOLLOW_CAMERA_OFFSET
-	camera.look_at(actor.global_position + Vector3.UP * 0.6)
-	_register_observation_view(view_id, "跟随精灵 · " + actor_id, camera, actor.global_position)
-	_camera_views[-1]["actor"] = actor
+	for first_person: bool in [false, true]:
+		var camera := Camera3D.new()
+		camera.fov = 75.0 if first_person else 60.0
+		camera.near = 0.03 if first_person else 0.05
+		camera.far = 150.0
+		add_child(camera)
+		camera.global_position = actor.global_position + Vector3.UP * 0.6 + FOLLOW_CAMERA_OFFSET
+		camera.look_at(actor.global_position + Vector3.UP * 0.6)
+		var id := ("elfie-pov-" if first_person else "elfie-") + actor_id
+		_register_observation_view(id, ("代入精灵 · " if first_person else "跟随精灵 · ") + actor_id, camera, actor.global_position)
+		_camera_views[-1]["actor"] = actor
+		_camera_views[-1]["actor_id"] = actor_id
+		_camera_views[-1]["first_person"] = first_person
+		if first_person:
+			camera.set_cull_mask_value(20, false)
+			var visual := actor.get_node_or_null("VisualRoot") as Node3D
+			_camera_views[-1]["visual"] = visual
+			for skeleton: Skeleton3D in actor.find_children("*", "Skeleton3D", true, false):
+				var head := skeleton.find_bone("mixamorig_Head")
+				if head >= 0:
+					_camera_views[-1]["skeleton"] = skeleton
+					_camera_views[-1]["head"] = head
+					break
 	camera_catalog_revision += 1
 	_emit_observer_camera_catalog_changed()
 
 
 func remove_observer_actor_camera(actor_id: String) -> void:
-	var index := _observation_view_index_by_id("elfie-" + actor_id)
-	if index < 0:
-		return
-	var camera := _camera_views[index]["camera"] as Camera3D
-	_camera_views.remove_at(index)
-	camera.queue_free()
+	if _active_camera_id in ["elfie-" + actor_id, "elfie-pov-" + actor_id]:
+		_restore_pov_body()
+	for id: String in ["elfie-" + actor_id, "elfie-pov-" + actor_id]:
+		var index := _observation_view_index_by_id(id)
+		if index < 0:
+			continue
+		var camera := _camera_views[index]["camera"] as Camera3D
+		_camera_views.remove_at(index)
+		camera.queue_free()
 	camera_catalog_revision += 1
 	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
 	if _active_camera_index < 0 and not _camera_views.is_empty():
@@ -681,13 +745,27 @@ func _process(delta: float) -> void:
 		return
 	# Check validity before casting: a freed resident remains a Variant reference.
 	if not is_instance_valid(view["actor"]):
-		remove_observer_actor_camera(String(view["id"]).trim_prefix("elfie-"))
+		remove_observer_actor_camera(str(view["actor_id"]))
 		return
 	var actor := view["actor"] as CharacterBody3D
 	if not actor.is_visible_in_tree():
 		select_observer_overview()
 		return
 	var camera := view["camera"] as Camera3D
+	if bool(view.get("first_person", false)):
+		var visual := view.get("visual") as Node3D
+		var facing := visual.global_basis.z.normalized() if is_instance_valid(visual) else actor.global_basis.z.normalized()
+		var eye := actor.global_position + Vector3.UP * 1.55
+		var skeleton := view.get("skeleton") as Skeleton3D
+		if is_instance_valid(skeleton):
+			eye = (skeleton.global_transform * skeleton.get_bone_global_pose(int(view["head"]))).origin + Vector3.UP*0.06
+		facing.y = 0
+		facing = facing.normalized().rotated(Vector3.UP, float(view.get("look_yaw", 0.0)))
+		var pitch := float(view.get("look_pitch", 0.0))
+		camera.global_position = eye
+		camera.look_at(eye + facing*cos(pitch) + Vector3.UP*sin(pitch))
+		_camera_target = eye - camera.global_basis.z
+		return
 	var target := actor.global_position + Vector3(0, 0.6, 0)
 	var offset: Vector3 = view.get("follow_offset", FOLLOW_CAMERA_OFFSET)
 	var desired := target + offset
@@ -699,9 +777,12 @@ func _process(delta: float) -> void:
 		if resident is CollisionObject3D:
 			excluded.append(resident.get_rid())
 	query.exclude = excluded
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		desired = (hit["position"] as Vector3).move_toward(target, 0.15)
+	var minimum_distance := FOLLOW_CAMERA_MIN_DISTANCE
+	var collision := actor.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		minimum_distance = maxf(minimum_distance, (collision.shape as CapsuleShape3D).height * collision.global_basis.y.length())
+	desired = _follow_camera_position(view, target, offset, minimum_distance, query)
+	var direction := (desired - target).normalized()
 	var distance := desired.distance_to(target)
 	if bool(view.get("follow_initialized", false)):
 		var previous_distance := float(view["follow_distance"])
@@ -711,18 +792,57 @@ func _process(delta: float) -> void:
 	view["follow_initialized"] = true
 	view["follow_distance"] = distance
 	view["follow_target"] = target
-	desired = target + offset.normalized() * distance
+	desired = target + direction * distance
 	# Smoothing must never carry the camera through the current occluder.
 	# Check the final segment from the real resident, not the lagging target.
 	query.from = actor.global_position + Vector3(0, 0.6, 0)
-	query.to = desired
-	var final_hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if not final_hit.is_empty():
-		desired = (final_hit["position"] as Vector3).move_toward(query.from, 0.25)
-		view["follow_distance"] = desired.distance_to(query.from)
+	desired = _follow_camera_clear_position(query.from, desired, query)
+	if desired.distance_to(query.from) < minimum_distance:
+		# Prefer a clear side over squeezing the third-person lens into the body.
+		desired = _follow_camera_position(view, query.from, offset, minimum_distance, query)
+	view["follow_distance"] = desired.distance_to(query.from)
 	camera.global_position = desired
 	camera.look_at(query.from)
 	_camera_target = query.from
+
+
+func _follow_camera_clear_position(target: Vector3, desired: Vector3, query: PhysicsRayQueryParameters3D) -> Vector3:
+	query.from = target
+	query.to = desired
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return desired if hit.is_empty() else (hit["position"] as Vector3).move_toward(target, FOLLOW_CAMERA_WALL_MARGIN)
+
+
+func _follow_camera_position(view: Dictionary, target: Vector3, offset: Vector3, minimum_distance: float, query: PhysicsRayQueryParameters3D) -> Vector3:
+	var yaw := float(view.get("follow_yaw", 0.0)) if bool(view.get("follow_initialized", false)) else 0.0
+	var best := target
+	var best_yaw := yaw
+	# Keep a usable side until it becomes blocked; don't oscillate around furniture.
+	for turn: float in [0.0, PI/4, -PI/4, PI/2, -PI/2, 3*PI/4, -3*PI/4, PI]:
+		var candidate_yaw := wrapf(yaw + turn, -PI, PI)
+		var candidate := _follow_camera_clear_position(target, target + offset.rotated(Vector3.UP, candidate_yaw), query)
+		if candidate.distance_squared_to(target) > best.distance_squared_to(target):
+			best = candidate
+			best_yaw = candidate_yaw
+		if candidate.distance_to(target) >= minimum_distance:
+			view["follow_yaw"] = candidate_yaw
+			return candidate
+	view["follow_yaw"] = best_yaw
+	return best
+
+
+func _restore_pov_body() -> void:
+	for entry: Dictionary in _pov_body_layers:
+		if is_instance_valid(entry.mesh):
+			entry.mesh.layers = entry.layers
+	_pov_body_layers.clear()
+
+
+func _hide_pov_body(actor: Node3D) -> void:
+	# Only the first-person camera excludes this layer; lights still see the body.
+	for mesh: GeometryInstance3D in actor.find_children("*", "GeometryInstance3D", true, false):
+		_pov_body_layers.append({"mesh": mesh, "layers": mesh.layers})
+		mesh.layers = 1 << 19
 
 
 func observation_view_labels() -> PackedStringArray:
@@ -776,6 +896,7 @@ func select_observation_view(index: int) -> void:
 		and next_id != _active_camera_id
 		and next_id.get_slice("-", 2) == _active_camera_id.get_slice("-", 2)
 	)
+	_restore_pov_body()
 	var previous_camera := _active_camera()
 	_active_camera_index = index
 	var view := _camera_views[index]
@@ -798,6 +919,10 @@ func select_observation_view(index: int) -> void:
 	camera.size = float(view["size"])
 	camera.fov = float(view["fov"])
 	if view.has("actor"):
+		view["look_yaw"] = 0.0
+		view["look_pitch"] = 0.0
+		if bool(view.get("first_person", false)) and _pov_body_layers.is_empty():
+			_hide_pov_body(view["actor"])
 		view["follow_offset"] = FOLLOW_CAMERA_OFFSET
 		_process(0.0)
 	_sync_orbit_state(camera)
@@ -906,11 +1031,86 @@ func _reset_camera() -> void:
 	camera.size = float(view["size"])
 	camera.fov = float(view["fov"])
 	if view.has("actor"):
+		view["look_yaw"] = 0.0
+		view["look_pitch"] = 0.0
+		if bool(view.get("first_person", false)) and _pov_body_layers.is_empty():
+			_hide_pov_body(view["actor"])
 		view["follow_offset"] = FOLLOW_CAMERA_OFFSET
 		view["follow_initialized"] = false
 		_process(0.0)
 	_sync_orbit_state(camera)
 	if view.has("floor_height_limits"): _apply_camera_transform(camera)
+
+
+func _set_camera_region(view: Dictionary, frame: Transform3D, bounds: AABB) -> void:
+	view["movement_frame"] = frame
+	view["movement_bounds"] = bounds
+
+
+func _constrain_camera_position(position: Vector3) -> Vector3:
+	var view := _camera_views[_active_camera_index]
+	if view.has("actor") or not view.has("movement_bounds"):
+		return position
+	var frame: Transform3D = view["movement_frame"]
+	var bounds: AABB = view["movement_bounds"]
+	var local := frame.affine_inverse() * position
+	local.y = clampf(local.y, bounds.position.y, bounds.end.y)
+	var center := bounds.get_center()
+	var radii := Vector2(bounds.size.x, bounds.size.z) * 0.5
+	var radial := Vector2((local.x-center.x)/radii.x, (local.z-center.z)/radii.y)
+	if radial.length() > 1.0:
+		radial = radial.normalized()
+	var minimum := float(view.get("minimum_radius", 0.0)) / radii.x
+	if radial.length() < minimum:
+		radial = (radial.normalized() if radial.length() > 0.001 else Vector2.UP) * minimum
+	if view.has("track_angle_limit"):
+		var original := frame.affine_inverse() * (view["transform"] as Transform3D).origin
+		var base_angle := atan2((original.x-center.x)/radii.x, (original.z-center.z)/radii.y)
+		var angle := wrapf(atan2(radial.x, radial.y)-base_angle, -PI, PI)
+		angle = base_angle + clampf(angle, -float(view["track_angle_limit"]), float(view["track_angle_limit"]))
+		radial = Vector2(sin(angle), cos(angle)) * radial.length()
+	local.x = center.x + radial.x*radii.x
+	local.z = center.z + radial.y*radii.y
+	return frame * local
+
+
+func _turn_camera(camera: Camera3D, relative: Vector2) -> void:
+	var forward := -camera.global_basis.z
+	var yaw := atan2(-forward.x, -forward.z) - relative.x * CAMERA_ORBIT_SPEED * 0.4
+	var pitch := clampf(asin(clampf(forward.y, -1.0, 1.0)) - relative.y * CAMERA_ORBIT_SPEED * 0.4, deg_to_rad(-80), deg_to_rad(80))
+	forward = Vector3(-sin(yaw)*cos(pitch), sin(pitch), -cos(yaw)*cos(pitch))
+	camera.look_at(camera.global_position + forward)
+	_camera_target = camera.global_position + forward * _camera_distance
+	_sync_orbit_state(camera)
+
+
+func _move_camera_track(camera: Camera3D, horizontal: float) -> void:
+	if is_zero_approx(horizontal):
+		return
+	var view := _camera_views[_active_camera_index]
+	var frame: Transform3D = view["movement_frame"]
+	var bounds: AABB = view["movement_bounds"]
+	var center := bounds.get_center()
+	var radii := Vector2(bounds.size.x, bounds.size.z)*0.5
+	var local := frame.affine_inverse()*camera.global_position
+	var radial := Vector2((local.x-center.x)/radii.x, (local.z-center.z)/radii.y)
+	var before_angle := atan2(radial.x, radial.y)
+	var angle := before_angle - horizontal*CAMERA_ORBIT_SPEED*0.4
+	if view.has("track_angle_limit"):
+		var original := frame.affine_inverse() * (view["transform"] as Transform3D).origin
+		var base := atan2((original.x-center.x)/radii.x, (original.z-center.z)/radii.y)
+		var limit := float(view["track_angle_limit"])
+		angle = base + clampf(wrapf(before_angle-base, -PI, PI)-horizontal*CAMERA_ORBIT_SPEED*0.4, -limit, limit)
+	local.x = center.x + sin(angle)*radial.length()*radii.x
+	local.z = center.z + cos(angle)*radial.length()*radii.y
+	var destination := _constrain_camera_position(frame*local)
+	var constrained := frame.affine_inverse()*destination
+	var actual_angle := atan2((constrained.x-center.x)/radii.x, (constrained.z-center.z)/radii.y)
+	var rotation_delta := wrapf(actual_angle-before_angle, -PI, PI)
+	camera.global_position = destination
+	camera.global_basis = Basis(Vector3.UP, rotation_delta) * camera.global_basis
+	_camera_target = destination - camera.global_basis.z * _camera_distance
+	_sync_orbit_state(camera)
 
 
 func _apply_camera_transform(camera: Camera3D) -> void:
@@ -929,7 +1129,7 @@ func _apply_camera_transform(camera: Camera3D) -> void:
 		sin(_camera_pitch) * _camera_distance,
 		cos(_camera_yaw) * horizontal_scale
 	)
-	camera.global_position = _camera_target + offset
+	camera.global_position = _constrain_camera_position(_camera_target + offset)
 	var target_position := _camera_target
 	var view_direction := (target_position - camera.global_position).normalized()
 	var camera_up := global_transform.basis.y.normalized()

@@ -156,8 +156,8 @@ export type ElfieProfile = z.infer<typeof ElfieProfileSchema> & {
 }
 export type ElfieProfileDetail = z.infer<typeof ProfileDetailResponseSchema>
 
-export async function elfies(): Promise<readonly ElfieProfile[]> {
-  return VisibleElfiesResponseSchema.parse(await requestJson("/api/v1/elfies"))
+export async function elfies(relationship?: "owned"): Promise<readonly ElfieProfile[]> {
+  return VisibleElfiesResponseSchema.parse(await requestJson(relationship === "owned" ? "/api/v1/elfies?relationship=owned" : "/api/v1/elfies"))
     .items.map((item) => ({ ...item.profile, relationship: item.relationship }))
 }
 

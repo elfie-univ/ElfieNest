@@ -31,6 +31,7 @@ var _local_mock_wander_enabled := false
 var _local_mock_random := RandomNumberGenerator.new()
 var _local_mock_states: Dictionary = {}
 var _initial_actor_focus_done := false
+var _requested_actor_focus := ""
 
 
 func setup(
@@ -91,12 +92,11 @@ func _process(_delta: float) -> void:
 		_apply_motion(actor, entity as Dictionary)
 	if _local_mock_wander_enabled:
 		_process_local_mock_wander()
-	if not _initial_actor_focus_done:
-		for actor_id: String in _actors:
-			var actor := _actors[actor_id] as ElfieActor
-			if actor.is_visible_in_tree():
-				_initial_actor_focus_done = _nest.select_observer_camera_by_id("elfie-" + actor_id)
-				break
+	if not _initial_actor_focus_done and not _requested_actor_focus.is_empty():
+		var actor := _actors.get(_requested_actor_focus) as ElfieActor
+		if actor != null and actor.is_visible_in_tree():
+			_initial_actor_focus_done = _nest.select_observer_camera_by_id("elfie-" + _requested_actor_focus)
+
 
 
 func apply_snapshot(snapshot: Dictionary) -> void:
@@ -120,6 +120,11 @@ func apply_snapshot(snapshot: Dictionary) -> void:
 			_stop_real_motion(_actors[raw_id] as ElfieActor)
 		_motion_states.clear()
 		_pending_motions.clear()
+	var scope: Dictionary = snapshot.get("scope", {})
+	var requested := str(scope.get("elfie_id", "")) if scope.get("kind") == "elfie" else ""
+	if requested != _requested_actor_focus:
+		_requested_actor_focus = requested
+		_initial_actor_focus_done = false
 	_snapshot_generation = generation
 	_snapshot_sequence = sequence
 	if snapshot.get("environment") is Dictionary:

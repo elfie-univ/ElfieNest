@@ -42,6 +42,10 @@ func run() -> void:
 	hud.name = "ObservationHUD"
 	nest.add_child(hud)
 	root.add_child(nest)
+	var overview := Camera3D.new()
+	nest.add_child(overview)
+	nest._register_observation_view("overview", "Overview", overview, Vector3.ZERO)
+	nest.select_observer_overview()
 	_add_navigation(nest)
 	var bed := _marker(nest, "dorm-01/bed-01", "bed", Vector3(-3, 0.02, 0), "sleeping")
 	var chair := _marker(nest, "dorm-01/chair-01", "chair", Vector3(0, 0.02, 2), "sitting")
@@ -88,7 +92,12 @@ func run() -> void:
 			break
 	_check(not actor.active_command_id.is_empty(), "pending walk never started after navigation sync")
 	await process_frame
-	_check(nest.observer_camera_catalog()["active_id"] == "elfie-saevi-1", "first visible resident was not framed")
+	_check(nest.observer_camera_catalog()["active_id"] == "overview", "room monitoring automatically followed a resident")
+	var focused := _snapshot("walking", "walk-1", "courtyard/activity")
+	focused["scope"] = {"kind": "elfie", "elfie_id": "saevi-1"}
+	bridge._handle_semantic_snapshot(focused)
+	await process_frame
+	_check(nest.observer_camera_catalog()["active_id"] == "elfie-saevi-1", "explicit resident scope was not framed")
 	var command := actor.active_command_id
 	var deadline := int(actor.get("_deadline_msec"))
 	bridge._handle_semantic_snapshot(walk)
@@ -220,6 +229,7 @@ func _snapshot(posture: String, command: Variant, anchor: Variant) -> Dictionary
 	return {
 		"channel": "elfienest.observer", "version": 1, "kind": "semantic_snapshot",
 		"protocol": 3, "generation": 1, "sequence": _sequence,
+		"environment": null,
 		"scope": {"kind": "room", "room_id": "local-nest"},
 		"entity_revisions": {"saevi-1": _sequence},
 		"entities": {"saevi-1": {

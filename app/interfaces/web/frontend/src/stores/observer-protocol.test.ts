@@ -33,6 +33,20 @@ function validWorldConfig() {
 }
 
 describe("observer camera protocol", () => {
+  it("rejects the removed drag mode switching command", () => {
+    const base = { channel: "elfienest.observer", version: 1, kind: "camera_command", action: "set_drag_modes" }
+    for (const left_drag of ["look", "orbit"]) {
+      for (const right_drag of ["track", "free"]) {
+        const command = { ...base, left_drag, right_drag }
+        expect(parseObserverCameraCommand(command)).toBeNull()
+        expect(parseObserverCameraCommand({ ...command, position: [0, 0, 0] })).toBeNull()
+      }
+    }
+    expect(parseObserverCameraCommand({ ...base, left_drag: "fly", right_drag: "free" })).toBeNull()
+    expect(parseObserverCameraCommand({ ...base, left_drag: "look" })).toBeNull()
+    expect(parseObserverCameraCatalog(JSON.stringify({ ...validCatalog(), right_drag: "fly" }))).toBeNull()
+  })
+
   it("parses only JSON catalog envelopes", () => {
     expect(parseObserverCameraCatalog(validCatalog())).toBeNull()
     expect(parseObserverCameraCatalog(JSON.stringify(validCatalog()))).toMatchObject({

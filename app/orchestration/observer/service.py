@@ -294,7 +294,7 @@ class ObserverFacade:
         try:
             visible = self._elfies.list_visible(
                 _account_principal(principal),
-                ListVisibleElfiesQuery(),
+                ListVisibleElfiesQuery(relationship="owned"),
             )
         except ElfiesError as error:
             raise ObserverUnavailable("Elfie authorization unavailable") from error

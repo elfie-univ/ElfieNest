@@ -17,7 +17,7 @@ vi.mock("../api/client", async (loadOriginal) => {
 })
 
 vi.mock("../components/ObservationMonitor", () => ({
-  ObservationMonitor: ({ roomId }: { readonly roomId: string }) => <section aria-label="房间 3D 观察" data-room-id={roomId} data-slot="observation-monitor" role="region" />,
+  ObservationMonitor: ({ roomId, elfieScope }: { readonly roomId: string; readonly elfieScope: "owned" | "all" }) => <section aria-label="房间 3D 观察" data-room-id={roomId} data-elfie-scope={elfieScope} data-slot="observation-monitor" role="region" />,
 }))
 
 const owner = {
@@ -79,6 +79,12 @@ describe("MonitorPage", () => {
     expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toBeInTheDocument()
     expect(screen.queryByRole("heading")).toBeNull()
     expect(redirects.assign).not.toHaveBeenCalled()
+  })
+
+  it.each([owner, admin, member])("selects the $role directory scope", async (user) => {
+    setSession(user)
+    renderMonitor()
+    expect(await screen.findByRole("region", { name: "房间 3D 观察" })).toHaveAttribute("data-elfie-scope", user.role === "user" ? "owned" : "all")
   })
 
   it("shows the monitor rail and hides it when immersive mode is entered", async () => {

@@ -6,7 +6,7 @@ import { MobileAccessDialog } from "../components/MobileAccessDialog"
 import { MonitorRail } from "../components/MonitorRail"
 import { ObservationMonitor } from "../components/ObservationMonitor"
 import { useSession } from "../stores/session"
-import { canAccessMonitor } from "../api/roles"
+import { canAccessMonitor, isManagerRole } from "../api/roles"
 
 type MonitorPageProps = {
   readonly roomId?: string
@@ -44,7 +44,7 @@ export function MonitorPage({ roomId = "local-nest" }: MonitorPageProps) {
     {!immersive ? <MonitorRail onMobileAccess={() => setShowMobileAccess(true)} onToggleImmersive={() => setImmersive(true)} onUpdated={refresh} user={user} /> : null}
     {!roomReady
       ? <p className="empty monitor-page__status">{roomLoadFailed ? t("status.offline") : t("surface.loading")}</p>
-      : <ObservationMonitor immersive={immersive} mode="standalone" onExitImmersive={() => setImmersive(false)} roomId={roomId} />}
+      : <ObservationMonitor elfieScope={isManagerRole(user.role) ? "all" : "owned"} immersive={immersive} mode="standalone" onExitImmersive={() => setImmersive(false)} roomId={roomId} />}
     {showMobileAccess ? <MobileAccessDialog onClose={() => setShowMobileAccess(false)} targetPath="/monitor" /> : null}
   </main>
 }

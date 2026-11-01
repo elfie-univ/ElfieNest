@@ -27,7 +27,7 @@ func run() -> void:
 	var initial_catalog := nest.observer_camera_catalog()
 	if not _require(
 		_catalog_has_shape(initial_catalog),
-		"Observer catalog exposes fields outside revision, views, active_id, and pause"
+		"Observer catalog exposes fields outside revision, views, active_id, pause, and drag modes"
 	):
 		return
 	if not _require(
@@ -39,12 +39,12 @@ func run() -> void:
 	var initial_views := initial_catalog["views"] as Array
 	if not _require(
 		initial_views.size() == EXPECTED_INITIAL_VIEW_COUNT
-			and _view_matches(initial_views[0], "overview", "庭院与建筑")
+			and _view_matches(initial_views[0], "overview", "全园总览")
 			and _view_matches(initial_views[1], "central-1", "主楼 · 1 层")
 			and _view_matches(initial_views[4], "central-4", "主楼 · 4 层")
-			and _view_matches(initial_views[5], "dorm-01", "宿舍 M01 · 一层")
-			and _view_matches(initial_views[6], "terrace-01", "宿舍 M01 · 二层露台")
-			and _view_matches(initial_views[20], "terrace-08", "宿舍 M08 · 二层露台"),
+			and _view_matches(initial_views[5], "dorm-01", "卧室 M01 · 一层")
+			and _view_matches(initial_views[6], "terrace-01", "卧室 M01 · 二层")
+			and _view_matches(initial_views[20], "terrace-08", "卧室 M08 · 二层"),
 		"Observer catalog ids and labels do not cover every generated view"
 	):
 		return

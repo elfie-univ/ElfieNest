@@ -73,7 +73,7 @@ authority credentials.
 
 For the product Observer, Godot owns the complete, versioned camera catalog.
 Each strict catalog envelope carries semantic view `id` and `label` values,
-`active_id`, a positive `revision`, and `presentation_paused`. It describes the
+`active_id`, a positive `revision` and `presentation_paused`. It describes the
 currently selectable views without exporting camera coordinates, transforms or
 room geometry. React consumes that catalog and may emit only the closed semantic
 commands `overview`, `select`, `reset` and `set_local_presentation_paused`.
@@ -101,16 +101,38 @@ waypoint is resolved locally against the room NavMesh; Observer clients replay
 it and never choose random targets. The React bridge accepts and forwards only
 same-origin, validated snapshots to the current Observer iframe.
 
-`/monitor` is an Owner/Admin full observation page. The Owner/Admin Nest-management
+Fixed-camera monitoring opens at the garden overview and uses only left-drag look-in-place, right-drag horizontal track movement and wheel zoom, without an operation-mode selector. Movement stays inside the preset floor/region. Reset beside the fixed-view selector restores the current camera’s default position, orientation and zoom without selecting another subject. Elfie views retain follow and first-person perspectives and do not show Reset. Camera and playback controls do not change authority state.
+
+`/monitor` is a signed-in observation page. The Owner/Admin Nest-management
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a
 separate camera implementation.
 
-The product Observer adds a follow camera for each resident, labelled with the
-resident ID in the existing camera catalog. It initially frames the first
-visible resident; users can select another resident or return to the estate and
-room presets. Following changes only the display camera, not resident movement
-or authority state. Follow motion and obstacle-distance changes are smoothed;
-other residents do not trigger camera occlusion zoom. Completed semantic actions
+The monitor toolbar keeps view controls on the left and pause/resume on the right,
+without a vertical divider. Normal `/monitor` follows the live environment and hides
+time preview. Opening `/monitor?debug=1` exposes local lighting previews; every page
+load starts at live time, with no saved preview. The parameter grants no additional
+permissions and previews do not change Nest time or resident behavior. On mobile,
+the toolbar sits below the scene, view controls scroll horizontally, pause/resume
+stays visible on the right, and debug time preview occupies a second row.
+Fixed views are grouped into Courtyard (2), Main Building (4) and Bedrooms (16).
+Bedroom options and the selected view carry a small marker matching the building's
+exterior color; room and floor labels and the standard selection background stay unchanged.
+Monitoring starts
+with the garden overview selected initially. The first control is a two-button group,
+Fixed cameras / Elfie views, with the active mode highlighted. Fixed mode then shows
+the camera selector and Reset; Elfie mode shows the resident and perspective selectors.
+Overview is a camera preset without a separate button. Switching to a preset restores its default pose.
+The Elfie selector uses the owned directory for ordinary users and the protected
+administrator directory for Admin/Owner accounts, with follow and first-person
+choices; residents absent from the scene cannot be selected. The backend Observer
+filters ordinary users to owned residents for both room and Elfie scopes; managers
+can observe all residents. The product Observer
+registers both cameras per resident. Only an explicit Elfie-scoped snapshot initially
+focuses that resident; room monitoring never selects an arbitrary resident. These
+cameras change only the display view, not resident movement or authority state. Follow motion and obstacle-distance changes are smoothed;
+other residents do not trigger camera occlusion zoom. A blocked follow camera
+prefers a stable clear side around the resident instead of shrinking into its body;
+the clearance distance also accounts for the resident's collision height. Completed semantic actions
 are replayed by walking to the local anchor before presenting the final pose,
 not by teleporting the display actor to the destination.
 

@@ -120,6 +120,6 @@ export function OwnerNestPanel({ csrfToken }: { readonly csrfToken: string }) {
         <section className="nest-side-card"><h3>{t("nest.events.title")}</h3><ul className="nest-events">{beds.flatMap((bed) => bed.occupant_name ? [<li key={bed.anchor_id}>{t("nest.events.occupied", { bed: bed.name, name: bed.occupant_name })}</li>] : [])}{beds.every((bed) => !bed.occupant_name) ? <li>{t("nest.events.empty")}</li> : null}</ul></section>
       </aside>
     </div> : null}
-    {room ? <ManageDialog contentClassName="manage-dialog--camera" onOpenChange={setShowObserver} open={showObserver} title={t("nest.camera.dialogTitle")}><ObservationMonitor mode="embedded" roomId={room.id} /></ManageDialog> : null}
+    {room ? <ManageDialog contentClassName="manage-dialog--camera" onOpenChange={setShowObserver} open={showObserver} title={t("nest.camera.dialogTitle")}><ObservationMonitor elfieScope="all" mode="embedded" roomId={room.id} /></ManageDialog> : null}
   </section>
 }
