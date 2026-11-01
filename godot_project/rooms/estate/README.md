@@ -45,7 +45,7 @@ After the repository Web build, these explicit local replays use the same projec
 | `?mode=water_review` | Original fountain jets, outward ring pulses, spillway and natural lake waves |
 | `?mode=path_lighting_review&area=estate` | Accepted complete-estate lighting review |
 
-The waterfront lamp stands at the left end of the complete bench. Review lighting uses only the sun and mounted fixtures; ambient and hemisphere compensation are disabled. Append `&lamp=off` to the estate lighting review to disable only the waterfront source and its diffuser for a same-view comparison.
+The waterfront lamp stands at the left end of the complete bench. Both approach bollards retain the ring-road fixture’s centred, downward circular beam. The waterfront beam is fitted to the actual circular platform boundary. Only the three lakeside fixtures receive the local shadow calibration; other outdoor fixtures retain their original shadow settings. Review lighting uses only the sun and mounted fixtures; ambient and hemisphere compensation are disabled. Append `&lamp=off` to the estate lighting review to disable only the waterfront source and its diffuser for a same-view comparison.
 
 The dropdown opens disposable crops of the real project in one isolated viewport. Selecting
 an item destroys the previous fixture and its owned playback clock, including pending waits.

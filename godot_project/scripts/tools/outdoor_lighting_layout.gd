@@ -57,6 +57,24 @@ func build(source: Node3D) -> Node3D:
 	var focus := Vector3(platform_bounds.end.x-4.8,0.095,platform_bounds.end.z-4.8)
 	var position := _lakeside_lamp_position(source,Vector3(focus.x-1.6,-0.06,focus.z-5.0))
 	_plaza_single_arm("H01",position,6.5,8.0,18.0,focus)
+	# Fit this source to the circular platform instead of inheriting the
+	# plaza's broad cone, which wastes shadow-map precision along the path.
+	var main_diffuser: MeshInstance3D=result.get_node("Fixture_H01/Diffuser")
+	var main_extras: Dictionary=main_diffuser.get_meta("extras")
+	var main_beam: Dictionary=main_extras.design_lights[0]
+	var main_emitter:=position+Vector3(main_beam.position[0],main_beam.position[1],main_beam.position[2])
+	var main_axis: Vector3=(focus-main_emitter).normalized()
+	var needed_angle:=0.0
+	var needed_range:=0.0
+	for vertex: Vector3 in platform.mesh.get_faces():
+		var point: Vector3=platform.global_transform*vertex
+		if Vector2(point.x-focus.x,point.z-focus.z).length()>4.81:continue
+		needed_angle=maxf(needed_angle,main_axis.angle_to(point-main_emitter))
+		needed_range=maxf(needed_range,main_emitter.distance_to(point))
+	main_beam.angle=needed_angle+deg_to_rad(4.0)
+	main_beam.distance=needed_range+1.5
+	main_extras.design_lights[0]=main_beam
+	main_diffuser.set_meta("extras",main_extras)
 	high_poles.append({"id":"H01","point":position,"height":6.5})
 	assert(trail != null and road != null, "Real road and forest route required")
 	_forest(trail,road)
@@ -81,8 +99,8 @@ func build(source: Node3D) -> Node3D:
 	var patches: Array[String] = []
 	for mesh in ground: patches.append_array(GEOMETRY.partition(mesh,result))
 	# Append new path fixtures after ground partitioning to preserve patch IDs.
-	_ring_fixture(source,"B01",Vector3(24.0,-0.06,-3.15),85.0)
-	_ring_fixture(source,"B02",Vector3(29.0,-0.06,-3.05),85.0)
+	_ring_fixture(source,"B01",Vector3(24.0,-0.06,-3.15))
+	_ring_fixture(source,"B02",Vector3(29.0,-0.06,-3.05))
 	result.set_meta("high_poles",high_poles)
 	result.set_meta("forest_lamps",forest_lamps)
 	result.set_meta("shoreline",shore)
@@ -180,9 +198,8 @@ func _ring_fixture(source: Node3D, id: String, point: Vector3, angle: float=78.0
 		extras.outdoor_fixture_id=id
 		extras.outdoor_fixture_group="path"
 		for light: Dictionary in extras.get("design_lights",[]):
-			# Emit from the path-facing diffuser surface, above the opaque lower
-			# collar. The original central emitter is trapped inside that collar.
-			light.merge({"position":[0.0,1.06,0.165],"target":[0.0,0.0,2.7],"intensity":PI,"distance":14.0,"angle":deg_to_rad(angle),"attenuation":0.7,"angle_attenuation":0.2},true)
+			# Retain the ring fixture's centred, downward circular distribution.
+			light.merge({"intensity":PI,"distance":14.0,"angle":deg_to_rad(angle),"attenuation":0.7,"angle_attenuation":0.2},true)
 		copy.set_meta("extras",extras)
 
 func _high(id: String, point: Vector3, height: float, energy: float, reach: float) -> void:

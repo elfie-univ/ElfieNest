@@ -4,6 +4,10 @@ func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	create_timer(100.0,true,false,true).timeout.connect(func():quit(1))
 	var published: Node3D=load("res://rooms/estate/estate_outdoor_lighting.scn").instantiate()
+	var published_main: Dictionary=published.get_node("Fixture_H01/Diffuser").get_meta("extras").design_lights[0]
+	if float(published_main.angle)>deg_to_rad(47.0) or float(published_main.distance)>13.0:
+		push_error("Waterfront beam must be fitted to the platform, not a broad path wash")
+		published.free();quit(1);return
 	for id: String in ["B01","B02"]:
 		var fixture: Node3D=published.get_node("Fixture_"+id)
 		var light: Dictionary=fixture.get_node("Diffuser").get_meta("extras").design_lights[0]
@@ -12,13 +16,13 @@ func run() -> void:
 		if not aperture.grow(0.01).has_point(emitter):
 			push_error("Approach source must remain mounted at the real diffuser: "+id)
 			published.free();quit(1);return
-		var housing_faces: PackedVector3Array=fixture.get_node("Housing").mesh.get_faces()
-		for x: float in [-2.5,0.0,2.5]:
-			var target:=Vector3(x,0.0,2.7)
-			for i in range(0,housing_faces.size(),3):
-				if Geometry3D.segment_intersects_triangle(emitter,target,housing_faces[i],housing_faces[i+1],housing_faces[i+2])!=null:
-					push_error("Approach emitter is blocked by its own opaque housing: "+id)
-					published.free();quit(1);return
+		var target:=Vector3(light.target[0],light.target[1],light.target[2])
+		if not Vector2(emitter.x-target.x,emitter.z-target.z).is_zero_approx() or target.y>=emitter.y:
+			push_error("Approach fixture must cast a downward circular beam, not a tilted path wash: "+id)
+			published.free();quit(1);return
+		if float(light.angle)>deg_to_rad(78.0) or fixture.get_node("Diffuser").get_meta("extras").design_lights.size()!=1:
+			push_error("Approach fixture must retain one bounded ring-road source: "+id)
+			published.free();quit(1);return
 	published.free()
 	var triangles: Array[PackedVector2Array]=[PackedVector2Array([Vector2(0,0),Vector2(2,0),Vector2(0,2)])]
 	assert(LAYOUT.footprint_overlaps(Vector3(0.5,0,0.5),triangles),"Fixture inside paving must be rejected")

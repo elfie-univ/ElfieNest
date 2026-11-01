@@ -16,6 +16,8 @@ const OUTDOOR_SUN_ENERGY := SUN_ENERGY
 const OBSERVATION_GLASS_ALPHA := 0.075
 const FURNITURE_CONTACT_LAYER := 8
 const NATIVE_HEMISPHERE_LAYER := 1 << 17
+# Reuse the inactive hemisphere receiver bit for the two bollard fixtures.
+const BOLLARD_FIXTURE_LAYER := 1 << 17
 # Separate general room lighting from tiny stair/shelf accents in Compatibility.
 const ACTIVITY_LAYERS := [INTERIOR_FILL_LAYER, 1 << 16, 1 << 19, 1 << 28]
 const ROOF_ROOM_LAYER := 1 << 29
@@ -67,7 +69,7 @@ static func apply(estate: Node) -> Dictionary:
 		(light as DirectionalLight3D).look_at((estate as Node3D).global_position)
 		var outdoor_sun := (light as DirectionalLight3D).duplicate() as DirectionalLight3D
 		outdoor_sun.name = "CourtyardDaylight"
-		outdoor_sun.light_cull_mask = OUTDOOR_LIGHT_LAYER | LANDSCAPE_LIGHT_LAYER | WATER_LIGHT_LAYER
+		outdoor_sun.light_cull_mask = OUTDOOR_LIGHT_LAYER | LANDSCAPE_LIGHT_LAYER | WATER_LIGHT_LAYER | BOLLARD_FIXTURE_LAYER
 		outdoor_sun.light_energy = OUTDOOR_SUN_ENERGY
 		outdoor_sun.light_color = Color.hex(0xffe7c3ff)
 		light.get_parent().add_child(outdoor_sun)
@@ -223,6 +225,11 @@ static func _calibrate(node: Node, materials: Dictionary, counts: Dictionary) ->
 			instance.layers |= INTERIOR_FILL_LAYER
 		else:
 			instance.layers |= OUTDOOR_LIGHT_LAYER
+		if str(extras.get("outdoor_fixture_id", "")) in ["B01","B02"]:
+			# One point source represents the luminous ring. Keep its closed
+			# casing/diffuser out of its own shadow map, retaining their shadows
+			# from the sun and every other type of fixture.
+			instance.layers = BOLLARD_FIXTURE_LAYER
 		# Shared slabs own the ceiling below as well as the floor above.
 		# Restore the lower mask after normalizing indoor/outdoor layers.
 		var ceiling_floor := int(extras.get("ceiling_for_floor", 0))
@@ -464,16 +471,16 @@ static func _restore_fixture_lights(mesh: MeshInstance3D, contact_rooms: Diction
 			light.light_specular = 0.0
 		light.light_cull_mask = _room_light_mask(extras)
 		if outdoor:
-			# Real outdoor fixtures must be occluded by trees and architecture.
+			light.light_cull_mask |= BOLLARD_FIXTURE_LAYER
+		if outdoor and str(extras.get("outdoor_fixture_id", "")) in ["H01","B01","B02"]:
+			# Keep the accepted lakeside occlusion local. Other fixtures retain
+			# their original rendering instead of inheriting global shadows.
 			light.shadow_enabled = true
 			light.shadow_caster_mask = 0xFFFFF
-			light.shadow_bias = 0.01
-			light.shadow_normal_bias = 0.1
-			if str(extras.get("outdoor_fixture_id", "")) == "H01":
-				# The waterfront lamp lights a broad, flat paving surface. Bias its
-				# shadow map enough to avoid self-shadow bands, retaining occlusion.
-				light.shadow_bias = 0.1
-				light.shadow_normal_bias = 1.0
+			if str(extras.get("outdoor_fixture_id", "")) in ["B01","B02"]:
+				light.shadow_caster_mask &= ~BOLLARD_FIXTURE_LAYER
+			light.shadow_bias = 0.1
+			light.shadow_normal_bias = 3.0
 		var general := opal or downlight
 		if central and spot and not general:
 			# Short-range task/edge lights fade beyond their local room.
