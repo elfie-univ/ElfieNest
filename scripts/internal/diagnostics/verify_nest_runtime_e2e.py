@@ -557,6 +557,7 @@ def run(
             command_id=environment_id,
             lights_on=False,
             quiet_mode=True,
+            life_phase="night",
             world_revision=revision,
         )
         environment = _wait_for(

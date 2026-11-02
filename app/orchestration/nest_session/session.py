@@ -89,9 +89,9 @@ class NestSession:
         self._model_port_factory: ModelPortFactory | None = None
         self.owner_broadcaster: OwnerMessageBroadcaster | None = None
         self._runtime_token: tuple[str, int] | None = None
-        self._environment_sync_token: tuple[str, int, int, str, bool, bool] | None = (
-            None
-        )
+        self._environment_sync_token: (
+            tuple[str, int, int, str, bool, bool, str] | None
+        ) = None
         self._state_store = state_store
         self._resident_lifecycle_source: ResidentLifecycleReadPort | None = None
         self._resident_lifecycle: dict[str, ResidentLifecycle] = {}

@@ -81,7 +81,7 @@ export function ObservationMonitor({ elfieScope = "owned", immersive = false, mo
   const groupedCameraOptions = [
     { label: t("controls.outdoorViews"), options: cameraViews.filter((view) => view.id === "overview" || view.id === "estate-ring") },
     { label: t("controls.centralViews"), options: cameraViews.filter((view) => view.id.startsWith("central-")) },
-    { label: t("controls.bedroomViews"), options: cameraViews.filter((view) => /^(dorm|terrace)-/.test(view.id)).sort((a, b) => a.id.slice(-2).localeCompare(b.id.slice(-2)) || a.id.localeCompare(b.id)) },
+    { label: t("controls.bedroomViews"), options: cameraViews.filter((view) => /^(dorm|terrace)-/.test(view.id)).sort((a, b) => Number(a.id.slice(-2)) - Number(b.id.slice(-2)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) },
   ].map((group) => ({ label: group.label, options: group.options.map((view) => {
     const markerColor = /^(dorm|terrace)-/.test(view.id) ? BEDROOM_MARKER_COLORS[view.id.slice(-2)] : undefined
     return { value: view.id, label: view.label, ...(markerColor === undefined ? {} : { markerColor }) }

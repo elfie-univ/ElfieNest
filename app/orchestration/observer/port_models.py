@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from nest.time_environment import LifePhase
+from nest.public import LifePhase
 
 
 @dataclass(frozen=True)

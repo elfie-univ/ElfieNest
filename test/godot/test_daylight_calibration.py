@@ -60,7 +60,9 @@ def test_daylight_binds_a_directional_environment_without_replacing_clouds() -> 
 
 def test_compatibility_sky_does_not_decode_srgb_twice() -> None:
     shader = (ROOT / "rooms/estate/estate_reflection_sky.gdshader").read_text()
-    assert "COLOR = color;" in shader
+    assert "COLOR = environment_color.rgb;" in shader
+    assert "night_amount > 0.5 && !AT_CUBEMAP_PASS" in shader
+    assert "COLOR = night_sky(normalize(EYEDIR));" in shader
     assert "pow((color + 0.055)" not in shader
 
 
@@ -79,14 +81,17 @@ def test_facade_and_observation_glass_use_source_ior_not_default_plastic() -> No
     assert "_glass_specular" in source
 
 
-def test_interior_fill_does_not_illuminate_the_courtyard() -> None:
+def test_observer_does_not_add_an_artificial_ceiling_fill() -> None:
     scene = (ROOT / "rooms/nest.tscn").read_text()
-    fill = scene.split('[node name="CeilingFill"', 1)[1].split("\n[node ", 1)[0]
-    assert "light_cull_mask = 2" in fill
+    assert '[node name="CeilingFill"' not in scene
     source = (ROOT / "rooms/estate/estate_daylight.gd").read_text()
-    assert "INTERIOR_FILL_LAYER" in source
-    restore = (ROOT / "rooms/estate/estate_complete_final.gd").read_text()
-    assert "multimesh_instance.layers = 1 | DAYLIGHT.LANDSCAPE_LIGHT_LAYER" in restore
+    receiver = source.split("static func _uses_interior_fill(", 1)[1].split(
+        "\nstatic func ", 1
+    )[0]
+    assert 'str(extras.get("module", "")) != "central"' in receiver
+    assert 'int(extras.get("floor", 1)) != 1' in receiver
+    assert 'or bool(extras.get("glass", false))' in receiver
+    assert "return false" in receiver
 
 
 def test_facade_glass_and_shell_do_not_use_interior_fill() -> None:
@@ -100,7 +105,7 @@ def test_facade_glass_and_shell_do_not_use_interior_fill() -> None:
 
 def test_courtyard_review_view_targets_the_building_not_the_sky_bounds() -> None:
     source = (ROOT / "rooms/nest.gd").read_text()
-    assert '_register_observation_view("overview", "庭院与建筑"' in source
+    assert '_register_observation_view("overview", "全园总览"' in source
     assert "overview.global_position = to_global(REFERENCE_REVIEW_POSITION)" in source
     assert "overview.look_at(to_global(REFERENCE_REVIEW_TARGET))" in source
     assert "overview.fov = 38.0" in source
@@ -130,8 +135,12 @@ def test_authored_fixtures_are_restored_from_asset_local_definitions() -> None:
 
 
 def test_contact_shadows_have_a_furniture_only_caster_mask() -> None:
-    scene = (ROOT / "rooms/nest.tscn").read_text()
-    assert "shadow_caster_mask = 8" in scene
+    source = (ROOT / "rooms/estate/estate_daylight.gd").read_text()
+    assert "const FURNITURE_CONTACT_LAYER := 8" in source
+    contact = source.split("if not outdoor and not contact_rooms.has(room):", 1)[1]
+    contact = contact.split("contact_rooms[room] = true", 1)[0]
+    assert "light.shadow_caster_mask = FURNITURE_CONTACT_LAYER" in contact
+    assert "light.shadow_enabled = true" in contact
 
 
 def test_authored_clearcoat_is_read_from_the_real_glb_not_repainted() -> None:

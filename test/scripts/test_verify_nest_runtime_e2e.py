@@ -17,7 +17,7 @@ from scripts.internal.diagnostics import verify_nest_runtime_e2e as acceptance
 
 def event(name, payload, *, lane=SemanticLane.NEST, target=None, cause_id=None):
     return RuntimeEventFrame(
-        protocol=3,
+        protocol=4,
         kind="event",
         lane=lane,
         name=name,

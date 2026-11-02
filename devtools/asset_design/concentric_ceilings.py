@@ -28,10 +28,17 @@ def align_ceilings(document: dict) -> dict:
     position = disc.get("translation", disc.get("matrix", [0.0] * 16)[12:15])
     offset = (centres[3][0] - position[0], 0.0, centres[3][1] - position[2])
     for node in nodes:
-        if node.get("name", "").startswith("Working L3 ") and node.get("extras", {}).get("lighting_kind") == "ceiling":
+        if (
+            node.get("name", "").startswith("Working L3 ")
+            and node.get("extras", {}).get("lighting_kind") == "ceiling"
+        ):
             translate(node, offset)
 
-    parents = {child: index for index, node in enumerate(nodes) for child in node.get("children", [])}
+    parents = {
+        child: index
+        for index, node in enumerate(nodes)
+        for child in node.get("children", [])
+    }
     for finish in ["ivory recess", "continuous warm diffuser"]:
         original_name = "L3 ceiling ring 2 " + finish
         original = by_name[original_name]
@@ -45,7 +52,14 @@ def align_ceilings(document: dict) -> dict:
             node["extras"]["floor"] = floor
             node["extras"].pop("source_name", None)
             node["extras"]["concentric_ceiling_revision"] = 1
-            translate(node, (centres[floor][0], ceiling_heights[floor] - ceiling_heights[3], centres[floor][1] - centres[3][1]))
+            translate(
+                node,
+                (
+                    centres[floor][0],
+                    ceiling_heights[floor] - ceiling_heights[3],
+                    centres[floor][1] - centres[3][1],
+                ),
+            )
             index = len(nodes)
             nodes.append(node)
             if original_index in parents:
