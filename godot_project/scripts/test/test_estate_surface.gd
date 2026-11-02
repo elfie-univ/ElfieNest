@@ -2,7 +2,7 @@ extends SceneTree
 
 const SURFACE := preload("res://rooms/estate/estate_surface.gd")
 const DAYLIGHT := preload("res://rooms/estate/estate_daylight.gd")
-const SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
+const SOURCE := "res://rooms/estate/ElfieNest-complete-final.glb"
 
 
 func _initialize() -> void:
@@ -11,7 +11,7 @@ func _initialize() -> void:
 
 func run() -> void:
 	create_timer(50.0).timeout.connect(func() -> void: quit(2))
-	var source := (load(SAMPLE.SOURCE) as PackedScene).instantiate() as Node3D
+	var source := (load(SOURCE) as PackedScene).instantiate() as Node3D
 	root.add_child(source)
 	var frames := {}
 	var meshes := {}
@@ -56,18 +56,4 @@ func run() -> void:
 	assert(checked > 1000 and mirrored > 0 and modules.has("central") and modules.has("M01") and modules.has("M08"), "Full-scene surface coverage missing")
 	print("ESTATE_SURFACE_NATIVE_PASS ", JSON.stringify({"surfaces": checked, "mirrored": mirrored, "modules": modules.keys(), "daylight": counts}))
 	source.free()
-	var sample := SAMPLE.new()
-	root.add_child(sample)
-	assert(sample.counts["triangles"] == 1993542 and sample.counts["meshes"] == 917)
-	var window_surfaces := 0
-	for mesh: MeshInstance3D in sample.find_children("*", "MeshInstance3D", true, false):
-		for surface in range(mesh.mesh.get_surface_count()):
-			var actual := mesh.get_active_material(surface)
-			if actual.resource_name == "02 • porcelain window reveals":
-				assert(actual is ShaderMaterial and actual.shader == SURFACE.OPAQUE, "Window specular AA missing")
-				assert(is_equal_approx(actual.get_shader_parameter("source_roughness"), 0.25), "Window source roughness changed")
-				window_surfaces += 1
-	assert(window_surfaces > 0)
-	print("M01_WINDOW_SURFACE_PASS surfaces=", window_surfaces)
-	sample.free()
 	quit(0)

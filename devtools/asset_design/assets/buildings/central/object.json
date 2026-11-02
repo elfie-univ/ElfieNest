@@ -21,26 +21,6 @@
       "order": 502
     },
     {
-      "id": "building_central_v052",
-      "file": "buildings/central/versions/v052/version.json",
-      "order": 503
-    },
-    {
-      "id": "building_central_v053",
-      "file": "buildings/central/versions/v053/version.json",
-      "order": 504
-    },
-    {
-      "id": "building_central_v054",
-      "file": "buildings/central/versions/v054/version.json",
-      "order": 505
-    },
-    {
-      "id": "building_central_v055",
-      "file": "buildings/central/versions/v055/version.json",
-      "order": 506
-    },
-    {
       "id": "building_central_v056",
       "file": "buildings/central/versions/v056/version.json",
       "order": 507

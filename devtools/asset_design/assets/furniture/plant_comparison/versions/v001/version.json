@@ -10,8 +10,7 @@
   "files": [
     {"path": "furniture/plant_comparison/versions/v001/model.glb", "name": "model.glb", "kind": "model", "bytes": 9311496},
     {"path": "furniture/plant_comparison/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 9311496},
-    {"path": "furniture/plant_comparison/source/build.json", "name": "build.json", "kind": "data", "bytes": 815},
-    {"path": "furniture/plant_comparison/versions/v001/images/three-plants-comparison.png", "name": "three-plants-comparison.png", "kind": "image", "bytes": 1648464}
+    {"path": "furniture/plant_comparison/source/build.json", "name": "build.json", "kind": "data", "bytes": 815}
   ],
   "designVersion": {
     "id": "part_plant_comparison_v001",

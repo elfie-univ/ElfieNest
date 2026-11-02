@@ -19,7 +19,7 @@ from app.orchestration.nest_session.errors import NestSessionLifecycleError
 from app.orchestration.nest_session.models import (
     ActorDescriptor,
     ObserverSemanticEntity,
-    RuntimeMockMotion,
+    ResidentLifecycle,
     WorldEvent,
     WorldEventName,
     WorldSnapshot,
@@ -29,6 +29,7 @@ from app.orchestration.nest_session.ports import (
     NestSessionRuntimePort,
     NestStateStoreError,
     NestStateStorePort,
+    ResidentLifecycleReadPort,
     WorldSynchronizationPort,
 )
 from app.orchestration.nest_session.residents import (
@@ -47,6 +48,7 @@ from elfie.public import (
     CapabilityDescriptor,
     CommunicationChannel,
     Elfie,
+    EmbodiedInputMode,
     InboundDisposition,
     ModelPort,
 )
@@ -91,6 +93,8 @@ class NestSession:
             None
         )
         self._state_store = state_store
+        self._resident_lifecycle_source: ResidentLifecycleReadPort | None = None
+        self._resident_lifecycle: dict[str, ResidentLifecycle] = {}
         self._nest_event_delivery_attempts: dict[tuple[str, str], int] = {}
         self._quarantined_nest_event_deliveries: deque[NestEventEnvelope] = deque(
             maxlen=_MAX_QUARANTINED_NEST_EVENT_DELIVERIES
@@ -162,6 +166,7 @@ class NestSession:
                             model_port,
                             world_capabilities=self.world_capabilities,
                             world_capability_catalog=self.world_capability_catalog,
+                            embodied_input_mode=EmbodiedInputMode.BRAIN,
                         )
                 if self._lifecycle_state == "running":
                     elfie.start()
@@ -273,7 +278,77 @@ class NestSession:
 
     def _actor_catalog_snapshot(self) -> tuple[ActorDescriptor, ...]:
         with self._lifecycle_lock:
-            return actor_catalog(self.elfies)
+            self._refresh_resident_lifecycle()
+            return tuple(
+                replace(
+                    actor,
+                    lifecycle=self._resident_lifecycle.get(
+                        actor.actor_id, ResidentLifecycle()
+                    ),
+                )
+                for actor in actor_catalog(self.elfies)
+            )
+
+    def attach_resident_lifecycle_source(
+        self, source: ResidentLifecycleReadPort
+    ) -> None:
+        with self._lifecycle_lock:
+            self._resident_lifecycle_source = source
+            self._refresh_resident_lifecycle()
+
+    def _refresh_resident_lifecycle(self) -> None:
+        if self._resident_lifecycle_source is None:
+            return
+        facts = self._resident_lifecycle_source.resident_lifecycle()
+        if facts != self._resident_lifecycle:
+            self._resident_lifecycle = facts
+            self._runtime_sync.mark_actor_catalog_dirty()
+        for elfie_id in self.nest.resident_ids:
+            fact = facts.get(elfie_id, ResidentLifecycle())
+            state = self.nest.resident_state(elfie_id)
+            if state is not None and (fact.hosted or state.posture == "hosted"):
+                self.nest.set_resident_hosted(elfie_id, fact.hosted)
+            elfie = self.elfies.get(elfie_id)
+            if (
+                fact.hosted
+                and elfie is not None
+                and elfie.current_body is not None
+                and elfie.current_body.describe().mode.value == "native"
+            ):
+                elfie.unbind_body()
+
+    def require_own_bed(self, elfie_id: str) -> None:
+        with self._lifecycle_lock:
+            mirror = self.nest.runtime_mirror(elfie_id)
+            connection = self.world_runtime.runtime_connection
+            if (
+                mirror is None
+                or connection is None
+                or mirror.runtime_id != connection.runtime_id
+                or mirror.runtime_generation != connection.generation
+                or mirror.posture != "sleeping"
+                or mirror.action_anchor_id != self.nest.home_anchor_id(elfie_id)
+                or mirror.active_command_id is not None
+            ):
+                raise RuntimeError("寄身前请先回到自己的床上躺下")
+
+    def set_hosted(self, elfie_id: str, hosted: bool) -> None:
+        with self._lifecycle_lock:
+            self.nest.set_resident_hosted(elfie_id, hosted)
+            self._runtime_sync.mark_actor_catalog_dirty()
+
+    def body_can_tick(self, elfie_id: str) -> bool:
+        state = self.nest.resident_state(elfie_id)
+        fact = self._resident_lifecycle.get(elfie_id, ResidentLifecycle())
+        if state is None:
+            return False
+        if fact.hosted:
+            return True
+        if fact.arrival_started_at is not None:
+            mirror = self.nest.runtime_mirror(elfie_id)
+            if mirror is None or not mirror.arrival_completed:
+                return False
+        return state.active and state.posture != "away"
 
     def _rollback_registration(
         self,
@@ -398,6 +473,9 @@ class NestSession:
             elfie = self.elfies.get(resident.elfie_id)
             if elfie is None:
                 continue
+            fact = self._resident_lifecycle.get(resident.elfie_id, ResidentLifecycle())
+            if fact.hosted or not resident.arrival_completed:
+                continue
             sensor_event = world_snapshot_to_body_sensor_event(
                 event=event,
                 resident=resident,
@@ -502,6 +580,7 @@ class NestSession:
     def flush_runtime_state(self) -> None:
         """Send one complete actor catalog when the matching world is ready."""
         with self._lifecycle_lock:
+            self._refresh_resident_lifecycle()
             self._runtime_sync.flush()
 
     def flush_environment_state(self) -> None:
@@ -518,6 +597,7 @@ class NestSession:
             desired.object_id,
             desired.lights_on,
             desired.quiet_mode,
+            self.nest.life_phase,
         )
         if token == self._environment_sync_token:
             return
@@ -530,6 +610,7 @@ class NestSession:
             command_id=command_id,
             lights_on=desired.lights_on,
             quiet_mode=desired.quiet_mode,
+            life_phase=self.nest.life_phase.value,
             world_revision=revision,
         )
         if result is not None:
@@ -538,6 +619,7 @@ class NestSession:
     def observer_semantic_entities(self) -> Dict[str, ObserverSemanticEntity]:
         """Expose only Nest-owned semantic facts for authenticated Observers."""
         with self._lifecycle_lock:
+            self._refresh_resident_lifecycle()
             self._persisted_home_assignments = self._read_persisted_home_assignments()
         catalog = self.nest.world_catalog
         room_id = catalog.nest_id if catalog is not None else self.nest.config.nest_id
@@ -551,24 +633,20 @@ class NestSession:
             if resident is None:
                 continue
             descriptor = descriptors.get(elfie_id)
+            lifecycle = self._resident_lifecycle.get(elfie_id, ResidentLifecycle())
             entities[elfie_id] = ObserverSemanticEntity(
                 room_id=room_id,
                 zone_id=mirror.current_zone_id if mirror is not None else None,
                 posture=mirror.posture if mirror is not None else resident.posture,
-                active=resident.active,
+                active=resident.active or lifecycle.hosted,
+                hosted=lifecycle.hosted,
+                arrival_id=lifecycle.arrival_id,
+                arrival_started_at=lifecycle.arrival_started_at,
                 active_command_id=(
                     mirror.active_command_id if mirror is not None else None
                 ),
                 action_anchor_id=(
                     mirror.action_anchor_id if mirror is not None else None
-                ),
-                mock_motion=(
-                    RuntimeMockMotion(
-                        waypoint=mirror.mock_motion.waypoint,
-                        sequence=mirror.mock_motion.sequence,
-                    )
-                    if mirror is not None and mirror.mock_motion is not None
-                    else None
                 ),
                 species_id=descriptor.species if descriptor is not None else None,
                 appearance=(
@@ -601,8 +679,7 @@ class NestSession:
     def tick_elfies(self, seconds: float) -> None:
         """推进活跃精灵自身周期；Nest 环境时钟由 Nest 单独推进。"""
         for elfie_id, elfie in self.elfie_items_snapshot():
-            state = self.nest.resident_state(elfie_id)
-            if state is not None and state.active and state.posture != "away":
+            if self.body_can_tick(elfie_id):
                 elfie.advance_clock(seconds)
 
     def persist_time_environment(self) -> None:
@@ -935,6 +1012,7 @@ class NestSession:
                         model_port,
                         world_capabilities=self.world_capabilities,
                         world_capability_catalog=self.world_capability_catalog,
+                        embodied_input_mode=EmbodiedInputMode.BRAIN,
                     )
 
     def configure_cognition_factory(
@@ -951,6 +1029,7 @@ class NestSession:
                         factory(elfie_id),
                         world_capabilities=self.world_capabilities,
                         world_capability_catalog=self.world_capability_catalog,
+                        embodied_input_mode=EmbodiedInputMode.BRAIN,
                     )
 
     def start_elfies(self) -> None:

@@ -70,9 +70,8 @@ func tv_detour(world: Node3D) -> bool:
 	var cabinet := AABB(Vector3(-4.54, 0.36, -0.555), Vector3(0.58, 0.54, 2.55))
 	for index in range(1, path.size()):
 		if not require(absf(path[index].y-0.38) < 0.16 and not cabinet.grow(0.2).intersects_segment(path[index-1], path[index]), "Compiled route crosses the TV or climbs onto furniture"): return false
-	var factory := preload("res://runtime/lab/chair_world_review.gd").new()
-	var actor: ElfieActor = factory.create_actor()
-	factory.free()
+	var actor := (load("res://characters/tovren/tovren.tscn") as PackedScene).instantiate() as ElfieActor
+	actor.install_shared_animations = false
 	world.add_child(actor)
 	var player := actor.get_node("AnimationPlayer") as AnimationPlayer
 	player.add_animation_library("", preload("res://runtime/actor/chair_clip_sequence.gd").locomotion_for(actor))

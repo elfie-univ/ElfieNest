@@ -37,7 +37,7 @@ def _event(
     generation: int = 1,
 ) -> RuntimeEventFrame:
     return RuntimeEventFrame(
-        protocol=3,
+        protocol=4,
         kind="event",
         lane=lane,
         name=name,

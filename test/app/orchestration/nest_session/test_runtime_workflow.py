@@ -514,6 +514,7 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
                 lights_on=False,
                 quiet_mode=True,
                 applied=True,
+                life_phase="night",
             ),
             event_id="environment-event",
         )
@@ -670,6 +671,7 @@ def test_runtime_generation_change_invalidates_projections_and_pending_work() ->
                 lights_on=False,
                 quiet_mode=True,
                 applied=True,
+                life_phase="night",
             ),
             event_id="environment-old-event",
         ),
@@ -991,3 +993,37 @@ def test_new_session_sends_owner_default_day_and_night_lighting() -> None:
 
     engine.tick_once(8 * 3600)
     assert runtime.environment_requests[-1][2:4] == (True, False)
+
+
+def test_door_phase_is_independent_of_explicit_lighting_override() -> None:
+    from nest.public import EnvironmentDesiredState
+
+    class PhaseRuntime(FakeWorldRuntime):
+        def __init__(self) -> None:
+            super().__init__()
+            self.phases: list[str | None] = []
+
+        def apply_environment(self, **kwargs):
+            self.phases.append(kwargs.pop("life_phase", None))
+            return super().apply_environment(**kwargs)
+
+    runtime = PhaseRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    engine.nest.set_environment_override(
+        EnvironmentDesiredState(lights_on=True, quiet_mode=True)
+    )
+    runtime.events.extend(
+        (
+            _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+            _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        )
+    )
+
+    engine.tick_once(12 * 3600)
+    assert runtime.phases[-1] == "day"
+    count = len(runtime.phases)
+    engine.tick_once(8 * 3600)
+    assert runtime.phases[-1] == "dusk"
+    assert len(runtime.phases) == count + 1
+    assert runtime.environment_requests[-1][2:4] == (True, True)

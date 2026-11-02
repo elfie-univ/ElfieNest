@@ -11,9 +11,24 @@
   },
   "versions": [
     {
-      "id": "landscape_site_v013",
-      "file": "landscape/site/versions/v013/version.json",
-      "order": 501
+      "id": "landscape_site_v025",
+      "file": "landscape/site/versions/v025/version.json",
+      "order": 511
+    },
+    {
+      "id": "landscape_site_v026",
+      "file": "landscape/site/versions/v026/version.json",
+      "order": 512
+    },
+    {
+      "id": "landscape_site_v027",
+      "file": "landscape/site/versions/v027/version.json",
+      "order": 513
+    },
+    {
+      "id": "landscape_site_v028",
+      "file": "landscape/site/versions/v028/version.json",
+      "order": 514
     }
   ]
 }

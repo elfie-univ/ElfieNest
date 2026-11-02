@@ -11,6 +11,7 @@ var _environment: Environment
 var _day_environment: Dictionary = {}
 var _lamp: OmniLight3D
 var fountain_rings: Array[Dictionary] = []
+var _wave_materials: Array[ShaderMaterial] = []
 var spillway_materials: Array[ShaderMaterial] = []
 var spillway_rings: Array[Dictionary] = []
 var _spillway_edges: Array[StandardMaterial3D] = []
@@ -18,6 +19,14 @@ var _waterfall_material: ShaderMaterial
 var night_enabled := false
 var _manage_environment := true
 var _seconds := 0.0
+@export_enum("auto", "random", "fixed") var fountain_programme := "auto"
+@export var fountain_seed := 20261102
+var fountain_show: Node3D
+var _visibility_timer: Timer
+var _on_screen := false
+var _paused := false
+var _epoch_msec := 0
+var _paused_msec := 0
 
 func bind(geometry: Node3D, environment: Environment, manage_environment: bool = true) -> void:
 	_manage_environment = manage_environment
@@ -45,6 +54,15 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 	lake_material.set_shader_parameter("detail_amplitude", 0.012)
 	lake_material.set_shader_parameter("accent_strength", 0.0)
 	var pool_bounds := pool.global_transform * pool.get_aabb()
+	var channel := geometry.find_child("COMPLETE Short east spillway", true, false) as MeshInstance3D
+	var channel_bounds := channel.global_transform * channel.get_aabb()
+	for water: MeshInstance3D in [pool, channel]:
+		var material := water.get_active_material(0) as ShaderMaterial
+		material.set_shader_parameter("fountain_waves", true)
+		material.set_shader_parameter("fountain_center", pool_bounds.get_center())
+		material.set_shader_parameter("pool_radius", pool_bounds.size.x * 0.5)
+		material.set_shader_parameter("channel_end_radius", channel_bounds.end.x-pool_bounds.get_center().x)
+		_wave_materials.append(material)
 	for mesh: MeshInstance3D in geometry.find_children("*", "MeshInstance3D", true, false):
 		if mesh.mesh == null:
 			continue
@@ -54,8 +72,7 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 			var material := mesh.get_active_material(surface) as ShaderMaterial
 			if material == null: continue
 			var role := str(material.get_meta("estate_water_role", ""))
-			# The inlet overlaps the pool's rectangular bounds; its authored
-			# spillway role, rather than that overlap, owns the transition light.
+			# Use the channel's role: its curved inlet meets the pool bounds.
 			if role == "spillway" or (outside_pool and role in ["jet", "foam"]): spillway_materials.append(material)
 			if outside_pool and role == "ripple":
 				var bounds := mesh.global_transform * mesh.get_aabb()
@@ -66,6 +83,8 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 			if material != null and material.get_meta("estate_water_role", "") in ["surface", "jet", "ripple"]:
 				fountain_materials.append(material)
 				if material.get_meta("estate_water_role", "") == "ripple":
+					# The water surface now carries moving fronts all the way to the wall.
+					mesh.visible = false
 					var bounds := mesh.global_transform * mesh.get_aabb()
 					fountain_rings.append({"material":material,"radius":maxf(bounds.size.x,bounds.size.z)*0.5})
 	_lamp = OmniLight3D.new()
@@ -78,7 +97,26 @@ func bind(geometry: Node3D, environment: Environment, manage_environment: bool =
 	fountain_rings.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return float(a["radius"])<float(b["radius"]))
 	spillway_rings.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return float(a["radius"])<float(b["radius"]))
 	_bind_spillway_lights(geometry, pool)
+	fountain_show = preload("res://rooms/estate/fountain_show.gd").new()
+	fountain_show.name = "RhythmicFountain"
+	add_child(fountain_show)
+	fountain_show.bind(geometry,pool,fountain_materials,float(fountain_rings[-1].radius))
+	if OS.has_feature("web"):
+		var choice:Variant=JavaScriptBridge.eval("new URLSearchParams(window.parent.location.search).get('fountain')")
+		if choice is String and choice in ["auto","fixed","random"]: fountain_programme=choice
+		var seed_text:Variant=JavaScriptBridge.eval("new URLSearchParams(window.parent.location.search).get('fountain_seed')")
+		if seed_text is String and seed_text.is_valid_int(): fountain_seed=clampi(int(seed_text),0,2147483647)
+	fountain_show.programme=fountain_programme
+	fountain_show.random_programme=fountain_programme=="random"
+	fountain_show.programme_seed=fountain_seed
+	_epoch_msec = Time.get_ticks_msec()
+	_visibility_timer = Timer.new()
+	_visibility_timer.wait_time = 0.25
+	_visibility_timer.timeout.connect(refresh_visibility)
+	add_child(_visibility_timer)
+	_visibility_timer.start()
 	sample(0.0, false)
+	refresh_visibility()
 
 func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 	var coping := geometry.find_child("ROAD REF • fountain radial limestone coping", true, false) as MeshInstance3D
@@ -100,35 +138,19 @@ func _bind_spillway_lights(geometry: Node3D, pool: MeshInstance3D) -> void:
 		material.emission_enabled = true
 		material.emission = Color(1.0, 0.77, 0.44)
 		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		var z := bounds.end.z - 0.055 if side == "north" else bounds.position.z + 0.055
-		# Intersect the actual pool triangles at the rail's z, rather than
-		# estimating the circular rim from its rectangular bounds.
-		var ring_x := -INF
-		var faces := pool.mesh.get_faces()
-		for i in range(0, faces.size(), 3):
-			for j in range(3):
-				var a := pool.global_transform * faces[i + j]
-				var b := pool.global_transform * faces[i + (j + 1) % 3]
-				if absf(b.z - a.z) < 0.00001 or z < minf(a.z, b.z) or z > maxf(a.z, b.z): continue
-				ring_x = maxf(ring_x, lerpf(a.x, b.x, (z - a.z) / (b.z - a.z)))
-		assert(is_finite(ring_x), "The side rail must meet the authored fountain contour")
-		# Stay above the entire stone coping until its actual outside edge.
-		var coping_x := -INF
-		var coping_faces := coping.mesh.get_faces()
-		for i in range(0, coping_faces.size(), 3):
-			for j in range(3):
-				var a := coping.global_transform * coping_faces[i + j]
-				var b := coping.global_transform * coping_faces[i + (j + 1) % 3]
-				if absf(b.z - a.z) < 0.00001 or z < minf(a.z, b.z) or z > maxf(a.z, b.z): continue
-				coping_x = maxf(coping_x, lerpf(a.x, b.x, (z - a.z) / (b.z - a.z)))
-		assert(is_finite(coping_x) and coping_x < bounds.end.x, "The guide must clear the coping before descending to the crest")
+		var z := bounds.end.z - 0.05 if side == "north" else bounds.position.z + 0.05
+		var center := (pool.global_transform * pool.get_aabb()).get_center()
+		var radius := INF
+		for vertex: Vector3 in coping.mesh.get_faces():
+			var point := coping.global_transform * vertex
+			radius = minf(radius, Vector2(point.x - center.x, point.z - center.z).length())
+		radius += 0.05
+		var ring_x := center.x + sqrt(radius * radius - (z - center.z) * (z - center.z))
 		var shore_join := outline[0] if absf(outline[0].z - z) < absf(outline[-1].z - z) else outline[-1]
 		assert(absf(shore_join.z - z) < 0.001, "The guide must meet the open ribbon endpoint at its real channel side")
 		var route := PackedVector3Array([
 			Vector3(ring_x, rim_y, z),
-			Vector3(coping_x + 0.025, rim_y, z),
-			Vector3(coping_x + 0.18, bounds.end.y + 0.013, z),
-			Vector3(bounds.end.x, bounds.end.y + 0.013, z),
+			Vector3(bounds.end.x, rim_y, z),
 			Vector3(bounds.end.x, shore_join.y, z),
 			shore_join,
 		])
@@ -174,7 +196,7 @@ func sample(seconds: float, night: bool) -> void:
 	# Light only the original fountain water, never a free-standing beam.
 	for material: ShaderMaterial in fountain_materials:
 		material.set_shader_parameter("accent_color", Vector3(color.r, color.g, color.b))
-		var strength := 1.4 if material.get_meta("estate_water_role", "")=="jet" else 0.35
+		var strength := 0.35
 		material.set_shader_parameter("accent_strength", strength if night else 0.0)
 	# Each actual pool ring peaks later than the smaller one, then fades.
 	var cycle := fposmod(seconds,5.0)
@@ -183,9 +205,18 @@ func sample(seconds: float, night: bool) -> void:
 		var distance := (cycle-(0.55+float(ring_index)*0.7))/0.33
 		var pulse := exp(-distance*distance)
 		material.set_shader_parameter("accent_strength",0.04+1.8*pulse if night else 0.0)
-	_lamp.visible = night
-	_lamp.light_color = color
-	_lamp.light_energy = 0.6 if night else 0.0
+	var lead: Dictionary = fountain_show.sample(seconds,night)
+	for material: ShaderMaterial in _wave_materials:
+		material.set_shader_parameter("show_time", seconds)
+		material.set_shader_parameter("show_night", 1.0 if night else 0.0)
+		material.set_shader_parameter("flower_height", lead.flower_height)
+		material.set_shader_parameter("flower_reach", lead.flower_reach)
+		material.set_shader_parameter("flower_colors", lead.flower_colors)
+		material.set_shader_parameter("impacts", lead.impacts)
+		material.set_shader_parameter("impact_colors", lead.impact_colors)
+	_lamp.visible = night and _on_screen and not _paused
+	_lamp.light_color = lead.light_color
+	_lamp.light_energy = 0.45 * maxf(float(lead.energy),float(lead.flower_energy)) if night else 0.0
 	# Two quiet warm guides frame the channel; cool highlights stay on the
 	# original moving water and impact rings, rather than adding a light beam.
 	for material: StandardMaterial3D in _spillway_edges:
@@ -216,10 +247,33 @@ func sample(seconds: float, night: bool) -> void:
 
 func set_night(value: bool) -> void:
 	night_enabled = value
-	sample(_seconds, night_enabled)
+	sample(presentation_seconds(), night_enabled)
 
 
-func _process(delta: float) -> void:
-	if not is_visible_in_tree(): return
-	_seconds += delta
+func presentation_seconds() -> float:
+	var now := _paused_msec if _paused else Time.get_ticks_msec()
+	return float(now - _epoch_msec) / 1000.0
+
+
+func set_presentation_paused(paused: bool) -> void:
+	if paused != _paused:
+		if paused: _paused_msec = Time.get_ticks_msec()
+		else: _epoch_msec += Time.get_ticks_msec() - _paused_msec
+	_paused = paused
+	if _visibility_timer != null: _visibility_timer.paused = paused
+	refresh_visibility()
+
+
+func refresh_visibility() -> void:
+	var camera := get_viewport().get_camera_3d()
+	_on_screen = not _paused and is_visible_in_tree() and camera != null and fountain_show.visible_from(camera)
+	var nearby := camera != null and camera.global_position.distance_to(fountain_show.global_position)<30.0
+	fountain_show.set_detail(_on_screen,nearby)
+	_lamp.visible = night_enabled and _on_screen
+	set_process(not _manage_environment and _on_screen)
+
+
+func _process(_delta: float) -> void:
+	if not _on_screen or _paused: return
+	_seconds = presentation_seconds()
 	sample(_seconds, night_enabled)

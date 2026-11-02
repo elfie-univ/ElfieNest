@@ -42,7 +42,7 @@ func run() -> void:
 	arrival.resource_name = "Roof fine turquoise halo"
 	if not require(CONTROL.is_ordinary_emission(arrival), "Idle arrival fixtures must follow the day/quiet switch; event effects own their explicit activation"):
 		return
-	for file: String in ["res://rooms/estate/estate_opaque.gdshader", "res://runtime/lab/m01_sheen.gdshader"]:
+	for file: String in ["res://rooms/estate/estate_opaque.gdshader", "res://rooms/estate/m01_sheen.gdshader"]:
 		if not require(not FileAccess.get_file_as_string(file).contains("room_light_scale"), "Room surfaces must receive actual lights without the rejected fixed warm irradiance"):
 			return
 	var water := PackedVector2Array([Vector2(-2,-2),Vector2(2,-2),Vector2(2,2),Vector2(-2,2)])

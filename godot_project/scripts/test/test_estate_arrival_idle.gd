@@ -1,6 +1,6 @@
 extends SceneTree
-const CHARGE := preload("res://runtime/lab/estate_petal_charge.gd")
-const TIMING := preload("res://runtime/lab/estate_platform_cycle.gd")
+const CHARGE := preload("res://rooms/estate/estate_petal_charge.gd")
+const TIMING := preload("res://rooms/estate/estate_platform_cycle.gd")
 
 func _initialize() -> void:
 	call_deferred("run")

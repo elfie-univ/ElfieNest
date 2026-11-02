@@ -2,7 +2,7 @@ extends Resource
 ## Offline-authored physical/navigation data for the one complete estate.
 
 const FORMAT_VERSION := 3
-const AUTHORITY_FORMAT_VERSION := 1
+const AUTHORITY_FORMAT_VERSION := 2
 const COLLISION_POLICY := "central-structure-and-solid-furniture-v3"
 const PATH := "res://rooms/estate/estate_spatial.res"
 const MODEL := "res://rooms/estate/ElfieNest-complete-final.glb"

@@ -4,19 +4,12 @@ extends Node3D
 
 signal observer_camera_catalog_changed(catalog: Dictionary)
 
-const GARDEN_DOOR_REVIEW := preload("res://runtime/lab/garden_door_review.gd")
-const COLLISION_REVIEW := preload("res://runtime/lab/collision_review.gd")
-const WATER_REVIEW := preload("res://runtime/lab/estate_water_review.gd")
-const EVENT_REVIEW := preload("res://runtime/lab/estate_event_review.gd")
 const ESTATE_LIGHTING := preload("res://rooms/estate/estate_lighting.gd")
-const PATH_LIGHTING_REVIEW := preload("res://runtime/lab/estate_path_lighting_review.gd")
-const CHAIR_REVIEW_REQUEST := preload("res://runtime/lab/chair_review_request.gd")
 const COMPLETE_SCENE_PATH := "res://rooms/estate/estate.tscn"
 const ESTATE_PHYSICS := preload("res://rooms/estate/estate_physics.gd")
 const ESTATE_SEMANTICS := preload("res://rooms/estate/estate_semantics.gd")
 const AUTHORITY_SCENE := preload("res://rooms/estate/estate_authority_scene.gd")
 const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
-const M01_SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
 const FIXED_BED_COUNT: int = 32
 const CAMERA_ORBIT_SPEED: float = 0.008
 const FOLLOW_CAMERA_OFFSET := Vector3(1.8, 1.3, 3.2)
@@ -85,6 +78,7 @@ func _refresh_usage_lighting(delta: float) -> void:
 var _anchor_markers: Dictionary = {}
 var _facility_markers: Dictionary = {}
 var _estate_physics: Node3D
+var _door_life_phase := "night"
 var _estate_semantics: RefCounted
 var _estate_lighting: RefCounted
 var _navigation_region: NavigationRegion3D
@@ -93,23 +87,6 @@ var _navigation_region: NavigationRegion3D
 
 
 func _ready() -> void:
-	if OS.has_feature("web") and preload("res://runtime/lab/estate_animation_picker_catalog.gd").uses_picker(str(JavaScriptBridge.eval("window.location.search"))):
-		_observation_hud.visible=false
-		return
-	if not Engine.is_editor_hint() and CHAIR_REVIEW_REQUEST.is_requested():
-		_observation_hud.visible = false
-		return
-	if not Engine.is_editor_hint() and (
-		PATH_LIGHTING_REVIEW.is_requested() or COLLISION_REVIEW.is_requested()
-		or GARDEN_DOOR_REVIEW.is_requested() or M01_SAMPLE.is_requested("camera_review")
-	):
-		_observation_hud.visible = true
-		return
-	if not Engine.is_editor_hint() and (
-		M01_SAMPLE.is_requested() or WATER_REVIEW.is_requested() or EVENT_REVIEW.is_requested()
-	):
-		_observation_hud.visible = false
-		return
 	if Engine.is_editor_hint():
 		_observation_hud.visible = false
 		rebuild()
@@ -117,26 +94,6 @@ func _ready() -> void:
 		_observation_hud.visible = show_observation_hud
 		_observation_hud.connect("view_selected", select_observation_view)
 		call_deferred("rebuild")
-
-
-func configure_m01_optical_sample(camera: Camera3D, target: Vector3) -> void:
-	# Reuse the existing orbit/pan/reset implementation without building a world.
-	_camera_views.clear()
-	_register_observation_view("m01-sample", "M01 optical sample", camera, target)
-	select_observation_view(0)
-
-
-func configure_camera_review(camera: Camera3D, target: Vector3, labels: PackedStringArray) -> void:
-	# Only the explicit local review installs these presets in the existing HUD.
-	_camera_views.clear()
-	var ids := ["overview", "camera-review-left", "camera-review-right", "camera-review-reset"]
-	for index in range(ids.size()):
-		_register_observation_view(ids[index], labels[index], camera, target)
-	_observation_hud.call("set_views", labels, 0)
-	if not _observation_hud.is_connected("view_selected", select_observation_view):
-		_observation_hud.connect("view_selected", select_observation_view)
-	_observation_hud.visible = true
-	select_observation_view(0)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -263,6 +220,7 @@ func rebuild() -> void:
 		add_child(physical)
 		var bindings := AUTHORITY_SCENE.restore(physical, data)
 		_estate_physics = bindings.physics
+		_apply_door_phase()
 		_estate_semantics = bindings.semantics
 		_anchor_markers = _estate_semantics.anchors
 		_facility_markers = _estate_semantics.facilities
@@ -282,6 +240,7 @@ func rebuild() -> void:
 	generated.add_child(_estate_physics)
 	if not Engine.is_editor_hint():
 		_estate_physics.build(estate)
+		_apply_door_phase()
 	_estate_semantics = ESTATE_SEMANTICS.new()
 	_estate_semantics.build(generated, estate)
 	if _estate_physics.outdoor_access != null:
@@ -375,7 +334,10 @@ func apply_environment_state(
 	object_id: String,
 	lights_on: bool,
 	quiet_mode: bool,
+	life_phase: String,
 ) -> Dictionary:
+	if life_phase not in ["night", "dawn", "day", "dusk"]:
+		return {"object_id": object_id, "lights_on": lights_on, "quiet_mode": quiet_mode, "life_phase": life_phase, "applied": false, "reason": "invalid_life_phase"}
 	if object_id != ENVIRONMENT_OBJECT_ID:
 		return {
 			"object_id": object_id,
@@ -395,17 +357,27 @@ func apply_environment_state(
 		}
 	_lights_on = lights_on
 	_quiet_mode = quiet_mode
+	_door_life_phase = life_phase
+	_apply_door_phase()
 	_estate_lighting.apply(lights_on,quiet_mode,_runtime_occupied_zones(),true)
 	return {
 		"object_id": object_id,
 		"lights_on": lights_on,
 		"quiet_mode": quiet_mode,
 		"applied": true,
+		"life_phase": life_phase,
 	}
+
+
+func _apply_door_phase() -> void:
+	if is_instance_valid(_estate_physics):
+		_estate_physics.set_door_default_open(_door_life_phase in ["day", "dawn"])
 
 
 func apply_observer_environment(environment: Dictionary, entities: Dictionary = {}) -> void:
 	_observer_environment = environment.duplicate()
+	_door_life_phase = str(environment.get("phase", "night"))
+	_apply_door_phase()
 	_observer_occupied_zones=ESTATE_LIGHTING.occupied_zones(entities)
 	_apply_observer_lighting_display()
 
@@ -440,7 +412,7 @@ func _apply_observer_lighting_display() -> void:
 		_observer_water.name = "ObserverFountainLighting"
 		get_node("Generated").add_child(_observer_water)
 		_observer_water.bind(get_node("Generated/CompleteEstate"), $WorldEnvironment.environment, false)
-		_observer_water.set_process(not _observer_presentation_paused)
+		_observer_water.set_presentation_paused(_observer_presentation_paused)
 	_observer_water.set_night(phase in ["dusk","night"] and not quiet)
 
 
@@ -568,9 +540,6 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 			terrace_bounds.size.y = 2.6
 			_set_camera_region(_camera_views.back(), terrace.global_transform, terrace_bounds)
 			(_camera_views.back()["camera"] as Camera3D).keep_aspect = Camera3D.KEEP_WIDTH
-	# Explicit local inspection uses the same complete world and monitor controls.
-	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(parent.location.search).get('stair_review')")) == "1":
-		_add_stair_joint_views(generated,central_floor_tops)
 	var labels := observation_view_labels()
 	camera_catalog_revision += 1
 	_active_camera_index = _observation_view_index_by_id(previous_id)
@@ -582,23 +551,6 @@ func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 		_observation_hud.call("set_views", labels, _active_camera_index)
 	select_observation_view(_active_camera_index)
 	_emit_observer_camera_catalog_changed()
-
-
-func _add_stair_joint_views(generated: Node3D, floors: Dictionary) -> void:
-	for floor_number in [2,3,4]:
-		var floor_y := float(floors[floor_number])
-		var angle := deg_to_rad(-153.0 if floor_number==2 else -115.0)
-		var radial := Vector3(cos(angle),0,sin(angle))
-		var tangent := Vector3(-sin(angle),0,cos(angle))
-		for side in [0,1]:
-			var radius := 3.18 if side==0 else 4.65
-			var outward := -radial if side==0 else radial
-			for part in [0,1,2]:
-				var height := 0.45 if part==0 else (0.90 if part==1 else 0.06)
-				var target := radial*radius+Vector3.UP*(floor_y+height)
-				var position := target+outward*(1.25 if part==0 else 0.65)-tangent*0.65
-				position.y+=0.08
-				_add_complete_view(generated,"stair-joint-%d-%d-%d" % [floor_number,side,part],"接头检查 · %d层 · %s · %s" % [floor_number,"内侧" if side==0 else "外侧",["整体","扶手封头","底部"][part]],to_global(position),to_global(target),70.0)
 
 
 func _arrival_floor_top(mesh: MeshInstance3D) -> float:
@@ -889,30 +841,13 @@ func set_observation_hud_visible(visible: bool) -> void:
 func select_observation_view(index: int) -> void:
 	if index < 0 or index >= _camera_views.size():
 		return
-	var next_id := str(_camera_views[index]["id"])
-	var phase_only := (
-		_active_camera_id.begins_with("lighting-v4-")
-		and next_id.begins_with("lighting-v4-")
-		and next_id != _active_camera_id
-		and next_id.get_slice("-", 2) == _active_camera_id.get_slice("-", 2)
-	)
 	_restore_pov_body()
-	var previous_camera := _active_camera()
 	_active_camera_index = index
 	var view := _camera_views[index]
 	view["follow_initialized"] = false
 	_active_camera_id = String(view["id"])
 	var camera := view["camera"] as Camera3D
-	if phase_only:
-		# Phase presets share a viewpoint. Keep the live orbit/pan/zoom,
-		# while retaining each preset's stored transform for explicit reset.
-		camera.global_transform = previous_camera.global_transform
-		camera.size = previous_camera.size
-		camera.fov = previous_camera.fov
-		camera.current = true
-		if _observation_hud != null: _observation_hud.call("set_selected_view", index)
-		_emit_observer_camera_catalog_changed()
-		return
+
 	camera.current = true
 	_camera_target = view["target"] as Vector3
 	camera.global_transform = view["transform"] as Transform3D
@@ -979,7 +914,7 @@ func set_observer_presentation_paused(paused: bool) -> void:
 		return
 	_observer_presentation_paused = paused
 	if _observer_water != null:
-		_observer_water.set_process(not paused)
+		_observer_water.set_presentation_paused(paused)
 	_emit_observer_camera_catalog_changed()
 
 
@@ -1210,74 +1145,3 @@ func wait_for_navigation_sync(timeout_seconds: float = 10.0) -> bool:
 			if NavigationServer3D.map_get_closest_point(navigation_map, marker.global_position).distance_to(marker.global_position) > 0.35: continue
 			return true
 	return false
-
-
-func configure_estate_path_lighting_review(views: Array[Dictionary]) -> void:
-	# Explicit sample: reuse the HUD and camera owner without building a world.
-	_camera_views.clear()
-	for view: Dictionary in views:
-		_add_complete_view(self, str(view["id"]), str(view["focus"]), view["camera"], view["target"], float(view.get("fov", 52.0)))
-	camera_catalog_revision += 1
-	if not views.is_empty() and str(views[0].id).begins_with("lighting-v4-"):
-		_observation_hud.call("set_lighting_views", views)
-	else:
-		_observation_hud.call("set_views", observation_view_labels(), 0)
-	if not _observation_hud.is_connected("view_selected", select_observation_view):
-		_observation_hud.connect("view_selected", select_observation_view)
-	_observation_hud.visible = true
-	select_observation_view(0)
-
-
-func configure_estate_water_review(views: Array[Dictionary]) -> void:
-	_configure_visual_review_views(views)
-
-
-func configure_estate_event_review(views: Array[Dictionary]) -> void:
-	_configure_visual_review_views(views)
-
-
-func _configure_visual_review_views(views: Array[Dictionary]) -> void:
-	_camera_views.clear()
-	for view: Dictionary in views:
-		var camera := Camera3D.new()
-		camera.fov = float(view.get("fov", 52.0))
-		camera.near = 0.05
-		camera.far = 1000.0
-		add_child(camera)
-		camera.global_position = view["camera"]
-		camera.look_at(view["target"])
-		_register_observation_view(view["id"], view["focus"], camera, view["target"])
-	if not _observation_hud.is_connected("view_selected", select_observation_view):
-		_observation_hud.connect("view_selected", select_observation_view)
-	_observation_hud.call("set_views", observation_view_labels())
-	_observation_hud.visible = true
-	select_observation_view(0)
-
-
-func configure_collision_review(camera: Camera3D, target: Vector3, labels: PackedStringArray) -> void:
-	# Reuse the same selector/orbit/pan/reset; this does not build a world.
-	_camera_views.clear()
-	for index in range(labels.size()):
-		_register_observation_view("collision-review-%d" % index, labels[index], camera, target)
-	_observation_hud.set_views(labels, 0)
-	if not _observation_hud.view_selected.is_connected(select_observation_view):
-		_observation_hud.view_selected.connect(select_observation_view)
-	_observation_hud.visible = true
-	select_observation_view(0)
-
-
-func configure_garden_door_review(views: Array[Dictionary]) -> void:
-	_camera_views.clear()
-	for view: Dictionary in views:
-		var camera := Camera3D.new()
-		camera.fov = float(view["fov"])
-		camera.near = 0.05
-		add_child(camera)
-		camera.global_position = view["camera"]
-		camera.look_at(view["target"])
-		_register_observation_view(view["id"], view["focus"], camera, view["target"])
-	if not _observation_hud.view_selected.is_connected(select_observation_view):
-		_observation_hud.view_selected.connect(select_observation_view)
-	_observation_hud.set_views(observation_view_labels(), 0)
-	_observation_hud.visible = true
-	select_observation_view(0)

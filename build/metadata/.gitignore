@@ -1,3 +1,0 @@
-# Keep this directory in clean checkouts for setuptools' editable-build metadata.
-*
-!.gitignore

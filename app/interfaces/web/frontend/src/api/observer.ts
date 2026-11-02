@@ -16,10 +16,6 @@ const ObserverSubscriptionSchema = z.discriminatedUnion("kind", [
   RoomSubscriptionSchema,
   ElfieSubscriptionSchema,
 ])
-const ObserverMockMotionSchema = z.object({
-  waypoint: z.number().int().min(0).max(5),
-  sequence: z.number().int().positive(),
-}).strict()
 const ObserverEntitySchema = z.object({
   room_id: z.string(),
   zone_id: z.string().nullable(),
@@ -30,7 +26,9 @@ const ObserverEntitySchema = z.object({
   species_id: z.string().nullable().default(null),
   appearance: z.record(z.string(), z.unknown()).default({}),
   home_anchor_id: z.string().nullable().default(null),
-  mock_motion: ObserverMockMotionSchema.nullable().default(null),
+  hosted: z.boolean().default(false),
+  arrival_id: z.string().min(1).nullable().default(null),
+  arrival_started_at: z.number().finite().nullable().default(null),
 }).strict()
 const ObserverSnapshotSchema = z.object({
   protocol: z.literal(3),

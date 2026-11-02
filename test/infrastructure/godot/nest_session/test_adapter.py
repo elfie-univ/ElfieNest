@@ -71,7 +71,7 @@ def test_adapter_maps_validated_manifest_without_exposing_protocol_frame() -> No
     gateway = MagicMock(spec=GodotAPIServer)
     gateway.drain_runtime_events.return_value = (
         RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.NEST,
             name=EventName.SCENE_MANIFEST,
@@ -145,7 +145,7 @@ def test_adapter_maps_snapshot_to_semantic_resident_mirrors(
     gateway = MagicMock(spec=GodotAPIServer)
     gateway.drain_runtime_events.return_value = (
         RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.NEST,
             name=EventName.WORLD_SNAPSHOT,
@@ -199,7 +199,7 @@ def test_snapshot_parser_rejects_invalid_action_anchor(target: JsonValue) -> Non
         parse_world_snapshot(payload)
     with pytest.raises(ValidationError):
         RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.NEST,
             name=EventName.WORLD_SNAPSHOT,
@@ -249,6 +249,7 @@ def test_adapter_sends_desired_environment_as_nest_command() -> None:
             command_id="environment-1",
             lights_on=False,
             quiet_mode=True,
+            life_phase="night",
             world_revision=3,
         )
         == "environment-request-1"
@@ -260,6 +261,7 @@ def test_adapter_sends_desired_environment_as_nest_command() -> None:
             "command_id": "environment-1",
             "lights_on": False,
             "quiet_mode": True,
+            "life_phase": "night",
         },
         world_revision=3,
         cause_id="environment-1",

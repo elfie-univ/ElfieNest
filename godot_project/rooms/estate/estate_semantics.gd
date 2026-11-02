@@ -168,7 +168,7 @@ func nearest_zone(point: Vector3) -> String:
 	var body := hit["collider"] as Node
 	var module := str(body.get_meta("estate_module", ""))
 	if room_floors.has(module):
-		var floor := room_floors[module] as MeshInstance3D
+		var floor := room_floors[module] as Node3D
 		return ("terrace-%02d" if floor.to_local(point).y > 2.9 else "dorm-%02d") % int(module.trim_prefix("M"))
 	if module == "central":
 		return "central-%02d" % int(body.get_meta("estate_floor", 1))

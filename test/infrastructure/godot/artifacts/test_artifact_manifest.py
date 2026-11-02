@@ -269,18 +269,9 @@ def test_runtime_contract_rejects_invalid_serialized_payload(tmp_path: Path) -> 
         load_runtime_artifact_manifest(path)
 
 
-def test_runtime_contract_fixture_is_the_only_unignored_build_component() -> None:
-    # Given: the repository build-output ignore rules.
+def test_runtime_build_outputs_are_ignored() -> None:
+    # Every build output stays ignored, including metadata placeholders.
     ignore_file = Path(__file__).resolve().parents[4] / ".gitignore"
-
-    # When: the runtime contract exception is inspected.
     rules = ignore_file.read_text(encoding="utf-8")
-
-    # Then: only the single handoff file becomes versionable.
-    assert "/build/components/*\n" in rules
-    assert "/build/components/runtime-contract/*\n" in rules
-    assert rules.index("/build/components/*\n") > rules.index("!/build/components/\n")
-    assert rules.index("/build/components/runtime-contract/*\n") > rules.index(
-        "!/build/components/runtime-contract/\n"
-    )
-    assert "!/build/components/runtime-contract/runtime-components.json\n" in rules
+    assert "/build/\n" in rules
+    assert not any(line.startswith("!/build/") for line in rules.splitlines())

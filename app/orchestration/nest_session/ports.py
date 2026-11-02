@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.orchestration.nest_session.models import (
+    ResidentLifecycle,
     RuntimeActor,
     RuntimeConnection,
     WorldEvent,
@@ -25,6 +26,10 @@ class NestStateStorePort(Protocol):
     def initialize_snapshot(self, snapshot: NestSnapshot) -> None: ...
 
     def save_snapshot(self, snapshot: NestSnapshot) -> None: ...
+
+
+class ResidentLifecycleReadPort(Protocol):
+    def resident_lifecycle(self) -> dict[str, ResidentLifecycle]: ...
 
 
 class ModelPortFactory(Protocol):
@@ -108,6 +113,7 @@ class EnvironmentControlPort(Protocol):
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
+        life_phase: str,
         world_revision: int,
     ) -> str | None: ...
 
@@ -146,6 +152,7 @@ class NestSessionRuntimePort(
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
+        life_phase: str,
         world_revision: int,
     ) -> str | None: ...
 

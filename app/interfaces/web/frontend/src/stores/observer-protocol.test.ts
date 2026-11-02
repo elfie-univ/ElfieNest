@@ -153,7 +153,6 @@ describe("observer camera protocol", () => {
           species_id: "saevi",
           home_anchor_id: "dorm-01/bed-01",
           appearance: {},
-          mock_motion: { waypoint: 1, sequence: 1 },
         },
       },
       environment: null,
@@ -175,10 +174,10 @@ describe("observer camera protocol", () => {
       generation: 1,
       sequence: 2,
     })
-    expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.mock_motion).toEqual({
-      waypoint: 1,
-      sequence: 1,
-    })
+    expect(parseObserverSemanticSnapshot({
+      ...snapshot,
+      entities: { "saevi-1": { ...snapshot.entities["saevi-1"], mock_motion: { waypoint: 1, sequence: 1 } } },
+    })).toBeNull()
     expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.action_anchor_id).toBe("dorm-01/chair-01")
     for (const invalid of ["", 42, { position: [0, 0, 0] }]) {
       expect(parseObserverSemanticSnapshot({

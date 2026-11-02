@@ -79,7 +79,7 @@ def test_project_uses_main_scene() -> None:
     assert 'run/main_scene="res://main.tscn"' in project_text
 
 
-def test_runtime_source_declares_protocol_v3_manifest_contract() -> None:
+def test_runtime_source_declares_protocol_v4_manifest_contract() -> None:
     main_text = (GODOT_ROOT / "main.gd").read_text(encoding="utf-8")
     websocket_client_text = (
         GODOT_ROOT / "runtime" / "endpoint" / "websocket_client.gd"
@@ -89,7 +89,7 @@ def test_runtime_source_declares_protocol_v3_manifest_contract() -> None:
         GODOT_ROOT / "runtime" / "world" / "world_controller.gd"
     ).read_text(encoding="utf-8")
 
-    assert "const GODOT_PROTOCOL_VERSION := 3" in websocket_client_text
+    assert "const GODOT_PROTOCOL_VERSION := 4" in websocket_client_text
     assert "get_close_code()" in websocket_client_text
     assert "get_close_reason()" in websocket_client_text
     assert '"runtime_websocket_closed"' in websocket_client_text

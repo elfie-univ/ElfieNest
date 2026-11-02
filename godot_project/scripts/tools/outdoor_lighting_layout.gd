@@ -91,10 +91,8 @@ func build(source: Node3D) -> Node3D:
 	GEOMETRY.strip(result,emitter,0.08,"WholeLakeConcealedRim")
 	result.set_meta("shoreline_emitter",emitter)
 	var pool := source.find_child("Reference fountain water",true,false) as MeshInstance3D
-	var pool_rim := GEOMETRY.contour(pool)
 	var coping := source.find_child("ROAD REF • fountain radial limestone coping",true,false) as MeshInstance3D
-	var pool_height := (coping.global_transform*coping.get_aabb()).end.y+0.008
-	for i in range(pool_rim.size()): pool_rim[i].y = pool_height
+	var pool_rim := GEOMETRY.fountain_rim(source, pool, coping)
 	GEOMETRY.strip(result,pool_rim,0.10,"FountainConcealedRim")
 	var patches: Array[String] = []
 	for mesh in ground: patches.append_array(GEOMETRY.partition(mesh,result))

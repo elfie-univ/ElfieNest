@@ -1,4 +1,4 @@
-"""Godot Runtime protocol v3 typed frames and semantic lanes."""
+"""Godot Runtime protocol v4 typed frames and semantic lanes."""
 
 from __future__ import annotations
 
@@ -108,18 +108,13 @@ class _SceneManifestPayload(_Payload):
     facilities: List[_ManifestFacilityPayload] = Field(default_factory=list)
 
 
-class _MockMotionPayload(_Payload):
-    waypoint: int = Field(ge=0, le=5)
-    sequence: int = Field(ge=1)
-
-
 class _SnapshotActorPayload(_Payload):
     actor_id: str
     zone_id: Optional[str]
     posture: str
+    arrival_completed: bool = True
     active_command_id: Optional[str]
     action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
-    mock_motion: Optional[_MockMotionPayload] = None
     position: Optional[Tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
     velocity: Optional[Tuple[float, float, float]] = None
@@ -195,6 +190,7 @@ class _ApplyEnvironmentPayload(_Payload):
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
+    life_phase: Literal["night", "dawn", "day", "dusk"]
 
 
 class _EnvironmentStatePayload(_Payload):
@@ -202,6 +198,7 @@ class _EnvironmentStatePayload(_Payload):
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
+    life_phase: Literal["night", "dawn", "day", "dusk"]
     applied: bool
     reason: Optional[str] = None
 
@@ -217,6 +214,9 @@ class _ActorDescriptorPayload(_Payload):
     species: str = Field(min_length=1)
     spawn_anchor_id: str = Field(min_length=1)
     appearance: JsonObject
+    hosted: bool = False
+    arrival_id: Optional[str] = None
+    arrival_started_at: Optional[float] = None
 
 
 class _SyncActorsPayload(_Payload):
@@ -399,7 +399,7 @@ _EVENT_LANES = {
 class _RuntimeFrame(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    protocol: Literal[3]
+    protocol: Literal[4]
     lane: SemanticLane
     message_id: str
     cause_id: Optional[str] = None
@@ -411,7 +411,7 @@ class _RuntimeFrame(BaseModel):
 
 
 class RuntimeCommandFrame(_RuntimeFrame):
-    """Strict outbound command frame for protocol v3."""
+    """Strict outbound command frame for protocol v4."""
 
     kind: Literal["command"]
     name: CommandName
@@ -456,7 +456,7 @@ class RuntimeCommandFrame(_RuntimeFrame):
 
 
 class RuntimeEventFrame(_RuntimeFrame):
-    """Strict inbound event frame for protocol v3."""
+    """Strict inbound event frame for protocol v4."""
 
     kind: Literal["event"]
     name: EventName

@@ -192,7 +192,7 @@ class RuntimeSession:
             target_actor_id = str(payload.get("actor_id", "")) if body_lane else None
             self._command_sequence += 1
             return RuntimeCommandFrame(
-                protocol=3,
+                protocol=4,
                 kind="command",
                 lane=SemanticLane.BODY if body_lane else SemanticLane.NEST,
                 name=name,

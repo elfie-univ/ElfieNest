@@ -11,6 +11,9 @@ const ACTOR_SCENES := {
 
 func _init() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
+	# Exercise the physical authority with test-owned controllers and no transport.
+	main.set_script(null)
+	(main.get_node("Nest") as ModularNest).physical_authority = true
 	root.add_child(main)
 	await process_frame
 	var nest := main.get_node("Nest") as ModularNest
@@ -24,6 +27,16 @@ func _init() -> void:
 	if not bool(configured.get("accepted", false)):
 		_fail("Interaction world failed to configure")
 		return
+	if not nest._estate_physics.is_physics_processing():
+		_fail("Restored physical authority must update its sliding doors")
+		return
+	for anchor_id in nest.semantic_anchor_ids():
+		var marker := nest.resolve_anchor(anchor_id)
+		var zone := String(marker.get_meta("zone_id", ""))
+		if zone.begins_with("dorm-") or zone.begins_with("terrace-"):
+			if nest.nearest_zone_id(marker.global_position) != zone:
+				_fail("Physical authority lost room/floor identity at " + anchor_id)
+				return
 
 	var controller := ACTOR_CONTROLLER_SCRIPT.new()
 	root.add_child(controller)
@@ -31,7 +44,7 @@ func _init() -> void:
 		nest,
 		main.get_node("Characters") as Node3D,
 		ACTOR_SCENES,
-		false,
+		true,
 	)
 	world_controller.set_actor_provider(
 		Callable(controller, "actor_instances")
@@ -273,14 +286,25 @@ func _init() -> void:
 	progress_probe.global_position = probe_home
 	agent.avoidance_enabled = true
 	progress_probe.set_physics_process(true)
+	# The authored route includes the doorway and connector. Its minimum walking
+	# time can exceed the old fixed ten seconds at the production walking speed.
+	var clear_path := NavigationServer3D.map_get_path(
+		saevi.get_world_3d().navigation_map, saevi.global_position,
+		nest.resolve_anchor("central-01/activity").global_position, true,
+	)
+	var route_length := 0.0
+	for index in range(1, clear_path.size()):
+		route_length += clear_path[index - 1].distance_to(clear_path[index])
+	var clear_deadline := route_length / ElfieActor.WALK_SPEED + 5.0
+	print("CLEAR_ROUTE metres=", route_length, " deadline=", clear_deadline)
 	controller.execute_intent({
 		"command_id": "move-clear-1",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
 		"anchor_id": "central-01/activity",
-		"deadline_seconds": 10.0,
+		"deadline_seconds": clear_deadline,
 	})
-	for _frame in range(600):
+	for _frame in range(int(ceil(clear_deadline * Engine.physics_ticks_per_second)) + 1):
 		await physics_frame
 		if _event_payload(events, "intent_terminal", "move-clear-1") != null:
 			break

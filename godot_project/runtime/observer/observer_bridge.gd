@@ -188,7 +188,9 @@ static func _semantic_entity_is_valid(entity: Variant) -> bool:
 		"species_id",
 		"appearance",
 		"home_anchor_id",
-		"mock_motion",
+		"hosted",
+		"arrival_id",
+		"arrival_started_at",
 	]
 	if entity_map.size() != entity_keys.size():
 		return false
@@ -200,35 +202,15 @@ static func _semantic_entity_is_valid(entity: Variant) -> bool:
 		and _text_or_null_is_valid(entity_map.get("zone_id"))
 		and _text_is_valid(entity_map.get("posture"))
 		and typeof(entity_map.get("active")) == TYPE_BOOL
+		and typeof(entity_map.get("hosted")) == TYPE_BOOL
+		and _text_or_null_is_valid(entity_map.get("arrival_id"))
+		and (entity_map.get("arrival_started_at") == null or typeof(entity_map.get("arrival_started_at")) in [TYPE_INT, TYPE_FLOAT])
 		and _text_or_null_is_valid(entity_map.get("active_command_id"))
 		and _text_or_null_is_valid(entity_map.get("action_anchor_id"))
 		and _text_or_null_is_valid(entity_map.get("species_id"))
 		and entity_map.get("appearance") is Dictionary
 		and _text_or_null_is_valid(entity_map.get("home_anchor_id"))
-		and _mock_motion_is_valid(entity_map.get("mock_motion"))
 		and not _has_forbidden_keys(entity_map)
-	)
-
-
-static func _mock_motion_is_valid(value: Variant) -> bool:
-	if value == null:
-		return true
-	if not value is Dictionary:
-		return false
-	var motion := value as Dictionary
-	var mode := String(motion.get("mode", "wander"))
-	if mode == "sleep":
-		return (
-			motion.size() == 2 and motion.has("mode") and motion.has("sequence")
-			and _parse_revision(motion.get("sequence")) >= 1
-		)
-	if mode != "wander":
-		return false
-	if motion.size() != 2 or not motion.has("waypoint") or not motion.has("sequence"):
-		return false
-	return (
-		_parse_revision(motion.get("waypoint")) >= 0
-		and _parse_revision(motion.get("sequence")) >= 1
 	)
 
 

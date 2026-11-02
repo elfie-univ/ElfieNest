@@ -13,13 +13,13 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 Appearance = Mapping[str, JsonValue]
 
 
-class RuntimeMockMotion(BaseModel):
-    """Transient App projection of the removable visual Mock motion."""
+@dataclass(frozen=True)
+class ResidentLifecycle:
+    """Presentation facts derived from committed admission and embodiment leases."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    waypoint: int = Field(ge=0, le=5)
-    sequence: int = Field(ge=1)
+    hosted: bool = False
+    arrival_id: str | None = None
+    arrival_started_at: float | None = None
 
 
 class ObserverSemanticEntity(BaseModel):
@@ -36,7 +36,9 @@ class ObserverSemanticEntity(BaseModel):
     species_id: Optional[str] = None
     appearance: dict[str, JsonValue] = Field(default_factory=dict)
     home_anchor_id: Optional[str] = None
-    mock_motion: Optional[RuntimeMockMotion] = None
+    hosted: bool = False
+    arrival_id: Optional[str] = None
+    arrival_started_at: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,7 @@ class ActorDescriptor:
     actor_id: str
     species: str
     appearance: Appearance
+    lifecycle: ResidentLifecycle = ResidentLifecycle()
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,7 @@ class RuntimeActor:
     species: str
     appearance: Appearance
     spawn_anchor_id: str
+    lifecycle: ResidentLifecycle = ResidentLifecycle()
 
 
 @unique
@@ -130,11 +134,11 @@ class ResidentMirror:
     current_zone_id: str | None
     posture: str
     active_command_id: str | None = None
-    mock_motion: RuntimeMockMotion | None = None
     position: tuple[float, float, float] | None = None
     heading_degrees: float | None = None
     velocity: tuple[float, float, float] | None = None
     action_anchor_id: str | None = None
+    arrival_completed: bool = True
 
     def __post_init__(self) -> None:
         if self.action_anchor_id is not None and (
@@ -177,6 +181,7 @@ class EnvironmentState:
     command_id: str
     lights_on: bool
     quiet_mode: bool
+    life_phase: str
     applied: bool
     reason: str | None = None
 
@@ -212,7 +217,6 @@ __all__ = (
     "RuntimeActor",
     "RuntimeConnection",
     "RuntimeFailure",
-    "RuntimeMockMotion",
     "ResidentMirror",
     "SceneManifest",
     "SemanticWorldCatalog",

@@ -144,9 +144,7 @@
     {"path": "furniture/shared_resources/source/resources/f6a94a5ca5315e17beb11961715e880b6c26ff17f53dad16b735b558fc428877.bin", "name": "f6a94a5ca5315e17beb11961715e880b6c26ff17f53dad16b735b558fc428877.bin", "kind": "data", "bytes": 3528},
     {"path": "furniture/shared_resources/source/resources/f7d86944ac1d4afdc944c07bf01ecf5d4c1f2d8a1e28633192cde4c6bb9cd29d.bin", "name": "f7d86944ac1d4afdc944c07bf01ecf5d4c1f2d8a1e28633192cde4c6bb9cd29d.bin", "kind": "data", "bytes": 50912},
     {"path": "furniture/shared_resources/source/resources/f816249db01af5a3f19bd10dd913a25f76d6b58c998df0e67ec1881c48aae8f7.bin", "name": "f816249db01af5a3f19bd10dd913a25f76d6b58c998df0e67ec1881c48aae8f7.bin", "kind": "data", "bytes": 20474},
-    {"path": "furniture/shared_resources/source/resources/fb3bc7a7c444376c32b76082f4993cb694c3f393dee708f3bbc40d69e538eb95.bin", "name": "fb3bc7a7c444376c32b76082f4993cb694c3f393dee708f3bbc40d69e538eb95.bin", "kind": "data", "bytes": 48392},
-    {"path": "furniture/shared_pod_bed_b250b4cffd/versions/v004/images/02-front-comparison.png", "name": "02-front-comparison.png", "kind": "image", "bytes": 642253},
-    {"path": "furniture/shared_pod_bed_b250b4cffd/versions/v004/images/02-side-comparison.png", "name": "02-side-comparison.png", "kind": "image", "bytes": 603339}
+    {"path": "furniture/shared_resources/source/resources/fb3bc7a7c444376c32b76082f4993cb694c3f393dee708f3bbc40d69e538eb95.bin", "name": "fb3bc7a7c444376c32b76082f4993cb694c3f393dee708f3bbc40d69e538eb95.bin", "kind": "data", "bytes": 48392}
   ],
   "designVersion": {
     "id": "part_shared_pod_bed_b250b4cffd_v004",

@@ -1,11 +1,5 @@
 extends Node3D
 
-const CAMERA_REVIEW := preload("res://runtime/lab/camera_review.gd")
-const GARDEN_DOOR_REVIEW := preload("res://runtime/lab/garden_door_review.gd")
-const COLLISION_REVIEW := preload("res://runtime/lab/collision_review.gd")
-const WATER_REVIEW := preload("res://runtime/lab/estate_water_review.gd")
-const EVENT_REVIEW := preload("res://runtime/lab/estate_event_review.gd")
-const PATH_LIGHTING_REVIEW := preload("res://runtime/lab/estate_path_lighting_review.gd")
 const SPECIES_CATALOG := preload("res://runtime/species_catalog.gd")
 const GODOT_WS_URL := "ws://127.0.0.1:8765"
 const BODY_EVENT_NAMES := [
@@ -21,8 +15,6 @@ const ENVIRONMENT_RUNTIME_CONTROLLER := preload("res://runtime/world/environment
 const OBSERVER_PRESENTATION_CONTROLLER := preload("res://runtime/observer/observer_presentation.gd")
 const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/endpoint/websocket_client.gd")
 const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
-const LAB_RUNTIME := preload("res://runtime/lab/lab_runtime.gd")
-const M01_SAMPLE := preload("res://runtime/lab/m01_optical_sample.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/endpoint/authority_semantic_events.gd")
 const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
@@ -30,9 +22,6 @@ const OUTDOOR_ACCESS_OVERLAY := preload("res://runtime/observer/outdoor_access_o
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
 const VISUAL_AUTHORITY_ENV := "ELFIENEST_GODOT_SHOW_VISUALS"
-## Temporary monitor-only visual behavior; remove when real action control lands.
-const MOCK_WANDER_ENABLED := false
-const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := false
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -75,78 +64,8 @@ func add_character(
 
 
 func _ready() -> void:
-	if OS.has_feature("web") and _query_parameter("mode") == "navigation_tour":
-		lab_preview.free()
-		set_process(false)
-		var tour := load("res://runtime/lab/estate_navigation_tour.gd").new() as Node
-		add_child(tour)
-		await tour.setup(nest, characters)
-		return
-	if OS.has_feature("web") and _query_parameter("mode") == "animation_journey":
-		lab_preview.free()
-		set_process(false)
-		if preload("res://runtime/lab/estate_animation_picker_catalog.gd").uses_picker(str(JavaScriptBridge.eval("window.location.search"))):
-			nest.visible=false
-			var picker := load("res://runtime/lab/estate_animation_picker.gd").new() as Control
-			add_child(picker)
-			return
-		var journey := load("res://runtime/lab/estate_animation_journey.gd").new() as Node
-		add_child(journey)
-		await journey.setup(nest, characters)
-		return
-	if OS.has_feature("web") and _query_parameter("mode") == "elfie_lab" and _query_parameter("review") in ["chair", "sofa", "tour"]:
-		lab_preview.free()
-		set_process(false)
-		var review_path := "res://runtime/lab/sofa_world_review.gd" if _query_parameter("review") == "sofa" else "res://runtime/lab/chair_world_review.gd"
-		if _query_parameter("review") == "tour": review_path = "res://runtime/lab/estate_animation_tour.gd"
-		var review := load(review_path).new() as Node
-		add_child(review)
-		review.setup(nest, characters)
-		return
 	if OS.has_feature("web"):
 		get_viewport().msaa_3d = Viewport.MSAA_4X
-	if PATH_LIGHTING_REVIEW.is_requested():
-		M01_SAMPLE.isolate_host(self)
-		var review := PATH_LIGHTING_REVIEW.new()
-		review.camera_owner = nest
-		add_child(review)
-		await _notify_web_runtime_ready()
-		return
-	if EVENT_REVIEW.is_requested():
-		M01_SAMPLE.isolate_host(self)
-		lab_preview.visible = false
-		var review := EVENT_REVIEW.new()
-		review.camera_owner = nest
-		add_child(review)
-		return
-	if WATER_REVIEW.is_requested():
-		M01_SAMPLE.isolate_host(self)
-		lab_preview.visible = false
-		var review := WATER_REVIEW.new()
-		review.camera_owner = nest
-		add_child(review)
-		return
-	if GARDEN_DOOR_REVIEW.is_requested():
-		M01_SAMPLE.isolate_host(self)
-		var review := GARDEN_DOOR_REVIEW.new()
-		review.camera_owner = nest
-		add_child(review)
-		await _notify_web_runtime_ready()
-		return
-	if COLLISION_REVIEW.is_requested():
-		enter_collision_review()
-		await _notify_web_runtime_ready()
-		return
-	if CAMERA_REVIEW.is_requested():
-		enter_camera_review()
-		await _notify_web_runtime_ready()
-		return
-	if M01_SAMPLE.is_requested():
-		M01_SAMPLE.isolate_host(self)
-		var sample := M01_SAMPLE.new()
-		sample.camera_owner = nest
-		add_child(sample)
-		return
 	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
 	_nest_lab_mode = OS.has_feature("web") and _query_parameter("lab") == "nest_lab"
@@ -154,7 +73,8 @@ func _ready() -> void:
 		OS.has_feature("web")
 		and _query_parameter(OBSERVER_MODE_PARAMETER) == OBSERVER_MODE_VALUE
 	)
-	_setup_lab_runtime()
+	if _lab_mode or _nest_lab_mode:
+		_setup_lab_runtime()
 	if _lab_mode:
 		_lab_runtime.setup_elfie_lab()
 		return
@@ -212,6 +132,7 @@ func _process(_delta: float) -> void:
 
 
 func _setup_lab_runtime() -> void:
+	var LAB_RUNTIME := load("res://runtime/lab/lab_runtime.gd") as GDScript
 	_lab_runtime = LAB_RUNTIME.new()
 	add_child(_lab_runtime)
 	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, _actor_scenes)
@@ -231,7 +152,6 @@ func _start_authority_runtime() -> void:
 		characters,
 		_actor_scenes,
 		true,
-		MOCK_WANDER_ENABLED,
 	)
 	_world_controller.set_actor_provider(_actor_controller.actor_instances)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
@@ -253,7 +173,6 @@ func _setup_observer_presentation() -> void:
 		nest,
 		characters,
 		_actor_scenes,
-		OBSERVER_LOCAL_MOCK_WANDER_ENABLED,
 	)
 	_observer_bridge = OBSERVER_BRIDGE.new()
 	add_child(_observer_bridge)
@@ -415,20 +334,3 @@ func _notify_web_runtime_ready() -> void:
 		"window.__elfieNestObserverReady = true;"
 		+ "window.parent.postMessage('elfienest:godot-web-ready', window.location.origin)"
 	)
-
-
-func enter_collision_review() -> void:
-	# Explicit visual review only: return before catalog/authority setup.
-	M01_SAMPLE.isolate_host(self)
-	var review := COLLISION_REVIEW.new()
-	review.name = "CollisionReview"
-	review.camera_owner = nest
-	add_child(review)
-
-
-func enter_camera_review() -> void:
-	M01_SAMPLE.isolate_host(self)
-	var review := CAMERA_REVIEW.new()
-	review.name = "CameraReview"
-	review.camera_owner = nest
-	add_child(review)

@@ -14,9 +14,7 @@
     {"path": "furniture/shared_resources/source/resources/1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "name": "1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "kind": "texture", "bytes": 32513},
     {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
     {"path": "furniture/shared_resources/source/resources/cc5ee9f081f22547299d660e0cc1a0d46f7893b59fe93507397dcacdb3dd4177.bin", "name": "cc5ee9f081f22547299d660e0cc1a0d46f7893b59fe93507397dcacdb3dd4177.bin", "kind": "data", "bytes": 425504},
-    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1840},
-    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-front-comparison.png", "name": "12-front-comparison.png", "kind": "image", "bytes": 676351},
-    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v004/images/12-side-comparison.png", "name": "12-side-comparison.png", "kind": "image", "bytes": 629851}
+    {"path": "furniture/shared_quiet_central_reading_chair_3418a9defb/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1840}
   ],
   "designVersion": {
     "id": "part_shared_quiet_central_reading_chair_3418a9defb_v004",

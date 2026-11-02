@@ -17,6 +17,14 @@ class EmbodimentLeaseConflict(EmbodimentLeasePortError):
     """A durable embodiment transition used stale or conflicting state."""
 
 
+class HostedNestPort(Protocol):
+    """Keep the virtual body in its own bed while another body is active."""
+
+    def require_own_bed(self, elfie_id: str) -> None: ...
+
+    def set_hosted(self, elfie_id: str, hosted: bool) -> None: ...
+
+
 class EmbodimentLeasePort(Protocol):
     def get(self, elfie_id: str) -> EmbodimentSession: ...
 

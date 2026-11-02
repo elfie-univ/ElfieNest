@@ -26,9 +26,7 @@
     {"path": "furniture/shared_resources/source/resources/d48593bbb28c1a67cb7b8c34a2d93d51b50a2b10414c50d74ceb7685a7b7a0fb.bin", "name": "d48593bbb28c1a67cb7b8c34a2d93d51b50a2b10414c50d74ceb7685a7b7a0fb.bin", "kind": "data", "bytes": 10056},
     {"path": "furniture/shared_resources/source/resources/e91e71a08ca23707b76de1a17e23854e7b785214349357cfb69ce8bfcd155b71.bin", "name": "e91e71a08ca23707b76de1a17e23854e7b785214349357cfb69ce8bfcd155b71.bin", "kind": "data", "bytes": 34740},
     {"path": "furniture/shared_resources/source/resources/f47b1538582a94891b3f0ea7f72ed305d19a31a03f6d27591b012d14211fd8d4.bin", "name": "f47b1538582a94891b3f0ea7f72ed305d19a31a03f6d27591b012d14211fd8d4.bin", "kind": "data", "bytes": 34938},
-    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 14208},
-    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-front-comparison.png", "name": "11-front-comparison.png", "kind": "image", "bytes": 479893},
-    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v003/images/11-side-comparison.png", "name": "11-side-comparison.png", "kind": "image", "bytes": 618575}
+    {"path": "furniture/shared_pod_petal_chair_d33b2e4ede/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 14208}
   ],
   "designVersion": {
     "id": "part_shared_pod_petal_chair_d33b2e4ede_v003",

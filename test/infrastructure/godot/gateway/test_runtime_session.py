@@ -25,7 +25,7 @@ def _event(
     revision: int = 1,
 ) -> RuntimeEventFrame:
     return RuntimeEventFrame(
-        protocol=3,
+        protocol=4,
         kind="event",
         lane=SemanticLane.NEST,
         name=EventName.WORLD_CONFIGURED,

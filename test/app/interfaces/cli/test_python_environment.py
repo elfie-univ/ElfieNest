@@ -58,3 +58,23 @@ def test_setuptools_metadata_is_written_under_build_directory() -> None:
     # Then
     assert "[egg_info]" in setup_config
     assert "egg_base = build/metadata" in setup_config
+
+
+def test_build_creates_metadata_directory_in_clean_checkout(
+    tmp_path, monkeypatch
+) -> None:
+    import runpy
+    import sys
+    from types import SimpleNamespace
+
+    entry = tmp_path / "setup.py"
+    entry.write_text((PROJECT_ROOT / "setup.py").read_text(encoding="utf-8"))
+    calls = []
+
+    def setup():
+        assert (tmp_path / "build" / "metadata").is_dir()
+        calls.append(True)
+
+    monkeypatch.setitem(sys.modules, "setuptools", SimpleNamespace(setup=setup))
+    runpy.run_path(str(entry), run_name="__main__")
+    assert calls == [True]

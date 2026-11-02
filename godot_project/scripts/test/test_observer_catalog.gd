@@ -203,7 +203,7 @@ func run() -> void:
 		"channel": "elfienest.observer",
 		"version": 1,
 		"kind": "semantic_snapshot",
-		"protocol": 3,
+		"protocol": 4,
 		"generation": 1,
 		"sequence": 1,
 		"scope": {"kind": "room", "room_id": "local-nest"},
@@ -218,7 +218,9 @@ func run() -> void:
 				"species_id": "saevi",
 				"home_anchor_id": "dorm-01/bed-01",
 				"appearance": {},
-				"mock_motion": null,
+				"hosted": false,
+		"arrival_id": null,
+		"arrival_started_at": null,
 			},
 		},
 		"environment": null,
@@ -431,72 +433,10 @@ func _test_semantic_replay(nest: ModularNest, valid_semantic_snapshot: Dictionar
 		"Observer presentation did not place the Elfie at its semantic home anchor"
 	):
 		return false
-	var motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
-	(motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"waypoint": 1,
-		"sequence": 1,
-	}
-	if not _require(nest.bake_navigation(), "Observer could not prepare its local replay NavMesh"):
+	var obsolete_motion := valid_semantic_snapshot.duplicate(true)
+	(obsolete_motion["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {"waypoint": 1, "sequence": 1}
+	if not _require((observer_bridge.call("_parse_semantic_snapshot", obsolete_motion) as Dictionary).is_empty(), "Observer accepted retired synthetic motion"):
 		return false
-	for _frame in range(4):
-		await physics_frame
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", motion_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected the temporary waypoint state",
-	):
-		return false
-	_apply_replay(presentation, motion_snapshot)
-	for _frame in range(4):
-		await physics_frame
-	if not _require(
-		grounded_actor.active_command_id.begins_with("observer-mock-wander-"),
-		"Observer did not replay the authority waypoint as local navigation",
-	):
-		return false
-	var whole_nest_motion_snapshot := valid_semantic_snapshot.duplicate(true)
-	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
-	(whole_nest_motion_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"waypoint": 23,
-		"sequence": 3,
-	}
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", whole_nest_motion_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected a whole-Nest waypoint beyond the legacy room range",
-	):
-		return false
-	var sleep_snapshot := valid_semantic_snapshot.duplicate(true)
-	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["action_anchor_id"] = null
-	(sleep_snapshot["entities"]["saevi-1"] as Dictionary)["mock_motion"] = {
-		"mode": "sleep",
-		"sequence": 2,
-	}
-	if not _require(
-		not (observer_bridge.call("_parse_semantic_snapshot", sleep_snapshot) as Dictionary).is_empty(),
-		"Observer semantic snapshot rejected the sleep-return motion state",
-	):
-		return false
-	_apply_replay(presentation, valid_semantic_snapshot)
-	await _wait_frames(1)
-	_apply_replay(presentation, sleep_snapshot)
-	for _frame in range(600):
-		await physics_frame
-		if (
-			grounded_actor.active_command_id.is_empty()
-			and grounded_actor.global_position.distance_to(
-				nest.resolve_anchor("dorm-01/bed-01").global_position
-			) <= 0.5
-		):
-			break
-	if not _require(
-		grounded_actor.global_position.distance_to(
-			nest.resolve_anchor("dorm-01/bed-01").global_position
-		) <= 0.5,
-		"Observer did not replay sleep motion back to the semantic home bed",
-	):
-		return false
-	_apply_replay(presentation, valid_semantic_snapshot)
-	await _wait_frames(1)
 	var multi_snapshot := valid_semantic_snapshot.duplicate(true)
 	var tovren_entity := (multi_snapshot["entities"]["saevi-1"] as Dictionary).duplicate(true)
 	tovren_entity["species_id"] = "tovren"

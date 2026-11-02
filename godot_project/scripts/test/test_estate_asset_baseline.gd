@@ -175,7 +175,6 @@ func _validate() -> void:
 	if not physical_error.is_empty():
 		_fail(physical_error)
 		return
-	var target_resolver := load("res://runtime/actor/mock_wander_target.gd")
 	if (
 		target_resolver.waypoint_count(nest) != 6
 		or target_resolver.target_for(nest, null, 0) != null

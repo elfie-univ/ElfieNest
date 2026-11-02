@@ -181,7 +181,7 @@ func run() -> void:
 				if not _require((mesh.layers & DAYLIGHT.NATIVE_HEMISPHERE_LAYER) == 0, "Mixed-surface mesh receives hemisphere irradiance twice"):
 					return
 				var original := actual.get_meta("source_material") as BaseMaterial3D
-				if actual.shader == load("res://rooms/estate/estate_opaque.gdshader") or actual.shader == load("res://runtime/lab/m01_sheen.gdshader"):
+				if actual.shader == load("res://rooms/estate/estate_opaque.gdshader") or actual.shader == load("res://rooms/estate/m01_sheen.gdshader"):
 					if not _require(bool(actual.get_shader_parameter("use_authored_reflection")) == (original.get_meta("extras", {}) as Dictionary).has("preview_surface_finish"), "Studio reflection leaked onto a surface without an authored environment"):
 						return
 				if actual.shader == load("res://rooms/estate/estate_opaque.gdshader"):

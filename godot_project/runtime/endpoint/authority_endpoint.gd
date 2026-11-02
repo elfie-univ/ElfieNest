@@ -1,7 +1,7 @@
 class_name NestAuthorityEndpoint
 extends RefCounted
 
-const PROTOCOL_VERSION := 3
+const PROTOCOL_VERSION := 4
 const ENVIRONMENT_OBJECT_ID := "nest/environment"
 
 ## Validate the typed command envelope before dispatching to a capability owner.
@@ -71,6 +71,7 @@ func validate_command(
 			or environment_command_id.is_empty()
 			or typeof(payload.get("lights_on")) != TYPE_BOOL
 			or typeof(payload.get("quiet_mode")) != TYPE_BOOL
+			or payload.get("life_phase") not in ["night", "dawn", "day", "dusk"]
 			or String(message.get("cause_id", "")) != environment_command_id
 		):
 			return false

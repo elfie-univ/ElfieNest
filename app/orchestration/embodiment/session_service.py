@@ -18,6 +18,7 @@ from .ports import (
     EmbodimentLeaseConflict,
     EmbodimentLeasePort,
     EmbodimentLeasePortError,
+    HostedNestPort,
 )
 from .state_machine import EmbodimentState
 
@@ -25,8 +26,11 @@ from .state_machine import EmbodimentState
 class EmbodimentSessionService:
     """Keep durable lease state and an Elfie's sole active BodyPort aligned."""
 
-    def __init__(self, leases: EmbodimentLeasePort) -> None:
+    def __init__(
+        self, leases: EmbodimentLeasePort, *, nest: HostedNestPort | None = None
+    ) -> None:
         self._leases = leases
+        self._nest = nest
 
     def get_session(self, elfie_id: str) -> EmbodimentSession:
         return self._leases.get(elfie_id)
@@ -49,6 +53,16 @@ class EmbodimentSessionService:
         self, elfie_id: str, elfie: Elfie, body: BodyPort, *, lease_seconds: float
     ) -> HostingResult:
         """Acquire first, then bind; release the durable lease if binding fails."""
+        if self._nest is None:
+            return HostingFailed(
+                restored_state=self._leases.get(elfie_id).state, reason="Nest 不可用"
+            )
+        try:
+            self._nest.require_own_bed(elfie_id)
+        except RuntimeError as error:
+            return HostingFailed(
+                restored_state=self._leases.get(elfie_id).state, reason=str(error)
+            )
         try:
             switching = self._leases.begin_hosting(
                 elfie_id, body.body_id, lease_seconds=lease_seconds
@@ -65,12 +79,18 @@ class EmbodimentSessionService:
                 restored_state=restored.state,
                 reason="body_id 已注册为另一个身体实例",
             )
+        original_body_id = elfie.current_body_id
         try:
             elfie.bind_body(body.body_id)
-        except RuntimeError as error:
+            self._nest.set_hosted(elfie_id, True)
+            hosted = self._leases.complete_hosting(elfie_id, switching.lease_version)
+        except (RuntimeError, EmbodimentLeasePortError) as error:
+            if original_body_id is not None:
+                elfie.bind_body(original_body_id)
+            self._nest.set_hosted(elfie_id, False)
             restored = self._leases.abort_hosting(elfie_id, switching.lease_version)
             return HostingFailed(restored_state=restored.state, reason=str(error))
-        return Hosted(self._leases.complete_hosting(elfie_id, switching.lease_version))
+        return Hosted(hosted)
 
     def return_to_nest(
         self, elfie_id: str, elfie: Elfie, *, nest_body_id: str
@@ -82,10 +102,16 @@ class EmbodimentSessionService:
                 state=current.state, reason="没有可归巢的具身会话"
             )
         try:
-            returning = self._leases.start_return(elfie_id, current.lease_version)
+            returning = (
+                current
+                if current.state is EmbodimentState.RETURNING_TO_NEST
+                else self._leases.start_return(elfie_id, current.lease_version)
+            )
         except EmbodimentLeaseConflict as error:
             return EmbodimentConflict(state=current.state, reason=str(error))
         elfie.bind_body(nest_body_id)
+        if self._nest is not None:
+            self._nest.set_hosted(elfie_id, False)
         return self._leases.complete_return(elfie_id, returning.lease_version)
 
     def heartbeat(
@@ -123,6 +149,8 @@ class EmbodimentSessionService:
                 state=current.state, reason="只有离线会话可以恢复到 Nest"
             )
         elfie.bind_body(nest_body_id)
+        if self._nest is not None:
+            self._nest.set_hosted(elfie_id, False)
         return self._leases.recover(elfie_id, current.lease_version)
 
 

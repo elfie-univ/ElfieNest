@@ -68,22 +68,15 @@ class HomeAssignment(_StrictSemanticModel):
         return self
 
 
-class RuntimeMockMotion(_StrictSemanticModel):
-    """Transient semantic waypoint state for the removable visual Mock."""
-
-    waypoint: int = Field(ge=0, le=5)
-    sequence: int = Field(ge=1)
-
-
 class RuntimeResidentMirror(_StrictSemanticModel):
     """Short-lived Runtime projection of a registered resident."""
 
     elfie_id: ElfieId
     current_zone_id: Optional[ZoneId] = None
     posture: str = "standing"
+    arrival_completed: bool = True
     active_command_id: Optional[str] = None
     action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
-    mock_motion: Optional[RuntimeMockMotion] = None
     position: Optional[tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
     velocity: Optional[tuple[float, float, float]] = None
@@ -112,6 +105,5 @@ __all__ = (
     "PersistentResidentState",
     "ResidentPresence",
     "ResidentState",
-    "RuntimeMockMotion",
     "RuntimeResidentMirror",
 )

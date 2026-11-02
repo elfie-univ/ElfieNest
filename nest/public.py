@@ -20,7 +20,6 @@ from nest.living_rules.errors import (
 from nest.living_rules.models import (
     PersistentResidentState,
     ResidentPresence,
-    RuntimeMockMotion,
     RuntimeResidentMirror,
 )
 from nest.snapshot import NestSnapshot
@@ -66,7 +65,6 @@ __all__ = [
     "PersistentResidentState",
     "ReconciliationRequiredError",
     "ResidentPresence",
-    "RuntimeMockMotion",
     "RuntimeResidentMirror",
     "UnknownAnchorError",
     "UnknownResidentError",

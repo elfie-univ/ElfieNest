@@ -9,27 +9,15 @@
 本阶段在不修改Tovren、Saevi GLB 的前提下确定了可复用局部区域。最终结果不再保留独立实验 Shader：
 
 - `godot_project/runtime/actor/actor_appearance.gd` 是正式区域公式和 V9 相对明暗组合的唯一来源；
-- `godot_project/scripts/test/render_production_region_debug.gd` 是唯一可重放的区域基线渲染器，
-  区域分类直接委托给 `ActorAppearance`；
 - Tovren 和 Saevi共用同一套13区协议，但允许物种专属几何阈值；
 - 每个候选最多启用两个可染色区域。
 
 此前27轮发现过程在调边界时有价值，但正式提升后已经清除，避免它们继续成为第二事实源。其长期
 结果只保留为正式公式、本决策记录和下面的紧凑正式基线。
 
-## 重放方法
+## 当前查看方式
 
-从仓库根目录执行，要求 Godot 4.7 且没有其他 Godot 实例：
-
-```text
-APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
-/Applications/Godot.app/Contents/MacOS/Godot --display-driver macos \
-  --rendering-method gl_compatibility --path godot_project \
-  --script res://scripts/test/render_production_region_debug.gd
-```
-
-渲染器会在临时目录写出Tovren、Saevi总图、逐区图片、逐视角图片和机器可读目录。仓库只保留两张紧凑
-总图和目录作为发布证据。
+旧区域截图工具已退役；通过 Monitor 或精灵实验页查看正式外观。
 
 ## 冻结基线
 

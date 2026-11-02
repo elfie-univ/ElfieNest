@@ -14,10 +14,7 @@
     {"path": "furniture/shared_resources/source/resources/14bcf5d612455c301be6688fb4055b5d195175c18ed4ec03a355974466de37ff.bin", "name": "14bcf5d612455c301be6688fb4055b5d195175c18ed4ec03a355974466de37ff.bin", "kind": "data", "bytes": 124464},
     {"path": "furniture/shared_resources/source/resources/92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "name": "92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "kind": "texture", "bytes": 1213},
     {"path": "furniture/shared_resources/source/resources/b53ac1a5d6386d753447d8b42eab5be77a8742c6c2aa3b1e7e88e4d640c39f35.bin", "name": "b53ac1a5d6386d753447d8b42eab5be77a8742c6c2aa3b1e7e88e4d640c39f35.bin", "kind": "data", "bytes": 124464},
-    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1105},
-    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-front-comparison.png", "name": "01-front-comparison.png", "kind": "image", "bytes": 415875},
-    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/01-side-comparison.png", "name": "01-side-comparison.png", "kind": "image", "bytes": 406302},
-    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v005/images/speaker-closeups.png", "name": "speaker-closeups.png", "kind": "image", "bytes": 124136}
+    {"path": "furniture/shared_television_left_speaker_50a1618b48/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1105}
   ],
   "designVersion": {
     "id": "part_shared_television_left_speaker_50a1618b48_v005",

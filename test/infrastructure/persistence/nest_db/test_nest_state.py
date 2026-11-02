@@ -24,6 +24,17 @@ from nest.time_environment.models import (
 )
 
 
+def test_resident_lifecycle_is_derived_from_final_adoption_and_lease(tmp_path) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    _seed_elfie(db_path)
+    facts = SQLiteNestStateAdapter(db_path).resident_lifecycle()
+    assert set(facts) == {"00000001"}
+    assert not facts["00000001"].hosted
+    # An elfies row alone is not a fresh arrival event.
+    assert facts["00000001"].arrival_id is None
+
+
 def _seed_elfie(db_path: str) -> None:
     with get_db(db_path) as connection:
         connection.execute(

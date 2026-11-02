@@ -48,6 +48,14 @@ class LivingRulesState:
             raise UnknownResidentError(elfie_id)
         self.residents[elfie_id] = replace(current, posture=posture)
 
+    def set_hosted(self, elfie_id: str, hosted: bool) -> None:
+        current = self.residents.get(elfie_id)
+        if current is None:
+            raise UnknownResidentError(elfie_id)
+        self.residents[elfie_id] = replace(
+            current, posture="hosted" if hosted else "standing", active=not hosted
+        )
+
     def apply_catalog(self) -> None:
         valid_beds = frozenset(self.space.ordered_active_bed_anchor_ids())
         self.reconciliation_required = any(

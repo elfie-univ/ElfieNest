@@ -13,9 +13,7 @@
     {"path": "furniture/shared_music_coffee_table_1db16d8004/source/build.json", "name": "build.json", "kind": "data", "bytes": 1416},
     {"path": "furniture/shared_resources/source/resources/587d3eb548526a4e7c669aa5176b0bc482dd5adc6dd88669038e301dadc33f35.bin", "name": "587d3eb548526a4e7c669aa5176b0bc482dd5adc6dd88669038e301dadc33f35.bin", "kind": "data", "bytes": 1104},
     {"path": "furniture/shared_resources/source/resources/dadcf178827ac389428e4e95afb6860281963ba47350965512b3b0caf2e1e0b0.bin", "name": "dadcf178827ac389428e4e95afb6860281963ba47350965512b3b0caf2e1e0b0.bin", "kind": "data", "bytes": 154016},
-    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1201},
-    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-front-comparison.png", "name": "09-front-comparison.png", "kind": "image", "bytes": 528025},
-    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v003/images/09-side-comparison.png", "name": "09-side-comparison.png", "kind": "image", "bytes": 526811}
+    {"path": "furniture/shared_music_coffee_table_1db16d8004/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1201}
   ],
   "designVersion": {
     "id": "part_shared_music_coffee_table_1db16d8004_v003",

@@ -123,9 +123,9 @@ function mergeFrame(
       home_anchor_id: patch.home_anchor_id === undefined
         ? entity.home_anchor_id
         : patch.home_anchor_id,
-      mock_motion: patch.mock_motion === undefined
-        ? entity.mock_motion
-        : patch.mock_motion,
+      hosted: patch.hosted ?? entity.hosted,
+      arrival_id: patch.arrival_id === undefined ? entity.arrival_id : patch.arrival_id,
+      arrival_started_at: patch.arrival_started_at === undefined ? entity.arrival_started_at : patch.arrival_started_at,
     },
   }
 }

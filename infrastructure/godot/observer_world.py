@@ -12,7 +12,6 @@ from app.orchestration.observer import (
     ObserverEnvironmentRecord,
     ObserverPortError,
     ObserverWorldIntent,
-    RuntimeMockMotion,
 )
 
 
@@ -45,7 +44,13 @@ class _SemanticEntity(Protocol):
     def home_anchor_id(self) -> str | None: ...
 
     @property
-    def mock_motion(self) -> RuntimeMockMotion | None: ...
+    def hosted(self) -> bool: ...
+
+    @property
+    def arrival_id(self) -> str | None: ...
+
+    @property
+    def arrival_started_at(self) -> float | None: ...
 
 
 class GodotObserverWorldAdapter:
@@ -83,7 +88,9 @@ class GodotObserverWorldAdapter:
                     species_id=entity.species_id,
                     appearance=tuple(sorted(entity.appearance.items())),
                     home_anchor_id=entity.home_anchor_id,
-                    mock_motion=entity.mock_motion,
+                    hosted=entity.hosted,
+                    arrival_id=entity.arrival_id,
+                    arrival_started_at=entity.arrival_started_at,
                 )
                 for entity_id, entity in sorted(projected.items())
             )

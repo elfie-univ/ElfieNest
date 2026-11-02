@@ -162,7 +162,6 @@ func run() -> void:
 	var cancelled_position := actor.global_position
 	_check(actor.active_command_id.is_empty(), "unknown cancellation kept replay moving")
 	var unknown := _snapshot("walking", "unknown-target", "missing/anchor")
-	unknown["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 1}
 	bridge._handle_semantic_snapshot(unknown)
 	_check(actor.active_command_id.is_empty() and actor.global_position == cancelled_position, "unknown anchor invented a home action")
 	bridge._handle_semantic_snapshot(walk)
@@ -188,28 +187,13 @@ func run() -> void:
 	_check(actor.global_position.is_equal_approx(paused_position), "resume teleported the resident")
 	await _wait_arrival(actor)
 	_check(actor.global_position.distance_to(activity.global_position) < 0.44, "resume lost latest real state")
-	var explicit_mock := _snapshot("idle", null, null)
-	explicit_mock["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 20}
-	_check(not bool(presentation.get("_local_mock_wander_enabled")), "product random mock unexpectedly enabled")
-	bridge._handle_semantic_snapshot(explicit_mock)
-	_check(actor.active_command_id.begins_with("observer-mock-wander-"), "explicit authority mock was gated by local random setting")
-	_check(actor.visible, "explicit authority replay did not display actor")
-	var mock_command := actor.active_command_id
-	var mock_deadline := int(actor.get("_deadline_msec"))
-	var repeated_mock := _snapshot("idle", null, null)
-	repeated_mock["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 20}
-	bridge._handle_semantic_snapshot(repeated_mock)
-	_check(actor.active_command_id == mock_command and int(actor.get("_deadline_msec")) == mock_deadline, "duplicate authority mock restarted navigation")
-	var priority_real := _snapshot("walking", "priority-real", "dorm-01/bed-01")
-	priority_real["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 21}
-	bridge._handle_semantic_snapshot(priority_real)
-	_check(actor.active_command_id == "observer-real-action-priority-real", "explicit mock overrode a real semantic anchor")
-	var replace_real := _snapshot("idle", null, null)
-	replace_real["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 22}
-	bridge._handle_semantic_snapshot(replace_real)
-	_check(actor.active_command_id.begins_with("observer-mock-wander-"), "explicit mock could not replace prior real replay")
-	bridge._handle_semantic_snapshot(_snapshot("idle", null, null))
-	_check(actor.active_command_id.is_empty(), "cleared authority mock kept moving")
+	var obsolete_motion := _snapshot("idle", null, null)
+	obsolete_motion["entities"]["saevi-1"]["mock_motion"] = {"mode": "sleep", "sequence": 20}
+	var previous_sequence := int(presentation.get("_snapshot_sequence"))
+	var parsed_obsolete := bridge._parse_semantic_snapshot(obsolete_motion)
+	_check(parsed_obsolete.is_empty(), "retired synthetic motion passed the bridge parser")
+	if not parsed_obsolete.is_empty(): bridge._handle_semantic_snapshot(parsed_obsolete)
+	_check(int(presentation.get("_snapshot_sequence")) == previous_sequence, "retired synthetic motion payload was accepted")
 	var empty := _snapshot("idle", null, null)
 	empty["entities"] = {}
 	empty["entity_revisions"] = {}
@@ -220,7 +204,7 @@ func run() -> void:
 			push_error(error)
 		quit(1)
 		return
-	print("PASS observer real actions: strict anchor, pending/duplicate walk, mid-walk pause/resume, authored bed/chair, cancellation, helper guard, explicit authority mock priority")
+	print("PASS observer real actions: strict anchor, pending/duplicate walk, mid-walk pause/resume, authored bed/chair, cancellation, helper guard, retired synthetic motion rejected")
 	quit(0)
 
 
@@ -236,7 +220,9 @@ func _snapshot(posture: String, command: Variant, anchor: Variant) -> Dictionary
 			"room_id": "local-nest", "zone_id": "dorm-01", "posture": posture,
 			"active": true, "active_command_id": command, "action_anchor_id": anchor,
 			"species_id": "saevi", "appearance": {},
-			"home_anchor_id": "dorm-01/bed-01", "mock_motion": null,
+			"home_anchor_id": "dorm-01/bed-01", "hosted": false,
+		"arrival_id": null,
+		"arrival_started_at": null,
 		}},
 	}
 

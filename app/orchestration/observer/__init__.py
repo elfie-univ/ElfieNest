@@ -26,7 +26,6 @@ from .port_models import (
     ObserverEntityRecord,
     ObserverEnvironmentRecord,
     ObserverWorldIntent,
-    RuntimeMockMotion,
 )
 from .ports import (
     ObserverCapabilityIssuerPort,
@@ -59,7 +58,6 @@ __all__ = (
     "ObserverSubscription",
     "ObserverUnavailable",
     "ObserverWorldIntent",
-    "RuntimeMockMotion",
     "ObserverWorldPort",
     "OpenObserverSessionCommand",
     "OpenObserverSessionResult",

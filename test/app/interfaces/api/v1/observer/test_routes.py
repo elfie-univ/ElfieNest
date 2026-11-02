@@ -154,7 +154,9 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
                 "species_id": "saevi",
                 "appearance": {},
                 "home_anchor_id": None,
-                "mock_motion": None,
+                "hosted": False,
+                "arrival_id": None,
+                "arrival_started_at": None,
             }
         },
         "entity_revisions": {"saevi-1": 1},

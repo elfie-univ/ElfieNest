@@ -196,7 +196,7 @@ describe("useObserverCameraBridge", () => {
         "saevi-1": {
           room_id: "local-nest", zone_id: "dorm-01", posture: "sitting", active: true,
           active_command_id: null, action_anchor_id: "dorm-01/chair-01",
-          species_id: "saevi", appearance: {}, home_anchor_id: "dorm-01/bed-01", mock_motion: null,
+          species_id: "saevi", appearance: {}, home_anchor_id: "dorm-01/bed-01", hosted: false, arrival_id: null, arrival_started_at: null,
         },
       },
       entity_revisions: { "saevi-1": 1 },

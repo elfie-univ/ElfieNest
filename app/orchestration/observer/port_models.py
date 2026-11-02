@@ -7,7 +7,6 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from app.orchestration.nest_session import RuntimeMockMotion
 from nest.time_environment import LifePhase
 
 
@@ -29,7 +28,9 @@ class ObserverEntityRecord:
     species_id: str | None
     appearance: tuple[tuple[str, JsonValue], ...]
     home_anchor_id: str | None
-    mock_motion: RuntimeMockMotion | None = None
+    hosted: bool = False
+    arrival_id: str | None = None
+    arrival_started_at: float | None = None
     action_anchor_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -45,4 +46,4 @@ class ObserverWorldIntent:
     interaction: Literal["greet", "rest"]
 
 
-__all__ = ("ObserverEntityRecord", "ObserverWorldIntent", "RuntimeMockMotion")
+__all__ = ("ObserverEntityRecord", "ObserverWorldIntent")

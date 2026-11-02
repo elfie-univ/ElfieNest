@@ -43,9 +43,7 @@
     {"path": "furniture/shared_resources/source/resources/d26b84b0636fe11d27256fddda2ea8fe238c9965098db3ac03cc190c575bef99.png", "name": "d26b84b0636fe11d27256fddda2ea8fe238c9965098db3ac03cc190c575bef99.png", "kind": "texture", "bytes": 43691},
     {"path": "furniture/shared_resources/source/resources/d2903300a5f6a5f417176b0a741d34ae2d9c8cd5368b792337319f3a425a4049.bin", "name": "d2903300a5f6a5f417176b0a741d34ae2d9c8cd5368b792337319f3a425a4049.bin", "kind": "data", "bytes": 140},
     {"path": "furniture/shared_resources/source/resources/fbff4aa0260446f95d9142fd365eabdcf4eb54a0473b48ae3d8d3d5608759a90.bin", "name": "fbff4aa0260446f95d9142fd365eabdcf4eb54a0473b48ae3d8d3d5608759a90.bin", "kind": "data", "bytes": 14056},
-    {"path": "furniture/shared_resources/source/resources/fdb0294c194309c72cc49fa9cd6fa0941f9e0df0d53dc5a09cd666aa6eb869e9.bin", "name": "fdb0294c194309c72cc49fa9cd6fa0941f9e0df0d53dc5a09cd666aa6eb869e9.bin", "kind": "data", "bytes": 220340},
-    {"path": "layouts/central_floor_2/versions/v028/images/table-repaired-front.png", "name": "table-repaired-front.png", "kind": "image", "bytes": 36365},
-    {"path": "layouts/central_floor_2/versions/v028/images/table-repaired-rear.png", "name": "table-repaired-rear.png", "kind": "image", "bytes": 31762}
+    {"path": "furniture/shared_resources/source/resources/fdb0294c194309c72cc49fa9cd6fa0941f9e0df0d53dc5a09cd666aa6eb869e9.bin", "name": "fdb0294c194309c72cc49fa9cd6fa0941f9e0df0d53dc5a09cd666aa6eb869e9.bin", "kind": "data", "bytes": 220340}
   ],
   "designVersion": {
     "id": "layout_central_2_v028",

@@ -128,7 +128,7 @@ static func ribbon_path(estate: Node3D) -> PackedVector3Array:
 	var south_box := south.global_transform * south.get_aabb()
 	var curtain := estate.find_child("Continuous shallow waterfall from solid spillway crest", true, false) as MeshInstance3D
 	var fall := curtain.global_transform * curtain.get_aabb()
-	var opening := Rect2(Vector2(fall.position.x - 0.4, north_box.end.z - 0.055), Vector2(fall.size.x + 0.8, south_box.position.z + 0.055 - (north_box.end.z - 0.055)))
+	var opening := Rect2(Vector2(fall.position.x - 0.4, north_box.end.z - 0.05), Vector2(fall.size.x + 0.8, south_box.position.z + 0.05 - (north_box.end.z - 0.05)))
 	# Split at the real channel sides before opening the loop. Both guides
 	# then terminate on these exact crest vertices, leaving the water clear.
 	var split := PackedVector3Array()

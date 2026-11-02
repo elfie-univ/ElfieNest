@@ -2,7 +2,7 @@ extends RefCounted
 ## Shared opaque rendering, with original room albedo/normal textures retained.
 
 const OPAQUE := preload("res://rooms/estate/estate_opaque.gdshader")
-const SHEEN := preload("res://runtime/lab/m01_sheen.gdshader")
+const SHEEN := preload("res://rooms/estate/m01_sheen.gdshader")
 const GLASS := preload("res://rooms/estate/estate_glass.gdshader")
 
 

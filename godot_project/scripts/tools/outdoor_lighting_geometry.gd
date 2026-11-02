@@ -44,6 +44,26 @@ static func partition(source: MeshInstance3D, parent: Node3D, cell_size: float =
 			names.append(str(node.name))
 	return names
 
+static func fountain_rim(source: Node3D, pool: MeshInstance3D, coping: MeshInstance3D) -> PackedVector3Array:
+	var center := (pool.global_transform * pool.get_aabb()).get_center()
+	var radius := INF
+	for vertex: Vector3 in coping.mesh.get_faces():
+		var point := coping.global_transform * vertex
+		radius = minf(radius, Vector2(point.x - center.x, point.z - center.z).length())
+	# Keep the full band on the stone, with its inner edge flush to the pool.
+	radius += 0.05
+	var north := source.find_child("CY R001 spillway north continuous side wall", true, false) as MeshInstance3D
+	var south := source.find_child("CY R001 spillway south continuous side wall", true, false) as MeshInstance3D
+	var start := asin(((south.global_transform * south.get_aabb()).position.z + 0.05 - center.z) / radius)
+	var end := TAU + asin(((north.global_transform * north.get_aabb()).end.z - 0.05 - center.z) / radius)
+	var height := (coping.global_transform * coping.get_aabb()).end.y + 0.008
+	var result := PackedVector3Array()
+	for index in range(129):
+		var angle := lerpf(start, end, float(index) / 128.0)
+		result.append(Vector3(center.x + cos(angle) * radius, height, center.z + sin(angle) * radius))
+	return result
+
+
 static func strip(parent: Node3D, points: PackedVector3Array, width: float, label: String) -> MeshInstance3D:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()

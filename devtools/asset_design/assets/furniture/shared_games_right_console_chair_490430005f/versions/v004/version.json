@@ -13,8 +13,7 @@
     {"path": "furniture/shared_games_right_console_chair_490430005f/source/build.json", "name": "build.json", "kind": "data", "bytes": 1081},
     {"path": "furniture/shared_resources/source/resources/23e21af0964e9035198efd39fcbb5e92f9636700c1e699d606d4446df6ad3720.bin", "name": "23e21af0964e9035198efd39fcbb5e92f9636700c1e699d606d4446df6ad3720.bin", "kind": "data", "bytes": 203936},
     {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
-    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1769},
-    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v004/images/05-front-comparison.png", "name": "05-front-comparison.png", "kind": "image", "bytes": 673884}
+    {"path": "furniture/shared_games_right_console_chair_490430005f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1769}
   ],
   "designVersion": {
     "id": "part_shared_games_right_console_chair_490430005f_v004",

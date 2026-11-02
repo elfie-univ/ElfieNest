@@ -94,11 +94,10 @@ and owns actor placement and rendering. The action anchor, posture and active
 command are projected from authority snapshots at action start and completion.
 Observer replays walking and authored bed/seat poses against its own identical
 scene; duplicate or stale snapshots do not restart actions. Local pause stops
-display physics only. Product-local random wandering is disabled. Unknown action
-anchors do not fall back to a fabricated home state. As a temporary removable behavior, the
-authority may additionally publish `mock_motion: {waypoint, sequence}`. The
-waypoint is resolved locally against the room NavMesh; Observer clients replay
-it and never choose random targets. The React bridge accepts and forwards only
+display physics only. Product-local random wandering and synthetic waypoint snapshots have been removed.
+Unknown action anchors do not fall back to a fabricated home state. Nest Lab retains
+its isolated Python scheduler, which sends real semantic movement commands.
+The React bridge accepts and forwards only
 same-origin, validated snapshots to the current Observer iframe.
 
 Fixed-camera monitoring opens at the garden overview and uses only left-drag look-in-place, right-drag horizontal track movement and wheel zoom, without an operation-mode selector. Movement stays inside the preset floor/region. Reset beside the fixed-view selector restores the current camera’s default position, orientation and zoom without selecting another subject. Elfie views retain follow and first-person perspectives and do not show Reset. Camera and playback controls do not change authority state.
@@ -142,6 +141,46 @@ rate-limited high-level `request_interaction` (`greet` or `rest`), which goes to
 the world sink through the application boundary. The first Observer phase is
 not a camera/video transport: it does not send JPEG frames or provide a camera
 stream API.
+
+The Monitor defaults to an automatic cycle: the complete 80-second fixed show, a four-second transition, a 384-second seeded random round, and a four-second return transition. The cycle repeats every 472 seconds. The random choreography contains Six central gestures
+(breathing, building, accents, flower opening, alternating petals and travelling
+petals) accompany sixteen outer actions: breathing, alternating and opposite
+pairs, double waves, cumulative rise/fall, retained height stairs, rotating stairs,
+overlapping/paired/growing inward chases, dome opening, and four mixed-direction
+patterns. Eight ensemble families coordinate the centre and perimeter rather than
+choosing their gestures independently. Each 24-second phrase returns to a live
+neutral pose; groups reduce pressure separately while changing direction. Seeded
+sixteen-action rounds avoid immediate repetition and vary direction, peak height,
+speed and four coordinated palettes. Outer jets are capped at 4 m and the centre
+at 6 m. Each petal and outer nozzle sends its own height, direction and landing to
+the existing spray/ripple pipeline; the 2304-particle ceiling remains unchanged.
+The same seed and elapsed presentation time replay identically, including after
+offscreen skips.
+The Monitor URL accepts `fountain=fixed` to select the preserved show, or
+`fountain=random&fountain_seed=42` for a repeatable random sequence; `fountain=auto` selects the automatic cycle. These are
+presentation-only settings, with no changes to authoritative world state.
+
+The retained fixed fountain follows a silent 80-second presentation score at nine fixed
+nozzle positions. From 0–28 seconds, the central eight-petal flower grows from
+3.3 to 4.6 m, accompanied by low, then alternating vertical outer jets. From
+28–40 seconds, pressure drops during the change of direction: the centre becomes
+a main plume and the outer eight jets arch inward, landing 0.75 m from the centre.
+The main plume reaches 6 m during 40–50 seconds. During 50–66 seconds the outer
+jets return upright while the central flower opens to its separate 6 m peak;
+66–80 seconds relaxes smoothly back to the opening. The outer nozzle ring remains
+about 4 m from the centre, with the spillway between adjacent nozzles.
+Vertical water has a tapering white core and a wider falling spray envelope near
+the water, without an enlarged crown. A shared GPU batch of at most 2,304 small
+water fragments provides spray and impact splashes. Seventeen possible landing
+regions (main, outer eight, flower eight) share positions and pressure between
+spray and water-surface foam/ripples; inactive landings disappear. Night colours
+follow the active shapes, with a warm main plume and cool arches/flower accents.
+Moving waves reach the inner wall and continue as two fading spillway arcs,
+without increasing coping brightness or adding shadow-casting lights. A 250 ms camera/frustum and
+line-of-sight check suspends animation updates and the local light off screen or
+behind solid geometry; distant views omit the droplets. Returning to view samples
+the elapsed score directly. Monitor pause and page-background suspension freeze
+presentation without changing the authoritative world.
 
 ## Complete-estate physics and furniture actions
 

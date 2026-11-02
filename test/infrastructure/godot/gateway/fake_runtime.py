@@ -1,4 +1,4 @@
-"""Deterministic in-process protocol v3 Runtime used by contract tests."""
+"""Deterministic in-process protocol v4 Runtime used by contract tests."""
 
 from __future__ import annotations
 
@@ -173,7 +173,7 @@ class FakeRuntime:
         }
         target_actor_id = str(payload.get("actor_id", "")) if body_event else None
         event = RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.BODY if body_event else SemanticLane.NEST,
             name=name,

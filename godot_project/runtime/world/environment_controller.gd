@@ -24,7 +24,8 @@ func apply_environment(command: Dictionary) -> void:
 	var object_id := String(command.get("object_id", ""))
 	var lights_on := bool(command.get("lights_on", true))
 	var quiet_mode := bool(command.get("quiet_mode", false))
-	var applied := _nest.apply_environment_state(object_id, lights_on, quiet_mode)
+	var life_phase := String(command["life_phase"])
+	var applied := _nest.apply_environment_state(object_id, lights_on, quiet_mode, life_phase)
 	runtime_event.emit(
 		"environment_state",
 		{
@@ -32,6 +33,7 @@ func apply_environment(command: Dictionary) -> void:
 			"command_id": command_id,
 			"lights_on": bool(applied.get("lights_on", lights_on)),
 			"quiet_mode": bool(applied.get("quiet_mode", quiet_mode)),
+			"life_phase": life_phase,
 			"applied": bool(applied.get("applied", false)),
 			"reason": applied.get("reason"),
 		},

@@ -13,11 +13,24 @@ uniform float detail_amplitude = 0.0;
 uniform float wave_speed = 0.22;
 uniform vec3 accent_color = vec3(0.0);
 uniform float accent_strength = 0.0;
+uniform bool fountain_waves = false;
+uniform vec3 fountain_center;
+uniform float pool_radius = 5.0;
+uniform float channel_end_radius = 8.0;
+uniform float show_time = 0.0;
+uniform float show_night = 0.0;
+uniform float flower_height = 0.0;
+uniform float flower_reach = 2.1;
+uniform vec4 flower_colors[8];
+uniform vec4 impacts[17];
+uniform vec4 impact_colors[17];
 varying vec3 water_position;
+varying vec3 world_water_position;
 
 void vertex() {
 	// Coordinates only: no vertex displacement or changes to physical shape.
 	water_position = VERTEX;
+    world_water_position = (MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
 }
 
 void fragment() {
@@ -35,6 +48,33 @@ void fragment() {
 	}
 	ALBEDO = source_albedo.rgb;
 	EMISSION = accent_color * accent_strength * 0.12;
+    if (fountain_waves) {
+        vec2 p = world_water_position.xz-fountain_center.xz;
+        float radius = length(p);
+        // Continuous wavefronts are clipped by the real pool/channel mesh.
+        float travel = show_time+0.35*sin(show_time*6.2831853/80.0);
+        float spacing = is_spillway ? max((channel_end_radius-pool_radius)/2.0,0.6) : 1.15;
+        float coordinate = is_spillway ? (radius-pool_radius)/spacing+pool_radius/1.15 : radius/spacing;
+        float front = abs(fract(coordinate-travel*0.55)-0.5)*spacing;
+        float pulse = exp(-pow(front/0.045,2.0));
+        float fade = is_spillway ? 1.0-smoothstep(pool_radius,channel_end_radius,radius)*0.85 : 1.0;
+        float wall = is_spillway ? 0.0 : exp(-pow((radius-(pool_radius-0.06))/0.09,2.0));
+        float arrival = exp(-pow(abs(fract(pool_radius/1.15-travel*0.55)-0.5)*1.15/0.13,2.0));
+        ALBEDO += vec3(0.09)*pulse*fade;
+        EMISSION += accent_color*show_night*(pulse*0.65*fade+wall*arrival*0.35);
+        if (!is_spillway) {
+            for (int i=0;i<17;i++) {
+                vec2 offset=p-impacts[i].xy;
+                float d=length(offset);
+                float age=fract(show_time*1.8+float(i)*0.137);
+                float rim=exp(-pow((d-(impacts[i].z*0.4+age*impacts[i].z*2.0))/0.025,2.0))*(1.0-age);
+                float foam=exp(-d*d/(impacts[i].z*impacts[i].z))*(0.60+0.25*sin(show_time*17.0+float(i)));
+                float impact=impacts[i].w;
+                ALBEDO=mix(ALBEDO,vec3(0.78,0.9,0.93),clamp((foam+rim*0.4)*impact,0.0,0.85));
+                EMISSION+=(vec3(0.12)*(foam+rim*0.3)+impact_colors[i].rgb*show_night*(foam*0.7+rim*0.28))*impact;
+            }
+        }
+    }
 	METALLIC = source_metallic;
 	SPECULAR = source_specular;
 	ROUGHNESS = source_roughness;

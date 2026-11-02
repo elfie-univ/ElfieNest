@@ -461,7 +461,9 @@ def _changes(
         "species_id",
         "appearance",
         "home_anchor_id",
-        "mock_motion",
+        "hosted",
+        "arrival_id",
+        "arrival_started_at",
     )
     return tuple(
         ObserverEntityChangeResult(field=field, value=current_fields[field])
@@ -483,11 +485,9 @@ def _entity_fields(
         "species_id": entity.species_id,
         "appearance": dict(entity.appearance),
         "home_anchor_id": entity.home_anchor_id,
-        "mock_motion": (
-            entity.mock_motion.model_dump(mode="json")
-            if entity.mock_motion is not None
-            else None
-        ),
+        "hosted": entity.hosted,
+        "arrival_id": entity.arrival_id,
+        "arrival_started_at": entity.arrival_started_at,
     }
 
 

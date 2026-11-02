@@ -29,17 +29,6 @@ env/
 *.egg
 /build/
 dist/
-# Keep the setuptools metadata output directory available in clean checkouts.
-!/build/
-/build/*
-!/build/metadata/
-/build/metadata/*
-!/build/metadata/.gitignore
-!/build/components/
-/build/components/*
-!/build/components/runtime-contract/
-/build/components/runtime-contract/*
-!/build/components/runtime-contract/runtime-components.json
 
 # 4. IDE/编辑器/工具缓存与日志
 .DS_Store

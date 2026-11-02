@@ -13,9 +13,7 @@
     {"path": "furniture/shared_lilac_game_armchair_033103e3ca/source/build.json", "name": "build.json", "kind": "data", "bytes": 1279},
     {"path": "furniture/shared_resources/source/resources/46231234a60d92a04df8c3a3413ebffd9742e4b688d0d7a603ef61f3a5648732.bin", "name": "46231234a60d92a04df8c3a3413ebffd9742e4b688d0d7a603ef61f3a5648732.bin", "kind": "data", "bytes": 200048},
     {"path": "furniture/shared_resources/source/resources/92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "name": "92273409e736595f342b5c73ad7e420e644d2592020bb19a6d5df58346b94c7d.png", "kind": "texture", "bytes": 1213},
-    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1152},
-    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-front-comparison.png", "name": "08-front-comparison.png", "kind": "image", "bytes": 667682},
-    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v005/images/08-side-comparison.png", "name": "08-side-comparison.png", "kind": "image", "bytes": 616791}
+    {"path": "furniture/shared_lilac_game_armchair_033103e3ca/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1152}
   ],
   "designVersion": {
     "id": "part_shared_lilac_game_armchair_033103e3ca_v005",

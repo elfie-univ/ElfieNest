@@ -15,8 +15,7 @@
     {"path": "furniture/shared_resources/source/resources/8ff128e2e10111ced11dff1af88e3cf036cca6b6f3479f10e6bfb8bb44a7b8b5.bin", "name": "8ff128e2e10111ced11dff1af88e3cf036cca6b6f3479f10e6bfb8bb44a7b8b5.bin", "kind": "data", "bytes": 22016},
     {"path": "furniture/shared_resources/source/resources/cf2baa26597634f8a031cc73b6bd920fa6589e2f35b366b0700f753f46c01a13.bin", "name": "cf2baa26597634f8a031cc73b6bd920fa6589e2f35b366b0700f753f46c01a13.bin", "kind": "data", "bytes": 2208},
     {"path": "furniture/shared_resources/source/resources/dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "name": "dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "kind": "texture", "bytes": 21219},
-    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1010},
-    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v004/images/07-front-comparison.png", "name": "07-front-comparison.png", "kind": "image", "bytes": 424968}
+    {"path": "furniture/shared_high_oak_coffee_table_746b99603f/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1010}
   ],
   "designVersion": {
     "id": "part_shared_high_oak_coffee_table_746b99603f_v004",

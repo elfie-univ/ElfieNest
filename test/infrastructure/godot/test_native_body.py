@@ -88,7 +88,7 @@ class FakeGodotGateway:
         self.event_sequence += 1
         command_id = payload.get("command_id")
         return RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.BODY,
             name=name,

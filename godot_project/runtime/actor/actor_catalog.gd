@@ -30,12 +30,22 @@ static func normalize(
 		var raw_appearance: Variant = actor_data.get("appearance", {})
 		if not raw_appearance is Dictionary:
 			return {"accepted": false, "code": "invalid_appearance"}
+		var hosted: Variant = actor_data.get("hosted", false)
+		var arrival_id: Variant = actor_data.get("arrival_id")
+		var started: Variant = actor_data.get("arrival_started_at")
+		if typeof(hosted) != TYPE_BOOL or ((arrival_id == null) != (started == null)):
+			return {"accepted": false, "code": "invalid_resident_lifecycle"}
+		if arrival_id != null and (not arrival_id is String or String(arrival_id).is_empty() or typeof(started) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(started))):
+			return {"accepted": false, "code": "invalid_resident_lifecycle"}
 		seen_ids[actor_id] = true
 		normalized.append({
 			"actor_id": actor_id,
 			"species": species,
 			"spawn_anchor_id": spawn_anchor_id,
 			"appearance": raw_appearance,
+			"hosted": hosted,
+			"arrival_id": arrival_id,
+			"arrival_started_at": started,
 		})
 	normalized.sort_custom(
 		func(left: Dictionary, right: Dictionary) -> bool:
@@ -65,6 +75,7 @@ static func snapshot(
 			"actor_id": String(actor_id),
 			"zone_id": nest.nearest_zone_id(actor_instance.global_position),
 			"posture": actor_instance.runtime_posture(),
+			"arrival_completed": bool(actor_instance.get_meta("arrival_completed", true)),
 			"action_anchor_id": action_anchor_id if not action_anchor_id.is_empty() else null,
 			"active_command_id": (
 				actor_instance.active_command_id

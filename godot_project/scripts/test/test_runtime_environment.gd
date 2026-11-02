@@ -29,6 +29,7 @@ func _init() -> void:
 		"command_id": "environment-1",
 		"lights_on": false,
 		"quiet_mode": true,
+		"life_phase": "day",
 	})
 	var result: Variant = _event_payload(events, "environment-1")
 	if result == null or not bool(result.get("applied", false)):
@@ -50,6 +51,7 @@ func _init() -> void:
 		"command_id": "environment-2",
 		"lights_on": true,
 		"quiet_mode": false,
+		"life_phase": "night",
 	})
 	if not _event_payload(events, "environment-2").get("applied", false):
 		_fail("Environment state did not restore lights")
@@ -63,6 +65,7 @@ func _init() -> void:
 		"command_id": "environment-3",
 		"lights_on": false,
 		"quiet_mode": false,
+		"life_phase": "night",
 	})
 	var unsupported: Variant = _event_payload(events, "environment-3")
 	if unsupported == null or bool(unsupported.get("applied", true)):

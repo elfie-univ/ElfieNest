@@ -14,9 +14,7 @@
     {"path": "furniture/shared_resources/source/resources/1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "name": "1dc1f7177aa203821d308a7db2102d7057afcf16f66993fff11060930c10903f.png", "kind": "texture", "bytes": 32513},
     {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
     {"path": "furniture/shared_resources/source/resources/6d0728cc87f5dd083961d8cf2629f74932cd691bfa12e90467366559a42e3c9d.bin", "name": "6d0728cc87f5dd083961d8cf2629f74932cd691bfa12e90467366559a42e3c9d.bin", "kind": "data", "bytes": 280416},
-    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 4498},
-    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-front-comparison.png", "name": "03-front-comparison.png", "kind": "image", "bytes": 694948},
-    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v004/images/03-side-comparison.png", "name": "03-side-comparison.png", "kind": "image", "bytes": 651453}
+    {"path": "furniture/shared_games_central_chair_1a067d1758/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 4498}
   ],
   "designVersion": {
     "id": "part_shared_games_central_chair_1a067d1758_v004",

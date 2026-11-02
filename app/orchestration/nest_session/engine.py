@@ -132,8 +132,7 @@ class ElfieNestEngine:
         self.session.flush_environment_state()
         self.session.tick_elfies(seconds)
         for elfie_id, elfie in self.session.elfie_items_snapshot():
-            status = self.nest.resident_state(elfie_id)
-            if status is None or not status.active or status.posture == "away":
+            if not self.session.body_can_tick(elfie_id):
                 continue
             elfie.pump_body_events()
 

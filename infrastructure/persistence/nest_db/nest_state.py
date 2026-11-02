@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from typing import Final
 
+from app.orchestration.nest_session.models import ResidentLifecycle
 from app.orchestration.nest_session.ports import NestStateStoreError
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 from nest.living_rules.models import PersistentResidentState, ResidentPresence
@@ -83,6 +85,36 @@ class SQLiteNestStateAdapter:
                 for row in rows
             ),
         )
+
+    def resident_lifecycle(self) -> dict[str, ResidentLifecycle]:
+        """Read existing committed facts; no schema, migration or second event store."""
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                rows = connection.execute(
+                    """SELECT e.elfie_id, a.admission_id, a.committed_at, s.state
+                       FROM elfies e
+                       LEFT JOIN resident_admissions a
+                         ON a.elfie_id=e.elfie_id AND a.state='committed'
+                       LEFT JOIN embodiment_sessions s ON s.elfie_id=e.elfie_id"""
+                ).fetchall()
+        except sqlite3.Error as error:
+            raise NestStateStoreError(str(error)) from error
+        return {
+            str(row["elfie_id"]): ResidentLifecycle(
+                hosted=row["state"] is not None and row["state"] != "at_nest",
+                arrival_id=row["admission_id"],
+                arrival_started_at=(
+                    datetime.fromisoformat(
+                        str(row["committed_at"]).replace("Z", "+00:00")
+                    )
+                    .replace(tzinfo=timezone.utc)
+                    .timestamp()
+                    if row["committed_at"] is not None
+                    else None
+                ),
+            )
+            for row in rows
+        }
 
     def save_snapshot(self, snapshot: NestSnapshot) -> None:
         """Persist one complete durable Nest snapshot in one transaction."""

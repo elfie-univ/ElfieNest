@@ -1,4 +1,4 @@
-"""Threaded WebSocket gateway for the Godot protocol v3 runtime."""
+"""Threaded WebSocket gateway for the Godot protocol v4 runtime."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 import websockets
 
 from infrastructure.godot.body_transport import RuntimeIntentPayload
-from infrastructure.godot.gateway.api_v3 import GodotProtocolV3Handler
+from infrastructure.godot.gateway.api_v4 import GodotProtocolV4Handler
 from infrastructure.godot.gateway.messages import (
     CommandName,
     JsonObject,
@@ -31,7 +31,7 @@ from infrastructure.godot.gateway.session import (
 )
 
 logger = logging.getLogger("elfienest.diagnostics.godot_gateway")
-GODOT_PROTOCOL_VERSION = 3
+GODOT_PROTOCOL_VERSION = 4
 GATEWAY_STOP_JOIN_TIMEOUT_SECONDS = 0.5
 
 
@@ -271,7 +271,7 @@ class GodotAPIServer:
             )
             await websocket.close(4004, "Invalid Godot handshake")
             return
-        await GodotProtocolV3Handler(
+        await GodotProtocolV4Handler(
             session=self.runtime_session,
             clients=self.clients,
             event_receiver=self.route_runtime_event,
@@ -492,6 +492,7 @@ class GodotAPIServer:
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
+        life_phase: str,
         world_revision: int,
     ) -> bool:
         return (
@@ -502,6 +503,7 @@ class GodotAPIServer:
                     "command_id": command_id,
                     "lights_on": lights_on,
                     "quiet_mode": quiet_mode,
+                    "life_phase": life_phase,
                 },
                 world_revision=world_revision,
                 cause_id=command_id,

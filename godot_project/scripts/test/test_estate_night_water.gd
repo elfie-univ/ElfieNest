@@ -46,7 +46,7 @@ func run() -> void:
 		if not _require((strip.get_active_material(0) as BaseMaterial3D).emission_energy_multiplier > 0.0, "Spillway edge light is dark at night"): return
 	if not _require(not preload("res://rooms/estate/estate_opaque.gdshader").code.contains("spillway_return"), "Remove the rejected soil-patch glow rather than hide it beneath the ribbon"): return
 	var landing: Array = candidate.get("spillway_rings")
-	if not _require(landing.size() == 4 and (candidate.get("spillway_materials") as Array).size() == 4, "Light the original water curtain, foam and channel, plus four landing rings"): return
+	if not _require(landing.size() == 4 and (candidate.get("spillway_materials") as Array).size() == 3, "Light the original water curtain, foam and channel, plus four landing rings"): return
 	var landing_material := landing[0]["material"] as ShaderMaterial
 	var first_strength := float(landing_material.get_shader_parameter("accent_strength"))
 	candidate.call("sample",1.7,true)
@@ -78,8 +78,8 @@ func run() -> void:
 	for material: ShaderMaterial in candidate.get("fountain_materials"):
 		if material.get_meta("estate_water_role", "")=="jet":
 			jets+=1
-			if not _require(float(material.get_shader_parameter("accent_strength"))>=1.0,"Original water jets are not illuminated"):return
-	if not _require(jets==10,"Original pool jets changed"):return
+			if not _require(float(material.get_shader_parameter("accent_strength"))>0.0,"Each rhythmic jet must receive its pressure-linked night light"):return
+	if not _require(jets==19,"The central main plume, ten flower arcs and eight outer plumes must be lit"):return
 	lighting.apply_environment(1.0, false)
 	candidate.call("sample",9.0,false)
 	for strip: MeshInstance3D in strips:
@@ -91,7 +91,7 @@ func run() -> void:
 	if not _require(is_zero_approx(float(curtain_material.get_shader_parameter("waterfall_glow"))), "Daytime waterfall area effect must be off"): return
 	for material: ShaderMaterial in candidate.get("fountain_materials"):
 		if not _require(is_zero_approx(float(material.get_shader_parameter("accent_strength"))),"Daytime retained fountain emission"):return
-	if not _require(candidate.find_children("*","MeshInstance3D",true,false).size() == 2 and source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Only the two approved edge strips may be added; retain authored water geometry"):return
+	if not _require(candidate.find_children("*","MeshInstance3D",true,false).size() == 29 and source.find_children("*","MeshInstance3D",true,false).size()==original_meshes,"Add only one central main plume, eight outer jets, nine lamp lenses/housings and the two existing edge strips; retain source geometry"):return
 	print("PASS two joined spillway ribbons, full-sheet animated waterfall without point lamp, four landing rings; original fountain retained; daytime off; visual approval pending")
 	source.free()
 	candidate.free()

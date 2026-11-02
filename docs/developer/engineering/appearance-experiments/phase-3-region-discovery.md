@@ -11,8 +11,6 @@ changing either GLB. The accepted result is no longer an independent experiment 
 
 - `godot_project/runtime/actor/actor_appearance.gd` owns the production region formulas and the
   V9 relative-tone composition;
-- `godot_project/scripts/test/render_production_region_debug.gd` is the sole replayable region
-  baseline renderer and delegates classification to `ActorAppearance`;
 - tovren and saevi share one thirteen-region protocol while retaining species-specific geometry
   thresholds;
 - at most two color-capable regions are active on one candidate.
@@ -21,20 +19,9 @@ The twenty-seven discovery rounds were useful while boundaries were being tuned,
 removed after promotion so they cannot act as a second source of truth. Their durable outcome is
 the frozen production formula, this decision record, and the compact formal baseline below.
 
-## Replay
+## Current inspection
 
-From the repository root, with Godot 4.7 and no other Godot instance running:
-
-```text
-APPEARANCE_FORMAL_REGION_OUTPUT=/private/tmp/elfienest-formal-regions \
-/Applications/Godot.app/Contents/MacOS/Godot --display-driver macos \
-  --rendering-method gl_compatibility --path godot_project \
-  --script res://scripts/test/render_production_region_debug.gd
-```
-
-The renderer writes the tovren and saevi grids, individual rows and views, and a machine-readable
-catalog to the requested temporary directory. Only the two compact grids and catalog are checked
-in as release evidence.
+The old region screenshot tool is retired; inspect production appearance in Monitor or Elfie Lab.
 
 ## Frozen baseline
 

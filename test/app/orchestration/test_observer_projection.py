@@ -48,7 +48,9 @@ def test_observer_projection_contains_nest_semantics_without_geometry() -> None:
         "species_id": "saevi",
         "appearance": {},
         "home_anchor_id": None,
-        "mock_motion": None,
+        "hosted": False,
+        "arrival_id": None,
+        "arrival_started_at": None,
     }
 
 
@@ -78,7 +80,9 @@ def test_observer_projection_includes_view_only_actor_semantics() -> None:
         "species_id": "saevi",
         "appearance": {"height_scale": 1.0},
         "home_anchor_id": "dorm-01/bed-01",
-        "mock_motion": None,
+        "hosted": False,
+        "arrival_id": None,
+        "arrival_started_at": None,
     }
 
 

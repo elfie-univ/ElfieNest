@@ -18,6 +18,12 @@ static func capture(world: Node3D, estate: Node3D, physics: Node3D) -> PackedSce
  for entry: Dictionary in physics._doors:
   doors.append({"mesh":world.get_path_to(entry.mesh),"body":world.get_path_to(entry.body),"closed":entry.closed,"offset":entry.offset,"center":entry.center,"amount":0.0})
  snapshot.set_meta("authority_bindings", {"physics":world.get_path_to(physics),"collider_count":physics.collider_count,"doors":doors,"zones":semantics.zones,"centers":semantics._centers,"descriptors":semantics.descriptors,"facilities":semantics.facility_descriptors})
+ var room_floor_paths := {}
+ for module: String in semantics.room_floors:
+  room_floor_paths[module] = world.get_path_to(semantics.room_floors[module])
+ var bindings: Dictionary = snapshot.get_meta("authority_bindings")
+ bindings["room_floors"] = room_floor_paths
+ snapshot.set_meta("authority_bindings", bindings)
  _own(snapshot,snapshot)
  var packed := PackedScene.new()
  var error := packed.pack(snapshot)
@@ -93,12 +99,17 @@ static func restore(generated: Node3D, data: Resource) -> Dictionary:
   door.body=generated.get_node(stored.body)
   physics._doors.append(door)
   physics._door_controls.append(DOOR.new(door))
+ # The packed node has already entered the tree before its script is restored.
+ # Enable the callback explicitly so proximity doors keep moving in authority.
+ physics.set_physics_process(true)
  var semantics := SEMANTICS.new()
  semantics._root=generated
  semantics.zones.assign(bindings.zones)
  semantics.descriptors.assign(bindings.descriptors)
  semantics.facility_descriptors.assign(bindings.facilities)
  semantics._centers=bindings.centers.duplicate()
+ for module: String in bindings.room_floors:
+  semantics.room_floors[module] = generated.get_node(bindings.room_floors[module]) as Node3D
  for marker: Marker3D in generated.find_children("*","Marker3D",true,false):
   if marker.has_meta("anchor_id"):semantics.anchors[str(marker.get_meta("anchor_id"))]=marker
   if marker.has_meta("facility_id"):semantics.facilities[str(marker.get_meta("facility_id"))]=marker

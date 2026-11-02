@@ -8,7 +8,6 @@ const FLOW := preload("res://rooms/estate/estate_water_flow.gdshader")
 const SOURCE_SURFACES := {
 	36: ["Reference fountain water", "surface"],
 	66: ["COMPLETE Short east spillway", "spillway"],
-	222: ["COMPLETE Short east spillway inlet transition", "spillway"],
 	243: ["COMPLETE Inset natural lake receiving under spillway", "surface"],
 	258: ["COMPLETE Inset natural lake", "surface"],
 }

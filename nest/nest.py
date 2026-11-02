@@ -190,6 +190,10 @@ class Nest:
     def resident_state(self, elfie_id: str) -> Optional[ResidentState]:
         return self._living_rules.residents.get(elfie_id)
 
+    def set_resident_hosted(self, elfie_id: str, hosted: bool) -> None:
+        """Project App's embodiment transition; the virtual body remains at home."""
+        self._living_rules.set_hosted(elfie_id, hosted)
+
     def runtime_mirror(self, elfie_id: str) -> RuntimeResidentMirror | None:
         return self._living_rules.runtime_mirrors.get(elfie_id)
 
