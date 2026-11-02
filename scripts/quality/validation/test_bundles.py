@@ -39,6 +39,7 @@ GENERATED_PATHS = frozenset({"coverage.xml"})
 LOCAL_RUNTIME_PATHS = frozenset({".venv", "venv"})
 COMMON_EXACT_INPUTS = frozenset(
     {
+        ".gitattributes",
         ".python-version",
         "pyproject.toml",
         "uv.lock",
@@ -663,6 +664,36 @@ def run_test_shard(selectors: Sequence[str], shard_index: int, shard_count: int)
     ).returncode
 
 
+def prepare_lfs_test_inputs(project_root: Path) -> None:
+    """Materialize tracked LFS inputs before hashing or testing a fresh checkout."""
+    tracked = subprocess.run(
+        ["git", "lfs", "ls-files", "--name-only"],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    def unresolved(path: str) -> bool:
+        with (project_root / path).open("rb") as stream:
+            return stream.read(128).startswith(
+                b"version https://git-lfs.github.com/spec/v1"
+            )
+
+    paths = [path for path in tracked.stdout.splitlines() if path and unresolved(path)]
+    if not paths:
+        return
+    print(f"Materializing {len(paths)} Git LFS test inputs", flush=True)
+    subprocess.run(
+        ["git", "lfs", "pull", "--include=" + ",".join(paths), "--exclude="],
+        cwd=project_root,
+        check=True,
+    )
+    remaining = [path for path in paths if unresolved(path)]
+    if remaining:
+        raise RuntimeError(f"Unresolved Git LFS test inputs: {remaining}")
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
@@ -677,6 +708,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-count", type=int, default=4)
     args = parser.parse_args(argv)
+    prepare_lfs_test_inputs(PROJECT_ROOT)
     # Selected tests share one worktree, process environment, ports, and
     # repository-local runtime paths.  Running them concurrently in that same
     # worktree makes otherwise deterministic tests race with one another.

@@ -50,3 +50,8 @@ The scoped workbench rule follows the existing storage ownership above:
 duplicate revision records or discover unregistered revisions by scanning.
 This clarifies the scoped rule without changing the preview surface or runtime
 authority.
+
+Large approved GLBs use Git LFS without changing their asset identity or bytes.
+A fresh-checkout validation entry materializes tracked LFS inputs before computing
+input fingerprints or running asset checks. Download failures and unresolved
+pointers are errors; pointer bytes are never accepted as model data.

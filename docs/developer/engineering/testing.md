@@ -205,3 +205,11 @@ npx --yes pnpm@10.12.1 build
 
 The pages also need a check of navigation, internal links, mobile layout and
 the browser console.
+
+## Git LFS asset inputs
+
+The repository test-bundle entry requires Git LFS and materializes tracked pointer
+files before calculating validation fingerprints. This lets fresh CI checkouts
+exercise the same GLB content as local asset checks. Failed downloads or remaining
+pointers fail the entry; direct pytest diagnostics require an already materialized
+checkout (`git lfs pull`). No test is skipped for missing asset bytes.

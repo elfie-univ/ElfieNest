@@ -517,8 +517,10 @@ def test_shards_reject_invalid_coordinates():
 
 def test_ci_keeps_selected_tests_in_one_process(monkeypatch):
     calls = []
+    prepared = []
 
     def run_selected(selectors, base_sha, cache_root, *, no_cache=False):
+        assert prepared == [test_bundles.PROJECT_ROOT]
         calls.append((selectors, base_sha, cache_root, no_cache))
         return 0
 
@@ -527,6 +529,9 @@ def test_ci_keeps_selected_tests_in_one_process(monkeypatch):
             "CI selected tests must not share one worktree across shards"
         )
 
+    monkeypatch.setattr(
+        test_bundles, "prepare_lfs_test_inputs", lambda root: prepared.append(root)
+    )
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setattr(test_bundles, "run_selected_tests", run_selected)
     monkeypatch.setattr(
