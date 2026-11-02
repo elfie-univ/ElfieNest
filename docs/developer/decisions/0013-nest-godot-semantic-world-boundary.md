@@ -118,3 +118,13 @@ Lifecycle ownership, root modules and system-level routes remain unchanged,
 this is a clarification and correction to ADR-0013 rather than a new macro
 architecture decision. Final register deletion remains a separate governance-only
 change after all rows are proved closed.
+
+## Complete-estate observer catalog clarification — 2026-11-02
+
+The approved complete estate exposes presentation view IDs `overview`,
+`central-%d`, `dorm-%02d` and `terrace-%02d` through its existing versioned
+observer catalog. Architecture tests follow this catalog in place of the former
+section/activity/portal scene layout. View registration stays with Godot;
+selection validates the requested ID before mutating the active camera, and an
+unknown ID returns false without selecting a fallback. These presentation IDs
+do not transfer physical authority to Observer or change semantic event routing.
