@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "./http"
-import { closeObserverSession, nextObserverFrame, openObserverSession, warmObserverAssets } from "./observer"
-
-const { kyGet } = vi.hoisted(() => ({ kyGet: vi.fn() }))
-
-vi.mock("ky", () => ({ default: { get: kyGet } }))
+import { closeObserverSession, nextObserverFrame, openObserverSession } from "./observer"
 
 vi.mock("./http", () => ({
   csrfHeaders: vi.fn().mockReturnValue({ "X-CSRF-Token": "csrf" }),
@@ -48,6 +44,24 @@ describe("openObserverSession", () => {
 })
 
 describe("nextObserverFrame", () => {
+  it.each(["courtyard/activity", null])("preserves action anchor delta %s", async (target) => {
+    vi.mocked(requestJson).mockResolvedValue({
+      protocol: 3, kind: "delta", generation: 1, sequence: 2,
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1", entity_revision: 2, patch: { action_anchor_id: target },
+    })
+    await expect(nextObserverFrame("capability", null)).resolves.toMatchObject({ patch: { action_anchor_id: target } })
+  })
+
+  it.each(["", 42, { x: 1 }])("rejects malformed action anchor %s", async (target) => {
+    vi.mocked(requestJson).mockResolvedValue({
+      protocol: 3, kind: "delta", generation: 1, sequence: 2,
+      scope: { kind: "elfie", elfie_id: "saevi-1" },
+      entity_id: "saevi-1", entity_revision: 2, patch: { action_anchor_id: target },
+    })
+    await expect(nextObserverFrame("capability", null)).rejects.toThrow()
+  })
+
   it("accepts the Python room snapshot shape with a null inactive Elfie field", async () => {
     vi.mocked(requestJson).mockResolvedValue({
       protocol: 3,
@@ -56,6 +70,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: null },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -77,6 +92,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "elfie", elfie_id: "saevi-1", room_id: null },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -94,6 +110,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: "saevi-1" },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -108,6 +125,7 @@ describe("nextObserverFrame", () => {
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest", elfie_id: null, authority: true },
       entities: {},
+      environment: null,
       entity_revisions: {},
     })
 
@@ -130,34 +148,5 @@ describe("nextObserverFrame", () => {
       kind: "delta",
       patch: { zone_id: null, active_command_id: null },
     })
-  })
-})
-
-describe("warmObserverAssets", () => {
-  it("prefetches only manifest-declared JavaScript, Wasm, and PCK payloads", async () => {
-    const arrayBuffer = vi.fn().mockResolvedValue(new ArrayBuffer(0))
-    kyGet
-      .mockReturnValueOnce({
-        json: vi.fn().mockResolvedValue({
-          files: {
-            "elfienest.html": { sha256: "a".repeat(64) },
-            "elfienest.js": { sha256: "b".repeat(64) },
-            "elfienest.wasm": { sha256: "c".repeat(64) },
-            "elfienest.pck": { sha256: "d".repeat(64) },
-            "metadata.json": { sha256: "e".repeat(64) },
-          },
-        }),
-      })
-      .mockReturnValue({ arrayBuffer })
-
-    await warmObserverAssets()
-
-    expect(kyGet.mock.calls.map(([url]) => url)).toEqual([
-      "/runtime/godot/build-manifest.json",
-      "/runtime/godot/elfienest.js",
-      "/runtime/godot/elfienest.wasm",
-      "/runtime/godot/elfienest.pck",
-    ])
-    expect(arrayBuffer).toHaveBeenCalledTimes(3)
   })
 })

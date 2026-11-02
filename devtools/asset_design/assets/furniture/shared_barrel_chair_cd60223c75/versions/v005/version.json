@@ -21,9 +21,7 @@
     {"path": "furniture/shared_resources/source/resources/e95af1c652503577a48a850028d88be9b87485b60a56bbedae18a355e3242820.bin", "name": "e95af1c652503577a48a850028d88be9b87485b60a56bbedae18a355e3242820.bin", "kind": "data", "bytes": 7424},
     {"path": "furniture/shared_resources/source/resources/ed07f32ea7047f41aa28deb1a0dc9f4fc111cdbe9c4cdbfba4f270573d6038bd.bin", "name": "ed07f32ea7047f41aa28deb1a0dc9f4fc111cdbe9c4cdbfba4f270573d6038bd.bin", "kind": "data", "bytes": 12288},
     {"path": "furniture/shared_resources/source/resources/fcbdb18ce1c16582e87813b47b7e20de4ffe9b4852f13612891f01e3ffbc4217.bin", "name": "fcbdb18ce1c16582e87813b47b7e20de4ffe9b4852f13612891f01e3ffbc4217.bin", "kind": "data", "bytes": 125504},
-    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1915},
-    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-front-comparison.png", "name": "01-front-comparison.png", "kind": "image", "bytes": 523662},
-    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v005/images/01-side-comparison.png", "name": "01-side-comparison.png", "kind": "image", "bytes": 607845}
+    {"path": "furniture/shared_barrel_chair_cd60223c75/versions/v003/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1915}
   ],
   "designVersion": {
     "id": "part_shared_barrel_chair_cd60223c75_v005",

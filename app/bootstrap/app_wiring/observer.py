@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.features.accounts import AccountsService
 from app.features.elfies import ElfiesService
 from app.orchestration.nest_session import NestSession
-from app.orchestration.observer import ObserverFacade
+from app.orchestration.observer import ObserverEnvironmentRecord, ObserverFacade
 from infrastructure.godot.observer_world import GodotObserverWorldAdapter
 from infrastructure.platform.observer_runtime import (
     SecureObserverCapabilityIssuer,
@@ -28,6 +28,15 @@ def build_observer_facade(
         ),
         # No production world-changing sink exists yet; preserve that current boundary.
         intent_sink=None,
+        environment=lambda: (
+            ObserverEnvironmentRecord(
+                phase=nest_session.nest.life_phase,
+                lights_on=nest_session.nest.desired_environment.lights_on,
+                quiet_mode=nest_session.nest.desired_environment.quiet_mode,
+            )
+            if nest_session is not None
+            else None
+        ),
     )
     return ObserverFacade(
         accounts=accounts,

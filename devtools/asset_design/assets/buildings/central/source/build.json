@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "sourceSha256": "3b12530f80c032bd0a45e51fa27862ef8ab284f5432e26e154574ba3cf6b1406",
+  "sourceSha256": "2da1acd928fe921f353674eb185dafdd2742cbeb115989db7ca917db21f7bb02",
   "design": {
     "name": "ground-floor-painted-botanical-and-closed-stair-joints-v1",
     "floor": 1,
@@ -105,7 +105,7 @@
       "geometry": "unchanged"
     }
   },
-  "description": "主楼八个小屋连接口统一采用浅木色暗藏平移门；暖光灯带沿门洞左右内壁和圆角顶面连续布置，底部不加，开关门均保留U形轮廓。灯带位于门板前方，墙面外沿无灯圈；保留已确认的配色、玻璃、家具及其他灯光。自动感应联动尚未接入。",
+  "description": "移除主楼自带的两级旧白色入口台阶，避免与已确认花纹台阶共面闪烁；保留建筑、材质、门、室内布置及花纹台阶。",
   "roofArchitecture": {
     "floor": 4,
     "reference": "buildings/central/references/roof-emission-zoning-reference.png",
@@ -2694,5 +2694,145 @@
         "verification": "build/asset_design/central-edge-repair-20261020/verification.json"
       }
     ]
+  },
+  "centralCeilingLampRepair": {
+    "floors": [
+      1,
+      2,
+      3
+    ],
+    "diffuserDiameterM": 1.76,
+    "bodyThicknessM": 0.03,
+    "diffuser": "continuous solid warm opal disc, shared across all three floors",
+    "preserved": "fixture positions, light sources and intensities, outer rings, other geometry"
+  },
+  "concentricCeilings": {
+    "revision": 1,
+    "floors": [
+      {
+        "floor": 1,
+        "centerXZ": [
+          -0.28,
+          0.65
+        ]
+      },
+      {
+        "floor": 2,
+        "centerXZ": [
+          0,
+          0.85
+        ]
+      },
+      {
+        "floor": 3,
+        "centerXZ": [
+          0,
+          1.35
+        ]
+      }
+    ],
+    "innerRadiusM": 1.65,
+    "outerRadiusM": 3.25,
+    "retained": "Original disc, ring meshes, materials, textures and peripheral coves; no furniture changes",
+    "status": "review candidate"
+  },
+  "perimeterCeilingCoverage": {
+    "revision": 1,
+    "existingFixtureCount": 20,
+    "newFixtureCount": 0,
+    "scope": "Move existing L1/L2 perimeter downlights and L3 four complete downlights outward; retain heights, central concentric rings, meshes, materials and source definitions.",
+    "thirdFloorMountsXZ": [
+      [
+        -7.35,
+        0
+      ],
+      [
+        0,
+        7.2
+      ],
+      [
+        4.3,
+        -6.17
+      ],
+      [
+        7.35,
+        -1
+      ]
+    ],
+    "thirdFloorCeilingFrames": [
+      [
+        0.9436581842343498,
+        -0.3309217903486109,
+        0.0,
+        0,
+        0.3309211083055562,
+        0.9436562393170631,
+        0.0020302895852636303,
+        0,
+        -0.0006718670644815793,
+        -0.0019158993834997886,
+        0.999997938959976,
+        0,
+        -7.350330921108305,
+        11.187705863566068,
+        -2.03028958526363e-06,
+        1
+      ],
+      [
+        0.9999941600020273,
+        0.003417595915234759,
+        -0.0,
+        0,
+        -0.0029858434808669666,
+        0.8736626908514992,
+        -0.48652295665551665,
+        0,
+        -0.0016627388693338315,
+        0.4865201153624361,
+        0.8736677930696395,
+        0,
+        2.9858434808669666e-06,
+        11.099728873772094,
+        7.2004865229566555,
+        1
+      ],
+      [
+        0.998708446570086,
+        0.05080786110008681,
+        -0.0,
+        0,
+        -0.050672691917702364,
+        0.9960514836269424,
+        0.07289526910836253,
+        0,
+        0.003703652707711132,
+        -0.07280112097352111,
+        0.9973396010094152,
+        0,
+        4.300050672691918,
+        11.235804611040733,
+        -6.170072895269108,
+        1
+      ],
+      [
+        0.9579454205636434,
+        0.2869504682364961,
+        -0.0,
+        0,
+        -0.2867123121731515,
+        0.9571503686800815,
+        0.0407335461740008,
+        0,
+        0.011688510147562465,
+        -0.03902051402070179,
+        0.9991700446951413,
+        0,
+        7.3502867123121725,
+        11.211432935360822,
+        -1.000040733546174,
+        1
+      ]
+    ],
+    "thirdFloorSourceIntensity": 50
   }
 }

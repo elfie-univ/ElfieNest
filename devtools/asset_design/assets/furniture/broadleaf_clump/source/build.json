@@ -1,0 +1,37 @@
+{
+  "object": "part:broadleaf_clump",
+  "source": "model.glb",
+  "sourceSha256": "35be01de208b4a8f3472256dbf2357e2acfaa5f3d032b57ffdd2fca1d4febcaf",
+  "placements": {},
+  "instanceCount": 0,
+  "design": {
+    "description": "参考二楼柱旁盆栽提取图创建的独立簇生大叶植物；20 片舒展弯曲叶、绿色叶柄和暖色基部叶鞘、奶白粗陶圆盆。",
+    "heightM": 1.55,
+    "crownSizeM": [
+      1.228778898715973,
+      1.2271469235420227
+    ],
+    "potDiameterM": 0.48,
+    "potHeightM": 0.457,
+    "leafCount": 20,
+    "origin": "floor center",
+    "reuse": "Independent movable whole-plant asset for future placements on floors one, two and three; no room layouts changed.",
+    "species": "Stylized reference interpretation; no botanical species assertion",
+    "geometry": "Curved solid leaf blades with connected top/bottom/rims, arcing basal petioles, leaf sheaths, ceramic inner wall and rim, soil surface",
+    "materials": "Embedded blade color/veins, ivory ceramic grain and soil color textures",
+    "nativeSource": "broadleaf-clump.blend; image textures packed",
+    "reference": "broadleaf-clump-reference.png",
+    "undersideShading": "Restrained green material fill retains readable undersides under the shared viewer lighting; blade geometry unchanged."
+  },
+  "baseVersion": "part_broadleaf_clump_v001",
+  "currentUsage": {
+    "count": 1,
+    "locations": {
+      "layout:central:1": 1
+    },
+    "description": "主楼一层：4 号落地盆栽，共 1 处。独立形状，保留用于三款盆栽对比。",
+    "scope": "latest-scene-per-object",
+    "historicalVersionsCounted": false
+  },
+  "description": "公共母版：簇生大叶落地盆栽；当前 1 处引用。主楼一层：4 号落地盆栽，共 1 处。独立形状，保留用于三款盆栽对比。"
+}

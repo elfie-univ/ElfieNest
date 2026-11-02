@@ -73,7 +73,7 @@ class RecordingGodotGateway:
     @staticmethod
     def _event(name, payload, sequence) -> RuntimeEventFrame:
         return RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.BODY,
             name=name,

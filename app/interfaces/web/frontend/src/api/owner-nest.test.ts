@@ -18,7 +18,7 @@ describe("owner Nest API boundary", () => {
     vi.mocked(requestJson).mockResolvedValue({ items: [{
       id: "local-nest",
       name: "Local Nest",
-      desired_bed_count: 4,
+      desired_bed_count: 32,
       applied_world_revision: 1,
       beds: [{
         id: "dorm-01/bed-01",

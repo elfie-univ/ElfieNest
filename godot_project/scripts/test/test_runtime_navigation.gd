@@ -21,7 +21,7 @@ func _init() -> void:
 	var configured: Dictionary = await world_controller.configure_world(
 		{
 			"nest_id": "navigation-test",
-			"bed_count": 4,
+			"bed_count": 32,
 			"world_revision": 1,
 		},
 		"configure-1",
@@ -51,11 +51,12 @@ func _init() -> void:
 		func(event_name: String, payload: Dictionary, _cause_id: String) -> void:
 			events.append({"name": event_name, "payload": payload})
 	)
+	var start_position := actor_controller.actor("saevi-1").global_position
 	actor_controller.execute_intent({
 		"command_id": "move-1",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
-		"anchor_id": "activity-01/activity",
+		"anchor_id": "central-01/activity",
 		"deadline_seconds": 20.0,
 	})
 	for _frame in range(1200):
@@ -66,7 +67,7 @@ func _init() -> void:
 	if terminal == null or String(terminal.get("status", "")) != "completed":
 		var saevi := actor_controller.actor("saevi-1")
 		var navigation_map := nest.get_world_3d().navigation_map
-		var target := nest.resolve_anchor("activity-01/activity").global_position
+		var target := nest.resolve_anchor("central-01/activity").global_position
 		var path := NavigationServer3D.map_get_path(
 			navigation_map,
 			saevi.global_position,
@@ -92,6 +93,37 @@ func _init() -> void:
 		push_error("Move intent was not started exactly once")
 		quit(1)
 		return
+	if (
+		_count_event(events, "intent_terminal", "move-1") != 1
+		or actor_controller.actor("saevi-1").global_position.distance_to(
+			nest.resolve_anchor("central-01/activity").global_position
+		) > ElfieActor.ARRIVAL_DISTANCE * 2.0
+		or actor_controller.actor("saevi-1").global_position.distance_to(start_position) < 0.1
+	):
+		push_error("Completed intent did not physically reach the real central floor exactly once")
+		quit(1)
+		return
+
+	actor_controller.execute_intent({
+		"command_id": "courtyard-1", "actor_id": "saevi-1",
+		"intent": "move_to_anchor", "anchor_id": "courtyard/activity",
+		"deadline_seconds": 60.0,
+	})
+	for _frame in range(3600):
+		await physics_frame
+		if _terminal_for(events, "courtyard-1") != null:
+			break
+	var courtyard_terminal: Variant = _terminal_for(events, "courtyard-1")
+	if (
+		courtyard_terminal == null or courtyard_terminal.get("status", "") != "completed"
+		or _count_event(events, "intent_terminal", "courtyard-1") != 1
+		or actor_controller.actor("saevi-1").global_position.distance_to(
+			nest.resolve_anchor("courtyard/activity").global_position
+		) > ElfieActor.ARRIVAL_DISTANCE * 2.0
+	):
+		push_error("Real central-to-courtyard movement did not reach its target: %s" % courtyard_terminal)
+		quit(1)
+		return
 
 	actor_controller.execute_intent({
 		"command_id": "unknown-1",
@@ -101,7 +133,12 @@ func _init() -> void:
 		"deadline_seconds": 5.0,
 	})
 	var unknown: Variant = _terminal_for(events, "unknown-1")
-	if unknown == null or String(unknown.get("status", "")) != "failed":
+	if (
+		unknown == null or String(unknown.get("status", "")) != "failed"
+		or unknown.get("reason", "") != "anchor_not_found"
+		or _count_event(events, "intent_started", "unknown-1") != 0
+		or _count_event(events, "intent_terminal", "unknown-1") != 1
+	):
 		push_error("Unknown semantic anchor did not fail deterministically")
 		quit(1)
 		return
@@ -119,7 +156,10 @@ func _init() -> void:
 		"actor_id": "saevi-1",
 	})
 	var cancelled: Variant = _terminal_for(events, "cancel-1")
-	if cancelled == null or String(cancelled.get("status", "")) != "cancelled":
+	if (
+		cancelled == null or String(cancelled.get("status", "")) != "cancelled"
+		or _count_event(events, "intent_terminal", "cancel-1") != 1
+	):
 		push_error("Active navigation cancel did not emit one cancelled terminal")
 		quit(1)
 		return
@@ -129,10 +169,14 @@ func _init() -> void:
 		"command_id": "move-1",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
-		"anchor_id": "activity-01/activity",
+		"anchor_id": "central-01/activity",
 		"deadline_seconds": 20.0,
 	})
-	if _count_event(events, "intent_started", "move-1") != started_before:
+	if (
+		_count_event(events, "intent_started", "move-1") != started_before
+		or _count_event(events, "intent_accepted", "move-1") != 1
+		or _count_event(events, "intent_terminal", "move-1") != 1
+	):
 		push_error("Duplicate command ID started a second movement")
 		quit(1)
 		return
@@ -150,6 +194,7 @@ func _init() -> void:
 	if (
 		deadline_terminal == null
 		or String(deadline_terminal.get("reason", "")) != "deadline_exceeded"
+		or _count_event(events, "intent_terminal", "deadline-1") != 1
 	):
 		push_error("Navigation deadline did not produce one stable failure")
 		quit(1)
@@ -177,7 +222,7 @@ func _init() -> void:
 		"command_id": "multi-saevi",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
-		"anchor_id": "activity-01/activity",
+		"anchor_id": "central-01/activity",
 		"deadline_seconds": 20.0,
 	})
 	actor_controller.execute_intent({
@@ -211,7 +256,7 @@ func _init() -> void:
 		"command_id": "removed-1",
 		"actor_id": "saevi-1",
 		"intent": "move_to_anchor",
-		"anchor_id": "activity-01/activity",
+		"anchor_id": "central-01/activity",
 		"deadline_seconds": 20.0,
 	})
 	actor_controller.sync_actors([

@@ -55,7 +55,7 @@ def test_new_runtime_restores_catalog_assigns_homes_and_syncs_all_actors() -> No
 
     engine.tick_once(0.0)
 
-    assert runtime.configurations == [("local-nest", 4, 1)]
+    assert runtime.configurations == [("local-nest", 32, 1)]
     assert runtime.configured_revisions == [1]
     assert len(runtime.actor_syncs) == 1
     actors, revision = runtime.actor_syncs[0]
@@ -117,6 +117,7 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
                             elfie_id="saevi-1",
                             current_zone_id="activity-01",
                             posture="standing",
+                            action_anchor_id="central-01/activity",
                         ),
                     ),
                 ),
@@ -128,6 +129,11 @@ def test_matching_snapshot_updates_only_transient_resident_mirror() -> None:
 
     mirror = engine.nest.runtime_mirrors["saevi-1"]
     assert mirror.current_zone_id == "activity-01"
+    assert mirror.action_anchor_id == "central-01/activity"
+    assert (
+        engine.session.observer_semantic_entities()["saevi-1"].action_anchor_id
+        == "central-01/activity"
+    )
     assert mirror.runtime_id == "runtime-a"
     assert mirror.runtime_generation == 1
     assert mirror.world_revision == 1
@@ -481,7 +487,8 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     engine = ElfieNestEngine(runtime)
-    engine.nest.set_desired_environment(
+    # A manual decision across ticks uses the existing household override.
+    engine.nest.set_environment_override(
         EnvironmentDesiredState(lights_on=False, quiet_mode=True)
     )
     runtime.events.extend(
@@ -507,6 +514,7 @@ def test_environment_desired_state_syncs_once_and_accepts_actual_runtime_fact() 
                 lights_on=False,
                 quiet_mode=True,
                 applied=True,
+                life_phase="night",
             ),
             event_id="environment-event",
         )
@@ -663,6 +671,7 @@ def test_runtime_generation_change_invalidates_projections_and_pending_work() ->
                 lights_on=False,
                 quiet_mode=True,
                 applied=True,
+                life_phase="night",
             ),
             event_id="environment-old-event",
         ),
@@ -925,7 +934,7 @@ def _event(
 def _catalog(
     *,
     revision: int = 1,
-    bed_count: int = 4,
+    bed_count: int = 32,
     zone_id: str = "dorm-01",
 ) -> SemanticWorldCatalog:
     return SemanticWorldCatalog(
@@ -954,7 +963,7 @@ def _catalog(
 class FailingNestStateStore:
     def load_snapshot(self) -> NestSnapshot:
         return NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),
@@ -966,3 +975,55 @@ class FailingNestStateStore:
 
     def initialize_snapshot(self, snapshot: NestSnapshot) -> None:
         self.save_snapshot(snapshot)
+
+
+def test_new_session_sends_owner_default_day_and_night_lighting() -> None:
+    runtime = FakeWorldRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    runtime.events.extend(
+        (
+            _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+            _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        )
+    )
+
+    engine.tick_once(12 * 3600)
+    assert runtime.environment_requests[-1][2:4] == (False, False)
+
+    engine.tick_once(8 * 3600)
+    assert runtime.environment_requests[-1][2:4] == (True, False)
+
+
+def test_door_phase_is_independent_of_explicit_lighting_override() -> None:
+    from nest.public import EnvironmentDesiredState
+
+    class PhaseRuntime(FakeWorldRuntime):
+        def __init__(self) -> None:
+            super().__init__()
+            self.phases: list[str | None] = []
+
+        def apply_environment(self, **kwargs):
+            self.phases.append(kwargs.pop("life_phase", None))
+            return super().apply_environment(**kwargs)
+
+    runtime = PhaseRuntime()
+    runtime.connection = RuntimeConnection("runtime-a", 1)
+    engine = ElfieNestEngine(runtime)
+    engine.nest.set_environment_override(
+        EnvironmentDesiredState(lights_on=True, quiet_mode=True)
+    )
+    runtime.events.extend(
+        (
+            _event(WorldEventName.SCENE_MANIFEST, SceneManifest(_catalog())),
+            _event(WorldEventName.WORLD_CONFIGURED, WorldConfigured(True, True)),
+        )
+    )
+
+    engine.tick_once(12 * 3600)
+    assert runtime.phases[-1] == "day"
+    count = len(runtime.phases)
+    engine.tick_once(8 * 3600)
+    assert runtime.phases[-1] == "dusk"
+    assert len(runtime.phases) == count + 1
+    assert runtime.environment_requests[-1][2:4] == (True, True)

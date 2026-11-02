@@ -36,11 +36,9 @@ Saevi 约 8.8/10、Tovren 约 8.4/10。
 - 区域坐标绑定当前正面镜头，不能证明多角度 3D 稳定；
 - 生产接入仍需为每个物种设计并审核语义区域/UV 区域数据。
 
-固定镜头的第二阶段工具已在审核后删除，避免它继续形成第二套换色实现。下方已提交图片是
-历史证据，不再是当前可重放入口。当前 V9 验收渲染使用
-`godot_project/scripts/test/render_production_appearance_candidates.gd`，其色调迁移全部委托给
-唯一的正式实现
-`godot_project/runtime/actor/actor_appearance.gd::ActorAppearance.apply`。
+旧固定机位与外观验收截图工具均已退役。下方图片为历史证据，不再提供当前重放入口。
+正式外观实现仍由 `godot_project/runtime/actor/actor_appearance.gd` 负责；
+实际效果通过 Monitor 或保留的精灵实验页观察。
 
 ## 实验结果
 

@@ -25,6 +25,10 @@ def test_start_loop_uses_injected_model_port_factory_for_resident_elfies() -> No
     elfie.configure_cognition.assert_called_once()
     assert elfie.configure_cognition.call_args.args == (model_port,)
     assert callable(elfie.configure_cognition.call_args.kwargs["world_capabilities"])
+    assert (
+        elfie.configure_cognition.call_args.kwargs["embodied_input_mode"].value
+        == "brain"
+    )
     elfie.start.assert_called_once_with()
     elfie.stop.assert_called_once_with()
     elfie.join.assert_called_once_with()

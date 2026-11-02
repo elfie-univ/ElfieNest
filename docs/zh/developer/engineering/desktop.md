@@ -32,6 +32,15 @@ Desktop 渲染与其他产品客户端相同、已认证且 capability 受限的
 相机目录由 Godot 拥有：语义 view `id` 与 `label`、`active_id`、正数 `revision` 和
 `presentation_paused`。目录绝不暴露相机坐标、transform 或房间几何。
 
+选择主楼楼层后，旋转中心和相机高度均限制在当前楼层，并与地面和上一层楼板留出间距。
+旋转、平移、缩放及复位共用此边界；切换楼层更新边界，总览不受楼层限制。此约束仅作用于
+Observer 相机，不改变角色碰撞。
+
+本地检查楼梯接头时，可打开 `/monitor?stair_review=1`。现有视角菜单增加二至四层的
+18 个近景机位，覆盖内外侧接头、扶手封头和底部；检查机位使用同一完整场景，
+普通楼层机位仍保留楼层高度限制。
+
+
 React bridge 只接受来自当前同源 Godot iframe、且满足严格版本化消息格式的目录。它只能
 发出 `overview`、`select`、`reset` 与 `set_local_presentation_paused`；`select` 只能使用
 当前目录中已有的 ID。它不能计算或发送相机位置、transform，也不能接触原始 Runtime 帧、

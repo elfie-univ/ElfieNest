@@ -125,7 +125,7 @@ describe("ChatPage list pane headings", () => {
       last_message_preview: "早上好",
       last_message_at: "2026-08-04T23:00:00Z",
   }])
-    chatApi.adoptionInfo.mockResolvedValue({ species: [], quota: { used: 0, max: 3, remaining: 3, can_adopt: true }, nest_capacity: { used: 0, max: 3, remaining: 3 }, availability: "available", personality_styles: [], heights: [], builds: [], life_stages: [] })
+    chatApi.adoptionInfo.mockResolvedValue({ species: [], quota: { used: 0, max: 3, remaining: 3, can_adopt: true }, nest_capacity: { used: 0, max: 32, remaining: 32 }, availability: "available", personality_styles: [], heights: [], builds: [], life_stages: [] })
     chatApi.elfies.mockResolvedValue([elfie])
     chatApi.messages.mockResolvedValue([])
     chatApi.profile.mockResolvedValue(elfie)

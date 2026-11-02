@@ -15,8 +15,7 @@
     {"path": "furniture/shared_resources/source/resources/6bafeab5d22925c2ea58ec68e9a72cec412fa6437ac532ecba90be04434bf31b.bin", "name": "6bafeab5d22925c2ea58ec68e9a72cec412fa6437ac532ecba90be04434bf31b.bin", "kind": "data", "bytes": 390552},
     {"path": "furniture/shared_resources/source/resources/c4322d771b17f19bd107404f1a36fb10311cf61e8fad0c06c81ecd5d5309380e.bin", "name": "c4322d771b17f19bd107404f1a36fb10311cf61e8fad0c06c81ecd5d5309380e.bin", "kind": "data", "bytes": 1104},
     {"path": "furniture/shared_resources/source/resources/eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "name": "eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "kind": "texture", "bytes": 1081666},
-    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1416},
-    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v004/images/15-front-comparison.png", "name": "15-front-comparison.png", "kind": "image", "bytes": 654935}
+    {"path": "furniture/shared_woven_floor_cushion_c2181122ea/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1416}
   ],
   "designVersion": {
     "id": "part_shared_woven_floor_cushion_c2181122ea_v004",

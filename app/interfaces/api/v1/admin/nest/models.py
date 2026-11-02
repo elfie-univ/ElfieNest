@@ -17,7 +17,7 @@ from app.features.nest_management import (
 class NestBedCountRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    bed_count: int = Field(strict=True)
+    bed_count: int = Field(strict=True, ge=32, le=32)
 
 
 class NestBedAssignmentRequest(BaseModel):

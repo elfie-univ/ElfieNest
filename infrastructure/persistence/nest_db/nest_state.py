@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from typing import Final
 
+from app.orchestration.nest_session.models import ResidentLifecycle
 from app.orchestration.nest_session.ports import NestStateStoreError
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
 from nest.living_rules.models import PersistentResidentState, ResidentPresence
-from nest.public import NestConfig, NestSnapshot
+from nest.public import FIXED_BED_COUNT, NestConfig, NestSnapshot
 from nest.space_facilities.models import AnchorKind, WorldCatalog
+from nest.time_environment.clock import (
+    default_environment_desired,
+    default_environment_rules,
+)
 from nest.time_environment.models import EnvironmentDesiredState, EnvironmentRule
 
 _PRESENCE_TO_STATUS: Final = {
@@ -52,9 +58,7 @@ class SQLiteNestStateAdapter:
         except sqlite3.Error as error:
             raise NestStateStoreError(str(error)) from error
         return NestSnapshot(
-            desired_bed_count=(
-                defaults.bed_count if config is None else int(config["bed_count"])
-            ),
+            desired_bed_count=FIXED_BED_COUNT,
             elapsed_seconds=(
                 0.0 if config is None else float(config["clock_anchor_seconds"])
             ),
@@ -81,6 +85,36 @@ class SQLiteNestStateAdapter:
                 for row in rows
             ),
         )
+
+    def resident_lifecycle(self) -> dict[str, ResidentLifecycle]:
+        """Read existing committed facts; no schema, migration or second event store."""
+        try:
+            with app_sqlite_connection(self._db_path) as connection:
+                rows = connection.execute(
+                    """SELECT e.elfie_id, a.admission_id, a.committed_at, s.state
+                       FROM elfies e
+                       LEFT JOIN resident_admissions a
+                         ON a.elfie_id=e.elfie_id AND a.state='committed'
+                       LEFT JOIN embodiment_sessions s ON s.elfie_id=e.elfie_id"""
+                ).fetchall()
+        except sqlite3.Error as error:
+            raise NestStateStoreError(str(error)) from error
+        return {
+            str(row["elfie_id"]): ResidentLifecycle(
+                hosted=row["state"] is not None and row["state"] != "at_nest",
+                arrival_id=row["admission_id"],
+                arrival_started_at=(
+                    datetime.fromisoformat(
+                        str(row["committed_at"]).replace("Z", "+00:00")
+                    )
+                    .replace(tzinfo=timezone.utc)
+                    .timestamp()
+                    if row["committed_at"] is not None
+                    else None
+                ),
+            )
+            for row in rows
+        }
 
     def save_snapshot(self, snapshot: NestSnapshot) -> None:
         """Persist one complete durable Nest snapshot in one transaction."""
@@ -185,7 +219,7 @@ def _catalog_from_row(row: sqlite3.Row | None) -> WorldCatalog | None:
 
 def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesiredState:
     if row is None or row["environment_desired_json"] is None:
-        return EnvironmentDesiredState()
+        return default_environment_desired()
     try:
         return EnvironmentDesiredState.model_validate_json(
             row["environment_desired_json"]
@@ -195,7 +229,9 @@ def _environment_desired_from_row(row: sqlite3.Row | None) -> EnvironmentDesired
 
 
 def _environment_rules_from_row(row: sqlite3.Row | None) -> tuple[EnvironmentRule, ...]:
-    if row is None or row["environment_rules_json"] is None:
+    if row is None:
+        return default_environment_rules()
+    if row["environment_rules_json"] is None:
         return ()
     try:
         values = json.loads(row["environment_rules_json"])

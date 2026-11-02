@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_pod_curved_desk_c847129ba0",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 8 次引用。layout:pod：8。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "c847129ba08fd4c2dd9607bab3716c31cbb5aa7cfa653cf39c09eec50e9aea4b",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_curved_desk_c847129ba0/versions/v001/reuse.json"
+  }
+}

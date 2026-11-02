@@ -3,7 +3,7 @@ extends Node
 
 signal command_message(message: Dictionary)
 
-const GODOT_PROTOCOL_VERSION := 3
+const GODOT_PROTOCOL_VERSION := 4
 const RECONNECT_DELAY_SEC := 1.0
 const MAX_RECONNECT_DELAY_SEC := 16.0
 

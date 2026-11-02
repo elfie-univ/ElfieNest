@@ -14,8 +14,7 @@
     {"path": "furniture/shared_resources/source/resources/15016f15a0963ddfce174c1389dd427da2668f4272904d76cedabd4b4bc841c1.bin", "name": "15016f15a0963ddfce174c1389dd427da2668f4272904d76cedabd4b4bc841c1.bin", "kind": "data", "bytes": 316352},
     {"path": "furniture/shared_resources/source/resources/210405281b16a92eabe45db262360a709e1c8a52eb2165a06aa8fc8c7c08bffa.png", "name": "210405281b16a92eabe45db262360a709e1c8a52eb2165a06aa8fc8c7c08bffa.png", "kind": "texture", "bytes": 91775},
     {"path": "furniture/shared_resources/source/resources/f298fe30ff2b67b8abc5993b2e8b6903da4fae2ef2102308caafac6267370e07.png", "name": "f298fe30ff2b67b8abc5993b2e8b6903da4fae2ef2102308caafac6267370e07.png", "kind": "texture", "bytes": 520451},
-    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1430},
-    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v003/images/02-front-comparison.png", "name": "02-front-comparison.png", "kind": "image", "bytes": 617446}
+    {"path": "furniture/shared_blue_matching_ottoman_80bb399c60/versions/v001/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1430}
   ],
   "designVersion": {
     "id": "part_shared_blue_matching_ottoman_80bb399c60_v003",

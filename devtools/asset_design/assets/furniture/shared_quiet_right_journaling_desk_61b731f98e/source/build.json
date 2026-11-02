@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_quiet_right_journaling_desk_61b731f98e",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:3：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "61b731f98e12c7a0fa7472e8cafcce2ef40c269d2ab8fed54ff1c64659fb2e93",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_right_journaling_desk_61b731f98e/versions/v001/reuse.json"
+  }
+}

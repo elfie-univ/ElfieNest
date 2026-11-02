@@ -353,12 +353,12 @@
       "at": "2026-10-20T07:48:33.000007+00:00"
     },
     "landscape:site": {
-      "id": "94c4e49a61d6467da53c30555c2a7f4c",
+      "id": "f7a6fcc5e96c421fbd3b2192565a65b4",
       "object": "landscape:site",
-      "version": "landscape_site_v013",
-      "digest": "0cf3d2da48016d9d52531f0cc1df5de6fa4f735f0e91866c4d9dfe5c92b9fac1",
-      "contentDigest": "36d97698dc69c42d47acda24c7d672271ba49ba995b82e250615c073cae15a52",
-      "at": "2026-10-22T00:41:46.255924+00:00"
+      "version": "landscape_site_v025",
+      "digest": "8eccda1e3ec830667e0b3d64058a4921387e8ef7d04a3d79dc28ac621e051114",
+      "contentDigest": "85d43a6560ed48354bd13e5fe5b98f8013bb3a335c38d3a5e2e64dbafb397137",
+      "at": "2026-11-02T01:38:24.605109+00:00"
     }
   },
   "history": [
@@ -1027,84 +1027,12 @@
       "at": "2026-10-20T07:49:14.191909+00:00"
     },
     {
-      "id": "449978384b914722bc3831c04c267b8e",
+      "id": "f7a6fcc5e96c421fbd3b2192565a65b4",
       "object": "landscape:site",
-      "version": "landscape_site_v002",
-      "digest": "0969b8cf7bacbea62a2764434ed027422da244cb21549e7d7366edda2d2a22cc",
-      "contentDigest": "464eb7eaced0b4d1a5ff8c85902b8263d9972b6c4c3c710162f084b34c74c10c",
-      "at": "2026-10-21T14:28:24.080662+00:00"
-    },
-    {
-      "id": "1b1f324da9b24274a9fa9b193095d323",
-      "object": "landscape:site",
-      "version": "landscape_site_v003",
-      "digest": "7e35fb1f33e1a03120fa1ee9b9fac5cc4e9bc86542027d865b16e542346c2cba",
-      "contentDigest": "7e2f4745eec4a8ae8c0b58a15372e140352dc1bb8c5d23cdbb5edfd85d7a3aed",
-      "at": "2026-10-21T14:30:09.990554+00:00"
-    },
-    {
-      "id": "e09e473d4e8b4388b455b49b0c2e1525",
-      "object": "landscape:site",
-      "version": "landscape_site_v006",
-      "digest": "32efc55c6063e6c7c811036ee613bce3fd107164be6d8e49005d85f1a9a566b7",
-      "contentDigest": "b9fcb96e3143f118dce183f69b9fe7040f6302a44b8d28f1d19582031f5491bf",
-      "at": "2026-10-21T14:47:12.480612+00:00"
-    },
-    {
-      "id": "b496a09afcb34a68854c05b4bba860ae",
-      "object": "landscape:site",
-      "version": "landscape_site_v007",
-      "digest": "87aa619d882e479f254781aaafbaf1c74563cbe8b0602a97b6cb5ac7c8be070c",
-      "contentDigest": "38fb9d4cfa5c3ec799bcba545f1febf63ce68d46118df09fc01ecf6c6c9ef660",
-      "at": "2026-10-21T15:12:20.522850+00:00"
-    },
-    {
-      "id": "f992410f6ec94f06a8ad1f29b1e2510d",
-      "object": "landscape:site",
-      "version": "landscape_site_v008",
-      "digest": "dd6be491fcf44180a0456ef3c9287b9d9adeb40abc0dc166c20a4aceb9c0289a",
-      "contentDigest": "d230b6fb17038b588f01fddb2195e77fb0b75607f652de5eba3e37454629d940",
-      "at": "2026-10-21T15:21:30.654763+00:00"
-    },
-    {
-      "id": "9b17085e84364bf796dda1ec03431fa0",
-      "object": "landscape:site",
-      "version": "landscape_site_v009",
-      "digest": "321d60988b95fd297b231755c8ba2a972b101db213858b33d15cbfc45b872ab9",
-      "contentDigest": "a0adf50cc77b026a7938c9e64ecf44d3b77583b0e408a0d64fdb2715239d54f5",
-      "at": "2026-10-21T22:42:48.475343+00:00"
-    },
-    {
-      "id": "a2b95fa951bd4500acfa30715cc3c7c0",
-      "object": "landscape:site",
-      "version": "landscape_site_v010",
-      "digest": "1e2a9a761cfd684e8ff6a5499a24ff17c33fa34a0c19b6644af2d541bd354019",
-      "contentDigest": "5620b789dbd2ebd3a521ad5ebda57a4e6093b4208f7759524b91c40af975e84b",
-      "at": "2026-10-21T23:02:28.642158+00:00"
-    },
-    {
-      "id": "e1bcee2e28034bc9ba50718856aa584d",
-      "object": "landscape:site",
-      "version": "landscape_site_v011",
-      "digest": "88bcc56022cb333990b149e18991dcf5b8a3d9e6660c8c83e55d15bdddb9918c",
-      "contentDigest": "6e8868c9add940792093a5a1556fe4446ad12f65b07686ac1afcc44ff2b61e09",
-      "at": "2026-10-21T23:59:37.559819+00:00"
-    },
-    {
-      "id": "2a551865c2a94192bd4ec88bed6fb749",
-      "object": "landscape:site",
-      "version": "landscape_site_v012",
-      "digest": "bd0cf02f9ea214c2984d8282c102e1da30e750d2cbed871375c005d4b9f4cc64",
-      "contentDigest": "035c1c1b6173dfb7877da3b80e4d426aa4472695d9375ad4101d69bb4f0fe6f7",
-      "at": "2026-10-22T00:09:25.381254+00:00"
-    },
-    {
-      "id": "94c4e49a61d6467da53c30555c2a7f4c",
-      "object": "landscape:site",
-      "version": "landscape_site_v013",
-      "digest": "0cf3d2da48016d9d52531f0cc1df5de6fa4f735f0e91866c4d9dfe5c92b9fac1",
-      "contentDigest": "36d97698dc69c42d47acda24c7d672271ba49ba995b82e250615c073cae15a52",
-      "at": "2026-10-22T00:41:46.255924+00:00"
+      "version": "landscape_site_v025",
+      "digest": "8eccda1e3ec830667e0b3d64058a4921387e8ef7d04a3d79dc28ac621e051114",
+      "contentDigest": "85d43a6560ed48354bd13e5fe5b98f8013bb3a335c38d3a5e2e64dbafb397137",
+      "at": "2026-11-02T01:38:24.605109+00:00"
     }
   ]
 }

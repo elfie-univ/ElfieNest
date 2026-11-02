@@ -34,6 +34,7 @@ const loadPhase=message=>{status.textContent=message;};
 const file=params.get('file')||'';
 const designObject=params.get('designObject');
 const exteriorPreview=isInteriorPreview(designObject)&&params.get('exterior')==='1';
+const composedExteriorPreview=designObject==='overview'&&exteriorPreview;
 const courtyardPreview=isInteriorPreview(designObject);
 document.getElementById('courtyardViewControls').hidden=!courtyardPreview;
 let designPlan=null;
@@ -168,17 +169,6 @@ if(interiorCamera){
  controls.target.fromArray(interiorCamera.center);
  controls.update();
 }
-const cloudCanvas=document.createElement('canvas');cloudCanvas.width=512;cloudCanvas.height=256;const cloudContext=cloudCanvas.getContext('2d');
-cloudContext.fillStyle='rgba(255,255,255,0)';cloudContext.clearRect(0,0,512,256);cloudContext.fillStyle='rgba(116,155,177,.25)';cloudContext.beginPath();cloudContext.ellipse(256,174,160,34,0,0,Math.PI*2);cloudContext.fill();cloudContext.fillStyle='rgba(248,253,255,.96)';for(const [x,y,r] of [[126,144,52],[190,120,64],[262,132,70],[336,112,54],[396,146,44]]){cloudContext.beginPath();cloudContext.arc(x,y,r,0,Math.PI*2);cloudContext.fill();}const cloudTexture=new THREE.CanvasTexture(cloudCanvas);cloudTexture.colorSpace=THREE.SRGBColorSpace;cloudTexture.needsUpdate=true;
-const interiorClouds=interiorCamera&&!exteriorPreview?new THREE.Group():null;
-if(interiorClouds){
- interiorClouds.name='Preview interior sky clouds';
- for(const [x,y,z,sx,sy] of [[0,32,-58,24,11],[-46,29,-34,19,9],[46,31,-30,21,10],[58,28,18,19,9],[-58,30,18,22,10],[0,38,48,18,8]]){
-  const cloud=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTexture,color:0xffffff,transparent:true,opacity:.96,depthWrite:false}));
-  cloud.position.set(x,y,z);cloud.scale.set(sx,sy,1);cloud.renderOrder=-900;interiorClouds.add(cloud);
- }
- scene.add(interiorClouds);
-}
 const ranges={};
 for(const [module,floors] of Object.entries(capabilities)){
  const boxes=floors.map(floor=>{const box=new THREE.Box3();for(const o of meshes){const p=o.userData;if(p.module===module&&!p.full_height&&!p.reference&&String(p.floor||1)===floor)box.union(meshBounds.get(o));}return box;});
@@ -207,7 +197,8 @@ for(let i=0;i<8;i++){const a=(-40+i*260/7)*Math.PI/180;const l=new THREE.PointLi
 for(const h of [2.5,5.8,8.5]){const l=new THREE.PointLight(0xffd49d,0,11,2);l.position.set(0,h,0);scene.add(l);interiorLights.push(l);}
 const nookLights=(payload.measurements.furniture_lamps_world_m||[]).map(p=>{const l=new THREE.PointLight(0xffcd8f,1.1,2.2,2);l.position.set(p[0],p[2],-p[1]);scene.add(l);return l;});
 const exteriorBackground=new THREE.Color('#d5d9d7');
-function setLighting(dusk){scene.background=dusk?new THREE.Color('#152b43'):exteriorPreview?exteriorBackground:skyBackground;ambient.intensity=dusk?.48:.72;ambient.groundColor.set(dusk&&fixtureLights.length?0xb0a99a:0x5a685d);ground.material.color.set(dusk?0x253c3c:0xc3d0c7);exteriorLights.forEach((l,i)=>{l.intensity=dusk?[1.0,.65,.22][i]:[1.05,.65,.30][i];l.color.set(dusk?[0x99c2ff,0xa5b2ff,0xc2d9ff][i]:[0xffe7c3,0xcdeaff,0xffffff][i]);});interiorLights.forEach((l,i)=>l.intensity=i>=8&&litFloors.has(i-7)?0:dusk?(i<8?48:95):(i<8?3:12));updateFixtureLights(fixtureLights,dusk);document.getElementById('day').setAttribute('aria-pressed',String(!dusk));document.getElementById('dusk').setAttribute('aria-pressed',String(dusk));dirty=true;}
+const neutralBackground=new THREE.Color('#dce6e0');
+function setLighting(dusk){scene.background=composedExteriorPreview?(dusk?new THREE.Color('#152b43'):exteriorBackground):neutralBackground;ambient.intensity=dusk?.48:.72;ambient.groundColor.set(dusk&&fixtureLights.length?0xb0a99a:0x5a685d);ground.material.color.set(dusk?0x253c3c:0xc3d0c7);exteriorLights.forEach((l,i)=>{l.intensity=dusk?[1.0,.65,.22][i]:[1.05,.65,.30][i];l.color.set(dusk?[0x99c2ff,0xa5b2ff,0xc2d9ff][i]:[0xffe7c3,0xcdeaff,0xffffff][i]);});interiorLights.forEach((l,i)=>l.intensity=i>=8&&litFloors.has(i-7)?0:dusk?(i<8?48:95):(i<8?3:12));updateFixtureLights(fixtureLights,dusk);document.getElementById('day').setAttribute('aria-pressed',String(!dusk));document.getElementById('dusk').setAttribute('aria-pressed',String(dusk));dirty=true;}
 
 function fillSelect(id,choices,value){
  const select=document.getElementById(id);select.replaceChildren();

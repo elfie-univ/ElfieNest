@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from threading import Barrier
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -14,6 +15,7 @@ from app.orchestration.observer import (
     NextObserverFrameQuery,
     ObserverDeltaResult,
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverFacade,
     ObserverForbidden,
     ObserverFrameResult,
@@ -51,6 +53,11 @@ class MemoryWorld:
         self.entities = (_entity("saevi-1", posture="awake"),)
         self.intents: list[ObserverWorldIntent] = []
 
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
+
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         return self.entities
 
@@ -63,6 +70,11 @@ class ConcurrentWorld(MemoryWorld):
         super().__init__()
         self.barrier: Barrier | None = None
 
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
+
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         if self.barrier is not None:
             self.barrier.wait(timeout=2.0)
@@ -72,6 +84,7 @@ class ConcurrentWorld(MemoryWorld):
 def _facade(
     *,
     visible_ids: tuple[str, ...] = ("saevi-1",),
+    owned_ids: tuple[str, ...] | None = None,
     max_intents: int = 12,
     session_ttl_seconds: int = 120,
     world: MemoryWorld | None = None,
@@ -79,9 +92,13 @@ def _facade(
     accounts = MagicMock(spec=AccountsService)
     accounts.session_ttl_seconds.return_value = 30
     elfies = MagicMock(spec=ElfiesService)
-    elfies.list_visible.return_value = tuple(
+    elfies.list_visible.side_effect = lambda _principal, query: tuple(
         SimpleNamespace(profile=SimpleNamespace(elfie_id=elfie_id))
-        for elfie_id in visible_ids
+        for elfie_id in (
+            owned_ids
+            if query.relationship == "owned" and owned_ids is not None
+            else visible_ids
+        )
     )
     clock = MutableClock()
     selected_world = world or MemoryWorld()
@@ -449,6 +466,42 @@ def test_room_sessions_are_filtered_per_principal_and_room() -> None:
     assert [entity.state.entity_id for entity in frame.entities] == ["saevi-1"]
 
 
+def test_members_observe_only_owned_residents_while_managers_observe_all() -> None:
+    facade, _clock, world = _facade(
+        visible_ids=("saevi-1", "owl-1"), owned_ids=("saevi-1",)
+    )
+    world.entities = (
+        _entity("saevi-1", posture="awake"),
+        _entity("owl-1", posture="awake"),
+    )
+    member = ObserverPrincipal(user_id=7, access="member")
+    manager = ObserverPrincipal(user_id=1, access="manager")
+    for principal, expected in (
+        (member, ["saevi-1"]),
+        (manager, ["owl-1", "saevi-1"]),
+    ):
+        capability = facade.open_session(
+            OpenObserverSessionCommand(
+                principal=principal,
+                session_fingerprint="login",
+                subscription=ObserverSubscription(kind="room", room_id="local-nest"),
+            )
+        ).capability
+        frame = facade.next_frame(
+            NextObserverFrameQuery(principal, "login", capability, None, None)
+        )
+        assert isinstance(frame, ObserverSnapshotResult)
+        assert [item.state.entity_id for item in frame.entities] == expected
+    with pytest.raises(ObserverForbidden, match="cannot observe"):
+        facade.open_session(
+            OpenObserverSessionCommand(
+                principal=member,
+                session_fingerprint="login",
+                subscription=ObserverSubscription(kind="elfie", elfie_id="owl-1"),
+            )
+        )
+
+
 def test_logout_revokes_every_capability_for_the_login_session() -> None:
     facade, _clock, _world = _facade()
     manager = ObserverPrincipal(user_id=1, access="manager")
@@ -468,6 +521,41 @@ def test_logout_revokes_every_capability_for_the_login_session() -> None:
         )
 
 
+def test_action_anchor_snapshot_delta_and_explicit_clear() -> None:
+    facade, _clock, world = _facade()
+    principal = ObserverPrincipal(user_id=1, access="manager")
+    world.entities = (
+        replace(world.entities[0], action_anchor_id="courtyard/activity"),
+    )
+    capability = facade.open_session(
+        OpenObserverSessionCommand(
+            principal, "login", ObserverSubscription(kind="room", room_id="local-nest")
+        )
+    ).capability
+    frame = facade.next_frame(
+        NextObserverFrameQuery(principal, "login", capability, None, None)
+    )
+    assert isinstance(frame, ObserverSnapshotResult)
+    assert frame.entities[0].state.action_anchor_id == "courtyard/activity"
+    for target in ("dorm-01/bed-01", None):
+        world.entities = (replace(world.entities[0], action_anchor_id=target),)
+        delta = facade.next_frame(
+            NextObserverFrameQuery(
+                principal, "login", capability, frame.generation, frame.sequence
+            )
+        )
+        assert isinstance(delta, ObserverDeltaResult)
+        assert [(change.field, change.value) for change in delta.changes] == [
+            ("action_anchor_id", target)
+        ]
+        frame = delta
+
+
+def test_observer_port_record_rejects_empty_action_anchor() -> None:
+    with pytest.raises(ValueError, match="action_anchor_id"):
+        replace(_entity("saevi-1", posture="idle"), action_anchor_id="")
+
+
 def _entity(
     entity_id: str,
     *,
@@ -485,3 +573,44 @@ def _entity(
         appearance=(),
         home_anchor_id=None,
     )
+
+
+def test_environment_changes_reach_empty_observer_without_actor_changes() -> None:
+    from app.orchestration.observer import ObserverEnvironmentRecord
+    from nest.time_environment import LifePhase
+
+    facade, _clock, world = _facade()
+    world.entities = ()
+    world.environment = ObserverEnvironmentRecord(LifePhase.DAY, False, False)
+    principal = ObserverPrincipal(user_id=1, access="manager")
+    capability = facade.open_session(
+        OpenObserverSessionCommand(
+            principal,
+            "lighting",
+            ObserverSubscription(kind="room", room_id="local-nest"),
+        )
+    ).capability
+    first = facade.next_frame(
+        NextObserverFrameQuery(principal, "lighting", capability, None, None)
+    )
+    assert isinstance(first, ObserverSnapshotResult)
+    assert first.environment == world.environment
+    world.environment = ObserverEnvironmentRecord(LifePhase.NIGHT, True, True)
+    second = facade.next_frame(
+        NextObserverFrameQuery(
+            principal, "lighting", capability, first.generation, first.sequence
+        )
+    )
+    assert isinstance(second, ObserverSnapshotResult)
+    assert second.environment == world.environment
+    assert second.sequence > first.sequence
+    assert not second.entities
+    world.environment = ObserverEnvironmentRecord(LifePhase.NIGHT, True, False)
+    third = facade.next_frame(
+        NextObserverFrameQuery(
+            principal, "lighting", capability, second.generation, second.sequence
+        )
+    )
+    assert isinstance(third, ObserverSnapshotResult)
+    assert third.environment == world.environment
+    assert third.sequence > second.sequence

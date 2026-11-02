@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_central_curved_sofa_eb083c7fa8",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:1：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "eb083c7fa89a449f843aa8fe2db92e5d4876ec59c44a3f42d2f5c4cde8e7478e",
+    "category": "sofa",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_central_curved_sofa_eb083c7fa8/versions/v001/reuse.json"
+  }
+}

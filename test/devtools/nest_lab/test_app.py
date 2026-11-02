@@ -93,13 +93,13 @@ def test_nest_lab_configures_beds_and_manages_lab_actors(tmp_path) -> None:
     client = _client(tmp_path)
 
     # When
-    world = client.put("/api/world", json={"bed_count": 2})
+    world = client.put("/api/world", json={"bed_count": 32})
     saevi = client.post("/api/actors", json={"species": "saevi"})
     tovren = client.post("/api/actors", json={"species": "tovren"})
 
     # Then
     assert world.status_code == 200
-    assert world.json()["bed_count"] == 2
+    assert world.json()["bed_count"] == 32
     assert saevi.status_code == 201
     assert tovren.status_code == 201
     assert [
@@ -110,10 +110,10 @@ def test_nest_lab_configures_beds_and_manages_lab_actors(tmp_path) -> None:
     ]
 
 
-def test_nest_lab_rejects_shrinking_below_current_actor_count(tmp_path) -> None:
+def test_nest_lab_rejects_changing_the_fixed_bed_count(tmp_path) -> None:
     # Given
     client = _client(tmp_path)
-    client.put("/api/world", json={"bed_count": 2})
+    client.put("/api/world", json={"bed_count": 32})
     client.post("/api/actors", json={"species": "saevi"})
     client.post("/api/actors", json={"species": "tovren"})
 
@@ -121,8 +121,7 @@ def test_nest_lab_rejects_shrinking_below_current_actor_count(tmp_path) -> None:
     response = client.put("/api/world", json={"bed_count": 1})
 
     # Then
-    assert response.status_code == 409
-    assert response.json()["detail"] == "床位数不能小于当前角色数量"
+    assert response.status_code == 422
 
 
 def test_nest_lab_controls_wander_pause_resume_and_reset(tmp_path) -> None:

@@ -9,6 +9,12 @@ vi.mock("../http", () => ({
 }))
 
 describe("member Elfies client", () => {
+  it("requests the server-owned relationship filter for the camera picker", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ items: [] })
+    await elfies("owned")
+    expect(requestJson).toHaveBeenLastCalledWith("/api/v1/elfies?relationship=owned")
+  })
+
   it("builds an encoded portrait URL for each supported framing", () => {
     expect(elfiePortraitUrl("elfie/one", "full_body")).toBe("/api/v1/elfies/elfie%2Fone/portrait?kind=full_body")
     expect(elfiePortraitUrl("elfie/one")).toBe("/api/v1/elfies/elfie%2Fone/portrait?kind=headshot")

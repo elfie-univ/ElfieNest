@@ -1,4 +1,4 @@
-"""Deterministic in-process protocol v3 Runtime used by contract tests."""
+"""Deterministic in-process protocol v4 Runtime used by contract tests."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from infrastructure.godot.gateway.messages import (
     SemanticLane,
 )
 from infrastructure.godot.gateway.session import RuntimeConnection
+from nest.config import FIXED_BED_COUNT
 
 
 class FakeRuntime:
@@ -172,7 +173,7 @@ class FakeRuntime:
         }
         target_actor_id = str(payload.get("actor_id", "")) if body_event else None
         event = RuntimeEventFrame(
-            protocol=3,
+            protocol=4,
             kind="event",
             lane=SemanticLane.BODY if body_event else SemanticLane.NEST,
             name=name,
@@ -194,8 +195,7 @@ class FakeRuntime:
             self._events.append(event)
 
     def _manifest(self, config: JsonObject) -> JsonObject:
-        raw_bed_count = config.get("bed_count", 4)
-        bed_count = int(raw_bed_count) if isinstance(raw_bed_count, int) else 4
+        bed_count = FIXED_BED_COUNT
         return {
             "nest_id": str(config.get("nest_id", "local-nest")),
             "world_revision": self._revision,

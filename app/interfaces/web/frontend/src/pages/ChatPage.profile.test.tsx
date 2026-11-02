@@ -128,7 +128,7 @@ function profileDetail(source: typeof elfie) {
 
 describe("ChatPage profile integration", () => {
   beforeEach(() => {
-    chatApi.adoptionInfo.mockResolvedValue({ species: [], quota: { used: 0, max: 3, remaining: 3, can_adopt: true }, nest_capacity: { used: 0, max: 3, remaining: 3 }, availability: "available", personality_styles: [], heights: [], builds: [], life_stages: [] })
+    chatApi.adoptionInfo.mockResolvedValue({ species: [], quota: { used: 0, max: 3, remaining: 3, can_adopt: true }, nest_capacity: { used: 0, max: 32, remaining: 32 }, availability: "available", personality_styles: [], heights: [], builds: [], life_stages: [] })
     session.user.account_id = "admin123"
     session.user.role = "owner"
     window.history.replaceState({}, "", "/chat?view=conversation&elfie=00000001")

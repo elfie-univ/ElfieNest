@@ -14,7 +14,7 @@ from infrastructure.godot.nest_session.ports import BodyEventSink, GatewayRuntim
 
 
 class GodotNestSessionAdapter:
-    """Translate semantic world operations to the Godot protocol v3 gateway."""
+    """Translate semantic world operations to the Godot protocol v4 gateway."""
 
     def __init__(
         self,
@@ -75,6 +75,9 @@ class GodotNestSessionAdapter:
                         "species": actor.species,
                         "appearance": dict(actor.appearance),
                         "spawn_anchor_id": actor.spawn_anchor_id,
+                        "hosted": actor.lifecycle.hosted,
+                        "arrival_id": actor.lifecycle.arrival_id,
+                        "arrival_started_at": actor.lifecycle.arrival_started_at,
                     }
                     for actor in actors
                 ]
@@ -127,6 +130,7 @@ class GodotNestSessionAdapter:
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
+        life_phase: str,
         world_revision: int,
     ) -> str | None:
         return self._gateway.send_runtime_command(
@@ -136,6 +140,7 @@ class GodotNestSessionAdapter:
                 "command_id": command_id,
                 "lights_on": lights_on,
                 "quiet_mode": quiet_mode,
+                "life_phase": life_phase,
             },
             world_revision=world_revision,
             cause_id=command_id,

@@ -6,8 +6,6 @@ from typing import Annotated, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
-from app.orchestration.observer import RuntimeMockMotion
-
 _STRICT = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -92,10 +90,13 @@ class ObserverEntityResponse(BaseModel):
     posture: str
     active: bool
     active_command_id: Optional[str]
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     species_id: Optional[str]
     appearance: Dict[str, JsonValue]
     home_anchor_id: Optional[str]
-    mock_motion: Optional[RuntimeMockMotion] = None
+    hosted: bool = False
+    arrival_id: Optional[str] = None
+    arrival_started_at: Optional[float] = None
 
 
 class ObserverEntityPatchResponse(BaseModel):
@@ -106,16 +107,27 @@ class ObserverEntityPatchResponse(BaseModel):
     posture: Optional[str] = None
     active: Optional[bool] = None
     active_command_id: Optional[str] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     species_id: Optional[str] = None
     appearance: Optional[Dict[str, JsonValue]] = None
     home_anchor_id: Optional[str] = None
-    mock_motion: Optional[RuntimeMockMotion] = None
+    hosted: Optional[bool] = None
+    arrival_id: Optional[str] = None
+    arrival_started_at: Optional[float] = None
 
     @model_validator(mode="after")
     def require_changed_field(self) -> ObserverEntityPatchResponse:
         if not self.model_fields_set:
             raise ValueError("observer entity patch must not be empty")
         return self
+
+
+class ObserverEnvironmentResponse(BaseModel):
+    model_config = _STRICT
+
+    phase: Literal["day", "dawn", "dusk", "night"]
+    lights_on: bool = Field(strict=True)
+    quiet_mode: bool = Field(strict=True)
 
 
 class ObserverSnapshotResponse(BaseModel):
@@ -128,6 +140,7 @@ class ObserverSnapshotResponse(BaseModel):
     scope: ObserverSubscriptionResponse
     entities: Dict[str, ObserverEntityResponse]
     entity_revisions: Dict[str, int]
+    environment: Optional[ObserverEnvironmentResponse] = None
 
 
 class ObserverDeltaResponse(BaseModel):

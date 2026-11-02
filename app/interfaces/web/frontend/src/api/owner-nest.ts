@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { ownerWrite, requestJson } from "./http"
+import { FIXED_BED_COUNT } from "../constants"
 
 const BackendNestBedSchema = z.object({
   id: z.string(),
@@ -29,7 +30,7 @@ export const NestBedSchema = BackendNestBedSchema.transform((bed) => ({
 export const RoomSchema = z.object({
   id: z.string(),
   name: z.string(),
-  desired_bed_count: z.number().int().min(4).max(32),
+  desired_bed_count: z.literal(FIXED_BED_COUNT),
   applied_world_revision: z.number().int().nullable().optional(),
   beds: z.array(NestBedSchema),
 }).strict()
@@ -39,10 +40,6 @@ export type NestBed = z.infer<typeof NestBedSchema>
 
 export async function ownerRooms(): Promise<readonly NestRoom[]> {
   return NestRoomsResponseSchema.parse(await requestJson("/api/v1/admin/nest/rooms")).items
-}
-
-export async function ownerUpdateBedCount(bedCount: number, csrfToken: string): Promise<void> {
-  await ownerWrite("/api/v1/admin/nest/rooms/default/bed-count", "PUT", csrfToken, { bed_count: bedCount })
 }
 
 export async function ownerAssignBed(elfieId: string, anchorId: string | null, csrfToken: string): Promise<void> {

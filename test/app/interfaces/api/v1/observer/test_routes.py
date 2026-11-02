@@ -4,20 +4,28 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.bootstrap import create_app
 from app.features.accounts import AccountPrincipal, AccountsService
 from app.features.elfies import ElfiesService
 from app.interfaces.api.v1.auth import get_current_user
 from app.interfaces.api.v1.observer import router
+from app.interfaces.api.v1.observer.models import (
+    ObserverEntityPatchResponse,
+    ObserverEnvironmentResponse,
+)
 from app.orchestration.observer import (
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverFacade,
     ObserverWorldIntent,
 )
 from infrastructure.persistence.nest_db.store import init_db
+from nest.time_environment import LifePhase
 from test.app.interfaces.api._helpers import create_test_owner
 
 
@@ -29,6 +37,14 @@ class FixedClock:
         return self.current
 
 
+def test_quiet_mode_requires_an_explicit_boolean() -> None:
+    for value in ["false", 0, None]:
+        with pytest.raises(ValidationError):
+            ObserverEnvironmentResponse.model_validate(
+                {"phase": "night", "lights_on": True, "quiet_mode": value}
+            )
+
+
 class FixedCapabilities:
     def issue(self) -> str:
         return "observer-capability"
@@ -37,6 +53,12 @@ class FixedCapabilities:
 class MemoryWorld:
     def __init__(self) -> None:
         self.intents: list[ObserverWorldIntent] = []
+        self.action_anchor_id: str | None = "dorm-01/chair-01"
+
+    environment: ObserverEnvironmentRecord | None = None
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        return self.environment
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         return (
@@ -47,6 +69,7 @@ class MemoryWorld:
                 posture="awake",
                 active=True,
                 active_command_id=None,
+                action_anchor_id=self.action_anchor_id,
                 species_id="saevi",
                 appearance=(),
                 home_anchor_id=None,
@@ -83,6 +106,7 @@ def _application() -> tuple[FastAPI, MemoryWorld, FixedClock]:
 
 def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() -> None:
     application, world, _clock = _application()
+    world.environment = ObserverEnvironmentRecord(LifePhase.DAY, False, False)
     with TestClient(application) as client:
         client.cookies.set("session_token", "login-token")
         opened = client.post(
@@ -115,6 +139,7 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
     assert frame.json() == {
         "protocol": 3,
         "kind": "snapshot",
+        "environment": {"phase": "day", "lights_on": False, "quiet_mode": False},
         "generation": 1,
         "sequence": 1,
         "scope": {"kind": "elfie", "room_id": None, "elfie_id": "saevi-1"},
@@ -125,10 +150,13 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
                 "posture": "awake",
                 "active": True,
                 "active_command_id": None,
+                "action_anchor_id": "dorm-01/chair-01",
                 "species_id": "saevi",
                 "appearance": {},
                 "home_anchor_id": None,
-                "mock_motion": None,
+                "hosted": False,
+                "arrival_id": None,
+                "arrival_started_at": None,
             }
         },
         "entity_revisions": {"saevi-1": 1},
@@ -138,6 +166,45 @@ def test_versioned_routes_return_strict_capability_snapshot_and_intent_result() 
     assert world.intents == [
         ObserverWorldIntent(actor_id="saevi-1", interaction="greet")
     ]
+
+
+@pytest.mark.parametrize("target", ["", 42, {"position": [0, 0, 0]}])
+def test_observer_delta_rejects_invalid_action_anchor(target: object) -> None:
+    with pytest.raises(ValidationError):
+        ObserverEntityPatchResponse.model_validate({"action_anchor_id": target})
+
+
+def test_observer_delta_preserves_explicit_unknown_anchor() -> None:
+    patch = ObserverEntityPatchResponse(action_anchor_id=None)
+    assert patch.model_dump(exclude_unset=True) == {"action_anchor_id": None}
+
+
+def test_authorized_frame_route_delivers_action_anchor_clear_delta() -> None:
+    application, world, _clock = _application()
+    with TestClient(application) as client:
+        client.cookies.set("session_token", "login-token")
+        opened = client.post(
+            "/api/v1/observer/sessions",
+            json={
+                "protocol": 3,
+                "role": "observer",
+                "subscription": {"kind": "elfie", "elfie_id": "saevi-1"},
+            },
+        )
+        headers = {"X-ElfieNest-Observer-Capability": opened.json()["capability"]}
+        snapshot = client.get("/api/v1/observer/frames", headers=headers).json()
+        assert snapshot["entities"]["saevi-1"]["action_anchor_id"] == "dorm-01/chair-01"
+        world.action_anchor_id = None
+        delta = client.get(
+            "/api/v1/observer/frames",
+            headers=headers,
+            params={
+                "acknowledged_generation": snapshot["generation"],
+                "acknowledged_sequence": snapshot["sequence"],
+            },
+        )
+        assert delta.status_code == 200
+        assert delta.json()["patch"] == {"action_anchor_id": None}
 
 
 def test_routes_reject_authority_fields_and_use_stable_error_envelope() -> None:

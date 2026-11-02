@@ -15,16 +15,13 @@ const ENVIRONMENT_RUNTIME_CONTROLLER := preload("res://runtime/world/environment
 const OBSERVER_PRESENTATION_CONTROLLER := preload("res://runtime/observer/observer_presentation.gd")
 const RUNTIME_WEBSOCKET_CLIENT := preload("res://runtime/endpoint/websocket_client.gd")
 const RUNTIME_MODE := preload("res://runtime/endpoint/runtime_mode.gd")
-const LAB_RUNTIME := preload("res://runtime/lab/lab_runtime.gd")
 const AUTHORITY_SEMANTIC_EVENTS := preload("res://runtime/endpoint/authority_semantic_events.gd")
 const AUTHORITY_ENDPOINT := preload("res://runtime/endpoint/authority_endpoint.gd")
 const OBSERVER_BRIDGE := preload("res://runtime/observer/observer_bridge.gd")
+const OUTDOOR_ACCESS_OVERLAY := preload("res://runtime/observer/outdoor_access_overlay.gd")
 const OBSERVER_MODE_PARAMETER := "observer"
 const OBSERVER_MODE_VALUE := "product"
 const VISUAL_AUTHORITY_ENV := "ELFIENEST_GODOT_SHOW_VISUALS"
-## Temporary monitor-only visual behavior; remove when real action control lands.
-const MOCK_WANDER_ENABLED := false
-const OBSERVER_LOCAL_MOCK_WANDER_ENABLED := true
 
 @onready var nest: ModularNest = $Nest
 @onready var characters: Node3D = $Characters
@@ -67,23 +64,30 @@ func add_character(
 
 
 func _ready() -> void:
+	if OS.has_feature("web"):
+		get_viewport().msaa_3d = Viewport.MSAA_4X
 	_actor_scenes = SPECIES_CATALOG.discover_actor_scenes()
 	_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "elfie_lab"
-	_nest_lab_mode = OS.has_feature("web") and _query_parameter("mode") == "nest_lab"
+	_nest_lab_mode = OS.has_feature("web") and _query_parameter("lab") == "nest_lab"
 	_product_observer_mode = (
 		OS.has_feature("web")
 		and _query_parameter(OBSERVER_MODE_PARAMETER) == OBSERVER_MODE_VALUE
 	)
-	_setup_lab_runtime()
+	if _lab_mode or _nest_lab_mode:
+		_setup_lab_runtime()
 	if _lab_mode:
 		_lab_runtime.setup_elfie_lab()
 		return
 	if _nest_lab_mode:
 		_lab_runtime.setup_nest_lab()
-		return
+		nest.set_observation_hud_visible(true)
 	if _product_observer_mode:
 		_enter_product_observer_presentation_mode()
 		_setup_observer_presentation()
+		var access_overlay := OUTDOOR_ACCESS_OVERLAY.new()
+		add_child(access_overlay)
+		await access_overlay.setup(nest)
+		nest.add_lighting_observer_views()
 		nest.show_observation_hud = false
 		nest.set_observation_hud_visible(false)
 		_setup_product_observer_bridge()
@@ -92,7 +96,12 @@ func _ready() -> void:
 		return
 	_runtime_mode = RUNTIME_MODE.new()
 	_runtime_mode.setup(_resolve_runtime_mode())
-	if _runtime_mode.disables_visual_runtime_services() and not _show_visual_authority():
+	if (
+		_runtime_mode.disables_visual_runtime_services()
+		and not _show_visual_authority()
+		and not _nest_lab_mode
+	):
+		nest.physical_authority = true
 		nest.visible = false
 	if not _runtime_mode.allows_authority_transport():
 		if _runtime_mode.requires_web_ready_signal():
@@ -112,6 +121,8 @@ func _process(_delta: float) -> void:
 		return
 	if _nest_lab_mode:
 		_lab_runtime.process_nest_lab_frame()
+		if _runtime_client != null:
+			_runtime_client.process_frame()
 		return
 	if _product_observer_mode:
 		_observer_bridge.process_frame()
@@ -121,6 +132,7 @@ func _process(_delta: float) -> void:
 
 
 func _setup_lab_runtime() -> void:
+	var LAB_RUNTIME := load("res://runtime/lab/lab_runtime.gd") as GDScript
 	_lab_runtime = LAB_RUNTIME.new()
 	add_child(_lab_runtime)
 	_lab_runtime.setup(nest, characters, lab_preview, lab_camera, _actor_scenes)
@@ -140,7 +152,6 @@ func _start_authority_runtime() -> void:
 		characters,
 		_actor_scenes,
 		true,
-		MOCK_WANDER_ENABLED,
 	)
 	_world_controller.set_actor_provider(_actor_controller.actor_instances)
 	_actor_controller.runtime_event.connect(_on_runtime_event)
@@ -162,7 +173,6 @@ func _setup_observer_presentation() -> void:
 		nest,
 		characters,
 		_actor_scenes,
-		OBSERVER_LOCAL_MOCK_WANDER_ENABLED,
 	)
 	_observer_bridge = OBSERVER_BRIDGE.new()
 	add_child(_observer_bridge)

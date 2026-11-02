@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { FIXED_BED_COUNT } from "../constants"
+
 export const OBSERVER_CHANNEL = "elfienest.observer" as const
 export const OBSERVER_PROTOCOL_VERSION = 1 as const
 export const OBSERVER_CAMERA_COMMAND_KIND = "camera_command" as const
@@ -53,26 +55,25 @@ const observerWorldConfigSchema = z.object({
   version: z.literal(OBSERVER_PROTOCOL_VERSION),
   kind: z.literal(OBSERVER_WORLD_CONFIG_KIND),
   nest_id: semanticStringSchema,
-  bed_count: z.number().int().min(4).max(32),
+  bed_count: z.literal(FIXED_BED_COUNT),
 }).strict()
 const observerSemanticScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("room"), room_id: semanticStringSchema }).strict(),
   z.object({ kind: z.literal("elfie"), elfie_id: semanticStringSchema }).strict(),
 ])
-const observerMockMotionSchema = z.object({
-  waypoint: z.number().int().min(0).max(5),
-  sequence: z.number().int().positive(),
-}).strict()
 const observerSemanticEntitySchema = z.object({
   room_id: semanticStringSchema,
   zone_id: semanticStringSchema.nullable(),
   posture: semanticStringSchema,
   active: z.boolean(),
   active_command_id: semanticStringSchema.nullable(),
+  action_anchor_id: z.string().min(1).nullable(),
   species_id: semanticStringSchema.nullable(),
   appearance: z.record(z.string(), z.unknown()),
   home_anchor_id: semanticStringSchema.nullable(),
-  mock_motion: observerMockMotionSchema.nullable().default(null),
+  hosted: z.boolean().default(false),
+  arrival_id: z.string().min(1).nullable().default(null),
+  arrival_started_at: z.number().finite().nullable().default(null),
 }).strict()
 const observerSemanticSnapshotSchema = z.object({
   channel: z.literal(OBSERVER_CHANNEL),
@@ -83,6 +84,7 @@ const observerSemanticSnapshotSchema = z.object({
   sequence: z.number().int().positive(),
   scope: observerSemanticScopeSchema,
   entities: z.record(z.string().min(1), observerSemanticEntitySchema),
+  environment: z.object({ phase: z.enum(["day", "dawn", "dusk", "night"]), lights_on: z.boolean(), quiet_mode: z.boolean() }).strict().nullable(),
   entity_revisions: z.record(z.string().min(1), z.number().int().positive()),
 }).strict().refine(
   (value) => Object.keys(value.entities).every((entityId) => Object.prototype.hasOwnProperty.call(value.entity_revisions, entityId))
@@ -191,13 +193,13 @@ export function parseObserverWorldConfig(value: unknown): ObserverWorldConfig | 
   return parsed.success ? parsed.data : null
 }
 
-export function createObserverWorldConfig(nestId: string, bedCount: number): ObserverWorldConfig {
+export function createObserverWorldConfig(nestId: string): ObserverWorldConfig {
   return {
     channel: OBSERVER_CHANNEL,
     version: OBSERVER_PROTOCOL_VERSION,
     kind: OBSERVER_WORLD_CONFIG_KIND,
     nest_id: nestId,
-    bed_count: bedCount,
+    bed_count: FIXED_BED_COUNT,
   }
 }
 

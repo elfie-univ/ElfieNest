@@ -30,6 +30,35 @@ class FailingBody(HeadlessBody):
         raise RuntimeError("连接失败")
 
 
+class BedState:
+    ready = True
+    hosted = False
+
+    def require_own_bed(self, elfie_id: str) -> None:
+        if not self.ready:
+            raise RuntimeError("请先回到自己的床上")
+
+    def set_hosted(self, elfie_id: str, hosted: bool) -> None:
+        self.hosted = hosted
+
+
+def test_host_requires_own_bed_before_acquiring_lease(tmp_path: Path) -> None:
+    db_path, elfie = _registered_elfie(tmp_path)
+    bed = BedState()
+    bed.ready = False
+    leases = SQLiteEmbodimentLeaseAdapter(db_path)
+    service = EmbodimentSessionService(leases, nest=bed)
+    body = _enroll(db_path, "身体一")
+    original = elfie.current_body
+    result = service.host(
+        "00000001", elfie, HeadlessBody(body_id=body.body_id), lease_seconds=30
+    )
+    assert isinstance(result, HostingFailed)
+    assert elfie.current_body is original
+    assert leases.get("00000001").lease_version == 0
+    assert not bed.hosted
+
+
 def test_host_and_return_keep_one_real_active_body_and_persisted_state(
     tmp_path: Path,
 ) -> None:
@@ -40,7 +69,7 @@ def test_host_and_return_keep_one_real_active_body_and_persisted_state(
     body = _enroll(db_path, "身体一")
     hosted_body = HeadlessBody(body_id=body.body_id)
     leases = SQLiteEmbodimentLeaseAdapter(db_path)
-    service = EmbodimentSessionService(leases)
+    service = EmbodimentSessionService(leases, nest=BedState())
 
     # When: the Elfie is hosted and then returned through the service.
     hosted = service.host("00000001", elfie, hosted_body, lease_seconds=30)
@@ -71,7 +100,7 @@ def test_host_failure_restores_the_nest_body_and_releases_the_persisted_lease(
     nest_body = elfie.current_body
     assert nest_body is not None
     leases = SQLiteEmbodimentLeaseAdapter(db_path)
-    service = EmbodimentSessionService(leases)
+    service = EmbodimentSessionService(leases, nest=BedState())
     body = _enroll(db_path, "故障身体")
 
     # When: hosting attempts to bind the failed body after obtaining a lease.
@@ -97,7 +126,7 @@ def test_duplicate_host_is_rejected_before_a_second_body_can_bind(
     nest_body = elfie.current_body
     assert nest_body is not None
     leases = SQLiteEmbodimentLeaseAdapter(db_path)
-    service = EmbodimentSessionService(leases)
+    service = EmbodimentSessionService(leases, nest=BedState())
     first_body = _enroll(db_path, "身体一")
     second_body = _enroll(db_path, "身体二")
     first = HeadlessBody(body_id=first_body.body_id)
@@ -127,7 +156,7 @@ def test_heartbeat_timeout_unbinds_the_active_body_and_persists_offline(
     nest_body = elfie.current_body
     assert nest_body is not None
     leases = SQLiteEmbodimentLeaseAdapter(db_path)
-    service = EmbodimentSessionService(leases)
+    service = EmbodimentSessionService(leases, nest=BedState())
     body = _enroll(db_path, "身体一")
     hosted_body = HeadlessBody(body_id=body.body_id)
     hosted = service.host("00000001", elfie, hosted_body, lease_seconds=30)

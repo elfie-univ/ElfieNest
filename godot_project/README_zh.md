@@ -22,14 +22,28 @@ ElfieNest 3D 世界的唯一源码来源，负责房屋、几何、坐标、移�
 godot_project/
 ├── main.tscn、main.gd     # 项目入口
 ├── runtime/               # 世界配置、角色同步与语义动作生命周期
-├── rooms/                 # Nest、房间、布局和家具资源
+├── rooms/                 # Nest 观察控制与完整最终精灵巢资产
 ├── characters/            # Elfie 角色、模型、动画与外观制作资料
 ├── ui/                    # 观察界面
 └── scripts/               # Godot 内部测试与资源制作工具
 ```
 
 角色制作资料从 [`characters/README.md`](characters/README.md) 进入；房间资源
-约定从 [`rooms/assets/README.md`](rooms/assets/README.md) 进入。
+约定从 [`rooms/estate/README.md`](rooms/estate/README.md) 进入。旧程序化方形房间、独立家具及
+主楼/小屋基线已退役；`rooms/nest.tscn` 是唯一精灵巢入口，只实例化一次完整新版资产。
+当前根据最终模型绑定碰撞、32 个床位、32 把书桌椅、庭院座椅、房门与导航；世界就绪要求
+导航同步及锚点可达。`furniture.use` 沿原有 Body/Gateway 链路先走到家具，再进入可退出的
+睡眠或坐姿；仅打开相机预览不代表这些动作已验收。
+
+当前工程包含林间环路与回接支路、平滑草地和种植区、10 扇实际门及离线碰撞／导航资源。
+建筑、家具和基础材质保留基线，仅按已确认功能合入地形、灯具与动作。
+坐下／起身、沙发连贯动作、原被子睡眠、床上具身化、领养到达及水景共用此工程的实际模型；
+详细回放入口见 [完整园区](rooms/estate/README_zh.md)。这些回放不等同自主生活验收。
+
+正式监控接收 Nest 的本地民用时间环境：06–18 白天关闭人工灯，18–24 上半夜启用灯光，
+00–06 下半夜收束普通室内照明并保留引导。时间与视角可独立选择；“本地实时”恢复最新环境，
+预览不改变 Nest 时间或居民状态。表面接受实际灯光，不使用固定暖色增亮项。
+画面最终效果仍需在真实监控中验收。
 
 ## 编辑安全
 
@@ -56,6 +70,10 @@ godot_project/
 ```text
 build/components/godot-web/
 ```
+
+实验入口 `?mode=m01_sample` 仅加载原始 M01 网格，使用 4x MSAA，验证源清漆、
+织物柔光与玻璃，不启动精灵或完整世界。它是光学对照候选，不是已经验收的园区
+渲染配置；源 RGB 值保持不变。
 
 在仓库根目录构建或检查：
 
@@ -96,7 +114,7 @@ Dedicated 预设强制启用 Godot 的 `dedicated_server` feature 与 headless �
 `execute_intent` 和 `cancel_intent`。Runtime 生命周期从图形化 Web、图形化 Electron
 权威角色或无显示 Linux Dedicated 中选择一个权威宿主。Godot 负责：
 
-- 根据床位数重建固定房间，并发布稳定的 zone/anchor 语义目录；
+- 管理完整精灵巢，并发布已验证的 zone/anchor 语义目录（新版锚点尚未映射，因此拒绝报告世界就绪）；
 - 生成导航网格、逐物理帧寻路、碰撞与避障；
 - 加载 Saevi/Tovren/Myelle 角色场景，播放移动、姿态和表情；
 - 计算触觉接触和说话听众，并回传带 revision/generation 的类型化事件。

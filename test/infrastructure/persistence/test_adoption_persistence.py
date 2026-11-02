@@ -36,7 +36,7 @@ def _reservation(elfie_id: str, owner_user_id: int) -> AdmissionReservation:
     )
 
 
-def _configure_nest(connection, *, bed_count: int = 4) -> None:
+def _configure_nest(connection, *, bed_count: int = 32) -> None:
     connection.execute(
         """INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec)
            VALUES ('local-nest',?,0.5)""",
@@ -133,18 +133,22 @@ def test_global_nest_capacity_applies_across_different_members(tmp_path: Path) -
     db_path = str(tmp_path / "nest.db")
     init_db(db_path)
     with get_db(db_path) as connection:
-        _configure_nest(connection, bed_count=4)
-    owners = tuple(_owner(db_path, f"user-{index}", limit=4) for index in range(5))
+        _configure_nest(connection)
+    owners = tuple(_owner(db_path, f"user-{index}", limit=2) for index in range(16))
     adapter = SQLiteAdoptionAdapter(db_path)
-    for index, owner_user_id in enumerate(owners[:4], start=1):
-        adapter.reserve(_reservation(f"{index:08d}", owner_user_id), default_limit=4)
+    for owner_index, owner_user_id in enumerate(owners):
+        for slot in range(2):
+            elfie_number = owner_index * 2 + slot + 1
+            adapter.reserve(
+                _reservation(f"{elfie_number:08d}", owner_user_id), default_limit=4
+            )
 
     capacity = adapter.get_nest_capacity()
-    assert capacity.used == 4
-    assert capacity.maximum == 4
+    assert capacity.used == 32
+    assert capacity.maximum == 32
     with pytest.raises(AdoptionPortNestCapacityReached) as raised:
-        adapter.reserve(_reservation("00000005", owners[4]), default_limit=4)
-    assert raised.value.limit == 4
+        adapter.reserve(_reservation("00000033", owners[0]), default_limit=4)
+    assert raised.value.limit == 32
 
 
 def test_publication_state_machine_commits_only_after_publishing(

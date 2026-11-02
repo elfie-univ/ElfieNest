@@ -15,8 +15,7 @@
     {"path": "furniture/shared_resources/source/resources/4d65b818fb8299ebe31447ebeec157f68f98872b3ed995358e7defbf8b280f97.bin", "name": "4d65b818fb8299ebe31447ebeec157f68f98872b3ed995358e7defbf8b280f97.bin", "kind": "data", "bytes": 22016},
     {"path": "furniture/shared_resources/source/resources/c6298f1ea5a4782d5e8d35b536b8d698db420e2f4ffb925eb3fd6ed5e4c239bd.bin", "name": "c6298f1ea5a4782d5e8d35b536b8d698db420e2f4ffb925eb3fd6ed5e4c239bd.bin", "kind": "data", "bytes": 22016},
     {"path": "furniture/shared_resources/source/resources/dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "name": "dda21a7a10727b2d1e32af6ae0a39e00f49d9c64dbd101c6b7639f5263f7f738.png", "kind": "texture", "bytes": 21219},
-    {"path": "furniture/shared_oak_side_table_24d03d3e37/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1036},
-    {"path": "furniture/shared_oak_side_table_24d03d3e37/versions/v004/images/10-front-comparison.png", "name": "10-front-comparison.png", "kind": "image", "bytes": 591255}
+    {"path": "furniture/shared_oak_side_table_24d03d3e37/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 1036}
   ],
   "designVersion": {
     "id": "part_shared_oak_side_table_24d03d3e37_v004",

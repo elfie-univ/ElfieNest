@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from nest.config import FIXED_BED_COUNT
+
 LabSpecies = Literal["tovren", "saevi"]
 
 
@@ -17,7 +19,7 @@ class _LabRequest(BaseModel):
 class BedCountRequest(_LabRequest):
     """Requested fixed-room bed capacity."""
 
-    bed_count: int = Field(ge=1, le=32)
+    bed_count: int = Field(strict=True, ge=FIXED_BED_COUNT, le=FIXED_BED_COUNT)
 
 
 class CreateActorRequest(_LabRequest):

@@ -9,9 +9,9 @@ from pydantic import JsonValue
 
 from app.orchestration.observer import (
     ObserverEntityRecord,
+    ObserverEnvironmentRecord,
     ObserverPortError,
     ObserverWorldIntent,
-    RuntimeMockMotion,
 )
 
 
@@ -32,6 +32,9 @@ class _SemanticEntity(Protocol):
     def active_command_id(self) -> str | None: ...
 
     @property
+    def action_anchor_id(self) -> str | None: ...
+
+    @property
     def species_id(self) -> str | None: ...
 
     @property
@@ -41,7 +44,13 @@ class _SemanticEntity(Protocol):
     def home_anchor_id(self) -> str | None: ...
 
     @property
-    def mock_motion(self) -> RuntimeMockMotion | None: ...
+    def hosted(self) -> bool: ...
+
+    @property
+    def arrival_id(self) -> str | None: ...
+
+    @property
+    def arrival_started_at(self) -> float | None: ...
 
 
 class GodotObserverWorldAdapter:
@@ -52,9 +61,17 @@ class GodotObserverWorldAdapter:
         *,
         entities: Callable[[], Mapping[str, _SemanticEntity]],
         intent_sink: Callable[[str, str], None] | None,
+        environment: Callable[[], ObserverEnvironmentRecord | None],
     ) -> None:
+        self._environment = environment
         self._entities = entities
         self._intent_sink = intent_sink
+
+    def read_environment(self) -> ObserverEnvironmentRecord | None:
+        try:
+            return self._environment()
+        except (RuntimeError, TypeError, ValueError) as error:
+            raise ObserverPortError("Observer environment projection failed") from error
 
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]:
         try:
@@ -67,10 +84,13 @@ class GodotObserverWorldAdapter:
                     posture=entity.posture,
                     active=entity.active,
                     active_command_id=entity.active_command_id,
+                    action_anchor_id=entity.action_anchor_id,
                     species_id=entity.species_id,
                     appearance=tuple(sorted(entity.appearance.items())),
                     home_anchor_id=entity.home_anchor_id,
-                    mock_motion=entity.mock_motion,
+                    hosted=entity.hosted,
+                    arrival_id=entity.arrival_id,
+                    arrival_started_at=entity.arrival_started_at,
                 )
                 for entity_id, entity in sorted(projected.items())
             )

@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import RequestResponseEndpoint
+from starlette.types import Scope
 
 from app.features.accounts import AccountsService
 from app.features.adoption import AdoptionService
@@ -62,6 +63,16 @@ from .service_access import ServiceAccessPolicy, configure_service_access
 from .v1.auth import verify_csrf_token
 
 logger = logging.getLogger("app.interfaces.api.app")
+
+
+class GodotStaticFiles(StaticFiles):
+    """Revalidate fixed export filenames when a local preview is rebuilt."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
 
 _SETUP_INSTALLATION_MUTATION_PATHS: Final = frozenset(
     {
@@ -226,7 +237,7 @@ def create_http_application(
 
     app.mount(
         "/runtime/godot",
-        StaticFiles(directory=str(godot_web_dir), check_dir=False),
+        GodotStaticFiles(directory=str(godot_web_dir), check_dir=False),
         name="godot-runtime",
     )
 

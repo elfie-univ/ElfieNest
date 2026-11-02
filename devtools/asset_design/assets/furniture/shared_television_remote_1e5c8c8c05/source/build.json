@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_television_remote_1e5c8c8c05",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M01：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "1e5c8c8c05640a8ad796e19bc82b184e143716817c9e8b61405721cefa70bfc9",
+    "category": "media",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_television_remote_1e5c8c8c05/versions/v001/reuse.json"
+  }
+}

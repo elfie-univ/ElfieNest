@@ -83,3 +83,11 @@ Python 保存坐标或每只 Elfie 的周围列表；以及把每只 Elfie 的�
 物理 authority、App Lifecycle 所有权、根模块和系统级线路均未改变，所以这是对
 ADR-0013 的澄清与纠错，不是新的宏观架构决策。只有所有条目经证据关闭后，才在独立
 治理变更中最终删除台账。
+
+## 完整园区观察视角目录澄清 — 2026-11-02
+
+已确认的完整园区通过现有版本化观察目录提供 `overview`、`central-%d`、
+`dorm-%02d` 和 `terrace-%02d` 展示视角 ID。架构测试跟随该目录，替代旧场景的
+section/activity/portal 布局。视角登记仍归 Godot；选择视角时先校验请求 ID，
+再修改当前相机，未知 ID 返回 false，且不选择回退视角。这些展示 ID 不把物理
+authority 转交 Observer，也不改变语义事件路由。

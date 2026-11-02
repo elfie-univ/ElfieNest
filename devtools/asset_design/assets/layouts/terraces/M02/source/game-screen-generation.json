@@ -1,0 +1,6 @@
+{
+  "tool": "Built-in image_gen",
+  "prompt": "Use case: stylized-concept. Create a 16:9 colorful arcade videogame SCREEN TEXTURE, straight on, fills the entire rectangular image edge to edge. A lively polished stylized 3D fantasy game scene: glowing cyan and pink paths through purple-blue magical woods, vivid small game action silhouettes and radiant energy bursts, sunny warm highlights, playful and cheerful. This is the colorful game content displayed on the screen of a cozy miniature gaming lounge. The supplied design reference calls for a bright magenta violet cyan arcade scene rather than a pastoral landscape. No physical monitor, no bezel, no room, no furniture, no logos, no text, no watermark. Output one crisp landscape game scene.",
+  "texture": "textures/arcade-game-screen.png",
+  "usage": "M02 game screen; original models and reference images otherwise retained"
+}

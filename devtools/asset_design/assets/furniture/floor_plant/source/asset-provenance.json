@@ -1,0 +1,34 @@
+{
+  "description": "楼层共用大叶橡皮树，28 片宽厚弯曲叶片、三株木质茎、奶白陶盆；高 205 厘米，盆径 46 厘米。",
+  "species": "Ficus elastica",
+  "heightM": 2.05,
+  "potDiameterM": 0.46,
+  "origin": "floor center",
+  "canopyBoundsM": [
+    [
+      -0.43905530465135006,
+      0.3893812884369929,
+      -0.42480654523743505
+    ],
+    [
+      0.43552218883974764,
+      2.05,
+      0.3913729077007412
+    ]
+  ],
+  "leafCount": 28,
+  "leafLengthRangeM": [
+    0.25582877429214745,
+    0.3615702016324844
+  ],
+  "foliage": {
+    "source": "Original procedural mesh; broad closed-color blades with curved midribs, secondary veins, petioles and growing tips",
+    "geometry": "Actual curved blade surfaces with separately shaded undersides; no alpha-cutout leaf cards",
+    "planter": "Retained rounded ivory ceramic planter from part_floor_plant_v002, resized to 46 cm"
+  },
+  "referenceImages": [
+    "layouts/central_floor_2/references/02_games_four_windows.png",
+    "layouts/central_floor_2/references/elfie_second_floor_games_v1__reference_floor_2.png"
+  ],
+  "reuse": "One movable assembly, intended for first/second/third-floor placements; current trial replaces only Corner floor plant 6 on floor one."
+}

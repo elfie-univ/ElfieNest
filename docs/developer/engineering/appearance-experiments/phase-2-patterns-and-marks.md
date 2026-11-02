@@ -44,12 +44,10 @@ The harness is deliberately a feasibility tool, not a production implementation:
   stability;
 - production integration still needs semantic/UV region data designed and reviewed per species.
 
-The fixed-camera Phase 2 harness was removed after review to prevent it from becoming a second
-recoloring implementation. The checked-in plates below are historical evidence rather than a
-current replay target. Current V9 acceptance renders use
-`godot_project/scripts/test/render_production_appearance_candidates.gd`, which delegates all tone
-transfer to the single production implementation in
-`godot_project/runtime/actor/actor_appearance.gd::ActorAppearance.apply`.
+The fixed-camera and appearance acceptance screenshot tools have been retired.
+The plates below are historical evidence, not current replay targets. Production
+appearance remains owned by `godot_project/runtime/actor/actor_appearance.gd`;
+inspect the current result through Monitor or the retained Elfie Lab preview.
 
 ## Results
 

@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_pod_botanical_throw_34807fabdc",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：4 处源摆放，庄园共 32 次引用。layout:pod：32。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "34807fabdc434432e64a809ab4ef30e533520ea193c007bcd12544e0b7326cdb",
+    "category": "soft_furnishing",
+    "sourceReferences": 4,
+    "estateReferences": 32,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_botanical_throw_34807fabdc/versions/v001/reuse.json"
+  }
+}

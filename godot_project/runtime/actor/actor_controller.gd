@@ -2,7 +2,7 @@ class_name NestActorRuntimeController
 extends Node
 
 const ACTOR_CATALOG := preload("res://runtime/actor/actor_catalog.gd")
-const MOCK_WANDER_CONTROLLER := preload("res://runtime/actor/mock_wander_controller.gd")
+const ARRIVAL := preload("res://runtime/actor/adoption_arrival.gd")
 
 signal runtime_event(
 	event_name: String,
@@ -18,9 +18,10 @@ var _actor_catalog: Dictionary = {}
 var _command_actor_ids: Dictionary = {}
 var _command_metadata: Dictionary = {}
 var _terminal_commands: Dictionary = {}
+var _pending_anchor_uses: Dictionary = {}
 var _install_actor_animations := true
-var _mock_command_actor_ids: Dictionary = {}
-var _mock_wander
+var _arrival_path: RefCounted
+var _arrivals: Dictionary = {}
 
 
 func setup(
@@ -28,16 +29,11 @@ func setup(
 	characters: Node3D,
 	actor_scenes: Dictionary,
 	install_actor_animations: bool = true,
-	enable_mock_wander: bool = false,
 ) -> void:
 	_nest = nest
 	_characters = characters
 	_actor_scenes = actor_scenes
 	_install_actor_animations = install_actor_animations
-	_mock_wander = MOCK_WANDER_CONTROLLER.new()
-	add_child(_mock_wander)
-	_mock_wander.setup(self, _nest, enable_mock_wander)
-	_mock_wander.motion_changed.connect(_on_mock_motion_changed)
 
 
 func sync_actors(raw_actors: Variant) -> Dictionary:
@@ -56,12 +52,19 @@ func sync_actors(raw_actors: Variant) -> Dictionary:
 			and _actors.has(actor_id)
 		):
 			continue
+		if _actors.has(actor_id):
+			var prior: Dictionary = JSON.parse_string(String(_actor_catalog[actor_id]))
+			if prior["species"] == actor_data["species"] and prior["appearance"] == actor_data["appearance"] and prior["spawn_anchor_id"] == actor_data["spawn_anchor_id"]:
+				_actor_catalog[actor_id] = fingerprint
+				_apply_resident_lifecycle(_actors[actor_id], actor_data)
+				continue
 		_remove_actor(actor_id)
 		var actor := _create_actor(actor_data)
 		if actor == null:
 			return {"accepted": false, "code": "actor_instantiation_failed"}
 		_actors[actor_id] = actor
 		_actor_catalog[actor_id] = fingerprint
+		_apply_resident_lifecycle(actor, actor_data)
 
 	var stale_ids: Array[String] = []
 	for actor_id: Variant in _actors.keys():
@@ -80,16 +83,56 @@ func sync_actors(raw_actors: Variant) -> Dictionary:
 	}
 
 
-func world_snapshot() -> Dictionary:
-	var snapshot := ACTOR_CATALOG.snapshot(_nest, _actors, _actor_catalog)
-	if _mock_wander == null:
-		return snapshot
-	for actor_data: Dictionary in snapshot["actors"] as Array:
-		var motion: Variant = _mock_wander.motion_for(String(actor_data["actor_id"]))
-		if not motion.is_empty():
-			actor_data["mock_motion"] = motion
-	return snapshot
+func _apply_resident_lifecycle(body: ElfieActor, data: Dictionary) -> void:
+	var hosted := bool(data.get("hosted", false))
+	var was_hosted := bool(body.get_meta("hosted", false))
+	body.set_meta("hosted", hosted)
+	if hosted:
+		_arrivals.erase(body.elfie_id)
+		if not body.active_command_id.is_empty(): body.cancel_navigation("hosted")
+		if body.furniture_anchor_id.is_empty():
+			var bed := _nest.resolve_anchor(String(data["spawn_anchor_id"]))
+			body.global_position = bed.global_position
+			body.enter_furniture(bed, String(data["spawn_anchor_id"]))
+		body.set_physics_process(false)
+		return
+	if was_hosted:
+		body.leave_furniture()
+		body.set_physics_process(true)
+	var started: Variant = data.get("arrival_started_at")
+	if started == null or Time.get_unix_time_from_system() - float(started) >= ARRIVAL.TIMING.SETTLED_AT:
+		body.set_meta("arrival_completed", true)
+		return
+	if _arrival_path == null:
+		var path := ARRIVAL.new()
+		if not path.bind(_nest):
+			body.set_meta("arrival_completed", false)
+			push_error("Adoption arrival requires actual fourth-floor platform colliders")
+			return
+		_arrival_path = path
+	body.set_meta("arrival_completed", false)
+	body.set_physics_process(false)
+	_arrivals[body.elfie_id] = float(started)
+	_process(0.0)
 
+
+func _process(_delta: float) -> void:
+	for actor_id: String in _arrivals.keys():
+		var body := actor(actor_id)
+		if body == null:
+			_arrivals.erase(actor_id)
+			continue
+		var elapsed := Time.get_unix_time_from_system() - float(_arrivals[actor_id])
+		_arrival_path.call("sample", body, elapsed)
+		if elapsed >= ARRIVAL.TIMING.SETTLED_AT:
+			_arrivals.erase(actor_id)
+			body.set_meta("arrival_completed", true)
+			body.set_meta("action_anchor_id", "central-04/activity")
+			body.set_physics_process(true)
+
+
+func world_snapshot() -> Dictionary:
+	return ACTOR_CATALOG.snapshot(_nest, _actors, _actor_catalog)
 
 func actor(actor_id: String) -> ElfieActor:
 	return _actors.get(actor_id) as ElfieActor
@@ -109,18 +152,26 @@ func execute_intent(command: Dictionary) -> void:
 	if command_id.is_empty() or _command_actor_ids.has(command_id):
 		return
 	_command_actor_ids[command_id] = actor_id
+	var raw_generation: Variant = command.get("body_generation", 1)
+	var body_generation := 1
+	if typeof(raw_generation) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(raw_generation)):
+		body_generation = maxi(int(raw_generation), 1)
 	_command_metadata[command_id] = {
 		"intent_id": String(command.get("intent_id", command_id)),
-		"body_generation": maxi(int(command.get("body_generation", 1)), 1),
+		"body_generation": body_generation,
 	}
 	_emit_command_event("intent_accepted", command_id, actor_id)
 	var actor_instance := actor(actor_id)
 	if actor_instance == null:
 		_emit_terminal(command_id, actor_id, "failed", "actor_not_found")
 		return
-	if _mock_wander != null:
-		_mock_wander.cancel_for_real_intent(actor_id)
+	if bool(actor_instance.get_meta("hosted", false)) or not bool(actor_instance.get_meta("arrival_completed", true)):
+		_emit_terminal(command_id, actor_id, "failed", "virtual_body_unavailable")
+		return
 	var intent := String(command.get("intent", ""))
+	if intent == "use_anchor":
+		_execute_use_anchor(command, actor_instance)
+		return
 	if intent == "move_forward":
 		_execute_move_forward(command, actor_instance)
 		return
@@ -146,40 +197,8 @@ func execute_intent(command: Dictionary) -> void:
 	):
 		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
 		return
+	actor_instance.set_meta("action_anchor_id", anchor_id)
 	_emit_command_event("intent_started", command_id, actor_id)
-
-
-func start_mock_move(
-	actor_id: String,
-	command_id: String,
-	target_position: Vector3,
-	deadline_seconds: float,
-) -> bool:
-	if (
-		_mock_wander == null
-		or not MOCK_WANDER_CONTROLLER._is_mock_command(command_id)
-		or command_id.is_empty()
-		or _mock_command_actor_ids.has(command_id)
-	):
-		return false
-	var actor_instance := actor(actor_id)
-	if actor_instance == null:
-		return false
-	_mock_command_actor_ids[command_id] = actor_id
-	if not actor_instance.move_to(command_id, target_position, deadline_seconds):
-		_mock_command_actor_ids.erase(command_id)
-		return false
-	return true
-
-
-func cancel_mock_move(actor_id: String, reason: String) -> bool:
-	var actor_instance := actor(actor_id)
-	if actor_instance == null:
-		return false
-	var command_id := actor_instance.active_command_id
-	if not MOCK_WANDER_CONTROLLER._is_mock_command(command_id):
-		return false
-	return actor_instance.cancel_navigation(reason)
 
 
 func cancel_intent(command: Dictionary) -> void:
@@ -214,13 +233,10 @@ func _create_actor(actor_data: Dictionary) -> ElfieActor:
 	)
 	actor.set_meta("species", species)
 	actor.set_meta("spawn_anchor_id", String(actor_data["spawn_anchor_id"]))
+	actor.set_meta("action_anchor_id", String(actor_data["spawn_anchor_id"]))
 	actor.navigation_terminal.connect(
 		_on_actor_navigation_terminal.bind(String(actor_data["actor_id"]))
 	)
-	if _mock_wander != null:
-		actor.navigation_terminal.connect(
-			_mock_wander.handle_navigation_terminal.bind(String(actor_data["actor_id"]))
-		)
 	actor.movement_blocked.connect(
 		_on_actor_movement_blocked.bind(String(actor_data["actor_id"]))
 	)
@@ -231,13 +247,13 @@ func _create_actor(actor_data: Dictionary) -> ElfieActor:
 
 
 func _remove_actor(actor_id: String) -> void:
+	_arrivals.erase(actor_id)
 	var existing := _actors.get(actor_id) as ElfieActor
 	if existing != null:
 		if not existing.active_command_id.is_empty():
 			var command_id := existing.active_command_id
-			var is_mock_command := MOCK_WANDER_CONTROLLER._is_mock_command(command_id)
 			existing.cancel_navigation("actor_removed")
-			if not is_mock_command and not _terminal_commands.has(command_id):
+			if not _terminal_commands.has(command_id):
 				_emit_terminal(
 					command_id,
 					actor_id,
@@ -256,15 +272,74 @@ func _on_actor_navigation_terminal(
 	reason: String,
 	actor_id: String,
 ) -> void:
-	if _mock_command_actor_ids.has(command_id):
-		_mock_command_actor_ids.erase(command_id)
-		return
+	if _pending_anchor_uses.has(command_id):
+		var anchor_id := String(_pending_anchor_uses[command_id])
+		_pending_anchor_uses.erase(command_id)
+		if status == "completed":
+			var actor_instance := actor(actor_id)
+			var marker := _nest.resolve_anchor(anchor_id)
+			var error := "actor_not_found"
+			if actor_instance != null:
+				error = actor_instance.enter_furniture(marker, anchor_id)
+			if not error.is_empty():
+				_emit_terminal(command_id, actor_id, "failed", error)
+				return
 	_emit_terminal(command_id, actor_id, status, reason)
 
 
-func _on_actor_movement_blocked(command_id: String, actor_id: String) -> void:
-	if _mock_command_actor_ids.has(command_id):
+func _execute_use_anchor(command: Dictionary, actor_instance: ElfieActor) -> void:
+	var command_id := String(command["command_id"])
+	var actor_id := String(command["actor_id"])
+	if not _valid_use_anchor_payload(command):
+		_emit_terminal(command_id, actor_id, "failed", "invalid_use_anchor_payload")
 		return
+	var anchor_id := String(command["anchor_id"])
+	var marker := _nest.resolve_anchor(anchor_id)
+	var marker_error := ElfieActor.furniture_marker_error(marker)
+	if not marker_error.is_empty():
+		_emit_terminal(command_id, actor_id, "failed", marker_error)
+		return
+	for other: Variant in _actors.values():
+		if other != actor_instance and (other as ElfieActor).furniture_anchor_id == anchor_id:
+			_emit_terminal(command_id, actor_id, "failed", "furniture_occupied")
+			return
+	if _pending_anchor_uses.values().has(anchor_id):
+		_emit_terminal(command_id, actor_id, "failed", "furniture_occupied")
+		return
+	_pending_anchor_uses[command_id] = anchor_id
+	if not actor_instance.move_to(
+		command_id, marker.global_position, float(command["deadline_seconds"]),
+	):
+		_pending_anchor_uses.erase(command_id)
+		_emit_terminal(command_id, actor_id, "failed", "navigation_unavailable_or_actor_busy")
+		return
+	actor_instance.set_meta("action_anchor_id", anchor_id)
+	_emit_command_event("intent_started", command_id, actor_id)
+
+
+func _valid_use_anchor_payload(command: Dictionary) -> bool:
+	var text_fields := [
+		"command_id", "intent_id", "actor_id", "initiator", "intent", "anchor_id",
+	]
+	if command.size() != text_fields.size() + 2:
+		return false
+	for key: String in text_fields:
+		if not command.get(key) is String or String(command[key]).strip_edges().is_empty():
+			return false
+	var deadline: Variant = command.get("deadline_seconds")
+	var generation: Variant = command.get("body_generation")
+	return (
+		command["initiator"] == "elfie" and command["intent"] == "use_anchor"
+		# JSON.parse_string represents JSON integers as floats too.
+		and typeof(generation) in [TYPE_FLOAT, TYPE_INT]
+		and is_finite(float(generation)) and float(generation) >= 1.0
+		and float(generation) == floorf(float(generation))
+		and typeof(deadline) in [TYPE_FLOAT, TYPE_INT]
+		and is_finite(float(deadline)) and float(deadline) > 0.0
+	)
+
+
+func _on_actor_movement_blocked(command_id: String, actor_id: String) -> void:
 	var payload := {"command_id": command_id, "actor_id": actor_id}
 	payload.merge(_command_metadata.get(command_id, {}))
 	runtime_event.emit(
@@ -282,10 +357,6 @@ func _on_actor_tactile_contact(contact: Dictionary, actor_id: String) -> void:
 		contact.merged({"actor_id": actor_id}),
 		cause_id,
 	)
-
-
-func _on_mock_motion_changed() -> void:
-	runtime_event.emit("world_snapshot", world_snapshot(), "mock-wander")
 
 
 func _execute_non_movement_intent(
@@ -333,6 +404,7 @@ func _execute_move_forward(command: Dictionary, actor_instance: ElfieActor) -> v
 	if not actor_instance.move_to(command_id, target_position, deadline_seconds):
 		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
 		return
+	actor_instance.set_meta("action_anchor_id", "")
 	_emit_command_event("intent_started", command_id, actor_id)
 
 
@@ -347,6 +419,10 @@ func _execute_turn(command: Dictionary, actor_instance: ElfieActor) -> void:
 	if not actor_instance.active_command_id.is_empty():
 		_emit_terminal(command_id, actor_id, "failed", "actor_busy")
 		return
+	if not actor_instance.leave_furniture():
+		_emit_terminal(command_id, actor_id, "failed", "furniture_exit_blocked")
+		return
+	actor_instance.set_meta("action_anchor_id", "")
 	_emit_command_event("intent_started", command_id, actor_id)
 	actor_instance.rotate_y(deg_to_rad(angle_degrees))
 	_emit_terminal(command_id, actor_id, "completed", "")
@@ -364,6 +440,8 @@ func _emit_command_event(
 		payload,
 		command_id,
 	)
+	if event_name == "intent_started":
+		runtime_event.emit("world_snapshot", world_snapshot(), command_id)
 
 
 func _emit_terminal(
@@ -375,6 +453,9 @@ func _emit_terminal(
 	if _terminal_commands.has(command_id):
 		return
 	_terminal_commands[command_id] = true
+	var actor_instance := actor(actor_id)
+	if status != "completed" and actor_instance != null and (actor_instance.active_command_id.is_empty() or actor_instance.active_command_id == command_id):
+		actor_instance.set_meta("action_anchor_id", "")
 	var payload := {
 		"command_id": command_id,
 		"actor_id": actor_id,
@@ -384,3 +465,4 @@ func _emit_terminal(
 	if not reason.is_empty():
 		payload["reason"] = reason
 	runtime_event.emit("intent_terminal", payload, command_id)
+	runtime_event.emit("world_snapshot", world_snapshot(), command_id)

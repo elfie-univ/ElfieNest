@@ -7,7 +7,14 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from app.orchestration.nest_session.models import RuntimeMockMotion
+from nest.public import LifePhase
+
+
+@dataclass(frozen=True)
+class ObserverEnvironmentRecord:
+    phase: LifePhase
+    lights_on: bool
+    quiet_mode: bool
 
 
 @dataclass(frozen=True)
@@ -21,7 +28,16 @@ class ObserverEntityRecord:
     species_id: str | None
     appearance: tuple[tuple[str, JsonValue], ...]
     home_anchor_id: str | None
-    mock_motion: RuntimeMockMotion | None = None
+    hosted: bool = False
+    arrival_id: str | None = None
+    arrival_started_at: float | None = None
+    action_anchor_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.action_anchor_id is not None and (
+            not isinstance(self.action_anchor_id, str) or not self.action_anchor_id
+        ):
+            raise ValueError("action_anchor_id must be a nonempty string or None")
 
 
 @dataclass(frozen=True)

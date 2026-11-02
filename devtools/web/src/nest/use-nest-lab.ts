@@ -54,7 +54,8 @@ export function useNestLab(): Readonly<{
     const query = new URLSearchParams({
       ws: runtime.websocket_url,
       nonce: runtime.nonce,
-      mode: "nest_lab",
+      mode: "authority",
+      lab: "nest_lab",
     });
     setState({
       runtime,

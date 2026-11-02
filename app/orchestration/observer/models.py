@@ -8,7 +8,11 @@ from typing import Literal, Union
 from pydantic import JsonValue
 from typing_extensions import TypeAlias
 
-from .port_models import ObserverEntityRecord, ObserverWorldIntent
+from .port_models import (
+    ObserverEntityRecord,
+    ObserverEnvironmentRecord,
+    ObserverWorldIntent,
+)
 
 
 @dataclass(frozen=True)
@@ -84,10 +88,13 @@ class ObserverEntityChangeResult:
         "posture",
         "active",
         "active_command_id",
+        "action_anchor_id",
         "species_id",
         "appearance",
         "home_anchor_id",
-        "mock_motion",
+        "hosted",
+        "arrival_id",
+        "arrival_started_at",
     ]
     value: JsonValue
 
@@ -98,6 +105,7 @@ class ObserverSnapshotResult:
     sequence: int
     scope: ObserverSubscription
     entities: tuple[ObserverProjectedEntityResult, ...]
+    environment: ObserverEnvironmentRecord | None = None
 
 
 @dataclass(frozen=True)
@@ -117,10 +125,13 @@ ObserverEntityField: TypeAlias = Literal[
     "posture",
     "active",
     "active_command_id",
+    "action_anchor_id",
     "species_id",
     "appearance",
     "home_anchor_id",
-    "mock_motion",
+    "hosted",
+    "arrival_id",
+    "arrival_started_at",
 ]
 
 

@@ -11,7 +11,6 @@ from app.orchestration.nest_session import (
     ResidentMirror,
     RuntimeConnection,
     RuntimeFailure,
-    RuntimeMockMotion,
     SceneManifest,
     SemanticWorldCatalog,
     SpeechReach,
@@ -73,21 +72,15 @@ class _SceneManifest(BaseModel):
     facilities: tuple[_ManifestFacility, ...] = ()
 
 
-class _SnapshotMockMotion(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    waypoint: int = Field(ge=0, le=5)
-    sequence: int = Field(ge=1)
-
-
 class _SnapshotActor(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     actor_id: str
     zone_id: Optional[str]
     posture: str
+    arrival_completed: bool = True
     active_command_id: Optional[str]
-    mock_motion: Optional[_SnapshotMockMotion] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     position: Optional[tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
     velocity: Optional[tuple[float, float, float]] = None
@@ -140,6 +133,7 @@ class _EnvironmentState(BaseModel):
     command_id: str
     lights_on: bool
     quiet_mode: bool
+    life_phase: str
     applied: bool
     reason: Optional[str] = None
 
@@ -202,18 +196,12 @@ def parse_world_snapshot(
                 elfie_id=actor.actor_id,
                 current_zone_id=actor.zone_id,
                 posture=actor.posture,
+                arrival_completed=actor.arrival_completed,
                 active_command_id=actor.active_command_id,
+                action_anchor_id=actor.action_anchor_id,
                 position=actor.position,
                 heading_degrees=actor.heading_degrees,
                 velocity=actor.velocity,
-                mock_motion=(
-                    RuntimeMockMotion(
-                        waypoint=actor.mock_motion.waypoint,
-                        sequence=actor.mock_motion.sequence,
-                    )
-                    if actor.mock_motion is not None
-                    else None
-                ),
             )
             for actor in snapshot.actors
         ),
@@ -263,6 +251,7 @@ def map_runtime_event(frame: RuntimeEventFrame) -> WorldEvent:
             command_id=parsed_environment.command_id,
             lights_on=parsed_environment.lights_on,
             quiet_mode=parsed_environment.quiet_mode,
+            life_phase=parsed_environment.life_phase,
             applied=parsed_environment.applied,
             reason=parsed_environment.reason,
         )

@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_reading_side_table_f1e1832cba",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M03：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "f1e1832cbaa70341d2fc2507de36bb12ac4a3c07a0b8db8e47b412d65722ddff",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_reading_side_table_f1e1832cba/versions/v001/reuse.json"
+  }
+}

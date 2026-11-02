@@ -1,0 +1,17 @@
+{
+  "object": "part:shared_games_central_table_4268ca4860",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "恢复游戏桌四处桌沿封口和两处桌腿顶部封口：六个错位部件沿 X 轴归位 0.66 米，接缝与原有边界对齐；保留全部三角面、材质、法线、UV 及家具摆放。",
+  "reuse": {
+    "identity": "4268ca4860c7522fbaadf903d725edf41d962b07c026a904420617df96ba1a99",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_games_central_table_4268ca4860/versions/v001/reuse.json"
+  },
+  "sourceSha256": "5a6ded15819c3a1ed0adedb4f632b55ceb2136f96d94f5750fe109561c114200"
+}

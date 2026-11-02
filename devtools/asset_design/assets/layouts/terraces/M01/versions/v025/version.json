@@ -32,9 +32,7 @@
     {"path": "furniture/shared_resources/source/resources/bb5fff45c851e1fb6776c997d6691e81cfba36bd112e1535dff2fa01565c2857.png", "name": "bb5fff45c851e1fb6776c997d6691e81cfba36bd112e1535dff2fa01565c2857.png", "kind": "texture", "bytes": 9641},
     {"path": "furniture/shared_resources/source/resources/c1eb0fc4b7985450fddc48a573cb3f2ed2ed67162eae420a5a64188524e86773.bin", "name": "c1eb0fc4b7985450fddc48a573cb3f2ed2ed67162eae420a5a64188524e86773.bin", "kind": "data", "bytes": 81744},
     {"path": "furniture/shared_resources/source/resources/e6b4f953d444de87ccea402bc5361b7a45145470172b00e71ca60a3e58b23e00.bin", "name": "e6b4f953d444de87ccea402bc5361b7a45145470172b00e71ca60a3e58b23e00.bin", "kind": "data", "bytes": 8712},
-    {"path": "furniture/shared_resources/source/resources/eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "name": "eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "kind": "texture", "bytes": 1081666},
-    {"path": "layouts/terraces/M01/versions/v025/images/02-front-comparison.png", "name": "02-front-comparison.png", "kind": "image", "bytes": 437386},
-    {"path": "layouts/terraces/M01/versions/v025/images/02-side-comparison.png", "name": "02-side-comparison.png", "kind": "image", "bytes": 425142}
+    {"path": "furniture/shared_resources/source/resources/eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "name": "eb232f59509e5e644c7c0b17ef57981382c31b9615daeb36cadfbe5040ea9e61.png", "kind": "texture", "bytes": 1081666}
   ],
   "designVersion": {
     "id": "layout_terrace_M01_v025",

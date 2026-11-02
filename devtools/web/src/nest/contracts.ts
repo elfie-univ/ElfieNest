@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { FIXED_BED_COUNT } from "../constants";
+
 export const runtimeSchema = z.object({
   runtime_connected: z.boolean(),
   runtime_ready: z.boolean(),
@@ -10,7 +12,7 @@ export const runtimeSchema = z.object({
 });
 
 export const worldSchema = z.object({
-  bed_count: z.number().int(),
+  bed_count: z.literal(FIXED_BED_COUNT),
   actor_count: z.number().int(),
   world_revision: z.number().int(),
   paused: z.boolean(),

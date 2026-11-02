@@ -14,8 +14,7 @@
     {"path": "furniture/shared_resources/source/resources/4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "name": "4d93227d946f5c86c9425513785e7ef850d8967641861c9b50de11f03b209c4c.png", "kind": "texture", "bytes": 929},
     {"path": "furniture/shared_resources/source/resources/c83c420397362427330842f1c927106c5088608812f85a66d26547e61d49f842.bin", "name": "c83c420397362427330842f1c927106c5088608812f85a66d26547e61d49f842.bin", "kind": "data", "bytes": 133760},
     {"path": "furniture/shared_resources/source/resources/f5ca294de86d462178896e2a8319cf6343ae83d6e62f4b2c1dca2ba283f74584.bin", "name": "f5ca294de86d462178896e2a8319cf6343ae83d6e62f4b2c1dca2ba283f74584.bin", "kind": "data", "bytes": 1104},
-    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 824},
-    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v004/images/04-front-comparison.png", "name": "04-front-comparison.png", "kind": "image", "bytes": 565733}
+    {"path": "furniture/shared_games_front_pouf_71af28b866/versions/v002/reuse.json", "name": "reuse.json", "kind": "data", "bytes": 824}
   ],
   "designVersion": {
     "id": "part_shared_games_front_pouf_71af28b866_v004",

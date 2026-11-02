@@ -1,6 +1,17 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://ui/observation_hud.gd" id="1_hud"]
+[ext_resource type="FontFile" path="res://ui/fonts/NotoSansSC-ObservationHUD.ttf" id="2_font"]
+[ext_resource type="Resource" path="res://ui/fonts/OFL.tres" id="3_font_license"]
+
+[sub_resource type="Theme" id="Theme_hud"]
+default_font = ExtResource("2_font")
+Label/fonts/font = ExtResource("2_font")
+Button/fonts/font = ExtResource("2_font")
+OptionButton/fonts/font = ExtResource("2_font")
+PopupMenu/fonts/font = ExtResource("2_font")
+TooltipLabel/fonts/font = ExtResource("2_font")
+metadata/font_license = ExtResource("3_font_license")
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
 content_margin_left = 10.0
@@ -23,6 +34,7 @@ layer = 20
 script = ExtResource("1_hud")
 
 [node name="Margin" type="MarginContainer" parent="."]
+theme = SubResource("Theme_hud")
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 476.0

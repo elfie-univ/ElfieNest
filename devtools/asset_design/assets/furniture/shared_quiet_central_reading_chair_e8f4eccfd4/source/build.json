@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_quiet_central_reading_chair_e8f4eccfd4",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：2 处源摆放，庄园共 2 次引用。layout:central:3：2。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "e8f4eccfd44ae11460b6a5c48c2178de97f9e175234bf1a516314a9e5eb1da41",
+    "category": "chair",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_central_reading_chair_e8f4eccfd4/versions/v001/reuse.json"
+  }
+}

@@ -15,6 +15,7 @@ export type SelectOption = {
   readonly group?: string
   readonly disabled?: boolean
   readonly label: string
+  readonly markerColor?: string
   readonly value: string
 }
 export type SelectOptionGroup = {
@@ -46,20 +47,28 @@ export function SelectField({
   return <FieldRow
     control={({ inputId, labelId }) => <Select disabled={disabled} onValueChange={onValueChange} value={value}>
       <SelectTrigger aria-labelledby={labelId} className="w-full bg-secondary" disabled={disabled} id={inputId}>
-        <SelectValue placeholder={placeholder}>{selectedOption?.label}</SelectValue>
+        <SelectValue placeholder={placeholder}>{selectedOption === undefined ? undefined : optionLabel(selectedOption)}</SelectValue>
       </SelectTrigger>
       <SelectContent position="popper">
         {options.map((entry) => isOptionGroup(entry)
           ? <SelectGroup key={entry.label}>
             <SelectLabel>{entry.label}</SelectLabel>
-            {entry.options.map((option) => <SelectItem disabled={option.disabled ?? false} key={option.value} value={option.value}>{option.label}</SelectItem>)}
+            {entry.options.map((option) => <SelectItem disabled={option.disabled ?? false} key={option.value} value={option.value}>{optionLabel(option)}</SelectItem>)}
           </SelectGroup>
-          : <SelectItem disabled={entry.disabled ?? false} key={entry.value} value={entry.value}>{entry.label}</SelectItem>)}
+          : <SelectItem disabled={entry.disabled ?? false} key={entry.value} value={entry.value}>{optionLabel(entry)}</SelectItem>)}
       </SelectContent>
     </Select>}
     inputId={id}
     label={label}
   />
+}
+
+function optionLabel(option: SelectOption) {
+  if (option.markerColor === undefined) return option.label
+  return <span className="inline-flex items-center gap-2">
+    <span aria-hidden="true" className="inline-block size-2.5 shrink-0 rounded-full border border-[var(--border)]" data-slot="select-marker" style={{ backgroundColor: option.markerColor }} />
+    <span>{option.label}</span>
+  </span>
 }
 
 function isOptionGroup(entry: SelectFieldOption): entry is SelectOptionGroup {

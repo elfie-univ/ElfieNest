@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .port_models import ObserverEntityRecord, ObserverWorldIntent
+from .port_models import (
+    ObserverEntityRecord,
+    ObserverEnvironmentRecord,
+    ObserverWorldIntent,
+)
 
 
 class ObserverPortError(RuntimeError):
@@ -12,6 +16,8 @@ class ObserverPortError(RuntimeError):
 
 
 class ObserverWorldPort(Protocol):
+    def read_environment(self) -> ObserverEnvironmentRecord | None: ...
+
     def list_entities(self) -> tuple[ObserverEntityRecord, ...]: ...
 
     def submit_intent(self, intent: ObserverWorldIntent) -> None: ...

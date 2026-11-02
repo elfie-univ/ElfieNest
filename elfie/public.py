@@ -21,6 +21,7 @@ from elfie.body import (
     VisionChange,
 )
 from elfie.brain.reasoning.context_types import CapabilityDescriptor
+from elfie.brain.reasoning.embodied_control import EmbodiedInputMode
 from elfie.brain.reasoning.food_port import MainFoodSelection
 from elfie.brain.reasoning.model_header import ReasoningConstitution
 from elfie.brain.reasoning.model_port import ModelPort
@@ -81,6 +82,7 @@ __all__ = [
     "Elfie",
     "ElfieFactory",
     "ElfieAssembly",
+    "EmbodiedInputMode",
     "ElfieId",
     "ElfieProfile",
     "CandidateReveal",

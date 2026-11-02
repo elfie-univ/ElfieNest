@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_niche_tall_vase_branch_8276898779",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。building:central：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "8276898779ba6770eb5fc2d7c4c59a8456a0092ca2dfee1182ab37cb7170801f",
+    "category": "plant",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_niche_tall_vase_branch_8276898779/versions/v001/reuse.json"
+  }
+}

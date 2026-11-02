@@ -87,6 +87,7 @@ from infrastructure.persistence.model_catalog import load_model_identities
 from infrastructure.persistence.nest_db.nest_management import (
     SQLiteNestManagementAdapter,
 )
+from infrastructure.persistence.nest_db.nest_state import SQLiteNestStateAdapter
 from infrastructure.persistence.ollama_status import SQLiteOllamaStatusCache
 from infrastructure.persistence.provider_availability import ProviderAvailabilityQuery
 from infrastructure.persistence.provider_catalog import load_provider_catalog
@@ -377,7 +378,13 @@ def build_application_container(
         process_identity_reader=process_identity_reader,
     )
     bodies = BodiesService(SQLiteBodiesAdapter(db_path))
-    embodiment = EmbodimentSessionService(SQLiteEmbodimentLeaseAdapter(db_path))
+    if nest_session is not None:
+        nest_session.attach_resident_lifecycle_source(
+            SQLiteNestStateAdapter(db_path, nest_config=nest_config)
+        )
+    embodiment = EmbodimentSessionService(
+        SQLiteEmbodimentLeaseAdapter(db_path), nest=nest_session
+    )
     body_gateway = DeviceGateway()
     observer = build_observer_facade(
         accounts=accounts,

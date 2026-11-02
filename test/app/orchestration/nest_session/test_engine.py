@@ -37,6 +37,20 @@ def test_tick_drains_world_events_before_advancing_time() -> None:
     assert engine.nest.elapsed_seconds == 2.5
 
 
+def test_engine_uses_injected_local_clock_for_lighting_without_aging_residents() -> (
+    None
+):
+    from datetime import datetime, timedelta, timezone
+
+    current = datetime(2026, 10, 27, 23, 59, tzinfo=timezone(timedelta(hours=8)))
+    engine = ElfieNestEngine(FakeWorldRuntime(), local_time=lambda: current)
+    assert engine.nest.desired_environment.quiet_mode is False
+    current = current.replace(day=28, hour=0, minute=0)
+    engine.tick_once(1.5)
+    assert engine.nest.elapsed_seconds == 1.5
+    assert engine.nest.desired_environment.quiet_mode is True
+
+
 def test_unbounded_engine_loop_runs_until_an_explicit_stop() -> None:
     engine = ElfieNestEngine(FakeWorldRuntime(), tick_interval_sec=0.001)
     thread = Thread(

@@ -385,3 +385,33 @@ def test_core_serves_the_packaged_godot_bundle_from_its_environment(
 
     assert response.status_code == 200
     assert response.text == "packaged-godot"
+
+
+def test_godot_bundle_revalidates_fixed_names_after_rebuild(tmp_path, monkeypatch):
+    build_dir = _web_build(tmp_path)
+    godot_dir = tmp_path / "godot-web"
+    godot_dir.mkdir()
+    pack = godot_dir / "elfienest.pck"
+    pack.write_bytes(b"old-pack")
+    monkeypatch.setenv("ELFIENEST_GODOT_WEB_DIR", str(godot_dir))
+    application = create_app(
+        engine=None,
+        db_path=str(tmp_path / "nest.db"),
+        web_build_dir=build_dir,
+    )
+    with TestClient(application) as client:
+        first = client.get("/runtime/godot/elfienest.pck")
+        assert first.headers["cache-control"] == "no-cache, must-revalidate"
+        same = client.get(
+            "/runtime/godot/elfienest.pck",
+            headers={"If-None-Match": first.headers["etag"]},
+        )
+        assert same.status_code == 304
+        assert same.headers["cache-control"] == first.headers["cache-control"]
+        pack.write_bytes(b"new-built-pack")
+        fresh = client.get(
+            "/runtime/godot/elfienest.pck",
+            headers={"If-None-Match": first.headers["etag"]},
+        )
+        assert fresh.status_code == 200
+        assert fresh.content == b"new-built-pack"

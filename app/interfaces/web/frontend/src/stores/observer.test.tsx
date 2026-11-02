@@ -1,21 +1,27 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
+import { I18nextProvider } from "react-i18next"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { closeObserverSession, nextObserverFrame, openObserverSession, type ObserverFrame } from "../api/observer"
 import { ApiError } from "../api/http"
+import { ObservationMonitor } from "../components/ObservationMonitor"
+import { createI18n } from "../i18n/config"
 import { ObserverProvider, useOptionalObserver } from "./observer"
 
-vi.mock("../api/observer", () => ({
+const { assetGet } = vi.hoisted(() => ({ assetGet: vi.fn() }))
+vi.mock("ky", () => ({ default: { get: assetGet } }))
+
+vi.mock("../api/observer", async () => ({
+  ...await vi.importActual<typeof import("../api/observer")>("../api/observer"),
   closeObserverSession: vi.fn().mockResolvedValue(undefined),
   nextObserverFrame: vi.fn().mockResolvedValue(null),
   openObserverSession: vi.fn().mockResolvedValue({ capability: "observer-capability", idleTimeoutSeconds: 120 }),
-  warmObserverAssets: vi.fn().mockResolvedValue(undefined),
 }))
 
 function TestObserver() {
   const observer = useRequiredObserver()
   return <>
-    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 4 }) }} type="button">打开房间</button>
+    <button onClick={() => { void observer.openRoom("local-nest", { channel: "elfienest.observer", version: 1, kind: "world_config", nest_id: "local-nest", bed_count: 32 }) }} type="button">打开房间</button>
     <button onClick={() => { void observer.openElfie("saevi-1") }} type="button">打开精灵</button>
     <button onClick={observer.detach} type="button">离开 3D</button>
     <p>{observer.status}</p>
@@ -47,6 +53,59 @@ beforeEach(() => {
 })
 
 describe("ObserverProvider", () => {
+  it("leaves runtime payload downloads to the Godot loader", async () => {
+    assetGet.mockClear()
+    render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 10)) })
+    expect(assetGet).not.toHaveBeenCalled()
+  })
+
+  it("reuses its capability check when reopening a ready observer", async () => {
+    const loseContext = vi.fn()
+    const getContext = vi.fn(() => ({ getExtension: () => ({ loseContext }) }))
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: getContext })
+    render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+      await act(async () => {})
+    }
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(loseContext).toHaveBeenCalledTimes(1)
+    expect(openObserverSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops a lost WebGL renderer without alerts or automatic reconnect on focus", async () => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe")
+    if (!engine?.contentDocument || !engine.contentWindow) throw new Error("observer iframe missing")
+    engine.contentDocument.open()
+    engine.contentDocument.write("<html><body></body></html>")
+    engine.contentDocument.close()
+    const canvas = engine.contentDocument.createElement("canvas")
+    engine.contentDocument.body.appendChild(canvas)
+    fireEvent.load(engine)
+    window.dispatchEvent(new MessageEvent("message", {
+      data: "elfienest:godot-web-ready", origin: window.location.origin, source: engine.contentWindow,
+    }))
+    await act(async () => {})
+    expect(screen.getByText("ready")).toBeInTheDocument()
+    const engineAlert = vi.fn()
+    canvas.addEventListener("webglcontextlost", engineAlert)
+    await act(async () => { canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })) })
+    expect(engineAlert).not.toHaveBeenCalled()
+    expect(screen.getByText("fallback")).toBeInTheDocument()
+    expect(container.querySelector("iframe")).toBeNull()
+    await act(async () => { window.dispatchEvent(new Event("online")); document.dispatchEvent(new Event("visibilitychange")) })
+    expect(container.querySelector("iframe")).toBeNull()
+    expect(screen.getByText("fallback")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    expect(container.querySelector("iframe")).not.toBeNull()
+  })
+
   it("accepts only the same-origin ready message from its observer iframe", async () => {
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
     const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
@@ -70,7 +129,7 @@ describe("ObserverProvider", () => {
       version: 1,
       kind: "world_config",
       nest_id: "local-nest",
-      bed_count: 4,
+      bed_count: 32,
     }, window.location.origin)
   })
 
@@ -78,6 +137,7 @@ describe("ObserverProvider", () => {
     const snapshot = {
       protocol: 3,
       kind: "snapshot",
+      environment: { phase: "day", lights_on: false, quiet_mode: false },
       generation: 1,
       sequence: 1,
       scope: { kind: "room", room_id: "local-nest" },
@@ -88,10 +148,13 @@ describe("ObserverProvider", () => {
           posture: "resting",
           active: true,
           active_command_id: null,
+          action_anchor_id: "dorm-01/chair-01",
           species_id: "saevi",
           appearance: {},
           home_anchor_id: "dorm-01/bed-01",
-          mock_motion: null,
+          hosted: false,
+          arrival_id: null,
+          arrival_started_at: null,
         },
       },
       entity_revisions: { "saevi-1": 1 },
@@ -124,6 +187,7 @@ describe("ObserverProvider", () => {
 
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: "semantic_snapshot",
+      environment: snapshot.environment,
       entities: expect.objectContaining({ "saevi-1": expect.any(Object) }),
     }), window.location.origin)
     expect(postMessage.mock.calls.filter(([value]) => (
@@ -234,6 +298,118 @@ describe("ObserverProvider", () => {
     expect(container.querySelectorAll("iframe[title='ElfieNest 3D Observer']")).toHaveLength(1)
   })
 
+  it("keeps a ready view visible while its observer lease is renewed", async () => {
+    let expireFrame: ((reason: unknown) => void) | undefined
+    let renewSession: ((session: Awaited<ReturnType<typeof openObserverSession>>) => void) | undefined
+    vi.mocked(nextObserverFrame).mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      expireFrame = reject
+    }))
+    vi.mocked(openObserverSession)
+      .mockResolvedValueOnce({ capability: "old-capability", idleTimeoutSeconds: 120 })
+      .mockImplementationOnce(() => new Promise((resolve) => { renewSession = resolve }))
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe")
+    if (!engine?.contentWindow || expireFrame === undefined) throw new Error("observer iframe missing")
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: "elfienest:godot-web-ready", origin: window.location.origin, source: engine.contentWindow,
+      }))
+    })
+    expect(screen.getByText("ready")).toBeInTheDocument()
+
+    await act(async () => { expireFrame?.(new ApiError(410, "expired", [], "observer_session_expired")) })
+
+    expect(openObserverSession).toHaveBeenCalledTimes(2)
+    expect(container.querySelector("iframe")).toBe(engine)
+    expect(screen.getByText("ready")).toBeInTheDocument()
+    expect(screen.queryByText("loading")).not.toBeInTheDocument()
+
+    if (renewSession === undefined) throw new Error("observer lease renewal missing")
+    await act(async () => { renewSession?.({ capability: "renewed-capability", idleTimeoutSeconds: 120 }) })
+
+    expect(nextObserverFrame).toHaveBeenLastCalledWith("renewed-capability", null, expect.any(AbortSignal))
+    expect(container.querySelector("iframe")).toBe(engine)
+    expect(screen.getByText("ready")).toBeInTheDocument()
+  })
+
+  it("keeps the real monitor uncovered through twenty delayed lease renewals", async () => {
+    const pendingFrames: Array<(reason: unknown) => void> = []
+    const pendingRenewals: Array<(session: Awaited<ReturnType<typeof openObserverSession>>) => void> = []
+    vi.mocked(nextObserverFrame).mockImplementation(() => new Promise((_resolve, reject) => {
+      pendingFrames.push(reject)
+    }))
+    vi.mocked(openObserverSession)
+      .mockImplementation(() => new Promise((resolve) => { pendingRenewals.push(resolve) }))
+      .mockResolvedValueOnce({ capability: "initial-capability", idleTimeoutSeconds: 120 })
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(
+      <I18nextProvider i18n={createI18n()}>
+        <ObserverProvider csrfToken="csrf" enabled>
+          <ObservationMonitor mode="standalone" roomId="local-nest" />
+        </ObserverProvider>
+      </I18nextProvider>,
+    )
+    await act(async () => {})
+    const overlay = (): Element | null => container.querySelector(".observer-surface__fallback[role='status']")
+    const engine = container.querySelector<HTMLIFrameElement>("iframe")
+    if (!engine?.contentWindow) throw new Error("observer iframe missing")
+    expect(overlay()).not.toBeNull()
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: "elfienest:godot-web-ready", origin: window.location.origin, source: engine.contentWindow,
+      }))
+    })
+    expect(overlay()).toBeNull()
+
+    for (let cycle = 1; cycle <= 20; cycle += 1) {
+      const expireFrame = pendingFrames.shift()
+      if (expireFrame === undefined) throw new Error("observer poll missing")
+      await act(async () => { expireFrame(new ApiError(410, "expired", [], "observer_session_expired")) })
+
+      expect(openObserverSession).toHaveBeenCalledTimes(cycle + 1)
+      expect(overlay(), `loading overlay during renewal ${cycle}`).toBeNull()
+      expect(container.querySelectorAll("iframe")).toHaveLength(1)
+      expect(container.querySelector("iframe")).toBe(engine)
+
+      const renewSession = pendingRenewals.shift()
+      if (renewSession === undefined) throw new Error("observer lease renewal missing")
+      await act(async () => { renewSession({ capability: `renewed-${cycle}`, idleTimeoutSeconds: 120 }) })
+
+      expect(overlay(), `loading overlay after renewal ${cycle}`).toBeNull()
+      expect(nextObserverFrame).toHaveBeenLastCalledWith(`renewed-${cycle}`, null, expect.any(AbortSignal))
+      expect(container.querySelector("iframe")).toBe(engine)
+    }
+  })
+
+  it("shows loading when switching a ready renderer to another observer scope", async () => {
+    vi.mocked(openObserverSession)
+      .mockResolvedValueOnce({ capability: "room-capability", idleTimeoutSeconds: 120 })
+      .mockImplementationOnce(() => new Promise(() => {}))
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
+    const { container } = render(<ObserverProvider csrfToken="csrf" enabled><TestObserver /></ObserverProvider>)
+    fireEvent.click(screen.getByRole("button", { name: "打开房间" }))
+    await act(async () => {})
+    const engine = container.querySelector<HTMLIFrameElement>("iframe")
+    if (!engine?.contentWindow) throw new Error("observer iframe missing")
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: "elfienest:godot-web-ready", origin: window.location.origin, source: engine.contentWindow,
+      }))
+    })
+    expect(screen.getByText("ready")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "打开精灵" }))
+    await act(async () => {})
+
+    expect(screen.getByText("loading")).toBeInTheDocument()
+    expect(container.querySelector("iframe")).toBe(engine)
+    expect(openObserverSession).toHaveBeenLastCalledWith({ kind: "elfie", elfie_id: "saevi-1" }, "csrf")
+  })
+
   it("keeps the renderer and retries a transient frame failure", async () => {
     vi.useFakeTimers()
     vi.mocked(nextObserverFrame)
@@ -328,6 +504,7 @@ describe("ObserverProvider", () => {
     const snapshot = {
       protocol: 3,
       kind: "snapshot",
+      environment: null,
       generation: 1,
       sequence: 1,
       scope: { kind: "elfie", elfie_id: "saevi-1" },
@@ -338,10 +515,13 @@ describe("ObserverProvider", () => {
           posture: "resting",
           active: true,
           active_command_id: "rest-1",
+          action_anchor_id: "dorm-01/bed-01",
           species_id: null,
           appearance: {},
           home_anchor_id: null,
-          mock_motion: null,
+          hosted: false,
+          arrival_id: null,
+          arrival_started_at: null,
         },
       },
       entity_revisions: { "saevi-1": 1 },
@@ -354,7 +534,7 @@ describe("ObserverProvider", () => {
       scope: { kind: "elfie", elfie_id: "saevi-1" },
       entity_id: "saevi-1",
       entity_revision: 2,
-      patch: { zone_id: null, active_command_id: null },
+      patch: { zone_id: null, active_command_id: null, action_anchor_id: null },
     } satisfies ObserverFrame
     vi.mocked(nextObserverFrame).mockResolvedValueOnce(snapshot).mockResolvedValueOnce(cleared)
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => ({}) })
@@ -362,14 +542,14 @@ describe("ObserverProvider", () => {
     function SemanticProbe() {
       const observer = useRequiredObserver()
       const entity = observer.entities["saevi-1"]
-      return <><button onClick={() => { void observer.openElfie("saevi-1") }} type="button">观察 Saevi</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}</p></>
+      return <><button onClick={() => { void observer.openElfie("saevi-1") }} type="button">观察 Saevi</button><p>{entity?.zone_id ?? "无区域"}|{entity?.active_command_id ?? "无命令"}|{entity?.action_anchor_id ?? "无目标"}</p></>
     }
 
     render(<ObserverProvider csrfToken="csrf" enabled><SemanticProbe /></ObserverProvider>)
     fireEvent.click(screen.getByRole("button", { name: "观察 Saevi" }))
     await act(async () => {})
-    expect(screen.getByText("dorm|rest-1")).toBeInTheDocument()
+    expect(screen.getByText("dorm|rest-1|dorm-01/bed-01")).toBeInTheDocument()
     await act(async () => { vi.advanceTimersByTime(1000) })
-    expect(screen.getByText("无区域|无命令")).toBeInTheDocument()
+    expect(screen.getByText("无区域|无命令|无目标")).toBeInTheDocument()
   })
 })

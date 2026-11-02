@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_rubber_tree_planter_dddf795435",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：4 处源摆放，庄园共 4 次引用。layout:central:2：4。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "dddf795435d9cbe81ea2cfb19678206dc59aa9197541fdf60aa85377ffa3986a",
+    "category": "plant",
+    "sourceReferences": 4,
+    "estateReferences": 4,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_rubber_tree_planter_dddf795435/versions/v001/reuse.json"
+  }
+}

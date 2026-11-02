@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_theme_lower_fitted_doors_e0f2be378b",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M03：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "e0f2be378b2953af3354cd752616e79178bde8418db30cb154bc735b8e0c87fe",
+    "category": "cabinet_component",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_theme_lower_fitted_doors_e0f2be378b/versions/v001/reuse.json"
+  }
+}

@@ -131,6 +131,7 @@ class Nest:
         """Restore the complete durable resident and world semantic state."""
         self._desired_bed_count = snapshot.desired_bed_count
         self._time_environment.elapsed_seconds = snapshot.elapsed_seconds
+        self._time_environment.local_seconds = None
         self._time_environment.clock_paused = snapshot.clock_paused
         self._time_environment.time_scale = snapshot.time_scale
         self._time_environment.set_environment_desired(snapshot.environment_desired)
@@ -188,6 +189,10 @@ class Nest:
 
     def resident_state(self, elfie_id: str) -> Optional[ResidentState]:
         return self._living_rules.residents.get(elfie_id)
+
+    def set_resident_hosted(self, elfie_id: str, hosted: bool) -> None:
+        """Project App's embodiment transition; the virtual body remains at home."""
+        self._living_rules.set_hosted(elfie_id, hosted)
 
     def runtime_mirror(self, elfie_id: str) -> RuntimeResidentMirror | None:
         return self._living_rules.runtime_mirrors.get(elfie_id)
@@ -528,12 +533,13 @@ class Nest:
         self._space.clear_runtime_projections()
         self._interaction.invalidate_runtime_state()
 
-    def tick(self, seconds: float) -> None:
+    def tick(self, seconds: float, *, local_time: datetime | None = None) -> None:
         previous_phase = self.life_phase
         previous_environment = self.desired_environment
         self._time_driver.tick(
             seconds,
             environment_override=self._living_rules.environment_override,
+            local_time=local_time,
         )
         current_phase = self.life_phase
         current_environment = self.desired_environment

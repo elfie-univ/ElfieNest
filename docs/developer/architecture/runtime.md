@@ -73,7 +73,7 @@ authority credentials.
 
 For the product Observer, Godot owns the complete, versioned camera catalog.
 Each strict catalog envelope carries semantic view `id` and `label` values,
-`active_id`, a positive `revision`, and `presentation_paused`. It describes the
+`active_id`, a positive `revision` and `presentation_paused`. It describes the
 currently selectable views without exporting camera coordinates, transforms or
 room geometry. React consumes that catalog and may emit only the closed semantic
 commands `overview`, `select`, `reset` and `set_local_presentation_paused`.
@@ -88,17 +88,52 @@ Runtime, Gateway, Core or backend simulation.
 
 The product Observer may also receive a strict semantic entity snapshot for
 view-only presentation. Each entity carries identity, species, appearance,
-room/zone state and a semantic `home_anchor_id`; it never carries coordinates,
+room/zone state, a semantic `home_anchor_id` and nullable `action_anchor_id`; it never carries coordinates,
 transforms, navigation or collision facts. Godot resolves that anchor locally
-and owns actor placement and rendering. As a temporary removable behavior, the
-authority may additionally publish `mock_motion: {waypoint, sequence}`. The
-waypoint is resolved locally against the room NavMesh; Observer clients replay
-it and never choose random targets. The React bridge accepts and forwards only
+and owns actor placement and rendering. The action anchor, posture and active
+command are projected from authority snapshots at action start and completion.
+Observer replays walking and authored bed/seat poses against its own identical
+scene; duplicate or stale snapshots do not restart actions. Local pause stops
+display physics only. Product-local random wandering and synthetic waypoint snapshots have been removed.
+Unknown action anchors do not fall back to a fabricated home state. Nest Lab retains
+its isolated Python scheduler, which sends real semantic movement commands.
+The React bridge accepts and forwards only
 same-origin, validated snapshots to the current Observer iframe.
 
-`/monitor` is an Owner/Admin full observation page. The Owner/Admin Nest-management
+Fixed-camera monitoring opens at the garden overview and uses only left-drag look-in-place, right-drag horizontal track movement and wheel zoom, without an operation-mode selector. Movement stays inside the preset floor/region. Reset beside the fixed-view selector restores the current camera’s default position, orientation and zoom without selecting another subject. Elfie views retain follow and first-person perspectives and do not show Reset. Camera and playback controls do not change authority state.
+
+`/monitor` is a signed-in observation page. The Owner/Admin Nest-management
 dialog embeds the same `ObservationMonitor` surface and bridge rather than a
 separate camera implementation.
+
+The monitor toolbar keeps view controls on the left and pause/resume on the right,
+without a vertical divider. Normal `/monitor` follows the live environment and hides
+time preview. Opening `/monitor?debug=1` exposes local lighting previews; every page
+load starts at live time, with no saved preview. The parameter grants no additional
+permissions and previews do not change Nest time or resident behavior. On mobile,
+the toolbar sits below the scene, view controls scroll horizontally, pause/resume
+stays visible on the right, and debug time preview occupies a second row.
+Fixed views are grouped into Courtyard (2), Main Building (4) and Bedrooms (16).
+Bedroom options and the selected view carry a small marker matching the building's
+exterior color; room and floor labels and the standard selection background stay unchanged.
+Monitoring starts
+with the garden overview selected initially. The first control is a two-button group,
+Fixed cameras / Elfie views, with the active mode highlighted. Fixed mode then shows
+the camera selector and Reset; Elfie mode shows the resident and perspective selectors.
+Overview is a camera preset without a separate button. Switching to a preset restores its default pose.
+The Elfie selector uses the owned directory for ordinary users and the protected
+administrator directory for Admin/Owner accounts, with follow and first-person
+choices; residents absent from the scene cannot be selected. The backend Observer
+filters ordinary users to owned residents for both room and Elfie scopes; managers
+can observe all residents. The product Observer
+registers both cameras per resident. Only an explicit Elfie-scoped snapshot initially
+focuses that resident; room monitoring never selects an arbitrary resident. These
+cameras change only the display view, not resident movement or authority state. Follow motion and obstacle-distance changes are smoothed;
+other residents do not trigger camera occlusion zoom. A blocked follow camera
+prefers a stable clear side around the resident instead of shrinking into its body;
+the clearance distance also accounts for the resident's collision height. Completed semantic actions
+are replayed by walking to the local anchor before presenting the final pose,
+not by teleporting the display actor to the destination.
 
 The closed local navigation intents are `request_resync`, `focus_room` and
 `focus_elfie`. The only world-changing request is the separately authorized,
@@ -106,6 +141,70 @@ rate-limited high-level `request_interaction` (`greet` or `rest`), which goes to
 the world sink through the application boundary. The first Observer phase is
 not a camera/video transport: it does not send JPEG frames or provide a camera
 stream API.
+
+The Monitor defaults to an automatic cycle: the complete 80-second fixed show, a four-second transition, a 384-second seeded random round, and a four-second return transition. The cycle repeats every 472 seconds. The random choreography contains Six central gestures
+(breathing, building, accents, flower opening, alternating petals and travelling
+petals) accompany sixteen outer actions: breathing, alternating and opposite
+pairs, double waves, cumulative rise/fall, retained height stairs, rotating stairs,
+overlapping/paired/growing inward chases, dome opening, and four mixed-direction
+patterns. Eight ensemble families coordinate the centre and perimeter rather than
+choosing their gestures independently. Each 24-second phrase returns to a live
+neutral pose; groups reduce pressure separately while changing direction. Seeded
+sixteen-action rounds avoid immediate repetition and vary direction, peak height,
+speed and four coordinated palettes. Outer jets are capped at 4 m and the centre
+at 6 m. Each petal and outer nozzle sends its own height, direction and landing to
+the existing spray/ripple pipeline; the 2304-particle ceiling remains unchanged.
+The same seed and elapsed presentation time replay identically, including after
+offscreen skips.
+The Monitor URL accepts `fountain=fixed` to select the preserved show, or
+`fountain=random&fountain_seed=42` for a repeatable random sequence; `fountain=auto` selects the automatic cycle. These are
+presentation-only settings, with no changes to authoritative world state.
+
+The retained fixed fountain follows a silent 80-second presentation score at nine fixed
+nozzle positions. From 0–28 seconds, the central eight-petal flower grows from
+3.3 to 4.6 m, accompanied by low, then alternating vertical outer jets. From
+28–40 seconds, pressure drops during the change of direction: the centre becomes
+a main plume and the outer eight jets arch inward, landing 0.75 m from the centre.
+The main plume reaches 6 m during 40–50 seconds. During 50–66 seconds the outer
+jets return upright while the central flower opens to its separate 6 m peak;
+66–80 seconds relaxes smoothly back to the opening. The outer nozzle ring remains
+about 4 m from the centre, with the spillway between adjacent nozzles.
+Vertical water has a tapering white core and a wider falling spray envelope near
+the water, without an enlarged crown. A shared GPU batch of at most 2,304 small
+water fragments provides spray and impact splashes. Seventeen possible landing
+regions (main, outer eight, flower eight) share positions and pressure between
+spray and water-surface foam/ripples; inactive landings disappear. Night colours
+follow the active shapes, with a warm main plume and cool arches/flower accents.
+Moving waves reach the inner wall and continue as two fading spillway arcs,
+without increasing coping brightness or adding shadow-casting lights. A 250 ms camera/frustum and
+line-of-sight check suspends animation updates and the local light off screen or
+behind solid geometry; distant views omit the droplets. Returning to view samples
+the elapsed score directly. Monitor pause and page-background suspension freeze
+presentation without changing the authoritative world.
+
+## Complete-estate physics and furniture actions
+
+`godot_project/rooms/nest.tscn` remains the single world entry. The complete
+estate's authored module, floor and furniture metadata bind its physical
+colliders and stable interaction anchors; the retired procedural-room coordinates
+are not reused. Mirrored render nodes are converted into positive-handed physics
+frames without moving the visible geometry. The garden's authored collision
+proxies are reused rather than baking the foliage into navigation.
+
+World readiness requires synchronized navigation regions and valid paths from
+advertised anchors to the courtyard, not merely a nonempty navigation resource.
+The estate exposes a fixed 32-bed semantic catalogue without duplicating the estate.
+
+The native Body exposes `furniture.use` with only `anchor_id` as an argument.
+It lowers through the existing authenticated `execute_intent` command to
+`use_anchor`; callers cannot supply coordinates or a pose. The same command
+physically navigates to the object's approach marker before entering its authored
+sleeping or sitting pose. It retains the original intent/body-generation identity
+and exactly one terminal result. A plain `move_to_anchor` never uses furniture.
+Occupied furniture, unavailable paths, invalid contact metadata and blocked exit
+positions fail explicitly. Walking away restores the standing body and collisions.
+These operations remain Godot-owned; they do not add a Python geometry model,
+a second Gateway, or an Observer simulation authority.
 
 ## Runtime artifact contract
 

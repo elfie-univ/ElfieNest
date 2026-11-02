@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_wall_fitted_gaming_sofa_9e642f1843",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M02：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "9e642f18431d5176fd510f68eab1c8cc546cfb9cdf7f96998f6e96319d00218c",
+    "category": "sofa",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_wall_fitted_gaming_sofa_9e642f1843/versions/v001/reuse.json"
+  }
+}

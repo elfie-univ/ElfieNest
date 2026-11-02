@@ -22,7 +22,9 @@
   建筑归 `buildings/`，布置归 `layouts/`，家具归 `furniture/`，庭院归 `landscape/`。
   每个对象用 `source/model.glb`、`source/build.json` 保存编辑输入，用
   `versions/vNNN/model.glb`、`version.json`、`images/` 保存发布快照，参考图放对象的 `references/`。
-- `catalog.json` 是加载与文件归属依据；`adoptions.json` 保存确认记录。生成或优化单个对象后，
+- `catalog.json` 列出对象索引与全局图片关联；对象 `object.json` 保存公共信息和版本清单，
+  各版本 `version.json` 是该版文件登记与详情的唯一保存位置。通过 `catalog_store` 统一读写，
+  不恢复总目录中的版本副本，不自动扫描纳入未登记版本；`adoptions.json` 保存确认记录。生成或优化单个对象后，
   通过 `object_assets publish --object ... --image ... --reference ...` 登记，不能只把文件扔入目录。
   新版本不自动确认。`workspace scan` 核对登记文件与确认内容；缓存和清理备份只写根 `build/asset_design/`。
 - 不直接运行迁移保留的历史生成脚本：它们仅作来源材料；后续生成器以当前对象的 source 目录为输入，

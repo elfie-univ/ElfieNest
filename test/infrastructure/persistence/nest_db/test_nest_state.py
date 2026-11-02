@@ -24,6 +24,17 @@ from nest.time_environment.models import (
 )
 
 
+def test_resident_lifecycle_is_derived_from_final_adoption_and_lease(tmp_path) -> None:
+    db_path = str(tmp_path / "nest.db")
+    init_db(db_path)
+    _seed_elfie(db_path)
+    facts = SQLiteNestStateAdapter(db_path).resident_lifecycle()
+    assert set(facts) == {"00000001"}
+    assert not facts["00000001"].hosted
+    # An elfies row alone is not a fresh arrival event.
+    assert facts["00000001"].arrival_id is None
+
+
 def _seed_elfie(db_path: str) -> None:
     with get_db(db_path) as connection:
         connection.execute(
@@ -52,7 +63,7 @@ def _seed_elfie(db_path: str) -> None:
         )
         connection.execute(
             "INSERT INTO nest_settings(nest_id, bed_count, tick_interval_sec) "
-            "VALUES ('local-nest', 4, 1.0)"
+            "VALUES ('local-nest', 32, 1.0)"
         )
         connection.execute(
             "UPDATE nest_settings SET world_catalog_json=? WHERE nest_id='local-nest'",
@@ -74,7 +85,7 @@ def test_state_store_persists_runtime_catalog_revision_and_presence(tmp_path) ->
     catalog = WorldCatalog(nest_id="local-nest", revision=3, zones=())
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=catalog,
             residents=(
@@ -106,7 +117,7 @@ def test_query_uses_public_defaults_without_writing_configuration(tmp_path) -> N
 
     snapshot = SQLiteNestStateAdapter(db_path).load_snapshot()
 
-    assert snapshot.desired_bed_count == 4
+    assert snapshot.desired_bed_count == 32
     assert snapshot.elapsed_seconds == 0.0
     with get_db(db_path) as connection:
         assert (
@@ -153,7 +164,7 @@ def test_state_store_restores_clock_and_environment_rules(tmp_path) -> None:
 
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=7200.0,
             catalog=None,
             residents=(),
@@ -181,7 +192,7 @@ def test_runtime_catalog_before_setup_does_not_create_configuration(tmp_path) ->
 
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=WorldCatalog(nest_id="local-nest", revision=1, zones=()),
             residents=(),
@@ -207,7 +218,7 @@ def test_remove_resident_keeps_elfie_and_clears_home_anchor(tmp_path) -> None:
     state_store = SQLiteNestStateAdapter(db_path)
     state_store.save_snapshot(
         NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),
@@ -259,3 +270,48 @@ def test_state_store_exposes_persisted_bed_as_semantic_home_anchor(
             home_anchor_id=anchor_id,
         )
     }
+
+
+def test_missing_settings_uses_owner_lighting_defaults_without_writing(
+    tmp_path,
+) -> None:
+    from nest import Nest
+
+    db_path = init_db(str(tmp_path / "nest.db"))
+    nest = Nest()
+    nest.restore_snapshot(SQLiteNestStateAdapter(db_path).load_snapshot())
+    nest.tick(12 * 3600)
+
+    assert nest.desired_environment == EnvironmentDesiredState(
+        lights_on=False, quiet_mode=False
+    )
+    with get_db(db_path) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM nest_settings").fetchone()[0] == 0
+        )
+
+
+def test_persisted_empty_lighting_schedule_is_not_replaced_by_defaults(
+    tmp_path,
+) -> None:
+    db_path = init_db(str(tmp_path / "nest.db"))
+    adapter = SQLiteNestStateAdapter(db_path)
+    adapter.initialize_snapshot(
+        NestSnapshot(
+            desired_bed_count=32,
+            elapsed_seconds=12 * 3600,
+            catalog=None,
+            residents=(),
+            environment_rules=(),
+            environment_desired=EnvironmentDesiredState(
+                lights_on=True, quiet_mode=True
+            ),
+        )
+    )
+
+    restored = adapter.load_snapshot()
+
+    assert restored.environment_rules == ()
+    assert restored.environment_desired == EnvironmentDesiredState(
+        lights_on=True, quiet_mode=True
+    )

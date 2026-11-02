@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_rear_cabinet_conformal_liner_b54665fee0",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：8 处源摆放，庄园共 8 次引用。layout:terrace:M01：1；layout:terrace:M02：1；layout:terrace:M03：1；layout:terrace:M04：1；layout:terrace:M05：1；layout:terrace:M06：1；layout:terrace:M07：1；layout:terrace:M08：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "b54665fee0bd8f9e5c5cafdc4f7a86f98d69bc9b9ddaa5bc622e7c61ad78c2c9",
+    "category": "cabinet_component",
+    "sourceReferences": 8,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_rear_cabinet_conformal_liner_b54665fee0/versions/v001/reuse.json"
+  }
+}

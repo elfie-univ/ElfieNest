@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_quiet_right_journaling_chair_28f34cdd2b",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：2 处源摆放，庄园共 2 次引用。layout:central:3：2。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "28f34cdd2bf8dffc4c1b62030c20b698e7d8a560adcfe4c03564793ed21d9a3c",
+    "category": "chair",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_quiet_right_journaling_chair_28f34cdd2b/versions/v001/reuse.json"
+  }
+}

@@ -1,1 +1,4 @@
 *.bin -diff
+godot_project/rooms/estate/ElfieNest-complete-final.glb filter=lfs diff=lfs merge=lfs -text
+godot_project/rooms/estate/ElfieNest-complete-final.instances.bin filter=lfs diff=lfs merge=lfs -text
+devtools/asset_design/assets/landscape/site/**/*.glb filter=lfs diff=lfs merge=lfs -text

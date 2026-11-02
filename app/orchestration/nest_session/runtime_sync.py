@@ -35,9 +35,6 @@ from nest.public import (
     WorldCatalog,
     ZoneDescriptor,
 )
-from nest.public import (
-    RuntimeMockMotion as NestRuntimeMockMotion,
-)
 
 ActorCatalogProvider = Callable[[], tuple[ActorDescriptor, ...]]
 
@@ -230,6 +227,7 @@ class NestRuntimeSynchronizer:
                     species=descriptor.species,
                     appearance=descriptor.appearance,
                     spawn_anchor_id=spawn_anchor_id,
+                    lifecycle=descriptor.lifecycle,
                 )
             )
         command_id = self._world_runtime.synchronize_actors(
@@ -337,18 +335,12 @@ def _nest_mirror(
         elfie_id=mirror.elfie_id,
         current_zone_id=mirror.current_zone_id,
         posture=mirror.posture,
+        arrival_completed=mirror.arrival_completed,
         active_command_id=mirror.active_command_id,
+        action_anchor_id=mirror.action_anchor_id,
         position=mirror.position,
         heading_degrees=mirror.heading_degrees,
         velocity=mirror.velocity,
-        mock_motion=(
-            NestRuntimeMockMotion(
-                waypoint=mirror.mock_motion.waypoint,
-                sequence=mirror.mock_motion.sequence,
-            )
-            if mirror.mock_motion is not None
-            else None
-        ),
         runtime_id=runtime_id,
         runtime_generation=runtime_generation,
         world_revision=world_revision,

@@ -4,48 +4,32 @@ extends Node3D
 
 signal observer_camera_catalog_changed(catalog: Dictionary)
 
-const D := preload("res://rooms/room_dimensions.gd")
-const G := preload("res://rooms/room_geometry.gd")
-const P := preload("res://rooms/assets/themes/room_palette.gd")
-const SPATIAL_QUERIES := preload("res://runtime/world/spatial_queries.gd")
-const SEMANTIC_SCENE_INDEX := preload("res://runtime/world/semantic_scene_index.gd")
-const ACTIVITY_ROOM_SCENE := preload("res://rooms/activity_room.tscn")
-const DORM_ROOM_SCENE := preload("res://rooms/dorm_room.tscn")
-const PORTAL_ROOM_SCENE := preload("res://rooms/portal_room.tscn")
-const MURAL_TEXTURE := preload("res://rooms/assets/artwork/gallery/img1.jpg")
+const ESTATE_LIGHTING := preload("res://rooms/estate/estate_lighting.gd")
+const COMPLETE_SCENE_PATH := "res://rooms/estate/estate.tscn"
+const ESTATE_PHYSICS := preload("res://rooms/estate/estate_physics.gd")
+const ESTATE_SEMANTICS := preload("res://rooms/estate/estate_semantics.gd")
+const AUTHORITY_SCENE := preload("res://rooms/estate/estate_authority_scene.gd")
+const COLLISION_LAYERS := preload("res://runtime/world/collision_layers.gd")
+const FIXED_BED_COUNT: int = 32
 const CAMERA_ORBIT_SPEED: float = 0.008
+const FOLLOW_CAMERA_OFFSET := Vector3(1.8, 1.3, 3.2)
+const FOLLOW_CAMERA_MIN_DISTANCE := 1.8
+const FOLLOW_CAMERA_WALL_MARGIN := 0.2
 const CAMERA_MIN_PITCH: float = deg_to_rad(12.0)
 const CAMERA_MAX_PITCH: float = deg_to_rad(82.0)
 const CAMERA_MIN_SIZE: float = 5.0
-const CAMERA_MAX_SIZE: float = 120.0
-const CAMERA_BOUNDS_MARGIN: float = 2.0
-const ROOM_CAMERA_FOV: float = 92.0
-const PORTAL_CAMERA_FOV: float = 90.0
-const CORRIDOR_LIGHT_ENERGY: float = 0.3
-const SECTION_ROOM_SPAN: int = 4
-const OVERVIEW_MARGIN: float = 1.2
-const PORTAL_ROOM_LENGTH: float = 3.0
+const CAMERA_MAX_SIZE: float = 500.0
 const TOP_DOWN_MIN_HEIGHT: float = 18.0
-const NAVIGATION_SOURCE_GROUP := &"nest_runtime_navigation_source"
 const ENVIRONMENT_OBJECT_ID := "nest/environment"
-const ACTIVITY_VIEW_LABELS := [
-	"厨房",
-	"会客厅",
-	"影音室",
-	"健身房",
-	"花园",
-	"工作室",
-	"音乐室",
-	"图书室",
-]
+# Front oblique composition focuses on the building, front cabins and plaza.
+# Keep the orbit target low so zooming out does not fill the frame with sky.
+const REFERENCE_REVIEW_POSITION := Vector3(16, 16, 46)
+const REFERENCE_REVIEW_TARGET := Vector3(0, 3, 7)
 
-@export_range(4, 32, 1) var bed_count: int = 16:
-	set(value):
-		bed_count = clampi(value, D.MIN_BED_COUNT, D.MAX_BED_COUNT)
-		if is_inside_tree() and not _suppress_deferred_rebuild:
-			call_deferred("rebuild")
+var bed_count: int = FIXED_BED_COUNT:
+	set(_value):
+		bed_count = FIXED_BED_COUNT
 
-@export var activity_group_ids := PackedInt32Array([0, 0, 1, 2])
 @export var show_observation_hud: bool = true
 
 @export var regenerate_editor_preview: bool = false:
@@ -55,6 +39,8 @@ const ACTIVITY_VIEW_LABELS := [
 			call_deferred("rebuild")
 
 var _rebuilding := false
+var physical_authority := false
+var _pov_body_layers: Array[Dictionary] = []
 var _camera_target := Vector3.ZERO
 var _camera_default_target := Vector3.ZERO
 var _camera_yaw: float = 0.0
@@ -69,9 +55,32 @@ var _observer_presentation_paused := false
 var camera_catalog_revision: int = 0
 var world_revision: int = 0
 var _nest_id := "local-nest"
-var _suppress_deferred_rebuild := false
+var _lights_on := true
+var _observer_water: Node3D
+var _observer_optics: RefCounted
+var _observer_environment: Dictionary = {}
+var _observer_lighting_preview := "live"
+var _lighting_preview_available := false
+var _observer_occupied_zones := PackedStringArray()
+var _quiet_mode := false
+var _lighting_usage_seconds := 0.0
+var _lighting_occupied_zones := PackedStringArray()
+
+func _refresh_usage_lighting(delta: float) -> void:
+	if Engine.is_editor_hint() or _estate_lighting==null or not _observer_environment.is_empty(): return
+	_lighting_usage_seconds+=delta
+	if _lighting_usage_seconds<0.5: return
+	_lighting_usage_seconds=0.0
+	var occupied := _runtime_occupied_zones()
+	if occupied==_lighting_occupied_zones: return
+	_lighting_occupied_zones=occupied
+	_estate_lighting.apply(_lights_on,_quiet_mode,occupied,true)
 var _anchor_markers: Dictionary = {}
 var _facility_markers: Dictionary = {}
+var _estate_physics: Node3D
+var _door_life_phase := "night"
+var _estate_semantics: RefCounted
+var _estate_lighting: RefCounted
 var _navigation_region: NavigationRegion3D
 
 @onready var _observation_hud: CanvasLayer = $ObservationHUD
@@ -95,9 +104,22 @@ func _unhandled_input(event: InputEvent) -> void:
 	var camera := _active_camera()
 	if camera == null:
 		return
+	var current_view := _camera_views[_active_camera_index]
+	if bool(current_view.get("first_person", false)) and event is InputEventMouseMotion:
+		var motion := event as InputEventMouseMotion
+		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			current_view["look_yaw"] = wrapf(float(current_view.get("look_yaw", 0.0)) - motion.relative.x*0.0032, -PI, PI)
+			current_view["look_pitch"] = clampf(float(current_view.get("look_pitch", 0.0)) - motion.relative.y*0.0032, deg_to_rad(-75), deg_to_rad(75))
+			_process(0.0)
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseMotion:
 		var mouse_motion := event as InputEventMouseMotion
 		if mouse_motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			if not _camera_views[_active_camera_index].has("actor"):
+				_turn_camera(camera, mouse_motion.relative)
+				get_viewport().set_input_as_handled()
+				return
 			_camera_yaw = wrapf(
 				_camera_yaw - mouse_motion.relative.x * CAMERA_ORBIT_SPEED,
 				-PI,
@@ -105,12 +127,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			)
 			_camera_pitch = clampf(
 				_camera_pitch - mouse_motion.relative.y * CAMERA_ORBIT_SPEED,
-				CAMERA_MIN_PITCH,
+				deg_to_rad(-35) if _camera_views[_active_camera_index].has("floor_height_limits") else CAMERA_MIN_PITCH,
 				CAMERA_MAX_PITCH
 			)
 			_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 		elif mouse_motion.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+			if not _camera_views[_active_camera_index].has("actor"):
+				_move_camera_track(camera, mouse_motion.relative.x)
+				get_viewport().set_input_as_handled()
+				return
 			var viewport_height := maxf(get_viewport().get_visible_rect().size.y, 1.0)
 			var visible_height := camera.size
 			if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
@@ -121,11 +147,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				)
 			var pan_scale := visible_height / viewport_height
 			var camera_basis := camera.global_transform.basis
-			_camera_target += (
+			var movement := (
 				-camera_basis.x * mouse_motion.relative.x
 				+ camera_basis.y * mouse_motion.relative.y
 			) * pan_scale
-			_apply_camera_transform(camera)
+			var previous := camera.global_position
+			camera.global_position = _constrain_camera_position(previous + movement)
+			_camera_target += camera.global_position - previous
+			_sync_orbit_state(camera)
+			if _camera_views[_active_camera_index].has("actor"):
+				_apply_camera_transform(camera)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
@@ -164,31 +195,70 @@ func rebuild() -> void:
 	if _rebuilding:
 		return
 	_rebuilding = true
-	var overview_camera := get_node_or_null("Camera3D") as Camera3D
-	if overview_camera != null:
-		overview_camera.current = true
-	_camera_views.clear()
+	if _observer_optics != null:
+		_observer_optics.apply_environment(1.0, true)
+	_observer_water = null
+	_observer_optics = null
+	if is_instance_valid(_navigation_region):
+		remove_child(_navigation_region)
+		_navigation_region.free()
+	_navigation_region = null
 	var previous := get_node_or_null("Generated")
 	if previous != null:
 		remove_child(previous)
-		previous.queue_free()
+		previous.free()
+	_anchor_markers.clear()
+	_facility_markers.clear()
+	_camera_views.clear()
+	if physical_authority:
+		var data := load(ESTATE_PHYSICS.SPATIAL.PATH) as Resource
+		if data == null or not data.matches_authority_inputs(ESTATE_PHYSICS.SPATIAL.current_inputs()):
+			push_error("Missing or stale physical authority scene. Recompile estate spatial resources.")
+			_rebuilding = false
+			return
+		var physical := data.authority_scene.instantiate() as Node3D
+		add_child(physical)
+		var bindings := AUTHORITY_SCENE.restore(physical, data)
+		_estate_physics = bindings.physics
+		_apply_door_phase()
+		_estate_semantics = bindings.semantics
+		_anchor_markers = _estate_semantics.anchors
+		_facility_markers = _estate_semantics.facilities
+		_estate_lighting = ESTATE_LIGHTING.new()
+		_estate_lighting.bind(self)
+		_estate_lighting.apply(_lights_on,_quiet_mode,_runtime_occupied_zones(),true)
+		_rebuilding = false
+		return
 	var generated := Node3D.new()
 	generated.name = "Generated"
 	add_child(generated)
-
-	var room_count := D.room_count_for_beds(bed_count)
-	var themes := _themes_for_rooms(room_count)
-	_build_floors(generated, room_count)
-	_build_corridor_lights(generated, room_count)
-	_build_rooms(generated, room_count, themes)
-	_build_activity_boundaries(generated, room_count, themes)
-	_build_dorm_boundaries(generated, room_count)
-	_build_end_wall(generated, room_count)
-	_build_portal_room(generated)
-	_build_semantic_anchor_markers(generated, room_count)
-	_update_camera(room_count)
-	_build_observation_views(generated, room_count)
+	var estate := (load(COMPLETE_SCENE_PATH) as PackedScene).instantiate() as Node3D
+	estate.name = "CompleteEstate"
+	generated.add_child(estate)
+	_estate_physics = ESTATE_PHYSICS.new()
+	_estate_physics.name = "EstatePhysics"
+	generated.add_child(_estate_physics)
+	if not Engine.is_editor_hint():
+		_estate_physics.build(estate)
+		_apply_door_phase()
+	_estate_semantics = ESTATE_SEMANTICS.new()
+	_estate_semantics.build(generated, estate)
+	if _estate_physics.outdoor_access != null:
+		_estate_semantics.restrict_outdoor_anchors(_estate_physics.outdoor_access)
+	_anchor_markers = _estate_semantics.anchors
+	_facility_markers = _estate_semantics.facilities
+	var restore_lighting_preview := _lighting_preview_available
+	_lighting_preview_available = false
+	_build_observation_views(generated, estate)
+	if restore_lighting_preview:
+		add_lighting_observer_views()
+	_observer_water = null
+	_observer_optics = null
+	_estate_lighting = ESTATE_LIGHTING.new()
+	_estate_lighting.bind(self)
+	_estate_lighting.apply(_lights_on,_quiet_mode,_runtime_occupied_zones(),true)
 	_rebuilding = false
+	if not _observer_environment.is_empty(): _apply_observer_lighting_display()
 
 
 func apply_world_config(config: Dictionary) -> Dictionary:
@@ -198,7 +268,7 @@ func apply_world_config(config: Dictionary) -> Dictionary:
 	if requested_nest_id.is_empty():
 		return _config_rejected("invalid_nest_id")
 	var requested_bed_count := _parse_protocol_integer(raw_bed_count)
-	if requested_bed_count < D.MIN_BED_COUNT or requested_bed_count > D.MAX_BED_COUNT:
+	if requested_bed_count != FIXED_BED_COUNT:
 		return _config_rejected("invalid_bed_count")
 	var requested_revision := _parse_protocol_integer(raw_revision)
 	if requested_revision < 0:
@@ -212,10 +282,7 @@ func apply_world_config(config: Dictionary) -> Dictionary:
 
 	_nest_id = requested_nest_id
 	world_revision = requested_revision
-	_suppress_deferred_rebuild = true
 	bed_count = requested_bed_count
-	_suppress_deferred_rebuild = false
-	rebuild()
 	return {"accepted": true, "manifest": scene_manifest()}
 
 
@@ -224,14 +291,11 @@ func apply_observer_world_config(config: Dictionary) -> bool:
 	var requested_bed_count := _parse_protocol_integer(config.get("bed_count"))
 	if requested_nest_id.is_empty() or requested_nest_id != _nest_id:
 		return false
-	if requested_bed_count < D.MIN_BED_COUNT or requested_bed_count > D.MAX_BED_COUNT:
+	if requested_bed_count != FIXED_BED_COUNT:
 		return false
 	if requested_bed_count == bed_count:
 		return true
-	_suppress_deferred_rebuild = true
 	bed_count = requested_bed_count
-	_suppress_deferred_rebuild = false
-	rebuild()
 	return true
 
 
@@ -249,7 +313,8 @@ func _parse_protocol_integer(value: Variant) -> int:
 
 
 func resolve_anchor(anchor_id: String) -> Marker3D:
-	return _anchor_markers.get(anchor_id) as Marker3D
+	var marker := _anchor_markers.get(anchor_id) as Marker3D
+	return null if marker != null and bool(marker.get_meta("access_restricted",false)) else marker
 
 
 func resolve_facility(facility_id: String) -> Marker3D:
@@ -259,15 +324,20 @@ func resolve_facility(facility_id: String) -> Marker3D:
 func semantic_anchor_ids() -> Array[String]:
 	var ids: Array[String] = []
 	for anchor_id: Variant in _anchor_markers.keys():
-		ids.append(String(anchor_id))
-	return SEMANTIC_SCENE_INDEX.sorted_anchor_ids(ids)
+		if resolve_anchor(String(anchor_id)) != null:
+			ids.append(String(anchor_id))
+	ids.sort()
+	return ids
 
 
 func apply_environment_state(
 	object_id: String,
 	lights_on: bool,
 	quiet_mode: bool,
+	life_phase: String,
 ) -> Dictionary:
+	if life_phase not in ["night", "dawn", "day", "dusk"]:
+		return {"object_id": object_id, "lights_on": lights_on, "quiet_mode": quiet_mode, "life_phase": life_phase, "applied": false, "reason": "invalid_life_phase"}
 	if object_id != ENVIRONMENT_OBJECT_ID:
 		return {
 			"object_id": object_id,
@@ -277,7 +347,7 @@ func apply_environment_state(
 			"reason": "unsupported_environment_object",
 		}
 	var generated := get_node_or_null("Generated")
-	if generated == null:
+	if generated == null or _estate_lighting == null:
 		return {
 			"object_id": object_id,
 			"lights_on": lights_on,
@@ -285,55 +355,79 @@ func apply_environment_state(
 			"applied": false,
 			"reason": "world_not_built",
 		}
-	_set_light_visibility(generated, lights_on)
+	_lights_on = lights_on
+	_quiet_mode = quiet_mode
+	_door_life_phase = life_phase
+	_apply_door_phase()
+	_estate_lighting.apply(lights_on,quiet_mode,_runtime_occupied_zones(),true)
 	return {
 		"object_id": object_id,
 		"lights_on": lights_on,
 		"quiet_mode": quiet_mode,
 		"applied": true,
+		"life_phase": life_phase,
 	}
 
 
-func _set_light_visibility(node: Node, lights_on: bool) -> void:
-	for child: Node in node.get_children():
-		if child is Light3D:
-			(child as Light3D).visible = lights_on
-		_set_light_visibility(child, lights_on)
+func _apply_door_phase() -> void:
+	if is_instance_valid(_estate_physics):
+		_estate_physics.set_door_default_open(_door_life_phase in ["day", "dawn"])
+
+
+func apply_observer_environment(environment: Dictionary, entities: Dictionary = {}) -> void:
+	_observer_environment = environment.duplicate()
+	_door_life_phase = str(environment.get("phase", "night"))
+	_apply_door_phase()
+	_observer_occupied_zones=ESTATE_LIGHTING.occupied_zones(entities)
+	_apply_observer_lighting_display()
+
+
+func _runtime_occupied_zones() -> PackedStringArray:
+	var entities: Dictionary = {}
+	if _estate_semantics==null: return PackedStringArray()
+	for actor: Node in get_tree().get_nodes_in_group(&"runtime_elfie_actors"):
+		if actor is ElfieActor and (actor as ElfieActor).is_visible_in_tree():
+			entities[(actor as ElfieActor).elfie_id]={"active":true,"posture":(actor as ElfieActor).runtime_posture(),"zone_id":_estate_semantics.nearest_zone((actor as ElfieActor).global_position)}
+	return ESTATE_LIGHTING.occupied_zones(entities)
+
+
+func _apply_observer_lighting_display() -> void:
+	if get_node_or_null("Generated/CompleteEstate") == null: return
+	if _observer_optics == null:
+		_observer_optics = preload("res://rooms/estate/estate_lighting_sample.gd").new()
+		_observer_optics.bind_m01(self)
+	var preview := _observer_lighting_preview != "live"
+	if _observer_environment.is_empty() and not preview: return
+	var phase := str(_observer_environment.get("phase", "day"))
+	var enabled := bool(_observer_environment.get("lights_on", false))
+	var quiet := bool(_observer_environment.get("quiet_mode", false))
+	if preview:
+		phase = "night" if _observer_lighting_preview in ["night", "quiet"] else "day"
+		enabled = phase == "night"
+		quiet = _observer_lighting_preview == "quiet"
+	var daylight := {"day": 1.0, "dawn": 1.0, "dusk": 0.0, "night": 0.0}
+	_observer_optics.apply_environment(float(daylight.get(phase, 1.0)), enabled,true,quiet,_observer_occupied_zones,not preview)
+	if _observer_water == null:
+		_observer_water = preload("res://rooms/estate/estate_water_display.gd").new()
+		_observer_water.name = "ObserverFountainLighting"
+		get_node("Generated").add_child(_observer_water)
+		_observer_water.bind(get_node("Generated/CompleteEstate"), $WorldEnvironment.environment, false)
+		_observer_water.set_presentation_paused(_observer_presentation_paused)
+	_observer_water.set_night(phase in ["dusk","night"] and not quiet)
+
+
+func add_lighting_observer_views() -> void:
+	if _lighting_preview_available: return
+	_lighting_preview_available = true
+	var parent := get_node("Generated") as Node3D
+	_add_complete_view(parent, "estate-ring", "环形路", to_global(Vector3(0, 3.4, 22)), to_global(Vector3(0, 4.5, 0)))
+	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
+	camera_catalog_revision += 1
+	_emit_observer_camera_catalog_changed()
 
 
 func nearest_zone_id(world_position: Vector3) -> String:
-	return SPATIAL_QUERIES.nearest_zone_id(_anchor_markers, world_position)
-
-
-func bake_navigation() -> bool:
-	if _navigation_region != null:
-		remove_child(_navigation_region)
-		_navigation_region.queue_free()
-	if not is_in_group(NAVIGATION_SOURCE_GROUP):
-		add_to_group(NAVIGATION_SOURCE_GROUP)
-	_navigation_region = NavigationRegion3D.new()
-	_navigation_region.name = "RuntimeNavigation"
-	var navigation_mesh := NavigationMesh.new()
-	navigation_mesh.agent_height = 1.8
-	navigation_mesh.agent_radius = 0.2
-	navigation_mesh.agent_max_climb = 0.2
-	navigation_mesh.agent_max_slope = 45.0
-	navigation_mesh.cell_size = 0.1
-	navigation_mesh.cell_height = 0.1
-	navigation_mesh.geometry_parsed_geometry_type = (
-		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	)
-	navigation_mesh.geometry_source_geometry_mode = (
-		NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
-	)
-	navigation_mesh.geometry_source_group_name = NAVIGATION_SOURCE_GROUP
-	var navigation_map := get_world_3d().navigation_map
-	NavigationServer3D.map_set_cell_size(navigation_map, navigation_mesh.cell_size)
-	NavigationServer3D.map_set_cell_height(navigation_map, navigation_mesh.cell_height)
-	_navigation_region.navigation_mesh = navigation_mesh
-	add_child(_navigation_region)
-	_navigation_region.bake_navigation_mesh(false)
-	return navigation_mesh.get_polygon_count() > 0
+	return _estate_semantics.nearest_zone(world_position) if _estate_semantics != null else ""
 
 
 func _config_rejected(code: String) -> Dictionary:
@@ -344,508 +438,109 @@ func _config_rejected(code: String) -> Dictionary:
 	}
 
 
-func scene_manifest() -> Dictionary:
-	var room_count := D.room_count_for_beds(bed_count)
-	return {
-		"nest_id": _nest_id,
-		"world_revision": world_revision,
-		"bed_count": bed_count,
-		"capabilities": [
-			"semantic_anchors",
-			"complete_actor_sync",
-			"navigation",
-		],
-		"zones": _semantic_zones(room_count),
-		"anchors": _semantic_anchors(room_count),
-		"facilities": _semantic_facilities(room_count),
-	}
-
-
-func _semantic_zones(room_count: int) -> Array[Dictionary]:
-	var zones: Array[Dictionary] = [
-		{"zone_id": "corridor", "kind": "corridor", "label": "走廊", "stable_order": 0, "active": true},
-		{"zone_id": "portal", "kind": "portal", "label": "传送室", "stable_order": 1, "active": true},
-	]
-	for index in range(room_count):
-		zones.append({
-			"zone_id": _dorm_zone_id(index),
-			"kind": "dorm",
-			"label": "%02d 宿舍" % (index + 1),
-			"stable_order": index * 2 + 2,
-			"active": true,
-		})
-		zones.append({
-			"zone_id": _activity_zone_id(index),
-			"kind": "activity",
-			"label": "%02d %s" % [
-				index + 1,
-				String(ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]),
-			],
-			"stable_order": index * 2 + 3,
-			"active": true,
-		})
-	return zones
-
-
-func _semantic_anchors(room_count: int) -> Array[Dictionary]:
-	var anchors: Array[Dictionary] = []
-	for index in range(room_count):
-		var zone_id := _dorm_zone_id(index)
-		var beds_in_room := clampi(bed_count - index * 4, 0, 4)
-		anchors.append({
-			"anchor_id": "%s/door" % zone_id,
-			"zone_id": zone_id,
-			"kind": "door",
-			"label": "%02d 宿舍门" % (index + 1),
-			"stable_order": index,
-			"active": true,
-		})
-		for bed_index in range(beds_in_room):
-			anchors.append({
-				"anchor_id": "%s/bed-%02d" % [zone_id, bed_index + 1],
-				"zone_id": zone_id,
-				"kind": "bed",
-				"label": "%02d-%02d 床位" % [index + 1, bed_index + 1],
-				"stable_order": index * 4 + bed_index,
-				"active": true,
-			})
-	for index in range(room_count):
-		var activity_zone_id := _activity_zone_id(index)
-		anchors.append({
-			"anchor_id": "%s/activity" % activity_zone_id,
-			"zone_id": activity_zone_id,
-			"kind": "activity",
-			"label": String(ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]),
-			"stable_order": index,
-			"active": true,
-		})
-		anchors.append({
-			"anchor_id": "%s/chair-01" % activity_zone_id,
-			"zone_id": activity_zone_id,
-			"kind": "chair",
-			"label": "%s 座位" % String(
-				ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]
-			),
-			"stable_order": index,
-			"active": true,
-		})
-	anchors.append({
-		"anchor_id": "portal/door",
-		"zone_id": "portal",
-		"kind": "door",
-		"label": "传送室门",
-		"stable_order": 0,
-		"active": true,
-	})
-	anchors.append({
-		"anchor_id": "portal/main",
-		"zone_id": "portal",
-		"kind": "activity",
-		"label": "传送台",
-		"stable_order": 0,
-		"active": true,
-	})
-	return anchors
-
-
-func _semantic_facilities(room_count: int) -> Array[Dictionary]:
-	var facilities: Array[Dictionary] = []
-	for index in range(room_count):
-		var dorm_zone_id := _dorm_zone_id(index)
-		facilities.append({
-			"facility_id": "%s/rest" % dorm_zone_id,
-			"zone_id": dorm_zone_id,
-			"kind": "rest",
-			"label": "%02d 休息区" % (index + 1),
-			"capabilities": ["sleep", "rest"],
-			"active": true,
-		})
-		var activity_zone_id := _activity_zone_id(index)
-		facilities.append({
-			"facility_id": "%s/activity" % activity_zone_id,
-			"zone_id": activity_zone_id,
-			"kind": "activity",
-			"label": String(ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]),
-			"capabilities": ["social", "activity"],
-			"active": true,
-		})
-	facilities.append({
-		"facility_id": "portal/transit",
-		"zone_id": "portal",
-		"kind": "transit",
-		"label": "传送室",
-		"capabilities": ["transit"],
-		"active": true,
-	})
-	return facilities
-
-
-func _dorm_zone_id(index: int) -> String:
-	return "dorm-%02d" % (index + 1)
-
-
-func _activity_zone_id(index: int) -> String:
-	return "activity-%02d" % (index + 1)
-
-
-func _build_semantic_anchor_markers(
-	generated: Node3D,
-	room_count: int,
-) -> void:
-	_anchor_markers.clear()
-	_facility_markers.clear()
-	var anchor_root := Node3D.new()
-	anchor_root.name = "SemanticAnchors"
-	generated.add_child(anchor_root)
-	for room_index in range(room_count):
-		var dorm_zone_id := _dorm_zone_id(room_index)
-		_add_semantic_marker(
-			anchor_root,
-			"%s/door" % dorm_zone_id,
-			dorm_zone_id,
-			"door",
-			Vector3(
-				D.DORM_CENTER_X - D.DORM_DEPTH / 2.0 + 0.55,
-				0.0,
-				D.cell_center_z(room_index),
-			),
-		)
-		var beds_in_room := clampi(bed_count - room_index * 4, 0, 4)
-		for bed_index in range(beds_in_room):
-			var bed_position := Vector3(
-				D.DORM_CENTER_X + (-0.45 if bed_index % 2 == 0 else 0.45),
-				0.0,
-				D.cell_center_z(room_index)
-				+ (0.8 if bed_index < 2 else -0.8),
-			)
-			_add_semantic_marker(
-				anchor_root,
-				"%s/bed-%02d" % [dorm_zone_id, bed_index + 1],
-				dorm_zone_id,
-				"bed",
-				bed_position,
-			)
-		var activity_zone_id := _activity_zone_id(room_index)
-		var activity_position := Vector3(
-			D.ACTIVITY_INNER_X + 0.5,
-			0.0,
-			D.cell_center_z(room_index) + 0.55,
-		)
-		_add_semantic_marker(
-			anchor_root,
-			"%s/activity" % activity_zone_id,
-			activity_zone_id,
-			"activity",
-			activity_position,
-		)
-		_add_semantic_marker(
-			anchor_root,
-			"%s/chair-01" % activity_zone_id,
-			activity_zone_id,
-			"chair",
-			activity_position + Vector3(-0.45, 0.0, 0.0),
-		)
-		_add_facility_marker(
-			anchor_root,
-			"%s/rest" % dorm_zone_id,
-			dorm_zone_id,
-			Vector3(D.DORM_CENTER_X, 0.0, D.cell_center_z(room_index)),
-		)
-		_add_facility_marker(
-			anchor_root,
-			"%s/activity" % activity_zone_id,
-			activity_zone_id,
-			activity_position,
-		)
-	_add_semantic_marker(
-		anchor_root,
-		"portal/door",
-		"portal",
-		"door",
-		Vector3(0.0, 0.0, 0.45),
-	)
-	_add_semantic_marker(
-		anchor_root,
-		"portal/main",
-		"portal",
-		"activity",
-		Vector3(0.0, 0.0, 1.5),
-	)
-	_add_facility_marker(
-		anchor_root,
-		"portal/transit",
-		"portal",
-		Vector3(0.0, 0.0, 1.5),
-	)
-
-
-func _add_semantic_marker(
-	parent: Node3D,
-	anchor_id: String,
-	zone_id: String,
-	kind: String,
-	marker_position: Vector3,
-) -> void:
-	var marker := Marker3D.new()
-	marker.name = "Anchor_%s" % anchor_id.replace("/", "__")
-	marker.position = marker_position
-	marker.set_meta("anchor_id", anchor_id)
-	marker.set_meta("zone_id", zone_id)
-	marker.set_meta("kind", kind)
-	parent.add_child(marker)
-	_anchor_markers[anchor_id] = marker
-
-
-func _add_facility_marker(
-	parent: Node3D,
-	facility_id: String,
-	zone_id: String,
-	marker_position: Vector3,
-) -> void:
-	var marker := Marker3D.new()
-	marker.name = "Facility_%s" % facility_id.replace("/", "__")
-	marker.position = marker_position
-	marker.set_meta("facility_id", facility_id)
-	marker.set_meta("zone_id", zone_id)
-	parent.add_child(marker)
-	_facility_markers[facility_id] = marker
-
-
-func _build_floors(parent: Node3D, room_count: int) -> void:
-	var building_length := float(room_count) * D.CELL_PITCH
-	var decor_top_y := 0.0005
-	var joint_top_y := 0.0008
-	G.add_floor(parent, "CorridorFloor", D.CORRIDOR_WIDTH, building_length, Vector3(0.0, 0.0, -building_length / 2.0), D.CORRIDOR_COLOR)
-	G.add_box(
-		parent,
-		"CorridorCentralMarble",
-		Vector3(1.88, 0.024, building_length - 0.16),
-		Vector3(0.0, decor_top_y - 0.024 / 2.0, -building_length / 2.0),
-		Color("#d7dddd"),
-		false,
-		0.0,
-		0.28
-	)
-	for side in [-1.0, 1.0]:
-		G.add_box(
-			parent,
-			"CorridorWarmMarbleInlayLeft" if side < 0.0 else "CorridorWarmMarbleInlayRight",
-			Vector3(0.08, 0.026, building_length - 0.16),
-			Vector3(side, decor_top_y - 0.026 / 2.0, -building_length / 2.0),
-			Color("#827265"),
-			false,
-			0.0,
-			0.3
-		)
-		G.add_box(
-			parent,
-			"CorridorDarkMarbleBandLeft" if side < 0.0 else "CorridorDarkMarbleBandRight",
-			Vector3(0.28, 0.027, building_length - 0.16),
-			Vector3(side * 1.18, decor_top_y - 0.027 / 2.0, -building_length / 2.0),
-			Color("#454b4c"),
-			false,
-			0.0,
-			0.25
-		)
-		G.add_box(
-			parent,
-			"CorridorOuterMarbleBorderLeft" if side < 0.0 else "CorridorOuterMarbleBorderRight",
-			Vector3(0.16, 0.024, building_length - 0.16),
-			Vector3(side * 1.42, decor_top_y - 0.024 / 2.0, -building_length / 2.0),
-			D.CORRIDOR_WALL_COLOR,
-			false,
-			0.0,
-			0.34
-		)
-	for index in range(room_count):
-		_add_corridor_bay(parent, index, D.cell_center_z(index), decor_top_y, joint_top_y)
-
-
-func _add_corridor_bay(parent: Node3D, index: int, center_z: float, decor_top_y: float, joint_top_y: float) -> void:
-	for joint_index in range(2):
-		var direction := -1.0 if joint_index == 0 else 1.0
-		var z_position := center_z + direction * (D.CELL_PITCH / 2.0 - 0.08)
-		G.add_box(
-			parent,
-			"CorridorCentralTileJoint_%02d_%d" % [index, joint_index],
-			Vector3(1.88, 0.027, 0.028),
-			Vector3(0.0, joint_top_y - 0.027 / 2.0, z_position),
-			Color("#b6bfbe"),
-			false,
-			0.0,
-			0.3
-		)
-	G.add_box(
-		parent,
-		"DormDoorwayInlay_%02d" % index,
-		Vector3(0.08, 0.008, 1.18),
-		Vector3(D.DORM_INNER_X + 0.05, decor_top_y - 0.008 / 2.0, center_z),
-		Color("#d4c6b0"),
-		false,
-		0.0,
-		0.34
-	)
-
-
-func _build_corridor_lights(parent: Node3D, room_count: int) -> void:
-	var lights := Node3D.new()
-	lights.name = "CorridorLights"
-	parent.add_child(lights)
-	for index in range(room_count):
-		var light := OmniLight3D.new()
-		light.name = "CorridorLight_%02d" % (index + 1)
-		light.position = Vector3(0.0, 2.55, D.cell_center_z(index))
-		light.light_color = Color.WHITE
-		light.light_energy = CORRIDOR_LIGHT_ENERGY
-		light.omni_range = 3.8
-		light.shadow_enabled = false
-		lights.add_child(light)
-
-
-func _build_rooms(parent: Node3D, room_count: int, themes: Array[Color]) -> void:
-	for index in range(room_count):
-		var activity := ACTIVITY_ROOM_SCENE.instantiate() as ModularActivityRoom
-		activity.auto_preview = false
-		activity.name = "ActivityRoom_%02d" % (index + 1)
-		activity.position = Vector3(D.ACTIVITY_CENTER_X, 0.0, D.cell_center_z(index))
-		parent.add_child(activity)
-		activity.build(themes[index], index)
-
-		var dorm := DORM_ROOM_SCENE.instantiate() as ModularDormRoom
-		dorm.auto_preview = false
-		dorm.name = "DormRoom_%02d" % (index + 1)
-		dorm.position = Vector3(D.DORM_CENTER_X, 0.0, D.cell_center_z(index))
-		parent.add_child(dorm)
-		dorm.build(index, clampi(bed_count - index * 4, 0, 4))
-
-
-func _build_activity_boundaries(parent: Node3D, room_count: int, themes: Array[Color]) -> void:
-	_add_activity_partition(parent, "ActivityStartWall", 0.0, themes[0], D.EXTERIOR_COLOR)
-	for boundary_index in range(1, room_count):
-		if _activity_group(boundary_index - 1) == _activity_group(boundary_index):
-			continue
-		_add_activity_partition(
-			parent,
-			"ActivityPartition_%02d" % boundary_index,
-			-float(boundary_index) * D.CELL_PITCH,
-			themes[boundary_index],
-			themes[boundary_index - 1]
-		)
-	_add_activity_partition(
-		parent,
-		"ActivityEndWall",
-		-float(room_count) * D.CELL_PITCH,
-		D.EXTERIOR_COLOR,
-		themes[room_count - 1]
-	)
-
-
-func _add_activity_partition(parent: Node3D, wall_name: String, z_position: float, negative_color: Color, positive_color: Color) -> void:
-	G.add_wall(
-		parent,
-		wall_name,
-		Vector3(D.ACTIVITY_DEPTH, D.WALL_HEIGHT, D.WALL_THICKNESS),
-		Vector3(D.ACTIVITY_CENTER_X, D.WALL_HEIGHT / 2.0, z_position),
-		negative_color,
-		positive_color
-	)
-
-
-func _build_dorm_boundaries(parent: Node3D, room_count: int) -> void:
-	for boundary_index in range(room_count + 1):
-		var negative_color := D.DORM_WALL_COLOR if boundary_index < room_count else D.EXTERIOR_COLOR
-		var positive_color := D.DORM_WALL_COLOR if boundary_index > 0 else D.EXTERIOR_COLOR
-		G.add_wall(
-			parent,
-			"DormPartition_%02d" % boundary_index,
-			Vector3(D.DORM_DEPTH, D.WALL_HEIGHT, D.WALL_THICKNESS),
-			Vector3(D.DORM_CENTER_X, D.WALL_HEIGHT / 2.0, -float(boundary_index) * D.CELL_PITCH),
-			negative_color,
-			positive_color
-		)
-
-
-func _build_end_wall(parent: Node3D, room_count: int) -> void:
-	var end_z := -float(room_count) * D.CELL_PITCH
-	G.add_wall(
-		parent,
-		"CorridorEndWall",
-		Vector3(D.CORRIDOR_WIDTH, D.WALL_HEIGHT, D.WALL_THICKNESS),
-		Vector3(0.0, D.WALL_HEIGHT / 2.0, end_z),
-		D.EXTERIOR_COLOR,
-		D.CORRIDOR_WALL_COLOR
-	)
-	G.add_box(parent, "MuralFrame", Vector3(2.72, 1.92, 0.055), Vector3(0.0, 1.52, end_z + 0.09), Color("#172129"))
-	var mural := MeshInstance3D.new()
-	mural.name = "EndWallMural"
-	var quad := QuadMesh.new()
-	quad.size = Vector2(2.48, 1.68)
-	mural.mesh = quad
-	mural.position = Vector3(0.0, 1.52, end_z + 0.122)
-	var mural_material := StandardMaterial3D.new()
-	mural_material.albedo_texture = MURAL_TEXTURE
-	mural_material.roughness = 0.62
-	mural_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mural.material_override = mural_material
-	parent.add_child(mural)
-	G.add_box(parent, "MuralLight", Vector3(1.8, 0.045, 0.045), Vector3(0.0, 2.62, end_z + 0.16), Color("#f2d29b"), false, 1.5)
-
-
-func _build_portal_room(parent: Node3D) -> void:
-	var portal_room := PORTAL_ROOM_SCENE.instantiate() as ModularPortalRoom
-	portal_room.auto_preview = false
-	portal_room.name = "PortalRoom"
-	parent.add_child(portal_room)
-	portal_room.build()
-
-
-func _build_observation_views(generated: Node3D, room_count: int) -> void:
+func _build_observation_views(generated: Node3D, estate: Node3D) -> void:
 	var previous_id := _active_camera_id
-	_camera_views.clear()
-	var overview := get_node_or_null("Camera3D") as Camera3D
-	if overview == null:
-		return
-	_register_observation_view("overview", "整体总览", overview, _camera_default_target)
-	_build_section_observation_views(generated, room_count)
-
-	for index in range(room_count):
-		var activity := generated.get_node("ActivityRoom_%02d" % (index + 1)) as ModularActivityRoom
-		var activity_label := String(
-			ACTIVITY_VIEW_LABELS[index % ACTIVITY_VIEW_LABELS.size()]
-		)
-		var activity_target := activity.to_global(activity.observation_target_local())
-		_attach_room_camera(
-			activity,
-			"ActivityObservationCamera",
-			"activity-%02d" % (index + 1),
-			"%02d %s" % [index + 1, activity_label],
-			activity_target,
-			ROOM_CAMERA_FOV
-		)
-
-		var dorm := generated.get_node("DormRoom_%02d" % (index + 1)) as Node3D
-		_attach_room_camera(
-			dorm,
-			"DormObservationCamera",
-			"dorm-%02d" % (index + 1),
-			"%02d 宿舍" % (index + 1),
-			dorm.position + Vector3(0.0, 0.85, 0.0),
-			ROOM_CAMERA_FOV
-		)
-
-	var portal := generated.get_node("PortalRoom") as Node3D
-	_attach_room_camera(
-		portal,
-		"PortalObservationCamera",
-		"portal",
-		"传送室",
-		Vector3(0.0, 0.65, 1.5),
-		PORTAL_CAMERA_FOV
-	)
-
-	var labels := PackedStringArray()
-	for view in _camera_views:
-		labels.append(String(view["label"]))
+	var room_floors: Dictionary = {}
+	var room_floor_tops: Dictionary = {}
+	var room_floor_bounds: Dictionary = {}
+	var terrace_floors: Dictionary = {}
+	var central_floor_tops: Dictionary = {}
+	var central_floor_bottoms: Dictionary = {}
+	var arrival_platform_center := Vector3.ZERO
+	var arrival_steps_center := Vector3.ZERO
+	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		var extras := mesh.get_meta("extras", {}) as Dictionary
+		var module_name := str(extras.get("module", ""))
+		var source := str(extras.get("source_name", mesh.name))
+		if module_name == "central" and source == "Roof01 complete raised landing platform":
+			arrival_platform_center = ((global_transform.affine_inverse() * mesh.global_transform) * mesh.get_aabb()).get_center()
+		if module_name == "central" and str(extras.get("assembly", "")) == "roof01_steps":
+			arrival_steps_center = ((global_transform.affine_inverse() * mesh.global_transform) * mesh.get_aabb()).get_center()
+		if source.contains("continuous lower floor"):
+			room_floors[module_name] = mesh.global_transform
+			room_floor_tops[module_name] = mesh.get_aabb().end.y
+			room_floor_bounds[module_name] = mesh.get_aabb()
+		if source == "ROOM • inset terrace walking finish":
+			terrace_floors[module_name] = mesh
+		if module_name == "central" and source in [
+			"Central L1 fitted complete floor",
+			"Central L2 complete slab with stair opening",
+			"Central L3 complete slab with stair opening",
+		]:
+			var local_bounds := (global_transform.affine_inverse() * mesh.global_transform) * mesh.get_aabb()
+			central_floor_tops[int(extras["floor"])] = local_bounds.end.y
+			central_floor_bottoms[int(extras["floor"])] = local_bounds.position.y
+		if module_name == "central" and source.begins_with("Central L4 round arrival floor"):
+			central_floor_tops[4] = _arrival_floor_top(mesh)
+			central_floor_bottoms[4] = ((global_transform.affine_inverse()*mesh.global_transform)*mesh.get_aabb()).position.y
+	# Overview remains a preset and the fallback for missing resident cameras.
+	var overview := get_node("Camera3D") as Camera3D
+	overview.projection = Camera3D.PROJECTION_PERSPECTIVE
+	overview.fov = 38.0
+	overview.near = 0.05
+	overview.far = 1000.0
+	overview.global_position = to_global(REFERENCE_REVIEW_POSITION)
+	overview.look_at(to_global(REFERENCE_REVIEW_TARGET))
+	_register_observation_view("overview", "全园总览", overview, to_global(REFERENCE_REVIEW_TARGET))
+	for floor_number in range(1, 5):
+		var floor_y := float(central_floor_tops[floor_number])
+		var camera_position := Vector3(0, floor_y + 1.4, 5.2)
+		var target := Vector3(0, floor_y + 0.8, 0)
+		var field_of_view := 70.0
+		if floor_number == 1:
+			# Wall-side gap between the front and side doorways, clear of chairs.
+			camera_position = Vector3(6.2, floor_y + 2.1, 4.5)
+			target = Vector3(0, floor_y + 0.95, -0.2)
+			field_of_view = 80.0
+		elif floor_number in [2, 3]:
+			# The empty wall-side corner clears the front chairs and the desk.
+			camera_position = Vector3(6.2, floor_y + 2.3, 4.5)
+			target = Vector3(0, floor_y + 0.85, 0.4)
+			field_of_view = 80.0
+			if floor_number == 3:
+				# Look between the reading armchairs rather than over their backs.
+				camera_position = Vector3(7.5, floor_y + 2.3, 2.1)
+				target = Vector3(0.2, floor_y + 0.85, 1.1)
+		elif floor_number == 4:
+			# Face the small platform steps, along the arriving actor's walk-down axis.
+			var outward := arrival_steps_center - arrival_platform_center
+			outward.y = 0
+			camera_position = arrival_platform_center + outward.normalized() * 5.0
+			camera_position.y = floor_y + 1.8
+			target = Vector3(arrival_platform_center.x, floor_y + 1.0, arrival_platform_center.z)
+			field_of_view = 80.0
+		_add_complete_view(generated, "central-%d" % floor_number, "主楼 · %d 层" % floor_number, to_global(camera_position), to_global(target), field_of_view)
+		_camera_views.back()["floor_height_limits"] = Vector2(to_global(Vector3(0,floor_y+0.25,0)).y, to_global(Vector3(0,float(central_floor_bottoms[floor_number+1])-0.25,0)).y if central_floor_bottoms.has(floor_number+1) else INF)
+		var upper_y := float(central_floor_bottoms.get(floor_number + 1, floor_y + 3.5)) - 0.25
+		_set_camera_region(_camera_views.back(), global_transform, AABB(Vector3(-8.1, floor_y + 0.25, -8.1), Vector3(16.2, upper_y - floor_y - 0.25, 16.2)))
+	for index in range(1, 9):
+		var module_name := "M%02d" % index
+		if not room_floors.has(module_name):
+			continue
+		var floor_frame: Transform3D = room_floors[module_name]
+		# Approved face-level framing in each module's own rotated source frame.
+		var walking_y := float(room_floor_tops[module_name])
+		var lower_position := Vector3(0,walking_y+1.8,-2.65)
+		var lower_target := Vector3(-0.12,walking_y+0.95,-0.3)
+		_add_complete_view(generated, "dorm-%02d" % index, "卧室 %s · 一层" % module_name, floor_frame * lower_position, floor_frame * lower_target, 100.0)
+		var room_bounds: AABB = room_floor_bounds[module_name]
+		room_bounds.position.y = walking_y + 0.25
+		room_bounds.size.y = 2.5
+		_set_camera_region(_camera_views.back(), floor_frame, room_bounds)
+		if terrace_floors.has(module_name):
+			var terrace := terrace_floors[module_name] as MeshInstance3D
+			var surface := terrace.get_aabb()
+			var center := surface.get_center()
+			# Inset from the curved edge: the AABB corner itself is outside the floor.
+			var camera_position := Vector3(surface.position.x+1.15,surface.end.y+1.85,surface.position.z+1.65)
+			var target := Vector3(center.x,surface.end.y+1.0,center.z+0.8)
+			_add_complete_view(generated, "terrace-%02d" % index, "卧室 %s · 二层" % module_name, terrace.global_transform * camera_position, terrace.global_transform * target,85.0)
+			var terrace_bounds := surface
+			terrace_bounds.position.y = surface.end.y + 0.25
+			terrace_bounds.size.y = 2.6
+			_set_camera_region(_camera_views.back(), terrace.global_transform, terrace_bounds)
+			(_camera_views.back()["camera"] as Camera3D).keep_aspect = Camera3D.KEEP_WIDTH
+	var labels := observation_view_labels()
 	camera_catalog_revision += 1
 	_active_camera_index = _observation_view_index_by_id(previous_id)
 	if _active_camera_index < 0:
@@ -858,58 +553,37 @@ func _build_observation_views(generated: Node3D, room_count: int) -> void:
 	_emit_observer_camera_catalog_changed()
 
 
-func _build_section_observation_views(generated: Node3D, room_count: int) -> void:
-	var cameras := Node3D.new()
-	cameras.name = "SectionObservationCameras"
-	generated.add_child(cameras)
-	if room_count <= SECTION_ROOM_SPAN:
-		return
-	var section_count := ceili(float(room_count) / float(SECTION_ROOM_SPAN))
-	for section_index in range(section_count):
-		var first_room := section_index * SECTION_ROOM_SPAN
-		var last_room := mini(first_room + SECTION_ROOM_SPAN - 1, room_count - 1)
-		var first_z := D.cell_center_z(first_room)
-		var last_z := D.cell_center_z(last_room)
-		var target := Vector3(_building_center_x(), 0.55, (first_z + last_z) / 2.0)
-		var covered_length := float(last_room - first_room + 1) * D.CELL_PITCH
-		var camera := Camera3D.new()
-		camera.name = "SectionOverviewCamera_%02d" % (section_index + 1)
-		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-		camera.size = _top_down_size(covered_length)
-		camera.near = 0.05
-		camera.far = 200.0
-		camera.current = false
-		cameras.add_child(camera)
-		_set_top_down_transform(camera, target, TOP_DOWN_MIN_HEIGHT)
-		_register_observation_view(
-			"section-%02d" % (section_index + 1),
-			"区域俯视 %02d-%02d" % [first_room + 1, last_room + 1],
-			camera,
-			target
-		)
+func _arrival_floor_top(mesh: MeshInstance3D) -> float:
+	# The source includes a raised surround: its full AABB top is not the floor.
+	# Intersect the actual triangles at the central axis to find the walking plane.
+	var frame := global_transform.affine_inverse() * mesh.global_transform
+	var faces := mesh.mesh.get_faces()
+	var top: float = -INF
+	for index in range(0, faces.size(), 3):
+		var a: Vector3 = frame * faces[index]
+		var b: Vector3 = frame * faces[index + 1]
+		var c: Vector3 = frame * faces[index + 2]
+		var denominator := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+		if absf(denominator) < 0.000001:
+			continue
+		var u := ((b.z - c.z) * -c.x + (c.x - b.x) * -c.z) / denominator
+		var v := ((c.z - a.z) * -c.x + (a.x - c.x) * -c.z) / denominator
+		var w := 1.0 - u - v
+		if minf(u, minf(v, w)) >= -0.000001:
+			top = maxf(top, u * a.y + v * b.y + w * c.y)
+	assert(is_finite(top), "Arrival source has no central walking surface")
+	return top
 
 
-func _attach_room_camera(
-	room: Node3D,
-	camera_name: String,
-	view_id: String,
-	label: String,
-	target: Vector3,
-	fov: float
-) -> void:
-	var anchor := room.get_node_or_null("Generated/CameraAnchor") as Marker3D
-	if anchor == null:
-		push_warning("Observation camera anchor missing in %s" % room.name)
-		return
+func _add_complete_view(parent: Node3D, view_id: String, label: String, position: Vector3, target: Vector3, fov: float = 70.0) -> void:
 	var camera := Camera3D.new()
-	camera.name = camera_name
-	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.name = view_id
 	camera.fov = fov
 	camera.near = 0.05
-	camera.far = 200.0
-	camera.current = false
-	anchor.add_child(camera)
-	anchor.force_update_transform()
+	camera.far = 1000.0
+	parent.add_child(camera)
+	camera.global_position = position
+	camera.look_at(target)
 	_register_observation_view(view_id, label, camera, target)
 
 
@@ -929,9 +603,198 @@ func _register_observation_view(
 		"fov": camera.fov,
 	})
 
+	var local_position := to_local(camera.global_position)
+	var center := to_local(target)
+	if view_id in ["overview", "estate-ring"]:
+		center = Vector3.ZERO
+	var radius := maxf(Vector2(local_position.x - center.x, local_position.z - center.z).length(), 1.0)
+	var height := maxf(local_position.y + 5.0, 5.0)
+	_set_camera_region(_camera_views.back(), global_transform, AABB(Vector3(center.x-radius-2, 0.25, center.z-radius-2), Vector3((radius+2)*2, height, (radius+2)*2)))
+	if view_id in ["overview", "estate-ring"]:
+		_camera_views.back()["minimum_radius"] = maxf(radius - 2.0, 1.0)
+	if view_id == "overview":
+		_camera_views.back()["track_angle_limit"] = PI / 2.0
+
+
+func add_access_observer_views() -> void:
+	if _observation_view_index_by_id("access-estate") >= 0: return
+	var parent := get_node("Generated") as Node3D
+	for spec: Array in [
+		["access-estate","室外碰撞与活动范围",Vector3(10,72,42),Vector3(0,0,-2),108.0],
+		["access-forest","森林小路边界",Vector3(-3,46,-16),Vector3(-3,0,-24),70.0],
+	]:
+		_add_complete_view(parent,spec[0],spec[1],to_global(spec[2]),to_global(spec[3]))
+		var view: Dictionary = _camera_views.pop_back()
+		var camera := view["camera"] as Camera3D
+		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera.keep_aspect = Camera3D.KEEP_WIDTH
+		camera.size = spec[4]
+		view["size"] = camera.size
+		_camera_views.insert(1 if spec[0] == "access-estate" else 2,view)
+	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
+	camera_catalog_revision += 1
+	_emit_observer_camera_catalog_changed()
+
 
 func observation_view_count() -> int:
 	return _camera_views.size()
+
+
+func register_observer_actor_camera(actor_id: String, actor: CharacterBody3D) -> void:
+	var view_id := "elfie-" + actor_id
+	if _observation_view_index_by_id(view_id) >= 0:
+		return
+	for first_person: bool in [false, true]:
+		var camera := Camera3D.new()
+		camera.fov = 75.0 if first_person else 60.0
+		camera.near = 0.03 if first_person else 0.05
+		camera.far = 150.0
+		add_child(camera)
+		camera.global_position = actor.global_position + Vector3.UP * 0.6 + FOLLOW_CAMERA_OFFSET
+		camera.look_at(actor.global_position + Vector3.UP * 0.6)
+		var id := ("elfie-pov-" if first_person else "elfie-") + actor_id
+		_register_observation_view(id, ("代入精灵 · " if first_person else "跟随精灵 · ") + actor_id, camera, actor.global_position)
+		_camera_views[-1]["actor"] = actor
+		_camera_views[-1]["actor_id"] = actor_id
+		_camera_views[-1]["first_person"] = first_person
+		if first_person:
+			camera.set_cull_mask_value(20, false)
+			var visual := actor.get_node_or_null("VisualRoot") as Node3D
+			_camera_views[-1]["visual"] = visual
+			for skeleton: Skeleton3D in actor.find_children("*", "Skeleton3D", true, false):
+				var head := skeleton.find_bone("mixamorig_Head")
+				if head >= 0:
+					_camera_views[-1]["skeleton"] = skeleton
+					_camera_views[-1]["head"] = head
+					break
+	camera_catalog_revision += 1
+	_emit_observer_camera_catalog_changed()
+
+
+func remove_observer_actor_camera(actor_id: String) -> void:
+	if _active_camera_id in ["elfie-" + actor_id, "elfie-pov-" + actor_id]:
+		_restore_pov_body()
+	for id: String in ["elfie-" + actor_id, "elfie-pov-" + actor_id]:
+		var index := _observation_view_index_by_id(id)
+		if index < 0:
+			continue
+		var camera := _camera_views[index]["camera"] as Camera3D
+		_camera_views.remove_at(index)
+		camera.queue_free()
+	camera_catalog_revision += 1
+	_active_camera_index = _observation_view_index_by_id(_active_camera_id)
+	if _active_camera_index < 0 and not _camera_views.is_empty():
+		select_observation_view(0)
+	_emit_observer_camera_catalog_changed()
+
+
+func _process(delta: float) -> void:
+	_refresh_usage_lighting(delta)
+	if Engine.is_editor_hint() or _observer_presentation_paused or _camera_views.is_empty():
+		return
+	var view := _camera_views[_active_camera_index]
+	if not view.has("actor"):
+		return
+	# Check validity before casting: a freed resident remains a Variant reference.
+	if not is_instance_valid(view["actor"]):
+		remove_observer_actor_camera(str(view["actor_id"]))
+		return
+	var actor := view["actor"] as CharacterBody3D
+	if not actor.is_visible_in_tree():
+		select_observer_overview()
+		return
+	var camera := view["camera"] as Camera3D
+	if bool(view.get("first_person", false)):
+		var visual := view.get("visual") as Node3D
+		var facing := visual.global_basis.z.normalized() if is_instance_valid(visual) else actor.global_basis.z.normalized()
+		var eye := actor.global_position + Vector3.UP * 1.55
+		var skeleton := view.get("skeleton") as Skeleton3D
+		if is_instance_valid(skeleton):
+			eye = (skeleton.global_transform * skeleton.get_bone_global_pose(int(view["head"]))).origin + Vector3.UP*0.06
+		facing.y = 0
+		facing = facing.normalized().rotated(Vector3.UP, float(view.get("look_yaw", 0.0)))
+		var pitch := float(view.get("look_pitch", 0.0))
+		camera.global_position = eye
+		camera.look_at(eye + facing*cos(pitch) + Vector3.UP*sin(pitch))
+		_camera_target = eye - camera.global_basis.z
+		return
+	var target := actor.global_position + Vector3(0, 0.6, 0)
+	var offset: Vector3 = view.get("follow_offset", FOLLOW_CAMERA_OFFSET)
+	var desired := target + offset
+	# Presentation-only occlusion query: never move the actor or change collisions.
+	var query := PhysicsRayQueryParameters3D.create(target, desired)
+	query.collision_mask = COLLISION_LAYERS.PERCEPTION_MASK
+	var excluded: Array[RID] = [actor.get_rid()]
+	for resident in get_tree().get_nodes_in_group(&"runtime_elfie_actors"):
+		if resident is CollisionObject3D:
+			excluded.append(resident.get_rid())
+	query.exclude = excluded
+	var minimum_distance := FOLLOW_CAMERA_MIN_DISTANCE
+	var collision := actor.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision != null and collision.shape is CapsuleShape3D:
+		minimum_distance = maxf(minimum_distance, (collision.shape as CapsuleShape3D).height * collision.global_basis.y.length())
+	desired = _follow_camera_position(view, target, offset, minimum_distance, query)
+	var direction := (desired - target).normalized()
+	var distance := desired.distance_to(target)
+	if bool(view.get("follow_initialized", false)):
+		var previous_distance := float(view["follow_distance"])
+		var speed := 6.0 if distance < previous_distance else 2.0
+		distance = move_toward(previous_distance, distance, speed * minf(delta, 0.05))
+		target = (view["follow_target"] as Vector3).lerp(target, 1.0 - exp(-8.0 * minf(delta, 0.05)))
+	view["follow_initialized"] = true
+	view["follow_distance"] = distance
+	view["follow_target"] = target
+	desired = target + direction * distance
+	# Smoothing must never carry the camera through the current occluder.
+	# Check the final segment from the real resident, not the lagging target.
+	query.from = actor.global_position + Vector3(0, 0.6, 0)
+	desired = _follow_camera_clear_position(query.from, desired, query)
+	if desired.distance_to(query.from) < minimum_distance:
+		# Prefer a clear side over squeezing the third-person lens into the body.
+		desired = _follow_camera_position(view, query.from, offset, minimum_distance, query)
+	view["follow_distance"] = desired.distance_to(query.from)
+	camera.global_position = desired
+	camera.look_at(query.from)
+	_camera_target = query.from
+
+
+func _follow_camera_clear_position(target: Vector3, desired: Vector3, query: PhysicsRayQueryParameters3D) -> Vector3:
+	query.from = target
+	query.to = desired
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return desired if hit.is_empty() else (hit["position"] as Vector3).move_toward(target, FOLLOW_CAMERA_WALL_MARGIN)
+
+
+func _follow_camera_position(view: Dictionary, target: Vector3, offset: Vector3, minimum_distance: float, query: PhysicsRayQueryParameters3D) -> Vector3:
+	var yaw := float(view.get("follow_yaw", 0.0)) if bool(view.get("follow_initialized", false)) else 0.0
+	var best := target
+	var best_yaw := yaw
+	# Keep a usable side until it becomes blocked; don't oscillate around furniture.
+	for turn: float in [0.0, PI/4, -PI/4, PI/2, -PI/2, 3*PI/4, -3*PI/4, PI]:
+		var candidate_yaw := wrapf(yaw + turn, -PI, PI)
+		var candidate := _follow_camera_clear_position(target, target + offset.rotated(Vector3.UP, candidate_yaw), query)
+		if candidate.distance_squared_to(target) > best.distance_squared_to(target):
+			best = candidate
+			best_yaw = candidate_yaw
+		if candidate.distance_to(target) >= minimum_distance:
+			view["follow_yaw"] = candidate_yaw
+			return candidate
+	view["follow_yaw"] = best_yaw
+	return best
+
+
+func _restore_pov_body() -> void:
+	for entry: Dictionary in _pov_body_layers:
+		if is_instance_valid(entry.mesh):
+			entry.mesh.layers = entry.layers
+	_pov_body_layers.clear()
+
+
+func _hide_pov_body(actor: Node3D) -> void:
+	# Only the first-person camera excludes this layer; lights still see the body.
+	for mesh: GeometryInstance3D in actor.find_children("*", "GeometryInstance3D", true, false):
+		_pov_body_layers.append({"mesh": mesh, "layers": mesh.layers})
+		mesh.layers = 1 << 19
 
 
 func observation_view_labels() -> PackedStringArray:
@@ -948,6 +811,11 @@ func observer_camera_catalog() -> Dictionary:
 			"id": String(view["id"]),
 			"label": String(view["label"]),
 		})
+	# These registered presentation choices share the existing local select transport.
+	# They are not physical cameras and never change the active camera identity.
+	if _lighting_preview_available:
+		for phase: String in ["live", "day", "night", "quiet"]:
+			views.append({"id": "lighting-" + phase, "label": phase})
 	return {
 		"revision": camera_catalog_revision,
 		"views": views,
@@ -973,16 +841,29 @@ func set_observation_hud_visible(visible: bool) -> void:
 func select_observation_view(index: int) -> void:
 	if index < 0 or index >= _camera_views.size():
 		return
+	_restore_pov_body()
 	_active_camera_index = index
 	var view := _camera_views[index]
+	view["follow_initialized"] = false
 	_active_camera_id = String(view["id"])
 	var camera := view["camera"] as Camera3D
+
 	camera.current = true
 	_camera_target = view["target"] as Vector3
 	camera.global_transform = view["transform"] as Transform3D
 	camera.size = float(view["size"])
 	camera.fov = float(view["fov"])
+	if view.has("actor"):
+		view["look_yaw"] = 0.0
+		view["look_pitch"] = 0.0
+		if bool(view.get("first_person", false)) and _pov_body_layers.is_empty():
+			_hide_pov_body(view["actor"])
+		view["follow_offset"] = FOLLOW_CAMERA_OFFSET
+		_process(0.0)
 	_sync_orbit_state(camera)
+	if view.has("floor_height_limits"): _apply_camera_transform(camera)
+	if not _rebuilding and (not _observer_environment.is_empty() or _observer_lighting_preview != "live"):
+		_apply_observer_lighting_display()
 	if not Engine.is_editor_hint() and _observation_hud != null:
 		_observation_hud.call("set_selected_view", index)
 	_emit_observer_camera_catalog_changed()
@@ -991,6 +872,10 @@ func select_observation_view(index: int) -> void:
 func select_observer_camera_by_id(view_id: String) -> bool:
 	if _observer_presentation_paused:
 		return false
+	if _lighting_preview_available and view_id in ["lighting-live", "lighting-day", "lighting-night", "lighting-quiet"]:
+		_observer_lighting_preview = view_id.trim_prefix("lighting-")
+		_apply_observer_lighting_display()
+		return true
 	var index := _observation_view_index_by_id(view_id)
 	if index < 0:
 		return false
@@ -1028,6 +913,8 @@ func set_observer_presentation_paused(paused: bool) -> void:
 	if _observer_presentation_paused == paused:
 		return
 	_observer_presentation_paused = paused
+	if _observer_water != null:
+		_observer_water.set_presentation_paused(paused)
 	_emit_observer_camera_catalog_changed()
 
 
@@ -1056,19 +943,10 @@ func _active_camera() -> Camera3D:
 
 
 func _sync_orbit_state(camera: Camera3D) -> void:
-	var local_camera_position := to_local(camera.global_position)
-	var offset := local_camera_position - _camera_target
+	var offset := camera.global_position - _camera_target
 	_camera_distance = maxf(offset.length(), 0.001)
 	_camera_yaw = atan2(offset.x, offset.z)
 	_camera_pitch = asin(clampf(offset.y / _camera_distance, -1.0, 1.0))
-
-
-func _building_center_x() -> float:
-	return (D.ACTIVITY_OUTER_X + D.DORM_OUTER_X) / 2.0
-
-
-func _building_width() -> float:
-	return D.DORM_OUTER_X - D.ACTIVITY_OUTER_X
 
 
 func _viewport_aspect() -> float:
@@ -1076,74 +954,6 @@ func _viewport_aspect() -> float:
 	if viewport_size.x < 1.0 or viewport_size.y < 1.0:
 		return 16.0 / 9.0
 	return maxf(viewport_size.x / maxf(viewport_size.y, 1.0), 0.1)
-
-
-func _top_down_size(covered_length: float) -> float:
-	return clampf(
-		maxf(
-			_building_width() + OVERVIEW_MARGIN * 2.0,
-			covered_length / _viewport_aspect() + OVERVIEW_MARGIN * 2.0
-		),
-		CAMERA_MIN_SIZE,
-		CAMERA_MAX_SIZE
-	)
-
-
-func _set_top_down_transform(
-	camera: Camera3D, target: Vector3, height: float
-) -> void:
-	camera.global_position = to_global(target + Vector3(0.0, height, 0.0))
-	camera.look_at(to_global(target), -global_transform.basis.x.normalized())
-
-
-func _activity_group(index: int) -> int:
-	if index < activity_group_ids.size():
-		return activity_group_ids[index]
-	return index + 1000
-
-
-func _themes_for_rooms(room_count: int) -> Array[Color]:
-	var result: Array[Color] = []
-	for index in range(room_count):
-		result.append(P.ACTIVITY_COLORS[index % P.ACTIVITY_COLORS.size()])
-	return result
-
-
-func _update_camera(room_count: int) -> void:
-	var camera := get_node_or_null("Camera3D") as Camera3D
-	if camera == null:
-		return
-	var building_length := float(room_count) * D.CELL_PITCH
-	var overview_length := building_length + PORTAL_ROOM_LENGTH
-	_camera_default_target = Vector3(
-		_building_center_x(),
-		0.55,
-		(-building_length + PORTAL_ROOM_LENGTH) / 2.0
-	)
-	_camera_default_size = _top_down_size(overview_length)
-	var half_width := maxf(
-		absf(D.ACTIVITY_OUTER_X - _camera_default_target.x),
-		absf(D.DORM_OUTER_X - _camera_default_target.x)
-	)
-	var half_length := maxf(
-		absf(PORTAL_ROOM_LENGTH - _camera_default_target.z),
-		absf(-building_length - _camera_default_target.z)
-	)
-	var half_height := maxf(
-		_camera_default_target.y,
-		D.WALL_HEIGHT - _camera_default_target.y
-	)
-	var building_radius := Vector3(half_width, half_height, half_length).length()
-	_camera_default_distance = maxf(
-		TOP_DOWN_MIN_HEIGHT,
-		building_radius + CAMERA_BOUNDS_MARGIN
-	)
-	_camera_target = _camera_default_target
-	_camera_distance = _camera_default_distance
-	_camera_yaw = 0.0
-	_camera_pitch = PI / 2.0
-	camera.size = _camera_default_size
-	_set_top_down_transform(camera, _camera_target, _camera_distance)
 
 
 func _reset_camera() -> void:
@@ -1155,20 +965,183 @@ func _reset_camera() -> void:
 	camera.global_transform = view["transform"] as Transform3D
 	camera.size = float(view["size"])
 	camera.fov = float(view["fov"])
+	if view.has("actor"):
+		view["look_yaw"] = 0.0
+		view["look_pitch"] = 0.0
+		if bool(view.get("first_person", false)) and _pov_body_layers.is_empty():
+			_hide_pov_body(view["actor"])
+		view["follow_offset"] = FOLLOW_CAMERA_OFFSET
+		view["follow_initialized"] = false
+		_process(0.0)
+	_sync_orbit_state(camera)
+	if view.has("floor_height_limits"): _apply_camera_transform(camera)
+
+
+func _set_camera_region(view: Dictionary, frame: Transform3D, bounds: AABB) -> void:
+	view["movement_frame"] = frame
+	view["movement_bounds"] = bounds
+
+
+func _constrain_camera_position(position: Vector3) -> Vector3:
+	var view := _camera_views[_active_camera_index]
+	if view.has("actor") or not view.has("movement_bounds"):
+		return position
+	var frame: Transform3D = view["movement_frame"]
+	var bounds: AABB = view["movement_bounds"]
+	var local := frame.affine_inverse() * position
+	local.y = clampf(local.y, bounds.position.y, bounds.end.y)
+	var center := bounds.get_center()
+	var radii := Vector2(bounds.size.x, bounds.size.z) * 0.5
+	var radial := Vector2((local.x-center.x)/radii.x, (local.z-center.z)/radii.y)
+	if radial.length() > 1.0:
+		radial = radial.normalized()
+	var minimum := float(view.get("minimum_radius", 0.0)) / radii.x
+	if radial.length() < minimum:
+		radial = (radial.normalized() if radial.length() > 0.001 else Vector2.UP) * minimum
+	if view.has("track_angle_limit"):
+		var original := frame.affine_inverse() * (view["transform"] as Transform3D).origin
+		var base_angle := atan2((original.x-center.x)/radii.x, (original.z-center.z)/radii.y)
+		var angle := wrapf(atan2(radial.x, radial.y)-base_angle, -PI, PI)
+		angle = base_angle + clampf(angle, -float(view["track_angle_limit"]), float(view["track_angle_limit"]))
+		radial = Vector2(sin(angle), cos(angle)) * radial.length()
+	local.x = center.x + radial.x*radii.x
+	local.z = center.z + radial.y*radii.y
+	return frame * local
+
+
+func _turn_camera(camera: Camera3D, relative: Vector2) -> void:
+	var forward := -camera.global_basis.z
+	var yaw := atan2(-forward.x, -forward.z) - relative.x * CAMERA_ORBIT_SPEED * 0.4
+	var pitch := clampf(asin(clampf(forward.y, -1.0, 1.0)) - relative.y * CAMERA_ORBIT_SPEED * 0.4, deg_to_rad(-80), deg_to_rad(80))
+	forward = Vector3(-sin(yaw)*cos(pitch), sin(pitch), -cos(yaw)*cos(pitch))
+	camera.look_at(camera.global_position + forward)
+	_camera_target = camera.global_position + forward * _camera_distance
+	_sync_orbit_state(camera)
+
+
+func _move_camera_track(camera: Camera3D, horizontal: float) -> void:
+	if is_zero_approx(horizontal):
+		return
+	var view := _camera_views[_active_camera_index]
+	var frame: Transform3D = view["movement_frame"]
+	var bounds: AABB = view["movement_bounds"]
+	var center := bounds.get_center()
+	var radii := Vector2(bounds.size.x, bounds.size.z)*0.5
+	var local := frame.affine_inverse()*camera.global_position
+	var radial := Vector2((local.x-center.x)/radii.x, (local.z-center.z)/radii.y)
+	var before_angle := atan2(radial.x, radial.y)
+	var angle := before_angle - horizontal*CAMERA_ORBIT_SPEED*0.4
+	if view.has("track_angle_limit"):
+		var original := frame.affine_inverse() * (view["transform"] as Transform3D).origin
+		var base := atan2((original.x-center.x)/radii.x, (original.z-center.z)/radii.y)
+		var limit := float(view["track_angle_limit"])
+		angle = base + clampf(wrapf(before_angle-base, -PI, PI)-horizontal*CAMERA_ORBIT_SPEED*0.4, -limit, limit)
+	local.x = center.x + sin(angle)*radial.length()*radii.x
+	local.z = center.z + cos(angle)*radial.length()*radii.y
+	var destination := _constrain_camera_position(frame*local)
+	var constrained := frame.affine_inverse()*destination
+	var actual_angle := atan2((constrained.x-center.x)/radii.x, (constrained.z-center.z)/radii.y)
+	var rotation_delta := wrapf(actual_angle-before_angle, -PI, PI)
+	camera.global_position = destination
+	camera.global_basis = Basis(Vector3.UP, rotation_delta) * camera.global_basis
+	_camera_target = destination - camera.global_basis.z * _camera_distance
 	_sync_orbit_state(camera)
 
 
 func _apply_camera_transform(camera: Camera3D) -> void:
+	var current_view: Dictionary = _camera_views[_active_camera_index]
+	if current_view.has("floor_height_limits"):
+		var limits: Vector2 = current_view["floor_height_limits"]
+		_camera_target.y = clampf(_camera_target.y,limits.x,limits.y)
+		# Bound the orbit itself, not just its resulting position: reversing a
+		# drag must respond immediately instead of unwinding an invisible orbit.
+		var low := asin(clampf((limits.x-_camera_target.y)/_camera_distance,-1.0,1.0))
+		var high := asin(clampf((limits.y-_camera_target.y)/_camera_distance,-1.0,1.0))
+		_camera_pitch = clampf(_camera_pitch,maxf(low,deg_to_rad(-35)),minf(high,deg_to_rad(35)))
 	var horizontal_scale := cos(_camera_pitch) * _camera_distance
 	var offset := Vector3(
 		sin(_camera_yaw) * horizontal_scale,
 		sin(_camera_pitch) * _camera_distance,
 		cos(_camera_yaw) * horizontal_scale
 	)
-	camera.global_position = to_global(_camera_target + offset)
-	var target_position := to_global(_camera_target)
+	camera.global_position = _constrain_camera_position(_camera_target + offset)
+	var target_position := _camera_target
 	var view_direction := (target_position - camera.global_position).normalized()
 	var camera_up := global_transform.basis.y.normalized()
 	if absf(view_direction.dot(camera_up)) > 0.98:
 		camera_up = -global_transform.basis.x.normalized()
 	camera.look_at(target_position, camera_up)
+	var view := _camera_views[_active_camera_index]
+	if view.has("actor") and is_instance_valid(view["actor"]):
+		var actor := view["actor"] as CharacterBody3D
+		var actor_target := actor.global_position + Vector3.UP * 0.6
+		# Retain the observer's relative view as the resident moves. Right-drag
+		# changes that offset while follow continues to aim at the resident.
+		view["follow_offset"] = camera.global_position - actor_target
+		view["follow_initialized"] = false
+		_process(0.0)
+		_sync_orbit_state(camera)
+
+
+func scene_manifest() -> Dictionary:
+	return {
+		"nest_id": _nest_id,
+		"world_revision": world_revision,
+		"bed_count": FIXED_BED_COUNT,
+		"capabilities": ["semantic_anchors", "complete_actor_sync", "navigation"],
+		"zones": _estate_semantics.zones if _estate_semantics != null else [],
+		"anchors": _estate_semantics.manifest_anchors(FIXED_BED_COUNT) if _estate_semantics != null else [],
+		"facilities": _estate_semantics.facility_descriptors if _estate_semantics != null else [],
+	}
+
+
+func bake_navigation() -> bool:
+	if _estate_physics == null or _anchor_markers.size() < 32:
+		return false
+	if is_instance_valid(_navigation_region):
+		return _navigation_region.navigation_mesh.get_polygon_count() > 0
+	_navigation_region = _estate_physics.bake(self)
+	return _navigation_region!=null and _navigation_region.navigation_mesh.get_polygon_count()>0
+
+
+func validate_navigation_anchors() -> bool:
+	var map := get_world_3d().navigation_map
+	_estate_semantics.align_approaches(map)
+	var courtyard := resolve_anchor("courtyard/activity")
+	if courtyard == null: return false
+	for id in semantic_anchor_ids():
+		var marker := resolve_anchor(id)
+		if marker == null: continue
+		var nearest := NavigationServer3D.map_get_closest_point(map, marker.global_position)
+		if nearest.distance_to(marker.global_position) > 0.3:
+			push_warning("Complete estate approach off navigation: %s at %s, nearest %s" % [id, marker.global_position, nearest])
+			return false
+		var path := NavigationServer3D.map_get_path(map, marker.global_position, courtyard.global_position, true)
+		if path.is_empty() or path[-1].distance_to(courtyard.global_position) > 0.3:
+			push_warning("Complete estate disconnected route: %s from %s, partial path %s" % [id, marker.global_position, path])
+			return false
+	return true
+
+
+func wait_for_navigation_sync(timeout_seconds: float = 10.0) -> bool:
+	# Local geometry readiness only. The authority and read-only presentation
+	# use the same synchronization rule, without granting Observer world control.
+	var navigation_map := get_world_3d().navigation_map
+	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		await get_tree().physics_frame
+		var regions := NavigationServer3D.map_get_regions(navigation_map)
+		var synchronized := not regions.is_empty()
+		# Small landing patches may synchronize before the full baked region.
+		for expected: NavigationRegion3D in find_children("*", "NavigationRegion3D", true, false):
+			if not regions.has(expected.get_rid()): synchronized = false
+		for region: RID in regions:
+			if NavigationServer3D.region_get_iteration_id(region) == 0: synchronized = false
+		if synchronized and NavigationServer3D.map_get_iteration_id(navigation_map) > 0:
+			var anchor_ids := semantic_anchor_ids()
+			if anchor_ids.is_empty(): continue
+			var marker := resolve_anchor(anchor_ids[0])
+			if marker == null or not NavigationServer3D.map_get_closest_point_owner(navigation_map, marker.global_position).is_valid(): continue
+			if NavigationServer3D.map_get_closest_point(navigation_map, marker.global_position).distance_to(marker.global_position) > 0.35: continue
+			return true
+	return false

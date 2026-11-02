@@ -190,7 +190,7 @@ def adopt_test_elfie(
     return elfie_id
 
 
-def complete_test_setup(db_path: str, *, bed_count: int = 8) -> None:
+def complete_test_setup(db_path: str, *, bed_count: int = 32) -> None:
     """Complete Setup through the canonical installation phases."""
     repository = SQLiteSetupAdapter(db_path)
     repository.save_remote_draft(configured=False, connection_id=None)

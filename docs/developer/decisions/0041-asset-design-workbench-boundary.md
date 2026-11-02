@@ -39,3 +39,19 @@ registered before it can affect the page, and old or unregistered working
 material remains local until it is reviewed. The catalog, object metadata and
 revision metadata have one clear ownership path, which makes omission audits
 and workspace relocation reproducible.
+
+## Saved catalog ownership clarification — 2026-11-02
+
+The scoped workbench rule follows the existing storage ownership above:
+`catalog.json` contains object indexes and global image associations; each
+`object.json` contains public metadata and its revision list; each revision's
+`version.json` is the sole registration and detail record for that revision.
+`catalog_store` owns the common read/write path. The loading projection must not
+duplicate revision records or discover unregistered revisions by scanning.
+This clarifies the scoped rule without changing the preview surface or runtime
+authority.
+
+Large approved GLBs use Git LFS without changing their asset identity or bytes.
+A fresh-checkout validation entry materializes tracked LFS inputs before computing
+input fingerprints or running asset checks. Download failures and unresolved
+pointers are errors; pointer bytes are never accepted as model data.

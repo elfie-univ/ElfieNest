@@ -7,6 +7,7 @@ from typing import Callable, Final
 
 from app.features.nest_management import NestPortError
 from app.features.setup import SetupPrincipal, StoredSetupDraft
+from nest.public import FIXED_BED_COUNT
 
 from .errors import (
     SetupInstallationConflict,
@@ -253,7 +254,7 @@ class SetupInstallationService:
             try:
                 # The first-run Nest default is a persistence/runtime fact,
                 # not a Setup form field.
-                self._nest.initialize_bed_count(12)
+                self._nest.initialize_bed_count(FIXED_BED_COUNT)
             except NestPortError as error:
                 raise SetupInstallationPortError(
                     "unable to initialize Nest configuration"

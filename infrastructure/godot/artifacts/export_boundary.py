@@ -9,7 +9,6 @@ GODOT_EXPORT_EXCLUDED_PATHS: Final[Tuple[str, ...]] = (
     "characters/tools/*",
     "characters/tovren/source/*",
     "characters/saevi/source/*",
-    "rooms/assets/reference/*",
 )
 
 GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)
@@ -19,16 +18,8 @@ GODOT_EXPORT_EXCLUDE_FILTER: Final[str] = ",".join(GODOT_EXPORT_EXCLUDED_PATHS)
 GODOT_AUTHORING_ONLY_PATHS: Final[Tuple[str, ...]] = (
     "characters/saevi/source",
     "characters/tools",
-    "rooms/assets/reference",
 )
-GODOT_AUTHORING_ONLY_FILES: Final[Tuple[str, ...]] = (
-    "rooms/assets/artwork/framed_picture.tscn",
-    "rooms/assets/beds/bed_chair.tscn",
-    "rooms/assets/chairs/pc_chair.tscn",
-    "rooms/assets/tables/pc_setup.tscn",
-    "rooms/assets/tables/pc_table.tscn",
-    "rooms/assets/tables/table_small.tscn",
-)
+GODOT_AUTHORING_ONLY_FILES: Final[Tuple[str, ...]] = ()
 
 
 def export_boundary_manifest() -> dict[str, object]:

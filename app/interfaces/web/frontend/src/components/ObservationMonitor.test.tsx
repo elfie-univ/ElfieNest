@@ -1,15 +1,20 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, within, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { i18n } from "i18next"
 import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { elfies, type ElfieProfile } from "../api/elfies/profiles"
+import { adminElfies } from "../api/admin/elfies"
 import { createI18n } from "../i18n/config"
 import { localizeBackendDetail } from "../i18n/errors"
 import type { SupportedLocale } from "../i18n/locale"
 import type { ObserverCameraCatalog } from "../stores/observer-protocol"
 import { useOptionalObserver } from "../stores/observer"
 import { monitorStatusKey, ObservationMonitor } from "./ObservationMonitor"
+
+vi.mock("../api/elfies/profiles", () => ({ elfies: vi.fn() }))
+vi.mock("../api/admin/elfies", () => ({ adminElfies: vi.fn() }))
 
 vi.mock("../stores/observer", () => ({
   useOptionalObserver: vi.fn(),
@@ -18,17 +23,15 @@ vi.mock("../stores/observer", () => ({
 vi.mock("./ObserverSurface", () => ({
   ObserverSurface: ({
     autoStart,
-    bedCount,
     roomId,
     showHeader,
     title,
   }: {
     readonly autoStart?: boolean
-    readonly bedCount: number
     readonly roomId: string
     readonly showHeader?: boolean
     readonly title: string
-  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-bed-count={String(bedCount)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
+  }) => <div aria-label={title} data-auto-start={String(autoStart)} data-room-id={roomId} data-show-header={String(showHeader)} data-testid="observer-surface" role="region" />,
 }))
 
 type ObserverState = NonNullable<ReturnType<typeof useOptionalObserver>>
@@ -47,15 +50,28 @@ type ObserverFixture = {
 }
 
 const catalog = {
-  activeId: "activity-01",
-  presentationPaused: false,
-  revision: 1,
+  activeId: "overview",
+  presentationPaused: false, revision: 1,
   views: [
-    { id: "overview", label: "总览" },
-    { id: "activity-01", label: "活动区" },
-    { id: "dorm-01", label: "宿舍区" },
+    { id: "overview", label: "全园总览" }, { id: "estate-ring", label: "环形路" },
+    ...Array.from({ length: 4 }, (_, i) => ({ id: `central-${i + 1}`, label: `主楼 · ${i + 1} 层` })),
+    ...Array.from({ length: 8 }, (_, i) => [
+      { id: `dorm-0${i + 1}`, label: `卧室 M0${i + 1} · 一层` },
+      { id: `terrace-0${i + 1}`, label: `卧室 M0${i + 1} · 二层` },
+    ]).flat(),
+    { id: "lighting-live", label: "Live" }, { id: "lighting-day", label: "Day" },
+    { id: "lighting-night", label: "Night" }, { id: "lighting-quiet", label: "Quiet" },
+    { id: "access-estate", label: "Inspection" },
+    { id: "elfie-00000001", label: "Follow one" }, { id: "elfie-pov-00000001", label: "POV one" },
+    { id: "elfie-00000002", label: "Other owner" },
   ],
 } satisfies ObserverCameraCatalog
+
+const owned: ElfieProfile = {
+  elfie_id: "00000001", name: "Mochi", species_id: "saevi", gender: null,
+  birth_date: null, summary: null, adopted_at: "2026-08-01", profile_status: "empty",
+  big_five: null, personality_tags: [], portrait_url: "", appearance: null, relationship: "owned",
+}
 
 function createObserver(
   cameraCatalog: ObserverCameraCatalog | null,
@@ -95,241 +111,238 @@ function createObserver(
 
 function renderMonitor(
   locale: SupportedLocale = "zh-CN",
-  bedCount = 4,
   mode: "embedded" | "standalone" = "embedded",
   immersive = false,
   onExitImmersive = vi.fn(),
+  elfieScope: "owned" | "all" = "owned",
 ): i18n {
   const instance = createI18n()
   void instance.changeLanguage(locale)
-  render(<I18nextProvider i18n={instance}><ObservationMonitor bedCount={bedCount} immersive={immersive} mode={mode} onExitImmersive={onExitImmersive} roomId="local-nest" /></I18nextProvider>)
+  render(<I18nextProvider i18n={instance}><ObservationMonitor elfieScope={elfieScope} immersive={immersive} mode={mode} onExitImmersive={onExitImmersive} roomId="local-nest" /></I18nextProvider>)
   return instance
 }
 
 describe("ObservationMonitor", () => {
   let fixture: ObserverFixture
-
   beforeEach(() => {
+    Element.prototype.hasPointerCapture = vi.fn(() => false)
+    Element.prototype.setPointerCapture = vi.fn()
+    Element.prototype.releasePointerCapture = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
     vi.clearAllMocks()
+    vi.mocked(elfies).mockResolvedValue([])
+    vi.mocked(adminElfies).mockResolvedValue([])
     fixture = createObserver(catalog)
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
   })
 
-  it("keeps reset, overview, generated cameras, and pause in one ordered toolbar", () => {
+  it("shows the mode buttons, fixed view selector and reset in that order", () => {
     renderMonitor()
-
-    const toolbar = screen.getByRole("toolbar", { name: "监控工具栏" })
-    expect(toolbar.parentElement).toHaveClass("observation-monitor__stage")
-    expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
-      "复位视角",
-      "总览",
-      "活动区",
-      "宿舍区",
-      "暂停观察",
-    ])
-    expect(within(toolbar).getAllByRole("button", { name: "总览" })).toHaveLength(1)
-    expect(screen.getByRole("button", { name: "总览" }).querySelector("svg")).toHaveClass("lucide-cctv")
+    expect(screen.queryByRole("button", { name: "总览" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "操作方式" })).not.toBeInTheDocument()
+    const left = screen.getByRole("group", { name: "视角操作" })
+    const right = screen.getByRole("group", { name: "时间与播放" })
+    expect(left.children).toHaveLength(3)
+    expect(screen.queryByRole("combobox", { name: "视角类型" })).not.toBeInTheDocument()
+    expect(screen.queryByText("视角类型")).not.toBeInTheDocument()
+    expect(within(left).getAllByRole("combobox").map((item) => item.textContent)).toEqual(["全园总览"])
+    expect(within(screen.getByRole("group", { name: "视角切换" })).getAllByRole("button").map((item) => item.textContent)).toEqual(["固定机位", "精灵视角"])
+    expect(screen.getByRole("button", { name: "固定机位" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "精灵视角" })).toHaveAttribute("aria-pressed", "false")
+    expect(left.lastElementChild).toBe(screen.getByRole("button", { name: "复位视角" }))
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
+    expect(right).toContainElement(screen.getByRole("button", { name: "暂停观察" }))
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument()
     expect(screen.getAllByRole("toolbar")).toHaveLength(1)
-    expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.getByRole("button", { name: "总览" })).toHaveAttribute("aria-pressed", "false")
-    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-auto-start", "true")
-    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-bed-count", "4")
-    expect(screen.getByTestId("observer-surface")).toHaveAttribute("data-show-header", "false")
   })
 
-  it("shows the current visible Elfie count in the ready 3D surface", () => {
-    fixture = createObserver(catalog, "ready", 2)
+  it.each(["", "0", "true"])("does not enable time preview for debug=%s", (value) => {
+    window.history.replaceState(null, "", `/monitor?debug=${value}`)
+    renderMonitor()
+    expect(screen.queryByRole("combobox", { name: "时间" })).not.toBeInTheDocument()
+    expect(fixture.calls.select).not.toHaveBeenCalled()
+  })
+
+  it("opens debug time preview at live time without restoring a saved preview", () => {
+    window.history.replaceState(null, "", "/monitor?room=local-nest&debug=1")
+    renderMonitor()
+    expect(screen.getByRole("combobox", { name: "时间" })).toHaveTextContent("本地实时")
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument()
+    expect(fixture.calls.select).not.toHaveBeenCalled()
+  })
+
+  it("labels the authorized resident count without claiming rendered visibility", () => {
+    fixture = createObserver(catalog, "ready", 3)
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-
     renderMonitor()
-
-    expect(screen.getByText("当前可见 2 位精灵。")).toBeInTheDocument()
+    expect(screen.getByText("观察范围内有 3 位精灵。")).toBeInTheDocument()
+    expect(screen.queryByText("当前可见 3 位精灵。")).not.toBeInTheDocument()
   })
 
-  it("keeps the embedded preview free of standalone navigation controls", () => {
-    renderMonitor()
-
-    expect(screen.queryByRole("link", { name: "返回管理" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "进入沉浸观察" })).not.toBeInTheDocument()
-    expect(screen.getByRole("toolbar", { name: "监控工具栏" })).toBeInTheDocument()
-  })
-
-  it("hides standalone navigation and the camera toolbar in immersive mode", async () => {
-    const user = userEvent.setup()
-    const onExitImmersive = vi.fn()
-    renderMonitor("zh-CN", 4, "standalone", true, onExitImmersive)
-
-    expect(screen.queryByRole("toolbar", { name: "监控工具栏" })).toBeNull()
-    await user.click(screen.getByRole("button", { name: "退出沉浸观察" }))
-
-    expect(onExitImmersive).toHaveBeenCalledOnce()
-  })
-
-  it("dispatches only high-level view and local-presentation commands", async () => {
+  it("groups all 22 fixed cameras into courtyard, main building and bedrooms", async () => {
     const user = userEvent.setup()
     renderMonitor()
+    await user.click(screen.getByRole("combobox", { name: "视角" }))
+    const list = screen.getByRole("listbox")
+    expect(within(list).getAllByRole("option")).toHaveLength(22)
+    expect(within(list).getByText("庭院")).toBeInTheDocument()
+    expect(within(list).getByText("主楼")).toBeInTheDocument()
+    expect(within(list).getByText("卧室")).toBeInTheDocument()
+    expect(within(list).queryByText("露台")).not.toBeInTheDocument()
+    const labels = within(list).getAllByRole("option").map((item) => item.textContent)
+    expect(labels.slice(6, 10)).toEqual(["卧室 M01 · 一层", "卧室 M01 · 二层", "卧室 M02 · 一层", "卧室 M02 · 二层"])
+    expect(within(list).queryByText("Other owner")).not.toBeInTheDocument()
+    expect(within(list).queryByText("Inspection")).not.toBeInTheDocument()
+    const bedroomColors = ["#95b58c", "#d39bae", "#91bbd7", "#d5a078", "#83bbb5", "#b8a2ce", "#d8cc92", "#8791bc"]
+    for (const [index, color] of bedroomColors.entries()) {
+      const room = `M0${index + 1}`
+      for (const floor of ["一层", "二层"]) {
+        const option = within(list).getByRole("option", { name: `卧室 ${room} · ${floor}` })
+        expect(option.querySelector('[data-slot="select-marker"]')).toHaveStyle({ backgroundColor: color })
+      }
+    }
+    expect(within(list).getByRole("option", { name: "全园总览" }).querySelector('[data-slot="select-marker"]')).toBeNull()
+    await user.click(screen.getByRole("option", { name: "主楼 · 2 层" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("central-2")
+  })
 
-    await user.click(screen.getByRole("button", { name: "复位视角" }))
-    await user.click(screen.getByRole("button", { name: "总览" }))
-    await user.click(screen.getByRole("button", { name: "宿舍区" }))
-    await user.click(screen.getByRole("button", { name: "暂停观察" }))
+  it("keeps the bedroom marker beside the selected view without changing its label", () => {
+    fixture = createObserver({ ...catalog, activeId: "terrace-08" })
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+    renderMonitor()
+    const view = screen.getByRole("combobox", { name: "视角" })
+    expect(view).toHaveTextContent("卧室 M08 · 二层")
+    expect(view.querySelector('[data-slot="select-marker"]')).toHaveStyle({ backgroundColor: "#8791bc" })
+  })
 
+  it("resets the current fixed camera without selecting another camera or changing modes", async () => {
+    fixture = createObserver({ ...catalog, activeId: "central-2" })
+    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
+    renderMonitor()
+    await userEvent.click(screen.getByRole("button", { name: "固定机位" }))
+    await userEvent.click(screen.getByRole("button", { name: "复位视角" }))
     expect(fixture.calls.reset).toHaveBeenCalledOnce()
-    expect(fixture.calls.overview).toHaveBeenCalledOnce()
-    expect(fixture.calls.select).toHaveBeenCalledWith("dorm-01")
+    expect(fixture.calls.select).not.toHaveBeenCalled()
+    expect(screen.getByRole("combobox", { name: "视角" })).toHaveTextContent("主楼 · 2 层")
+  })
+
+  it("requests owned Elfies, excludes others and switches follow/first-person on the same resident", async () => {
+    vi.mocked(elfies).mockResolvedValue([owned, { ...owned, elfie_id: "00000002", name: "Other", relationship: "other" }, { ...owned, elfie_id: "00000003", name: "Offline" }])
+    const user = userEvent.setup()
+    renderMonitor()
+    await waitFor(() => expect(elfies).toHaveBeenCalledWith("owned"))
+    expect(adminElfies).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "精灵视角" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("elfie-00000001")
+    expect(screen.queryByRole("combobox", { name: "操作方式" })).not.toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "视角操作" }).children).toHaveLength(3)
+    expect(within(screen.getByRole("group", { name: "视角操作" })).getAllByRole("combobox").map((item) => item.textContent)).toEqual(["Mochi", "跟随"])
+    expect(screen.queryByRole("button", { name: "复位视角" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "精灵视角" })).toHaveAttribute("aria-pressed", "true")
+    expect(fixture.calls.select).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole("combobox", { name: "精灵" }))
+    expect(screen.queryByRole("option", { name: "Other" })).not.toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Offline · 不在场景" })).toHaveAttribute("aria-disabled", "true")
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByRole("combobox", { name: "观看方式" }))
+    await user.click(screen.getByRole("option", { name: "代入" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("elfie-pov-00000001")
+    expect(screen.queryByRole("button", { name: "复位视角" })).not.toBeInTheDocument()
+    expect(fixture.calls.reset).not.toHaveBeenCalled()
+    expect(fixture.calls.select).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole("button", { name: "固定机位" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("overview")
+    expect(screen.getByRole("button", { name: "复位视角" })).toBeEnabled()
+    expect(screen.queryByRole("combobox", { name: "观看方式" })).not.toBeInTheDocument()
+  })
+
+  it("uses the protected admin directory and permits another owner's resident in manager scope", async () => {
+    vi.mocked(adminElfies).mockResolvedValue([
+      { owner: { user_id: 2, account_id: "other-owner", display_name: null }, permissions: { can_view_profile: true, can_view_cognition: false }, profile: { ...owned, elfie_id: "00000002", name: "Other" } },
+    ])
+    const user = userEvent.setup()
+    renderMonitor("zh-CN", "embedded", false, vi.fn(), "all")
+    await waitFor(() => expect(adminElfies).toHaveBeenCalledOnce())
+    expect(elfies).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "精灵视角" }))
+    expect(screen.getByRole("combobox", { name: "精灵" })).toHaveTextContent("Other")
+    expect(screen.queryByText("我的精灵")).not.toBeInTheDocument()
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("elfie-00000002")
+  })
+
+  it("shows a disabled empty owned selection without choosing someone else's camera", async () => {
+    const user = userEvent.setup()
+    renderMonitor()
+    await user.click(screen.getByRole("button", { name: "精灵视角" }))
+    expect(screen.getByRole("combobox", { name: "精灵" })).toBeDisabled()
+    expect(screen.getByRole("combobox", { name: "精灵" })).toHaveTextContent("暂无可观察的精灵")
+    expect(screen.queryByRole("button", { name: "复位视角" })).not.toBeInTheDocument()
+    expect(fixture.calls.select).not.toHaveBeenCalled()
+  })
+
+  it("keeps the loading failure distinct from an empty owned list", async () => {
+    vi.mocked(elfies).mockRejectedValue(new Error("unavailable"))
+    const user = userEvent.setup()
+    renderMonitor()
+    await user.click(screen.getByRole("button", { name: "精灵视角" }))
+    expect(screen.getByRole("combobox", { name: "精灵" })).toHaveTextContent("精灵列表加载失败")
+    expect(fixture.calls.select).not.toHaveBeenCalled()
+  })
+
+  it("selects time independently and pauses through the presentation bridge", async () => {
+    window.history.replaceState(null, "", "/monitor?debug=1")
+    const user = userEvent.setup()
+    renderMonitor()
+    await user.click(screen.getByRole("combobox", { name: "时间" }))
+    await user.click(screen.getByRole("option", { name: "白天 06:00–18:00" }))
+    expect(fixture.calls.select).toHaveBeenLastCalledWith("lighting-day")
+    expect(screen.getByRole("combobox", { name: "视角" })).toHaveTextContent("全园总览")
+    await user.click(screen.getByRole("button", { name: "暂停观察" }))
     expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(true)
     expect(fixture.calls.detach).not.toHaveBeenCalled()
-    expect(fixture.calls.openRoom).not.toHaveBeenCalled()
   })
 
-  it("uses the current catalog pause state without changing it optimistically", async () => {
-    const user = userEvent.setup()
+  it("disables all view changes while paused and keeps resume enabled", async () => {
     fixture = createObserver({ ...catalog, presentationPaused: true })
     vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
     renderMonitor()
-
-    await user.click(screen.getByRole("button", { name: "继续观察" }))
-
-    expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(false)
-    expect(screen.getByRole("button", { name: "继续观察" })).toBeInTheDocument()
-  })
-
-  it("freezes reset, overview, and camera switches while the catalog reports presentation paused", async () => {
-    const user = userEvent.setup()
-    fixture = createObserver({ ...catalog, presentationPaused: true })
-    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    renderMonitor()
-
+    for (const control of screen.getAllByRole("combobox")) expect(control).toBeDisabled()
     expect(screen.getByRole("button", { name: "复位视角" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "总览" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "活动区" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "宿舍区" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "继续观察" })).toBeEnabled()
-
-    await user.click(screen.getByRole("button", { name: "复位视角" }))
-    await user.click(screen.getByRole("button", { name: "总览" }))
-    await user.click(screen.getByRole("button", { name: "活动区" }))
-    await user.click(screen.getByRole("button", { name: "继续观察" }))
-
-    expect(fixture.calls.reset).not.toHaveBeenCalled()
-    expect(fixture.calls.overview).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "固定机位" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "精灵视角" })).toBeDisabled()
+    await userEvent.click(screen.getByRole("button", { name: "继续观察" }))
+    expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(false)
     expect(fixture.calls.select).not.toHaveBeenCalled()
-    expect(fixture.calls.setLocalPresentationPaused).toHaveBeenCalledWith(false)
-    expect(fixture.calls.detach).not.toHaveBeenCalled()
-    expect(fixture.calls.openRoom).not.toHaveBeenCalled()
   })
 
-  it("keeps all monitor controls disabled until the camera catalog arrives", async () => {
-    const user = userEvent.setup()
-    fixture = createObserver(null, "loading")
-    vi.mocked(useOptionalObserver).mockReturnValue(fixture.observer)
-    renderMonitor()
-
-    const pause = screen.getByRole("button", { name: "暂停观察" })
-    expect(pause).toBeDisabled()
-    expect(screen.getByRole("button", { name: "复位视角" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "总览" })).toBeDisabled()
-
-    await user.click(pause)
-
-    expect(fixture.calls.setLocalPresentationPaused).not.toHaveBeenCalled()
-    expect(fixture.calls.detach).not.toHaveBeenCalled()
-    expect(fixture.calls.openRoom).not.toHaveBeenCalled()
-    expect(screen.getByRole("button", { name: "暂停观察" })).toBeInTheDocument()
-  })
-
-  it("renders English controls and connection status while preserving runtime camera data", () => {
-    // Given: a ready observer publishes runtime-owned camera labels and IDs.
-    renderMonitor("en-US")
-
-    // When: the English monitor toolbar is inspected.
-    const toolbar = screen.getByRole("toolbar", { name: "Monitoring controls" })
-
-    // Then: UI-owned controls are English while runtime labels remain byte-for-byte unchanged.
-    expect(within(toolbar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
-      "Reset view",
-      "Overview",
-      "活动区",
-      "宿舍区",
-      "Pause monitoring",
-    ])
-    expect(screen.getByRole("status")).toHaveTextContent("Connected to local-nest")
-    expect(screen.getByRole("region", { name: "3D room monitor" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "活动区" })).toHaveAttribute("aria-pressed", "true")
-  })
-
-  it("localizes the immersive exit control", async () => {
-    const instance = renderMonitor("zh-CN", 4, "standalone", true)
-
-    expect(screen.getByRole("button", { name: "退出沉浸观察" })).toBeInTheDocument()
-    await instance.changeLanguage("en-US")
-
-    expect(screen.getByRole("button", { name: "Exit immersive monitoring" })).toBeInTheDocument()
-  })
-
-  it("reports offline and unknown monitor states with localized safe copy", () => {
-    // Given: the observer context is offline and a foreign status value is probed.
+  it("disables controls until connected and exposes a safe offline status", () => {
     vi.mocked(useOptionalObserver).mockReturnValue(null)
-
-    // When: the English monitor renders and the closed status mapper sees an unknown value.
     renderMonitor("en-US")
-    const unknownKey = monitorStatusKey("stale-external-status")
-
-    // Then: controls are disabled and neither state exposes raw external data.
-    expect(screen.getByRole("status")).toHaveTextContent("Monitoring is unavailable.")
-    expect(screen.getByRole("button", { name: "Reset view" })).toBeDisabled()
+    for (const control of screen.getAllByRole("combobox")) expect(control).toBeDisabled()
     expect(screen.getByRole("button", { name: "Pause monitoring" })).toBeDisabled()
-    expect(unknownKey).toBe("status.unknown")
+    expect(screen.getByRole("button", { name: "Reset view" })).toBeDisabled()
+    expect(screen.getByRole("status")).toHaveTextContent("Monitoring is unavailable.")
+    expect(monitorStatusKey("foreign")).toBe("status.unknown")
   })
 
-  it("keeps long English controls in the single horizontally scrollable toolbar", () => {
-    // Given: the English locale uses its longest control labels.
+  it("localizes controls without rewriting runtime view labels", () => {
     renderMonitor("en-US")
-
-    // When: the control surface is inspected as one toolbar.
-    const toolbar = screen.getByRole("toolbar", { name: "Monitoring controls" })
-
-    // Then: every label remains inside the existing overflow container.
-    expect(toolbar).toHaveClass("observation-monitor__toolbar")
-    expect(within(toolbar).getByRole("button", { name: "Pause monitoring" })).toHaveTextContent("Pause monitoring")
-    expect(screen.getAllByRole("toolbar")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Fixed cameras" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Elfie view" })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("combobox", { name: "View" })).toHaveTextContent("全园总览")
+    expect(screen.queryByRole("combobox", { name: "Operation mode" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset view" })).toHaveTextContent("Reset")
+    expect(screen.getByRole("status")).toHaveTextContent("Connected to local-nest")
   })
 
-  it("hides backend detail from English monitor errors", () => {
-    // Given: an observer failure includes misleading raw backend payload text.
-    const detail = "连接失败: capability=secret-token payload={raw:true}"
-
-    // When: the established localized monitor error boundary formats it for English.
-    const message = localizeBackendDetail(detail, "monitor.connect", "en-US")
-
-    // Then: only the local fallback is exposed.
-    expect(message).toBe("Unable to connect to monitoring.")
-    expect(message).not.toContain(detail)
-  })
-
-  it("replaces a stale runtime fallback with localized help and a high-level retry", async () => {
-    // Given: the Observer reports a stale runtime readiness failure.
-    const user = userEvent.setup()
-    fixture = createObserver(null)
-    vi.mocked(useOptionalObserver).mockReturnValue({
-      ...fixture.observer,
-      fallbackReason: "runtime",
-      status: "fallback",
-    })
-
-    // When: the English fallback is rendered and retried.
-    renderMonitor("en-US")
-    await user.click(screen.getByRole("button", { name: "Retry 3D monitoring" }))
-
-    // Then: safe local help replaces runtime detail and only the existing room action runs.
-    expect(screen.getByText("The local 3D runtime stopped responding. You can retry without leaving this page.")).toBeInTheDocument()
-    expect(fixture.calls.openRoom).toHaveBeenCalledWith("local-nest", {
-      channel: "elfienest.observer",
-      version: 1,
-      kind: "world_config",
-      nest_id: "local-nest",
-      bed_count: 4,
-    })
-    expect(fixture.calls.detach).not.toHaveBeenCalled()
+  it("keeps immersive exit and runtime retry behavior", async () => {
+    fixture = createObserver(null, "fallback")
+    vi.mocked(useOptionalObserver).mockReturnValue({ ...fixture.observer, fallbackReason: "runtime" })
+    renderMonitor("en-US", "standalone", true)
+    expect(screen.getByRole("button", { name: "Exit immersive monitoring" })).toBeInTheDocument()
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Retry 3D monitoring" }))
+    expect(fixture.calls.openRoom).toHaveBeenCalledWith("local-nest", expect.objectContaining({ nest_id: "local-nest" }))
+    expect(localizeBackendDetail("secret", "monitor.connect", "en-US")).not.toContain("secret")
   })
 })

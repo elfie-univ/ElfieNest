@@ -1,0 +1,13 @@
+{
+  "description": "可整体移动复用的浅木竖幅画框，奶白卡纸与可替换灰绿植物画芯；110 × 150 厘米。",
+  "sizeM": [
+    1.1,
+    1.5,
+    0.044
+  ],
+  "origin": "back mounting plane center; local +Z faces room",
+  "artworkGeneration": {
+    "tool": "built-in image_gen",
+    "prompt": "Create a single portrait art print texture, aspect ratio 3:4, filling the image edge to edge. This will be the replaceable picture insert inside a real reusable 3D pale-oak picture frame in a warm cream and sage living room. Art only: no physical frame, no mat border, no room, no perspective, no typography, no watermark. Quiet sophisticated abstract botanical composition: two or three large loose organic leaf silhouettes and one very fine curved stem, asymmetrical balanced layout with generous negative space. Muted sage green, olive gray, light warm sand, cream/off-white ground. Restrained hand-painted gouache and linen-paper texture, soft imperfect edges, subtle fine brushwork, calm and elegant, clearly readable from across a large room. Upper area mostly airy ivory, main sage forms offset slightly left, small sand shape on lower right. Entire sheet evenly lit, flat front-on print file, no cast shadows, no gradients suggesting a 3D object. Consistent color palette, understated residential wall art rather than a botanical diagram."
+  }
+}

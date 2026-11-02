@@ -11,9 +11,6 @@
     {"path": "buildings/pod/versions/v049/model.glb", "name": "model.glb", "kind": "model", "bytes": 25705720},
     {"path": "buildings/pod/source/model.glb", "name": "model.glb", "kind": "source", "bytes": 25705720},
     {"path": "buildings/pod/source/build.json", "name": "build.json", "kind": "data", "bytes": 19494},
-    {"path": "buildings/pod/versions/v049/images/after-terrace.png", "name": "after-terrace.png", "kind": "image", "bytes": 637531},
-    {"path": "buildings/pod/versions/v049/images/after-jamb.png", "name": "after-jamb.png", "kind": "image", "bytes": 611785},
-    {"path": "buildings/pod/versions/v049/images/after-inside.png", "name": "after-inside.png", "kind": "image", "bytes": 591671},
     {"path": "buildings/pod/source/generate_interior_finish.py", "name": "generate_interior_finish.py", "kind": "data", "bytes": 10443},
     {"path": "buildings/pod/versions/v049/generate_interior_finish.py", "name": "generate_interior_finish.py", "kind": "data", "bytes": 10443}
   ],

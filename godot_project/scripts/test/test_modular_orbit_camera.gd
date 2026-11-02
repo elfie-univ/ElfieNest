@@ -1,10 +1,6 @@
 extends SceneTree
 
 const DEMO_SCENE := preload("res://rooms/nest.tscn")
-const MAX_BUILDING_LENGTH: float = 44.8
-const ACTIVITY_OUTER_X: float = -5.2
-const DORM_OUTER_X: float = 6.0
-const WALL_HEIGHT: float = 3.0
 
 
 func _initialize() -> void:
@@ -66,7 +62,7 @@ func run() -> void:
 
 	nest.set("bed_count", 80)
 	await _wait_frames(3)
-	if not _require(nest.bed_count == 32, "Godot nest no longer clamps maximum capacity to 32 beds"):
+	if not _require(nest.bed_count == 32, "Godot nest must keep its fixed capacity at 32 beds"):
 		return
 	var end_on_view := InputEventMouseMotion.new()
 	end_on_view.relative = Vector2(
@@ -76,18 +72,19 @@ func run() -> void:
 	end_on_view.button_mask = MOUSE_BUTTON_MASK_LEFT
 	Input.parse_input_event(end_on_view)
 	await process_frame
-	for x_position in [ACTIVITY_OUTER_X, DORM_OUTER_X]:
-		for y_position in [0.0, WALL_HEIGHT]:
-			for z_position in [0.0, -MAX_BUILDING_LENGTH]:
-				var corner := Vector3(x_position, y_position, z_position)
-				var camera_space_corner := camera.to_local(nest.to_global(corner))
-				if not _require(
-					camera_space_corner.z < -camera.near,
-					"Maximum 32-bed layout passed behind the camera during an end-on orbit"
-				):
-					return
+	var estate := nest.get_node("Generated/CompleteEstate")
+	for mesh: MeshInstance3D in estate.find_children("*", "MeshInstance3D", true, false):
+		if not mesh.is_visible_in_tree():
+			continue
+		for index in range(8):
+			var corner := mesh.global_transform * mesh.get_aabb().get_endpoint(index)
+			if not _require(
+				camera.to_local(corner).z < -camera.near,
+				"Complete estate passed behind the camera during an end-on orbit",
+			):
+				return
 
-	print("PASS: modular orbit camera controls and maximum layout framing")
+	print("PASS: complete estate orbit camera controls and asset framing")
 	quit(0)
 
 

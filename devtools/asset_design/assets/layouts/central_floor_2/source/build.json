@@ -3,7 +3,7 @@
   "source": "model.glb",
   "placements": {},
   "instanceCount": 0,
-  "sourceSha256": "4a1c0b916b798d342173fe92acb4f4b8ac69fe44c54928cef70e069091e7d1cb",
+  "sourceSha256": "81fa01d543bc15edd6a9b747dca5e6e0a9d4c078d63d85319003614b9fd03a1f",
   "design": {
     "status": "review candidate",
     "reference": "../references/approved-second-floor.png",
@@ -199,7 +199,7 @@
       "frameHeightM": 0.32
     }
   },
-  "description": "无损存储压缩：完整角点属性、三角面顺序、材质与摆放不变；PNG 解码像素与色彩信息不变。",
+  "description": "恢复游戏桌四处桌沿封口和两处桌腿顶部封口：六个错位部件沿 X 轴归位 0.66 米，接缝与原有边界对齐；保留全部三角面、材质、法线、UV 及家具摆放。",
   "reuseMasters": {
     "layout:central:2:plant-1": {
       "object": "part:floor_plant",

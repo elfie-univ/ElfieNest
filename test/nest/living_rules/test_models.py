@@ -143,6 +143,7 @@ def test_resident_semantic_state_separates_persistent_and_runtime_fields() -> No
         current_zone_id="activity-main",
         posture="standing",
         active_command_id="command-1",
+        action_anchor_id="dorm-01/chair-01",
         runtime_id="runtime-a",
         runtime_generation=1,
         world_revision=1,
@@ -156,5 +157,7 @@ def test_resident_semantic_state_separates_persistent_and_runtime_fields() -> No
     assert "home_anchor_id" in persistent_json
     assert "current_zone_id" not in persistent_json
     assert "active_command_id" in runtime_json
+    assert "action_anchor_id" in runtime_json
+    assert "action_anchor_id" not in persistent_json
     assert "grid" not in persistent_json
     assert "Vector3" not in persistent_json

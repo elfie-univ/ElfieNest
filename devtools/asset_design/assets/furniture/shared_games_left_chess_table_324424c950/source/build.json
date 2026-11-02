@@ -1,0 +1,18 @@
+{
+  "object": "part:shared_games_left_chess_table_324424c950",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:central:2：1。保持原网格、材质、贴图及内部部件关系。源模型为单节点融合组合，本轮保持完整，不按内部物件或颜色切碎。",
+  "reuse": {
+    "identity": "324424c950586b6bac56fefb0166e82de4718a4b56f8b1a1943ba330943c0a23",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [
+      "源模型为单节点融合组合，本轮保持完整，不按内部物件或颜色切碎。"
+    ],
+    "details": "furniture/shared_games_left_chess_table_324424c950/versions/v001/reuse.json"
+  }
+}

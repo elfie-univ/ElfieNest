@@ -1,9 +1,10 @@
-"""Godot Runtime protocol v3 typed frames and semantic lanes."""
+"""Godot Runtime protocol v4 typed frames and semantic lanes."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum, unique
+from math import isfinite
 from typing import Dict, List, Literal, Optional, Tuple, Type
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -100,24 +101,20 @@ class _ManifestFacilityPayload(_Payload):
 class _SceneManifestPayload(_Payload):
     nest_id: str
     world_revision: int = Field(ge=0)
-    bed_count: int = Field(ge=4, le=32)
+    bed_count: int = Field(strict=True, ge=32, le=32)
     capabilities: List[str] = Field(default_factory=list)
     zones: List[_ManifestZonePayload]
     anchors: List[_ManifestAnchorPayload]
     facilities: List[_ManifestFacilityPayload] = Field(default_factory=list)
 
 
-class _MockMotionPayload(_Payload):
-    waypoint: int = Field(ge=0, le=5)
-    sequence: int = Field(ge=1)
-
-
 class _SnapshotActorPayload(_Payload):
     actor_id: str
     zone_id: Optional[str]
     posture: str
+    arrival_completed: bool = True
     active_command_id: Optional[str]
-    mock_motion: Optional[_MockMotionPayload] = None
+    action_anchor_id: Optional[str] = Field(default=None, min_length=1, strict=True)
     position: Optional[Tuple[float, float, float]] = None
     heading_degrees: Optional[float] = None
     velocity: Optional[Tuple[float, float, float]] = None
@@ -193,6 +190,7 @@ class _ApplyEnvironmentPayload(_Payload):
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
+    life_phase: Literal["night", "dawn", "day", "dusk"]
 
 
 class _EnvironmentStatePayload(_Payload):
@@ -200,13 +198,14 @@ class _EnvironmentStatePayload(_Payload):
     command_id: str = Field(min_length=1)
     lights_on: bool
     quiet_mode: bool
+    life_phase: Literal["night", "dawn", "day", "dusk"]
     applied: bool
     reason: Optional[str] = None
 
 
 class _ConfigureWorldPayload(_Payload):
     nest_id: str = Field(min_length=1)
-    bed_count: int = Field(ge=4, le=32)
+    bed_count: int = Field(strict=True, ge=32, le=32)
     world_revision: int = Field(ge=0)
 
 
@@ -215,6 +214,9 @@ class _ActorDescriptorPayload(_Payload):
     species: str = Field(min_length=1)
     spawn_anchor_id: str = Field(min_length=1)
     appearance: JsonObject
+    hosted: bool = False
+    arrival_id: Optional[str] = None
+    arrival_started_at: Optional[float] = None
 
 
 class _SyncActorsPayload(_Payload):
@@ -229,6 +231,7 @@ class _ExecuteIntentPayload(_Payload):
     initiator: Literal["elfie"]
     intent: Literal[
         "move_to_anchor",
+        "use_anchor",
         "move_forward",
         "turn",
         "speak",
@@ -242,19 +245,49 @@ class _ExecuteIntentPayload(_Payload):
     expression: Optional[str] = None
     intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_use_anchor_types(cls, value: object) -> object:
+        if isinstance(value, dict) and value.get("intent") == "use_anchor":
+            for key in ("command_id", "intent_id", "actor_id", "anchor_id"):
+                if not isinstance(value.get(key), str) or not value[key].strip():
+                    raise ValueError(f"use_anchor requires non-blank {key}")
+            generation = value.get("body_generation")
+            deadline = value.get("deadline_seconds")
+            if type(generation) is not int or generation < 1:
+                raise ValueError("use_anchor requires integer body_generation")
+            if (
+                isinstance(deadline, bool)
+                or not isinstance(deadline, (int, float))
+                or not isfinite(deadline)
+                or deadline <= 0.0
+            ):
+                raise ValueError("use_anchor requires finite positive deadline_seconds")
+        return value
+
     @model_validator(mode="after")
     def _validate_intent_fields(self) -> _ExecuteIntentPayload:
+        if self.intent == "use_anchor":
+            expected_fields = {
+                "command_id",
+                "intent_id",
+                "actor_id",
+                "body_generation",
+                "initiator",
+                "intent",
+                "deadline_seconds",
+                "anchor_id",
+            }
+            if self.model_fields_set != expected_fields:
+                raise ValueError("use_anchor payload has incompatible fields")
         if self.intent == "speak":
             # The utterance is stored and routed by Nest before the direct
             # Body animation command.  The Godot command may therefore omit
             # text; a direct protocol caller may still include non-empty text.
             if self.text is not None and not self.text.strip():
                 raise ValueError("speak payload is incomplete")
-        elif self.intent == "move_to_anchor":
-            required = {
-                "move_to_anchor": self.anchor_id,
-            }
-            value = required["move_to_anchor"]
+        elif self.intent in {"move_to_anchor", "use_anchor"}:
+            value = self.anchor_id
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{self.intent} payload is incomplete")
         elif self.intent == "move_forward":
@@ -281,6 +314,7 @@ class _ExecuteIntentPayload(_Payload):
         }
         expected = {
             "move_to_anchor": {"anchor_id"},
+            "use_anchor": {"anchor_id"},
             "move_forward": {"distance"},
             "turn": {"angle_degrees"},
             "speak": {"text"} if self.text is not None else set(),
@@ -365,7 +399,7 @@ _EVENT_LANES = {
 class _RuntimeFrame(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    protocol: Literal[3]
+    protocol: Literal[4]
     lane: SemanticLane
     message_id: str
     cause_id: Optional[str] = None
@@ -377,7 +411,7 @@ class _RuntimeFrame(BaseModel):
 
 
 class RuntimeCommandFrame(_RuntimeFrame):
-    """Strict outbound command frame for protocol v3."""
+    """Strict outbound command frame for protocol v4."""
 
     kind: Literal["command"]
     name: CommandName
@@ -422,7 +456,7 @@ class RuntimeCommandFrame(_RuntimeFrame):
 
 
 class RuntimeEventFrame(_RuntimeFrame):
-    """Strict inbound event frame for protocol v3."""
+    """Strict inbound event frame for protocol v4."""
 
     kind: Literal["event"]
     name: EventName

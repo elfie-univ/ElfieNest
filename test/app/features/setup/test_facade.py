@@ -25,7 +25,7 @@ from app.features.setup import (
 class FakeBoundary:
     def __init__(self) -> None:
         self.draft = StoredSetupDraft(
-            None, None, None, None, None, 12, False, False, False, None
+            None, None, None, None, None, 32, False, False, False, None
         )
         self.install = StoredSetupInstallation(
             None, "not_started", None, None, "idle", 0, None, None
@@ -51,9 +51,9 @@ class FakeBoundary:
 
     def validate_bed_count(self, bed_count: int) -> int:
         self.validated.append(bed_count)
-        if bed_count not in {7, 12}:
+        if bed_count != 32:
             raise ValueError("Nest policy rejected bed count")
-        return bed_count
+        return 32
 
     def list_setup_models(self) -> tuple[StoredSetupModelOption, ...]:
         return (StoredSetupModelOption("qwen2.5:0.5b", "Qwen", 398, True),)
@@ -108,10 +108,10 @@ def test_nest_choice_is_validated_by_the_narrow_nest_policy_port() -> None:
     boundary = FakeBoundary()
     result = _service(boundary).save_nest_draft(
         SetupPrincipal("setup", local=True),
-        SaveSetupNestDraftCommand(bed_count=7),
+        SaveSetupNestDraftCommand(bed_count=32),
     )
-    assert boundary.validated == [7]
-    assert result.draft.bed_count == 7
+    assert boundary.validated == [32]
+    assert result.draft.bed_count == 32
 
 
 def test_draft_mutations_reject_non_local_setup_principal() -> None:
@@ -119,7 +119,7 @@ def test_draft_mutations_reject_non_local_setup_principal() -> None:
     with pytest.raises(SetupForbidden):
         _service(boundary).save_nest_draft(
             SetupPrincipal("setup", local=False),
-            SaveSetupNestDraftCommand(bed_count=7),
+            SaveSetupNestDraftCommand(bed_count=32),
         )
 
 
@@ -157,10 +157,10 @@ def test_local_owner_can_revise_non_account_choices_after_failed_install() -> No
 
     result = _service(boundary).save_nest_draft(
         SetupPrincipal("owner", local=True),
-        SaveSetupNestDraftCommand(bed_count=7),
+        SaveSetupNestDraftCommand(bed_count=32),
     )
 
-    assert result.draft.bed_count == 7
+    assert result.draft.bed_count == 32
 
 
 def test_remote_food_decision_does_not_write_the_nest_default() -> None:
@@ -177,7 +177,7 @@ def test_remote_food_decision_does_not_write_the_nest_default() -> None:
     assert result.draft.remote_configured is True
     assert result.draft.remote_skipped is False
     assert result.draft.remote_connection_id == "connection-openai"
-    assert result.draft.bed_count == 12
+    assert result.draft.bed_count == 32
     assert result.draft.nest_configured is False
 
 

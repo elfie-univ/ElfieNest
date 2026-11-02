@@ -36,7 +36,7 @@ from .models import (
     SubmitObserverIntentCommand,
     UpdateObserverInterestCommand,
 )
-from .port_models import ObserverEntityRecord
+from .port_models import ObserverEntityRecord, ObserverEnvironmentRecord
 from .ports import (
     ObserverCapabilityIssuerPort,
     ObserverClockPort,
@@ -59,6 +59,7 @@ class _ObserverSession:
     pending: Deque[ObserverFrameResult] = field(default_factory=deque)
     entities: dict[str, ObserverEntityRecord] = field(default_factory=dict)
     entity_revisions: dict[str, int] = field(default_factory=dict)
+    environment: ObserverEnvironmentRecord | None = None
     snapshot_required: bool = True
     intent_timestamps: Deque[float] = field(default_factory=deque)
     lock: RLock = field(default_factory=RLock, repr=False)
@@ -166,6 +167,14 @@ class ObserverFacade:
             query.session_fingerprint,
             query.capability,
         ) as session:
+            try:
+                environment = self._world.read_environment()
+            except ObserverPortError as error:
+                raise ObserverUnavailable("observer environment unavailable") from error
+            if environment != session.environment:
+                session.environment = environment
+                session.pending.clear()
+                session.snapshot_required = True
             self._publish_session(session, self._entities())
             if self._acknowledgement_is_invalid(
                 session,
@@ -285,7 +294,7 @@ class ObserverFacade:
         try:
             visible = self._elfies.list_visible(
                 _account_principal(principal),
-                ListVisibleElfiesQuery(),
+                ListVisibleElfiesQuery(relationship="owned"),
             )
         except ElfiesError as error:
             raise ObserverUnavailable("Elfie authorization unavailable") from error
@@ -356,6 +365,7 @@ class ObserverFacade:
             generation=session.generation,
             sequence=session.sequence,
             scope=session.subscription,
+            environment=session.environment,
             entities=tuple(
                 ObserverProjectedEntityResult(
                     state=entity,
@@ -447,10 +457,13 @@ def _changes(
         "posture",
         "active",
         "active_command_id",
+        "action_anchor_id",
         "species_id",
         "appearance",
         "home_anchor_id",
-        "mock_motion",
+        "hosted",
+        "arrival_id",
+        "arrival_started_at",
     )
     return tuple(
         ObserverEntityChangeResult(field=field, value=current_fields[field])
@@ -468,14 +481,13 @@ def _entity_fields(
         "posture": entity.posture,
         "active": entity.active,
         "active_command_id": entity.active_command_id,
+        "action_anchor_id": entity.action_anchor_id,
         "species_id": entity.species_id,
         "appearance": dict(entity.appearance),
         "home_anchor_id": entity.home_anchor_id,
-        "mock_motion": (
-            entity.mock_motion.model_dump(mode="json")
-            if entity.mock_motion is not None
-            else None
-        ),
+        "hosted": entity.hosted,
+        "arrival_id": entity.arrival_id,
+        "arrival_started_at": entity.arrival_started_at,
     }
 
 

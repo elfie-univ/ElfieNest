@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_broad_leaf_planter_f7cb43849e",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：2 处源摆放，庄园共 2 次引用。layout:central:1：2。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "f7cb43849ef6d409ffee26ce4ea55c9f6edf6acf284991b346c8b1d0a7e1e667",
+    "category": "plant",
+    "sourceReferences": 2,
+    "estateReferences": 2,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_broad_leaf_planter_f7cb43849e/versions/v001/reuse.json"
+  }
+}

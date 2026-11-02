@@ -112,7 +112,7 @@ function statusFor(currentStep: 1 | 2 | 3, overrides: Partial<SetupStatus> = {})
     use_local_ollama: currentStep > 2 ? false : null,
     ollama_installed: false,
     model_id: null,
-    bed_count: 12,
+    bed_count: 32,
     owner_configured: currentStep > 1,
     offline_configured: currentStep > 2,
     nest_configured: currentStep > 2,

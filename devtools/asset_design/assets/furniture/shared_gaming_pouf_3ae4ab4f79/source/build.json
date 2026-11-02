@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_gaming_pouf_3ae4ab4f79",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M02：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "3ae4ab4f79acb4bef11259a1c0098e0c47511051a4dd9a83e2bd5be7159d893d",
+    "category": "chair",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_gaming_pouf_3ae4ab4f79/versions/v001/reuse.json"
+  }
+}

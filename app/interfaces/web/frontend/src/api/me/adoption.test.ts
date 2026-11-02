@@ -60,7 +60,7 @@ describe("versioned current-member Adoption client", () => {
         builds: ["standard"],
         life_stages: ["any"],
         quota: { used: 0, max: 3, remaining: 3, can_adopt: true },
-        nest_capacity: { used: 0, max: 4, remaining: 4 },
+        nest_capacity: { used: 0, max: 32, remaining: 32 },
         availability: "available",
       })
       .mockResolvedValueOnce({ candidate_set_id: "set-1", adoption_session_id: "session-1", batch_number: 1, candidates: Array(5).fill(candidate) })

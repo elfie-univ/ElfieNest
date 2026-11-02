@@ -28,7 +28,7 @@ from app.orchestration.resident_admission import (
     AdmissionState,
 )
 from infrastructure.persistence.nest_db.sqlite_connection import app_sqlite_connection
-from nest.public import NestConfig
+from nest.public import FIXED_BED_COUNT, NestConfig
 
 
 class SQLiteAdoptionAdapter:
@@ -60,13 +60,10 @@ class SQLiteAdoptionAdapter:
     def get_nest_capacity(self) -> AdoptionNestCapacityRecord:
         try:
             with app_sqlite_connection(self._db_path) as connection:
-                row = connection.execute(
-                    "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
-                ).fetchone()
                 used = _count_elfies(connection)
         except sqlite3.Error as error:
             raise AdoptionPortError("unable to read Nest capacity") from error
-        maximum = self._nest_config.bed_count if row is None else int(row[0])
+        maximum = FIXED_BED_COUNT
         return AdoptionNestCapacityRecord(used=used, maximum=maximum)
 
     # ResidentAdmissionStorePort -----------------------------------------
@@ -94,12 +91,7 @@ class SQLiteAdoptionAdapter:
                 if owner is None:
                     raise AdoptionPortOwnerNotFound
 
-                nest = connection.execute(
-                    "SELECT bed_count FROM nest_settings WHERE nest_id='local-nest'"
-                ).fetchone()
-                nest_limit = (
-                    self._nest_config.bed_count if nest is None else int(nest[0])
-                )
+                nest_limit = FIXED_BED_COUNT
                 if _count_elfies(connection) >= nest_limit:
                     raise AdoptionPortNestCapacityReached(nest_limit)
 

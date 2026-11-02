@@ -18,3 +18,15 @@ Godot 是房屋、几何、世界坐标、移动、碰撞、角色和渲染的�
 打开、运行或截图前，先核对 `project.godot` 的 Godot 版本和已有进程，再按
 [Godot README](https://github.com/elfie-univ/ElfieNest/blob/main/godot_project/README.md)
 与 `godot_project/WEB_EXPORT.md` 的流程操作。
+
+## 居民状态接线
+
+权威 Gateway 使用协议 4。环境命令单独携带 `life_phase`，不受灯光覆盖影响：
+白天／黎明所有门常开，黄昏／夜间使用已有感应与防夹控制。所有精灵均可进入所有房间。
+
+正式 Nest 会话选择 Brain 具身输入。寄身前必须取得精灵已在自己的床上躺好的权威状态；
+选中实体身体后，虚拟身体留床并显示罩体。已提交的领养标识与时间驱动四楼单向到达展示，
+重连不会重置到达时钟。没有传送离开，也不加入声音展示。
+
+聚焦场景验证：`bash scripts/quality/checks/godot_host.sh
+res://scripts/test/test_resident_lifecycle.gd`。真实设备寄身及最终画面验收仍需单独完成。

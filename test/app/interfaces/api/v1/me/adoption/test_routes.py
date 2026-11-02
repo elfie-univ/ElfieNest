@@ -43,7 +43,7 @@ def _client(tmp_path: Path) -> tuple[TestClient, str]:
     with get_db(db_path) as connection:
         connection.execute(
             """INSERT INTO nest_settings(nest_id,bed_count,tick_interval_sec)
-               VALUES ('local-nest',4,0.5)"""
+               VALUES ('local-nest',32,0.5)"""
         )
         user_id = int(
             connection.execute(
@@ -102,8 +102,8 @@ def test_versioned_adoption_resource_preserves_candidate_reply_and_commit(
     }
     assert options.json()["nest_capacity"] == {
         "used": 0,
-        "max": 4,
-        "remaining": 4,
+        "max": 32,
+        "remaining": 32,
     }
     assert options.json()["availability"] == "available"
     assert options.json()["species"][0]["appearance_controls"] == [
@@ -283,7 +283,7 @@ def test_options_report_global_nest_full_before_member_quota(tmp_path: Path) -> 
                 "SELECT id FROM users WHERE account_id='alice'"
             ).fetchone()[0]
         )
-        for index in range(4):
+        for index in range(32):
             connection.execute(
                 """INSERT INTO elfies(
                        elfie_id,owner_user_id,adopted_at,status

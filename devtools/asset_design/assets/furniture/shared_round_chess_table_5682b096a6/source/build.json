@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_round_chess_table_5682b096a6",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M04：1。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "5682b096a65ad52c51cddb775127832c34930af76b5eb80e79ee9d5206a68eb8",
+    "category": "table",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_round_chess_table_5682b096a6/versions/v001/reuse.json"
+  }
+}

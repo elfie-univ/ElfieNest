@@ -105,10 +105,10 @@ class FakeWebSocket:
         raise StopAsyncIteration
 
 
-def test_gateway_accepts_only_authenticated_protocol_v3_hello() -> None:
+def test_gateway_accepts_only_authenticated_protocol_v4_hello() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     accepted = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://127.0.0.1:8000",
     )
     legacy = FakeWebSocket(
@@ -120,7 +120,7 @@ def test_gateway_accepts_only_authenticated_protocol_v3_hello() -> None:
     anyio.run(server._handle_client, legacy)
 
     assert accepted.closed == []
-    assert json.loads(accepted.sent[0])["payload"]["protocol"] == 3
+    assert json.loads(accepted.sent[0])["payload"]["protocol"] == 4
     assert legacy.closed == [(4004, "Invalid Godot handshake")]
     assert legacy.sent == []
 
@@ -128,7 +128,7 @@ def test_gateway_accepts_only_authenticated_protocol_v3_hello() -> None:
 def test_gateway_rejects_event_as_first_frame() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        ['{"kind":"event","protocol":3}'],
+        ['{"kind":"event","protocol":4}'],
         origin="http://127.0.0.1:8000",
     )
 
@@ -140,14 +140,14 @@ def test_gateway_rejects_event_as_first_frame() -> None:
 def test_gateway_rejects_wrong_nonce_and_origin() -> None:
     server = GodotAPIServer(port=0, handshake_nonce="nonce-1")
     wrong_nonce = FakeWebSocket(
-        [_hello(protocol=3, nonce="wrong")],
+        [_hello(protocol=4, nonce="wrong")],
         origin="http://127.0.0.1:8000",
     )
     wrong_origin = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="https://example.invalid",
     )
-    empty_origin = FakeWebSocket([_hello(protocol=3, nonce="nonce-1")])
+    empty_origin = FakeWebSocket([_hello(protocol=4, nonce="nonce-1")])
 
     anyio.run(server._handle_client, wrong_nonce)
     anyio.run(server._handle_client, wrong_origin)
@@ -165,7 +165,7 @@ def test_gateway_allows_configured_web_runtime_origin() -> None:
         handshake_nonce="nonce-1",
     )
     websocket = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://127.0.0.1:18000",
     )
 
@@ -177,7 +177,7 @@ def test_gateway_allows_configured_web_runtime_origin() -> None:
 def test_gateway_allows_native_dedicated_loopback_origin_without_port() -> None:
     server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://127.0.0.1",
     )
 
@@ -189,7 +189,7 @@ def test_gateway_allows_native_dedicated_loopback_origin_without_port() -> None:
 def test_gateway_normalizes_native_loopback_origin_trailing_slash() -> None:
     server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
     websocket = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://127.0.0.1:8765/",
     )
 
@@ -201,11 +201,11 @@ def test_gateway_normalizes_native_loopback_origin_trailing_slash() -> None:
 def test_gateway_rejects_origin_with_credentials_or_path() -> None:
     server = GodotAPIServer(port=8765, handshake_nonce="nonce-1")
     with_credentials = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://user:pass@127.0.0.1:8765",
     )
     with_path = FakeWebSocket(
-        [_hello(protocol=3, nonce="nonce-1")],
+        [_hello(protocol=4, nonce="nonce-1")],
         origin="http://127.0.0.1:8765/runtime",
     )
 

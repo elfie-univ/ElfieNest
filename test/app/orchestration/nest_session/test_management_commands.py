@@ -13,9 +13,9 @@ from app.orchestration.nest_session.models import (
     SceneManifest,
     SemanticWorldCatalog,
     WorldAnchor,
-    WorldConfigured,
     WorldZone,
 )
+from nest.config import NestConfigError
 from nest.public import (
     AnchorKind,
     InteractionAnchor,
@@ -32,7 +32,7 @@ class RecordingNestStateStore:
     def __init__(self) -> None:
         self.fail_writes = False
         self.snapshot = NestSnapshot(
-            desired_bed_count=4,
+            desired_bed_count=32,
             elapsed_seconds=0.0,
             catalog=None,
             residents=(),
@@ -65,50 +65,20 @@ def test_bed_count_command_survives_ticks_and_session_restart() -> None:
     assert restarted.nest.desired_bed_count == 32
 
 
-def test_bed_count_command_reconfigures_runtime_and_rejects_stale_manifest() -> None:
+def test_fixed_bed_count_does_not_reconfigure_runtime() -> None:
     runtime = FakeWorldRuntime()
     runtime.connection = RuntimeConnection("runtime-a", 1)
     store = RecordingNestStateStore()
     engine = ElfieNestEngine(runtime, state_store=store)
 
     engine.tick_once(0.0)
-    assert runtime.configurations == [("local-nest", 4, 1)]
+    assert runtime.configurations == [("local-nest", 32, 1)]
 
     engine.session.update_bed_count(32)
-    runtime.events.append(_manifest_event(revision=1, bed_count=4))
-    engine.tick_once(0.0)
-
-    assert runtime.configurations[-1] == ("local-nest", 32, 2)
-    assert engine.nest.world_catalog is None
-
-    runtime.events.extend(
-        (
-            _manifest_event(revision=2, bed_count=32),
-            WorldEvent(
-                event_id="configured-2",
-                connection=RuntimeConnection("runtime-a", 1),
-                world_revision=2,
-                name=WorldEventName.WORLD_CONFIGURED,
-                payload=WorldConfigured(configured=True, navigation_ready=True),
-            ),
-        )
-    )
-    engine.tick_once(0.0)
-
-    assert engine.nest.world_catalog is not None
-    assert engine.nest.world_catalog.revision == 2
-    assert (
-        sum(
-            1
-            for zone in engine.nest.world_catalog.zones
-            for anchor in zone.anchors
-            if anchor.kind.value == "bed" and anchor.active
-        )
-        == 32
-    )
-    assert store.snapshot.desired_bed_count == 32
-    assert store.snapshot.catalog is not None
-    assert store.snapshot.catalog.revision == 2
+    assert runtime.configurations == [("local-nest", 32, 1)]
+    with pytest.raises(NestConfigError, match="固定为 32"):
+        engine.session.update_bed_count(4)
+    assert engine.nest.desired_bed_count == 32
 
 
 def test_bed_count_command_rolls_back_live_nest_when_persistence_fails() -> None:
@@ -119,14 +89,14 @@ def test_bed_count_command_rolls_back_live_nest_when_persistence_fails() -> None
     with pytest.raises(NestStateStoreError, match="injected write failure"):
         engine.session.update_bed_count(32)
 
-    assert engine.nest.desired_bed_count == 4
-    assert store.snapshot.desired_bed_count == 4
+    assert engine.nest.desired_bed_count == 32
+    assert store.snapshot.desired_bed_count == 32
 
 
 def test_home_assignment_survives_ticks_and_session_restart() -> None:
     store = RecordingNestStateStore()
     store.snapshot = NestSnapshot(
-        desired_bed_count=4,
+        desired_bed_count=32,
         elapsed_seconds=0.0,
         catalog=_persisted_catalog(),
         residents=(
@@ -150,7 +120,7 @@ def test_home_assignment_survives_ticks_and_session_restart() -> None:
 def test_admission_finalization_assigns_home_before_runtime_registration() -> None:
     store = RecordingNestStateStore()
     store.snapshot = NestSnapshot(
-        desired_bed_count=4,
+        desired_bed_count=32,
         elapsed_seconds=0.0,
         catalog=_persisted_catalog(),
         residents=(),

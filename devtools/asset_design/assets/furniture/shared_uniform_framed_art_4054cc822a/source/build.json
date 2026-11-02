@@ -1,0 +1,19 @@
+{
+  "object": "part:shared_uniform_framed_art_4054cc822a",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：9 处源摆放，庄园共 9 次引用。layout:central:1：8；layout:central:2：1。保持原网格、材质、贴图及内部部件关系。框、画垫、画芯、背板作为一幅完整装饰画保留；更换画芯的节点边界保留。框、画垫、画芯、背板共同保留。",
+  "reuse": {
+    "identity": "4054cc822a192ceceb3b7a847b34adb82df8789c5bfb980c200b4c4fe00bfb69",
+    "category": "decor",
+    "sourceReferences": 9,
+    "estateReferences": 9,
+    "approval": "pending",
+    "notes": [
+      "框、画垫、画芯、背板作为一幅完整装饰画保留；更换画芯的节点边界保留。",
+      "框、画垫、画芯、背板共同保留。"
+    ],
+    "details": "furniture/shared_uniform_framed_art_4054cc822a/versions/v001/reuse.json"
+  }
+}

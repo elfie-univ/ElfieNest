@@ -12,7 +12,6 @@ vi.mock("../api/client", async (loadOriginal) => ({
   adminElfies: vi.fn(),
   ownerAssignBed: vi.fn(),
   ownerRooms: vi.fn(),
-  ownerUpdateBedCount: vi.fn(),
 }))
 
 vi.mock("./ObservationMonitor", () => ({
@@ -44,7 +43,7 @@ describe("OwnerNestPanel", () => {
     vi.mocked(ownerRooms).mockResolvedValue([{
       id: "local-nest",
       name: "Local Nest",
-      desired_bed_count: 4,
+      desired_bed_count: 32 as const,
       beds: [{
         anchor_id: "dorm-01/bed-01",
         id: "dorm-01/bed-01",
@@ -70,7 +69,7 @@ describe("OwnerNestPanel", () => {
     vi.mocked(ownerRooms).mockResolvedValue([{
       id: "local-nest",
       name: "Local Nest",
-      desired_bed_count: 32,
+      desired_bed_count: 32 as const,
       applied_world_revision: 1,
       beds: [],
     }])
@@ -78,14 +77,14 @@ describe("OwnerNestPanel", () => {
 
     render(<I18nextProvider i18n={i18n}><ToastProvider><OwnerNestPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
 
-    expect(await screen.findByText("已保存 32 个床位；当前布局 0 个，后台正在同步。")).toBeInTheDocument()
+    expect(await screen.findByText("固定 32 个床位；当前运行时布局已载入 0 个，后台正在同步。")).toBeInTheDocument()
   })
 
   it("refreshes the status when the runtime catalog converges", async () => {
     const pendingRoom = {
       id: "local-nest",
       name: "Local Nest",
-      desired_bed_count: 32,
+      desired_bed_count: 32 as const,
       applied_world_revision: 1,
       beds: [],
     }
@@ -108,8 +107,8 @@ describe("OwnerNestPanel", () => {
 
     render(<I18nextProvider i18n={i18n}><ToastProvider><OwnerNestPanel csrfToken="csrf" /></ToastProvider></I18nextProvider>)
 
-    expect(await screen.findByText("已保存 32 个床位；当前布局 0 个，后台正在同步。")).toBeInTheDocument()
-    expect(await screen.findByText("已应用 32 个床位。", {}, { timeout: 1500 })).toBeInTheDocument()
+    expect(await screen.findByText("固定 32 个床位；当前运行时布局已载入 0 个，后台正在同步。")).toBeInTheDocument()
+    expect(await screen.findByText("房间固定为 32 个床位。", {}, { timeout: 1500 })).toBeInTheDocument()
     expect(ownerRooms).toHaveBeenCalledTimes(2)
   })
 })

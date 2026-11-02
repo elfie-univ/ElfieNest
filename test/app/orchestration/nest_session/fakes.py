@@ -93,6 +93,7 @@ class FakeWorldRuntime:
         command_id: str,
         lights_on: bool,
         quiet_mode: bool,
+        life_phase: str = "night",
         world_revision: int,
     ) -> str | None:
         if self.connection is None:

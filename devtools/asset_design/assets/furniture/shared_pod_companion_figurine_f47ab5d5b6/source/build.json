@@ -1,0 +1,16 @@
+{
+  "object": "part:shared_pod_companion_figurine_f47ab5d5b6",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 8 次引用。layout:pod：8。保持原网格、材质、贴图及内部部件关系。",
+  "reuse": {
+    "identity": "f47ab5d5b6cb4f7b482a5594e589e4d1da1e4160584518ec22a8670d41c741e7",
+    "category": "decor",
+    "sourceReferences": 1,
+    "estateReferences": 8,
+    "approval": "pending",
+    "notes": [],
+    "details": "furniture/shared_pod_companion_figurine_f47ab5d5b6/versions/v001/reuse.json"
+  }
+}

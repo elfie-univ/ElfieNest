@@ -1,0 +1,18 @@
+{
+  "object": "part:shared_reference_rear_open_storage_2042a1ccd1",
+  "source": "model.glb",
+  "placements": {},
+  "instanceCount": 0,
+  "description": "公共资产：1 处源摆放，庄园共 1 次引用。layout:terrace:M02：1。保持原网格、材质、贴图及内部部件关系。源模型为单节点融合组合，本轮保持完整，不将其中各小件强行拆分。",
+  "reuse": {
+    "identity": "2042a1ccd1e116c89f8f1db25c014a02159d6d1c941c3d50a8ce0d1516c6ff12",
+    "category": "storage",
+    "sourceReferences": 1,
+    "estateReferences": 1,
+    "approval": "pending",
+    "notes": [
+      "源模型为单节点融合组合，本轮保持完整，不将其中各小件强行拆分。"
+    ],
+    "details": "furniture/shared_reference_rear_open_storage_2042a1ccd1/versions/v001/reuse.json"
+  }
+}

@@ -28,11 +28,25 @@ function validWorldConfig() {
     version: 1,
     kind: "world_config",
     nest_id: "local-nest",
-    bed_count: 4,
+    bed_count: 32,
   }
 }
 
 describe("observer camera protocol", () => {
+  it("rejects the removed drag mode switching command", () => {
+    const base = { channel: "elfienest.observer", version: 1, kind: "camera_command", action: "set_drag_modes" }
+    for (const left_drag of ["look", "orbit"]) {
+      for (const right_drag of ["track", "free"]) {
+        const command = { ...base, left_drag, right_drag }
+        expect(parseObserverCameraCommand(command)).toBeNull()
+        expect(parseObserverCameraCommand({ ...command, position: [0, 0, 0] })).toBeNull()
+      }
+    }
+    expect(parseObserverCameraCommand({ ...base, left_drag: "fly", right_drag: "free" })).toBeNull()
+    expect(parseObserverCameraCommand({ ...base, left_drag: "look" })).toBeNull()
+    expect(parseObserverCameraCatalog(JSON.stringify({ ...validCatalog(), right_drag: "fly" }))).toBeNull()
+  })
+
   it("parses only JSON catalog envelopes", () => {
     expect(parseObserverCameraCatalog(validCatalog())).toBeNull()
     expect(parseObserverCameraCatalog(JSON.stringify(validCatalog()))).toMatchObject({
@@ -135,13 +149,24 @@ describe("observer camera protocol", () => {
           posture: "standing",
           active: true,
           active_command_id: null,
+          action_anchor_id: "dorm-01/chair-01",
           species_id: "saevi",
           home_anchor_id: "dorm-01/bed-01",
           appearance: {},
-          mock_motion: { waypoint: 1, sequence: 1 },
         },
       },
+      environment: null,
       entity_revisions: { "saevi-1": 1 },
+    }
+
+    expect(parseObserverSemanticSnapshot({ ...snapshot, environment: {
+      phase: "night", lights_on: true, quiet_mode: true,
+    } })?.environment?.quiet_mode).toBe(true)
+    for (const environment of [
+      { phase: "night", lights_on: true },
+      { phase: "night", lights_on: true, quiet_mode: "false" },
+    ]) {
+      expect(parseObserverSemanticSnapshot({ ...snapshot, environment })).toBeNull()
     }
 
     expect(parseObserverSemanticSnapshot(snapshot)).toMatchObject({
@@ -149,10 +174,17 @@ describe("observer camera protocol", () => {
       generation: 1,
       sequence: 2,
     })
-    expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.mock_motion).toEqual({
-      waypoint: 1,
-      sequence: 1,
-    })
+    expect(parseObserverSemanticSnapshot({
+      ...snapshot,
+      entities: { "saevi-1": { ...snapshot.entities["saevi-1"], mock_motion: { waypoint: 1, sequence: 1 } } },
+    })).toBeNull()
+    expect(parseObserverSemanticSnapshot(snapshot)?.entities["saevi-1"]?.action_anchor_id).toBe("dorm-01/chair-01")
+    for (const invalid of ["", 42, { position: [0, 0, 0] }]) {
+      expect(parseObserverSemanticSnapshot({
+        ...snapshot,
+        entities: { "saevi-1": { ...snapshot.entities["saevi-1"], action_anchor_id: invalid } },
+      })).toBeNull()
+    }
     expect(parseObserverSemanticSnapshot({ ...snapshot, position: { x: 1, y: 2, z: 3 } })).toBeNull()
     expect(parseObserverSemanticSnapshot({
       ...snapshot,

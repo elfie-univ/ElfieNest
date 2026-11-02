@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Mapping, Optional, Union, cast
 
@@ -167,6 +168,7 @@ def build_nest_session_services(
                 nest_config=selected_nest_config,
             ),
             nest_config=selected_nest_config,
+            local_time=lambda: datetime.now().astimezone(),
         ),
         world_runtime=world_runtime,
         model_port_factory=model_port_factory,

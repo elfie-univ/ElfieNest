@@ -33,6 +33,7 @@ from .models import (
     ObserverDeltaResponse,
     ObserverEntityPatchResponse,
     ObserverEntityResponse,
+    ObserverEnvironmentResponse,
     ObserverErrorDetails,
     ObserverErrorItem,
     ObserverErrorResponse,
@@ -206,6 +207,15 @@ def next_observer_frame(
         return ObserverSnapshotResponse(
             protocol=3,
             kind="snapshot",
+            environment=(
+                ObserverEnvironmentResponse(
+                    phase=result.environment.phase.value,
+                    lights_on=result.environment.lights_on,
+                    quiet_mode=result.environment.quiet_mode,
+                )
+                if result.environment is not None
+                else None
+            ),
             generation=result.generation,
             sequence=result.sequence,
             scope=_subscription_response(result.scope),
@@ -280,10 +290,13 @@ def _entity_response(entity: ObserverEntityRecord) -> ObserverEntityResponse:
         posture=entity.posture,
         active=entity.active,
         active_command_id=entity.active_command_id,
+        action_anchor_id=entity.action_anchor_id,
         species_id=entity.species_id,
         appearance=dict(entity.appearance),
         home_anchor_id=entity.home_anchor_id,
-        mock_motion=entity.mock_motion,
+        hosted=entity.hosted,
+        arrival_id=entity.arrival_id,
+        arrival_started_at=entity.arrival_started_at,
     )
 
 
